@@ -718,6 +718,9 @@ private enum SidebarChromeSnapshotContext {
   static let groupID = TerminalTabGroupID(
     rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000001")
   )
+  static let regularGroupID = TerminalTabGroupID(
+    rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000002")
+  )
 
   static let terminal: TerminalHostState = {
     let terminal = TerminalHostState(managesTerminalSurfaces: false)
@@ -733,12 +736,11 @@ private enum SidebarChromeSnapshotContext {
       from: TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces),
       initialSelectedSpaceID: spaces[0].id
     )
-    let root = rootTab("43", title: "supaterm - fish")
+    let regularGroupTab = tab("43", title: "supaterm - fish")
     let selectedGroupTab = tab("44", title: "release-check")
     let rootItems = [
       rootTab("41", title: "dotfiles", isPinned: true),
       rootTab("42", title: "notes", isPinned: true),
-      root,
       TerminalTabRootItem.group(
         TerminalTabGroupItem(
           id: groupID,
@@ -749,6 +751,15 @@ private enum SidebarChromeSnapshotContext {
             selectedGroupTab,
             tab("45", title: "agent playground"),
           ]
+        )
+      ),
+      TerminalTabRootItem.group(
+        TerminalTabGroupItem(
+          id: regularGroupID,
+          title: "Product",
+          color: .red,
+          isPinned: false,
+          tabs: [regularGroupTab]
         )
       ),
     ]

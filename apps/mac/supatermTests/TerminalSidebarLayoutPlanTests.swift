@@ -174,8 +174,9 @@ struct TerminalSidebarLayoutPlanTests {
   func pinDividerWinsBeforeExpandedExitAndTrailingOwnsFooter() throws {
     let child = TerminalTabID()
     let source = TerminalTabID()
-    let regular = TerminalTabID()
+    let regularChild = TerminalTabID()
     let groupID = TerminalTabGroupID()
+    let regularGroupID = TerminalTabGroupID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
@@ -183,7 +184,10 @@ struct TerminalSidebarLayoutPlanTests {
           isPinned: true
         ),
         TerminalSidebarOutline.Root(content: .tab(source), isPinned: true),
-        TerminalSidebarOutline.Root(content: .tab(regular), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .group(regularGroupID, .green, .automatic, [regularChild]),
+          isPinned: false
+        ),
       ],
       revision: 3
     )
@@ -193,14 +197,14 @@ struct TerminalSidebarLayoutPlanTests {
     )
     let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
     let divider = try #require(plan.items.first { $0.id == .pinDivider }?.frame)
-    let regularFrame = try #require(plan.items.first { $0.id == .tab(regular) }?.frame)
+    let regularGroupFrame = try #require(plan.groups.first { $0.id == regularGroupID }?.frame)
     let footer = try #require(plan.items.first { $0.id == .newTab }?.frame)
 
     #expect(
       divider.minY - childFrame.maxY == TerminalSidebarLayoutPlan.pinDividerTopSpacing
     )
     #expect(
-      regularFrame.minY - divider.maxY == TerminalSidebarLayout.tabRowSpacing
+      regularGroupFrame.minY - divider.maxY == TerminalSidebarLayout.tabRowSpacing
     )
     #expect(plan.semanticTarget(at: divider.midY)?.path == .pinnedEnd)
     #expect(plan.semanticTarget(at: footer.midY)?.path == .trailingRoot)

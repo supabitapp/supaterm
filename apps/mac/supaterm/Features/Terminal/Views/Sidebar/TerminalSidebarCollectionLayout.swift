@@ -36,6 +36,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   static let childTrailingInset: CGFloat = 6
   static let rootSpacing: CGFloat = 10
   static let pinDividerTopSpacing: CGFloat = 8
+  private static let groupSurfaceVerticalOverflow: CGFloat = 2
   static let expandedGroupTrailingSpacing: CGFloat = 3
   static let dividerHeight: CGFloat = 9
   static let targetRowHeight: CGFloat = 37
@@ -251,7 +252,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       return Group(
         id: id,
         color: color,
-        frame: frame.insetBy(dx: 0, dy: -2),
+        frame: frame.insetBy(dx: 0, dy: -Self.groupSurfaceVerticalOverflow),
         alpha: header.alpha
       )
     }
@@ -579,6 +580,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
     switch (previous?.kind, entry.kind) {
     case (_, .pinDivider):
       pinDividerTopSpacing
+    case (.pinDivider, .group):
+      TerminalSidebarLayout.tabRowSpacing + groupSurfaceVerticalOverflow
     case (.pinDivider, _):
       TerminalSidebarLayout.tabRowSpacing
     case (.tab(_, .some, _), .tab(_, nil, _)),
