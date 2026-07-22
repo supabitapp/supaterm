@@ -37,11 +37,11 @@ extension SupatermE2ESuite {
       _ = try lockTabTitle(app, tabID: secondTab.tabID, title: secondTitle)
       let split = try makeSplit(app, from: secondTab, cwd: directory)
       let secondSpace = try makeSpace(app, name: secondSpaceName)
-      _ = try lockTabTitle(app, tabID: secondSpace.tabID, title: thirdTitle)
       _ = try app.send(
         .focusPane(SupatermPaneTargetRequest(paneID: split.paneID)),
         as: SupatermFocusPaneResult.self
       )
+      _ = try lockTabTitle(app, tabID: secondSpace.tabID, title: thirdTitle)
       let before = try app.debugSnapshot()
 
       try await app.waitForPersistedStateQuiescence(
