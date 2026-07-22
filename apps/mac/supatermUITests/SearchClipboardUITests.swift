@@ -25,7 +25,9 @@ final class SearchClipboardUITests: SupatermUITestCase {
     searchField.typeText(needle)
     XCTAssertEqual(searchField.value as? String, needle)
 
-    let matchLabel = app.staticTexts[SupatermUITestIdentifier.Accessibility.searchMatchCount]
+    let matchLabel = app.staticTexts.matching(
+      NSPredicate(format: "label MATCHES %@", "(-|[0-9]+)/[0-9?]+")
+    ).firstMatch
     let foundMatches = await wait(for: matchLabel, timeout: .seconds(30)) {
       self.matchCount(from: $0) != nil
     }

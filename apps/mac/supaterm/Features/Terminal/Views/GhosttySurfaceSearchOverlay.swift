@@ -143,7 +143,9 @@ struct GhosttySurfaceSearchOverlay: View {
   @ViewBuilder
   private var matchLabel: some View {
     if let matchLabelText {
-      GhosttySearchMatchLabel(text: matchLabelText)
+      Text(matchLabelText)
+        .font(.caption)
+        .foregroundStyle(.secondary)
         .padding(.trailing, 8)
     }
   }
@@ -277,22 +279,6 @@ private struct SearchButtonLabel: View {
       Image(systemName: systemImage)
         .accessibilityHidden(true)
     }
-  }
-}
-
-private struct GhosttySearchMatchLabel: NSViewRepresentable {
-  let text: String
-
-  func makeNSView(context _: Context) -> NSTextField {
-    let label = NSTextField(labelWithString: text)
-    label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-    label.textColor = .secondaryLabelColor
-    label.setAccessibilityIdentifier("terminal.search.match-count")
-    return label
-  }
-
-  func updateNSView(_ label: NSTextField, context _: Context) {
-    label.stringValue = text
   }
 }
 
