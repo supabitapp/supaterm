@@ -108,7 +108,7 @@ extension TerminalHostState {
     spaceID: TerminalSpaceID
   ) -> SupatermTreeSnapshot.Group {
     SupatermTreeSnapshot.Group(
-      color: socketGroupColor(group.color),
+      color: group.color.socketColor,
       id: group.id.rawValue,
       isCollapsed: collapsedTabGroupIDsBySpace[spaceID]?.contains(group.id) == true,
       isPinned: group.isPinned,
@@ -132,7 +132,7 @@ extension TerminalHostState {
     case .group(let group):
       return .group(
         SupatermAppDebugSnapshot.Group(
-          color: socketGroupColor(group.color),
+          color: group.color.socketColor,
           id: group.id.rawValue,
           isCollapsed: collapsedTabGroupIDsBySpace[spaceID]?.contains(group.id) == true,
           isPinned: group.isPinned,
@@ -1129,16 +1129,4 @@ extension TerminalHostState {
     clearNotificationAttention(for: surfaceID)
   }
 
-  private func socketGroupColor(_ color: TerminalTabGroupColor) -> SupatermTabGroupColor {
-    switch color {
-    case .neutral: .neutral
-    case .red: .red
-    case .orange: .orange
-    case .yellow: .yellow
-    case .green: .green
-    case .blue: .blue
-    case .pink: .pink
-    case .purple: .purple
-    }
-  }
 }

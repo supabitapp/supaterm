@@ -24,7 +24,7 @@ extension TerminalHostState {
       guard
         let creation = manager.createGroup(
           title: request.title,
-          color: terminalGroupColor(request.color),
+          color: TerminalTabGroupColor(socketColor: request.color),
           containing: []
         )
       else {
@@ -82,7 +82,10 @@ extension TerminalHostState {
 
     case .setColor(let request):
       let resolved = try resolvedControlGroup(request.groupID)
-      _ = setGroupColor(resolved.group.id, color: terminalGroupColor(request.color))
+      _ = setGroupColor(
+        resolved.group.id,
+        color: TerminalTabGroupColor(socketColor: request.color)
+      )
       return .group(try groupMutationResult(for: resolved.group.id))
 
     case .ungroup(let groupID):
@@ -215,16 +218,4 @@ extension TerminalHostState {
     return SupatermMoveTabResult(target: try tabTarget(for: target.tabID))
   }
 
-  private func terminalGroupColor(_ color: SupatermTabGroupColor) -> TerminalTabGroupColor {
-    switch color {
-    case .neutral: .neutral
-    case .red: .red
-    case .orange: .orange
-    case .yellow: .yellow
-    case .green: .green
-    case .blue: .blue
-    case .pink: .pink
-    case .purple: .purple
-    }
-  }
 }
