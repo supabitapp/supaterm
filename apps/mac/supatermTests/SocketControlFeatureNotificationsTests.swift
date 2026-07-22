@@ -18,11 +18,8 @@ struct SocketControlFeatureNotificationsTests {
     let handle = UUID(uuidString: "165EBD38-E4CC-4D2D-8C17-3EB953C0BE7B")!
     let requestPayload = SupatermNotifyRequest(
       body: "Build finished",
+      paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!,
       subtitle: "CI",
-      targetPaneIndex: 2,
-      targetSpaceIndex: 2,
-      targetTabIndex: 1,
-      targetWindowIndex: 1,
       title: "Deploy complete"
     )
     let request = SocketControlClient.Request(
@@ -63,7 +60,7 @@ struct SocketControlFeatureNotificationsTests {
               == TerminalNotifyRequest(
                 body: "Build finished",
                 subtitle: "CI",
-                target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2),
+                target: .pane(requestPayload.paneID),
                 title: "Deploy complete"
               )
           )
@@ -101,10 +98,8 @@ struct SocketControlFeatureNotificationsTests {
       payload: try .notify(
         SupatermNotifyRequest(
           body: "Build finished",
+          paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
           subtitle: "",
-          targetSpaceIndex: 1,
-          targetTabIndex: 1,
-          targetWindowIndex: 1,
           title: "Deploy complete"
         ),
         id: "notify-2"
@@ -136,7 +131,7 @@ struct SocketControlFeatureNotificationsTests {
             == TerminalNotifyRequest(
               body: "Build finished",
               subtitle: "",
-              target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
+              target: .pane(expectedResult.paneID),
               title: "Deploy complete"
             )
         )
@@ -159,11 +154,8 @@ struct SocketControlFeatureNotificationsTests {
     let handle = UUID(uuidString: "A94E8C30-A0D7-46B3-8E68-87156E28EB1D")!
     let requestPayload = SupatermNotifyRequest(
       body: "Build finished",
+      paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!,
       subtitle: "CI",
-      targetPaneIndex: 2,
-      targetSpaceIndex: 2,
-      targetTabIndex: 1,
-      targetWindowIndex: 1,
       title: "Deploy complete"
     )
     let request = SocketControlClient.Request(
@@ -209,40 +201,6 @@ struct SocketControlFeatureNotificationsTests {
     }
   }
   @Test
-  func notifyRequestWithoutTargetRepliesWithStructuredError() async throws {
-    let recorder = SocketReplyRecorder()
-    let handle = UUID(uuidString: "0EFD6A47-1B80-4478-9CA6-C0F0E08A4A0E")!
-    let request = SocketControlClient.Request(
-      handle: handle,
-      payload: try .notify(
-        SupatermNotifyRequest(title: "Deploy complete"),
-        id: "notify-3"
-      )
-    )
-
-    let store = makeStore {
-      $0.socketControlClient.reply = { handle, response in
-        await recorder.record(handle: handle, response: response)
-      }
-    }
-
-    await store.send(.requestReceived(request))
-
-    let records = await recorder.snapshot()
-    #expect(records.count == 1)
-    #expect(
-      records.first
-        == SocketReplyRecorder.Record(
-          handle: handle,
-          response: .error(
-            id: "notify-3",
-            code: "invalid_request",
-            message: "Provide a target space and tab or run the command inside a Supaterm pane."
-          )
-        )
-    )
-  }
-  @Test
   func notifyRequestWithoutTitleUsesResolvedTitleForDesktopNotification() async throws {
     let recorder = SocketReplyRecorder()
     let desktopNotificationRecorder = DesktopNotificationRecorder()
@@ -252,8 +210,7 @@ struct SocketControlFeatureNotificationsTests {
       payload: try .notify(
         SupatermNotifyRequest(
           body: "Build finished",
-          targetSpaceIndex: 1,
-          targetTabIndex: 1
+          paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
         ),
         id: "notify-4"
       )
@@ -292,7 +249,7 @@ struct SocketControlFeatureNotificationsTests {
               == TerminalNotifyRequest(
                 body: "Build finished",
                 subtitle: "",
-                target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
+                target: .pane(expectedResult.paneID),
                 title: nil
               )
           )

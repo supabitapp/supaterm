@@ -60,30 +60,28 @@ struct SPTmuxCompatSequenceTests {
     #expect(firstSplitRequest.direction == .right)
     #expect(firstSplitRequest.equalize == false)
     #expect(firstSplitRequest.focus == false)
-    #expect(firstSplitRequest.targetPaneIndex == 1)
+    #expect(firstSplitRequest.target == .pane(transport.leaderPaneID))
 
     let firstSplitSizeRequest = try terminalRequests[1].decodeParams(SupatermSetPaneSizeRequest.self)
     #expect(firstSplitSizeRequest.amount == 70)
     #expect(firstSplitSizeRequest.axis == .horizontal)
     #expect(firstSplitSizeRequest.unit == .percent)
-    #expect(firstSplitSizeRequest.target.targetPaneIndex == 2)
+    #expect(firstSplitSizeRequest.target.paneID == firstTeammatePaneID)
 
     let secondSplitRequest = try terminalRequests[2].decodeParams(SupatermNewPaneRequest.self)
     #expect(secondSplitRequest.direction == .down)
     #expect(secondSplitRequest.equalize == false)
     #expect(secondSplitRequest.focus == false)
-    #expect(secondSplitRequest.targetPaneIndex == 2)
+    #expect(secondSplitRequest.target == .pane(firstTeammatePaneID))
 
     let mainVerticalRequest = try terminalRequests[3].decodeParams(SupatermTabTargetRequest.self)
-    #expect(mainVerticalRequest.targetWindowIndex == 1)
-    #expect(mainVerticalRequest.targetSpaceIndex == 1)
-    #expect(mainVerticalRequest.targetTabIndex == 1)
+    #expect(mainVerticalRequest.tabID == transport.tabID)
 
     let leaderSizeRequest = try terminalRequests[4].decodeParams(SupatermSetPaneSizeRequest.self)
     #expect(leaderSizeRequest.amount == 30)
     #expect(leaderSizeRequest.axis == .horizontal)
     #expect(leaderSizeRequest.unit == .percent)
-    #expect(leaderSizeRequest.target.targetPaneIndex == 1)
+    #expect(leaderSizeRequest.target.paneID == transport.leaderPaneID)
   }
 }
 
@@ -145,7 +143,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
     }
 
     func paneTarget(for request: SupatermPaneTargetRequest) throws -> SupatermPaneTarget {
-      guard let pane = panes.first(where: { $0.index == request.targetPaneIndex }) else {
+      guard let pane = panes.first(where: { $0.id == request.paneID }) else {
         throw POSIXError(.ENOENT)
       }
       return SupatermPaneTarget(

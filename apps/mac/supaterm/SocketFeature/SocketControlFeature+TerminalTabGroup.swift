@@ -15,7 +15,7 @@ extension SocketControlFeature {
           TerminalCreateTabGroupRequest(
             color: payload.color,
             isPinned: payload.isPinned,
-            target: try createSpaceTarget(from: payload.target),
+            target: createSpaceTarget(from: payload.target),
             title: payload.title
           )
         )
@@ -124,7 +124,7 @@ extension SocketControlFeature {
       .moveTab(
         TerminalMoveTabRequest(
           destination: destination,
-          target: try createTabTarget(from: payload.target)
+          target: createTabTarget(from: payload.target)
         )
       )
     )

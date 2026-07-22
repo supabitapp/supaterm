@@ -35,6 +35,20 @@ final class TerminalCommandExecutor {
     }
   }
 
+  func executeTargeted<Result>(
+    operation: (TerminalWindowRegistry.Entry) throws -> Result,
+    rewrite: (Result, Int) -> Result
+  ) throws -> Result {
+    for (offset, entry) in registry.activeEntries().enumerated() {
+      do {
+        return rewrite(try operation(entry), offset + 1)
+      } catch TerminalControlError.contextPaneNotFound {
+        continue
+      }
+    }
+    throw TerminalControlError.contextPaneNotFound
+  }
+
   func execute(_ request: SocketRequestExecutor.AppRequest) throws -> SocketRequestExecutor.AppResult {
     switch request {
     case .onboardingSnapshot:

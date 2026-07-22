@@ -23,7 +23,7 @@ struct TerminalHostStatePaneCreationTests {
           direction: .right,
           focus: false,
           equalize: true,
-          target: .contextPane(paneID)
+          target: .pane(paneID)
         )
       )
 
@@ -51,7 +51,7 @@ struct TerminalHostStatePaneCreationTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .contextPane(paneID)
+          target: .pane(paneID)
         )
       )
 

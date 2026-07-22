@@ -10,7 +10,7 @@ extension SupatermE2ESuite {
         try await app.waitForShellPrompt(space.pane)
         let focusedPane = try makeSplit(app, in: space)
         try await app.waitForShellPrompt(
-          SupatermPaneTargetRequest(contextPaneID: focusedPane.paneID)
+          SupatermPaneTargetRequest(paneID: focusedPane.paneID)
         )
         try await app.waitUntil("the source pane loses focus") {
           try app.debugPane(space.tab.paneID)?.isFocused == false

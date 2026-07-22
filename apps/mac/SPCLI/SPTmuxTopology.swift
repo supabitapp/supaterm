@@ -23,11 +23,7 @@ struct SPTmuxTopology {
     }
 
     var targetRequest: SupatermTabTargetRequest {
-      .init(
-        targetWindowIndex: window.index,
-        targetSpaceIndex: space.index,
-        targetTabIndex: tabIndex
-      )
+      .init(tabID: tab.id)
     }
   }
 
@@ -42,12 +38,7 @@ struct SPTmuxTopology {
     }
 
     var targetRequest: SupatermPaneTargetRequest {
-      .init(
-        targetWindowIndex: window.index,
-        targetSpaceIndex: space.index,
-        targetTabIndex: tabIndex,
-        targetPaneIndex: pane.index
-      )
+      .init(paneID: pane.id)
     }
   }
 

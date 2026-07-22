@@ -27,7 +27,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalFocusPane:
       let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
-        .focusPane(try createPaneTarget(from: payload))
+        .focusPane(createPaneTarget(from: payload))
       )
       guard case .focusPane(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -37,7 +37,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalLastPane:
       let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
-        .lastPane(try createPaneTarget(from: payload))
+        .lastPane(createPaneTarget(from: payload))
       )
       guard case .lastPane(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -47,7 +47,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalClosePane:
       let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
-        .closePane(try createPaneTarget(from: payload))
+        .closePane(createPaneTarget(from: payload))
       )
       guard case .closePane(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -70,7 +70,7 @@ extension SocketControlFeature {
         .sendText(
           TerminalSendTextRequest(
             mode: payload.mode,
-            target: try createPaneTarget(from: payload.target),
+            target: createPaneTarget(from: payload.target),
             text: payload.text
           )
         )
@@ -86,7 +86,7 @@ extension SocketControlFeature {
         .sendKey(
           TerminalSendKeyRequest(
             key: payload.key,
-            target: try createPaneTarget(from: payload.target)
+            target: createPaneTarget(from: payload.target)
           )
         )
       )
@@ -102,7 +102,7 @@ extension SocketControlFeature {
           TerminalCapturePaneRequest(
             lines: payload.lines,
             scope: payload.scope,
-            target: try createPaneTarget(from: payload.target)
+            target: createPaneTarget(from: payload.target)
           )
         )
       )
@@ -116,7 +116,7 @@ extension SocketControlFeature {
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .paneHealth(
           TerminalPaneHealthRequest(
-            target: try createPaneTarget(from: payload.target)
+            target: createPaneTarget(from: payload.target)
           )
         )
       )
@@ -132,7 +132,7 @@ extension SocketControlFeature {
           TerminalResizePaneRequest(
             amount: payload.amount,
             direction: payload.direction,
-            target: try createPaneTarget(from: payload.target)
+            target: createPaneTarget(from: payload.target)
           )
         )
       )
@@ -148,7 +148,7 @@ extension SocketControlFeature {
           TerminalSetPaneSizeRequest(
             amount: payload.amount,
             axis: payload.axis,
-            target: try createPaneTarget(from: payload.target),
+            target: createPaneTarget(from: payload.target),
             unit: payload.unit
           )
         )
@@ -165,46 +165,7 @@ extension SocketControlFeature {
 
   func createPaneTarget(
     from payload: SupatermPaneTargetRequest
-  ) throws -> TerminalPaneTarget {
-    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
-      throw SocketRequestError.invalidIndex("window")
-    }
-    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
-      throw SocketRequestError.invalidIndex("space")
-    }
-    if let tabIndex = payload.targetTabIndex, tabIndex < 1 {
-      throw SocketRequestError.invalidIndex("tab")
-    }
-    if let paneIndex = payload.targetPaneIndex, paneIndex < 1 {
-      throw SocketRequestError.invalidIndex("pane")
-    }
-
-    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
-    case (.some, .some, .some):
-      return .pane(
-        windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: payload.targetSpaceIndex!,
-        tabIndex: payload.targetTabIndex!,
-        paneIndex: payload.targetPaneIndex!
-      )
-
-    case (.none, .none, .none):
-      guard let contextPaneID = payload.contextPaneID else {
-        throw SocketRequestError.missingTarget
-      }
-      if payload.targetWindowIndex != nil {
-        throw SocketRequestError.windowRequiresSpace
-      }
-      return .contextPane(contextPaneID)
-
-    case (.none, .some, _):
-      throw SocketRequestError.tabRequiresSpace
-    case (.some, .none, _):
-      throw SocketRequestError.spaceRequiresTab
-    case (.some, .some, .none):
-      throw SocketRequestError.paneRequiresTab
-    case (.none, .none, .some):
-      throw SocketRequestError.paneRequiresTab
-    }
+  ) -> TerminalPaneTarget {
+    TerminalPaneTarget(paneID: payload.paneID)
   }
 }

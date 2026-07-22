@@ -20,9 +20,7 @@ struct SocketControlCreationTests {
       startupCommand: "pwd",
       cwd: "/tmp/example",
       focus: false,
-      groupDestination: .group(groupID),
-      targetWindowIndex: 1,
-      targetSpaceIndex: 2
+      target: .group(groupID)
     )
     let request = SocketControlClient.Request(
       handle: handle,
@@ -52,8 +50,7 @@ struct SocketControlCreationTests {
               startupCommand: "pwd",
               cwd: "/tmp/example",
               focus: false,
-              groupDestination: .group(groupID),
-              target: .space(windowIndex: 1, spaceIndex: 2)
+              target: .group(groupID)
             )
         )
         return expectedResult
@@ -68,7 +65,7 @@ struct SocketControlCreationTests {
     #expect(try records.first?.response.decodeResult(SupatermNewTabResult.self) == expectedResult)
   }
   @Test
-  func newTabRequestUsesContextPaneWhenNoExplicitTargetIsProvided() async throws {
+  func newTabRequestMapsPaneTarget() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "505F1E08-BB85-4AD2-BBA2-EC212D88FD4E")!
     let paneID = UUID(uuidString: "FE61D990-4CEE-4AB7-B41E-7C3C7C9EDB6A")!
@@ -77,8 +74,8 @@ struct SocketControlCreationTests {
       payload: try .newTab(
         SupatermNewTabRequest(
           startupCommand: nil,
-          contextPaneID: paneID,
-          focus: false
+          focus: false,
+          target: .pane(paneID)
         ),
         id: "new-tab-2"
       )
@@ -107,7 +104,7 @@ struct SocketControlCreationTests {
               startupCommand: nil,
               cwd: nil,
               focus: false,
-              target: .contextPane(paneID)
+              target: .pane(paneID)
             )
         )
         return expectedResult
@@ -122,43 +119,6 @@ struct SocketControlCreationTests {
     #expect(try records.first?.response.decodeResult(SupatermNewTabResult.self) == expectedResult)
   }
   @Test
-  func newTabRequestWithoutTargetRepliesWithStructuredError() async throws {
-    let recorder = SocketReplyRecorder()
-    let handle = UUID(uuidString: "AB4C87A9-029D-4D50-9160-96717CD76D00")!
-    let request = SocketControlClient.Request(
-      handle: handle,
-      payload: try .newTab(
-        SupatermNewTabRequest(
-          startupCommand: nil,
-          focus: false
-        ),
-        id: "new-tab-3"
-      )
-    )
-
-    let store = makeStore {
-      $0.socketControlClient.reply = { handle, response in
-        await recorder.record(handle: handle, response: response)
-      }
-    }
-
-    await store.send(.requestReceived(request))
-
-    let records = await recorder.snapshot()
-    #expect(records.count == 1)
-    #expect(
-      records.first
-        == SocketReplyRecorder.Record(
-          handle: handle,
-          response: .error(
-            id: "new-tab-3",
-            code: "invalid_request",
-            message: "Provide a target space or run the command inside a Supaterm pane."
-          )
-        )
-    )
-  }
-  @Test
   func newTabRequestMapsMissingSpaceToNotFound() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "D44B2F87-72E6-4972-8E14-4E8DC7E6B3C5")!
@@ -168,8 +128,7 @@ struct SocketControlCreationTests {
         SupatermNewTabRequest(
           startupCommand: nil,
           focus: true,
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2
+          target: .space(UUID())
         ),
         id: "new-tab-4"
       )
@@ -210,10 +169,7 @@ struct SocketControlCreationTests {
       direction: .down,
       focus: false,
       equalize: false,
-      targetWindowIndex: 1,
-      targetSpaceIndex: 2,
-      targetTabIndex: 1,
-      targetPaneIndex: 2
+      target: .pane(UUID(uuidString: "5E6C5EA2-F5FC-4CF5-A31D-4B12785A8694")!)
     )
     let request = SocketControlClient.Request(
       handle: handle,
@@ -245,7 +201,7 @@ struct SocketControlCreationTests {
               direction: .down,
               focus: false,
               equalize: false,
-              target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2)
+              target: .pane(UUID(uuidString: "5E6C5EA2-F5FC-4CF5-A31D-4B12785A8694")!)
             )
         )
         return expectedResult
@@ -260,45 +216,6 @@ struct SocketControlCreationTests {
     #expect(try records.first?.response.decodeResult(SupatermNewPaneResult.self) == expectedResult)
   }
   @Test
-  func newPaneRequestWithoutTargetRepliesWithStructuredError() async throws {
-    let recorder = SocketReplyRecorder()
-    let handle = UUID(uuidString: "EA06B587-72E5-4B21-8D1F-B4FD97E0C497")!
-    let request = SocketControlClient.Request(
-      handle: handle,
-      payload: try .newPane(
-        SupatermNewPaneRequest(
-          startupCommand: nil,
-          direction: .right,
-          focus: true,
-          equalize: true
-        ),
-        id: "new-pane-2"
-      )
-    )
-
-    let store = makeStore {
-      $0.socketControlClient.reply = { handle, response in
-        await recorder.record(handle: handle, response: response)
-      }
-    }
-
-    await store.send(.requestReceived(request))
-
-    let records = await recorder.snapshot()
-    #expect(records.count == 1)
-    #expect(
-      records.first
-        == SocketReplyRecorder.Record(
-          handle: handle,
-          response: .error(
-            id: "new-pane-2",
-            code: "invalid_request",
-            message: "Provide a target space and tab or run the command inside a Supaterm pane."
-          )
-        )
-    )
-  }
-  @Test
   func newPaneRequestMapsMissingTabToNotFound() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "43F86918-86FD-4401-B0B8-444497BA544A")!
@@ -310,9 +227,7 @@ struct SocketControlCreationTests {
           direction: .right,
           focus: true,
           equalize: true,
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2,
-          targetTabIndex: 3
+          target: .tab(UUID())
         ),
         id: "new-pane-3"
       )
@@ -344,127 +259,6 @@ struct SocketControlCreationTests {
     )
   }
   @Test
-  func newPaneRequestWithPaneWithoutTabRepliesWithStructuredError() async throws {
-    let recorder = SocketReplyRecorder()
-    let handle = UUID(uuidString: "2C6A60E8-9B42-40F7-91A4-DBE3337171CD")!
-    let request = SocketControlClient.Request(
-      handle: handle,
-      payload: try .newPane(
-        SupatermNewPaneRequest(
-          startupCommand: nil,
-          direction: .left,
-          focus: true,
-          equalize: true,
-          targetPaneIndex: 2
-        ),
-        id: "new-pane-4"
-      )
-    )
-
-    let store = makeStore {
-      $0.socketControlClient.reply = { handle, response in
-        await recorder.record(handle: handle, response: response)
-      }
-    }
-
-    await store.send(.requestReceived(request))
-
-    let records = await recorder.snapshot()
-    #expect(records.count == 1)
-    #expect(
-      records.first
-        == SocketReplyRecorder.Record(
-          handle: handle,
-          response: .error(
-            id: "new-pane-4",
-            code: "invalid_request",
-            message: "pane target requires a tab target."
-          )
-        )
-    )
-  }
-  @Test
-  func newPaneRequestWithTabWithoutSpaceRepliesWithStructuredError() async throws {
-    let recorder = SocketReplyRecorder()
-    let handle = UUID(uuidString: "EAA030B4-15BB-450D-AFC5-C3C3093576D0")!
-    let request = SocketControlClient.Request(
-      handle: handle,
-      payload: try .newPane(
-        SupatermNewPaneRequest(
-          startupCommand: nil,
-          direction: .right,
-          focus: true,
-          equalize: true,
-          targetTabIndex: 2
-        ),
-        id: "new-pane-5"
-      )
-    )
-
-    let store = makeStore {
-      $0.socketControlClient.reply = { handle, response in
-        await recorder.record(handle: handle, response: response)
-      }
-    }
-
-    await store.send(.requestReceived(request))
-
-    let records = await recorder.snapshot()
-    #expect(records.count == 1)
-    #expect(
-      records.first
-        == SocketReplyRecorder.Record(
-          handle: handle,
-          response: .error(
-            id: "new-pane-5",
-            code: "invalid_request",
-            message: "tab target requires a space target."
-          )
-        )
-    )
-  }
-  @Test
-  func newPaneRequestWithSpaceWithoutTabRepliesWithStructuredError() async throws {
-    let recorder = SocketReplyRecorder()
-    let handle = UUID(uuidString: "D51A0AFB-96F2-4B41-A893-6A1AE06BA123")!
-    let request = SocketControlClient.Request(
-      handle: handle,
-      payload: try .newPane(
-        SupatermNewPaneRequest(
-          startupCommand: nil,
-          direction: .right,
-          focus: true,
-          equalize: true,
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2
-        ),
-        id: "new-pane-6"
-      )
-    )
-
-    let store = makeStore {
-      $0.socketControlClient.reply = { handle, response in
-        await recorder.record(handle: handle, response: response)
-      }
-    }
-
-    await store.send(.requestReceived(request))
-
-    let records = await recorder.snapshot()
-    #expect(records.count == 1)
-    #expect(
-      records.first
-        == SocketReplyRecorder.Record(
-          handle: handle,
-          response: .error(
-            id: "new-pane-6",
-            code: "invalid_request",
-            message: "space target requires a tab target."
-          )
-        )
-    )
-  }
-  @Test
   func newPaneRequestMapsMissingSpaceToNotFound() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "6BD0C483-E2AC-464A-81DF-D29134C9232D")!
@@ -476,9 +270,7 @@ struct SocketControlCreationTests {
           direction: .right,
           focus: true,
           equalize: true,
-          targetWindowIndex: 1,
-          targetSpaceIndex: 4,
-          targetTabIndex: 1
+          target: .tab(UUID())
         ),
         id: "new-pane-7"
       )

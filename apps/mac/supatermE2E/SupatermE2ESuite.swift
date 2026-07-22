@@ -30,7 +30,7 @@ struct TestSpace {
   let tab: SupatermNewTabResult
 
   var pane: SupatermPaneTargetRequest {
-    SupatermPaneTargetRequest(contextPaneID: tab.paneID)
+    SupatermPaneTargetRequest(paneID: tab.paneID)
   }
 }
 
@@ -49,6 +49,9 @@ private func makeTestSpace(_ app: SupatermE2EApp) throws -> TestSpace {
   guard let window = snapshot.windows.first else {
     throw SupatermE2EError("No app window is available for a test space.")
   }
+  guard let windowAnchorPaneID = window.spaces.flatMap(\.flattenedTabs).flatMap(\.panes).first?.id else {
+    throw SupatermE2EError("No app pane is available for a test space.")
+  }
 
   let directory = app.stateHome.appendingPathComponent("scratch-\(token)", isDirectory: true)
   try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -56,8 +59,9 @@ private func makeTestSpace(_ app: SupatermE2EApp) throws -> TestSpace {
   let created = try app.send(
     .createSpace(
       SupatermCreateSpaceRequest(
+        focus: true,
         name: "e2e-\(token)",
-        target: SupatermSpaceNavigationRequest(targetWindowIndex: window.index)
+        windowAnchorPaneID: windowAnchorPaneID
       )
     ),
     as: SupatermCreateSpaceResult.self
@@ -68,8 +72,7 @@ private func makeTestSpace(_ app: SupatermE2EApp) throws -> TestSpace {
         startupCommand: hermeticShellStartupCommand,
         cwd: directory.path,
         focus: true,
-        targetWindowIndex: created.target.windowIndex,
-        targetSpaceIndex: created.target.spaceIndex
+        target: .space(created.target.spaceID)
       )
     ),
     as: SupatermNewTabResult.self
@@ -87,9 +90,9 @@ func makeTab(_ app: SupatermE2EApp, in space: TestSpace) throws -> SupatermNewTa
     .newTab(
       SupatermNewTabRequest(
         startupCommand: hermeticShellStartupCommand,
-        contextPaneID: space.tab.paneID,
         cwd: space.directory.path,
-        focus: true
+        focus: true,
+        target: .pane(space.tab.paneID)
       )
     ),
     as: SupatermNewTabResult.self
@@ -101,11 +104,11 @@ func makeSplit(_ app: SupatermE2EApp, in space: TestSpace) throws -> SupatermNew
     .newPane(
       SupatermNewPaneRequest(
         startupCommand: hermeticShellStartupCommand,
-        contextPaneID: space.tab.paneID,
         cwd: space.directory.path,
         direction: .right,
         focus: true,
-        equalize: true
+        equalize: true,
+        target: .pane(space.tab.paneID)
       )
     ),
     as: SupatermNewPaneResult.self
@@ -118,10 +121,7 @@ private func closeTestSpace(_ app: SupatermE2EApp, spaceID: UUID) throws {
     for space in window.spaces where space.id == spaceID {
       _ = try app.send(
         .closeSpace(
-          SupatermSpaceTargetRequest(
-            targetWindowIndex: window.index,
-            targetSpaceIndex: space.index
-          )
+          SupatermSpaceTargetRequest(spaceID: space.id)
         ),
         as: SupatermCloseSpaceResult.self
       )

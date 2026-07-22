@@ -74,8 +74,7 @@ struct SocketControlFeatureLifecycleTests {
         SupatermNewTabRequest(
           startupCommand: "pwd",
           focus: false,
-          targetWindowIndex: 1,
-          targetSpaceIndex: 1
+          target: .space(UUID())
         ),
         id: "expired-new-tab-1"
       )

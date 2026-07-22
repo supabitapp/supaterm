@@ -21,7 +21,7 @@ struct SocketControlFeatureTabGroupTests {
           SupatermCreateTabGroupRequest(
             color: .green,
             isPinned: true,
-            target: SupatermSpaceTargetRequest(targetWindowIndex: 2, targetSpaceIndex: 3),
+            target: SupatermSpaceTargetRequest(spaceID: tabGroupTestSpaceID),
             title: "Work"
           ),
           id: "create"
@@ -30,7 +30,7 @@ struct SocketControlFeatureTabGroupTests {
           TerminalCreateTabGroupRequest(
             color: .green,
             isPinned: true,
-            target: .space(windowIndex: 2, spaceIndex: 3),
+            target: TerminalSpaceTarget(spaceID: tabGroupTestSpaceID),
             title: "Work"
           )
         )
@@ -147,9 +147,7 @@ struct SocketControlFeatureTabGroupTests {
     let recorder = TerminalTabGroupRequestRecorder()
     let replyRecorder = SocketReplyRecorder()
     let target = SupatermTabTargetRequest(
-      targetWindowIndex: 1,
-      targetSpaceIndex: 2,
-      targetTabIndex: 3
+      tabID: tabGroupTestTabID
     )
     let fixtures: [(SupatermSocketRequest, TerminalMoveTabDestination)] = [
       (
@@ -207,7 +205,7 @@ struct SocketControlFeatureTabGroupTests {
       )
     }
 
-    let expectedTarget = TerminalTabTarget.tab(windowIndex: 1, spaceIndex: 2, tabIndex: 3)
+    let expectedTarget = TerminalTabTarget(tabID: tabGroupTestTabID)
     #expect(
       await recorder.snapshot()
         == fixtures.map {
@@ -257,6 +255,7 @@ struct SocketControlFeatureTabGroupTests {
 
 private let tabGroupTestGroupID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
 private let tabGroupTestSpaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+private let tabGroupTestTabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
 
 private let tabGroupTestMutationResult = SupatermTabGroupMutationResult(
   group: SupatermTreeSnapshot.Group(
@@ -285,7 +284,7 @@ private let tabGroupTestMoveResult = SupatermMoveTabResult(
     spaceIndex: 2,
     spaceID: tabGroupTestSpaceID,
     tabIndex: 1,
-    tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+    tabID: tabGroupTestTabID,
     title: "Build"
   )
 )

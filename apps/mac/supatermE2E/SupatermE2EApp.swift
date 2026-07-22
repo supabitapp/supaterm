@@ -40,13 +40,16 @@ final class SupatermE2EApp: @unchecked Sendable {
       )
     }
 
-    instanceName = "e2e-\(UUID().uuidString.prefix(8).lowercased())"
+    let instanceName = "e2e-\(UUID().uuidString.prefix(8).lowercased())"
+    self.instanceName = instanceName
     stateHome = FileManager.default.temporaryDirectory
       .appendingPathComponent("supaterm-\(instanceName)", isDirectory: true)
     cliHome = stateHome.appendingPathComponent("home", isDirectory: true)
+    let runtimeHome = URL(fileURLWithPath: "/tmp/\(instanceName)", isDirectory: true)
     logURL = stateHome.appendingPathComponent("app.log", isDirectory: false)
 
     try FileManager.default.createDirectory(at: cliHome, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: runtimeHome, withIntermediateDirectories: true)
     FileManager.default.createFile(atPath: cliHome.appendingPathComponent(".zshrc").path, contents: nil)
     FileManager.default.createFile(atPath: logURL.path, contents: nil)
 
@@ -58,6 +61,7 @@ final class SupatermE2EApp: @unchecked Sendable {
       "SUPATERM_TEST_MODE": "1",
       "SUPATERM_VERBOSE_LOGGING": "1",
       "USER": NSUserName(),
+      "XDG_RUNTIME_DIR": runtimeHome.path,
       SupatermCLIEnvironment.instanceNameKey: instanceName,
       SupatermCLIEnvironment.stateHomeKey: stateHome.path,
     ]

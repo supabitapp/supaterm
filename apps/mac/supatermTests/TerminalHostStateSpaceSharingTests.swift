@@ -95,8 +95,8 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
-  func adjacentSpaceCommandsWrapAndPersistDefaultSelection() async {
-    await withDependencies {
+  func adjacentSpaceCommandsWrapAndPersistDefaultSelection() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -122,12 +122,13 @@ struct TerminalHostStateSpaceSharingTests {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
+      initializeGhosttyForTests()
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
       let catalog = makeCatalog(["A"])
       $sharedCatalog.withLock { $0 = catalog }
 
-      let firstHost = TerminalHostState(managesTerminalSurfaces: false)
-      let secondHost = TerminalHostState(managesTerminalSurfaces: false)
+      let firstHost = TerminalHostState()
+      let secondHost = TerminalHostState()
 
       firstHost.handleCommand(.createSpace(name: "Build"))
       await flushSpaceCatalogObservation()
@@ -143,8 +144,34 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
-  func renameSpacePropagatesCatalogToOtherHosts() async throws {
-    try await withDependencies {
+  func createSpaceWithoutFocusKeepsSelectionAndDefault() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
+      let catalog = makeCatalog(["A"])
+      $sharedCatalog.withLock { $0 = catalog }
+
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let selectedSpaceID = host.selectedSpaceID
+      let selectedTabID = host.selectedTabID
+      let previousSelectedSpaceID = host.previousSelectedSpaceID
+
+      let createdSpaceID = try host.createSpace(named: "Build", focus: false)
+
+      #expect(host.selectedSpaceID == selectedSpaceID)
+      #expect(host.selectedTabID == selectedTabID)
+      #expect(host.previousSelectedSpaceID == previousSelectedSpaceID)
+      #expect(sharedCatalog.defaultSelectedSpaceID == selectedSpaceID)
+      #expect(host.spaceManager.tabs(in: createdSpaceID).count == 1)
+    }
+  }
+
+  @Test
+  func renameSpacePropagatesCatalogToOtherHosts() async {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -191,8 +218,8 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
-  func closeSpaceRejectsOnlyRemainingSpace() async throws {
-    try await withDependencies {
+  func closeSpaceRejectsOnlyRemainingSpace() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -202,14 +229,14 @@ struct TerminalHostStateSpaceSharingTests {
       let host = TerminalHostState(managesTerminalSurfaces: false)
 
       #expect(throws: TerminalControlError.onlyRemainingSpace) {
-        _ = try host.closeSpace(.space(windowIndex: 1, spaceIndex: 1))
+        _ = try host.closeSpace(TerminalSpaceTarget(spaceID: catalog.spaces[0].id.rawValue))
       }
     }
   }
 
   @Test
-  func createSpaceRejectsBlankName() async throws {
-    try await withDependencies {
+  func createSpaceRejectsBlankName() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -219,19 +246,14 @@ struct TerminalHostStateSpaceSharingTests {
       let host = TerminalHostState(managesTerminalSurfaces: false)
 
       #expect(throws: TerminalControlError.invalidSpaceName) {
-        _ = try host.createSpace(
-          TerminalCreateSpaceRequest(
-            name: "   ",
-            target: TerminalSpaceNavigationRequest(contextPaneID: nil, windowIndex: 1)
-          )
-        )
+        _ = try host.createSpace(named: "   ")
       }
     }
   }
 
   @Test
-  func createSpaceRejectsDuplicateName() async throws {
-    try await withDependencies {
+  func createSpaceRejectsDuplicateName() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -241,13 +263,26 @@ struct TerminalHostStateSpaceSharingTests {
       let host = TerminalHostState(managesTerminalSurfaces: false)
 
       #expect(throws: TerminalControlError.spaceNameUnavailable) {
-        _ = try host.createSpace(
-          TerminalCreateSpaceRequest(
-            name: "A",
-            target: TerminalSpaceNavigationRequest(contextPaneID: nil, windowIndex: 1)
-          )
-        )
+        _ = try host.createSpace(named: "A")
       }
+    }
+  }
+
+  @Test
+  func renameSpaceRejectsDuplicateNameWithoutMutation() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
+      let catalog = makeCatalog(["A", "B"])
+      $sharedCatalog.withLock { $0 = catalog }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+
+      #expect(throws: TerminalControlError.spaceNameUnavailable) {
+        try host.renameSpace(catalog.spaces[1].id, to: "A")
+      }
+      #expect(host.spaces.map(\.name) == ["A", "B"])
     }
   }
 

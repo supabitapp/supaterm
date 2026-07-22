@@ -1022,7 +1022,7 @@ struct TerminalWindowFeatureTests {
           direction: SupatermPaneDirection.right,
           focus: false,
           equalize: false,
-          target: .contextPane(surfaceID)
+          target: .pane(surfaceID)
         )
     )
   }
@@ -1071,7 +1071,7 @@ struct TerminalWindowFeatureTests {
           direction: SupatermPaneDirection.down,
           focus: false,
           equalize: false,
-          target: .contextPane(surfaceID)
+          target: .pane(surfaceID)
         )
     )
   }
@@ -1145,7 +1145,7 @@ struct TerminalWindowFeatureTests {
           direction: .down,
           focus: true,
           equalize: false,
-          target: .contextPane(surfaceID)
+          target: .pane(surfaceID)
         )
       ]
     )

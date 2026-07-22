@@ -19,71 +19,19 @@ extension TerminalCommandExecutor {
   private func executeCreateGroup(
     _ request: TerminalCreateTabGroupRequest
   ) throws -> TerminalTabGroupResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          return rewrite(
-            try entry.terminal.executeTabGroup(.create(request)),
-            windowIndex: offset + 1
-          )
-        } catch TerminalControlError.contextPaneNotFound {
-          continue
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .space(let windowIndex, let spaceIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalCreateTabGroupRequest(
-        color: request.color,
-        isPinned: request.isPinned,
-        target: .space(windowIndex: 1, spaceIndex: spaceIndex),
-        title: request.title
-      )
-      do {
-        return rewrite(
-          try entry.terminal.executeTabGroup(.create(localRequest)),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.executeTabGroup(.create(request)) },
+      rewrite: rewrite
+    )
   }
 
   private func executeMoveTab(
     _ request: TerminalMoveTabRequest
   ) throws -> TerminalTabGroupResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          return rewrite(
-            try entry.terminal.executeTabGroup(.moveTab(request)),
-            windowIndex: offset + 1
-          )
-        } catch TerminalControlError.contextPaneNotFound {
-          continue
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalMoveTabRequest(
-        destination: request.destination,
-        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
-      )
-      do {
-        return rewrite(
-          try entry.terminal.executeTabGroup(.moveTab(localRequest)),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.executeTabGroup(.moveTab(request)) },
+      rewrite: rewrite
+    )
   }
 
   private func executeCloseGroup(_ groupID: UUID) throws -> TerminalTabGroupResult {

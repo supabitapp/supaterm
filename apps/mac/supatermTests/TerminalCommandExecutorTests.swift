@@ -80,7 +80,7 @@ struct TerminalCommandExecutorTests {
     registry.updateWindow(makeWindow(), for: secondWindowControllerID)
 
     let result = try commandExecutor.paneHealth(
-      TerminalPaneHealthRequest(target: .contextPane(secondSurfaceID))
+      TerminalPaneHealthRequest(target: TerminalPaneTarget(paneID: secondSurfaceID))
     )
 
     #expect(result.target.windowIndex == 2)
@@ -95,6 +95,7 @@ struct TerminalCommandExecutorTests {
     let commandExecutor = makeCommandExecutor(registry: registry)
     let host = TerminalHostState()
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+    let tabID = try #require(host.selectedTabID)
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
@@ -111,7 +112,7 @@ struct TerminalCommandExecutorTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
+    _ = try commandExecutor.closeTab(TerminalTabTarget(tabID: tabID.rawValue))
     #expect(closeWindowCount == 1)
   }
 
@@ -141,7 +142,7 @@ struct TerminalCommandExecutorTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
+    _ = try commandExecutor.closeTab(TerminalTabTarget(tabID: tabID.rawValue))
 
     #expect(closeWindowCount == 1)
   }
@@ -154,6 +155,7 @@ struct TerminalCommandExecutorTests {
     let commandExecutor = makeCommandExecutor(registry: registry)
     let host = TerminalHostState()
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+    let paneID = try #require(host.selectedSurfaceView?.id)
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
@@ -170,7 +172,7 @@ struct TerminalCommandExecutorTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    _ = try commandExecutor.closePane(.pane(windowIndex: 1, spaceIndex: 1, tabIndex: 1, paneIndex: 1))
+    _ = try commandExecutor.closePane(TerminalPaneTarget(paneID: paneID))
     #expect(closeWindowCount == 1)
   }
 
@@ -190,13 +192,13 @@ struct TerminalCommandExecutorTests {
         direction: .right,
         focus: true,
         equalize: false,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
     #expect(host.focusHistoryByTab[tabID]?.current != firstSurface.id)
     #expect(host.focusHistoryByTab[tabID]?.previous == firstSurface.id)
 
-    _ = try host.lastPane(.contextPane(firstSurface.id))
+    _ = try host.lastPane(TerminalPaneTarget(paneID: firstSurface.id))
 
     #expect(host.focusHistoryByTab[tabID]?.current == firstSurface.id)
   }
@@ -233,7 +235,7 @@ struct TerminalCommandExecutorTests {
         startupCommand: nil,
         cwd: nil,
         focus: false,
-        target: .space(windowIndex: 1, spaceIndex: 1)
+        target: .space(host.spaces[0].id.rawValue)
       )
     )
 
@@ -277,7 +279,7 @@ struct TerminalCommandExecutorTests {
         startupCommand: nil,
         cwd: nil,
         focus: false,
-        target: .contextPane(firstPaneID)
+        target: .pane(firstPaneID)
       )
     )
 
@@ -287,6 +289,46 @@ struct TerminalCommandExecutorTests {
         == [firstTabID.rawValue, secondTabID.rawValue, result.tabID]
     )
     #expect(host.selectedTabID == secondTabID)
+  }
+
+  @Test
+  func tabTargetSurvivesTopologyReordering() throws {
+    initializeGhosttyForTests()
+
+    let registry = TerminalWindowRegistry()
+    let commandExecutor = makeCommandExecutor(registry: registry)
+    let host = TerminalHostState()
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    let targetTabID = try #require(host.selectedTabID)
+    let request = TerminalRenameTabRequest(
+      target: TerminalTabTarget(tabID: targetTabID.rawValue),
+      title: "Stable target"
+    )
+    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    let movedTabID = try #require(host.selectedTabID)
+    host.handleCommand(.togglePinned(movedTabID))
+
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    let renamed = try commandExecutor.renameTab(request)
+
+    #expect(renamed.target.tabID == targetTabID.rawValue)
+    #expect(
+      host.spaceManager.tabs(in: host.spaces[0].id)
+        .first { $0.id == targetTabID }?.title == "Stable target"
+    )
   }
   @Test
   func rewriteNewTabResultPreservesSpaceIndexAndUpdatesWindowIndex() {
@@ -422,7 +464,6 @@ struct TerminalCommandExecutorTests {
       let firstTabID = try #require(host.selectedTabID)
       host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
       let secondTabID = try #require(host.selectedTabID)
-      let secondPaneID = try #require(host.selectedSurfaceView?.id)
 
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -438,7 +479,7 @@ struct TerminalCommandExecutorTests {
       )
       registry.updateWindow(makeWindow(), for: windowControllerID)
 
-      let pinned = try commandExecutor.pinTab(.contextPane(secondPaneID))
+      let pinned = try commandExecutor.pinTab(TerminalTabTarget(tabID: secondTabID.rawValue))
       #expect(pinned.isPinned)
       #expect(pinned.target.tabID == secondTabID.rawValue)
       #expect(
@@ -446,7 +487,7 @@ struct TerminalCommandExecutorTests {
           == [secondTabID.rawValue, firstTabID.rawValue]
       )
 
-      let unpinned = try commandExecutor.unpinTab(.contextPane(secondPaneID))
+      let unpinned = try commandExecutor.unpinTab(TerminalTabTarget(tabID: secondTabID.rawValue))
       #expect(!unpinned.isPinned)
       #expect(unpinned.target.tabID == secondTabID.rawValue)
       #expect(
@@ -470,7 +511,6 @@ struct TerminalCommandExecutorTests {
       let firstTabID = try #require(host.selectedTabID)
       host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
       let groupedTabID = try #require(host.selectedTabID)
-      let groupedPaneID = try #require(host.selectedSurfaceView?.id)
       let groupID = try #require(
         host.createGroup(title: "Group", containing: [firstTabID, groupedTabID])
       ).groupID
@@ -488,13 +528,13 @@ struct TerminalCommandExecutorTests {
       )
       registry.updateWindow(makeWindow(), for: windowControllerID)
 
-      let unpinned = try commandExecutor.unpinTab(.contextPane(groupedPaneID))
+      let unpinned = try commandExecutor.unpinTab(TerminalTabTarget(tabID: groupedTabID.rawValue))
 
       #expect(!unpinned.isPinned)
       #expect(host.spaceManager.activeTabManager?.rootItemID(containing: groupedTabID) == .group(groupID))
       #expect(host.spaceManager.activeTabManager?.tabIDs(in: groupID) == [firstTabID, groupedTabID])
 
-      let pinned = try commandExecutor.pinTab(.contextPane(groupedPaneID))
+      let pinned = try commandExecutor.pinTab(TerminalTabTarget(tabID: groupedTabID.rawValue))
 
       #expect(pinned.isPinned)
       #expect(host.spaceManager.activeTabManager?.rootItemID(containing: groupedTabID) == .tab(groupedTabID))

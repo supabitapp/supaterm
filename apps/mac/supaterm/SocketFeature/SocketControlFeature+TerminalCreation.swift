@@ -10,7 +10,7 @@ extension SocketControlFeature {
     switch request.method {
     case SupatermSocketMethod.terminalNewTab:
       let payload = try request.decodeParams(SupatermNewTabRequest.self)
-      let createTabRequest = try createTabRequest(from: payload)
+      let createTabRequest = createTabRequest(from: payload)
       let execution = try await socketRequestExecutor.executeTerminalCreation(
         .createTab(createTabRequest)
       )
@@ -21,7 +21,7 @@ extension SocketControlFeature {
 
     case SupatermSocketMethod.terminalNewPane:
       let payload = try request.decodeParams(SupatermNewPaneRequest.self)
-      let createPaneRequest = try createPaneRequest(from: payload)
+      let createPaneRequest = createPaneRequest(from: payload)
       let execution = try await socketRequestExecutor.executeTerminalCreation(
         .createPane(createPaneRequest)
       )
@@ -37,113 +37,51 @@ extension SocketControlFeature {
 
   func createTabRequest(
     from payload: SupatermNewTabRequest
-  ) throws -> TerminalCreateTabRequest {
-    try validateCreateTabPayload(payload)
-
-    return TerminalCreateTabRequest(
+  ) -> TerminalCreateTabRequest {
+    TerminalCreateTabRequest(
       startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       focus: payload.focus,
-      groupDestination: payload.groupDestination,
-      target: try createTabTarget(from: payload)
+      target: createTabTarget(from: payload.target)
     )
   }
 
-  func validateCreateTabPayload(
-    _ payload: SupatermNewTabRequest
-  ) throws {
-    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
-      throw SocketRequestError.invalidIndex("window")
-    }
-    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
-      throw SocketRequestError.invalidIndex("space")
-    }
-    if payload.targetWindowIndex != nil && payload.targetSpaceIndex == nil {
-      throw SocketRequestError.windowRequiresSpace
-    }
-  }
-
   func createTabTarget(
-    from payload: SupatermNewTabRequest
-  ) throws -> TerminalCreateTabRequest.Target {
-    switch payload.targetSpaceIndex {
-    case .some(let spaceIndex):
-      return .space(
-        windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: spaceIndex
-      )
-
-    case .none:
-      guard let contextPaneID = payload.contextPaneID else {
-        throw SocketRequestError.missingSpaceTarget
-      }
-      if payload.targetWindowIndex != nil {
-        throw SocketRequestError.windowRequiresSpace
-      }
-      return .contextPane(contextPaneID)
+    from target: SupatermNewTabTarget
+  ) -> TerminalCreateTabRequest.Target {
+    switch target {
+    case .group(let id):
+      return .group(id)
+    case .pane(let id):
+      return .pane(id)
+    case .root(let id):
+      return .root(id)
+    case .space(let id):
+      return .space(id)
     }
   }
 
   func createPaneRequest(
     from payload: SupatermNewPaneRequest
-  ) throws -> TerminalCreatePaneRequest {
-    try validateCreatePanePayload(payload)
-
-    return TerminalCreatePaneRequest(
+  ) -> TerminalCreatePaneRequest {
+    TerminalCreatePaneRequest(
       startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       direction: payload.direction,
       focus: payload.focus,
       equalize: payload.equalize,
-      target: try createPaneTarget(from: payload)
-    )
-  }
-
-  func validateCreatePanePayload(
-    _ payload: SupatermNewPaneRequest
-  ) throws {
-    try validateTargetPayload(
-      windowIndex: payload.targetWindowIndex,
-      spaceIndex: payload.targetSpaceIndex,
-      tabIndex: payload.targetTabIndex,
-      paneIndex: payload.targetPaneIndex
+      target: createPaneTarget(from: payload.target)
     )
   }
 
   func createPaneTarget(
-    from payload: SupatermNewPaneRequest
-  ) throws -> TerminalCreatePaneRequest.Target {
-    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
-    case (nil, nil, nil):
-      guard let contextPaneID = payload.contextPaneID else {
-        throw SocketRequestError.missingTarget
-      }
-      if payload.targetWindowIndex != nil {
-        throw SocketRequestError.windowRequiresSpace
-      }
-      return .contextPane(contextPaneID)
-
-    case (.some, .some, nil):
-      return .tab(
-        windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: payload.targetSpaceIndex!,
-        tabIndex: payload.targetTabIndex!
-      )
-
-    case (.some, .some, .some):
-      return .pane(
-        windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: payload.targetSpaceIndex!,
-        tabIndex: payload.targetTabIndex!,
-        paneIndex: payload.targetPaneIndex!
-      )
-
-    case (.none, .some, _):
-      throw SocketRequestError.tabRequiresSpace
-    case (.some, .none, _):
-      throw SocketRequestError.spaceRequiresTab
-    case (.none, .none, .some):
-      throw SocketRequestError.paneRequiresTab
+    from target: SupatermNewPaneTarget
+  ) -> TerminalCreatePaneRequest.Target {
+    switch target {
+    case .pane(let id):
+      return .pane(id)
+    case .tab(let id):
+      return .tab(id)
     }
   }
 }

@@ -34,6 +34,8 @@ Terminal object targeting happens after socket selection:
 - Pane context comes from `SUPATERM_SURFACE_ID` and `SUPATERM_TAB_ID`.
 - Inside Supaterm, commands can omit targets such as `sp tab new`, `sp pane split`, `sp tab focus`, and `sp pane focus`.
 - Outside Supaterm, pass selectors, UUIDs, or `--in` targets.
+- The CLI resolves public selectors from a fresh tree and sends stable object IDs.
+- The app resolves those IDs against live state when it runs the command, so an index change cannot retarget a queued command.
 
 Discovery rules:
 
@@ -56,7 +58,7 @@ Discovery rules:
 ## Terminal Topology
 
 - Socket operations target the live terminal model exposed by the app.
-- Explicit hierarchical targeting resolves in window, then space, then tab, then pane order.
+- Explicit hierarchical selectors resolve in window, then space, then tab, then pane order before the request is sent.
 - Pane-context targeting is available when the CLI is launched from inside Supaterm.
 - Public selectors are 1-based:
   - Space: `1`

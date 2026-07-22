@@ -19,7 +19,7 @@ extension SupatermE2ESuite {
       let initialPaneID = try #require(
         initialSpace.flattenedTabs.first?.panes.first?.id
       )
-      let initialPane = SupatermPaneTargetRequest(contextPaneID: initialPaneID)
+      let initialPane = SupatermPaneTargetRequest(paneID: initialPaneID)
       try await app.waitForCapture(initialPane, contains: "Welcome to Supaterm!")
       let onboardingOccurrences = countOccurrences(
         "Welcome to Supaterm!",
@@ -32,14 +32,14 @@ extension SupatermE2ESuite {
       let thirdTitle = "layout-b-one-\(token)"
 
       let firstSpace = try makeSpace(app, name: firstSpaceName)
-      _ = try lockTabTitle(app, paneID: firstSpace.paneID, title: firstTitle)
+      _ = try lockTabTitle(app, tabID: firstSpace.tabID, title: firstTitle)
       let secondTab = try makeTab(app, in: firstSpace, cwd: directory)
-      _ = try lockTabTitle(app, paneID: secondTab.paneID, title: secondTitle)
+      _ = try lockTabTitle(app, tabID: secondTab.tabID, title: secondTitle)
       let split = try makeSplit(app, from: secondTab, cwd: directory)
       let secondSpace = try makeSpace(app, name: secondSpaceName)
-      _ = try lockTabTitle(app, paneID: secondSpace.paneID, title: thirdTitle)
+      _ = try lockTabTitle(app, tabID: secondSpace.tabID, title: thirdTitle)
       _ = try app.send(
-        .focusPane(SupatermPaneTargetRequest(contextPaneID: split.paneID)),
+        .focusPane(SupatermPaneTargetRequest(paneID: split.paneID)),
         as: SupatermFocusPaneResult.self
       )
       let before = try app.debugSnapshot()
@@ -106,9 +106,9 @@ extension SupatermE2ESuite {
       let firstTitle = "sigterm-one-\(token)"
       let secondTitle = "sigterm-two-\(token)"
       let space = try makeSpace(app, name: spaceName)
-      _ = try lockTabTitle(app, paneID: space.paneID, title: firstTitle)
+      _ = try lockTabTitle(app, tabID: space.tabID, title: firstTitle)
       let secondTab = try makeTab(app, in: space, cwd: directory)
-      _ = try lockTabTitle(app, paneID: secondTab.paneID, title: secondTitle)
+      _ = try lockTabTitle(app, tabID: secondTab.tabID, title: secondTitle)
       let split = try makeSplit(app, from: secondTab, cwd: directory)
 
       try await app.waitForPersistedStateQuiescence(
@@ -155,7 +155,7 @@ extension SupatermE2ESuite {
           "i=1; while [ $i -le 90 ]; do printf '\(marker)-%03d\\n' $i; i=$((i + 1)); done; exec /bin/zsh -f"
         )
       )
-      let pane = SupatermPaneTargetRequest(contextPaneID: tab.paneID)
+      let pane = SupatermPaneTargetRequest(paneID: tab.paneID)
 
       try await app.waitForCapture(pane, contains: "\(marker)-090")
       try await app.waitForPersistedStateQuiescence(
@@ -241,14 +241,14 @@ extension SupatermE2ESuite {
       _ = try app.send(
         .renameTab(
           SupatermRenameTabRequest(
-            target: SupatermTabTargetRequest(contextPaneID: tab.paneID),
+            target: SupatermTabTargetRequest(tabID: tab.tabID),
             title: title
           )
         ),
         as: SupatermRenameTabResult.self
       )
       let pinned = try app.send(
-        .pinTab(SupatermTabTargetRequest(contextPaneID: tab.paneID)),
+        .pinTab(SupatermTabTargetRequest(tabID: tab.tabID)),
         as: SupatermPinTabResult.self
       )
       #expect(pinned.isPinned)
@@ -296,28 +296,28 @@ private struct GroupedTopologyFixture {
     directory: URL
   ) throws -> Self {
     let space = try makeSpace(app, name: spaceName(token))
-    _ = try lockTabTitle(app, paneID: space.paneID, title: firstTitle(token))
+    _ = try lockTabTitle(app, tabID: space.tabID, title: firstTitle(token))
     let second = try makeTab(app, in: space, cwd: directory)
-    _ = try lockTabTitle(app, paneID: second.paneID, title: secondTitle(token))
+    _ = try lockTabTitle(app, tabID: second.tabID, title: secondTitle(token))
     let root = try makeTab(app, in: space, cwd: directory)
-    _ = try lockTabTitle(app, paneID: root.paneID, title: rootTitle(token))
+    _ = try lockTabTitle(app, tabID: root.tabID, title: rootTitle(token))
     let group = try app.send(
       .createTabGroup(
         SupatermCreateTabGroupRequest(
           color: .purple,
           isPinned: false,
-          target: SupatermSpaceTargetRequest(contextPaneID: root.paneID),
+          target: SupatermSpaceTargetRequest(spaceID: space.target.spaceID),
           title: groupTitle(token)
         )
       ),
       as: SupatermTabGroupMutationResult.self
     )
-    for paneID in [space.paneID, second.paneID] {
+    for tabID in [space.tabID, second.tabID] {
       _ = try app.send(
         .moveTab(
           SupatermMoveTabRequest(
             destination: .group(group.group.id),
-            target: SupatermTabTargetRequest(contextPaneID: paneID)
+            target: SupatermTabTargetRequest(tabID: tabID)
           )
         ),
         as: SupatermMoveTabResult.self
@@ -410,12 +410,12 @@ private func verifyDurableGroupSurvivesEmptying(
   _ app: SupatermE2EApp,
   fixture: GroupedTopologyFixture
 ) throws {
-  for paneID in [fixture.space.paneID, fixture.second.paneID] {
+  for tabID in [fixture.space.tabID, fixture.second.tabID] {
     _ = try app.send(
       .moveTab(
         SupatermMoveTabRequest(
           destination: .root(isPinned: false),
-          target: SupatermTabTargetRequest(contextPaneID: paneID)
+          target: SupatermTabTargetRequest(tabID: tabID)
         )
       ),
       as: SupatermMoveTabResult.self
@@ -435,12 +435,15 @@ private func verifyDurableGroupSurvivesEmptying(
 
 private func makeSpace(_ app: SupatermE2EApp, name: String) throws -> SupatermCreateSpaceResult {
   let snapshot = try app.debugSnapshot()
-  let window = try #require(snapshot.windows.first)
+  let paneID = try #require(
+    snapshot.windows.first?.spaces.flatMap(\.flattenedTabs).flatMap(\.panes).first?.id
+  )
   return try app.send(
     .createSpace(
       SupatermCreateSpaceRequest(
+        focus: true,
         name: name,
-        target: SupatermSpaceNavigationRequest(targetWindowIndex: window.index)
+        windowAnchorPaneID: paneID
       )
     ),
     as: SupatermCreateSpaceResult.self
@@ -459,8 +462,7 @@ private func makeTab(
         startupCommand: startupCommand,
         cwd: cwd.path,
         focus: true,
-        targetWindowIndex: space.target.windowIndex,
-        targetSpaceIndex: space.target.spaceIndex
+        target: .space(space.target.spaceID)
       )
     ),
     as: SupatermNewTabResult.self
@@ -476,11 +478,11 @@ private func makeSplit(
     .newPane(
       SupatermNewPaneRequest(
         startupCommand: hermeticShellStartupCommand,
-        contextPaneID: tab.paneID,
         cwd: cwd.path,
         direction: .right,
         focus: true,
-        equalize: true
+        equalize: true,
+        target: .pane(tab.paneID)
       )
     ),
     as: SupatermNewPaneResult.self
@@ -490,13 +492,13 @@ private func makeSplit(
 @discardableResult
 private func lockTabTitle(
   _ app: SupatermE2EApp,
-  paneID: UUID,
+  tabID: UUID,
   title: String
 ) throws -> SupatermRenameTabResult {
   try app.send(
     .renameTab(
       SupatermRenameTabRequest(
-        target: SupatermTabTargetRequest(contextPaneID: paneID),
+        target: SupatermTabTargetRequest(tabID: tabID),
         title: title
       )
     ),

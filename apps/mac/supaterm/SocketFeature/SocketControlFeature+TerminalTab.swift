@@ -33,7 +33,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalTilePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .tilePanes(TerminalTilePanesRequest(target: try createTabTarget(from: payload)))
+        .tilePanes(TerminalTilePanesRequest(target: createTabTarget(from: payload)))
       )
       guard case .tilePanes(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -43,7 +43,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalEqualizePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .equalizePanes(TerminalEqualizePanesRequest(target: try createTabTarget(from: payload)))
+        .equalizePanes(TerminalEqualizePanesRequest(target: createTabTarget(from: payload)))
       )
       guard case .equalizePanes(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -53,7 +53,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalMainVerticalPanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .mainVerticalPanes(TerminalMainVerticalPanesRequest(target: try createTabTarget(from: payload)))
+        .mainVerticalPanes(TerminalMainVerticalPanesRequest(target: createTabTarget(from: payload)))
       )
       guard case .mainVerticalPanes(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -73,7 +73,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalSelectTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .selectTab(try createTabTarget(from: payload))
+        .selectTab(createTabTarget(from: payload))
       )
       guard case .selectTab(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -83,7 +83,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalPinTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .pinTab(try createTabTarget(from: payload))
+        .pinTab(createTabTarget(from: payload))
       )
       guard case .pinTab(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -93,7 +93,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalUnpinTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .unpinTab(try createTabTarget(from: payload))
+        .unpinTab(createTabTarget(from: payload))
       )
       guard case .unpinTab(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -103,7 +103,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalCloseTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .closeTab(try createTabTarget(from: payload))
+        .closeTab(createTabTarget(from: payload))
       )
       guard case .closeTab(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -115,7 +115,7 @@ extension SocketControlFeature {
       let execution = try await socketRequestExecutor.executeTerminalTab(
         .renameTab(
           TerminalRenameTabRequest(
-            target: try createTabTarget(from: payload.target),
+            target: createTabTarget(from: payload.target),
             title: payload.title
           )
         )
@@ -172,48 +172,13 @@ extension SocketControlFeature {
 
   func createTabTarget(
     from payload: SupatermTabTargetRequest
-  ) throws -> TerminalTabTarget {
-    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
-      throw SocketRequestError.invalidIndex("window")
-    }
-    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
-      throw SocketRequestError.invalidIndex("space")
-    }
-    if let tabIndex = payload.targetTabIndex, tabIndex < 1 {
-      throw SocketRequestError.invalidIndex("tab")
-    }
-
-    switch (payload.targetSpaceIndex, payload.targetTabIndex) {
-    case (.some, .some):
-      return .tab(
-        windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: payload.targetSpaceIndex!,
-        tabIndex: payload.targetTabIndex!
-      )
-
-    case (.none, .none):
-      guard let contextPaneID = payload.contextPaneID else {
-        throw SocketRequestError.missingTarget
-      }
-      if payload.targetWindowIndex != nil {
-        throw SocketRequestError.windowRequiresSpace
-      }
-      return .contextPane(contextPaneID)
-
-    case (.none, .some):
-      throw SocketRequestError.tabRequiresSpace
-    case (.some, .none):
-      throw SocketRequestError.spaceRequiresTab
-    }
+  ) -> TerminalTabTarget {
+    TerminalTabTarget(tabID: payload.tabID)
   }
 
   func createTabNavigationRequest(
     from payload: SupatermTabNavigationRequest
   ) -> TerminalTabNavigationRequest {
-    TerminalTabNavigationRequest(
-      contextPaneID: payload.contextPaneID,
-      spaceIndex: payload.targetSpaceIndex,
-      windowIndex: payload.targetWindowIndex
-    )
+    TerminalTabNavigationRequest(spaceID: payload.spaceID)
   }
 }

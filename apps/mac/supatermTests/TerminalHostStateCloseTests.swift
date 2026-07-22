@@ -102,7 +102,7 @@ struct TerminalHostStateCloseTests {
         direction: .right,
         focus: true,
         equalize: false,
-        target: .contextPane(firstSurfaceID)
+        target: .pane(firstSurfaceID)
       )
     )
     if hasSurvivingTab {

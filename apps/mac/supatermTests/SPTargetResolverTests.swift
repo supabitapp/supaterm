@@ -7,114 +7,6 @@ import Testing
 
 struct SPTargetResolverTests {
   @Test
-  func resolveNewTabTargetUsesUUIDSpaceLocation() throws {
-    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
-
-    let target = try SPTargetResolver.resolveNewTabTarget(
-      window: nil,
-      space: .id(spaceID),
-      context: nil,
-      snapshot: treeSnapshot()
-    )
-
-    #expect(target == .space(windowIndex: 2, spaceIndex: 1))
-  }
-
-  @Test
-  func resolvePaneTargetUsesUUIDTabLocation() throws {
-    let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
-
-    let target = try SPTargetResolver.resolvePaneTarget(
-      window: nil,
-      space: nil,
-      tab: .id(tabID),
-      pane: nil,
-      context: nil,
-      snapshot: treeSnapshot()
-    )
-
-    #expect(target == .tab(windowIndex: 2, spaceIndex: 1, tabIndex: 2))
-  }
-
-  @Test
-  func resolvePaneTargetUsesUUIDPaneLocation() throws {
-    let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
-
-    let target = try SPTargetResolver.resolvePaneTarget(
-      window: nil,
-      space: nil,
-      tab: nil,
-      pane: .id(paneID),
-      context: nil,
-      snapshot: treeSnapshot()
-    )
-
-    #expect(target == .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2))
-  }
-
-  @Test
-  func resolvePaneTargetAllowsUUIDSpaceWithNumericChildren() throws {
-    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
-
-    let target = try SPTargetResolver.resolvePaneTarget(
-      window: nil,
-      space: .id(spaceID),
-      tab: .index(2),
-      pane: .index(1),
-      context: nil,
-      snapshot: treeSnapshot()
-    )
-
-    #expect(target == .pane(windowIndex: 2, spaceIndex: 1, tabIndex: 2, paneIndex: 1))
-  }
-
-  @Test
-  func resolvePaneTargetRejectsWindowWithUUIDSpace() {
-    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
-
-    #expect(throws: ValidationError.self) {
-      _ = try SPTargetResolver.resolvePaneTarget(
-        window: 1,
-        space: .id(spaceID),
-        tab: .index(1),
-        pane: nil,
-        context: nil,
-        snapshot: treeSnapshot()
-      )
-    }
-  }
-
-  @Test
-  func resolvePaneTargetRejectsUUIDTabWithParentSelectors() {
-    let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
-
-    #expect(throws: ValidationError.self) {
-      _ = try SPTargetResolver.resolvePaneTarget(
-        window: nil,
-        space: .index(1),
-        tab: .id(tabID),
-        pane: nil,
-        context: nil,
-        snapshot: treeSnapshot()
-      )
-    }
-  }
-
-  @Test
-  func resolvePaneTargetRejectsUnknownUUID() {
-    #expect(throws: ValidationError.self) {
-      _ = try SPTargetResolver.resolvePaneTarget(
-        window: nil,
-        space: nil,
-        tab: nil,
-        pane: .id(UUID(uuidString: "8A4E58B3-52A0-4343-B013-7493A1A566B7")!),
-        context: nil,
-        snapshot: treeSnapshot()
-      )
-    }
-  }
-
-  @Test
   func resolvePublicSpaceTargetDefaultsToSelectedSpaceInKeyWindow() throws {
     let target = try resolvePublicSpaceTarget(
       nil,
@@ -122,7 +14,29 @@ struct SPTargetResolverTests {
       snapshot: treeSnapshot()
     )
 
-    #expect(target == .space(windowIndex: 2, spaceIndex: 1))
+    #expect(
+      target
+        == SupatermSpaceTargetRequest(
+          spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+        )
+    )
+  }
+
+  @Test
+  func resolvedSpaceRequestContainsOnlyTheStableSpaceID() throws {
+    let target = try resolvePublicSpaceTarget(
+      nil,
+      context: nil,
+      snapshot: treeSnapshot()
+    )
+    let data = try JSONEncoder().encode(target)
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: String])
+
+    #expect(
+      object == [
+        "spaceID": "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497"
+      ]
+    )
   }
 
   @Test
@@ -133,7 +47,12 @@ struct SPTargetResolverTests {
       snapshot: treeSnapshot()
     )
 
-    #expect(target == .pane(windowIndex: 2, spaceIndex: 1, tabIndex: 2, paneIndex: 1))
+    #expect(
+      target
+        == SupatermPaneTargetRequest(
+          paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
+        )
+    )
   }
 
   @Test
@@ -192,10 +111,7 @@ struct SPTargetResolverTests {
         context: context,
         snapshot: treeSnapshot()
       )
-        == SPResolvedNewTabPlacement(
-          target: .context(context.surfaceID),
-          groupDestination: nil
-        )
+        == SupatermNewTabTarget.pane(context.surfaceID)
     )
     #expect(
       try resolvePublicNewTabPlacement(
@@ -204,9 +120,8 @@ struct SPTargetResolverTests {
         context: context,
         snapshot: treeSnapshot()
       )
-        == SPResolvedNewTabPlacement(
-          target: .context(context.surfaceID),
-          groupDestination: .root(isPinned: false)
+        == SupatermNewTabTarget.root(
+          UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
         )
     )
     #expect(
@@ -216,11 +131,8 @@ struct SPTargetResolverTests {
         context: context,
         snapshot: treeSnapshot()
       )
-        == SPResolvedNewTabPlacement(
-          target: .space(windowIndex: 2, spaceIndex: 1),
-          groupDestination: .group(
-            UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
-          )
+        == SupatermNewTabTarget.group(
+          UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
         )
     )
   }
@@ -242,9 +154,7 @@ struct SPTargetResolverTests {
           destination: .group(UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!),
           index: 1,
           target: SupatermTabTargetRequest(
-            targetWindowIndex: 2,
-            targetSpaceIndex: 1,
-            targetTabIndex: 2
+            tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
           )
         )
     )

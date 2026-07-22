@@ -193,7 +193,7 @@ extension TerminalCommandExecutor {
           TerminalNotifyRequest(
             body: notification.body,
             subtitle: notification.subtitle,
-            target: .contextPane(surfaceID),
+            target: .pane(surfaceID),
             title: agent.notificationTitle,
             allowDesktopNotificationWhenAgentActive: true
           ),

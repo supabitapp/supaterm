@@ -259,10 +259,7 @@ func sendTextTraceFields(
   sourceText: String?
 ) -> [String: String?] {
   [
-    "target_window_index": String(target.targetWindowIndex ?? 0),
-    "target_space_index": String(target.targetSpaceIndex ?? 0),
-    "target_tab_index": String(target.targetTabIndex ?? 0),
-    "target_pane_index": String(target.targetPaneIndex ?? 0),
+    "target_pane_id": target.paneID.uuidString.lowercased(),
     "text_length": String(text.count),
     "text_has_cr": text.contains("\r") ? "1" : "0",
     "text_has_lf": text.contains("\n") ? "1" : "0",

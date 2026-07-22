@@ -7,31 +7,74 @@ public enum SupatermPaneDirection: String, CaseIterable, Sendable, Codable {
   case up
 }
 
+public enum SupatermNewTabTarget: Equatable, Sendable, Codable {
+  case group(UUID)
+  case pane(UUID)
+  case root(UUID)
+  case space(UUID)
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case kind
+  }
+
+  private enum Kind: String, Codable {
+    case group
+    case pane
+    case root
+    case space
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let id = try container.decode(UUID.self, forKey: .id)
+    switch try container.decode(Kind.self, forKey: .kind) {
+    case .group:
+      self = .group(id)
+    case .pane:
+      self = .pane(id)
+    case .root:
+      self = .root(id)
+    case .space:
+      self = .space(id)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .group(let id):
+      try container.encode(Kind.group, forKey: .kind)
+      try container.encode(id, forKey: .id)
+    case .pane(let id):
+      try container.encode(Kind.pane, forKey: .kind)
+      try container.encode(id, forKey: .id)
+    case .root(let id):
+      try container.encode(Kind.root, forKey: .kind)
+      try container.encode(id, forKey: .id)
+    case .space(let id):
+      try container.encode(Kind.space, forKey: .kind)
+      try container.encode(id, forKey: .id)
+    }
+  }
+}
+
 public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let startupCommand: String?
-  public let contextPaneID: UUID?
   public let cwd: String?
   public let focus: Bool
-  public let groupDestination: SupatermTabGroupDestination?
-  public let targetWindowIndex: Int?
-  public let targetSpaceIndex: Int?
+  public let target: SupatermNewTabTarget
 
   public init(
     startupCommand: String? = nil,
-    contextPaneID: UUID? = nil,
     cwd: String? = nil,
     focus: Bool,
-    groupDestination: SupatermTabGroupDestination? = nil,
-    targetWindowIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil
+    target: SupatermNewTabTarget
   ) {
     self.startupCommand = startupCommand
-    self.contextPaneID = contextPaneID
     self.cwd = cwd
     self.focus = focus
-    self.groupDestination = groupDestination
-    self.targetWindowIndex = targetWindowIndex
-    self.targetSpaceIndex = targetSpaceIndex
+    self.target = target
   }
 }
 
@@ -72,97 +115,90 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
   }
 }
 
+public enum SupatermNewPaneTarget: Equatable, Sendable, Codable {
+  case pane(UUID)
+  case tab(UUID)
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case kind
+  }
+
+  private enum Kind: String, Codable {
+    case pane
+    case tab
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let id = try container.decode(UUID.self, forKey: .id)
+    switch try container.decode(Kind.self, forKey: .kind) {
+    case .pane:
+      self = .pane(id)
+    case .tab:
+      self = .tab(id)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .pane(let id):
+      try container.encode(Kind.pane, forKey: .kind)
+      try container.encode(id, forKey: .id)
+    case .tab(let id):
+      try container.encode(Kind.tab, forKey: .kind)
+      try container.encode(id, forKey: .id)
+    }
+  }
+}
+
 public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let startupCommand: String?
-  public let contextPaneID: UUID?
   public let cwd: String?
   public let direction: SupatermPaneDirection
   public let focus: Bool
   public let equalize: Bool
-  public let targetWindowIndex: Int?
-  public let targetSpaceIndex: Int?
-  public let targetTabIndex: Int?
-  public let targetPaneIndex: Int?
+  public let target: SupatermNewPaneTarget
 
   public init(
     startupCommand: String? = nil,
-    contextPaneID: UUID? = nil,
     cwd: String? = nil,
     direction: SupatermPaneDirection,
     focus: Bool,
     equalize: Bool,
-    targetWindowIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil,
-    targetTabIndex: Int? = nil,
-    targetPaneIndex: Int? = nil
+    target: SupatermNewPaneTarget
   ) {
     self.startupCommand = startupCommand
-    self.contextPaneID = contextPaneID
     self.cwd = cwd
     self.direction = direction
     self.focus = focus
     self.equalize = equalize
-    self.targetWindowIndex = targetWindowIndex
-    self.targetSpaceIndex = targetSpaceIndex
-    self.targetTabIndex = targetTabIndex
-    self.targetPaneIndex = targetPaneIndex
+    self.target = target
   }
 }
 
 public struct SupatermSpaceTargetRequest: Equatable, Sendable, Codable {
-  public let contextPaneID: UUID?
-  public let targetWindowIndex: Int?
-  public let targetSpaceIndex: Int?
+  public let spaceID: UUID
 
-  public init(
-    contextPaneID: UUID? = nil,
-    targetWindowIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil
-  ) {
-    self.contextPaneID = contextPaneID
-    self.targetWindowIndex = targetWindowIndex
-    self.targetSpaceIndex = targetSpaceIndex
+  public init(spaceID: UUID) {
+    self.spaceID = spaceID
   }
 }
 
 public struct SupatermTabTargetRequest: Equatable, Sendable, Codable {
-  public let contextPaneID: UUID?
-  public let targetWindowIndex: Int?
-  public let targetSpaceIndex: Int?
-  public let targetTabIndex: Int?
+  public let tabID: UUID
 
-  public init(
-    contextPaneID: UUID? = nil,
-    targetWindowIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil,
-    targetTabIndex: Int? = nil
-  ) {
-    self.contextPaneID = contextPaneID
-    self.targetWindowIndex = targetWindowIndex
-    self.targetSpaceIndex = targetSpaceIndex
-    self.targetTabIndex = targetTabIndex
+  public init(tabID: UUID) {
+    self.tabID = tabID
   }
 }
 
 public struct SupatermPaneTargetRequest: Equatable, Sendable, Codable {
-  public let contextPaneID: UUID?
-  public let targetWindowIndex: Int?
-  public let targetSpaceIndex: Int?
-  public let targetTabIndex: Int?
-  public let targetPaneIndex: Int?
+  public let paneID: UUID
 
-  public init(
-    contextPaneID: UUID? = nil,
-    targetWindowIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil,
-    targetTabIndex: Int? = nil,
-    targetPaneIndex: Int? = nil
-  ) {
-    self.contextPaneID = contextPaneID
-    self.targetWindowIndex = targetWindowIndex
-    self.targetSpaceIndex = targetSpaceIndex
-    self.targetTabIndex = targetTabIndex
-    self.targetPaneIndex = targetPaneIndex
+  public init(paneID: UUID) {
+    self.paneID = paneID
   }
 }
 
@@ -306,15 +342,18 @@ public struct SupatermRenameTabRequest: Equatable, Sendable, Codable {
 }
 
 public struct SupatermCreateSpaceRequest: Equatable, Sendable, Codable {
+  public let focus: Bool
   public let name: String
-  public let target: SupatermSpaceNavigationRequest
+  public let windowAnchorPaneID: UUID
 
   public init(
+    focus: Bool,
     name: String,
-    target: SupatermSpaceNavigationRequest = .init()
+    windowAnchorPaneID: UUID
   ) {
+    self.focus = focus
     self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    self.target = target
+    self.windowAnchorPaneID = windowAnchorPaneID
   }
 }
 
@@ -332,31 +371,18 @@ public struct SupatermRenameSpaceRequest: Equatable, Sendable, Codable {
 }
 
 public struct SupatermSpaceNavigationRequest: Equatable, Sendable, Codable {
-  public let contextPaneID: UUID?
-  public let targetWindowIndex: Int?
+  public let spaceID: UUID
 
-  public init(
-    contextPaneID: UUID? = nil,
-    targetWindowIndex: Int? = nil
-  ) {
-    self.contextPaneID = contextPaneID
-    self.targetWindowIndex = targetWindowIndex
+  public init(spaceID: UUID) {
+    self.spaceID = spaceID
   }
 }
 
 public struct SupatermTabNavigationRequest: Equatable, Sendable, Codable {
-  public let contextPaneID: UUID?
-  public let targetWindowIndex: Int?
-  public let targetSpaceIndex: Int?
+  public let spaceID: UUID
 
-  public init(
-    contextPaneID: UUID? = nil,
-    targetWindowIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil
-  ) {
-    self.contextPaneID = contextPaneID
-    self.targetWindowIndex = targetWindowIndex
-    self.targetSpaceIndex = targetSpaceIndex
+  public init(spaceID: UUID) {
+    self.spaceID = spaceID
   }
 }
 

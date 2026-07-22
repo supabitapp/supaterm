@@ -280,7 +280,7 @@ extension TerminalHostState {
     _ target: TerminalCreateTabRequest.Target
   ) throws -> ResolvedCreateTabTarget {
     switch target {
-    case .contextPane(let paneID):
+    case .pane(let paneID):
       guard
         let tabID = tabID(containing: paneID),
         let space = spaceManager.space(for: tabID)
@@ -290,18 +290,49 @@ extension TerminalHostState {
 
       return ResolvedCreateTabTarget(
         inheritedSurfaceID: paneID,
+        placement: nil,
         space: space
       )
 
-    case .space(let windowIndex, let spaceIndex):
-      guard windowIndex == 1 else {
-        throw TerminalCreateTabError.windowNotFound(windowIndex)
-      }
-      guard let space = spaceManager.space(at: spaceIndex) else {
-        throw TerminalCreateTabError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    case .space(let rawSpaceID):
+      let spaceID = TerminalSpaceID(rawValue: rawSpaceID)
+      guard let space = spaces.first(where: { $0.id == spaceID }) else {
+        throw TerminalCreateTabError.contextPaneNotFound
       }
       return ResolvedCreateTabTarget(
         inheritedSurfaceID: inheritedSurfaceID(in: space.id),
+        placement: nil,
+        space: space
+      )
+
+    case .root(let rawSpaceID):
+      let spaceID = TerminalSpaceID(rawValue: rawSpaceID)
+      guard
+        let space = spaces.first(where: { $0.id == spaceID }),
+        let manager = spaceManager.tabManager(for: spaceID)
+      else {
+        throw TerminalCreateTabError.contextPaneNotFound
+      }
+      return ResolvedCreateTabTarget(
+        inheritedSurfaceID: inheritedSurfaceID(in: spaceID),
+        placement: .root(
+          TerminalRootPlacement(isPinned: false, index: manager.regularRootItems.count)
+        ),
+        space: space
+      )
+
+    case .group(let rawGroupID):
+      let groupID = TerminalTabGroupID(rawValue: rawGroupID)
+      guard
+        let space = spaceManager.space(for: groupID),
+        let manager = spaceManager.tabManager(for: space.id),
+        let group = manager.group(for: groupID)
+      else {
+        throw TerminalCreateTabError.contextPaneNotFound
+      }
+      return ResolvedCreateTabTarget(
+        inheritedSurfaceID: inheritedSurfaceID(in: space.id),
+        placement: .group(groupID, index: group.tabs.count),
         space: space
       )
     }
@@ -334,7 +365,7 @@ extension TerminalHostState {
     _ target: TerminalCreatePaneRequest.Target
   ) throws -> ResolvedCreatePaneTarget {
     switch target {
-    case .contextPane(let paneID):
+    case .pane(let paneID):
       guard
         let tabID = tabID(containing: paneID),
         let space = spaceManager.space(for: tabID),
@@ -351,42 +382,26 @@ extension TerminalHostState {
         tree: tree
       )
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let resolvedTab = try resolveTab(
-        windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
-      let panes = resolvedTab.tree.leaves()
-      let paneOffset = paneIndex - 1
-      guard panes.indices.contains(paneOffset) else {
-        throw TerminalCreatePaneError.paneNotFound(
-          windowIndex: windowIndex,
-          spaceIndex: spaceIndex,
-          tabIndex: tabIndex,
-          paneIndex: paneIndex
-        )
+    case .tab(let rawTabID):
+      let tabID = TerminalTabID(rawValue: rawTabID)
+      guard
+        let space = spaceManager.space(for: tabID),
+        let tree = trees[tabID]
+      else {
+        throw TerminalCreatePaneError.contextPaneNotFound
       }
-
-      return ResolvedCreatePaneTarget(
-        anchorSurface: panes[paneOffset],
-        spaceID: resolvedTab.space.id,
-        tabID: resolvedTab.tabID,
-        tree: resolvedTab.tree
-      )
-
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
-      let resolvedTab = try resolveTab(
-        windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
       let anchorSurface =
-        focusHistoryByTab[resolvedTab.tabID].flatMap { surfaces[$0.current] }
-        ?? resolvedTab.tree.root?.leftmostLeaf()
+        focusHistoryByTab[tabID].flatMap { surfaces[$0.current] }
+        ?? tree.root?.leftmostLeaf()
       guard let anchorSurface else {
         throw TerminalCreatePaneError.creationFailed
       }
 
       return ResolvedCreatePaneTarget(
         anchorSurface: anchorSurface,
-        spaceID: resolvedTab.space.id,
-        tabID: resolvedTab.tabID,
-        tree: resolvedTab.tree
+        spaceID: space.id,
+        tabID: tabID,
+        tree: tree
       )
     }
   }

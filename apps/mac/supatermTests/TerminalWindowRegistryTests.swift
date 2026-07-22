@@ -461,7 +461,7 @@ struct TerminalWindowRegistryTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .contextPane(selectedSurfaceID)
+          target: .pane(selectedSurfaceID)
         )
       )
 
@@ -938,7 +938,7 @@ struct TerminalWindowRegistryTests {
             direction: .right,
             focus: true,
             equalize: false,
-            target: .contextPane(surfaceID)
+            target: .pane(surfaceID)
           )
         ])
     }

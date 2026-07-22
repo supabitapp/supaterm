@@ -4,341 +4,77 @@ import SupatermTerminalCore
 
 extension TerminalCommandExecutor {
   func focusPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
-    switch target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.focusPane(target)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.focusPane(
-            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
-          ),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.focusPane(target) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 
   func lastPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
-    switch target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.lastPane(target)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.lastPane(
-            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
-          ),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.lastPane(target) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 
   func closePane(_ target: TerminalPaneTarget) throws -> SupatermClosePaneResult {
-    switch target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let resolvedClose = try entry.terminal.resolveClose(target)
-          if resolvedClose.shouldCloseWindow, let window = entry.windowReference.value {
-            registry.closeWindow(ObjectIdentifier(window))
-            return TerminalWindowRegistry.rewrite(resolvedClose.result, windowIndex: offset + 1)
-          }
-          let result = try entry.terminal.closePane(target)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localTarget = TerminalPaneTarget.pane(
-        windowIndex: 1,
-        spaceIndex: spaceIndex,
-        tabIndex: tabIndex,
-        paneIndex: paneIndex
-      )
+    for (offset, entry) in registry.activeEntries().enumerated() {
       do {
-        let resolvedClose = try entry.terminal.resolveClose(localTarget)
+        let resolvedClose = try entry.terminal.resolveClose(target)
         if resolvedClose.shouldCloseWindow, let window = entry.windowReference.value {
           registry.closeWindow(ObjectIdentifier(window))
-          return TerminalWindowRegistry.rewrite(resolvedClose.result, windowIndex: windowIndex)
+          return TerminalWindowRegistry.rewrite(resolvedClose.result, windowIndex: offset + 1)
         }
         return TerminalWindowRegistry.rewrite(
-          try entry.terminal.closePane(localTarget),
-          windowIndex: windowIndex
+          try entry.terminal.closePane(target),
+          windowIndex: offset + 1
         )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
+      } catch TerminalControlError.contextPaneNotFound {
+        continue
       }
     }
+    throw TerminalControlError.contextPaneNotFound
   }
 
   func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.sendText(request)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalSendTextRequest(
-        mode: request.mode,
-        target: .pane(
-          windowIndex: 1,
-          spaceIndex: spaceIndex,
-          tabIndex: tabIndex,
-          paneIndex: paneIndex
-        ),
-        text: request.text
-      )
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.sendText(localRequest),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.sendText(request) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 
   func sendKey(_ request: TerminalSendKeyRequest) throws -> SupatermSendKeyResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.sendKey(request)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalSendKeyRequest(
-        key: request.key,
-        target: .pane(
-          windowIndex: 1,
-          spaceIndex: spaceIndex,
-          tabIndex: tabIndex,
-          paneIndex: paneIndex
-        )
-      )
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.sendKey(localRequest),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.sendKey(request) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 
   func capturePane(_ request: TerminalCapturePaneRequest) throws -> SupatermCapturePaneResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.capturePane(request)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalCapturePaneRequest(
-        lines: request.lines,
-        scope: request.scope,
-        target: .pane(
-          windowIndex: 1,
-          spaceIndex: spaceIndex,
-          tabIndex: tabIndex,
-          paneIndex: paneIndex
-        )
-      )
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.capturePane(localRequest),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.capturePane(request) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 
   func paneHealth(_ request: TerminalPaneHealthRequest) throws -> SupatermPaneHealthResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.paneHealth(request)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalPaneHealthRequest(
-        target: .pane(
-          windowIndex: 1,
-          spaceIndex: spaceIndex,
-          tabIndex: tabIndex,
-          paneIndex: paneIndex
-        )
-      )
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.paneHealth(localRequest),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.paneHealth(request) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 
   func resizePane(_ request: TerminalResizePaneRequest) throws -> SupatermResizePaneResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.resizePane(request)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalResizePaneRequest(
-        amount: request.amount,
-        direction: request.direction,
-        target: .pane(
-          windowIndex: 1,
-          spaceIndex: spaceIndex,
-          tabIndex: tabIndex,
-          paneIndex: paneIndex
-        )
-      )
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.resizePane(localRequest),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.resizePane(request) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 
   func setPaneSize(_ request: TerminalSetPaneSizeRequest) throws -> SupatermSetPaneSizeResult {
-    switch request.target {
-    case .contextPane:
-      for (offset, entry) in registry.activeEntries().enumerated() {
-        do {
-          let result = try entry.terminal.setPaneSize(request)
-          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-        } catch let error as TerminalControlError {
-          if case .contextPaneNotFound = error {
-            continue
-          }
-          throw error
-        }
-      }
-      throw TerminalControlError.contextPaneNotFound
-
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let entry = try registry.entry(for: windowIndex)
-      let localRequest = TerminalSetPaneSizeRequest(
-        amount: request.amount,
-        axis: request.axis,
-        target: .pane(
-          windowIndex: 1,
-          spaceIndex: spaceIndex,
-          tabIndex: tabIndex,
-          paneIndex: paneIndex
-        ),
-        unit: request.unit
-      )
-      do {
-        return TerminalWindowRegistry.rewrite(
-          try entry.terminal.setPaneSize(localRequest),
-          windowIndex: windowIndex
-        )
-      } catch let error as TerminalControlError {
-        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
-      }
-    }
+    try executeTargeted(
+      operation: { try $0.terminal.setPaneSize(request) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
   }
 }

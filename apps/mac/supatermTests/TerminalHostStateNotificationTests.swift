@@ -276,7 +276,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Done.",
         subtitle: "Turn complete",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Codex",
         allowDesktopNotificationWhenAgentActive: true
       ),
@@ -306,7 +306,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Done.",
         subtitle: "Turn complete",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Codex",
         allowDesktopNotificationWhenAgentActive: true
       ),
@@ -334,7 +334,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: nil
       )
     )
@@ -442,7 +442,7 @@ struct TerminalHostStateNotificationTests {
         direction: .right,
         focus: false,
         equalize: true,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
 
@@ -454,11 +454,11 @@ struct TerminalHostStateNotificationTests {
     )
     #expect(host.showsAgentActivityDetail(for: tabID))
 
-    _ = try host.focusPane(.contextPane(secondPane.paneID))
+    _ = try host.focusPane(TerminalPaneTarget(paneID: secondPane.paneID))
 
     #expect(!host.showsAgentActivityDetail(for: tabID))
 
-    _ = try host.focusPane(.contextPane(firstSurface.id))
+    _ = try host.focusPane(TerminalPaneTarget(paneID: firstSurface.id))
 
     #expect(host.showsAgentActivityDetail(for: tabID))
   }
@@ -479,7 +479,7 @@ struct TerminalHostStateNotificationTests {
         direction: .right,
         focus: false,
         equalize: true,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
 
@@ -533,7 +533,7 @@ struct TerminalHostStateNotificationTests {
         direction: .right,
         focus: false,
         equalize: true,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
 
@@ -581,7 +581,7 @@ struct TerminalHostStateNotificationTests {
         direction: .right,
         focus: false,
         equalize: true,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
 
@@ -593,7 +593,7 @@ struct TerminalHostStateNotificationTests {
     #expect(host.setTestAgentActivity(.codex(.idle), for: secondPane.paneID))
     #expect(host.codexHoverMarkdown(for: tabID) == "Focused hover")
 
-    _ = try host.focusPane(.contextPane(secondPane.paneID))
+    _ = try host.focusPane(TerminalPaneTarget(paneID: secondPane.paneID))
 
     #expect(host.codexHoverMarkdown(for: tabID) == "Background hover")
   }
@@ -614,7 +614,7 @@ struct TerminalHostStateNotificationTests {
         direction: .right,
         focus: false,
         equalize: true,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
 
@@ -664,7 +664,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Build"
       )
     )
@@ -672,7 +672,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Deploy complete",
         subtitle: "",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Deploy"
       )
     )
@@ -698,7 +698,7 @@ struct TerminalHostStateNotificationTests {
         direction: .right,
         focus: false,
         equalize: true,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
 
@@ -706,7 +706,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
-        target: .contextPane(firstSurface.id),
+        target: .pane(firstSurface.id),
         title: "Build"
       )
     )
@@ -714,7 +714,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Deploy complete",
         subtitle: "",
-        target: .contextPane(secondSurface.paneID),
+        target: .pane(secondSurface.paneID),
         title: "Deploy"
       )
     )
@@ -743,7 +743,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Input requested",
         subtitle: "",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Task"
       )
     )
@@ -771,7 +771,7 @@ struct TerminalHostStateNotificationTests {
         direction: .right,
         focus: false,
         equalize: true,
-        target: .contextPane(firstSurface.id)
+        target: .pane(firstSurface.id)
       )
     )
 
@@ -779,7 +779,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Claude needs your attention",
         subtitle: "Needs input",
-        target: .contextPane(secondSurface.paneID),
+        target: .pane(secondSurface.paneID),
         title: "Claude Code"
       )
     )
@@ -816,7 +816,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Claude needs your attention",
         subtitle: "Needs input",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Claude Code"
       )
     )
@@ -845,7 +845,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Claude needs your attention",
         subtitle: "Needs input",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Claude Code"
       )
     )
@@ -859,7 +859,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
-        target: .contextPane(surface.id),
+        target: .pane(surface.id),
         title: "Build"
       )
     )

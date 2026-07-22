@@ -176,7 +176,7 @@ struct TerminalHostStateSessionRestoreTests {
           direction: .right,
           focus: true,
           equalize: true,
-          target: .contextPane(firstSurfaceID)
+          target: .pane(firstSurfaceID)
         )
       )
       host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
@@ -191,7 +191,7 @@ struct TerminalHostStateSessionRestoreTests {
           startupCommand: nil,
           cwd: restoredPathString,
           focus: false,
-          target: .space(windowIndex: 1, spaceIndex: 2)
+          target: .space(secondSpaceID.rawValue)
         )
       )
 

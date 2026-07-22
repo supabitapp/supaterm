@@ -102,7 +102,7 @@ struct TerminalHostStateZoomTests {
         direction: .right,
         focus: true,
         equalize: false,
-        target: .contextPane(firstSurfaceID)
+        target: .pane(firstSurfaceID)
       )
     )
     let thirdPane = try host.createPane(
@@ -111,7 +111,7 @@ struct TerminalHostStateZoomTests {
         direction: .right,
         focus: true,
         equalize: false,
-        target: .contextPane(secondPane.paneID)
+        target: .pane(secondPane.paneID)
       )
     )
 

@@ -12,19 +12,14 @@ extension SupatermE2ESuite {
         let otherSpace = try #require(window.spaces.first { $0.id != space.spaceID })
 
         let selectedOther = try app.send(
-          .selectSpace(
-            SupatermSpaceTargetRequest(
-              targetWindowIndex: window.index,
-              targetSpaceIndex: otherSpace.index
-            )
-          ),
+          .selectSpace(SupatermSpaceTargetRequest(spaceID: otherSpace.id)),
           as: SupatermSelectSpaceResult.self
         )
         #expect(selectedOther.isSelectedSpace)
         #expect(selectedOther.target.spaceID == otherSpace.id)
 
         let selectedBack = try app.send(
-          .selectSpace(SupatermSpaceTargetRequest(contextPaneID: space.tab.paneID)),
+          .selectSpace(SupatermSpaceTargetRequest(spaceID: space.spaceID)),
           as: SupatermSelectSpaceResult.self
         )
         #expect(selectedBack.target.spaceID == space.spaceID)
@@ -43,7 +38,7 @@ extension SupatermE2ESuite {
         #expect(secondTab.isSelectedTab)
 
         let selectedFirst = try app.send(
-          .selectTab(SupatermTabTargetRequest(contextPaneID: space.tab.paneID)),
+          .selectTab(SupatermTabTargetRequest(tabID: space.tab.tabID)),
           as: SupatermSelectTabResult.self
         )
         #expect(selectedFirst.isSelectedTab)
@@ -53,7 +48,7 @@ extension SupatermE2ESuite {
 
         let split = try makeSplit(app, in: space)
         let focusedOriginal = try app.send(
-          .focusPane(SupatermPaneTargetRequest(contextPaneID: space.tab.paneID)),
+          .focusPane(SupatermPaneTargetRequest(paneID: space.tab.paneID)),
           as: SupatermFocusPaneResult.self
         )
         #expect(focusedOriginal.target.paneID == space.tab.paneID)
@@ -69,11 +64,11 @@ extension SupatermE2ESuite {
         let third = try makeTab(app, in: space)
 
         _ = try app.send(
-          .selectTab(SupatermTabTargetRequest(contextPaneID: space.tab.paneID)),
+          .selectTab(SupatermTabTargetRequest(tabID: space.tab.tabID)),
           as: SupatermSelectTabResult.self
         )
 
-        let navigation = SupatermTabNavigationRequest(contextPaneID: space.tab.paneID)
+        let navigation = SupatermTabNavigationRequest(spaceID: space.spaceID)
         let next = try app.send(.nextTab(navigation), as: SupatermSelectTabResult.self)
         #expect(next.target.tabID == second.tabID)
 
@@ -91,20 +86,25 @@ extension SupatermE2ESuite {
     @Test(.timeLimit(.minutes(5)))
     func nextPreviousLastSpaceRoundTrip() async throws {
       try await withTestSpace { app, space in
-        let window = try #require(try app.debugSnapshot().windows.first)
-        let navigation = SupatermSpaceNavigationRequest(targetWindowIndex: window.index)
+        let navigation = SupatermSpaceNavigationRequest(spaceID: space.spaceID)
 
         let next = try app.send(.nextSpace(navigation), as: SupatermSelectSpaceResult.self)
         #expect(next.target.spaceID != space.spaceID)
 
-        let previous = try app.send(.previousSpace(navigation), as: SupatermSelectSpaceResult.self)
+        let previous = try app.send(
+          .previousSpace(SupatermSpaceNavigationRequest(spaceID: next.target.spaceID)),
+          as: SupatermSelectSpaceResult.self
+        )
         #expect(previous.target.spaceID == space.spaceID)
 
-        let last = try app.send(.lastSpace(navigation), as: SupatermSelectSpaceResult.self)
+        let last = try app.send(
+          .lastSpace(SupatermSpaceNavigationRequest(spaceID: previous.target.spaceID)),
+          as: SupatermSelectSpaceResult.self
+        )
         #expect(last.target.spaceID == next.target.spaceID)
 
         _ = try app.send(
-          .selectSpace(SupatermSpaceTargetRequest(contextPaneID: space.tab.paneID)),
+          .selectSpace(SupatermSpaceTargetRequest(spaceID: space.spaceID)),
           as: SupatermSelectSpaceResult.self
         )
       }
@@ -117,7 +117,7 @@ extension SupatermE2ESuite {
         let renamed = try app.send(
           .renameTab(
             SupatermRenameTabRequest(
-              target: SupatermTabTargetRequest(contextPaneID: space.tab.paneID),
+              target: SupatermTabTargetRequest(tabID: space.tab.tabID),
               title: title
             )
           ),
@@ -142,7 +142,7 @@ extension SupatermE2ESuite {
         let renamed = try app.send(
           .renameSpace(
             SupatermRenameSpaceRequest(
-              target: SupatermSpaceTargetRequest(contextPaneID: space.tab.paneID),
+              target: SupatermSpaceTargetRequest(spaceID: space.spaceID),
               name: name
             )
           ),
@@ -158,7 +158,7 @@ extension SupatermE2ESuite {
     @Test(.timeLimit(.minutes(5)))
     func pinUnpinTab() async throws {
       try await withTestSpace { app, space in
-        let target = SupatermTabTargetRequest(contextPaneID: space.tab.paneID)
+        let target = SupatermTabTargetRequest(tabID: space.tab.tabID)
 
         let pinned = try app.send(.pinTab(target), as: SupatermPinTabResult.self)
         #expect(pinned.isPinned)
@@ -177,7 +177,7 @@ extension SupatermE2ESuite {
         #expect(try app.debugTab(space.tab.tabID)?.panes.count == 2)
 
         let closed = try app.send(
-          .closePane(SupatermPaneTargetRequest(contextPaneID: split.paneID)),
+          .closePane(SupatermPaneTargetRequest(paneID: split.paneID)),
           as: SupatermClosePaneResult.self
         )
         #expect(closed.paneID == split.paneID)
@@ -195,7 +195,7 @@ extension SupatermE2ESuite {
         let second = try makeTab(app, in: space)
 
         let closed = try app.send(
-          .closeTab(SupatermTabTargetRequest(contextPaneID: second.paneID)),
+          .closeTab(SupatermTabTargetRequest(tabID: second.tabID)),
           as: SupatermCloseTabResult.self
         )
         #expect(closed.tabID == second.tabID)
@@ -210,20 +210,19 @@ extension SupatermE2ESuite {
     @Test(.timeLimit(.minutes(5)))
     func closeSpaceRemovesIt() async throws {
       try await withTestSpace { app, space in
-        let snapshot = try app.debugSnapshot()
-        let window = try #require(snapshot.windows.first)
         let extra = try app.send(
           .createSpace(
             SupatermCreateSpaceRequest(
+              focus: true,
               name: "extra-\(space.token)",
-              target: SupatermSpaceNavigationRequest(targetWindowIndex: window.index)
+              windowAnchorPaneID: space.tab.paneID
             )
           ),
           as: SupatermCreateSpaceResult.self
         )
 
         let closed = try app.send(
-          .closeSpace(SupatermSpaceTargetRequest(contextPaneID: extra.paneID)),
+          .closeSpace(SupatermSpaceTargetRequest(spaceID: extra.target.spaceID)),
           as: SupatermCloseSpaceResult.self
         )
         #expect(closed.spaceID == extra.target.spaceID)
@@ -239,7 +238,7 @@ extension SupatermE2ESuite {
     func closeIsUnconditionalWithRunningProcess() async throws {
       try await withTestSpace { app, space in
         let split = try makeSplit(app, in: space)
-        let splitPane = SupatermPaneTargetRequest(contextPaneID: split.paneID)
+        let splitPane = SupatermPaneTargetRequest(paneID: split.paneID)
         try await app.waitForShellPrompt(splitPane)
 
         try app.type("sleep 300\n", into: splitPane)

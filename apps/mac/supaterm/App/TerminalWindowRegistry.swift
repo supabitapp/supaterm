@@ -448,7 +448,7 @@ final class TerminalWindowRegistry {
     guard let window = entry.windowReference.value else { return }
     window.makeKeyAndOrderFront(nil)
     entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
-    _ = try? entry.terminal.focusPane(.contextPane(target.surfaceID))
+    _ = try? entry.terminal.focusPane(TerminalPaneTarget(paneID: target.surfaceID))
   }
 
   @discardableResult
@@ -463,7 +463,7 @@ final class TerminalWindowRegistry {
         }
         window.makeKeyAndOrderFront(nil)
         entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
-        _ = try entry.terminal.focusPane(.contextPane(surfaceID))
+        _ = try entry.terminal.focusPane(TerminalPaneTarget(paneID: surfaceID))
         return true
       } catch let error as TerminalControlError {
         if case .contextPaneNotFound = error {

@@ -28,7 +28,7 @@ extension SupatermE2ESuite {
         #expect(split.tabID == space.tab.tabID)
         #expect(split.paneID != space.tab.paneID)
 
-        let splitPane = SupatermPaneTargetRequest(contextPaneID: split.paneID)
+        let splitPane = SupatermPaneTargetRequest(paneID: split.paneID)
         try await app.waitForShellPrompt(splitPane)
         try app.type("echo SPLIT''OK\(space.token) > split.txt\n", into: splitPane)
         let splitFile = space.directory.appendingPathComponent("split.txt")

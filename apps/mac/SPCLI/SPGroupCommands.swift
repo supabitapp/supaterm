@@ -63,12 +63,10 @@ extension SP {
             .init(
               color: color,
               isPinned: pin,
-              target: spaceTargetRequest(
-                try resolvePublicSpaceTarget(
-                  space,
-                  context: SupatermCLIContext.current,
-                  snapshot: snapshot
-                )
+              target: try resolvePublicSpaceTarget(
+                space,
+                context: SupatermCLIContext.current,
+                snapshot: snapshot
               ),
               title: title
             )

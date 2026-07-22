@@ -138,7 +138,6 @@ struct SPTmuxCommandRunner {
       throw ValidationError("new-session -A is not supported.")
     }
 
-    let previousSpace = try topology().resolveSpace(raw: nil)
     guard
       let name = trimmedNonEmpty(parsed.value("-n") ?? parsed.value("-s"))
     else {
@@ -147,8 +146,9 @@ struct SPTmuxCommandRunner {
     let created = try send(
       .createSpace(
         .init(
+          focus: false,
           name: name,
-          target: .init(targetWindowIndex: previousSpace.window.index)
+          windowAnchorPaneID: topology().current.pane.id
         )
       ),
       as: SupatermCreateSpaceResult.self
@@ -164,40 +164,18 @@ struct SPTmuxCommandRunner {
       )
       traceSendText(
         event: "new_session_send_text",
-        target: .init(
-          targetWindowIndex: created.target.windowIndex,
-          targetSpaceIndex: created.target.spaceIndex,
-          targetTabIndex: created.tabIndex,
-          targetPaneIndex: created.paneIndex
-        ),
+        target: .init(paneID: created.paneID),
         text: wrappedText,
         sourceText: text
       )
       _ = try send(
         .sendText(
           .init(
-            target: .init(
-              targetWindowIndex: created.target.windowIndex,
-              targetSpaceIndex: created.target.spaceIndex,
-              targetTabIndex: created.tabIndex,
-              targetPaneIndex: created.paneIndex
-            ),
+            target: .init(paneID: created.paneID),
             text: wrappedText
           )
         ),
         as: SupatermSendTextResult.self
-      )
-    }
-
-    if previousSpace.space.id != created.target.spaceID {
-      _ = try send(
-        .selectSpace(
-          .init(
-            targetWindowIndex: previousSpace.window.index,
-            targetSpaceIndex: previousSpace.space.index
-          )
-        ),
-        as: SupatermSelectSpaceResult.self
       )
     }
 
@@ -228,8 +206,7 @@ struct SPTmuxCommandRunner {
           startupCommand: nil,
           cwd: try resolvedWorkingDirectory(parsed.value("-c")),
           focus: false,
-          targetWindowIndex: targetSpace.window.index,
-          targetSpaceIndex: targetSpace.space.index
+          target: .space(targetSpace.space.id)
         )
       ),
       as: SupatermNewTabResult.self
@@ -239,11 +216,7 @@ struct SPTmuxCommandRunner {
       _ = try send(
         .renameTab(
           .init(
-            target: .init(
-              targetWindowIndex: created.windowIndex,
-              targetSpaceIndex: created.spaceIndex,
-              targetTabIndex: created.tabIndex
-            ),
+            target: .init(tabID: created.tabID),
             title: title
           )
         ),
@@ -261,24 +234,14 @@ struct SPTmuxCommandRunner {
       )
       traceSendText(
         event: "new_window_send_text",
-        target: .init(
-          targetWindowIndex: created.windowIndex,
-          targetSpaceIndex: created.spaceIndex,
-          targetTabIndex: created.tabIndex,
-          targetPaneIndex: created.paneIndex
-        ),
+        target: .init(paneID: created.paneID),
         text: wrappedText,
         sourceText: command
       )
       _ = try send(
         .sendText(
           .init(
-            target: .init(
-              targetWindowIndex: created.windowIndex,
-              targetSpaceIndex: created.spaceIndex,
-              targetTabIndex: created.tabIndex,
-              targetPaneIndex: created.paneIndex
-            ),
+            target: .init(paneID: created.paneID),
             text: wrappedText
           )
         ),
@@ -321,10 +284,7 @@ struct SPTmuxCommandRunner {
           direction: direction,
           focus: false,
           equalize: false,
-          targetWindowIndex: targetPane.window.index,
-          targetSpaceIndex: targetPane.space.index,
-          targetTabIndex: targetPane.tabIndex,
-          targetPaneIndex: targetPane.pane.index
+          target: .pane(targetPane.pane.id)
         )
       ),
       as: SupatermNewPaneResult.self
@@ -333,12 +293,7 @@ struct SPTmuxCommandRunner {
     if let sizeRequest = try tmuxSetPaneSizeRequest(
       rawAmount: parsed.value("-l"),
       axis: tmuxPaneAxis(for: direction),
-      target: .init(
-        targetWindowIndex: created.windowIndex,
-        targetSpaceIndex: created.spaceIndex,
-        targetTabIndex: created.tabIndex,
-        targetPaneIndex: created.paneIndex
-      )
+      target: .init(paneID: created.paneID)
     ) {
       _ = try send(
         .setPaneSize(sizeRequest),
@@ -356,24 +311,14 @@ struct SPTmuxCommandRunner {
       )
       traceSendText(
         event: "split_window_send_text",
-        target: .init(
-          targetWindowIndex: created.windowIndex,
-          targetSpaceIndex: created.spaceIndex,
-          targetTabIndex: created.tabIndex,
-          targetPaneIndex: created.paneIndex
-        ),
+        target: .init(paneID: created.paneID),
         text: wrappedText,
         sourceText: command
       )
       _ = try send(
         .sendText(
           .init(
-            target: .init(
-              targetWindowIndex: created.windowIndex,
-              targetSpaceIndex: created.spaceIndex,
-              targetTabIndex: created.tabIndex,
-              targetPaneIndex: created.paneIndex
-            ),
+            target: .init(paneID: created.paneID),
             text: wrappedText
           )
         ),
@@ -782,10 +727,7 @@ struct SPTmuxCommandRunner {
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
     _ = try send(
       .lastTab(
-        .init(
-          targetWindowIndex: targetSpace.window.index,
-          targetSpaceIndex: targetSpace.space.index
-        )
+        .init(spaceID: targetSpace.space.id)
       ),
       as: SupatermSelectTabResult.self
     )
@@ -796,10 +738,7 @@ struct SPTmuxCommandRunner {
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
     _ = try send(
       .nextTab(
-        .init(
-          targetWindowIndex: targetSpace.window.index,
-          targetSpaceIndex: targetSpace.space.index
-        )
+        .init(spaceID: targetSpace.space.id)
       ),
       as: SupatermSelectTabResult.self
     )
@@ -810,10 +749,7 @@ struct SPTmuxCommandRunner {
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
     _ = try send(
       .previousTab(
-        .init(
-          targetWindowIndex: targetSpace.window.index,
-          targetSpaceIndex: targetSpace.space.index
-        )
+        .init(spaceID: targetSpace.space.id)
       ),
       as: SupatermSelectTabResult.self
     )

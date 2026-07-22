@@ -8,7 +8,7 @@ import SwiftUI
 
 extension TerminalHostState {
   @discardableResult
-  func createSpace(named name: String) throws -> TerminalSpaceID {
+  func createSpace(named name: String, focus: Bool = true) throws -> TerminalSpaceID {
     guard let normalizedName = Self.trimmedNonEmpty(name) else {
       throw TerminalControlError.invalidSpaceName
     }
@@ -19,26 +19,48 @@ extension TerminalHostState {
     let space = PersistedTerminalSpace(
       name: normalizedName
     )
-    var updatedSpaceCatalog = spaceCatalog
-    updatedSpaceCatalog.defaultSelectedSpaceID = space.id
+    let previousSpaceCatalog = spaceCatalog
+    var updatedSpaceCatalog = previousSpaceCatalog
+    if focus {
+      updatedSpaceCatalog.defaultSelectedSpaceID = space.id
+    }
     updatedSpaceCatalog = TerminalSpaceCatalog(
       defaultSelectedSpaceID: updatedSpaceCatalog.defaultSelectedSpaceID,
       spaces: updatedSpaceCatalog.spaces + [space]
     )
     _ = writeSpaceCatalog(updatedSpaceCatalog)
-    guard applySelectedSpace(space.id) else {
+    guard
+      createTab(
+        in: space.id,
+        focusing: false,
+        sessionChangesEnabled: false,
+        synchronizesFocus: false
+      ) != nil
+    else {
+      _ = writeSpaceCatalog(previousSpaceCatalog)
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: spaces.count + 1)
     }
-    finalizeSpaceSelectionChange()
+    if focus {
+      guard applySelectedSpace(space.id) else {
+        _ = writeSpaceCatalog(previousSpaceCatalog)
+        throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: spaces.count)
+      }
+      finalizeSpaceSelectionChange()
+    }
     sessionDidChange()
     return space.id
   }
 
-  func renameSpace(_ spaceID: TerminalSpaceID, to name: String) {
-    let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalizedName.isEmpty else { return }
-    guard spaceManager.isNameAvailable(normalizedName, excluding: spaceID) else { return }
-    guard let index = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
+  func renameSpace(_ spaceID: TerminalSpaceID, to name: String) throws {
+    guard let normalizedName = Self.trimmedNonEmpty(name) else {
+      throw TerminalControlError.invalidSpaceName
+    }
+    guard spaceManager.isNameAvailable(normalizedName, excluding: spaceID) else {
+      throw TerminalControlError.spaceNameUnavailable
+    }
+    guard let index = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
+      throw TerminalControlError.contextPaneNotFound
+    }
 
     var updatedSpaceCatalog = spaceCatalog
     updatedSpaceCatalog.spaces[index].name = normalizedName

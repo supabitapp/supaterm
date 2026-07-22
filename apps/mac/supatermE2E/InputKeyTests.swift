@@ -49,7 +49,7 @@ extension SupatermE2ESuite {
     func ctrlDClosesShellPane() async throws {
       try await withTestSpace { app, space in
         let split = try makeSplit(app, in: space)
-        let splitPane = SupatermPaneTargetRequest(contextPaneID: split.paneID)
+        let splitPane = SupatermPaneTargetRequest(paneID: split.paneID)
         try await app.waitForShellPrompt(splitPane)
 
         try app.press(.ctrlD, in: splitPane)

@@ -365,7 +365,7 @@ struct TerminalWindowFeature {
               direction: direction,
               focus: true,
               equalize: false,
-              target: .contextPane(surfaceID)
+              target: .pane(surfaceID)
             )
           )
         }
@@ -435,7 +435,7 @@ struct TerminalWindowFeature {
               direction: direction,
               focus: false,
               equalize: false,
-              target: .contextPane(surfaceID)
+              target: .pane(surfaceID)
             )
           )
         }

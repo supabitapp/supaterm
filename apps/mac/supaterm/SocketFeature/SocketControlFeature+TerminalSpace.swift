@@ -13,8 +13,9 @@ extension SocketControlFeature {
       let execution = try await socketRequestExecutor.executeTerminalSpace(
         .createSpace(
           TerminalCreateSpaceRequest(
+            focus: payload.focus,
             name: payload.name,
-            target: createSpaceNavigationRequest(from: payload.target)
+            windowAnchorPaneID: payload.windowAnchorPaneID
           )
         )
       )
@@ -26,7 +27,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalSelectSpace:
       let payload = try request.decodeParams(SupatermSpaceTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalSpace(
-        .selectSpace(try createSpaceTarget(from: payload))
+        .selectSpace(createSpaceTarget(from: payload))
       )
       guard case .selectSpace(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -36,7 +37,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalCloseSpace:
       let payload = try request.decodeParams(SupatermSpaceTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalSpace(
-        .closeSpace(try createSpaceTarget(from: payload))
+        .closeSpace(createSpaceTarget(from: payload))
       )
       guard case .closeSpace(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -49,7 +50,7 @@ extension SocketControlFeature {
         .renameSpace(
           TerminalRenameSpaceRequest(
             name: payload.name,
-            target: try createSpaceTarget(from: payload.target)
+            target: createSpaceTarget(from: payload.target)
           )
         )
       )
@@ -95,32 +96,13 @@ extension SocketControlFeature {
 
   func createSpaceTarget(
     from payload: SupatermSpaceTargetRequest
-  ) throws -> TerminalSpaceTarget {
-    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
-      throw SocketRequestError.invalidIndex("window")
-    }
-    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
-      throw SocketRequestError.invalidIndex("space")
-    }
-
-    if let spaceIndex = payload.targetSpaceIndex {
-      return .space(windowIndex: payload.targetWindowIndex ?? 1, spaceIndex: spaceIndex)
-    }
-    guard let contextPaneID = payload.contextPaneID else {
-      throw SocketRequestError.missingSpaceTarget
-    }
-    if payload.targetWindowIndex != nil {
-      throw SocketRequestError.windowRequiresSpace
-    }
-    return .contextPane(contextPaneID)
+  ) -> TerminalSpaceTarget {
+    TerminalSpaceTarget(spaceID: payload.spaceID)
   }
 
   func createSpaceNavigationRequest(
     from payload: SupatermSpaceNavigationRequest
   ) -> TerminalSpaceNavigationRequest {
-    TerminalSpaceNavigationRequest(
-      contextPaneID: payload.contextPaneID,
-      windowIndex: payload.targetWindowIndex
-    )
+    TerminalSpaceNavigationRequest(spaceID: payload.spaceID)
   }
 }

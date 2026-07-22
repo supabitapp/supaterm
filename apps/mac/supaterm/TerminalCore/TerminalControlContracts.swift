@@ -4,36 +4,34 @@ import SupatermSupport
 
 public struct TerminalCreateTabRequest: Equatable, Sendable {
   public enum Target: Equatable, Sendable {
-    case contextPane(UUID)
-    case space(windowIndex: Int, spaceIndex: Int)
+    case group(UUID)
+    case pane(UUID)
+    case root(UUID)
+    case space(UUID)
   }
 
   public let startupCommand: String?
   public let cwd: String?
   public let focus: Bool
-  public let groupDestination: SupatermTabGroupDestination?
   public let target: Target
 
   public init(
     startupCommand: String?,
     cwd: String?,
     focus: Bool,
-    groupDestination: SupatermTabGroupDestination? = nil,
     target: Target
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
-    self.groupDestination = groupDestination
     self.target = target
   }
 }
 
 public struct TerminalCreatePaneRequest: Equatable, Sendable {
   public enum Target: Equatable, Sendable {
-    case contextPane(UUID)
-    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+    case pane(UUID)
+    case tab(UUID)
   }
 
   public let startupCommand: String?
@@ -62,9 +60,8 @@ public struct TerminalCreatePaneRequest: Equatable, Sendable {
 
 public struct TerminalNotifyRequest: Equatable, Sendable {
   public enum Target: Equatable, Sendable {
-    case contextPane(UUID)
-    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+    case pane(UUID)
+    case tab(UUID)
   }
 
   public let allowDesktopNotificationWhenAgentActive: Bool
@@ -88,19 +85,28 @@ public struct TerminalNotifyRequest: Equatable, Sendable {
   }
 }
 
-public enum TerminalSpaceTarget: Equatable, Sendable {
-  case contextPane(UUID)
-  case space(windowIndex: Int, spaceIndex: Int)
+public struct TerminalSpaceTarget: Equatable, Sendable {
+  public let spaceID: UUID
+
+  public init(spaceID: UUID) {
+    self.spaceID = spaceID
+  }
 }
 
-public enum TerminalTabTarget: Equatable, Sendable {
-  case contextPane(UUID)
-  case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+public struct TerminalTabTarget: Equatable, Sendable {
+  public let tabID: UUID
+
+  public init(tabID: UUID) {
+    self.tabID = tabID
+  }
 }
 
-public enum TerminalPaneTarget: Equatable, Sendable {
-  case contextPane(UUID)
-  case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+public struct TerminalPaneTarget: Equatable, Sendable {
+  public let paneID: UUID
+
+  public init(paneID: UUID) {
+    self.paneID = paneID
+  }
 }
 
 public struct TerminalCreateTabGroupRequest: Equatable, Sendable {
@@ -350,44 +356,34 @@ public struct TerminalRenameSpaceRequest: Equatable, Sendable {
 }
 
 public struct TerminalSpaceNavigationRequest: Equatable, Sendable {
-  public let contextPaneID: UUID?
-  public let windowIndex: Int?
+  public let spaceID: UUID
 
-  public init(
-    contextPaneID: UUID?,
-    windowIndex: Int?
-  ) {
-    self.contextPaneID = contextPaneID
-    self.windowIndex = windowIndex
+  public init(spaceID: UUID) {
+    self.spaceID = spaceID
   }
 }
 
 public struct TerminalTabNavigationRequest: Equatable, Sendable {
-  public let contextPaneID: UUID?
-  public let spaceIndex: Int?
-  public let windowIndex: Int?
+  public let spaceID: UUID
 
-  public init(
-    contextPaneID: UUID?,
-    spaceIndex: Int?,
-    windowIndex: Int?
-  ) {
-    self.contextPaneID = contextPaneID
-    self.spaceIndex = spaceIndex
-    self.windowIndex = windowIndex
+  public init(spaceID: UUID) {
+    self.spaceID = spaceID
   }
 }
 
 public struct TerminalCreateSpaceRequest: Equatable, Sendable {
+  public let focus: Bool
   public let name: String
-  public let target: TerminalSpaceNavigationRequest
+  public let windowAnchorPaneID: UUID
 
   public init(
+    focus: Bool,
     name: String,
-    target: TerminalSpaceNavigationRequest
+    windowAnchorPaneID: UUID
   ) {
+    self.focus = focus
     self.name = name
-    self.target = target
+    self.windowAnchorPaneID = windowAnchorPaneID
   }
 }
 

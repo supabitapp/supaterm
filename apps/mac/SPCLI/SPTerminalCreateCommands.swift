@@ -66,32 +66,17 @@ extension SP {
       let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       let destination = group.map(SPGroupDestinationReference.group) ?? (root ? .root : nil)
-      let placement = try resolvePublicNewTabPlacement(
-        space: space,
-        group: destination,
-        context: SupatermCLIContext.current,
-        snapshot: try treeSnapshot(client)
+      return SupatermNewTabRequest(
+        startupCommand: command,
+        cwd: cwd,
+        focus: focus,
+        target: try resolvePublicNewTabPlacement(
+          space: space,
+          group: destination,
+          context: SupatermCLIContext.current,
+          snapshot: try treeSnapshot(client)
+        )
       )
-      switch placement.target {
-      case .context(let contextPaneID):
-        return SupatermNewTabRequest(
-          startupCommand: command,
-          contextPaneID: contextPaneID,
-          cwd: cwd,
-          focus: focus,
-          groupDestination: placement.groupDestination
-        )
-
-      case .space(let windowIndex, let spaceIndex):
-        return SupatermNewTabRequest(
-          startupCommand: command,
-          cwd: cwd,
-          focus: focus,
-          groupDestination: placement.groupDestination,
-          targetWindowIndex: windowIndex,
-          targetSpaceIndex: spaceIndex
-        )
-      }
     }
   }
 
@@ -177,46 +162,18 @@ extension SP {
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewPaneRequest {
       let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
-      switch try resolvePublicSplitTarget(
-        container,
-        context: SupatermCLIContext.current,
-        snapshot: try treeSnapshot(client)
-      ) {
-      case .context(let contextPaneID):
-        return SupatermNewPaneRequest(
-          startupCommand: command,
-          contextPaneID: contextPaneID,
-          cwd: cwd,
-          direction: direction.direction,
-          focus: focus,
-          equalize: layout == .equalize
+      return SupatermNewPaneRequest(
+        startupCommand: command,
+        cwd: cwd,
+        direction: direction.direction,
+        focus: focus,
+        equalize: layout == .equalize,
+        target: try resolvePublicSplitTarget(
+          container,
+          context: SupatermCLIContext.current,
+          snapshot: try treeSnapshot(client)
         )
-
-      case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-        return SupatermNewPaneRequest(
-          startupCommand: command,
-          cwd: cwd,
-          direction: direction.direction,
-          focus: focus,
-          equalize: layout == .equalize,
-          targetWindowIndex: windowIndex,
-          targetSpaceIndex: spaceIndex,
-          targetTabIndex: tabIndex,
-          targetPaneIndex: paneIndex
-        )
-
-      case .tab(let windowIndex, let spaceIndex, let tabIndex):
-        return SupatermNewPaneRequest(
-          startupCommand: command,
-          cwd: cwd,
-          direction: direction.direction,
-          focus: focus,
-          equalize: layout == .equalize,
-          targetWindowIndex: windowIndex,
-          targetSpaceIndex: spaceIndex,
-          targetTabIndex: tabIndex
-        )
-      }
+      )
     }
   }
 
@@ -258,31 +215,17 @@ extension SP {
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNotifyRequest {
       let body = body ?? ""
-      switch try resolvePublicPaneTarget(
+      let target = try resolvePublicPaneTarget(
         pane,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
-      ) {
-      case .context(let contextPaneID):
-        return .init(
-          body: body,
-          contextPaneID: contextPaneID,
-          subtitle: subtitle,
-          title: title
-        )
-
-      case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-        return .init(
-          body: body,
-          subtitle: subtitle,
-          targetPaneIndex: paneIndex,
-          targetSpaceIndex: spaceIndex,
-          targetTabIndex: tabIndex,
-          targetWindowIndex: windowIndex,
-          title: title
-        )
-
-      }
+      )
+      return .init(
+        body: body,
+        paneID: target.paneID,
+        subtitle: subtitle,
+        title: title
+      )
     }
   }
 }

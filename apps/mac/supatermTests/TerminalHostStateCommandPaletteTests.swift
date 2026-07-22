@@ -89,7 +89,7 @@ struct TerminalHostStateCommandPaletteTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .contextPane(firstSurfaceID)
+          target: .pane(firstSurfaceID)
         )
       )
 

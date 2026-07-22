@@ -16,57 +16,20 @@ public enum SupatermDesktopNotificationDisposition: String, Equatable, Sendable,
 
 public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
   public let body: String
-  public let contextPaneID: UUID?
+  public let paneID: UUID
   public let subtitle: String
-  public let targetPaneIndex: Int?
-  public let targetSpaceIndex: Int?
-  public let targetTabIndex: Int?
-  public let targetWindowIndex: Int?
   public let title: String?
 
   public init(
     body: String = "",
-    contextPaneID: UUID? = nil,
+    paneID: UUID,
     subtitle: String = "",
-    targetPaneIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil,
-    targetTabIndex: Int? = nil,
-    targetWindowIndex: Int? = nil,
     title: String? = nil
   ) {
     self.body = body
-    self.contextPaneID = contextPaneID
+    self.paneID = paneID
     self.subtitle = subtitle
-    self.targetPaneIndex = targetPaneIndex
-    self.targetSpaceIndex = targetSpaceIndex
-    self.targetTabIndex = targetTabIndex
-    self.targetWindowIndex = targetWindowIndex
     self.title = Self.normalizedTitle(title)
-  }
-
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.init(
-      body: try container.decodeIfPresent(String.self, forKey: .body) ?? "",
-      contextPaneID: try container.decodeIfPresent(UUID.self, forKey: .contextPaneID),
-      subtitle: try container.decodeIfPresent(String.self, forKey: .subtitle) ?? "",
-      targetPaneIndex: try container.decodeIfPresent(Int.self, forKey: .targetPaneIndex),
-      targetSpaceIndex: try container.decodeIfPresent(Int.self, forKey: .targetSpaceIndex),
-      targetTabIndex: try container.decodeIfPresent(Int.self, forKey: .targetTabIndex),
-      targetWindowIndex: try container.decodeIfPresent(Int.self, forKey: .targetWindowIndex),
-      title: try container.decodeIfPresent(String.self, forKey: .title)
-    )
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case body
-    case contextPaneID
-    case subtitle
-    case targetPaneIndex
-    case targetSpaceIndex
-    case targetTabIndex
-    case targetWindowIndex
-    case title
   }
 
   private static func normalizedTitle(_ title: String?) -> String? {

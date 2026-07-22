@@ -8,27 +8,6 @@ extension TerminalHostState {
     let shouldCloseWindow: Bool
   }
 
-  func resolvedCreateTabPlacement(
-    _ destination: SupatermTabGroupDestination?,
-    in spaceID: TerminalSpaceID,
-  ) throws -> TerminalTabPlacement? {
-    guard let destination else { return nil }
-    guard let manager = spaceManager.tabManager(for: spaceID) else {
-      throw TerminalCreateTabError.creationFailed
-    }
-    switch destination {
-    case .group(let rawGroupID):
-      let groupID = TerminalTabGroupID(rawValue: rawGroupID)
-      guard let group = manager.group(for: groupID) else {
-        throw TerminalCreateTabError.creationFailed
-      }
-      return .group(groupID, index: group.tabs.count)
-    case .root(let isPinned):
-      let laneCount = isPinned ? manager.pinnedRootItems.count : manager.regularRootItems.count
-      return .root(TerminalRootPlacement(isPinned: isPinned, index: laneCount))
-    }
-  }
-
   func executeTabGroup(_ request: TerminalTabGroupRequest) throws -> TerminalTabGroupResult {
     switch request {
     case .close(let groupID):

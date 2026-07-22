@@ -19,10 +19,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .focusPane(
         SupatermPaneTargetRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2,
-          targetTabIndex: 3,
-          targetPaneIndex: 4
+          paneID: controlPaneID
         ),
         id: "focus-pane-1"
       )
@@ -47,13 +44,7 @@ struct SocketControlFeatureTerminalControlTests {
       }
       $0.terminalWindowsClient.focusPane = { target in
         #expect(
-          target
-            == .pane(
-              windowIndex: 1,
-              spaceIndex: 2,
-              tabIndex: 3,
-              paneIndex: 4
-            )
+          target == TerminalPaneTarget(paneID: controlPaneID)
         )
         return result
       }
@@ -76,10 +67,7 @@ struct SocketControlFeatureTerminalControlTests {
       payload: try .paneHealth(
         SupatermPaneHealthRequest(
           target: SupatermPaneTargetRequest(
-            targetWindowIndex: 1,
-            targetSpaceIndex: 2,
-            targetTabIndex: 3,
-            targetPaneIndex: 4
+            paneID: controlPaneID
           )
         ),
         id: "pane-health-1"
@@ -111,12 +99,7 @@ struct SocketControlFeatureTerminalControlTests {
         #expect(
           request
             == TerminalPaneHealthRequest(
-              target: .pane(
-                windowIndex: 1,
-                spaceIndex: 2,
-                tabIndex: 3,
-                paneIndex: 4
-              )
+              target: TerminalPaneTarget(paneID: controlPaneID)
             )
         )
         return result
@@ -139,9 +122,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .equalizePanes(
         SupatermTabTargetRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2,
-          targetTabIndex: 3
+          tabID: controlTabID
         ),
         id: "equalize-panes-1"
       )
@@ -163,11 +144,7 @@ struct SocketControlFeatureTerminalControlTests {
         #expect(
           request
             == TerminalEqualizePanesRequest(
-              target: .tab(
-                windowIndex: 1,
-                spaceIndex: 2,
-                tabIndex: 3
-              )
+              target: TerminalTabTarget(tabID: controlTabID)
             )
         )
         return result
@@ -189,9 +166,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .mainVerticalPanes(
         SupatermTabTargetRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2,
-          targetTabIndex: 3
+          tabID: controlTabID
         ),
         id: "main-vertical-panes-1"
       )
@@ -213,11 +188,7 @@ struct SocketControlFeatureTerminalControlTests {
         #expect(
           request
             == TerminalMainVerticalPanesRequest(
-              target: .tab(
-                windowIndex: 1,
-                spaceIndex: 2,
-                tabIndex: 3
-              )
+              target: TerminalTabTarget(tabID: controlTabID)
             )
         )
         return result
@@ -240,9 +211,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .pinTab(
         SupatermTabTargetRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2,
-          targetTabIndex: 3
+          tabID: controlTabID
         ),
         id: "pin-tab-1"
       )
@@ -265,12 +234,7 @@ struct SocketControlFeatureTerminalControlTests {
       }
       $0.terminalWindowsClient.pinTab = { target in
         #expect(
-          target
-            == .tab(
-              windowIndex: 1,
-              spaceIndex: 2,
-              tabIndex: 3
-            )
+          target == TerminalTabTarget(tabID: controlTabID)
         )
         return result
       }
@@ -292,9 +256,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .unpinTab(
         SupatermTabTargetRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2,
-          targetTabIndex: 1
+          tabID: controlTabID
         ),
         id: "unpin-tab-1"
       )
@@ -317,12 +279,7 @@ struct SocketControlFeatureTerminalControlTests {
       }
       $0.terminalWindowsClient.unpinTab = { target in
         #expect(
-          target
-            == .tab(
-              windowIndex: 1,
-              spaceIndex: 2,
-              tabIndex: 1
-            )
+          target == TerminalTabTarget(tabID: controlTabID)
         )
         return result
       }
@@ -347,10 +304,7 @@ struct SocketControlFeatureTerminalControlTests {
           amount: 30,
           axis: .horizontal,
           target: SupatermPaneTargetRequest(
-            targetWindowIndex: 1,
-            targetSpaceIndex: 2,
-            targetTabIndex: 3,
-            targetPaneIndex: 4
+            paneID: controlPaneID
           ),
           unit: .percent
         ),
@@ -377,12 +331,7 @@ struct SocketControlFeatureTerminalControlTests {
             == TerminalSetPaneSizeRequest(
               amount: 30,
               axis: .horizontal,
-              target: .pane(
-                windowIndex: 1,
-                spaceIndex: 2,
-                tabIndex: 3,
-                paneIndex: 4
-              ),
+              target: TerminalPaneTarget(paneID: controlPaneID),
               unit: .percent
             )
         )
@@ -408,10 +357,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermSendTextRequest(
           mode: .submit,
           target: SupatermPaneTargetRequest(
-            targetWindowIndex: 1,
-            targetSpaceIndex: 2,
-            targetTabIndex: 3,
-            targetPaneIndex: 4
+            paneID: controlPaneID
           ),
           text: "first\nsecond"
         ),
@@ -437,12 +383,7 @@ struct SocketControlFeatureTerminalControlTests {
           request
             == TerminalSendTextRequest(
               mode: .submit,
-              target: .pane(
-                windowIndex: 1,
-                spaceIndex: 2,
-                tabIndex: 3,
-                paneIndex: 4
-              ),
+              target: TerminalPaneTarget(paneID: controlPaneID),
               text: "first\nsecond"
             )
         )
@@ -468,10 +409,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermSendKeyRequest(
           key: .enter,
           target: SupatermPaneTargetRequest(
-            targetWindowIndex: 1,
-            targetSpaceIndex: 2,
-            targetTabIndex: 3,
-            targetPaneIndex: 4
+            paneID: controlPaneID
           )
         ),
         id: "send-key-1"
@@ -496,12 +434,7 @@ struct SocketControlFeatureTerminalControlTests {
           request
             == TerminalSendKeyRequest(
               key: .enter,
-              target: .pane(
-                windowIndex: 1,
-                spaceIndex: 2,
-                tabIndex: 3,
-                paneIndex: 4
-              )
+              target: TerminalPaneTarget(paneID: controlPaneID)
             )
         )
         return result
@@ -523,9 +456,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .tilePanes(
         SupatermTabTargetRequest(
-          targetWindowIndex: 2,
-          targetSpaceIndex: 3,
-          targetTabIndex: 4
+          tabID: tileTabID
         ),
         id: "tile-panes-1"
       )
@@ -547,11 +478,7 @@ struct SocketControlFeatureTerminalControlTests {
         #expect(
           request
             == TerminalTilePanesRequest(
-              target: .tab(
-                windowIndex: 2,
-                spaceIndex: 3,
-                tabIndex: 4
-              )
+              target: TerminalTabTarget(tabID: tileTabID)
             )
         )
         return result
@@ -573,8 +500,9 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .createSpace(
         SupatermCreateSpaceRequest(
+          focus: true,
           name: "Build",
-          target: SupatermSpaceNavigationRequest(targetWindowIndex: 1)
+          windowAnchorPaneID: controlPaneID
         ),
         id: "create-space-1"
       )
@@ -603,11 +531,9 @@ struct SocketControlFeatureTerminalControlTests {
         #expect(
           request
             == TerminalCreateSpaceRequest(
+              focus: true,
               name: "Build",
-              target: TerminalSpaceNavigationRequest(
-                contextPaneID: nil,
-                windowIndex: 1
-              )
+              windowAnchorPaneID: controlPaneID
             )
         )
         return result
@@ -629,8 +555,9 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .createSpace(
         SupatermCreateSpaceRequest(
+          focus: false,
           name: "Build",
-          target: SupatermSpaceNavigationRequest(targetWindowIndex: 1)
+          windowAnchorPaneID: controlPaneID
         ),
         id: "create-space-duplicate"
       )
@@ -659,8 +586,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .closeSpace(
         SupatermSpaceTargetRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 1
+          spaceID: controlSpaceID
         ),
         id: "close-space-last"
       )
@@ -689,8 +615,7 @@ struct SocketControlFeatureTerminalControlTests {
       handle: handle,
       payload: try .nextTab(
         SupatermTabNavigationRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2
+          spaceID: controlSpaceID
         ),
         id: "next-tab-1"
       )
@@ -719,11 +644,7 @@ struct SocketControlFeatureTerminalControlTests {
       $0.terminalWindowsClient.nextTab = { request in
         #expect(
           request
-            == TerminalTabNavigationRequest(
-              contextPaneID: nil,
-              spaceIndex: 2,
-              windowIndex: 1
-            )
+            == TerminalTabNavigationRequest(spaceID: controlSpaceID)
         )
         return result
       }
@@ -737,3 +658,8 @@ struct SocketControlFeatureTerminalControlTests {
     #expect(try records.first?.response.decodeResult(SupatermSelectTabResult.self) == result)
   }
 }
+
+private let controlSpaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+private let controlTabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
+private let controlPaneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+private let tileTabID = UUID(uuidString: "EB066866-4BA8-4789-88CE-FB75A921EA0F")!

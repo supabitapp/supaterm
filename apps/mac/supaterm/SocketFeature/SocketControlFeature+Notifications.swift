@@ -13,7 +13,7 @@ extension SocketControlFeature {
     switch request.method {
     case SupatermSocketMethod.terminalNotify:
       let payload = try request.decodeParams(SupatermNotifyRequest.self)
-      let notifyRequest = try notifyRequest(from: payload)
+      let notifyRequest = notifyRequest(from: payload)
       let execution = try await socketRequestExecutor.executeApp(.notify(notifyRequest))
       guard case .notify(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -54,56 +54,12 @@ extension SocketControlFeature {
 
   func notifyRequest(
     from payload: SupatermNotifyRequest
-  ) throws -> TerminalNotifyRequest {
-    try validateTargetPayload(
-      windowIndex: payload.targetWindowIndex,
-      spaceIndex: payload.targetSpaceIndex,
-      tabIndex: payload.targetTabIndex,
-      paneIndex: payload.targetPaneIndex
-    )
-
-    return TerminalNotifyRequest(
+  ) -> TerminalNotifyRequest {
+    TerminalNotifyRequest(
       body: payload.body,
       subtitle: payload.subtitle,
-      target: try createNotifyTarget(from: payload),
+      target: .pane(payload.paneID),
       title: payload.title
     )
-  }
-
-  func createNotifyTarget(
-    from payload: SupatermNotifyRequest
-  ) throws -> TerminalNotifyRequest.Target {
-    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
-    case (nil, nil, nil):
-      guard let contextPaneID = payload.contextPaneID else {
-        throw SocketRequestError.missingTarget
-      }
-      if payload.targetWindowIndex != nil {
-        throw SocketRequestError.windowRequiresSpace
-      }
-      return .contextPane(contextPaneID)
-
-    case (.some, .some, nil):
-      return .tab(
-        windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: payload.targetSpaceIndex!,
-        tabIndex: payload.targetTabIndex!
-      )
-
-    case (.some, .some, .some):
-      return .pane(
-        windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: payload.targetSpaceIndex!,
-        tabIndex: payload.targetTabIndex!,
-        paneIndex: payload.targetPaneIndex!
-      )
-
-    case (.none, .some, _):
-      throw SocketRequestError.tabRequiresSpace
-    case (.some, .none, _):
-      throw SocketRequestError.spaceRequiresTab
-    case (.none, .none, .some):
-      throw SocketRequestError.paneRequiresTab
-    }
   }
 }
