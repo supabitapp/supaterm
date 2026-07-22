@@ -460,13 +460,7 @@ struct TerminalSidebarBatchTabMenu: View {
   }
 
   var pinAction: PinAction {
-    let selected = Set(tabIDs)
-    let roots = terminal.rootItems.compactMap { root -> (TerminalTabID, Bool)? in
-      guard case .tab(let item) = root, selected.contains(item.tab.id) else { return nil }
-      return (item.tab.id, item.isPinned)
-    }
-    guard roots.count == tabIDs.count else { return .disabled }
-    let pinStates = Set(roots.map { $0.1 })
+    let pinStates = Set(tabIDs.map { terminal.isPinned($0) })
     guard pinStates.count == 1, let isPinned = pinStates.first else { return .disabled }
     return isPinned ? .unpin : .pin
   }
