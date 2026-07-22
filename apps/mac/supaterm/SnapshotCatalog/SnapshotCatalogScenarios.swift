@@ -744,7 +744,7 @@ private enum SidebarChromeSnapshotContext {
           id: groupID,
           title: "Release",
           color: .neutral,
-          isPinned: false,
+          isPinned: true,
           tabs: [
             selectedGroupTab,
             tab("45", title: "agent playground"),

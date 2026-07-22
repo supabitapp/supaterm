@@ -35,6 +35,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   static let childIndentation: CGFloat = 12
   static let childTrailingInset: CGFloat = 6
   static let rootSpacing: CGFloat = 10
+  static let pinDividerTopSpacing: CGFloat = 8
   static let expandedGroupTrailingSpacing: CGFloat = 3
   static let dividerHeight: CGFloat = 9
   static let targetRowHeight: CGFloat = 37
@@ -576,8 +577,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
     previous: TerminalSidebarEntry?
   ) -> CGFloat {
     switch (previous?.kind, entry.kind) {
-    case (_, .pinDivider), (.pinDivider, _):
-      0
+    case (_, .pinDivider):
+      pinDividerTopSpacing
+    case (.pinDivider, _):
+      TerminalSidebarLayout.tabRowSpacing
     case (.tab(_, .some, _), .tab(_, nil, _)),
       (.group, .tab(_, nil, _)):
       rootSpacing

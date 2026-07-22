@@ -191,9 +191,17 @@ struct TerminalSidebarLayoutPlanTests {
       outline: outline,
       draggingItemIDs: [.tab(source)]
     )
+    let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
     let divider = try #require(plan.items.first { $0.id == .pinDivider }?.frame)
+    let regularFrame = try #require(plan.items.first { $0.id == .tab(regular) }?.frame)
     let footer = try #require(plan.items.first { $0.id == .newTab }?.frame)
 
+    #expect(
+      divider.minY - childFrame.maxY == TerminalSidebarLayoutPlan.pinDividerTopSpacing
+    )
+    #expect(
+      regularFrame.minY - divider.maxY == TerminalSidebarLayout.tabRowSpacing
+    )
     #expect(plan.semanticTarget(at: divider.midY)?.path == .pinnedEnd)
     #expect(plan.semanticTarget(at: footer.midY)?.path == .trailingRoot)
     #expect(
