@@ -1254,7 +1254,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   func requestFocus() {
-    Self.moveFocus(to: self)
+    if let window {
+      window.makeFirstResponder(self)
+    } else {
+      Self.moveFocus(to: self)
+    }
   }
 
   func consumeSearchFocusRequest(_ count: Int) -> Bool {

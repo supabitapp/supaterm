@@ -27,7 +27,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
 
     let matchLabel = app.staticTexts[SupatermUITestIdentifier.Accessibility.searchMatchCount]
     let foundMatches = await wait(for: matchLabel, timeout: .seconds(30)) {
-      self.matchCount(from: $0) != nil
+      $0.exists && self.matchCount(from: $0) != nil
     }
     XCTAssertTrue(foundMatches)
     let initialMatch = try XCTUnwrap(matchCount(from: matchLabel))
@@ -35,7 +35,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
 
     try clickMenuItem(.findNext)
     let selectedMatch = await wait(for: matchLabel) {
-      guard let count = self.matchCount(from: $0) else { return false }
+      guard $0.exists, let count = self.matchCount(from: $0) else { return false }
       return count.total == initialMatch.total && count.current != nil
     }
     XCTAssertTrue(selectedMatch)
@@ -43,14 +43,14 @@ final class SearchClipboardUITests: SupatermUITestCase {
 
     try clickMenuItem(.findNext)
     let navigatedNext = await wait(for: matchLabel) {
-      guard let count = self.matchCount(from: $0) else { return false }
+      guard $0.exists, let count = self.matchCount(from: $0) else { return false }
       return count.total == firstMatch.total && count.current != firstMatch.current
     }
     XCTAssertTrue(navigatedNext)
 
     try clickMenuItem(.findPrevious)
     let navigatedPrevious = await wait(for: matchLabel) {
-      self.matchCount(from: $0) == firstMatch
+      $0.exists && self.matchCount(from: $0) == firstMatch
     }
     XCTAssertTrue(navigatedPrevious)
 
@@ -58,6 +58,12 @@ final class SearchClipboardUITests: SupatermUITestCase {
     app.typeKey(.escape, modifierFlags: [])
     let searchClosed = await wait(for: searchField) { !$0.exists }
     XCTAssertTrue(searchClosed)
+
+    let focusedTerminal = app.textViews.matching(
+      NSPredicate(format: "hasKeyboardFocus == true")
+    ).firstMatch
+    let terminalRegainedFocus = await wait(for: focusedTerminal) { $0.exists }
+    XCTAssertTrue(terminalRegainedFocus)
 
     let focusProbe = "TERMINALFOCUSRESTORED"
     app.typeText(focusProbe)
@@ -207,8 +213,8 @@ final class SearchClipboardUITests: SupatermUITestCase {
 
   @MainActor
   private func matchCount(from element: XCUIElement) -> MatchCount? {
-    let text = element.value as? String ?? element.label
-    let parts = text.split(separator: "/", omittingEmptySubsequences: false)
+    guard let value = element.value as? String else { return nil }
+    let parts = value.split(separator: "/", omittingEmptySubsequences: false)
     guard
       parts.count == 2,
       let total = Int(parts[1])
