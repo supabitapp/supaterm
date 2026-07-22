@@ -226,8 +226,17 @@ final class SupatermE2EApp: @unchecked Sendable {
     timeout: TimeInterval = 30,
     _ condition: (SupatermAppDebugSnapshot) throws -> Bool
   ) async throws {
-    try await waitUntil(label, timeout: timeout) {
-      try condition(debugSnapshot())
+    var lastSnapshot: SupatermAppDebugSnapshot?
+    do {
+      try await waitUntil(label, timeout: timeout) {
+        let snapshot = try debugSnapshot()
+        lastSnapshot = snapshot
+        return try condition(snapshot)
+      }
+    } catch {
+      throw SupatermE2EError(
+        "\(error)\n--- last debug snapshot ---\n\(String(describing: lastSnapshot))"
+      )
     }
   }
 
