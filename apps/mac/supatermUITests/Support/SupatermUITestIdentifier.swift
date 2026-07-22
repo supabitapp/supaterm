@@ -8,7 +8,6 @@ enum SupatermUITestIdentifier {
     static let sidebarGroupHeaderPrefix = "sidebar.group-header."
     static let sidebarGroupedTabMarker = ".tab."
     static let sidebarNewTab = "sidebar.new-tab"
-    static let sidebarNewGroup = "sidebar.new-group"
     static let paletteInput = "palette.input"
     static let paletteResultRow = "palette.result-row"
     static let dialogConfirm = "dialog.confirm"

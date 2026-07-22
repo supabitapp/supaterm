@@ -35,7 +35,6 @@ struct TerminalSidebarLayoutPlanTests {
         .tab(second),
         .group(emptyGroup),
         .newTab,
-        .newGroup,
       ]
     )
   }

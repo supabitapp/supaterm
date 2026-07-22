@@ -238,7 +238,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       let descendants = entries.drop { $0.id != entry.id }.dropFirst().prefix { descendant in
         switch descendant.kind {
         case .tab(_, let parentGroupID, _): parentGroupID == id
-        case .group, .pinDivider, .newTab, .newGroup: false
+        case .group, .pinDivider, .newTab: false
         }
       }
       let descendantFrames = descendants.compactMap { itemByID[$0.id]?.frame }.filter {
@@ -507,7 +507,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       }
       return entries[(header + 1)...].firstIndex { entry in
         switch entry.kind {
-        case .group, .pinDivider, .newTab, .newGroup: true
+        case .group, .pinDivider, .newTab: true
         case .tab(_, let parentGroupID, _): parentGroupID != groupID
         }
       } ?? entries.count
@@ -566,7 +566,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   ) -> (leading: CGFloat, trailing: CGFloat) {
     switch entry.kind {
     case .tab(_, .some, _): (childIndentation, childTrailingInset)
-    case .tab(_, nil, _), .group, .pinDivider, .newTab, .newGroup: (0, 0)
+    case .tab(_, nil, _), .group, .pinDivider, .newTab: (0, 0)
     }
   }
 

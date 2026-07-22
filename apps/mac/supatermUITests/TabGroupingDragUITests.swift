@@ -226,9 +226,6 @@ final class TabGroupingDragUITests: SupatermUITestCase {
       .tab("First"),
     ])
     XCTAssertEqual(sidebarGroupHeaders.count, 0)
-    XCTAssertTrue(
-      sidebarFooterRow(SupatermUITestIdentifier.Accessibility.sidebarNewGroup).exists
-    )
   }
 
   @MainActor

@@ -149,7 +149,6 @@ struct TerminalSidebarChromeView: View {
       rows[.pinDivider] = .pinDivider
     }
     rows[.newTab] = .newTab
-    rows[.newGroup] = .newGroup
     return rows
   }
 
@@ -179,9 +178,6 @@ struct TerminalSidebarChromeView: View {
     TerminalSidebarRowActions(
       toggleGroupCollapsed: { _ = store.send(.toggleGroupCollapsedRequested($0)) },
       createTabInGroup: createTab,
-      createGroup: {
-        terminal.createGroup(title: "New Group", color: .neutral, containing: [])?.groupID
-      },
       renameGroup: { terminal.renameGroup($0, title: $1) },
       setGroupColor: { terminal.setGroupColor($0, color: $1) },
       toggleGroupPinned: { _ = store.send(.togglePinnedRootItemRequested(.group($0))) },

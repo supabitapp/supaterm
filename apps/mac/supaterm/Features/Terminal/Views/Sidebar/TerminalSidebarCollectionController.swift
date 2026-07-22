@@ -635,7 +635,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     case .group:
       tabSelectionState.clear()
       return []
-    case .pinDivider, .newTab, .newGroup:
+    case .pinDivider, .newTab:
       return nil
     }
   }
@@ -953,7 +953,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       else { return nil }
       switch presentation {
       case .tab, .group: break
-      case .pinDivider, .newTab, .newGroup: return nil
+      case .pinDivider, .newTab: return nil
       }
       item.view.wantsLayer = true
       guard let layer = item.view.layer else { return nil }

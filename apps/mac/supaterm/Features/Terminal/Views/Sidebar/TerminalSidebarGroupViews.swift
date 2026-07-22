@@ -218,7 +218,6 @@ enum TerminalSidebarRowPresentation: Equatable {
   case group(TerminalSidebarGroupRowPresentation)
   case pinDivider
   case newTab
-  case newGroup
 
   var measurementKey: AnyHashable {
     switch self {
@@ -236,7 +235,6 @@ enum TerminalSidebarRowPresentation: Equatable {
       return AnyHashable("group:\(presentation.id.rawValue):\(presentation.title)")
     case .pinDivider: return AnyHashable("pin-divider")
     case .newTab: return AnyHashable("new-tab")
-    case .newGroup: return AnyHashable("new-group")
     }
   }
 }
@@ -258,7 +256,6 @@ enum TerminalSidebarAccessibilityIdentifier {
     case .group(let row): group(row.id)
     case .pinDivider: "sidebar.pin-divider"
     case .newTab: "sidebar.new-tab"
-    case .newGroup: "sidebar.new-group"
     }
   }
 }
@@ -294,7 +291,6 @@ final class TerminalSidebarRenameState {
 struct TerminalSidebarRowActions {
   let toggleGroupCollapsed: (TerminalTabGroupID) -> Void
   let createTabInGroup: (TerminalTabGroupID) -> Void
-  let createGroup: () -> TerminalTabGroupID?
   let renameGroup: (TerminalTabGroupID, String) -> Bool
   let setGroupColor: (TerminalTabGroupID, TerminalTabGroupColor) -> Void
   let toggleGroupPinned: (TerminalTabGroupID) -> Void
@@ -365,16 +361,6 @@ struct TerminalSidebarHostedRow: View {
         action: context.actions.newTab
       )
       .accessibilityIdentifier("sidebar.new-tab")
-    case .newGroup:
-      TerminalSidebarFooterButton(
-        title: "New Group",
-        symbol: "rectangle.3.group",
-        palette: context.palette
-      ) {
-        guard let id = context.actions.createGroup() else { return }
-        context.renameState.begin(groupID: id, title: "New Group")
-      }
-      .accessibilityIdentifier("sidebar.new-group")
     }
   }
 }
