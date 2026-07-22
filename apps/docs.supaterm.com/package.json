@@ -20,5 +20,10 @@
     "vite-plus": "0.1.24",
     "wrangler": "^4.76.0"
   },
-  "packageManager": "pnpm@10.32.1"
+  "packageManager": "pnpm@10.32.1",
+  "pnpm": {
+    "overrides": {
+      "fast-uri": "3.1.4"
+    }
+  }
 }
