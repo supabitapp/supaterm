@@ -467,6 +467,9 @@ private struct TerminalSidebarGroupHeader: View {
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(
+          TerminalSidebarAccessibilityIdentifier.group(presentation.id)
+        )
         .accessibilityLabel(
           "\(presentation.title), \(presentation.color.displayName) group, \(presentation.tabCount) tabs"
         )
@@ -556,9 +559,6 @@ private struct TerminalSidebarGroupHeader: View {
       }
     }
     .accessibilityElement(children: .contain)
-    .accessibilityIdentifier(
-      TerminalSidebarAccessibilityIdentifier.group(presentation.id)
-    )
   }
 }
 

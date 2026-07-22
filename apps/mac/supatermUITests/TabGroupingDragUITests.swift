@@ -8,6 +8,7 @@ final class TabGroupingDragUITests: SupatermUITestCase {
     let header = try require(sidebarGroupHeader(named: "Hover"))
     let child = try require(sidebarStructuralTabRow(named: "Seed"))
     let close = app.buttons["Close Hover"]
+    XCTAssertEqual(header.elementType, .button)
 
     header.hover()
     XCTAssertTrue(close.waitForExistence(timeout: 2))
