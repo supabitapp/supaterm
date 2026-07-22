@@ -295,6 +295,43 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func nonKeyFirstResponderDoesNotOverrideDeferredSurfaceFocus() async throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    host.ensureInitialTab(focusing: false)
+    let source = try #require(host.selectedSurfaceView)
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let container = FocusableWrapperView(frame: window.contentView?.bounds ?? .zero)
+    source.frame = container.bounds
+    window.contentView = container
+    container.addSubview(source)
+    window.makeFirstResponder(container)
+
+    #expect(!window.isKeyWindow)
+    #expect(host.performSplitAction(.newSplit(direction: .right), for: source.id))
+    let split = try #require(host.selectedSurfaceView)
+    #expect(split !== source)
+
+    window.makeFirstResponder(source)
+    #expect(window.firstResponder === source)
+    #expect(host.selectedSurfaceView === split)
+
+    split.frame = container.bounds
+    container.addSubview(split)
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(host.selectedSurfaceView === split)
+    #expect(window.firstResponder === split)
+  }
+
+  @Test
+  @MainActor
   func clickingUnfocusedSplitTransfersFocusWithoutDirectInteraction() throws {
     initializeGhosttyForTests()
 

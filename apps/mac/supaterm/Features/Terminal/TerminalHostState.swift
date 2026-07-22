@@ -986,6 +986,7 @@ final class TerminalHostState {
     }
     view.onFocusChange = { [weak self, weak view] focused in
       guard let self, let view, focused else { return }
+      guard view.window?.isKeyWindow == true else { return }
       self.applyFocusedSurface(view.id, in: tabID)
       self.updateTabTitle(for: tabID)
       self.updateRunningState(for: tabID)
