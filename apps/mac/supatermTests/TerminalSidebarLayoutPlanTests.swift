@@ -259,6 +259,27 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func groupedRowsHaveEqualHorizontalInsets() throws {
+    let child = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [child]),
+          isPinned: false
+        )
+      ],
+      revision: 1
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+    let groupFrame = try #require(plan.groups.first?.frame)
+    let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
+
+    #expect(childFrame.minX - groupFrame.minX == TerminalSidebarLayoutPlan.childIndentation)
+    #expect(groupFrame.maxX - childFrame.maxX == TerminalSidebarLayoutPlan.childIndentation)
+  }
+
+  @Test
   func orderedTargetMapUsesFirstMatch() {
     let first = TerminalSidebarSemanticTarget(
       path: .rootBoundary(index: 0, affinity: .before),

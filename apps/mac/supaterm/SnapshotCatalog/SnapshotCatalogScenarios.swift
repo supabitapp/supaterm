@@ -733,11 +733,12 @@ private enum SidebarChromeSnapshotContext {
       from: TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces),
       initialSelectedSpaceID: spaces[0].id
     )
-    let selectedRoot = rootTab("43", title: "supaterm - fish")
+    let root = rootTab("43", title: "supaterm - fish")
+    let selectedGroupTab = tab("44", title: "release-check")
     let rootItems = [
       rootTab("41", title: "dotfiles", isPinned: true),
       rootTab("42", title: "notes", isPinned: true),
-      selectedRoot,
+      root,
       TerminalTabRootItem.group(
         TerminalTabGroupItem(
           id: groupID,
@@ -745,7 +746,7 @@ private enum SidebarChromeSnapshotContext {
           color: .neutral,
           isPinned: false,
           tabs: [
-            tab("44", title: "release-check"),
+            selectedGroupTab,
             tab("45", title: "agent playground"),
           ]
         )
@@ -753,7 +754,7 @@ private enum SidebarChromeSnapshotContext {
     ]
     terminal.spaceManager.restoreRootItems(
       rootItems,
-      selectedTabID: selectedRoot.tabs[0].id,
+      selectedTabID: selectedGroupTab.id,
       in: spaces[0].id
     )
     return terminal

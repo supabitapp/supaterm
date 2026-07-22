@@ -117,7 +117,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
           frame: CGRect(
             x: Self.horizontalInset + indentation,
             y: y,
-            width: max(1, availableWidth - indentation),
+            width: max(1, availableWidth - indentation * 2),
             height: height
           ),
           alpha: isDragged ? 0 : visibility.alpha
@@ -556,7 +556,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     return CGRect(
       x: horizontalInset + indentation,
       y: y,
-      width: max(1, width - indentation),
+      width: max(1, width - indentation * 2),
       height: height
     )
   }
