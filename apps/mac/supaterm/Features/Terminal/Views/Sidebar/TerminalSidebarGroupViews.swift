@@ -405,7 +405,7 @@ private struct TerminalSidebarGroupHeader: View {
   }
 
   var body: some View {
-    HStack(spacing: 0) {
+    Group {
       if isRenaming {
         HStack(spacing: 6) {
           Circle()
@@ -430,57 +430,63 @@ private struct TerminalSidebarGroupHeader: View {
           }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       } else {
-        Button {
-          actions.toggleGroupCollapsed(presentation.id)
-        } label: {
-          HStack(spacing: 6) {
-            Circle()
-              .fill(presentation.color.sidebarColor(palette: palette))
-              .frame(width: 8, height: 8)
-              .accessibilityHidden(true)
-            Text(presentation.title)
-              .font(.system(size: 12, weight: .semibold))
-              .foregroundStyle(palette.primaryText)
-              .lineLimit(1)
-            Image(systemName: "chevron.down")
-              .font(.system(size: 9, weight: .semibold))
-              .rotationEffect(.degrees(presentation.isCollapsed ? -90 : 0))
-              .frame(width: 14, height: 20)
-              .accessibilityHidden(true)
-            Spacer(minLength: 0)
+        ZStack(alignment: .trailing) {
+          Button {
+            actions.toggleGroupCollapsed(presentation.id)
+          } label: {
+            HStack(spacing: 6) {
+              Circle()
+                .fill(presentation.color.sidebarColor(palette: palette))
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+              Text(presentation.title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.primaryText)
+                .lineLimit(1)
+              Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .semibold))
+                .rotationEffect(.degrees(presentation.isCollapsed ? -90 : 0))
+                .frame(width: 14, height: 20)
+                .accessibilityHidden(true)
+              Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
           }
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(
-          TerminalSidebarAccessibilityIdentifier.group(presentation.id)
-        )
-        .accessibilityLabel(
-          "\(presentation.title), \(presentation.color.displayName) group, \(presentation.tabCount) tabs"
-        )
-        .accessibilityValue(presentation.isCollapsed ? "Collapsed" : "Expanded")
-        .accessibilityHint(presentation.isCollapsed ? "Expands the group" : "Collapses the group")
-        .accessibilityAction(named: "Rename Group") {
-          renameState.begin(groupID: presentation.id, title: presentation.title)
-        }
-      }
+          .buttonStyle(.plain)
+          .frame(maxWidth: .infinity, minHeight: TerminalSidebarLayout.tabRowMinHeight)
+          .accessibilityIdentifier(
+            TerminalSidebarAccessibilityIdentifier.group(presentation.id)
+          )
+          .accessibilityLabel(
+            "\(presentation.title), \(presentation.color.displayName) group, \(presentation.tabCount) tabs"
+          )
+          .accessibilityValue(presentation.isCollapsed ? "Collapsed" : "Expanded")
+          .accessibilityHint(presentation.isCollapsed ? "Expands the group" : "Collapses the group")
+          .accessibilityAction(named: "Rename Group") {
+            renameState.begin(groupID: presentation.id, title: presentation.title)
+          }
 
-      if hoverState.groupID == presentation.id, !isRenaming {
-        Button {
-          actions.closeGroup(presentation.id)
-        } label: {
-          Image(systemName: "xmark")
-            .font(.system(size: 11, weight: .semibold))
-            .frame(width: 22, height: 22)
+          if hoverState.groupID == presentation.id {
+            Button {
+              actions.closeGroup(presentation.id)
+            } label: {
+              Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(palette.secondaryText)
+            .padding(.trailing, 8)
+            .accessibilityLabel("Close \(presentation.title)")
+          }
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(palette.secondaryText)
-        .accessibilityLabel("Close \(presentation.title)")
+        .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       }
     }
-    .padding(.horizontal, 8)
-    .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .contentShape(Rectangle())
     .onHover { hovering in
       if hovering {

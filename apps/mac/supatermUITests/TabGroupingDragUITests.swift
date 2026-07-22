@@ -240,12 +240,13 @@ final class TabGroupingDragUITests: SupatermUITestCase {
       to: sidebarGroupHeader(named: "Target"),
       destinationOffset: CGVector(dx: 0.5, dy: 0.35)
     )
-    let didAddToCollapsedGroup = await wait(for: sidebarGroupHeader(named: "Target")) {
-      $0.label.contains("3 tabs")
+    let didAddAndExpandCollapsedGroup = await wait(
+      for: sidebarGroupHeader(named: "Target")
+    ) {
+      $0.label.contains("3 tabs") && ($0.value as? String) == "Expanded"
     }
-    XCTAssertTrue(didAddToCollapsedGroup)
+    XCTAssertTrue(didAddAndExpandCollapsedGroup)
 
-    try clickSidebarContextMenuItem("Expand Group", on: sidebarGroupHeader(named: "Target"))
     await requireSidebarStructure([
       .group("Target", children: ["Seed", "Expanded Join", "Collapsed Join"]),
       .tab("Tail"),

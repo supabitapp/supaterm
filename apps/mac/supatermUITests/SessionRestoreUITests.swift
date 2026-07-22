@@ -18,10 +18,11 @@ final class SessionRestoreUITests: SupatermUITestCase {
     XCTAssertTrue(didPinInitialTab)
 
     try clickMenuItem(.newTab)
-    let didCreateRegularTab = await wait(for: regularRow, timeout: .seconds(30)) { row in
+    let didCreateSecondTab = await wait(for: regularRow, timeout: .seconds(30)) { row in
       row.exists && row.isSelected
     }
-    XCTAssertTrue(didCreateRegularTab)
+    XCTAssertTrue(didCreateSecondTab)
+    try clickSidebarContextMenuItem("Unpin Tab", on: regularRow)
 
     pinnedRow.click()
     let didSelectPinnedTab = await wait(for: pinnedRow) { $0.isSelected }

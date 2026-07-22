@@ -60,11 +60,18 @@ extension SupatermE2ESuite {
       try await app.quit()
       try await app.relaunch()
       try await app.waitForDebugSnapshot("the full restored layout is visible") { snapshot in
-        let paneIDs = Set(
-          snapshot.windows.flatMap(\.spaces).flatMap(\.flattenedTabs).flatMap(\.panes).map(\.id)
-        )
+        let spaces = snapshot.windows.flatMap(\.spaces)
+        let paneIDs = Set(spaces.flatMap(\.flattenedTabs).flatMap(\.panes).map(\.id))
+        guard
+          let selectedSpace = spaces.first(where: { $0.id == firstSpace.target.spaceID }),
+          let selectedTab = selectedSpace.flattenedTabs.first(where: { $0.id == secondTab.tabID }),
+          let focusedPane = selectedTab.panes.first(where: { $0.id == split.paneID })
+        else { return false }
         return [initialPaneID, firstSpace.paneID, secondTab.paneID, split.paneID, secondSpace.paneID]
           .allSatisfy { paneIDs.contains($0) }
+          && selectedSpace.isSelected
+          && selectedTab.isSelected
+          && focusedPane.isFocused
       }
 
       let after = try app.debugSnapshot()
