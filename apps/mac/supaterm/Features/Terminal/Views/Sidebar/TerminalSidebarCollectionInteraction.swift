@@ -205,8 +205,8 @@ struct TerminalSidebarDragCoordinator: Equatable {
 final class TerminalSidebarCollectionView: NSCollectionView {
   private var pointerTrackingArea: NSTrackingArea?
   private var capturedRowEntryID: TerminalSidebarEntryID?
+  private var routedRowEntryID: TerminalSidebarEntryID?
 
-  var rowEntryIDAtPoint: ((CGPoint) -> TerminalSidebarEntryID?)?
   var onRowMouseDown: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
   var onRowMouseDragged: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
   var onRowMouseUp: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
@@ -232,21 +232,16 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    guard
-      let event = NSApp.currentEvent,
-      event.type == .leftMouseDown || event.type == .leftMouseDragged
-        || event.type == .leftMouseUp,
-      rowEntryIDAtPoint?(point) != nil
-    else { return super.hitTest(point) }
-    return self
+  func routeMouseDown(to entryID: TerminalSidebarEntryID) {
+    routedRowEntryID = entryID
   }
 
   override func mouseDown(with event: NSEvent) {
     capturedRowEntryID = nil
-    let point = convert(event.locationInWindow, from: nil)
+    let entryID = routedRowEntryID
+    routedRowEntryID = nil
     guard
-      let entryID = rowEntryIDAtPoint?(point),
+      let entryID,
       rowMouseDown(entryID: entryID, event: event)
     else {
       super.mouseDown(with: event)

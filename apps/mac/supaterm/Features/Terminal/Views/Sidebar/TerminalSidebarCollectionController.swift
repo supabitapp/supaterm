@@ -199,9 +199,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collectionView.registerForDraggedTypes([.terminalSidebarOutlineItem])
     collectionView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
     collectionView.delegate = self
-    collectionView.rowEntryIDAtPoint = { [weak self] point in
-      self?.rowEntryIDAtPoint(point)
-    }
     collectionView.onRowMouseDown = { [weak self] entryID, event in
       self?.rowMouseDown(entryID: entryID, event: event) == true
     }
@@ -272,18 +269,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       name: NSScrollView.didEndLiveScrollNotification,
       object: scrollView
     )
-  }
-
-  private func rowEntryIDAtPoint(_ point: CGPoint) -> TerminalSidebarEntryID? {
-    guard
-      let indexPath = collectionView.indexPathForItem(at: point),
-      let entryID = dataSource?.itemIdentifier(for: indexPath),
-      case .group(let groupID) = entryID,
-      renameState.groupID != groupID,
-      let attributes = collectionLayout.layoutAttributesForItem(at: indexPath),
-      point.x < attributes.frame.maxX - 30
-    else { return nil }
-    return entryID
   }
 
   private func process(_ update: Update) {

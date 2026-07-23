@@ -66,6 +66,20 @@ private final class TerminalSidebarHostingContainerView: NSView {
     if !isLifted { hostingView?.frame = bounds }
   }
 
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard
+      NSApp.currentEvent?.type == .leftMouseDown,
+      point.x < bounds.maxX - 30,
+      let hostingView,
+      case .group(let presentation) = hostingView.rootView.presentation,
+      hostingView.rootView.context.renameState.groupID != presentation.id,
+      let entryID = hostingView.entryID,
+      let collectionView = hostingView.collectionView
+    else { return super.hitTest(point) }
+    collectionView.routeMouseDown(to: entryID)
+    return collectionView
+  }
+
   func host(
     _ rootView: TerminalSidebarHostedRow,
     entryID: TerminalSidebarEntryID,
