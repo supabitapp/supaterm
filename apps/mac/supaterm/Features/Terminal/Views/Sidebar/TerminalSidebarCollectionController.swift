@@ -472,9 +472,17 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private func rowMouseDown(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
-    guard case .idle = updatePhase, activeDrag == nil else { return false }
-    guard let payload = appliedOutline.dragPayload(for: entryID) else { return false }
-    if case .group(let groupID) = payload.source, renameState.groupID == groupID { return false }
+    guard activeDrag == nil else { return false }
+    switch entryID {
+    case .group(let groupID):
+      guard renameState.groupID != groupID else { return false }
+    case .tab:
+      guard case .idle = updatePhase, appliedOutline.dragPayload(for: entryID) != nil else {
+        return false
+      }
+    case .pinDivider, .newTab:
+      return false
+    }
     guard
       let indexPath = dataSource.indexPath(for: entryID),
       let attributes = collectionLayout.layoutAttributesForItem(at: indexPath)
