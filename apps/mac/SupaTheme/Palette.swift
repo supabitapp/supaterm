@@ -11,6 +11,7 @@ public struct Palette {
   public let successValue: ThemeColor
   public let dangerValue: ThemeColor
   public let mergedValue: ThemeColor
+  public let queuedValue: ThemeColor
   public let warningFillValue: ThemeColor
   public let dangerFillValue: ThemeColor
   public let dangerHoverFillValue: ThemeColor
@@ -104,6 +105,7 @@ public struct Palette {
   public var success: Color { successValue.color }
   public var danger: Color { dangerValue.color }
   public var merged: Color { mergedValue.color }
+  public var queued: Color { queuedValue.color }
   public var warningFill: Color { warningFillValue.color }
   public var dangerFill: Color { dangerFillValue.color }
   public var dangerHoverFill: Color { dangerHoverFillValue.color }
@@ -161,6 +163,7 @@ public struct Palette {
     let successValue = Self.semantic(referencePalette.green.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let dangerValue = Self.semantic(referencePalette.rose.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let mergedValue = Self.semantic(referencePalette.violet.color(for: colorScheme), backgrounds: semanticBackgrounds)
+    let queuedValue = Self.semantic(referencePalette.clay.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let warningFillValue = Self.fill(referencePalette.gold.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let onDangerFillValue = ThemeColor.white
     let dangerFillValue = Self.fill(
@@ -184,6 +187,7 @@ public struct Palette {
     self.successValue = successValue
     self.dangerValue = dangerValue
     self.mergedValue = mergedValue
+    self.queuedValue = queuedValue
     self.warningFillValue = warningFillValue
     self.dangerFillValue = dangerFillValue
     self.dangerHoverFillValue = dangerHoverFillValue

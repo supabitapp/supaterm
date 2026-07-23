@@ -120,12 +120,48 @@ nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
     case merged
   }
 
+  enum MergeAutomation: Equatable, Sendable {
+    case autoMerge
+    case mergeQueue
+  }
+
   let kind: Kind
   let title: String
   let url: URL?
   let addedLineCount: Int?
   let removedLineCount: Int?
   let checks: PaneAgentPullRequestChecks?
+  let mergeAutomation: MergeAutomation?
+
+  init(
+    kind: Kind,
+    title: String,
+    url: URL?,
+    addedLineCount: Int?,
+    removedLineCount: Int?,
+    checks: PaneAgentPullRequestChecks?,
+    mergeAutomation: MergeAutomation? = nil
+  ) {
+    self.kind = kind
+    self.title = title
+    self.url = url
+    self.addedLineCount = addedLineCount
+    self.removedLineCount = removedLineCount
+    self.checks = checks
+    self.mergeAutomation = mergeAutomation
+  }
+
+  var displayTitle: String {
+    guard kind == .open else { return title }
+    return switch mergeAutomation {
+    case .autoMerge:
+      "\(title) (Auto merge enabled)"
+    case .mergeQueue:
+      "\(title) (In merge queue)"
+    case nil:
+      title
+    }
+  }
 
   static let unavailable = Self(
     kind: .unavailable,

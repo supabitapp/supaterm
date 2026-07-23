@@ -726,6 +726,12 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
             url
             updatedAt
             baseRefName
+            autoMergeRequest {
+              __typename
+            }
+            mergeQueueEntry {
+              __typename
+            }
             headRepository {
               name
               owner { login }
@@ -830,13 +836,22 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
         default: .unavailable
         }
       }
+    let mergeAutomation: PaneAgentPullRequestStatus.MergeAutomation? =
+      if node.mergeQueueEntry != nil {
+        .mergeQueue
+      } else if node.autoMergeRequest != nil {
+        .autoMerge
+      } else {
+        nil
+      }
     return PaneAgentPullRequestStatus(
       kind: kind,
       title: "#\(node.number)",
       url: URL(string: node.url),
       addedLineCount: node.additions,
       removedLineCount: node.deletions,
-      checks: Self.checks(from: node)
+      checks: Self.checks(from: node),
+      mergeAutomation: mergeAutomation
     )
   }
 
@@ -1020,6 +1035,8 @@ nonisolated private struct GithubPullRequestNodeResponse: Decodable {
   let url: String
   let updatedAt: Date?
   let baseRefName: String?
+  let autoMergeRequest: GithubObjectPresenceResponse?
+  let mergeQueueEntry: GithubObjectPresenceResponse?
   let headRepository: GithubPRHeadRepositoryResponse?
   let commits: GithubPRCommitConnectionResponse
 
@@ -1045,6 +1062,8 @@ nonisolated private struct GithubPullRequestNodeResponse: Decodable {
     return baseRefName.lowercased() != branchName.lowercased()
   }
 }
+
+nonisolated private struct GithubObjectPresenceResponse: Decodable {}
 
 nonisolated private struct GithubPRHeadRepositoryResponse: Decodable {
   let name: String

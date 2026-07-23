@@ -1063,6 +1063,9 @@ struct TerminalAgentPanelTests {
     #expect(await first.kind == .open)
     #expect(await second.kind == .open)
     #expect(await recorder.graphqlCallCount() == 1)
+    let query = await recorder.graphqlQueries().first
+    #expect(query?.contains("autoMergeRequest") == true)
+    #expect(query?.contains("mergeQueueEntry") == true)
 
     let fresh = await client.pullRequestStatus(
       repoRoot: repoRoot,
@@ -1242,6 +1245,28 @@ struct TerminalAgentPanelTests {
 
     #expect(status.title == "#104")
     #expect(await recorder.graphqlCallCount() == 2)
+  }
+
+  @Test
+  func githubPullRequestDecoderShowsAutoMerge() {
+    let status = Self.decodePullRequestStatus(
+      autoMergeEnabled: true,
+      inMergeQueue: false
+    )
+
+    #expect(status.mergeAutomation == .autoMerge)
+    #expect(status.displayTitle == "#39 (Auto merge enabled)")
+  }
+
+  @Test
+  func githubPullRequestDecoderPrefersMergeQueue() {
+    let status = Self.decodePullRequestStatus(
+      autoMergeEnabled: true,
+      inMergeQueue: true
+    )
+
+    #expect(status.mergeAutomation == .mergeQueue)
+    #expect(status.displayTitle == "#39 (In merge queue)")
   }
 
   @Test
@@ -1672,6 +1697,44 @@ struct TerminalAgentPanelTests {
       remote: TerminalAgentGithubRemote(host: "github.com", owner: "supabitapp", repo: "supaterm")
     )["feature"] ?? .unavailable
   }
+
+  private static func decodePullRequestStatus(
+    autoMergeEnabled: Bool,
+    inMergeQueue: Bool
+  ) -> PaneAgentPullRequestStatus {
+    let autoMergeRequest = autoMergeEnabled ? #"{"__typename":"AutoMergeRequest"}"# : "null"
+    let mergeQueueEntry = inMergeQueue ? #"{"__typename":"MergeQueueEntry"}"# : "null"
+    return decodeSinglePullRequestStatus(
+      """
+      {
+        "data": {
+          "repository": {
+            "branch0": {
+              "nodes": [
+                {
+                  "number": 39,
+                  "additions": 10,
+                  "deletions": 2,
+                  "state": "OPEN",
+                  "isDraft": false,
+                  "url": "https://github.com/supabitapp/supaterm/pull/39",
+                  "baseRefName": "main",
+                  "autoMergeRequest": \(autoMergeRequest),
+                  "mergeQueueEntry": \(mergeQueueEntry),
+                  "headRepository": {
+                    "name": "supaterm",
+                    "owner": { "login": "supabitapp" }
+                  },
+                  "commits": {"nodes": []}
+                }
+              ]
+            }
+          }
+        }
+      }
+      """
+    )
+  }
 }
 
 private func isoDate(_ value: String) throws -> Date {
@@ -1705,6 +1768,10 @@ private actor GithubPullRequestCommandRecorder {
 
   func graphqlCallCount() -> Int {
     graphqlCalls
+  }
+
+  func graphqlQueries() -> [String] {
+    graphqlArguments.map(Self.query)
   }
 
   func graphqlBranchNamesByCall() -> [[String]] {

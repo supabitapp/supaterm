@@ -101,6 +101,7 @@ struct ChromePaletteTests {
         expectContrast(palette.successValue, background, minimum: 4.5, token: "success")
         expectContrast(palette.dangerValue, background, minimum: 4.5, token: "danger")
         expectContrast(palette.mergedValue, background, minimum: 4.5, token: "merged")
+        expectContrast(palette.queuedValue, background, minimum: 4.5, token: "queued")
       }
       expectContrast(palette.onAccentValue, palette.accentValue, minimum: 4.5, token: "onAccent")
       expectContrast(palette.onWarningValue, palette.warningValue, minimum: 4.5, token: "onWarning")

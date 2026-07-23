@@ -337,6 +337,37 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "merge-queue",
+      group: "Agent Panel",
+      title: "Pull request in merge queue",
+      size: CGSize(width: 338, height: 214)
+    ) { appearance in
+      AnyView(
+        AgentPanelSnapshotFixture(
+          appearance: appearance,
+          presentation: PaneAgentPanelPresentation(
+            workingDirectoryPath: FileManager.default.homeDirectoryForCurrentUser
+              .appending(path: "code/github.com/supabitapp/supaterm")
+              .path(percentEncoded: false),
+            branchDetails: PaneAgentBranchDetails(
+              branchName: "feature/merge-queue",
+              addedLineCount: 42,
+              removedLineCount: 7,
+              pullRequestStatus: PaneAgentPullRequestStatus(
+                kind: .open,
+                title: "#132",
+                url: URL(string: "https://github.com/supabitapp/supaterm/pull/132"),
+                addedLineCount: 42,
+                removedLineCount: 7,
+                checks: nil,
+                mergeAutomation: .mergeQueue
+              )
+            )
+          )
+        )
+      )
+    },
+    scenario(
       "merged-pr",
       group: "Agent Panel",
       title: "Merged pull request",
