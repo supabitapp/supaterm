@@ -459,6 +459,7 @@ private struct TerminalSidebarGroupHeader: View {
               minHeight: TerminalSidebarLayout.tabRowMinHeight,
               alignment: .leading
             )
+            .background(Color.clear)
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
