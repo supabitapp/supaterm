@@ -117,6 +117,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "success", color: palette.success),
       TokenSwatch(name: "danger", color: palette.danger),
       TokenSwatch(name: "merged", color: palette.merged),
+      TokenSwatch(name: "queued", color: palette.queued),
       TokenSwatch(name: "warningFill", color: palette.warningFill),
       TokenSwatch(name: "dangerFill", color: palette.dangerFill),
       TokenSwatch(name: "dangerHoverFill", color: palette.dangerHoverFill),

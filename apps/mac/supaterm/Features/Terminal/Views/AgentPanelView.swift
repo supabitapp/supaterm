@@ -330,11 +330,11 @@ struct AgentPanelView: View {
   @ViewBuilder
   private func pullRequestRow(_ status: PaneAgentPullRequestStatus) -> some View {
     let icon = pullRequestIcon(status)
-    let color = pullRequestColor(status.kind)
+    let color = pullRequestColor(status)
     if let url = status.url {
-      linkRow(icon: icon, title: status.title, url: url, iconColor: color)
+      linkRow(icon: icon, title: status.displayTitle, url: url, iconColor: color)
     } else {
-      valueRow(icon: icon, title: status.title, iconColor: color)
+      valueRow(icon: icon, title: status.displayTitle, iconColor: color)
     }
   }
 
@@ -469,8 +469,11 @@ struct AgentPanelView: View {
     }
   }
 
-  private func pullRequestColor(_ kind: PaneAgentPullRequestStatus.Kind) -> Color {
-    switch kind {
+  private func pullRequestColor(_ status: PaneAgentPullRequestStatus) -> Color {
+    if status.kind == .open, status.mergeAutomation == .mergeQueue {
+      return palette.queued
+    }
+    switch status.kind {
     case .unavailable:
       return palette.warning
     case .none:
