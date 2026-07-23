@@ -237,7 +237,7 @@ final class TerminalSidebarCollectionView: NSCollectionView {
       let event = NSApp.currentEvent,
       event.type == .leftMouseDown || event.type == .leftMouseDragged
         || event.type == .leftMouseUp,
-      rowEntryIDAtPoint?(convert(event.locationInWindow, from: nil)) != nil
+      rowEntryIDAtPoint?(point) != nil
     else { return super.hitTest(point) }
     return self
   }
