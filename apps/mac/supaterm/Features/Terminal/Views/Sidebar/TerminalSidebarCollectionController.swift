@@ -32,7 +32,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private struct PendingDrag {
     let entryID: TerminalSidebarEntryID
     let eventNumber: Int
-    let modifierFlags: NSEvent.ModifierFlags
     let origin: CGPoint
     let sourceFrame: CGRect
   }
@@ -472,20 +471,25 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private func rowMouseDown(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
-    guard case .idle = updatePhase, activeDrag == nil else { return false }
-    guard let payload = appliedOutline.dragPayload(for: entryID) else { return false }
-    if case .group(let groupID) = payload.source, renameState.groupID == groupID { return false }
+    guard activeDrag == nil else { return false }
+    if case .tab(let tabID) = entryID {
+      selectTab(tabID, modifiers: event.modifierFlags)
+    }
+    let consumesClick = if case .tab = entryID { true } else { false }
+    guard case .idle = updatePhase else { return consumesClick }
+    guard let payload = appliedOutline.dragPayload(for: entryID) else { return consumesClick }
+    if case .group(let groupID) = payload.source, renameState.groupID == groupID {
+      return consumesClick
+    }
     guard
       let indexPath = dataSource.indexPath(for: entryID),
       let attributes = collectionLayout.layoutAttributesForItem(at: indexPath)
-    else { return false }
+    else { return consumesClick }
     let location = collectionView.convert(event.locationInWindow, from: nil)
-    guard attributes.frame.contains(location) else { return false }
-    let modifierFlags = event.modifierFlags.intersection([.command, .shift])
+    guard attributes.frame.contains(location) else { return consumesClick }
     pendingDrag = PendingDrag(
       entryID: entryID,
       eventNumber: event.eventNumber,
-      modifierFlags: modifierFlags,
       origin: location,
       sourceFrame: attributes.frame
     )
@@ -518,14 +522,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       self.pendingDrag = nil
       return beginDragging(
         entryID: entryID,
-        modifierFlags: pendingDrag.modifierFlags,
         event: event,
         pointer: location
       )
     }
   }
 
-  private func rowMouseUp(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
+  private func rowMouseUp(entryID: TerminalSidebarEntryID, event _: NSEvent) -> Bool {
     let consumes = activeDrag != nil && pendingDrag?.entryID == nil
     guard pendingDrag?.entryID == entryID else { return consumes }
     pendingDrag = nil
@@ -533,18 +536,21 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     case .group(let groupID):
       context?.actions.toggleGroupCollapsed(groupID)
       return true
-    case .tab(let tabID):
-      let modifiers = event.modifierFlags.intersection([.command, .shift])
-      guard !modifiers.isEmpty else {
-        tabSelectionState.clear()
-        _ = context?.store.send(.tabSelected(tabID))
-        return true
-      }
-      applyModifiedSelection(tabID: tabID, modifiers: modifiers)
+    case .tab:
       return true
     case .pinDivider, .newTab:
       return consumes
     }
+  }
+
+  private func selectTab(_ tabID: TerminalTabID, modifiers: NSEvent.ModifierFlags) {
+    let modifiers = modifiers.intersection([.command, .shift])
+    guard !modifiers.isEmpty else {
+      tabSelectionState.clear()
+      _ = context?.store.send(.tabSelected(tabID))
+      return
+    }
+    applyModifiedSelection(tabID: tabID, modifiers: modifiers)
   }
 
   private func applyModifiedSelection(
@@ -570,14 +576,11 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func beginDragging(
     entryID: TerminalSidebarEntryID,
-    modifierFlags: NSEvent.ModifierFlags,
     event: NSEvent,
     pointer: CGPoint
   ) -> Bool {
     guard case .idle = updatePhase else { return false }
-    guard let selectedTabIDs = selectedTabIDsForDrag(entryID, modifierFlags: modifierFlags) else {
-      return false
-    }
+    guard let selectedTabIDs = selectedTabIDsForDrag(entryID) else { return false }
     guard
       let payload = appliedOutline.dragPayload(
         for: entryID,
@@ -630,20 +633,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     return true
   }
 
-  private func selectedTabIDsForDrag(
-    _ entryID: TerminalSidebarEntryID,
-    modifierFlags: NSEvent.ModifierFlags
-  ) -> [TerminalTabID]? {
+  private func selectedTabIDsForDrag(_ entryID: TerminalSidebarEntryID) -> [TerminalTabID]? {
     switch entryID {
     case .tab(let tabID):
-      if tabSelectionState.style(for: tabID, primaryTabID: selectedTabID) == .none {
-        if modifierFlags.contains(.shift) || modifierFlags.contains(.command) {
-          applyModifiedSelection(tabID: tabID, modifiers: modifierFlags)
-        } else {
-          tabSelectionState.clear()
-          _ = context?.store.send(.tabSelected(tabID))
-        }
-      }
       return tabSelectionState.contextualTabIDs(
         for: tabID,
         primaryTabID: selectedTabID,
