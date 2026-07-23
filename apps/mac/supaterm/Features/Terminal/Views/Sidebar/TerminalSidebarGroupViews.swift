@@ -390,6 +390,17 @@ private struct TerminalSidebarFooterButton: View {
   }
 }
 
+private struct TerminalSidebarGroupHeaderButtonStyle: PrimitiveButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .background(Color.clear)
+      .contentShape(Rectangle())
+      .onTapGesture {
+        configuration.trigger()
+      }
+  }
+}
+
 private struct TerminalSidebarGroupHeader: View {
   let presentation: TerminalSidebarGroupRowPresentation
   let palette: Palette
@@ -459,10 +470,8 @@ private struct TerminalSidebarGroupHeader: View {
               minHeight: TerminalSidebarLayout.tabRowMinHeight,
               alignment: .leading
             )
-            .background(Color.clear)
-            .contentShape(Rectangle())
           }
-          .buttonStyle(.plain)
+          .buttonStyle(TerminalSidebarGroupHeaderButtonStyle())
           .accessibilityIdentifier(
             TerminalSidebarAccessibilityIdentifier.group(presentation.id)
           )
