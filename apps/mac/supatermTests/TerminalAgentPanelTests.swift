@@ -8,6 +8,11 @@ import Testing
 @testable import supaterm
 
 struct TerminalAgentPanelTests {
+  enum InheritedSurfaceKind: CaseIterable {
+    case tab
+    case split
+  }
+
   @Test
   @MainActor
   func childTitleMatchesCodexLabels() {
@@ -141,6 +146,55 @@ struct TerminalAgentPanelTests {
         .workingDirectoryPath == root.path(percentEncoded: false)
     )
     #expect(TerminalAgentPanelWorkspaceKey(workingDirectoryPath: " ") == nil)
+  }
+
+  @Test(arguments: InheritedSurfaceKind.allCases)
+  @MainActor
+  func newTabsAndSplitsInheritAgentWorkspace(kind: InheritedSurfaceKind) throws {
+    initializeGhosttyForTests()
+
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: UUID().uuidString,
+      directoryHint: .isDirectory
+    )
+    let paneDirectory = root.appending(path: "pane", directoryHint: .isDirectory)
+    let agentWorkspace = root.appending(path: "agent", directoryHint: .isDirectory)
+    for directory in [paneDirectory, agentWorkspace] {
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let host = TerminalHostState()
+    host.ensureInitialTab(
+      focusing: false,
+      workingDirectoryPath: paneDirectory.path(percentEncoded: false)
+    )
+    let sourceSurface = try #require(host.selectedSurfaceView)
+    #expect(
+      host.startTestAgentSession(
+        agent: .codex,
+        for: sourceSurface.id,
+        sessionID: "session-1",
+        processID: nil,
+        workingDirectoryPath: agentWorkspace.path(percentEncoded: false)
+      )
+    )
+
+    switch kind {
+    case .tab:
+      #expect(host.createTab(inheritingFromSurfaceID: sourceSurface.id) != nil)
+    case .split:
+      #expect(host.performSplitAction(.newSplit(direction: .right), for: sourceSurface.id))
+    }
+
+    let inheritedSurface = try #require(host.selectedSurfaceView)
+    #expect(inheritedSurface !== sourceSurface)
+    #expect(
+      inheritedSurface.bridge.state.pwd
+        == GhosttySurfaceView.normalizedWorkingDirectoryPath(
+          agentWorkspace.path(percentEncoded: false)
+        )
+    )
   }
 
   @Test

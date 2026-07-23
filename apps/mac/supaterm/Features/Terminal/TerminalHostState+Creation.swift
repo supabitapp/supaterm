@@ -253,11 +253,15 @@ extension TerminalHostState {
 
     let inherited = ghostty_surface_inherited_config(sourceSurface, context)
     let fontSize = inherited.font_size == 0 ? nil : inherited.font_size
-    let workingDirectory = inherited.working_directory.flatMap { ptr -> URL? in
+    let inheritedWorkingDirectory = inherited.working_directory.flatMap { ptr -> URL? in
       let path = String(cString: ptr)
       guard !path.isEmpty else { return nil }
       return URL(fileURLWithPath: path, isDirectory: true)
     }
+    let workingDirectory =
+      agentPanelPresentation(for: surfaceID)?.workingDirectoryPath.map {
+        URL(fileURLWithPath: $0, isDirectory: true)
+      } ?? inheritedWorkingDirectory
 
     return InheritedSurfaceConfig(
       workingDirectory: workingDirectory,
