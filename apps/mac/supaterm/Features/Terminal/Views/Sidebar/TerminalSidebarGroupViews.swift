@@ -474,19 +474,20 @@ private struct TerminalSidebarGroupHeader: View {
             renameState.begin(groupID: presentation.id, title: presentation.title)
           }
 
-          if hoverState.groupID == presentation.id {
-            Button {
-              actions.closeGroup(presentation.id)
-            } label: {
-              Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .semibold))
-                .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(palette.secondaryText)
-            .padding(.trailing, 8)
-            .accessibilityLabel("Close \(presentation.title)")
+          Button {
+            actions.closeGroup(presentation.id)
+          } label: {
+            Image(systemName: "xmark")
+              .font(.system(size: 11, weight: .semibold))
+              .frame(width: 22, height: 22)
           }
+          .buttonStyle(.plain)
+          .foregroundStyle(palette.secondaryText)
+          .padding(.trailing, 8)
+          .opacity(hoverState.groupID == presentation.id ? 1 : 0)
+          .allowsHitTesting(hoverState.groupID == presentation.id)
+          .accessibilityHidden(hoverState.groupID != presentation.id)
+          .accessibilityLabel("Close \(presentation.title)")
         }
         .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       }
