@@ -489,8 +489,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       origin: location,
       sourceFrame: attributes.frame
     )
-    guard case .tab = entryID else { return false }
-    return !modifierFlags.isEmpty
+    switch entryID {
+    case .group:
+      return true
+    case .tab:
+      return !modifierFlags.isEmpty
+    case .pinDivider, .newTab:
+      return false
+    }
   }
 
   private func rowMouseDragged(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
@@ -523,11 +529,18 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     let consumes = activeDrag != nil && pendingDrag?.entryID == nil
     guard pendingDrag?.entryID == entryID else { return consumes }
     pendingDrag = nil
-    guard case .tab(let tabID) = entryID else { return consumes }
-    let modifiers = event.modifierFlags.intersection([.command, .shift])
-    guard !modifiers.isEmpty else { return consumes }
-    applyModifiedSelection(tabID: tabID, modifiers: modifiers)
-    return true
+    switch entryID {
+    case .group(let groupID):
+      context?.actions.toggleGroupCollapsed(groupID)
+      return true
+    case .tab(let tabID):
+      let modifiers = event.modifierFlags.intersection([.command, .shift])
+      guard !modifiers.isEmpty else { return consumes }
+      applyModifiedSelection(tabID: tabID, modifiers: modifiers)
+      return true
+    case .pinDivider, .newTab:
+      return consumes
+    }
   }
 
   private func applyModifiedSelection(
