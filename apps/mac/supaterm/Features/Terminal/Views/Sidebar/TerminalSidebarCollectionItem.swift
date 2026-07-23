@@ -57,15 +57,18 @@ struct TerminalSidebarLiftedRow {
 }
 
 @MainActor
-private final class TerminalSidebarHostingContainerView: NSView {
+private final class TerminalSidebarHostingContainerView: NSView, NSGestureRecognizerDelegate {
   private var hostingView: SidebarEventHostingView?
   private var isLifted = false
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    addGestureRecognizer(
-      NSClickGestureRecognizer(target: self, action: #selector(clickGroupHeader(_:)))
+    let clickRecognizer = NSClickGestureRecognizer(
+      target: self,
+      action: #selector(clickGroupHeader(_:))
     )
+    clickRecognizer.delegate = self
+    addGestureRecognizer(clickRecognizer)
   }
 
   @available(*, unavailable)
@@ -114,12 +117,29 @@ private final class TerminalSidebarHostingContainerView: NSView {
 
   @objc private func clickGroupHeader(_ recognizer: NSClickGestureRecognizer) {
     guard
-      recognizer.location(in: self).x < bounds.maxX - 30,
       let hostingView,
-      case .group(let presentation) = hostingView.rootView.presentation,
-      hostingView.rootView.context.renameState.groupID != presentation.id
+      case .group(let presentation) = hostingView.rootView.presentation
     else { return }
     hostingView.rootView.context.actions.toggleGroupCollapsed(presentation.id)
+  }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: NSGestureRecognizer,
+    shouldAttemptToRecognizeWith event: NSEvent
+  ) -> Bool {
+    guard
+      convert(event.locationInWindow, from: nil).x < bounds.maxX - 30,
+      let hostingView,
+      case .group(let presentation) = hostingView.rootView.presentation
+    else { return false }
+    return hostingView.rootView.context.renameState.groupID != presentation.id
+  }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: NSGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: NSGestureRecognizer
+  ) -> Bool {
+    true
   }
 }
 
