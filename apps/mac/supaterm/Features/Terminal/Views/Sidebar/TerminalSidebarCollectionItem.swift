@@ -68,7 +68,9 @@ private final class TerminalSidebarHostingContainerView: NSView {
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard
-      NSApp.currentEvent?.type == .leftMouseDown,
+      let eventType = NSApp.currentEvent?.type,
+      eventType == .leftMouseDown || eventType == .leftMouseDragged
+        || eventType == .leftMouseUp,
       point.x < bounds.maxX - 30,
       let hostingView,
       case .group(let presentation) = hostingView.rootView.presentation,
@@ -76,7 +78,9 @@ private final class TerminalSidebarHostingContainerView: NSView {
       let entryID = hostingView.entryID,
       let collectionView = hostingView.collectionView
     else { return super.hitTest(point) }
-    collectionView.routeMouseDown(to: entryID)
+    if eventType == .leftMouseDown {
+      collectionView.routeMouseDown(to: entryID)
+    }
     return collectionView
   }
 
