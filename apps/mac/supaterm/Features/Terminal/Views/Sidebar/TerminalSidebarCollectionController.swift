@@ -530,7 +530,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     guard pendingDrag?.entryID == entryID else { return consumes }
     pendingDrag = nil
     switch entryID {
-    case .group:
+    case .group(let groupID):
+      context?.actions.toggleGroupCollapsed(groupID)
       return true
     case .tab(let tabID):
       let modifiers = event.modifierFlags.intersection([.command, .shift])

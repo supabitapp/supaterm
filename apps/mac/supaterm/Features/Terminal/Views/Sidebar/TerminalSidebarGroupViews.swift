@@ -471,7 +471,6 @@ private struct TerminalSidebarGroupHeader: View {
             )
           }
           .buttonStyle(TerminalSidebarGroupHeaderButtonStyle())
-          .allowsHitTesting(false)
           .accessibilityIdentifier(
             TerminalSidebarAccessibilityIdentifier.group(presentation.id)
           )

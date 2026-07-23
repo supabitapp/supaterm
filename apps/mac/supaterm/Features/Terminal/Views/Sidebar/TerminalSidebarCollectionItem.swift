@@ -61,19 +61,19 @@ private final class TerminalSidebarHostingContainerView: NSView {
   private var hostingView: SidebarEventHostingView?
   private var isLifted = false
 
-  override init(frame frameRect: NSRect) {
-    super.init(frame: frameRect)
-    addGestureRecognizer(
-      NSClickGestureRecognizer(target: self, action: #selector(clickGroupHeader(_:)))
-    )
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
-
   override func layout() {
     super.layout()
     if !isLifted { hostingView?.frame = bounds }
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard
+      point.x < bounds.maxX - 30,
+      let hostingView,
+      case .group(let presentation) = hostingView.rootView.presentation,
+      hostingView.rootView.context.renameState.groupID != presentation.id
+    else { return super.hitTest(point) }
+    return hostingView
   }
 
   func host(
@@ -110,16 +110,6 @@ private final class TerminalSidebarHostingContainerView: NSView {
     addSubview(hostedView)
     hostedView.frame = bounds
     isLifted = false
-  }
-
-  @objc private func clickGroupHeader(_ recognizer: NSClickGestureRecognizer) {
-    guard
-      recognizer.location(in: self).x < bounds.maxX - 30,
-      let hostingView,
-      case .group(let presentation) = hostingView.rootView.presentation,
-      hostingView.rootView.context.renameState.groupID != presentation.id
-    else { return }
-    hostingView.rootView.context.actions.toggleGroupCollapsed(presentation.id)
   }
 }
 
