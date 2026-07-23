@@ -393,7 +393,10 @@ private struct TerminalSidebarFooterButton: View {
 private struct TerminalSidebarGroupHeaderButtonStyle: PrimitiveButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .contentShape(.accessibility, Rectangle())
+      .contentShape(Rectangle())
+      .onTapGesture {
+        configuration.trigger()
+      }
       .accessibilityAction {
         configuration.trigger()
       }
