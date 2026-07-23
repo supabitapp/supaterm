@@ -255,7 +255,7 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func restorePreservesGroupLifetimesAndRepairsSelectedGroupCollapse() async throws {
+  func restorePreservesGroupLifetimesAndSelectedGroupCollapse() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -322,7 +322,7 @@ struct TerminalHostStateSessionRestoreTests {
       let manager = try #require(host.spaceManager.tabManager(for: spaceID))
       #expect(manager.tabs.map(\.id) == [automaticTabID, durableTabID])
       #expect(manager.selectedTabId == automaticTabID)
-      #expect(host.collapsedTabGroupIDs == [durableGroupID])
+      #expect(host.collapsedTabGroupIDs == [automaticGroupID, durableGroupID])
       #expect(manager.group(for: automaticGroupID)?.lifetime == .automatic)
       #expect(manager.group(for: durableGroupID)?.lifetime == .durable)
 

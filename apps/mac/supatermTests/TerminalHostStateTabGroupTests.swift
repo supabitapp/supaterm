@@ -149,7 +149,7 @@ struct TerminalHostStateTabGroupTests {
   }
 
   @Test
-  func selectedGroupCannotRemainCollapsed() throws {
+  func selectedGroupCanCollapseWithoutChangingSelection() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -161,9 +161,9 @@ struct TerminalHostStateTabGroupTests {
       ).groupID
       host.selectTab(selected)
 
-      #expect(!host.setGroupCollapsed(groupID, isCollapsed: true))
+      #expect(host.setGroupCollapsed(groupID, isCollapsed: true))
       #expect(host.selectedTabID == selected)
-      #expect(!host.collapsedTabGroupIDs.contains(groupID))
+      #expect(host.collapsedTabGroupIDs.contains(groupID))
     }
   }
 

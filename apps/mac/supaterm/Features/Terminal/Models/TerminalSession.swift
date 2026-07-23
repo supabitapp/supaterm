@@ -253,18 +253,13 @@ nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
     let selectedTabID =
       selectedTabID.flatMap { resolvedTabIDs.contains($0) ? $0 : nil }
       ?? topology.tabIDs.first
-    let selectedGroupID = selectedTabID.flatMap { selectedTabID in
-      topology.nodes.first { $0.item.tabID == selectedTabID }?.parent.groupID
-    }
     let collapsedGroupIDSet = Set(collapsedGroupIDs)
     return TerminalWindowSpaceSession(
       id: id,
       selectedTabID: selectedTabID,
       nodes: topology.nodes,
       groups: resolvedGroups,
-      collapsedGroupIDs: topology.rootGroupIDs.filter {
-        $0 != selectedGroupID && collapsedGroupIDSet.contains($0)
-      },
+      collapsedGroupIDs: topology.rootGroupIDs.filter(collapsedGroupIDSet.contains),
       tabs: resolvedTabs
     )
   }

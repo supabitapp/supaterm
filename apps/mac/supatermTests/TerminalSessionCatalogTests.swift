@@ -270,7 +270,7 @@ struct TerminalSessionCatalogTests {
   }
 
   @Test
-  func pruningExpandsTheSelectedTabsGroup() {
+  func pruningPreservesTheSelectedTabsCollapsedGroup() {
     let tabID = TerminalTabID()
     let groupID = TerminalTabGroupID()
     let session = TerminalWindowSpaceSession(
@@ -288,7 +288,7 @@ struct TerminalSessionCatalogTests {
     let pruned = session.pruned()
 
     #expect(pruned.selectedTabID == tabID)
-    #expect(pruned.collapsedGroupIDs.isEmpty)
+    #expect(pruned.collapsedGroupIDs == [groupID])
   }
 
   @Test

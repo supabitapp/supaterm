@@ -57,15 +57,7 @@ extension TerminalHostState {
 
   @discardableResult
   func setGroupCollapsed(_ id: TerminalTabGroupID, isCollapsed: Bool) -> Bool {
-    guard
-      let space = spaceManager.space(for: id),
-      let manager = spaceManager.tabManager(for: space.id)
-    else { return false }
-    if isCollapsed, let selectedTabID = manager.selectedTabId,
-      manager.groupID(containing: selectedTabID) == id
-    {
-      return false
-    }
+    guard let space = spaceManager.space(for: id) else { return false }
     var collapsedGroupIDs = collapsedTabGroupIDsBySpace[space.id] ?? []
     let changed: Bool
     if isCollapsed {
