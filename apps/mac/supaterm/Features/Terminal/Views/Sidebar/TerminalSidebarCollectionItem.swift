@@ -66,16 +66,6 @@ private final class TerminalSidebarHostingContainerView: NSView {
     if !isLifted { hostingView?.frame = bounds }
   }
 
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    guard
-      point.x < bounds.maxX - 30,
-      let hostingView,
-      case .group(let presentation) = hostingView.rootView.presentation,
-      hostingView.rootView.context.renameState.groupID != presentation.id
-    else { return super.hitTest(point) }
-    return hostingView
-  }
-
   func host(
     _ rootView: TerminalSidebarHostedRow,
     entryID: TerminalSidebarEntryID,
