@@ -113,6 +113,28 @@ private final class SidebarEventHostingView: NSHostingView<TerminalSidebarHosted
       super.mouseDown(with: event)
       return
     }
+    guard let window else { return }
+    window.trackEvents(
+      matching: [.leftMouseDragged, .leftMouseUp],
+      timeout: NSEvent.foreverDuration,
+      mode: .eventTracking
+    ) { [weak self] event, stop in
+      guard let self, let event else {
+        stop.pointee = true
+        return
+      }
+      switch event.type {
+      case .leftMouseDragged:
+        stop.pointee = ObjCBool(
+          collectionView?.rowMouseDragged(entryID: entryID, event: event) == true
+        )
+      case .leftMouseUp:
+        _ = collectionView?.rowMouseUp(entryID: entryID, event: event)
+        stop.pointee = true
+      default:
+        break
+      }
+    }
   }
 
   override func mouseDragged(with event: NSEvent) {
