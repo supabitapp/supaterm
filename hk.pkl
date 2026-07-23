@@ -1,5 +1,5 @@
-amends "package://github.com/jdx/hk/releases/download/v1.45.0/hk@1.45.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.45.0/hk@1.45.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.52.0/hk@1.52.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.52.0/hk@1.52.0#/Builtins.pkl"
 
 local prePushBranchCheck = """
 repo_root=$(git rev-parse --show-toplevel)
@@ -19,16 +19,12 @@ hooks {
       ["check-case-conflict"] = Builtins.check_case_conflict
       ["check-merge-conflict"] = Builtins.check_merge_conflict
       ["detect-private-key"] = Builtins.detect_private_key
-      ["web-staged"] {
-        glob = "**"
+      ["vp-check"] = (Builtins.vp_check) {
         dir = "apps/supaterm.com"
-        check = "vp staged"
         depends = "check-added-large-files"
       }
-      ["swiftlint"] {
-        glob = List("**/*.swift", ".swiftlint.yml")
+      ["swiftlint"] = (Builtins.swiftlint) {
         dir = "apps/mac"
-        check = "make lint"
         depends = "check-added-large-files"
       }
     }
