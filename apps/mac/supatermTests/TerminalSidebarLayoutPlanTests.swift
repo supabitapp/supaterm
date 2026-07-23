@@ -178,14 +178,17 @@ struct TerminalSidebarLayoutPlanTests {
       draggingItemIDs: [.tab(source)]
     )
 
-    for groupID in [collapsedGroup, emptyGroup] {
+    for (groupID, insertionIndex) in [(collapsedGroup, 1), (emptyGroup, 0)] {
       let targets = plan.semanticTargets.filter {
         switch $0.path {
         case .rootBoundary, .group(groupID, _): true
         case .rootItem, .group, .pinnedEnd, .trailingRoot: false
         }
       }
-      let groupTarget = targets.first { if case .group(groupID, 0) = $0.path { true } else { false } }
+      let groupTarget = targets.first {
+        guard case .group(groupID, insertionIndex) = $0.path else { return false }
+        return true
+      }
       #expect(groupTarget?.frame.height == 19)
       let bottom = plan.semanticTargets.first {
         guard case .rootBoundary(let index, .after) = $0.path else { return false }

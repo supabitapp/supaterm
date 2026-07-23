@@ -454,10 +454,14 @@ private struct TerminalSidebarGroupHeader: View {
               Spacer(minLength: 0)
             }
             .padding(.horizontal, 8)
+            .frame(
+              maxWidth: .infinity,
+              minHeight: TerminalSidebarLayout.tabRowMinHeight,
+              alignment: .leading
+            )
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
-          .frame(maxWidth: .infinity, minHeight: TerminalSidebarLayout.tabRowMinHeight)
           .accessibilityIdentifier(
             TerminalSidebarAccessibilityIdentifier.group(presentation.id)
           )

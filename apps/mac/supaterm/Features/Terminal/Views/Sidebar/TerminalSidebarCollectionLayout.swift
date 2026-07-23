@@ -375,7 +375,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
             )
           ),
           TerminalSidebarSemanticTarget(
-            path: .group(groupID, index: 0),
+            path: .group(groupID, index: tabIDs.count),
             frame: CGRect(
               x: 0,
               y: header.frame.minY,
