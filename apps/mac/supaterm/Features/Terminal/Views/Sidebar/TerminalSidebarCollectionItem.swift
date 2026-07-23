@@ -61,6 +61,16 @@ private final class TerminalSidebarHostingContainerView: NSView {
   private var hostingView: SidebarEventHostingView?
   private var isLifted = false
 
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    addGestureRecognizer(
+      NSClickGestureRecognizer(target: self, action: #selector(clickGroupHeader(_:)))
+    )
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
   override func layout() {
     super.layout()
     if !isLifted { hostingView?.frame = bounds }
@@ -101,6 +111,16 @@ private final class TerminalSidebarHostingContainerView: NSView {
     hostedView.frame = bounds
     isLifted = false
   }
+
+  @objc private func clickGroupHeader(_ recognizer: NSClickGestureRecognizer) {
+    guard
+      recognizer.location(in: self).x < bounds.maxX - 30,
+      let hostingView,
+      case .group(let presentation) = hostingView.rootView.presentation,
+      hostingView.rootView.context.renameState.groupID != presentation.id
+    else { return }
+    hostingView.rootView.context.actions.toggleGroupCollapsed(presentation.id)
+  }
 }
 
 @MainActor
@@ -112,28 +132,6 @@ private final class SidebarEventHostingView: NSHostingView<TerminalSidebarHosted
     guard let entryID, collectionView?.rowMouseDown(entryID: entryID, event: event) == true else {
       super.mouseDown(with: event)
       return
-    }
-    guard let window else { return }
-    window.trackEvents(
-      matching: [.leftMouseDragged, .leftMouseUp],
-      timeout: NSEvent.foreverDuration,
-      mode: .eventTracking
-    ) { [weak self] event, stop in
-      guard let self, let event else {
-        stop.pointee = true
-        return
-      }
-      switch event.type {
-      case .leftMouseDragged:
-        stop.pointee = ObjCBool(
-          collectionView?.rowMouseDragged(entryID: entryID, event: event) == true
-        )
-      case .leftMouseUp:
-        _ = collectionView?.rowMouseUp(entryID: entryID, event: event)
-        stop.pointee = true
-      default:
-        break
-      }
     }
   }
 
