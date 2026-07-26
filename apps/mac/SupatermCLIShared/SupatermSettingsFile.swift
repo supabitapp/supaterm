@@ -60,7 +60,7 @@ public enum SupatermSettingsCodec {
     if isEmptyToml(data) {
       return false
     }
-    return try decoder().decode(SupatermSettingsTerminalZmxKeyMigrationAudit.self, from: data).isNeeded
+    return try decoder().decode(TerminalZmxMigrationAudit.self, from: data).isNeeded
   }
 
   public static func decoder() -> TOMLDecoder {
@@ -180,7 +180,7 @@ public struct SupatermSettingsValidator {
       } else {
         errors.append("Config file not found at \(path.path).")
       }
-      return .init(
+      return SupatermSettingsValidationResult(
         path: path.path,
         status: .missing,
         warnings: warnings,
@@ -191,14 +191,14 @@ public struct SupatermSettingsValidator {
     do {
       let data = try Data(contentsOf: path)
       _ = try SupatermSettingsCodec.decode(data)
-      return .init(
+      return SupatermSettingsValidationResult(
         path: path.path,
         status: .valid,
         warnings: try SupatermSettingsCodec.unknownKeyWarnings(in: data),
         errors: []
       )
     } catch {
-      return .init(
+      return SupatermSettingsValidationResult(
         path: path.path,
         status: .invalid,
         warnings: [],
@@ -224,6 +224,7 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
           "logging",
           "notifications",
           "privacy",
+          "shortcuts",
           "terminal",
           "updates",
         ],
@@ -231,6 +232,9 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
       )
     )
 
+    warnings.append(
+      contentsOf: try Self.unknownShortcutKeys(in: container)
+    )
     warnings.append(
       contentsOf: try Self.unknownNestedKeys(
         in: container,
@@ -297,6 +301,25 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
     return unknownKeys(in: nested, allowedKeys: allowedKeys, prefix: section)
   }
 
+  private static func unknownShortcutKeys(
+    in container: KeyedDecodingContainer<AnyCodingKey>
+  ) throws -> [String] {
+    guard let shortcutsKey = AnyCodingKey(stringValue: "shortcuts"),
+      container.contains(shortcutsKey)
+    else {
+      return []
+    }
+    let shortcuts = try container.nestedContainer(keyedBy: AnyCodingKey.self, forKey: shortcutsKey)
+    return try shortcuts.allKeys.flatMap { shortcutKey in
+      let shortcut = try shortcuts.nestedContainer(keyedBy: AnyCodingKey.self, forKey: shortcutKey)
+      return unknownKeys(
+        in: shortcut,
+        allowedKeys: ["enabled", "key_code", "modifiers"],
+        prefix: "shortcuts.\(shortcutKey.stringValue)"
+      )
+    }
+  }
+
   private static func unknownKeys(
     in container: KeyedDecodingContainer<AnyCodingKey>,
     allowedKeys: Set<String>,
@@ -313,7 +336,7 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
   }
 }
 
-private struct SupatermSettingsTerminalZmxKeyMigrationAudit: Decodable {
+private struct TerminalZmxMigrationAudit: Decodable {
   let isNeeded: Bool
 
   init(from decoder: any Decoder) throws {

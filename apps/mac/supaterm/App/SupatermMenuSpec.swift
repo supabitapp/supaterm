@@ -1,12 +1,13 @@
 import AppKit
+import SupatermCLIShared
 import SwiftUI
 
 struct SupatermMenuItemSpec {
   enum ShortcutSource {
     case command(SupatermCommand)
     case ghosttyAction(String, defaultShortcut: KeyboardShortcut?)
-    case fixed(KeyboardShortcut)
-    case fixedRouted(KeyboardShortcut)
+    case app(SupatermShortcutID)
+    case appRouted(SupatermShortcutID)
     case none
   }
 

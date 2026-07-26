@@ -21,7 +21,7 @@ struct SettingsFeatureTests {
   func tabOrderEndsWithAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .terminal, .notifications, .codingAgents, .advanced, .about]
+        == [.general, .terminal, .notifications, .shortcuts, .codingAgents, .advanced, .about]
     )
   }
 

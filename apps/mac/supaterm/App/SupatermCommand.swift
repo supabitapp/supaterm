@@ -1,9 +1,5 @@
 import SwiftUI
 
-enum TerminalTabGroupShortcut {
-  static let newTab = KeyboardShortcut("t", modifiers: [.command, .option])
-}
-
 enum SupatermCommand: Hashable, Sendable {
   enum SplitFocusDirection: Hashable, Sendable {
     case down

@@ -1,6 +1,10 @@
 import AppKit
+import Carbon.HIToolbox
 import ComposableArchitecture
+import Sharing
+import SupatermCLIShared
 import SupatermSettingsFeature
+import SupatermSupport
 import SwiftUI
 import Testing
 
@@ -8,6 +12,40 @@ import Testing
 
 @MainActor
 struct SupatermMenuControllerTests {
+  @Test
+  func refreshUsesAppShortcutOverrides() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.supatermSettings) var settings = .default
+      $settings.withLock {
+        $0.shortcutOverrides[.toggleSidebar] = SupatermShortcutOverride(
+          keyCode: UInt16(kVK_ANSI_B),
+          modifiers: [.command, .option]
+        )
+        $0.shortcutOverrides[.toggleAgentPanel] = .disabled
+      }
+
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let viewMenu = try #require(
+        app.mainMenu?.items.first(where: { $0.title == "View" })?.submenu
+      )
+      #expect(viewMenu.items[0].keyEquivalent == "b")
+      #expect(viewMenu.items[0].keyEquivalentModifierMask == [.command, .option])
+      #expect(viewMenu.items[1].keyEquivalent.isEmpty)
+      #expect(viewMenu.items[1].keyEquivalentModifierMask.isEmpty)
+    }
+  }
+
   @Test
   func installBuildsOwnedAppKitMenus() throws {
     let app = NSApplication.shared

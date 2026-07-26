@@ -1,4 +1,6 @@
 import Foundation
+import Sharing
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -104,8 +106,6 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
 }
 
 enum TerminalCommandPalettePresentation {
-  private static let toggleSidebarShortcut = KeyboardShortcut("s", modifiers: .command).display
-
   static func rows(from snapshot: TerminalCommandPaletteSnapshot) -> [TerminalCommandPaletteRow] {
     var rows = sortRows(contextRows(from: snapshot))
     rows.append(contentsOf: snapshot.updateEntries.map(updateRow))
@@ -272,7 +272,8 @@ enum TerminalCommandPalettePresentation {
   }
 
   private static var baseSupatermRows: [TerminalCommandPaletteRow] {
-    [
+    @Shared(.supatermSettings) var supatermSettings = .default
+    return [
       TerminalCommandPaletteRow(
         id: "supaterm:toggle-sidebar",
         title: "Toggle Sidebar",
@@ -281,7 +282,10 @@ enum TerminalCommandPalettePresentation {
         leadingIcon: nil,
         badge: nil,
         emphasis: false,
-        shortcut: toggleSidebarShortcut,
+        shortcut: SupatermShortcuts.binding(
+          for: .toggleSidebar,
+          overrides: supatermSettings.shortcutOverrides
+        )?.display,
         command: .toggleSidebar
       ),
       TerminalCommandPaletteRow(

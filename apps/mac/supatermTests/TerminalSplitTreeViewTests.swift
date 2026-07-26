@@ -272,16 +272,16 @@ struct TerminalSplitTreeViewTests {
 
   @Test
   func agentPanelShortcutsDisplayCommandHints() {
-    #expect(AgentPanelShortcut.toggleVisibility.display == "⌘I")
-    #expect(AgentPanelShortcut.forkSession.display == "⌘⌥F")
-    #expect(AgentPanelShortcut.copySessionID.display == "⌘⌥C")
+    #expect(SupatermShortcuts.toggleAgentPanel.defaultBinding.display == "⌘I")
+    #expect(SupatermShortcuts.forkAgentSession.defaultBinding.display == "⌘⌥F")
+    #expect(SupatermShortcuts.copyAgentSessionID.defaultBinding.display == "⌘⌥C")
   }
 
   @Test
   func agentPanelShortcutHintsOnlyShowInFocusedPane() {
     let focusedSurfaceID = UUID()
     let unfocusedSurfaceID = UUID()
-    let hint = AgentPanelShortcut.toggleVisibility.display
+    let hint = SupatermShortcuts.toggleAgentPanel.defaultBinding.display
 
     #expect(
       TerminalSplitTreeView.LeafView.visibleShortcutHint(

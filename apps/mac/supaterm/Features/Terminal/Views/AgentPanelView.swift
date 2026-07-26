@@ -1,5 +1,7 @@
+import Sharing
 import SupaTheme
 import SupatermCLIShared
+import SupatermSupport
 import SwiftUI
 
 enum AgentPanelMetrics {
@@ -15,12 +17,6 @@ enum AgentPanelMetrics {
   static let collapsedCornerRadius: CGFloat = 6
 }
 
-enum AgentPanelShortcut {
-  static let toggleVisibility = KeyboardShortcut("i", modifiers: .command)
-  static let forkSession = KeyboardShortcut("f", modifiers: [.command, .option])
-  static let copySessionID = KeyboardShortcut("c", modifiers: [.command, .option])
-}
-
 struct AgentPanelView: View {
   static let accessibilityIdentifier = "agent-panel"
 
@@ -32,6 +28,7 @@ struct AgentPanelView: View {
   let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
   let openURL: (URL) -> Void
 
+  @Shared(.supatermSettings) private var supatermSettings = .default
   @State private var checksAreExpanded = false
   @State private var copyFeedback: AgentPanelCopyFeedback?
 
@@ -210,7 +207,7 @@ struct AgentPanelView: View {
           icon: .asset("git-fork"),
           title: Self.forkTitle(forksDown: forksDown),
           palette: palette,
-          shortcutHint: shortcutHint(AgentPanelShortcut.forkSession),
+          shortcutHint: shortcutHint(.forkAgentSession),
           helpText: Self.forkHelpText(forksDown: forksDown),
           action: {
             forkSession(Self.forkDirection(forksDown: forksDown), session)
@@ -220,7 +217,7 @@ struct AgentPanelView: View {
           icon: .asset("copy"),
           title: copyTitle("Copy session ID", for: .sessionID),
           palette: palette,
-          shortcutHint: shortcutHint(AgentPanelShortcut.copySessionID),
+          shortcutHint: shortcutHint(.copyAgentSessionID),
           helpText: "Copy session ID",
           action: {
             copy(session.sessionID, target: .sessionID)
@@ -245,8 +242,12 @@ struct AgentPanelView: View {
       : "Fork session right. Hold Option to fork below."
   }
 
-  private func shortcutHint(_ shortcut: KeyboardShortcut) -> String? {
-    showsShortcutHints ? shortcut.display : nil
+  private func shortcutHint(_ id: SupatermShortcutID) -> String? {
+    guard showsShortcutHints else { return nil }
+    return SupatermShortcuts.binding(
+      for: id,
+      overrides: supatermSettings.shortcutOverrides
+    )?.display
   }
 
   private func branchRow(_ branchName: String) -> some View {

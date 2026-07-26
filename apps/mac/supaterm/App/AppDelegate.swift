@@ -346,7 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     if let settingsWindowController {
       controller = settingsWindowController
     } else {
-      let createdController = SettingsWindowController()
+      let createdController = SettingsWindowController(menuController: menuController)
       settingsWindowController = createdController
       controller = createdController
     }

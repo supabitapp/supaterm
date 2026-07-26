@@ -237,6 +237,7 @@ private struct TerminalDetailSurface: View {
 }
 
 private struct TerminalSurfacePaneView: View {
+  @Shared(.supatermSettings) private var supatermSettings = .default
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
 
   let dimmingColor: Color
@@ -296,7 +297,11 @@ private struct TerminalSurfacePaneView: View {
   }
 
   private var agentPanelShortcutHint: String? {
-    commandHoldObserver.isPressed ? AgentPanelShortcut.toggleVisibility.display : nil
+    guard commandHoldObserver.isPressed else { return nil }
+    return SupatermShortcuts.binding(
+      for: .toggleAgentPanel,
+      overrides: supatermSettings.shortcutOverrides
+    )?.display
   }
 
   private var agentPanelForksDown: Bool {

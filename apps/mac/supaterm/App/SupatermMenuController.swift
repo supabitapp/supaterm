@@ -1,4 +1,6 @@
 import AppKit
+import Sharing
+import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermSupport
 import SwiftUI
@@ -87,6 +89,7 @@ final class SupatermMenuController: NSObject {
   }
 
   private let registry: TerminalWindowRegistry
+  @Shared(.supatermSettings) private var supatermSettings = .default
   private var observers: [NSObjectProtocol] = []
   private var keyWindowObservation: NSKeyValueObservation?
   private var firstResponderObservation: NSKeyValueObservation?
@@ -464,7 +467,7 @@ final class SupatermMenuController: NSObject {
         title: "New Tab in Group",
         action: #selector(newTabInGroup(_:)),
         symbol: "rectangle.3.group",
-        shortcut: .fixedRouted(TerminalTabGroupShortcut.newTab)
+        shortcut: .appRouted(.newTabInGroup)
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.openCommandPalette,
@@ -606,25 +609,25 @@ final class SupatermMenuController: NSObject {
         id: MenuItemIdentifier.toggleSidebar,
         title: "Toggle Sidebar",
         action: #selector(toggleSidebar(_:)),
-        shortcut: .fixed(KeyboardShortcut("s", modifiers: .command))
+        shortcut: .app(.toggleSidebar)
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.toggleAgentPanel,
         title: "Toggle Agent Panel",
         action: #selector(toggleAgentPanel(_:)),
-        shortcut: .fixed(AgentPanelShortcut.toggleVisibility)
+        shortcut: .app(.toggleAgentPanel)
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.forkAgentSession,
         title: "Fork Agent Session",
         action: #selector(forkAgentSession(_:)),
-        shortcut: .fixedRouted(AgentPanelShortcut.forkSession)
+        shortcut: .appRouted(.forkAgentSession)
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.copyAgentSessionID,
         title: "Copy Agent Session ID",
         action: #selector(copyAgentSessionID(_:)),
-        shortcut: .fixedRouted(AgentPanelShortcut.copySessionID)
+        shortcut: .appRouted(.copyAgentSessionID)
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.changeTabTitle,
@@ -686,12 +689,7 @@ final class SupatermMenuController: NSObject {
         id: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)"),
         title: "Space \(slot)",
         action: #selector(selectSpace(_:)),
-        shortcut: .fixed(
-          KeyboardShortcut(
-            KeyEquivalent(Character(slot == 10 ? "0" : "\(slot)")),
-            modifiers: .control
-          )
-        ),
+        shortcut: .app(.selectSpace(slot)),
         slot: slot
       )
     }
@@ -843,13 +841,12 @@ final class SupatermMenuController: NSObject {
         syncShortcut(command: command, item: entry.item)
       case .ghosttyAction(let action, let defaultShortcut):
         syncShortcut(action: action, item: entry.item, defaultShortcut: defaultShortcut)
-      case .fixed, .none:
+      case .none:
         break
-      case .fixedRouted(let shortcut):
-        ghosttyBindingItems.insert(
-          GhosttyBindingMenuItem(shortcut: MenuShortcutKey(shortcut: shortcut), item: entry.item),
-          at: 0
-        )
+      case .app(let id):
+        syncAppShortcut(id, item: entry.item, routesThroughTerminal: false)
+      case .appRouted(let id):
+        syncAppShortcut(id, item: entry.item, routesThroughTerminal: true)
       }
     }
     mainMenu.update()
@@ -871,6 +868,30 @@ final class SupatermMenuController: NSObject {
     guard item.isEnabled else { return false }
     guard let action = item.action else { return false }
     return NSApp.sendAction(action, to: item.target, from: item)
+  }
+
+  func terminalReservedShortcutDisplays() -> Set<String> {
+    let menuDisplays = Set(
+      menuEntries.compactMap { entry -> String? in
+        switch entry.spec.shortcut {
+        case .command(let command):
+          return resolvedTerminalShortcut(
+            action: command.ghosttyBindingAction,
+            defaultShortcut: command.defaultKeyboardShortcut
+          )?.display
+        case .ghosttyAction(let action, let defaultShortcut):
+          return resolvedTerminalShortcut(
+            action: action,
+            defaultShortcut: defaultShortcut
+          )?.display
+        case .app, .appRouted, .none:
+          return nil
+        }
+      }
+    )
+    return menuDisplays.union(
+      registry.commandPaletteSnapshot(windowID: nil).ghosttyShortcutDisplayByAction.values
+    )
   }
 
   @discardableResult
@@ -1154,6 +1175,30 @@ final class SupatermMenuController: NSObject {
     syncGhosttyBindingItem(item, shortcut: defaultShortcut)
   }
 
+  private func syncAppShortcut(
+    _ id: SupatermShortcutID,
+    item: NSMenuItem?,
+    routesThroughTerminal: Bool
+  ) {
+    guard let item else { return }
+    let shortcut = SupatermShortcuts.binding(
+      for: id,
+      overrides: supatermSettings.shortcutOverrides
+    )?.keyboardShortcut
+    SupatermMenuShortcut.apply(shortcut, to: item)
+    if routesThroughTerminal {
+      syncGhosttyBindingItem(item, shortcut: shortcut)
+    }
+  }
+
+  private func resolvedTerminalShortcut(
+    action: String,
+    defaultShortcut: KeyboardShortcut?
+  ) -> KeyboardShortcut? {
+    registry.keyboardShortcut(forAction: action)
+      ?? (registry.hasShortcutSource ? nil : defaultShortcut)
+  }
+
   private func syncGhosttyBindingItem(_ item: NSMenuItem, shortcut: KeyboardShortcut?) {
     guard let shortcut else { return }
     ghosttyBindingItems.append(
@@ -1213,8 +1258,14 @@ final class SupatermMenuController: NSObject {
       item.representedObject = slot as NSNumber
     }
     switch spec.shortcut {
-    case .fixed(let shortcut), .fixedRouted(let shortcut):
-      SupatermMenuShortcut.apply(shortcut, to: item)
+    case .app(let id), .appRouted(let id):
+      SupatermMenuShortcut.apply(
+        SupatermShortcuts.binding(
+          for: id,
+          overrides: supatermSettings.shortcutOverrides
+        )?.keyboardShortcut,
+        to: item
+      )
     case .none:
       SupatermMenuShortcut.apply(nil, to: item)
     case .command, .ghosttyAction:

@@ -74,6 +74,8 @@ public struct SettingsTabContentView: View {
       SettingsTerminalView(store: store)
     case .notifications:
       SettingsNotificationsView(store: store)
+    case .shortcuts:
+      SettingsShortcutsView(store: store)
     case .about:
       SettingsAboutView(store: store)
     }

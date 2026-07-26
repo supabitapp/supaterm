@@ -132,6 +132,32 @@ struct SupatermSettingsValidationTests {
   }
 
   @Test
+  func validTomlAuditsShortcutFields() throws {
+    let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
+    let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])
+    try FileManager.default.createDirectory(
+      at: settingsURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data(
+      #"""
+      [shortcuts.toggle_sidebar]
+      enabled = true
+      key_code = 11
+      modifiers = 3
+      extra = true
+      """#.utf8
+    )
+    .write(to: settingsURL)
+
+    let result = SupatermSettingsValidator(homeDirectoryURL: homeDirectoryURL, environment: [:]).validate()
+
+    #expect(result.status == .valid)
+    #expect(result.warnings == ["Unknown config key `shortcuts.toggle_sidebar.extra`."])
+    #expect(result.errors.isEmpty)
+  }
+
+  @Test
   func validTomlAcceptsLoggingKeys() throws {
     let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
     let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])

@@ -9,6 +9,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var crashReportsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
   public var restoreTerminalLayoutEnabled: Bool
+  public var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride]
   public var systemNotificationsEnabled: Bool
   public var updateChannel: UpdateChannel
   public var verboseLoggingEnabled: Bool
@@ -23,6 +24,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     crashReportsEnabled: Bool,
     glowingPaneRingEnabled: Bool = true,
     restoreTerminalLayoutEnabled: Bool = true,
+    shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] = [:],
     systemNotificationsEnabled: Bool = false,
     updateChannel: UpdateChannel,
     verboseLoggingEnabled: Bool = false,
@@ -36,6 +38,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.crashReportsEnabled = crashReportsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
+    self.shortcutOverrides = shortcutOverrides
     self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
     self.verboseLoggingEnabled = verboseLoggingEnabled
@@ -87,6 +90,11 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     let privacy = try container.decodeIfPresent(PersistedPrivacy.self, forKey: .privacy)
     let logging = try container.decodeIfPresent(PersistedLogging.self, forKey: .logging)
     let notifications = try container.decodeIfPresent(PersistedNotifications.self, forKey: .notifications)
+    let shortcuts =
+      try container.decodeIfPresent(
+        [SupatermShortcutID: SupatermShortcutOverride].self,
+        forKey: .shortcuts
+      )
     let terminal = try container.decodeIfPresent(PersistedTerminal.self, forKey: .terminal)
     let updates = try container.decodeIfPresent(PersistedUpdates.self, forKey: .updates)
 
@@ -99,6 +107,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
       glowingPaneRingEnabled: notifications?.glowingPaneRing ?? defaults.glowingPaneRingEnabled,
       restoreTerminalLayoutEnabled: terminal?.restoreLayout ?? defaults.restoreTerminalLayoutEnabled,
+      shortcutOverrides: shortcuts ?? defaults.shortcutOverrides,
       systemNotificationsEnabled: notifications?.systemNotifications ?? defaults.systemNotificationsEnabled,
       updateChannel: updates?.channel ?? defaults.updateChannel,
       verboseLoggingEnabled: logging?.verboseEnabled ?? defaults.verboseLoggingEnabled,
@@ -163,6 +172,9 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         forKey: .terminal
       )
     }
+    if shortcutOverrides != defaults.shortcutOverrides {
+      try container.encode(shortcutOverrides, forKey: .shortcuts)
+    }
     if updateChannel != defaults.updateChannel {
       try container.encode(PersistedUpdates(channel: updateChannel), forKey: .updates)
     }
@@ -176,8 +188,43 @@ extension SupatermSettings {
     case logging
     case privacy
     case notifications
+    case shortcuts
     case terminal
     case updates
+  }
+
+  enum AppearanceKeys: String, CodingKey {
+    case mode
+  }
+
+  enum CodingAgentKeys: String, CodingKey {
+    case showPanel = "show_panel"
+    case showIcons = "show_icons"
+    case showSpinner = "show_spinner"
+  }
+
+  enum PrivacyKeys: String, CodingKey {
+    case analyticsEnabled = "analytics_enabled"
+    case crashReportsEnabled = "crash_reports_enabled"
+  }
+
+  enum LoggingKeys: String, CodingKey {
+    case verboseEnabled = "verbose_enabled"
+  }
+
+  enum NotificationKeys: String, CodingKey {
+    case glowingPaneRing = "glowing_pane_ring"
+    case systemNotifications = "system_notifications"
+  }
+
+  enum TerminalKeys: String, CodingKey {
+    case restoreLayout = "restore_layout"
+    case terminateSessionsOnQuit = "terminate_sessions_on_quit"
+    case zmxSessionsEnabled = "zmx_sessions_enabled"
+  }
+
+  enum UpdateKeys: String, CodingKey {
+    case channel
   }
 
   struct PersistedAppearance: Codable, Equatable, Sendable {
@@ -188,18 +235,14 @@ extension SupatermSettings {
     }
 
     init(from decoder: any Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let container = try decoder.container(keyedBy: AppearanceKeys.self)
       mode =
         try container.decodeIfPresent(AppearanceMode.self, forKey: .mode)
         ?? SupatermSettings.default.appearanceMode
     }
 
-    enum CodingKeys: String, CodingKey {
-      case mode
-    }
-
     func encode(to encoder: any Encoder) throws {
-      var container = encoder.container(keyedBy: CodingKeys.self)
+      var container = encoder.container(keyedBy: AppearanceKeys.self)
       if mode != SupatermSettings.default.appearanceMode {
         try container.encode(mode, forKey: .mode)
       }
@@ -218,7 +261,7 @@ extension SupatermSettings {
     }
 
     init(from decoder: any Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let container = try decoder.container(keyedBy: CodingAgentKeys.self)
       showPanel =
         try container.decodeIfPresent(Bool.self, forKey: .showPanel)
         ?? SupatermSettings.default.codingAgentsShowPanel
@@ -230,14 +273,8 @@ extension SupatermSettings {
         ?? SupatermSettings.default.codingAgentsShowSpinner
     }
 
-    enum CodingKeys: String, CodingKey {
-      case showPanel = "show_panel"
-      case showIcons = "show_icons"
-      case showSpinner = "show_spinner"
-    }
-
     func encode(to encoder: any Encoder) throws {
-      var container = encoder.container(keyedBy: CodingKeys.self)
+      var container = encoder.container(keyedBy: CodingAgentKeys.self)
       if showPanel != SupatermSettings.default.codingAgentsShowPanel {
         try container.encode(showPanel, forKey: .showPanel)
       }
@@ -261,7 +298,7 @@ extension SupatermSettings {
 
     init(from decoder: any Decoder) throws {
       let defaults = SupatermSettings.default
-      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let container = try decoder.container(keyedBy: PrivacyKeys.self)
       analyticsEnabled =
         try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled)
         ?? defaults.analyticsEnabled
@@ -270,14 +307,9 @@ extension SupatermSettings {
         ?? defaults.crashReportsEnabled
     }
 
-    enum CodingKeys: String, CodingKey {
-      case analyticsEnabled = "analytics_enabled"
-      case crashReportsEnabled = "crash_reports_enabled"
-    }
-
     func encode(to encoder: any Encoder) throws {
       let defaults = SupatermSettings.default
-      var container = encoder.container(keyedBy: CodingKeys.self)
+      var container = encoder.container(keyedBy: PrivacyKeys.self)
 
       if analyticsEnabled != defaults.analyticsEnabled {
         try container.encode(analyticsEnabled, forKey: .analyticsEnabled)
@@ -296,18 +328,14 @@ extension SupatermSettings {
     }
 
     init(from decoder: any Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let container = try decoder.container(keyedBy: LoggingKeys.self)
       verboseEnabled =
         try container.decodeIfPresent(Bool.self, forKey: .verboseEnabled)
         ?? SupatermSettings.default.verboseLoggingEnabled
     }
 
-    enum CodingKeys: String, CodingKey {
-      case verboseEnabled = "verbose_enabled"
-    }
-
     func encode(to encoder: any Encoder) throws {
-      var container = encoder.container(keyedBy: CodingKeys.self)
+      var container = encoder.container(keyedBy: LoggingKeys.self)
       if verboseEnabled != SupatermSettings.default.verboseLoggingEnabled {
         try container.encode(verboseEnabled, forKey: .verboseEnabled)
       }
@@ -325,7 +353,7 @@ extension SupatermSettings {
 
     init(from decoder: any Decoder) throws {
       let defaults = SupatermSettings.default
-      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let container = try decoder.container(keyedBy: NotificationKeys.self)
       glowingPaneRing =
         try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRing)
         ?? defaults.glowingPaneRingEnabled
@@ -334,14 +362,9 @@ extension SupatermSettings {
         ?? defaults.systemNotificationsEnabled
     }
 
-    enum CodingKeys: String, CodingKey {
-      case glowingPaneRing = "glowing_pane_ring"
-      case systemNotifications = "system_notifications"
-    }
-
     func encode(to encoder: any Encoder) throws {
       let defaults = SupatermSettings.default
-      var container = encoder.container(keyedBy: CodingKeys.self)
+      var container = encoder.container(keyedBy: NotificationKeys.self)
 
       if glowingPaneRing != defaults.glowingPaneRingEnabled {
         try container.encode(glowingPaneRing, forKey: .glowingPaneRing)
@@ -366,7 +389,7 @@ extension SupatermSettings {
 
     init(from decoder: any Decoder) throws {
       let defaults = SupatermSettings.default
-      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let container = try decoder.container(keyedBy: TerminalKeys.self)
       restoreLayout =
         try container.decodeIfPresent(Bool.self, forKey: .restoreLayout)
         ?? defaults.restoreTerminalLayoutEnabled
@@ -377,15 +400,9 @@ extension SupatermSettings {
         ?? defaults.zmxSessionsEnabled
     }
 
-    enum CodingKeys: String, CodingKey {
-      case restoreLayout = "restore_layout"
-      case terminateSessionsOnQuit = "terminate_sessions_on_quit"
-      case zmxSessionsEnabled = "zmx_sessions_enabled"
-    }
-
     func encode(to encoder: any Encoder) throws {
       let defaults = SupatermSettings.default
-      var container = encoder.container(keyedBy: CodingKeys.self)
+      var container = encoder.container(keyedBy: TerminalKeys.self)
 
       if restoreLayout != defaults.restoreTerminalLayoutEnabled {
         try container.encode(restoreLayout, forKey: .restoreLayout)
@@ -404,23 +421,20 @@ extension SupatermSettings {
     }
 
     init(from decoder: any Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let container = try decoder.container(keyedBy: UpdateKeys.self)
       channel =
         try container.decodeIfPresent(UpdateChannel.self, forKey: .channel)
         ?? SupatermSettings.default.updateChannel
     }
 
-    enum CodingKeys: String, CodingKey {
-      case channel
-    }
-
     func encode(to encoder: any Encoder) throws {
-      var container = encoder.container(keyedBy: CodingKeys.self)
+      var container = encoder.container(keyedBy: UpdateKeys.self)
       if channel != SupatermSettings.default.updateChannel {
         try container.encode(channel, forKey: .channel)
       }
     }
   }
+
 }
 
 struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {

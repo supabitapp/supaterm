@@ -9,7 +9,7 @@ final class SettingsWindowController: NSWindowController {
   let store: StoreOf<SettingsFeature>
   private let restoresSavedFrame: Bool
 
-  init() {
+  init(menuController: SupatermMenuController? = nil) {
     let store = Store(initialState: SettingsFeature.State()) {
       SettingsFeature()
         .logActions()
@@ -20,6 +20,14 @@ final class SettingsWindowController: NSWindowController {
         }
       }
       $0.ghosttyTerminalSettingsClient = .appLiveValue
+      $0.shortcutSettingsClient = ShortcutSettingsClient(
+        terminalReservedDisplays: {
+          menuController?.terminalReservedShortcutDisplays() ?? []
+        },
+        shortcutsDidChange: {
+          menuController?.refresh()
+        }
+      )
     }
     self.store = store
     let rootView = AppAppearanceView {

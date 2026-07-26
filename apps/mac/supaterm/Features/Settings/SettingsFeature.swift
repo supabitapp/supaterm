@@ -126,7 +126,9 @@ public struct SettingsFeature {
     var agentIntegrationInstallFailure: SettingsAgentIntegrationInstallFailure?
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     public var selectedTab = Tab.general
+    var shortcutOverrides = SupatermSettings.default.shortcutOverrides
     var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
+    var terminalShortcutDisplays: Set<String> = []
     var terminal = SettingsTerminalState()
     var verboseLoggingEnabled = SupatermSettings.default.verboseLoggingEnabled
     var zmxSessionsEnabled = SupatermSettings.default.zmxSessionsEnabled
@@ -150,7 +152,11 @@ public struct SettingsFeature {
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
+    case restoreShortcutDefaultsButtonTapped
     case settingsLoaded(SupatermSettings)
+    case shortcutEnabledChanged(SupatermShortcutID, Bool)
+    case shortcutRecorded(SupatermShortcutID, SupatermShortcutOverride)
+    case shortcutResetButtonTapped(SupatermShortcutID)
     case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
     case systemNotificationsAuthorizationResult(
       DesktopNotificationClient.AuthorizationRequestResult)
@@ -184,6 +190,7 @@ public struct SettingsFeature {
     case general
     case terminal
     case notifications
+    case shortcuts
     case codingAgents
     case advanced
     case about
@@ -204,6 +211,8 @@ public struct SettingsFeature {
         "terminal"
       case .notifications:
         "bell"
+      case .shortcuts:
+        "keyboard"
       case .about:
         "sparkles.rectangle.stack"
       }
@@ -221,6 +230,8 @@ public struct SettingsFeature {
         "Terminal"
       case .notifications:
         "Notifications"
+      case .shortcuts:
+        "Shortcuts"
       case .about:
         "About"
       }
@@ -230,6 +241,7 @@ public struct SettingsFeature {
   @Dependency(ClaudeSettingsClient.self) var claudeSettingsClient
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
   @Dependency(PiSettingsClient.self) var piSettingsClient
+  @Dependency(ShortcutSettingsClient.self) var shortcutSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
@@ -242,6 +254,7 @@ public struct SettingsFeature {
     Reduce { state, action in
       switch action {
       case .task:
+        state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
         return loadSettings()
 
       case .settingsLoaded(let supatermSettings):
@@ -271,6 +284,36 @@ public struct SettingsFeature {
       case .tabSelected(let tab):
         state.selectedTab = tab
         return .none
+
+      case .shortcutRecorded(let id, let override):
+        state.shortcutOverrides[id] = override
+        return persistShortcuts(state)
+
+      case .shortcutResetButtonTapped(let id):
+        state.shortcutOverrides.removeValue(forKey: id)
+        return persistShortcuts(state)
+
+      case .shortcutEnabledChanged(let id, let isEnabled):
+        if isEnabled {
+          if var existing = state.shortcutOverrides[id],
+            existing != .disabled
+          {
+            existing.isEnabled = true
+            state.shortcutOverrides[id] = existing
+          } else {
+            state.shortcutOverrides.removeValue(forKey: id)
+          }
+        } else if var existing = state.shortcutOverrides[id] {
+          existing.isEnabled = false
+          state.shortcutOverrides[id] = existing
+        } else {
+          state.shortcutOverrides[id] = .disabled
+        }
+        return persistShortcuts(state)
+
+      case .restoreShortcutDefaultsButtonTapped:
+        state.shortcutOverrides = [:]
+        return persistShortcuts(state)
 
       case .codingAgentsShowPanelChanged(let isEnabled):
         state.codingAgentsShowPanel = isEnabled
@@ -358,6 +401,7 @@ public struct SettingsFeature {
     state.crashReportsEnabled = supatermSettings.crashReportsEnabled
     state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
     state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
+    state.shortcutOverrides = supatermSettings.shortcutOverrides
     state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
     state.about.updateChannel = supatermSettings.updateChannel
     state.verboseLoggingEnabled = supatermSettings.verboseLoggingEnabled
@@ -381,6 +425,7 @@ public struct SettingsFeature {
       crashReportsEnabled: state.crashReportsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
+      shortcutOverrides: state.shortcutOverrides,
       systemNotificationsEnabled: state.systemNotificationsEnabled,
       updateChannel: state.about.updateChannel,
       verboseLoggingEnabled: state.verboseLoggingEnabled,
@@ -394,5 +439,14 @@ public struct SettingsFeature {
       analyticsClient.capture("settings_changed")
     }
     return .none
+  }
+
+  func persistShortcuts(_ state: State) -> Effect<Action> {
+    .merge(
+      persist(state),
+      .run { [shortcutSettingsClient] _ in
+        await shortcutSettingsClient.shortcutsDidChange()
+      }
+    )
   }
 }

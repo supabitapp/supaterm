@@ -51,6 +51,7 @@ struct SupatermSettingsTests {
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.restoreTerminalLayoutEnabled)
+    #expect(prefs.shortcutOverrides.isEmpty)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
     #expect(!prefs.verboseLoggingEnabled)
@@ -182,6 +183,24 @@ struct SupatermSettingsTests {
         verbose_enabled = true
         """
     )
+  }
+
+  @Test
+  func prefsRoundTripShortcutOverrides() throws {
+    var settings = SupatermSettings.default
+    settings.shortcutOverrides[.toggleSidebar] = SupatermShortcutOverride(
+      keyCode: 11,
+      modifiers: [.command, .option]
+    )
+    settings.shortcutOverrides[.selectSpace(10)] = .disabled
+
+    let data = try SupatermSettingsCodec.encode(settings)
+    let string = try #require(String(data: data, encoding: .utf8))
+    let decoded = try SupatermSettingsCodec.decode(data)
+
+    #expect(string.contains("[shortcuts.toggle_sidebar]"))
+    #expect(string.contains("[shortcuts.select_space_10]"))
+    #expect(decoded.shortcutOverrides == settings.shortcutOverrides)
   }
 
   @Test

@@ -2,7 +2,10 @@ import AppKit
 import ComposableArchitecture
 import Observation
 import QuartzCore
+import Sharing
 import SupaTheme
+import SupatermCLIShared
+import SupatermSupport
 import SwiftUI
 
 extension TerminalTabGroupColor {
@@ -407,6 +410,7 @@ private struct TerminalSidebarGroupHeader: View {
   let hoverState: TerminalSidebarGroupHoverState
   let actions: TerminalSidebarRowActions
 
+  @Shared(.supatermSettings) private var supatermSettings = .default
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @FocusState private var titleIsFocused: Bool
 
@@ -526,7 +530,12 @@ private struct TerminalSidebarGroupHeader: View {
       Button("New Tab in Group", systemImage: "plus") {
         actions.createTabInGroup(presentation.id)
       }
-      .keyboardShortcut(TerminalTabGroupShortcut.newTab)
+      .supatermKeyboardShortcut(
+        SupatermShortcuts.binding(
+          for: .newTabInGroup,
+          overrides: supatermSettings.shortcutOverrides
+        )?.keyboardShortcut
+      )
       Button("Rename Group", systemImage: "pencil") {
         renameState.begin(groupID: presentation.id, title: presentation.title)
       }
