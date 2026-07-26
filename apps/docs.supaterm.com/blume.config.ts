@@ -15,7 +15,7 @@ export default defineConfig({
   description:
     "Learn how to use Supaterm, work with coding agents, and automate terminal workflows with sp.",
   logo: {
-    image: "/icon.svg",
+    image: "/logo-mark.svg",
     text: "Supaterm",
   },
   content: {

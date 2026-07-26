@@ -71,6 +71,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private let scrollView = TerminalSidebarScrollView()
   private let collectionView = TerminalSidebarCollectionView()
   private let collectionLayout = TerminalSidebarCollectionLayout()
+  private let selectionGlowView = TerminalSidebarSelectionGlowView()
   private var groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView] = [:]
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
@@ -198,6 +199,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collectionView.registerForDraggedTypes([.terminalSidebarOutlineItem])
     collectionView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
     collectionView.delegate = self
+    collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     collectionView.onRowMouseDown = { [weak self] entryID, event in
       self?.rowMouseDown(entryID: entryID, event: event) == true
     }
@@ -1091,6 +1093,29 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       updateGroupSurface(group: group, background: background)
       background.needsLayout = true
     }
+    updateSelectionGlow()
+    collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
+    for background in groupBackgroundViews.values where background.superview === collectionView {
+      collectionView.addSubview(background, positioned: .below, relativeTo: nil)
+    }
+  }
+
+  private func updateSelectionGlow() {
+    guard
+      let selectedTabID,
+      let context,
+      let item = collectionLayout.plan.items.first(where: { $0.id == .tab(selectedTabID) }),
+      item.alpha > 0,
+      !item.frame.isEmpty
+    else {
+      selectionGlowView.isHidden = true
+      return
+    }
+    selectionGlowView.update(
+      itemFrame: item.frame,
+      color: context.palette.sidebarSelectedShadow,
+      alpha: item.alpha
+    )
   }
 
   private func refreshGroupSurfaces(ids: Set<TerminalTabGroupID>) {
