@@ -226,7 +226,8 @@ struct TerminalSidebarTabRow: View {
         cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
         appearance: .sidebar(
           restFill: selectionStyle == .secondary ? palette.sidebarItemHoverFill : .clear
-        )
+        ),
+        showsSelectionShadow: false
       )
     )
     .terminalAnimation(

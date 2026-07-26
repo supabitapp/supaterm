@@ -8,6 +8,20 @@ import Testing
 
 struct TerminalSidebarChromeViewTests {
   @Test
+  func selectionGlowExpandsItsDrawingFrameWithoutChangingTheItemFrame() {
+    let itemFrame = CGRect(x: 12, y: 30, width: 220, height: 40)
+
+    let visualFrame = TerminalSidebarSelectionGlowView.visualFrame(for: itemFrame)
+
+    #expect(
+      visualFrame.insetBy(
+        dx: SelectableRowShadowMetrics.visualOutset,
+        dy: SelectableRowShadowMetrics.visualOutset
+      ) == itemFrame
+    )
+  }
+
+  @Test
   func unreadCountTakesPrecedenceOverAgentActivity() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(

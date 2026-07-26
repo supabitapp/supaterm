@@ -36,6 +36,20 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "selected-before-new-tab",
+      group: "Sidebar",
+      title: "Selected tab before new tab",
+      size: CGSize(width: 280, height: 220)
+    ) { appearance in
+      AnyView(
+        SidebarChromeSnapshotFixture(
+          appearance: appearance,
+          fixedHoveredGroupID: nil,
+          terminal: SidebarChromeSnapshotContext.selectedBeforeNewTabTerminal
+        )
+      )
+    },
+    scenario(
       "basic-selected",
       group: "Sidebar Rows",
       title: "Selected shell tab",
@@ -802,6 +816,34 @@ private enum SidebarChromeSnapshotContext {
     return terminal
   }()
 
+  static let selectedBeforeNewTabTerminal: TerminalHostState = {
+    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let space = PersistedTerminalSpace(
+      id: TerminalSpaceID(
+        rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-000000000004")
+      ),
+      name: "supaterm"
+    )
+    terminal.spaceManager.bootstrap(
+      from: TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space]),
+      initialSelectedSpaceID: space.id
+    )
+    let selectedTab = tab("46", title: "Home / X")
+    terminal.spaceManager.restoreRootItems(
+      [
+        .tab(
+          TerminalUngroupedTabItem(
+            tab: selectedTab,
+            isPinned: false
+          )
+        )
+      ],
+      selectedTabID: selectedTab.id,
+      in: space.id
+    )
+    return terminal
+  }()
+
   private static func rootTab(
     _ id: String,
     title: String,
@@ -831,6 +873,7 @@ private enum SidebarChromeSnapshotContext {
 private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
   let fixedHoveredGroupID: TerminalTabGroupID?
+  var terminal = SidebarChromeSnapshotContext.terminal
 
   private var palette: Palette {
     Palette(colorScheme: appearance.colorScheme)
@@ -850,7 +893,7 @@ private struct SidebarChromeSnapshotFixture: View {
       },
       releaseAnnouncement: nil,
       palette: palette,
-      terminal: SidebarChromeSnapshotContext.terminal,
+      terminal: terminal,
       fixedHoveredGroupID: fixedHoveredGroupID,
       dismissReleaseAnnouncement: {}
     )
