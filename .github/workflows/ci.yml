@@ -31,6 +31,7 @@ permissions:
 env:
   MISE_HTTP_TIMEOUT: 120
   MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_SHARD_REFERENCE: ${{ github.run_id }}
 
 jobs:
   changes:
