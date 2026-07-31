@@ -31,6 +31,10 @@ public struct ThemeColor: Equatable, Sendable {
     Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
   }
 
+  public var cgColor: CGColor {
+    CGColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
+  }
+
   public func mixed(with other: ThemeColor, by amount: Double) -> ThemeColor {
     let t = ColorMath.clamped(amount)
     return ThemeColor(

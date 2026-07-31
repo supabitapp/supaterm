@@ -74,6 +74,7 @@ fastlane/test_output
 
 *.profraw
 .env
+fnox.local.toml
 __pycache__/
 .claude/
 

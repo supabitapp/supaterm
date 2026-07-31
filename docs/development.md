@@ -24,6 +24,16 @@ mise exec -- tuist auth login
 mise exec -- tuist auth whoami
 ```
 
+Secrets
+
+Run commands that need project secrets through fnox:
+
+```bash
+mise exec -- fnox exec -- make mac-archive
+```
+
+fnox reads the `Supaterm Environment` item from the `Supaterm` 1Password vault. Keep secrets out of the interactive shell and use `fnox exec` for commands that need them.
+
 Generate the macOS workspace:
 
 ```bash

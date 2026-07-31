@@ -117,8 +117,8 @@ private struct PaletteTokenSheetSnapshotFixture: View {
 
   private func tokens(for palette: Palette) -> [TokenSwatch] {
     let semanticTokens = [
-      TokenSwatch(name: "backgroundIlluminationStart", color: palette.backgroundIlluminationStart),
-      TokenSwatch(name: "backgroundIlluminationStop", color: palette.backgroundIlluminationStop),
+      TokenSwatch(name: "backgroundIlluminationStart", color: palette.backgroundIlluminationStartValue.color),
+      TokenSwatch(name: "backgroundIlluminationStop", color: palette.backgroundIlluminationStopValue.color),
       TokenSwatch(name: "chromeBackgroundStart", color: palette.chromeBackgroundStartValue.color),
       TokenSwatch(name: "chromeBackgroundStop", color: palette.chromeBackgroundStopValue.color),
       TokenSwatch(name: "windowBackgroundTint", color: palette.windowBackgroundTint),

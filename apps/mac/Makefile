@@ -153,7 +153,7 @@ install-tip: # Install tip build from github
 	@tmpdir="$$(mktemp -d)"; \
 	mount_dir=""; \
 	trap 'if [ -n "$$mount_dir" ]; then hdiutil detach "$$mount_dir" -quiet >/dev/null 2>&1 || true; fi; rm -rf "$$tmpdir"' EXIT; \
-	echo "Closing running SupaTerm..."; \
+	echo "Closing running Supaterm..."; \
 	pkill -x supaterm 2>/dev/null || true; \
 	echo "Downloading tip release..."; \
 	curl -fsSL --show-error "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg" -o "$$tmpdir/supaterm.dmg"; \

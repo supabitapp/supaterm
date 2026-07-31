@@ -82,9 +82,12 @@ enum SPHelp {
     """
 
   static let newTabDiscussion = """
-    If you omit --in inside Supaterm, this command creates the tab in the current space.
+    If you omit --in inside Supaterm, this command creates the tab in the current tab's group when it has one.
+    Otherwise it creates the tab in the current space.
 
-    That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
+    Use --root to always create the tab at the space root.
+
+    The ambient tab and pane come from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
     `--in` accepts a space selector or UUID, resolved inside this window. The space
     opens its saved tabs first when this window has not displayed it yet. Add `--focus`

@@ -135,14 +135,10 @@ jobs:
       - name: Build DMG
         run: |
           APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
-          mise exec -- create-dmg "$APP_PATH" apps/mac/build/ \
-            --overwrite \
-            --dmg-title="Supaterm" \
-            --identity="$DEVELOPER_ID_IDENTITY_SHA"
-          DMG_OUTPUT=$(find apps/mac/build -maxdepth 1 -name '*.dmg' -print -quit)
-          if [ "$DMG_OUTPUT" != "apps/mac/build/supaterm.dmg" ]; then
-            mv "$DMG_OUTPUT" apps/mac/build/supaterm.dmg
-          fi
+          mise exec -- ./.github/scripts/create_release_dmg.sh \
+            "$APP_PATH" \
+            apps/mac/build/supaterm.dmg \
+            "$DEVELOPER_ID_IDENTITY_SHA"
       - name: Notarize and staple
         run: |
           set -euo pipefail

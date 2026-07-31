@@ -27,3 +27,13 @@
 
 - Issues are tracked on: https://linear.app/supaterm
 - Error reporting uses PostHog
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in Linear under the `Supaterm` team through Linear MCP. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This repo uses a single root domain context. See `docs/agents/domain.md`.

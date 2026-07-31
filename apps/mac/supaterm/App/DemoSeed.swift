@@ -240,14 +240,14 @@
             title: "Development",
             color: .blue,
             tabs: [
-              TabSeed(id: IDs.macTab, title: "supaterm/mac", directory: "mac", pane: .leaf(IDs.macSurface)),
+              TabSeed(id: IDs.macTab, title: "Supaterm/mac", directory: "mac", pane: .leaf(IDs.macSurface)),
               TabSeed(
                 id: IDs.webTab,
-                title: "supaterm/web",
+                title: "Supaterm/web",
                 directory: "web",
                 pane: .split(IDs.webAgentSurface, IDs.webShellSurface)
               ),
-              TabSeed(id: IDs.apiTab, title: "supaterm/api", directory: "api", pane: .leaf(IDs.apiSurface)),
+              TabSeed(id: IDs.apiTab, title: "Supaterm/api", directory: "api", pane: .leaf(IDs.apiSurface)),
             ]
           ),
           isPinned: true
@@ -274,7 +274,7 @@
             title: "Operations",
             color: .orange,
             tabs: [
-              TabSeed(id: IDs.deployTab, title: "supaterm/deploy", directory: "deploy", pane: .leaf(IDs.deploySurface)),
+              TabSeed(id: IDs.deployTab, title: "Supaterm/deploy", directory: "deploy", pane: .leaf(IDs.deploySurface)),
               TabSeed(
                 id: IDs.monitoringTab,
                 title: "observability",

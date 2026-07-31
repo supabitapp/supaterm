@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="800" viewBox="0 0 1600 800">
+  <defs>
+    <linearGradient id="surface" x1="800" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12100b"/>
+      <stop offset="0.46" stop-color="#11100c"/>
+      <stop offset="1" stop-color="#18140d"/>
+    </linearGradient>
+    <radialGradient id="amber-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(380 365) rotate(90) scale(410)">
+      <stop stop-color="#ffa82d" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#ffa82d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blue-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1220 365) rotate(90) scale(410)">
+      <stop stop-color="#3a88c4" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#3a88c4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="spectrum" x1="0" y1="0" x2="1600" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c1575c"/>
+      <stop offset="0.2" stop-color="#d87249"/>
+      <stop offset="0.4" stop-color="#e3ac38"/>
+      <stop offset="0.6" stop-color="#3eb489"/>
+      <stop offset="0.8" stop-color="#3a88c4"/>
+      <stop offset="1" stop-color="#5f5b9e"/>
+    </linearGradient>
+    <pattern id="grain" width="54" height="54" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="7" r="1" fill="#ffffff" fill-opacity="0.1"/>
+      <circle cx="29" cy="38" r="1" fill="#ffffff" fill-opacity="0.06"/>
+      <circle cx="48" cy="18" r="0.8" fill="#ffffff" fill-opacity="0.08"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="800" fill="url(#surface)"/>
+  <rect width="1600" height="800" fill="url(#amber-glow)"/>
+  <rect width="1600" height="800" fill="url(#blue-glow)"/>
+  <rect width="1600" height="800" fill="url(#grain)"/>
+  <rect width="1600" height="6" fill="url(#spectrum)"/>
+  <text x="800" y="112" text-anchor="middle" fill="#f3f1ea" font-family="SFMono-Regular, Menlo, Monaco, monospace" font-size="39" font-weight="600" letter-spacing="-1.2">Drag Supaterm into Applications</text>
+  <path d="M724 400H876M832 356L876 400L832 444" fill="none" stroke="#ffa82d" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
+</svg>

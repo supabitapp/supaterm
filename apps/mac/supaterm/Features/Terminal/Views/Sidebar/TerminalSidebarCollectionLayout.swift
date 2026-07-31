@@ -444,7 +444,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     ]
     targets.append(contentsOf: childTargets(groupID: groupID, tabIDs: tabIDs, context: context))
     let exitTargetHeight = expandedGroupExitTargetHeight(
-      childEndY: childEndY,
+      containerMaxY: containerMaxY,
       rootIndex: rootIndex,
       context: context
     )
@@ -454,7 +454,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
           path: .rootBoundary(index: rootIndex, affinity: .after),
           frame: CGRect(
             x: 0,
-            y: childEndY,
+            y: containerMaxY,
             width: context.width,
             height: exitTargetHeight
           )
@@ -468,7 +468,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   }
 
   private static func expandedGroupExitTargetHeight(
-    childEndY: CGFloat,
+    containerMaxY: CGFloat,
     rootIndex: Int,
     context: TargetGeometryContext
   ) -> CGFloat {
@@ -479,7 +479,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     if let nextRoot, root.isPinned != nextRoot.isPinned { return 0 }
     let nextEntryID = nextRoot?.entryID ?? .newTab
     guard let nextItem = context.itemByID[nextEntryID] else { return 0 }
-    return max(0, nextItem.frame.minY - childEndY)
+    return max(0, nextItem.frame.minY - containerMaxY)
   }
 
   private static func childTargets(
@@ -487,12 +487,18 @@ struct TerminalSidebarLayoutPlan: Equatable {
     tabIDs: [TerminalTabID],
     context: TargetGeometryContext
   ) -> [TerminalSidebarSemanticTarget] {
-    tabIDs.enumerated().compactMap { childIndex, tabID in
+    let visibleChildren: [(index: Int, item: Item)] = tabIDs.enumerated().compactMap {
+      childIndex, tabID in
       guard
         let item = context.itemByID[.tab(tabID)],
         !context.draggedIDs.contains(.tab(tabID))
       else { return nil }
-      return TerminalSidebarSemanticTarget(
+      return (index: childIndex, item: item)
+    }
+    guard let lastChild = visibleChildren.last else { return [] }
+
+    var targets = visibleChildren.dropLast().map { childIndex, item in
+      TerminalSidebarSemanticTarget(
         path: .group(groupID, index: childIndex),
         frame: CGRect(
           x: 0,
@@ -502,6 +508,31 @@ struct TerminalSidebarLayoutPlan: Equatable {
         )
       )
     }
+    let (lastChildIndex, lastItem) = lastChild
+    let splitY = lastItem.frame.midY
+    targets.append(
+      TerminalSidebarSemanticTarget(
+        path: .group(groupID, index: lastChildIndex),
+        frame: CGRect(
+          x: 0,
+          y: lastItem.frame.minY,
+          width: context.width,
+          height: splitY - lastItem.frame.minY
+        )
+      )
+    )
+    targets.append(
+      TerminalSidebarSemanticTarget(
+        path: .group(groupID, index: tabIDs.count),
+        frame: CGRect(
+          x: 0,
+          y: splitY,
+          width: context.width,
+          height: lastItem.frame.maxY - splitY + expandedGroupTrailingSpacing
+        )
+      )
+    )
+    return targets
   }
 
   private static func insertionIndex(

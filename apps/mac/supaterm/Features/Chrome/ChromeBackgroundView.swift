@@ -1,66 +1,137 @@
+import AppKit
 import SupaTheme
 import SwiftUI
 
-struct ChromeBackgroundView: View {
+struct ChromeBackgroundView: NSViewRepresentable {
   let palette: Palette
 
-  @State private var outgoingTint: ThemeTint?
-  @State private var tintOpacity: Double = 1
-
-  var body: some View {
-    WindowBackgroundEffectView()
-      .overlay {
-        ZStack {
-          if let outgoingTint {
-            tintLayers(palette.tinted(outgoingTint))
-          }
-          tintLayers(palette)
-            .opacity(tintOpacity)
-        }
-      }
-      .overlay(GrainOverlay())
-      .onChange(of: palette.tint) { previousTint, _ in
-        crossfade(from: previousTint)
-      }
+  func makeNSView(context: Context) -> ChromeBackgroundNSView {
+    ChromeBackgroundNSView()
   }
 
-  private func tintLayers(_ palette: Palette) -> some View {
-    ZStack {
-      ramp(from: palette.chromeBackgroundBaseStart, to: palette.chromeBackgroundBaseStop)
-        .opacity(Self.themeTintOpacity)
-      ramp(from: palette.backgroundIlluminationStart, to: palette.backgroundIlluminationStop)
+  func updateNSView(_ nsView: ChromeBackgroundNSView, context: Context) {
+    nsView.apply(palette)
+  }
+}
+
+final class ChromeBackgroundNSView: NSView {
+  static let themeTintOpacity = 0.55
+
+  let effectView = NSVisualEffectView()
+  let baseRampView = GradientRampView()
+  let illuminationView = GradientRampView()
+  let grainView = NSView()
+
+  private var appliedTint: ThemeTint?
+
+  init() {
+    super.init(frame: .zero)
+    effectView.material = .underWindowBackground
+    effectView.blendingMode = .behindWindow
+    effectView.state = .followsWindowActiveState
+    effectView.isEmphasized = true
+    baseRampView.alphaValue = Self.themeTintOpacity
+    grainView.wantsLayer = true
+    grainView.layer?.backgroundColor = Self.grainPattern
+    for subview in [effectView, baseRampView, illuminationView, grainView] {
+      subview.frame = bounds
+      subview.autoresizingMask = [.width, .height]
+      addSubview(subview)
     }
   }
 
-  private func ramp(from start: Color, to stop: Color) -> MeshGradient {
-    MeshGradient(
-      width: 2,
-      height: 3,
-      points: Self.compressedRampPoints,
-      colors: [start, start, stop, stop, stop, stop],
-      colorSpace: .perceptual
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable")
+  }
+
+  func apply(_ palette: Palette) {
+    let crossfades = appliedTint != nil && appliedTint != palette.tint
+    appliedTint = palette.tint
+    baseRampView.apply(
+      ChromeBackgroundRamp.stops(
+        from: palette.chromeBackgroundBaseStartValue,
+        to: palette.chromeBackgroundBaseStopValue
+      ),
+      crossfading: crossfades
+    )
+    illuminationView.apply(
+      ChromeBackgroundRamp.stops(
+        from: palette.backgroundIlluminationStartValue,
+        to: palette.backgroundIlluminationStopValue
+      ),
+      crossfading: crossfades
     )
   }
 
-  private func crossfade(from previousTint: ThemeTint) {
-    outgoingTint = previousTint
-    tintOpacity = 0
-    Task { @MainActor in
-      await Task.yield()
-      withAnimation(.easeInOut(duration: Self.tintCrossfadeDuration)) {
-        tintOpacity = 1
-      } completion: {
-        outgoingTint = nil
-      }
-    }
+  private static let grainPattern: CGColor = {
+    let tile = GrainTexture.tile
+    let image = NSImage(cgImage: tile, size: NSSize(width: tile.width, height: tile.height))
+    return NSColor(patternImage: image).cgColor
+  }()
+}
+
+final class GradientRampView: NSView {
+  static let crossfadeDuration = 0.2
+  private static let crossfadeTiming = CAMediaTimingFunction(name: .easeInEaseOut)
+
+  override var isFlipped: Bool { true }
+
+  init() {
+    super.init(frame: .zero)
+    wantsLayer = true
   }
 
-  private static let compressedRampPoints: [SIMD2<Float>] = [
-    [0, 0], [1, 0],
-    [0, 0.75], [1, 0.75],
-    [0, 1], [1, 1],
-  ]
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable")
+  }
 
-  private static let themeTintOpacity = 0.55
-  private static let tintCrossfadeDuration = 0.2
+  override func makeBackingLayer() -> CALayer {
+    let layer = CAGradientLayer()
+    layer.startPoint = CGPoint(x: 0.5, y: 0)
+    layer.endPoint = CGPoint(x: 0.5, y: 1)
+    return layer
+  }
+
+  var gradientLayer: CAGradientLayer? { layer as? CAGradientLayer }
+
+  func apply(_ stops: [ChromeBackgroundRamp.Stop], crossfading: Bool) {
+    guard let gradientLayer else { return }
+    let outgoingColors = gradientLayer.presentation()?.colors ?? gradientLayer.colors
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    gradientLayer.colors = stops.map(\.color.cgColor)
+    gradientLayer.locations = stops.map { NSNumber(value: $0.location) }
+    CATransaction.commit()
+    guard crossfading, let outgoingColors else { return }
+    let crossfade = CABasicAnimation(keyPath: "colors")
+    crossfade.fromValue = outgoingColors
+    crossfade.duration = Self.crossfadeDuration
+    crossfade.timingFunction = Self.crossfadeTiming
+    gradientLayer.add(crossfade, forKey: "colors")
+  }
+}
+
+enum ChromeBackgroundRamp {
+  struct Stop: Equatable {
+    let location: Double
+    let color: ThemeColor
+  }
+
+  static let rampEnd = 0.75
+  static let sampleCount = 9
+
+  static func stops(from start: ThemeColor, to stop: ThemeColor) -> [Stop] {
+    let interior = (1..<(sampleCount - 1)).map { index in
+      let progress = Double(index) / Double(sampleCount - 1)
+      return Stop(
+        location: rampEnd * progress,
+        color: ColorMath.perceptualMix(start, stop, by: progress)
+      )
+    }
+    return [Stop(location: 0, color: start)]
+      + interior
+      + [Stop(location: rampEnd, color: stop), Stop(location: 1, color: stop)]
+  }
 }

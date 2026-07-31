@@ -270,15 +270,20 @@ private struct SPTreeIndex {
   }
 
   func requireGroupLocation(containing tab: SPTabLocation) throws -> SPGroupLocation {
-    let key = SPTabPathKey(
-      windowIndex: tab.windowIndex,
-      spaceIndex: tab.spaceIndex,
-      tabIndex: tab.tabIndex
-    )
-    guard let location = groupByTabPath[key] else {
+    guard let location = groupLocation(containing: tab) else {
       throw ValidationError("Tab \(tab.spaceIndex)/\(tab.tabIndex) does not belong to a group.")
     }
     return location
+  }
+
+  func groupLocation(containing tab: SPTabLocation) -> SPGroupLocation? {
+    groupByTabPath[
+      SPTabPathKey(
+        windowIndex: tab.windowIndex,
+        spaceIndex: tab.spaceIndex,
+        tabIndex: tab.tabIndex
+      )
+    ]
   }
 
   func defaultWindowIndex(context: SupatermCLIContext?) throws -> Int {
@@ -540,12 +545,25 @@ func resolvePublicNewTabTarget(
 ) throws -> SupatermNewTabTarget {
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
+    let space = try index.ambientSpaceLocation(context: context)
     if let context {
-      _ = try index.requirePaneLocation(id: context.surfaceID)
+      let pane = try index.requirePaneLocation(id: context.surfaceID)
+      let tab = try index.requireTabLocation(
+        windowIndex: pane.windowIndex,
+        spaceIndex: pane.spaceIndex,
+        tabIndex: pane.tabIndex
+      )
+      if let group = index.groupLocation(containing: tab) {
+        return .group(group.groupID)
+      }
       return .pane(context.surfaceID)
     }
-    let location = try index.ambientSpaceLocation(context: nil)
-    return .space(location.id)
+    if let tab = try? index.ambientTabLocation(context: nil),
+      let group = index.groupLocation(containing: tab)
+    {
+      return .group(group.groupID)
+    }
+    return .space(space.id)
   }
 
   return .space(try resolveSpaceLocation(reference, context: context, index: index).id)
