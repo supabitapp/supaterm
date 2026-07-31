@@ -44,7 +44,7 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
         with:
-          restore-native-cache: true
+          cache-native-builds: true
       - name: Compute tip build number
         id: build-number
         run: |

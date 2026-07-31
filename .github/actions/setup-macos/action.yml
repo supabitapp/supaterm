@@ -2,8 +2,8 @@ name: Setup macOS build deps
 description: Install macOS build dependencies and restore build caches
 
 inputs:
-  restore-native-cache:
-    description: Restore native dependency build caches
+  cache-native-builds:
+    description: Restore and save native dependency build caches
     required: true
 
 runs:
@@ -52,37 +52,37 @@ runs:
           apps/mac/Tuist/.build/Derived
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v1-${{ hashFiles('apps/mac/Tuist/Package.swift', 'apps/mac/Tuist/Package.resolved') }}
     - name: Ghostty fingerprint
-      if: ${{ inputs.restore-native-cache == 'true' }}
+      if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash
       run: |
         GHOSTTY_FINGERPRINT="$(apps/mac/scripts/build-ghostty.sh --print-fingerprint)"
         printf '%s\n' "GHOSTTY_FINGERPRINT=$GHOSTTY_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Ghostty cache
-      if: ${{ inputs.restore-native-cache == 'true' }}
+      if: ${{ inputs.cache-native-builds == 'true' }}
       uses: actions/cache@v5
       with:
         path: apps/mac/.build/ghostty
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v3-${{ env.GHOSTTY_FINGERPRINT }}
     - name: Zmx fingerprint
-      if: ${{ inputs.restore-native-cache == 'true' }}
+      if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash
       run: |
         ZMX_FINGERPRINT="$(apps/mac/scripts/build-zmx.sh --print-fingerprint)"
         printf '%s\n' "ZMX_FINGERPRINT=$ZMX_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Zmx cache
-      if: ${{ inputs.restore-native-cache == 'true' }}
+      if: ${{ inputs.cache-native-builds == 'true' }}
       uses: actions/cache@v5
       with:
         path: apps/mac/.build/zmx
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v2-${{ env.ZMX_FINGERPRINT }}
     - name: Ap fingerprint
-      if: ${{ inputs.restore-native-cache == 'true' }}
+      if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash
       run: |
         AP_FINGERPRINT="$(apps/mac/scripts/build-ap.sh --print-fingerprint)"
         printf '%s\n' "AP_FINGERPRINT=$AP_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Ap cache
-      if: ${{ inputs.restore-native-cache == 'true' }}
+      if: ${{ inputs.cache-native-builds == 'true' }}
       uses: actions/cache@v5
       with:
         path: apps/mac/.build/ap

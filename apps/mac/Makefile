@@ -212,7 +212,7 @@ format: # Format code with swift format (local only)
 	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupaThemeLogoGenerator SupatermCLIShared SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
 
 lint: # Lint code with swiftlint
-	"$$(mise where swiftlint)/swiftlint" lint --quiet --config .swiftlint.yml
+	"$$(mise which swiftlint)" lint --quiet --config .swiftlint.yml
 
 inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant Tuist dependencies
 	mise exec -- tuist inspect dependencies
