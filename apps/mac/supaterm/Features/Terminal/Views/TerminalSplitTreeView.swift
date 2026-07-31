@@ -1389,13 +1389,14 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let action: (TerminalSplitTreeView.Operation) -> Void
 
   func makeNSView(context: Context) -> TerminalSplitAXContainerView {
-    TerminalSplitAXContainerView()
+    TerminalSplitAXContainerView(backgroundColor: NSColor(palette.detailBackground))
   }
 
   func updateNSView(_ nsView: TerminalSplitAXContainerView, context: Context) {
     let visibleNode = tree.zoomed ?? tree.root
     let visiblePanes = visibleNode?.leaves() ?? []
     nsView.update(
+      backgroundColor: NSColor(palette.detailBackground),
       rootView: AnyView(
         TerminalSplitTreeView(
           agentPanelPresentations: agentPanelPresentations,
@@ -1428,6 +1429,7 @@ private final class TerminalSplitHostingView: NSHostingView<AnyView> {
 }
 
 final class TerminalSplitAXContainerView: NSView {
+  private(set) var backgroundColor: NSColor
   private var hostingView: TerminalSplitHostingView?
   private var visibleNode: SplitTree<GhosttySurfaceView>.Node?
   private var panes: [GhosttySurfaceView] = []
@@ -1440,12 +1442,27 @@ final class TerminalSplitAXContainerView: NSView {
 
   nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
+  init(backgroundColor: NSColor) {
+    self.backgroundColor = backgroundColor
+    super.init(frame: .zero)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable")
+  }
+
   func update(
+    backgroundColor: NSColor,
     rootView: AnyView,
     visibleNode: SplitTree<GhosttySurfaceView>.Node?,
     action: @escaping (TerminalSplitTreeView.Operation) -> Void,
     panes: [GhosttySurfaceView]
   ) {
+    if self.backgroundColor != backgroundColor {
+      self.backgroundColor = backgroundColor
+      needsDisplay = true
+    }
     if let hostingView {
       hostingView.rootView = rootView
     } else {
@@ -1475,6 +1492,11 @@ final class TerminalSplitAXContainerView: NSView {
 
     refreshAccessibilityDividers(postLayoutChanged: newPaneIDs != lastPaneIDs)
     lastPaneIDs = newPaneIDs
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    backgroundColor.setFill()
+    dirtyRect.fill()
   }
 
   override func layout() {

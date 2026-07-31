@@ -34,30 +34,18 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func activationRequiresSameEventAndThreshold() {
+  func activationRequiresThresholdAcrossMouseEvents() {
     #expect(
       TerminalSidebarDragActivation.decision(
-        mouseDownEventNumber: 41,
-        currentEventNumber: 41,
         origin: CGPoint(x: 30, y: 20),
         location: CGPoint(x: 37.9, y: 20)
       ) == .pending
     )
     #expect(
       TerminalSidebarDragActivation.decision(
-        mouseDownEventNumber: 41,
-        currentEventNumber: 41,
         origin: CGPoint(x: 30, y: 20),
         location: CGPoint(x: 38, y: 20)
       ) == .begin
-    )
-    #expect(
-      TerminalSidebarDragActivation.decision(
-        mouseDownEventNumber: 41,
-        currentEventNumber: 42,
-        origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 38, y: 20)
-      ) == .rejected
     )
   }
 
@@ -65,8 +53,6 @@ struct TerminalSidebarMotionTests {
   func coalescedJumpFarFromTheRowStillBeginsTheDrag() {
     #expect(
       TerminalSidebarDragActivation.decision(
-        mouseDownEventNumber: 41,
-        currentEventNumber: 41,
         origin: CGPoint(x: 30, y: 20),
         location: CGPoint(x: 34, y: 260)
       ) == .begin

@@ -11,10 +11,9 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
   }
 
   func host(
-    _ view: TerminalSidebarHostedRow,
-    entryID: TerminalSidebarEntryID
+    _ view: TerminalSidebarHostedRow
   ) {
-    containerView.host(view, entryID: entryID)
+    containerView.host(view)
   }
 
   func liftHostedView(sourceFrame: CGRect) -> TerminalSidebarLiftedRow? {
@@ -58,7 +57,6 @@ struct TerminalSidebarLiftedRow {
 @MainActor
 final class TerminalSidebarHostingContainerView: NSView {
   private var hostingView: NSHostingView<TerminalSidebarHostedRow>?
-  private var entryID: TerminalSidebarEntryID?
   private var isLifted = false
 
   override func layout() {
@@ -66,34 +64,7 @@ final class TerminalSidebarHostingContainerView: NSView {
     if !isLifted { hostingView?.frame = bounds }
   }
 
-  func pointerEntry(at windowPoint: NSPoint) -> TerminalSidebarEntryID? {
-    let point = convert(windowPoint, from: nil)
-    guard
-      bounds.contains(point),
-      point.x < bounds.maxX - 30,
-      let hostingView,
-      routesPointerEvents(for: hostingView.rootView),
-      let entryID
-    else { return nil }
-    return entryID
-  }
-
-  private func routesPointerEvents(for row: TerminalSidebarHostedRow) -> Bool {
-    switch row.presentation {
-    case .tab:
-      true
-    case .group(let presentation):
-      row.context.renameState.groupID != presentation.id
-    case .pinDivider, .newTab:
-      false
-    }
-  }
-
-  func host(
-    _ rootView: TerminalSidebarHostedRow,
-    entryID: TerminalSidebarEntryID
-  ) {
-    self.entryID = entryID
+  func host(_ rootView: TerminalSidebarHostedRow) {
     if let hostingView {
       hostingView.rootView = rootView
       if !isLifted { hostingView.frame = bounds }
@@ -119,5 +90,77 @@ final class TerminalSidebarHostingContainerView: NSView {
     addSubview(hostedView)
     hostedView.frame = bounds
     isLifted = false
+  }
+}
+
+struct TerminalSidebarRowPointerView: NSViewRepresentable {
+  let entryID: TerminalSidebarEntryID
+
+  func makeNSView(context: Context) -> TerminalSidebarRowPointerNSView {
+    TerminalSidebarRowPointerNSView(entryID: entryID)
+  }
+
+  func updateNSView(_ nsView: TerminalSidebarRowPointerNSView, context: Context) {
+    nsView.entryID = entryID
+  }
+}
+
+final class TerminalSidebarRowPointerNSView: NSView {
+  var entryID: TerminalSidebarEntryID
+  private var isTracking = false
+
+  init(entryID: TerminalSidebarEntryID) {
+    self.entryID = entryID
+    super.init(frame: .zero)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard bounds.contains(point),
+      collectionView != nil
+    else { return nil }
+    return self
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    guard collectionView?.rowMouseDown(entryID: entryID, event: event) == true else {
+      super.mouseDown(with: event)
+      return
+    }
+    isTracking = true
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    guard isTracking, let collectionView else {
+      super.mouseDragged(with: event)
+      return
+    }
+    if collectionView.rowMouseDragged(entryID: entryID, event: event) {
+      isTracking = false
+    }
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    guard isTracking, let collectionView else {
+      super.mouseUp(with: event)
+      return
+    }
+    isTracking = false
+    _ = collectionView.rowMouseUp(entryID: entryID, event: event)
+  }
+
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+  private var collectionView: TerminalSidebarCollectionView? {
+    var view = superview
+    while let current = view {
+      if let collectionView = current as? TerminalSidebarCollectionView {
+        return collectionView
+      }
+      view = current.superview
+    }
+    return nil
   }
 }

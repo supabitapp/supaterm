@@ -46,6 +46,7 @@ struct TerminalDetailView: View {
           _ = store.send(.bindingMenuItemSelected(.toggleSplitZoom))
         }
       )
+      .background(palette.detailBackground)
       TerminalDetailSurface(
         store: store,
         dimmingColor: terminal.unfocusedSplitDimmingColor,

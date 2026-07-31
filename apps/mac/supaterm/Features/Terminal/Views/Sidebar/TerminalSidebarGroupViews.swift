@@ -479,6 +479,9 @@ private struct TerminalSidebarGroupHeader: View {
           .accessibilityAction(named: "Rename Group") {
             renameState.begin(groupID: presentation.id, title: presentation.title)
           }
+          .overlay {
+            TerminalSidebarRowPointerView(entryID: .group(presentation.id))
+          }
 
           Button {
             actions.closeGroup(presentation.id)

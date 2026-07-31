@@ -209,6 +209,9 @@ struct TerminalSidebarTabRow: View {
       value: animatedPresentation,
       reduceMotion: reduceMotion
     )
+    .overlay {
+      TerminalSidebarRowPointerView(entryID: .tab(tab.id))
+    }
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
