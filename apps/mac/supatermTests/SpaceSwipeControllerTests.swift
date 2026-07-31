@@ -30,7 +30,7 @@ private final class SpaceSwipeHost {
     controller.positionChanged = { [unowned self] position in positions.append(position) }
     controller.selected = { [unowned self] index in
       selectedIndices.append(index)
-      let origin = displayedIndex
+      let origin = self.displayedIndex
       self.displayedIndex = index
       controller.slide?(origin, index)
     }
