@@ -11,6 +11,7 @@ nonisolated enum ClaudeToolActivity {
   private static let subjectKeys = [
     "command", "file_path", "pattern", "query", "url", "description", "prompt", "skill",
   ]
+  private static let pathKey = "file_path"
   private static let maxSubjectLength = 120
 
   private static func subject(in input: JSONValue?) -> String? {
@@ -19,10 +20,7 @@ nonisolated enum ClaudeToolActivity {
       guard let value = AgentProgressParsing.normalizedTitle(object[key]?.stringValue) else {
         continue
       }
-      let subject =
-        value.hasPrefix("/") && !value.contains(" ")
-        ? URL(fileURLWithPath: value).lastPathComponent
-        : value
+      let subject = key == pathKey ? URL(fileURLWithPath: value).lastPathComponent : value
       guard subject.count > maxSubjectLength else { return subject }
       return String(subject.prefix(maxSubjectLength)) + "…"
     }

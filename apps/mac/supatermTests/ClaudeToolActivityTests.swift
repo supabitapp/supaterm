@@ -35,6 +35,30 @@ struct ClaudeToolActivityTests {
         toolInput: .object(["file_path": .string("/repo/apps/mac/supaterm/App/Feature.swift")])
       ) == "Read: Feature.swift"
     )
+    #expect(
+      ClaudeToolActivity.detail(
+        toolName: "Write",
+        toolInput: .object(["file_path": .string("/Users/me/My Project/Feature.swift")])
+      ) == "Write: Feature.swift"
+    )
+    #expect(
+      ClaudeToolActivity.detail(
+        toolName: "Read",
+        toolInput: .object([
+          "file_path": .string("/" + String(repeating: "nested/", count: 40) + "Deep.swift")
+        ])
+      ) == "Read: Deep.swift"
+    )
+  }
+
+  @Test
+  func detailKeepsNonPathSubjectsWhole() {
+    #expect(
+      ClaudeToolActivity.detail(
+        toolName: "Bash",
+        toolInput: .object(["command": .string("/usr/bin/swiftformat")])
+      ) == "Bash: /usr/bin/swiftformat"
+    )
   }
 
   @Test
