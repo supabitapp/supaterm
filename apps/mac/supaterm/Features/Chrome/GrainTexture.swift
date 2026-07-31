@@ -1,5 +1,5 @@
 import CoreGraphics
-import SwiftUI
+import Foundation
 
 enum GrainTexture {
   static let opacity = 0.03
@@ -37,13 +37,5 @@ enum GrainTexture {
       preconditionFailure("grain tile construction failed")
     }
     return image
-  }
-}
-
-struct GrainOverlay: View {
-  var body: some View {
-    Image(decorative: GrainTexture.tile, scale: 1)
-      .resizable(resizingMode: .tile)
-      .allowsHitTesting(false)
   }
 }

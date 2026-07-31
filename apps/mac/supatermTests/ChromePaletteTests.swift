@@ -216,15 +216,15 @@ struct ChromePaletteTests {
 
   private func expectDefaultSurfaceTokens(_ palette: Palette, isDark: Bool) {
     let surfaceSeed = ReferencePalette.default.neutral.light
-    expectSameColor(
-      palette.backgroundTop,
-      (isDark ? ThemeColor(hex: 0x1F1F1F) : ThemeColor(hex: 0xE4E4E4)).color,
-      "backgroundTop"
+    expectSameThemeColor(
+      palette.backgroundTopValue,
+      isDark ? ThemeColor(hex: 0x1F1F1F) : ThemeColor(hex: 0xE4E4E4),
+      "backgroundTopValue"
     )
-    expectSameColor(
-      palette.backgroundBottom,
-      (isDark ? ThemeColor(hex: 0x161616) : ThemeColor(hex: 0xEDEDED)).color,
-      "backgroundBottom"
+    expectSameThemeColor(
+      palette.backgroundBottomValue,
+      isDark ? ThemeColor(hex: 0x161616) : ThemeColor(hex: 0xEDEDED),
+      "backgroundBottomValue"
     )
     expectBackgroundLayerTokens(palette, isDark: isDark)
     expectSameColor(
@@ -290,21 +290,25 @@ struct ChromePaletteTests {
     let illuminationValue = ThemeColor.white
     let illuminationStartOpacity = 0.35
     let illuminationStopOpacity = 0.7
-    expectSameColor(palette.chromeBackgroundBaseStart, palette.backgroundTop, "chromeBackgroundBaseStart")
-    expectSameColor(
-      palette.chromeBackgroundBaseStop,
-      isDark ? palette.backgroundBottom : palette.backgroundTop,
-      "chromeBackgroundBaseStop"
+    expectSameThemeColor(
+      palette.chromeBackgroundBaseStartValue,
+      palette.backgroundTopValue,
+      "chromeBackgroundBaseStartValue"
     )
-    expectSameColor(
-      palette.backgroundIlluminationStart,
-      isDark ? .clear : illuminationValue.color.opacity(illuminationStartOpacity),
-      "backgroundIlluminationStart"
+    expectSameThemeColor(
+      palette.chromeBackgroundBaseStopValue,
+      isDark ? palette.backgroundBottomValue : palette.backgroundTopValue,
+      "chromeBackgroundBaseStopValue"
     )
-    expectSameColor(
-      palette.backgroundIlluminationStop,
-      isDark ? .clear : illuminationValue.color.opacity(illuminationStopOpacity),
-      "backgroundIlluminationStop"
+    expectSameThemeColor(
+      palette.backgroundIlluminationStartValue,
+      ThemeColor(red: 1, green: 1, blue: 1, alpha: isDark ? 0 : illuminationStartOpacity),
+      "backgroundIlluminationStartValue"
+    )
+    expectSameThemeColor(
+      palette.backgroundIlluminationStopValue,
+      ThemeColor(red: 1, green: 1, blue: 1, alpha: isDark ? 0 : illuminationStopOpacity),
+      "backgroundIlluminationStopValue"
     )
     expectSameThemeColor(
       palette.chromeBackgroundStartValue,

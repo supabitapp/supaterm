@@ -30,17 +30,15 @@ public struct Palette {
   private var sidebarSelectedFillValue: ThemeColor { isDark ? ThemeColor(hex: 0x141414) : .white }
   private var sidebarSelectedFillOpacity: Double { isDark ? 1 : 0.85 }
 
-  public var backgroundTop: Color { backgroundTopValue.color }
-  public var backgroundBottom: Color { backgroundBottomValue.color }
-  public var chromeBackgroundBaseStart: Color { backgroundTop }
-  public var chromeBackgroundBaseStop: Color { isDark ? backgroundBottom : backgroundTop }
-  public var backgroundIlluminationStart: Color {
+  public var chromeBackgroundBaseStartValue: ThemeColor { backgroundTopValue }
+  public var chromeBackgroundBaseStopValue: ThemeColor { isDark ? backgroundBottomValue : backgroundTopValue }
+  public var backgroundIlluminationStartValue: ThemeColor {
     lightChromeLayer(
       Self.lightChromeBackgroundRecipe.illuminationStart,
       opacity: Self.lightChromeBackgroundRecipe.illuminationStartOpacity
     )
   }
-  public var backgroundIlluminationStop: Color {
+  public var backgroundIlluminationStopValue: ThemeColor {
     lightChromeLayer(
       Self.lightChromeBackgroundRecipe.illuminationStop,
       opacity: Self.lightChromeBackgroundRecipe.illuminationStopOpacity
@@ -229,8 +227,8 @@ public struct Palette {
     illuminationStopOpacity: 0.7
   )
 
-  private func lightChromeLayer(_ color: ThemeColor, opacity: Double) -> Color {
-    isDark ? .clear : color.color.opacity(opacity)
+  private func lightChromeLayer(_ color: ThemeColor, opacity: Double) -> ThemeColor {
+    ThemeColor(red: color.red, green: color.green, blue: color.blue, alpha: isDark ? 0 : opacity)
   }
 
   private static func semantic(_ anchor: ThemeColor, backgrounds: [ThemeColor]) -> ThemeColor {

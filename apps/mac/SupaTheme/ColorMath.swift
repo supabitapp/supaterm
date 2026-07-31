@@ -52,12 +52,18 @@ public enum ColorMath {
     let t = clamped(amount)
     let firstLab = oklab(from: first)
     let secondLab = oklab(from: second)
-    return color(
+    let mixed = color(
       from: OKLab(
         lightness: firstLab.lightness + (secondLab.lightness - firstLab.lightness) * t,
         a: firstLab.a + (secondLab.a - firstLab.a) * t,
         b: firstLab.b + (secondLab.b - firstLab.b) * t
       )
+    )
+    return ThemeColor(
+      red: mixed.red,
+      green: mixed.green,
+      blue: mixed.blue,
+      alpha: first.alpha + (second.alpha - first.alpha) * t
     )
   }
 
