@@ -102,6 +102,7 @@ extension SupatermE2ESuite {
       let restoredSplit = try #require(restoredFirstTabs[1].panes.first { $0.id == split.paneID })
       #expect(restoredSplit.isFocused)
 
+      try await app.waitForCapture(initialPane, contains: "Welcome to Supaterm!")
       let restoredOnboarding = try app.capture(initialPane, scope: .scrollback)
       #expect(countOccurrences("Welcome to Supaterm!", in: restoredOnboarding) == onboardingOccurrences)
     }

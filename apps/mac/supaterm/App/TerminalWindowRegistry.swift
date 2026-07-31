@@ -723,13 +723,6 @@ final class TerminalWindowRegistry {
 
   @discardableResult
   private func focusPane(_ surfaceID: UUID, in entry: Entry) -> Bool {
-    guard
-      let tabID = entry.terminal.tabID(containing: surfaceID),
-      let instance = entry.terminal.spaceManager.instance(for: tabID)
-    else {
-      return false
-    }
-    entry.terminal.displaySpace(instance.spaceID)
     markWindowFocused(entry.windowControllerID)
     return (try? entry.terminal.focusPane(TerminalPaneTarget(paneID: surfaceID))) != nil
   }

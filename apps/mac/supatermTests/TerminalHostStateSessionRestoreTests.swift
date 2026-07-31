@@ -402,6 +402,76 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
+  func focusingAHiddenPaneWarmsItsSpaceAndDisplaysIt() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+
+      let hiddenSurfaceID = UUID()
+      let session = TerminalWindowSession(
+        displayedSpaceID: spaces[0].id,
+        spaces: [
+          spaceSession(spaceID: spaces[0].id, title: "Displayed Tab"),
+          spaceSession(spaceID: spaces[1].id, title: "Hidden Tab", surfaceID: hiddenSurfaceID),
+        ]
+      )
+
+      let host = TerminalHostState(spaceID: spaces[0].id)
+      #expect(host.restore(from: session))
+
+      let result = try host.focusPane(TerminalPaneTarget(paneID: hiddenSurfaceID))
+
+      #expect(result.target.paneID == hiddenSurfaceID)
+      #expect(host.displayedSpaceID == spaces[1].id)
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == nil)
+      #expect(host.focusHistoryByTab[try #require(host.selectedTabID)]?.current == hiddenSurfaceID)
+    }
+  }
+
+  @Test
+  func aPaneStaysReadyWhileItsSpaceIsOffScreen() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+
+      let hiddenSurfaceID = UUID()
+      let session = TerminalWindowSession(
+        displayedSpaceID: spaces[0].id,
+        spaces: [
+          spaceSession(spaceID: spaces[0].id, title: "Displayed Tab"),
+          spaceSession(spaceID: spaces[1].id, title: "Hidden Tab", surfaceID: hiddenSurfaceID),
+        ]
+      )
+
+      let host = TerminalHostState(spaceID: spaces[0].id)
+      #expect(host.restore(from: session))
+      #expect(host.displaySpace(spaces[1].id))
+      #expect(host.displaySpace(spaces[0].id))
+
+      let health = try host.paneHealth(
+        TerminalPaneHealthRequest(target: TerminalPaneTarget(paneID: hiddenSurfaceID))
+      )
+
+      #expect(!health.isAttachedToWindow)
+      #expect(health.isReady)
+    }
+  }
+
+  @Test
   func emptyDisplayedSpaceKeepsTheHiddenSpacesItRestoredWith() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

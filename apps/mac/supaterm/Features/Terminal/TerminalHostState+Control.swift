@@ -415,6 +415,7 @@ extension TerminalHostState {
 
   func focusPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
     let resolvedTarget = try resolvePaneTarget(target)
+    switchSpace(to: resolvedTarget.spaceID)
     applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
     focusSurface(resolvedTarget.anchorSurface, in: resolvedTarget.tabID)
     syncFocus(windowActivity)
@@ -435,6 +436,7 @@ extension TerminalHostState {
     guard let lastSurface = surfaces[lastSurfaceID] else {
       throw TerminalControlError.lastPaneNotFound
     }
+    switchSpace(to: resolvedTarget.spaceID)
     applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
     focusSurface(lastSurface, in: resolvedTarget.tabID)
     syncFocus(windowActivity)
@@ -455,6 +457,7 @@ extension TerminalHostState {
 
   func selectTab(_ target: TerminalTabTarget) throws -> SupatermSelectTabResult {
     let resolvedTarget = try resolveTabItemTarget(target)
+    switchSpace(to: resolvedTarget.spaceID)
     applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
     focusSurface(in: resolvedTarget.tabID)
     syncFocus(windowActivity)
@@ -584,8 +587,7 @@ extension TerminalHostState {
         surfaceID: surface.id,
         tree: resolvedTarget.tree
       ),
-      isReady: hasSurface && hasBridgeSurface && isAttachedToWindow && isWindowVisible
-        && canCaptureText,
+      isReady: hasSurface && hasBridgeSurface && canCaptureText,
       hasSurface: hasSurface,
       hasBridgeSurface: hasBridgeSurface,
       isAttachedToWindow: isAttachedToWindow,
@@ -761,6 +763,7 @@ extension TerminalHostState {
 
   func resolveTabItemTarget(_ target: TerminalTabTarget) throws -> ResolvedTabItemTarget {
     let tabID = TerminalTabID(rawValue: target.tabID)
+    warmInstance(containingTab: tabID)
     guard let instance = spaceManager.instance(for: tabID) else {
       throw TerminalControlError.contextPaneNotFound
     }

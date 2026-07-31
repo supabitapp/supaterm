@@ -105,7 +105,7 @@ struct TerminalHostStateSpaceOwnershipTests {
       #expect(displayedSpaceIDsAtSlide == [spaces[2].id])
 
       #expect(host.switchSpace(to: spaces[2].id))
-      #expect(slides == [[0, 2], [2, 2]])
+      #expect(slides == [[0, 2]])
       #expect(host.displayedSpaceID == spaces[2].id)
 
       host.spacePager = nil

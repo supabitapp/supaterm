@@ -305,6 +305,7 @@ extension TerminalHostState {
   ) throws -> ResolvedCreateTabTarget {
     switch target {
     case .pane(let paneID):
+      warmInstance(containingSurface: paneID)
       guard
         let tabID = tabID(containing: paneID),
         let space = spaceManager.space(for: tabID)
@@ -386,6 +387,7 @@ extension TerminalHostState {
   ) throws -> ResolvedCreatePaneTarget {
     switch target {
     case .pane(let paneID):
+      warmInstance(containingSurface: paneID)
       guard
         let tabID = tabID(containing: paneID),
         let instance = spaceManager.instance(for: tabID),
@@ -404,6 +406,7 @@ extension TerminalHostState {
 
     case .tab(let rawTabID):
       let tabID = TerminalTabID(rawValue: rawTabID)
+      warmInstance(containingTab: tabID)
       guard
         let instance = spaceManager.instance(for: tabID),
         let tree = trees[tabID]

@@ -33,9 +33,11 @@ extension TerminalHostState {
     return true
   }
 
+  @discardableResult
   func switchSpace(to spaceID: TerminalSpaceID) -> Bool {
     let origin = displayedSpaceID
     guard displaySpace(spaceID) else { return false }
+    guard spaceID != origin else { return true }
     let from = spaces.firstIndex { $0.id == origin } ?? displayedSpaceIndex
     spacePager?.slide?(from, displayedSpaceIndex)
     return true
@@ -57,6 +59,25 @@ extension TerminalHostState {
     guard let space = spaceManager.space(for: spaceID) else { return nil }
     warmInstance(for: spaceID)
     return space
+  }
+
+  func warmInstance(containingSurface surfaceID: UUID) {
+    warmInstance(holding: { $0.surfaceIDs.contains(surfaceID) })
+  }
+
+  func warmInstance(containingTab tabID: TerminalTabID) {
+    warmInstance(holding: { $0.tabs.contains { $0.id == tabID } })
+  }
+
+  private func warmInstance(holding predicate: (TerminalSpaceSession) -> Bool) {
+    guard
+      let instance = spaceManager.instances.first(where: {
+        $0.pendingSession.map(predicate) == true
+      })
+    else {
+      return
+    }
+    warmInstance(for: instance.spaceID)
   }
 
   func warmInstance(for spaceID: TerminalSpaceID) {
