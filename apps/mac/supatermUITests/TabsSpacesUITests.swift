@@ -83,7 +83,12 @@ final class TabsSpacesUITests: SupatermUITestCase {
     let didDisplayInitialSpace = await waitForDisplayedSpace(named: "Space 1")
     XCTAssertTrue(didDisplayInitialSpace)
 
-    try require(spaceDot(named: "UI Space")).click()
+    let createdSpaceDot = spaceDot(named: "UI Space")
+    let didMakeCreatedSpaceDotHittable = await wait(for: createdSpaceDot) {
+      $0.exists && $0.isHittable
+    }
+    XCTAssertTrue(didMakeCreatedSpaceDotHittable)
+    try require(createdSpaceDot).click()
 
     let didReturnToCreatedSpace = await waitForDisplayedSpace(named: "UI Space")
     XCTAssertTrue(didReturnToCreatedSpace)
