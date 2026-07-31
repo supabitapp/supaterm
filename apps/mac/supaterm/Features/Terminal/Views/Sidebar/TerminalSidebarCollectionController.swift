@@ -31,7 +31,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private struct PendingDrag {
     let entryID: TerminalSidebarEntryID
-    let eventNumber: Int
     let origin: CGPoint
     let selectedTabIDs: [TerminalTabID]
     let defersSelection: Bool
@@ -241,10 +240,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         for: indexPath
       )
       guard let item = item as? TerminalSidebarCollectionItem else { return nil }
-      item.host(
-        TerminalSidebarHostedRow(presentation: presentation, context: context),
-        entryID: entryID
-      )
+      item.host(TerminalSidebarHostedRow(presentation: presentation, context: context))
       item.view.setAccessibilityElement(true)
       item.view.setAccessibilityRole(.row)
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
@@ -504,7 +500,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     let selection = tabPressSelection(entryID: entryID, modifiers: event.modifierFlags)
     pendingDrag = PendingDrag(
       entryID: entryID,
-      eventNumber: event.eventNumber,
       origin: location,
       selectedTabIDs: selection.selectedTabIDs,
       defersSelection: selection.defersSelection
@@ -523,16 +518,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     guard let pendingDrag, pendingDrag.entryID == entryID else { return false }
     let location = collectionView.convert(event.locationInWindow, from: nil)
     switch TerminalSidebarDragActivation.decision(
-      mouseDownEventNumber: pendingDrag.eventNumber,
-      currentEventNumber: event.eventNumber,
       origin: pendingDrag.origin,
       location: location
     ) {
     case .pending:
-      return false
-    case .rejected:
-      self.pendingDrag = nil
-      resolveDeferredSelection(pendingDrag)
       return false
     case .begin:
       self.pendingDrag = nil
@@ -1081,10 +1070,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         ids.contains(id),
         let presentation = rows[id]
       else { continue }
-      item.host(
-        TerminalSidebarHostedRow(presentation: presentation, context: context),
-        entryID: id
-      )
+      item.host(TerminalSidebarHostedRow(presentation: presentation, context: context))
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
     }
   }
