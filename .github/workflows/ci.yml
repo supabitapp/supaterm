@@ -8,7 +8,9 @@ on:
       - main
     paths:
       - ".github/actions/setup-macos/**"
+      - ".github/scripts/**"
       - ".github/workflows/ci.yml"
+      - ".github/workflows/release-tip.yml"
       - ".gitmodules"
       - "apps/mac/**"
       - "Makefile"
@@ -48,7 +50,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           EVENT_NAME: ${{ github.event_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
+          if [ "$REF_TYPE" = tag ]; then
+            echo "graph=false" >> "$GITHUB_OUTPUT"
+            echo "mac=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ "$EVENT_NAME" != push ] && [ "$EVENT_NAME" != pull_request ]; then
             echo "graph=false" >> "$GITHUB_OUTPUT"
             echo "mac=true" >> "$GITHUB_OUTPUT"
@@ -79,7 +88,7 @@ jobs:
                 graph=true
                 ;;
             esac
-          done < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          done < <(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA")
           echo "graph=$graph" >> "$GITHUB_OUTPUT"
           echo "mac=$mac" >> "$GITHUB_OUTPUT"
 
@@ -212,10 +221,11 @@ jobs:
 
   warm_cache:
     name: warm-cache
+    continue-on-error: true
     needs:
       - changes
       - required_checks
-    if: github.event_name == 'push' && needs.changes.outputs.graph == 'true'
+    if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main' && needs.changes.outputs.graph == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
