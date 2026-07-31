@@ -83,8 +83,10 @@ final class TabsSpacesUITests: SupatermUITestCase {
     let didDisplayInitialSpace = await waitForDisplayedSpace(named: "Space 1")
     XCTAssertTrue(didDisplayInitialSpace)
 
-    displayedSpace.hover()
     let createdSpaceDot = spaceDot(named: "UI Space")
+    if !createdSpaceDot.isHittable {
+      try require(app.buttons["Enter full screen"]).click()
+    }
     let didMakeCreatedSpaceDotHittable = await wait(for: createdSpaceDot) {
       $0.exists && $0.isHittable
     }
