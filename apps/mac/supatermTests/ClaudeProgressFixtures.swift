@@ -171,6 +171,7 @@ enum ClaudeProgressFixtures {
   static func writeWorkflowSubagentSpawn(
     agentID: String,
     runID: String,
+    workflowName: String? = nil,
     prompt: Any,
     forTranscriptAt transcriptURL: URL
   ) throws {
@@ -181,6 +182,15 @@ enum ClaudeProgressFixtures {
       .appendingPathComponent("workflows")
       .appendingPathComponent(runID)
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    if let workflowName {
+      let scriptsURL =
+        transcriptURL
+        .deletingPathExtension()
+        .appendingPathComponent("workflows")
+        .appendingPathComponent("scripts")
+      try FileManager.default.createDirectory(at: scriptsURL, withIntermediateDirectories: true)
+      try Data().write(to: scriptsURL.appendingPathComponent("\(workflowName)-\(runID).js"))
+    }
     let metadata = try JSONSerialization.data(
       withJSONObject: ["agentType": "workflow-subagent", "spawnDepth": 1],
       options: [.sortedKeys]

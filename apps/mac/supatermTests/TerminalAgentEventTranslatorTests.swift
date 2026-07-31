@@ -414,6 +414,7 @@ struct TerminalAgentEventTranslatorTests {
     try ClaudeProgressFixtures.writeWorkflowSubagentSpawn(
       agentID: "child-1",
       runID: "wf_0c5cf178-0c1",
+      workflowName: "dia-color-recovery",
       prompt: "Recover the color palettes Dia ships\nfor Profile custom colors.",
       forTranscriptAt: transcript
     )
@@ -431,9 +432,41 @@ struct TerminalAgentEventTranslatorTests {
     #expect(
       TerminalAgentEventTranslator.events(for: request).map(\.action) == [
         .subagentStarted(
-          nickname: nil,
-          role: "workflow-subagent",
+          nickname: "dia-color-recovery",
+          role: nil,
           task: "Recover the color palettes Dia ships for Profile custom colors."
+        )
+      ]
+    )
+  }
+
+  @Test
+  func claudeWorkflowSubagentWithoutScriptFallsBackToBareStart() throws {
+    let transcript = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
+    try ClaudeProgressFixtures.writeWorkflowSubagentSpawn(
+      agentID: "child-1",
+      runID: "wf_0c5cf178-0c1",
+      prompt: "Recover the color palettes Dia ships.",
+      forTranscriptAt: transcript
+    )
+    let request = SupatermAgentHookRequest(
+      agent: .claude,
+      event: SupatermAgentHookEvent(
+        agentType: "workflow-subagent",
+        hookEventName: .subagentStart,
+        sessionID: "session-1",
+        transcriptPath: transcript.path,
+        agentID: "child-1"
+      )
+    )
+
+    #expect(
+      TerminalAgentEventTranslator.events(for: request).map(\.action) == [
+        .subagentStarted(
+          nickname: nil,
+          role: nil,
+          task: "Recover the color palettes Dia ships."
         )
       ]
     )
@@ -469,9 +502,33 @@ struct TerminalAgentEventTranslatorTests {
         .subagentDescribed(
           nickname: nil,
           task: String(prompt.trimmingCharacters(in: .whitespaces).prefix(140)) + "…"
-        )
+        ),
+        .turnRunning(detail: "Bash"),
       ]
     )
+  }
+
+  @Test
+  func claudeSubagentToolUseReportsLiveActivity() throws {
+    let transcript = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
+    let request = SupatermAgentHookRequest(
+      agent: .claude,
+      event: SupatermAgentHookEvent(
+        agentType: "workflow-subagent",
+        hookEventName: .preToolUse,
+        sessionID: "session-1",
+        toolInput: .object(["command": .string("git -C apps/mac log --oneline")]),
+        toolName: "Bash",
+        transcriptPath: transcript.path,
+        agentID: "child-1"
+      )
+    )
+
+    let events = TerminalAgentEventTranslator.events(for: request)
+
+    #expect(events.map(\.scope.subagentID) == ["child-1"])
+    #expect(events.map(\.action) == [.turnRunning(detail: "Bash: git -C apps/mac log --oneline")])
   }
 
   @Test
@@ -543,7 +600,11 @@ struct TerminalAgentEventTranslatorTests {
       )
     )
 
-    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
+    #expect(
+      TerminalAgentEventTranslator.events(for: request).map(\.action) == [
+        .turnRunning(detail: "Bash")
+      ]
+    )
 
     try ClaudeProgressFixtures.writeSubagentMetadata(
       agentID: "child-1",
@@ -553,7 +614,8 @@ struct TerminalAgentEventTranslatorTests {
 
     #expect(
       TerminalAgentEventTranslator.events(for: request).map(\.action) == [
-        .subagentDescribed(nickname: nil, task: "GOO-4560 board API table")
+        .subagentDescribed(nickname: nil, task: "GOO-4560 board API table"),
+        .turnRunning(detail: "Bash"),
       ]
     )
   }
@@ -610,26 +672,6 @@ struct TerminalAgentEventTranslatorTests {
     )
 
     #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
-  }
-
-  @Test
-  func claudeChildToolActivityDoesNotReplaceTask() throws {
-    let request = try request(
-      agent: .claude,
-      json: #"""
-        {
-          "session_id": "root-1",
-          "hook_event_name": "PreToolUse",
-          "tool_name": "Bash",
-          "agent_id": "child-1",
-          "agent_type": "reviewer"
-        }
-        """#
-    )
-
-    let events = TerminalAgentEventTranslator.events(for: request)
-
-    #expect(events.isEmpty)
   }
 
   private func request(
