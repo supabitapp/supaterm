@@ -15,6 +15,10 @@ extension TerminalHostState {
     spaceManager.displayedSpaceID
   }
 
+  var displayedSpace: TerminalSpaceItem {
+    spaceManager.displayedSpace
+  }
+
   var tabs: [TerminalTabItem] {
     spaceManager.tabs
   }

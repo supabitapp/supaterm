@@ -30,7 +30,7 @@ struct TerminalView: View {
   }
 
   private var palette: Palette {
-    Palette(colorScheme: chromeColorScheme, tint: terminal.spaceManager.displayedSpace.color)
+    Palette(colorScheme: chromeColorScheme, tint: terminal.displayedSpace.color)
   }
 
   private var pendingCloseBinding: Binding<Bool> {
@@ -98,6 +98,7 @@ struct TerminalView: View {
       .background {
         WindowAppearanceApplier(appliedAppearance: windowAppearance)
       }
+      .background(WindowTitleApplier(title: terminal.displayedSpace.name))
       .overlay {
         WindowChromeConfigurator()
           .frame(width: 0, height: 0)

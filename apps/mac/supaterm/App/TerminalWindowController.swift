@@ -144,7 +144,6 @@ final class TerminalWindowController: NSWindowController {
       "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(windowControllerID.uuidString)")
     window.isReleasedWhenClosed = false
     window.tabbingMode = .disallowed
-    window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     window.isOpaque = false

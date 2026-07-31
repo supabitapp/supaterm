@@ -57,7 +57,7 @@ struct SpaceSidebarPagerView: View {
 
   @ViewBuilder
   private func pageContent(_ page: Page) -> some View {
-    let pagePalette = Palette(colorScheme: palette.colorScheme, tint: page.space.color)
+    let pagePalette = palette.tinted(page.space.color)
     if let instance = terminal.spaceManager.instance(for: page.space.id) {
       TerminalSidebarSpaceList(
         store: store,

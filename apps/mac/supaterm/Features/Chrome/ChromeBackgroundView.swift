@@ -4,42 +4,55 @@ import SwiftUI
 struct ChromeBackgroundView: View {
   let palette: Palette
 
+  @State private var outgoingPalette: Palette?
+  @State private var tintOpacity: Double = 1
+
   var body: some View {
     WindowBackgroundEffectView()
       .overlay {
-        MeshGradient(
-          width: 2,
-          height: 3,
-          points: Self.compressedRampPoints,
-          colors: [
-            palette.chromeBackgroundBaseStart,
-            palette.chromeBackgroundBaseStart,
-            palette.chromeBackgroundBaseStop,
-            palette.chromeBackgroundBaseStop,
-            palette.chromeBackgroundBaseStop,
-            palette.chromeBackgroundBaseStop,
-          ],
-          colorSpace: .perceptual
-        )
-        .opacity(Self.themeTintOpacity)
-      }
-      .overlay {
-        MeshGradient(
-          width: 2,
-          height: 3,
-          points: Self.compressedRampPoints,
-          colors: [
-            palette.backgroundIlluminationStart,
-            palette.backgroundIlluminationStart,
-            palette.backgroundIlluminationStop,
-            palette.backgroundIlluminationStop,
-            palette.backgroundIlluminationStop,
-            palette.backgroundIlluminationStop,
-          ],
-          colorSpace: .perceptual
-        )
+        ZStack {
+          if let outgoingPalette {
+            tintLayers(outgoingPalette)
+          }
+          tintLayers(palette)
+            .opacity(tintOpacity)
+        }
       }
       .overlay(GrainOverlay())
+      .onChange(of: palette.tint) { previousTint, _ in
+        crossfade(from: previousTint)
+      }
+  }
+
+  private func tintLayers(_ palette: Palette) -> some View {
+    ZStack {
+      ramp(from: palette.chromeBackgroundBaseStart, to: palette.chromeBackgroundBaseStop)
+        .opacity(Self.themeTintOpacity)
+      ramp(from: palette.backgroundIlluminationStart, to: palette.backgroundIlluminationStop)
+    }
+  }
+
+  private func ramp(from start: Color, to stop: Color) -> MeshGradient {
+    MeshGradient(
+      width: 2,
+      height: 3,
+      points: Self.compressedRampPoints,
+      colors: [start, start, stop, stop, stop, stop],
+      colorSpace: .perceptual
+    )
+  }
+
+  private func crossfade(from previousTint: ThemeTint) {
+    outgoingPalette = palette.tinted(previousTint)
+    tintOpacity = 0
+    Task { @MainActor in
+      await Task.yield()
+      withAnimation(.easeInOut(duration: Self.tintCrossfadeDuration)) {
+        tintOpacity = 1
+      } completion: {
+        outgoingPalette = nil
+      }
+    }
   }
 
   private static let compressedRampPoints: [SIMD2<Float>] = [
@@ -49,4 +62,5 @@ struct ChromeBackgroundView: View {
   ]
 
   private static let themeTintOpacity = 0.55
+  private static let tintCrossfadeDuration = 0.2
 }

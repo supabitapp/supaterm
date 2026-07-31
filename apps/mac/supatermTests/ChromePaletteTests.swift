@@ -105,6 +105,17 @@ struct ChromePaletteTests {
     }
   }
 
+  @Test func retintingKeepsTheSchemeAndMatchesADirectlyBuiltPalette() {
+    for colorScheme in [ColorScheme.light, ColorScheme.dark] {
+      let palette = Palette(colorScheme: colorScheme, tint: .blue).tinted(.green)
+      let expected = Palette(colorScheme: colorScheme, tint: .green)
+      #expect(palette.colorScheme == colorScheme)
+      #expect(palette.tint == .green)
+      expectSameThemeColor(palette.backgroundTopValue, expected.backgroundTopValue, "backgroundTop")
+      expectSameThemeColor(palette.backgroundBottomValue, expected.backgroundBottomValue, "backgroundBottom")
+    }
+  }
+
   @Test func tintedSemanticTokensMeetContrastOnChromeSurfaces() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
       for tint in ThemeTint.allCases {

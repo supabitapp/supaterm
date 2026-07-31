@@ -12,6 +12,7 @@ Supaterm chrome has one default look. `SupaTheme` owns the palette reference anc
 - Neutral tab groups stay clear until hover or drop targeting. Colored groups keep a light tint and strengthen during interaction. Visible group surfaces use a neutral one-pixel stroke.
 - The agent panel uses an opaque floating surface token so terminal content underneath cannot change its color.
 - Spaces store identity, name, and a `ThemeTint`. A chromatic tint washes the window backgrounds toward its reference tone and reseeds accent from it; every derived semantic recomputes through the contrast pipeline. Neutral reproduces the default chrome exactly. The create and rename dialogs expose the swatch row; creation pre-selects a random chromatic tint, and `sp space color` sets it over the socket.
+- A window paints the tint of the space it displays, and its title is that space's name. While a sidebar swipe is in flight each page renders in its own space's palette through `palette.tinted(_:)`, and the window chrome holds the outgoing tint; `ChromeBackgroundView` crossfades to the new tint once the switch commits.
 
 ## Boundaries
 
