@@ -83,6 +83,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     let didDisplayInitialSpace = await waitForDisplayedSpace(named: "Space 1")
     XCTAssertTrue(didDisplayInitialSpace)
 
+    displayedSpace.hover()
     let createdSpaceDot = spaceDot(named: "UI Space")
     let didMakeCreatedSpaceDotHittable = await wait(for: createdSpaceDot) {
       $0.exists && $0.isHittable
