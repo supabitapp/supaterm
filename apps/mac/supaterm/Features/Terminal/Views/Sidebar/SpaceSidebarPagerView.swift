@@ -9,11 +9,7 @@ struct SpaceSidebarPagerView: View {
   let palette: Palette
   let isActive: Bool
   let fixedHoveredGroupID: TerminalTabGroupID?
-
-  private struct Paging: Equatable {
-    var indices: [Int]
-    var fractionalIndex: Double
-  }
+  @Binding var position: Double?
 
   private struct Page: Identifiable {
     let index: Int
@@ -23,7 +19,7 @@ struct SpaceSidebarPagerView: View {
   }
 
   @State private var swipe = SpaceSwipeController()
-  @State private var paging: Paging?
+  @State private var mountedIndices: [Int]?
 
   var body: some View {
     ZStack(alignment: .topLeading) {
@@ -49,7 +45,7 @@ struct SpaceSidebarPagerView: View {
   }
 
   private var pages: [Page] {
-    (paging?.indices ?? [displayedIndex]).compactMap { index in
+    (mountedIndices ?? [displayedIndex]).compactMap { index in
       guard terminal.spaces.indices.contains(index) else { return nil }
       return Page(index: index, space: terminal.spaces[index])
     }
@@ -73,8 +69,8 @@ struct SpaceSidebarPagerView: View {
   }
 
   private func offset(for index: Int) -> CGFloat {
-    guard let paging else { return 0 }
-    return CGFloat(Double(index) - paging.fractionalIndex) * swipe.pageWidth
+    guard let position else { return 0 }
+    return CGFloat(Double(index) - position) * swipe.pageWidth
   }
 
   private func connect() {
@@ -106,31 +102,34 @@ struct SpaceSidebarPagerView: View {
   }
 
   private func track(_ position: SpaceSwipeController.PagingPosition) {
-    let indices = mountedIndices(from: position.fractionalIndex, to: position.fractionalIndex)
-    if paging?.indices != indices {
+    let indices = spannedIndices(from: position.fractionalIndex, to: position.fractionalIndex)
+    if mountedIndices != indices {
       warm(indices)
+      mountedIndices = indices
     }
-    paging = Paging(indices: indices, fractionalIndex: position.fractionalIndex)
+    self.position = position.fractionalIndex
   }
 
   private func animate(to index: Int, completion: @escaping () -> Void) {
-    let start = paging?.fractionalIndex ?? Double(displayedIndex)
-    let indices = mountedIndices(from: start, to: Double(index))
+    let start = position ?? Double(displayedIndex)
+    let indices = spannedIndices(from: start, to: Double(index))
     warm(indices)
-    paging = Paging(indices: indices, fractionalIndex: start)
+    mountedIndices = indices
+    position = start
     Task { @MainActor in
       await Task.yield()
       withAnimation(.easeOut(duration: SpaceSwipeController.settleDuration)) {
-        paging = Paging(indices: indices, fractionalIndex: Double(index))
+        position = Double(index)
       } completion: {
         completion()
         guard !swipe.isTracking else { return }
-        paging = nil
+        mountedIndices = nil
+        position = nil
       }
     }
   }
 
-  private func mountedIndices(from first: Double, to second: Double) -> [Int] {
+  private func spannedIndices(from first: Double, to second: Double) -> [Int] {
     let lower = Int(min(first, second).rounded(.down))
     let upper = Int(max(first, second).rounded(.up))
     return (lower...upper).filter { terminal.spaces.indices.contains($0) }

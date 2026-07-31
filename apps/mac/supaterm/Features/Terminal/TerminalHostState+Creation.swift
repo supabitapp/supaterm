@@ -98,6 +98,11 @@ extension TerminalHostState {
     return tabID
   }
 
+  func createTabInSpace(_ spaceID: TerminalSpaceID) {
+    createTab(in: spaceID)
+    onSpaceAction(.select(spaceID))
+  }
+
   @discardableResult
   func createTab(
     in groupID: TerminalTabGroupID,

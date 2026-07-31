@@ -13,6 +13,8 @@ struct TerminalSidebarChromeView: View {
   let fixedHoveredGroupID: TerminalTabGroupID?
   let dismissReleaseAnnouncement: () -> Void
 
+  @State private var pagingPosition: Double?
+
   var body: some View {
     VStack(spacing: 10) {
       SpaceSidebarPagerView(
@@ -20,7 +22,8 @@ struct TerminalSidebarChromeView: View {
         terminal: terminal,
         palette: palette,
         isActive: isPagingActive,
-        fixedHoveredGroupID: fixedHoveredGroupID
+        fixedHoveredGroupID: fixedHoveredGroupID,
+        position: $pagingPosition
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       VStack(spacing: 10) {
@@ -37,6 +40,12 @@ struct TerminalSidebarChromeView: View {
             dismiss: dismissReleaseAnnouncement
           )
         }
+        SpacePageDotsView(
+          store: store,
+          terminal: terminal,
+          palette: palette,
+          position: pagingPosition
+        )
       }
       .padding(.leading, TerminalSidebarLayout.cardHorizontalInsets.leading)
       .padding(.trailing, TerminalSidebarLayout.cardHorizontalInsets.trailing)
