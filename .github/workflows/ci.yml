@@ -79,8 +79,7 @@ jobs:
           cache: true
           install: false
       - run: mise install -C "$RUNNER_TEMP" "swiftlint@$(mise current swiftlint)"
-      - run: '"$(mise where swiftlint)/swiftlint" lint --quiet --config .swiftlint.yml'
-        working-directory: apps/mac
+      - run: make swiftlint
 
   mac_scan_dead_code:
     name: mac-scan-dead-code
