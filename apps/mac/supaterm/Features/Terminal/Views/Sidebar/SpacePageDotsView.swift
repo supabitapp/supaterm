@@ -35,12 +35,8 @@ struct SpacePageDotsView: View {
     }
   }
 
-  private var displayedIndex: Int {
-    terminal.spaces.firstIndex { $0.id == terminal.displayedSpaceID } ?? 0
-  }
-
   private var selectionPosition: Double {
-    position ?? Double(displayedIndex)
+    position ?? Double(terminal.displayedSpaceIndex)
   }
 
   private func dot(_ space: TerminalSpaceItem, at index: Int) -> some View {
@@ -91,7 +87,7 @@ struct SpacePageDotsView: View {
   }
 
   private func select(_ space: TerminalSpaceItem, at index: Int) {
-    guard index != displayedIndex else { return }
+    guard index != terminal.displayedSpaceIndex else { return }
     _ = store.send(.selectSpaceButtonTapped(space.id))
   }
 }

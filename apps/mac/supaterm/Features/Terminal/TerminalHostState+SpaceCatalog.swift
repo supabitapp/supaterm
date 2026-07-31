@@ -34,8 +34,10 @@ extension TerminalHostState {
   }
 
   func switchSpace(to spaceID: TerminalSpaceID) -> Bool {
-    let index = spaces.firstIndex { $0.id == spaceID }
-    guard let index, spacePager?.page(to: index) == true else { return displaySpace(spaceID) }
+    let origin = displayedSpaceID
+    guard displaySpace(spaceID) else { return false }
+    let from = spaces.firstIndex { $0.id == origin } ?? displayedSpaceIndex
+    spacePager?.slide?(from, displayedSpaceIndex)
     return true
   }
 

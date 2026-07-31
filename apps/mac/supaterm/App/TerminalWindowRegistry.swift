@@ -259,7 +259,7 @@ final class TerminalWindowRegistry {
     guard
       let entry = entry(in: windowControllerID),
       let spaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
-        .spaceID(adjacentTo: entry.terminal.switchingSpaceID, step: step)
+        .spaceID(adjacentTo: entry.terminal.displayedSpaceID, step: step)
     else {
       return false
     }
@@ -336,7 +336,7 @@ final class TerminalWindowRegistry {
     let entry = try ambientEntry(for: context)
     guard
       let targetSpaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
-        .spaceID(adjacentTo: entry.terminal.switchingSpaceID, step: step)
+        .spaceID(adjacentTo: entry.terminal.displayedSpaceID, step: step)
     else {
       throw TerminalControlError.lastSpaceNotFound
     }

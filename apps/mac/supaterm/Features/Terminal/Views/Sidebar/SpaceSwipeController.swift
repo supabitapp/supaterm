@@ -113,16 +113,16 @@ final class SpaceSwipeController {
   private static let wheelThreshold: CGFloat = 2
   private static let wheelInterval: TimeInterval = 0.2
 
-  @ObservationIgnored var pageCount = 1
-  @ObservationIgnored var displayedIndex = 0
+  @ObservationIgnored var pageCount: () -> Int = { 1 }
+  @ObservationIgnored var displayedIndex: () -> Int = { 0 }
   @ObservationIgnored var pageWidth: CGFloat = 0
   @ObservationIgnored var isRowDragActive = false
   @ObservationIgnored var isSwipeTrackingEnabled: () -> Bool = {
     NSEvent.isSwipeTrackingFromScrollEventsEnabled
   }
   @ObservationIgnored var positionChanged: ((PagingPosition) -> Void)?
-  @ObservationIgnored var settled: ((Int) -> Void)?
-  @ObservationIgnored var cancelled: (() -> Void)?
+  @ObservationIgnored var selected: ((Int) -> Void)?
+  @ObservationIgnored var slide: ((Int, Int) -> Void)?
 
   private var phase = Phase.idle
   @ObservationIgnored private var wheelDistance: CGFloat = 0
@@ -150,24 +150,8 @@ final class SpaceSwipeController {
     }
   }
 
-  @discardableResult
-  func page(to index: Int) -> Bool {
-    guard
-      acceptsGesture,
-      canPage,
-      index != displayedIndex,
-      pageIndices.contains(index),
-      let settled
-    else {
-      return false
-    }
-    displayedIndex = index
-    settled(index)
-    return true
-  }
-
   private var pageIndices: Range<Int> {
-    0..<pageCount
+    0..<pageCount()
   }
 
   private var acceptsGesture: Bool {
@@ -178,7 +162,7 @@ final class SpaceSwipeController {
   }
 
   private var canPage: Bool {
-    !isRowDragActive && pageCount > 1 && pageWidth > 0
+    !isRowDragActive && pageCount() > 1 && pageWidth > 0
   }
 
   private func begin(_ sample: SpaceScrollSample) -> Bool {
@@ -204,7 +188,7 @@ final class SpaceSwipeController {
       if sample.deltaY != 0 { phase = .idle }
       return false
     }
-    advance(Tracking(startIndex: displayedIndex), with: sample)
+    advance(Tracking(startIndex: displayedIndex()), with: sample)
     return true
   }
 
@@ -230,11 +214,11 @@ final class SpaceSwipeController {
       tracking.accumulate(sample.deltaX, at: sample.time)
       phase = .momentum
       guard let target = commitTarget(tracking) else {
-        cancelled?()
+        let home = displayedIndex()
+        slide?(home, home)
         return true
       }
-      displayedIndex = target
-      settled?(target)
+      selected?(target)
       return true
     case .idle, .momentum:
       return false
@@ -254,13 +238,12 @@ final class SpaceSwipeController {
     }
     wheelDistance += sample.deltaX
     guard abs(wheelDistance) >= Self.wheelThreshold else { return true }
-    let target = displayedIndex + (wheelDistance < 0 ? 1 : -1)
+    let target = displayedIndex() + (wheelDistance < 0 ? 1 : -1)
     wheelDistance = 0
     guard sample.time - wheelSteppedAt >= Self.wheelInterval else { return true }
     wheelSteppedAt = sample.time
     guard pageIndices.contains(target) else { return true }
-    displayedIndex = target
-    settled?(target)
+    selected?(target)
     return true
   }
 

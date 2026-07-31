@@ -36,16 +36,10 @@ struct SpaceSidebarPagerView: View {
     .onAppear(perform: connect)
     .onDisappear(perform: disconnect)
     .onChange(of: isActive) { _, _ in connect() }
-    .onChange(of: terminal.spaces.count, initial: true) { _, count in swipe.pageCount = count }
-    .onChange(of: displayedIndex, initial: true) { _, index in swipe.displayedIndex = index }
-  }
-
-  private var displayedIndex: Int {
-    terminal.spaces.firstIndex { $0.id == terminal.displayedSpaceID } ?? 0
   }
 
   private var pages: [Page] {
-    (mountedIndices ?? [displayedIndex]).compactMap { index in
+    (mountedIndices ?? [terminal.displayedSpaceIndex]).compactMap { index in
       guard terminal.spaces.indices.contains(index) else { return nil }
       return Page(index: index, space: terminal.spaces[index])
     }
@@ -78,23 +72,21 @@ struct SpaceSidebarPagerView: View {
       disconnect()
       return
     }
+    swipe.pageCount = { [terminal] in terminal.spaces.count }
+    swipe.displayedIndex = { [terminal] in terminal.displayedSpaceIndex }
     swipe.positionChanged = track
-    swipe.settled = { index in
-      animate(to: index) {
-        guard terminal.spaces.indices.contains(index) else { return }
-        terminal.selectSpace(terminal.spaces[index].id)
-      }
+    swipe.selected = { [terminal] index in
+      guard terminal.spaces.indices.contains(index) else { return }
+      terminal.selectSpace(terminal.spaces[index].id)
     }
-    swipe.cancelled = {
-      animate(to: swipe.displayedIndex) {}
-    }
+    swipe.slide = animate(from:to:)
     terminal.spacePager = swipe
   }
 
   private func disconnect() {
     swipe.positionChanged = nil
-    swipe.settled = nil
-    swipe.cancelled = nil
+    swipe.selected = nil
+    swipe.slide = nil
     guard terminal.spacePager === swipe else { return }
     terminal.spacePager = nil
   }
@@ -108,17 +100,17 @@ struct SpaceSidebarPagerView: View {
     self.position = fraction
   }
 
-  private func animate(to index: Int, commit: @escaping () -> Void) {
-    let start = position ?? Double(displayedIndex)
-    mount(spannedIndices(from: start, to: Double(index)))
+  private func animate(from origin: Int, to destination: Int) {
+    let start = position ?? Double(origin)
+    let target = Double(destination)
+    mount(spannedIndices(from: start, to: target))
     position = start
     Task { @MainActor in
       await Task.yield()
       withAnimation(.easeOut(duration: SpaceSwipeController.settleDuration)) {
-        position = Double(index)
+        position = target
       } completion: {
-        commit()
-        guard !swipe.isTracking else { return }
+        guard !swipe.isTracking, position == target else { return }
         mountedIndices = nil
         position = nil
       }

@@ -74,7 +74,7 @@ struct TerminalHostStateSpaceOwnershipTests {
   }
 
   @Test
-  func switchingSlidesThroughTheMountedPagerAndCommitsWithoutOne() {
+  func switchingCommitsBeforeItHandsTheSlideToTheMountedPager() {
     withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -90,25 +90,29 @@ struct TerminalHostStateSpaceOwnershipTests {
 
       let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
       let pager = SpaceSwipeController()
-      pager.pageCount = spaces.count
-      pager.pageWidth = 200
-      var settledIndices: [Int] = []
-      pager.settled = { settledIndices.append($0) }
+      var slides: [[Int]] = []
+      var displayedSpaceIDsAtSlide: [TerminalSpaceID] = []
+      pager.slide = { origin, destination in
+        slides.append([origin, destination])
+        displayedSpaceIDsAtSlide.append(host.displayedSpaceID)
+      }
       host.spacePager = pager
 
       #expect(host.switchSpace(to: spaces[2].id))
-      #expect(settledIndices == [2])
-      #expect(host.displayedSpaceID == spaces[0].id)
-      #expect(host.switchingSpaceID == spaces[2].id)
+      #expect(host.displayedSpaceID == spaces[2].id)
+      #expect(host.displayedSpaceIndex == 2)
+      #expect(slides == [[0, 2]])
+      #expect(displayedSpaceIDsAtSlide == [spaces[2].id])
 
       #expect(host.switchSpace(to: spaces[2].id))
-      #expect(settledIndices == [2])
+      #expect(slides == [[0, 2], [2, 2]])
       #expect(host.displayedSpaceID == spaces[2].id)
 
       host.spacePager = nil
       #expect(host.switchSpace(to: spaces[1].id))
       #expect(host.displayedSpaceID == spaces[1].id)
-      #expect(host.switchingSpaceID == spaces[1].id)
+      #expect(host.displayedSpaceIndex == 1)
+      #expect(!host.switchSpace(to: TerminalSpaceID()))
     }
   }
 
