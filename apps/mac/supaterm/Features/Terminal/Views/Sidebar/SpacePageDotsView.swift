@@ -24,14 +24,13 @@ struct SpacePageDotsView: View {
   let position: Double?
 
   var body: some View {
-    ZStack {
-      HStack(spacing: 0) {
-        ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
-          dot(space, at: index)
-        }
+    HStack(spacing: 0) {
+      ViewThatFits(in: .horizontal) {
+        dots(slot: SpacePageDotMetrics.slot)
+        dots(slot: SpacePageDotMetrics.diameter)
       }
+      .frame(maxWidth: .infinity)
       newSpaceButton
-        .frame(maxWidth: .infinity, alignment: .trailing)
     }
   }
 
@@ -39,7 +38,15 @@ struct SpacePageDotsView: View {
     position ?? Double(terminal.displayedSpaceIndex)
   }
 
-  private func dot(_ space: TerminalSpaceItem, at index: Int) -> some View {
+  private func dots(slot: CGFloat) -> some View {
+    HStack(spacing: 0) {
+      ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
+        dot(space, at: index, slot: slot)
+      }
+    }
+  }
+
+  private func dot(_ space: TerminalSpaceItem, at index: Int, slot: CGFloat) -> some View {
     let emphasis = SpacePageDotMetrics.emphasis(at: index, position: selectionPosition)
     return Button {
       select(space, at: index)
@@ -47,7 +54,7 @@ struct SpacePageDotsView: View {
       Circle()
         .fill(palette.primaryText.opacity(SpacePageDotMetrics.opacity(emphasis: emphasis)))
         .frame(width: SpacePageDotMetrics.diameter, height: SpacePageDotMetrics.diameter)
-        .frame(width: SpacePageDotMetrics.slot, height: SpacePageDotMetrics.slot)
+        .frame(width: slot, height: SpacePageDotMetrics.slot)
         .contentShape(.rect)
     }
     .buttonStyle(.plain)
