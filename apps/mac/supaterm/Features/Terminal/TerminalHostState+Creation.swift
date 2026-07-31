@@ -348,6 +348,7 @@ extension TerminalHostState {
 
     case .group(let rawGroupID):
       let groupID = TerminalTabGroupID(rawValue: rawGroupID)
+      warmInstance(containingGroup: groupID)
       guard
         let instance = spaceManager.instance(for: groupID),
         let space = spaceManager.space(for: instance.spaceID),

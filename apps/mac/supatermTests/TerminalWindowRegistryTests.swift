@@ -55,6 +55,65 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func coldContextPrefersItsOwningWindowBySurfaceOrTab() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let spaces = [TerminalSpaceItem(name: "A"), TerminalSpaceItem(name: "B")]
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let registry = TerminalWindowRegistry()
+      let owner = registerWindow(in: registry, spaceID: spaces[0].id)
+      let preferred = registerWindow(in: registry, spaceID: spaces[0].id)
+      let tabID = TerminalTabID()
+      let surfaceID = UUID()
+      owner.terminal.spaceManager.registerColdInstance(
+        TerminalSpaceSession(
+          spaceID: spaces[1].id,
+          selectedTabID: tabID,
+          nodes: [
+            TerminalTabNodeSession(
+              item: .tab(tabID),
+              parent: .root(isPinned: false),
+              order: 0
+            )
+          ],
+          groups: [],
+          collapsedGroupIDs: [],
+          tabs: [
+            TerminalTabSession(
+              id: tabID,
+              lockedTitle: nil,
+              focusedPaneIndex: 0,
+              root: .leaf(
+                TerminalPaneLeafSession(id: surfaceID, workingDirectoryPath: nil)
+              )
+            )
+          ]
+        )
+      )
+
+      let surfaceEntry = try #require(
+        registry.ambientEntries(
+          for: SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+        ).first
+      )
+      let tabEntry = try #require(
+        registry.ambientEntries(
+          for: SupatermCLIContext(surfaceID: UUID(), tabID: tabID.rawValue)
+        ).first
+      )
+
+      #expect(surfaceEntry.terminal === owner.terminal)
+      #expect(tabEntry.terminal === owner.terminal)
+      #expect(surfaceEntry.terminal !== preferred.terminal)
+      withExtendedLifetime([owner.window, preferred.window]) {}
+    }
+  }
+
+  @Test
   func focusingWindowPersistsItsSpaceAndTracksLastSpace() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

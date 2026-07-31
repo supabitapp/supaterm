@@ -67,6 +67,24 @@ final class TerminalSpaceManager {
     }
   }
 
+  func pendingInstance(containingSurface surfaceID: UUID) -> TerminalSpaceInstance? {
+    pendingInstance { $0.surfaceIDs.contains(surfaceID) }
+  }
+
+  func pendingInstance(containingTab tabID: TerminalTabID) -> TerminalSpaceInstance? {
+    pendingInstance { $0.tabs.contains { $0.id == tabID } }
+  }
+
+  func pendingInstance(containingGroup groupID: TerminalTabGroupID) -> TerminalSpaceInstance? {
+    pendingInstance { $0.groups.contains { $0.id == groupID } }
+  }
+
+  private func pendingInstance(
+    matching predicate: (TerminalSpaceSession) -> Bool
+  ) -> TerminalSpaceInstance? {
+    instances.first { $0.pendingSession.map(predicate) == true }
+  }
+
   func registerColdInstance(_ session: TerminalSpaceSession) {
     guard
       spaces.contains(where: { $0.id == session.spaceID }),

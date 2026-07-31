@@ -436,6 +436,74 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
+  func mutatingAColdGroupWarmsItsSpace() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let groupID = TerminalTabGroupID()
+      let tabID = TerminalTabID()
+      let hiddenSpace = TerminalSpaceSession(
+        spaceID: spaces[1].id,
+        selectedTabID: tabID,
+        nodes: [
+          TerminalTabNodeSession(
+            item: .group(groupID),
+            parent: .root(isPinned: false),
+            order: 0
+          ),
+          TerminalTabNodeSession(
+            item: .tab(tabID),
+            parent: .group(groupID),
+            order: 0
+          ),
+        ],
+        groups: [
+          TerminalTabGroupSession(
+            id: groupID,
+            title: "Cold",
+            color: .blue,
+            lifetime: .durable
+          )
+        ],
+        collapsedGroupIDs: [],
+        tabs: [tabSession(id: tabID, title: "Hidden Tab")]
+      )
+      let host = TerminalHostState(spaceID: spaces[0].id)
+      #expect(
+        host.restore(
+          from: TerminalWindowSession(
+            displayedSpaceID: spaces[0].id,
+            spaces: [
+              spaceSession(spaceID: spaces[0].id, title: "Displayed Tab"),
+              hiddenSpace,
+            ]
+          )
+        )
+      )
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == hiddenSpace)
+
+      let result = try host.executeTabGroup(
+        .rename(TerminalRenameTabGroupRequest(groupID: groupID.rawValue, title: "Warm"))
+      )
+
+      guard case .group(let mutation) = result else {
+        Issue.record("Expected group mutation")
+        return
+      }
+      #expect(mutation.group.title == "Warm")
+      #expect(mutation.spaceID == spaces[1].id.rawValue)
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == nil)
+    }
+  }
+
+  @Test
   func aPaneStaysReadyWhileItsSpaceIsOffScreen() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

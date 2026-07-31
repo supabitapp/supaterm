@@ -894,12 +894,14 @@ final class TerminalWindowRegistry {
     if let context {
       if let index = entries.firstIndex(where: {
         $0.terminal.tabID(containing: context.surfaceID) != nil
+          || $0.terminal.spaceManager.pendingInstance(containingSurface: context.surfaceID) != nil
       }) {
         return index
       }
       let tabID = TerminalTabID(rawValue: context.tabID)
       if let index = entries.firstIndex(where: {
         $0.terminal.spaceManager.instance(for: tabID) != nil
+          || $0.terminal.spaceManager.pendingInstance(containingTab: tabID) != nil
       }) {
         return index
       }

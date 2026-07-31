@@ -62,21 +62,19 @@ extension TerminalHostState {
   }
 
   func warmInstance(containingSurface surfaceID: UUID) {
-    warmInstance(holding: { $0.surfaceIDs.contains(surfaceID) })
+    warmPendingInstance(spaceManager.pendingInstance(containingSurface: surfaceID))
   }
 
   func warmInstance(containingTab tabID: TerminalTabID) {
-    warmInstance(holding: { $0.tabs.contains { $0.id == tabID } })
+    warmPendingInstance(spaceManager.pendingInstance(containingTab: tabID))
   }
 
-  private func warmInstance(holding predicate: (TerminalSpaceSession) -> Bool) {
-    guard
-      let instance = spaceManager.instances.first(where: {
-        $0.pendingSession.map(predicate) == true
-      })
-    else {
-      return
-    }
+  func warmInstance(containingGroup groupID: TerminalTabGroupID) {
+    warmPendingInstance(spaceManager.pendingInstance(containingGroup: groupID))
+  }
+
+  private func warmPendingInstance(_ instance: TerminalSpaceInstance?) {
+    guard let instance else { return }
     warmInstance(for: instance.spaceID)
   }
 
