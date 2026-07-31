@@ -254,51 +254,66 @@ struct AppDelegateTests {
   }
 
   @Test
-  func launchReaperKnownSessionsIncludesLiveSurfaces() {
+  func launchReaperKnownSessionsSpanHiddenSpacesAndLiveSurfaces() {
     let persistedSurfaceID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
-    let secondPersistedSurfaceID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+    let hiddenSurfaceID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     let liveSurfaceID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
     let spaceID = TerminalSpaceID(rawValue: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!)
+    let hiddenSpaceID = TerminalSpaceID(
+      rawValue: UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
+    )
     let firstTabID = TerminalTabID(rawValue: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!)
-    let secondTabID = TerminalTabID(rawValue: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!)
+    let hiddenTabID = TerminalTabID(rawValue: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!)
     let sessionCatalog = TerminalSessionCatalog(
       windows: [
         TerminalWindowSession(
-          spaceID: spaceID,
-          selectedTabID: firstTabID,
-          nodes: [
-            TerminalTabNodeSession(
-              item: .tab(secondTabID),
-              parent: .root(isPinned: true),
-              order: 0
-            ),
-            TerminalTabNodeSession(
-              item: .tab(firstTabID),
-              parent: .root(isPinned: false),
-              order: 0
-            ),
-          ],
-          groups: [],
-          collapsedGroupIDs: [],
-          tabs: [
-            TerminalTabSession(
-              id: firstTabID,
-              lockedTitle: nil,
-              focusedPaneIndex: 0,
-              root: .leaf(
-                TerminalPaneLeafSession(id: persistedSurfaceID, workingDirectoryPath: nil)
-              )
-            ),
-            TerminalTabSession(
-              id: secondTabID,
-              lockedTitle: nil,
-              focusedPaneIndex: 0,
-              root: .leaf(
-                TerminalPaneLeafSession(
-                  id: secondPersistedSurfaceID,
-                  workingDirectoryPath: nil
+          displayedSpaceID: spaceID,
+          spaces: [
+            TerminalSpaceSession(
+              spaceID: spaceID,
+              selectedTabID: firstTabID,
+              nodes: [
+                TerminalTabNodeSession(
+                  item: .tab(firstTabID),
+                  parent: .root(isPinned: false),
+                  order: 0
                 )
-              )
+              ],
+              groups: [],
+              collapsedGroupIDs: [],
+              tabs: [
+                TerminalTabSession(
+                  id: firstTabID,
+                  lockedTitle: nil,
+                  focusedPaneIndex: 0,
+                  root: .leaf(
+                    TerminalPaneLeafSession(id: persistedSurfaceID, workingDirectoryPath: nil)
+                  )
+                )
+              ]
+            ),
+            TerminalSpaceSession(
+              spaceID: hiddenSpaceID,
+              selectedTabID: hiddenTabID,
+              nodes: [
+                TerminalTabNodeSession(
+                  item: .tab(hiddenTabID),
+                  parent: .root(isPinned: true),
+                  order: 0
+                )
+              ],
+              groups: [],
+              collapsedGroupIDs: [],
+              tabs: [
+                TerminalTabSession(
+                  id: hiddenTabID,
+                  lockedTitle: nil,
+                  focusedPaneIndex: 0,
+                  root: .leaf(
+                    TerminalPaneLeafSession(id: hiddenSurfaceID, workingDirectoryPath: nil)
+                  )
+                )
+              ]
             ),
           ]
         )
@@ -309,7 +324,7 @@ struct AppDelegateTests {
         restoreTerminalLayoutEnabled: true,
         sessionCatalog: sessionCatalog,
         liveSurfaceIDs: [liveSurfaceID]
-      ) == Set([persistedSurfaceID, secondPersistedSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
+      ) == Set([persistedSurfaceID, hiddenSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
     )
     #expect(
       AppDelegate.knownZmxSessionIDsForLaunchReaping(
@@ -322,12 +337,17 @@ struct AppDelegateTests {
 
   private func emptyWindowSession(spaceID: TerminalSpaceID) -> TerminalWindowSession {
     TerminalWindowSession(
-      spaceID: spaceID,
-      selectedTabID: nil,
-      nodes: [],
-      groups: [],
-      collapsedGroupIDs: [],
-      tabs: []
+      displayedSpaceID: spaceID,
+      spaces: [
+        TerminalSpaceSession(
+          spaceID: spaceID,
+          selectedTabID: nil,
+          nodes: [],
+          groups: [],
+          collapsedGroupIDs: [],
+          tabs: []
+        )
+      ]
     )
   }
 }

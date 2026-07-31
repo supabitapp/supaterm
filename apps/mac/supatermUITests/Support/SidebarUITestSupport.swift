@@ -53,6 +53,34 @@ extension SupatermUITestCase {
   }
 
   @MainActor
+  var spaceDots: XCUIElementQuery {
+    app.buttons.matching(
+      NSPredicate(
+        format: "identifier BEGINSWITH %@",
+        SupatermUITestIdentifier.Accessibility.sidebarSpaceDotPrefix
+      )
+    )
+  }
+
+  @MainActor
+  var displayedSpace: XCUIElement {
+    element(SupatermUITestIdentifier.Accessibility.titlebarSpaceSwitcher)
+  }
+
+  @MainActor
+  func spaceDot(named name: String) -> XCUIElement {
+    spaceDots.matching(NSPredicate(format: "label == %@", "Space \(name)")).firstMatch
+  }
+
+  @MainActor
+  func waitForDisplayedSpace(
+    named name: String,
+    timeout: Duration = .seconds(10)
+  ) async -> Bool {
+    await wait(for: displayedSpace, timeout: timeout) { $0.label == "Space \(name)" }
+  }
+
+  @MainActor
   func sidebarTabRow(named title: String) -> XCUIElement {
     sidebarSemanticTabRows.matching(
       NSPredicate(format: "label CONTAINS %@", title)

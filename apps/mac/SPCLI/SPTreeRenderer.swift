@@ -12,7 +12,8 @@ private struct SPTreeSnapshot {
     let index: Int
     let name: String
     let color: SupatermThemeColor
-    let isSelected: Bool
+    let isDisplayed: Bool
+    let isWarm: Bool
     let rootItems: [RootItem]
   }
 
@@ -74,9 +75,8 @@ enum SPTreeRenderer {
   private static func renderPlain(_ snapshot: SPTreeSnapshot) -> String {
     snapshot.windows.flatMap { window in
       window.spaces.flatMap { space in
-        let spaceSelector = "\(space.index)"
-        let spaceFlags = [space.color.rawValue] + (space.isSelected ? ["selected"] : [])
-        let spaceLine = "\(spaceSelector)\tspace\t\(space.name)\t\(spaceFlags.joined(separator: ","))"
+        let spaceFlags = spaceLabels(space).joined(separator: ",")
+        let spaceLine = "\(space.index)\tspace\t\(space.name)\t\(spaceFlags)"
 
         let rootLines = space.rootItems.flatMap { item -> [String] in
           switch item {
@@ -130,7 +130,8 @@ enum SPTreeRenderer {
               index: space.index,
               name: space.name,
               color: space.color,
-              isSelected: space.isSelected,
+              isDisplayed: space.id == window.displayedSpaceID,
+              isWarm: space.isWarm,
               rootItems: space.rootItems.map { item in
                 switch item {
                 case .group(let group):
@@ -230,11 +231,18 @@ enum SPTreeRenderer {
   }
 
   private static func spaceLine(_ space: SPTreeSnapshot.Space) -> String {
+    "space \(space.index) \"\(space.name)\" [\(spaceLabels(space).joined(separator: ", "))]"
+  }
+
+  private static func spaceLabels(_ space: SPTreeSnapshot.Space) -> [String] {
     var labels = [space.color.rawValue]
-    if space.isSelected {
-      labels.append("selected")
+    if space.isDisplayed {
+      labels.append("displayed")
     }
-    return "space \(space.index) \"\(space.name)\" [\(labels.joined(separator: ", "))]"
+    if !space.isWarm {
+      labels.append("cold")
+    }
+    return labels
   }
 
   private static func tabLine(_ tab: SPTreeSnapshot.Tab) -> String {

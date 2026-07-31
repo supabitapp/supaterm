@@ -122,6 +122,7 @@ extension TerminalHostState {
 
   private func resolvedControlGroup(_ rawGroupID: UUID) throws -> ResolvedControlGroup {
     let groupID = TerminalTabGroupID(rawValue: rawGroupID)
+    warmInstance(containingGroup: groupID)
     guard
       let space = spaceManager.space(for: groupID),
       let group = spaceManager.tabManager(for: space.id)?.group(for: groupID),

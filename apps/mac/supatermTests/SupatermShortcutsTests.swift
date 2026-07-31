@@ -8,10 +8,12 @@ import Testing
 struct SupatermShortcutsTests {
   @Test
   func defaultsCoverEveryAppShortcut() {
-    #expect(SupatermShortcuts.all.count == 16)
+    #expect(SupatermShortcuts.all.count == 18)
     #expect(Set(SupatermShortcuts.all.map(\.id)).count == SupatermShortcuts.all.count)
     #expect(SupatermShortcuts.jumpToLatestUnread.defaultBinding.display == "⌘⌃U")
     #expect(SupatermShortcuts.newTabInGroup.defaultBinding.display == "⌘⌥T")
+    #expect(SupatermShortcuts.nextSpace.defaultBinding.display == "⌘⌃→")
+    #expect(SupatermShortcuts.previousSpace.defaultBinding.display == "⌘⌃←")
     #expect(SupatermShortcuts.selectSpaces.last?.defaultBinding.display == "⌃0")
   }
 

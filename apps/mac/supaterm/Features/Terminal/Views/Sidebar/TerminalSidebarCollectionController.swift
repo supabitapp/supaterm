@@ -67,6 +67,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   let groupHeaderHoverState = TerminalSidebarGroupHoverState()
   let tabSelectionState = TerminalSidebarTabSelectionState()
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)?
+  var swipe: SpaceSwipeController?
 
   private let scrollView = TerminalSidebarScrollView()
   private let collectionView = TerminalSidebarCollectionView()
@@ -633,7 +634,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     pointer: CGPoint,
     selectedTabIDs: [TerminalTabID]
   ) -> Bool {
-    guard case .idle = updatePhase else { return false }
+    guard case .idle = updatePhase, swipe?.isTracking != true else { return false }
     if case .group = entryID {
       tabSelectionState.clear()
     }
@@ -660,6 +661,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       coordinator: TerminalSidebarDragCoordinator(payload: payload),
       target: nil
     )
+    swipe?.isRowDragActive = true
     let screenPoint = screenPoint(for: event)
     collectionLayout.dragDropState = TerminalSidebarDragDropState(
       draggingItemIDs: liftedEntryIDs,
@@ -1021,6 +1023,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     activeDrag?.coordinator.finish()
     activeDrag = nil
     pendingDrag = nil
+    swipe?.isRowDragActive = false
     invalidateLayout()
     consumePendingUpdate()
   }

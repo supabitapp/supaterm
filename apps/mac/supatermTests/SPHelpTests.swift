@@ -180,16 +180,26 @@ struct SPHelpTests {
     let spaceNewHelp = SP.helpMessage(for: SP.SpaceNew.self, columns: 100)
     let spaceDestroyHelp = SP.helpMessage(for: SP.SpaceDestroy.self, columns: 100)
 
-    #expect(spaceHelp.contains("sp space new --focus Work"))
+    #expect(spaceHelp.contains("sp space ls"))
+    #expect(spaceHelp.contains("sp space new Work"))
     #expect(spaceHelp.contains("sp space destroy -y 1"))
-    #expect(!spaceHelp.contains("sp space new --focus\n"))
+    #expect(!spaceHelp.contains("sp space new\n"))
     #expect(spaceNewHelp.contains("sp space new Work"))
-    #expect(spaceNewHelp.contains("sp space new --focus Build"))
+    #expect(spaceNewHelp.contains("sp space new --color green Work"))
     #expect(!spaceNewHelp.contains("sp space new\n"))
-    #expect(!spaceNewHelp.contains("sp space new --focus\n"))
+    #expect(!spaceNewHelp.contains("--focus"))
     #expect(spaceDestroyHelp.contains("sp space destroy -y"))
     #expect(spaceDestroyHelp.contains("sp space destroy -y 1"))
     #expect(!spaceDestroyHelp.contains("sp space close"))
+  }
+
+  @Test
+  func spaceListHelpExplainsTheDisplayedMarker() {
+    let spaceListHelp = SP.helpMessage(for: SP.SpaceList.self, columns: 100)
+
+    #expect(spaceListHelp.contains("sp space ls"))
+    #expect(spaceListHelp.contains("catalog order"))
+    #expect(spaceListHelp.contains("cold"))
   }
 
   @Test

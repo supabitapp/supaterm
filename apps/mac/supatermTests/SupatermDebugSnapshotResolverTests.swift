@@ -46,7 +46,7 @@ struct SupatermDebugSnapshotResolverTests {
       id: spaceID,
       name: "A",
       color: .neutral,
-      isSelected: true,
+      isWarm: true,
       rootItems: [
         .tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: tab))
       ]
@@ -55,6 +55,7 @@ struct SupatermDebugSnapshotResolverTests {
       index: 1,
       isKey: true,
       isVisible: true,
+      displayedSpaceID: space.id,
       spaces: [space]
     )
     let windows = [window]
@@ -106,7 +107,7 @@ struct SupatermDebugSnapshotResolverTests {
       id: spaceID,
       name: "A",
       color: .neutral,
-      isSelected: true,
+      isWarm: true,
       rootItems: [
         .group(
           SupatermAppDebugSnapshot.Group(
@@ -124,6 +125,7 @@ struct SupatermDebugSnapshotResolverTests {
       index: 1,
       isKey: true,
       isVisible: true,
+      displayedSpaceID: space.id,
       spaces: [space]
     )
     let windows = [window]

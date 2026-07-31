@@ -2052,18 +2052,23 @@ private func restoreSplitHost(
     )
   )
   let session = TerminalWindowSession(
-    spaceID: spaceID,
-    selectedTabID: sessionTabID,
-    nodes: [
-      TerminalTabNodeSession(
-        item: .tab(sessionTabID),
-        parent: .root(isPinned: false),
-        order: 0
+    displayedSpaceID: spaceID,
+    spaces: [
+      TerminalSpaceSession(
+        spaceID: spaceID,
+        selectedTabID: sessionTabID,
+        nodes: [
+          TerminalTabNodeSession(
+            item: .tab(sessionTabID),
+            parent: .root(isPinned: false),
+            order: 0
+          )
+        ],
+        groups: [],
+        collapsedGroupIDs: [],
+        tabs: [tabSession]
       )
-    ],
-    groups: [],
-    collapsedGroupIDs: [],
-    tabs: [tabSession]
+    ]
   )
 
   #expect(host.restore(from: session))

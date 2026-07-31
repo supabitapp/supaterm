@@ -15,7 +15,7 @@ extension SP {
 
     @Option(
       name: .customLong("in"),
-      help: "Create the new tab in the specified space.",
+      help: "Create the new tab in the specified space of this window.",
       transform: parseSpaceReference
     )
     var space: SPSpaceReference?
@@ -66,6 +66,7 @@ extension SP {
       let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       let destination = group.map(SPGroupDestinationReference.group) ?? (root ? .root : nil)
+      let context = SupatermCLIContext.current
       return SupatermNewTabRequest(
         startupCommand: command,
         cwd: cwd,
@@ -73,9 +74,10 @@ extension SP {
         target: try resolvePublicNewTabPlacement(
           space: space,
           group: destination,
-          context: SupatermCLIContext.current,
+          context: context,
           snapshot: try treeSnapshot(client)
-        )
+        ),
+        context: context
       )
     }
   }
