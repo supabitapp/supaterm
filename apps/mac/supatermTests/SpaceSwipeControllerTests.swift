@@ -7,6 +7,10 @@ import Testing
 private struct SpaceSlide: Equatable {
   let from: Int
   let to: Int
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.from == rhs.from && lhs.to == rhs.to
+  }
 }
 
 @MainActor
@@ -175,6 +179,7 @@ struct SpaceSwipeControllerTests {
 
     controller.handle(SpaceScrollSample(phase: .wheel, deltaX: -3, isPrecise: false, time: 500.4))
     #expect(host.selectedIndices == [2, 3])
+    #expect(host.slides == [SpaceSlide(from: 1, to: 2), SpaceSlide(from: 2, to: 3)])
     #expect(host.positions.isEmpty)
   }
 
