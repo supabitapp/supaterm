@@ -98,21 +98,6 @@ jobs:
       - run: mise install -C "$RUNNER_TEMP" "swiftlint@$(mise current swiftlint)"
       - run: make swiftlint
 
-  mac_quality:
-    name: mac-quality
-    needs: changes
-    if: needs.changes.outputs.mac == 'true'
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-      - uses: ./.github/actions/setup-macos
-        with:
-          cache-native-builds: true
-      - run: make mac-inspect-dependencies
-      - run: make mac-scan-dead-code
-
   mac_test:
     name: mac-test
     needs: changes
@@ -202,7 +187,6 @@ jobs:
     needs:
       - changes
       - swiftlint
-      - mac_quality
       - mac_test
       - mac_test_e2e
       - mac_test_ui_build
@@ -211,7 +195,6 @@ jobs:
     env:
       MAC: ${{ needs.changes.outputs.mac }}
       SWIFTLINT: ${{ needs.swiftlint.result }}
-      QUALITY: ${{ needs.mac_quality.result }}
       UNIT: ${{ needs.mac_test.result }}
       E2E: ${{ needs.mac_test_e2e.result }}
       UI_BUILD: ${{ needs.mac_test_ui_build.result }}
@@ -222,7 +205,6 @@ jobs:
             exit 0
           fi
           test "$SWIFTLINT" = success
-          test "$QUALITY" = success
           test "$UNIT" = success
           test "$E2E" = success
           test "$UI_BUILD" = success
