@@ -4,9 +4,10 @@ import SwiftUI
 
 enum SpacePageDotMetrics {
   static let restDiameter: CGFloat = 6
-  static let displayedDiameter: CGFloat = 10
-  static let slot: CGFloat = 18
-  static let restOpacity: Double = 0.35
+  static let displayedDiameter: CGFloat = 8
+  static let slot: CGFloat = 10
+  static let restOpacity: Double = 0.3
+  static let displayedOpacity: Double = 0.9
 
   static func emphasis(at index: Int, position: Double) -> Double {
     max(0, 1 - abs(position - Double(index)))
@@ -17,7 +18,7 @@ enum SpacePageDotMetrics {
   }
 
   static func opacity(emphasis: Double) -> Double {
-    restOpacity + (1 - restOpacity) * emphasis
+    restOpacity + (displayedOpacity - restOpacity) * emphasis
   }
 }
 
@@ -28,12 +29,14 @@ struct SpacePageDotsView: View {
   let position: Double?
 
   var body: some View {
-    HStack(spacing: 0) {
-      ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
-        dot(space, at: index)
+    ZStack {
+      HStack(spacing: 0) {
+        ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
+          dot(space, at: index)
+        }
       }
-      Spacer(minLength: 0)
       newSpaceButton
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
   }
 
@@ -52,8 +55,7 @@ struct SpacePageDotsView: View {
       select(space, at: index)
     } label: {
       Circle()
-        .fill(space.color.sidebarColor(palette: palette))
-        .opacity(SpacePageDotMetrics.opacity(emphasis: emphasis))
+        .fill(palette.primaryText.opacity(SpacePageDotMetrics.opacity(emphasis: emphasis)))
         .frame(width: diameter, height: diameter)
         .frame(width: SpacePageDotMetrics.slot, height: SpacePageDotMetrics.slot)
         .contentShape(.rect)
@@ -92,7 +94,7 @@ struct SpacePageDotsView: View {
     } label: {
       Image(systemName: "plus")
         .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(palette.secondaryText)
+        .foregroundStyle(palette.primaryText.opacity(SpacePageDotMetrics.restOpacity))
     }
     .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .icon))
     .controlSize(.mini)

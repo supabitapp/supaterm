@@ -28,4 +28,11 @@ struct SpacePageDotMetricsTests {
     #expect(SpacePageDotMetrics.diameter(emphasis: 0) == SpacePageDotMetrics.restDiameter)
     #expect(SpacePageDotMetrics.diameter(emphasis: 1) == SpacePageDotMetrics.displayedDiameter)
   }
+
+  @Test
+  func keepsRestingDotsFaintAndTheDisplayedOneBright() {
+    #expect(isClose(SpacePageDotMetrics.opacity(emphasis: 0), SpacePageDotMetrics.restOpacity))
+    #expect(isClose(SpacePageDotMetrics.opacity(emphasis: 1), SpacePageDotMetrics.displayedOpacity))
+    #expect(isClose(SpacePageDotMetrics.opacity(emphasis: 0.5), 0.6))
+  }
 }

@@ -100,7 +100,7 @@ extension TerminalHostState {
 
   func createTabInSpace(_ spaceID: TerminalSpaceID) {
     createTab(in: spaceID)
-    onSpaceAction(.select(spaceID))
+    selectSpace(spaceID)
   }
 
   @discardableResult

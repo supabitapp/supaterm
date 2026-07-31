@@ -33,6 +33,10 @@ extension TerminalHostState {
     return true
   }
 
+  func selectSpace(_ spaceID: TerminalSpaceID) {
+    onSpaceAction(.select(spaceID))
+  }
+
   func pageSpace(by step: Int) -> Bool {
     spacePager?.page(by: step) == true
   }

@@ -84,11 +84,11 @@ struct SpaceSidebarPagerView: View {
     swipe.settled = { index in
       animate(to: index) {
         guard terminal.spaces.indices.contains(index) else { return }
-        _ = store.send(.selectSpaceButtonTapped(terminal.spaces[index].id))
+        terminal.selectSpace(terminal.spaces[index].id)
       }
     }
     swipe.cancelled = {
-      animate(to: displayedIndex) {}
+      animate(to: swipe.displayedIndex) {}
     }
     terminal.spacePager = swipe
   }
@@ -110,7 +110,7 @@ struct SpaceSidebarPagerView: View {
     self.position = position.fractionalIndex
   }
 
-  private func animate(to index: Int, completion: @escaping () -> Void) {
+  private func animate(to index: Int, commit: @escaping () -> Void) {
     let start = position ?? Double(displayedIndex)
     let indices = spannedIndices(from: start, to: Double(index))
     warm(indices)
@@ -121,7 +121,7 @@ struct SpaceSidebarPagerView: View {
       withAnimation(.easeOut(duration: SpaceSwipeController.settleDuration)) {
         position = Double(index)
       } completion: {
-        completion()
+        commit()
         guard !swipe.isTracking else { return }
         mountedIndices = nil
         position = nil
