@@ -1,5 +1,10 @@
 name: Setup macOS build deps
-description: Install macOS build dependencies and restore Ghostty build cache
+description: Install macOS build dependencies and restore build caches
+
+inputs:
+  restore-native-cache:
+    description: Restore native dependency build caches
+    required: true
 
 runs:
   using: composite
@@ -30,6 +35,11 @@ runs:
       run: |
         XCODE_VERSION="$(xcodebuild -version | tr '\n' '-' | sed 's/[^A-Za-z0-9._-]/_/g; s/-$//')"
         printf '%s\n' "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
+    - name: Tuist version
+      shell: bash
+      run: |
+        TUIST_VERSION="$(mise exec -- tuist version)"
+        printf '%s\n' "TUIST_VERSION=$TUIST_VERSION" >> "$GITHUB_ENV"
     - name: Tuist package cache
       uses: actions/cache@v5
       with:
@@ -40,34 +50,40 @@ runs:
           apps/mac/Tuist/.build/prebuilts
           apps/mac/Tuist/.build/workspace-state.json
           apps/mac/Tuist/.build/Derived
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-packages-v1-${{ hashFiles('mise.toml', 'apps/mac/Tuist/Package.swift', 'apps/mac/Tuist/Package.resolved') }}
-    - name: Ghostty cache key
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v1-${{ hashFiles('apps/mac/Tuist/Package.swift', 'apps/mac/Tuist/Package.resolved') }}
+    - name: Ghostty fingerprint
+      if: ${{ inputs.restore-native-cache == 'true' }}
       shell: bash
       run: |
-        GHOSTTY_SHA="$(git -C apps/mac/ThirdParty/ghostty rev-parse HEAD)"
-        printf '%s\n' "GHOSTTY_SHA=$GHOSTTY_SHA" >> "$GITHUB_ENV"
+        GHOSTTY_FINGERPRINT="$(apps/mac/scripts/build-ghostty.sh --print-fingerprint)"
+        printf '%s\n' "GHOSTTY_FINGERPRINT=$GHOSTTY_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Ghostty cache
+      if: ${{ inputs.restore-native-cache == 'true' }}
       uses: actions/cache@v5
       with:
         path: apps/mac/.build/ghostty
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v2-${{ env.GHOSTTY_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/build-ghostty.sh', 'mise.toml', '.gitmodules') }}
-    - name: Zmx cache key
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v3-${{ env.GHOSTTY_FINGERPRINT }}
+    - name: Zmx fingerprint
+      if: ${{ inputs.restore-native-cache == 'true' }}
       shell: bash
       run: |
-        ZMX_SHA="$(git -C apps/mac/ThirdParty/zmx rev-parse HEAD)"
-        printf '%s\n' "ZMX_SHA=$ZMX_SHA" >> "$GITHUB_ENV"
+        ZMX_FINGERPRINT="$(apps/mac/scripts/build-zmx.sh --print-fingerprint)"
+        printf '%s\n' "ZMX_FINGERPRINT=$ZMX_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Zmx cache
+      if: ${{ inputs.restore-native-cache == 'true' }}
       uses: actions/cache@v5
       with:
         path: apps/mac/.build/zmx
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v1-${{ env.ZMX_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/build-zmx.sh', 'mise.toml', '.gitmodules') }}
-    - name: Ap cache key
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v2-${{ env.ZMX_FINGERPRINT }}
+    - name: Ap fingerprint
+      if: ${{ inputs.restore-native-cache == 'true' }}
       shell: bash
       run: |
-        AP_SHA="$(git -C apps/mac/ThirdParty/coding-agents-session-picker rev-parse HEAD)"
-        printf '%s\n' "AP_SHA=$AP_SHA" >> "$GITHUB_ENV"
+        AP_FINGERPRINT="$(apps/mac/scripts/build-ap.sh --print-fingerprint)"
+        printf '%s\n' "AP_FINGERPRINT=$AP_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Ap cache
+      if: ${{ inputs.restore-native-cache == 'true' }}
       uses: actions/cache@v5
       with:
         path: apps/mac/.build/ap
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ap-v1-${{ env.AP_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/build-ap.sh', 'mise.toml', '.gitmodules') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ap-v2-${{ env.AP_FINGERPRINT }}

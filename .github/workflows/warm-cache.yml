@@ -5,6 +5,21 @@ on:
   push:
     branches:
       - main
+    paths:
+      - ".github/actions/setup-macos/**"
+      - ".github/workflows/warm-cache.yml"
+      - "apps/mac/Configurations/**"
+      - "apps/mac/Makefile"
+      - "apps/mac/Project.swift"
+      - "apps/mac/Tuist.swift"
+      - "apps/mac/Tuist/**"
+      - "apps/mac/Workspace.swift"
+      - "Makefile"
+      - "mise.toml"
+
+concurrency:
+  group: warm-cache-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   warm-cache-debug:
@@ -20,5 +35,7 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: false
       - run: make mac-warm-cache
       - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release

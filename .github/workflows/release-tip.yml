@@ -43,6 +43,8 @@ jobs:
           ref: ${{ env.RELEASE_SHA }}
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: true
       - name: Compute tip build number
         id: build-number
         run: |

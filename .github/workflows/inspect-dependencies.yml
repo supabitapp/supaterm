@@ -5,9 +5,35 @@ on:
   push:
     branches:
       - main
+    paths:
+      - ".github/actions/setup-macos/**"
+      - ".github/workflows/inspect-dependencies.yml"
+      - "apps/mac/Configurations/**"
+      - "apps/mac/Makefile"
+      - "apps/mac/Project.swift"
+      - "apps/mac/Tuist.swift"
+      - "apps/mac/Tuist/**"
+      - "apps/mac/Workspace.swift"
+      - "Makefile"
+      - "mise.toml"
   pull_request:
     branches:
       - main
+    paths:
+      - ".github/actions/setup-macos/**"
+      - ".github/workflows/inspect-dependencies.yml"
+      - "apps/mac/Configurations/**"
+      - "apps/mac/Makefile"
+      - "apps/mac/Project.swift"
+      - "apps/mac/Tuist.swift"
+      - "apps/mac/Tuist/**"
+      - "apps/mac/Workspace.swift"
+      - "Makefile"
+      - "mise.toml"
+
+concurrency:
+  group: inspect-dependencies-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   inspect-dependencies:
@@ -23,4 +49,6 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: false
       - run: make mac-inspect-dependencies

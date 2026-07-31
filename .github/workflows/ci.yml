@@ -6,8 +6,14 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "**/*.md"
+    paths:
+      - ".github/actions/setup-macos/**"
+      - ".github/workflows/ci.yml"
+      - ".gitmodules"
+      - "apps/mac/**"
+      - "Makefile"
+      - "mise.toml"
+      - "!**/*.md"
   pull_request:
     branches:
       - main
@@ -25,44 +31,96 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      mac: ${{ steps.mac.outputs.changed }}
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: mac
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" != pull_request ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed=false
+          while IFS= read -r path; do
+            case "$path" in
+              *.md)
+                ;;
+              .github/actions/setup-macos/* | .github/workflows/ci.yml | .gitmodules | apps/mac/* | Makefile | mise.toml)
+                changed=true
+                break
+                ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
   swiftlint:
     name: swiftlint
-    runs-on: macos-26
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
         with:
-          submodules: recursive
-      - uses: ./.github/actions/setup-macos
+          version: 2026.3.0
+          cache: true
+          install: false
+      - run: mise install -C "$RUNNER_TEMP" "swiftlint@$(mise current swiftlint)"
       - run: make swiftlint
 
   mac_scan_dead_code:
     name: mac-scan-dead-code
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: true
       - run: make mac-scan-dead-code
 
   mac_test:
     name: mac-test
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: true
       - run: make mac-test
 
   mac_test_e2e:
     name: mac-test-e2e
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: true
       - run: make mac-test-e2e E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -73,6 +131,8 @@ jobs:
 
   mac_test_ui_build:
     name: mac-test-ui-build
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
     runs-on: macos-26
     timeout-minutes: 60
     outputs:
@@ -82,6 +142,8 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: true
       - run: make mac-tuist-install
       - run: make -C apps/mac build-ghostty build-zmx build-ap
       - id: build
@@ -91,7 +153,7 @@ jobs:
   mac_test_ui:
     name: mac-test-ui (${{ matrix.shard }})
     needs: mac_test_ui_build
-    if: toJSON(fromJSON(needs.mac_test_ui_build.outputs.matrix).shard) != '[]'
+    if: needs.mac_test_ui_build.result == 'success' && toJSON(fromJSON(needs.mac_test_ui_build.outputs.matrix || '{"shard":[]}').shard) != '[]'
     runs-on: macos-26
     timeout-minutes: 60
     strategy:
@@ -103,6 +165,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-macos
+        with:
+          restore-native-cache: false
       - run: mise exec -- tuist test --without-building --result-bundle-path "$RUNNER_TEMP/supatermUITests.xcresult" -- -destination "platform=macOS"
         working-directory: apps/mac
       - if: failure()
@@ -116,6 +180,7 @@ jobs:
     name: required-checks
     if: always()
     needs:
+      - changes
       - swiftlint
       - mac_scan_dead_code
       - mac_test
@@ -124,6 +189,7 @@ jobs:
       - mac_test_ui
     runs-on: ubuntu-latest
     env:
+      MAC: ${{ needs.changes.outputs.mac }}
       SWIFTLINT: ${{ needs.swiftlint.result }}
       DEAD_CODE: ${{ needs.mac_scan_dead_code.result }}
       UNIT: ${{ needs.mac_test.result }}
@@ -132,6 +198,9 @@ jobs:
       UI: ${{ needs.mac_test_ui.result }}
     steps:
       - run: |
+          if [ "$MAC" = false ]; then
+            exit 0
+          fi
           test "$SWIFTLINT" = success
           test "$DEAD_CODE" = success
           test "$UNIT" = success
