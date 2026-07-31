@@ -79,5 +79,7 @@ __pycache__/
 
 execplans/
 plans/
+CONTEXT.md
+docs/adr/
 hk.local.pkl
 .config/hk.local.pkl

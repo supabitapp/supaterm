@@ -70,16 +70,7 @@ public struct Palette {
   public var sidebarDragPreviewFill: Color {
     sidebarSelectedSurface(over: chromeBackgroundStartValue).color
   }
-  public var sidebarSelectedStroke: LinearGradient {
-    LinearGradient(
-      colors: [
-        Color.white.opacity(isDark ? 0.18 : 0.98),
-        Color.white.opacity(isDark ? 0.1 : 0.98),
-      ],
-      startPoint: .top,
-      endPoint: .bottom
-    )
-  }
+  public var sidebarSelectedStroke: Color { isDark ? .clear : Color.white.opacity(0.98) }
   public var sidebarSelectedShadow: Color { selectedShadow }
   public var sidebarItemHoverFill: Color { sidebarItemInk.color.opacity(isDark ? 0.15 : 0.1) }
   public var sidebarItemPressedFill: Color { sidebarItemInk.color.opacity(0.065) }

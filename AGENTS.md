@@ -25,5 +25,18 @@
 
 ## Tools
 
-- Issues are tracked on: https://linear.app/supaterm
 - Error reporting uses PostHog
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in the Supaterm Linear workspace (team `SUP`), driven by the `linear` CLI. Ask before filing. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, label strings unchanged. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. The glossary is `## Terminology` above, plus a gitignored root `CONTEXT.md`. See `docs/agents/domain.md`.

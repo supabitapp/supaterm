@@ -77,7 +77,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didOpenSpaceWindow)
 
-    let initialSpace = spaceSwitcher(named: "1")
+    let initialSpace = spaceSwitcher(named: "Space 1")
     let createdSpace = spaceSwitcher(named: "UI Space")
     XCTAssertTrue(initialSpace.exists)
     XCTAssertTrue(createdSpace.exists)
