@@ -36,12 +36,37 @@ extension TerminalHostState {
   func warmSpace(_ spaceID: TerminalSpaceID) {
     applyObservedSpaceCatalog(spaceCatalog)
     guard managesTerminalSurfaces, spaceManager.space(for: spaceID) != nil else { return }
+    warmInstance(for: spaceID)
     guard spaceManager.tabs(in: spaceID).isEmpty else { return }
     createTab(in: spaceID, focusing: false, synchronizesFocus: false)
   }
 
+  func warmInstance(for spaceID: TerminalSpaceID) {
+    guard managesTerminalSurfaces else { return }
+    guard
+      let instance = spaceManager.instance(for: spaceID),
+      let session = instance.pendingSession
+    else {
+      return
+    }
+    instance.pendingSession = nil
+    SupatermLog.debug(
+      SupatermLog.terminal,
+      "terminal.space.warm",
+      fields: [
+        "spaceID=\(SupatermLog.uuid(spaceID.rawValue))",
+        "surfaces=\(session.surfaceIDs.count)",
+      ]
+    )
+    restoreSpaceSession(session)
+  }
+
   func paneCount(inSpace spaceID: TerminalSpaceID) -> Int {
-    spaceManager.tabs(in: spaceID).reduce(0) { count, tab in
+    guard let instance = spaceManager.instance(for: spaceID) else { return 0 }
+    if let pendingSession = instance.pendingSession {
+      return pendingSession.surfaceIDs.count
+    }
+    return instance.tabs.reduce(0) { count, tab in
       count + (trees[tab.id]?.leaves().count ?? 0)
     }
   }
@@ -76,6 +101,9 @@ extension TerminalHostState {
       for: discardedInstances.flatMap { $0.tabs.map(\.id) },
       source: .deleteSpace
     )
+    killZmxSessions(
+      for: discardedInstances.flatMap { $0.pendingSession?.surfaceIDs ?? [] }
+    )
     settleDisplayedSpace()
   }
 
@@ -85,6 +113,7 @@ extension TerminalHostState {
 
   private func settleDisplayedSpace() {
     withBatchedSessionChange {
+      warmInstance(for: displayedSpaceID)
       if managesTerminalSurfaces {
         ensureInitialTab(focusing: true)
       }

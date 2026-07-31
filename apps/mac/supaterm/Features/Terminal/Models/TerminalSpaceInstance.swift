@@ -8,9 +8,11 @@ final class TerminalSpaceInstance {
   let tabManager = TerminalTabManager()
   var previousSelectedTabID: TerminalTabID?
   var collapsedTabGroupIDs: Set<TerminalTabGroupID> = []
+  var pendingSession: TerminalSpaceSession?
 
-  init(spaceID: TerminalSpaceID) {
+  init(spaceID: TerminalSpaceID, pendingSession: TerminalSpaceSession? = nil) {
     self.spaceID = spaceID
+    self.pendingSession = pendingSession
   }
 
   var tabs: [TerminalTabItem] {

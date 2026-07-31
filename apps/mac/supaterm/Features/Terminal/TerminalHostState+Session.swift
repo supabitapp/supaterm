@@ -16,10 +16,21 @@ private struct TerminalRootSessionSnapshot {
 
 extension TerminalHostState {
   func restorationSnapshot() -> TerminalWindowSession {
-    let spaceID = displayedSpaceID
+    TerminalWindowSession(
+      displayedSpaceID: displayedSpaceID,
+      spaces: spaceManager.instances.map(restorationSnapshot(for:))
+    )
+  }
+
+  private func restorationSnapshot(
+    for instance: TerminalSpaceInstance
+  ) -> TerminalSpaceSession {
+    if let pendingSession = instance.pendingSession {
+      return pendingSession
+    }
     var rootOrderByPinned = [true: 0, false: 0]
     var rootSnapshots: [TerminalRootSessionSnapshot] = []
-    for item in spaceManager.rootItems(in: spaceID) {
+    for item in instance.tabManager.rootItems {
       let rootOrder = rootOrderByPinned[item.isPinned, default: 0]
       guard let snapshot = restorationSnapshot(for: item, rootOrder: rootOrder) else {
         continue
@@ -29,15 +40,15 @@ extension TerminalHostState {
     }
     let tabs = rootSnapshots.flatMap(\.tabs)
     let tabIDs = Set(tabs.map(\.id))
-    return TerminalWindowSession(
-      spaceID: spaceID,
-      selectedTabID: spaceManager.selectedTabID(in: spaceID).flatMap {
+    return TerminalSpaceSession(
+      spaceID: instance.spaceID,
+      selectedTabID: instance.selectedTabID.flatMap {
         tabIDs.contains($0) ? $0 : nil
       } ?? tabs.first?.id,
       nodes: rootSnapshots.flatMap(\.nodes),
       groups: rootSnapshots.compactMap(\.group),
       collapsedGroupIDs: rootSnapshots.compactMap(\.group).map(\.id).filter {
-        spaceManager.displayedInstance.collapsedTabGroupIDs.contains($0)
+        instance.collapsedTabGroupIDs.contains($0)
       },
       tabs: tabs
     )
@@ -49,7 +60,8 @@ extension TerminalHostState {
       SupatermLog.terminal,
       "terminal.session.restore.requested",
       fields: [
-        "spaceID=\(SupatermLog.uuid(session.spaceID.rawValue))",
+        "displayedSpaceID=\(SupatermLog.uuid(session.displayedSpaceID.rawValue))",
+        "spaces=\(session.spaces.count)",
         "surfaces=\(session.surfaceIDs.count)",
       ]
     )
@@ -74,7 +86,8 @@ extension TerminalHostState {
       SupatermLog.terminal,
       "terminal.session.restore.pruned",
       fields: [
-        "spaceID=\(SupatermLog.uuid(session.spaceID.rawValue))",
+        "displayedSpaceID=\(SupatermLog.uuid(session.displayedSpaceID.rawValue))",
+        "spaces=\(session.spaces.count)",
         "surfaces=\(session.surfaceIDs.count)",
       ]
     )
@@ -86,9 +99,30 @@ extension TerminalHostState {
 
   func restorePrunedSession(_ session: TerminalWindowSession) -> Bool {
     clearSessionState()
-    let restoredSpace = restoreTabItems(from: session)
-    restorePaneSessions(restoredSpace, in: session.spaceID)
-    return finalizeRestoredSession(session)
+    guard let displayedSession = session.displayedSpace else {
+      logRestoreFailed(reason: "displayedSpaceMissing")
+      return false
+    }
+    for space in session.spaces where space.spaceID != displayedSession.spaceID {
+      spaceManager.registerColdInstance(space)
+    }
+    restoreSpaceSession(displayedSession)
+    return finalizeRestoredSession(displayedSession)
+  }
+
+  func restoreSpaceSession(_ session: TerminalSpaceSession) {
+    let restoredSpace = restoredSpace(for: session)
+    spaceManager.instance(warming: session.spaceID).collapsedTabGroupIDs = Set(
+      session.collapsedGroupIDs
+    )
+    spaceManager.restoreRootItems(
+      restoredSpace.rootItems,
+      selectedTabID: session.selectedTabID,
+      in: session.spaceID
+    )
+    for tab in restoredSpace.tabs {
+      restoreTabSession(tab, in: session.spaceID)
+    }
   }
 
   private func restorationSnapshot(
@@ -137,23 +171,8 @@ extension TerminalHostState {
     }
   }
 
-  private func restoreTabItems(
-    from session: TerminalWindowSession
-  ) -> RestoredTerminalSpace {
-    let restoredSpace = restoredSpace(for: session)
-    spaceManager.instance(warming: session.spaceID).collapsedTabGroupIDs = Set(
-      session.collapsedGroupIDs
-    )
-    _ = spaceManager.restoreRootItems(
-      restoredSpace.rootItems,
-      selectedTabID: session.selectedTabID,
-      in: session.spaceID
-    )
-    return restoredSpace
-  }
-
   private func restoredSpace(
-    for session: TerminalWindowSession
+    for session: TerminalSpaceSession
   ) -> RestoredTerminalSpace {
     let tabSessionsByID = Dictionary(uniqueKeysWithValues: session.tabs.map { ($0.id, $0) })
     let groupSessionsByID = Dictionary(uniqueKeysWithValues: session.groups.map { ($0.id, $0) })
@@ -205,17 +224,11 @@ extension TerminalHostState {
     return RestoredTerminalSpace(rootItems: rootItems, tabs: restoredTabs)
   }
 
-  private func restorePaneSessions(
-    _ restoredSpace: RestoredTerminalSpace,
-    in spaceID: TerminalSpaceID
-  ) {
-    for tab in restoredSpace.tabs {
-      restoreTabSession(tab, in: spaceID)
-    }
-  }
-
-  func finalizeRestoredSession(_ session: TerminalWindowSession) -> Bool {
-    guard !spaceManager.rootItems(in: session.spaceID).isEmpty else {
+  func finalizeRestoredSession(_ session: TerminalSpaceSession) -> Bool {
+    guard
+      !spaceManager.rootItems(in: session.spaceID).isEmpty
+        || !spaceManager.pendingSurfaceIDs.isEmpty
+    else {
       logRestoreFailed(reason: "noRestoredItems")
       clearSessionState()
       return false
@@ -410,6 +423,7 @@ extension TerminalHostState {
       instance.tabManager.restoreRootItems([], selectedTabID: nil)
       instance.collapsedTabGroupIDs.removeAll()
       instance.previousSelectedTabID = nil
+      instance.pendingSession = nil
     }
     for tabID in focusHistoryByTab.keys {
       focusHistoryByTab[tabID]?.previous = nil

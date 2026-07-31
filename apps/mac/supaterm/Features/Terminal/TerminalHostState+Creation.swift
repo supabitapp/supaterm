@@ -54,6 +54,7 @@ extension TerminalHostState {
     sessionChangesEnabled: Bool = true,
     synchronizesFocus: Bool = true
   ) -> TerminalTabID? {
+    warmInstance(for: spaceID)
     guard let tabManager = spaceManager.tabManager(for: spaceID) else { return nil }
     let context: ghostty_surface_context_e =
       tabManager.tabs.isEmpty

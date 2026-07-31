@@ -118,12 +118,17 @@
         $0 = TerminalSessionCatalog(
           windows: [
             TerminalWindowSession(
-              spaceID: IDs.space,
-              selectedTabID: IDs.deployTab,
-              nodes: nodes,
-              groups: groups,
-              collapsedGroupIDs: [IDs.researchGroup],
-              tabs: tabSessions
+              displayedSpaceID: IDs.space,
+              spaces: [
+                TerminalSpaceSession(
+                  spaceID: IDs.space,
+                  selectedTabID: IDs.deployTab,
+                  nodes: nodes,
+                  groups: groups,
+                  collapsedGroupIDs: [IDs.researchGroup],
+                  tabs: tabSessions
+                )
+              ]
             )
           ]
         )

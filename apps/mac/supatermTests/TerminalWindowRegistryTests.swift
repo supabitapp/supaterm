@@ -892,11 +892,14 @@ struct TerminalWindowRegistryTests {
       let snapshot = registry.restorationSnapshot()
 
       #expect(snapshot.windows.count == 2)
-      #expect(snapshot.windows.map(\.spaceID) == [firstHost.displayedSpaceID, secondHost.displayedSpaceID])
+      #expect(
+        snapshot.windows.map(\.displayedSpaceID)
+          == [firstHost.displayedSpaceID, secondHost.displayedSpaceID]
+      )
       #expect(snapshot.windows[0].frame == TerminalWindowFrame(firstFrame))
-      #expect(snapshot.windows[0].tabs.count == 1)
+      #expect(snapshot.windows[0].displayedSpace?.tabs.count == 1)
       #expect(snapshot.windows[1].frame == TerminalWindowFrame(secondFrame))
-      #expect(snapshot.windows[1].tabs.count == 2)
+      #expect(snapshot.windows[1].displayedSpace?.tabs.count == 2)
     }
   }
   @Test

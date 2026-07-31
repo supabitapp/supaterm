@@ -311,6 +311,7 @@ extension TerminalHostState {
   }
 
   func shouldCloseWindow<S: Sequence>(afterClosing tabIDs: S) -> Bool where S.Element == TerminalTabID {
+    guard spaceManager.pendingSurfaceIDs.isEmpty else { return false }
     let requestedTabIDs = Set(tabIDs)
     let existingTabIDs = Set(spaceManager.allTabs.map(\.id))
     return !requestedTabIDs.isDisjoint(with: existingTabIDs)

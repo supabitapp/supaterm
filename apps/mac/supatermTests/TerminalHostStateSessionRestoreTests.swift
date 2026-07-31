@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Sharing
 import SupaTheme
 import SupatermSupport
 import Testing
@@ -205,10 +206,11 @@ struct TerminalHostStateSessionRestoreTests {
       #expect(host.setGroupCollapsed(groupID, isCollapsed: true))
 
       let snapshot = host.restorationSnapshot()
-      #expect(snapshot.spaceID == spaceID)
-      #expect(snapshot.selectedTabID == firstTabID)
-      #expect(snapshot.groups.first?.lifetime == .automatic)
-      #expect(snapshot.collapsedGroupIDs == [groupID])
+      let snapshotSpace = try #require(snapshot.displayedSpace)
+      #expect(snapshot.displayedSpaceID == spaceID)
+      #expect(snapshotSpace.selectedTabID == firstTabID)
+      #expect(snapshotSpace.groups.first?.lifetime == .automatic)
+      #expect(snapshotSpace.collapsedGroupIDs == [groupID])
 
       let restored = TerminalHostState()
       #expect(restored.restore(from: snapshot))
@@ -253,7 +255,7 @@ struct TerminalHostStateSessionRestoreTests {
       let durableGroupID = TerminalTabGroupID()
       let automaticTabID = TerminalTabID()
       let durableTabID = TerminalTabID()
-      let session = TerminalWindowSession(
+      let session = TerminalSpaceSession(
         spaceID: spaceID,
         selectedTabID: automaticTabID,
         nodes: [
@@ -299,7 +301,11 @@ struct TerminalHostStateSessionRestoreTests {
         ]
       )
 
-      #expect(host.restore(from: session))
+      #expect(
+        host.restore(
+          from: TerminalWindowSession(displayedSpaceID: spaceID, spaces: [session])
+        )
+      )
       let manager = try #require(host.spaceManager.tabManager(for: spaceID))
       #expect(manager.tabs.map(\.id) == [automaticTabID, durableTabID])
       #expect(manager.selectedTabId == automaticTabID)
@@ -344,6 +350,94 @@ struct TerminalHostStateSessionRestoreTests {
     }
   }
 
+  @Test
+  func hiddenSpaceKeepsItsLayoutUntilItIsDisplayed() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+
+      let hiddenSurfaceID = UUID()
+      let hiddenSpace = spaceSession(
+        spaceID: spaces[1].id,
+        title: "Hidden Tab",
+        isPinned: true,
+        surfaceID: hiddenSurfaceID
+      )
+      let session = TerminalWindowSession(
+        displayedSpaceID: spaces[0].id,
+        spaces: [
+          spaceSession(spaceID: spaces[0].id, title: "Displayed Tab"),
+          hiddenSpace,
+        ]
+      )
+      let hiddenTabID = try #require(hiddenSpace.selectedTabID)
+
+      let host = TerminalHostState(spaceID: spaces[0].id)
+      #expect(host.restore(from: session))
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == hiddenSpace)
+      #expect(host.trees[hiddenTabID] == nil)
+      #expect(host.surfaces[hiddenSurfaceID] == nil)
+      #expect(host.sessionSurfaceIDs().contains(hiddenSurfaceID))
+
+      let data = try TerminalSessionCatalog.fileStorageEncoder().encode(
+        TerminalSessionCatalog(windows: [host.restorationSnapshot()])
+      )
+      let reloaded = try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
+      #expect(reloaded.windows.first?.spaces.last == hiddenSpace)
+
+      #expect(host.displaySpace(spaces[1].id))
+      #expect(host.spaceManager.tabs(in: spaces[1].id).map(\.id) == [hiddenTabID])
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == nil)
+      #expect(host.trees[hiddenTabID]?.leaves().map(\.id) == [hiddenSurfaceID])
+      #expect(host.spaceManager.tabs(in: spaces[1].id).first?.title == "Hidden Tab")
+      #expect(host.spaceManager.tabManager(for: spaces[1].id)?.isPinned(hiddenTabID) == true)
+    }
+  }
+
+  @Test
+  func emptyDisplayedSpaceKeepsTheHiddenSpacesItRestoredWith() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+
+      let hiddenSpace = spaceSession(spaceID: spaces[1].id, title: "Hidden Tab")
+      let session = TerminalWindowSession(
+        displayedSpaceID: spaces[0].id,
+        spaces: [
+          TerminalSpaceSession(
+            spaceID: spaces[0].id,
+            selectedTabID: nil,
+            nodes: [],
+            groups: [],
+            collapsedGroupIDs: [],
+            tabs: []
+          ),
+          hiddenSpace,
+        ]
+      )
+
+      let host = TerminalHostState(spaceID: spaces[0].id)
+      #expect(host.restore(from: session))
+      #expect(host.spaceManager.tabs(in: spaces[0].id).count == 1)
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == hiddenSpace)
+      #expect(host.restorationSnapshot().spaces.last == hiddenSpace)
+    }
+  }
+
   private func wrappingZmxClient(killSession: @escaping @Sendable (UUID) async -> Void = { _ in }) -> ZmxClient {
     ZmxClient(
       executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
@@ -375,6 +469,36 @@ struct TerminalHostStateSessionRestoreTests {
       lockedTitle: title,
       focusedPaneIndex: 0,
       root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil))
+    )
+  }
+
+  private func spaceSession(
+    spaceID: TerminalSpaceID,
+    title: String,
+    isPinned: Bool = false,
+    surfaceID: UUID = UUID()
+  ) -> TerminalSpaceSession {
+    let tabID = TerminalTabID()
+    return TerminalSpaceSession(
+      spaceID: spaceID,
+      selectedTabID: tabID,
+      nodes: [
+        TerminalTabNodeSession(
+          item: .tab(tabID),
+          parent: .root(isPinned: isPinned),
+          order: 0
+        )
+      ],
+      groups: [],
+      collapsedGroupIDs: [],
+      tabs: [
+        TerminalTabSession(
+          id: tabID,
+          lockedTitle: title,
+          focusedPaneIndex: 0,
+          root: .leaf(TerminalPaneLeafSession(id: surfaceID, workingDirectoryPath: nil))
+        )
+      ]
     )
   }
 }

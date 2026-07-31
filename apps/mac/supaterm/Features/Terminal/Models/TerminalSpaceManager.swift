@@ -61,6 +61,23 @@ final class TerminalSpaceManager {
     instances.flatMap(\.tabs)
   }
 
+  var pendingSurfaceIDs: Set<UUID> {
+    instances.reduce(into: Set<UUID>()) { result, instance in
+      result.formUnion(instance.pendingSession?.surfaceIDs ?? [])
+    }
+  }
+
+  @discardableResult
+  func registerColdInstance(_ session: TerminalSpaceSession) -> Bool {
+    guard spaces.contains(where: { $0.id == session.spaceID }) else { return false }
+    guard instancesBySpaceID[session.spaceID] == nil else { return false }
+    instancesBySpaceID[session.spaceID] = TerminalSpaceInstance(
+      spaceID: session.spaceID,
+      pendingSession: session
+    )
+    return true
+  }
+
   @discardableResult
   func applyCatalog(_ catalog: TerminalSpaceCatalog) -> [TerminalSpaceInstance] {
     let resolvedCatalog = TerminalSpaceCatalog.sanitized(catalog)

@@ -606,9 +606,9 @@ final class TerminalWindowRegistry {
     }
   }
 
-  func terminateLiveTerminalSessionsAndWait() async {
+  func terminateTerminalSessionsAndWait() async {
     for entry in activeEntries() {
-      await entry.terminal.terminateLiveTerminalSessionsAndWait()
+      await entry.terminal.terminateTerminalSessionsAndWait()
     }
   }
 
@@ -623,7 +623,7 @@ final class TerminalWindowRegistry {
       entry.windowReference.value.map(ObjectIdentifier.init)
     }
     Task { @MainActor in
-      await terminateLiveTerminalSessionsAndWait()
+      await terminateTerminalSessionsAndWait()
       await terminateAllZmxSessionsAndWait()
       closeWindows(windowIDs)
     }
@@ -919,7 +919,8 @@ final class TerminalWindowRegistry {
       return CloseAllWindowsCandidate(
         windowID: ObjectIdentifier(window),
         needsConfirmation:
-          entry.terminal.windowNeedsCloseConfirmation() || !entry.terminal.liveSurfaceIDs().isEmpty
+          entry.terminal.windowNeedsCloseConfirmation()
+          || !entry.terminal.sessionSurfaceIDs().isEmpty
       )
     }
   }

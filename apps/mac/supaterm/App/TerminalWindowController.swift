@@ -85,7 +85,7 @@ final class TerminalWindowController: NSWindowController {
 
     let terminal = TerminalHostState(
       runtime: runtime,
-      spaceID: session?.spaceID ?? spaceID,
+      spaceID: session?.displayedSpaceID ?? spaceID,
       zmxClient: zmxClient,
       zmxSessionsEnabled: zmxSessionsEnabled
     )
@@ -227,11 +227,11 @@ final class TerminalWindowController: NSWindowController {
       "terminal.window.closeConfirmed",
       fields: [
         "terminatesSessions=\(terminatesTerminalSessionsOnClose)",
-        "surfaceIDs=\(TerminalHostState.logSurfaceIDs(terminal.liveSurfaceIDs()))",
+        "surfaceIDs=\(TerminalHostState.logSurfaceIDs(terminal.sessionSurfaceIDs()))",
       ]
     )
     if terminatesTerminalSessionsOnClose {
-      terminal.terminateLiveTerminalSessions()
+      terminal.terminateTerminalSessions()
     }
     isPerformingConfirmedClose = true
     window.close()
@@ -254,7 +254,7 @@ extension TerminalWindowController: NSWindowDelegate {
       isPerformingConfirmedClose = false
       return true
     }
-    let surfaceIDs = terminal.liveSurfaceIDs()
+    let surfaceIDs = terminal.sessionSurfaceIDs()
     guard terminatesTerminalSessionsOnClose, !surfaceIDs.isEmpty else {
       SupatermLog.notice(
         SupatermLog.terminal,
