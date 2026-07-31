@@ -572,7 +572,7 @@ struct SPCommandTests {
       SPTreeRenderer.render(snapshot)
         == """
         window 1 [key]
-        └─ space 1 "A" [neutral, selected]
+        └─ space 1 "A" [neutral, displayed]
            └─ tab 1 "fish" [selected]
               └─ pane 1 "build" [focused]
         """
@@ -580,7 +580,7 @@ struct SPCommandTests {
     #expect(
       SPTreeRenderer.renderPlain(snapshot)
         == """
-        1\tspace\tA\tneutral,selected
+        1\tspace\tA\tneutral,displayed
         1/1\ttab\tfish\tselected
         1/1/1\tpane\tbuild\tfocused
         """
