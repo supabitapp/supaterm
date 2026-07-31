@@ -265,9 +265,8 @@ struct TerminalView: View {
     guard paneCount > 0 else {
       return "This space has no open tabs."
     }
-    return
-      "Deleting it closes \(paneCount == 1 ? "1 pane" : "\(paneCount) panes") "
-      + "across every window and ends their processes."
+    let panes = paneCount == 1 ? "1 pane" : "\(paneCount) panes"
+    return "Deleting it closes \(panes) across every window and ends their processes."
   }
 
   private var resolvedWindowActivity: WindowActivityState {

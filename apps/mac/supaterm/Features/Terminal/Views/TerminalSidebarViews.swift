@@ -192,18 +192,22 @@ struct FloatingSidebarOverlay: View {
       }
     }
     .coordinateSpace(name: TerminalCoordinateSpace.floatingSidebar)
-    .onChange(of: terminal.spacePager?.isTracking ?? false) { _, isTracking in
-      guard !isTracking, hidesAfterPaging else { return }
+    .onChange(of: isPaging) { _, isPaging in
+      guard !isPaging, hidesAfterPaging else { return }
       hidesAfterPaging = false
       isVisible = false
     }
+  }
+
+  private var isPaging: Bool {
+    terminal.spacePager?.isTracking == true
   }
 
   private var hoverBinding: Binding<Bool> {
     Binding(
       get: { isVisible },
       set: { hovering in
-        guard !hovering, terminal.spacePager?.isTracking == true else {
+        guard !hovering, isPaging else {
           isVisible = hovering
           return
         }

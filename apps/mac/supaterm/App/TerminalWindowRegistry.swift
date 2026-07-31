@@ -168,8 +168,9 @@ final class TerminalWindowRegistry {
 
   @discardableResult
   func selectSpace(_ spaceID: TerminalSpaceID, in windowControllerID: UUID? = nil) -> Bool {
-    let entry = windowControllerID.flatMap(entry(forWindowControllerID:)) ?? preferredActiveEntry()
-    guard let entry, entry.terminal.switchSpace(to: spaceID) else { return false }
+    guard let entry = entry(in: windowControllerID), entry.terminal.switchSpace(to: spaceID) else {
+      return false
+    }
     if let window = entry.windowReference.value {
       if window.isMiniaturized {
         window.deminiaturize(nil)
@@ -200,8 +201,7 @@ final class TerminalWindowRegistry {
     let space = TerminalSpaceItem(name: name, color: color)
     catalog.spaces.append(space)
     replaceSpaceCatalog(catalog)
-    let entry = windowControllerID.flatMap(entry(forWindowControllerID:)) ?? preferredActiveEntry()
-    guard let entry else { return space.id }
+    guard let entry = entry(in: windowControllerID) else { return space.id }
     entry.terminal.warmSpace(space.id)
     selectSpace(space.id, in: entry.windowControllerID)
     return space.id
@@ -256,9 +256,8 @@ final class TerminalWindowRegistry {
 
   @discardableResult
   func selectAdjacentSpace(step: Int, in windowControllerID: UUID? = nil) -> Bool {
-    let entry = windowControllerID.flatMap(entry(forWindowControllerID:)) ?? preferredActiveEntry()
     guard
-      let entry,
+      let entry = entry(in: windowControllerID),
       let spaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
         .spaceID(adjacentTo: entry.terminal.switchingSpaceID, step: step)
     else {
@@ -887,9 +886,10 @@ final class TerminalWindowRegistry {
   }
 
   func ambientEntries(for context: SupatermCLIContext?) -> [Entry] {
-    let entries = activeEntries()
+    var entries = activeEntries()
     guard let index = ambientIndex(in: entries, context: context) else { return entries }
-    return [entries[index]] + entries.enumerated().filter { $0.offset != index }.map(\.element)
+    let ambientEntry = entries.remove(at: index)
+    return [ambientEntry] + entries
   }
 
   func windowIndex(of entry: Entry) -> Int {
@@ -961,6 +961,10 @@ final class TerminalWindowRegistry {
 
   private func entry(forWindowControllerID windowControllerID: UUID) -> Entry? {
     activeEntries().first { $0.windowControllerID == windowControllerID }
+  }
+
+  private func entry(in windowControllerID: UUID?) -> Entry? {
+    windowControllerID.flatMap(entry(forWindowControllerID:)) ?? preferredActiveEntry()
   }
 
   private func entry(for window: NSWindow) -> Entry? {

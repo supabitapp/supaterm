@@ -3,17 +3,8 @@ import SupaTheme
 
 extension TerminalHostState {
   func suggestedGroupTitle(containing tabIDs: [TerminalTabID]) -> String? {
-    guard !tabIDs.isEmpty else { return nil }
+    guard let manager = instance(containing: tabIDs)?.tabManager else { return nil }
     let tabs = tabIDs.compactMap(spaceManager.tab(for:))
-    let spaceIDs = Set(tabIDs.compactMap { spaceManager.instance(for: $0)?.spaceID })
-    guard
-      tabs.count == tabIDs.count,
-      spaceIDs.count == 1,
-      let manager = spaceIDs.first.flatMap({ spaceManager.instance(for: $0)?.tabManager })
-    else {
-      return nil
-    }
-
     let sharedRepositoryName = TerminalTabGroupTitleSuggester.sharedRepositoryName(
       workingDirectoryPathsByTab: tabIDs.map(paneWorkingDirectoryPaths)
     )
@@ -40,15 +31,8 @@ extension TerminalHostState {
     if tabIDs.isEmpty {
       spaceID = displayedSpaceID
     } else {
-      let spaceIDs = Set(tabIDs.compactMap { spaceManager.instance(for: $0)?.spaceID })
-      guard
-        spaceIDs.count == 1,
-        let resolvedSpaceID = spaceIDs.first,
-        tabIDs.allSatisfy({ spaceManager.tab(for: $0) != nil })
-      else {
-        return nil
-      }
-      spaceID = resolvedSpaceID
+      guard let instance = instance(containing: tabIDs) else { return nil }
+      spaceID = instance.spaceID
     }
     guard let manager = spaceManager.tabManager(for: spaceID) else { return nil }
     let previousRevision = manager.topologyRevision
@@ -202,6 +186,12 @@ extension TerminalHostState {
     case .group(let groupID):
       spaceManager.instance(for: groupID)
     }
+  }
+
+  private func instance(containing tabIDs: [TerminalTabID]) -> TerminalSpaceInstance? {
+    let instances = tabIDs.compactMap { spaceManager.instance(for: $0) }
+    guard let instance = instances.first, instances.count == tabIDs.count else { return nil }
+    return instances.allSatisfy { $0 === instance } ? instance : nil
   }
 
   func finishMove(

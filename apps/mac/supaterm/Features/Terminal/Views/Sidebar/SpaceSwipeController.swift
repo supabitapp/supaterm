@@ -211,9 +211,9 @@ final class SpaceSwipeController {
   private func advance(_ tracking: Tracking, with sample: SpaceScrollSample) {
     var tracking = tracking
     tracking.accumulate(sample.deltaX, at: sample.time)
-    let isPastDetent = Double(abs(tracking.displacement) / pageWidth) > Self.commitProgress
-    if isPastDetent != tracking.isPastDetent {
-      tracking.isPastDetent = isPastDetent
+    let pastDetent = isPastDetent(tracking.displacement)
+    if pastDetent != tracking.isPastDetent {
+      tracking.isPastDetent = pastDetent
       NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .drawCompleted)
     }
     phase = .tracking(tracking)
@@ -269,8 +269,12 @@ final class SpaceSwipeController {
     let step = tracking.displacement < 0 ? 1 : -1
     let target = tracking.startIndex + step
     guard pageIndices.contains(target) else { return nil }
-    if Double(abs(tracking.displacement) / pageWidth) > Self.commitProgress { return target }
+    if isPastDetent(tracking.displacement) { return target }
     return -CGFloat(step) * tracking.velocity > Self.commitVelocity ? target : nil
+  }
+
+  private func isPastDetent(_ displacement: CGFloat) -> Bool {
+    Double(abs(displacement) / pageWidth) > Self.commitProgress
   }
 
   private func position(for tracking: Tracking) -> PagingPosition {

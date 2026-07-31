@@ -78,9 +78,7 @@ struct SpaceSidebarPagerView: View {
       disconnect()
       return
     }
-    swipe.positionChanged = { position in
-      track(position)
-    }
+    swipe.positionChanged = track
     swipe.settled = { index in
       animate(to: index) {
         guard terminal.spaces.indices.contains(index) else { return }
@@ -102,19 +100,17 @@ struct SpaceSidebarPagerView: View {
   }
 
   private func track(_ position: SpaceSwipeController.PagingPosition) {
-    let indices = spannedIndices(from: position.fractionalIndex, to: position.fractionalIndex)
+    let fraction = position.fractionalIndex
+    let indices = spannedIndices(from: fraction, to: fraction)
     if mountedIndices != indices {
-      warm(indices)
-      mountedIndices = indices
+      mount(indices)
     }
-    self.position = position.fractionalIndex
+    self.position = fraction
   }
 
   private func animate(to index: Int, commit: @escaping () -> Void) {
     let start = position ?? Double(displayedIndex)
-    let indices = spannedIndices(from: start, to: Double(index))
-    warm(indices)
-    mountedIndices = indices
+    mount(spannedIndices(from: start, to: Double(index)))
     position = start
     Task { @MainActor in
       await Task.yield()
@@ -135,10 +131,11 @@ struct SpaceSidebarPagerView: View {
     return (lower...upper).filter { terminal.spaces.indices.contains($0) }
   }
 
-  private func warm(_ indices: [Int]) {
+  private func mount(_ indices: [Int]) {
     for index in indices {
       terminal.warmInstance(for: terminal.spaces[index].id)
     }
+    mountedIndices = indices
   }
 }
 

@@ -75,11 +75,8 @@ enum SPTreeRenderer {
   private static func renderPlain(_ snapshot: SPTreeSnapshot) -> String {
     snapshot.windows.flatMap { window in
       window.spaces.flatMap { space in
-        let spaceSelector = "\(space.index)"
-        let spaceFlags =
-          [space.color.rawValue] + (space.isDisplayed ? ["displayed"] : [])
-          + (space.isWarm ? [] : ["cold"])
-        let spaceLine = "\(spaceSelector)\tspace\t\(space.name)\t\(spaceFlags.joined(separator: ","))"
+        let spaceFlags = spaceLabels(space).joined(separator: ",")
+        let spaceLine = "\(space.index)\tspace\t\(space.name)\t\(spaceFlags)"
 
         let rootLines = space.rootItems.flatMap { item -> [String] in
           switch item {
@@ -234,6 +231,10 @@ enum SPTreeRenderer {
   }
 
   private static func spaceLine(_ space: SPTreeSnapshot.Space) -> String {
+    "space \(space.index) \"\(space.name)\" [\(spaceLabels(space).joined(separator: ", "))]"
+  }
+
+  private static func spaceLabels(_ space: SPTreeSnapshot.Space) -> [String] {
     var labels = [space.color.rawValue]
     if space.isDisplayed {
       labels.append("displayed")
@@ -241,7 +242,7 @@ enum SPTreeRenderer {
     if !space.isWarm {
       labels.append("cold")
     }
-    return "space \(space.index) \"\(space.name)\" [\(labels.joined(separator: ", "))]"
+    return labels
   }
 
   private static func tabLine(_ tab: SPTreeSnapshot.Tab) -> String {

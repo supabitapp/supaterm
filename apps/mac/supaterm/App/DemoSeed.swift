@@ -122,12 +122,12 @@
           nodes: nodes,
           groups: groups,
           collapsedGroupIDs: collapsedGroupIDs,
-          tabs: roots.flatMap(\.tabs).map(\.session)
+          tabs: tabs.map(\.session)
         )
       }
 
-      var directories: [String] {
-        roots.flatMap(\.tabs).map(\.directory)
+      var tabs: [TabSeed] {
+        roots.flatMap(\.tabs)
       }
 
       private var nodes: [TerminalTabNodeSession] {
@@ -357,7 +357,7 @@
     )
 
     private static func prepareWorkspaceDirectories() {
-      for directory in Set(spaces.flatMap(\.directories)) {
+      for directory in Set(spaces.flatMap(\.tabs).map(\.directory)) {
         try? FileManager.default.createDirectory(
           at: workspaceRoot.appendingPathComponent(directory, isDirectory: true),
           withIntermediateDirectories: true

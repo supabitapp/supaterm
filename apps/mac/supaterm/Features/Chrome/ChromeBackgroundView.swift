@@ -4,15 +4,15 @@ import SwiftUI
 struct ChromeBackgroundView: View {
   let palette: Palette
 
-  @State private var outgoingPalette: Palette?
+  @State private var outgoingTint: ThemeTint?
   @State private var tintOpacity: Double = 1
 
   var body: some View {
     WindowBackgroundEffectView()
       .overlay {
         ZStack {
-          if let outgoingPalette {
-            tintLayers(outgoingPalette)
+          if let outgoingTint {
+            tintLayers(palette.tinted(outgoingTint))
           }
           tintLayers(palette)
             .opacity(tintOpacity)
@@ -43,14 +43,14 @@ struct ChromeBackgroundView: View {
   }
 
   private func crossfade(from previousTint: ThemeTint) {
-    outgoingPalette = palette.tinted(previousTint)
+    outgoingTint = previousTint
     tintOpacity = 0
     Task { @MainActor in
       await Task.yield()
       withAnimation(.easeInOut(duration: Self.tintCrossfadeDuration)) {
         tintOpacity = 1
       } completion: {
-        outgoingPalette = nil
+        outgoingTint = nil
       }
     }
   }

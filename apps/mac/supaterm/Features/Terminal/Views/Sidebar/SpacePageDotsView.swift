@@ -59,20 +59,13 @@ struct SpacePageDotsView: View {
     .accessibilityLabel("Space \(space.name)")
     .accessibilityIdentifier(TerminalSidebarAccessibilityIdentifier.spaceDot(space.id))
     .contextMenu {
-      Button {
+      Button("Edit Space", systemImage: "textformat") {
         _ = store.send(.spaceRenameRequested(space))
-      } label: {
-        Label("Edit Space", systemImage: "textformat")
       }
-
-      Button {
+      Button("New Tab Here", systemImage: "plus") {
         _ = store.send(.newTabInSpaceRequested(space.id))
-      } label: {
-        Label("New Tab Here", systemImage: "plus")
       }
-
       Divider()
-
       Button(role: .destructive) {
         _ = store.send(.spaceDeleteRequested(space))
       } label: {

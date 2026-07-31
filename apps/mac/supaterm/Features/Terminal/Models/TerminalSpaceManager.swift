@@ -67,15 +67,17 @@ final class TerminalSpaceManager {
     }
   }
 
-  @discardableResult
-  func registerColdInstance(_ session: TerminalSpaceSession) -> Bool {
-    guard spaces.contains(where: { $0.id == session.spaceID }) else { return false }
-    guard instancesBySpaceID[session.spaceID] == nil else { return false }
+  func registerColdInstance(_ session: TerminalSpaceSession) {
+    guard
+      spaces.contains(where: { $0.id == session.spaceID }),
+      instancesBySpaceID[session.spaceID] == nil
+    else {
+      return
+    }
     instancesBySpaceID[session.spaceID] = TerminalSpaceInstance(
       spaceID: session.spaceID,
       pendingSession: session
     )
-    return true
   }
 
   @discardableResult

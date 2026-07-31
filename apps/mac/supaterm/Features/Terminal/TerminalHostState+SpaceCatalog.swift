@@ -51,7 +51,7 @@ extension TerminalHostState {
     createTab(in: spaceID, focusing: false, synchronizesFocus: false)
   }
 
-  func warmedSpace(_ spaceID: TerminalSpaceID) -> TerminalSpaceItem? {
+  func space(warming spaceID: TerminalSpaceID) -> TerminalSpaceItem? {
     guard let space = spaceManager.space(for: spaceID) else { return nil }
     warmInstance(for: spaceID)
     return space

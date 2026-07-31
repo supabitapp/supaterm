@@ -122,25 +122,27 @@ extension SP {
     var options: SPCommandOptions
 
     mutating func run() throws {
-      let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-      if trimmedName.isEmpty {
-        throw ValidationError("Space names must not be empty.")
-      }
-      let color = color
+      try validate()
       try runControlCommand(
         options: options,
-        request: { _ in
-          try .createSpace(
-            SupatermCreateSpaceRequest(
-              color: color,
-              name: trimmedName,
-              context: SupatermCLIContext.current
-            )
-          )
-        },
+        request: { _ in try .createSpace(requestPayload()) },
         as: SupatermCreateSpaceResult.self,
         plain: { plainSpaceSelector(spaceIndex: $0.target.spaceIndex) },
         human: { render($0) }
+      )
+    }
+
+    func validate() throws {
+      guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        throw ValidationError("Space names must not be empty.")
+      }
+    }
+
+    private func requestPayload() -> SupatermCreateSpaceRequest {
+      SupatermCreateSpaceRequest(
+        color: color,
+        name: name,
+        context: SupatermCLIContext.current
       )
     }
   }
@@ -1180,11 +1182,14 @@ private func plainSpaceRow(
   _ space: SupatermTreeSnapshot.Space,
   in window: SupatermTreeSnapshot.Window
 ) -> String {
-  let flags =
-    [space.color.rawValue] + (space.id == window.displayedSpaceID ? ["displayed"] : [])
-    + (space.isWarm ? [] : ["cold"])
-  return "\(space.index)\t\(space.id.uuidString.lowercased())\t\(space.name)"
-    + "\t\(flags.joined(separator: ","))"
+  var flags = [space.color.rawValue]
+  if space.id == window.displayedSpaceID {
+    flags.append("displayed")
+  }
+  if !space.isWarm {
+    flags.append("cold")
+  }
+  return "\(space.index)\t\(space.id.uuidString.lowercased())\t\(space.name)\t\(flags.joined(separator: ","))"
 }
 
 private func humanSpaceRow(

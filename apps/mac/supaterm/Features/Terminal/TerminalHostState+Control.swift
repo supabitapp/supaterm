@@ -741,7 +741,7 @@ extension TerminalHostState {
 
   func resolveSpaceTarget(_ target: TerminalSpaceTarget) throws -> ResolvedCreateTabTarget {
     let spaceID = TerminalSpaceID(rawValue: target.spaceID)
-    guard let space = warmedSpace(spaceID) else {
+    guard let space = space(warming: spaceID) else {
       throw TerminalControlError.contextPaneNotFound
     }
     return ResolvedCreateTabTarget(

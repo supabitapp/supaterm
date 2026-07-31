@@ -320,7 +320,7 @@ extension TerminalHostState {
 
     case .space(let rawSpaceID):
       let spaceID = TerminalSpaceID(rawValue: rawSpaceID)
-      guard let space = warmedSpace(spaceID) else {
+      guard let space = space(warming: spaceID) else {
         throw TerminalCreateTabError.contextPaneNotFound
       }
       return ResolvedCreateTabTarget(
@@ -332,7 +332,7 @@ extension TerminalHostState {
     case .root(let rawSpaceID):
       let spaceID = TerminalSpaceID(rawValue: rawSpaceID)
       guard
-        let space = warmedSpace(spaceID),
+        let space = space(warming: spaceID),
         let manager = spaceManager.tabManager(for: spaceID)
       else {
         throw TerminalCreateTabError.contextPaneNotFound

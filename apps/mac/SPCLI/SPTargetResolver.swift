@@ -556,11 +556,11 @@ func resolvePublicSpaceTarget(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SupatermSpaceTargetRequest {
-  let index = SPTreeIndex(snapshot: snapshot)
-  let location =
-    try reference.map {
-      try resolveSpaceLocation($0, context: context, index: index)
-    } ?? index.ambientSpaceLocation(context: context)
+  let location = try resolveSpaceLocation(
+    orAmbient: reference,
+    context: context,
+    index: SPTreeIndex(snapshot: snapshot)
+  )
   return .init(spaceID: location.id, context: context)
 }
 
@@ -613,11 +613,11 @@ func resolvePublicNewTabPlacement(
 
   switch group {
   case .root:
-    let index = SPTreeIndex(snapshot: snapshot)
-    let location =
-      try space.map {
-        try resolveSpaceLocation($0, context: context, index: index)
-      } ?? index.ambientSpaceLocation(context: context)
+    let location = try resolveSpaceLocation(
+      orAmbient: space,
+      context: context,
+      index: SPTreeIndex(snapshot: snapshot)
+    )
     return .root(location.id)
 
   case .group(let reference):
@@ -680,6 +680,17 @@ func resolvePublicMoveTabRequest(
     index: destinationIndex,
     target: .init(tabID: tabLocation.id)
   )
+}
+
+private func resolveSpaceLocation(
+  orAmbient reference: SPSpaceReference?,
+  context: SupatermCLIContext?,
+  index: SPTreeIndex
+) throws -> SPSpaceLocation {
+  guard let reference else {
+    return try index.ambientSpaceLocation(context: context)
+  }
+  return try resolveSpaceLocation(reference, context: context, index: index)
 }
 
 private func resolveSpaceLocation(
@@ -823,11 +834,11 @@ func resolvePublicTabNavigationRequest(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SupatermTabNavigationRequest {
-  let index = SPTreeIndex(snapshot: snapshot)
-  let location =
-    try reference.map {
-      try resolveSpaceLocation($0, context: context, index: index)
-    } ?? index.ambientSpaceLocation(context: context)
+  let location = try resolveSpaceLocation(
+    orAmbient: reference,
+    context: context,
+    index: SPTreeIndex(snapshot: snapshot)
+  )
   return .init(spaceID: location.id, context: context)
 }
 
