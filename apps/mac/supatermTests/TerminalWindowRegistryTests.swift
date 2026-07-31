@@ -1404,11 +1404,10 @@ private func registerWindow(
   )
   let window = makeWindow()
   registry.updateWindow(window, for: id)
-  return RegisteredWindow(id: id, terminal: host, window: window)
+  return RegisteredWindow(terminal: host, window: window)
 }
 
 private struct RegisteredWindow {
-  let id: UUID
   let terminal: TerminalHostState
   let window: NSWindow
 }
