@@ -107,14 +107,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     terminalWindowRegistry.onChange = { [weak menuController] in
       menuController?.refresh()
     }
-    terminalWindowRegistry.onCreateWindow = { [weak self] spaceID, focus in
-      guard let self else { return }
-      let controller = createWindow(spaceID: spaceID)
-      if focus {
-        activateForWindowPresentation()
-        controller.window?.makeKeyAndOrderFront(nil)
-      }
-    }
     menuController.setNewWindowAction { [weak self] in
       self?.performNewWindow() ?? false
     }

@@ -13,7 +13,7 @@ import Testing
 @MainActor
 struct TerminalCommandExecutorTests {
   @Test
-  func createSpaceCreatesOneWindowAndHonorsFocus() throws {
+  func createSpaceAppendsToTheCatalogAndHonorsFocus() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -33,18 +33,6 @@ struct TerminalCommandExecutorTests {
         spaceID: initialSpace.id,
         isKey: true
       )
-      var createdWindows: [SpaceCommandWindow] = []
-      var focusRequests: [Bool] = []
-      registry.onCreateWindow = { spaceID, focus in
-        createdWindows.append(
-          registerSpaceCommandWindow(
-            in: registry,
-            spaceID: spaceID,
-            isKey: focus
-          )
-        )
-        focusRequests.append(focus)
-      }
 
       let unfocused = try commandExecutor.createSpace(
         TerminalCreateSpaceRequest(
@@ -56,11 +44,11 @@ struct TerminalCommandExecutorTests {
       )
 
       #expect(catalog.defaultSelectedSpaceID == initialSpace.id)
-      #expect(focusRequests == [false])
-      #expect(unfocused.target.windowIndex == 2)
-      #expect(unfocused.target.spaceIndex == 1)
+      #expect(registry.activeEntries().count == 1)
+      #expect(unfocused.target.windowIndex == 1)
+      #expect(unfocused.target.spaceIndex == 2)
       #expect(unfocused.target.name == "Background")
-      #expect(unfocused.isSelectedSpace)
+      #expect(!unfocused.isSelectedSpace)
       #expect(!unfocused.isFocused)
 
       let focused = try commandExecutor.createSpace(
@@ -73,14 +61,16 @@ struct TerminalCommandExecutorTests {
       )
 
       #expect(catalog.defaultSelectedSpaceID.rawValue == focused.target.spaceID)
-      #expect(focusRequests == [false, true])
-      #expect(focused.target.windowIndex == 3)
-      withExtendedLifetime([initialWindow.window] + createdWindows.map(\.window)) {}
+      #expect(registry.activeEntries().count == 1)
+      #expect(focused.target.windowIndex == 1)
+      #expect(focused.target.spaceIndex == 3)
+      #expect(focused.isSelectedSpace)
+      withExtendedLifetime(initialWindow.window) {}
     }
   }
 
   @Test
-  func spaceCommandsRouteBetweenFixedSpaceWindows() throws {
+  func spaceCommandsSwitchWindowsInPlace() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -107,6 +97,7 @@ struct TerminalCommandExecutorTests {
         )
       )
       #expect(renamed.name == "Build")
+      #expect(renamed.spaceIndex == 2)
       #expect(catalog.spaces.map(\.name) == ["First", "Build"])
 
       let selected = try commandExecutor.selectSpace(
@@ -119,6 +110,7 @@ struct TerminalCommandExecutorTests {
         TerminalSpaceNavigationRequest(spaceID: spaces[1].id.rawValue)
       )
       #expect(previous.target.spaceID == spaces[0].id.rawValue)
+      #expect(second.terminal.displayedSpaceID == spaces[0].id)
 
       let last = try commandExecutor.lastSpace(
         TerminalSpaceNavigationRequest(spaceID: spaces[0].id.rawValue)
@@ -134,8 +126,11 @@ struct TerminalCommandExecutorTests {
         TerminalSpaceTarget(spaceID: spaces[1].id.rawValue)
       )
       #expect(closed.spaceID == spaces[1].id.rawValue)
-      #expect(closedSecondWindow)
+      #expect(!closedSecondWindow)
+      #expect(registry.activeEntries().count == 2)
       #expect(catalog.spaces.map(\.id) == [spaces[0].id])
+      #expect(first.terminal.displayedSpaceID == spaces[0].id)
+      #expect(second.terminal.displayedSpaceID == spaces[0].id)
       withExtendedLifetime([first.window, second.window]) {}
     }
   }
@@ -696,10 +691,11 @@ private func registerSpaceCommandWindow(
   )
   let window = makeWindow()
   registry.updateWindow(window, for: windowControllerID)
-  return SpaceCommandWindow(paneID: host.selectedSurfaceView!.id, window: window)
+  return SpaceCommandWindow(paneID: host.selectedSurfaceView!.id, terminal: host, window: window)
 }
 
 private struct SpaceCommandWindow {
   let paneID: UUID
+  let terminal: TerminalHostState
   let window: NSWindow
 }

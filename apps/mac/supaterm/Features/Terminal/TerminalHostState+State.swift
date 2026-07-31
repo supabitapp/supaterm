@@ -7,16 +7,12 @@ import SupatermCLIShared
 import SwiftUI
 
 extension TerminalHostState {
-  var availableSpaces: [TerminalSpaceItem] {
-    TerminalSpaceCatalog.sanitized(spaceCatalog).spaces
-  }
-
   var spaces: [TerminalSpaceItem] {
     spaceManager.spaces
   }
 
-  var selectedSpaceID: TerminalSpaceID? {
-    spaceManager.selectedSpaceID
+  var displayedSpaceID: TerminalSpaceID {
+    spaceManager.displayedSpaceID
   }
 
   var tabs: [TerminalTabItem] {
@@ -28,8 +24,7 @@ extension TerminalHostState {
   }
 
   var selectedSpaceTopologyRevision: UInt64 {
-    guard let selectedSpaceID else { return 0 }
-    return spaceManager.tabManager(for: selectedSpaceID)?.topologyRevision ?? 0
+    spaceManager.tabManager.topologyRevision
   }
 
   var visibleTabs: [TerminalTabItem] {
@@ -37,13 +32,11 @@ extension TerminalHostState {
   }
 
   var collapsedTabGroupIDs: Set<TerminalTabGroupID> {
-    guard let selectedSpaceID else { return [] }
-    return collapsedTabGroupIDsBySpace[selectedSpaceID] ?? []
+    spaceManager.displayedInstance.collapsedTabGroupIDs
   }
 
   func isPinned(_ tabID: TerminalTabID) -> Bool {
-    guard let space = spaceManager.space(for: tabID) else { return false }
-    return spaceManager.tabManager(for: space.id)?.isPinned(tabID) == true
+    spaceManager.instance(for: tabID)?.tabManager.isPinned(tabID) == true
   }
 
   var hasUnreadSidebarNotifications: Bool {

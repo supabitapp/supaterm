@@ -31,10 +31,7 @@ extension TerminalHostState {
     at placement: TerminalTabPlacement? = nil,
     sessionChangesEnabled: Bool = true
   ) -> TerminalTabID? {
-    guard let target = resolveLocalCreateTabTarget(inheritingFromSurfaceID: inheritingFromSurfaceID)
-    else {
-      return nil
-    }
+    let target = resolveLocalCreateTabTarget(inheritingFromSurfaceID: inheritingFromSurfaceID)
     return createTab(
       in: target.spaceID,
       focusing: focusing,
@@ -77,7 +74,7 @@ extension TerminalHostState {
       return nil
     }
     if focusing, case .group(let groupID, _) = resolvedPlacement {
-      collapsedTabGroupIDsBySpace[spaceID]?.remove(groupID)
+      spaceManager.instance(for: spaceID)?.collapsedTabGroupIDs.remove(groupID)
     }
     let tree = splitTree(
       for: tabID,
@@ -107,14 +104,13 @@ extension TerminalHostState {
     inheritingFromSurfaceID: UUID? = nil
   ) -> TerminalTabID? {
     guard
-      let space = spaceManager.space(for: groupID),
-      let tabManager = spaceManager.tabManager(for: space.id),
-      let group = tabManager.group(for: groupID)
+      let instance = spaceManager.instance(for: groupID),
+      let group = instance.tabManager.group(for: groupID)
     else {
       return nil
     }
     return createTab(
-      in: space.id,
+      in: instance.spaceID,
       focusing: focusing,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
       at: .group(groupID, index: group.tabs.count)
@@ -270,7 +266,7 @@ extension TerminalHostState {
   }
 
   func currentFocusedSurfaceID() -> UUID? {
-    guard let selectedTabID = spaceManager.selectedTabID else { return nil }
+    guard let selectedTabID else { return nil }
     return focusHistoryByTab[selectedTabID]?.current
   }
 
@@ -318,7 +314,7 @@ extension TerminalHostState {
 
     case .space(let rawSpaceID):
       let spaceID = TerminalSpaceID(rawValue: rawSpaceID)
-      guard let space = spaces.first(where: { $0.id == spaceID }) else {
+      guard let space = spaceManager.space(for: spaceID) else {
         throw TerminalCreateTabError.contextPaneNotFound
       }
       return ResolvedCreateTabTarget(
@@ -330,7 +326,7 @@ extension TerminalHostState {
     case .root(let rawSpaceID):
       let spaceID = TerminalSpaceID(rawValue: rawSpaceID)
       guard
-        let space = spaces.first(where: { $0.id == spaceID }),
+        let space = spaceManager.space(for: spaceID),
         let manager = spaceManager.tabManager(for: spaceID)
       else {
         throw TerminalCreateTabError.contextPaneNotFound
@@ -346,9 +342,9 @@ extension TerminalHostState {
     case .group(let rawGroupID):
       let groupID = TerminalTabGroupID(rawValue: rawGroupID)
       guard
-        let space = spaceManager.space(for: groupID),
-        let manager = spaceManager.tabManager(for: space.id),
-        let group = manager.group(for: groupID)
+        let instance = spaceManager.instance(for: groupID),
+        let space = spaceManager.space(for: instance.spaceID),
+        let group = instance.tabManager.group(for: groupID)
       else {
         throw TerminalCreateTabError.contextPaneNotFound
       }
@@ -362,24 +358,20 @@ extension TerminalHostState {
 
   func resolveLocalCreateTabTarget(
     inheritingFromSurfaceID: UUID?
-  ) -> ResolvedLocalCreateTabTarget? {
+  ) -> ResolvedLocalCreateTabTarget {
     if let inheritingFromSurfaceID,
       let anchorTabID = tabID(containing: inheritingFromSurfaceID),
-      let space = spaceManager.space(for: anchorTabID)
+      let instance = spaceManager.instance(for: anchorTabID)
     {
       return ResolvedLocalCreateTabTarget(
         inheritedSurfaceID: inheritingFromSurfaceID,
-        spaceID: space.id
+        spaceID: instance.spaceID
       )
-    }
-
-    guard let spaceID = spaceManager.selectedSpaceID else {
-      return nil
     }
 
     return ResolvedLocalCreateTabTarget(
       inheritedSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
-      spaceID: spaceID
+      spaceID: displayedSpaceID
     )
   }
 
@@ -390,7 +382,7 @@ extension TerminalHostState {
     case .pane(let paneID):
       guard
         let tabID = tabID(containing: paneID),
-        let space = spaceManager.space(for: tabID),
+        let instance = spaceManager.instance(for: tabID),
         let tree = trees[tabID],
         let anchorSurface = surfaces[paneID]
       else {
@@ -399,7 +391,7 @@ extension TerminalHostState {
 
       return ResolvedCreatePaneTarget(
         anchorSurface: anchorSurface,
-        spaceID: space.id,
+        spaceID: instance.spaceID,
         tabID: tabID,
         tree: tree
       )
@@ -407,7 +399,7 @@ extension TerminalHostState {
     case .tab(let rawTabID):
       let tabID = TerminalTabID(rawValue: rawTabID)
       guard
-        let space = spaceManager.space(for: tabID),
+        let instance = spaceManager.instance(for: tabID),
         let tree = trees[tabID]
       else {
         throw TerminalCreatePaneError.contextPaneNotFound
@@ -421,7 +413,7 @@ extension TerminalHostState {
 
       return ResolvedCreatePaneTarget(
         anchorSurface: anchorSurface,
-        spaceID: space.id,
+        spaceID: instance.spaceID,
         tabID: tabID,
         tree: tree
       )

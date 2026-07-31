@@ -38,7 +38,7 @@ extension TerminalHostState {
           id: space.id.rawValue,
           name: space.name,
           color: space.color.socketColor,
-          isSelected: space.id == selectedSpaceID,
+          isSelected: space.id == displayedSpaceID,
           rootItems: spaceManager.rootItems(in: space.id).map {
             treeRootItemSnapshot($0, spaceID: space.id)
           }
@@ -59,7 +59,7 @@ extension TerminalHostState {
           id: space.id.rawValue,
           name: space.name,
           color: space.color.socketColor,
-          isSelected: space.id == selectedSpaceID,
+          isSelected: space.id == displayedSpaceID,
           rootItems: spaceManager.rootItems(in: space.id).map {
             debugRootItemSnapshot($0, spaceID: space.id)
           }
@@ -111,7 +111,7 @@ extension TerminalHostState {
     SupatermTreeSnapshot.Group(
       color: group.color.socketColor,
       id: group.id.rawValue,
-      isCollapsed: collapsedTabGroupIDsBySpace[spaceID]?.contains(group.id) == true,
+      isCollapsed: isGroupCollapsed(group.id, in: spaceID),
       isPinned: group.isPinned,
       title: group.title,
       tabs: group.tabs.map { treeTabSnapshot($0, spaceID: spaceID) }
@@ -135,7 +135,7 @@ extension TerminalHostState {
         SupatermAppDebugSnapshot.Group(
           color: group.color.socketColor,
           id: group.id.rawValue,
-          isCollapsed: collapsedTabGroupIDsBySpace[spaceID]?.contains(group.id) == true,
+          isCollapsed: isGroupCollapsed(group.id, in: spaceID),
           isPinned: group.isPinned,
           title: group.title,
           tabs: group.tabs.map { debugTabSnapshot($0, spaceID: spaceID) }
@@ -190,15 +190,14 @@ extension TerminalHostState {
       trees[resolvedTarget.tabID] = finalTree
       updateRunningState(for: resolvedTarget.tabID)
 
+      let currentSelectedTabID = spaceManager.selectedTabID(in: resolvedTarget.spaceID)
       let nextSelectedTabID = Self.selectedTabID(
         afterCreatingPaneIn: resolvedTarget.tabID,
         focusRequested: request.focus,
-        currentSelectedTabID: spaceManager.selectedTabID
+        currentSelectedTabID: currentSelectedTabID
       )
-      if let nextSelectedTabID, nextSelectedTabID != spaceManager.selectedTabID {
-        if let space = spaceManager.space(for: nextSelectedTabID) {
-          applySelectedTab(nextSelectedTabID, in: space.id)
-        }
+      if let nextSelectedTabID, nextSelectedTabID != currentSelectedTabID {
+        applySelectedTab(nextSelectedTabID, in: resolvedTarget.spaceID)
       }
 
       if request.focus {
@@ -215,7 +214,7 @@ extension TerminalHostState {
         tree: finalTree
       )
       let selectionState = Self.newPaneSelectionState(
-        selectedTabID: spaceManager.selectedTabID,
+        selectedTabID: selectedTabID,
         targetTabID: resolvedTarget.tabID,
         windowActivity: windowActivity,
         focusedSurfaceID: focusHistoryByTab[resolvedTarget.tabID]?.current,
@@ -249,7 +248,7 @@ extension TerminalHostState {
 
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
     let resolvedTarget = try resolveCreateTabTarget(request.target)
-    let currentSelectedTabID = spaceManager.selectedTabID
+    let currentSelectedTabID = spaceManager.selectedTabID(in: resolvedTarget.space.id)
     let placement = resolvedTarget.placement
     var createdTabID: TerminalTabID?
 
@@ -296,19 +295,17 @@ extension TerminalHostState {
         throw TerminalCreateTabError.creationFailed
       }
 
-      let selectionState = Self.newTabSelectionState(
-        NewTabSelectionInput(
-          selectedTabID: spaceManager.selectedTabID,
-          targetTabID: tabID,
-          windowActivity: windowActivity,
-          focusedSurfaceID: focusHistoryByTab[tabID]?.current,
-          surfaceID: surfaceID
-        )
+      let selectionState = Self.newPaneSelectionState(
+        selectedTabID: selectedTabID,
+        targetTabID: tabID,
+        windowActivity: windowActivity,
+        focusedSurfaceID: focusHistoryByTab[tabID]?.current,
+        surfaceID: surfaceID
       )
 
       return SupatermNewTabResult(
         isFocused: selectionState.isFocused,
-        isSelectedSpace: selectionState.isSelectedSpace,
+        isSelectedSpace: resolvedTarget.space.id == displayedSpaceID,
         isSelectedTab: selectionState.isSelectedTab,
         windowIndex: 1,
         spaceIndex: spaceIndex,
@@ -678,7 +675,7 @@ extension TerminalHostState {
 
   func lastTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
     let spaceID = try resolvedNavigationSpaceID(request)
-    guard let tabID = previousSelectedTabIDBySpace[spaceID] else {
+    guard let tabID = spaceManager.instance(for: spaceID)?.previousSelectedTabID else {
       throw TerminalControlError.lastTabNotFound
     }
     applySelectedTab(tabID, in: spaceID)
@@ -695,7 +692,7 @@ extension TerminalHostState {
 
   func resolveSpaceTarget(_ target: TerminalSpaceTarget) throws -> ResolvedCreateTabTarget {
     let spaceID = TerminalSpaceID(rawValue: target.spaceID)
-    guard let space = spaces.first(where: { $0.id == spaceID }) else {
+    guard let space = spaceManager.space(for: spaceID) else {
       throw TerminalControlError.contextPaneNotFound
     }
     return ResolvedCreateTabTarget(
@@ -715,10 +712,10 @@ extension TerminalHostState {
 
   func resolveTabItemTarget(_ target: TerminalTabTarget) throws -> ResolvedTabItemTarget {
     let tabID = TerminalTabID(rawValue: target.tabID)
-    guard let space = spaceManager.space(for: tabID) else {
+    guard let instance = spaceManager.instance(for: tabID) else {
       throw TerminalControlError.contextPaneNotFound
     }
-    return ResolvedTabItemTarget(spaceID: space.id, tabID: tabID)
+    return ResolvedTabItemTarget(spaceID: instance.spaceID, tabID: tabID)
   }
 
   func resolvePaneTarget(_ target: TerminalPaneTarget) throws -> ResolvedCreatePaneTarget {
@@ -733,17 +730,17 @@ extension TerminalHostState {
     -> TerminalSpaceID
   {
     let spaceID = TerminalSpaceID(rawValue: request.spaceID)
-    guard spaces.contains(where: { $0.id == spaceID }) else {
+    guard spaceManager.space(for: spaceID) != nil else {
       throw TerminalControlError.contextPaneNotFound
     }
     return spaceID
   }
 
   func spaceTarget(for spaceID: TerminalSpaceID) throws -> SupatermSpaceTarget {
-    guard let space = spaces.first(where: { $0.id == spaceID }) else {
-      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
-    }
-    guard let spaceIndex = spaceManager.spaceIndex(for: spaceID) else {
+    guard
+      let space = spaceManager.space(for: spaceID),
+      let spaceIndex = spaceManager.spaceIndex(for: spaceID)
+    else {
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
     }
     return SupatermSpaceTarget(
@@ -755,10 +752,10 @@ extension TerminalHostState {
   }
 
   func tabTarget(for tabID: TerminalTabID) throws -> SupatermTabTarget {
-    guard let space = spaceManager.space(for: tabID) else {
-      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
-    }
-    guard let spaceIndex = spaceManager.spaceIndex(for: space.id) else {
+    guard
+      let space = spaceManager.space(for: tabID),
+      let spaceIndex = spaceManager.spaceIndex(for: space.id)
+    else {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
     }
     let tabs = spaceManager.tabs(in: space.id)
@@ -859,7 +856,7 @@ extension TerminalHostState {
     )
     return SupatermSelectTabResult(
       isFocused: activity.isFocused,
-      isSelectedSpace: selectedSpaceID == space.id,
+      isSelectedSpace: displayedSpaceID == space.id,
       isSelectedTab: selectedTabID == tabID,
       isTitleLocked: spaceManager.tab(for: tabID)?.isTitleLocked == true,
       paneIndex: paneTarget.paneIndex,
@@ -911,7 +908,7 @@ extension TerminalHostState {
     )
     return SupatermSelectSpaceResult(
       isFocused: activity.isFocused,
-      isSelectedSpace: selectedSpaceID == spaceID,
+      isSelectedSpace: displayedSpaceID == spaceID,
       isSelectedTab: selectedTabID == tabID,
       paneIndex: paneTarget.paneIndex,
       paneID: paneTarget.paneID,
@@ -933,7 +930,7 @@ extension TerminalHostState {
       tree: resolvedTarget.tree
     )
     let selectionState = Self.newPaneSelectionState(
-      selectedTabID: spaceManager.selectedTabID,
+      selectedTabID: selectedTabID,
       targetTabID: resolvedTarget.tabID,
       windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[resolvedTarget.tabID]?.current,

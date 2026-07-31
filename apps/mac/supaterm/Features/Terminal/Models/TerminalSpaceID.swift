@@ -56,6 +56,11 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
     )
   }
 
+  func spaceID(adjacentTo spaceID: TerminalSpaceID, step: Int) -> TerminalSpaceID? {
+    guard let index = spaces.firstIndex(where: { $0.id == spaceID }) else { return nil }
+    return spaces[(index + step + spaces.count) % spaces.count].id
+  }
+
   static func sanitized(_ catalog: Self?) -> Self {
     guard let catalog else { return .default }
 

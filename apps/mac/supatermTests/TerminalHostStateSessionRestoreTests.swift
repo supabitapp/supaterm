@@ -167,7 +167,7 @@ struct TerminalHostStateSessionRestoreTests {
       let host = TerminalHostState()
       host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
-      let spaceID = try #require(host.selectedSpaceID)
+      let spaceID = host.displayedSpaceID
       let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
       host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
 
@@ -212,7 +212,7 @@ struct TerminalHostStateSessionRestoreTests {
 
       let restored = TerminalHostState()
       #expect(restored.restore(from: snapshot))
-      #expect(restored.selectedSpaceID == spaceID)
+      #expect(restored.displayedSpaceID == spaceID)
       #expect(restored.spaceManager.selectedTabID(in: spaceID) == firstTabID)
       #expect(restored.spaceManager.tabs(in: spaceID).map(\.id) == tabs.map(\.id))
       #expect(restored.collapsedTabGroupIDs == [groupID])

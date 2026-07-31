@@ -99,7 +99,7 @@ struct TerminalSidebarChromeView: View {
       },
       collapsedGroupIDs: terminal.collapsedTabGroupIDs,
       topologyRevision: terminal.selectedSpaceTopologyRevision,
-      spaceID: terminal.selectedSpaceID
+      spaceID: terminal.displayedSpaceID
     )
   }
 
@@ -209,7 +209,7 @@ struct TerminalSidebarChromeView: View {
   private func performDrop(
     _ command: TerminalSidebarDropCommand
   ) -> TerminalSidebarDropReceipt? {
-    guard command.topologyStamp.spaceID == terminal.selectedSpaceID else { return nil }
+    guard command.topologyStamp.spaceID == terminal.displayedSpaceID else { return nil }
     return try? TerminalSidebarDropReceipt(
       spaceID: command.topologyStamp.spaceID,
       result: terminal.move(

@@ -991,11 +991,14 @@ struct SupatermMenuControllerTests {
 
   private func assertSpacesMenu(_ menu: NSMenu?) throws {
     let spacesMenu = try #require(menu?.items.first(where: { $0.title == "Spaces" })?.submenu)
-    #expect(spacesMenu.items.count == 10)
-    #expect(spacesMenu.items[0].keyEquivalent == "1")
-    #expect(spacesMenu.items[0].keyEquivalentModifierMask == [.control])
-    #expect(spacesMenu.items[9].keyEquivalent == "0")
-    #expect(spacesMenu.items[9].keyEquivalentModifierMask == [.control])
+    #expect(spacesMenu.items.count == 13)
+    #expect(Array(spacesMenu.items.map(\.title).prefix(2)) == ["Next Space", "Previous Space"])
+    #expect(spacesMenu.items[0].keyEquivalentModifierMask == [.command, .control])
+    #expect(spacesMenu.items[1].keyEquivalentModifierMask == [.command, .control])
+    #expect(spacesMenu.items[3].keyEquivalent == "1")
+    #expect(spacesMenu.items[3].keyEquivalentModifierMask == [.control])
+    #expect(spacesMenu.items[12].keyEquivalent == "0")
+    #expect(spacesMenu.items[12].keyEquivalentModifierMask == [.control])
   }
 
   private func assertWindowMenu(_ menu: NSMenu?) throws {

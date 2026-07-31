@@ -72,6 +72,8 @@ final class SupatermMenuController: NSObject {
       "app.supabit.supaterm.tabs.jumpToLatestUnread")
     static let selectLastTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.last")
     static let selectTabPrefix = "app.supabit.supaterm.tabs.select."
+    static let nextSpace = NSUserInterfaceItemIdentifier("app.supabit.supaterm.spaces.next")
+    static let previousSpace = NSUserInterfaceItemIdentifier("app.supabit.supaterm.spaces.previous")
     static let selectSpacePrefix = "app.supabit.supaterm.spaces.select."
     static let zoomSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.zoomSplit")
     static let previousSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.previousSplit")
@@ -342,7 +344,10 @@ final class SupatermMenuController: NSObject {
     SupatermMenuSectionSpec(
       title: "Spaces",
       entries: [
-        .slots(prefix: MenuItemIdentifier.selectSpacePrefix)
+        .item(MenuItemIdentifier.nextSpace),
+        .item(MenuItemIdentifier.previousSpace),
+        .separator,
+        .slots(prefix: MenuItemIdentifier.selectSpacePrefix),
       ]
     )
   }
@@ -695,15 +700,29 @@ final class SupatermMenuController: NSObject {
   }
 
   private func spacesMenuSpecs() -> [SupatermMenuItemSpec] {
-    (1...10).map { slot in
+    [
       SupatermMenuItemSpec(
-        id: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)"),
-        title: "Space \(slot)",
-        action: #selector(selectSpace(_:)),
-        shortcut: .app(.selectSpace(slot)),
-        slot: slot
-      )
-    }
+        id: MenuItemIdentifier.nextSpace,
+        title: "Next Space",
+        action: #selector(nextSpace(_:)),
+        shortcut: .app(.nextSpace)
+      ),
+      SupatermMenuItemSpec(
+        id: MenuItemIdentifier.previousSpace,
+        title: "Previous Space",
+        action: #selector(previousSpace(_:)),
+        shortcut: .app(.previousSpace)
+      ),
+    ]
+      + (1...10).map { slot in
+        SupatermMenuItemSpec(
+          id: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)"),
+          title: "Space \(slot)",
+          action: #selector(selectSpace(_:)),
+          shortcut: .app(.selectSpace(slot)),
+          slot: slot
+        )
+      }
   }
 
   private func windowMenuSpecs() -> [SupatermMenuItemSpec] {
@@ -1153,6 +1172,14 @@ final class SupatermMenuController: NSObject {
     registry.requestSelectSpaceInKeyWindow(slot.intValue)
   }
 
+  @objc func nextSpace(_ sender: Any?) {
+    registry.requestNextSpaceInKeyWindow()
+  }
+
+  @objc func previousSpace(_ sender: Any?) {
+    registry.requestPreviousSpaceInKeyWindow()
+  }
+
   private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
     guard let item else { return }
     if !(NSApp.keyWindow?.firstResponder is GhosttySurfaceView) {
@@ -1401,6 +1428,11 @@ extension SupatermMenuController: NSMenuItemValidation {
     _ item: NSMenuItem,
     context: TerminalWindowRegistry.MenuContext
   ) -> Bool {
+    if item.identifier == MenuItemIdentifier.nextSpace
+      || item.identifier == MenuItemIdentifier.previousSpace
+    {
+      return context.availability.hasWindow && context.spaceCount > 1
+    }
     guard let identifier = item.identifier?.rawValue else { return true }
     if let slot = Int(identifier.replacingOccurrences(of: MenuItemIdentifier.selectTabPrefix, with: "")),
       identifier.hasPrefix(MenuItemIdentifier.selectTabPrefix)

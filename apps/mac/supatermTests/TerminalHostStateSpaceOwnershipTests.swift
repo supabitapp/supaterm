@@ -8,7 +8,7 @@ import Testing
 @MainActor
 struct TerminalHostStateSpaceOwnershipTests {
   @Test
-  func hostOwnsOneFixedSpace() async {
+  func hostSeesEveryCatalogSpaceAndDisplaysTheRequestedOne() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -20,21 +20,18 @@ struct TerminalHostStateSpaceOwnershipTests {
 
       let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
 
-      #expect(host.spaces == [spaces[0]])
-      #expect(host.selectedSpaceID == spaces[0].id)
-      #expect(host.availableSpaces == spaces)
+      #expect(host.spaces == spaces)
+      #expect(host.displayedSpaceID == spaces[0].id)
 
       $catalog.withLock {
-        $0.defaultSelectedSpaceID = spaces[1].id
         $0.spaces[0].name = "Renamed"
       }
       for _ in 0..<5 {
         await Task.yield()
       }
 
-      #expect(host.spaces.map(\.name) == ["Renamed"])
-      #expect(host.selectedSpaceID == spaces[0].id)
-      #expect(host.availableSpaces.map(\.name) == ["Renamed", "B"])
+      #expect(host.spaces.map(\.name) == ["Renamed", "B"])
+      #expect(host.displayedSpaceID == spaces[0].id)
     }
   }
 
@@ -51,7 +48,27 @@ struct TerminalHostStateSpaceOwnershipTests {
 
       let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: space.id)
 
-      #expect(host.spaceManager.space.color == .green)
+      #expect(host.spaceManager.displayedSpace.color == .green)
+    }
+  }
+
+  @Test
+  func displayingASpaceSwitchesInPlaceAndRemembersTheLastOne() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let spaces = [TerminalSpaceItem(name: "A"), TerminalSpaceItem(name: "B")]
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
+
+      #expect(host.displaySpace(spaces[1].id))
+      #expect(host.displayedSpaceID == spaces[1].id)
+      #expect(host.spaceManager.lastDisplayedSpaceID == spaces[0].id)
+      #expect(!host.displaySpace(TerminalSpaceID()))
     }
   }
 
@@ -84,7 +101,7 @@ struct TerminalHostStateSpaceOwnershipTests {
           .delete(otherSpaceID),
         ]
       )
-      #expect(host.selectedSpaceID != otherSpaceID)
+      #expect(host.displayedSpaceID != otherSpaceID)
     }
   }
 }

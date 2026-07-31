@@ -16,7 +16,7 @@ private struct TerminalRootSessionSnapshot {
 
 extension TerminalHostState {
   func restorationSnapshot() -> TerminalWindowSession {
-    let spaceID = selectedSpaceID ?? spaceCatalog.defaultSelectedSpaceID
+    let spaceID = displayedSpaceID
     var rootOrderByPinned = [true: 0, false: 0]
     var rootSnapshots: [TerminalRootSessionSnapshot] = []
     for item in spaceManager.rootItems(in: spaceID) {
@@ -37,7 +37,7 @@ extension TerminalHostState {
       nodes: rootSnapshots.flatMap(\.nodes),
       groups: rootSnapshots.compactMap(\.group),
       collapsedGroupIDs: rootSnapshots.compactMap(\.group).map(\.id).filter {
-        collapsedTabGroupIDsBySpace[spaceID]?.contains($0) == true
+        spaceManager.displayedInstance.collapsedTabGroupIDs.contains($0)
       },
       tabs: tabs
     )
@@ -141,7 +141,9 @@ extension TerminalHostState {
     from session: TerminalWindowSession
   ) -> RestoredTerminalSpace {
     let restoredSpace = restoredSpace(for: session)
-    collapsedTabGroupIDsBySpace[session.spaceID] = Set(session.collapsedGroupIDs)
+    spaceManager.instance(warming: session.spaceID).collapsedTabGroupIDs = Set(
+      session.collapsedGroupIDs
+    )
     _ = spaceManager.restoreRootItems(
       restoredSpace.rootItems,
       selectedTabID: session.selectedTabID,
@@ -219,8 +221,8 @@ extension TerminalHostState {
       return false
     }
 
-    guard selectedSpaceID == session.spaceID else {
-      logRestoreFailed(reason: "selectedSpaceMissing")
+    guard displayedSpaceID == session.spaceID else {
+      logRestoreFailed(reason: "displayedSpaceMissing")
       clearSessionState()
       return false
     }
@@ -255,14 +257,14 @@ extension TerminalHostState {
     )
   }
 
-  func logRestoreFinished(_ selectedSpaceID: TerminalSpaceID) {
+  func logRestoreFinished(_ displayedSpaceID: TerminalSpaceID) {
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.session.restore.finished",
       fields: [
-        "selectedSpaceID=\(SupatermLog.uuid(selectedSpaceID.rawValue))",
+        "displayedSpaceID=\(SupatermLog.uuid(displayedSpaceID.rawValue))",
         "selectedTabID=\(SupatermLog.uuid(self.selectedTabID?.rawValue))",
-        "tabs=\(spaces.reduce(0) { $0 + spaceManager.tabs(in: $1.id).count })",
+        "tabs=\(spaceManager.allTabs.count)",
         "surfaces=\(surfaces.count)",
       ]
     )
@@ -394,7 +396,7 @@ extension TerminalHostState {
   }
 
   func clearSessionState() {
-    let existingTabIDs = spaces.flatMap { spaceManager.tabs(in: $0.id).map(\.id) }
+    let existingTabIDs = spaceManager.allTabs.map(\.id)
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.session.clear",
@@ -404,14 +406,14 @@ extension TerminalHostState {
       ]
     )
     removeTrees(for: existingTabIDs, terminateSessions: false, source: .sessionClear)
-    for space in spaces {
-      _ = spaceManager.restoreRootItems([], selectedTabID: nil, in: space.id)
+    for instance in spaceManager.instances {
+      instance.tabManager.restoreRootItems([], selectedTabID: nil)
+      instance.collapsedTabGroupIDs.removeAll()
+      instance.previousSelectedTabID = nil
     }
-    collapsedTabGroupIDsBySpace.removeAll()
     for tabID in focusHistoryByTab.keys {
       focusHistoryByTab[tabID]?.previous = nil
     }
-    previousSelectedTabIDBySpace.removeAll()
     lastEmittedFocusSurfaceID = nil
   }
 
@@ -437,8 +439,8 @@ extension TerminalHostState {
       SupatermLog.terminal,
       "terminal.session.didChange",
       fields: [
-        "spaces=\(spaces.count)",
-        "tabs=\(spaces.reduce(0) { $0 + spaceManager.tabs(in: $1.id).count })",
+        "spaces=\(spaceManager.instances.count)",
+        "tabs=\(spaceManager.allTabs.count)",
         "surfaces=\(surfaces.count)",
       ]
     )
