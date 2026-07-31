@@ -683,13 +683,14 @@ private func exerciseSpaceCommands(
     from: try requireSuccessfulSPResult(
       try runner.run(
         [
-          "space", "new", "--socket", app.socketPath, "--json", "--focus",
+          "space", "new", "--socket", app.socketPath, "--json",
           "cli-space-\(space.token)",
         ],
         cwd: space.directory
       )
     )
   )
+  #expect(created.isSelectedSpace)
   let createdRunner = spRunner(app, tabID: created.tabID, paneID: created.paneID)
   try await app.waitForShellPrompt(SupatermPaneTargetRequest(paneID: created.paneID))
 
