@@ -3,18 +3,13 @@ import SupaTheme
 import SwiftUI
 
 enum SpacePageDotMetrics {
-  static let restDiameter: CGFloat = 6
-  static let displayedDiameter: CGFloat = 8
+  static let diameter: CGFloat = 6
   static let slot: CGFloat = 10
   static let restOpacity: Double = 0.3
   static let displayedOpacity: Double = 0.9
 
   static func emphasis(at index: Int, position: Double) -> Double {
     max(0, 1 - abs(position - Double(index)))
-  }
-
-  static func diameter(emphasis: Double) -> CGFloat {
-    restDiameter + (displayedDiameter - restDiameter) * emphasis
   }
 
   static func opacity(emphasis: Double) -> Double {
@@ -50,13 +45,12 @@ struct SpacePageDotsView: View {
 
   private func dot(_ space: TerminalSpaceItem, at index: Int) -> some View {
     let emphasis = SpacePageDotMetrics.emphasis(at: index, position: selectionPosition)
-    let diameter = SpacePageDotMetrics.diameter(emphasis: emphasis)
     return Button {
       select(space, at: index)
     } label: {
       Circle()
         .fill(palette.primaryText.opacity(SpacePageDotMetrics.opacity(emphasis: emphasis)))
-        .frame(width: diameter, height: diameter)
+        .frame(width: SpacePageDotMetrics.diameter, height: SpacePageDotMetrics.diameter)
         .frame(width: SpacePageDotMetrics.slot, height: SpacePageDotMetrics.slot)
         .contentShape(.rect)
     }
@@ -104,9 +98,7 @@ struct SpacePageDotsView: View {
   }
 
   private func select(_ space: TerminalSpaceItem, at index: Int) {
-    let step = index - displayedIndex
-    guard step != 0 else { return }
-    if abs(step) == 1, terminal.pageSpace(by: step) { return }
+    guard index != displayedIndex else { return }
     _ = store.send(.selectSpaceButtonTapped(space.id))
   }
 }

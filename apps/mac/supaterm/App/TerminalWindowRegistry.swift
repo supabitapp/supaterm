@@ -169,7 +169,7 @@ final class TerminalWindowRegistry {
   @discardableResult
   func selectSpace(_ spaceID: TerminalSpaceID, in windowControllerID: UUID? = nil) -> Bool {
     let entry = windowControllerID.flatMap(entry(forWindowControllerID:)) ?? preferredActiveEntry()
-    guard let entry, entry.terminal.displaySpace(spaceID) else { return false }
+    guard let entry, entry.terminal.switchSpace(to: spaceID) else { return false }
     if let window = entry.windowReference.value {
       if window.isMiniaturized {
         window.deminiaturize(nil)
@@ -260,7 +260,7 @@ final class TerminalWindowRegistry {
     guard
       let entry,
       let spaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
-        .spaceID(adjacentTo: entry.terminal.displayedSpaceID, step: step)
+        .spaceID(adjacentTo: entry.terminal.switchingSpaceID, step: step)
     else {
       return false
     }
@@ -337,7 +337,7 @@ final class TerminalWindowRegistry {
     let entry = try ambientEntry(for: context)
     guard
       let targetSpaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
-        .spaceID(adjacentTo: entry.terminal.displayedSpaceID, step: step)
+        .spaceID(adjacentTo: entry.terminal.switchingSpaceID, step: step)
     else {
       throw TerminalControlError.lastSpaceNotFound
     }

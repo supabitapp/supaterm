@@ -22,11 +22,9 @@ struct SpacePageDotMetricsTests {
   }
 
   @Test
-  func holdsTheRestingSizeWhenTheSwipeResistsPastTheEdge() {
+  func fadesTheLeadingDotWhenTheSwipeResistsPastTheEdge() {
     #expect(isClose(SpacePageDotMetrics.emphasis(at: 1, position: -0.2), 0))
     #expect(isClose(SpacePageDotMetrics.emphasis(at: 0, position: -0.2), 0.8))
-    #expect(SpacePageDotMetrics.diameter(emphasis: 0) == SpacePageDotMetrics.restDiameter)
-    #expect(SpacePageDotMetrics.diameter(emphasis: 1) == SpacePageDotMetrics.displayedDiameter)
   }
 
   @Test

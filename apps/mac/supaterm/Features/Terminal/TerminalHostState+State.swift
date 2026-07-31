@@ -15,6 +15,13 @@ extension TerminalHostState {
     spaceManager.displayedSpaceID
   }
 
+  var switchingSpaceID: TerminalSpaceID {
+    guard let index = spacePager?.displayedIndex, spaces.indices.contains(index) else {
+      return displayedSpaceID
+    }
+    return spaces[index].id
+  }
+
   var displayedSpace: TerminalSpaceItem {
     spaceManager.displayedSpace
   }

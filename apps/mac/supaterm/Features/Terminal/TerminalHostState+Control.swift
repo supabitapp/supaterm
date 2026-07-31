@@ -957,7 +957,7 @@ extension TerminalHostState {
     )
     return SupatermSelectSpaceResult(
       isFocused: activity.isFocused,
-      isSelectedSpace: displayedSpaceID == spaceID,
+      isSelectedSpace: switchingSpaceID == spaceID,
       isSelectedTab: selectedTabID == tabID,
       paneIndex: paneTarget.paneIndex,
       paneID: paneTarget.paneID,

@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import CoreGraphics
 import Sharing
 import SupaTheme
 import Testing
@@ -69,6 +70,45 @@ struct TerminalHostStateSpaceOwnershipTests {
       #expect(host.displayedSpaceID == spaces[1].id)
       #expect(host.spaceManager.lastDisplayedSpaceID == spaces[0].id)
       #expect(!host.displaySpace(TerminalSpaceID()))
+    }
+  }
+
+  @Test
+  func switchingSlidesThroughTheMountedPagerAndCommitsWithoutOne() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let spaces = [
+        TerminalSpaceItem(name: "A"),
+        TerminalSpaceItem(name: "B"),
+        TerminalSpaceItem(name: "C"),
+      ]
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
+      let pager = SpaceSwipeController()
+      pager.pageCount = spaces.count
+      pager.pageWidth = 200
+      var settledIndices: [Int] = []
+      pager.settled = { settledIndices.append($0) }
+      host.spacePager = pager
+
+      #expect(host.switchSpace(to: spaces[2].id))
+      #expect(settledIndices == [2])
+      #expect(host.displayedSpaceID == spaces[0].id)
+      #expect(host.switchingSpaceID == spaces[2].id)
+
+      #expect(host.switchSpace(to: spaces[2].id))
+      #expect(settledIndices == [2])
+      #expect(host.displayedSpaceID == spaces[2].id)
+
+      host.spacePager = nil
+      #expect(host.switchSpace(to: spaces[1].id))
+      #expect(host.displayedSpaceID == spaces[1].id)
+      #expect(host.switchingSpaceID == spaces[1].id)
     }
   }
 

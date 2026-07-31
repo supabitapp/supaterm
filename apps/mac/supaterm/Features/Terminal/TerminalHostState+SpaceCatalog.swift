@@ -33,12 +33,14 @@ extension TerminalHostState {
     return true
   }
 
-  func selectSpace(_ spaceID: TerminalSpaceID) {
-    onSpaceAction(.select(spaceID))
+  func switchSpace(to spaceID: TerminalSpaceID) -> Bool {
+    let index = spaces.firstIndex { $0.id == spaceID }
+    guard let index, spacePager?.page(to: index) == true else { return displaySpace(spaceID) }
+    return true
   }
 
-  func pageSpace(by step: Int) -> Bool {
-    spacePager?.page(by: step) == true
+  func selectSpace(_ spaceID: TerminalSpaceID) {
+    onSpaceAction(.select(spaceID))
   }
 
   func warmSpace(_ spaceID: TerminalSpaceID) {

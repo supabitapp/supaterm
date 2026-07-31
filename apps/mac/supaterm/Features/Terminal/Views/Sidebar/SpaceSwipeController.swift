@@ -151,12 +151,18 @@ final class SpaceSwipeController {
   }
 
   @discardableResult
-  func page(by step: Int) -> Bool {
-    guard acceptsGesture, let settled else { return false }
-    let target = displayedIndex + step
-    guard pageIndices.contains(target) else { return false }
-    displayedIndex = target
-    settled(target)
+  func page(to index: Int) -> Bool {
+    guard
+      acceptsGesture,
+      canPage,
+      index != displayedIndex,
+      pageIndices.contains(index),
+      let settled
+    else {
+      return false
+    }
+    displayedIndex = index
+    settled(index)
     return true
   }
 

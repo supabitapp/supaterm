@@ -219,16 +219,21 @@ struct SpaceSwipeControllerTests {
   }
 
   @Test
-  func pagesProgrammaticallyWithinTheCatalog() {
+  func pagesProgrammaticallyToAnyIndexWithinTheCatalog() {
     let controller = makeController()
     let recorder = SpaceSwipeRecorder(controller)
 
-    #expect(controller.page(by: 1))
+    #expect(controller.page(to: 2))
     #expect(recorder.settledIndices == [2])
     #expect(controller.displayedIndex == 2)
 
-    #expect(!controller.page(by: 1))
-    #expect(recorder.settledIndices == [2])
+    #expect(controller.page(to: 0))
+    #expect(recorder.settledIndices == [2, 0])
+    #expect(controller.displayedIndex == 0)
+
+    #expect(!controller.page(to: 0))
+    #expect(!controller.page(to: 3))
+    #expect(recorder.settledIndices == [2, 0])
   }
 
   @Test
