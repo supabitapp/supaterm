@@ -15,7 +15,7 @@ extension SP {
 
     @Option(
       name: .customLong("in"),
-      help: "Create the new tab in the specified space.",
+      help: "Create the new tab in the specified space of this window.",
       transform: parseSpaceReference
     )
     var space: SPSpaceReference?
@@ -75,7 +75,8 @@ extension SP {
           group: destination,
           context: SupatermCLIContext.current,
           snapshot: try treeSnapshot(client)
-        )
+        ),
+        context: SupatermCLIContext.current
       )
     }
   }

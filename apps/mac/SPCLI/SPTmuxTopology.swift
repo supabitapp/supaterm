@@ -388,7 +388,10 @@ struct SPTmuxTopology {
       }
 
     for window in orderedWindows {
-      guard let space = window.spaces.first(where: \.isSelected) ?? window.spaces.first else {
+      guard
+        let space = window.spaces.first(where: { $0.id == window.displayedSpaceID })
+          ?? window.spaces.first
+      else {
         continue
       }
       let tabs = space.flattenedTabs

@@ -81,7 +81,7 @@ private struct SPTreeIndex {
         )
         spacesByID[space.id] = spaceLocation
         firstSpaceByWindow[window.index] = firstSpaceByWindow[window.index] ?? spaceLocation
-        if space.isSelected {
+        if space.id == window.displayedSpaceID {
           selectedSpaceByWindow[window.index] = spaceLocation
         }
 
@@ -561,7 +561,19 @@ func resolvePublicSpaceTarget(
     try reference.map {
       try resolveSpaceLocation($0, context: context, index: index)
     } ?? index.ambientSpaceLocation(context: context)
-  return .init(spaceID: location.id)
+  return .init(spaceID: location.id, context: context)
+}
+
+func resolvePublicSpaceListing(
+  context: SupatermCLIContext?,
+  snapshot: SupatermTreeSnapshot
+) throws -> SupatermTreeSnapshot.Window {
+  let index = SPTreeIndex(snapshot: snapshot)
+  let windowIndex = try index.defaultWindowIndex(context: context)
+  guard let window = snapshot.windows.first(where: { $0.index == windowIndex }) else {
+    throw ValidationError("No space is available in the selected window.")
+  }
+  return window
 }
 
 func resolvePublicTabTarget(
@@ -806,14 +818,6 @@ func resolvePublicSplitTarget(
   }
 }
 
-func resolvePublicSpaceNavigationRequest(
-  context: SupatermCLIContext?,
-  snapshot: SupatermTreeSnapshot
-) throws -> SupatermSpaceNavigationRequest {
-  let index = SPTreeIndex(snapshot: snapshot)
-  return .init(spaceID: try index.ambientSpaceLocation(context: context).id)
-}
-
 func resolvePublicTabNavigationRequest(
   _ reference: SPSpaceReference?,
   context: SupatermCLIContext?,
@@ -824,18 +828,7 @@ func resolvePublicTabNavigationRequest(
     try reference.map {
       try resolveSpaceLocation($0, context: context, index: index)
     } ?? index.ambientSpaceLocation(context: context)
-  return .init(spaceID: location.id)
-}
-
-func resolvePublicWindowAnchorPaneID(
-  context: SupatermCLIContext?,
-  snapshot: SupatermTreeSnapshot
-) throws -> UUID {
-  let index = SPTreeIndex(snapshot: snapshot)
-  if let context {
-    return try index.requirePaneLocation(id: context.surfaceID).id
-  }
-  return try index.ambientPaneLocation(context: nil).id
+  return .init(spaceID: location.id, context: context)
 }
 
 private struct SPSpaceLocation {

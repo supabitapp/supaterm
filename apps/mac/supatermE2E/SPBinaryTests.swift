@@ -676,7 +676,7 @@ private func exerciseSpaceCommands(
   space: TestSpace,
   runner: SPBinaryRunner
 ) async throws -> CLISpaceE2E {
-  try exerciseBackgroundSpaceCreation(app: app, space: space, runner: runner)
+  try exerciseSpaceCreationAndListing(app: app, space: space, runner: runner)
 
   let created = try decodeSPJSON(
     SupatermCreateSpaceResult.self,
@@ -748,7 +748,7 @@ private func exerciseSpaceCommands(
   return CLISpaceE2E(result: created, runner: createdRunner)
 }
 
-private func exerciseBackgroundSpaceCreation(
+private func exerciseSpaceCreationAndListing(
   app: SupatermE2EApp,
   space: TestSpace,
   runner: SPBinaryRunner
@@ -760,22 +760,27 @@ private func exerciseBackgroundSpaceCreation(
     runner: runner,
     cwd: space.directory
   )
-  #expect(!background.isFocused)
   #expect(background.isSelectedSpace)
   #expect(background.isSelectedTab)
   let backgroundTree: SupatermTreeSnapshot = try runSPJSON(
     ["ls"], app: app, runner: runner, cwd: space.directory
   )
   let backgroundWindow = try #require(
-    backgroundTree.windows.first {
-      $0.spaces.contains { $0.id == background.target.spaceID }
-    }
+    backgroundTree.windows.first { $0.displayedSpaceID == background.target.spaceID }
   )
-  #expect(!backgroundWindow.isKey)
-  #expect(backgroundWindow.spaces.first?.isSelected == true)
-  #expect(
-    backgroundWindow.spaces.first?.flattenedTabs.count == 1
+  let backgroundSpace = try #require(
+    backgroundWindow.spaces.first { $0.id == background.target.spaceID }
   )
+  #expect(backgroundSpace.isWarm)
+  #expect(backgroundSpace.flattenedTabs.count == 1)
+  let listed = try requireSuccessfulSPResult(
+    try runner.run(
+      ["space", "ls", "--socket", app.socketPath, "--plain"],
+      cwd: space.directory
+    )
+  )
+  #expect(listed.stdout.contains(background.target.spaceID.uuidString.lowercased()))
+  #expect(listed.stdout.contains("displayed"))
   let duplicateCreate = try requireFailedSPResult(
     try runner.run(
       ["space", "new", backgroundName, "--socket", app.socketPath, "--plain"],
@@ -1287,7 +1292,7 @@ private func stableTreeRows(_ tree: SupatermTreeSnapshot) -> [String] {
         tab.panes.map { pane in
           [
             "window:\(window.index):\(window.isKey)",
-            "space:\(space.index):\(space.id):\(space.isSelected)",
+            "space:\(space.index):\(space.id):\(space.id == window.displayedSpaceID)",
             "tab:\(tabOffset + 1):\(tab.id):\(tab.isSelected)",
             "pane:\(pane.index):\(pane.id):\(pane.isFocused)",
           ].joined(separator: "|")

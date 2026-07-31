@@ -1309,14 +1309,35 @@ final class TerminalHostState {
   }
 
   func debugPaneSnapshot(
-    _ surface: GhosttySurfaceView,
+    _ surface: GhosttySurfaceView?,
+    id: UUID,
     index: Int,
     isFocused: Bool
   ) -> SupatermAppDebugSnapshot.Pane {
+    guard let surface else {
+      return SupatermAppDebugSnapshot.Pane(
+        index: index,
+        id: id,
+        isFocused: isFocused,
+        displayTitle: "Pane \(index)",
+        pwd: nil,
+        isReadOnly: false,
+        hasSecureInput: false,
+        bellCount: 0,
+        isRunning: false,
+        progressState: nil,
+        progressValue: nil,
+        needsCloseConfirmation: false,
+        lastCommandExitCode: nil,
+        lastCommandDurationMs: nil,
+        lastChildExitCode: nil,
+        lastChildExitTimeMs: nil
+      )
+    }
     let state = surface.bridge.state
     return SupatermAppDebugSnapshot.Pane(
       index: index,
-      id: surface.id,
+      id: id,
       isFocused: isFocused,
       displayTitle: surface.resolvedDisplayTitle(defaultValue: "Pane \(index)"),
       pwd: Self.trimmedNonEmpty(state.pwd),

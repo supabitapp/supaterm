@@ -637,6 +637,15 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
+  var orderedSurfaceIDs: [UUID] {
+    switch self {
+    case .leaf(let leaf):
+      return [leaf.id]
+    case .split(let split):
+      return split.left.orderedSurfaceIDs + split.right.orderedSurfaceIDs
+    }
+  }
+
   fileprivate func pruned(
     seenSurfaceIDs: inout Set<UUID>
   ) -> TerminalPaneNodeSession? {

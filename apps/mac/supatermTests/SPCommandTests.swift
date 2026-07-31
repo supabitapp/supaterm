@@ -112,6 +112,28 @@ struct SPCommandTests {
   }
 
   @Test
+  func spaceListParserTakesNoTarget() throws {
+    _ = try #require(try SP.parseAsRoot(["space", "ls"]) as? SP.SpaceList)
+
+    #expect(throws: (any Error).self) {
+      _ = try SP.parseAsRoot(["space", "ls", "1"])
+    }
+  }
+
+  @Test
+  func spaceNewParserRejectsTheRemovedFocusFlag() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["space", "new", "--color", "green", "Work"]) as? SP.SpaceNew
+    )
+
+    #expect(command.name == "Work")
+    #expect(command.color == .green)
+    #expect(throws: (any Error).self) {
+      _ = try SP.parseAsRoot(["space", "new", "--focus", "Work"])
+    }
+  }
+
+  @Test
   func spaceDestroyParserAcceptsYesFlag() throws {
     let command = try #require(
       try SP.parseAsRoot(["space", "destroy", "-y", "1"]) as? SP.SpaceDestroy
@@ -493,13 +515,14 @@ struct SPCommandTests {
           index: 1,
           isKey: true,
           isVisible: true,
+          displayedSpaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
           spaces: [
             SupatermAppDebugSnapshot.Space(
               index: 1,
               id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
               name: "A",
               color: .neutral,
-              isSelected: true,
+              isWarm: true,
               rootItems: [
                 .tab(
                   SupatermAppDebugSnapshot.RootTab(

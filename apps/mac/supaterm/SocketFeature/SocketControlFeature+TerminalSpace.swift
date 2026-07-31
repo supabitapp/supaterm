@@ -30,9 +30,8 @@ extension SocketControlFeature {
         .createSpace(
           TerminalCreateSpaceRequest(
             color: payload.color,
-            focus: payload.focus,
             name: payload.name,
-            windowAnchorPaneID: payload.windowAnchorPaneID
+            context: payload.context
           )
         )
       )
@@ -139,12 +138,12 @@ extension SocketControlFeature {
   func createSpaceTarget(
     from payload: SupatermSpaceTargetRequest
   ) -> TerminalSpaceTarget {
-    TerminalSpaceTarget(spaceID: payload.spaceID)
+    TerminalSpaceTarget(spaceID: payload.spaceID, context: payload.context)
   }
 
   func createSpaceNavigationRequest(
     from payload: SupatermSpaceNavigationRequest
   ) -> TerminalSpaceNavigationRequest {
-    TerminalSpaceNavigationRequest(spaceID: payload.spaceID)
+    TerminalSpaceNavigationRequest(context: payload.context)
   }
 }

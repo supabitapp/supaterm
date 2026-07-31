@@ -12,6 +12,7 @@ extension TerminalCommandExecutor {
       return SupatermTreeSnapshot.Window(
         index: offset + 1,
         isKey: entry.terminal.windowActivity.isKeyWindow,
+        displayedSpaceID: entry.terminal.displayedSpaceID.rawValue,
         spaces: snapshot.windows.first?.spaces ?? []
       )
     }

@@ -184,7 +184,6 @@ final class TerminalWindowRegistry {
   func createSpace(
     named name: String,
     color: ThemeTint = .neutral,
-    focus: Bool = true,
     in windowControllerID: UUID? = nil
   ) throws -> TerminalSpaceID {
     guard let name = normalizedSpaceName(name) else {
@@ -202,10 +201,9 @@ final class TerminalWindowRegistry {
     catalog.spaces.append(space)
     replaceSpaceCatalog(catalog)
     let entry = windowControllerID.flatMap(entry(forWindowControllerID:)) ?? preferredActiveEntry()
-    entry?.terminal.warmSpace(space.id)
-    if focus, let entry {
-      selectSpace(space.id, in: entry.windowControllerID)
-    }
+    guard let entry else { return space.id }
+    entry.terminal.warmSpace(space.id)
+    selectSpace(space.id, in: entry.windowControllerID)
     return space.id
   }
 
@@ -277,70 +275,81 @@ final class TerminalWindowRegistry {
     return selectSpace(spaces[index].id, in: windowControllerID)
   }
 
-  func selectSpaceResult(_ spaceID: TerminalSpaceID) throws -> SupatermSelectSpaceResult {
-    guard selectSpace(spaceID) else {
+  func selectSpaceResult(
+    _ spaceID: TerminalSpaceID,
+    context: SupatermCLIContext?
+  ) throws -> SupatermSelectSpaceResult {
+    let entry = try ambientEntry(for: context)
+    guard selectSpace(spaceID, in: entry.windowControllerID) else {
       throw TerminalControlError.contextPaneNotFound
     }
-    return try spaceResult(for: spaceID)
+    return try spaceResult(for: spaceID, in: entry)
   }
 
   func createSpaceResult(
     named name: String,
     color: ThemeTint?,
-    focus: Bool
+    context: SupatermCLIContext?
   ) throws -> SupatermCreateSpaceResult {
+    let entry = try ambientEntry(for: context)
     let spaceID = try createSpace(
       named: name,
       color: color ?? ThemeTint.chromatic.randomElement() ?? .blue,
-      focus: focus
+      in: entry.windowControllerID
     )
-    return try spaceResult(for: spaceID)
+    return try spaceResult(for: spaceID, in: entry)
   }
 
-  func deleteSpaceResult(_ spaceID: TerminalSpaceID) throws -> SupatermCloseSpaceResult {
-    let target = try spaceTargetResult(for: spaceID)
+  func deleteSpaceResult(
+    _ spaceID: TerminalSpaceID,
+    context: SupatermCLIContext?
+  ) throws -> SupatermCloseSpaceResult {
+    let entry = try ambientEntry(for: context)
+    let target = try spaceTargetResult(for: spaceID, in: entry)
     try deleteSpace(spaceID)
     return target
   }
 
   func renameSpaceResult(
     _ spaceID: TerminalSpaceID,
-    to name: String
+    to name: String,
+    context: SupatermCLIContext?
   ) throws -> SupatermSpaceTarget {
+    let entry = try ambientEntry(for: context)
     try renameSpace(spaceID, to: name)
-    return try spaceTargetResult(for: spaceID)
+    return try spaceTargetResult(for: spaceID, in: entry)
   }
 
   func setSpaceColorResult(
     _ spaceID: TerminalSpaceID,
-    to color: ThemeTint
+    to color: ThemeTint,
+    context: SupatermCLIContext?
   ) throws -> SupatermSpaceTarget {
+    let entry = try ambientEntry(for: context)
     try setSpaceColor(spaceID, to: color)
-    return try spaceTargetResult(for: spaceID)
+    return try spaceTargetResult(for: spaceID, in: entry)
   }
 
   func adjacentSpaceResult(
-    from spaceID: TerminalSpaceID,
-    step: Int
+    step: Int,
+    context: SupatermCLIContext?
   ) throws -> SupatermSelectSpaceResult {
+    let entry = try ambientEntry(for: context)
     guard
       let targetSpaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
-        .spaceID(adjacentTo: spaceID, step: step)
+        .spaceID(adjacentTo: entry.terminal.displayedSpaceID, step: step)
     else {
       throw TerminalControlError.lastSpaceNotFound
     }
-    return try selectSpaceResult(targetSpaceID)
+    return try selectSpaceResult(targetSpaceID, context: context)
   }
 
-  func lastSpaceResult(from spaceID: TerminalSpaceID) throws -> SupatermSelectSpaceResult {
-    guard
-      let entry = activeEntries().last(where: { $0.terminal.displayedSpaceID == spaceID }),
-      let lastDisplayedSpaceID = entry.terminal.spaceManager.lastDisplayedSpaceID,
-      selectSpace(lastDisplayedSpaceID, in: entry.windowControllerID)
-    else {
+  func lastSpaceResult(context: SupatermCLIContext?) throws -> SupatermSelectSpaceResult {
+    let entry = try ambientEntry(for: context)
+    guard let lastDisplayedSpaceID = entry.terminal.spaceManager.lastDisplayedSpaceID else {
       throw TerminalControlError.lastSpaceNotFound
     }
-    return try spaceResult(for: lastDisplayedSpaceID)
+    return try selectSpaceResult(lastDisplayedSpaceID, context: context)
   }
 
   func commandAvailability() -> CommandAvailability {
@@ -870,43 +879,62 @@ final class TerminalWindowRegistry {
     return name.isEmpty ? nil : name
   }
 
-  private func spaceLocation(
-    for spaceID: TerminalSpaceID
-  ) -> (entry: Entry, windowIndex: Int)? {
-    let activeEntries = activeEntries()
-    guard
-      let index = activeEntries.lastIndex(where: { $0.terminal.displayedSpaceID == spaceID })
-        ?? activeEntries.indices.last
-    else {
-      return nil
+  func ambientEntry(for context: SupatermCLIContext?) throws -> Entry {
+    guard let entry = ambientEntries(for: context).first else {
+      throw TerminalControlError.contextPaneNotFound
     }
-    return (activeEntries[index], index + 1)
+    return entry
+  }
+
+  func ambientEntries(for context: SupatermCLIContext?) -> [Entry] {
+    let entries = activeEntries()
+    guard let index = ambientIndex(in: entries, context: context) else { return entries }
+    return [entries[index]] + entries.enumerated().filter { $0.offset != index }.map(\.element)
+  }
+
+  func windowIndex(of entry: Entry) -> Int {
+    let index = activeEntries().firstIndex { $0.windowControllerID == entry.windowControllerID }
+    return (index ?? 0) + 1
+  }
+
+  private func ambientIndex(in entries: [Entry], context: SupatermCLIContext?) -> Int? {
+    if let context {
+      if let index = entries.firstIndex(where: {
+        $0.terminal.tabID(containing: context.surfaceID) != nil
+      }) {
+        return index
+      }
+      let tabID = TerminalTabID(rawValue: context.tabID)
+      if let index = entries.firstIndex(where: {
+        $0.terminal.spaceManager.instance(for: tabID) != nil
+      }) {
+        return index
+      }
+    }
+    guard let preferred = preferredActiveEntry() else { return nil }
+    return entries.firstIndex { $0.windowControllerID == preferred.windowControllerID }
   }
 
   private func spaceResult(
-    for spaceID: TerminalSpaceID
+    for spaceID: TerminalSpaceID,
+    in entry: Entry
   ) throws -> SupatermSelectSpaceResult {
-    guard let location = spaceLocation(for: spaceID) else {
-      throw TerminalControlError.lastSpaceNotFound
-    }
-    return TerminalWindowRegistry.rewrite(
-      try location.entry.terminal.selectSpaceResult(for: spaceID),
-      windowIndex: location.windowIndex
+    TerminalWindowRegistry.rewrite(
+      try entry.terminal.selectSpaceResult(for: spaceID),
+      windowIndex: windowIndex(of: entry)
     )
   }
 
   private func spaceTargetResult(
-    for spaceID: TerminalSpaceID
+    for spaceID: TerminalSpaceID,
+    in entry: Entry
   ) throws -> SupatermSpaceTarget {
     let spaces = TerminalSpaceCatalog.sanitized(spaceCatalog).spaces
-    guard
-      let spaceIndex = spaces.firstIndex(where: { $0.id == spaceID }),
-      let location = spaceLocation(for: spaceID)
-    else {
+    guard let spaceIndex = spaces.firstIndex(where: { $0.id == spaceID }) else {
       throw TerminalControlError.contextPaneNotFound
     }
     return SupatermSpaceTarget(
-      windowIndex: location.windowIndex,
+      windowIndex: windowIndex(of: entry),
       spaceIndex: spaceIndex + 1,
       spaceID: spaceID.rawValue,
       name: spaces[spaceIndex].name

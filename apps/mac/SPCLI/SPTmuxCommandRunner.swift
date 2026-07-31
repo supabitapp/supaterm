@@ -190,12 +190,7 @@ struct SPTmuxCommandRunner {
     }
     let created = try send(
       .createSpace(
-        SupatermCreateSpaceRequest(
-          color: nil,
-          focus: false,
-          name: name,
-          windowAnchorPaneID: topology().current.pane.id
-        )
+        SupatermCreateSpaceRequest(color: nil, name: name, context: SupatermCLIContext.current)
       ),
       as: SupatermCreateSpaceResult.self
     )
@@ -252,7 +247,8 @@ struct SPTmuxCommandRunner {
           startupCommand: nil,
           cwd: try resolvedWorkingDirectory(parsed.value("-c")),
           focus: false,
-          target: .space(targetSpace.space.id)
+          target: .space(targetSpace.space.id),
+          context: SupatermCLIContext.current
         )
       ),
       as: SupatermNewTabResult.self
@@ -773,7 +769,10 @@ struct SPTmuxCommandRunner {
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
     _ = try send(
       .lastTab(
-        SupatermTabNavigationRequest(spaceID: targetSpace.space.id)
+        SupatermTabNavigationRequest(
+          spaceID: targetSpace.space.id,
+          context: SupatermCLIContext.current
+        )
       ),
       as: SupatermSelectTabResult.self
     )
@@ -784,7 +783,10 @@ struct SPTmuxCommandRunner {
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
     _ = try send(
       .nextTab(
-        SupatermTabNavigationRequest(spaceID: targetSpace.space.id)
+        SupatermTabNavigationRequest(
+          spaceID: targetSpace.space.id,
+          context: SupatermCLIContext.current
+        )
       ),
       as: SupatermSelectTabResult.self
     )
@@ -795,7 +797,10 @@ struct SPTmuxCommandRunner {
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
     _ = try send(
       .previousTab(
-        SupatermTabNavigationRequest(spaceID: targetSpace.space.id)
+        SupatermTabNavigationRequest(
+          spaceID: targetSpace.space.id,
+          context: SupatermCLIContext.current
+        )
       ),
       as: SupatermSelectTabResult.self
     )

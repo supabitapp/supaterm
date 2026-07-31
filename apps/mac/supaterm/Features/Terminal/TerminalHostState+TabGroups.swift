@@ -83,7 +83,11 @@ extension TerminalHostState {
   }
 
   func isGroupCollapsed(_ id: TerminalTabGroupID, in spaceID: TerminalSpaceID) -> Bool {
-    spaceManager.instance(for: spaceID)?.collapsedTabGroupIDs.contains(id) == true
+    guard let instance = spaceManager.instance(for: spaceID) else { return false }
+    if let pendingSession = instance.pendingSession {
+      return pendingSession.collapsedGroupIDs.contains(id)
+    }
+    return instance.collapsedTabGroupIDs.contains(id)
   }
 
   @discardableResult

@@ -6,9 +6,10 @@ extension SP {
   struct Space: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "space",
-      abstract: "Create, select, and manage spaces.",
+      abstract: "List, create, and display spaces.",
       discussion: SPHelp.spaceDiscussion,
       subcommands: [
+        SpaceList.self,
         SpaceNew.self,
         SpaceFocus.self,
         SpaceDestroy.self,
@@ -75,15 +76,41 @@ extension SP {
 }
 
 extension SP {
+  struct SpaceList: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "ls",
+      abstract: "List the spaces this window can display.",
+      discussion: SPHelp.spaceListDiscussion
+    )
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      applyOutputStyle(options.output)
+      let client = try socketClient(
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
+      )
+      let window = try resolvePublicSpaceListing(
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      )
+      try emitCommandResult(
+        window,
+        options: options.output,
+        plain: window.spaces.map { plainSpaceRow($0, in: window) }.joined(separator: "\n"),
+        human: window.spaces.map { humanSpaceRow($0, in: window) }.joined(separator: "\n")
+      )
+    }
+  }
+
   struct SpaceNew: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "new",
-      abstract: "Create a new space.",
+      abstract: "Create a new space and display it in this window.",
       discussion: SPHelp.spaceNewDiscussion
     )
-
-    @Flag(name: .long, help: "Focus the new space after creating it.")
-    var focus = false
 
     @Option(name: .long, help: "Color for the new space; random when omitted.", transform: parseThemeColor)
     var color: SupatermThemeColor?
@@ -95,40 +122,25 @@ extension SP {
     var options: SPCommandOptions
 
     mutating func run() throws {
-      applyOutputStyle(options.output)
-      let client = try socketClient(
-        path: options.connection.explicitSocketPath,
-        instance: options.connection.instance
-      )
-      let snapshot = try treeSnapshot(client)
       let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
       if trimmedName.isEmpty {
         throw ValidationError("Space names must not be empty.")
       }
-
-      let response = try client.send(
-        .createSpace(
-          SupatermCreateSpaceRequest(
-            color: color,
-            focus: focus,
-            name: trimmedName,
-            windowAnchorPaneID: try resolvePublicWindowAnchorPaneID(
-              context: SupatermCLIContext.current,
-              snapshot: snapshot
+      let color = color
+      try runControlCommand(
+        options: options,
+        request: { _ in
+          try .createSpace(
+            SupatermCreateSpaceRequest(
+              color: color,
+              name: trimmedName,
+              context: SupatermCLIContext.current
             )
           )
-        )
-      )
-      guard response.ok else {
-        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
-      }
-      let result = try response.decodeResult(SupatermCreateSpaceResult.self)
-
-      try emitCommandResult(
-        result,
-        options: options.output,
-        plain: plainSpaceSelector(spaceIndex: result.target.spaceIndex),
-        human: render(result)
+        },
+        as: SupatermCreateSpaceResult.self,
+        plain: { plainSpaceSelector(spaceIndex: $0.target.spaceIndex) },
+        human: { render($0) }
       )
     }
   }
@@ -136,7 +148,7 @@ extension SP {
   struct SpaceFocus: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "focus",
-      abstract: "Select a space.",
+      abstract: "Display a space in this window.",
       discussion: SPHelp.spaceFocusDiscussion
     )
 
@@ -312,7 +324,7 @@ extension SP {
   struct SpaceNext: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "next",
-      abstract: "Select the next space.",
+      abstract: "Display the next space in this window.",
       discussion: SPHelp.spaceNavigationDiscussion
     )
 
@@ -327,7 +339,7 @@ extension SP {
   struct SpacePrev: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "prev",
-      abstract: "Select the previous space.",
+      abstract: "Display the previous space in this window.",
       discussion: SPHelp.spaceNavigationDiscussion
     )
 
@@ -342,7 +354,7 @@ extension SP {
   struct SpaceLast: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "last",
-      abstract: "Return to the previously selected space.",
+      abstract: "Return to the space this window displayed before.",
       discussion: SPHelp.spaceNavigationDiscussion
     )
 
@@ -1066,13 +1078,10 @@ private func runSpaceNavigation(
 ) throws {
   try runControlCommand(
     options: options,
-    request: { client in
+    request: { _ in
       try spaceNavigationRequest(
         navigation,
-        request: try resolvePublicSpaceNavigationRequest(
-          context: SupatermCLIContext.current,
-          snapshot: try treeSnapshot(client)
-        )
+        request: SupatermSpaceNavigationRequest(context: SupatermCLIContext.current)
       )
     },
     as: SupatermSelectSpaceResult.self,
@@ -1165,6 +1174,30 @@ private func tabPinnedStateRequest(
   case .unpin:
     return try .unpinTab(request)
   }
+}
+
+private func plainSpaceRow(
+  _ space: SupatermTreeSnapshot.Space,
+  in window: SupatermTreeSnapshot.Window
+) -> String {
+  let flags =
+    [space.color.rawValue] + (space.id == window.displayedSpaceID ? ["displayed"] : [])
+    + (space.isWarm ? [] : ["cold"])
+  return "\(space.index)\t\(space.id.uuidString.lowercased())\t\(space.name)"
+    + "\t\(flags.joined(separator: ","))"
+}
+
+private func humanSpaceRow(
+  _ space: SupatermTreeSnapshot.Space,
+  in window: SupatermTreeSnapshot.Window
+) -> String {
+  var labels = [space.color.rawValue]
+  if !space.isWarm {
+    labels.append("cold")
+  }
+  let marker = space.id == window.displayedSpaceID ? "*" : " "
+  return "\(marker) \(space.index) \(space.id.uuidString.lowercased()) "
+    + "\"\(space.name)\" [\(labels.joined(separator: ", "))]"
 }
 
 private func render(_ target: SupatermSpaceTarget) -> String {

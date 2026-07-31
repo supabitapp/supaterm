@@ -71,7 +71,7 @@ struct TerminalWindowRegistryTests {
       #expect(registry.selectSpace(spaces[1].id))
       #expect(catalog.defaultSelectedSpaceID == spaces[1].id)
 
-      let lastSpace = try registry.lastSpaceResult(from: spaces[1].id)
+      let lastSpace = try registry.lastSpaceResult(context: nil)
 
       #expect(lastSpace.target.spaceID == spaces[0].id.rawValue)
       #expect(window.terminal.displayedSpaceID == spaces[0].id)
@@ -133,32 +133,6 @@ struct TerminalWindowRegistryTests {
       #expect(throws: TerminalControlError.self) {
         try registry.setSpaceColor(TerminalSpaceID(), to: .blue)
       }
-    }
-  }
-
-  @Test
-  func creatingUnfocusedSpaceKeepsTheDisplayedSpace() throws {
-    try withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let initialSpace = TerminalSpaceItem(name: "A")
-      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
-      $catalog.withLock {
-        $0 = TerminalSpaceCatalog(
-          defaultSelectedSpaceID: initialSpace.id,
-          spaces: [initialSpace]
-        )
-      }
-      let registry = TerminalWindowRegistry()
-      let window = registerWindow(in: registry, spaceID: initialSpace.id)
-
-      let spaceID = try registry.createSpace(named: "Build", focus: false)
-
-      #expect(catalog.defaultSelectedSpaceID == initialSpace.id)
-      #expect(catalog.spaces.map(\.id) == [initialSpace.id, spaceID])
-      #expect(window.terminal.displayedSpaceID == initialSpace.id)
-      #expect(registry.activeEntries().count == 1)
-      withExtendedLifetime(window.window) {}
     }
   }
 

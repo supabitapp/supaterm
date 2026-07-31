@@ -3,7 +3,7 @@ import Foundation
 import GhosttyKit
 import SupatermSupport
 
-private struct RestoredTerminalSpace {
+struct RestoredTerminalSpace {
   let rootItems: [TerminalTabRootItem]
   let tabs: [TerminalTabSession]
 }
@@ -171,7 +171,7 @@ extension TerminalHostState {
     }
   }
 
-  private func restoredSpace(
+  func restoredSpace(
     for session: TerminalSpaceSession
   ) -> RestoredTerminalSpace {
     let tabSessionsByID = Dictionary(uniqueKeysWithValues: session.tabs.map { ($0.id, $0) })

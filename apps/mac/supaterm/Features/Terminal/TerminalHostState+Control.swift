@@ -32,14 +32,15 @@ extension TerminalHostState {
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: windowActivity.isKeyWindow,
+      displayedSpaceID: displayedSpaceID.rawValue,
       spaces: spaces.enumerated().map { spaceOffset, space in
         return SupatermTreeSnapshot.Space(
           index: spaceOffset + 1,
           id: space.id.rawValue,
           name: space.name,
           color: space.color.socketColor,
-          isSelected: space.id == displayedSpaceID,
-          rootItems: spaceManager.rootItems(in: space.id).map {
+          isWarm: isSpaceWarm(space.id),
+          rootItems: rootItemSnapshot(in: space.id).map {
             treeRootItemSnapshot($0, spaceID: space.id)
           }
         )
@@ -53,19 +54,58 @@ extension TerminalHostState {
       index: index,
       isKey: windowActivity.isKeyWindow,
       isVisible: windowActivity.isVisible,
+      displayedSpaceID: displayedSpaceID.rawValue,
       spaces: spaces.enumerated().map { spaceOffset, space in
         return SupatermAppDebugSnapshot.Space(
           index: spaceOffset + 1,
           id: space.id.rawValue,
           name: space.name,
           color: space.color.socketColor,
-          isSelected: space.id == displayedSpaceID,
-          rootItems: spaceManager.rootItems(in: space.id).map {
+          isWarm: isSpaceWarm(space.id),
+          rootItems: rootItemSnapshot(in: space.id).map {
             debugRootItemSnapshot($0, spaceID: space.id)
           }
         )
       }
     )
+  }
+
+  func isSpaceWarm(_ spaceID: TerminalSpaceID) -> Bool {
+    guard let instance = spaceManager.instance(for: spaceID) else { return false }
+    return instance.pendingSession == nil
+  }
+
+  private func rootItemSnapshot(in spaceID: TerminalSpaceID) -> [TerminalTabRootItem] {
+    guard let pendingSession = spaceManager.instance(for: spaceID)?.pendingSession else {
+      return spaceManager.rootItems(in: spaceID)
+    }
+    return restoredSpace(for: pendingSession).rootItems
+  }
+
+  private func paneSnapshotIDs(in tabID: TerminalTabID) -> [UUID] {
+    if let tree = trees[tabID] {
+      return tree.leaves().map(\.id)
+    }
+    return pendingTabSession(for: tabID)?.root.orderedSurfaceIDs ?? []
+  }
+
+  private func selectedPaneSnapshotID(in tabID: TerminalTabID) -> UUID? {
+    if let focusedSurfaceID = focusHistoryByTab[tabID]?.current {
+      return focusedSurfaceID
+    }
+    guard let session = pendingTabSession(for: tabID) else { return nil }
+    let surfaceIDs = session.root.orderedSurfaceIDs
+    guard surfaceIDs.indices.contains(session.focusedPaneIndex) else { return nil }
+    return surfaceIDs[session.focusedPaneIndex]
+  }
+
+  private func pendingTabSession(for tabID: TerminalTabID) -> TerminalTabSession? {
+    for instance in spaceManager.instances {
+      if let session = instance.pendingSession?.tabs.first(where: { $0.id == tabID }) {
+        return session
+      }
+    }
+    return nil
   }
 
   private func treeRootItemSnapshot(
@@ -89,19 +129,24 @@ extension TerminalHostState {
     _ tab: TerminalTabItem,
     spaceID: TerminalSpaceID
   ) -> SupatermTreeSnapshot.Tab {
-    let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
+    let selectedPaneID = selectedPaneSnapshotID(in: tab.id)
     return SupatermTreeSnapshot.Tab(
       id: tab.id.rawValue,
       title: tab.title,
-      isSelected: tab.id == spaceManager.selectedTabID(in: spaceID),
-      panes: (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+      isSelected: tab.id == selectedTabSnapshotID(in: spaceID),
+      panes: paneSnapshotIDs(in: tab.id).enumerated().map { paneOffset, paneID in
         SupatermTreeSnapshot.Pane(
           index: paneOffset + 1,
-          id: pane.id,
-          isFocused: pane.id == focusedSurfaceID
+          id: paneID,
+          isFocused: paneID == selectedPaneID
         )
       }
     )
+  }
+
+  private func selectedTabSnapshotID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
+    guard let instance = spaceManager.instance(for: spaceID) else { return nil }
+    return instance.pendingSession?.selectedTabID ?? instance.selectedTabID
   }
 
   func treeGroupSnapshot(
@@ -148,18 +193,19 @@ extension TerminalHostState {
     _ tab: TerminalTabItem,
     spaceID: TerminalSpaceID
   ) -> SupatermAppDebugSnapshot.Tab {
-    let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
-    let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+    let selectedPaneID = selectedPaneSnapshotID(in: tab.id)
+    let panes = paneSnapshotIDs(in: tab.id).enumerated().map { paneOffset, paneID in
       debugPaneSnapshot(
-        pane,
+        surfaces[paneID],
+        id: paneID,
         index: paneOffset + 1,
-        isFocused: pane.id == focusedSurfaceID
+        isFocused: paneID == selectedPaneID
       )
     }
     return SupatermAppDebugSnapshot.Tab(
       id: tab.id.rawValue,
       title: tab.title,
-      isSelected: tab.id == spaceManager.selectedTabID(in: spaceID),
+      isSelected: tab.id == selectedTabSnapshotID(in: spaceID),
       isDirty: tab.isDirty,
       isTitleLocked: tab.isTitleLocked,
       hasRunningActivity: panes.contains(where: \.isRunning),
@@ -273,6 +319,9 @@ extension TerminalHostState {
       }
       createdTabID = tabID
 
+      if request.focus {
+        displaySpace(resolvedTarget.space.id)
+      }
       applyTabCreationSelection(
         TabCreationSelectionInput(
           tabID: tabID,
@@ -692,7 +741,7 @@ extension TerminalHostState {
 
   func resolveSpaceTarget(_ target: TerminalSpaceTarget) throws -> ResolvedCreateTabTarget {
     let spaceID = TerminalSpaceID(rawValue: target.spaceID)
-    guard let space = spaceManager.space(for: spaceID) else {
+    guard let space = warmedSpace(spaceID) else {
       throw TerminalControlError.contextPaneNotFound
     }
     return ResolvedCreateTabTarget(
