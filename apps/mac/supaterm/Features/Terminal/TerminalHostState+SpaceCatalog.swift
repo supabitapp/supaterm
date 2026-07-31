@@ -33,6 +33,10 @@ extension TerminalHostState {
     return true
   }
 
+  func pageSpace(by step: Int) -> Bool {
+    spacePager?.page(by: step) == true
+  }
+
   func warmSpace(_ spaceID: TerminalSpaceID) {
     applyObservedSpaceCatalog(spaceCatalog)
     guard managesTerminalSurfaces, spaceManager.space(for: spaceID) != nil else { return }

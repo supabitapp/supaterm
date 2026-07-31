@@ -54,6 +54,7 @@ struct TerminalSplitView: View {
           releaseAnnouncement: releaseAnnouncement,
           palette: palette,
           terminal: terminal,
+          isPagingActive: !visualSidebarCollapsed,
           dismissReleaseAnnouncement: dismissReleaseAnnouncement
         )
         .frame(width: currentSidebarWidth)
@@ -103,6 +104,7 @@ struct TerminalSidebarView: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  let isPagingActive: Bool
   let dismissReleaseAnnouncement: () -> Void
 
   var body: some View {
@@ -112,6 +114,7 @@ struct TerminalSidebarView: View {
       releaseAnnouncement: releaseAnnouncement,
       palette: palette,
       terminal: terminal,
+      isPagingActive: isPagingActive,
       fixedHoveredGroupID: nil,
       dismissReleaseAnnouncement: dismissReleaseAnnouncement
     )
@@ -142,6 +145,7 @@ struct FloatingSidebarOverlay: View {
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var dragFraction: CGFloat?
+  @State private var hidesAfterPaging = false
 
   var body: some View {
     let effectiveFraction = TerminalSplitMetrics.clampedFraction(
@@ -188,6 +192,24 @@ struct FloatingSidebarOverlay: View {
       }
     }
     .coordinateSpace(name: TerminalCoordinateSpace.floatingSidebar)
+    .onChange(of: terminal.spacePager?.isTracking ?? false) { _, isTracking in
+      guard !isTracking, hidesAfterPaging else { return }
+      hidesAfterPaging = false
+      isVisible = false
+    }
+  }
+
+  private var hoverBinding: Binding<Bool> {
+    Binding(
+      get: { isVisible },
+      set: { hovering in
+        guard !hovering, terminal.spacePager?.isTracking == true else {
+          isVisible = hovering
+          return
+        }
+        hidesAfterPaging = true
+      }
+    )
   }
 
   private func hoverStrip(width: CGFloat) -> some View {
@@ -195,7 +217,7 @@ struct FloatingSidebarOverlay: View {
       .frame(width: width)
       .overlay {
         GlobalMouseTrackingArea(
-          mouseEntered: $isVisible,
+          mouseEntered: hoverBinding,
           edge: .left,
           padding: 40,
           slack: 8
@@ -348,6 +370,7 @@ private struct FloatingSidebarView: View {
       releaseAnnouncement: releaseAnnouncement,
       palette: palette,
       terminal: terminal,
+      isPagingActive: true,
       dismissReleaseAnnouncement: dismissReleaseAnnouncement
     )
     .frame(width: width)

@@ -158,12 +158,7 @@ final class TerminalWindowController: NSWindowController {
       _ = store.send(.terminal(.commandPaletteSlotActivated(slot)))
       return true
     }
-    window.onSwipeLeft = { [store] in
-      _ = store.send(.terminal(.nextSpaceRequested))
-    }
-    window.onSwipeRight = { [store] in
-      _ = store.send(.terminal(.previousSpaceRequested))
-    }
+    Self.configureSpaceSwipes(window, store: store, terminal: terminal)
 
     super.init(window: window)
 
@@ -184,6 +179,21 @@ final class TerminalWindowController: NSWindowController {
     )
     registry.updateWindow(window, for: windowControllerID)
     _ = store.send(.terminal(.windowIdentifierChanged(ObjectIdentifier(window))))
+  }
+
+  private static func configureSpaceSwipes(
+    _ window: TerminalGestureWindow,
+    store: StoreOf<AppFeature>,
+    terminal: TerminalHostState
+  ) {
+    window.onSwipeLeft = {
+      guard !terminal.pageSpace(by: 1) else { return }
+      _ = store.send(.terminal(.nextSpaceRequested))
+    }
+    window.onSwipeRight = {
+      guard !terminal.pageSpace(by: -1) else { return }
+      _ = store.send(.terminal(.previousSpaceRequested))
+    }
   }
 
   private static func prepareTerminal(

@@ -288,6 +288,7 @@ final class TerminalHostState {
   var onSurfaceRemoved: @MainActor (UUID) -> Void = { _ in }
   @ObservationIgnored
   var agentPanelController: TerminalAgentPanelController?
+  weak var spacePager: SpaceSwipeController?
   let spaceManager: TerminalSpaceManager
 
   var pendingEvents: [TerminalClient.Event] = []

@@ -936,6 +936,7 @@ private struct SidebarChromeSnapshotFixture: View {
       releaseAnnouncement: nil,
       palette: palette,
       terminal: terminal,
+      isPagingActive: false,
       fixedHoveredGroupID: fixedHoveredGroupID,
       dismissReleaseAnnouncement: {}
     )
@@ -962,6 +963,7 @@ private struct SidebarWindowControlsSnapshotFixture: View {
       releaseAnnouncement: nil,
       palette: palette,
       terminal: terminal,
+      isPagingActive: false,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)
