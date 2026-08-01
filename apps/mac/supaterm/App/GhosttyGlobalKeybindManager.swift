@@ -110,25 +110,48 @@ final class GhosttyGlobalKeybindManager {
   }
 }
 
-private final class GhosttyGlobalEventTapCallbackState {
-  weak var manager: GhosttyGlobalKeybindManager?
+nonisolated final class GhosttyGlobalEventTapCallbackState {
+  fileprivate weak var manager: GhosttyGlobalKeybindManager?
+  private var eventTap: CFMachPort?
+  private let enableEventTap: (CFMachPort) -> Void
 
-  init(manager: GhosttyGlobalKeybindManager) {
+  init(
+    manager: GhosttyGlobalKeybindManager,
+    eventTap: CFMachPort? = nil,
+    enableEventTap: @escaping (CFMachPort) -> Void = {
+      CGEvent.tapEnable(tap: $0, enable: true)
+    }
+  ) {
     self.manager = manager
+    self.eventTap = eventTap
+    self.enableEventTap = enableEventTap
+  }
+
+  fileprivate func attach(eventTap: CFMachPort) {
+    self.eventTap = eventTap
+  }
+
+  fileprivate func reenableEventTap() {
+    guard let eventTap else { return }
+    enableEventTap(eventTap)
+  }
+
+  fileprivate func invalidate() {
+    manager = nil
+    guard let eventTap else { return }
+    CFMachPortInvalidate(eventTap)
+    self.eventTap = nil
   }
 }
 
 private final class LiveGhosttyGlobalEventTapRegistration: GhosttyGlobalEventTapRegistration {
-  private let eventTap: CFMachPort
   private let source: CFRunLoopSource
   private let callbackState: GhosttyGlobalEventTapCallbackState
 
   private init(
-    eventTap: CFMachPort,
     source: CFRunLoopSource,
     callbackState: GhosttyGlobalEventTapCallbackState
   ) {
-    self.eventTap = eventTap
     self.source = source
     self.callbackState = callbackState
   }
@@ -154,28 +177,35 @@ private final class LiveGhosttyGlobalEventTapRegistration: GhosttyGlobalEventTap
       CFMachPortInvalidate(eventTap)
       return nil
     }
+    callbackState.attach(eventTap: eventTap)
     CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
     return LiveGhosttyGlobalEventTapRegistration(
-      eventTap: eventTap,
       source: source,
       callbackState: callbackState
     )
   }
 
   func invalidate() {
-    callbackState.manager = nil
     CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-    CFMachPortInvalidate(eventTap)
+    callbackState.invalidate()
   }
 }
 
-private nonisolated func supatermGlobalKeybindEventTapCallback(
+nonisolated func supatermGlobalKeybindEventTapCallback(
   _: CGEventTapProxy,
   type: CGEventType,
   cgEvent: CGEvent,
   userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
   let result = Unmanaged.passUnretained(cgEvent)
+  if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+    guard let userInfo else { return result }
+    let callbackState = Unmanaged<GhosttyGlobalEventTapCallbackState>
+      .fromOpaque(userInfo)
+      .takeUnretainedValue()
+    callbackState.reenableEventTap()
+    return result
+  }
   guard type == .keyDown else { return result }
   guard let event = GhosttyGlobalKeyEvent(cgEvent: cgEvent) else { return result }
   guard let userInfo else { return result }
