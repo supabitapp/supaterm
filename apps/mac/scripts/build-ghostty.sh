@@ -3,6 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 script_path="${script_dir}/$(basename "${BASH_SOURCE[0]}")"
+zig_toolchain_script_path="${script_dir}/zig-toolchain.sh"
 srcroot="${SRCROOT:-$(cd "${script_dir}/.." && pwd)}"
 repo_root="$(cd "${srcroot}/../.." && pwd)"
 ghostty_dir="${srcroot}/ThirdParty/ghostty"
@@ -26,7 +27,8 @@ print_fingerprint() {
       git diff --no-ext-diff --no-color HEAD -- . | shasum -a 256
       git ls-files --others --exclude-standard | LC_ALL=C sort | shasum -a 256
       shasum -a 256 "${script_path}" | awk '{print $1}'
-      mise exec -- zig version
+      shasum -a 256 "${zig_toolchain_script_path}" | awk '{print $1}'
+      "${zig_toolchain_script_path}" "${ghostty_dir}" version
     } | shasum -a 256 | awk '{print $1}'
   )
 }
@@ -92,7 +94,7 @@ fi
 
 cd "${ghostty_dir}"
 rm -rf "${generated_xcframework_path}"
-mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Demit-macos-app=false -Dxcframework-target=native -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
+"${zig_toolchain_script_path}" "${ghostty_dir}" build -Doptimize=ReleaseFast -Demit-xcframework=true -Demit-macos-app=false -Dxcframework-target=native -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
 rsync -a --delete "${generated_xcframework_path}/" "${xcframework_path}/"
 prepare_xcframework
 printf '%s\n' "${fingerprint}" > "${ghostty_fingerprint_path}"

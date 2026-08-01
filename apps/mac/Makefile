@@ -30,7 +30,7 @@ UI_RESULT_BUNDLE_FLAGS := $(if $(strip $(UI_RESULT_BUNDLE_PATH)),-resultBundlePa
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 APP_RUN_ENV := SUPATERM_VERBOSE_LOGGING=1
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-ui test-ui-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-zig-toolchains test-xcodebuild test-e2e test-e2e-xcodebuild test-ui test-ui-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -174,7 +174,10 @@ archive-xcodebuild:
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: tuist-generate build-ghostty build-zmx build-ap test-xcodebuild # Run the full macOS test suite
+test: test-zig-toolchains tuist-generate build-ghostty build-zmx build-ap test-xcodebuild # Run the full macOS test suite
+
+test-zig-toolchains:
+	bash scripts/zig-toolchain-test.sh
 
 test-xcodebuild:
 	@bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'

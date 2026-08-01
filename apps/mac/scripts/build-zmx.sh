@@ -3,6 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 script_path="${script_dir}/$(basename "${BASH_SOURCE[0]}")"
+zig_toolchain_script_path="${script_dir}/zig-toolchain.sh"
 srcroot="${SRCROOT:-$(cd "${script_dir}/.." && pwd)}"
 repo_root="$(cd "${srcroot}/../.." && pwd)"
 zmx_dir="${srcroot}/ThirdParty/zmx"
@@ -37,7 +38,8 @@ print_fingerprint() {
       git diff --no-ext-diff --no-color HEAD -- . | shasum -a 256
       git ls-files --others --exclude-standard | LC_ALL=C sort | shasum -a 256
       shasum -a 256 "${script_path}" | awk '{print $1}'
-      mise exec -- zig version
+      shasum -a 256 "${zig_toolchain_script_path}" | awk '{print $1}'
+      "${zig_toolchain_script_path}" "${zmx_dir}" version
     } | shasum -a 256 | awk '{print $1}'
   )
 }
@@ -78,7 +80,7 @@ if [ -f "${zmx_fingerprint_path}" ] &&
 fi
 
 cd "${zmx_dir}"
-mise exec -- zig build -Doptimize=ReleaseSafe --prefix "${zmx_build_root}" --cache-dir "${zmx_local_cache_dir}" --global-cache-dir "${zmx_global_cache_dir}"
+"${zig_toolchain_script_path}" "${zmx_dir}" build -Doptimize=ReleaseSafe --prefix "${zmx_build_root}" --cache-dir "${zmx_local_cache_dir}" --global-cache-dir "${zmx_global_cache_dir}"
 
 if [ ! -x "${zmx_binary_path}" ]; then
   echo "error: zmx build produced no binary at ${zmx_binary_path}" >&2
