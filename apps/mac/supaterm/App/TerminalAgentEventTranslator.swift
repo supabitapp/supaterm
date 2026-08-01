@@ -49,7 +49,7 @@ nonisolated enum TerminalAgentEventTranslator {
       )
       return .subagentStarted(
         nickname: metadata?.nickname,
-        role: role,
+        role: role == "workflow-subagent" ? nil : role,
         task: metadata?.task
       )
     }
@@ -98,7 +98,9 @@ nonisolated enum TerminalAgentEventTranslator {
     case .postToolUse:
       let resolutionEvents = attentionResolutionEvents(for: request, scope: scope)
       guard scope.subagentID == nil else {
-        return resolutionEvents + subagentDescribedEvents(for: request, scope: scope)
+        return resolutionEvents
+          + subagentDescribedEvents(for: request, scope: scope)
+          + subagentActivityEvents(for: request, scope: scope)
       }
       return resolutionEvents + [
         event(
@@ -110,6 +112,7 @@ nonisolated enum TerminalAgentEventTranslator {
     case .preToolUse:
       guard scope.subagentID == nil else {
         return subagentDescribedEvents(for: request, scope: scope)
+          + subagentActivityEvents(for: request, scope: scope)
       }
       action = .turnRunning(detail: request.event.toolName)
     case .sessionEnd:
@@ -159,6 +162,21 @@ nonisolated enum TerminalAgentEventTranslator {
         action: .subagentDescribed(nickname: metadata.nickname, task: metadata.task)
       )
     ]
+  }
+
+  private static func subagentActivityEvents(
+    for request: SupatermAgentHookRequest,
+    scope: TerminalAgentEvent.Scope
+  ) -> [TerminalAgentEvent] {
+    guard
+      let detail = ClaudeToolActivity.detail(
+        toolName: request.event.toolName,
+        toolInput: request.event.toolInput
+      )
+    else {
+      return []
+    }
+    return [event(request, scope: scope, action: .turnRunning(detail: detail))]
   }
 
   private static func codexEvents(

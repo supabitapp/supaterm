@@ -367,7 +367,8 @@ struct TerminalCommandExecutorAgentHookTests {
 
     var child = try #require(presentedChild())
     #expect(AgentPanelView.childTitle(child) == "goo4560 [general-purpose]")
-    #expect(AgentPanelView.childDetail(child) == "GOO-4560 board API table")
+    #expect(child.task == "GOO-4560 board API table")
+    #expect(AgentPanelView.childDetail(child) == "Bash")
 
     _ = try harness.commandExecutor.handleAgentHook(
       SupatermAgentHookRequest(
@@ -385,7 +386,8 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     child = try #require(presentedChild())
-    #expect(AgentPanelView.childDetail(child) == "GOO-4560 board API table")
+    #expect(AgentPanelView.childTitle(child) == "goo4560 [general-purpose]")
+    #expect(child.task == "GOO-4560 board API table")
   }
   @Test
   func claudeSubagentStopDoesNotNotifyOrIdleRootTurn() throws {

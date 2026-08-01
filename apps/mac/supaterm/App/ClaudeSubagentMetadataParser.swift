@@ -19,7 +19,9 @@ nonisolated enum ClaudeSubagentMetadataParser {
     else {
       return nil
     }
-    let nickname = AgentProgressParsing.normalizedTitle(object["name"]?.stringValue)
+    let nickname =
+      AgentProgressParsing.normalizedTitle(object["name"]?.stringValue)
+      ?? workflowName(besides: metadataURL)
     let task =
       AgentProgressParsing.normalizedTitle(object["description"]?.stringValue)
       ?? spawnPromptTask(besides: metadataURL, agentID: agentID)
@@ -59,6 +61,35 @@ nonisolated enum ClaudeSubagentMetadataParser {
       workflowRuns
       .map { $0.appendingPathComponent(fileName) }
       .first { FileManager.default.fileExists(atPath: $0.path) }
+  }
+
+  private static func workflowName(besides metadataURL: URL) -> String? {
+    let runDirectory = metadataURL.deletingLastPathComponent()
+    guard runDirectory.deletingLastPathComponent().lastPathComponent == "workflows" else {
+      return nil
+    }
+    let suffix = "-\(runDirectory.lastPathComponent).js"
+    let scriptsDirectory =
+      runDirectory
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("workflows")
+      .appendingPathComponent("scripts")
+    let scripts =
+      (try? FileManager.default.contentsOfDirectory(
+        at: scriptsDirectory,
+        includingPropertiesForKeys: nil
+      )) ?? []
+    guard
+      let script =
+        scripts
+        .map(\.lastPathComponent)
+        .first(where: { $0.hasSuffix(suffix) })
+    else {
+      return nil
+    }
+    return AgentProgressParsing.normalizedTitle(String(script.dropLast(suffix.count)))
   }
 
   private static func spawnPromptTask(besides metadataURL: URL, agentID: String) -> String? {
