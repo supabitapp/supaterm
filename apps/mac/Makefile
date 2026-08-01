@@ -30,7 +30,7 @@ UI_RESULT_BUNDLE_FLAGS := $(if $(strip $(UI_RESULT_BUNDLE_PATH)),-resultBundlePa
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 APP_RUN_ENV := SUPATERM_VERBOSE_LOGGING=1
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-ui test-ui-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-supaterm-tui build-native build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check check-supaterm-tui test-supaterm-tui test test-xcodebuild test-e2e test-e2e-xcodebuild test-ui test-ui-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -89,10 +89,15 @@ build-zmx:
 build-ap:
 	bash scripts/build-ap.sh
 
-build-app: tuist-generate build-ghostty build-zmx build-ap # Build the macOS app (Debug)
+build-supaterm-tui:
+	bash scripts/build-supaterm-tui.sh
+
+build-native: build-ghostty build-zmx build-ap build-supaterm-tui
+
+build-app: tuist-generate build-native # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build 2>&1 | mise exec -- xcbeautify --disable-logging'
 
-build-app-demo: tuist-generate build-ghostty build-zmx build-ap # Build the macOS app in demo mode (Debug)
+build-app-demo: tuist-generate build-native # Build the macOS app in demo mode (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build "SWIFT_ACTIVE_COMPILATION_CONDITIONS=\$$(inherited) SUPATERM_DEMO" 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 build-snapshot-catalog: tuist-generate build-ghostty # Build the snapshot catalog app (Debug)
@@ -165,7 +170,7 @@ install-tip: # Install tip build from github
 	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"; \
 	echo "Installed /Applications/supaterm.app"
 
-archive: tuist-generate-release build-ghostty build-zmx build-ap archive-xcodebuild # Archive Release build for distribution
+archive: tuist-generate-release build-native archive-xcodebuild # Archive Release build for distribution
 
 archive-xcodebuild:
 	mkdir -p build
@@ -174,7 +179,7 @@ archive-xcodebuild:
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: tuist-generate build-ghostty build-zmx build-ap test-xcodebuild # Run the full macOS test suite
+test: test-supaterm-tui tuist-generate build-native test-xcodebuild # Run the full macOS test suite
 
 test-xcodebuild:
 	@bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'
@@ -182,7 +187,7 @@ test-xcodebuild:
 test-snapshots: tuist-generate build-ghostty # Run snapshot tests.
 	@bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'
 
-test-e2e: tuist-generate build-ghostty build-zmx build-ap test-e2e-xcodebuild # Run end-to-end tests against the real app.
+test-e2e: tuist-generate build-native test-e2e-xcodebuild # Run end-to-end tests against the real app.
 
 test-e2e-xcodebuild:
 	@if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(E2E_RESULT_BUNDLE_PATH)"; fi
@@ -192,7 +197,7 @@ test-e2e-xcodebuild:
 		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
 	fi
 
-test-ui: tuist-generate build-ghostty build-zmx build-ap test-ui-xcodebuild
+test-ui: tuist-generate build-native test-ui-xcodebuild
 
 test-ui-xcodebuild:
 	@if [ -n "$(strip $(UI_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(UI_RESULT_BUNDLE_PATH)"; fi
@@ -205,7 +210,7 @@ test-ui-xcodebuild:
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.
 	TEST_RUNNER_SNAPSHOT_TESTING_RECORD=all xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
-scan-dead-code: tuist-generate build-ghostty build-zmx build-ap
+scan-dead-code: tuist-generate build-native
 	mise exec -- periphery scan
 
 format: # Format code with swift format (local only)
@@ -214,10 +219,21 @@ format: # Format code with swift format (local only)
 lint: # Lint code with swiftlint
 	"$$(mise which swiftlint)" lint --quiet --config .swiftlint.yml
 
+check-supaterm-tui:
+	cd SupatermTUI && \
+	export CARGO_TARGET_DIR="$(CURRENT_MAKEFILE_DIR)/.build/supaterm-tui/.cargo-target" && \
+	mise exec -- cargo fmt --all -- --check && \
+	mise exec -- cargo clippy --locked --all-targets --all-features -- -D warnings
+
+test-supaterm-tui: check-supaterm-tui
+	cd SupatermTUI && \
+	export CARGO_TARGET_DIR="$(CURRENT_MAKEFILE_DIR)/.build/supaterm-tui/.cargo-target" && \
+	mise exec -- cargo test --locked --all-targets --all-features
+
 inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant Tuist dependencies
 	mise exec -- tuist inspect dependencies
 
 warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for external dependencies
 	mise exec -- tuist cache warm --configuration "$(TUIST_CACHE_CONFIGURATION)" --cache-profile "$(TUIST_BINARY_CACHE_PROFILE)"
 
-check: format lint # Format and lint
+check: format lint check-supaterm-tui # Format and lint

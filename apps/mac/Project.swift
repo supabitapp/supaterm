@@ -11,10 +11,46 @@ let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
 let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
+let supatermTUIBinaryPath: Path = ".build/supaterm-tui/bin/supaterm"
+let supatermTUIBuildScriptPath: Path = "scripts/build-supaterm-tui.sh"
+let supatermTUIFingerprintPath: Path = ".build/supaterm-tui/fingerprint"
 
 let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
+
+func embedExecutable(
+  name: String,
+  sourcePath: Path,
+  fingerprintPath: Path,
+  destination: String
+) -> TargetScript {
+  .post(
+    script: """
+      set -euo pipefail
+
+      destination_path="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\(destination)"
+      source_path="${SRCROOT}/\(sourcePath.pathString)"
+
+      if [ ! -x "${source_path}" ]; then
+        echo "error: missing built \(name) executable" >&2
+        exit 1
+      fi
+
+      mkdir -p "${destination_path%/*}"
+      rm -f "${destination_path}"
+      /bin/cp -f "${source_path}" "${destination_path}"
+      """,
+    name: "Embed \(name)",
+    inputPaths: [
+      "$(SRCROOT)/\(sourcePath.pathString)",
+      "$(SRCROOT)/\(fingerprintPath.pathString)",
+    ],
+    outputPaths: [
+      "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/\(destination)",
+    ]
+  )
+}
 
 let project = Project(
   name: "supaterm",
@@ -350,6 +386,13 @@ let project = Project(
           name: "Build ap",
           basedOnDependencyAnalysis: false
         ),
+        .pre(
+          script: """
+            "${SRCROOT}/\(supatermTUIBuildScriptPath.pathString)"
+            """,
+          name: "Build Supaterm TUI",
+          basedOnDependencyAnalysis: false
+        ),
         .post(
           script: """
             set -euo pipefail
@@ -377,31 +420,11 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty-resources.fingerprint",
           ],
         ),
-        .post(
-          script: """
-            set -euo pipefail
-
-            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/zmx"
-            destination_path="${destination_dir}/zmx"
-            source_path="${SRCROOT}/\(zmxBinaryPath.pathString)"
-
-            if [ ! -x "${source_path}" ]; then
-              echo "error: missing built zmx executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            rm -f "${destination_path}"
-            /bin/cp -f "${source_path}" "${destination_path}"
-            """,
-          name: "Embed zmx",
-          inputPaths: [
-            "$(SRCROOT)/\(zmxBinaryPath.pathString)",
-            "$(SRCROOT)/\(zmxFingerprintPath.pathString)",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/zmx/zmx",
-          ]
+        embedExecutable(
+          name: "zmx",
+          sourcePath: zmxBinaryPath,
+          fingerprintPath: zmxFingerprintPath,
+          destination: "zmx/zmx"
         ),
         .post(
           script: """
@@ -439,31 +462,17 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
           ]
         ),
-        .post(
-          script: """
-            set -euo pipefail
-
-            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
-            destination_path="${destination_dir}/ap"
-            source_path="${SRCROOT}/\(apBinaryPath.pathString)"
-
-            if [ ! -x "${source_path}" ]; then
-              echo "error: missing built ap executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            rm -f "${destination_path}"
-            /bin/cp -f "${source_path}" "${destination_path}"
-            """,
-          name: "Embed ap",
-          inputPaths: [
-            "$(SRCROOT)/\(apBinaryPath.pathString)",
-            "$(SRCROOT)/\(apFingerprintPath.pathString)",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/ap",
-          ]
+        embedExecutable(
+          name: "ap",
+          sourcePath: apBinaryPath,
+          fingerprintPath: apFingerprintPath,
+          destination: "bin/ap"
+        ),
+        embedExecutable(
+          name: "Supaterm TUI",
+          sourcePath: supatermTUIBinaryPath,
+          fingerprintPath: supatermTUIFingerprintPath,
+          destination: "bin/supaterm"
         ),
         .post(
           script: """

@@ -1,9 +1,17 @@
 ---
 title: CLI quickstart
-description: Control Supaterm spaces, tab groups, panes, settings, and coding-agent workflows with sp.
+description: Use the Supaterm prompt TUI and control spaces, tabs, panes, settings, and agent workflows with sp.
 ---
 
 `sp` is the command-line interface bundled with Supaterm. Every pane gets the matching binary on `PATH` and receives enough context to target its owning app, tab, and pane.
+
+## Compose a prompt
+
+```bash
+supaterm
+```
+
+Type or paste a prompt, or drag files into the terminal. Images appear as `[Image n]`; other files appear as full paths. The Codex, Claude, and Pi labels show the planned agents but do not start them yet. Enter does nothing in this first version. Press Escape or Control-C to exit.
 
 ## Inspect Supaterm
 

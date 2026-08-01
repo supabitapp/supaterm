@@ -153,7 +153,13 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_TAB_ID`
 - `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled (the default)
 
-The app also prepends the bundled CLI directory to pane `PATH`.
+The app also prepends `Contents/Resources/bin` to pane `PATH`. It contains `sp`, `ap`, and the Rust prompt TUI. Launch the prompt TUI from a pane with:
+
+```bash
+supaterm
+```
+
+The first version only edits a prompt. Enter does nothing.
 
 ## Marketing website
 

@@ -159,7 +159,7 @@ jobs:
         with:
           cache-native-builds: true
       - run: make mac-tuist-install
-      - run: make -C apps/mac build-ghostty build-zmx build-ap
+      - run: make -C apps/mac build-native
       - id: build
         run: mise exec -- tuist test supatermUITests --build-only --shard-total 4 --shard-granularity suite
         working-directory: apps/mac

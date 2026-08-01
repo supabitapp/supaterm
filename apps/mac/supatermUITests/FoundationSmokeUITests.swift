@@ -2,7 +2,7 @@ import XCTest
 
 final class FoundationSmokeUITests: SupatermUITestCase {
   @MainActor
-  func testBundledSpCliIsOnPanePath() async throws {
+  func testBundledCommandsAreOnPanePath() async throws {
     let terminal = mainTerminal
     let didBecomeHittable = await wait(for: terminal, timeout: .seconds(60)) {
       $0.isHittable
@@ -16,6 +16,21 @@ final class FoundationSmokeUITests: SupatermUITestCase {
       ($0.value as? String)?.contains("SP-PATH-MATCHED") == true
     }
     XCTAssertTrue(matched, "bare sp did not resolve to $SUPATERM_CLI_PATH on pane PATH")
+
+    let command =
+      "supaterm_path=\"$(command -v supaterm)\"; "
+      + "[ \"$supaterm_path\" = \"${SUPATERM_CLI_PATH%/sp}/supaterm\" ] && "
+      + "case \"$supaterm_path\" in */supaterm.app/Contents/Resources/bin/supaterm) "
+      + "echo SUPATERM-PATH-\"MATCHED\";; esac\n"
+    app.typeText(command)
+
+    let supatermMatched = await wait(for: terminal, timeout: .seconds(60)) {
+      ($0.value as? String)?.contains("SUPATERM-PATH-MATCHED") == true
+    }
+    XCTAssertTrue(
+      supatermMatched,
+      "bare supaterm did not resolve to Contents/Resources/bin/supaterm on pane PATH"
+    )
   }
 
   @MainActor
