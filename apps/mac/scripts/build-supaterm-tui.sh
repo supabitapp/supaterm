@@ -21,7 +21,14 @@ print_fingerprint() {
     {
       while IFS= read -r file; do
         shasum -a 256 "${file}"
-      done < <(find Cargo.toml Cargo.lock src -type f -print | LC_ALL=C sort)
+      done < <(find Cargo.toml Cargo.lock build.rs agent-icons.tsv src -type f -print | LC_ALL=C sort)
+      while IFS=$'\t' read -r agent name source; do
+        if [ -z "${agent}" ] || [ -z "${name}" ] || [ -z "${source}" ]; then
+          echo "error: invalid agent-icons.tsv" >&2
+          exit 1
+        fi
+        shasum -a 256 "${source}"
+      done < agent-icons.tsv
       shasum -a 256 "${script_path}" | awk '{print $1}'
       mise exec -- rustc --version
       mise exec -- cargo --version

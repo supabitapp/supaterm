@@ -159,7 +159,7 @@ The app also prepends `Contents/Resources/bin` to pane `PATH`. It contains `sp`,
 supaterm
 ```
 
-The first version only edits a prompt. Enter does nothing.
+The first version edits a prompt and uses Tab or Shift-Tab to pick Codex, Claude, or Pi. Enter does nothing.
 
 ## Marketing website
 

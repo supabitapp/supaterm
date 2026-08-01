@@ -1,3 +1,6 @@
+mod agent_picker;
+mod logo;
+
 use std::env;
 
 use ratatui::Frame;
@@ -9,26 +12,20 @@ use terminal_colorsaurus::{QueryOptions, color_palette};
 use unicode_width::UnicodeWidthStr;
 
 use crate::app::App;
+use crate::icons::AgentIcons;
 use crate::prompt::{Atom, Prompt};
 
 const BRAND: Color = Color::Rgb(255, 168, 45);
-const GLYPHS: [[&str; 5]; 8] = [
-    ["████", "█   ", "████", "   █", "████"],
-    ["█  █", "█  █", "█  █", "█  █", "████"],
-    ["████", "█  █", "████", "█   ", "█   "],
-    [" ██ ", "█  █", "████", "█  █", "█  █"],
-    ["████", " ██ ", " ██ ", " ██ ", " ██ "],
-    ["████", "█   ", "███ ", "█   ", "████"],
-    ["███ ", "█  █", "███ ", "█ █ ", "█  █"],
-    ["█   █", "██ ██", "█ █ █", "█   █", "█   █"],
-];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Theme {
     panel: Color,
+    picker: Color,
     text: Color,
     muted: Color,
     image_text: Color,
+    text_shadow: Color,
+    muted_shadow: Color,
     codex: Color,
     claude: Color,
     pi: Color,
@@ -73,11 +70,17 @@ impl Theme {
             if light { 0.045 } else { 0.07 },
         );
         let muted = blend(foreground, background, if light { 0.48 } else { 0.56 });
+        let picker = blend((255, 168, 45), panel, if light { 0.16 } else { 0.2 });
+        let text_shadow = blend(foreground, background, if light { 0.16 } else { 0.2 });
+        let muted_shadow = blend(foreground, background, if light { 0.08 } else { 0.11 });
         Self {
             panel: Color::Rgb(panel.0, panel.1, panel.2),
+            picker: Color::Rgb(picker.0, picker.1, picker.2),
             text: Color::Rgb(foreground.0, foreground.1, foreground.2),
             muted: Color::Rgb(muted.0, muted.1, muted.2),
             image_text: Color::Rgb(36, 25, 6),
+            text_shadow: Color::Rgb(text_shadow.0, text_shadow.1, text_shadow.2),
+            muted_shadow: Color::Rgb(muted_shadow.0, muted_shadow.1, muted_shadow.2),
             codex: if light {
                 Color::Rgb(57, 65, 255)
             } else {
@@ -91,13 +94,10 @@ impl Theme {
             pi: Color::Rgb(foreground.0, foreground.1, foreground.2),
         }
     }
-}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Logo {
-    Block,
-    Compact,
-    Hidden,
+    pub(crate) fn text_color(self) -> Color {
+        self.text
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -251,7 +251,7 @@ impl PromptLayoutBuilder {
     }
 }
 
-pub(crate) fn render(frame: &mut Frame, app: &App, theme: Theme) {
+pub(crate) fn render(frame: &mut Frame, app: &App, theme: Theme, agent_icons: Option<&AgentIcons>) {
     let area = frame.area();
     if area.width < 2 || area.height < 2 {
         return;
@@ -261,36 +261,28 @@ pub(crate) fn render(frame: &mut Frame, app: &App, theme: Theme) {
     let panel_x = area.x + area.width.saturating_sub(panel_width) / 2;
     let content_width = prompt_content_width(panel_width);
     let prompt_layout = PromptLayout::new(&app.prompt, content_width);
-    let show_agents = panel_width >= 30 && area.height >= 5;
-    let block_fixed = 5 + 2;
-    let compact_fixed = 1 + 1;
-    let logo = if panel_width >= 48 && area.height >= block_fixed + 4 {
-        Logo::Block
-    } else if panel_width >= 14 && area.height >= compact_fixed + 4 {
-        Logo::Compact
-    } else {
-        Logo::Hidden
-    };
-    let (logo_height, logo_gap) = match logo {
-        Logo::Block => (5, 2),
-        Logo::Compact => (1, 1),
-        Logo::Hidden => (0, 0),
-    };
+    let show_agent_picker =
+        panel_width >= agent_picker::width().saturating_add(5) && area.height >= 6;
+    let picker_hint_height = u16::from(show_agent_picker);
+    let logo = logo::Logo::select(panel_width, area.height, picker_hint_height);
+    let logo_height = logo.height();
+    let logo_gap = logo.gap();
     let fixed_height = logo_height + logo_gap;
-    let max_prompt_height = area.height.saturating_sub(fixed_height).max(2);
+    let max_prompt_height = area
+        .height
+        .saturating_sub(fixed_height + picker_hint_height)
+        .max(2);
     let prompt_height = prompt_layout
         .rows
-        .saturating_add(2 + u16::from(show_agents))
-        .max(3 + u16::from(show_agents))
+        .saturating_add(2 + u16::from(show_agent_picker))
+        .max(3 + u16::from(show_agent_picker))
         .min(max_prompt_height);
-    let group_height = fixed_height.saturating_add(prompt_height);
+    let group_height = fixed_height
+        .saturating_add(prompt_height)
+        .saturating_add(picker_hint_height);
     let mut y = area.y + area.height.saturating_sub(group_height) / 2;
 
-    match logo {
-        Logo::Block => render_block_logo(frame.buffer_mut(), area, y, theme),
-        Logo::Compact => render_compact_logo(frame.buffer_mut(), area, y, theme),
-        Logo::Hidden => {}
-    }
+    logo.render(frame.buffer_mut(), area, y, theme);
     y = y.saturating_add(logo_height + logo_gap);
 
     let prompt_area = Rect::new(panel_x, y, panel_width, prompt_height);
@@ -300,68 +292,19 @@ pub(crate) fn render(frame: &mut Frame, app: &App, theme: Theme) {
         &prompt_layout,
         app,
         theme,
-        show_agents,
+        show_agent_picker,
+        agent_icons,
     );
+    if show_agent_picker {
+        agent_picker::render_hint(
+            frame.buffer_mut(),
+            Rect::new(panel_x, prompt_area.bottom(), panel_width, 1),
+            theme,
+        );
+    }
     if let Some(cursor) = cursor {
         frame.set_cursor_position(cursor);
     }
-}
-
-fn render_block_logo(buffer: &mut Buffer, area: Rect, y: u16, theme: Theme) {
-    let rows: Vec<String> = (0..5)
-        .map(|row| {
-            GLYPHS
-                .iter()
-                .map(|glyph| glyph[row])
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
-        .collect();
-    let bolt_width = "⚡".width() as u16;
-    let logo_width = rows.iter().map(|row| row.width()).max().unwrap_or(0) as u16 + bolt_width + 1;
-    let x = area.x + area.width.saturating_sub(logo_width) / 2;
-    for (row, text) in rows.iter().enumerate() {
-        let row_y = y.saturating_add(row as u16);
-        if row_y >= area.bottom() {
-            break;
-        }
-        if row == 2 {
-            buffer.set_stringn(
-                x,
-                row_y,
-                "⚡",
-                usize::from(bolt_width),
-                Style::default().fg(BRAND).bold(),
-            );
-        }
-        buffer.set_stringn(
-            x.saturating_add(bolt_width + 1),
-            row_y,
-            text,
-            text.width(),
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        );
-    }
-}
-
-fn render_compact_logo(buffer: &mut Buffer, area: Rect, y: u16, theme: Theme) {
-    let bolt_width = "⚡".width() as u16;
-    let width = bolt_width + 1 + "Supaterm".width() as u16;
-    let x = area.x + area.width.saturating_sub(width) / 2;
-    buffer.set_stringn(
-        x,
-        y,
-        "⚡",
-        usize::from(bolt_width),
-        Style::default().fg(BRAND).bold(),
-    );
-    buffer.set_stringn(
-        x.saturating_add(bolt_width + 1),
-        y,
-        "Supaterm",
-        8,
-        Style::default().fg(theme.text).bold(),
-    );
 }
 
 fn render_prompt(
@@ -370,7 +313,8 @@ fn render_prompt(
     layout: &PromptLayout,
     app: &App,
     theme: Theme,
-    show_agents: bool,
+    show_agent_picker: bool,
+    agent_icons: Option<&AgentIcons>,
 ) -> Option<Position> {
     if area.width < 2 || area.height < 2 {
         return None;
@@ -391,7 +335,7 @@ fn render_prompt(
             .saturating_sub(left_padding + right_padding)
             .max(1),
         area.height
-            .saturating_sub(2 + u16::from(show_agents))
+            .saturating_sub(2 + u16::from(show_agent_picker))
             .max(1),
     );
     let viewport_start = layout
@@ -434,8 +378,8 @@ fn render_prompt(
     if cursor_line >= inner.height {
         return None;
     }
-    if show_agents {
-        render_agents(
+    if show_agent_picker {
+        agent_picker::render(
             buffer,
             Rect::new(
                 area.x.saturating_add(3),
@@ -444,6 +388,8 @@ fn render_prompt(
                 1,
             ),
             theme,
+            app.selected_agent,
+            agent_icons,
         );
     }
     Some(Position::new(
@@ -459,41 +405,6 @@ fn prompt_content_width(panel_width: u16) -> u16 {
         panel_width - 5
     } else {
         panel_width.saturating_sub(1).max(1)
-    }
-}
-
-fn render_agents(buffer: &mut Buffer, area: Rect, theme: Theme) {
-    let agents = [
-        ("◉", "Codex", theme.codex),
-        ("✳", "Claude", theme.claude),
-        ("π", "Pi", theme.pi),
-    ];
-    let width = agents
-        .iter()
-        .map(|(mark, name, _)| mark.width() + 1 + name.width())
-        .sum::<usize>()
-        + (agents.len() - 1) * 3;
-    let mut x = area.x + area.width.saturating_sub(width as u16) / 2;
-    for (index, (mark, name, color)) in agents.iter().enumerate() {
-        buffer.set_stringn(
-            x,
-            area.y,
-            mark,
-            mark.width(),
-            Style::default().fg(*color).bg(theme.panel).bold(),
-        );
-        x = x.saturating_add(mark.width() as u16 + 1);
-        buffer.set_stringn(
-            x,
-            area.y,
-            name,
-            name.width(),
-            Style::default().fg(theme.text).bg(theme.panel),
-        );
-        x = x.saturating_add(name.width() as u16);
-        if index + 1 < agents.len() {
-            x = x.saturating_add(3);
-        }
     }
 }
 
@@ -527,11 +438,24 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+    use crate::app::Agent;
 
     fn draw(width: u16, height: u16, app: &App, theme: Theme) -> Buffer {
+        draw_with_icons(width, height, app, theme, None)
+    }
+
+    fn draw_with_icons(
+        width: u16,
+        height: u16,
+        app: &App,
+        theme: Theme,
+        agent_icons: Option<&AgentIcons>,
+    ) -> Buffer {
         let backend = TestBackend::new(width, height);
         let mut terminal = Terminal::new(backend).unwrap();
-        terminal.draw(|frame| render(frame, app, theme)).unwrap();
+        terminal
+            .draw(|frame| render(frame, app, theme, agent_icons))
+            .unwrap();
         terminal.backend().buffer().clone()
     }
 
@@ -548,28 +472,74 @@ mod tests {
     }
 
     #[test]
-    fn renders_wide_interface_with_block_logo_prompt_and_agents() {
-        let buffer = draw(100, 30, &App::default(), Theme::dark());
+    fn renders_wide_interface_with_large_logo_prompt_and_agent_picker() {
+        let theme = Theme::dark();
+        let icons = AgentIcons::kitty(theme.pi);
+        let buffer = draw_with_icons(100, 30, &App::default(), theme, Some(&icons));
         let rendered = text(&buffer);
 
-        assert!(rendered.contains("⚡"));
-        assert!(rendered.contains("████"));
+        assert!(rendered.contains("   ▄█"));
+        assert!(rendered.contains("  █▀ "));
+        assert!(rendered.contains("█▀▀▀▀ █   █ █▀▀▀▄ ▄▀▀▀▄"));
+        assert!(rendered.contains("▀▀█▀▀ █▀▀▀▀ █▀▀▀▄ █▄ ▄█"));
+        assert!(!rendered.contains("████"));
         assert!(rendered.contains("Type a prompt or drop files"));
-        assert!(rendered.contains("◉ Codex   ✳ Claude   π Pi"));
-        let (codex_x, codex_y) = find_symbol(&buffer, "C").unwrap();
-        assert_eq!(buffer[(codex_x, codex_y)].bg, Theme::dark().panel);
+        assert!(rendered.contains("Codex"));
+        assert!(rendered.contains("Claude"));
+        assert!(rendered.contains("Pi"));
+        assert!(rendered.contains("tab agents"));
+        let mut brand_rows = buffer
+            .content
+            .iter()
+            .enumerate()
+            .filter_map(|(index, cell)| {
+                (cell.fg == BRAND && cell.symbol() != " ")
+                    .then_some(index as u16 / buffer.area.width)
+            })
+            .collect::<Vec<_>>();
+        brand_rows.sort_unstable();
+        brand_rows.dedup();
+        assert_eq!(brand_rows.len(), 4);
+        let image_cells = buffer
+            .content
+            .iter()
+            .filter(|cell| cell.symbol().contains('\u{10EEEE}'))
+            .count();
+        assert_eq!(image_cells, Agent::ALL.len());
+        let codex_index = buffer
+            .content
+            .iter()
+            .position(|cell| cell.symbol().contains('\u{10EEEE}'))
+            .unwrap() as u16;
+        let codex_x = codex_index % buffer.area.width;
+        let codex_y = codex_index / buffer.area.width;
+        assert_eq!(buffer[(codex_x, codex_y)].bg, theme.picker);
         assert_eq!(buffer[(4, codex_y)].bg, BRAND);
     }
 
     #[test]
     fn renders_compact_title_in_a_narrow_terminal() {
-        let buffer = draw(36, 12, &App::default(), Theme::dark());
+        let buffer = draw(40, 12, &App::default(), Theme::dark());
         let rendered = text(&buffer);
 
         assert!(rendered.contains("⚡"));
         assert!(rendered.contains("Supaterm"));
-        assert!(!rendered.contains("████"));
+        assert!(!rendered.contains("█▀▀▀▀ █   █ █▀▀▀▄ ▄▀▀▀▄"));
         assert!(rendered.contains("Codex"));
+    }
+
+    #[test]
+    fn moves_agent_picker_selection() {
+        let app = App {
+            selected_agent: Agent::Claude,
+            ..App::default()
+        };
+        let buffer = draw(60, 14, &app, Theme::dark());
+        let (codex_x, codex_y) = find_symbol(&buffer, "C").unwrap();
+        let (claude_x, claude_y) = find_symbol(&buffer, "A").unwrap();
+
+        assert_eq!(buffer[(codex_x, codex_y)].bg, Theme::dark().panel);
+        assert_eq!(buffer[(claude_x, claude_y)].bg, Theme::dark().picker);
     }
 
     #[test]
@@ -613,7 +583,10 @@ mod tests {
         assert_eq!(prompt.display_text(), "[Image 1]");
         assert_eq!(layout.rows, 2);
         assert!(layout.runs.iter().all(|run| run.kind == RunKind::Image));
-        let app = App { prompt };
+        let app = App {
+            prompt,
+            ..App::default()
+        };
         let buffer = draw(32, 10, &app, Theme::dark());
         let (image_x, image_y) = find_symbol(&buffer, "[").unwrap();
         assert_eq!(buffer[(image_x, image_y)].bg, BRAND);
@@ -653,6 +626,7 @@ mod tests {
         assert_eq!(theme.text, Color::Rgb(220, 210, 200));
         assert_eq!(theme.panel, Color::Rgb(27, 36, 46));
         assert_eq!(theme.pi, theme.text);
+        assert_ne!(theme.picker, theme.panel);
     }
 
     fn find_symbol(buffer: &Buffer, symbol: &str) -> Option<(u16, u16)> {

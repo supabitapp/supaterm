@@ -8,9 +8,60 @@ pub(crate) enum Action {
     Quit,
 }
 
+macro_rules! define_agents {
+    ($default:ident => ($default_name:literal, $default_fallback:literal), $($agent:ident => ($name:literal, $fallback:literal)),+ $(,)?) => {
+        #[repr(usize)]
+        #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+        pub(crate) enum Agent {
+            #[default]
+            $default,
+            $($agent),+
+        }
+
+        impl Agent {
+            pub(crate) const ALL: &'static [Self] = &[Self::$default, $(Self::$agent),+];
+
+            pub(crate) const fn name(self) -> &'static str {
+                match self {
+                    Self::$default => $default_name,
+                    $(Self::$agent => $name),+
+                }
+            }
+
+            pub(crate) const fn fallback(self) -> &'static str {
+                match self {
+                    Self::$default => $default_fallback,
+                    $(Self::$agent => $fallback),+
+                }
+            }
+
+            pub(crate) const fn position(self) -> usize {
+                self as usize
+            }
+        }
+    };
+}
+
+define_agents! {
+    Codex => ("Codex", "C"),
+    Claude => ("Claude", "A"),
+    Pi => ("Pi", "P"),
+}
+
+impl Agent {
+    fn next(self) -> Self {
+        Self::ALL[(self.position() + 1) % Self::ALL.len()]
+    }
+
+    fn previous(self) -> Self {
+        Self::ALL[(self.position() + Self::ALL.len() - 1) % Self::ALL.len()]
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct App {
     pub(crate) prompt: Prompt,
+    pub(crate) selected_agent: Agent,
 }
 
 impl App {
@@ -71,7 +122,11 @@ impl App {
             {
                 self.prompt.insert_char(character);
             }
-            KeyCode::Tab | KeyCode::BackTab => self.prompt.insert_text("    "),
+            KeyCode::BackTab => self.selected_agent = self.selected_agent.previous(),
+            KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.selected_agent = self.selected_agent.previous();
+            }
+            KeyCode::Tab => self.selected_agent = self.selected_agent.next(),
             _ => {}
         }
         Action::Continue
@@ -102,12 +157,74 @@ mod tests {
         let mut app = App::default();
         app.prompt.insert_text("unchanged");
         app.prompt.move_left();
+        app.selected_agent = Agent::Pi;
         let before = app.clone();
 
         let action = app.handle_event(key(KeyCode::Enter, KeyModifiers::NONE));
 
         assert_eq!(action, Action::Continue);
         assert_eq!(app, before);
+    }
+
+    #[test]
+    fn codex_is_selected_by_default() {
+        assert_eq!(App::default().selected_agent, Agent::Codex);
+    }
+
+    #[test]
+    fn agent_data_follows_the_declared_order() {
+        assert_eq!(
+            Agent::ALL
+                .iter()
+                .copied()
+                .map(Agent::position)
+                .collect::<Vec<_>>(),
+            [0, 1, 2]
+        );
+        assert_eq!(
+            Agent::ALL
+                .iter()
+                .copied()
+                .map(Agent::name)
+                .collect::<Vec<_>>(),
+            ["Codex", "Claude", "Pi"]
+        );
+        assert_eq!(
+            Agent::ALL
+                .iter()
+                .copied()
+                .map(Agent::fallback)
+                .collect::<Vec<_>>(),
+            ["C", "A", "P"]
+        );
+    }
+
+    #[test]
+    fn tab_cycles_agents_forward_with_wrap() {
+        let mut app = App::default();
+
+        app.handle_event(key(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.selected_agent, Agent::Claude);
+
+        app.handle_event(key(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.selected_agent, Agent::Pi);
+
+        app.handle_event(key(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.selected_agent, Agent::Codex);
+    }
+
+    #[test]
+    fn backtab_and_shift_tab_cycle_agents_backward_with_wrap() {
+        let mut app = App::default();
+
+        app.handle_event(key(KeyCode::BackTab, KeyModifiers::NONE));
+        assert_eq!(app.selected_agent, Agent::Pi);
+
+        app.handle_event(key(KeyCode::Tab, KeyModifiers::SHIFT));
+        assert_eq!(app.selected_agent, Agent::Claude);
+
+        app.handle_event(key(KeyCode::BackTab, KeyModifiers::SHIFT));
+        assert_eq!(app.selected_agent, Agent::Codex);
     }
 
     #[test]

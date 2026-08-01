@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::process::ExitCode;
 
 mod app;
+mod icons;
 mod prompt;
 mod terminal;
 mod ui;

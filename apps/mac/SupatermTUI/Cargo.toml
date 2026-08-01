@@ -14,10 +14,14 @@ path = "src/main.rs"
 crossterm = "0.29.0"
 image = { version = "0.25.9", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
+ratatui-image = { version = "11.0.6", default-features = false, features = ["crossterm"] }
 shell-words = "1.1.1"
 terminal-colorsaurus = "1.0.3"
 unicode-segmentation = "1.13.3"
 unicode-width = "0.2.2"
+
+[build-dependencies]
+resvg = { version = "0.47.0", default-features = false }
 
 [dev-dependencies]
 tempfile = "3.27.0"

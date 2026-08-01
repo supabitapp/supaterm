@@ -12,6 +12,7 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
 use crate::app::{Action, App};
+use crate::icons::AgentIcons;
 use crate::ui::{self, Theme};
 
 type CrosstermTerminal = Terminal<CrosstermBackend<Stdout>>;
@@ -20,10 +21,11 @@ pub(crate) fn run() -> io::Result<()> {
     install_panic_hook();
     let theme = Theme::detected();
     let mut session = TerminalSession::enter()?;
+    let icons = AgentIcons::detected(theme.text_color());
     let mut app = App::default();
     session
         .terminal
-        .draw(|frame| ui::render(frame, &app, theme))?;
+        .draw(|frame| ui::render(frame, &app, theme, icons.as_ref()))?;
     loop {
         if !event::poll(Duration::from_millis(250))? {
             continue;
@@ -33,7 +35,7 @@ pub(crate) fn run() -> io::Result<()> {
         }
         session
             .terminal
-            .draw(|frame| ui::render(frame, &app, theme))?;
+            .draw(|frame| ui::render(frame, &app, theme, icons.as_ref()))?;
     }
 }
 
