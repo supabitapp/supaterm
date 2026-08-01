@@ -77,10 +77,10 @@ final class TerminalSidebarSelectionGlowView: NSView {
     (bounds.height - (contentY - frame.minY)) / bounds.height
   }
 
-  func update(itemFrame: CGRect, color: Color, alpha: CGFloat, isDark: Bool) {
+  func update(surfaceFrame: CGRect, color: Color, alpha: CGFloat, isDark: Bool) {
     shadowLayer.shadowColor = NSColor(color).cgColor
     shadowLayer.shadowRadius = SelectableRowShadowMetrics.radius(isDark: isDark)
-    frame = Self.visualFrame(for: itemFrame)
+    frame = Self.visualFrame(for: surfaceFrame)
     alphaValue = alpha
     isHidden = false
     needsLayout = true

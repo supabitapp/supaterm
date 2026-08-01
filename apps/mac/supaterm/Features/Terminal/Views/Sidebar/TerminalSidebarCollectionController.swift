@@ -1144,6 +1144,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       let selectedTabID,
       let context,
       let item = collectionLayout.plan.items.first(where: { $0.id == .tab(selectedTabID) }),
+      case .tab(let presentation) = rows[.tab(selectedTabID)],
       item.alpha > 0,
       !item.frame.isEmpty
     else {
@@ -1151,7 +1152,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       return
     }
     selectionGlowView.update(
-      itemFrame: item.frame,
+      surfaceFrame: TerminalSidebarLayout.tabSurfaceFrame(
+        in: item.frame,
+        isGrouped: presentation.groupID != nil
+      ),
       color: context.palette.sidebarSelectedShadow,
       alpha: item.alpha,
       isDark: context.palette.isDark

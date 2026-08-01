@@ -594,12 +594,12 @@ final class TerminalSidebarGroupBackgroundView: NSView {
     super.layout()
     let lineWidth = 1 / (window?.backingScaleFactor ?? 1)
     let shapeBounds = bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
-    let path = CGPath(
-      roundedRect: shapeBounds,
-      cornerWidth: TerminalSidebarLayout.groupCornerRadius,
-      cornerHeight: TerminalSidebarLayout.groupCornerRadius,
-      transform: nil
+    let path = RoundedRectangle(
+      cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+      style: .continuous
     )
+    .path(in: shapeBounds)
+    .cgPath
     fillLayer.frame = bounds
     strokeLayer.frame = bounds
     fillLayer.path = path
