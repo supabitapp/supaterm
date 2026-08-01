@@ -231,6 +231,12 @@ enum TerminalSidebarRowPresentation: Equatable {
 }
 
 enum TerminalSidebarAccessibilityIdentifier {
+  static let newSpace = "sidebar.new-space"
+
+  static func spaceDot(_ spaceID: TerminalSpaceID) -> String {
+    "sidebar.space-dot.\(spaceID.rawValue.uuidString.lowercased())"
+  }
+
   static func tab(_ tabID: TerminalTabID, groupID: TerminalTabGroupID?) -> String {
     let tab = tabID.rawValue.uuidString.lowercased()
     guard let groupID else { return "sidebar.tab-row.\(tab)" }

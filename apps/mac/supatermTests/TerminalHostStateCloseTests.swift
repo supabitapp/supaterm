@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Sharing
 import Testing
 
 @testable import supaterm
@@ -84,6 +85,54 @@ struct TerminalHostStateCloseTests {
         tabNeedsCloseConfirmation: confirmingTabIDs.contains
       )
     )
+  }
+
+  @Test
+  func coldSpaceKeepsTheWindowOpenAndCountsTowardsItsSessions() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let host = TerminalHostState(spaceID: spaces[0].id, zmxSessionsEnabled: false)
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let tabID = try #require(host.selectedTabID)
+      let coldTabID = TerminalTabID()
+      let coldSurfaceID = UUID()
+      host.spaceManager.registerColdInstance(
+        TerminalSpaceSession(
+          spaceID: spaces[1].id,
+          selectedTabID: coldTabID,
+          nodes: [
+            TerminalTabNodeSession(
+              item: .tab(coldTabID),
+              parent: .root(isPinned: false),
+              order: 0
+            )
+          ],
+          groups: [],
+          collapsedGroupIDs: [],
+          tabs: [
+            TerminalTabSession(
+              id: coldTabID,
+              lockedTitle: nil,
+              focusedPaneIndex: 0,
+              root: .leaf(
+                TerminalPaneLeafSession(id: coldSurfaceID, workingDirectoryPath: nil)
+              )
+            )
+          ]
+        )
+      )
+
+      #expect(!host.shouldCloseWindow(afterClosing: [tabID]))
+      #expect(host.sessionSurfaceIDs().contains(coldSurfaceID))
+      #expect(host.paneCount(inSpace: spaces[1].id) == 1)
+    }
   }
 
   private func makeSplitTabSetup(hasSurvivingTab: Bool) throws -> CloseTabTestSetup {

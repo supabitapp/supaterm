@@ -81,18 +81,23 @@ struct TerminalHostStatePaneCreationTests {
       )
     )
     let session = TerminalWindowSession(
-      spaceID: spaceID,
-      selectedTabID: tabID,
-      nodes: [
-        TerminalTabNodeSession(
-          item: .tab(tabID),
-          parent: .root(isPinned: false),
-          order: 0
+      displayedSpaceID: spaceID,
+      spaces: [
+        TerminalSpaceSession(
+          spaceID: spaceID,
+          selectedTabID: tabID,
+          nodes: [
+            TerminalTabNodeSession(
+              item: .tab(tabID),
+              parent: .root(isPinned: false),
+              order: 0
+            )
+          ],
+          groups: [],
+          collapsedGroupIDs: [],
+          tabs: [tabSession]
         )
-      ],
-      groups: [],
-      collapsedGroupIDs: [],
-      tabs: [tabSession]
+      ]
     )
     #expect(host.restore(from: session))
     return host
@@ -100,7 +105,7 @@ struct TerminalHostStatePaneCreationTests {
 
   private func restoredRootSplit(_ host: TerminalHostState) throws -> TerminalPaneSplitSession {
     let snapshot = host.restorationSnapshot()
-    let root = try #require(snapshot.tabs.first?.root)
+    let root = try #require(snapshot.displayedSpace?.tabs.first?.root)
     guard case .split(let split) = root else {
       Issue.record("Expected split root")
       throw TestError()

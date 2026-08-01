@@ -74,47 +74,6 @@ struct TerminalHostStateSelectionTests {
   }
 
   @Test
-  func newTabSelectionStateReportsSelectedSpaceAndFocusedForSelectedTabInActiveWindow() {
-    let tabID = TerminalTabID()
-    let paneID = UUID()
-
-    let state = TerminalHostState.newTabSelectionState(
-      TerminalHostState.NewTabSelectionInput(
-        selectedTabID: tabID,
-        targetTabID: tabID,
-        windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
-        focusedSurfaceID: paneID,
-        surfaceID: paneID
-      )
-    )
-
-    #expect(state.isSelectedSpace)
-    #expect(state.isSelectedTab)
-    #expect(state.isFocused)
-  }
-
-  @Test
-  func newTabSelectionStateReportsSelectedSpaceWithoutSelectedTabWhenAnotherTabRemainsSelected() {
-    let selectedTabID = TerminalTabID()
-    let targetTabID = TerminalTabID()
-    let paneID = UUID()
-
-    let state = TerminalHostState.newTabSelectionState(
-      TerminalHostState.NewTabSelectionInput(
-        selectedTabID: selectedTabID,
-        targetTabID: targetTabID,
-        windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
-        focusedSurfaceID: paneID,
-        surfaceID: paneID
-      )
-    )
-
-    #expect(state.isSelectedSpace)
-    #expect(!state.isSelectedTab)
-    #expect(!state.isFocused)
-  }
-
-  @Test
   func newPaneSelectionStateReportsFocusedOnlyForSelectedPaneInActiveWindow() {
     let tabID = TerminalTabID()
     let paneID = UUID()

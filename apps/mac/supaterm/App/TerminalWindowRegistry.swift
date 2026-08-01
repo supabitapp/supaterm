@@ -74,8 +74,6 @@ final class TerminalWindowRegistry {
   private let zmxClient: ZmxClient
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
-  private var previousSpaceID: TerminalSpaceID?
-  var onCreateWindow: @MainActor (TerminalSpaceID, Bool) -> Void = { _, _ in }
   var onChange: @MainActor () -> Void = {}
 
   init(zmxClient: ZmxClient = .live) {
@@ -107,6 +105,9 @@ final class TerminalWindowRegistry {
     }
     terminal.onSpaceAction = { [weak self] action in
       self?.performSpaceAction(action, from: windowControllerID)
+    }
+    terminal.paneCountAcrossWindows = { [weak self] spaceID in
+      self?.paneCount(inSpace: spaceID) ?? 0
     }
     let entry = Entry(
       keyboardShortcutForAction: keyboardShortcutForAction,
@@ -148,43 +149,35 @@ final class TerminalWindowRegistry {
   func markWindowFocused(_ windowControllerID: UUID) {
     guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID })
     else { return }
-    if let spaceID = entries[index].terminal.selectedSpaceID,
-      spaceCatalog.defaultSelectedSpaceID != spaceID
-    {
-      previousSpaceID = spaceCatalog.defaultSelectedSpaceID
-      persistDefaultSpace(spaceID)
-    }
+    persistDefaultSpace(entries[index].terminal.displayedSpaceID)
     entries.append(entries.remove(at: index))
     onChange()
   }
 
   var preferredSpaceID: TerminalSpaceID? {
-    preferredActiveEntry()?.terminal.selectedSpaceID
+    preferredActiveEntry()?.terminal.displayedSpaceID
   }
 
   var spaceCount: Int {
     TerminalSpaceCatalog.sanitized(spaceCatalog).spaces.count
   }
 
+  func paneCount(inSpace spaceID: TerminalSpaceID) -> Int {
+    activeEntries().reduce(0) { $0 + $1.terminal.paneCount(inSpace: spaceID) }
+  }
+
   @discardableResult
-  func openSpace(_ spaceID: TerminalSpaceID) -> Bool {
-    let catalog = TerminalSpaceCatalog.sanitized(spaceCatalog)
-    guard catalog.spaces.contains(where: { $0.id == spaceID }) else { return false }
-    if catalog.defaultSelectedSpaceID != spaceID {
-      previousSpaceID = catalog.defaultSelectedSpaceID
+  func selectSpace(_ spaceID: TerminalSpaceID, in windowControllerID: UUID? = nil) -> Bool {
+    guard let entry = entry(in: windowControllerID), entry.terminal.switchSpace(to: spaceID) else {
+      return false
     }
-    persistDefaultSpace(spaceID)
-    if let entry = activeEntries().last(where: { $0.terminal.selectedSpaceID == spaceID }),
-      let window = entry.windowReference.value
-    {
+    if let window = entry.windowReference.value {
       if window.isMiniaturized {
         window.deminiaturize(nil)
       }
       window.makeKeyAndOrderFront(nil)
-      markWindowFocused(entry.windowControllerID)
-    } else {
-      onCreateWindow(spaceID, true)
     }
+    markWindowFocused(entry.windowControllerID)
     return true
   }
 
@@ -192,7 +185,7 @@ final class TerminalWindowRegistry {
   func createSpace(
     named name: String,
     color: ThemeTint = .neutral,
-    focus: Bool = true
+    in windowControllerID: UUID? = nil
   ) throws -> TerminalSpaceID {
     guard let name = normalizedSpaceName(name) else {
       throw TerminalControlError.invalidSpaceName
@@ -205,16 +198,12 @@ final class TerminalWindowRegistry {
     else {
       throw TerminalControlError.spaceNameUnavailable
     }
-    if focus {
-      previousSpaceID = catalog.defaultSelectedSpaceID
-    }
     let space = TerminalSpaceItem(name: name, color: color)
     catalog.spaces.append(space)
-    if focus {
-      catalog.defaultSelectedSpaceID = space.id
-    }
     replaceSpaceCatalog(catalog)
-    onCreateWindow(space.id, focus)
+    guard let entry = entry(in: windowControllerID) else { return space.id }
+    entry.terminal.warmSpace(space.id)
+    selectSpace(space.id, in: entry.windowControllerID)
     return space.id
   }
 
@@ -248,157 +237,118 @@ final class TerminalWindowRegistry {
 
   func deleteSpace(_ spaceID: TerminalSpaceID) throws {
     var catalog = TerminalSpaceCatalog.sanitized(spaceCatalog)
-    guard catalog.spaces.contains(where: { $0.id == spaceID }) else {
+    guard let index = catalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
       throw TerminalControlError.contextPaneNotFound
     }
     guard catalog.spaces.count > 1 else {
       throw TerminalControlError.onlyRemainingSpace
     }
-    let entriesToClose = activeEntries().filter { $0.terminal.selectedSpaceID == spaceID }
-    let opensReplacement = catalog.defaultSelectedSpaceID == spaceID
-    catalog.spaces.removeAll { $0.id == spaceID }
-    if opensReplacement {
-      catalog.defaultSelectedSpaceID = catalog.spaces[0].id
-    }
-    if previousSpaceID == spaceID {
-      previousSpaceID = nil
+    let neighborSpaceID = catalog.spaces[index == 0 ? 1 : index - 1].id
+    catalog.spaces.remove(at: index)
+    if catalog.defaultSelectedSpaceID == spaceID {
+      catalog.defaultSelectedSpaceID = neighborSpaceID
     }
     replaceSpaceCatalog(catalog)
-    for entry in entriesToClose {
-      entry.requestConfirmedWindowClose()
-    }
-    if opensReplacement {
-      _ = openSpace(catalog.defaultSelectedSpaceID)
+    for entry in activeEntries() {
+      entry.terminal.applyObservedSpaceCatalog(catalog)
     }
   }
 
   @discardableResult
-  func openAdjacentSpace(from spaceID: TerminalSpaceID, step: Int) -> Bool {
-    let spaces = TerminalSpaceCatalog.sanitized(spaceCatalog).spaces
-    guard let index = spaces.firstIndex(where: { $0.id == spaceID }), !spaces.isEmpty else {
+  func selectAdjacentSpace(step: Int, in windowControllerID: UUID? = nil) -> Bool {
+    guard
+      let entry = entry(in: windowControllerID),
+      let spaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
+        .spaceID(adjacentTo: entry.terminal.displayedSpaceID, step: step)
+    else {
       return false
     }
-    let targetIndex = (index + step + spaces.count) % spaces.count
-    return openSpace(spaces[targetIndex].id)
+    return selectSpace(spaceID, in: entry.windowControllerID)
   }
 
-  func selectSpaceResult(_ spaceID: TerminalSpaceID) throws -> SupatermSelectSpaceResult {
-    guard openSpace(spaceID) else {
+  @discardableResult
+  func selectSpaceSlot(_ slot: Int, in windowControllerID: UUID? = nil) -> Bool {
+    let index = slot == 0 ? 9 : slot - 1
+    let spaces = TerminalSpaceCatalog.sanitized(spaceCatalog).spaces
+    guard spaces.indices.contains(index) else { return false }
+    return selectSpace(spaces[index].id, in: windowControllerID)
+  }
+
+  func selectSpaceResult(
+    _ spaceID: TerminalSpaceID,
+    context: SupatermCLIContext?
+  ) throws -> SupatermSelectSpaceResult {
+    let entry = try ambientEntry(for: context)
+    guard selectSpace(spaceID, in: entry.windowControllerID) else {
       throw TerminalControlError.contextPaneNotFound
     }
-    guard let location = mostRecentWindowLocation(for: spaceID) else {
-      throw TerminalControlError.lastSpaceNotFound
-    }
-    return TerminalWindowRegistry.rewrite(
-      try location.entry.terminal.selectSpaceResult(for: spaceID),
-      windowIndex: location.windowIndex
-    )
+    return try spaceResult(for: spaceID, in: entry)
   }
 
   func createSpaceResult(
     named name: String,
     color: ThemeTint?,
-    focus: Bool
+    context: SupatermCLIContext?
   ) throws -> SupatermCreateSpaceResult {
+    let entry = try ambientEntry(for: context)
     let spaceID = try createSpace(
       named: name,
       color: color ?? ThemeTint.chromatic.randomElement() ?? .blue,
-      focus: focus
+      in: entry.windowControllerID
     )
-    guard let location = mostRecentWindowLocation(for: spaceID) else {
-      throw TerminalControlError.lastSpaceNotFound
-    }
-    return TerminalWindowRegistry.rewrite(
-      try location.entry.terminal.selectSpaceResult(for: spaceID),
-      windowIndex: location.windowIndex
-    )
+    return try spaceResult(for: spaceID, in: entry)
   }
 
-  func deleteSpaceResult(_ spaceID: TerminalSpaceID) throws -> SupatermCloseSpaceResult {
-    guard let location = mostRecentWindowLocation(for: spaceID) else {
-      guard openSpace(spaceID), let openedLocation = mostRecentWindowLocation(for: spaceID) else {
-        throw TerminalControlError.contextPaneNotFound
-      }
-      let target = TerminalWindowRegistry.rewrite(
-        try openedLocation.entry.terminal.spaceTarget(for: spaceID),
-        windowIndex: openedLocation.windowIndex
-      )
-      try deleteSpace(spaceID)
-      return target
-    }
-    let target = TerminalWindowRegistry.rewrite(
-      try location.entry.terminal.spaceTarget(for: spaceID),
-      windowIndex: location.windowIndex
-    )
+  func deleteSpaceResult(
+    _ spaceID: TerminalSpaceID,
+    context: SupatermCLIContext?
+  ) throws -> SupatermCloseSpaceResult {
+    let entry = try ambientEntry(for: context)
+    let target = try spaceTargetResult(for: spaceID, in: entry)
     try deleteSpace(spaceID)
     return target
   }
 
   func renameSpaceResult(
     _ spaceID: TerminalSpaceID,
-    to name: String
+    to name: String,
+    context: SupatermCLIContext?
   ) throws -> SupatermSpaceTarget {
+    let entry = try ambientEntry(for: context)
     try renameSpace(spaceID, to: name)
-    guard let location = mostRecentWindowLocation(for: spaceID) else {
-      guard openSpace(spaceID), let openedLocation = mostRecentWindowLocation(for: spaceID) else {
-        throw TerminalControlError.contextPaneNotFound
-      }
-      return spaceTarget(
-        spaceID: spaceID,
-        name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-        windowIndex: openedLocation.windowIndex
-      )
-    }
-    return spaceTarget(
-      spaceID: spaceID,
-      name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-      windowIndex: location.windowIndex
-    )
+    return try spaceTargetResult(for: spaceID, in: entry)
   }
 
   func setSpaceColorResult(
     _ spaceID: TerminalSpaceID,
-    to color: ThemeTint
+    to color: ThemeTint,
+    context: SupatermCLIContext?
   ) throws -> SupatermSpaceTarget {
+    let entry = try ambientEntry(for: context)
     try setSpaceColor(spaceID, to: color)
-    let name = TerminalSpaceCatalog.sanitized(spaceCatalog)
-      .spaces.first(where: { $0.id == spaceID })?.name ?? ""
-    guard let location = mostRecentWindowLocation(for: spaceID) else {
-      guard openSpace(spaceID), let openedLocation = mostRecentWindowLocation(for: spaceID) else {
-        throw TerminalControlError.contextPaneNotFound
-      }
-      return spaceTarget(
-        spaceID: spaceID,
-        name: name,
-        windowIndex: openedLocation.windowIndex
-      )
-    }
-    return spaceTarget(
-      spaceID: spaceID,
-      name: name,
-      windowIndex: location.windowIndex
-    )
+    return try spaceTargetResult(for: spaceID, in: entry)
   }
 
   func adjacentSpaceResult(
-    from spaceID: TerminalSpaceID,
-    step: Int
+    step: Int,
+    context: SupatermCLIContext?
   ) throws -> SupatermSelectSpaceResult {
-    let spaces = TerminalSpaceCatalog.sanitized(spaceCatalog).spaces
-    guard let index = spaces.firstIndex(where: { $0.id == spaceID }), !spaces.isEmpty else {
-      throw TerminalControlError.lastSpaceNotFound
-    }
-    let targetIndex = (index + step + spaces.count) % spaces.count
-    return try selectSpaceResult(spaces[targetIndex].id)
-  }
-
-  func lastSpaceResult(from spaceID: TerminalSpaceID) throws -> SupatermSelectSpaceResult {
-    guard TerminalSpaceCatalog.sanitized(spaceCatalog).spaces.contains(where: { $0.id == spaceID }),
-      let previousSpaceID
+    let entry = try ambientEntry(for: context)
+    guard
+      let targetSpaceID = TerminalSpaceCatalog.sanitized(spaceCatalog)
+        .spaceID(adjacentTo: entry.terminal.displayedSpaceID, step: step)
     else {
       throw TerminalControlError.lastSpaceNotFound
     }
-    return try selectSpaceResult(previousSpaceID)
+    return try selectSpaceResult(targetSpaceID, context: context)
+  }
+
+  func lastSpaceResult(context: SupatermCLIContext?) throws -> SupatermSelectSpaceResult {
+    let entry = try ambientEntry(for: context)
+    guard let lastDisplayedSpaceID = entry.terminal.spaceManager.lastDisplayedSpaceID else {
+      throw TerminalControlError.lastSpaceNotFound
+    }
+    return try selectSpaceResult(lastDisplayedSpaceID, context: context)
   }
 
   func commandAvailability() -> CommandAvailability {
@@ -505,10 +455,15 @@ final class TerminalWindowRegistry {
   }
 
   func requestSelectSpaceInKeyWindow(_ slot: Int) {
-    let index = slot == 0 ? 9 : slot - 1
-    let spaces = TerminalSpaceCatalog.sanitized(spaceCatalog).spaces
-    guard spaces.indices.contains(index) else { return }
-    _ = openSpace(spaces[index].id)
+    selectSpaceSlot(slot)
+  }
+
+  func requestNextSpaceInKeyWindow() {
+    selectAdjacentSpace(step: 1)
+  }
+
+  func requestPreviousSpaceInKeyWindow() {
+    selectAdjacentSpace(step: -1)
   }
 
   func requestToggleSidebarInKeyWindow() {
@@ -659,9 +614,9 @@ final class TerminalWindowRegistry {
     }
   }
 
-  func terminateLiveTerminalSessionsAndWait() async {
+  func terminateTerminalSessionsAndWait() async {
     for entry in activeEntries() {
-      await entry.terminal.terminateLiveTerminalSessionsAndWait()
+      await entry.terminal.terminateTerminalSessionsAndWait()
     }
   }
 
@@ -676,7 +631,7 @@ final class TerminalWindowRegistry {
       entry.windowReference.value.map(ObjectIdentifier.init)
     }
     Task { @MainActor in
-      await terminateLiveTerminalSessionsAndWait()
+      await terminateTerminalSessionsAndWait()
       await terminateAllZmxSessionsAndWait()
       closeWindows(windowIDs)
     }
@@ -731,8 +686,8 @@ final class TerminalWindowRegistry {
       hasFocusedSurface: terminal.selectedSurfaceView != nil,
       updateEntries: Self.commandPaletteUpdateEntries(for: updateState),
       focusTargets: focusTargets,
-      selectedSpaceID: terminal.selectedSpaceID,
-      spaces: terminal.availableSpaces,
+      selectedSpaceID: terminal.displayedSpaceID,
+      spaces: terminal.spaces,
       selectedTabID: terminal.selectedTabID,
       rootItems: terminal.rootItems
     )
@@ -743,33 +698,33 @@ final class TerminalWindowRegistry {
     guard let window = entry.windowReference.value else { return }
     window.makeKeyAndOrderFront(nil)
     entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
-    _ = try? entry.terminal.focusPane(TerminalPaneTarget(paneID: target.surfaceID))
+    focusPane(target.surfaceID, in: entry)
   }
 
   @discardableResult
   func focusNotificationSurface(_ surfaceID: UUID) -> Bool {
     for entry in activeEntries() {
-      guard entry.terminal.tabID(containing: surfaceID) != nil else { continue }
-      do {
-        guard let window = entry.windowReference.value else { continue }
-        NSApp.activate(ignoringOtherApps: true)
-        if window.isMiniaturized {
-          window.deminiaturize(nil)
-        }
-        window.makeKeyAndOrderFront(nil)
-        entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
-        _ = try entry.terminal.focusPane(TerminalPaneTarget(paneID: surfaceID))
-        return true
-      } catch let error as TerminalControlError {
-        if case .contextPaneNotFound = error {
-          continue
-        }
-        return false
-      } catch {
-        return false
+      guard
+        entry.terminal.tabID(containing: surfaceID) != nil,
+        let window = entry.windowReference.value
+      else {
+        continue
       }
+      NSApp.activate(ignoringOtherApps: true)
+      if window.isMiniaturized {
+        window.deminiaturize(nil)
+      }
+      window.makeKeyAndOrderFront(nil)
+      entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
+      return focusPane(surfaceID, in: entry)
     }
     return false
+  }
+
+  @discardableResult
+  private func focusPane(_ surfaceID: UUID, in entry: Entry) -> Bool {
+    markWindowFocused(entry.windowControllerID)
+    return (try? entry.terminal.focusPane(TerminalPaneTarget(paneID: surfaceID))) != nil
   }
 
   @discardableResult
@@ -816,7 +771,7 @@ final class TerminalWindowRegistry {
 
   private func selectedGroupID(in entry: Entry) -> TerminalTabGroupID? {
     guard let tabID = entry.terminal.selectedTabID else { return nil }
-    return entry.terminal.spaceManager.tabManager.groupID(containing: tabID)
+    return entry.terminal.spaceManager.displayedInstance.tabManager.groupID(containing: tabID)
   }
 
   private func commandAvailability(for entry: Entry) -> CommandAvailability {
@@ -880,27 +835,21 @@ final class TerminalWindowRegistry {
     _ action: TerminalHostState.SpaceAction,
     from windowControllerID: UUID
   ) {
-    let sourceSpaceID = entries.first(where: { $0.windowControllerID == windowControllerID })?
-      .terminal.selectedSpaceID
     switch action {
     case .create(let name, let color):
-      _ = try? createSpace(named: name, color: color)
+      _ = try? createSpace(named: name, color: color, in: windowControllerID)
     case .delete(let spaceID):
       try? deleteSpace(spaceID)
     case .next:
-      if let sourceSpaceID {
-        _ = openAdjacentSpace(from: sourceSpaceID, step: 1)
-      }
+      selectAdjacentSpace(step: 1, in: windowControllerID)
     case .previous:
-      if let sourceSpaceID {
-        _ = openAdjacentSpace(from: sourceSpaceID, step: -1)
-      }
+      selectAdjacentSpace(step: -1, in: windowControllerID)
     case .rename(let spaceID, let name):
       try? renameSpace(spaceID, to: name)
     case .select(let spaceID):
-      _ = openSpace(spaceID)
+      selectSpace(spaceID, in: windowControllerID)
     case .selectSlot(let slot):
-      requestSelectSpaceInKeyWindow(slot)
+      selectSpaceSlot(slot, in: windowControllerID)
     case .setColor(let spaceID, let color):
       try? setSpaceColor(spaceID, to: color)
     }
@@ -922,30 +871,68 @@ final class TerminalWindowRegistry {
     return name.isEmpty ? nil : name
   }
 
-  private func mostRecentWindowLocation(
-    for spaceID: TerminalSpaceID
-  ) -> (entry: Entry, windowIndex: Int)? {
-    let activeEntries = activeEntries()
-    guard
-      let index = activeEntries.lastIndex(where: {
-        $0.terminal.selectedSpaceID == spaceID
-      })
-    else {
-      return nil
+  func ambientEntry(for context: SupatermCLIContext?) throws -> Entry {
+    guard let entry = ambientEntries(for: context).first else {
+      throw TerminalControlError.contextPaneNotFound
     }
-    return (activeEntries[index], index + 1)
+    return entry
   }
 
-  private func spaceTarget(
-    spaceID: TerminalSpaceID,
-    name: String,
-    windowIndex: Int
-  ) -> SupatermSpaceTarget {
-    SupatermSpaceTarget(
-      windowIndex: windowIndex,
-      spaceIndex: 1,
+  func ambientEntries(for context: SupatermCLIContext?) -> [Entry] {
+    var entries = activeEntries()
+    guard let index = ambientIndex(in: entries, context: context) else { return entries }
+    let ambientEntry = entries.remove(at: index)
+    return [ambientEntry] + entries
+  }
+
+  func windowIndex(of entry: Entry) -> Int {
+    let index = activeEntries().firstIndex { $0.windowControllerID == entry.windowControllerID }
+    return (index ?? 0) + 1
+  }
+
+  private func ambientIndex(in entries: [Entry], context: SupatermCLIContext?) -> Int? {
+    if let context {
+      if let index = entries.firstIndex(where: {
+        $0.terminal.tabID(containing: context.surfaceID) != nil
+          || $0.terminal.spaceManager.pendingInstance(containingSurface: context.surfaceID) != nil
+      }) {
+        return index
+      }
+      let tabID = TerminalTabID(rawValue: context.tabID)
+      if let index = entries.firstIndex(where: {
+        $0.terminal.spaceManager.instance(for: tabID) != nil
+          || $0.terminal.spaceManager.pendingInstance(containingTab: tabID) != nil
+      }) {
+        return index
+      }
+    }
+    guard let preferred = preferredActiveEntry() else { return nil }
+    return entries.firstIndex { $0.windowControllerID == preferred.windowControllerID }
+  }
+
+  private func spaceResult(
+    for spaceID: TerminalSpaceID,
+    in entry: Entry
+  ) throws -> SupatermSelectSpaceResult {
+    TerminalWindowRegistry.rewrite(
+      try entry.terminal.selectSpaceResult(for: spaceID),
+      windowIndex: windowIndex(of: entry)
+    )
+  }
+
+  private func spaceTargetResult(
+    for spaceID: TerminalSpaceID,
+    in entry: Entry
+  ) throws -> SupatermSpaceTarget {
+    let spaces = TerminalSpaceCatalog.sanitized(spaceCatalog).spaces
+    guard let spaceIndex = spaces.firstIndex(where: { $0.id == spaceID }) else {
+      throw TerminalControlError.contextPaneNotFound
+    }
+    return SupatermSpaceTarget(
+      windowIndex: windowIndex(of: entry),
+      spaceIndex: spaceIndex + 1,
       spaceID: spaceID.rawValue,
-      name: name
+      name: spaces[spaceIndex].name
     )
   }
 
@@ -955,7 +942,8 @@ final class TerminalWindowRegistry {
       return CloseAllWindowsCandidate(
         windowID: ObjectIdentifier(window),
         needsConfirmation:
-          entry.terminal.windowNeedsCloseConfirmation() || !entry.terminal.liveSurfaceIDs().isEmpty
+          entry.terminal.windowNeedsCloseConfirmation()
+          || !entry.terminal.sessionSurfaceIDs().isEmpty
       )
     }
   }
@@ -968,6 +956,10 @@ final class TerminalWindowRegistry {
 
   private func entry(forWindowControllerID windowControllerID: UUID) -> Entry? {
     activeEntries().first { $0.windowControllerID == windowControllerID }
+  }
+
+  private func entry(in windowControllerID: UUID?) -> Entry? {
+    windowControllerID.flatMap(entry(forWindowControllerID:)) ?? preferredActiveEntry()
   }
 
   private func entry(for window: NSWindow) -> Entry? {

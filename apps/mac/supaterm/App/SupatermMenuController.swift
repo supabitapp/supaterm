@@ -72,6 +72,8 @@ final class SupatermMenuController: NSObject {
       "app.supabit.supaterm.tabs.jumpToLatestUnread")
     static let selectLastTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.last")
     static let selectTabPrefix = "app.supabit.supaterm.tabs.select."
+    static let nextSpace = NSUserInterfaceItemIdentifier("app.supabit.supaterm.spaces.next")
+    static let previousSpace = NSUserInterfaceItemIdentifier("app.supabit.supaterm.spaces.previous")
     static let selectSpacePrefix = "app.supabit.supaterm.spaces.select."
     static let zoomSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.zoomSplit")
     static let previousSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.previousSplit")
@@ -342,7 +344,10 @@ final class SupatermMenuController: NSObject {
     SupatermMenuSectionSpec(
       title: "Spaces",
       entries: [
-        .slots(prefix: MenuItemIdentifier.selectSpacePrefix)
+        .item(MenuItemIdentifier.nextSpace),
+        .item(MenuItemIdentifier.previousSpace),
+        .separator,
+        .slots(prefix: MenuItemIdentifier.selectSpacePrefix),
       ]
     )
   }
@@ -695,15 +700,32 @@ final class SupatermMenuController: NSObject {
   }
 
   private func spacesMenuSpecs() -> [SupatermMenuItemSpec] {
-    (1...10).map { slot in
+    var specs: [SupatermMenuItemSpec] = [
       SupatermMenuItemSpec(
-        id: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)"),
-        title: "Space \(slot)",
-        action: #selector(selectSpace(_:)),
-        shortcut: .app(.selectSpace(slot)),
-        slot: slot
-      )
-    }
+        id: MenuItemIdentifier.nextSpace,
+        title: "Next Space",
+        action: #selector(nextSpace(_:)),
+        shortcut: .app(.nextSpace)
+      ),
+      SupatermMenuItemSpec(
+        id: MenuItemIdentifier.previousSpace,
+        title: "Previous Space",
+        action: #selector(previousSpace(_:)),
+        shortcut: .app(.previousSpace)
+      ),
+    ]
+    specs.append(
+      contentsOf: (1...10).map { slot in
+        SupatermMenuItemSpec(
+          id: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)"),
+          title: "Space \(slot)",
+          action: #selector(selectSpace(_:)),
+          shortcut: .app(.selectSpace(slot)),
+          slot: slot
+        )
+      }
+    )
+    return specs
   }
 
   private func windowMenuSpecs() -> [SupatermMenuItemSpec] {
@@ -1153,6 +1175,14 @@ final class SupatermMenuController: NSObject {
     registry.requestSelectSpaceInKeyWindow(slot.intValue)
   }
 
+  @objc func nextSpace(_ sender: Any?) {
+    registry.requestNextSpaceInKeyWindow()
+  }
+
+  @objc func previousSpace(_ sender: Any?) {
+    registry.requestPreviousSpaceInKeyWindow()
+  }
+
   private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
     guard let item else { return }
     if !(NSApp.keyWindow?.firstResponder is GhosttySurfaceView) {
@@ -1330,12 +1360,14 @@ extension SupatermMenuController: NSMenuItemValidation {
     case MenuItemIdentifier.checkForUpdates:
       item.title = context.updateMenuItemText
       return context.isUpdateMenuItemEnabled
-    case MenuItemIdentifier.newTab:
+    case MenuItemIdentifier.newTab,
+      MenuItemIdentifier.openCommandPalette,
+      MenuItemIdentifier.closeWindow,
+      MenuItemIdentifier.closeAllWindows,
+      MenuItemIdentifier.toggleSidebar:
       return context.availability.hasWindow
     case MenuItemIdentifier.newTabInGroup:
       return context.hasSelectedGroup
-    case MenuItemIdentifier.openCommandPalette:
-      return context.availability.hasWindow
     case MenuItemIdentifier.splitRight,
       MenuItemIdentifier.splitLeft,
       MenuItemIdentifier.splitDown,
@@ -1345,10 +1377,6 @@ extension SupatermMenuController: NSMenuItemValidation {
       return context.availability.hasSurface || context.closesKeyWindowDirectly
     case MenuItemIdentifier.closeTab:
       return context.availability.hasTab
-    case MenuItemIdentifier.closeWindow,
-      MenuItemIdentifier.closeAllWindows,
-      MenuItemIdentifier.toggleSidebar:
-      return context.availability.hasWindow
     case MenuItemIdentifier.toggleAgentPanel:
       return context.availability.hasAgentPanel
     case MenuItemIdentifier.forkAgentSession,
@@ -1382,6 +1410,9 @@ extension SupatermMenuController: NSMenuItemValidation {
       MenuItemIdentifier.changeTabTitle,
       MenuItemIdentifier.selectLastTab:
       return validateTabMenuItem(item, context: context)
+    case MenuItemIdentifier.nextSpace,
+      MenuItemIdentifier.previousSpace:
+      return context.availability.hasWindow && context.spaceCount > 1
     default:
       return validateIndexedMenuItem(item, context: context)
     }

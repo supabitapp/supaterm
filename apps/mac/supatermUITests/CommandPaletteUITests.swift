@@ -123,7 +123,7 @@ final class CommandPaletteUITests: SupatermUITestCase {
   }
 
   @MainActor
-  func testCreateSpaceCommandOpensSpaceWindow() async throws {
+  func testCreateSpaceCommandDisplaysNewSpaceInTheSameWindow() async throws {
     let terminal = try readyTerminal()
     terminal.click()
 
@@ -147,16 +147,12 @@ final class CommandPaletteUITests: SupatermUITestCase {
     XCTAssertTrue(didEnableConfirm)
     confirmButton.click()
 
-    let spaceSwitchers = app.descendants(matching: .any).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.titlebarSpaceSwitcher
-    )
-    let createdSpaceSwitcher = spaceSwitchers.matching(
-      NSPredicate(format: "label == %@", "Space \(spaceName)")
-    ).firstMatch
-    let didCreateSpace = await wait(for: createdSpaceSwitcher) {
-      $0.exists && spaceSwitchers.count == 2 && self.app.windows.count == 2
-    }
-    XCTAssertTrue(didCreateSpace)
+    let didDisplayCreatedSpace = await waitForDisplayedSpace(named: spaceName)
+    XCTAssertTrue(didDisplayCreatedSpace)
+
+    let didAddSpaceDot = await waitForSidebarElementCount(spaceDots, equals: 2)
+    XCTAssertTrue(didAddSpaceDot)
+    XCTAssertEqual(app.windows.count, 1)
   }
 
   @MainActor

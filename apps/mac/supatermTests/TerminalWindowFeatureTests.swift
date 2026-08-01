@@ -212,6 +212,27 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func newTabInSpaceCaptureRecordsAnalyticsAndSendsCommand() async {
+    let analyticsRecorder = AnalyticsEventRecorder()
+    let recorder = TerminalCommandRecorder()
+    let spaceID = TerminalSpaceID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.newTabInSpaceRequested(spaceID))
+
+    #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
+    #expect(recorder.commands == [.createTabInSpace(spaceID)])
+  }
+
+  @Test
   func splitOperationCaptureRecordsAnalyticsAndSendsCommand() async {
     let analyticsRecorder = AnalyticsEventRecorder()
     let recorder = TerminalCommandRecorder()

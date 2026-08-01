@@ -4,10 +4,10 @@ import SupatermTerminalCore
 
 extension TerminalCommandExecutor {
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
-    for (offset, entry) in registry.activeEntries().enumerated() {
+    for entry in registry.ambientEntries(for: request.context) {
       do {
         let result = try entry.terminal.createTab(request)
-        return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
+        return TerminalWindowRegistry.rewrite(result, windowIndex: registry.windowIndex(of: entry))
       } catch let error as TerminalCreateTabError {
         if case .contextPaneNotFound = error {
           continue

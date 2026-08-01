@@ -25,6 +25,10 @@ enum SPHelp {
   static let treeDiscussion = """
     `sp ls --json` includes UUIDs for spaces, tabs, and panes.
 
+    Every window lists every space in catalog order and marks the one it displays.
+    A window keeps its own tabs inside each space, so the same space holds different
+    tabs in different windows.
+
     Example:
       sp ls
       sp ls --json
@@ -85,7 +89,9 @@ enum SPHelp {
 
     The ambient tab and pane come from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
-    `--in` accepts a space selector or UUID.
+    `--in` accepts a space selector or UUID, resolved inside this window. The space
+    opens its saved tabs first when this window has not displayed it yet. Add `--focus`
+    to switch the window to that space as well.
 
     Trailing arguments after `--` are treated as a terminal startup command.
 
@@ -507,13 +513,28 @@ enum SPHelp {
     """
 
   static let spaceDiscussion = """
+    Spaces are shared: every window can display any space, one at a time, and each
+    window keeps its own tabs inside each space. Space commands switch the window
+    they run in; they never open or touch another window.
+
     Example:
-      sp space new --focus Work
+      sp space ls
+      sp space new Work
       sp space focus 1
       sp space rename Work 1
       sp space color green 1
       sp space destroy -y 1
       sp space next
+    """
+
+  static let spaceListDiscussion = """
+    Lists every space in catalog order with the index used by space selectors.
+    `*` marks the space this window displays. `cold` means this window has not
+    opened that space yet in this run; its tabs come from the saved layout.
+
+    Example:
+      sp space ls
+      sp space ls --output json
     """
 
   static let tabDiscussion = """
@@ -537,13 +558,18 @@ enum SPHelp {
     """
 
   static let spaceNewDiscussion = """
+    Adds the space to the shared catalog and displays it in this window. It never
+    opens a window.
+
     Example:
       sp space new Work
-      sp space new --focus Build
       sp space new --color green Work
     """
 
   static let spaceFocusDiscussion = """
+    Switches this window to the space in place. Space indexes follow catalog order,
+    the same order as the switcher dots. Other windows keep displaying their own space.
+
     Example:
       sp space focus
       sp space focus 1
@@ -551,6 +577,9 @@ enum SPHelp {
     """
 
   static let spaceDestroyDiscussion = """
+    Destroying a space kills its tabs in every window. Windows displaying it fall
+    back to the neighboring space; no window closes.
+
     Example:
       sp space destroy -y
       sp space destroy -y 1
@@ -572,6 +601,9 @@ enum SPHelp {
     """
 
   static let spaceNavigationDiscussion = """
+    Moves this window through the catalog in place. `last` returns to the space this
+    window displayed before the current one.
+
     Example:
       sp space next
       sp space prev
