@@ -6,60 +6,17 @@ use unicode_width::UnicodeWidthStr;
 use super::{BRAND, Theme};
 
 const LARGE_BOLT: [&str; 4] = ["   ▄█", "  ▄█ ", "▄██▄▄", "  █▀ "];
-
-#[derive(Clone, Copy)]
-enum Fill {
-    Foreground,
-    Shadow,
-}
-
-#[derive(Clone, Copy)]
-struct Span {
-    text: &'static str,
-    fill: Fill,
-}
-
-impl Span {
-    const fn foreground(text: &'static str) -> Self {
-        Self {
-            text,
-            fill: Fill::Foreground,
-        }
-    }
-
-    const fn shadow(text: &'static str) -> Self {
-        Self {
-            text,
-            fill: Fill::Shadow,
-        }
-    }
-}
-
-const LARGE_LEFT: [&[Span]; 4] = [
-    &[],
-    &[Span::foreground("█▀▀▀▀ █   █ █▀▀▀▄ ▄▀▀▀▄")],
-    &[
-        Span::foreground("▀▀▀▀█ █"),
-        Span::shadow("   "),
-        Span::foreground("█ █"),
-        Span::shadow("   "),
-        Span::foreground("█ █"),
-        Span::shadow("▀▀▀"),
-        Span::foreground("█"),
-    ],
-    &[Span::foreground("▀▀▀▀▀ ▀▀▀▀▀ █▀▀▀▀ █   █")],
+const LARGE_LEFT: [&str; 4] = [
+    "",
+    "█▀▀▀▀ █   █ █▀▀▀▄ ▄▀▀▀▄",
+    "▀▀▀▀█ █   █ █   █ █▀▀▀█",
+    "▀▀▀▀▀ ▀▀▀▀▀ █▀▀▀▀ █   █",
 ];
-const LARGE_RIGHT: [&[Span]; 4] = [
-    &[],
-    &[Span::foreground("▀▀█▀▀ █▀▀▀▀ █▀▀▀▄ █▄ ▄█")],
-    &[
-        Span::foreground("  █   █"),
-        Span::shadow("▀▀▀▀"),
-        Span::foreground(" █"),
-        Span::shadow("   "),
-        Span::foreground("█ █ ▀ █"),
-    ],
-    &[Span::foreground("  ▀   ▀▀▀▀▀ █  ▀▄ █   █")],
+const LARGE_RIGHT: [&str; 4] = [
+    "",
+    "▀▀█▀▀ █▀▀▀▀ █▀▀▀▄ █▄ ▄█",
+    "  █   █▀▀▀▀ █   █ █ ▀ █",
+    "  ▀   ▀▀▀▀▀ █  ▀▄ █   █",
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -112,29 +69,18 @@ impl Logo {
 fn large_width() -> u16 {
     (text_rows_width(&LARGE_BOLT)
         + 2
-        + span_rows_width(&LARGE_LEFT)
+        + text_rows_width(&LARGE_LEFT)
         + 1
-        + span_rows_width(&LARGE_RIGHT)) as u16
+        + text_rows_width(&LARGE_RIGHT)) as u16
 }
 
 fn text_rows_width(rows: &[&str]) -> usize {
     rows.iter().map(|row| row.width()).max().unwrap_or(0)
 }
 
-fn span_rows_width(rows: &[&[Span]]) -> usize {
-    rows.iter()
-        .map(|row| span_row_width(row))
-        .max()
-        .unwrap_or(0)
-}
-
-fn span_row_width(row: &[Span]) -> usize {
-    row.iter().map(|span| span.text.width()).sum()
-}
-
 fn render_large(buffer: &mut Buffer, area: Rect, y: u16, theme: Theme) {
     let bolt_width = text_rows_width(&LARGE_BOLT);
-    let left_width = span_rows_width(&LARGE_LEFT) as u16;
+    let left_width = text_rows_width(&LARGE_LEFT) as u16;
     let x = area.x + area.width.saturating_sub(large_width()) / 2;
     let wordmark_x = x.saturating_add(bolt_width as u16 + 2);
     let right_x = wordmark_x.saturating_add(left_width + 1);
@@ -156,45 +102,35 @@ fn render_large(buffer: &mut Buffer, area: Rect, y: u16, theme: Theme) {
             row_y,
             LARGE_LEFT[row],
             theme.muted,
-            theme.muted_shadow,
             false,
         );
-        render_wordmark_row(
-            buffer,
-            right_x,
-            row_y,
-            LARGE_RIGHT[row],
-            theme.text,
-            theme.text_shadow,
-            true,
-        );
+        render_wordmark_row(buffer, right_x, row_y, LARGE_RIGHT[row], theme.text, true);
     }
 }
 
 fn render_wordmark_row(
     buffer: &mut Buffer,
-    mut x: u16,
+    x: u16,
     y: u16,
-    row: &[Span],
+    row: &str,
     foreground: Color,
-    shadow: Color,
     bold: bool,
 ) {
+    if row.is_empty() {
+        return;
+    }
     let modifier = if bold {
         Modifier::BOLD
     } else {
         Modifier::empty()
     };
-    for span in row {
-        let width = span.text.width();
-        let style = Style::default().fg(foreground).add_modifier(modifier);
-        let style = match span.fill {
-            Fill::Foreground => style,
-            Fill::Shadow => style.bg(shadow),
-        };
-        buffer.set_stringn(x, y, span.text, width, style);
-        x = x.saturating_add(width as u16);
-    }
+    buffer.set_stringn(
+        x,
+        y,
+        row,
+        row.width(),
+        Style::default().fg(foreground).add_modifier(modifier),
+    );
 }
 
 fn render_compact(buffer: &mut Buffer, area: Rect, y: u16, theme: Theme) {
@@ -221,34 +157,16 @@ fn render_compact(buffer: &mut Buffer, area: Rect, y: u16, theme: Theme) {
 mod tests {
     use super::*;
 
-    fn text(row: &[Span]) -> String {
-        row.iter().map(|span| span.text).collect()
-    }
-
-    #[test]
-    fn styled_rows_keep_the_visible_wordmark() {
-        assert_eq!(text(LARGE_LEFT[2]), "▀▀▀▀█ █   █ █   █ █▀▀▀█");
-        assert_eq!(text(LARGE_RIGHT[2]), "  █   █▀▀▀▀ █   █ █ ▀ █");
-    }
-
     #[test]
     fn large_logo_width_uses_every_row_and_centers_the_result() {
         let bolt_width = text_rows_width(&LARGE_BOLT);
-        let left_width = span_rows_width(&LARGE_LEFT);
-        let right_width = span_rows_width(&LARGE_RIGHT);
+        let left_width = text_rows_width(&LARGE_LEFT);
+        let right_width = text_rows_width(&LARGE_RIGHT);
         let width = large_width();
 
         assert!(LARGE_BOLT.iter().all(|row| row.width() <= bolt_width));
-        assert!(
-            LARGE_LEFT
-                .iter()
-                .all(|row| span_row_width(row) <= left_width)
-        );
-        assert!(
-            LARGE_RIGHT
-                .iter()
-                .all(|row| span_row_width(row) <= right_width)
-        );
+        assert!(LARGE_LEFT.iter().all(|row| row.width() <= left_width));
+        assert!(LARGE_RIGHT.iter().all(|row| row.width() <= right_width));
         assert_eq!(
             usize::from(width),
             bolt_width + 2 + left_width + 1 + right_width
@@ -262,21 +180,13 @@ mod tests {
     }
 
     #[test]
-    fn shadow_spans_use_the_shadow_surface() {
+    fn large_logo_has_no_background_cells() {
         let theme = Theme::dark();
-        let mut buffer = Buffer::empty(Rect::new(0, 0, 30, 1));
+        let area = Rect::new(0, 0, large_width(), Logo::Large.height());
+        let mut buffer = Buffer::empty(area);
 
-        render_wordmark_row(
-            &mut buffer,
-            0,
-            0,
-            LARGE_LEFT[2],
-            theme.muted,
-            theme.muted_shadow,
-            false,
-        );
+        Logo::Large.render(&mut buffer, area, 0, theme);
 
-        assert_eq!(buffer[(7, 0)].bg, theme.muted_shadow);
-        assert_eq!(buffer[(6, 0)].bg, Color::Reset);
+        assert!(buffer.content.iter().all(|cell| cell.bg == Color::Reset));
     }
 }

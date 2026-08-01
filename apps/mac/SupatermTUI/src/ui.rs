@@ -24,8 +24,6 @@ pub(crate) struct Theme {
     text: Color,
     muted: Color,
     image_text: Color,
-    text_shadow: Color,
-    muted_shadow: Color,
     codex: Color,
     claude: Color,
     pi: Color,
@@ -71,16 +69,12 @@ impl Theme {
         );
         let muted = blend(foreground, background, if light { 0.48 } else { 0.56 });
         let picker = blend((255, 168, 45), panel, if light { 0.16 } else { 0.2 });
-        let text_shadow = blend(foreground, background, if light { 0.16 } else { 0.2 });
-        let muted_shadow = blend(foreground, background, if light { 0.08 } else { 0.11 });
         Self {
             panel: Color::Rgb(panel.0, panel.1, panel.2),
             picker: Color::Rgb(picker.0, picker.1, picker.2),
             text: Color::Rgb(foreground.0, foreground.1, foreground.2),
             muted: Color::Rgb(muted.0, muted.1, muted.2),
             image_text: Color::Rgb(36, 25, 6),
-            text_shadow: Color::Rgb(text_shadow.0, text_shadow.1, text_shadow.2),
-            muted_shadow: Color::Rgb(muted_shadow.0, muted_shadow.1, muted_shadow.2),
             codex: if light {
                 Color::Rgb(57, 65, 255)
             } else {
