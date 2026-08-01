@@ -65,11 +65,15 @@ cd "${supaterm_tui_dir}"
 mise exec -- cargo build --release --locked --target "${target}" --target-dir "${supaterm_tui_cargo_target_dir}"
 
 mkdir -p "$(dirname "${supaterm_tui_binary_path}")"
-/bin/cp -f "${supaterm_tui_cargo_target_dir}/${target}/release/supaterm" "${supaterm_tui_binary_path}"
-
-if ! validate_supaterm_tui_binary "${supaterm_tui_binary_path}"; then
-  echo "error: Supaterm TUI build produced an unusable binary at ${supaterm_tui_binary_path}" >&2
+supaterm_tui_binary_tmp="$(mktemp "${supaterm_tui_binary_path}.XXXXXX")"
+trap 'rm -f "${supaterm_tui_binary_tmp}"' EXIT
+/bin/cp -f "${supaterm_tui_cargo_target_dir}/${target}/release/supaterm" "${supaterm_tui_binary_tmp}"
+/bin/chmod 755 "${supaterm_tui_binary_tmp}"
+if ! validate_supaterm_tui_binary "${supaterm_tui_binary_tmp}"; then
+  echo "error: Supaterm TUI build produced an unusable binary" >&2
   exit 1
 fi
+/bin/mv -f "${supaterm_tui_binary_tmp}" "${supaterm_tui_binary_path}"
+trap - EXIT
 
 printf '%s\n' "${fingerprint}" > "${supaterm_tui_fingerprint_path}"
