@@ -1376,22 +1376,13 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func doCommand(by selector: Selector) {
-    if let lastPerformKeyEvent,
+  override func doCommand(by _: Selector) {
+    guard
+      let lastPerformKeyEvent,
       let current = NSApp.currentEvent,
       lastPerformKeyEvent == current.timestamp
-    {
-      NSApp.sendEvent(current)
-      return
-    }
-    switch selector {
-    case #selector(moveToBeginningOfDocument(_:)):
-      performBindingAction("scroll_to_top")
-    case #selector(moveToEndOfDocument(_:)):
-      performBindingAction("scroll_to_bottom")
-    default:
-      break
-    }
+    else { return }
+    NSApp.sendEvent(current)
   }
 
   override func menu(for event: NSEvent) -> NSMenu? {
