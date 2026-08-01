@@ -1210,17 +1210,9 @@ final class SupatermMenuController: NSObject {
     defaultShortcut: KeyboardShortcut? = nil
   ) {
     guard let item else { return }
-    if let shortcut = registry.keyboardShortcut(forAction: action) {
-      SupatermMenuShortcut.apply(shortcut, to: item)
-      syncGhosttyBindingItem(item, shortcut: shortcut)
-      return
-    }
-    if registry.hasShortcutSource {
-      SupatermMenuShortcut.apply(nil, to: item)
-      return
-    }
-    SupatermMenuShortcut.apply(defaultShortcut, to: item)
-    syncGhosttyBindingItem(item, shortcut: defaultShortcut)
+    let shortcut = resolvedTerminalShortcut(action: action, defaultShortcut: defaultShortcut)
+    SupatermMenuShortcut.apply(shortcut, to: item)
+    syncGhosttyBindingItem(item, shortcut: shortcut)
   }
 
   private func syncAppShortcut(
@@ -1243,8 +1235,7 @@ final class SupatermMenuController: NSObject {
     action: String,
     defaultShortcut: KeyboardShortcut?
   ) -> KeyboardShortcut? {
-    registry.keyboardShortcut(forAction: action)
-      ?? (registry.hasShortcutSource ? nil : defaultShortcut)
+    registry.keyboardShortcut(forAction: action) ?? defaultShortcut
   }
 
   private func syncGhosttyBindingItem(_ item: NSMenuItem, shortcut: KeyboardShortcut?) {

@@ -80,10 +80,6 @@ final class TerminalWindowRegistry {
     self.zmxClient = zmxClient
   }
 
-  var hasShortcutSource: Bool {
-    !entries.isEmpty
-  }
-
   var bypassesQuitConfirmation: Bool {
     activeEntries().contains { $0.store.update.phase.bypassesQuitConfirmation }
   }

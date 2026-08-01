@@ -158,6 +158,52 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func refreshPreservesFindNavigationDefaultsForPartialShortcutSource() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+
+      let editMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "Edit" })?.submenu)
+      let findMenu = try #require(editMenu.items.last?.submenu)
+      assertDefaultFindNavigationShortcuts(findMenu)
+
+      var shortcuts = [
+        "new_window": KeyboardShortcut("u", modifiers: [.command, .option])
+      ]
+      registry.register(
+        keyboardShortcutForAction: { shortcuts[$0] },
+        windowControllerID: UUID(),
+        store: Store(initialState: AppFeature.State()) {
+          AppFeature()
+        },
+        terminal: TerminalHostState(managesTerminalSurfaces: false),
+        requestConfirmedWindowClose: {}
+      )
+      controller.refresh()
+
+      assertDefaultFindNavigationShortcuts(findMenu)
+
+      shortcuts["navigate_search:previous"] = KeyboardShortcut(
+        "j",
+        modifiers: [.command, .option]
+      )
+      controller.refresh()
+
+      #expect(findMenu.items[2].keyEquivalent == "j")
+      #expect(findMenu.items[2].keyEquivalentModifierMask == [.command, .option])
+    }
+  }
+
+  @Test
   func performNewWindowUsesConfiguredAction() {
     let controller = SupatermMenuController(registry: TerminalWindowRegistry())
     var invocations = 0
@@ -616,7 +662,7 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func refreshClearsCommandPaletteShortcutWhenGhosttyLeavesActionUnbound() throws {
+  func refreshUsesDefaultCommandPaletteShortcutWhenShortcutSourceOmitsAction() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -652,13 +698,13 @@ struct SupatermMenuControllerTests {
 
       let fileMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "File" })?.submenu)
       let item = try #require(fileMenu.items.first(where: { $0.title == "Open Command Palette" }))
-      #expect(item.keyEquivalent.isEmpty)
-      #expect(item.keyEquivalentModifierMask.isEmpty)
+      #expect(item.keyEquivalent == "p")
+      #expect(item.keyEquivalentModifierMask == [.command, .shift])
     }
   }
 
   @Test
-  func refreshClearsQuitShortcutWhenGhosttyLeavesQuitUnbound() throws {
+  func refreshUsesDefaultQuitShortcutWhenShortcutSourceOmitsAction() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -694,8 +740,8 @@ struct SupatermMenuControllerTests {
 
       let appMenu = try #require(app.mainMenu?.items.first?.submenu)
       let quitItem = try #require(appMenu.items.last)
-      #expect(quitItem.keyEquivalent.isEmpty)
-      #expect(quitItem.keyEquivalentModifierMask.isEmpty)
+      #expect(quitItem.keyEquivalent == "q")
+      #expect(quitItem.keyEquivalentModifierMask == [.command])
     }
   }
 
@@ -889,6 +935,13 @@ struct SupatermMenuControllerTests {
       #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: defaultEvent))
       #expect(delegate.quitCount == 1)
     }
+  }
+
+  private func assertDefaultFindNavigationShortcuts(_ findMenu: NSMenu) {
+    #expect(findMenu.items[1].keyEquivalent == "g")
+    #expect(findMenu.items[1].keyEquivalentModifierMask == [.command])
+    #expect(findMenu.items[2].keyEquivalent == "g")
+    #expect(findMenu.items[2].keyEquivalentModifierMask == [.command, .shift])
   }
 
   private func assertAppMenu(_ menu: NSMenu?) throws {
