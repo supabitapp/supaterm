@@ -1,9 +1,13 @@
 use std::io::{self, Stdout};
 use std::panic;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crossterm::cursor::{Hide, Show};
-use crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste};
+use crossterm::event::{
+    self, DisableBracketedPaste, EnableBracketedPaste, KeyboardEnhancementFlags,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -16,6 +20,7 @@ use crate::icons::AgentIcons;
 use crate::ui::{self, Theme};
 
 type CrosstermTerminal = Terminal<CrosstermBackend<Stdout>>;
+static KEYBOARD_ENHANCEMENT_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn run() -> io::Result<()> {
     install_panic_hook();
@@ -47,14 +52,24 @@ impl TerminalSession {
     fn enter() -> io::Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        if let Err(error) = execute!(stdout, EnterAlternateScreen, EnableBracketedPaste, Hide) {
-            restore_terminal();
+        let setup = (|| -> io::Result<()> {
+            execute!(stdout, EnterAlternateScreen)?;
+            execute!(
+                stdout,
+                PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+            )?;
+            KEYBOARD_ENHANCEMENT_ACTIVE.store(true, Ordering::Release);
+            execute!(stdout, EnableBracketedPaste, Hide)
+        })();
+        if let Err(error) = setup {
+            restore_terminal(&mut stdout);
             return Err(error);
         }
         match Terminal::new(CrosstermBackend::new(stdout)) {
             Ok(terminal) => Ok(Self { terminal }),
             Err(error) => {
-                restore_terminal();
+                let mut stdout = io::stdout();
+                restore_terminal(&mut stdout);
                 Err(error)
             }
         }
@@ -63,30 +78,23 @@ impl TerminalSession {
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
-        let _ = disable_raw_mode();
-        let _ = execute!(
-            self.terminal.backend_mut(),
-            DisableBracketedPaste,
-            LeaveAlternateScreen,
-            Show
-        );
+        restore_terminal(self.terminal.backend_mut());
     }
 }
 
 fn install_panic_hook() {
     let previous = panic::take_hook();
     panic::set_hook(Box::new(move |information| {
-        restore_terminal();
+        let mut stdout = io::stdout();
+        restore_terminal(&mut stdout);
         previous(information);
     }));
 }
 
-fn restore_terminal() {
+fn restore_terminal(output: &mut impl io::Write) {
     let _ = disable_raw_mode();
-    let _ = execute!(
-        io::stdout(),
-        DisableBracketedPaste,
-        LeaveAlternateScreen,
-        Show
-    );
+    if KEYBOARD_ENHANCEMENT_ACTIVE.swap(false, Ordering::AcqRel) {
+        let _ = execute!(output, PopKeyboardEnhancementFlags);
+    }
+    let _ = execute!(output, DisableBracketedPaste, LeaveAlternateScreen, Show);
 }

@@ -87,6 +87,9 @@ impl App {
         }
 
         if key.code == KeyCode::Enter {
+            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                self.prompt.insert_char('\n');
+            }
             return Action::Continue;
         }
 
@@ -153,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn enter_is_a_strict_no_op() {
+    fn plain_enter_is_a_strict_no_op() {
         let mut app = App::default();
         app.prompt.insert_text("unchanged");
         app.prompt.move_left();
@@ -164,6 +167,18 @@ mod tests {
 
         assert_eq!(action, Action::Continue);
         assert_eq!(app, before);
+    }
+
+    #[test]
+    fn shift_enter_inserts_newline_at_the_cursor() {
+        let mut app = App::default();
+        app.prompt.insert_text("ac");
+        app.prompt.move_left();
+
+        let action = app.handle_event(key(KeyCode::Enter, KeyModifiers::SHIFT));
+
+        assert_eq!(action, Action::Continue);
+        assert_eq!(app.prompt.display_text(), "a\nc");
     }
 
     #[test]

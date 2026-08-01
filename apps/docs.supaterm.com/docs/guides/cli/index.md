@@ -11,7 +11,7 @@ description: Use the Supaterm prompt TUI and control spaces, tabs, panes, settin
 supaterm
 ```
 
-Type or paste a prompt, or drag files into the terminal. Images appear as `[Image n]`; other files appear as full paths. Press Tab or Shift-Tab to pick Codex, Claude, or Pi. The picker does not start the selected agent yet. Enter does nothing in this first version. Press Escape or Control-C to exit.
+Type or paste a prompt, or drag files into the terminal. Images appear as `[Image n]`; other files appear as full paths. Press Tab or Shift-Tab to pick Codex, Claude, or Pi. Press Shift-Enter to insert a newline. The picker does not start the selected agent yet. Enter does nothing in this first version. Press Escape or Control-C to exit.
 
 ## Inspect Supaterm
 
