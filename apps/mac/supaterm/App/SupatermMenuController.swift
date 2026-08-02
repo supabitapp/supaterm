@@ -1227,10 +1227,7 @@ final class SupatermMenuController: NSObject {
     routesThroughTerminal: Bool
   ) {
     guard let item else { return }
-    let shortcut = SupatermShortcuts.binding(
-      for: id,
-      overrides: supatermSettings.shortcutOverrides
-    )?.keyboardShortcut
+    let shortcut = appShortcut(id)
     SupatermMenuShortcut.apply(shortcut, to: item)
     if routesThroughTerminal {
       syncGhosttyBindingItem(item, shortcut: shortcut)
@@ -1252,27 +1249,36 @@ final class SupatermMenuController: NSObject {
     if registry.hasShortcutSource {
       guard isFindNavigationAction(action),
         let defaultShortcut,
-        !runtimeClaimsShortcut(defaultShortcut)
+        !menuClaimsShortcut(defaultShortcut)
       else { return nil }
     }
     return defaultShortcut
   }
 
-  private func runtimeClaimsShortcut(_ shortcut: KeyboardShortcut) -> Bool {
+  private func menuClaimsShortcut(_ shortcut: KeyboardShortcut) -> Bool {
     let key = MenuShortcutKey(shortcut: shortcut)
     return menuEntries.contains { entry in
-      let action: String
+      let menuShortcut: KeyboardShortcut?
       switch entry.spec.shortcut {
       case .command(let command):
-        action = command.ghosttyBindingAction
+        menuShortcut = registry.keyboardShortcut(forAction: command.ghosttyBindingAction)
       case .ghosttyAction(let ghosttyAction, _):
-        action = ghosttyAction
-      case .app, .appRouted, .none:
-        return false
+        menuShortcut = registry.keyboardShortcut(forAction: ghosttyAction)
+      case .app(let id), .appRouted(let id):
+        menuShortcut = appShortcut(id)
+      case .none:
+        menuShortcut = nil
       }
-      guard let runtimeShortcut = registry.keyboardShortcut(forAction: action) else { return false }
-      return MenuShortcutKey(shortcut: runtimeShortcut) == key
+      guard let menuShortcut else { return false }
+      return MenuShortcutKey(shortcut: menuShortcut) == key
     }
+  }
+
+  private func appShortcut(_ id: SupatermShortcutID) -> KeyboardShortcut? {
+    SupatermShortcuts.binding(
+      for: id,
+      overrides: supatermSettings.shortcutOverrides
+    )?.keyboardShortcut
   }
 
   private func isFindNavigationAction(_ action: String) -> Bool {

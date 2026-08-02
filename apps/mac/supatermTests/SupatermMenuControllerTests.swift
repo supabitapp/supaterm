@@ -162,6 +162,7 @@ struct SupatermMenuControllerTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
+      @Shared(.supatermSettings) var settings = .default
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
       let registry = TerminalWindowRegistry()
@@ -224,6 +225,23 @@ struct SupatermMenuControllerTests {
       let zoomSplit = try #require(windowMenu.items.first(where: { $0.title == "Zoom Split" }))
       #expect(zoomSplit.keyEquivalent == "g")
       #expect(zoomSplit.keyEquivalentModifierMask == [.command])
+
+      shortcuts["toggle_split_zoom"] = nil
+      $settings.withLock {
+        $0.shortcutOverrides[.toggleSidebar] = SupatermShortcutOverride(
+          keyCode: UInt16(kVK_ANSI_G),
+          modifiers: [.command]
+        )
+      }
+      controller.refresh()
+
+      #expect(findMenu.items[1].keyEquivalent.isEmpty)
+      #expect(findMenu.items[1].keyEquivalentModifierMask.isEmpty)
+      let viewMenu = try #require(
+        app.mainMenu?.items.first(where: { $0.title == "View" })?.submenu
+      )
+      #expect(viewMenu.items[0].keyEquivalent == "g")
+      #expect(viewMenu.items[0].keyEquivalentModifierMask == [.command])
 
       shortcuts["navigate_search:previous"] = KeyboardShortcut(
         "j",
