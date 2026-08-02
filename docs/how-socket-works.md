@@ -51,7 +51,9 @@ Discovery rules:
 - Transport concerns and command semantics are split cleanly.
 - The transport layer owns socket lifecycle, buffering, and I/O.
 - The app-side control layer interprets requests and produces typed responses.
-- Responses carry the original request ID, an `ok` flag, and either `result` or `error`.
+- Successful responses carry the original request ID, `ok: true`, and `result`.
+- Failed responses carry `ok: false`, an optional request ID, and `error`.
+- Responses with a missing outcome or both `result` and `error` are invalid.
 - Unknown methods return `method_not_found`.
 - Bad request shapes return `invalid_request`.
 

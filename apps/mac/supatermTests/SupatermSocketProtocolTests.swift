@@ -561,6 +561,10 @@ struct SupatermSocketProtocolTests {
       id: "request-1",
       result: ["pong": true]
     )
+    let errorResponse = SupatermSocketResponse.error(
+      code: "failed",
+      message: "Failed."
+    )
 
     #expect(
       try decoder.decode(
@@ -574,6 +578,25 @@ struct SupatermSocketProtocolTests {
         from: encoder.encode(response)
       ) == response
     )
+    #expect(
+      try decoder.decode(
+        SupatermSocketResponse.self,
+        from: encoder.encode(errorResponse)
+      ) == errorResponse
+    )
+  }
+
+  @Test(arguments: [
+    #"{"ok":true,"result":{}}"#,
+    #"{"id":"request-1","ok":true}"#,
+    #"{"id":"request-1","ok":true,"result":{},"error":{"code":"failed","message":"Failed."}}"#,
+    #"{"id":"request-1","ok":false}"#,
+    #"{"id":"request-1","ok":false,"result":{},"error":{"code":"failed","message":"Failed."}}"#,
+  ])
+  func responseRejectsInvalidOutcome(json: String) {
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(SupatermSocketResponse.self, from: Data(json.utf8))
+    }
   }
 
   @Test
