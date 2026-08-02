@@ -1188,14 +1188,9 @@ final class SupatermMenuController: NSObject {
 
   private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
     guard let item else { return }
-    if !(NSApp.keyWindow?.firstResponder is GhosttySurfaceView) {
-      switch command {
-      case .copyToClipboard, .pasteFromClipboard, .selectAll:
-        SupatermMenuShortcut.apply(command.defaultKeyboardShortcut, to: item)
-        return
-      default:
-        break
-      }
+    if let shortcut = firstResponderShortcut(for: command) {
+      SupatermMenuShortcut.apply(shortcut, to: item)
+      return
     }
     syncShortcut(
       action: command.ghosttyBindingAction,
@@ -1261,7 +1256,9 @@ final class SupatermMenuController: NSObject {
       let menuShortcut: KeyboardShortcut?
       switch entry.spec.shortcut {
       case .command(let command):
-        menuShortcut = registry.keyboardShortcut(forAction: command.ghosttyBindingAction)
+        menuShortcut =
+          firstResponderShortcut(for: command)
+          ?? registry.keyboardShortcut(forAction: command.ghosttyBindingAction)
       case .ghosttyAction(let ghosttyAction, _):
         menuShortcut = registry.keyboardShortcut(forAction: ghosttyAction)
       case .app(let id), .appRouted(let id):
@@ -1271,6 +1268,16 @@ final class SupatermMenuController: NSObject {
       }
       guard let menuShortcut else { return false }
       return MenuShortcutKey(shortcut: menuShortcut) == key
+    }
+  }
+
+  private func firstResponderShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
+    guard !(NSApp.keyWindow?.firstResponder is GhosttySurfaceView) else { return nil }
+    return switch command {
+    case .copyToClipboard, .pasteFromClipboard, .selectAll:
+      command.defaultKeyboardShortcut
+    default:
+      nil
     }
   }
 

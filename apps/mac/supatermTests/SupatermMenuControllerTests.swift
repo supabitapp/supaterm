@@ -243,6 +243,17 @@ struct SupatermMenuControllerTests {
       #expect(viewMenu.items[0].keyEquivalent == "g")
       #expect(viewMenu.items[0].keyEquivalentModifierMask == [.command])
 
+      $settings.withLock {
+        $0.shortcutOverrides[.toggleSidebar] = nil
+      }
+      shortcuts["copy_to_clipboard"] = KeyboardShortcut("g", modifiers: [.command])
+      controller.refresh()
+
+      assertDefaultFindNavigationShortcuts(findMenu)
+      let copy = try #require(editMenu.items.first(where: { $0.title == "Copy" }))
+      #expect(copy.keyEquivalent == "c")
+      #expect(copy.keyEquivalentModifierMask == [.command])
+
       shortcuts["navigate_search:previous"] = KeyboardShortcut(
         "j",
         modifiers: [.command, .option]
