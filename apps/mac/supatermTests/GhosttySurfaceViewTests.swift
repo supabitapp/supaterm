@@ -224,8 +224,7 @@ struct GhosttySurfaceViewTests {
       }
     )
     let shellProcessGroupID = try #require(shell.foregroundProcessGroupID)
-    let portScanContext = try #require(host.panePortScanContext(for: surface.id))
-    #expect(portScanContext.foregroundProcessGroupID == shellProcessGroupID)
+    #expect(host.paneForegroundProcessGroupID(for: surface.id) == shellProcessGroupID)
 
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("supaterm-process-identity-\(UUID().uuidString)", isDirectory: true)

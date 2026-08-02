@@ -182,7 +182,7 @@ extension TerminalHostState {
     guard agentPanelIsEnabled else {
       return nil
     }
-    guard let surface = surfaces[surfaceID] else {
+    guard surfaces[surfaceID] != nil else {
       return nil
     }
     guard tabID(containing: surfaceID) != nil else {
@@ -191,11 +191,11 @@ extension TerminalHostState {
     let processIDs = agentStateStore.snapshots(for: surfaceID).reduce(into: Set<Int32>()) {
       $0.formUnion($1.processIDs)
     }
-    let context = TerminalPanePortScanContext(
-      processIDs: processIDs,
-      foregroundProcessGroupID: surface.processIdentity.foregroundProcessGroupID
-    )
-    return context.isEmpty ? nil : context
+    return TerminalPanePortScanContext(processIDs: processIDs)
+  }
+
+  func paneForegroundProcessGroupID(for surfaceID: UUID) -> Int32? {
+    surfaces[surfaceID]?.processIdentity.foregroundProcessGroupID
   }
 
   var agentPanelIsEnabled: Bool {

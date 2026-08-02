@@ -8,11 +8,6 @@ nonisolated struct TerminalAgentPanelWorkspaceContext: Equatable, Sendable {
 
 nonisolated struct TerminalPanePortScanContext: Equatable, Sendable {
   let processIDs: Set<Int32>
-  let foregroundProcessGroupID: Int32?
-
-  var isEmpty: Bool {
-    processIDs.isEmpty && foregroundProcessGroupID == nil
-  }
 }
 
 nonisolated struct TerminalAgentPanelWorkspaceKey: Equatable, Hashable, Sendable {
@@ -1150,9 +1145,14 @@ nonisolated private struct GithubPRWorkflowResponse: Decodable {
 final class PaneAgentPortScanner {
   typealias Delivery = @MainActor (UUID, [PaneAgentArtifact]) -> Void
 
+  private struct Registration {
+    let processIDs: Set<Int32>
+    let foregroundProcessGroupID: @MainActor () -> Int32?
+  }
+
   private let runner: TerminalAgentPanelCommandRunner
   private let interval: Duration
-  private var contextsBySurfaceID: [UUID: TerminalPanePortScanContext] = [:]
+  private var registrationsBySurfaceID: [UUID: Registration] = [:]
   private var artifactsBySurfaceID: [UUID: [PaneAgentArtifact]] = [:]
   private var scanTask: Task<Void, Never>?
   private var delivery: Delivery?
@@ -1168,23 +1168,19 @@ final class PaneAgentPortScanner {
   func update(
     surfaceID: UUID,
     context: TerminalPanePortScanContext,
+    foregroundProcessGroupID: @escaping @MainActor () -> Int32? = { nil },
     deliver: @escaping Delivery
   ) {
     delivery = deliver
-    guard !context.isEmpty else {
-      clear(surfaceID: surfaceID, deliver: deliver)
-      return
-    }
-    guard contextsBySurfaceID[surfaceID] != context else {
-      startLoop()
-      return
-    }
-    contextsBySurfaceID[surfaceID] = context
+    registrationsBySurfaceID[surfaceID] = Registration(
+      processIDs: context.processIDs,
+      foregroundProcessGroupID: foregroundProcessGroupID
+    )
     startLoop()
   }
 
   func clear(surfaceID: UUID, deliver: Delivery? = nil) {
-    let wasTracked = contextsBySurfaceID.removeValue(forKey: surfaceID) != nil
+    let wasTracked = registrationsBySurfaceID.removeValue(forKey: surfaceID) != nil
     let hadArtifacts = artifactsBySurfaceID.removeValue(forKey: surfaceID) != nil
     if wasTracked || hadArtifacts {
       (deliver ?? delivery)?(surfaceID, [])
@@ -1193,7 +1189,7 @@ final class PaneAgentPortScanner {
   }
 
   func stop() {
-    contextsBySurfaceID.removeAll()
+    registrationsBySurfaceID.removeAll()
     artifactsBySurfaceID.removeAll()
     scanTask?.cancel()
     scanTask = nil
@@ -1202,20 +1198,25 @@ final class PaneAgentPortScanner {
 
   @discardableResult
   func scanOnce() async -> Bool {
-    let contextSnapshot = contextsBySurfaceID
-    guard !contextSnapshot.isEmpty else {
+    let registrationSnapshot = registrationsBySurfaceID
+    guard !registrationSnapshot.isEmpty else {
       stopLoopIfIdle()
       return false
     }
+    let processIDsBySurfaceID = registrationSnapshot.mapValues(\.processIDs)
+    let foregroundProcessGroupIDsBySurfaceID = registrationSnapshot.compactMapValues {
+      $0.foregroundProcessGroupID()
+    }
     let portsBySurfaceID = await Self.scanPorts(
-      contextsBySurfaceID: contextSnapshot,
+      processIDsBySurfaceID: processIDsBySurfaceID,
+      foregroundProcessGroupIDsBySurfaceID: foregroundProcessGroupIDsBySurfaceID,
       runner: runner
     )
     var delivered = false
-    let surfaceIDs = contextSnapshot.keys.sorted { $0.uuidString < $1.uuidString }
+    let surfaceIDs = registrationSnapshot.keys.sorted { $0.uuidString < $1.uuidString }
     for surfaceID in surfaceIDs {
       guard
-        contextsBySurfaceID[surfaceID] == contextSnapshot[surfaceID]
+        registrationsBySurfaceID[surfaceID]?.processIDs == registrationSnapshot[surfaceID]?.processIDs
       else {
         continue
       }
@@ -1241,16 +1242,17 @@ final class PaneAgentPortScanner {
   }
 
   private func stopLoopIfIdle() {
-    guard contextsBySurfaceID.isEmpty else { return }
+    guard registrationsBySurfaceID.isEmpty else { return }
     scanTask?.cancel()
     scanTask = nil
   }
 
   nonisolated static func scanPorts(
-    contextsBySurfaceID: [UUID: TerminalPanePortScanContext],
+    processIDsBySurfaceID: [UUID: Set<Int32>],
+    foregroundProcessGroupIDsBySurfaceID: [UUID: Int32],
     runner: TerminalAgentPanelCommandRunner
   ) async -> [UUID: [Int]] {
-    guard !contextsBySurfaceID.isEmpty else {
+    guard !processIDsBySurfaceID.isEmpty else {
       return [:]
     }
     guard
@@ -1264,16 +1266,20 @@ final class PaneAgentPortScanner {
     }
     let processTable = parseProcessTable(psResult.stdout)
     let parentByPID = processTable.mapValues { $0.parentProcessID }
-    let descendantProcessIDsBySurfaceID = contextsBySurfaceID.mapValues { context in
-      var rootProcessIDs = Set(context.processIDs.map(Int.init))
-      if let processGroupID = context.foregroundProcessGroupID.map(Int.init) {
+    var descendantProcessIDsBySurfaceID: [UUID: Set<Int>] = [:]
+    for (surfaceID, processIDs) in processIDsBySurfaceID {
+      var rootProcessIDs = Set(processIDs.map(Int.init))
+      if let processGroupID = foregroundProcessGroupIDsBySurfaceID[surfaceID].map(Int.init) {
         rootProcessIDs.formUnion(
           processTable.compactMap { processID, process in
             process.processGroupID == processGroupID ? processID : nil
           }
         )
       }
-      return expandProcessTree(rootProcessIDs: rootProcessIDs, parentByPID: parentByPID)
+      descendantProcessIDsBySurfaceID[surfaceID] = expandProcessTree(
+        rootProcessIDs: rootProcessIDs,
+        parentByPID: parentByPID
+      )
     }
     let processIDs = descendantProcessIDsBySurfaceID.values.reduce(into: Set<Int>()) {
       $0.formUnion($1)
@@ -1576,10 +1582,14 @@ final class TerminalAgentPanelController {
     }
     portScanner.update(
       surfaceID: surfaceID,
-      context: context
-    ) { [weak self] surfaceID, artifacts in
-      self?.storeArtifacts(artifacts, surfaceID: surfaceID)
-    }
+      context: context,
+      foregroundProcessGroupID: { [weak self] in
+        self?.terminal?.paneForegroundProcessGroupID(for: surfaceID)
+      },
+      deliver: { [weak self] surfaceID, artifacts in
+        self?.storeArtifacts(artifacts, surfaceID: surfaceID)
+      }
+    )
   }
 
   private func pullRequestStatusForRefresh(

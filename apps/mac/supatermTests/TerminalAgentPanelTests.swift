@@ -1104,14 +1104,57 @@ struct TerminalAgentPanelTests {
 
     scanner.update(
       surfaceID: surfaceID,
-      context: portScanContext(foregroundProcessGroupID: 100)
-    ) { _, artifacts in
-      deliveredArtifacts = artifacts
-    }
+      context: portScanContext(),
+      foregroundProcessGroupID: { 100 },
+      deliver: { _, artifacts in
+        deliveredArtifacts = artifacts
+      }
+    )
 
     #expect(await scanner.scanOnce())
     #expect(await recorder.arguments(for: "/usr/sbin/lsof").first?.contains("101,102,103") == true)
     #expect(deliveredArtifacts.map(\.title) == ["localhost:5173", "localhost:8080"])
+  }
+
+  @Test
+  @MainActor
+  func portScannerReadsFreshForegroundGroupEveryScan() async throws {
+    let surfaceID = UUID()
+    let recorder = AgentPanelCommandRecorder(
+      psOutput: """
+        101 1 100
+        201 1 200
+        """,
+      lsofOutput: """
+        p101
+        n*:5173
+        p201
+        n*:8080
+        """
+    )
+    let scanner = PaneAgentPortScanner(runner: await recorder.runner())
+    var foregroundProcessGroupID: Int32? = 100
+    var deliveredArtifacts: [PaneAgentArtifact] = []
+
+    scanner.update(
+      surfaceID: surfaceID,
+      context: portScanContext(),
+      foregroundProcessGroupID: { foregroundProcessGroupID },
+      deliver: { _, artifacts in
+        deliveredArtifacts = artifacts
+      }
+    )
+
+    #expect(await scanner.scanOnce())
+    #expect(deliveredArtifacts.map(\.title) == ["localhost:5173"])
+
+    foregroundProcessGroupID = 200
+    await recorder.reset()
+
+    #expect(await scanner.scanOnce())
+    #expect(await recorder.arguments(for: "/usr/sbin/lsof").first?.contains("201") == true)
+    #expect(await recorder.arguments(for: "/usr/sbin/lsof").first?.contains("101") == false)
+    #expect(deliveredArtifacts.map(\.title) == ["localhost:8080"])
   }
 
   @Test
@@ -2110,13 +2153,9 @@ private actor GithubPullRequestCommandRecorder {
 }
 
 private func portScanContext(
-  processIDs: Set<Int32> = [],
-  foregroundProcessGroupID: Int32? = nil
+  processIDs: Set<Int32> = []
 ) -> TerminalPanePortScanContext {
-  TerminalPanePortScanContext(
-    processIDs: processIDs,
-    foregroundProcessGroupID: foregroundProcessGroupID
-  )
+  TerminalPanePortScanContext(processIDs: processIDs)
 }
 
 private actor AgentPanelCommandRecorder {
