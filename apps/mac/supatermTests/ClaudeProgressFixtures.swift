@@ -146,7 +146,6 @@ enum ClaudeProgressFixtures {
     agentID: String,
     name: String? = nil,
     description: String? = nil,
-    taskKind: String? = nil,
     forTranscriptAt transcriptURL: URL
   ) throws {
     let directoryURL =
@@ -161,9 +160,6 @@ enum ClaudeProgressFixtures {
     if let description {
       object["description"] = description
     }
-    if let taskKind {
-      object["taskKind"] = taskKind
-    }
     let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     try data.write(to: directoryURL.appendingPathComponent("agent-\(agentID).meta.json"))
   }
@@ -171,6 +167,7 @@ enum ClaudeProgressFixtures {
   static func writeWorkflowSubagentSpawn(
     agentID: String,
     runID: String,
+    workflowName: String? = nil,
     prompt: Any,
     forTranscriptAt transcriptURL: URL
   ) throws {
@@ -181,6 +178,15 @@ enum ClaudeProgressFixtures {
       .appendingPathComponent("workflows")
       .appendingPathComponent(runID)
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    if let workflowName {
+      let scriptsURL =
+        transcriptURL
+        .deletingPathExtension()
+        .appendingPathComponent("workflows")
+        .appendingPathComponent("scripts")
+      try FileManager.default.createDirectory(at: scriptsURL, withIntermediateDirectories: true)
+      try Data().write(to: scriptsURL.appendingPathComponent("\(workflowName)-\(runID).js"))
+    }
     let metadata = try JSONSerialization.data(
       withJSONObject: ["agentType": "workflow-subagent", "spawnDepth": 1],
       options: [.sortedKeys]

@@ -70,6 +70,7 @@ struct TerminalSidebarLayoutPlanTests {
         .rootItem(index: 1),
         .group(groupID, index: 0),
         .group(groupID, index: 1),
+        .group(groupID, index: 2),
         .rootBoundary(index: 1, affinity: .after),
         .trailingRoot,
       ]
@@ -77,7 +78,8 @@ struct TerminalSidebarLayoutPlanTests {
     let leading = try #require(plan.semanticTargets.first)
     let rootTarget = try #require(plan.semanticTargets[safe: 0])
     let headerTarget = try #require(plan.semanticTargets[safe: 2])
-    let exitTarget = try #require(plan.semanticTargets[safe: 5])
+    let endTarget = try #require(plan.semanticTargets[safe: 5])
+    let exitTarget = try #require(plan.semanticTargets[safe: 6])
     #expect(
       leading.frame
         == CGRect(x: 0, y: TerminalSidebarLayoutPlan.initialY, width: 220, height: 37)
@@ -85,8 +87,44 @@ struct TerminalSidebarLayoutPlanTests {
     #expect(rootTarget.frame.height == 37)
     #expect(headerTarget.frame.minX == 3)
     #expect(headerTarget.frame.height == 34)
-    #expect(exitTarget.frame.height == TerminalSidebarLayoutPlan.rootSpacing)
+    #expect(endTarget.frame.minY < endTarget.frame.maxY)
+    #expect(exitTarget.frame.minY == endTarget.frame.maxY)
+    #expect(
+      exitTarget.frame.height
+        == TerminalSidebarLayoutPlan.rootSpacing
+        - TerminalSidebarLayoutPlan.expandedGroupTrailingSpacing
+    )
     #expect(plan.semanticTarget(at: leading.frame.midY)?.path == leading.path)
+  }
+
+  @Test
+  func expandedGroupLastChildLowerHalfTargetsGroupEnd() throws {
+    let first = TerminalTabID()
+    let last = TerminalTabID()
+    let source = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [first, last]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+      ],
+      revision: 3
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)]
+    )
+    let lastFrame = try #require(plan.items.first { $0.id == .tab(last) }?.frame)
+    let endTarget = try #require(
+      plan.semanticTargets.first { $0.path == .group(groupID, index: 2) }
+    )
+
+    #expect(plan.semanticTarget(at: lastFrame.midY - 1)?.path == .group(groupID, index: 1))
+    #expect(plan.semanticTarget(at: lastFrame.midY + 1)?.path == .group(groupID, index: 2))
+    #expect(endTarget.frame.maxY == lastFrame.maxY + TerminalSidebarLayoutPlan.expandedGroupTrailingSpacing)
   }
 
   @Test
@@ -124,10 +162,15 @@ struct TerminalSidebarLayoutPlanTests {
     let childTarget = try #require(
       plan.semanticTargets.first { $0.path == .group(groupID, index: 0) }
     )
+    let childEndTarget = try #require(
+      plan.semanticTargets.first { $0.path == .group(groupID, index: 1) }
+    )
 
     #expect(rootTarget.frame.minY == rootFrame.minY)
     #expect(rootTarget.frame.height == rootFrame.height)
-    #expect(childTarget.frame == CGRect(x: 0, y: childFrame.minY, width: 220, height: 73))
+    #expect(childTarget.frame == CGRect(x: 0, y: childFrame.minY, width: 220, height: 36.5))
+    #expect(childEndTarget.frame.minY == childFrame.midY)
+    #expect(childEndTarget.frame.maxY == childFrame.maxY + TerminalSidebarLayoutPlan.expandedGroupTrailingSpacing)
   }
 
   @Test
@@ -344,7 +387,7 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
-  func rowsUseEqualVisibleHorizontalInsets() throws {
+  func groupedTabsIndentTheirContentWithoutShiftingTrailingAccessories() throws {
     let root = TerminalTabID()
     let child = TerminalTabID()
     let groupID = TerminalTabGroupID()
@@ -368,13 +411,24 @@ struct TerminalSidebarLayoutPlanTests {
     #expect(width - rootFrame.maxX == TerminalSidebarLayout.visibleHorizontalInset)
     #expect(groupFrame.minX == TerminalSidebarLayout.visibleHorizontalInset)
     #expect(width - groupFrame.maxX == TerminalSidebarLayout.visibleHorizontalInset)
-    #expect(
-      childFrame.minX - groupFrame.minX == TerminalSidebarLayout.groupedTabHorizontalInset
-    )
-    #expect(
-      groupFrame.maxX - childFrame.maxX == TerminalSidebarLayout.groupedTabHorizontalInset
-    )
+    #expect(childFrame.minX == rootFrame.minX)
+    #expect(childFrame.maxX == rootFrame.maxX)
     #expect(childFrame.minX == width - childFrame.maxX)
+
+    let rootContentInsets = TerminalSidebarLayout.tabContentHorizontalInsets(isGrouped: false)
+    let childContentInsets = TerminalSidebarLayout.tabContentHorizontalInsets(isGrouped: true)
+    #expect(
+      childContentInsets.leading - rootContentInsets.leading
+        == TerminalSidebarLayout.groupedTabIndent
+    )
+    #expect(childContentInsets.trailing == rootContentInsets.trailing)
+
+    let childSurfaceFrame = TerminalSidebarLayout.tabSurfaceFrame(
+      in: childFrame,
+      isGrouped: true
+    )
+    #expect(childSurfaceFrame.minX - groupFrame.minX == TerminalSidebarLayout.groupedTabIndent)
+    #expect(groupFrame.maxX - childSurfaceFrame.maxX == TerminalSidebarLayout.groupSurfaceOverflow)
   }
 
   @Test

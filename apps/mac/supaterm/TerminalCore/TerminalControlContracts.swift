@@ -14,17 +14,20 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
   public let cwd: String?
   public let focus: Bool
   public let target: Target
+  public let context: SupatermCLIContext?
 
   public init(
     startupCommand: String?,
     cwd: String?,
     focus: Bool,
-    target: Target
+    target: Target,
+    context: SupatermCLIContext? = nil
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
     self.target = target
+    self.context = context
   }
 }
 
@@ -84,9 +87,11 @@ public struct TerminalNotifyRequest: Equatable, Sendable {
 
 public struct TerminalSpaceTarget: Equatable, Sendable {
   public let spaceID: UUID
+  public let context: SupatermCLIContext?
 
-  public init(spaceID: UUID) {
+  public init(spaceID: UUID, context: SupatermCLIContext? = nil) {
     self.spaceID = spaceID
+    self.context = context
   }
 }
 
@@ -353,37 +358,36 @@ public struct TerminalRenameSpaceRequest: Equatable, Sendable {
 }
 
 public struct TerminalSpaceNavigationRequest: Equatable, Sendable {
-  public let spaceID: UUID
+  public let context: SupatermCLIContext?
 
-  public init(spaceID: UUID) {
-    self.spaceID = spaceID
+  public init(context: SupatermCLIContext? = nil) {
+    self.context = context
   }
 }
 
 public struct TerminalTabNavigationRequest: Equatable, Sendable {
   public let spaceID: UUID
+  public let context: SupatermCLIContext?
 
-  public init(spaceID: UUID) {
+  public init(spaceID: UUID, context: SupatermCLIContext? = nil) {
     self.spaceID = spaceID
+    self.context = context
   }
 }
 
 public struct TerminalCreateSpaceRequest: Equatable, Sendable {
   public let color: SupatermThemeColor?
-  public let focus: Bool
   public let name: String
-  public let windowAnchorPaneID: UUID
+  public let context: SupatermCLIContext?
 
   public init(
     color: SupatermThemeColor?,
-    focus: Bool,
     name: String,
-    windowAnchorPaneID: UUID
+    context: SupatermCLIContext? = nil
   ) {
     self.color = color
-    self.focus = focus
     self.name = name
-    self.windowAnchorPaneID = windowAnchorPaneID
+    self.context = context
   }
 }
 

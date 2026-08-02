@@ -3,18 +3,8 @@ import SupaTheme
 
 extension TerminalHostState {
   func suggestedGroupTitle(containing tabIDs: [TerminalTabID]) -> String? {
-    guard !tabIDs.isEmpty else { return nil }
+    guard let manager = instance(containing: tabIDs)?.tabManager else { return nil }
     let tabs = tabIDs.compactMap(spaceManager.tab(for:))
-    let spaceIDs = Set(tabIDs.compactMap { spaceManager.space(for: $0)?.id })
-    guard
-      tabs.count == tabIDs.count,
-      spaceIDs.count == 1,
-      let spaceID = spaceIDs.first,
-      let manager = spaceManager.tabManager(for: spaceID)
-    else {
-      return nil
-    }
-
     let sharedRepositoryName = TerminalTabGroupTitleSuggester.sharedRepositoryName(
       workingDirectoryPathsByTab: tabIDs.map(paneWorkingDirectoryPaths)
     )
@@ -37,17 +27,14 @@ extension TerminalHostState {
     color: ThemeTint = .neutral,
     containing tabIDs: [TerminalTabID]
   ) -> TerminalTabGroupCreationResult? {
-    let spaceID: TerminalSpaceID?
+    let spaceID: TerminalSpaceID
     if tabIDs.isEmpty {
-      spaceID = selectedSpaceID
+      spaceID = displayedSpaceID
     } else {
-      let spaceIDs = Set(tabIDs.compactMap { spaceManager.space(for: $0)?.id })
-      guard spaceIDs.count == 1, tabIDs.allSatisfy({ spaceManager.tab(for: $0) != nil }) else {
-        return nil
-      }
-      spaceID = spaceIDs.first
+      guard let instance = instance(containing: tabIDs) else { return nil }
+      spaceID = instance.spaceID
     }
-    guard let spaceID, let manager = spaceManager.tabManager(for: spaceID) else { return nil }
+    guard let manager = spaceManager.tabManager(for: spaceID) else { return nil }
     let previousRevision = manager.topologyRevision
     guard let result = manager.createGroup(title: title, color: color, containing: tabIDs) else {
       return nil
@@ -63,10 +50,7 @@ extension TerminalHostState {
 
   @discardableResult
   func renameGroup(_ id: TerminalTabGroupID, title: String) -> Bool {
-    guard
-      let space = spaceManager.space(for: id),
-      spaceManager.tabManager(for: space.id)?.renameGroup(id, title: title) == true
-    else {
+    guard spaceManager.instance(for: id)?.tabManager.renameGroup(id, title: title) == true else {
       return false
     }
     sessionDidChange()
@@ -75,58 +59,62 @@ extension TerminalHostState {
 
   @discardableResult
   func setGroupColor(_ id: TerminalTabGroupID, color: ThemeTint) -> Bool {
-    guard
-      let space = spaceManager.space(for: id),
-      spaceManager.tabManager(for: space.id)?.setGroupColor(id, color: color) == true
-    else {
+    guard spaceManager.instance(for: id)?.tabManager.setGroupColor(id, color: color) == true else {
       return false
     }
     sessionDidChange()
     return true
   }
 
+  func isGroupCollapsed(_ id: TerminalTabGroupID, in spaceID: TerminalSpaceID) -> Bool {
+    guard let instance = spaceManager.instance(for: spaceID) else { return false }
+    if let pendingSession = instance.pendingSession {
+      return pendingSession.collapsedGroupIDs.contains(id)
+    }
+    return instance.collapsedTabGroupIDs.contains(id)
+  }
+
   @discardableResult
   func setGroupCollapsed(_ id: TerminalTabGroupID, isCollapsed: Bool) -> Bool {
-    guard let space = spaceManager.space(for: id) else { return false }
-    var collapsedGroupIDs = collapsedTabGroupIDsBySpace[space.id] ?? []
-    let changed: Bool
-    if isCollapsed {
-      changed = collapsedGroupIDs.insert(id).inserted
-    } else {
-      changed = collapsedGroupIDs.remove(id) != nil
-    }
+    guard let instance = spaceManager.instance(for: id) else { return false }
+    let changed =
+      isCollapsed
+      ? instance.collapsedTabGroupIDs.insert(id).inserted
+      : instance.collapsedTabGroupIDs.remove(id) != nil
     guard changed else { return false }
-    collapsedTabGroupIDsBySpace[space.id] = collapsedGroupIDs
     sessionDidChange()
     return true
   }
 
   @discardableResult
   func toggleGroupCollapsed(_ id: TerminalTabGroupID) -> Bool {
-    guard let space = spaceManager.space(for: id) else { return false }
-    let isCollapsed = collapsedTabGroupIDsBySpace[space.id]?.contains(id) == true
-    return setGroupCollapsed(id, isCollapsed: !isCollapsed)
+    guard let instance = spaceManager.instance(for: id) else { return false }
+    return setGroupCollapsed(id, isCollapsed: !instance.collapsedTabGroupIDs.contains(id))
   }
 
   @discardableResult
   func move(_ request: TerminalTabMoveRequest) throws -> TerminalTabMoveResult {
     guard let firstID = request.itemIDs.first else { throw TerminalTabMoveError.emptyItems }
-    guard let space = space(for: firstID) else { throw TerminalTabMoveError.itemNotFound(firstID) }
-    guard request.itemIDs.allSatisfy({ self.space(for: $0)?.id == space.id }) else {
-      throw TerminalTabMoveError.invalidDestination(request.destination)
-    }
-    guard let manager = spaceManager.tabManager(for: space.id) else {
+    guard let instance = instance(for: firstID) else {
       throw TerminalTabMoveError.itemNotFound(firstID)
     }
+    guard request.itemIDs.allSatisfy({ self.instance(for: $0) === instance }) else {
+      throw TerminalTabMoveError.invalidDestination(request.destination)
+    }
+    let manager = instance.tabManager
     let previousRevision = manager.topologyRevision
     let revealsGroup = request.itemIDs.contains { itemID in
       guard case .tab(let tabID) = itemID else { return false }
       return manager.selectedTabId == tabID
     }
     let result = try manager.move(request)
-    var presentationChanged = removeCollapsedGroups(result.deletedEmptyGroupIDs, in: space.id)
+    var presentationChanged = removeCollapsedGroups(
+      result.deletedEmptyGroupIDs,
+      in: instance.spaceID
+    )
     if revealsGroup, case .group(let groupID, _) = request.destination {
-      presentationChanged = removeCollapsedGroups([groupID], in: space.id) || presentationChanged
+      presentationChanged =
+        removeCollapsedGroups([groupID], in: instance.spaceID) || presentationChanged
     }
     if result.topologyRevision != previousRevision || presentationChanged {
       sessionDidChange()
@@ -136,15 +124,10 @@ extension TerminalHostState {
 
   @discardableResult
   func togglePinned(_ id: TerminalTabRootItemID) -> TerminalTabMoveResult? {
-    guard
-      let space = spaceManager.space(for: id),
-      let manager = spaceManager.tabManager(for: space.id)
-    else {
-      return nil
-    }
-    let previousRevision = manager.topologyRevision
-    guard let result = manager.togglePinned(id) else { return nil }
-    finishMove(result, previousRevision: previousRevision, spaceID: space.id)
+    guard let instance = instance(for: id) else { return nil }
+    let previousRevision = instance.tabManager.topologyRevision
+    guard let result = instance.tabManager.togglePinned(id) else { return nil }
+    finishMove(result, previousRevision: previousRevision, spaceID: instance.spaceID)
     return result
   }
 
@@ -153,79 +136,62 @@ extension TerminalHostState {
     _ id: TerminalTabRootItemID,
     isPinned: Bool
   ) -> TerminalTabMoveResult? {
-    guard
-      let space = spaceManager.space(for: id),
-      let manager = spaceManager.tabManager(for: space.id)
-    else {
-      return nil
-    }
-    let previousRevision = manager.topologyRevision
-    guard let result = manager.setPinned(id, isPinned: isPinned) else { return nil }
-    finishMove(result, previousRevision: previousRevision, spaceID: space.id)
+    guard let instance = instance(for: id) else { return nil }
+    let previousRevision = instance.tabManager.topologyRevision
+    guard let result = instance.tabManager.setPinned(id, isPinned: isPinned) else { return nil }
+    finishMove(result, previousRevision: previousRevision, spaceID: instance.spaceID)
     return result
   }
 
   @discardableResult
   func setTabPinned(_ id: TerminalTabID, isPinned: Bool) -> TerminalTabMoveResult? {
-    guard
-      let space = spaceManager.space(for: id),
-      let manager = spaceManager.tabManager(for: space.id)
-    else {
-      return nil
-    }
-    let previousRevision = manager.topologyRevision
-    guard let result = manager.setTabPinned(id, isPinned: isPinned) else { return nil }
-    finishMove(result, previousRevision: previousRevision, spaceID: space.id)
+    guard let instance = spaceManager.instance(for: id) else { return nil }
+    let previousRevision = instance.tabManager.topologyRevision
+    guard let result = instance.tabManager.setTabPinned(id, isPinned: isPinned) else { return nil }
+    finishMove(result, previousRevision: previousRevision, spaceID: instance.spaceID)
     return result
   }
 
   @discardableResult
   func removeTabFromGroup(_ id: TerminalTabID) -> TerminalTabMoveResult? {
-    guard
-      let space = spaceManager.space(for: id),
-      let manager = spaceManager.tabManager(for: space.id)
-    else {
-      return nil
-    }
-    let previousRevision = manager.topologyRevision
-    guard let result = manager.removeTabFromGroup(id) else { return nil }
-    finishMove(result, previousRevision: previousRevision, spaceID: space.id)
+    guard let instance = spaceManager.instance(for: id) else { return nil }
+    let previousRevision = instance.tabManager.topologyRevision
+    guard let result = instance.tabManager.removeTabFromGroup(id) else { return nil }
+    finishMove(result, previousRevision: previousRevision, spaceID: instance.spaceID)
     return result
   }
 
   @discardableResult
   func ungroup(_ id: TerminalTabGroupID) -> Bool {
-    guard
-      let space = spaceManager.space(for: id),
-      spaceManager.tabManager(for: space.id)?.ungroup(id) == true
-    else {
-      return false
-    }
-    collapsedTabGroupIDsBySpace[space.id]?.remove(id)
+    guard let instance = spaceManager.instance(for: id) else { return false }
+    guard instance.tabManager.ungroup(id) else { return false }
+    instance.collapsedTabGroupIDs.remove(id)
     sessionDidChange()
     return true
   }
 
   @discardableResult
   func deleteEmptyGroup(_ id: TerminalTabGroupID) -> Bool {
-    guard
-      let space = spaceManager.space(for: id),
-      spaceManager.tabManager(for: space.id)?.deleteEmptyGroup(id) == true
-    else {
-      return false
-    }
-    collapsedTabGroupIDsBySpace[space.id]?.remove(id)
+    guard let instance = spaceManager.instance(for: id) else { return false }
+    guard instance.tabManager.deleteEmptyGroup(id) else { return false }
+    instance.collapsedTabGroupIDs.remove(id)
     sessionDidChange()
     return true
   }
 
-  private func space(for id: TerminalTabRootItemID) -> TerminalSpaceItem? {
+  private func instance(for id: TerminalTabRootItemID) -> TerminalSpaceInstance? {
     switch id {
     case .tab(let tabID):
-      spaceManager.space(for: tabID)
+      spaceManager.instance(for: tabID)
     case .group(let groupID):
-      spaceManager.space(for: groupID)
+      spaceManager.instance(for: groupID)
     }
+  }
+
+  private func instance(containing tabIDs: [TerminalTabID]) -> TerminalSpaceInstance? {
+    let instances = tabIDs.compactMap { spaceManager.instance(for: $0) }
+    guard let instance = instances.first, instances.count == tabIDs.count else { return nil }
+    return instances.allSatisfy { $0 === instance } ? instance : nil
   }
 
   func finishMove(
@@ -258,11 +224,9 @@ extension TerminalHostState {
     _ groupIDs: [TerminalTabGroupID],
     in spaceID: TerminalSpaceID
   ) -> Bool {
-    guard var collapsedGroupIDs = collapsedTabGroupIDsBySpace[spaceID] else { return false }
-    let previousCount = collapsedGroupIDs.count
-    collapsedGroupIDs.subtract(groupIDs)
-    guard collapsedGroupIDs.count != previousCount else { return false }
-    collapsedTabGroupIDsBySpace[spaceID] = collapsedGroupIDs
-    return true
+    guard let instance = spaceManager.instance(for: spaceID) else { return false }
+    let previousCount = instance.collapsedTabGroupIDs.count
+    instance.collapsedTabGroupIDs.subtract(groupIDs)
+    return instance.collapsedTabGroupIDs.count != previousCount
   }
 }

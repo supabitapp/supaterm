@@ -5,6 +5,8 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
   case forkAgentSession
   case jumpToLatestUnread
   case newTabInGroup
+  case nextSpace
+  case previousSpace
   case selectSpace(Int)
   case toggleAgentPanel
   case toggleSidebar
@@ -27,6 +29,10 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
       "Jump to Latest Unread"
     case .newTabInGroup:
       "New Tab in Group"
+    case .nextSpace:
+      "Next Space"
+    case .previousSpace:
+      "Previous Space"
     case .selectSpace(let index):
       "Select Space \(index)"
     case .toggleAgentPanel:
@@ -46,6 +52,10 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
       "jump_to_latest_unread"
     case .newTabInGroup:
       "new_tab_in_group"
+    case .nextSpace:
+      "next_space"
+    case .previousSpace:
+      "previous_space"
     case .selectSpace(let index):
       "select_space_\(index)"
     case .toggleAgentPanel:
@@ -73,6 +83,10 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
       self = .jumpToLatestUnread
     case "new_tab_in_group":
       self = .newTabInGroup
+    case "next_space":
+      self = .nextSpace
+    case "previous_space":
+      self = .previousSpace
     case "toggle_agent_panel":
       self = .toggleAgentPanel
     case "toggle_sidebar":

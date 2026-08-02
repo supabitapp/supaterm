@@ -284,8 +284,16 @@ private enum SPTerminalStyle {
   }
 
   static func bold(_ text: String) -> String {
+    styled(text, ansiCode: "1")
+  }
+
+  static func brand(_ text: String) -> String {
+    styled(text, ansiCode: "38;2;255;168;45")
+  }
+
+  private static func styled(_ text: String, ansiCode: String) -> String {
     guard isTTY && isEnabled else { return text }
-    return "\u{001B}[1m\(text)\u{001B}[0m"
+    return "\u{001B}[\(ansiCode)m\(text)\u{001B}[0m"
   }
 }
 
@@ -332,9 +340,24 @@ struct SPConnectionOptions: ParsableArguments {
 }
 
 enum SPOnboardingRenderer {
+  private static let boltLogo = """
+           ##
+         ####
+        #####
+       ##########
+     ############
+    ############
+        ######
+        #####
+        ###
+        ##
+    """
+
   static func render(_ snapshot: SupatermOnboardingSnapshot) -> String {
     let shortcutWidth = snapshot.items.map(\.shortcut.count).max() ?? 0
     var lines = [
+      SPTerminalStyle.brand(boltLogo),
+      "",
       "Welcome to Supaterm!",
       "",
       SPTerminalStyle.bold("Common Shortcuts"),

@@ -31,12 +31,13 @@ struct SocketControlFeatureAppTests {
       id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       color: .neutral,
-      isSelected: true,
+      isWarm: true,
       rootItems: [.tab(SupatermTreeSnapshot.RootTab(isPinned: false, tab: tab))]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: true,
+      displayedSpaceID: space.id,
       spaces: [space]
     )
     let snapshot = SupatermTreeSnapshot(

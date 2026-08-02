@@ -1,0 +1,22 @@
+env = "exec"
+if_missing = "error"
+
+[providers]
+onepass = { type = "1password", vault = "Supaterm", account = "my.1password.com" }
+
+[secrets]
+CLOUDFLARE_ACCOUNT_ID = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/CLOUDFLARE_ACCOUNT_ID" }
+CLOUDFLARE_API_TOKEN = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/CLOUDFLARE_API_TOKEN" }
+POSTHOG_CLI_API_KEY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/POSTHOG_CLI_API_KEY" }
+POSTHOG_CLI_PROJECT_ID = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/POSTHOG_CLI_PROJECT_ID" }
+SPARKLE_PRIVATE_KEY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/SPARKLE_PRIVATE_KEY" }
+DEVELOPER_ID_CERT_P12 = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/DEVELOPER_ID_CERT_P12" }
+DEVELOPER_ID_CERT_PASSWORD = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/DEVELOPER_ID_CERT_PASSWORD" }
+APPLE_NOTARIZATION_KEY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/APPLE_NOTARIZATION_KEY" }
+APPLE_NOTARIZATION_KEY_ID = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/APPLE_NOTARIZATION_KEY_ID" }
+APPLE_NOTARIZATION_ISSUER = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/APPLE_NOTARIZATION_ISSUER" }
+APPLE_TEAM_ID = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/APPLE_TEAM_ID" }
+DEVELOPER_ID_IDENTITY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/DEVELOPER_ID_IDENTITY" }
+KEYCHAIN_PASSWORD = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/KEYCHAIN_PASSWORD" }
+STRIPE_PUBLISHABLE_KEY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/STRIPE_PUBLISHABLE_KEY" }
+STRIPE_SECRET_KEY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/STRIPE_SECRET_KEY" }

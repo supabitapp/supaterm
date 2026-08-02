@@ -64,17 +64,20 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let cwd: String?
   public let focus: Bool
   public let target: SupatermNewTabTarget
+  public let context: SupatermCLIContext?
 
   public init(
     startupCommand: String? = nil,
     cwd: String? = nil,
     focus: Bool,
-    target: SupatermNewTabTarget
+    target: SupatermNewTabTarget,
+    context: SupatermCLIContext? = nil
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
     self.target = target
+    self.context = context
   }
 }
 
@@ -180,9 +183,11 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
 
 public struct SupatermSpaceTargetRequest: Equatable, Sendable, Codable {
   public let spaceID: UUID
+  public let context: SupatermCLIContext?
 
-  public init(spaceID: UUID) {
+  public init(spaceID: UUID, context: SupatermCLIContext? = nil) {
     self.spaceID = spaceID
+    self.context = context
   }
 }
 
@@ -343,20 +348,17 @@ public struct SupatermRenameTabRequest: Equatable, Sendable, Codable {
 
 public struct SupatermCreateSpaceRequest: Equatable, Sendable, Codable {
   public let color: SupatermThemeColor?
-  public let focus: Bool
   public let name: String
-  public let windowAnchorPaneID: UUID
+  public let context: SupatermCLIContext?
 
   public init(
     color: SupatermThemeColor?,
-    focus: Bool,
     name: String,
-    windowAnchorPaneID: UUID
+    context: SupatermCLIContext? = nil
   ) {
     self.color = color
-    self.focus = focus
     self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    self.windowAnchorPaneID = windowAnchorPaneID
+    self.context = context
   }
 }
 
@@ -387,18 +389,20 @@ public struct SupatermSetSpaceColorRequest: Equatable, Sendable, Codable {
 }
 
 public struct SupatermSpaceNavigationRequest: Equatable, Sendable, Codable {
-  public let spaceID: UUID
+  public let context: SupatermCLIContext?
 
-  public init(spaceID: UUID) {
-    self.spaceID = spaceID
+  public init(context: SupatermCLIContext? = nil) {
+    self.context = context
   }
 }
 
 public struct SupatermTabNavigationRequest: Equatable, Sendable, Codable {
   public let spaceID: UUID
+  public let context: SupatermCLIContext?
 
-  public init(spaceID: UUID) {
+  public init(spaceID: UUID, context: SupatermCLIContext? = nil) {
     self.spaceID = spaceID
+    self.context = context
   }
 }
 

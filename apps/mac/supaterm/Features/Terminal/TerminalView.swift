@@ -30,7 +30,7 @@ struct TerminalView: View {
   }
 
   private var palette: Palette {
-    Palette(colorScheme: chromeColorScheme, tint: terminal.spaceManager.space.color)
+    Palette(colorScheme: chromeColorScheme, tint: terminal.displayedSpace.color)
   }
 
   private var pendingCloseBinding: Binding<Bool> {
@@ -98,6 +98,7 @@ struct TerminalView: View {
       .background {
         WindowAppearanceApplier(appliedAppearance: windowAppearance)
       }
+      .background(WindowTitleApplier(title: terminal.displayedSpace.name))
       .overlay {
         WindowChromeConfigurator()
           .frame(width: 0, height: 0)
@@ -232,7 +233,7 @@ struct TerminalView: View {
       )
       .terminalAnimation(
         .spring(response: 0.28, dampingFraction: 0.82),
-        value: terminal.availableSpaces.map(\.id),
+        value: terminal.spaces.map(\.id),
         reduceMotion: reduceMotion
       )
       .environment(\.colorScheme, chromeColorScheme)
@@ -257,7 +258,15 @@ struct TerminalView: View {
   }
 
   private var spaceDeleteMessage: String {
-    "All tabs in this space will be closed."
+    guard let request = store.pendingSpaceDeleteRequest else {
+      return "All tabs in this space will be closed."
+    }
+    let paneCount = terminal.paneCountAcrossWindows(request.space.id)
+    guard paneCount > 0 else {
+      return "This space has no open tabs."
+    }
+    let panes = paneCount == 1 ? "1 pane" : "\(paneCount) panes"
+    return "Deleting it closes \(panes) across every window and ends their processes."
   }
 
   private var resolvedWindowActivity: WindowActivityState {

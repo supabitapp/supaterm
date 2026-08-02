@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 final class SessionRestoreUITests: SupatermUITestCase {
-  private static let sessionCatalogVersion = 8
+  private static let sessionCatalogVersion = 9
 
   @MainActor
   func testSelectedPinnedTabStaysSelectedAfterRelaunch() async throws {
@@ -35,9 +35,10 @@ final class SessionRestoreUITests: SupatermUITestCase {
       guard
         catalog["version"] as? Int == Self.sessionCatalogVersion,
         let window = self.sessionWindow(in: catalog),
-        let topology = self.sessionTopology(in: window),
+        let space = self.sessionDisplayedSpace(in: window),
+        let topology = self.sessionTopology(in: space),
         topology.orderedTabIDs.count == 2,
-        let selectedTabID = self.sessionTabID(window["selectedTabID"])
+        let selectedTabID = self.sessionRawID(space["selectedTabID"])
       else { return false }
       return selectedTabID == topology.orderedTabIDs[0]
         && topology.rootPinning[topology.orderedTabIDs[0]] == true
@@ -290,18 +291,19 @@ final class SessionRestoreUITests: SupatermUITestCase {
       let catalog = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       catalog["version"] as? Int == Self.sessionCatalogVersion,
       let window = sessionWindow(in: catalog),
-      let topology = sessionTopology(in: window),
-      let tabs = window["tabs"] as? [[String: Any]]
+      let space = sessionDisplayedSpace(in: window),
+      let topology = sessionTopology(in: space),
+      let tabs = space["tabs"] as? [[String: Any]]
     else { return nil }
     let tabsByID = tabs.reduce(into: [String: [String: Any]]()) { result, tab in
-      guard let id = sessionTabID(tab["id"]), result[id] == nil else { return }
+      guard let id = sessionRawID(tab["id"]), result[id] == nil else { return }
       result[id] = tab
     }
     guard
       tabsByID.count == tabs.count,
       topology.orderedTabIDs.allSatisfy({ tabsByID[$0] != nil })
     else { return nil }
-    let selectedTabIndex = sessionTabID(window["selectedTabID"]).flatMap {
+    let selectedTabIndex = sessionRawID(space["selectedTabID"]).flatMap {
       topology.orderedTabIDs.firstIndex(of: $0)
     }
     return SessionLayout(
@@ -325,8 +327,16 @@ final class SessionRestoreUITests: SupatermUITestCase {
     return windows[0]
   }
 
-  private func sessionTopology(in window: [String: Any]) -> SessionTopology? {
-    guard let nodes = window["nodes"] as? [[String: Any]] else { return nil }
+  private func sessionDisplayedSpace(in window: [String: Any]) -> [String: Any]? {
+    guard
+      let spaces = window["spaces"] as? [[String: Any]],
+      let displayedSpaceID = sessionRawID(window["displayedSpaceID"])
+    else { return nil }
+    return spaces.first { sessionRawID($0["spaceID"]) == displayedSpaceID }
+  }
+
+  private func sessionTopology(in space: [String: Any]) -> SessionTopology? {
+    guard let nodes = space["nodes"] as? [[String: Any]] else { return nil }
     let indexedRootNodes = nodes.enumerated().filter { _, node in
       (node["parent"] as? [String: Any])?["kind"] as? String == "root"
     }
@@ -351,7 +361,7 @@ final class SessionRestoreUITests: SupatermUITestCase {
       else { return nil }
       switch kind {
       case "tab":
-        guard let id = sessionTabID(item["id"]) else { return nil }
+        guard let id = sessionRawID(item["id"]) else { return nil }
         orderedTabIDs.append(id)
         rootPinning[id] = isPinned
       case "group":
@@ -372,7 +382,7 @@ final class SessionRestoreUITests: SupatermUITestCase {
             return (lhsOrder, lhs.offset) < (rhsOrder, rhs.offset)
           }
           .compactMap { _, node in
-            sessionTabID((node["item"] as? [String: Any])?["id"])
+            sessionRawID((node["item"] as? [String: Any])?["id"])
           }
         orderedTabIDs.append(contentsOf: childIDs)
       default:
@@ -382,7 +392,7 @@ final class SessionRestoreUITests: SupatermUITestCase {
     return SessionTopology(orderedTabIDs: orderedTabIDs, rootPinning: rootPinning)
   }
 
-  private func sessionTabID(_ value: Any?) -> String? {
+  private func sessionRawID(_ value: Any?) -> String? {
     (value as? [String: Any])?["rawValue"] as? String
   }
 

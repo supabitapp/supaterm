@@ -3,6 +3,7 @@ import SwiftUI
 public struct Palette {
   public let colorScheme: ColorScheme
   public let referencePalette: ReferencePalette
+  public let tint: ThemeTint
   public let backgroundTopValue: ThemeColor
   public let backgroundBottomValue: ThemeColor
   public let agentPanelBackgroundValue: ThemeColor
@@ -130,6 +131,10 @@ public struct Palette {
     referencePalette.swatches(for: colorScheme)
   }
 
+  public func tinted(_ tint: ThemeTint) -> Palette {
+    Palette(colorScheme: colorScheme, referencePalette: referencePalette, tint: tint)
+  }
+
   public init(
     colorScheme: ColorScheme,
     referencePalette: ReferencePalette = .default,
@@ -137,6 +142,7 @@ public struct Palette {
   ) {
     self.colorScheme = colorScheme
     self.referencePalette = referencePalette
+    self.tint = tint
 
     let surfaceSeed = referencePalette.neutral.light
     let isDark = colorScheme == .dark

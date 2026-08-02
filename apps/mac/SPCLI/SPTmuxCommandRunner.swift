@@ -190,12 +190,7 @@ struct SPTmuxCommandRunner {
     }
     let created = try send(
       .createSpace(
-        SupatermCreateSpaceRequest(
-          color: nil,
-          focus: false,
-          name: name,
-          windowAnchorPaneID: topology().current.pane.id
-        )
+        SupatermCreateSpaceRequest(color: nil, name: name, context: SupatermCLIContext.current)
       ),
       as: SupatermCreateSpaceResult.self
     )
@@ -252,7 +247,8 @@ struct SPTmuxCommandRunner {
           startupCommand: nil,
           cwd: try resolvedWorkingDirectory(parsed.value("-c")),
           focus: false,
-          target: .space(targetSpace.space.id)
+          target: .space(targetSpace.space.id),
+          context: SupatermCLIContext.current
         )
       ),
       as: SupatermNewTabResult.self
@@ -769,33 +765,29 @@ struct SPTmuxCommandRunner {
   }
 
   private func runLastWindow(_ arguments: [String]) throws {
-    let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-t"], boolFlags: [])
-    let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
-    _ = try send(
-      .lastTab(
-        SupatermTabNavigationRequest(spaceID: targetSpace.space.id)
-      ),
-      as: SupatermSelectTabResult.self
-    )
+    try runWindowNavigation(arguments) { try .lastTab($0) }
   }
 
   private func runNextWindow(_ arguments: [String]) throws {
-    let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-t"], boolFlags: [])
-    let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
-    _ = try send(
-      .nextTab(
-        SupatermTabNavigationRequest(spaceID: targetSpace.space.id)
-      ),
-      as: SupatermSelectTabResult.self
-    )
+    try runWindowNavigation(arguments) { try .nextTab($0) }
   }
 
   private func runPreviousWindow(_ arguments: [String]) throws {
+    try runWindowNavigation(arguments) { try .previousTab($0) }
+  }
+
+  private func runWindowNavigation(
+    _ arguments: [String],
+    request: (SupatermTabNavigationRequest) throws -> SupatermSocketRequest
+  ) throws {
     let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-t"], boolFlags: [])
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
     _ = try send(
-      .previousTab(
-        SupatermTabNavigationRequest(spaceID: targetSpace.space.id)
+      try request(
+        SupatermTabNavigationRequest(
+          spaceID: targetSpace.space.id,
+          context: SupatermCLIContext.current
+        )
       ),
       as: SupatermSelectTabResult.self
     )

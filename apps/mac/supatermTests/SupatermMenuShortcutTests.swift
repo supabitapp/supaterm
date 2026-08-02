@@ -20,6 +20,32 @@ struct SupatermMenuShortcutTests {
   }
 
   @Test
+  func applyPreservesUppercaseShortcutWithShift() {
+    let item = NSMenuItem(title: "Open", action: nil, keyEquivalent: "")
+
+    SupatermMenuShortcut.apply(
+      KeyboardShortcut("Ä", modifiers: [.command]),
+      to: item
+    )
+
+    #expect(item.keyEquivalent == "ä")
+    #expect(item.keyEquivalentModifierMask == [.command, .shift])
+  }
+
+  @Test
+  func displayUsesNormalizedShortcut() {
+    let shortcut = KeyboardShortcut("Ä", modifiers: [.command])
+
+    #expect(shortcut.display == "⌘⇧Ä")
+  }
+
+  @Test
+  func displayDistinguishesForwardDeleteFromBackspace() {
+    #expect(KeyboardShortcut(.deleteForward, modifiers: []).display == "⌦")
+    #expect(KeyboardShortcut(.delete, modifiers: []).display == "⌫")
+  }
+
+  @Test
   func applyClearsKeyEquivalentWhenShortcutIsMissing() {
     let item = NSMenuItem(title: "Close", action: nil, keyEquivalent: "w")
     item.keyEquivalentModifierMask = [.command]

@@ -107,13 +107,19 @@ struct TerminalWindowControllerTests {
         width: 1_100,
         height: 740
       )
+      let spaceID = TerminalSpaceCatalog.default.defaultSelectedSpaceID
       let session = TerminalWindowSession(
-        spaceID: TerminalSpaceCatalog.default.defaultSelectedSpaceID,
-        selectedTabID: nil,
-        nodes: [],
-        groups: [],
-        collapsedGroupIDs: [],
-        tabs: [],
+        displayedSpaceID: spaceID,
+        spaces: [
+          TerminalSpaceSession(
+            spaceID: spaceID,
+            selectedTabID: nil,
+            nodes: [],
+            groups: [],
+            collapsedGroupIDs: [],
+            tabs: []
+          )
+        ],
         frame: TerminalWindowFrame(frame)
       )
       let controller = TerminalWindowController(

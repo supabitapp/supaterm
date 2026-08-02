@@ -331,6 +331,64 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
+  func workflowCompletionPublishesItsTranscriptDirectory() throws {
+    let monitor = ClaudePanelMonitor()
+    let transcriptDirectory = "/tmp/session/subagents/workflows/wf-1"
+    _ = monitor.consume(
+      AgentTranscriptUpdate(
+        objects: [workflowLaunch(taskID: "task-1", transcriptDirectory: transcriptDirectory)]
+      )
+    )
+
+    let snapshot = try #require(
+      monitor.consume(
+        AgentTranscriptUpdate(objects: [workflowCompletion(taskID: "task-1")])
+      )
+    )
+
+    #expect(snapshot.completedSubagentTranscriptDirectories == [transcriptDirectory])
+  }
+
+  @Test
+  func taskStopPublishesItsWorkflowTranscriptDirectory() throws {
+    let monitor = ClaudePanelMonitor()
+    let transcriptDirectory = "/tmp/session/subagents/workflows/wf-1"
+    _ = monitor.consume(
+      AgentTranscriptUpdate(
+        objects: [workflowLaunch(taskID: "task-1", transcriptDirectory: transcriptDirectory)]
+      )
+    )
+
+    let snapshot = try #require(
+      monitor.consume(
+        AgentTranscriptUpdate(objects: [workflowStop(taskID: "task-1")])
+      )
+    )
+
+    #expect(snapshot.completedSubagentTranscriptDirectories == [transcriptDirectory])
+  }
+
+  @Test
+  func replayDoesNotCompleteRelaunchedWorkflowDirectory() throws {
+    let monitor = ClaudePanelMonitor()
+    let transcriptDirectory = "/tmp/session/subagents/workflows/wf-1"
+    let snapshot = try #require(
+      monitor.consume(
+        AgentTranscriptUpdate(
+          objects: [
+            workflowLaunch(taskID: "task-1", transcriptDirectory: transcriptDirectory),
+            workflowCompletion(taskID: "task-1"),
+            workflowLaunch(taskID: "task-2", transcriptDirectory: transcriptDirectory),
+          ],
+          didReset: true
+        )
+      )
+    )
+
+    #expect(snapshot.completedSubagentTranscriptDirectories.isEmpty)
+  }
+
+  @Test
   func advanceConsumesOnlyCompleteTranscriptLines() throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
@@ -397,5 +455,37 @@ struct ClaudeProgressMonitorTests {
         )
       ]
     )
+  }
+
+  private func workflowLaunch(taskID: String, transcriptDirectory: String) -> JSONObject {
+    [
+      "toolUseResult": .object([
+        "status": .string("async_launched"),
+        "taskId": .string(taskID),
+        "taskType": .string("local_workflow"),
+        "transcriptDir": .string(transcriptDirectory),
+      ])
+    ]
+  }
+
+  private func workflowCompletion(taskID: String) -> JSONObject {
+    [
+      "message": .object([
+        "content": .string(
+          "<task-notification><task-id>\(taskID)</task-id><status>completed</status></task-notification>"
+        )
+      ]),
+      "origin": .object(["kind": .string("task-notification")]),
+    ]
+  }
+
+  private func workflowStop(taskID: String) -> JSONObject {
+    [
+      "toolUseResult": .object([
+        "message": .string("Successfully stopped task: \(taskID)"),
+        "task_id": .string(taskID),
+        "task_type": .string("local_workflow"),
+      ])
+    ]
   }
 }
