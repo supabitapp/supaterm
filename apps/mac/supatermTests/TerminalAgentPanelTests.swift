@@ -1682,6 +1682,33 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  func pullRequestChecksDistinguishesIssuesFromFailures() {
+    let checks = PaneAgentPullRequestChecks(
+      status: .failing,
+      totalCount: 8,
+      items: [
+        PaneAgentPullRequestCheck(name: "failure", state: .failure),
+        PaneAgentPullRequestCheck(name: "error", state: .error),
+        PaneAgentPullRequestCheck(name: "startup", state: .startupFailure),
+        PaneAgentPullRequestCheck(name: "cancelled", state: .cancelled),
+        PaneAgentPullRequestCheck(name: "timed-out", state: .timedOut),
+        PaneAgentPullRequestCheck(name: "action", state: .actionRequired),
+        PaneAgentPullRequestCheck(name: "stale", state: .stale),
+        PaneAgentPullRequestCheck(name: "unavailable", state: .unavailable),
+      ]
+    )
+
+    #expect(checks.title == "3 failed, 5 issues")
+    #expect(
+      PaneAgentPullRequestChecks(
+        status: .failing,
+        totalCount: 1,
+        items: [PaneAgentPullRequestCheck(name: "cancelled", state: .cancelled)]
+      ).title == "1 issue"
+    )
+  }
+
+  @Test
   func pullRequestChecksIsEmptyWhenTotalCountIsZero() {
     let checks = PaneAgentPullRequestChecks(
       status: .passing,

@@ -212,12 +212,16 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
 
     if items.count == totalCount {
       let counts = itemCounts
-      let failingCount = counts[.failing, default: 0]
+      let failedCount = items.filter { $0.state.isFailure }.count
+      let issueCount = counts[.failing, default: 0] - failedCount
       let runningCount = items.filter { $0.state == .inProgress }.count
       let pendingCount = counts[.pending, default: 0] - runningCount
       var parts: [String] = []
-      if failingCount > 0 {
-        parts.append("\(failingCount) failed")
+      if failedCount > 0 {
+        parts.append("\(failedCount) failed")
+      }
+      if issueCount > 0 {
+        parts.append("\(issueCount) \(issueCount == 1 ? "issue" : "issues")")
       }
       if runningCount > 0 {
         parts.append("\(runningCount) running")
@@ -300,6 +304,15 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
         .skipped
       case .failure, .error, .cancelled, .timedOut, .actionRequired, .stale, .startupFailure, .unavailable:
         .failing
+      }
+    }
+
+    var isFailure: Bool {
+      switch self {
+      case .failure, .error, .startupFailure:
+        true
+      default:
+        false
       }
     }
 
