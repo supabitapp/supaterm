@@ -18,13 +18,11 @@ enum SPExecutable {
       return nil
     }
 
-    return normalizedPath(String(cString: buffer))
+    return canonicalPath(String(cString: buffer))
   }
 
-  static func normalizedPath(_ path: String) -> String {
-    let standardizedPath = URL(fileURLWithPath: path, isDirectory: false)
-      .standardizedFileURL
-      .path
+  static func canonicalPath(_ path: String) -> String {
+    let standardizedPath = standardizedPath(path)
     var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
     let resolved = standardizedPath.withCString { pointer in
       realpath(pointer, &buffer)
@@ -34,6 +32,12 @@ enum SPExecutable {
     }
     let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
     return String(bytes: bytes, encoding: .utf8) ?? standardizedPath
+  }
+
+  static func standardizedPath(_ path: String) -> String {
+    URL(fileURLWithPath: path, isDirectory: false)
+      .standardizedFileURL
+      .path
   }
 
   static func isExecutableFile(atPath path: String) -> Bool {
@@ -62,9 +66,9 @@ enum SPExecutable {
     }
 
     for candidate in candidates {
-      let normalizedCandidate = normalizedPath(candidate)
-      if isExecutableFile(atPath: normalizedCandidate) {
-        return normalizedCandidate
+      let standardizedCandidate = standardizedPath(candidate)
+      if isExecutableFile(atPath: standardizedCandidate) {
+        return standardizedCandidate
       }
     }
     return nil

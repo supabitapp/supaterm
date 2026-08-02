@@ -18,7 +18,7 @@ struct SPExecutableTests {
       currentDirectoryPath: temporaryDirectory.path
     )
 
-    #expect(resolvedPath == SPExecutable.normalizedPath(executableURL.path))
+    #expect(resolvedPath == SPExecutable.standardizedPath(executableURL.path))
   }
 
   @Test
@@ -40,11 +40,11 @@ struct SPExecutableTests {
       searchPath: "\(firstDirectory.path):\(secondDirectory.path)"
     )
 
-    #expect(resolvedPath == SPExecutable.normalizedPath(executableURL.path))
+    #expect(resolvedPath == SPExecutable.standardizedPath(executableURL.path))
   }
 
   @Test
-  func explicitResolutionNormalizesSymlinks() throws {
+  func namedResolutionPreservesSymlinkInvocationPath() throws {
     let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
@@ -54,8 +54,8 @@ struct SPExecutableTests {
     try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: executableURL)
 
     #expect(
-      SPExecutable.resolve(symlinkURL.path)
-        == SPExecutable.normalizedPath(executableURL.path)
+      SPExecutable.resolve("tool", searchPath: temporaryDirectory.path)
+        == symlinkURL.standardizedFileURL.path
     )
   }
 }

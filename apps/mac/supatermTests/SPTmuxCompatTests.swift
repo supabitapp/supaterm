@@ -110,7 +110,7 @@ struct SPTmuxCompatTests {
   }
 
   @Test
-  func resolvedCLIPathNormalizesExplicitSymlink() throws {
+  func resolvedCLIPathCanonicalizesExplicitSymlink() throws {
     let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 

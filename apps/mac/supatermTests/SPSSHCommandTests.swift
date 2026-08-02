@@ -40,7 +40,7 @@ struct SPSSHCommandTests {
       ]
     )
 
-    let resolvedSSHPath = SPExecutable.normalizedPath(sshURL.path)
+    let resolvedSSHPath = SPExecutable.standardizedPath(sshURL.path)
     #expect(invocation.executablePath == resolvedSSHPath)
     #expect(
       invocation.arguments == [

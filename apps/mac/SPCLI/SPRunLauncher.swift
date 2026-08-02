@@ -127,13 +127,13 @@ enum SPRunLauncher {
     ]
 
     guard
-      let path = candidates.lazy.compactMap({ $0 }).compactMap({ candidate in
-        SPExecutable.resolve(candidate)
+      let path = candidates.lazy.compactMap({ $0 }).compactMap({
+        SPExecutable.resolve($0)
       }).first
     else {
       throw ValidationError("Unable to resolve the sp executable path.")
     }
-    return path
+    return SPExecutable.canonicalPath(path)
   }
 
   static func ensureTmuxShimDirectory(

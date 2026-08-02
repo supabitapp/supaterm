@@ -57,7 +57,7 @@ struct SPEntrypointTests {
   }
 
   @Test
-  func executablePathResolutionFollowsSymlinks() throws {
+  func canonicalPathFollowsSymlinks() throws {
     let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
@@ -66,6 +66,6 @@ struct SPEntrypointTests {
     try writeExecutable(at: executableURL, script: "#!/bin/sh\nexit 0\n")
     try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: executableURL)
 
-    #expect(SPExecutable.normalizedPath(symlinkURL.path) == executableURL.path)
+    #expect(SPExecutable.canonicalPath(symlinkURL.path) == executableURL.path)
   }
 }
