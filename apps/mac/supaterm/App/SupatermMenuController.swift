@@ -1210,9 +1210,15 @@ final class SupatermMenuController: NSObject {
     defaultShortcut: KeyboardShortcut? = nil
   ) {
     guard let item else { return }
-    let shortcut = resolvedTerminalShortcut(action: action, defaultShortcut: defaultShortcut)
+    let runtimeShortcut = registry.keyboardShortcut(forAction: action)
+    let shortcut =
+      runtimeShortcut
+      ?? fallbackTerminalShortcut(
+        action: action,
+        defaultShortcut: defaultShortcut
+      )
     SupatermMenuShortcut.apply(shortcut, to: item)
-    syncGhosttyBindingItem(item, shortcut: shortcut)
+    syncGhosttyBindingItem(item, shortcut: runtimeShortcut)
   }
 
   private func syncAppShortcut(
@@ -1235,33 +1241,16 @@ final class SupatermMenuController: NSObject {
     action: String,
     defaultShortcut: KeyboardShortcut?
   ) -> KeyboardShortcut? {
-    if let shortcut = registry.keyboardShortcut(forAction: action) {
-      return shortcut
-    }
-    if registry.hasShortcutSource {
-      guard isFindNavigationAction(action),
-        let defaultShortcut,
-        !runtimeClaimsShortcut(defaultShortcut)
-      else { return nil }
-    }
-    return defaultShortcut
+    registry.keyboardShortcut(forAction: action)
+      ?? fallbackTerminalShortcut(action: action, defaultShortcut: defaultShortcut)
   }
 
-  private func runtimeClaimsShortcut(_ shortcut: KeyboardShortcut) -> Bool {
-    let key = MenuShortcutKey(shortcut: shortcut)
-    return menuEntries.contains { entry in
-      let action: String
-      switch entry.spec.shortcut {
-      case .command(let command):
-        action = command.ghosttyBindingAction
-      case .ghosttyAction(let ghosttyAction, _):
-        action = ghosttyAction
-      case .app, .appRouted, .none:
-        return false
-      }
-      guard let runtimeShortcut = registry.keyboardShortcut(forAction: action) else { return false }
-      return MenuShortcutKey(shortcut: runtimeShortcut) == key
-    }
+  private func fallbackTerminalShortcut(
+    action: String,
+    defaultShortcut: KeyboardShortcut?
+  ) -> KeyboardShortcut? {
+    if registry.hasShortcutSource && !isFindNavigationAction(action) { return nil }
+    return defaultShortcut
   }
 
   private func isFindNavigationAction(_ action: String) -> Bool {
