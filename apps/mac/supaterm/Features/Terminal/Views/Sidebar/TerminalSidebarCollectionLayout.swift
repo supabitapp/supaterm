@@ -88,14 +88,14 @@ struct TerminalSidebarLayoutPlan: Equatable {
     var y = Self.initialY
     var dropPlaceholderFrame: CGRect?
     var previousVisibleEntry: TerminalSidebarEntry?
+    let horizontalInsets = TerminalSidebarLayout.cardHorizontalInsets
 
     for (index, entry) in entries.enumerated() {
       if insertionIndex == index, dropGapHeight > 0 {
         dropPlaceholderFrame = Self.placeholderFrame(
           y: y,
           height: dropGapHeight,
-          width: width,
-          destination: dragDropState?.target?.destination
+          width: width
         )
         y += dropGapHeight
       }
@@ -105,16 +105,15 @@ struct TerminalSidebarLayoutPlan: Equatable {
       if y > Self.initialY, !isDragged {
         y += Self.spacing(before: entry, previous: previousVisibleEntry) * visibility.height
       }
-      let insets = Self.horizontalInsets(for: entry)
       let preferredHeight = preferredHeights[entry.id] ?? Self.defaultHeight(for: entry)
       let height = isDragged ? 0 : preferredHeight * visibility.height
       items.append(
         Item(
           id: entry.id,
           frame: CGRect(
-            x: insets.leading,
+            x: horizontalInsets.leading,
             y: y,
-            width: insets.width(in: width),
+            width: horizontalInsets.width(in: width),
             height: height
           ),
           alpha: isDragged ? 0 : visibility.alpha
@@ -130,8 +129,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       dropPlaceholderFrame = Self.placeholderFrame(
         y: y,
         height: dropGapHeight,
-        width: width,
-        destination: dragDropState?.target?.destination
+        width: width
       )
       y += dropGapHeight
     }
@@ -587,33 +585,15 @@ struct TerminalSidebarLayoutPlan: Equatable {
   private static func placeholderFrame(
     y: CGFloat,
     height: CGFloat,
-    width: CGFloat,
-    destination: TerminalSidebarDropDestination?
+    width: CGFloat
   ) -> CGRect {
-    let insets: TerminalSidebarLayout.HorizontalInsets
-    switch destination {
-    case .group:
-      insets = TerminalSidebarLayout.groupedTabHorizontalInsets
-    case .root, nil:
-      insets = TerminalSidebarLayout.cardHorizontalInsets
-    }
+    let insets = TerminalSidebarLayout.cardHorizontalInsets
     return CGRect(
       x: insets.leading,
       y: y,
       width: insets.width(in: width),
       height: height
     )
-  }
-
-  fileprivate static func horizontalInsets(
-    for entry: TerminalSidebarEntry
-  ) -> TerminalSidebarLayout.HorizontalInsets {
-    switch entry.kind {
-    case .tab(_, .some, _):
-      TerminalSidebarLayout.groupedTabHorizontalInsets
-    case .tab(_, nil, _), .group, .pinDivider, .newTab:
-      TerminalSidebarLayout.cardHorizontalInsets
-    }
   }
 
   private static func spacing(
@@ -730,7 +710,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     let entries = outline.visibleEntries
     let heights = Dictionary(
       uniqueKeysWithValues: entries.map { entry in
-        let itemWidth = TerminalSidebarLayoutPlan.horizontalInsets(for: entry).width(in: width)
+        let itemWidth = TerminalSidebarLayout.cardHorizontalInsets.width(in: width)
         return (
           entry.id,
           preferredHeight?(entry.id, itemWidth) ?? TerminalSidebarLayout.tabRowMinHeight
