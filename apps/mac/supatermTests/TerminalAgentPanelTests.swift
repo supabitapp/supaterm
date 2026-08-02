@@ -1484,7 +1484,8 @@ struct TerminalAgentPanelTests {
           ]
         )
     )
-    #expect(status.checks?.title == "1 running")
+    #expect(status.checks?.title == "1 pending")
+    #expect(status.checks?.accessibilityTitle == "Checks, 1 pending")
   }
 
   @Test
@@ -1586,6 +1587,7 @@ struct TerminalAgentPanelTests {
     #expect(items[1].detailText(now: now) == "Successful in 1m")
     #expect(items[2].title == "deploy / preview")
     #expect(items[2].detailText(now: now) == "Waiting for approval")
+    #expect(status.checks?.title == "1 running, 1 pending")
   }
 
   @Test
@@ -1660,8 +1662,8 @@ struct TerminalAgentPanelTests {
       totalCount: 5,
       items: [
         PaneAgentPullRequestCheck(name: "lint", status: .passing),
-        PaneAgentPullRequestCheck(name: "test", status: .pending),
-        PaneAgentPullRequestCheck(name: "build", status: .pending),
+        PaneAgentPullRequestCheck(name: "test", state: .inProgress),
+        PaneAgentPullRequestCheck(name: "build", state: .inProgress),
         PaneAgentPullRequestCheck(name: "deploy", status: .failing),
         PaneAgentPullRequestCheck(name: "docs", status: .skipped),
       ]
@@ -1675,6 +1677,7 @@ struct TerminalAgentPanelTests {
     ]
     #expect(checks.itemCounts == expectedCounts)
     #expect(checks.title == "1 failed, 2 running")
+    #expect(checks.accessibilityTitle == "Checks, 1 failed, 2 running")
     #expect(!checks.isEmpty)
   }
 

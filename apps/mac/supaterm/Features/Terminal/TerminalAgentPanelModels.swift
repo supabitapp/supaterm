@@ -189,7 +189,6 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     case pending
     case passing
     case failing
-
   }
 
   let status: Status
@@ -214,15 +213,20 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     if items.count == totalCount {
       let counts = itemCounts
       let failingCount = counts[.failing, default: 0]
-      let pendingCount = counts[.pending, default: 0]
-      if failingCount > 0, pendingCount > 0 {
-        return "\(failingCount) failed, \(pendingCount) running"
-      }
+      let runningCount = items.filter { $0.state == .inProgress }.count
+      let pendingCount = counts[.pending, default: 0] - runningCount
+      var parts: [String] = []
       if failingCount > 0 {
-        return "\(failingCount) failed"
+        parts.append("\(failingCount) failed")
+      }
+      if runningCount > 0 {
+        parts.append("\(runningCount) running")
       }
       if pendingCount > 0 {
-        return "\(pendingCount) running"
+        parts.append("\(pendingCount) pending")
+      }
+      if !parts.isEmpty {
+        return parts.joined(separator: ", ")
       }
     }
 
@@ -234,6 +238,10 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     case .passing:
       return "Checks passed (\(totalCount))"
     }
+  }
+
+  var accessibilityTitle: String {
+    title.hasPrefix("Checks") ? title : "Checks, \(title)"
   }
 
   var itemCounts: [PaneAgentPullRequestCheck.Status: Int] {
