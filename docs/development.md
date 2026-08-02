@@ -153,7 +153,13 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_TAB_ID`
 - `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled (the default)
 
-The app also prepends the bundled CLI directory to pane `PATH`.
+The app also prepends its `Contents/MacOS` directory to pane `PATH`. The directory includes the matching `sp` CLI.
+
+### SSH entry point
+
+Supaterm keeps `ssh-env` in new terminal configs. The bundled shell integrations call the exact `SUPATERM_CLI_PATH` and let `sp ssh` replace itself with the user's `ssh` executable. This reuses the signed CLI already in the app bundle and does not require another app entry point.
+
+`sp ssh` sets the terminal environment and adds `SendEnv` rules. It does not pass `SetEnv`, so user SSH config keeps ownership of those values. Supaterm does not rewrite existing terminal configs; users without `ssh-env` keep their current behavior.
 
 ## Marketing website
 

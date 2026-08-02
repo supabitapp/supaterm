@@ -45,7 +45,7 @@ sp skills get core
 sp skills get core --full
 ```
 
-The bundled guide is authoritative for the installed version. `--full` includes the complete space, tab, pane, agent, selector, and diagnostic references.
+The bundled guide is authoritative for the installed version. `--full` includes the complete space, tab, pane, SSH, agent, selector, and diagnostic references.
 
 ## Output modes
 

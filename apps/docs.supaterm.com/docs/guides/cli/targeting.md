@@ -81,7 +81,7 @@ Outside Supaterm, the CLI uses the only reachable instance. It refuses to guess 
 Only Supaterm panes receive the bundled CLI on `PATH` automatically. For a standard Applications install, add its directory to an external shell before using the examples below:
 
 ```bash
-export PATH="/Applications/supaterm.app/Contents/Resources/bin:$PATH"
+export PATH="/Applications/supaterm.app/Contents/MacOS:$PATH"
 ```
 
 ```bash
