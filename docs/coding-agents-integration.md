@@ -60,7 +60,7 @@ Launch the bundled Rust prompt TUI from a Supaterm pane:
 supaterm
 ```
 
-The first version edits a prompt and uses Tab or Shift-Tab to pick Codex, Claude, or Pi. Shift-Enter inserts a newline. Enter does nothing and does not launch the selected agent.
+The first version edits a prompt and uses Tab or Shift-Tab to pick Codex, Claude, or Pi. Shift-Enter inserts a newline. Long prompts grow to one-third of the pane, then scroll as Up, Down, Control-P, or Control-N moves through wrapped rows. The layout reflows when the pane resizes. Enter does nothing and does not launch the selected agent.
 
 ## Supaterm Skill
 

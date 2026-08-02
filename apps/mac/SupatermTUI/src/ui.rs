@@ -12,10 +12,12 @@ use terminal_colorsaurus::{QueryOptions, color_palette};
 use unicode_width::UnicodeWidthStr;
 
 use crate::app::App;
+use crate::composer::{PromptLayout, RunKind};
 use crate::icons::AgentIcons;
-use crate::prompt::{Atom, Prompt};
+use crate::prompt::Prompt;
 
 const BRAND: Color = Color::Rgb(255, 168, 45);
+const MIN_PROMPT_VIEWPORT_HEIGHT: u16 = 6;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Theme {
@@ -94,207 +96,98 @@ impl Theme {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum RunKind {
-    Text,
-    Image,
+pub(crate) struct UiLayout {
+    area: Rect,
+    logo: logo::Logo,
+    logo_y: u16,
+    prompt_area: Rect,
+    prompt_inner: Rect,
+    prompt: PromptLayout,
+    picker_hint: Option<Rect>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct Run {
-    line: u16,
-    column: u16,
-    text: String,
-    kind: RunKind,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PromptLayout {
-    runs: Vec<Run>,
-    cursor: Position,
-    rows: u16,
-}
-
-impl PromptLayout {
-    fn new(prompt: &Prompt, width: u16) -> Self {
-        let width = width.max(1);
-        let mut builder = PromptLayoutBuilder {
-            runs: Vec::new(),
-            line: 0,
-            column: 0,
-            width,
-            cursor: None,
-        };
-        if prompt.cursor() == 0 {
-            builder.capture_cursor();
-        }
-        let mut image_number = 0;
-        for (index, atom) in prompt.atoms().iter().enumerate() {
-            match atom {
-                Atom::Text(text) => builder.push_text(text),
-                Atom::Image(_) => {
-                    image_number += 1;
-                    builder.push_image(&format!("[Image {image_number}]"));
-                }
-            }
-            if prompt.cursor() == index + 1 {
-                builder.capture_cursor();
-            }
-        }
-        builder.finish()
-    }
-}
-
-struct PromptLayoutBuilder {
-    runs: Vec<Run>,
-    line: u16,
-    column: u16,
-    width: u16,
-    cursor: Option<Position>,
-}
-
-impl PromptLayoutBuilder {
-    fn push_text(&mut self, text: &str) {
-        if text == "\n" {
-            self.line = self.line.saturating_add(1);
-            self.column = 0;
-            return;
-        }
-        if text == "\t" {
-            let spaces = 4 - usize::from(self.column % 4);
-            for _ in 0..spaces {
-                self.push_visible(" ", RunKind::Text);
-            }
-            return;
-        }
-        let display = if text.width() == 0 { "�" } else { text };
-        let display_width = display.width().min(usize::from(u16::MAX)) as u16;
-        if display_width > self.width {
-            self.push_visible("�", RunKind::Text);
-        } else {
-            self.push_visible(display, RunKind::Text);
-        }
-    }
-
-    fn push_image(&mut self, label: &str) {
-        let label_width = label.width() as u16;
-        self.wrap_if_full();
-        if label_width <= self.width {
-            if self.column > 0 && self.column.saturating_add(label_width) > self.width {
-                self.line = self.line.saturating_add(1);
-                self.column = 0;
-            }
-            self.push_visible(label, RunKind::Image);
-            return;
-        }
-        for character in label.chars() {
-            let mut encoded = [0; 4];
-            let text = character.encode_utf8(&mut encoded);
-            self.push_visible(text, RunKind::Image);
-        }
-    }
-
-    fn push_visible(&mut self, text: &str, kind: RunKind) {
-        let width = text.width().min(usize::from(u16::MAX)) as u16;
-        self.wrap_if_full();
-        if self.column > 0 && self.column.saturating_add(width) > self.width {
-            self.line = self.line.saturating_add(1);
-            self.column = 0;
-        }
-        self.runs.push(Run {
-            line: self.line,
-            column: self.column,
-            text: text.to_owned(),
-            kind,
+impl UiLayout {
+    pub(crate) fn new(area: Rect, prompt: &Prompt) -> Self {
+        let panel_width = panel_width(area.width);
+        let panel_x = area.x + area.width.saturating_sub(panel_width) / 2;
+        let prompt = PromptLayout::new(prompt, prompt_content_width(panel_width));
+        let show_agent_picker =
+            panel_width >= agent_picker::width().saturating_add(5) && area.height >= 6;
+        let picker_hint_height = u16::from(show_agent_picker);
+        let logo = logo::Logo::select(panel_width, area.height, picker_hint_height);
+        let fixed_height = logo.height() + logo.gap();
+        let max_prompt_height = area
+            .height
+            .saturating_sub(fixed_height + picker_hint_height)
+            .max(2);
+        let prompt_chrome_height = 2 + u16::from(show_agent_picker);
+        let viewport_height = prompt
+            .rows
+            .min((area.height / 3).max(MIN_PROMPT_VIEWPORT_HEIGHT));
+        let prompt_height = viewport_height
+            .saturating_add(prompt_chrome_height)
+            .max(3 + u16::from(show_agent_picker))
+            .min(max_prompt_height);
+        let group_height = fixed_height
+            .saturating_add(prompt_height)
+            .saturating_add(picker_hint_height);
+        let logo_y = area.y + area.height.saturating_sub(group_height) / 2;
+        let prompt_y = logo_y.saturating_add(fixed_height);
+        let prompt_area = Rect::new(panel_x, prompt_y, panel_width, prompt_height);
+        let prompt_inner = prompt_inner(prompt_area, show_agent_picker);
+        let picker_hint = show_agent_picker.then(|| {
+            Rect::new(
+                panel_x,
+                prompt_area.bottom(),
+                panel_width,
+                picker_hint_height,
+            )
         });
-        self.column = self.column.saturating_add(width);
-    }
-
-    fn wrap_if_full(&mut self) {
-        if self.column >= self.width {
-            self.line = self.line.saturating_add(1);
-            self.column = 0;
+        Self {
+            area,
+            logo,
+            logo_y,
+            prompt_area,
+            prompt_inner,
+            prompt,
+            picker_hint,
         }
     }
 
-    fn capture_cursor(&mut self) {
-        let mut line = self.line;
-        let mut column = self.column;
-        if column >= self.width {
-            line = line.saturating_add(1);
-            column = 0;
-        }
-        self.cursor = Some(Position::new(column, line));
+    pub(crate) fn prompt_width(area_width: u16) -> u16 {
+        prompt_content_width(panel_width(area_width))
     }
 
-    fn finish(self) -> PromptLayout {
-        let cursor = self.cursor.unwrap_or_else(|| Position::new(0, 0));
-        let last_run_line = self.runs.last().map_or(0, |run| run.line);
-        let final_line = self
-            .line
-            .saturating_add(u16::from(self.column >= self.width));
-        let rows = last_run_line
-            .max(cursor.y)
-            .max(final_line)
-            .saturating_add(1);
-        PromptLayout {
-            runs: self.runs,
-            cursor,
-            rows,
-        }
+    pub(crate) fn prompt_layout(&self) -> &PromptLayout {
+        &self.prompt
+    }
+
+    pub(crate) fn prompt_viewport_height(&self) -> u16 {
+        self.prompt_inner.height
+    }
+
+    fn shows_agent_picker(&self) -> bool {
+        self.picker_hint.is_some()
     }
 }
 
-pub(crate) fn render(frame: &mut Frame, app: &App, theme: Theme, agent_icons: Option<&AgentIcons>) {
-    let area = frame.area();
-    if area.width < 2 || area.height < 2 {
+pub(crate) fn render(
+    frame: &mut Frame,
+    app: &App,
+    layout: &UiLayout,
+    theme: Theme,
+    agent_icons: Option<&AgentIcons>,
+) {
+    if layout.area.width < 2 || layout.area.height < 2 {
         return;
     }
 
-    let panel_width = area.width.saturating_sub(2).clamp(2, 92);
-    let panel_x = area.x + area.width.saturating_sub(panel_width) / 2;
-    let content_width = prompt_content_width(panel_width);
-    let prompt_layout = PromptLayout::new(&app.prompt, content_width);
-    let show_agent_picker =
-        panel_width >= agent_picker::width().saturating_add(5) && area.height >= 6;
-    let picker_hint_height = u16::from(show_agent_picker);
-    let logo = logo::Logo::select(panel_width, area.height, picker_hint_height);
-    let logo_height = logo.height();
-    let logo_gap = logo.gap();
-    let fixed_height = logo_height + logo_gap;
-    let max_prompt_height = area
-        .height
-        .saturating_sub(fixed_height + picker_hint_height)
-        .max(2);
-    let prompt_height = prompt_layout
-        .rows
-        .saturating_add(2 + u16::from(show_agent_picker))
-        .max(3 + u16::from(show_agent_picker))
-        .min(max_prompt_height);
-    let group_height = fixed_height
-        .saturating_add(prompt_height)
-        .saturating_add(picker_hint_height);
-    let mut y = area.y + area.height.saturating_sub(group_height) / 2;
-
-    logo.render(frame.buffer_mut(), area, y, theme);
-    y = y.saturating_add(logo_height + logo_gap);
-
-    let prompt_area = Rect::new(panel_x, y, panel_width, prompt_height);
-    let cursor = render_prompt(
-        frame.buffer_mut(),
-        prompt_area,
-        &prompt_layout,
-        app,
-        theme,
-        show_agent_picker,
-        agent_icons,
-    );
-    if show_agent_picker {
-        agent_picker::render_hint(
-            frame.buffer_mut(),
-            Rect::new(panel_x, prompt_area.bottom(), panel_width, 1),
-            theme,
-        );
+    layout
+        .logo
+        .render(frame.buffer_mut(), layout.area, layout.logo_y, theme);
+    let cursor = render_prompt(frame.buffer_mut(), layout, app, theme, agent_icons);
+    if let Some(area) = layout.picker_hint {
+        agent_picker::render_hint(frame.buffer_mut(), area, theme);
     }
     if let Some(cursor) = cursor {
         frame.set_cursor_position(cursor);
@@ -303,13 +196,12 @@ pub(crate) fn render(frame: &mut Frame, app: &App, theme: Theme, agent_icons: Op
 
 fn render_prompt(
     buffer: &mut Buffer,
-    area: Rect,
-    layout: &PromptLayout,
+    layout: &UiLayout,
     app: &App,
     theme: Theme,
-    show_agent_picker: bool,
     agent_icons: Option<&AgentIcons>,
 ) -> Option<Position> {
+    let area = layout.prompt_area;
     if area.width < 2 || area.height < 2 {
         return None;
     }
@@ -320,22 +212,8 @@ fn render_prompt(
         Rect::new(area.x, area.y, 1, area.height),
         Style::default().bg(BRAND),
     );
-    let left_padding = if area.width >= 6 { 3 } else { 1 };
-    let right_padding = if area.width >= 6 { 2 } else { 0 };
-    let inner = Rect::new(
-        area.x.saturating_add(left_padding),
-        area.y.saturating_add(1),
-        area.width
-            .saturating_sub(left_padding + right_padding)
-            .max(1),
-        area.height
-            .saturating_sub(2 + u16::from(show_agent_picker))
-            .max(1),
-    );
-    let viewport_start = layout
-        .cursor
-        .y
-        .saturating_sub(inner.height.saturating_sub(1));
+    let inner = layout.prompt_inner;
+    let viewport_start = app.prompt_view.scroll_row();
     if app.prompt.is_empty() {
         buffer.set_stringn(
             inner.x,
@@ -345,7 +223,7 @@ fn render_prompt(
             Style::default().fg(theme.muted).bg(theme.panel),
         );
     } else {
-        for run in &layout.runs {
+        for run in &layout.prompt.runs {
             let Some(visible_line) = run.line.checked_sub(viewport_start) else {
                 continue;
             };
@@ -368,11 +246,11 @@ fn render_prompt(
             );
         }
     }
-    let cursor_line = layout.cursor.y.checked_sub(viewport_start)?;
+    let cursor_line = layout.prompt.cursor.y.checked_sub(viewport_start)?;
     if cursor_line >= inner.height {
         return None;
     }
-    if show_agent_picker {
+    if layout.shows_agent_picker() {
         agent_picker::render(
             buffer,
             Rect::new(
@@ -389,9 +267,24 @@ fn render_prompt(
     Some(Position::new(
         inner
             .x
-            .saturating_add(layout.cursor.x.min(inner.width.saturating_sub(1))),
+            .saturating_add(layout.prompt.cursor.x.min(inner.width.saturating_sub(1))),
         inner.y.saturating_add(cursor_line),
     ))
+}
+
+fn prompt_inner(area: Rect, show_agent_picker: bool) -> Rect {
+    let left_padding = if area.width >= 6 { 3 } else { 1 };
+    let right_padding = if area.width >= 6 { 2 } else { 0 };
+    Rect::new(
+        area.x.saturating_add(left_padding),
+        area.y.saturating_add(1),
+        area.width
+            .saturating_sub(left_padding + right_padding)
+            .max(1),
+        area.height
+            .saturating_sub(2 + u16::from(show_agent_picker))
+            .max(1),
+    )
 }
 
 fn prompt_content_width(panel_width: u16) -> u16 {
@@ -400,6 +293,17 @@ fn prompt_content_width(panel_width: u16) -> u16 {
     } else {
         panel_width.saturating_sub(1).max(1)
     }
+}
+
+fn panel_width(area_width: u16) -> u16 {
+    if area_width < 2 {
+        return area_width;
+    }
+    let responsive_width = (u32::from(area_width) * 9 / 10) as u16;
+    area_width
+        .saturating_sub(2)
+        .min(responsive_width.max(agent_picker::width().saturating_add(5)))
+        .max(2)
 }
 
 fn terminal_has_light_background() -> bool {
@@ -434,23 +338,38 @@ mod tests {
     use super::*;
     use crate::app::Agent;
 
-    fn draw(width: u16, height: u16, app: &App, theme: Theme) -> Buffer {
+    fn draw(width: u16, height: u16, app: App, theme: Theme) -> Buffer {
         draw_with_icons(width, height, app, theme, None)
     }
 
     fn draw_with_icons(
         width: u16,
         height: u16,
-        app: &App,
+        mut app: App,
         theme: Theme,
         agent_icons: Option<&AgentIcons>,
     ) -> Buffer {
         let backend = TestBackend::new(width, height);
         let mut terminal = Terminal::new(backend).unwrap();
-        terminal
-            .draw(|frame| render(frame, app, theme, agent_icons))
-            .unwrap();
+        render_frame(&mut terminal, &mut app, theme, agent_icons);
         terminal.backend().buffer().clone()
+    }
+
+    fn render_frame(
+        terminal: &mut Terminal<TestBackend>,
+        app: &mut App,
+        theme: Theme,
+        agent_icons: Option<&AgentIcons>,
+    ) {
+        terminal
+            .draw(|frame| {
+                let layout = UiLayout::new(frame.area(), &app.prompt);
+                app.prompt_view = app
+                    .prompt_view
+                    .reconciled(layout.prompt_layout(), layout.prompt_viewport_height());
+                render(frame, app, &layout, theme, agent_icons);
+            })
+            .unwrap();
     }
 
     fn text(buffer: &Buffer) -> String {
@@ -469,7 +388,7 @@ mod tests {
     fn renders_wide_interface_with_large_logo_prompt_and_agent_picker() {
         let theme = Theme::dark();
         let icons = AgentIcons::kitty(theme.pi);
-        let buffer = draw_with_icons(100, 30, &App::default(), theme, Some(&icons));
+        let buffer = draw_with_icons(100, 30, App::default(), theme, Some(&icons));
         let rendered = text(&buffer);
 
         assert!(rendered.contains("   ▄█"));
@@ -508,12 +427,17 @@ mod tests {
         let codex_x = codex_index % buffer.area.width;
         let codex_y = codex_index / buffer.area.width;
         assert_eq!(buffer[(codex_x, codex_y)].bg, theme.picker);
-        assert_eq!(buffer[(4, codex_y)].bg, BRAND);
+        let panel_x = buffer
+            .area
+            .width
+            .saturating_sub(panel_width(buffer.area.width))
+            / 2;
+        assert_eq!(buffer[(panel_x, codex_y)].bg, BRAND);
     }
 
     #[test]
     fn renders_compact_title_in_a_narrow_terminal() {
-        let buffer = draw(40, 12, &App::default(), Theme::dark());
+        let buffer = draw(40, 12, App::default(), Theme::dark());
         let rendered = text(&buffer);
 
         assert!(rendered.contains("⚡"));
@@ -528,7 +452,7 @@ mod tests {
             selected_agent: Agent::Claude,
             ..App::default()
         };
-        let buffer = draw(60, 14, &app, Theme::dark());
+        let buffer = draw(60, 14, app, Theme::dark());
         let (codex_x, codex_y) = find_symbol(&buffer, "C").unwrap();
         let (claude_x, claude_y) = find_symbol(&buffer, "A").unwrap();
 
@@ -539,10 +463,46 @@ mod tests {
     #[test]
     fn renders_tiny_terminals_without_overflow() {
         for (width, height) in [(1, 1), (2, 2), (8, 3), (12, 4)] {
-            let buffer = draw(width, height, &App::default(), Theme::dark());
+            let buffer = draw(width, height, App::default(), Theme::dark());
             assert_eq!(buffer.area.width, width);
             assert_eq!(buffer.area.height, height);
         }
+    }
+
+    #[test]
+    fn prompt_width_tracks_the_terminal_width() {
+        assert_eq!(panel_width(40), 37);
+        assert_eq!(panel_width(100), 90);
+        assert_eq!(panel_width(160), 144);
+        assert!(UiLayout::prompt_width(160) > UiLayout::prompt_width(100));
+    }
+
+    #[test]
+    fn live_resize_reflows_the_complete_interface() {
+        let theme = Theme::dark();
+        let mut app = App::default();
+        app.prompt.insert_text(&"0123456789abcdef".repeat(50));
+        let backend = TestBackend::new(120, 30);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        render_frame(&mut terminal, &mut app, theme, None);
+        let wide = terminal.backend().buffer().clone();
+        let wide_scroll = app.prompt_view.scroll_row();
+
+        terminal.backend_mut().resize(44, 16);
+        render_frame(&mut terminal, &mut app, theme, None);
+        let narrow = terminal.backend().buffer().clone();
+
+        assert_eq!(wide.area, Rect::new(0, 0, 120, 30));
+        assert_eq!(narrow.area, Rect::new(0, 0, 44, 16));
+        assert_eq!(surface_width(&wide, theme), usize::from(panel_width(120)));
+        assert_eq!(surface_width(&narrow, theme), usize::from(panel_width(44)));
+        assert!(text(&wide).contains("█▀▀▀▀ █   █ █▀▀▀▄ ▄▀▀▀▄"));
+        assert!(text(&narrow).contains("⚡"));
+        assert!(text(&narrow).contains("Supaterm"));
+        assert!(text(&wide).contains("Codex"));
+        assert!(text(&narrow).contains("Codex"));
+        assert!(app.prompt_view.scroll_row() > wide_scroll);
     }
 
     #[test]
@@ -581,7 +541,7 @@ mod tests {
             prompt,
             ..App::default()
         };
-        let buffer = draw(32, 10, &app, Theme::dark());
+        let buffer = draw(32, 10, app, Theme::dark());
         let (image_x, image_y) = find_symbol(&buffer, "[").unwrap();
         assert_eq!(buffer[(image_x, image_y)].bg, BRAND);
     }
@@ -596,9 +556,26 @@ mod tests {
     }
 
     #[test]
+    fn caps_long_prompts_at_one_third_of_the_terminal_height() {
+        let theme = Theme::dark();
+        let mut app = App::default();
+        app.prompt
+            .insert_text("0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15");
+
+        let buffer = draw(60, 30, app, theme);
+        let panel_rows = (buffer.area.y..buffer.area.bottom())
+            .filter(|y| {
+                (buffer.area.x..buffer.area.right()).any(|x| buffer[(x, *y)].bg == theme.panel)
+            })
+            .count();
+
+        assert_eq!(panel_rows, 13);
+    }
+
+    #[test]
     fn uses_distinct_prompt_surfaces_for_light_and_dark_terminals() {
-        let dark = draw(40, 10, &App::default(), Theme::dark());
-        let light = draw(40, 10, &App::default(), Theme::light());
+        let dark = draw(40, 10, App::default(), Theme::dark());
+        let light = draw(40, 10, App::default(), Theme::light());
         let dark_panel = dark
             .content
             .iter()
@@ -633,5 +610,18 @@ mod tests {
             }
         }
         None
+    }
+
+    fn surface_width(buffer: &Buffer, theme: Theme) -> usize {
+        (buffer.area.y..buffer.area.bottom())
+            .map(|y| {
+                (buffer.area.x..buffer.area.right())
+                    .filter(|x| {
+                        matches!(buffer[(*x, y)].bg, color if color == BRAND || color == theme.panel || color == theme.picker)
+                    })
+                    .count()
+            })
+            .max()
+            .unwrap_or_default()
     }
 }

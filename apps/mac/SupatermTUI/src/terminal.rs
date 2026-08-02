@@ -13,7 +13,7 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use ratatui::Terminal;
-use ratatui::backend::CrosstermBackend;
+use ratatui::backend::{Backend, CrosstermBackend};
 
 use crate::app::{Action, App};
 use crate::icons::AgentIcons;
@@ -28,20 +28,40 @@ pub(crate) fn run() -> io::Result<()> {
     let mut session = TerminalSession::enter()?;
     let icons = AgentIcons::detected(theme.text_color());
     let mut app = App::default();
-    session
-        .terminal
-        .draw(|frame| ui::render(frame, &app, theme, icons.as_ref()))?;
+    draw(&mut session.terminal, &mut app, theme, icons.as_ref())?;
     loop {
-        if !event::poll(Duration::from_millis(250))? {
-            continue;
+        let event_ready = event::poll(Duration::from_millis(250))?;
+        if event_ready {
+            let prompt_width = ui::UiLayout::prompt_width(session.terminal.size()?.width);
+            if app.handle_event(event::read()?, prompt_width) == Action::Quit {
+                return Ok(());
+            }
         }
-        if app.handle_event(event::read()?) == Action::Quit {
-            return Ok(());
+        if event_ready || terminal_area_changed(&mut session.terminal)? {
+            draw(&mut session.terminal, &mut app, theme, icons.as_ref())?;
         }
-        session
-            .terminal
-            .draw(|frame| ui::render(frame, &app, theme, icons.as_ref()))?;
     }
+}
+
+fn draw<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &mut App,
+    theme: Theme,
+    icons: Option<&AgentIcons>,
+) -> Result<(), B::Error> {
+    terminal.draw(|frame| {
+        let layout = ui::UiLayout::new(frame.area(), &app.prompt);
+        app.prompt_view = app
+            .prompt_view
+            .reconciled(layout.prompt_layout(), layout.prompt_viewport_height());
+        ui::render(frame, app, &layout, theme, icons);
+    })?;
+    Ok(())
+}
+
+fn terminal_area_changed<B: Backend>(terminal: &mut Terminal<B>) -> Result<bool, B::Error> {
+    let rendered = terminal.get_frame().area().as_size();
+    Ok(rendered != terminal.size()?)
 }
 
 struct TerminalSession {
@@ -97,4 +117,28 @@ fn restore_terminal(output: &mut impl io::Write) {
         let _ = execute!(output, PopKeyboardEnhancementFlags);
     }
     let _ = execute!(output, DisableBracketedPaste, LeaveAlternateScreen, Show);
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::backend::TestBackend;
+    use ratatui::layout::Rect;
+
+    use super::*;
+
+    #[test]
+    fn detects_and_draws_a_resize_without_an_input_event() {
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+
+        assert!(!terminal_area_changed(&mut terminal).unwrap());
+
+        terminal.backend_mut().resize(41, 13);
+
+        assert!(terminal_area_changed(&mut terminal).unwrap());
+
+        terminal.draw(|_| {}).unwrap();
+
+        assert!(!terminal_area_changed(&mut terminal).unwrap());
+        assert_eq!(terminal.get_frame().area(), Rect::new(0, 0, 41, 13));
+    }
 }

@@ -83,6 +83,10 @@ impl Prompt {
         self.cursor = self.atoms.len();
     }
 
+    pub(crate) fn set_cursor(&mut self, cursor: usize) {
+        self.cursor = cursor.min(self.atoms.len());
+    }
+
     pub(crate) fn delete_left(&mut self) {
         if self.cursor == 0 {
             return;
