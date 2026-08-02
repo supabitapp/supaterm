@@ -18,7 +18,7 @@ jobs:
     secrets: inherit
 
   build:
-    runs-on: macos-26
+    runs-on: depot-macos-26
     needs: [checks]
     permissions:
       contents: write
@@ -214,7 +214,7 @@ jobs:
             apps/mac/build/checksums.json
 
   posthog-dsym:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [build]
     env:
       POSTHOG_CLI_HOST: https://us.posthog.com
@@ -261,7 +261,7 @@ jobs:
             --build "${{ needs.build.outputs.build-number }}"
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [build]
     permissions:
       contents: write
