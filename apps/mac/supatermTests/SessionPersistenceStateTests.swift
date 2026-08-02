@@ -4,15 +4,21 @@ import Testing
 @testable import supaterm
 
 struct SessionPersistenceStateTests {
+  private static let spaceID = TerminalSpaceID()
   private let liveCatalog = TerminalSessionCatalog(
     windows: [
       TerminalWindowSession(
-        spaceID: TerminalSpaceID(),
-        selectedTabID: nil,
-        nodes: [],
-        groups: [],
-        collapsedGroupIDs: [],
-        tabs: []
+        displayedSpaceID: Self.spaceID,
+        spaces: [
+          TerminalSpaceSession(
+            spaceID: Self.spaceID,
+            selectedTabID: nil,
+            nodes: [],
+            groups: [],
+            collapsedGroupIDs: [],
+            tabs: []
+          )
+        ]
       )
     ]
   )

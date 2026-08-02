@@ -10,19 +10,20 @@ extension TerminalHostState {
     _ tabID: TerminalTabID,
     in spaceID: TerminalSpaceID
   ) {
-    let currentSelectedTabID = spaceManager.selectedTabID(in: spaceID)
+    guard let instance = spaceManager.instance(for: spaceID) else { return }
+    let currentSelectedTabID = instance.selectedTabID
     if currentSelectedTabID != tabID, let currentSelectedTabID {
-      previousSelectedTabIDBySpace[spaceID] = currentSelectedTabID
+      instance.previousSelectedTabID = currentSelectedTabID
     }
-    spaceManager.tabManager(for: spaceID)?.selectTab(tabID)
-    if let groupID = spaceManager.tabManager(for: spaceID)?.groupID(containing: tabID) {
-      collapsedTabGroupIDsBySpace[spaceID]?.remove(groupID)
+    instance.tabManager.selectTab(tabID)
+    if let groupID = instance.tabManager.groupID(containing: tabID) {
+      instance.collapsedTabGroupIDs.remove(groupID)
     }
   }
 
   func selectTab(_ tabID: TerminalTabID) {
-    guard let space = spaceManager.space(for: tabID) else { return }
-    applySelectedTab(tabID, in: space.id)
+    guard let instance = spaceManager.instance(for: tabID) else { return }
+    applySelectedTab(tabID, in: instance.spaceID)
     focusSurfaceIfNeeded(in: tabID)
     syncFocus(windowActivity)
     sessionDidChange()
@@ -59,18 +60,14 @@ extension TerminalHostState {
   }
 
   func selectLastTab() {
-    guard let selectedSpaceID else { return }
-    guard let lastTabID = previousSelectedTabIDBySpace[selectedSpaceID] else { return }
+    guard let lastTabID = spaceManager.displayedInstance.previousSelectedTabID else { return }
     selectTab(lastTabID)
   }
 
   func updateSelectionAfterClosingTab(
     in spaceID: TerminalSpaceID,
-    wasSelectedSpace: Bool,
     didCloseSelectedTab: Bool
   ) {
-    guard wasSelectedSpace else { return }
-
     if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
       if isSelectableTab(selectedTabID) {
         if didCloseSelectedTab {
@@ -87,14 +84,14 @@ extension TerminalHostState {
       return
     }
 
-    spaceManager.tabManager(for: spaceID)?.clearSelection()
+    spaceManager.instance(for: spaceID)?.tabManager.clearSelection()
 
     lastEmittedFocusSurfaceID = nil
   }
 
   func replacementLiveTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
     let tabs = spaceManager.tabs(in: spaceID)
-    if let previousTabID = previousSelectedTabIDBySpace[spaceID],
+    if let previousTabID = spaceManager.instance(for: spaceID)?.previousSelectedTabID,
       tabs.contains(where: { $0.id == previousTabID }),
       isSelectableTab(previousTabID)
     {

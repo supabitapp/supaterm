@@ -69,8 +69,8 @@ struct TerminalHostStateCommandPaletteTests {
   }
 
   @Test
-  func commandPaletteFocusTargetsEmitStablePaneRows() async throws {
-    try await withDependencies {
+  func commandPaletteFocusTargetsEmitStablePaneRows() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()

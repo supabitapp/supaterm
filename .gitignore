@@ -74,12 +74,11 @@ fastlane/test_output
 
 *.profraw
 .env
+fnox.local.toml
 __pycache__/
 .claude/
 
 execplans/
 plans/
-CONTEXT.md
-docs/adr/
 hk.local.pkl
 .config/hk.local.pkl

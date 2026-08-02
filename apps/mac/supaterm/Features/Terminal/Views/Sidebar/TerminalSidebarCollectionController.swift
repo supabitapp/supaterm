@@ -31,7 +31,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private struct PendingDrag {
     let entryID: TerminalSidebarEntryID
-    let eventNumber: Int
     let origin: CGPoint
     let selectedTabIDs: [TerminalTabID]
     let defersSelection: Bool
@@ -68,6 +67,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   let groupHeaderHoverState = TerminalSidebarGroupHoverState()
   let tabSelectionState = TerminalSidebarTabSelectionState()
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)?
+  var swipe: SpaceSwipeController?
 
   private let scrollView = TerminalSidebarScrollView()
   private let collectionView = TerminalSidebarCollectionView()
@@ -241,10 +241,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         for: indexPath
       )
       guard let item = item as? TerminalSidebarCollectionItem else { return nil }
-      item.host(
-        TerminalSidebarHostedRow(presentation: presentation, context: context),
-        entryID: entryID
-      )
+      item.host(TerminalSidebarHostedRow(presentation: presentation, context: context))
       item.view.setAccessibilityElement(true)
       item.view.setAccessibilityRole(.row)
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
@@ -504,7 +501,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     let selection = tabPressSelection(entryID: entryID, modifiers: event.modifierFlags)
     pendingDrag = PendingDrag(
       entryID: entryID,
-      eventNumber: event.eventNumber,
       origin: location,
       selectedTabIDs: selection.selectedTabIDs,
       defersSelection: selection.defersSelection
@@ -523,16 +519,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     guard let pendingDrag, pendingDrag.entryID == entryID else { return false }
     let location = collectionView.convert(event.locationInWindow, from: nil)
     switch TerminalSidebarDragActivation.decision(
-      mouseDownEventNumber: pendingDrag.eventNumber,
-      currentEventNumber: event.eventNumber,
       origin: pendingDrag.origin,
       location: location
     ) {
     case .pending:
-      return false
-    case .rejected:
-      self.pendingDrag = nil
-      resolveDeferredSelection(pendingDrag)
       return false
     case .begin:
       self.pendingDrag = nil
@@ -644,7 +634,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     pointer: CGPoint,
     selectedTabIDs: [TerminalTabID]
   ) -> Bool {
-    guard case .idle = updatePhase else { return false }
+    guard case .idle = updatePhase, swipe?.isTracking != true else { return false }
     if case .group = entryID {
       tabSelectionState.clear()
     }
@@ -671,6 +661,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       coordinator: TerminalSidebarDragCoordinator(payload: payload),
       target: nil
     )
+    swipe?.isRowDragActive = true
     let screenPoint = screenPoint(for: event)
     collectionLayout.dragDropState = TerminalSidebarDragDropState(
       draggingItemIDs: liftedEntryIDs,
@@ -1032,6 +1023,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     activeDrag?.coordinator.finish()
     activeDrag = nil
     pendingDrag = nil
+    swipe?.isRowDragActive = false
     invalidateLayout()
     consumePendingUpdate()
   }
@@ -1081,10 +1073,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         ids.contains(id),
         let presentation = rows[id]
       else { continue }
-      item.host(
-        TerminalSidebarHostedRow(presentation: presentation, context: context),
-        entryID: id
-      )
+      item.host(TerminalSidebarHostedRow(presentation: presentation, context: context))
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
     }
   }
@@ -1155,6 +1144,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       let selectedTabID,
       let context,
       let item = collectionLayout.plan.items.first(where: { $0.id == .tab(selectedTabID) }),
+      case .tab(let presentation) = rows[.tab(selectedTabID)],
       item.alpha > 0,
       !item.frame.isEmpty
     else {
@@ -1162,7 +1152,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       return
     }
     selectionGlowView.update(
-      itemFrame: item.frame,
+      surfaceFrame: TerminalSidebarLayout.tabSurfaceFrame(
+        in: item.frame,
+        isGrouped: presentation.groupID != nil
+      ),
       color: context.palette.sidebarSelectedShadow,
       alpha: item.alpha,
       isDark: context.palette.isDark

@@ -37,7 +37,7 @@ print_fingerprint() {
       git diff --no-ext-diff --no-color HEAD -- . | shasum -a 256
       git ls-files --others --exclude-standard | LC_ALL=C sort | shasum -a 256
       shasum -a 256 "${script_path}" | awk '{print $1}'
-      shasum -a 256 "${srcroot}/../../mise.toml" | awk '{print $1}'
+      mise exec -- zig version
     } | shasum -a 256 | awk '{print $1}'
   )
 }

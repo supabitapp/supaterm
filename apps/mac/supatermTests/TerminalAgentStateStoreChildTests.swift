@@ -176,63 +176,39 @@ extension TerminalAgentStateStoreTests {
   }
 
   @Test
-  func completedChildStaysListedAsIdle() throws {
+  func completedWorkflowRemovesOnlyItsChildren() throws {
     let fixture = startedStore()
     let surfaceID = fixture.surfaceID
     let context = fixture.context
     var store = fixture.store
 
-    for action in [
-      TerminalAgentEvent.Action.subagentStarted(
-        nickname: "supaterm-config-map",
-        role: "supaterm-config-map",
-        task: "Map supaterm Ghostty config plumbing"
-      ),
-      .turnCompleted(message: nil),
+    for (subagentID, transcriptPath) in [
+      ("child-1", "/tmp/workflows/wf-1/agent-child-1.jsonl"),
+      ("child-2", "/tmp/workflows/wf-2/agent-child-2.jsonl"),
     ] {
       store.apply(
         event(
           sessionID: "session-1",
           turnID: "turn-1",
-          subagentID: "child-1",
+          subagentID: subagentID,
           context: context,
-          action: action
+          action: .subagentStarted(
+            nickname: nil,
+            role: nil,
+            transcriptPath: transcriptPath
+          )
         )
       )
     }
 
-    let presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
-    #expect(presentation.activeChildren.map(\.phase) == [.idle])
-    #expect(presentation.phase == .running)
-  }
-
-  @Test
-  func repeatedChildStartRevivesIdleChild() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-
-    for action in [
-      TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
-      .turnCompleted(message: nil),
-      .subagentStarted(nickname: nil, role: "reviewer"),
-    ] {
-      store.apply(
-        event(
-          sessionID: "session-1",
-          turnID: "turn-1",
-          subagentID: "child-1",
-          context: context,
-          action: action
-        )
-      )
-    }
-
-    #expect(
-      store.presentation(for: surfaceID, agent: .codex)?.activeChildren.map(\.phase)
-        == [.running]
+    let didRemove = store.removeChildren(
+      agent: .codex,
+      sessionID: "session-1",
+      transcriptDirectoryPath: "/tmp/workflows/wf-1"
     )
+    #expect(didRemove)
+    let presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
+    #expect(presentation.activeChildren.map(\.subagentID) == ["child-2"])
   }
 
   @Test

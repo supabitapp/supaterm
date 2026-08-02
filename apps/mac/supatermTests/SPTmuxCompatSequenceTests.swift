@@ -206,13 +206,14 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         id: spaceID,
         name: spaceName,
         color: .neutral,
-        isSelected: true,
+        isWarm: true,
         rootItems: [.tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: debugTab))]
       )
       let debugWindow = SupatermAppDebugSnapshot.Window(
         index: windowIndex,
         isKey: true,
         isVisible: true,
+        displayedSpaceID: spaceID,
         spaces: [debugSpace]
       )
       return SupatermAppDebugSnapshot(

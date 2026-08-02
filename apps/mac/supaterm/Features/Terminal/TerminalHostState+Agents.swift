@@ -337,6 +337,25 @@ extension TerminalHostState {
     agentStateStore.hasSession(agent: agent, sessionID: sessionID)
   }
 
+  @discardableResult
+  func removeAgentChildren(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    transcriptDirectoryPath: String
+  ) -> Bool {
+    guard let surfaceID = agentStateStore.surfaceID(agent: agent, sessionID: sessionID),
+      agentStateStore.removeChildren(
+        agent: agent,
+        sessionID: sessionID,
+        transcriptDirectoryPath: transcriptDirectoryPath
+      )
+    else {
+      return false
+    }
+    agentPanelController?.surfaceAgentStateChanged(surfaceID)
+    return true
+  }
+
   func hasForegroundAgentSession(
     agent: SupatermAgentKind,
     processID: Int32,
@@ -386,6 +405,7 @@ extension TerminalHostState {
         }
         targets.append(
           contentsOf: snapshot.activeChildren.compactMap { child in
+            guard snapshot.agent == .codex else { return nil }
             guard let transcriptPath = child.transcriptPath else { return nil }
             return TerminalAgentTranscriptTarget(
               scope: TerminalAgentEvent.Scope(

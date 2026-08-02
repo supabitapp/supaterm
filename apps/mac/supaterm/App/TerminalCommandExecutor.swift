@@ -36,12 +36,13 @@ final class TerminalCommandExecutor {
   }
 
   func executeTargeted<Result>(
+    context: SupatermCLIContext? = nil,
     operation: (TerminalWindowRegistry.Entry) throws -> Result,
     rewrite: (Result, Int) -> Result
   ) throws -> Result {
-    for (offset, entry) in registry.activeEntries().enumerated() {
+    for entry in registry.ambientEntries(for: context) {
       do {
-        return rewrite(try operation(entry), offset + 1)
+        return rewrite(try operation(entry), registry.windowIndex(of: entry))
       } catch TerminalControlError.contextPaneNotFound {
         continue
       }

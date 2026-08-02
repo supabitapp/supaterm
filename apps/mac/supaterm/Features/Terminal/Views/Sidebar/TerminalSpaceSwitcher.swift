@@ -49,8 +49,8 @@ struct TerminalWindowHeader: View {
       TerminalSpaceSwitcher(
         store: store,
         palette: palette,
-        spaces: terminal.availableSpaces,
-        selectedSpaceID: terminal.selectedSpaceID
+        spaces: terminal.spaces,
+        selectedSpaceID: terminal.displayedSpaceID
       )
       .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
     }

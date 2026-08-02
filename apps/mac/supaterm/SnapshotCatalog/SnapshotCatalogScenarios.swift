@@ -51,6 +51,22 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "space-dots",
+      group: "Sidebar",
+      title: "Space page dots",
+      size: CGSize(width: 280, height: 44)
+    ) { appearance in
+      AnyView(SpacePageDotsSnapshotFixture(appearance: appearance))
+    },
+    scenario(
+      "space-dots-paging",
+      group: "Sidebar",
+      title: "Space page dots mid swipe",
+      size: CGSize(width: 280, height: 44)
+    ) { appearance in
+      AnyView(SpacePageDotsSnapshotFixture(appearance: appearance, position: 1.4))
+    },
+    scenario(
       "window-controls",
       group: "Sidebar",
       title: "Window controls above selected tab",
@@ -863,6 +879,20 @@ enum SidebarChromeSnapshotContext {
     return terminal
   }()
 
+  static let spacePageDotsTerminal: TerminalHostState = {
+    let colors: [ThemeTint] = [.blue, .green, .orange, .purple]
+    let spaces = ["supaterm", "research", "ops", "docs"].enumerated().map { index, name in
+      TerminalSpaceItem(
+        id: TerminalSpaceID(
+          rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-00000000001\(index)")
+        ),
+        name: name,
+        color: colors[index]
+      )
+    }
+    return makeTerminal(space: spaces[1], spaces: spaces)
+  }()
+
   static func windowStore() -> StoreOf<TerminalWindowFeature> {
     Store(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
@@ -920,6 +950,29 @@ enum SidebarChromeSnapshotContext {
   }
 }
 
+private struct SpacePageDotsSnapshotFixture: View {
+  let appearance: SnapshotAppearance
+  var position: Double?
+
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
+  }
+
+  var body: some View {
+    SpacePageDotsView(
+      store: SidebarChromeSnapshotContext.windowStore(),
+      terminal: SidebarChromeSnapshotContext.spacePageDotsTerminal,
+      palette: palette,
+      position: position
+    )
+    .padding(.leading, TerminalSidebarLayout.cardHorizontalInsets.leading)
+    .padding(.trailing, TerminalSidebarLayout.cardHorizontalInsets.trailing)
+    .frame(maxHeight: .infinity)
+    .background(palette.windowBackgroundTint)
+    .background(palette.detailBackground)
+  }
+}
+
 private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
   let fixedHoveredGroupID: TerminalTabGroupID?
@@ -936,6 +989,7 @@ private struct SidebarChromeSnapshotFixture: View {
       releaseAnnouncement: nil,
       palette: palette,
       terminal: terminal,
+      isPagingActive: false,
       fixedHoveredGroupID: fixedHoveredGroupID,
       dismissReleaseAnnouncement: {}
     )
@@ -962,6 +1016,7 @@ private struct SidebarWindowControlsSnapshotFixture: View {
       releaseAnnouncement: nil,
       palette: palette,
       terminal: terminal,
+      isPagingActive: false,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)

@@ -46,7 +46,7 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
     case sessionEnded
     case sessionResumed(transcriptPath: String?)
     case sessionStarted(transcriptPath: String?)
-    case subagentDescribed(nickname: String?, task: String?)
+    case subagentDescribed(nickname: String?, task: String?, transcriptPath: String? = nil)
     case subagentStarted(
       nickname: String?, role: String?, task: String? = nil, transcriptPath: String? = nil
     )

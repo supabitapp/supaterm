@@ -134,6 +134,7 @@ describe("router", () => {
   it("renders a copyable Homebrew install command", async () => {
     await renderRoute("/");
 
+    expect(homebrewInstallCommand).toBe("brew install supaterm");
     expect(screen.getByText(`$ ${homebrewInstallCommand}`)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: `Copy ${homebrewInstallCommand}` }));

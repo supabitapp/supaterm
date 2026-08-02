@@ -77,6 +77,7 @@ extension TerminalCommandExecutor {
 
   func nextTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
     try executeTargeted(
+      context: request.context,
       operation: { try $0.terminal.nextTab(request) },
       rewrite: TerminalWindowRegistry.rewrite
     )
@@ -84,6 +85,7 @@ extension TerminalCommandExecutor {
 
   func previousTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
     try executeTargeted(
+      context: request.context,
       operation: { try $0.terminal.previousTab(request) },
       rewrite: TerminalWindowRegistry.rewrite
     )
@@ -91,6 +93,7 @@ extension TerminalCommandExecutor {
 
   func lastTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
     try executeTargeted(
+      context: request.context,
       operation: { try $0.terminal.lastTab(request) },
       rewrite: TerminalWindowRegistry.rewrite
     )

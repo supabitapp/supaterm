@@ -1389,13 +1389,14 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let action: (TerminalSplitTreeView.Operation) -> Void
 
   func makeNSView(context: Context) -> TerminalSplitAXContainerView {
-    TerminalSplitAXContainerView()
+    TerminalSplitAXContainerView(backgroundColor: NSColor(palette.detailBackground))
   }
 
   func updateNSView(_ nsView: TerminalSplitAXContainerView, context: Context) {
     let visibleNode = tree.zoomed ?? tree.root
     let visiblePanes = visibleNode?.leaves() ?? []
     nsView.update(
+      backgroundColor: NSColor(palette.detailBackground),
       rootView: AnyView(
         TerminalSplitTreeView(
           agentPanelPresentations: agentPanelPresentations,
@@ -1428,6 +1429,8 @@ private final class TerminalSplitHostingView: NSHostingView<AnyView> {
 }
 
 final class TerminalSplitAXContainerView: NSView {
+  private let backgroundView = NSView()
+  private(set) var backgroundColor: NSColor
   private var hostingView: TerminalSplitHostingView?
   private var visibleNode: SplitTree<GhosttySurfaceView>.Node?
   private var panes: [GhosttySurfaceView] = []
@@ -1440,16 +1443,43 @@ final class TerminalSplitAXContainerView: NSView {
 
   nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
+  init(backgroundColor: NSColor) {
+    self.backgroundColor = backgroundColor
+    super.init(frame: .zero)
+    backgroundView.wantsLayer = true
+    backgroundView.layer?.backgroundColor = backgroundColor.cgColor
+    backgroundView.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(backgroundView)
+    NSLayoutConstraint.activate([
+      backgroundView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      backgroundView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      backgroundView.topAnchor.constraint(equalTo: topAnchor),
+      backgroundView.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable")
+  }
+
   func update(
+    backgroundColor: NSColor,
     rootView: AnyView,
     visibleNode: SplitTree<GhosttySurfaceView>.Node?,
     action: @escaping (TerminalSplitTreeView.Operation) -> Void,
     panes: [GhosttySurfaceView]
   ) {
+    if self.backgroundColor != backgroundColor {
+      self.backgroundColor = backgroundColor
+      backgroundView.layer?.backgroundColor = backgroundColor.cgColor
+    }
     if let hostingView {
       hostingView.rootView = rootView
     } else {
       let hostingView = TerminalSplitHostingView(rootView: rootView)
+      hostingView.wantsLayer = true
+      hostingView.layer?.zPosition = 1
       hostingView.translatesAutoresizingMaskIntoConstraints = false
       addSubview(hostingView)
       NSLayoutConstraint.activate([

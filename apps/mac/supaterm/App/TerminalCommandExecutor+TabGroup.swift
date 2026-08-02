@@ -20,6 +20,7 @@ extension TerminalCommandExecutor {
     _ request: TerminalCreateTabGroupRequest
   ) throws -> TerminalTabGroupResult {
     try executeTargeted(
+      context: request.target.context,
       operation: { try $0.terminal.executeTabGroup(.create(request)) },
       rewrite: rewrite
     )

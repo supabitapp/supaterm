@@ -39,6 +39,7 @@ struct TerminalClient: Sendable {
     case createSpace(name: String, color: ThemeTint)
     case createTab(inheritingFromSurfaceID: UUID?)
     case createTabInGroup(TerminalTabGroupID, inheritingFromSurfaceID: UUID?)
+    case createTabInSpace(TerminalSpaceID)
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupCommand: String?, workingDirectoryPath: String? = nil)
     case navigateSearch(GhosttySearchDirection)
