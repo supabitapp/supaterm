@@ -5,7 +5,6 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
   enum Layout {
     case rect
     case icon
-    case space
   }
 
   let palette: Palette
@@ -46,13 +45,6 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
         configuration.label
       }
       .frame(width: size, height: size)
-    case .space:
-      ZStack {
-        fill(isPressed: configuration.isPressed)
-        configuration.label
-      }
-      .frame(height: size)
-      .frame(maxWidth: size)
     }
   }
 

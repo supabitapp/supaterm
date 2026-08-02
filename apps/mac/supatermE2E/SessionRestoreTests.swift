@@ -63,13 +63,15 @@ extension SupatermE2ESuite {
         let spaces = snapshot.windows.flatMap(\.spaces)
         let paneIDs = Set(spaces.flatMap(\.flattenedTabs).flatMap(\.panes).map(\.id))
         guard
-          let selectedSpace = spaces.first(where: { $0.id == firstSpace.target.spaceID }),
+          let window = snapshot.windows.first(where: {
+            $0.displayedSpaceID == firstSpace.target.spaceID
+          }),
+          let selectedSpace = window.spaces.first(where: { $0.id == firstSpace.target.spaceID }),
           let selectedTab = selectedSpace.flattenedTabs.first(where: { $0.id == secondTab.tabID }),
           let focusedPane = selectedTab.panes.first(where: { $0.id == split.paneID })
         else { return false }
         return [initialPaneID, firstSpace.paneID, secondTab.paneID, split.paneID, secondSpace.paneID]
           .allSatisfy { paneIDs.contains($0) }
-          && selectedSpace.isSelected
           && selectedTab.isSelected
           && focusedPane.isFocused
       }
@@ -93,11 +95,14 @@ extension SupatermE2ESuite {
       #expect(restoredSecondTabs.map(\.title) == [thirdTitle])
       #expect(restoredSecondTabs[0].panes.map(\.id) == [secondSpace.paneID])
 
-      #expect(restoredFirstSpace.isSelected)
+      #expect(
+        after.windows.contains { $0.displayedSpaceID == firstSpace.target.spaceID }
+      )
       #expect(restoredFirstTabs[1].isSelected)
       let restoredSplit = try #require(restoredFirstTabs[1].panes.first { $0.id == split.paneID })
       #expect(restoredSplit.isFocused)
 
+      try await app.waitForCapture(initialPane, contains: "Welcome to Supaterm!")
       let restoredOnboarding = try app.capture(initialPane, scope: .scrollback)
       #expect(countOccurrences("Welcome to Supaterm!", in: restoredOnboarding) == onboardingOccurrences)
     }
@@ -441,19 +446,8 @@ private func verifyDurableGroupSurvivesEmptying(
 }
 
 private func makeSpace(_ app: SupatermE2EApp, name: String) throws -> SupatermCreateSpaceResult {
-  let snapshot = try app.debugSnapshot()
-  let paneID = try #require(
-    snapshot.windows.first?.spaces.flatMap(\.flattenedTabs).flatMap(\.panes).first?.id
-  )
   return try app.send(
-    .createSpace(
-      SupatermCreateSpaceRequest(
-        color: nil,
-        focus: true,
-        name: name,
-        windowAnchorPaneID: paneID
-      )
-    ),
+    .createSpace(SupatermCreateSpaceRequest(color: nil, name: name)),
     as: SupatermCreateSpaceResult.self
   )
 }
@@ -519,7 +513,7 @@ private func restoredSpace(
   in app: SupatermE2EApp
 ) throws -> SupatermAppDebugSnapshot.Space {
   let spaces = try app.debugSnapshot().windows.flatMap(\.spaces)
-  return try #require(spaces.first { $0.name == name })
+  return try #require(spaces.first { $0.name == name && !$0.flattenedTabs.isEmpty })
 }
 
 private func restoredTab(

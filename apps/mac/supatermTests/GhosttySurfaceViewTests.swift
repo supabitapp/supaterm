@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import GhosttyKit
 import SwiftUI
 import Testing
@@ -170,6 +171,159 @@ struct GhosttySurfaceViewTests {
     surfaceView.keyDown(with: event)
 
     #expect(surfaceView.bridge.state.userInputGeneration == 1)
+  }
+
+  @Test
+  @MainActor
+  func commandArrowOverridesUseGhosttyBindings() throws {
+    let app = NSApplication.shared
+    let previousDelegate = app.delegate
+    let delegate = GhosttyAppActionPerformerSpy()
+    app.delegate = delegate
+    defer {
+      app.delegate = previousDelegate
+    }
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = super+up=new_tab
+      keybind = super+down=new_window
+      """
+    )
+
+    try withFocusedSurface(runtime: runtime) { surfaceView, window in
+      var newTabCount = 0
+      surfaceView.bridge.onNewTab = {
+        newTabCount += 1
+        return true
+      }
+
+      try sendCommandKey(
+        keyCode: kVK_UpArrow,
+        characters: "\u{F700}",
+        window: window
+      )
+      try sendCommandKey(
+        keyCode: kVK_DownArrow,
+        characters: "\u{F701}",
+        window: window
+      )
+
+      #expect(newTabCount == 1)
+      #expect(delegate.newWindowCount == 1)
+    }
+  }
+
+  @Test
+  @MainActor
+  func defaultCommandArrowBindingsReachGhostty() throws {
+    let runtime = try makeGhosttyRuntime("")
+
+    try withFocusedSurface(runtime: runtime) { surfaceView, window in
+      try sendCommandKey(
+        keyCode: kVK_UpArrow,
+        characters: "\u{F700}",
+        window: window
+      )
+      try sendCommandKey(
+        keyCode: kVK_DownArrow,
+        characters: "\u{F701}",
+        window: window
+      )
+
+      #expect(surfaceView.bridge.state.userInputGeneration == 2)
+    }
+  }
+
+  @Test
+  @MainActor
+  func appKitTextInputCommandReachesGhostty() throws {
+    let runtime = try makeGhosttyRuntime("")
+
+    try withFocusedSurface(runtime: runtime) { surfaceView, window in
+      try sendCommandKey(
+        keyCode: kVK_ANSI_Period,
+        characters: ".",
+        window: window
+      )
+
+      #expect(surfaceView.bridge.state.userInputGeneration == 1)
+    }
+  }
+
+  @Test
+  @MainActor
+  func homeAndEndPreserveDocumentScrolling() throws {
+    let home = try makeKeyEvent(
+      keyCode: kVK_Home,
+      characters: "\u{F729}",
+      modifierFlags: []
+    )
+    let end = try makeKeyEvent(
+      keyCode: kVK_End,
+      characters: "\u{F72B}",
+      modifierFlags: []
+    )
+
+    #expect(
+      GhosttySurfaceView.appKitDocumentBindingAction(
+        for: #selector(NSResponder.moveToBeginningOfDocument(_:)),
+        event: home
+      ) == "scroll_to_top"
+    )
+    #expect(
+      GhosttySurfaceView.appKitDocumentBindingAction(
+        for: #selector(NSResponder.moveToEndOfDocument(_:)),
+        event: end
+      ) == "scroll_to_bottom"
+    )
+  }
+
+  @Test
+  @MainActor
+  func koreanArrowCommitUsesTextOnlyInputAndReplaysOnlyUnconsumedArrows() throws {
+    GhosttySurfaceView.withCommittedPreeditKey(
+      action: GHOSTTY_ACTION_PRESS,
+      text: "한"
+    ) { key in
+      #expect(key.action == GHOSTTY_ACTION_PRESS)
+      #expect(key.keycode == 0)
+      #expect(key.text.map { String(cString: $0) } == "한")
+      #expect(key.composing == false)
+      #expect(key.mods == GHOSTTY_MODS_NONE)
+      #expect(key.consumed_mods == GHOSTTY_MODS_NONE)
+      #expect(key.unshifted_codepoint == 0)
+    }
+
+    let down = try keyDownEvent(keyCode: kVK_DownArrow)
+    let right = try keyDownEvent(keyCode: kVK_RightArrow)
+    let up = try keyDownEvent(keyCode: kVK_UpArrow)
+    let left = try keyDownEvent(keyCode: kVK_LeftArrow)
+    let modifiedLeft = try keyDownEvent(keyCode: kVK_LeftArrow, modifierFlags: .control)
+    let letter = try keyDownEvent(keyCode: kVK_ANSI_A)
+
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(down))
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(right))
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(up))
+    #expect(!GhosttySurfaceView.shouldReplayCommittedPreeditKey(left))
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(modifiedLeft))
+    #expect(!GhosttySurfaceView.shouldReplayCommittedPreeditKey(letter))
+  }
+
+  @Test
+  @MainActor
+  func japaneseComposingControlHIsSuppressed() {
+    #expect(
+      GhosttySurfaceView.shouldSuppressComposingControlInput(
+        "\u{0008}",
+        composing: true
+      )
+    )
+    #expect(
+      !GhosttySurfaceView.shouldSuppressComposingControlInput(
+        "\u{0008}",
+        composing: false
+      )
+    )
   }
 
   @Test
@@ -452,8 +606,97 @@ struct GhosttySurfaceViewTests {
   }
 }
 
+@MainActor
+private func keyDownEvent(
+  keyCode: Int,
+  modifierFlags: NSEvent.ModifierFlags = []
+) throws -> NSEvent {
+  try #require(
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: modifierFlags,
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: "",
+      charactersIgnoringModifiers: "",
+      isARepeat: false,
+      keyCode: UInt16(keyCode)
+    )
+  )
+}
+
 private final class FocusableWrapperView: NSView {
   override var acceptsFirstResponder: Bool { true }
+}
+
+@MainActor
+private func withFocusedSurface(
+  runtime: GhosttyRuntime,
+  perform body: (GhosttySurfaceView, NSWindow) throws -> Void
+) rethrows {
+  let surfaceView = GhosttySurfaceView(
+    runtime: runtime,
+    tabID: UUID(),
+    workingDirectory: nil,
+    context: GHOSTTY_SURFACE_CONTEXT_TAB
+  )
+  let window = NSWindow(
+    contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+    styleMask: [.titled],
+    backing: .buffered,
+    defer: false
+  )
+  window.contentView = surfaceView
+  window.makeKeyAndOrderFront(nil)
+  window.makeFirstResponder(surfaceView)
+  surfaceView.focusDidChange(true)
+  defer {
+    surfaceView.closeSurface()
+    window.contentView = nil
+    window.orderOut(nil)
+  }
+
+  try body(surfaceView, window)
+}
+
+@MainActor
+private func sendCommandKey(
+  keyCode: Int,
+  characters: String,
+  window: NSWindow
+) throws {
+  NSApp.sendEvent(
+    try makeKeyEvent(
+      keyCode: keyCode,
+      characters: characters,
+      modifierFlags: .command,
+      windowNumber: window.windowNumber
+    )
+  )
+}
+
+private func makeKeyEvent(
+  keyCode: Int,
+  characters: String,
+  modifierFlags: NSEvent.ModifierFlags,
+  windowNumber: Int = 0
+) throws -> NSEvent {
+  try #require(
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: modifierFlags,
+      timestamp: ProcessInfo.processInfo.systemUptime,
+      windowNumber: windowNumber,
+      context: nil,
+      characters: characters,
+      charactersIgnoringModifiers: characters,
+      isARepeat: false,
+      keyCode: UInt16(keyCode)
+    )
+  )
 }
 
 @MainActor

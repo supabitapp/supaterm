@@ -12,13 +12,16 @@ final class SupatermMenuController: NSObject {
     let modifierMask: NSEvent.ModifierFlags
 
     init(shortcut: KeyboardShortcut) {
-      self.keyEquivalent = shortcut.key.character.description.lowercased()
-      self.modifierMask = NSEvent.ModifierFlags(swiftUIFlags: shortcut.modifiers)
+      let normalizedShortcut = shortcut.normalizedForAppKit
+      self.keyEquivalent = normalizedShortcut.key.character.description
+      self.modifierMask = NSEvent.ModifierFlags(swiftUIFlags: normalizedShortcut.modifiers)
         .intersection(.deviceIndependentFlagsMask)
     }
 
     func matches(_ event: NSEvent) -> Bool {
-      let eventModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+      let eventModifiers = event.modifierFlags
+        .subtracting(keyEquivalent == KeyEquivalent.deleteForward.character.description ? .function : [])
+        .intersection(.deviceIndependentFlagsMask)
       guard eventModifiers == modifierMask else { return false }
       let eventKeys = Set([event.charactersIgnoringModifiers, event.characters].compactMap { $0?.lowercased() })
       return eventKeys.contains(keyEquivalent)
@@ -72,6 +75,8 @@ final class SupatermMenuController: NSObject {
       "app.supabit.supaterm.tabs.jumpToLatestUnread")
     static let selectLastTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.last")
     static let selectTabPrefix = "app.supabit.supaterm.tabs.select."
+    static let nextSpace = NSUserInterfaceItemIdentifier("app.supabit.supaterm.spaces.next")
+    static let previousSpace = NSUserInterfaceItemIdentifier("app.supabit.supaterm.spaces.previous")
     static let selectSpacePrefix = "app.supabit.supaterm.spaces.select."
     static let zoomSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.zoomSplit")
     static let previousSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.previousSplit")
@@ -342,7 +347,10 @@ final class SupatermMenuController: NSObject {
     SupatermMenuSectionSpec(
       title: "Spaces",
       entries: [
-        .slots(prefix: MenuItemIdentifier.selectSpacePrefix)
+        .item(MenuItemIdentifier.nextSpace),
+        .item(MenuItemIdentifier.previousSpace),
+        .separator,
+        .slots(prefix: MenuItemIdentifier.selectSpacePrefix),
       ]
     )
   }
@@ -695,15 +703,32 @@ final class SupatermMenuController: NSObject {
   }
 
   private func spacesMenuSpecs() -> [SupatermMenuItemSpec] {
-    (1...10).map { slot in
+    var specs: [SupatermMenuItemSpec] = [
       SupatermMenuItemSpec(
-        id: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)"),
-        title: "Space \(slot)",
-        action: #selector(selectSpace(_:)),
-        shortcut: .app(.selectSpace(slot)),
-        slot: slot
-      )
-    }
+        id: MenuItemIdentifier.nextSpace,
+        title: "Next Space",
+        action: #selector(nextSpace(_:)),
+        shortcut: .app(.nextSpace)
+      ),
+      SupatermMenuItemSpec(
+        id: MenuItemIdentifier.previousSpace,
+        title: "Previous Space",
+        action: #selector(previousSpace(_:)),
+        shortcut: .app(.previousSpace)
+      ),
+    ]
+    specs.append(
+      contentsOf: (1...10).map { slot in
+        SupatermMenuItemSpec(
+          id: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)"),
+          title: "Space \(slot)",
+          action: #selector(selectSpace(_:)),
+          shortcut: .app(.selectSpace(slot)),
+          slot: slot
+        )
+      }
+    )
+    return specs
   }
 
   private func windowMenuSpecs() -> [SupatermMenuItemSpec] {
@@ -1153,16 +1178,19 @@ final class SupatermMenuController: NSObject {
     registry.requestSelectSpaceInKeyWindow(slot.intValue)
   }
 
+  @objc func nextSpace(_ sender: Any?) {
+    registry.requestNextSpaceInKeyWindow()
+  }
+
+  @objc func previousSpace(_ sender: Any?) {
+    registry.requestPreviousSpaceInKeyWindow()
+  }
+
   private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
     guard let item else { return }
-    if !(NSApp.keyWindow?.firstResponder is GhosttySurfaceView) {
-      switch command {
-      case .copyToClipboard, .pasteFromClipboard, .selectAll:
-        SupatermMenuShortcut.apply(command.defaultKeyboardShortcut, to: item)
-        return
-      default:
-        break
-      }
+    if let shortcut = firstResponderShortcut(for: command) {
+      SupatermMenuShortcut.apply(shortcut, to: item)
+      return
     }
     syncShortcut(
       action: command.ghosttyBindingAction,
@@ -1177,17 +1205,15 @@ final class SupatermMenuController: NSObject {
     defaultShortcut: KeyboardShortcut? = nil
   ) {
     guard let item else { return }
-    if let shortcut = registry.keyboardShortcut(forAction: action) {
-      SupatermMenuShortcut.apply(shortcut, to: item)
-      syncGhosttyBindingItem(item, shortcut: shortcut)
-      return
-    }
-    if registry.hasShortcutSource {
-      SupatermMenuShortcut.apply(nil, to: item)
-      return
-    }
-    SupatermMenuShortcut.apply(defaultShortcut, to: item)
-    syncGhosttyBindingItem(item, shortcut: defaultShortcut)
+    let runtimeShortcut = registry.keyboardShortcut(forAction: action)
+    let shortcut =
+      runtimeShortcut
+      ?? fallbackTerminalShortcut(
+        action: action,
+        defaultShortcut: defaultShortcut
+      )
+    SupatermMenuShortcut.apply(shortcut, to: item)
+    syncGhosttyBindingItem(item, shortcut: runtimeShortcut)
   }
 
   private func syncAppShortcut(
@@ -1196,10 +1222,7 @@ final class SupatermMenuController: NSObject {
     routesThroughTerminal: Bool
   ) {
     guard let item else { return }
-    let shortcut = SupatermShortcuts.binding(
-      for: id,
-      overrides: supatermSettings.shortcutOverrides
-    )?.keyboardShortcut
+    let shortcut = appShortcut(id)
     SupatermMenuShortcut.apply(shortcut, to: item)
     if routesThroughTerminal {
       syncGhosttyBindingItem(item, shortcut: shortcut)
@@ -1211,7 +1234,63 @@ final class SupatermMenuController: NSObject {
     defaultShortcut: KeyboardShortcut?
   ) -> KeyboardShortcut? {
     registry.keyboardShortcut(forAction: action)
-      ?? (registry.hasShortcutSource ? nil : defaultShortcut)
+      ?? fallbackTerminalShortcut(action: action, defaultShortcut: defaultShortcut)
+  }
+
+  private func fallbackTerminalShortcut(
+    action: String,
+    defaultShortcut: KeyboardShortcut?
+  ) -> KeyboardShortcut? {
+    if registry.hasShortcutSource {
+      guard isFindNavigationAction(action),
+        let defaultShortcut,
+        !menuClaimsShortcut(defaultShortcut)
+      else { return nil }
+    }
+    return defaultShortcut
+  }
+
+  private func menuClaimsShortcut(_ shortcut: KeyboardShortcut) -> Bool {
+    let key = MenuShortcutKey(shortcut: shortcut)
+    return menuEntries.contains { entry in
+      let menuShortcut: KeyboardShortcut?
+      switch entry.spec.shortcut {
+      case .command(let command):
+        menuShortcut =
+          firstResponderShortcut(for: command)
+          ?? registry.keyboardShortcut(forAction: command.ghosttyBindingAction)
+      case .ghosttyAction(let ghosttyAction, _):
+        menuShortcut = registry.keyboardShortcut(forAction: ghosttyAction)
+      case .app(let id), .appRouted(let id):
+        menuShortcut = appShortcut(id)
+      case .none:
+        menuShortcut = nil
+      }
+      guard let menuShortcut else { return false }
+      return MenuShortcutKey(shortcut: menuShortcut) == key
+    }
+  }
+
+  private func firstResponderShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
+    guard !(NSApp.keyWindow?.firstResponder is GhosttySurfaceView) else { return nil }
+    return switch command {
+    case .copyToClipboard, .pasteFromClipboard, .selectAll:
+      command.defaultKeyboardShortcut
+    default:
+      nil
+    }
+  }
+
+  private func appShortcut(_ id: SupatermShortcutID) -> KeyboardShortcut? {
+    SupatermShortcuts.binding(
+      for: id,
+      overrides: supatermSettings.shortcutOverrides
+    )?.keyboardShortcut
+  }
+
+  private func isFindNavigationAction(_ action: String) -> Bool {
+    action == SupatermCommand.navigateSearch(.next).ghosttyBindingAction
+      || action == SupatermCommand.navigateSearch(.previous).ghosttyBindingAction
   }
 
   private func syncGhosttyBindingItem(_ item: NSMenuItem, shortcut: KeyboardShortcut?) {
@@ -1330,12 +1409,14 @@ extension SupatermMenuController: NSMenuItemValidation {
     case MenuItemIdentifier.checkForUpdates:
       item.title = context.updateMenuItemText
       return context.isUpdateMenuItemEnabled
-    case MenuItemIdentifier.newTab:
+    case MenuItemIdentifier.newTab,
+      MenuItemIdentifier.openCommandPalette,
+      MenuItemIdentifier.closeWindow,
+      MenuItemIdentifier.closeAllWindows,
+      MenuItemIdentifier.toggleSidebar:
       return context.availability.hasWindow
     case MenuItemIdentifier.newTabInGroup:
       return context.hasSelectedGroup
-    case MenuItemIdentifier.openCommandPalette:
-      return context.availability.hasWindow
     case MenuItemIdentifier.splitRight,
       MenuItemIdentifier.splitLeft,
       MenuItemIdentifier.splitDown,
@@ -1345,10 +1426,6 @@ extension SupatermMenuController: NSMenuItemValidation {
       return context.availability.hasSurface || context.closesKeyWindowDirectly
     case MenuItemIdentifier.closeTab:
       return context.availability.hasTab
-    case MenuItemIdentifier.closeWindow,
-      MenuItemIdentifier.closeAllWindows,
-      MenuItemIdentifier.toggleSidebar:
-      return context.availability.hasWindow
     case MenuItemIdentifier.toggleAgentPanel:
       return context.availability.hasAgentPanel
     case MenuItemIdentifier.forkAgentSession,
@@ -1382,6 +1459,9 @@ extension SupatermMenuController: NSMenuItemValidation {
       MenuItemIdentifier.changeTabTitle,
       MenuItemIdentifier.selectLastTab:
       return validateTabMenuItem(item, context: context)
+    case MenuItemIdentifier.nextSpace,
+      MenuItemIdentifier.previousSpace:
+      return context.availability.hasWindow && context.spaceCount > 1
     default:
       return validateIndexedMenuItem(item, context: context)
     }
@@ -1424,8 +1504,9 @@ enum SupatermMenuShortcut {
       return
     }
 
-    item.keyEquivalent = shortcut.key.character.description
-    item.keyEquivalentModifierMask = NSEvent.ModifierFlags(swiftUIFlags: shortcut.modifiers)
+    let normalizedShortcut = shortcut.normalizedForAppKit
+    item.keyEquivalent = normalizedShortcut.key.character.description
+    item.keyEquivalentModifierMask = NSEvent.ModifierFlags(swiftUIFlags: normalizedShortcut.modifiers)
   }
 }
 

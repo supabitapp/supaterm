@@ -79,10 +79,15 @@ hooks {
         stdin = "{{ hook_stdin }}"
         depends = "docs-validate"
       }
+      ["mac-inspect-dependencies"] {
+        check = "\(prePushBranchCheck)\nmake mac-inspect-dependencies"
+        stdin = "{{ hook_stdin }}"
+        depends = "validate-release-tags"
+      }
       ["mac-scan-dead-code"] {
         check = "\(prePushBranchCheck)\nmake mac-scan-dead-code"
         stdin = "{{ hook_stdin }}"
-        depends = "validate-release-tags"
+        depends = "mac-inspect-dependencies"
       }
       ["mac-test"] {
         check = "\(prePushBranchCheck)\nmake mac-test"

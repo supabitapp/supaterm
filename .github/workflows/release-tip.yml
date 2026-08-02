@@ -19,7 +19,7 @@ env:
 jobs:
   build:
     if: github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
-    runs-on: macos-26
+    runs-on: depot-macos-26
     permissions:
       contents: read
       id-token: write
@@ -43,6 +43,8 @@ jobs:
           ref: ${{ env.RELEASE_SHA }}
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+        with:
+          cache-native-builds: true
       - name: Compute tip build number
         id: build-number
         run: |
@@ -188,7 +190,7 @@ jobs:
             apps/mac/build/checksums.json
 
   posthog-dsym:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [build]
     env:
       POSTHOG_CLI_HOST: https://us.posthog.com
@@ -237,7 +239,7 @@ jobs:
             --build "${{ needs.build.outputs.build-number }}"
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [build]
     permissions:
       contents: write

@@ -46,11 +46,8 @@ func withTestSpace<T>(
 private func makeTestSpace(_ app: SupatermE2EApp) throws -> TestSpace {
   let token = String(UUID().uuidString.prefix(8).lowercased())
   let snapshot = try app.debugSnapshot()
-  guard let window = snapshot.windows.first else {
+  guard snapshot.windows.first != nil else {
     throw SupatermE2EError("No app window is available for a test space.")
-  }
-  guard let windowAnchorPaneID = window.spaces.flatMap(\.flattenedTabs).flatMap(\.panes).first?.id else {
-    throw SupatermE2EError("No app pane is available for a test space.")
   }
 
   let directory = app.stateHome.appendingPathComponent("scratch-\(token)", isDirectory: true)
@@ -58,12 +55,7 @@ private func makeTestSpace(_ app: SupatermE2EApp) throws -> TestSpace {
 
   let created = try app.send(
     .createSpace(
-      SupatermCreateSpaceRequest(
-        color: nil,
-        focus: true,
-        name: "e2e-\(token)",
-        windowAnchorPaneID: windowAnchorPaneID
-      )
+      SupatermCreateSpaceRequest(color: nil, name: "e2e-\(token)")
     ),
     as: SupatermCreateSpaceResult.self
   )

@@ -68,31 +68,35 @@ final class TabsSpacesUITests: SupatermUITestCase {
     _ = mainWindow
     let didShowInitialTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
-    XCTAssertEqual(spaceSwitchers.count, 1)
+    XCTAssertEqual(spaceDots.count, 1)
 
     try await createSpace(named: "UI Space")
 
-    let didOpenSpaceWindow = await wait {
-      self.app.windows.count == 2 && self.spaceSwitchers.count == 2
-    }
-    XCTAssertTrue(didOpenSpaceWindow)
-
-    let initialSpace = spaceSwitcher(named: "Space 1")
-    let createdSpace = spaceSwitcher(named: "UI Space")
-    XCTAssertTrue(initialSpace.exists)
-    XCTAssertTrue(createdSpace.exists)
+    let didDisplayCreatedSpace = await waitForDisplayedSpace(named: "UI Space")
+    XCTAssertTrue(didDisplayCreatedSpace)
+    let didAddSpaceDot = await waitForSidebarElementCount(spaceDots, equals: 2)
+    XCTAssertTrue(didAddSpaceDot)
+    XCTAssertEqual(app.windows.count, 1)
 
     app.typeKey("1", modifierFlags: .control)
 
-    let didFocusInitialSpace = await wait(for: initialSpace) { $0.isHittable }
-    XCTAssertTrue(didFocusInitialSpace)
+    let didDisplayInitialSpace = await waitForDisplayedSpace(named: "Space 1")
+    XCTAssertTrue(didDisplayInitialSpace)
 
-    app.typeKey("2", modifierFlags: .control)
+    let createdSpaceDot = spaceDot(named: "UI Space")
+    if !createdSpaceDot.isHittable {
+      try require(app.buttons["Enter full screen"]).click()
+    }
+    let didMakeCreatedSpaceDotHittable = await wait(for: createdSpaceDot) {
+      $0.exists && $0.isHittable
+    }
+    XCTAssertTrue(didMakeCreatedSpaceDotHittable)
+    try require(createdSpaceDot).click()
 
-    let didFocusCreatedSpace = await wait(for: createdSpace) { $0.isHittable }
-    XCTAssertTrue(didFocusCreatedSpace)
+    let didReturnToCreatedSpace = await waitForDisplayedSpace(named: "UI Space")
+    XCTAssertTrue(didReturnToCreatedSpace)
 
-    createdSpace.click()
+    displayedSpace.click()
     let renameSpace = app.menuItems["Edit Space"]
     XCTAssertTrue(renameSpace.waitForExistence(timeout: 10))
     renameSpace.click()
@@ -117,12 +121,11 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(confirm.waitForExistence(timeout: 10))
     confirm.click()
 
-    let renamedSpace = spaceSwitcher(named: "Renamed UI Space")
-    let didRenameSpace = await wait(for: renamedSpace) { $0.exists }
+    let didRenameSpace = await waitForDisplayedSpace(named: "Renamed UI Space")
     XCTAssertTrue(didRenameSpace)
-    XCTAssertFalse(spaceSwitcher(named: "UI Space").exists)
+    XCTAssertFalse(spaceDot(named: "UI Space").exists)
 
-    renamedSpace.click()
+    displayedSpace.click()
     let deleteSpace = app.menuItems["Delete Space"]
     XCTAssertTrue(deleteSpace.waitForExistence(timeout: 10))
     deleteSpace.click()
@@ -135,12 +138,12 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(deleteButton.waitForExistence(timeout: 10))
     deleteButton.click()
 
-    let didDeleteSpace = await wait {
-      self.app.windows.count == 1
-        && self.spaceSwitchers.count == 1
-        && !self.spaceSwitcher(named: "Renamed UI Space").exists
-    }
-    XCTAssertTrue(didDeleteSpace)
+    let didDisplayNeighborSpace = await waitForDisplayedSpace(named: "Space 1")
+    XCTAssertTrue(didDisplayNeighborSpace)
+    let didRemoveSpaceDot = await waitForSidebarElementCount(spaceDots, equals: 1)
+    XCTAssertTrue(didRemoveSpaceDot)
+    XCTAssertFalse(spaceDot(named: "Renamed UI Space").exists)
+    XCTAssertEqual(app.windows.count, 1)
   }
 
   @MainActor
@@ -348,21 +351,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private var spaceSwitchers: XCUIElementQuery {
-    app.descendants(matching: .any).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.titlebarSpaceSwitcher
-    )
-  }
-
-  @MainActor
   private func tabRow(named title: String) -> XCUIElement { sidebarTabRow(named: title) }
-
-  @MainActor
-  private func spaceSwitcher(named name: String) -> XCUIElement {
-    spaceSwitchers.matching(
-      NSPredicate(format: "label == %@", "Space \(name)")
-    ).firstMatch
-  }
 
   @MainActor
   private func closeSelectedTab() throws {
@@ -428,8 +417,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
   @MainActor
   private func createSpace(named name: String) async throws {
-    let switcher = try require(spaceSwitchers.firstMatch)
-    switcher.click()
+    try require(displayedSpace).click()
     let createSpace = try require(app.menuItems["New Space"])
     createSpace.click()
 

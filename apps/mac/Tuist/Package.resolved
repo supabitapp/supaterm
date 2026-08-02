@@ -13,7 +13,7 @@
     {
       "identity" : "posthog-ios",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/PostHog/posthog-ios.git",
+      "location" : "https://github.com/PostHog/posthog-ios",
       "state" : {
         "revision" : "76a3e1db35f3153f3388bdf077a717c7350e5f9e",
         "version" : "3.64.6"

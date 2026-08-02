@@ -85,7 +85,7 @@ final class TerminalWindowController: NSWindowController {
 
     let terminal = TerminalHostState(
       runtime: runtime,
-      spaceID: session?.spaceID ?? spaceID,
+      spaceID: session?.displayedSpaceID ?? spaceID,
       zmxClient: zmxClient,
       zmxSessionsEnabled: zmxSessionsEnabled
     )
@@ -144,7 +144,6 @@ final class TerminalWindowController: NSWindowController {
       "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(windowControllerID.uuidString)")
     window.isReleasedWhenClosed = false
     window.tabbingMode = .disallowed
-    window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     window.isOpaque = false
@@ -158,12 +157,7 @@ final class TerminalWindowController: NSWindowController {
       _ = store.send(.terminal(.commandPaletteSlotActivated(slot)))
       return true
     }
-    window.onSwipeLeft = { [store] in
-      _ = store.send(.terminal(.nextSpaceRequested))
-    }
-    window.onSwipeRight = { [store] in
-      _ = store.send(.terminal(.previousSpaceRequested))
-    }
+    Self.configureSpaceSwipes(window, store: store)
 
     super.init(window: window)
 
@@ -184,6 +178,18 @@ final class TerminalWindowController: NSWindowController {
     )
     registry.updateWindow(window, for: windowControllerID)
     _ = store.send(.terminal(.windowIdentifierChanged(ObjectIdentifier(window))))
+  }
+
+  private static func configureSpaceSwipes(
+    _ window: TerminalGestureWindow,
+    store: StoreOf<AppFeature>
+  ) {
+    window.onSwipeLeft = {
+      _ = store.send(.terminal(.nextSpaceRequested))
+    }
+    window.onSwipeRight = {
+      _ = store.send(.terminal(.previousSpaceRequested))
+    }
   }
 
   private static func prepareTerminal(
@@ -227,11 +233,11 @@ final class TerminalWindowController: NSWindowController {
       "terminal.window.closeConfirmed",
       fields: [
         "terminatesSessions=\(terminatesTerminalSessionsOnClose)",
-        "surfaceIDs=\(TerminalHostState.logSurfaceIDs(terminal.liveSurfaceIDs()))",
+        "surfaceIDs=\(TerminalHostState.logSurfaceIDs(terminal.sessionSurfaceIDs()))",
       ]
     )
     if terminatesTerminalSessionsOnClose {
-      terminal.terminateLiveTerminalSessions()
+      terminal.terminateTerminalSessions()
     }
     isPerformingConfirmedClose = true
     window.close()
@@ -254,7 +260,7 @@ extension TerminalWindowController: NSWindowDelegate {
       isPerformingConfirmedClose = false
       return true
     }
-    let surfaceIDs = terminal.liveSurfaceIDs()
+    let surfaceIDs = terminal.sessionSurfaceIDs()
     guard terminatesTerminalSessionsOnClose, !surfaceIDs.isEmpty else {
       SupatermLog.notice(
         SupatermLog.terminal,

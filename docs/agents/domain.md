@@ -1,35 +1,32 @@
 # Domain Docs
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
-
-Single-context repo: one `CONTEXT.md` at the root, one `docs/adr/`.
-
-## The domain docs are local, never committed
-
-Both `CONTEXT.md` and `docs/adr/` are gitignored. They are khoi's working notes, not repo artifacts —
-read them, write to them, never `git add` them. The committed glossary is the `## Terminology`
-section of `AGENTS.md`; promote a term there only when khoi asks.
+How engineering skills should use this repo's domain docs when exploring the codebase.
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root
-- **`## Terminology`** in `AGENTS.md`
-- **`docs/adr/`** — read ADRs that touch the area you're about to work in
+- `CONTEXT.md` at the repo root.
+- Relevant ADRs under `docs/adr/`.
 
-If any of these don't exist, **proceed silently**. Don't flag their absence; don't suggest creating
-them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and
-`/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
+If these files do not exist, proceed without raising their absence. Domain modeling skills create them when the team resolves terms or decisions.
 
-## Use the glossary's vocabulary
+## File structure
 
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test
-name), use the term as defined in the glossary. Don't drift to synonyms it explicitly avoids.
+This repo uses one domain context:
 
-If the concept you need isn't there yet, that's a signal — either you're inventing language the
-project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
+```
+/
+├── CONTEXT.md
+└── docs/adr/
+    ├── 0001-example-decision.md
+    └── 0002-example-decision.md
+```
+
+## Use the glossary's terms
+
+When output names a domain concept, use the term defined in `CONTEXT.md`. Do not replace it with a synonym that the glossary rejects.
+
+If the glossary lacks the concept, check whether the code already uses another term. If not, note the gap for domain modeling.
 
 ## Flag ADR conflicts
 
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
-
-> _Contradicts ADR-0007 (pane-owned surfaces) — but worth reopening because…_
+If output conflicts with an ADR, name the ADR and explain the conflict.

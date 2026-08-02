@@ -5,16 +5,15 @@ import SupatermUpdateFeature
 
 extension TerminalCommandExecutor {
   func treeSnapshot() -> SupatermTreeSnapshot {
-    let windows: [SupatermTreeSnapshot.Window] = registry.activeEntries().enumerated().map {
-      offset,
-      entry in
-      let snapshot = entry.terminal.treeSnapshot()
-      return SupatermTreeSnapshot.Window(
-        index: offset + 1,
-        isKey: entry.terminal.windowActivity.isKeyWindow,
-        spaces: snapshot.windows.first?.spaces ?? []
-      )
-    }
+    let windows: [SupatermTreeSnapshot.Window] = registry.activeEntries().enumerated()
+      .map { offset, entry in
+        SupatermTreeSnapshot.Window(
+          index: offset + 1,
+          isKey: entry.terminal.windowActivity.isKeyWindow,
+          displayedSpaceID: entry.terminal.displayedSpaceID.rawValue,
+          spaces: entry.terminal.treeSnapshot().windows.first?.spaces ?? []
+        )
+      }
     return SupatermTreeSnapshot(windows: windows)
   }
 

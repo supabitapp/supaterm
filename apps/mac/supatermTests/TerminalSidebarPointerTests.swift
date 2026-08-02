@@ -8,8 +8,73 @@ import Testing
 
 @MainActor
 struct TerminalSidebarPointerTests {
+  private final class PointerEvents {
+    var mouseUpEventNumbers: [Int] = []
+  }
+
+  private struct Fixture {
+    let firstTabID: TerminalTabID
+    let secondTabID: TerminalTabID
+    let recorder: TerminalCommandRecorder
+    let selectionState: TerminalSidebarTabSelectionState
+    let outline: TerminalSidebarOutline
+    let pointerEvents: PointerEvents
+    let window: NSWindow
+    let location: NSPoint
+  }
+
   @Test
-  func tabRowRoutesPlainAndModifiedClicksThroughCollectionController() async throws {
+  func tabRowOwnsClickAndDragSequencesAtTrailingEdge() async throws {
+    let fixture = try await fixture()
+    defer {
+      fixture.window.contentView = nil
+      fixture.window.orderOut(nil)
+    }
+
+    try sendClick(
+      at: fixture.location,
+      in: fixture.window,
+      eventNumbers: (41, 42),
+      modifiers: .command
+    )
+    for _ in 0..<5 { await Task.yield() }
+    #expect(fixture.recorder.commands.isEmpty)
+    #expect(
+      fixture.selectionState.orderedTabIDs(
+        primaryTabID: fixture.secondTabID,
+        outline: fixture.outline
+      ) == [fixture.firstTabID, fixture.secondTabID]
+    )
+
+    try sendClick(
+      at: fixture.location,
+      in: fixture.window,
+      eventNumbers: (43, 44)
+    )
+    for _ in 0..<5 { await Task.yield() }
+    #expect(fixture.recorder.commands == [.selectTab(fixture.firstTabID)])
+
+    let dragMouseDown = try #require(
+      mouseEvent(.leftMouseDown, at: fixture.location, in: fixture.window, eventNumber: 45)
+    )
+    let mouseDragged = try #require(
+      mouseEvent(
+        .leftMouseDragged,
+        at: NSPoint(x: fixture.location.x - 8, y: fixture.location.y),
+        in: fixture.window,
+        eventNumber: 46
+      )
+    )
+    let dragMouseUp = try #require(
+      mouseEvent(.leftMouseUp, at: fixture.location, in: fixture.window, eventNumber: 47)
+    )
+    NSApp.sendEvent(dragMouseDown)
+    NSApp.sendEvent(mouseDragged)
+    NSApp.sendEvent(dragMouseUp)
+    #expect(fixture.pointerEvents.mouseUpEventNumbers == [42, 44])
+  }
+
+  private func fixture() async throws -> Fixture {
     let host = TerminalHostState(managesTerminalSurfaces: false)
     let manager = host.spaceManager.tabManager
     let firstTabID = manager.createTab(title: "First")
@@ -45,8 +110,13 @@ struct TerminalSidebarPointerTests {
       }
       return true
     }
-    collectionView.onRowMouseUp = { entryID, _ in
-      entryID == .tab(firstTabID)
+    let pointerEvents = PointerEvents()
+    collectionView.onRowMouseDragged = { entryID, event in
+      entryID == .tab(firstTabID) && event.eventNumber == 46
+    }
+    collectionView.onRowMouseUp = { entryID, event in
+      pointerEvents.mouseUpEventNumbers.append(event.eventNumber)
+      return entryID == .tab(firstTabID)
     }
     let item = TerminalSidebarCollectionItem()
     item.host(
@@ -63,8 +133,7 @@ struct TerminalSidebarPointerTests {
           fixedHoveredGroupID: nil,
           actions: rowActions
         )
-      ),
-      entryID: .tab(firstTabID)
+      )
     )
     item.view.frame = NSRect(x: 0, y: 0, width: 240, height: 60)
     collectionView.isSelectable = false
@@ -77,39 +146,23 @@ struct TerminalSidebarPointerTests {
     )
     window.contentView = collectionView
     window.makeKeyAndOrderFront(nil)
-    defer {
-      window.contentView = nil
-      window.orderOut(nil)
-    }
     try await Task.sleep(for: .milliseconds(100))
     item.view.layoutSubtreeIfNeeded()
     let hostedView = try #require(item.view.subviews.first)
     let location = hostedView.convert(
-      NSPoint(x: hostedView.bounds.midX, y: hostedView.bounds.midY),
+      NSPoint(x: hostedView.bounds.maxX - 1, y: hostedView.bounds.midY),
       to: nil
     )
-    let commandMouseDown = try #require(
-      mouseEvent(.leftMouseDown, at: location, in: window, modifiers: .command)
+    return Fixture(
+      firstTabID: firstTabID,
+      secondTabID: secondTabID,
+      recorder: recorder,
+      selectionState: selectionState,
+      outline: outline,
+      pointerEvents: pointerEvents,
+      window: window,
+      location: location
     )
-    let commandMouseUp = try #require(
-      mouseEvent(.leftMouseUp, at: location, in: window, modifiers: .command)
-    )
-
-    NSApp.sendEvent(commandMouseDown)
-    NSApp.sendEvent(commandMouseUp)
-    for _ in 0..<5 { await Task.yield() }
-    #expect(recorder.commands.isEmpty)
-    #expect(
-      selectionState.orderedTabIDs(primaryTabID: secondTabID, outline: outline)
-        == [firstTabID, secondTabID]
-    )
-
-    let mouseDown = try #require(mouseEvent(.leftMouseDown, at: location, in: window))
-    let mouseUp = try #require(mouseEvent(.leftMouseUp, at: location, in: window))
-    NSApp.sendEvent(mouseDown)
-    NSApp.sendEvent(mouseUp)
-    for _ in 0..<5 { await Task.yield() }
-    #expect(recorder.commands == [.selectTab(firstTabID)])
   }
 
   private func presentation(_ tab: TerminalTabItem) -> TerminalSidebarTabRowPresentation {
@@ -145,6 +198,7 @@ struct TerminalSidebarPointerTests {
     _ type: NSEvent.EventType,
     at location: NSPoint,
     in window: NSWindow,
+    eventNumber: Int,
     modifiers: NSEvent.ModifierFlags = []
   ) -> NSEvent? {
     NSEvent.mouseEvent(
@@ -154,10 +208,37 @@ struct TerminalSidebarPointerTests {
       timestamp: ProcessInfo.processInfo.systemUptime,
       windowNumber: window.windowNumber,
       context: nil,
-      eventNumber: 1,
+      eventNumber: eventNumber,
       clickCount: 1,
       pressure: type == .leftMouseDown ? 1 : 0
     )
   }
 
+  private func sendClick(
+    at location: NSPoint,
+    in window: NSWindow,
+    eventNumbers: (down: Int, up: Int),
+    modifiers: NSEvent.ModifierFlags = []
+  ) throws {
+    let mouseDown = try #require(
+      mouseEvent(
+        .leftMouseDown,
+        at: location,
+        in: window,
+        eventNumber: eventNumbers.down,
+        modifiers: modifiers
+      )
+    )
+    let mouseUp = try #require(
+      mouseEvent(
+        .leftMouseUp,
+        at: location,
+        in: window,
+        eventNumber: eventNumbers.up,
+        modifiers: modifiers
+      )
+    )
+    NSApp.sendEvent(mouseDown)
+    NSApp.sendEvent(mouseUp)
+  }
 }

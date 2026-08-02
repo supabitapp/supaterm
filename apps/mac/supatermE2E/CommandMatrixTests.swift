@@ -26,15 +26,7 @@ extension SupatermE2ESuite {
         #expect(selectedBack.target.spaceID == space.spaceID)
 
         let after = try app.debugSnapshot()
-        let selectedWindow = try #require(
-          after.windows.first { $0.spaces.contains { $0.id == space.spaceID } }
-        )
-        let otherWindow = try #require(
-          after.windows.first { $0.spaces.contains { $0.id == otherSpace.id } }
-        )
-        #expect(selectedWindow.spaces.first?.isSelected == true)
-        #expect(otherWindow.spaces.first?.isSelected == true)
-        #expect(after.windows.last?.spaces.first?.id == space.spaceID)
+        #expect(after.windows.last?.displayedSpaceID == space.spaceID)
         #expect(selectedBack.target.windowIndex == after.windows.count)
       }
     }
@@ -94,21 +86,15 @@ extension SupatermE2ESuite {
     @Test(.timeLimit(.minutes(5)))
     func nextPreviousLastSpaceRoundTrip() async throws {
       try await withTestSpace { app, space in
-        let navigation = SupatermSpaceNavigationRequest(spaceID: space.spaceID)
+        let navigation = SupatermSpaceNavigationRequest()
 
         let next = try app.send(.nextSpace(navigation), as: SupatermSelectSpaceResult.self)
         #expect(next.target.spaceID != space.spaceID)
 
-        let previous = try app.send(
-          .previousSpace(SupatermSpaceNavigationRequest(spaceID: next.target.spaceID)),
-          as: SupatermSelectSpaceResult.self
-        )
+        let previous = try app.send(.previousSpace(navigation), as: SupatermSelectSpaceResult.self)
         #expect(previous.target.spaceID == space.spaceID)
 
-        let last = try app.send(
-          .lastSpace(SupatermSpaceNavigationRequest(spaceID: previous.target.spaceID)),
-          as: SupatermSelectSpaceResult.self
-        )
+        let last = try app.send(.lastSpace(navigation), as: SupatermSelectSpaceResult.self)
         #expect(last.target.spaceID == next.target.spaceID)
 
         _ = try app.send(
@@ -220,12 +206,7 @@ extension SupatermE2ESuite {
       try await withTestSpace { app, space in
         let extra = try app.send(
           .createSpace(
-            SupatermCreateSpaceRequest(
-              color: nil,
-              focus: true,
-              name: "extra-\(space.token)",
-              windowAnchorPaneID: space.tab.paneID
-            )
+            SupatermCreateSpaceRequest(color: nil, name: "extra-\(space.token)")
           ),
           as: SupatermCreateSpaceResult.self
         )
@@ -248,12 +229,7 @@ extension SupatermE2ESuite {
       try await withTestSpace { app, space in
         let colored = try app.send(
           .createSpace(
-            SupatermCreateSpaceRequest(
-              color: .green,
-              focus: true,
-              name: "colored-\(space.token)",
-              windowAnchorPaneID: space.tab.paneID
-            )
+            SupatermCreateSpaceRequest(color: .green, name: "colored-\(space.token)")
           ),
           as: SupatermCreateSpaceResult.self
         )

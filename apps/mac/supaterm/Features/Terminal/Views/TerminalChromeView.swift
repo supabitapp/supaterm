@@ -93,11 +93,7 @@ extension View {
           stroke: palette.colorScheme == .dark ? palette.detailStroke : .clear
         )
       )
-      .background {
-        TerminalChromeMetrics.paneShape
-          .fill(palette.detailBackground)
-          .shadow(color: palette.detailShadow, radius: 2, x: 0, y: 1)
-      }
+      .shadow(color: palette.detailShadow, radius: 2, x: 0, y: 1)
       .padding(TerminalChromeMetrics.paneInset)
   }
 }

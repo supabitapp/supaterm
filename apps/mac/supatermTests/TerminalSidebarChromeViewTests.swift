@@ -36,7 +36,7 @@ struct TerminalSidebarChromeViewTests {
     window.contentView = container
     let glow = TerminalSidebarSelectionGlowView()
     container.addSubview(glow)
-    glow.update(itemFrame: itemFrame, color: .black, alpha: 1, isDark: false)
+    glow.update(surfaceFrame: itemFrame, color: .black, alpha: 1, isDark: false)
     container.layoutSubtreeIfNeeded()
 
     let raster = try #require(SelectionGlowRaster(view: container))
@@ -67,7 +67,7 @@ struct TerminalSidebarChromeViewTests {
     window.contentView = container
     let glow = TerminalSidebarSelectionGlowView()
     container.addSubview(glow)
-    glow.update(itemFrame: itemFrame, color: .black, alpha: 1, isDark: false)
+    glow.update(surfaceFrame: itemFrame, color: .black, alpha: 1, isDark: false)
     container.layoutSubtreeIfNeeded()
 
     let raster = try #require(SelectionGlowRaster(view: container))

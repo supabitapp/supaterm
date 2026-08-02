@@ -367,7 +367,8 @@ struct TerminalCommandExecutorAgentHookTests {
 
     var child = try #require(presentedChild())
     #expect(AgentPanelView.childTitle(child) == "goo4560 [general-purpose]")
-    #expect(AgentPanelView.childDetail(child) == "GOO-4560 board API table")
+    #expect(child.task == "GOO-4560 board API table")
+    #expect(AgentPanelView.childDetail(child) == "Bash")
 
     _ = try harness.commandExecutor.handleAgentHook(
       SupatermAgentHookRequest(
@@ -385,10 +386,11 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     child = try #require(presentedChild())
-    #expect(AgentPanelView.childDetail(child) == "GOO-4560 board API table")
+    #expect(AgentPanelView.childTitle(child) == "goo4560 [general-purpose]")
+    #expect(child.task == "GOO-4560 board API table")
   }
   @Test
-  func claudeSubagentStopDoesNotNotifyOrIdleRootTurn() throws {
+  func claudeSubagentStopRemovesChildWithoutNotifyingOrIdlingRootTurn() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
     func childEvent(
       _ hookEventName: SupatermAgentHookEventName,
@@ -421,18 +423,86 @@ struct TerminalCommandExecutorAgentHookTests {
       SupatermAgentHookRequest(
         agent: .claude,
         context: harness.context,
-        event: childEvent(.stop, lastAssistantMessage: "Child summary.")
+        event: childEvent(.subagentStop, lastAssistantMessage: "Child summary.")
       )
     )
 
     #expect(result.desktopNotification == nil)
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
-    let child = try #require(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.first
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.isEmpty
+        == true
     )
-    #expect(child.phase == .idle)
   }
+
+  @Test
+  func claudeWorkflowCompletionRemovesItsChildren() throws {
+    let transcript = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
+    let runID = "wf-1"
+    try ClaudeProgressFixtures.writeWorkflowSubagentSpawn(
+      agentID: "child-1",
+      runID: runID,
+      prompt: "Inspect the session state.",
+      forTranscriptAt: transcript
+    )
+    let harness = try makeClaudeHookHarness()
+    let rootScope = TerminalAgentEvent.Scope(
+      agent: .claude,
+      sessionID: ClaudeHookFixtures.sessionID
+    )
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .claude,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          cwd: ClaudeHookFixtures.cwd,
+          hookEventName: .sessionStart,
+          sessionID: ClaudeHookFixtures.sessionID,
+          transcriptPath: transcript.path
+        )
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .claude,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          agentType: "workflow-subagent",
+          hookEventName: .subagentStart,
+          sessionID: ClaudeHookFixtures.sessionID,
+          transcriptPath: transcript.path,
+          agentID: "child-1"
+        )
+      )
+    )
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.count == 1
+    )
+
+    let transcriptDirectory =
+      transcript
+      .deletingPathExtension()
+      .appendingPathComponent("subagents")
+      .appendingPathComponent("workflows")
+      .appendingPathComponent(runID)
+      .path
+    harness.commandExecutor.handleMonitorSnapshot(
+      AgentMonitorSnapshot(
+        completedSubagentTranscriptDirectories: [transcriptDirectory]
+      ),
+      scope: rootScope,
+      context: harness.context
+    )
+
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.isEmpty
+        == true
+    )
+  }
+
   @Test
   func claudeSubagentTurnStartKeepsRecentStructuredNotification() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
@@ -1909,6 +1979,14 @@ struct TerminalCommandExecutorAgentHookTests {
         == .codex(.running, detail: "Coordinating child results")
     }
     #expect(didKeepRootMonitor)
+
+    try CodexTranscriptFixtures.append(.turnComplete(turnID: "child-turn"), to: childTranscript)
+    let didRemoveCompletedChild = await waitUntil {
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
+        .activeChildren.isEmpty == true
+    }
+    #expect(didRemoveCompletedChild)
+    #expect(!harness.commandExecutor.agentMonitorStore.isTracking(scope: childScope))
   }
   @Test
   func codexStopDeliversDesktopNotificationWhenWindowIsInactive() throws {

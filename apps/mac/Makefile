@@ -153,7 +153,7 @@ install-tip: # Install tip build from github
 	@tmpdir="$$(mktemp -d)"; \
 	mount_dir=""; \
 	trap 'if [ -n "$$mount_dir" ]; then hdiutil detach "$$mount_dir" -quiet >/dev/null 2>&1 || true; fi; rm -rf "$$tmpdir"' EXIT; \
-	echo "Closing running SupaTerm..."; \
+	echo "Closing running Supaterm..."; \
 	pkill -x supaterm 2>/dev/null || true; \
 	echo "Downloading tip release..."; \
 	curl -fsSL --show-error "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg" -o "$$tmpdir/supaterm.dmg"; \
@@ -212,7 +212,7 @@ format: # Format code with swift format (local only)
 	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupaThemeLogoGenerator SupatermCLIShared SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
 
 lint: # Lint code with swiftlint
-	mise exec -- swiftlint lint --quiet --config .swiftlint.yml
+	"$$(mise which swiftlint)" lint --quiet --config .swiftlint.yml
 
 inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant Tuist dependencies
 	mise exec -- tuist inspect dependencies

@@ -807,8 +807,11 @@ final class GhosttyRuntime {
       guard let equiv = keyToEquivalent[trigger.key.physical] else { return nil }
       key = equiv
     case GHOSTTY_TRIGGER_UNICODE:
-      guard let scalar = UnicodeScalar(trigger.key.unicode) else { return nil }
-      key = KeyEquivalent(Character(scalar))
+      guard
+        let scalar = UnicodeScalar(trigger.key.unicode),
+        let normalized = Character(scalar).lowercased().first
+      else { return nil }
+      key = KeyEquivalent(normalized)
     case GHOSTTY_TRIGGER_CATCH_ALL:
       return nil
     default:
@@ -833,7 +836,7 @@ final class GhosttyRuntime {
     GHOSTTY_KEY_ARROW_RIGHT: .rightArrow,
     GHOSTTY_KEY_HOME: .home,
     GHOSTTY_KEY_END: .end,
-    GHOSTTY_KEY_DELETE: .delete,
+    GHOSTTY_KEY_DELETE: .deleteForward,
     GHOSTTY_KEY_PAGE_UP: .pageUp,
     GHOSTTY_KEY_PAGE_DOWN: .pageDown,
     GHOSTTY_KEY_ESCAPE: .escape,

@@ -1484,7 +1484,8 @@ struct TerminalAgentPanelTests {
           ]
         )
     )
-    #expect(status.checks?.title == "Checks pending (2)")
+    #expect(status.checks?.title == "1 pending")
+    #expect(status.checks?.accessibilityTitle == "Checks, 1 pending")
   }
 
   @Test
@@ -1586,6 +1587,7 @@ struct TerminalAgentPanelTests {
     #expect(items[1].detailText(now: now) == "Successful in 1m")
     #expect(items[2].title == "deploy / preview")
     #expect(items[2].detailText(now: now) == "Waiting for approval")
+    #expect(status.checks?.title == "1 running, 1 pending")
   }
 
   @Test
@@ -1656,12 +1658,12 @@ struct TerminalAgentPanelTests {
   @Test
   func pullRequestChecksCountsKnownItemsByStatus() {
     let checks = PaneAgentPullRequestChecks(
-      status: .pending,
-      totalCount: 7,
+      status: .failing,
+      totalCount: 5,
       items: [
         PaneAgentPullRequestCheck(name: "lint", status: .passing),
-        PaneAgentPullRequestCheck(name: "test", status: .pending),
-        PaneAgentPullRequestCheck(name: "build", status: .pending),
+        PaneAgentPullRequestCheck(name: "test", state: .inProgress),
+        PaneAgentPullRequestCheck(name: "build", state: .inProgress),
         PaneAgentPullRequestCheck(name: "deploy", status: .failing),
         PaneAgentPullRequestCheck(name: "docs", status: .skipped),
       ]
@@ -1674,8 +1676,36 @@ struct TerminalAgentPanelTests {
       .skipped: 1,
     ]
     #expect(checks.itemCounts == expectedCounts)
-    #expect(checks.title == "Checks pending (7)")
+    #expect(checks.title == "1 failed, 2 running")
+    #expect(checks.accessibilityTitle == "Checks, 1 failed, 2 running")
     #expect(!checks.isEmpty)
+  }
+
+  @Test
+  func pullRequestChecksDistinguishesIssuesFromFailures() {
+    let checks = PaneAgentPullRequestChecks(
+      status: .failing,
+      totalCount: 8,
+      items: [
+        PaneAgentPullRequestCheck(name: "failure", state: .failure),
+        PaneAgentPullRequestCheck(name: "error", state: .error),
+        PaneAgentPullRequestCheck(name: "startup", state: .startupFailure),
+        PaneAgentPullRequestCheck(name: "cancelled", state: .cancelled),
+        PaneAgentPullRequestCheck(name: "timed-out", state: .timedOut),
+        PaneAgentPullRequestCheck(name: "action", state: .actionRequired),
+        PaneAgentPullRequestCheck(name: "stale", state: .stale),
+        PaneAgentPullRequestCheck(name: "unavailable", state: .unavailable),
+      ]
+    )
+
+    #expect(checks.title == "3 failed, 5 issues")
+    #expect(
+      PaneAgentPullRequestChecks(
+        status: .failing,
+        totalCount: 1,
+        items: [PaneAgentPullRequestCheck(name: "cancelled", state: .cancelled)]
+      ).title == "1 issue"
+    )
   }
 
   @Test
@@ -1723,7 +1753,7 @@ struct TerminalAgentPanelTests {
                                   "__typename": "CheckRun",
                                   "name": "first-page-check",
                                   "status": "COMPLETED",
-                                  "conclusion": "SUCCESS"
+                                  "conclusion": "FAILURE"
                                 }
                               ]
                             }
@@ -1741,7 +1771,7 @@ struct TerminalAgentPanelTests {
       """
     )
 
-    #expect(status.checks?.title == "Checks failing (25)")
+    #expect(status.checks?.title == "Checks failing")
   }
 
   private static func decodeSinglePullRequestStatus(_ json: String) -> PaneAgentPullRequestStatus {
@@ -2052,18 +2082,23 @@ private func restoreSplitHost(
     )
   )
   let session = TerminalWindowSession(
-    spaceID: spaceID,
-    selectedTabID: sessionTabID,
-    nodes: [
-      TerminalTabNodeSession(
-        item: .tab(sessionTabID),
-        parent: .root(isPinned: false),
-        order: 0
+    displayedSpaceID: spaceID,
+    spaces: [
+      TerminalSpaceSession(
+        spaceID: spaceID,
+        selectedTabID: sessionTabID,
+        nodes: [
+          TerminalTabNodeSession(
+            item: .tab(sessionTabID),
+            parent: .root(isPinned: false),
+            order: 0
+          )
+        ],
+        groups: [],
+        collapsedGroupIDs: [],
+        tabs: [tabSession]
       )
-    ],
-    groups: [],
-    collapsedGroupIDs: [],
-    tabs: [tabSession]
+    ]
   )
 
   #expect(host.restore(from: session))

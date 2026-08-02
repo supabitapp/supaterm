@@ -179,6 +179,6 @@ extension SocketControlFeature {
   func createTabNavigationRequest(
     from payload: SupatermTabNavigationRequest
   ) -> TerminalTabNavigationRequest {
-    TerminalTabNavigationRequest(spaceID: payload.spaceID)
+    TerminalTabNavigationRequest(spaceID: payload.spaceID, context: payload.context)
   }
 }
