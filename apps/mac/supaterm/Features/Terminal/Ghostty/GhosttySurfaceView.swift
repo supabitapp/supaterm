@@ -765,25 +765,55 @@ final class GhosttySurfaceView: NSView, Identifiable {
       return
     }
     syncPreedit(clearIfNeeded: markedTextBefore)
-    if let list = keyTextAccumulator, !list.isEmpty {
+
+    let composing = markedText.length > 0 || markedTextBefore
+
+    if markedTextBefore,
+      let list = keyTextAccumulator,
+      !list.isEmpty
+    {
       for text in list {
+        if Self.shouldSuppressComposingControlInput(text, composing: composing) {
+          continue
+        }
+        _ = sendCommittedPreeditText(text, action: action)
+      }
+      if Self.shouldReplayCommittedPreeditKey(translationEvent) {
         _ = sendKey(
           action: action,
           event: event,
           translationEvent: translationEvent,
           translationMods: translationMods,
-          text: text,
           composing: false
         )
       }
+      return
+    }
+
+    if let list = keyTextAccumulator, !list.isEmpty {
+      for text in list {
+        if Self.shouldSuppressComposingControlInput(text, composing: composing) {
+          continue
+        }
+        _ = sendKey(
+          action: action,
+          event: event,
+          translationEvent: translationEvent,
+          translationMods: translationMods,
+          text: text
+        )
+      }
     } else {
+      if Self.shouldSuppressComposingControlInput(event.characters, composing: composing) {
+        return
+      }
       _ = sendKey(
         action: action,
         event: event,
         translationEvent: translationEvent,
         translationMods: translationMods,
         text: GhosttyKeyEvent.characters(translationEvent),
-        composing: markedText.length > 0 || markedTextBefore
+        composing: composing
       )
     }
   }
@@ -1614,6 +1644,56 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return ghostty_surface_key(surface, key)
   }
 
+  static func shouldReplayCommittedPreeditKey(_ event: NSEvent) -> Bool {
+    switch Int(event.keyCode) {
+    case kVK_DownArrow, kVK_RightArrow, kVK_UpArrow:
+      return true
+    case kVK_LeftArrow:
+      return !event.modifierFlags.isDisjoint(with: [.shift, .control, .option, .command])
+    default:
+      return false
+    }
+  }
+
+  static func withCommittedPreeditKey<Result>(
+    action: ghostty_input_action_e,
+    text: String,
+    perform: (ghostty_input_key_s) -> Result
+  ) -> Result {
+    var key = ghostty_input_key_s()
+    key.action = action
+    key.keycode = 0
+    key.text = nil
+    key.composing = false
+    key.mods = GHOSTTY_MODS_NONE
+    key.consumed_mods = GHOSTTY_MODS_NONE
+    key.unshifted_codepoint = 0
+    return text.withCString { pointer in
+      key.text = pointer
+      return perform(key)
+    }
+  }
+
+  private func sendCommittedPreeditText(
+    _ text: String,
+    action: ghostty_input_action_e
+  ) -> Bool {
+    guard let surface else { return false }
+    return Self.withCommittedPreeditKey(action: action, text: text) { key in
+      ghostty_surface_key(surface, key)
+    }
+  }
+
+  static func shouldSuppressComposingControlInput(
+    _ text: String?,
+    composing: Bool
+  ) -> Bool {
+    guard composing, let text else { return false }
+    let scalars = text.unicodeScalars
+    guard scalars.count == 1, let scalar = scalars.first else { return false }
+    return scalar.value < 0x20
+  }
+
   @discardableResult
   func performBindingAction(_ action: String) -> Bool {
     guard let surface else { return false }
@@ -1926,6 +2006,7 @@ extension GhosttySurfaceView: NSTextInputClient {
     default:
       return
     }
+    let hadMarkedText = hasMarkedText()
     unmarkText()
     if var acc = keyTextAccumulator {
       acc.append(chars)
@@ -1933,8 +2014,11 @@ extension GhosttySurfaceView: NSTextInputClient {
       return
     }
     defer { recordUserInput() }
+    if hadMarkedText, !chars.isEmpty {
+      _ = sendCommittedPreeditText(chars, action: GHOSTTY_ACTION_PRESS)
+      return
+    }
     let len = chars.utf8CString.count
-    if len == 0 { return }
     chars.withCString { ptr in
       ghostty_surface_text(surface, ptr, UInt(len - 1))
     }
