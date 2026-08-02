@@ -335,6 +335,14 @@ let project = Project(
         "supaterm/Features/Chrome",
         "supaterm/Features/Terminal",
       ],
+      copyFiles: [
+        .executables(
+          name: "Embed sp CLI",
+          files: [
+            .buildProduct(name: "sp", codeSignOnCopy: true),
+          ]
+        ),
+      ],
       scripts: [
         .pre(
           script: """
@@ -381,7 +389,7 @@ let project = Project(
           script: """
             set -euo pipefail
 
-            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/zmx"
+            destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
             destination_path="${destination_dir}/zmx"
             source_path="${SRCROOT}/\(zmxBinaryPath.pathString)"
 
@@ -392,7 +400,11 @@ let project = Project(
 
             mkdir -p "${destination_dir}"
             rm -f "${destination_path}"
-            /bin/cp -f "${source_path}" "${destination_path}"
+            /usr/bin/install -m 755 "${source_path}" "${destination_path}"
+            if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
+              identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+              /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
+            fi
             """,
           name: "Embed zmx",
           inputPaths: [
@@ -400,50 +412,14 @@ let project = Project(
             "$(SRCROOT)/\(zmxFingerprintPath.pathString)",
           ],
           outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/zmx/zmx",
-          ]
-        ),
-        .post(
-          script: """
-            set -eu
-
-            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
-            destination_path="${destination_dir}/sp"
-            source_candidates=(
-              "${BUILT_PRODUCTS_DIR}/sp"
-              "${UNINSTALLED_PRODUCTS_DIR}/${PLATFORM_NAME}/sp"
-            )
-
-            source_path=""
-            for candidate in "${source_candidates[@]}"; do
-              if [ -x "${candidate}" ]; then
-                source_path="${candidate}"
-                break
-              fi
-            done
-
-            if [ -z "${source_path}" ]; then
-              echo "error: missing built sp executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            /bin/cp -f "${source_path}" "${destination_path}"
-            """,
-          name: "Embed sp CLI",
-          inputPaths: [
-            "$(BUILT_PRODUCTS_DIR)/sp",
-            "$(UNINSTALLED_PRODUCTS_DIR)/$(PLATFORM_NAME)/sp",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
+            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/zmx",
           ]
         ),
         .post(
           script: """
             set -euo pipefail
 
-            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
+            destination_dir="${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}"
             destination_path="${destination_dir}/ap"
             source_path="${SRCROOT}/\(apBinaryPath.pathString)"
 
@@ -454,7 +430,11 @@ let project = Project(
 
             mkdir -p "${destination_dir}"
             rm -f "${destination_path}"
-            /bin/cp -f "${source_path}" "${destination_path}"
+            /usr/bin/install -m 755 "${source_path}" "${destination_path}"
+            if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
+              identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+              /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
+            fi
             """,
           name: "Embed ap",
           inputPaths: [
@@ -462,7 +442,7 @@ let project = Project(
             "$(SRCROOT)/\(apFingerprintPath.pathString)",
           ],
           outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/ap",
+            "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/ap",
           ]
         ),
         .post(

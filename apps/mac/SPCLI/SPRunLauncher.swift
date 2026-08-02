@@ -1,5 +1,4 @@
 import ArgumentParser
-import Darwin
 import Foundation
 import SupatermCLIShared
 
@@ -69,8 +68,12 @@ enum SPRunLauncher {
     } else {
       processEnvironment.removeValue(forKey: "TERM_PROGRAM_VERSION")
     }
-    processEnvironment["TMUX"] =
-      "/tmp/sp-tmux/\(focusedContext.spaceID.uuidString.lowercased()),\(focusedContext.tabID.uuidString.lowercased()),\(focusedContext.paneID.uuidString.lowercased())"
+    let tmuxSession = [
+      focusedContext.spaceID.uuidString.lowercased(),
+      focusedContext.tabID.uuidString.lowercased(),
+      focusedContext.paneID.uuidString.lowercased(),
+    ].joined(separator: ",")
+    processEnvironment["TMUX"] = "/tmp/sp-tmux/\(tmuxSession)"
     processEnvironment["TMUX_PANE"] = "%\(focusedContext.paneID.uuidString.lowercased())"
     processEnvironment["PATH"] = prependPathEntries([shimDirectory.path], to: environment["PATH"])
 
@@ -107,28 +110,10 @@ enum SPRunLauncher {
       throw ValidationError("run requires a command.")
     }
 
-    if command.contains("/") {
-      let path = URL(fileURLWithPath: command, isDirectory: false)
-        .standardizedFileURL
-        .path
-      if FileManager.default.isExecutableFile(atPath: path) {
-        return (command, path)
-      }
-      return (command, nil)
-    }
-
-    for entry in searchPath?.split(separator: ":").map(String.init) ?? [] where !entry.isEmpty {
-      let path = URL(fileURLWithPath: entry, isDirectory: true)
-        .appendingPathComponent(command, isDirectory: false)
-        .path
-      let candidate = URL(fileURLWithPath: path, isDirectory: false)
-        .standardizedFileURL
-        .path
-      if FileManager.default.isExecutableFile(atPath: candidate) {
-        return (command, candidate)
-      }
-    }
-    return (command, nil)
+    return (
+      command,
+      SPExecutable.resolve(command, searchPath: searchPath)
+    )
   }
 
   static func resolvedCLIPath(
@@ -138,19 +123,17 @@ enum SPRunLauncher {
     let candidates = [
       cliExecutablePath,
       environment[SupatermCLIEnvironment.cliPathKey],
-      CommandLine.arguments.first,
-    ].compactMap { $0 }
+      SPExecutable.currentPath(),
+    ]
 
-    for candidate in candidates {
-      let standardized = URL(fileURLWithPath: candidate, isDirectory: false)
-        .standardizedFileURL
-        .path
-      if FileManager.default.isExecutableFile(atPath: standardized) {
-        return standardized
-      }
+    guard
+      let path = candidates.lazy.compactMap({ $0 }).compactMap({ candidate in
+        SPExecutable.resolve(candidate)
+      }).first
+    else {
+      throw ValidationError("Unable to resolve the sp executable path.")
     }
-
-    throw ValidationError("Unable to resolve the sp executable path.")
+    return path
   }
 
   static func ensureTmuxShimDirectory(
@@ -176,41 +159,10 @@ private func execProcess(_ process: Process) throws -> Never {
     throw ValidationError("Unable to resolve the executable path.")
   }
 
-  let arguments = [executablePath] + (process.arguments ?? [])
-  let environment = process.environment ?? ProcessInfo.processInfo.environment
-  let argv = makeCStringArray(arguments)
-  let envp = makeCStringArray(
-    environment.keys.sorted().map { key in
-      "\(key)=\(environment[key] ?? "")"
-    }
+  try SPProcess.replaceCurrent(
+    executablePath: executablePath,
+    arguments: [executablePath] + (process.arguments ?? []),
+    environment: process.environment ?? ProcessInfo.processInfo.environment,
+    failureDescription: "Failed to launch process"
   )
-  defer {
-    freeCStringArray(argv)
-    freeCStringArray(envp)
-  }
-
-  execve(executablePath, argv, envp)
-  let message = String(cString: strerror(errno))
-  throw ValidationError("Failed to launch process: \(message)")
-}
-
-private func makeCStringArray(_ values: [String]) -> UnsafeMutablePointer<
-  UnsafeMutablePointer<CChar>?
-> {
-  let pointer = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(
-    capacity: values.count + 1)
-  for (index, value) in values.enumerated() {
-    pointer[index] = strdup(value)
-  }
-  pointer[values.count] = nil
-  return pointer
-}
-
-private func freeCStringArray(_ pointer: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) {
-  var index = 0
-  while let value = pointer[index] {
-    free(value)
-    index += 1
-  }
-  pointer.deallocate()
 }

@@ -79,7 +79,7 @@ final class SupatermE2EApp: @unchecked Sendable {
 
   var spExecutable: URL {
     Self.productsDirectory
-      .appendingPathComponent("supaterm.app/Contents/Resources/bin/sp")
+      .appendingPathComponent("supaterm.app/Contents/MacOS/sp")
   }
 
   func cliEnvironment(context: SupatermCLIContext? = nil) -> [String: String] {
