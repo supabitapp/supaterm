@@ -231,6 +231,10 @@ enum TerminalSidebarRowPresentation: Equatable {
 }
 
 enum TerminalSidebarAccessibilityIdentifier {
+  static func spaceDot(_ spaceID: TerminalSpaceID) -> String {
+    "sidebar.space-dot.\(spaceID.rawValue.uuidString.lowercased())"
+  }
+
   static func tab(_ tabID: TerminalTabID, groupID: TerminalTabGroupID?) -> String {
     let tab = tabID.rawValue.uuidString.lowercased()
     guard let groupID else { return "sidebar.tab-row.\(tab)" }
@@ -473,6 +477,9 @@ private struct TerminalSidebarGroupHeader: View {
           .accessibilityAction(named: "Rename Group") {
             renameState.begin(groupID: presentation.id, title: presentation.title)
           }
+          .overlay {
+            TerminalSidebarRowPointerView(entryID: .group(presentation.id))
+          }
 
           Button {
             actions.closeGroup(presentation.id)
@@ -587,12 +594,12 @@ final class TerminalSidebarGroupBackgroundView: NSView {
     super.layout()
     let lineWidth = 1 / (window?.backingScaleFactor ?? 1)
     let shapeBounds = bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
-    let path = CGPath(
-      roundedRect: shapeBounds,
-      cornerWidth: TerminalSidebarLayout.groupCornerRadius,
-      cornerHeight: TerminalSidebarLayout.groupCornerRadius,
-      transform: nil
+    let path = RoundedRectangle(
+      cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+      style: .continuous
     )
+    .path(in: shapeBounds)
+    .cgPath
     fillLayer.frame = bounds
     strokeLayer.frame = bounds
     fillLayer.path = path

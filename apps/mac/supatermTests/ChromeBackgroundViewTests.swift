@@ -74,4 +74,49 @@ struct ChromeBackgroundViewTests {
 
     #expect(view.grainView.layer?.backgroundColor != nil)
   }
+
+  @Test
+  func firstPaletteLandsWithoutCrossfade() {
+    let view = ChromeBackgroundNSView()
+
+    view.apply(Palette(colorScheme: .dark, tint: .blue))
+
+    #expect(view.baseRampView.gradientLayer?.animation(forKey: "colors") == nil)
+    #expect(view.illuminationView.gradientLayer?.animation(forKey: "colors") == nil)
+  }
+
+  @Test
+  func appearanceChangeKeepingTintLandsWithoutCrossfade() {
+    let view = ChromeBackgroundNSView()
+
+    view.apply(Palette(colorScheme: .dark, tint: .blue))
+    view.apply(Palette(colorScheme: .light, tint: .blue))
+
+    #expect(view.baseRampView.gradientLayer?.animation(forKey: "colors") == nil)
+    #expect(view.illuminationView.gradientLayer?.animation(forKey: "colors") == nil)
+  }
+
+  @Test
+  func tintChangeCrossfadesBothRampsFromTheOutgoingColors() {
+    let view = ChromeBackgroundNSView()
+    let outgoing = Palette(colorScheme: .dark, tint: .neutral)
+
+    view.apply(outgoing)
+    view.apply(Palette(colorScheme: .dark, tint: .blue))
+
+    let baseCrossfade = view.baseRampView.gradientLayer?.animation(forKey: "colors") as? CABasicAnimation
+    #expect(
+      baseCrossfade?.fromValue as? [CGColor]
+        == ChromeBackgroundRamp.stops(
+          from: outgoing.chromeBackgroundBaseStartValue,
+          to: outgoing.chromeBackgroundBaseStopValue
+        ).map(\.color.cgColor)
+    )
+
+    for rampView in [view.baseRampView, view.illuminationView] {
+      let crossfade = rampView.gradientLayer?.animation(forKey: "colors") as? CABasicAnimation
+      #expect(crossfade?.duration == GradientRampView.crossfadeDuration)
+      #expect(crossfade?.timingFunction != nil)
+    }
+  }
 }

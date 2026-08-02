@@ -639,7 +639,7 @@ struct SupatermSocketProtocolTests {
       id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       color: .green,
-      isSelected: true,
+      isWarm: true,
       rootItems: [
         .group(
           SupatermTreeSnapshot.Group(
@@ -657,6 +657,7 @@ struct SupatermSocketProtocolTests {
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: true,
+      displayedSpaceID: space.id,
       spaces: [space]
     )
     let snapshot = SupatermTreeSnapshot(
@@ -673,8 +674,12 @@ struct SupatermSocketProtocolTests {
       JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)) as? [String: Any]
     )
     let windows = try #require(json["windows"] as? [[String: Any]])
+    #expect(
+      windows.first?["displayedSpaceID"] as? String == "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497"
+    )
     let spaces = try #require(windows.first?["spaces"] as? [[String: Any]])
     #expect(spaces.first?["color"] as? String == "green")
+    #expect(spaces.first?["isWarm"] as? Bool == true)
     let rootItems = try #require(spaces.first?["rootItems"] as? [[String: Any]])
     let group = try #require(rootItems.first)
     #expect(group["kind"] as? String == "group")
@@ -747,13 +752,14 @@ struct SupatermSocketProtocolTests {
       id: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
       name: "A",
       color: .neutral,
-      isSelected: true,
+      isWarm: true,
       rootItems: [.tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: tab))]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
       isKey: true,
       isVisible: true,
+      displayedSpaceID: space.id,
       spaces: [space]
     )
     let snapshot = SupatermAppDebugSnapshot(
@@ -1084,17 +1090,11 @@ struct SupatermSocketProtocolTests {
 
   @Test
   func spaceAndLayoutRequestsRoundTripThroughTypedHelpers() throws {
-    let windowAnchorPaneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     let equalizeTabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
     let tileTabID = UUID(uuidString: "EB0608F9-75AF-41C4-BE62-8070DC604550")!
     let mainVerticalTabID = UUID(uuidString: "FBAE38E2-56FA-424C-91B0-4DE814DE39D2")!
     let createSpaceRequest = try SupatermSocketRequest.createSpace(
-      SupatermCreateSpaceRequest(
-        color: nil,
-        focus: false,
-        name: "Build",
-        windowAnchorPaneID: windowAnchorPaneID
-      ),
+      SupatermCreateSpaceRequest(color: nil, name: "Build"),
       id: "create-space-1"
     )
     let equalizeRequest = try SupatermSocketRequest.equalizePanes(
@@ -1113,12 +1113,7 @@ struct SupatermSocketProtocolTests {
     #expect(createSpaceRequest.method == SupatermSocketMethod.terminalCreateSpace)
     #expect(
       try createSpaceRequest.decodeParams(SupatermCreateSpaceRequest.self)
-        == SupatermCreateSpaceRequest(
-          color: nil,
-          focus: false,
-          name: "Build",
-          windowAnchorPaneID: windowAnchorPaneID
-        )
+        == SupatermCreateSpaceRequest(color: nil, name: "Build")
     )
     #expect(equalizeRequest.method == SupatermSocketMethod.terminalEqualizePanes)
     #expect(

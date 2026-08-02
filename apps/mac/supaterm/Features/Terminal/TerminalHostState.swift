@@ -28,6 +28,7 @@ nonisolated enum TerminalSurfaceCloseSource: String, Sendable {
 nonisolated enum TerminalTreeRemovalSource: String, Sendable {
   case closeTab = "closeTab"
   case controlCleanup = "control.cleanup"
+  case deleteSpace = "space.delete"
   case sessionClear = "session.clear"
 }
 
@@ -55,20 +56,6 @@ final class TerminalHostState {
     case select(TerminalSpaceID)
     case selectSlot(Int)
     case setColor(TerminalSpaceID, ThemeTint)
-  }
-
-  struct NewTabSelectionInput: Equatable {
-    let selectedTabID: TerminalTabID?
-    let targetTabID: TerminalTabID
-    let windowActivity: WindowActivityState
-    let focusedSurfaceID: UUID?
-    let surfaceID: UUID
-  }
-
-  struct NewTabSelectionState: Equatable {
-    let isFocused: Bool
-    let isSelectedSpace: Bool
-    let isSelectedTab: Bool
   }
 
   struct NewPaneSelectionState: Equatable {
@@ -291,16 +278,17 @@ final class TerminalHostState {
   @ObservationIgnored
   var spaceCatalogObservationTask: Task<Void, Never>?
   var runtimeConfigObserver: NSObjectProtocol?
-  @ObservationIgnored
-  var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
   var onSessionChange: @MainActor () -> Void = {}
   var onSpaceAction: @MainActor (SpaceAction) -> Void = { _ in }
+  @ObservationIgnored
+  var paneCountAcrossWindows: @MainActor (TerminalSpaceID) -> Int = { _ in 0 }
   @ObservationIgnored
   var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
   @ObservationIgnored
   var onSurfaceRemoved: @MainActor (UUID) -> Void = { _ in }
   @ObservationIgnored
   var agentPanelController: TerminalAgentPanelController?
+  weak var spacePager: SpaceSwipeController?
   let spaceManager: TerminalSpaceManager
 
   var pendingEvents: [TerminalClient.Event] = []
@@ -310,8 +298,6 @@ final class TerminalHostState {
   var notificationStore = TerminalNotificationStore()
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
   var agentStateStore = TerminalAgentStateStore()
-  var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
-  var collapsedTabGroupIDsBySpace: [TerminalSpaceID: Set<TerminalTabGroupID>] = [:]
   var lastEmittedFocusSurfaceID: UUID?
   var runtimeConfigGeneration = 0
   var suppressesSessionChanges = 0
@@ -327,21 +313,18 @@ final class TerminalHostState {
   ) {
     @Shared(.terminalSpaceCatalog) var launchSpaceCatalog = TerminalSpaceCatalog.default
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(launchSpaceCatalog)
-    let resolvedSpaceID = spaceID ?? initialSpaceCatalog.defaultSelectedSpaceID
-    guard let persistedSpace = initialSpaceCatalog.spaces.first(where: { $0.id == resolvedSpaceID })
-    else {
-      preconditionFailure("TerminalHostState requires a catalog Space")
-    }
     self.managesTerminalSurfaces = managesTerminalSurfaces
     self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
-    self.spaceManager = TerminalSpaceManager(space: persistedSpace)
+    self.spaceManager = TerminalSpaceManager(
+      catalog: initialSpaceCatalog,
+      displayedSpaceID: spaceID ?? initialSpaceCatalog.defaultSelectedSpaceID
+    )
     self.zmxClient = zmxClient
     self.zmxSessionsEnabled = zmxSessionsEnabled
 
     if initialSpaceCatalog != spaceCatalog {
       replaceSpaceCatalog(initialSpaceCatalog)
     }
-    lastAppliedSpaceCatalog = initialSpaceCatalog
     observeRuntimeConfig()
     observeSpaceCatalog()
     agentPanelController = TerminalAgentPanelController(terminal: self)
@@ -401,6 +384,7 @@ final class TerminalHostState {
     case .createGroup,
       .createTab,
       .createTabInGroup,
+      .createTabInSpace,
       .ensureInitialTab,
       .createSpace:
       handleCreationCommand(command)
@@ -470,6 +454,8 @@ final class TerminalHostState {
       _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
     case .createTabInGroup(let groupID, let inheritingFromSurfaceID):
       _ = createTab(in: groupID, inheritingFromSurfaceID: inheritingFromSurfaceID)
+    case .createTabInSpace(let spaceID):
+      createTabInSpace(spaceID)
     case .ensureInitialTab(let focusing, let startupCommand, let workingDirectoryPath):
       ensureInitialTab(
         focusing: focusing,
@@ -555,15 +541,10 @@ final class TerminalHostState {
   }
 
   func togglePinned(_ tabID: TerminalTabID) {
-    guard
-      let spaceID = spaceManager.space(for: tabID)?.id,
-      let manager = spaceManager.tabManager(for: spaceID)
-    else {
-      return
-    }
-    let previousRevision = manager.topologyRevision
-    guard let result = manager.togglePinned(tabID) else { return }
-    finishMove(result, previousRevision: previousRevision, spaceID: spaceID)
+    guard let instance = spaceManager.instance(for: tabID) else { return }
+    let previousRevision = instance.tabManager.topologyRevision
+    guard let result = instance.tabManager.togglePinned(tabID) else { return }
+    finishMove(result, previousRevision: previousRevision, spaceID: instance.spaceID)
   }
 
   @discardableResult
@@ -596,7 +577,7 @@ final class TerminalHostState {
       fields: [
         "isKeyWindow=\(activity.isKeyWindow)",
         "isVisible=\(activity.isVisible)",
-        "selectedSpaceID=\(SupatermLog.uuid(selectedSpaceID?.rawValue))",
+        "displayedSpaceID=\(SupatermLog.uuid(displayedSpaceID.rawValue))",
         "selectedTabID=\(SupatermLog.uuid(selectedTabID?.rawValue))",
         "focusedSurfaceID=\(SupatermLog.uuid(focusedSurfaceID))",
       ]
@@ -823,17 +804,15 @@ final class TerminalHostState {
   }
 
   func performCloseTab(_ tabID: TerminalTabID) {
-    guard let space = spaceManager.space(for: tabID) else { return }
-    guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
-    let wasSelectedSpace = selectedSpaceID == space.id
+    guard let instance = spaceManager.instance(for: tabID) else { return }
+    let tabManager = instance.tabManager
     let wasSelectedTab = tabManager.selectedTabId == tabID
 
     removeTree(for: tabID, source: .closeTab)
     guard let result = tabManager.closeTab(tabID) else { return }
-    removeCollapsedGroups(result.deletedEmptyGroupIDs, in: space.id)
+    removeCollapsedGroups(result.deletedEmptyGroupIDs, in: instance.spaceID)
     updateSelectionAfterClosingTab(
-      in: space.id,
-      wasSelectedSpace: wasSelectedSpace,
+      in: instance.spaceID,
       didCloseSelectedTab: wasSelectedTab
     )
     syncFocus(windowActivity)
@@ -850,18 +829,13 @@ final class TerminalHostState {
   }
 
   func performCloseGroup(_ groupID: TerminalTabGroupID) {
-    guard
-      let space = spaceManager.space(for: groupID),
-      let tabManager = spaceManager.tabManager(for: space.id)
-    else {
-      return
-    }
+    guard let instance = spaceManager.instance(for: groupID) else { return }
     withBatchedSessionChange {
-      for tabID in tabManager.tabIDs(in: groupID) {
+      for tabID in instance.tabManager.tabIDs(in: groupID) {
         performCloseTab(tabID)
       }
-      _ = tabManager.deleteEmptyGroup(groupID)
-      collapsedTabGroupIDsBySpace[space.id]?.remove(groupID)
+      _ = instance.tabManager.deleteEmptyGroup(groupID)
+      instance.collapsedTabGroupIDs.remove(groupID)
     }
   }
 
@@ -1086,9 +1060,7 @@ final class TerminalHostState {
 
   func updateTabTitle(for tabID: TerminalTabID) {
     let resolvedTitle = currentTabTitle(for: tabID)
-    spaceManager.space(for: tabID)
-      .flatMap { spaceManager.tabManager(for: $0.id) }?
-      .updateTitle(tabID, title: resolvedTitle)
+    spaceManager.instance(for: tabID)?.tabManager.updateTitle(tabID, title: resolvedTitle)
   }
 
   func focusSurface(in tabID: TerminalTabID) {
@@ -1164,22 +1136,6 @@ final class TerminalHostState {
     return NewPaneSelectionState(isFocused: activity.isFocused, isSelectedTab: isSelectedTab)
   }
 
-  static func newTabSelectionState(_ input: NewTabSelectionInput) -> NewTabSelectionState {
-    let isSelectedTab = input.targetTabID == input.selectedTabID
-    let activity = surfaceActivity(
-      isSelectedTab: isSelectedTab,
-      windowIsVisible: input.windowActivity.isVisible,
-      windowIsKey: input.windowActivity.isKeyWindow,
-      focusedSurfaceID: input.focusedSurfaceID,
-      surfaceID: input.surfaceID
-    )
-    return NewTabSelectionState(
-      isFocused: activity.isFocused,
-      isSelectedSpace: true,
-      isSelectedTab: isSelectedTab
-    )
-  }
-
   func notifications(for tabID: TerminalTabID) -> [UUID: [PaneNotification]] {
     guard let tree = trees[tabID] else { return [:] }
     return Dictionary(
@@ -1233,9 +1189,7 @@ final class TerminalHostState {
     let isRunning = tree.leaves().contains { surface in
       Self.isRunning(progressState: surface.bridge.state.progressState)
     }
-    spaceManager.space(for: tabID)
-      .flatMap { spaceManager.tabManager(for: $0.id) }?
-      .updateDirty(tabID, isDirty: isRunning)
+    spaceManager.instance(for: tabID)?.tabManager.updateDirty(tabID, isDirty: isRunning)
   }
 
   nonisolated static func logSurfaceIDs(_ surfaceIDs: some Sequence<UUID>) -> String {
@@ -1269,9 +1223,7 @@ final class TerminalHostState {
   }
 
   func setLockedTabTitle(_ title: String?, for tabID: TerminalTabID) {
-    spaceManager.space(for: tabID)
-      .flatMap { spaceManager.tabManager(for: $0.id) }?
-      .setLockedTitle(tabID, title: title)
+    spaceManager.instance(for: tabID)?.tabManager.setLockedTitle(tabID, title: title)
     updateTabTitle(for: tabID)
     sessionDidChange()
   }
@@ -1357,14 +1309,35 @@ final class TerminalHostState {
   }
 
   func debugPaneSnapshot(
-    _ surface: GhosttySurfaceView,
+    _ surface: GhosttySurfaceView?,
+    id: UUID,
     index: Int,
     isFocused: Bool
   ) -> SupatermAppDebugSnapshot.Pane {
+    guard let surface else {
+      return SupatermAppDebugSnapshot.Pane(
+        index: index,
+        id: id,
+        isFocused: isFocused,
+        displayTitle: "Pane \(index)",
+        pwd: nil,
+        isReadOnly: false,
+        hasSecureInput: false,
+        bellCount: 0,
+        isRunning: false,
+        progressState: nil,
+        progressValue: nil,
+        needsCloseConfirmation: false,
+        lastCommandExitCode: nil,
+        lastCommandDurationMs: nil,
+        lastChildExitCode: nil,
+        lastChildExitTimeMs: nil
+      )
+    }
     let state = surface.bridge.state
     return SupatermAppDebugSnapshot.Pane(
       index: index,
-      id: surface.id,
+      id: id,
       isFocused: isFocused,
       displayTitle: surface.resolvedDisplayTitle(defaultValue: "Pane \(index)"),
       pwd: Self.trimmedNonEmpty(state.pwd),

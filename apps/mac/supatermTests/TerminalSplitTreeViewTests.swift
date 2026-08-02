@@ -23,6 +23,25 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  @MainActor
+  func splitContainerOwnsItsBackgroundBelowHostedTerminals() {
+    let initialColor = NSColor(deviceWhite: 0.1, alpha: 1)
+    let updatedColor = NSColor(deviceWhite: 0.2, alpha: 1)
+    let container = TerminalSplitAXContainerView(backgroundColor: initialColor)
+
+    container.update(
+      backgroundColor: updatedColor,
+      rootView: AnyView(EmptyView()),
+      visibleNode: nil,
+      action: { _ in },
+      panes: []
+    )
+
+    #expect(container.backgroundColor == updatedColor)
+    #expect(container.subviews.count == 2)
+  }
+
+  @Test
   func notificationPulsePatternMatchesThreeFixedSizePulses() {
     #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
     #expect(TerminalNotificationPulsePattern.lowOpacity == 0.32)

@@ -1,6 +1,84 @@
 import Foundation
 import SupatermCLIShared
 
+private struct ClaudeWorkflowProgressState {
+  private var transcriptDirectoriesByTaskID: [String: String] = [:]
+
+  mutating func completedTranscriptDirectories(
+    in objects: [JSONObject],
+    didReset: Bool
+  ) -> [String] {
+    if didReset {
+      transcriptDirectoriesByTaskID = [:]
+    }
+    var completedDirectories: [String] = []
+    for object in objects {
+      if let launch = Self.workflowLaunch(in: object) {
+        transcriptDirectoriesByTaskID[launch.taskID] = launch.transcriptDirectory
+      }
+      if let taskID = Self.stoppedWorkflowTaskID(in: object)
+        ?? Self.completedWorkflowTaskID(in: object),
+        let transcriptDirectory = transcriptDirectoriesByTaskID.removeValue(forKey: taskID)
+      {
+        completedDirectories.append(transcriptDirectory)
+      }
+    }
+    let activeDirectories = Set(transcriptDirectoriesByTaskID.values)
+    return completedDirectories.reduce(into: []) { directories, directory in
+      guard !activeDirectories.contains(directory), !directories.contains(directory) else {
+        return
+      }
+      directories.append(directory)
+    }
+  }
+
+  private static func workflowLaunch(
+    in object: JSONObject
+  ) -> (taskID: String, transcriptDirectory: String)? {
+    guard let result = object["toolUseResult"]?.objectValue,
+      result["status"]?.stringValue == "async_launched",
+      result["taskType"]?.stringValue == "local_workflow",
+      let taskID = result["taskId"]?.stringValue,
+      let transcriptDirectory = result["transcriptDir"]?.stringValue
+    else {
+      return nil
+    }
+    return (taskID, URL(fileURLWithPath: transcriptDirectory).standardizedFileURL.path)
+  }
+
+  private static func stoppedWorkflowTaskID(in object: JSONObject) -> String? {
+    guard let result = object["toolUseResult"]?.objectValue,
+      result["task_type"]?.stringValue == "local_workflow",
+      result["message"]?.stringValue?.hasPrefix("Successfully stopped task:") == true
+    else {
+      return nil
+    }
+    return result["task_id"]?.stringValue
+  }
+
+  private static func completedWorkflowTaskID(in object: JSONObject) -> String? {
+    guard object["origin"]?.objectValue?["kind"]?.stringValue == "task-notification",
+      let content = object["message"]?.objectValue?["content"]?.stringValue,
+      let status = element("status", in: content),
+      ["completed", "failed", "stopped"].contains(status)
+    else {
+      return nil
+    }
+    return element("task-id", in: content)
+  }
+
+  private static func element(_ name: String, in text: String) -> String? {
+    let start = "<\(name)>"
+    let end = "</\(name)>"
+    guard let startRange = text.range(of: start),
+      let endRange = text.range(of: end, range: startRange.upperBound..<text.endIndex)
+    else {
+      return nil
+    }
+    return String(text[startRange.upperBound..<endRange.lowerBound])
+  }
+}
+
 private struct ClaudeProgressTask: Equatable {
   var taskID: String
   var title: String
@@ -286,19 +364,29 @@ final class ClaudePanelMonitor: AgentPanelMonitor {
   private var transcriptState = ClaudeTranscriptTaskState()
   private var transcriptRows: [PaneAgentProgressRow] = []
   private var currentSnapshot: AgentMonitorSnapshot?
+  private var workflowState = ClaudeWorkflowProgressState()
 
   func consume(_ update: AgentTranscriptUpdate) -> AgentMonitorSnapshot? {
     if update.didReset {
       transcriptState = ClaudeTranscriptTaskState()
       transcriptRows = []
     }
+    let completedSubagentTranscriptDirectories = workflowState.completedTranscriptDirectories(
+      in: update.objects,
+      didReset: update.didReset
+    )
     if let rows = apply(update.objects) {
       transcriptRows = rows
     }
     let nextSnapshot = AgentMonitorSnapshot(progressRows: transcriptRows)
-    guard nextSnapshot != currentSnapshot else { return nil }
+    guard nextSnapshot != currentSnapshot || !completedSubagentTranscriptDirectories.isEmpty else {
+      return nil
+    }
     currentSnapshot = nextSnapshot
-    return nextSnapshot
+    return AgentMonitorSnapshot(
+      progressRows: transcriptRows,
+      completedSubagentTranscriptDirectories: completedSubagentTranscriptDirectories
+    )
   }
 
   private func apply(_ objects: [JSONObject]) -> [PaneAgentProgressRow]? {

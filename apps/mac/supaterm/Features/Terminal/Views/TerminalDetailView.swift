@@ -290,6 +290,7 @@ private struct TerminalSurfacePaneView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(palette.detailBackground)
   }
 
   private var agentPanelPresentations: [UUID: PaneAgentPanelPresentation] {

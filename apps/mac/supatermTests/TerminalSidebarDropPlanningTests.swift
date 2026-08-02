@@ -87,12 +87,19 @@ struct TerminalSidebarDropPlanningTests {
       path: .rootItem(index: 1),
       outline: outline
     )
+    let end = TerminalSidebarDropPlanner.plan(
+      payload: payload,
+      path: .group(groupID, index: 1),
+      outline: outline
+    )
 
     #expect(reorder?.destination == .root(isPinned: false, index: 0))
     #expect(reorder?.placeholder == .before(.tab(target)))
     #expect(append?.destination == .group(groupID, index: 1))
     #expect(append?.placeholder == .groupEnd(groupID))
     #expect(append?.highlightedGroupID == groupID)
+    #expect(end?.destination == .group(groupID, index: 1))
+    #expect(end?.placeholder == .groupEnd(groupID))
   }
 
   @Test

@@ -268,6 +268,7 @@ let project = Project(
       bundleId: "app.supabit.supaterm",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .extendingDefault(with: [
+        "CFBundleDisplayName": "Supaterm",
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "LSApplicationCategoryType": "public.app-category.developer-tools",
@@ -626,6 +627,7 @@ let project = Project(
       bundleId: "app.supabit.supaterm.snapshot-catalog",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .extendingDefault(with: [
+        "CFBundleDisplayName": "Supaterm",
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "LSApplicationCategoryType": "public.app-category.developer-tools",

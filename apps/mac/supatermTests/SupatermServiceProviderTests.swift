@@ -17,7 +17,15 @@ struct SupatermServiceProviderTests {
   }
 
   @Test
-  func fileSelectionUsesParentDirectoryPath() throws {
+  func urlTextDoesNotProduceDirectoryPath() {
+    let pasteboard = makePasteboard()
+    #expect(pasteboard.setString("https://supaterm.com/docs", forType: .URL))
+
+    #expect(SupatermServiceProvider.directoryPaths(from: pasteboard).isEmpty)
+  }
+
+  @Test
+  func fileSelectionDoesNotProduceDirectoryPath() throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
     let fileURL = root.appendingPathComponent("file.txt")
@@ -25,7 +33,7 @@ struct SupatermServiceProviderTests {
 
     let pasteboard = makePasteboard([fileURL])
 
-    #expect(SupatermServiceProvider.directoryPaths(from: pasteboard) == [root.path(percentEncoded: false)])
+    #expect(SupatermServiceProvider.directoryPaths(from: pasteboard).isEmpty)
   }
 
   @Test
@@ -36,10 +44,8 @@ struct SupatermServiceProviderTests {
     let second = root.appendingPathComponent("b", isDirectory: true)
     try FileManager.default.createDirectory(at: first, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
-    let secondFile = second.appendingPathComponent("file.txt")
-    try "x".write(to: secondFile, atomically: true, encoding: .utf8)
 
-    let pasteboard = makePasteboard([secondFile, first, second])
+    let pasteboard = makePasteboard([second, first, second])
 
     #expect(
       SupatermServiceProvider.directoryPaths(from: pasteboard) == [

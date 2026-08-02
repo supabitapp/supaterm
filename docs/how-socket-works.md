@@ -60,14 +60,66 @@ Discovery rules:
 ## Terminal Topology
 
 - Socket operations target the live terminal model exposed by the app.
+- A space is a shared identity: name, color, and catalog order. Every window can display every space.
+- Tabs live per window per space. The same space holds different tabs in different windows.
+- A window displays one space at a time and switches in place. No socket command opens or closes a window to reach a space.
 - Explicit hierarchical selectors resolve in window, then space, then tab, then pane order before the request is sent.
 - Pane-context targeting is available when the CLI is launched from inside Supaterm.
 - Public selectors are 1-based:
   - Space: `1`
   - Tab: `1/2`
   - Pane: `1/2/3`
+- Space indexes follow catalog order, which is the order of the switcher dots, and mean the same thing in every window.
 - UUIDs are accepted anywhere the matching command accepts a space, tab, or pane.
 - Creation commands return typed IDs: `spaceID`, `tabID`, and `paneID`.
+
+### The ambient window
+
+Space commands, and tab creation aimed at a space, act on one window: the ambient window.
+
+- The CLI sends `SUPATERM_SURFACE_ID` and `SUPATERM_TAB_ID` as the request `context`.
+- The app maps that context to the window that owns the pane or tab.
+- Without a context, the app uses the key window.
+- The command switches that window and leaves every other window alone.
+
+### Tree shape
+
+`app.tree` and `app.debug` report every window with the space it displays and every space in
+catalog order. A space the window has not opened yet in this run reports `isWarm: false` along with
+the tabs from its saved layout; its panes exist on disk but have no live surface until the window
+displays that space or a command creates a tab there.
+
+```json
+{
+  "windows": [
+    {
+      "index": 1,
+      "isKey": true,
+      "displayedSpaceID": "6D1B...",
+      "spaces": [
+        {
+          "index": 1,
+          "id": "6D1B...",
+          "name": "Work",
+          "color": "green",
+          "isWarm": true,
+          "rootItems": [
+            { "kind": "tab", "isPinned": false, "tab": { "id": "3F0A...", "title": "shell", "isSelected": true, "panes": [{ "index": 1, "id": "9C77...", "isFocused": true }] } }
+          ]
+        },
+        {
+          "index": 2,
+          "id": "A41E...",
+          "name": "Logs",
+          "color": "blue",
+          "isWarm": false,
+          "rootItems": []
+        }
+      ]
+    }
+  ]
+}
+```
 
 ## Public CLI Surface
 
@@ -92,7 +144,12 @@ sp pane capture --instance 2F4D3B19-91EC-4F78-9BCE-6F3F4E301E59 1/2/3
 Terminal control:
 
 ```bash
-sp space new --focus Work
+sp space ls
+sp space new Work
+sp space focus 2
+sp space next
+sp space last
+sp space destroy -y 3
 sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
 sp pane split --in 1/2 right
 sp pane send --newline 'echo hello'
@@ -130,6 +187,15 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
 - `terminal.*` — space, tab, and pane control, one method per CLI verb
+
+Space methods carry the ambient `context` instead of a window index:
+
+- `terminal.create_space` takes a name, an optional color, and the context. It appends to the catalog and displays the new space in the ambient window. It never opens a window.
+- `terminal.select_space` takes a space ID and the context, and switches the ambient window in place.
+- `terminal.next_space`, `terminal.previous_space`, and `terminal.last_space` take only the context. The app derives the starting point from the window's displayed space, and `last` uses that window's previous space.
+- `terminal.close_space` destroys the space everywhere: it kills that space's tabs in every window, and windows displaying it fall back to the catalog neighbor. No window closes.
+- `terminal.new_tab` aimed at a space resolves the space inside the ambient window, opens its saved tabs first when needed, and with `focus` also switches the window to that space.
+- `sp space ls` needs no method of its own; the CLI reads `app.tree` and prints the ambient window's spaces.
 
 ## Code Index
 

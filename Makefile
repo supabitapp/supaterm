@@ -29,7 +29,7 @@ install-git-hooks:  # Install repo-local Git hooks.
 bump-and-release:  # Compute the next CalVer version, then push an annotated release tag for the stable build.
 	@python3 .github/scripts/bump_and_release.py
 
-worktree-create:  # Create a worktree and copy ignored and untracked files. Example: make worktree-create WORKTREE=my-branch
+worktree-create: install-git-hooks  # Create a worktree and copy ignored and untracked files. Example: make worktree-create WORKTREE=my-branch
 	@test -n "$(WORKTREE)" || { echo "error: WORKTREE is required, example: make worktree-create WORKTREE=my-branch" >&2; exit 1; }; \
 	export PATH="$$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$$PATH"; \
 	wt_bin="$$(command -v wt || true)"; \

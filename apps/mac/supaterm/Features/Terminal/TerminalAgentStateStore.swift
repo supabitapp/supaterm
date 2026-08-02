@@ -216,7 +216,7 @@ nonisolated struct TerminalAgentStateStore {
     if case .subagentStarted = event.action { return true }
     guard let child = state.activeChildren[key] else { return false }
     switch event.action {
-    case .subagentDescribed, .subagentStopped, .attentionRequested, .turnStarted, .turnCompleted,
+    case .subagentDescribed, .subagentStopped, .attentionRequested, .turnStarted,
       .turnContinuesInBackground:
       return true
     case .attentionResolved(let requestID):
@@ -225,7 +225,7 @@ nonisolated struct TerminalAgentStateStore {
     case .turnRunning:
       return child.phase != .needsInput
     case .hoverMessagesUpdated, .progressUpdated, .sessionEnded, .sessionResumed, .sessionStarted,
-      .subagentStarted:
+      .subagentStarted, .turnCompleted:
       return false
     }
   }
@@ -354,9 +354,13 @@ nonisolated struct TerminalAgentStateStore {
           detail: nil
         )
       }
-    case .subagentDescribed(let nickname, let task):
+    case .subagentDescribed(let nickname, let task, let transcriptPath):
       guard let child = state.activeChildren[childKey] else { return }
-      state.activeChildren[childKey] = child.updating(nickname: nickname, task: task)
+      state.activeChildren[childKey] = child.updating(
+        nickname: nickname,
+        task: task,
+        transcriptPath: transcriptPath
+      )
     case .subagentStopped:
       state.activeChildren.removeValue(forKey: childKey)
     default:
@@ -384,7 +388,6 @@ nonisolated struct TerminalAgentStateStore {
       && (child.attentionRequestID == nil || child.attentionRequestID == requestID):
       update = (.running, nil)
     case .turnStarted: update = (.running, nil)
-    case .turnCompleted: update = (.idle, nil)
     case .turnContinuesInBackground: update = (.running, nil)
     case .turnRunning(let detail) where child.phase != .needsInput: update = (.running, detail)
     default: update = nil
@@ -687,6 +690,29 @@ nonisolated struct TerminalAgentStateStore {
 
   func hasSession(agent: SupatermAgentKind, sessionID: String) -> Bool {
     sessions[SessionKey(agent: agent, sessionID: sessionID)] != nil
+  }
+
+  @discardableResult
+  mutating func removeChildren(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    transcriptDirectoryPath: String
+  ) -> Bool {
+    let key = SessionKey(agent: agent, sessionID: sessionID)
+    guard var state = sessions[key] else { return false }
+    let transcriptDirectoryPath = URL(fileURLWithPath: transcriptDirectoryPath).standardizedFileURL
+      .path
+    let count = state.activeChildren.count
+    state.activeChildren = state.activeChildren.filter { _, child in
+      guard let transcriptPath = child.transcriptPath else { return true }
+      return URL(fileURLWithPath: transcriptPath)
+        .deletingLastPathComponent()
+        .standardizedFileURL
+        .path != transcriptDirectoryPath
+    }
+    guard state.activeChildren.count != count else { return false }
+    store(state, for: key)
+    return true
   }
 
   @discardableResult

@@ -22,6 +22,8 @@ final class ChromeBackgroundNSView: NSView {
   let illuminationView = GradientRampView()
   let grainView = NSView()
 
+  private var appliedTint: ThemeTint?
+
   init() {
     super.init(frame: .zero)
     effectView.material = .underWindowBackground
@@ -44,17 +46,21 @@ final class ChromeBackgroundNSView: NSView {
   }
 
   func apply(_ palette: Palette) {
+    let crossfades = appliedTint != nil && appliedTint != palette.tint
+    appliedTint = palette.tint
     baseRampView.apply(
       ChromeBackgroundRamp.stops(
         from: palette.chromeBackgroundBaseStartValue,
         to: palette.chromeBackgroundBaseStopValue
-      )
+      ),
+      crossfading: crossfades
     )
     illuminationView.apply(
       ChromeBackgroundRamp.stops(
         from: palette.backgroundIlluminationStartValue,
         to: palette.backgroundIlluminationStopValue
-      )
+      ),
+      crossfading: crossfades
     )
   }
 
@@ -66,6 +72,9 @@ final class ChromeBackgroundNSView: NSView {
 }
 
 final class GradientRampView: NSView {
+  static let crossfadeDuration = 0.2
+  private static let crossfadeTiming = CAMediaTimingFunction(name: .easeInEaseOut)
+
   override var isFlipped: Bool { true }
 
   init() {
@@ -87,13 +96,20 @@ final class GradientRampView: NSView {
 
   var gradientLayer: CAGradientLayer? { layer as? CAGradientLayer }
 
-  func apply(_ stops: [ChromeBackgroundRamp.Stop]) {
+  func apply(_ stops: [ChromeBackgroundRamp.Stop], crossfading: Bool) {
     guard let gradientLayer else { return }
+    let outgoingColors = gradientLayer.presentation()?.colors ?? gradientLayer.colors
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     gradientLayer.colors = stops.map(\.color.cgColor)
     gradientLayer.locations = stops.map { NSNumber(value: $0.location) }
     CATransaction.commit()
+    guard crossfading, let outgoingColors else { return }
+    let crossfade = CABasicAnimation(keyPath: "colors")
+    crossfade.fromValue = outgoingColors
+    crossfade.duration = Self.crossfadeDuration
+    crossfade.timingFunction = Self.crossfadeTiming
+    gradientLayer.add(crossfade, forKey: "colors")
   }
 }
 

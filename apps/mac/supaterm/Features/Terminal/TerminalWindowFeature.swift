@@ -171,6 +171,7 @@ struct TerminalWindowFeature {
     case createGroupRequested(title: String, color: ThemeTint, tabIDs: [TerminalTabID])
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
     case newTabInGroupRequested(TerminalTabGroupID, inheritingFromSurfaceID: UUID?)
+    case newTabInSpaceRequested(TerminalSpaceID)
     case nextSpaceRequested
     case nextTabMenuItemSelected
     case moveCommitted(TerminalTabMoveRequest)
@@ -454,6 +455,10 @@ struct TerminalWindowFeature {
         return sendCommand(
           .createTabInGroup(groupID, inheritingFromSurfaceID: inheritingFromSurfaceID)
         )
+
+      case .newTabInSpaceRequested(let spaceID):
+        analyticsClient.capture("terminal_tab_created")
+        return sendCommand(.createTabInSpace(spaceID))
 
       case .nextSpaceRequested:
         return sendCommand(.nextSpace)

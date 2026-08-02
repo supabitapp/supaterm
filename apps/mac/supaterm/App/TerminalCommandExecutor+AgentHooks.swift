@@ -119,13 +119,21 @@ extension TerminalCommandExecutor {
       clearMonitoring(scope)
       return
     }
+    var didChange = false
+    for transcriptDirectoryPath in snapshot.completedSubagentTranscriptDirectories {
+      didChange = terminal.removeAgentChildren(
+        agent: scope.agent,
+        sessionID: scope.sessionID,
+        transcriptDirectoryPath: transcriptDirectoryPath
+      ) || didChange
+    }
     let turnID = scope.subagentID == nil ? snapshot.status?.turnID : scope.turnID
     var actions: [TerminalAgentEvent.Action] = []
     switch snapshot.status {
     case .started:
       actions.append(.turnRunning(detail: snapshot.detail))
     case .aborted, .completed, .failed:
-      actions.append(.turnCompleted(message: nil))
+      actions.append(scope.subagentID == nil ? .turnCompleted(message: nil) : .subagentStopped)
     case nil:
       if snapshot.detail != nil {
         actions.append(.turnRunning(detail: snapshot.detail))
@@ -135,7 +143,6 @@ extension TerminalCommandExecutor {
       actions.append(.hoverMessagesUpdated(snapshot.hoverMessages))
       actions.append(.progressUpdated(snapshot.progressRows, source: .transcript))
     }
-    var didChange = false
     for action in actions {
       let event = TerminalAgentEvent(
         scope: TerminalAgentEvent.Scope(
@@ -149,6 +156,9 @@ extension TerminalCommandExecutor {
         origin: .transcript
       )
       didChange = terminal.applyAgentEvent(event).changed || didChange
+    }
+    if actions.contains(.subagentStopped) {
+      clearMonitoring(scope)
     }
     if didChange {
       terminal.sessionDidChange()
@@ -328,6 +338,7 @@ extension TerminalCommandExecutor {
     scope: TerminalAgentEvent.Scope
   ) -> String? {
     guard scope.subagentID != nil else { return request.event.transcriptPath }
+    guard request.agent == .codex else { return nil }
     for event in events {
       if case .subagentStarted(_, _, _, let transcriptPath) = event.action {
         return transcriptPath

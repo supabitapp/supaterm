@@ -499,12 +499,7 @@ struct SocketControlFeatureTerminalControlTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .createSpace(
-        SupatermCreateSpaceRequest(
-          color: nil,
-          focus: true,
-          name: "Build",
-          windowAnchorPaneID: controlPaneID
-        ),
+        SupatermCreateSpaceRequest(color: nil, name: "Build", context: controlContext),
         id: "create-space-1"
       )
     )
@@ -531,12 +526,7 @@ struct SocketControlFeatureTerminalControlTests {
       $0.terminalWindowsClient.createSpace = { request in
         #expect(
           request
-            == TerminalCreateSpaceRequest(
-              color: nil,
-              focus: true,
-              name: "Build",
-              windowAnchorPaneID: controlPaneID
-            )
+            == TerminalCreateSpaceRequest(color: nil, name: "Build", context: controlContext)
         )
         return result
       }
@@ -556,12 +546,7 @@ struct SocketControlFeatureTerminalControlTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .createSpace(
-        SupatermCreateSpaceRequest(
-          color: nil,
-          focus: false,
-          name: "Build",
-          windowAnchorPaneID: controlPaneID
-        ),
+        SupatermCreateSpaceRequest(color: nil, name: "Build", context: controlContext),
         id: "create-space-duplicate"
       )
     )
@@ -738,4 +723,5 @@ struct SocketControlFeatureTerminalControlTests {
 private let controlSpaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
 private let controlTabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
 private let controlPaneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+private let controlContext = SupatermCLIContext(surfaceID: controlPaneID, tabID: controlTabID)
 private let tileTabID = UUID(uuidString: "EB066866-4BA8-4789-88CE-FB75A921EA0F")!

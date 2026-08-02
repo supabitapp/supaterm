@@ -38,21 +38,22 @@ final class SupatermServiceProvider: NSObject {
   }
 
   static func directoryPaths(from pasteboard: NSPasteboard) -> [String] {
-    guard let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] else {
+    guard
+      let urls = pasteboard.readObjects(
+        forClasses: [NSURL.self],
+        options: [.urlReadingFileURLsOnly: true]
+      ) as? [URL]
+    else {
       return []
     }
-    return directoryPaths(for: urls)
-  }
 
-  static func directoryPaths(for urls: [URL]) -> [String] {
-    Array(
-      Set(
-        urls.map { url in
-          directoryURL(for: url).standardizedFileURL.path(percentEncoded: false)
-        }
-      )
-    )
-    .sorted()
+    let directoryPaths = urls.compactMap { url -> String? in
+      guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+        return nil
+      }
+      return url.standardizedFileURL.path(percentEncoded: false)
+    }
+    return Array(Set(directoryPaths)).sorted()
   }
 
   private func openTerminal(
@@ -72,15 +73,5 @@ final class SupatermServiceProvider: NSObject {
     case .window:
       openWindows(paths)
     }
-  }
-
-  private static func directoryURL(for url: URL) -> URL {
-    if url.hasDirectoryPath {
-      return url
-    }
-    if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-      return url
-    }
-    return url.deletingLastPathComponent()
   }
 }
