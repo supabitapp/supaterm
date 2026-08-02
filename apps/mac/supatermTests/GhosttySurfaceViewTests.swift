@@ -70,6 +70,33 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func surfaceLayoutsDoNotInvalidateWrapper() {
+    initializeGhosttyForTests()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let wrapper = GhosttySurfaceScrollView(surfaceView: surfaceView)
+    wrapper.frame.size = CGSize(width: 800, height: 600)
+    wrapper.layoutSubtreeIfNeeded()
+    var invalidationCount = 0
+
+    for _ in 0..<1_000 {
+      wrapper.needsLayout = false
+      surfaceView.layout()
+      if wrapper.needsLayout {
+        invalidationCount += 1
+      }
+    }
+
+    #expect(invalidationCount == 0)
+  }
+
+  @Test
+  @MainActor
   func failedSurfaceCreationPublishesFailure() {
     initializeGhosttyForTests()
 

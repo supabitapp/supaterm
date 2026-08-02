@@ -515,7 +515,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   override func layout() {
     super.layout()
-    notifySizeChanged()
+    if scrollWrapper == nil {
+      updateSurfaceSize()
+    }
   }
 
   private func notifySizeChanged() {
