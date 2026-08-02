@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import Clocks
 import Darwin
 import GhosttyKit
 import SwiftUI
@@ -147,6 +148,165 @@ struct GhosttySurfaceViewTests {
     #expect(creationCount == 1)
     #expect(surfaceView.surface == nil)
     #expect(surfaceView.bridge.state.failure == .surfaceCreationFailed)
+  }
+
+  @Test
+  @MainActor
+  func selectionChangesNotifyCurrentAccessibilityTextAfterDebounce() async {
+    initializeGhosttyForTests()
+
+    let clock = TestClock()
+    let selection = SelectionTextSource()
+    var selectionReadCount = 0
+    var notifiedSelections: [String?] = []
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      selectionReader: { _ in
+        selectionReadCount += 1
+        return selection.value
+      },
+      accessibilitySelectionNotifier: {
+        notifiedSelections.append($0.accessibilitySelectedText())
+      },
+      accessibilitySelectionSleep: {
+        try await clock.sleep(for: $0)
+      }
+    )
+    defer { surfaceView.closeSurface() }
+
+    selection.value = "first"
+    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()) == false)
+    #expect(selectionReadCount == 0)
+    await advanceClock(clock, by: .milliseconds(100))
+    #expect(notifiedSelections == ["first"])
+
+    selection.value = "second"
+    #expect(surfaceView.accessibilitySelectedText() == "second")
+    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()) == false)
+    await advanceClock(clock, by: .milliseconds(100))
+    #expect(notifiedSelections == ["first", "second"])
+
+    selection.value = nil
+    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()) == false)
+    await advanceClock(clock, by: .milliseconds(100))
+    #expect(notifiedSelections == ["first", "second", nil])
+  }
+
+  @Test
+  @MainActor
+  func rapidSelectionChangesProduceOneNotification() async {
+    initializeGhosttyForTests()
+
+    let clock = TestClock()
+    var notificationCount = 0
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      accessibilitySelectionNotifier: { _ in notificationCount += 1 },
+      accessibilitySelectionSleep: { try await clock.sleep(for: $0) }
+    )
+    defer { surfaceView.closeSurface() }
+
+    for _ in 0..<20 {
+      _ = surfaceView.bridge.handleAction(
+        target: selectionTarget(),
+        action: selectionChangedAction()
+      )
+    }
+
+    await advanceClock(clock, by: .milliseconds(99))
+    #expect(notificationCount == 0)
+    await advanceClock(clock, by: .milliseconds(1))
+    #expect(notificationCount == 1)
+  }
+
+  @Test
+  @MainActor
+  func closingSurfaceCancelsPendingSelectionNotification() async {
+    initializeGhosttyForTests()
+
+    let clock = TestClock()
+    var notificationCount = 0
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      accessibilitySelectionNotifier: { _ in notificationCount += 1 },
+      accessibilitySelectionSleep: { try await clock.sleep(for: $0) }
+    )
+
+    _ = surfaceView.bridge.handleAction(
+      target: selectionTarget(),
+      action: selectionChangedAction()
+    )
+    surfaceView.closeSurface()
+    _ = surfaceView.bridge.handleAction(
+      target: selectionTarget(),
+      action: selectionChangedAction()
+    )
+    await advanceClock(clock, by: .milliseconds(100))
+
+    #expect(notificationCount == 0)
+    #expect(surfaceView.accessibilitySelectedText() == nil)
+  }
+
+  @Test
+  @MainActor
+  func selectionChangeWithoutAccessibilityObserverIsHarmless() async {
+    initializeGhosttyForTests()
+
+    let clock = TestClock()
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      selectionReader: { _ in "selected text" },
+      accessibilitySelectionSleep: { try await clock.sleep(for: $0) }
+    )
+    defer { surfaceView.closeSurface() }
+
+    _ = surfaceView.bridge.handleAction(
+      target: selectionTarget(),
+      action: selectionChangedAction()
+    )
+    await advanceClock(clock, by: .milliseconds(100))
+
+    #expect(surfaceView.accessibilitySelectedText() == "selected text")
+  }
+
+  @Test
+  @MainActor
+  func copyValidationReadsAccessibilitySelection() {
+    initializeGhosttyForTests()
+
+    let selection = SelectionTextSource()
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      selectionReader: { _ in selection.value }
+    )
+    defer { surfaceView.closeSurface() }
+    let copyItem = NSMenuItem(
+      title: "Copy",
+      action: #selector(GhosttySurfaceView.copy(_:)),
+      keyEquivalent: ""
+    )
+
+    #expect(!surfaceView.validateMenuItem(copyItem))
+    selection.value = ""
+    #expect(!surfaceView.validateMenuItem(copyItem))
+    selection.value = "selected text"
+    #expect(surfaceView.validateMenuItem(copyItem))
+    #expect(surfaceView.accessibilitySelectedText() == "selected text")
   }
 
   @Test
@@ -884,6 +1044,19 @@ private func keyDownEvent(
       keyCode: UInt16(keyCode)
     )
   )
+}
+
+private func selectionTarget() -> ghostty_target_s {
+  ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+}
+
+private func selectionChangedAction() -> ghostty_action_s {
+  ghostty_action_s(tag: GHOSTTY_ACTION_SELECTION_CHANGED, action: ghostty_action_u())
+}
+
+@MainActor
+private final class SelectionTextSource {
+  var value: String?
 }
 
 private final class FocusableWrapperView: NSView {
