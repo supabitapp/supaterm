@@ -45,8 +45,8 @@ public enum SPEntrypoint {
       return nil
     }
 
-    let normalizedCandidatePath = SPExecutable.normalizedPath(candidatePath)
-    guard isExecutableFile(normalizedCandidatePath) else {
+    let canonicalCandidatePath = SPExecutable.canonicalPath(candidatePath)
+    guard isExecutableFile(canonicalCandidatePath) else {
       return nil
     }
 
@@ -54,12 +54,12 @@ public enum SPEntrypoint {
       return nil
     }
 
-    let normalizedCurrentExecutablePath = SPExecutable.normalizedPath(currentExecutablePath)
-    guard normalizedCandidatePath != normalizedCurrentExecutablePath else {
+    let canonicalCurrentExecutablePath = SPExecutable.canonicalPath(currentExecutablePath)
+    guard canonicalCandidatePath != canonicalCurrentExecutablePath else {
       return nil
     }
 
-    return normalizedCandidatePath
+    return canonicalCandidatePath
   }
 
   static func handleRawInvocation(
