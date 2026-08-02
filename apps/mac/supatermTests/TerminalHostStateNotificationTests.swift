@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -212,6 +213,8 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let expectedTitle = try #require(host.tabs.first(where: { $0.id == tabID })?.title)
     let surface = try #require(host.selectedSurfaceView)
+    let window = makeWindow(focusing: surface)
+    defer { window.contentView = nil }
     surface.bridge.onDesktopNotification?("   ", "Build finished")
 
     let event = try #require(await iterator.next())
@@ -506,6 +509,8 @@ struct TerminalHostStateNotificationTests {
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
+    let window = makeWindow(focusing: surface)
+    defer { window.contentView = nil }
 
     #expect(host.setTestAgentActivity(.codex(.needsInput), for: surface.id))
 
@@ -714,6 +719,9 @@ struct TerminalHostStateNotificationTests {
 
     #expect(host.hasUnreadSidebarNotifications)
 
+    let window = makeWindow(focusing: surface)
+    defer { window.contentView = nil }
+
     host.handleDirectInteraction(on: surface.id)
 
     #expect(!host.hasUnreadSidebarNotifications)
@@ -738,6 +746,14 @@ struct TerminalHostStateNotificationTests {
         target: .pane(firstSurface.id)
       )
     )
+    let secondSurfaceView = try #require(host.surfaces[secondSurface.paneID])
+    let window = makeWindow()
+    attachTerminalSurfaces(
+      [firstSurface, secondSurfaceView],
+      to: window,
+      focusing: firstSurface
+    )
+    defer { window.contentView = nil }
 
     _ = try host.notify(
       TerminalNotifyRequest(
@@ -757,6 +773,9 @@ struct TerminalHostStateNotificationTests {
 
     host.handleCommand(.selectTab(firstTabID))
 
+    #expect(window.firstResponder === secondSurfaceView)
+    host.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
+
     #expect(host.selectedTabID == firstTabID)
     #expect(host.selectedSurfaceView?.id == secondSurface.paneID)
     #expect(host.unreadNotificationCount(for: firstTabID) == 0)
@@ -774,6 +793,8 @@ struct TerminalHostStateNotificationTests {
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
+    let window = makeWindow(focusing: surface)
+    defer { window.contentView = nil }
 
     _ = try host.notify(
       TerminalNotifyRequest(
@@ -802,6 +823,8 @@ struct TerminalHostStateNotificationTests {
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
+    let window = makeWindow(focusing: surface)
+    defer { window.contentView = nil }
 
     _ = try host.notify(
       TerminalNotifyRequest(

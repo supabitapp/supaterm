@@ -24,6 +24,26 @@ func makeWindow() -> NSWindow {
   )
 }
 
+func attachTerminalSurfaces(
+  _ surfaces: [GhosttySurfaceView],
+  to window: NSWindow,
+  focusing firstResponder: GhosttySurfaceView
+) {
+  let container = NSView(frame: window.contentView?.bounds ?? .zero)
+  for surface in surfaces {
+    surface.frame = container.bounds
+    container.addSubview(surface)
+  }
+  window.contentView = container
+  window.makeFirstResponder(firstResponder)
+}
+
+func makeWindow(focusing surface: GhosttySurfaceView) -> NSWindow {
+  let window = makeWindow()
+  attachTerminalSurfaces([surface], to: window, focusing: surface)
+  return window
+}
+
 func flushEffects() async {
   for _ in 0..<5 {
     await Task.yield()
@@ -137,7 +157,9 @@ func makeClaudeHookHarness<C: Clock<Duration>>(
   let window = makeWindow()
   host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
-  let surfaceID = try #require(host.selectedSurfaceView?.id)
+  let surface = try #require(host.selectedSurfaceView)
+  attachTerminalSurfaces([surface], to: window, focusing: surface)
+  let surfaceID = surface.id
   let tabID = try #require(host.selectedTabID)
   let harness = ClaudeHookHarness(
     commandExecutor: commandExecutor,

@@ -590,11 +590,7 @@ struct SupatermMenuControllerTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      let window = makeWindow()
-      let container = NSView(frame: window.contentView?.bounds ?? .zero)
-      surface.frame = container.bounds
-      container.addSubview(surface)
-      window.contentView = container
+      let window = makeWindow(focusing: surface)
       registry.updateWindow(window, for: windowControllerID)
       let controller = SupatermMenuController(registry: registry)
       defer {

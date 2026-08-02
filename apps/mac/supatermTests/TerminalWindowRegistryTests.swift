@@ -799,8 +799,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func jumpToLatestUnreadMovesNewestFirstAcrossWindows() throws {
-    try withDependencies {
+  func jumpToLatestUnreadMovesNewestFirstAcrossWindows() async throws {
+    try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -812,8 +812,10 @@ struct TerminalWindowRegistryTests {
       newerHost.windowActivity = .inactive
       let olderTabID = try #require(olderHost.selectedTabID)
       let newerTabID = try #require(newerHost.selectedTabID)
-      let olderSurfaceID = try #require(olderHost.selectedSurfaceView?.id)
-      let newerSurfaceID = try #require(newerHost.selectedSurfaceView?.id)
+      let olderSurface = try #require(olderHost.selectedSurfaceView)
+      let newerSurface = try #require(newerHost.selectedSurfaceView)
+      let olderSurfaceID = olderSurface.id
+      let newerSurfaceID = newerSurface.id
 
       olderHost.notificationStore.append(
         TerminalHostState.PaneNotification(
@@ -850,18 +852,30 @@ struct TerminalWindowRegistryTests {
         terminal: newerHost,
         requestConfirmedWindowClose: {}
       )
-      let olderWindow = makeWindow()
-      let newerWindow = makeWindow()
+      let olderWindow = makeWindow(focusing: olderSurface)
+      let newerWindow = makeWindow(focusing: newerSurface)
+      defer {
+        olderWindow.contentView = nil
+        newerWindow.contentView = nil
+      }
       registry.updateWindow(olderWindow, for: olderWindowControllerID)
       registry.updateWindow(newerWindow, for: newerWindowControllerID)
 
       #expect(registry.hasUnreadNotifications)
       #expect(registry.jumpToLatestUnread())
-      #expect(newerHost.unreadNotificationCount(for: newerTabID) == 0)
+      let focusedNewerSurface = await waitUntil {
+        newerWindow.firstResponder === newerSurface
+          && newerHost.unreadNotificationCount(for: newerTabID) == 0
+      }
+      #expect(focusedNewerSurface)
       #expect(olderHost.unreadNotificationCount(for: olderTabID) == 1)
 
       #expect(registry.jumpToLatestUnread())
-      #expect(olderHost.unreadNotificationCount(for: olderTabID) == 0)
+      let focusedOlderSurface = await waitUntil {
+        olderWindow.firstResponder === olderSurface
+          && olderHost.unreadNotificationCount(for: olderTabID) == 0
+      }
+      #expect(focusedOlderSurface)
       #expect(!registry.hasUnreadNotifications)
       #expect(!registry.jumpToLatestUnread())
     }
