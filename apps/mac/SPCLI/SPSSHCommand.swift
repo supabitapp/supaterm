@@ -6,7 +6,8 @@ extension SP {
     static let configuration = CommandConfiguration(
       commandName: "ssh",
       abstract: "Launch SSH with Supaterm terminal compatibility.",
-      discussion: SPHelp.sshDiscussion
+      discussion: SPHelp.sshDiscussion,
+      shouldDisplay: false
     )
 
     @Option(name: .long, help: "TERM value to use for the remote session.")

@@ -22,6 +22,7 @@ struct SPHelpTests {
     #expect(help.contains("sp skills"))
     #expect(help.contains("sp diagnostic"))
     #expect(help.contains("sp instance ls"))
+    #expect(!help.contains("ssh"))
     #expect(!help.contains("install-agent-hooks"))
     #expect(!help.contains("development"))
   }
