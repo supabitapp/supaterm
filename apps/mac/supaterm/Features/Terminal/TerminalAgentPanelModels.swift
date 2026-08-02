@@ -210,13 +210,28 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     if totalCount == 0 {
       return "Checks (0)"
     }
-    if status == .failing {
-      return "Checks failing (\(totalCount))"
+
+    let counts = itemCounts
+    let failingCount = counts[.failing, default: 0]
+    let pendingCount = counts[.pending, default: 0]
+    if failingCount > 0, pendingCount > 0 {
+      return "\(failingCount) failed, \(pendingCount) running"
     }
-    if status == .pending {
-      return "Checks pending (\(totalCount))"
+    if failingCount > 0 {
+      return "\(failingCount) failed"
     }
-    return "Checks passed (\(totalCount))"
+    if pendingCount > 0 {
+      return "\(pendingCount) running"
+    }
+
+    switch status {
+    case .failing:
+      return "Checks failing"
+    case .pending:
+      return "Checks pending"
+    case .passing:
+      return "Checks passed (\(totalCount))"
+    }
   }
 
   var itemCounts: [PaneAgentPullRequestCheck.Status: Int] {

@@ -1484,7 +1484,7 @@ struct TerminalAgentPanelTests {
           ]
         )
     )
-    #expect(status.checks?.title == "Checks pending (2)")
+    #expect(status.checks?.title == "1 running")
   }
 
   @Test
@@ -1674,7 +1674,7 @@ struct TerminalAgentPanelTests {
       .skipped: 1,
     ]
     #expect(checks.itemCounts == expectedCounts)
-    #expect(checks.title == "Checks pending (7)")
+    #expect(checks.title == "1 failed, 2 running")
     #expect(!checks.isEmpty)
   }
 
@@ -1741,7 +1741,7 @@ struct TerminalAgentPanelTests {
       """
     )
 
-    #expect(status.checks?.title == "Checks failing (25)")
+    #expect(status.checks?.title == "Checks failing")
   }
 
   private static func decodeSinglePullRequestStatus(_ json: String) -> PaneAgentPullRequestStatus {
