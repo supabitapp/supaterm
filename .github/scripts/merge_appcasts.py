@@ -19,6 +19,15 @@ def is_tip_item(item: ET.Element) -> bool:
   return value is not None and value.text == "tip"
 
 
+def validated_tip_items(channel: ET.Element) -> list[ET.Element]:
+  items = channel.findall("item")
+  if not items:
+    raise SystemExit("tip appcast has no items")
+  if any(not is_tip_item(item) for item in items):
+    raise SystemExit("tip appcast contains an item without the tip channel")
+  return items
+
+
 def main() -> None:
   if len(sys.argv) != 4:
     raise SystemExit("usage: merge_appcasts.py stable.xml tip.xml out.xml")
@@ -30,12 +39,13 @@ def main() -> None:
   tip_tree = ET.parse(sys.argv[2])
   stable_channel = channel(stable_tree.getroot())
   tip_channel = channel(tip_tree.getroot())
+  items = validated_tip_items(tip_channel)
 
   for item in list(stable_channel.findall("item")):
     if is_tip_item(item):
       stable_channel.remove(item)
 
-  for item in tip_channel.findall("item"):
+  for item in items:
     stable_channel.append(item)
 
   stable_tree.write(sys.argv[3], xml_declaration=True, encoding="utf-8")

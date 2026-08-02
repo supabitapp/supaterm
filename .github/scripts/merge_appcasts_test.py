@@ -4,12 +4,24 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from merge_appcasts import validated_tip_items
+
 
 SPARKLE_NAMESPACE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 SCRIPT_PATH = Path(__file__).with_name("merge_appcasts.py")
 
 
 class MergeAppcastsTest(unittest.TestCase):
+  def test_rejects_empty_tip_appcast(self) -> None:
+    with self.assertRaisesRegex(SystemExit, "tip appcast has no items"):
+      validated_tip_items(ET.fromstring("<channel />"))
+
+  def test_rejects_tip_item_without_tip_channel(self) -> None:
+    tip_channel = ET.fromstring("<channel><item><title>Unmarked Tip</title></item></channel>")
+
+    with self.assertRaisesRegex(SystemExit, "tip appcast contains an item without the tip channel"):
+      validated_tip_items(tip_channel)
+
   def test_replaces_tip_items_and_preserves_stable_items(self) -> None:
     stable = f"""<?xml version="1.0" encoding="utf-8"?>
 <rss xmlns:sparkle="{SPARKLE_NAMESPACE}" version="2.0">
