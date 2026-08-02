@@ -161,13 +161,10 @@ extension TerminalHostState {
     guard agentPanelIsEnabled else {
       return nil
     }
-    guard surfaces[surfaceID] != nil else {
+    guard let surface = surfaces[surfaceID] else {
       return nil
     }
     guard tabID(containing: surfaceID) != nil else {
-      return nil
-    }
-    guard agentPanelIsActive(for: surfaceID) else {
       return nil
     }
     let current = currentAgentStateInstance(in: agentStateInstances(for: surfaceID))
@@ -175,8 +172,11 @@ extension TerminalHostState {
       for: surfaceID,
       agentWorkingDirectoryPath: current?.presentation.workingDirectoryPath
     )
-    let processIDs = agentStateStore.snapshots(for: surfaceID).reduce(into: Set<Int32>()) {
+    var processIDs = agentStateStore.snapshots(for: surfaceID).reduce(into: Set<Int32>()) {
       $0.formUnion($1.processIDs)
+    }
+    if let foregroundProcessID = surface.processIdentity.foregroundProcessID {
+      processIDs.insert(foregroundProcessID)
     }
     return TerminalAgentPanelRefreshContext(
       workingDirectoryPath: workingDirectoryPath,

@@ -733,7 +733,9 @@ struct SupatermSocketProtocolTests {
       lastCommandExitCode: 0,
       lastCommandDurationMs: 120,
       lastChildExitCode: nil,
-      lastChildExitTimeMs: nil
+      lastChildExitTimeMs: nil,
+      foregroundProcessID: 4_242,
+      ttyName: "/dev/ttys001"
     )
     let tab = SupatermAppDebugSnapshot.Tab(
       id: context.tabID,

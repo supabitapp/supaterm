@@ -322,6 +322,8 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let lastCommandDurationMs: UInt64?
     public let lastChildExitCode: UInt32?
     public let lastChildExitTimeMs: UInt64?
+    public let foregroundProcessID: Int32?
+    public let ttyName: String?
 
     public init(
       index: Int,
@@ -339,7 +341,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       lastCommandExitCode: Int?,
       lastCommandDurationMs: UInt64?,
       lastChildExitCode: UInt32?,
-      lastChildExitTimeMs: UInt64?
+      lastChildExitTimeMs: UInt64?,
+      foregroundProcessID: Int32?,
+      ttyName: String?
     ) {
       self.index = index
       self.id = id
@@ -357,6 +361,8 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       self.lastCommandDurationMs = lastCommandDurationMs
       self.lastChildExitCode = lastChildExitCode
       self.lastChildExitTimeMs = lastChildExitTimeMs
+      self.foregroundProcessID = foregroundProcessID
+      self.ttyName = ttyName
     }
   }
 

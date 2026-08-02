@@ -186,7 +186,9 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
           lastCommandExitCode: nil,
           lastCommandDurationMs: nil,
           lastChildExitCode: nil,
-          lastChildExitTimeMs: nil
+          lastChildExitTimeMs: nil,
+          foregroundProcessID: nil,
+          ttyName: nil
         )
       }
       let debugTab = SupatermAppDebugSnapshot.Tab(

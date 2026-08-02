@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import Darwin
 import GhosttyKit
 import SwiftUI
 import Testing
@@ -116,6 +117,135 @@ struct GhosttySurfaceViewTests {
     #expect(creationCount == 1)
     #expect(surfaceView.surface == nil)
     #expect(surfaceView.bridge.state.failure == .surfaceCreationFailed)
+  }
+
+  @Test
+  func unavailableProcessIdentityNormalizesZeroPIDAndEmptyTTY() {
+    var freeCount = 0
+    let identity = GhosttySurfaceView.processIdentity(
+      foregroundProcessID: { 0 },
+      ttyName: { ghostty_string_s(ptr: nil, len: 0, sentinel: false) },
+      freeString: { _ in freeCount += 1 }
+    )
+
+    #expect(identity.foregroundProcessID == nil)
+    #expect(identity.ttyName == nil)
+    #expect(freeCount == 1)
+  }
+
+  @Test
+  func processIdentityReadsAndFreesOwnedTTY() {
+    let bytes = Array("/dev/ttys001".utf8CString)
+    let pointer = UnsafeMutablePointer<CChar>.allocate(capacity: bytes.count)
+    pointer.initialize(from: bytes, count: bytes.count)
+    var freeCount = 0
+
+    let identity = GhosttySurfaceView.processIdentity(
+      foregroundProcessID: { 42 },
+      ttyName: {
+        ghostty_string_s(
+          ptr: UnsafePointer(pointer),
+          len: UInt(bytes.count - 1),
+          sentinel: true
+        )
+      },
+      freeString: { value in
+        #expect(value.ptr == UnsafePointer(pointer))
+        pointer.deallocate()
+        freeCount += 1
+      }
+    )
+
+    #expect(identity == TerminalPaneProcessIdentity(foregroundProcessID: 42, ttyName: "/dev/ttys001"))
+    #expect(freeCount == 1)
+  }
+
+  @Test
+  func processIdentityReadsFreshValues() {
+    var nextProcessID: UInt64 = 40
+    var freeCount = 0
+    let readIdentity = {
+      GhosttySurfaceView.processIdentity(
+        foregroundProcessID: {
+          nextProcessID += 1
+          return nextProcessID
+        },
+        ttyName: { ghostty_string_s(ptr: nil, len: 0, sentinel: false) },
+        freeString: { _ in freeCount += 1 }
+      )
+    }
+
+    #expect(readIdentity().foregroundProcessID == 41)
+    #expect(readIdentity().foregroundProcessID == 42)
+    #expect(freeCount == 2)
+  }
+
+  @Test
+  @MainActor
+  func liveProcessIdentityOwnsEachTTYRead() async throws {
+    initializeGhosttyForTests()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    defer { surfaceView.closeSurface() }
+
+    let identity = try #require(
+      try await waitForProcessIdentity(surfaceView, attempts: 100) { $0.ttyName != nil }
+    )
+    #expect(identity.ttyName?.hasPrefix("/dev/") == true)
+    for _ in 0..<1_000 {
+      #expect(surfaceView.processIdentity.ttyName?.hasPrefix("/dev/") == true)
+    }
+  }
+
+  @Test
+  @MainActor
+  func liveProcessIdentityTracksShellForegroundChildAndExit() async throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    host.ensureInitialTab(focusing: false)
+    let surface = try #require(host.selectedSurfaceView)
+    defer { surface.closeSurface() }
+
+    let shell = try #require(
+      try await waitForProcessIdentity(surface) {
+        $0.foregroundProcessID != nil && $0.ttyName != nil
+      }
+    )
+    let shellProcessID = try #require(shell.foregroundProcessID)
+    let refreshContext = try #require(host.agentPanelRefreshContext(for: surface.id))
+    #expect(refreshContext.processIDs.contains(shellProcessID))
+
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("supaterm-process-identity-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let childPIDURL = directory.appendingPathComponent("child.pid")
+    surface.bridge.submitText(
+      "/bin/sh -c 'ps -o pgid= -p $$ > \(childPIDURL.path); exec /bin/sleep 120'"
+    )
+
+    let foregroundChildProcessID = try #require(try await waitForProcessID(at: childPIDURL))
+    let child = try #require(
+      try await waitForProcessIdentity(surface) {
+        $0.foregroundProcessID == foregroundChildProcessID
+      }
+    )
+    #expect(child.ttyName == shell.ttyName)
+
+    #expect(Darwin.kill(-foregroundChildProcessID, SIGTERM) == 0)
+    let postExit = try #require(
+      try await waitForProcessIdentity(surface) {
+        $0.foregroundProcessID != foregroundChildProcessID
+      }
+    )
+    #expect(postExit.foregroundProcessID != foregroundChildProcessID)
+    #expect(postExit.ttyName == shell.ttyName)
   }
 
   @Test
@@ -720,6 +850,35 @@ private func findSearchField(in root: NSView) -> NSTextField? {
     if let field = findSearchField(in: subview) {
       return field
     }
+  }
+  return nil
+}
+
+@MainActor
+private func waitForProcessIdentity(
+  _ surface: GhosttySurfaceView,
+  attempts: Int = 300,
+  matching predicate: (TerminalPaneProcessIdentity) -> Bool
+) async throws -> TerminalPaneProcessIdentity? {
+  for _ in 0..<attempts {
+    let identity = surface.processIdentity
+    if predicate(identity) {
+      return identity
+    }
+    try await Task.sleep(for: .milliseconds(10))
+  }
+  return nil
+}
+
+private func waitForProcessID(at url: URL) async throws -> Int32? {
+  for _ in 0..<300 {
+    if let value = try? String(contentsOf: url, encoding: .utf8)
+      .trimmingCharacters(in: .whitespacesAndNewlines),
+      let processID = Int32(value)
+    {
+      return processID
+    }
+    try await Task.sleep(for: .milliseconds(10))
   }
   return nil
 }

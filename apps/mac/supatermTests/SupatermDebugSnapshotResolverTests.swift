@@ -27,7 +27,9 @@ struct SupatermDebugSnapshotResolverTests {
       lastCommandExitCode: nil,
       lastCommandDurationMs: nil,
       lastChildExitCode: nil,
-      lastChildExitTimeMs: nil
+      lastChildExitTimeMs: nil,
+      foregroundProcessID: nil,
+      ttyName: nil
     )
     let tab = SupatermAppDebugSnapshot.Tab(
       id: tabID,

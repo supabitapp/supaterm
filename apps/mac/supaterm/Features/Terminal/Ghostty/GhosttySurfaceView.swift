@@ -371,6 +371,40 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
+  var processIdentity: TerminalPaneProcessIdentity {
+    guard let surface else {
+      return TerminalPaneProcessIdentity(foregroundProcessID: nil, ttyName: nil)
+    }
+    return Self.processIdentity(
+      foregroundProcessID: { ghostty_surface_foreground_pid(surface) },
+      ttyName: { ghostty_surface_tty_name(surface) }
+    )
+  }
+
+  static func processIdentity(
+    foregroundProcessID: () -> UInt64,
+    ttyName: () -> ghostty_string_s,
+    freeString: (ghostty_string_s) -> Void = ghostty_string_free
+  ) -> TerminalPaneProcessIdentity {
+    let rawProcessID = foregroundProcessID()
+    let processID = rawProcessID == 0 ? nil : Int32(exactly: rawProcessID)
+    let rawTTYName = string(consuming: ttyName(), freeString: freeString)
+    return TerminalPaneProcessIdentity(
+      foregroundProcessID: processID,
+      ttyName: rawTTYName.isEmpty ? nil : rawTTYName
+    )
+  }
+
+  private static func string(
+    consuming value: ghostty_string_s,
+    freeString: (ghostty_string_s) -> Void
+  ) -> String {
+    defer { freeString(value) }
+    guard let pointer = value.ptr else { return "" }
+    let data = Data(bytes: pointer, count: Int(value.len))
+    return String(data: data, encoding: .utf8) ?? ""
+  }
+
   func confirmClipboardRead(
     value: String?,
     state: UnsafeMutableRawPointer?,

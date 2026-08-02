@@ -468,6 +468,8 @@ enum SPDebugRenderer {
           [
             "title: \(currentPane.displayTitle)",
             "pwd: \(currentPane.pwd ?? "none")",
+            "foreground pid: \(value(currentPane.foregroundProcessID))",
+            "tty: \(currentPane.ttyName ?? "none")",
             "focused: \(yesNo(currentPane.isFocused))",
             "read only: \(yesNo(currentPane.isReadOnly))",
             "secure input: \(yesNo(currentPane.hasSecureInput))",

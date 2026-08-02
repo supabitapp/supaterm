@@ -1331,10 +1331,13 @@ final class TerminalHostState {
         lastCommandExitCode: nil,
         lastCommandDurationMs: nil,
         lastChildExitCode: nil,
-        lastChildExitTimeMs: nil
+        lastChildExitTimeMs: nil,
+        foregroundProcessID: nil,
+        ttyName: nil
       )
     }
     let state = surface.bridge.state
+    let processIdentity = surface.processIdentity
     return SupatermAppDebugSnapshot.Pane(
       index: index,
       id: id,
@@ -1351,7 +1354,9 @@ final class TerminalHostState {
       lastCommandExitCode: state.commandExitCode,
       lastCommandDurationMs: state.commandDuration,
       lastChildExitCode: state.childExitCode,
-      lastChildExitTimeMs: state.childExitTimeMs
+      lastChildExitTimeMs: state.childExitTimeMs,
+      foregroundProcessID: processIdentity.foregroundProcessID,
+      ttyName: processIdentity.ttyName
     )
   }
 
