@@ -1133,13 +1133,13 @@ struct TerminalAgentPanelTests {
         """
     )
     let scanner = PaneAgentPortScanner(runner: await recorder.runner())
-    var foregroundProcessGroupID: Int32? = 100
+    let foregroundProcessGroupID = LockIsolated<Int32?>(100)
     var deliveredArtifacts: [PaneAgentArtifact] = []
 
     scanner.update(
       surfaceID: surfaceID,
       context: portScanContext(),
-      foregroundProcessGroupID: { foregroundProcessGroupID },
+      foregroundProcessGroupID: { foregroundProcessGroupID.value },
       deliver: { _, artifacts in
         deliveredArtifacts = artifacts
       }
@@ -1148,7 +1148,7 @@ struct TerminalAgentPanelTests {
     #expect(await scanner.scanOnce())
     #expect(deliveredArtifacts.map(\.title) == ["localhost:5173"])
 
-    foregroundProcessGroupID = 200
+    foregroundProcessGroupID.withValue { $0 = 200 }
     await recorder.reset()
 
     #expect(await scanner.scanOnce())
