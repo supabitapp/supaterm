@@ -253,6 +253,54 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func koreanArrowCommitUsesTextOnlyInputAndReplaysOnlyUnconsumedArrows() throws {
+    GhosttySurfaceView.withCommittedPreeditKey(
+      action: GHOSTTY_ACTION_PRESS,
+      text: "한"
+    ) { key in
+      #expect(key.action == GHOSTTY_ACTION_PRESS)
+      #expect(key.keycode == 0)
+      #expect(key.text.map { String(cString: $0) } == "한")
+      #expect(key.composing == false)
+      #expect(key.mods == GHOSTTY_MODS_NONE)
+      #expect(key.consumed_mods == GHOSTTY_MODS_NONE)
+      #expect(key.unshifted_codepoint == 0)
+    }
+
+    let down = try keyDownEvent(keyCode: kVK_DownArrow)
+    let right = try keyDownEvent(keyCode: kVK_RightArrow)
+    let up = try keyDownEvent(keyCode: kVK_UpArrow)
+    let left = try keyDownEvent(keyCode: kVK_LeftArrow)
+    let modifiedLeft = try keyDownEvent(keyCode: kVK_LeftArrow, modifierFlags: .control)
+    let letter = try keyDownEvent(keyCode: kVK_ANSI_A)
+
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(down))
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(right))
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(up))
+    #expect(!GhosttySurfaceView.shouldReplayCommittedPreeditKey(left))
+    #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(modifiedLeft))
+    #expect(!GhosttySurfaceView.shouldReplayCommittedPreeditKey(letter))
+  }
+
+  @Test
+  @MainActor
+  func japaneseComposingControlHIsSuppressed() {
+    #expect(
+      GhosttySurfaceView.shouldSuppressComposingControlInput(
+        "\u{0008}",
+        composing: true
+      )
+    )
+    #expect(
+      !GhosttySurfaceView.shouldSuppressComposingControlInput(
+        "\u{0008}",
+        composing: false
+      )
+    )
+  }
+
+  @Test
+  @MainActor
   func surfaceCreationReceivesUnbackedView() {
     initializeGhosttyForTests()
 
@@ -529,6 +577,27 @@ struct GhosttySurfaceViewTests {
     #expect(window.firstResponder === secondSurface)
     #expect(directInteractionCount == 0)
   }
+}
+
+@MainActor
+private func keyDownEvent(
+  keyCode: Int,
+  modifierFlags: NSEvent.ModifierFlags = []
+) throws -> NSEvent {
+  try #require(
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: modifierFlags,
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: "",
+      charactersIgnoringModifiers: "",
+      isARepeat: false,
+      keyCode: UInt16(keyCode)
+    )
+  )
 }
 
 private final class FocusableWrapperView: NSView {
