@@ -2100,7 +2100,7 @@ extension GhosttySurfaceView: NSServicesMenuRequestor {
       && (sendType == nil || sendable.contains(sendType!))
     {
       if let sendType, sendableRequiresSelection.contains(sendType) {
-        if surface == nil || !ghostty_surface_has_selection(surface) {
+        if accessibilitySelectedText() == nil {
           return super.validRequestor(forSendType: sendType, returnType: returnType)
         }
       }
@@ -2110,12 +2110,9 @@ extension GhosttySurfaceView: NSServicesMenuRequestor {
   }
 
   func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
-    guard let surface else { return false }
-    var text = ghostty_text_s()
-    guard ghostty_surface_read_selection(surface, &text) else { return false }
-    defer { ghostty_surface_free_text(surface, &text) }
+    guard let selection = accessibilitySelectedText() else { return false }
     pboard.declareTypes([.string], owner: nil)
-    pboard.setString(String(cString: text.text), forType: .string)
+    pboard.setString(selection, forType: .string)
     return true
   }
 

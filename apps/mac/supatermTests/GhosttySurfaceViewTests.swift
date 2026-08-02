@@ -212,13 +212,19 @@ struct GhosttySurfaceViewTests {
     )
     defer { surfaceView.closeSurface() }
 
-    for _ in 0..<20 {
+    for _ in 0..<6 {
       _ = surfaceView.bridge.handleAction(
         target: selectionTarget(),
         action: selectionChangedAction()
       )
+      await advanceClock(clock, by: .milliseconds(75))
+      #expect(notificationCount == 0)
     }
 
+    _ = surfaceView.bridge.handleAction(
+      target: selectionTarget(),
+      action: selectionChangedAction()
+    )
     await advanceClock(clock, by: .milliseconds(99))
     #expect(notificationCount == 0)
     await advanceClock(clock, by: .milliseconds(1))
@@ -283,7 +289,7 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
-  func copyValidationReadsAccessibilitySelection() {
+  func copyAndServicesReadAccessibilitySelection() {
     initializeGhosttyForTests()
 
     let selection = SelectionTextSource()
@@ -307,6 +313,10 @@ struct GhosttySurfaceViewTests {
     selection.value = "selected text"
     #expect(surfaceView.validateMenuItem(copyItem))
     #expect(surfaceView.accessibilitySelectedText() == "selected text")
+
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+    #expect(surfaceView.writeSelection(to: pasteboard, types: [.string]))
+    #expect(pasteboard.string(forType: .string) == "selected text")
   }
 
   @Test
