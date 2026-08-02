@@ -6,14 +6,16 @@ import Testing
 
 struct SPSSHCommandTests {
   @Test
-  func parserPreservesSSHArgumentsAfterSeparator() throws {
+  func parserPreservesSSHExecutableAndArgumentsAfterSeparator() throws {
     let command = try #require(
       try SP.parseAsRoot([
-        "ssh", "--term", "xterm-ghostty", "--", "-p", "2222", "example.com", "echo hi",
+        "ssh", "--term", "xterm-ghostty", "--ssh", "/usr/bin/ssh", "--", "-p", "2222",
+        "example.com", "echo hi",
       ]) as? SP.SSH
     )
 
     #expect(command.term == "xterm-ghostty")
+    #expect(command.ssh == "/usr/bin/ssh")
     #expect(command.arguments == ["-p", "2222", "example.com", "echo hi"])
   }
 
@@ -28,6 +30,7 @@ struct SPSSHCommandTests {
 
     let invocation = try SPSSHLauncher.invocation(
       term: "xterm-ghostty",
+      ssh: sshURL.path,
       arguments: [
         "-o", "SetEnv=PRODUCT=custom", "-p", "2222", "example.com",
       ],
@@ -68,6 +71,7 @@ struct SPSSHCommandTests {
     let command = try #require(try SP.parseAsRoot(["ssh", "--", "example.com"]) as? SP.SSH)
     let invocation = try SPSSHLauncher.invocation(
       term: command.term,
+      ssh: command.ssh,
       arguments: command.arguments,
       environment: ["PATH": temporaryDirectory.path, "TERM": "xterm-ghostty"]
     )
@@ -83,6 +87,7 @@ struct SPSSHCommandTests {
     #expect(throws: ValidationError.self) {
       try SPSSHLauncher.invocation(
         term: "xterm-256color",
+        ssh: "ssh",
         arguments: ["example.com"],
         environment: ["PATH": "/tmp/does-not-exist"]
       )

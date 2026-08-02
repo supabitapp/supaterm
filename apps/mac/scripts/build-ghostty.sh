@@ -31,18 +31,6 @@ print_fingerprint() {
   )
 }
 
-prepare_xcframework() {
-  local modulemap
-  find "${xcframework_path}" -path '*/Headers/module.modulemap' -print0 | while IFS= read -r -d '' modulemap; do
-    cat > "${modulemap}" <<'EOF'
-module GhosttyKit {
-    header "ghostty.h"
-    export *
-}
-EOF
-  done
-}
-
 ensure_ghostty_checkout() {
   if [ -f "${ghostty_dir}/build.zig" ]; then
     return
@@ -94,5 +82,4 @@ cd "${ghostty_dir}"
 rm -rf "${generated_xcframework_path}"
 mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Demit-macos-app=false -Dxcframework-target=native -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
 rsync -a --delete "${generated_xcframework_path}/" "${xcframework_path}/"
-prepare_xcframework
 printf '%s\n' "${fingerprint}" > "${ghostty_fingerprint_path}"

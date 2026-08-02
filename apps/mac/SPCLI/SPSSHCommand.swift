@@ -12,11 +12,14 @@ extension SP {
     @Option(name: .long, help: "TERM value to use for the remote session.")
     var term = "xterm-256color"
 
+    @Option(name: .long, help: "SSH executable to launch.")
+    var ssh = "ssh"
+
     @Argument(parsing: .remaining, help: "Arguments to pass to SSH.")
     var arguments: [String] = []
 
     mutating func run() throws {
-      try SPSSHLauncher.run(term: term, arguments: arguments)
+      try SPSSHLauncher.run(term: term, ssh: ssh, arguments: arguments)
     }
   }
 }
@@ -30,11 +33,13 @@ enum SPSSHLauncher {
 
   static func run(
     term: String,
+    ssh: String,
     arguments: [String],
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) throws -> Never {
     let invocation = try invocation(
       term: term,
+      ssh: ssh,
       arguments: arguments,
       environment: environment
     )
@@ -48,15 +53,16 @@ enum SPSSHLauncher {
 
   static func invocation(
     term: String,
+    ssh: String,
     arguments: [String],
     environment: [String: String]
   ) throws -> Invocation {
     guard let resolvedTerm = trimmedNonEmpty(term) else {
       throw ValidationError("--term requires a value.")
     }
-    guard let executablePath = SPExecutable.resolve("ssh", searchPath: environment["PATH"])
+    guard let executablePath = SPExecutable.resolve(ssh, searchPath: environment["PATH"])
     else {
-      throw ValidationError("Unable to find ssh on PATH.")
+      throw ValidationError("Unable to find \(ssh) on PATH.")
     }
 
     var processEnvironment = environment
