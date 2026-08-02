@@ -395,7 +395,7 @@ struct TerminalSplitTreeView: View {
     }
 
     private func baseTerminal(in geometry: GeometryProxy) -> some View {
-      GhosttyTerminalView(surfaceView: surfaceView)
+      GhosttyTerminalView(surfaceView: surfaceView, size: geometry.size)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityHidden(true)
         .overlay(alignment: .top) {

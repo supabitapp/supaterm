@@ -595,16 +595,18 @@ final class TerminalHostState {
       let focusedSurfaceID = focusHistoryByTab[tabID]?.current
       let isSelectedTab = tabID == selectedTabID
       for surface in tree.leaves() {
-        let activity = Self.surfaceActivity(
+        let surfaceActivity = Self.surfaceActivity(
           isSelectedTab: isSelectedTab,
           windowIsVisible: activity.isVisible,
           windowIsKey: activity.isKeyWindow,
           focusedSurfaceID: focusedSurfaceID,
-          surfaceID: surface.id
+          surface: surface
         )
-        surface.setOcclusion(activity.isVisible)
-        surface.focusDidChange(activity.isFocused)
-        if activity.isFocused {
+        surface.setOcclusion(surfaceActivity.isVisible)
+        surface.focusDidChange(surfaceActivity.isFocused)
+        if isSelectedTab && activity.isVisible && activity.isKeyWindow
+          && focusedSurfaceID == surface.id
+        {
           surfaceToFocus = surface
         }
       }
@@ -796,10 +798,12 @@ final class TerminalHostState {
     windowIsVisible: Bool,
     windowIsKey: Bool,
     focusedSurfaceID: UUID?,
-    surfaceID: UUID
+    surface: GhosttySurfaceView
   ) -> SurfaceActivity {
     let isVisible = isSelectedTab && windowIsVisible
-    let isFocused = isVisible && windowIsKey && focusedSurfaceID == surfaceID
+    let isFocused =
+      isVisible && windowIsKey && focusedSurfaceID == surface.id
+      && surface.window?.firstResponder === surface
     return SurfaceActivity(isVisible: isVisible, isFocused: isFocused)
   }
 
@@ -1123,7 +1127,7 @@ final class TerminalHostState {
     targetTabID: TerminalTabID,
     windowActivity: WindowActivityState,
     focusedSurfaceID: UUID?,
-    surfaceID: UUID
+    surface: GhosttySurfaceView
   ) -> NewPaneSelectionState {
     let isSelectedTab = targetTabID == selectedTabID
     let activity = surfaceActivity(
@@ -1131,7 +1135,7 @@ final class TerminalHostState {
       windowIsVisible: windowActivity.isVisible,
       windowIsKey: windowActivity.isKeyWindow,
       focusedSurfaceID: focusedSurfaceID,
-      surfaceID: surfaceID
+      surface: surface
     )
     return NewPaneSelectionState(isFocused: activity.isFocused, isSelectedTab: isSelectedTab)
   }
@@ -1165,13 +1169,13 @@ final class TerminalHostState {
   }
 
   func clearNotificationAttention(for surfaceID: UUID) {
-    guard let tabID = tabID(containing: surfaceID) else { return }
+    guard let tabID = tabID(containing: surfaceID), let surface = surfaces[surfaceID] else { return }
     let activity = Self.surfaceActivity(
       isSelectedTab: tabID == spaceManager.selectedTabID,
       windowIsVisible: windowActivity.isVisible,
       windowIsKey: windowActivity.isKeyWindow,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
-      surfaceID: surfaceID
+      surface: surface
     )
     guard let notifications = notificationStore.notifications(for: surfaceID) else {
       return

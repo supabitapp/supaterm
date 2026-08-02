@@ -150,16 +150,18 @@ extension NSPasteboard {
   }()
 
   func getOpinionatedStringContents() -> String? {
-    if let urls = readObjects(forClasses: [NSURL.self]) as? [URL],
-      !urls.isEmpty
-    {
-      return
-        urls
-        .map { $0.isFileURL ? Self.ghosttyEscape($0.path) : $0.absoluteString }
-        .joined(separator: " ")
+    let strings = (pasteboardItems ?? []).compactMap { item in
+      if let propertyList = item.propertyList(forType: .fileURL),
+        let fileURL = NSURL(pasteboardPropertyList: propertyList, ofType: .fileURL) as URL?,
+        fileURL.isFileURL
+      {
+        return Self.ghosttyEscape(fileURL.path)
+      }
+      return item.string(forType: .string)
     }
-    if let string = string(forType: .string) {
-      return string
+
+    if !strings.isEmpty {
+      return strings.joined(separator: " ")
     }
     return writeImageToTempFile()
   }

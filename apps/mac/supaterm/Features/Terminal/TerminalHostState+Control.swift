@@ -264,7 +264,7 @@ extension TerminalHostState {
         targetTabID: resolvedTarget.tabID,
         windowActivity: windowActivity,
         focusedSurfaceID: focusHistoryByTab[resolvedTarget.tabID]?.current,
-        surfaceID: newSurface.id
+        surface: newSurface
       )
 
       return SupatermNewPaneResult(
@@ -313,10 +313,11 @@ extension TerminalHostState {
       guard
         let tabID,
         let tree = trees[tabID],
-        let surfaceID = tree.root?.leftmostLeaf().id
+        let surface = tree.root?.leftmostLeaf()
       else {
         throw TerminalCreateTabError.creationFailed
       }
+      let surfaceID = surface.id
       createdTabID = tabID
 
       if request.focus {
@@ -349,7 +350,7 @@ extension TerminalHostState {
         targetTabID: tabID,
         windowActivity: windowActivity,
         focusedSurfaceID: focusHistoryByTab[tabID]?.current,
-        surfaceID: surfaceID
+        surface: surface
       )
 
       return SupatermNewTabResult(
@@ -423,7 +424,7 @@ extension TerminalHostState {
     return try focusPaneResult(
       spaceID: resolvedTarget.spaceID,
       tabID: resolvedTarget.tabID,
-      surfaceID: resolvedTarget.anchorSurface.id,
+      surface: resolvedTarget.anchorSurface,
       tree: resolvedTarget.tree
     )
   }
@@ -444,7 +445,7 @@ extension TerminalHostState {
     return try focusPaneResult(
       spaceID: resolvedTarget.spaceID,
       tabID: resolvedTarget.tabID,
-      surfaceID: lastSurfaceID,
+      surface: lastSurface,
       tree: trees[resolvedTarget.tabID] ?? resolvedTarget.tree
     )
   }
@@ -862,13 +863,13 @@ extension TerminalHostState {
   func focusPaneResult(
     spaceID: TerminalSpaceID,
     tabID: TerminalTabID,
-    surfaceID: UUID,
+    surface: GhosttySurfaceView,
     tree: SplitTree<GhosttySurfaceView>
   ) throws -> SupatermFocusPaneResult {
     let target = try paneTarget(
       spaceID: spaceID,
       tabID: tabID,
-      surfaceID: surfaceID,
+      surfaceID: surface.id,
       tree: tree
     )
     let activity = Self.surfaceActivity(
@@ -876,7 +877,7 @@ extension TerminalHostState {
       windowIsVisible: windowActivity.isVisible,
       windowIsKey: windowActivity.isKeyWindow,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
-      surfaceID: surfaceID
+      surface: surface
     )
     return SupatermFocusPaneResult(
       isFocused: activity.isFocused,
@@ -904,7 +905,7 @@ extension TerminalHostState {
       windowIsVisible: windowActivity.isVisible,
       windowIsKey: windowActivity.isKeyWindow,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
-      surfaceID: resolvedSurface.surface.id
+      surface: resolvedSurface.surface
     )
     return SupatermSelectTabResult(
       isFocused: activity.isFocused,
@@ -956,7 +957,7 @@ extension TerminalHostState {
       windowIsVisible: windowActivity.isVisible,
       windowIsKey: windowActivity.isKeyWindow,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
-      surfaceID: resolvedSurface.surface.id
+      surface: resolvedSurface.surface
     )
     return SupatermSelectSpaceResult(
       isFocused: activity.isFocused,
@@ -986,7 +987,7 @@ extension TerminalHostState {
       targetTabID: resolvedTarget.tabID,
       windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[resolvedTarget.tabID]?.current,
-      surfaceID: resolvedTarget.anchorSurface.id
+      surface: resolvedTarget.anchorSurface
     )
     let attentionState: SupatermNotificationAttentionState = .unread
     let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(

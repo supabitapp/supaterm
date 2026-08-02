@@ -1,8 +1,11 @@
+import AppKit
 import Foundation
+import GhosttyKit
 import Testing
 
 @testable import supaterm
 
+@MainActor
 struct TerminalHostStateSelectionTests {
   @Test
   func selectedTabIDAfterCreatingTabUsesTargetTabWhenFocusRequested() {
@@ -76,14 +79,18 @@ struct TerminalHostStateSelectionTests {
   @Test
   func newPaneSelectionStateReportsFocusedOnlyForSelectedPaneInActiveWindow() {
     let tabID = TerminalTabID()
-    let paneID = UUID()
+    let (surface, window) = makeFirstResponderSurface()
+    defer {
+      surface.closeSurface()
+      window.contentView = nil
+    }
 
     let state = TerminalHostState.newPaneSelectionState(
       selectedTabID: tabID,
       targetTabID: tabID,
       windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
-      focusedSurfaceID: paneID,
-      surfaceID: paneID
+      focusedSurfaceID: surface.id,
+      surface: surface
     )
 
     #expect(state.isSelectedTab)
@@ -93,14 +100,18 @@ struct TerminalHostStateSelectionTests {
   @Test
   func newPaneSelectionStateReportsSelectedButUnfocusedForInactiveWindow() {
     let tabID = TerminalTabID()
-    let paneID = UUID()
+    let (surface, window) = makeFirstResponderSurface()
+    defer {
+      surface.closeSurface()
+      window.contentView = nil
+    }
 
     let state = TerminalHostState.newPaneSelectionState(
       selectedTabID: tabID,
       targetTabID: tabID,
       windowActivity: .inactive,
-      focusedSurfaceID: paneID,
-      surfaceID: paneID
+      focusedSurfaceID: surface.id,
+      surface: surface
     )
 
     #expect(state.isSelectedTab)
@@ -111,14 +122,18 @@ struct TerminalHostStateSelectionTests {
   func newPaneSelectionStateReportsUnselectedWhenAnotherTabRemainsSelected() {
     let selectedTabID = TerminalTabID()
     let targetTabID = TerminalTabID()
-    let paneID = UUID()
+    let (surface, window) = makeFirstResponderSurface()
+    defer {
+      surface.closeSurface()
+      window.contentView = nil
+    }
 
     let state = TerminalHostState.newPaneSelectionState(
       selectedTabID: selectedTabID,
       targetTabID: targetTabID,
       windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
-      focusedSurfaceID: paneID,
-      surfaceID: paneID
+      focusedSurfaceID: surface.id,
+      surface: surface
     )
 
     #expect(!state.isSelectedTab)
@@ -161,5 +176,24 @@ struct TerminalHostStateSelectionTests {
     history.updateCurrent(third)
     #expect(history.current == third)
     #expect(history.previous == second)
+  }
+
+  private func makeFirstResponderSurface() -> (GhosttySurfaceView, NSWindow) {
+    initializeGhosttyForTests()
+    let surface = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = surface
+    window.makeFirstResponder(surface)
+    return (surface, window)
   }
 }

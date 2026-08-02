@@ -92,6 +92,22 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func opinionatedStringContentsPreservesMixedItemOrder() throws {
+    let pasteboard = makePasteboard()
+    let first = NSPasteboardItem()
+    first.setString("first", forType: .string)
+    let fileURL = URL(fileURLWithPath: "/tmp/second file") as NSURL
+    let last = NSPasteboardItem()
+    last.setString("last", forType: .string)
+    pasteboard.writeObjects([first, fileURL, last])
+
+    #expect(
+      pasteboard.getOpinionatedStringContents()
+        == "first /tmp/second\\ file last"
+    )
+  }
+
+  @Test
   func writeImageToTempFileWritesPNGData() throws {
     let pasteboard = makePasteboard()
     pasteboard.declareTypes([.supatermPNGImage], owner: nil)

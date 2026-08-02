@@ -48,13 +48,14 @@ extension TerminalHostState {
     }
 
     let statusActivityIsFocused =
-      statusInstance.map { instance in
-        Self.surfaceActivity(
+      statusInstance.flatMap { instance in
+        guard let surface = surfaces[instance.surfaceID] else { return nil }
+        return Self.surfaceActivity(
           isSelectedTab: tabID == spaceManager.selectedTabID,
           windowIsVisible: windowActivity.isVisible,
           windowIsKey: windowActivity.isKeyWindow,
           focusedSurfaceID: focusedSurfaceID,
-          surfaceID: instance.surfaceID
+          surface: surface
         ).isFocused
       } ?? false
 

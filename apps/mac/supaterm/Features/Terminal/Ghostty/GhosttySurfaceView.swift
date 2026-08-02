@@ -5,6 +5,7 @@ import GhosttyKit
 import QuartzCore
 import SupatermCLIShared
 import SupatermSupport
+import System
 
 final class GhosttySurfaceView: NSView, Identifiable {
   typealias SurfaceFactory = (
@@ -140,17 +141,16 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private static let dropTypes: Set<NSPasteboard.PasteboardType> = [
     .string,
     .fileURL,
-    .URL,
     .supatermPNGImage,
     .supatermTIFFImage,
   ]
 
   static func normalizedWorkingDirectoryPath(_ path: String) -> String {
-    var normalized = path
-    while normalized.count > 1 && normalized.hasSuffix("/") {
-      normalized.removeLast()
-    }
-    return normalized
+    FilePath(path).string
+  }
+
+  static func acceptsDropTypes(_ types: [NSPasteboard.PasteboardType]) -> Bool {
+    !Set(types).isDisjoint(with: dropTypes)
   }
 
   static func accessibilityLine(for index: Int, in content: String) -> Int {
@@ -1879,28 +1879,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
 extension GhosttySurfaceView {
   override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
     guard let types = sender.draggingPasteboard.types else { return [] }
-    if Set(types).isDisjoint(with: Self.dropTypes) {
-      return []
-    }
-    return .copy
+    return Self.acceptsDropTypes(types) ? .copy : []
   }
 
   override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
     let pasteboard = sender.draggingPasteboard
-    let content: String?
-    if let url = pasteboard.string(forType: .URL) {
-      content = NSPasteboard.ghosttyEscape(url)
-    } else if let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL],
-      !urls.isEmpty
-    {
-      content = urls.map { NSPasteboard.ghosttyEscape($0.path) }.joined(separator: " ")
-    } else if let str = pasteboard.string(forType: .string) {
-      content = str
-    } else {
-      content = pasteboard.writeImageToTempFile()
-    }
-
-    guard let content else { return false }
+    guard let content = pasteboard.getOpinionatedStringContents() else { return false }
     Task { @MainActor in
       self.insertText(content, replacementRange: NSRange(location: 0, length: 0))
     }
@@ -2207,6 +2191,11 @@ final class GhosttySurfaceScrollView: NSView {
 
   func updateSurfaceSize() {
     synchronizeCoreSurface()
+    needsLayout = true
+  }
+
+  func invalidateLayout(ifSizeDiffersFrom size: CGSize) {
+    guard bounds.size != size else { return }
     needsLayout = true
   }
 

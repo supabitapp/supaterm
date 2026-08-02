@@ -98,6 +98,36 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func deferredGeometryResizeInvalidatesWrapperLayout() {
+    initializeGhosttyForTests()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let wrapper = GhosttySurfaceScrollView(surfaceView: surfaceView)
+    wrapper.frame.size = CGSize(width: 800, height: 600)
+    wrapper.layoutSubtreeIfNeeded()
+
+    wrapper.needsLayout = false
+    wrapper.invalidateLayout(ifSizeDiffersFrom: wrapper.bounds.size)
+    #expect(!wrapper.needsLayout)
+
+    wrapper.invalidateLayout(ifSizeDiffersFrom: CGSize(width: 900, height: 700))
+    #expect(wrapper.needsLayout)
+  }
+
+  @Test
+  func dragTypesExcludeGenericURLs() {
+    #expect(GhosttySurfaceView.acceptsDropTypes([.fileURL]))
+    #expect(GhosttySurfaceView.acceptsDropTypes([.string]))
+    #expect(!GhosttySurfaceView.acceptsDropTypes([.URL]))
+  }
+
+  @Test
+  @MainActor
   func failedSurfaceCreationPublishesFailure() {
     initializeGhosttyForTests()
 
@@ -405,6 +435,100 @@ struct GhosttySurfaceViewTests {
     try? await Task.sleep(for: .milliseconds(50))
 
     #expect(window.firstResponder === targetSurface)
+  }
+
+  @Test
+  @MainActor
+  func surfaceActivityRequiresSurfaceFirstResponder() throws {
+    initializeGhosttyForTests()
+
+    let surface = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 120, height: 24))
+    let container = NSView(frame: window.contentView?.bounds ?? .zero)
+    surface.frame = container.bounds
+    container.addSubview(surface)
+    container.addSubview(textField)
+    window.contentView = container
+    defer {
+      surface.closeSurface()
+      window.contentView = nil
+    }
+
+    window.makeFirstResponder(surface)
+    try #require(window.firstResponder === surface)
+    #expect(
+      TerminalHostState.surfaceActivity(
+        isSelectedTab: true,
+        windowIsVisible: true,
+        windowIsKey: true,
+        focusedSurfaceID: surface.id,
+        surface: surface
+      ).isFocused
+    )
+
+    window.makeFirstResponder(textField)
+    #expect(
+      !TerminalHostState.surfaceActivity(
+        isSelectedTab: true,
+        windowIsVisible: true,
+        windowIsKey: true,
+        focusedSurfaceID: surface.id,
+        surface: surface
+      ).isFocused
+    )
+  }
+
+  @Test
+  @MainActor
+  func endSearchActionRestoresSurfaceFocusAndClearsState() throws {
+    initializeGhosttyForTests()
+
+    let surface = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 120, height: 24))
+    let container = NSView(frame: window.contentView?.bounds ?? .zero)
+    surface.frame = container.bounds
+    container.addSubview(surface)
+    container.addSubview(textField)
+    window.contentView = container
+    defer {
+      surface.closeSurface()
+      window.contentView = nil
+    }
+    surface.bridge.state.searchNeedle = "needle"
+    surface.bridge.state.searchTotal = 2
+    surface.bridge.state.searchSelected = 1
+    window.makeFirstResponder(textField)
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    let action = ghostty_action_s(tag: GHOSTTY_ACTION_END_SEARCH, action: ghostty_action_u())
+
+    #expect(surface.bridge.handleAction(target: target, action: action) == false)
+
+    #expect(window.firstResponder === surface)
+    #expect(surface.bridge.state.searchNeedle == nil)
+    #expect(surface.bridge.state.searchTotal == nil)
+    #expect(surface.bridge.state.searchSelected == nil)
   }
 
   @Test

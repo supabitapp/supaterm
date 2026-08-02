@@ -190,7 +190,6 @@ struct GhosttySurfaceSearchOverlay: View {
 
   private func closeSearch() {
     surfaceView.performBindingAction("end_search")
-    surfaceView.requestFocus()
   }
 
   private func flushPendingSearch() {
