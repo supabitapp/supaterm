@@ -349,6 +349,17 @@ enum SPHelp {
       sp run --instance work-mac -- claude --resume
     """
 
+  static let sshDiscussion = """
+    `sp ssh` launches ssh from PATH with a compatible TERM and forwards terminal environment variables.
+
+    Place SSH options and arguments after `--`.
+
+    Example:
+      sp ssh -- example.com
+      sp ssh -- -p 2222 example.com
+      sp ssh --term xterm-ghostty -- example.com
+    """
+
   static let configDiscussion = """
     Example:
       sp config path

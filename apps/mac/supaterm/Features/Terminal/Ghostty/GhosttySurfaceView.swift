@@ -291,7 +291,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       surfaceID: id,
       tabID: tabID,
       socketPath: SupatermProcessSocketEndpoint.current()?.path,
-      cliPath: GhosttySupport.bundledCLIPath(resourcesURL: Bundle.main.resourceURL),
+      cliPath: GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL),
       zmxSessionsEnabled: zmxSessionsEnabled
     )
     self.commandWrapper = commandWrapper

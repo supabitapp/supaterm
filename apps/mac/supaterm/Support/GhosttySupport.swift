@@ -54,14 +54,15 @@ public enum GhosttySupport {
     return (ghosttyURL, terminfoURL)
   }
 
-  public nonisolated static func bundledCommandDirectory(resourcesURL: URL?) -> URL? {
-    resourcesURL?.appendingPathComponent("bin", isDirectory: true)
-  }
-
-  public nonisolated static func bundledCLIPath(resourcesURL: URL?) -> String? {
-    bundledCommandDirectory(resourcesURL: resourcesURL)?
-      .appendingPathComponent("sp", isDirectory: false)
-      .path
+  public nonisolated static func bundledCLIPath(
+    executableURL: URL?,
+    fileManager: FileManager = .default
+  ) -> String? {
+    guard let executableURL else { return nil }
+    return SupatermBundleLayout.spExecutableURL(
+      nextTo: executableURL,
+      fileManager: fileManager
+    )?.path
   }
 
   public static func configFileLocations(

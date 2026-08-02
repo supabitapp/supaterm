@@ -177,6 +177,9 @@ jobs:
           fi
           xcrun stapler staple apps/mac/build/supaterm.dmg
           xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate apps/mac/build/supaterm.dmg
+          xcrun stapler validate "$APP_PATH"
+          spctl --assess --type execute --verbose=4 "$APP_PATH"
       - name: Create app zip
         run: |
           APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)

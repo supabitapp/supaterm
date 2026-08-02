@@ -69,6 +69,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.PaneLayout.self, columns: 100),
       SP.helpMessage(for: SP.RenameTab.self, columns: 100),
       SP.helpMessage(for: SP.Run.self, columns: 100),
+      SP.helpMessage(for: SP.SSH.self, columns: 100),
       SP.helpMessage(for: SP.Tmux.self, columns: 100),
       SP.helpMessage(for: SP.Skills.self, columns: 100),
       SP.helpMessage(for: SP.ListSkills.self, columns: 100),
@@ -90,6 +91,15 @@ struct SPHelpTests {
     for help in helps {
       #expect(help.contains("Example:"))
     }
+  }
+
+  @Test
+  func sshHelpShowsArgumentSeparatorAndCompatibleTermExamples() {
+    let help = SP.helpMessage(for: SP.SSH.self, columns: 100)
+
+    #expect(help.contains("sp ssh -- example.com"))
+    #expect(help.contains("sp ssh -- -p 2222 example.com"))
+    #expect(help.contains("sp ssh --term xterm-ghostty -- example.com"))
   }
 
   @Test

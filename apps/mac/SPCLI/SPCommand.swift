@@ -15,6 +15,7 @@ struct SP: ParsableCommand {
     Instance.self,
     Config.self,
     Run.self,
+    SSH.self,
     Space.self,
     Group.self,
     Tab.self,
@@ -24,8 +25,6 @@ struct SP: ParsableCommand {
     Tmux.self,
     Internal.self,
   ]
-
-  init() {}
 
   mutating func run() throws {
     print(Self.helpMessage())

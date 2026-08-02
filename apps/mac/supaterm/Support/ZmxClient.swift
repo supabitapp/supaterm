@@ -85,7 +85,9 @@ extension ZmxClient {
 
   public nonisolated static let live: ZmxClient = {
     let probed = LockIsolated<Bool?>(nil)
-    let cachedBundledURL = Bundle.main.url(forResource: "zmx", withExtension: nil, subdirectory: "zmx")
+    let cachedBundledURL = Bundle.main.executableURL.flatMap {
+      SupatermBundleLayout.zmxExecutableURL(nextTo: $0)
+    }
 
     @Sendable func resolveExecutable() -> URL? {
       guard let url = cachedBundledURL else {
