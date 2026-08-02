@@ -253,7 +253,7 @@ struct SupatermMenuControllerTests {
         keyboardShortcutForAction: { action in
           switch action {
           case "open_config":
-            KeyboardShortcut("p", modifiers: [.command, .shift])
+            KeyboardShortcut("P", modifiers: [.command])
           default:
             nil
           }
@@ -275,6 +275,11 @@ struct SupatermMenuControllerTests {
 
       controller.install()
       controller.refresh()
+
+      let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+      let settingsItem = try #require(appMenu.items.first(where: { $0.title == "Settings..." }))
+      #expect(settingsItem.keyEquivalent == "p")
+      #expect(settingsItem.keyEquivalentModifierMask == [.command, .shift])
 
       let event = try #require(
         NSEvent.keyEvent(
@@ -326,7 +331,7 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func performGhosttyBindingMenuKeyEquivalentRoutesIndexedGhosttyItemsOnly() throws {
+  func performGhosttyBindingMenuKeyEquivalentRoutesForwardDeleteWithFunctionModifier() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -342,7 +347,7 @@ struct SupatermMenuControllerTests {
         keyboardShortcutForAction: { action in
           switch action {
           case "new_window":
-            KeyboardShortcut("h", modifiers: [.command])
+            KeyboardShortcut(.deleteForward, modifiers: [])
           default:
             nil
           }
@@ -369,14 +374,14 @@ struct SupatermMenuControllerTests {
         NSEvent.keyEvent(
           with: .keyDown,
           location: .zero,
-          modifierFlags: [.command],
+          modifierFlags: [.function],
           timestamp: 0,
           windowNumber: 0,
           context: nil,
-          characters: "h",
-          charactersIgnoringModifiers: "h",
+          characters: KeyEquivalent.deleteForward.character.description,
+          charactersIgnoringModifiers: KeyEquivalent.deleteForward.character.description,
           isARepeat: false,
-          keyCode: 4
+          keyCode: UInt16(kVK_ForwardDelete)
         )
       )
 
