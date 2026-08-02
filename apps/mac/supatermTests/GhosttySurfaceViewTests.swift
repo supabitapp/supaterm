@@ -225,6 +225,34 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func homeAndEndPreserveDocumentScrolling() throws {
+    let home = try makeKeyEvent(
+      keyCode: kVK_Home,
+      characters: "\u{F729}",
+      modifierFlags: []
+    )
+    let end = try makeKeyEvent(
+      keyCode: kVK_End,
+      characters: "\u{F72B}",
+      modifierFlags: []
+    )
+
+    #expect(
+      GhosttySurfaceView.appKitDocumentBindingAction(
+        for: #selector(NSResponder.moveToBeginningOfDocument(_:)),
+        event: home
+      ) == "scroll_to_top"
+    )
+    #expect(
+      GhosttySurfaceView.appKitDocumentBindingAction(
+        for: #selector(NSResponder.moveToEndOfDocument(_:)),
+        event: end
+      ) == "scroll_to_bottom"
+    )
+  }
+
+  @Test
+  @MainActor
   func surfaceCreationReceivesUnbackedView() {
     initializeGhosttyForTests()
 
@@ -543,13 +571,29 @@ private func sendCommandKey(
   characters: String,
   window: NSWindow
 ) throws {
-  let event = try #require(
+  NSApp.sendEvent(
+    try makeKeyEvent(
+      keyCode: keyCode,
+      characters: characters,
+      modifierFlags: .command,
+      windowNumber: window.windowNumber
+    )
+  )
+}
+
+private func makeKeyEvent(
+  keyCode: Int,
+  characters: String,
+  modifierFlags: NSEvent.ModifierFlags,
+  windowNumber: Int = 0
+) throws -> NSEvent {
+  try #require(
     NSEvent.keyEvent(
       with: .keyDown,
       location: .zero,
-      modifierFlags: .command,
+      modifierFlags: modifierFlags,
       timestamp: ProcessInfo.processInfo.systemUptime,
-      windowNumber: window.windowNumber,
+      windowNumber: windowNumber,
       context: nil,
       characters: characters,
       charactersIgnoringModifiers: characters,
@@ -557,7 +601,6 @@ private func sendCommandKey(
       keyCode: UInt16(keyCode)
     )
   )
-  NSApp.sendEvent(event)
 }
 
 @MainActor

@@ -1376,13 +1376,35 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func doCommand(by _: Selector) {
-    guard
-      let lastPerformKeyEvent,
+  override func doCommand(by selector: Selector) {
+    if let lastPerformKeyEvent,
       let current = NSApp.currentEvent,
       lastPerformKeyEvent == current.timestamp
-    else { return }
-    NSApp.sendEvent(current)
+    {
+      NSApp.sendEvent(current)
+      return
+    }
+    guard let action = Self.appKitDocumentBindingAction(for: selector, event: NSApp.currentEvent) else {
+      return
+    }
+    performBindingAction(action)
+  }
+
+  static func appKitDocumentBindingAction(for selector: Selector, event: NSEvent?) -> String? {
+    if let event,
+      event.modifierFlags.contains(.command),
+      event.keyCode == kVK_UpArrow || event.keyCode == kVK_DownArrow
+    {
+      return nil
+    }
+    switch selector {
+    case #selector(moveToBeginningOfDocument(_:)):
+      return "scroll_to_top"
+    case #selector(moveToEndOfDocument(_:)):
+      return "scroll_to_bottom"
+    default:
+      return nil
+    }
   }
 
   override func menu(for event: NSEvent) -> NSMenu? {
