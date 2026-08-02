@@ -555,8 +555,8 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func performGhosttyBindingMenuKeyEquivalentRoutesJumpToLatestUnreadShortcut() throws {
-    try withDependencies {
+  func performGhosttyBindingMenuKeyEquivalentRoutesJumpToLatestUnreadShortcut() async throws {
+    try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -568,7 +568,8 @@ struct SupatermMenuControllerTests {
       host.windowActivity = .inactive
       host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(host.selectedTabID)
-      let surfaceID = try #require(host.selectedSurfaceView?.id)
+      let surface = try #require(host.selectedSurfaceView)
+      let surfaceID = surface.id
       host.notificationStore.append(
         TerminalHostState.PaneNotification(
           attentionState: .unread,
@@ -590,10 +591,16 @@ struct SupatermMenuControllerTests {
         requestConfirmedWindowClose: {}
       )
       let window = makeWindow()
+      let container = NSView(frame: window.contentView?.bounds ?? .zero)
+      surface.frame = container.bounds
+      container.addSubview(surface)
+      window.contentView = container
       registry.updateWindow(window, for: windowControllerID)
       let controller = SupatermMenuController(registry: registry)
       defer {
         app.mainMenu = previousMainMenu
+        surface.closeSurface()
+        window.contentView = nil
       }
 
       controller.install()
@@ -615,7 +622,10 @@ struct SupatermMenuControllerTests {
       )
 
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
-      #expect(host.unreadNotificationCount(for: tabID) == 0)
+      let focusedUnreadSurface = await waitUntil {
+        window.firstResponder === surface && host.unreadNotificationCount(for: tabID) == 0
+      }
+      #expect(focusedUnreadSurface)
     }
   }
 
