@@ -186,23 +186,80 @@ struct GhosttyGlobalKeybindManagerTests {
     #expect(routedManager.handle(try toggleVisibilityKeyEvent()))
     #expect(delegate.toggleVisibilityCount == 1)
   }
+
+  @Test
+  func eventTapReenablesAfterSystemDisableEvents() throws {
+    let app = NSApplication.shared
+    let previousDelegate = app.delegate
+    let delegate = GhosttyAppActionPerformerSpy()
+    app.delegate = delegate
+    defer {
+      app.delegate = previousDelegate
+    }
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = global:super+shift+0=toggle_visibility
+      """
+    )
+    let manager = GhosttyGlobalKeybindManager(
+      runtime: runtime,
+      isAppActive: { false }
+    )
+    let eventTap = try #require(CFMachPortCreate(nil, nil, nil, nil))
+    var enabledEventTaps: [CFMachPort] = []
+    let callbackState = GhosttyGlobalEventTapCallbackState(
+      manager: manager,
+      eventTap: eventTap,
+      enableEventTap: { enabledEventTaps.append($0) }
+    )
+    defer { CFMachPortInvalidate(eventTap) }
+    let cgEvent = try #require(toggleVisibilityNSEvent().cgEvent)
+    let callbackStatePointer = Unmanaged.passUnretained(callbackState).toOpaque()
+    let eventTapProxy = try #require(CGEventTapProxy(bitPattern: 1))
+
+    for type in [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput] {
+      let result = supatermGlobalKeybindEventTapCallback(
+        eventTapProxy,
+        type: type,
+        cgEvent: cgEvent,
+        userInfo: callbackStatePointer
+      )
+
+      #expect(result?.takeUnretainedValue() === cgEvent)
+      #expect(delegate.toggleVisibilityCount == 0)
+    }
+    #expect(enabledEventTaps.count == 2)
+    #expect(enabledEventTaps.allSatisfy { $0 === eventTap })
+
+    let result = supatermGlobalKeybindEventTapCallback(
+      eventTapProxy,
+      type: .keyDown,
+      cgEvent: cgEvent,
+      userInfo: callbackStatePointer
+    )
+
+    #expect(result == nil)
+    #expect(delegate.toggleVisibilityCount == 1)
+  }
 }
 
 private func toggleVisibilityKeyEvent() throws -> GhosttyGlobalKeyEvent {
-  try GhosttyGlobalKeyEvent(
-    #require(
-      NSEvent.keyEvent(
-        with: .keyDown,
-        location: .zero,
-        modifierFlags: [.command, .shift],
-        timestamp: 0,
-        windowNumber: 0,
-        context: nil,
-        characters: ")",
-        charactersIgnoringModifiers: "0",
-        isARepeat: false,
-        keyCode: UInt16(kVK_ANSI_0)
-      )
+  try GhosttyGlobalKeyEvent(toggleVisibilityNSEvent())
+}
+
+private func toggleVisibilityNSEvent() throws -> NSEvent {
+  try #require(
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [.command, .shift],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: ")",
+      charactersIgnoringModifiers: "0",
+      isARepeat: false,
+      keyCode: UInt16(kVK_ANSI_0)
     ))
 }
 

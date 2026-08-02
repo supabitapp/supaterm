@@ -2,6 +2,7 @@ import AppKit
 import Carbon.HIToolbox
 import Foundation
 import GhosttyKit
+import SwiftUI
 import Synchronization
 import Testing
 
@@ -9,6 +10,40 @@ import Testing
 
 @MainActor
 struct GhosttyRuntimeTests {
+  @Test
+  func keyboardShortcutsNormalizeUnicodeKeyEquivalents() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = super+L=new_window
+      keybind = super+Ä=new_tab
+      """
+    )
+
+    let latinShortcut = try #require(runtime.keyboardShortcut(forAction: "new_window"))
+    #expect(latinShortcut.key == "l")
+    #expect(latinShortcut.modifiers == [.command])
+
+    let nonASCIIShortcut = try #require(runtime.keyboardShortcut(forAction: "new_tab"))
+    #expect(nonASCIIShortcut.key == "ä")
+    #expect(nonASCIIShortcut.modifiers == [.command])
+  }
+
+  @Test
+  func keyboardShortcutsDistinguishForwardDeleteFromBackspace() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = delete=new_window
+      keybind = backspace=new_tab
+      """
+    )
+
+    let forwardDelete = try #require(runtime.keyboardShortcut(forAction: "new_window"))
+    #expect(forwardDelete.key == .deleteForward)
+
+    let backspace = try #require(runtime.keyboardShortcut(forAction: "new_tab"))
+    #expect(backspace.key == .delete)
+  }
+
   @Test
   func runtimeCreatedWhileApplicationIsInactiveRejectsNonGlobalBinding() throws {
     let app = NSApplication.shared

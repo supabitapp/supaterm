@@ -12,7 +12,7 @@ Use a space for an area of work that needs its own tab list. The space bar at th
 Keyboard shortcuts `Control-1` through `Control-0` select the first ten spaces. CLI equivalents include:
 
 ```bash
-sp space new --focus Work
+sp space new Work
 sp space focus 1
 sp space next
 sp space prev

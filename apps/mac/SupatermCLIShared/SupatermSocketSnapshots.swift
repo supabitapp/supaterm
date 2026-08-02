@@ -221,17 +221,20 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let index: Int
     public let isKey: Bool
     public let isVisible: Bool
+    public let displayedSpaceID: UUID
     public let spaces: [Space]
 
     public init(
       index: Int,
       isKey: Bool,
       isVisible: Bool,
+      displayedSpaceID: UUID,
       spaces: [Space]
     ) {
       self.index = index
       self.isKey = isKey
       self.isVisible = isVisible
+      self.displayedSpaceID = displayedSpaceID
       self.spaces = spaces
     }
   }
@@ -241,7 +244,7 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let id: UUID
     public let name: String
     public let color: SupatermThemeColor
-    public let isSelected: Bool
+    public let isWarm: Bool
     public let rootItems: [RootItem]
 
     public init(
@@ -249,14 +252,14 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       id: UUID,
       name: String,
       color: SupatermThemeColor,
-      isSelected: Bool,
+      isWarm: Bool,
       rootItems: [RootItem]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.color = color
-      self.isSelected = isSelected
+      self.isWarm = isWarm
       self.rootItems = rootItems
     }
 
@@ -385,11 +388,13 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
   public struct Window: Equatable, Sendable, Codable {
     public let index: Int
     public let isKey: Bool
+    public let displayedSpaceID: UUID
     public let spaces: [Space]
 
-    public init(index: Int, isKey: Bool, spaces: [Space]) {
+    public init(index: Int, isKey: Bool, displayedSpaceID: UUID, spaces: [Space]) {
       self.index = index
       self.isKey = isKey
+      self.displayedSpaceID = displayedSpaceID
       self.spaces = spaces
     }
   }
@@ -403,7 +408,7 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
     public let id: UUID
     public let name: String
     public let color: SupatermThemeColor
-    public let isSelected: Bool
+    public let isWarm: Bool
     public let rootItems: [RootItem]
 
     public init(
@@ -411,14 +416,14 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
       id: UUID,
       name: String,
       color: SupatermThemeColor,
-      isSelected: Bool,
+      isWarm: Bool,
       rootItems: [RootItem]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.color = color
-      self.isSelected = isSelected
+      self.isWarm = isWarm
       self.rootItems = rootItems
     }
 

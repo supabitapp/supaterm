@@ -53,4 +53,23 @@ struct WindowChromeConfigurationTests {
     #expect(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
     #expect(window.standardWindowButton(.zoomButton)?.isHidden == true)
   }
+
+  @Test
+  func titleApplierNamesTheWindowAndFollowsChanges() throws {
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    let contentView = try #require(window.contentView)
+    let applier = WindowTitleApplierView()
+    applier.appliedTitle = "Research"
+
+    contentView.addSubview(applier)
+    #expect(window.title == "Research")
+
+    applier.appliedTitle = "Shipping"
+    #expect(window.title == "Shipping")
+  }
 }

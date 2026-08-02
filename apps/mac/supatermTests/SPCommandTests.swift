@@ -112,6 +112,28 @@ struct SPCommandTests {
   }
 
   @Test
+  func spaceListParserTakesNoTarget() throws {
+    _ = try #require(try SP.parseAsRoot(["space", "ls"]) as? SP.SpaceList)
+
+    #expect(throws: (any Error).self) {
+      _ = try SP.parseAsRoot(["space", "ls", "1"])
+    }
+  }
+
+  @Test
+  func spaceNewParserRejectsTheRemovedFocusFlag() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["space", "new", "--color", "green", "Work"]) as? SP.SpaceNew
+    )
+
+    #expect(command.name == "Work")
+    #expect(command.color == .green)
+    #expect(throws: (any Error).self) {
+      _ = try SP.parseAsRoot(["space", "new", "--focus", "Work"])
+    }
+  }
+
+  @Test
   func spaceDestroyParserAcceptsYesFlag() throws {
     let command = try #require(
       try SP.parseAsRoot(["space", "destroy", "-y", "1"]) as? SP.SpaceDestroy
@@ -409,7 +431,7 @@ struct SPCommandTests {
   }
 
   @Test
-  func onboardRendererShowsWelcomeShortcutsAndSetupCommands() {
+  func onboardRendererShowsLogoWelcomeShortcutsAndSetupCommands() {
     let rendered = SPOnboardingRenderer.render(
       SupatermOnboardingSnapshot(
         items: [
@@ -434,6 +456,17 @@ struct SPCommandTests {
     #expect(
       rendered
         == """
+               ##
+             ####
+            #####
+           ##########
+         ############
+        ############
+            ######
+            #####
+            ###
+            ##
+
         Welcome to Supaterm!
 
         Common Shortcuts
@@ -493,13 +526,14 @@ struct SPCommandTests {
           index: 1,
           isKey: true,
           isVisible: true,
+          displayedSpaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
           spaces: [
             SupatermAppDebugSnapshot.Space(
               index: 1,
               id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
               name: "A",
               color: .neutral,
-              isSelected: true,
+              isWarm: true,
               rootItems: [
                 .tab(
                   SupatermAppDebugSnapshot.RootTab(
@@ -549,7 +583,7 @@ struct SPCommandTests {
       SPTreeRenderer.render(snapshot)
         == """
         window 1 [key]
-        └─ space 1 "A" [neutral, selected]
+        └─ space 1 "A" [neutral, displayed]
            └─ tab 1 "fish" [selected]
               └─ pane 1 "build" [focused]
         """
@@ -557,7 +591,7 @@ struct SPCommandTests {
     #expect(
       SPTreeRenderer.renderPlain(snapshot)
         == """
-        1\tspace\tA\tneutral,selected
+        1\tspace\tA\tneutral,displayed
         1/1\ttab\tfish\tselected
         1/1/1\tpane\tbuild\tfocused
         """

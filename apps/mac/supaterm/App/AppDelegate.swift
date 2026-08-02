@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       self?.openServiceWindows(workingDirectoryPaths: paths)
     }
   )
+  private let sessionCatalogWasRejectedAtLaunch = TerminalSessionCatalog.storedCatalogWasRejected()
   private var settingsWindowController: SettingsWindowController?
   private var configurationDiagnosticsObserver: NSObjectProtocol?
   private var bypassesConfirmationForNextQuit = false
@@ -106,14 +107,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     terminalWindowRegistry.onChange = { [weak menuController] in
       menuController?.refresh()
-    }
-    terminalWindowRegistry.onCreateWindow = { [weak self] spaceID, focus in
-      guard let self else { return }
-      let controller = createWindow(spaceID: spaceID)
-      if focus {
-        activateForWindowPresentation()
-        controller.window?.makeKeyAndOrderFront(nil)
-      }
     }
     menuController.setNewWindowAction { [weak self] in
       self?.performNewWindow() ?? false
@@ -270,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     )
     if reply == .terminateNow && terminationPlan.terminatesSessions {
       Task { @MainActor in
-        await terminalWindowRegistry.terminateLiveTerminalSessionsAndWait()
+        await terminalWindowRegistry.terminateTerminalSessionsAndWait()
         await terminalWindowRegistry.terminateAllZmxSessionsAndWait()
         NSApp.reply(toApplicationShouldTerminate: true)
       }
@@ -401,6 +394,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   private func reapOrphanZmxSessions() {
+    guard !sessionCatalogWasRejectedAtLaunch else {
+      SupatermLog.notice(
+        SupatermLog.zmx,
+        "zmx.reap.skipped",
+        fields: ["reason=sessionCatalogRejected"]
+      )
+      return
+    }
     let zmxClient = launchZmxClient
     Task.detached(priority: .utility) {
       SupatermLog.debug(SupatermLog.zmx, "zmx.reap.start")

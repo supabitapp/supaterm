@@ -189,7 +189,6 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     case pending
     case passing
     case failing
-
   }
 
   let status: Status
@@ -210,13 +209,43 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     if totalCount == 0 {
       return "Checks (0)"
     }
-    if status == .failing {
-      return "Checks failing (\(totalCount))"
+
+    if items.count == totalCount {
+      let counts = itemCounts
+      let failedCount = items.filter { $0.state.isFailure }.count
+      let issueCount = counts[.failing, default: 0] - failedCount
+      let runningCount = items.filter { $0.state == .inProgress }.count
+      let pendingCount = counts[.pending, default: 0] - runningCount
+      var parts: [String] = []
+      if failedCount > 0 {
+        parts.append("\(failedCount) failed")
+      }
+      if issueCount > 0 {
+        parts.append("\(issueCount) \(issueCount == 1 ? "issue" : "issues")")
+      }
+      if runningCount > 0 {
+        parts.append("\(runningCount) running")
+      }
+      if pendingCount > 0 {
+        parts.append("\(pendingCount) pending")
+      }
+      if !parts.isEmpty {
+        return parts.joined(separator: ", ")
+      }
     }
-    if status == .pending {
-      return "Checks pending (\(totalCount))"
+
+    switch status {
+    case .failing:
+      return "Checks failing"
+    case .pending:
+      return "Checks pending"
+    case .passing:
+      return "Checks passed (\(totalCount))"
     }
-    return "Checks passed (\(totalCount))"
+  }
+
+  var accessibilityTitle: String {
+    title.hasPrefix("Checks") ? title : "Checks, \(title)"
   }
 
   var itemCounts: [PaneAgentPullRequestCheck.Status: Int] {
@@ -275,6 +304,15 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
         .skipped
       case .failure, .error, .cancelled, .timedOut, .actionRequired, .stale, .startupFailure, .unavailable:
         .failing
+      }
+    }
+
+    var isFailure: Bool {
+      switch self {
+      case .failure, .error, .startupFailure:
+        true
+      default:
+        false
       }
     }
 

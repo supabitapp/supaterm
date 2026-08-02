@@ -113,6 +113,12 @@ extension TerminalHostState {
     Array(surfaces.keys).sorted { $0.uuidString < $1.uuidString }
   }
 
+  func sessionSurfaceIDs() -> [UUID] {
+    Set(surfaces.keys)
+      .union(spaceManager.pendingSurfaceIDs)
+      .sorted { $0.uuidString < $1.uuidString }
+  }
+
   func killZmxSession(for surfaceID: UUID) {
     killZmxSessions(for: [surfaceID])
   }
@@ -191,11 +197,11 @@ extension TerminalHostState {
     )
   }
 
-  func terminateLiveTerminalSessions() {
-    killZmxSessions(for: liveSurfaceIDs())
+  func terminateTerminalSessions() {
+    killZmxSessions(for: sessionSurfaceIDs())
   }
 
-  func terminateLiveTerminalSessionsAndWait() async {
-    await killZmxSessionsAndWait(for: liveSurfaceIDs())
+  func terminateTerminalSessionsAndWait() async {
+    await killZmxSessionsAndWait(for: sessionSurfaceIDs())
   }
 }

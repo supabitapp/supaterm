@@ -152,6 +152,17 @@ public enum SupatermShortcuts {
     modifiers: [.command, .option]
   )
 
+  public static let nextSpace = SupatermShortcut(
+    id: .nextSpace,
+    keyCode: UInt16(kVK_RightArrow),
+    modifiers: [.command, .control]
+  )
+  public static let previousSpace = SupatermShortcut(
+    id: .previousSpace,
+    keyCode: UInt16(kVK_LeftArrow),
+    modifiers: [.command, .control]
+  )
+
   public static let selectSpaces = (1...10).map { index in
     SupatermShortcut(
       id: .selectSpace(index),
@@ -175,7 +186,7 @@ public enum SupatermShortcuts {
     ),
     SupatermShortcutGroup(
       category: .spaces,
-      shortcuts: selectSpaces
+      shortcuts: [nextSpace, previousSpace] + selectSpaces
     ),
   ]
 
