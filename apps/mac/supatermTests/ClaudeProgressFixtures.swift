@@ -146,7 +146,6 @@ enum ClaudeProgressFixtures {
     agentID: String,
     name: String? = nil,
     description: String? = nil,
-    taskKind: String? = nil,
     forTranscriptAt transcriptURL: URL
   ) throws {
     let directoryURL =
@@ -160,9 +159,6 @@ enum ClaudeProgressFixtures {
     }
     if let description {
       object["description"] = description
-    }
-    if let taskKind {
-      object["taskKind"] = taskKind
     }
     let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     try data.write(to: directoryURL.appendingPathComponent("agent-\(agentID).meta.json"))

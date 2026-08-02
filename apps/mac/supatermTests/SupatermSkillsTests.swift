@@ -126,7 +126,10 @@ struct SupatermSkillsTests {
       _ = try SupatermSkills(bundledSkillsDirectoryURL: bundledSkillsDirectoryURL).list()
       Issue.record("Expected an invalid skill error.")
     } catch SupatermSkillsError.invalidSkill(let path) {
-      #expect(path.hasSuffix("/bundle/skill-data/core"))
+      #expect(
+        URL(fileURLWithPath: path).resolvingSymlinksInPath()
+          == coreDefinitionURL.deletingLastPathComponent().resolvingSymlinksInPath()
+      )
     } catch {
       Issue.record("Unexpected error: \(error)")
     }
@@ -231,7 +234,8 @@ struct SupatermSkillsTests {
     let bundledSkillsDirectoryURL = try bundledSkillsDirectory(in: rootURL)
     let executableURL =
       bundledSkillsDirectoryURL
-      .appendingPathComponent("bin", isDirectory: true)
+      .deletingLastPathComponent()
+      .appendingPathComponent("MacOS", isDirectory: true)
       .appendingPathComponent("sp", isDirectory: false)
 
     #expect(
@@ -249,7 +253,8 @@ struct SupatermSkillsTests {
     let bundledSkillsDirectoryURL = try bundledSkillsDirectory(in: rootURL)
     let executableURL =
       bundledSkillsDirectoryURL
-      .appendingPathComponent("bin", isDirectory: true)
+      .deletingLastPathComponent()
+      .appendingPathComponent("MacOS", isDirectory: true)
       .appendingPathComponent("sp", isDirectory: false)
     try FileManager.default.createDirectory(
       at: executableURL.deletingLastPathComponent(),
@@ -295,7 +300,11 @@ struct SupatermSkillsTests {
 }
 
 private func bundledSkillsDirectory(in rootURL: URL) throws -> URL {
-  let bundledSkillsDirectoryURL = rootURL.appendingPathComponent("bundle", isDirectory: true)
+  let bundledSkillsDirectoryURL =
+    rootURL
+    .appendingPathComponent("Supaterm.app", isDirectory: true)
+    .appendingPathComponent("Contents", isDirectory: true)
+    .appendingPathComponent("Resources", isDirectory: true)
   let discoverySkillDirectoryURL =
     bundledSkillsDirectoryURL
     .appendingPathComponent("skills/supaterm", isDirectory: true)

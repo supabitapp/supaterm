@@ -40,6 +40,12 @@ public struct SupatermSkillInstallResult: Codable, Equatable, Sendable {
   }
 }
 
+private struct ResolvedSupatermSkill {
+  let directoryURL: URL
+  let definitionURL: URL
+  let summary: SupatermSkillSummary
+}
+
 public struct SupatermSkills {
   public static let manualInstallCommand = "sp skills install"
 
@@ -126,9 +132,7 @@ public struct SupatermSkills {
     return SupatermSkillInstallResult(path: skillDirectoryURL.path)
   }
 
-  private func skill(named name: String) throws -> (
-    directoryURL: URL, definitionURL: URL, summary: SupatermSkillSummary
-  ) {
+  private func skill(named name: String) throws -> ResolvedSupatermSkill {
     guard name.range(of: #"^[a-z0-9][a-z0-9-]*$"#, options: .regularExpression) != nil else {
       throw SupatermSkillsError.skillNotFound(name)
     }
@@ -140,7 +144,11 @@ public struct SupatermSkills {
     }
 
     let summary = try summary(at: skillDirectoryURL)
-    return (skillDirectoryURL, skillDefinitionURL, summary)
+    return ResolvedSupatermSkill(
+      directoryURL: skillDirectoryURL,
+      definitionURL: skillDefinitionURL,
+      summary: summary
+    )
   }
 
   private static func skillsDirectoryURL(homeDirectoryURL: URL) -> URL {
@@ -298,9 +306,7 @@ public struct SupatermSkills {
   }
 
   private static func resourcesDirectoryURL(nextToExecutableURL executableURL: URL) -> URL {
-    executableURL
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
+    SupatermBundleLayout.resourcesDirectoryURL(nextTo: executableURL)
   }
 
   private func symbolicLinkDestination(at url: URL) -> String? {

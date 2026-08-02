@@ -4,6 +4,28 @@ import Testing
 
 @testable import supaterm
 
+private nonisolated final class WatchProbe: Sendable {
+  let counts: AsyncStream<Int>
+  private let continuation: AsyncStream<Int>.Continuation
+  private let count = Mutex(0)
+
+  var currentCount: Int {
+    count.withLock { $0 }
+  }
+
+  init() {
+    (counts, continuation) = AsyncStream.makeStream(of: Int.self)
+  }
+
+  func record() {
+    let value = count.withLock {
+      $0 += 1
+      return $0
+    }
+    continuation.yield(value)
+  }
+}
+
 struct AgentTranscriptTailerTests {
   private func makeTranscript(_ contents: String) throws -> String {
     let url = FileManager.default.temporaryDirectory
@@ -471,10 +493,11 @@ struct AgentTranscriptTailerTests {
     let path = directory.appendingPathComponent("transcript.jsonl").path
     let (events, continuation) = AsyncStream.makeStream(of: Void.self)
     defer { continuation.finish() }
-    let watchCount = Mutex(0)
+    let watchProbe = WatchProbe()
+    var watchCounts = watchProbe.counts.makeAsyncIterator()
     let stream = AgentTranscriptStream(
       watch: { _ in
-        watchCount.withLock { $0 += 1 }
+        watchProbe.record()
         return AgentTranscriptWatch(
           events: events,
           target: FileManager.default.fileExists(atPath: path) ? .file : .directory
@@ -486,14 +509,9 @@ struct AgentTranscriptTailerTests {
       return await iterator.next()
     }
 
-    while watchCount.withLock({ $0 }) < 2 {
-      await Task.yield()
-    }
-    for _ in 0..<10 {
-      await Task.yield()
-    }
-
-    #expect(watchCount.withLock { $0 } == 2)
+    #expect(await watchCounts.next() == 1)
+    #expect(await watchCounts.next() == 2)
+    #expect(watchProbe.currentCount == 2)
 
     try Data("{\"type\":\"created\"}\n".utf8).write(to: URL(fileURLWithPath: path))
     continuation.yield()
@@ -512,10 +530,11 @@ struct AgentTranscriptTailerTests {
     let path = nestedDirectory.appendingPathComponent("transcript.jsonl").path
     let (events, continuation) = AsyncStream.makeStream(of: Void.self)
     defer { continuation.finish() }
-    let watchCount = Mutex(0)
+    let watchProbe = WatchProbe()
+    var watchCounts = watchProbe.counts.makeAsyncIterator()
     let stream = AgentTranscriptStream(
       watch: { _ in
-        watchCount.withLock { $0 += 1 }
+        watchProbe.record()
         return AgentTranscriptWatch(events: events, target: .directory)
       }
     )
@@ -524,22 +543,21 @@ struct AgentTranscriptTailerTests {
       return await iterator.next()
     }
 
-    while watchCount.withLock({ $0 }) < 2 {
-      await Task.yield()
-    }
+    #expect(await watchCounts.next() == 1)
+    #expect(await watchCounts.next() == 2)
     try FileManager.default.createDirectory(at: nestedDirectory, withIntermediateDirectories: false)
     continuation.yield()
-    for _ in 0..<100 where watchCount.withLock({ $0 }) < 3 {
-      await Task.yield()
-    }
 
-    #expect(watchCount.withLock { $0 } == 3)
+    #expect(await watchCounts.next() == 3)
     task.cancel()
+    _ = await task.value
   }
 
   @Test
   func cancellingTranscriptStreamCancelsWatcher() async {
     let cancellationCount = Mutex(0)
+    let watchProbe = WatchProbe()
+    var watchCounts = watchProbe.counts.makeAsyncIterator()
     let (events, continuation) = AsyncStream.makeStream(
       of: Void.self,
       bufferingPolicy: .bufferingNewest(1)
@@ -552,13 +570,18 @@ struct AgentTranscriptTailerTests {
         cancellationCount.withLock { $0 += 1 }
       }
     )
-    let stream = AgentTranscriptStream(watch: { _ in watch })
+    let stream = AgentTranscriptStream(
+      watch: { _ in
+        watchProbe.record()
+        return watch
+      }
+    )
     let task = Task {
       var iterator = stream.updates(at: "/nonexistent/transcript.jsonl").makeAsyncIterator()
       return await iterator.next()
     }
 
-    await Task.yield()
+    #expect(await watchCounts.next() == 1)
     task.cancel()
     _ = await task.value
 

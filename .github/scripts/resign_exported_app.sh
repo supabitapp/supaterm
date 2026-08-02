@@ -28,9 +28,30 @@ code_roots=(
   "$app_path/Contents/PlugIns"
   "$app_path/Contents/XPCServices"
   "$app_path/Contents/Library/LoginItems"
-  "$app_path/Contents/Resources/bin"
-  "$app_path/Contents/Resources/zmx"
 )
+
+sp_path="$app_path/Contents/MacOS/sp"
+helper_paths=(
+  "$sp_path"
+  "$app_path/Contents/MacOS/ap"
+  "$app_path/Contents/MacOS/commands/supaterm"
+  "$app_path/Contents/Helpers/zmx"
+)
+
+for path in "${helper_paths[@]}"; do
+  if [ -L "$path" ]; then
+    echo "::error::Required executable must not be a symbolic link: $path"
+    exit 1
+  fi
+  if [ ! -f "$path" ]; then
+    echo "::error::Required executable is missing or not a regular file: $path"
+    exit 1
+  fi
+  if [ ! -x "$path" ]; then
+    echo "::error::Required executable is not executable: $path"
+    exit 1
+  fi
+done
 
 code_paths=()
 for root in "${code_roots[@]}"; do
@@ -59,5 +80,15 @@ if [ "${#code_paths[@]}" -gt 0 ]; then
   )
 fi
 
+for path in "${helper_paths[@]}"; do
+  sign_path "$path"
+done
+
 codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements,requirements,flags -v "$app_path"
+
+for path in "${helper_paths[@]}"; do
+  codesign --verify --strict --verbose=4 "$path"
+done
+
 codesign -vvv --deep --strict "$app_path"
+"$sp_path" --help > /dev/null

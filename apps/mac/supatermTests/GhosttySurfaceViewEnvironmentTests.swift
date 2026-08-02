@@ -13,7 +13,8 @@ struct GhosttySurfaceViewEnvironmentTests {
     let surfaceID = UUID(uuidString: "A72F7A7D-B5E8-497E-A5D5-D26A77A0A4C7")!
     let tabID = UUID(uuidString: "9F4EB4BE-9216-4DCA-A866-C8276D9EF2AA")!
     let path = [
-      "/Applications/Supaterm.app/Contents/Resources/bin",
+      "/Applications/Supaterm.app/Contents/MacOS/commands",
+      "/Applications/Supaterm.app/Contents/MacOS",
       "/usr/local/bin",
       "/usr/bin",
       "/bin",
@@ -22,7 +23,7 @@ struct GhosttySurfaceViewEnvironmentTests {
       surfaceID: surfaceID,
       tabID: tabID,
       socketPath: "/tmp/supaterm.sock",
-      cliPath: "/Applications/Supaterm.app/Contents/Resources/bin/sp",
+      cliPath: "/Applications/Supaterm.app/Contents/MacOS/sp",
       processEnvironment: ["PATH": "/usr/local/bin:/usr/bin:/bin"]
     )
 
@@ -33,13 +34,50 @@ struct GhosttySurfaceViewEnvironmentTests {
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.socketPathKey, value: "/tmp/supaterm.sock"),
         SupatermCLIEnvironmentVariable(
           key: SupatermCLIEnvironment.cliPathKey,
-          value: "/Applications/Supaterm.app/Contents/Resources/bin/sp"
+          value: "/Applications/Supaterm.app/Contents/MacOS/sp"
         ),
         SupatermCLIEnvironmentVariable(key: ZmxEnvironment.directoryKey, value: "/tmp/zmx-\(getuid())"),
         SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionKey, value: ""),
         SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionPrefixKey, value: ""),
         SupatermCLIEnvironmentVariable(key: "PATH", value: path),
       ]
+    )
+  }
+
+  @Test
+  func prependedPathMovesBundledCommandDirectoriesToFrontWithoutDuplication() {
+    let currentPath = [
+      "/usr/local/bin",
+      "/Applications/Supaterm.app/Contents/MacOS",
+      "/Applications/Supaterm.app/Contents/MacOS/commands",
+      "/usr/bin",
+    ].joined(separator: ":")
+    let expectedPath = [
+      "/Applications/Supaterm.app/Contents/MacOS/commands",
+      "/Applications/Supaterm.app/Contents/MacOS",
+      "/usr/local/bin",
+      "/usr/bin",
+    ].joined(separator: ":")
+
+    #expect(
+      GhosttySurfaceView.prependedPath(
+        [
+          "/Applications/Supaterm.app/Contents/MacOS/commands",
+          "/Applications/Supaterm.app/Contents/MacOS",
+        ],
+        currentPath: currentPath
+      ) == expectedPath
+    )
+  }
+
+  @Test
+  func bundledCommandDirectoriesReturnPromptAndCliDirectories() {
+    #expect(
+      GhosttySurfaceView.bundledCommandDirectories("/Applications/Supaterm.app/Contents/MacOS/sp")
+        == [
+          "/Applications/Supaterm.app/Contents/MacOS/commands",
+          "/Applications/Supaterm.app/Contents/MacOS",
+        ]
     )
   }
 
@@ -99,16 +137,6 @@ struct GhosttySurfaceViewEnvironmentTests {
   }
 
   @Test
-  func prependedPathMovesCliDirectoryToFrontWithoutDuplication() {
-    #expect(
-      GhosttySurfaceView.prependedPath(
-        "/Applications/Supaterm.app/Contents/Resources/bin",
-        currentPath: "/usr/local/bin:/Applications/Supaterm.app/Contents/Resources/bin:/usr/bin"
-      ) == "/Applications/Supaterm.app/Contents/Resources/bin:/usr/local/bin:/usr/bin"
-    )
-  }
-
-  @Test
   func supatermEnvironmentVariablesIncludeStateHomeWhenPresent() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
       surfaceID: UUID(),
@@ -122,14 +150,6 @@ struct GhosttySurfaceViewEnvironmentTests {
       environmentVariables.contains(
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.stateHomeKey, value: "/tmp/supaterm-dev")
       )
-    )
-  }
-
-  @Test
-  func cliDirectoryReturnsBundledExecutableDirectory() {
-    #expect(
-      GhosttySurfaceView.cliDirectory("/Applications/Supaterm.app/Contents/Resources/bin/sp")
-        == "/Applications/Supaterm.app/Contents/Resources/bin"
     )
   }
 

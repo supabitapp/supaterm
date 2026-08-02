@@ -19,7 +19,7 @@ env:
 jobs:
   build:
     if: github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
-    runs-on: macos-26
+    runs-on: depot-macos-26
     permissions:
       contents: read
       id-token: write
@@ -153,6 +153,9 @@ jobs:
           fi
           xcrun stapler staple apps/mac/build/supaterm.dmg
           xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate apps/mac/build/supaterm.dmg
+          xcrun stapler validate "$APP_PATH"
+          spctl --assess --type execute --verbose=4 "$APP_PATH"
       - name: Create app zip
         run: |
           APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
@@ -191,7 +194,7 @@ jobs:
             apps/mac/build/checksums.json
 
   posthog-dsym:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [build]
     env:
       POSTHOG_CLI_HOST: https://us.posthog.com
@@ -240,7 +243,7 @@ jobs:
             --build "${{ needs.build.outputs.build-number }}"
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [build]
     permissions:
       contents: write

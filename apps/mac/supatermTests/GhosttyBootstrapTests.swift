@@ -105,17 +105,54 @@ struct GhosttyBootstrapTests {
   }
 
   @Test
-  func bundledCommandDirectoryUsesResourcesBin() {
-    let resourcesURL = URL(fileURLWithPath: "/Applications/Supaterm.app/Contents/Resources", isDirectory: true)
+  func bundledCLIUsesExecutablePeer() throws {
+    let rootURL = try makeGhosttyBootstrapTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let executableDirectoryURL =
+      rootURL
+      .appendingPathComponent("Supaterm.app", isDirectory: true)
+      .appendingPathComponent("Contents", isDirectory: true)
+      .appendingPathComponent("MacOS", isDirectory: true)
+    let executableURL = executableDirectoryURL.appendingPathComponent("supaterm", isDirectory: false)
+    let cliURL = executableDirectoryURL.appendingPathComponent("sp", isDirectory: false)
+    try FileManager.default.createDirectory(
+      at: executableDirectoryURL,
+      withIntermediateDirectories: true
+    )
+    try Data().write(to: cliURL)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
 
-    #expect(
-      GhosttySupport.bundledCommandDirectory(resourcesURL: resourcesURL)
-        == resourcesURL.appendingPathComponent("bin", isDirectory: true)
+    #expect(GhosttySupport.bundledCLIPath(executableURL: executableURL) == cliURL.path)
+  }
+
+  @Test
+  func bundledCLIRejectsMissingNonExecutableAndLinkedPeers() throws {
+    let rootURL = try makeGhosttyBootstrapTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let executableDirectoryURL =
+      rootURL
+      .appendingPathComponent("Supaterm.app", isDirectory: true)
+      .appendingPathComponent("Contents", isDirectory: true)
+      .appendingPathComponent("MacOS", isDirectory: true)
+    let executableURL = executableDirectoryURL.appendingPathComponent("supaterm", isDirectory: false)
+    let cliURL = executableDirectoryURL.appendingPathComponent("sp", isDirectory: false)
+    let linkedCLIURL = executableDirectoryURL.appendingPathComponent("real-sp", isDirectory: false)
+    try FileManager.default.createDirectory(
+      at: executableDirectoryURL,
+      withIntermediateDirectories: true
     )
-    #expect(
-      GhosttySupport.bundledCLIPath(resourcesURL: resourcesURL)
-        == "/Applications/Supaterm.app/Contents/Resources/bin/sp"
-    )
+
+    #expect(GhosttySupport.bundledCLIPath(executableURL: executableURL) == nil)
+
+    try Data().write(to: cliURL)
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: cliURL.path)
+    #expect(GhosttySupport.bundledCLIPath(executableURL: executableURL) == nil)
+
+    try FileManager.default.removeItem(at: cliURL)
+    try Data().write(to: linkedCLIURL)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: linkedCLIURL.path)
+    try FileManager.default.createSymbolicLink(at: cliURL, withDestinationURL: linkedCLIURL)
+    #expect(GhosttySupport.bundledCLIPath(executableURL: executableURL) == nil)
   }
 
   @Test
@@ -243,7 +280,12 @@ struct GhosttyBootstrapTests {
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
 
-    try writeGhosttyBootstrapFile(at: locations.preferred, contents: "existing")
+    let existingConfig = """
+      font-size = 15
+      shell-integration-features = ssh-env
+      keybind = super+d=new_split:right
+      """
+    try writeGhosttyBootstrapFile(at: locations.preferred, contents: existingConfig)
 
     try GhosttySupport.seedDefaultConfigIfNeeded(
       homeDirectoryURL: rootURL,
@@ -251,7 +293,7 @@ struct GhosttyBootstrapTests {
     )
 
     let contents = try String(contentsOf: locations.preferred, encoding: .utf8)
-    #expect(contents == "existing")
+    #expect(contents == existingConfig)
   }
 }
 

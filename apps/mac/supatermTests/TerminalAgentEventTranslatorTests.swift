@@ -401,7 +401,8 @@ struct TerminalAgentEventTranslatorTests {
         .subagentStarted(
           nickname: "goo4560",
           role: "general-purpose",
-          task: "GOO-4560 board API table"
+          task: "GOO-4560 board API table",
+          transcriptPath: subagentTranscriptPath(for: transcript, agentID: "child-1")
         )
       ]
     )
@@ -434,7 +435,12 @@ struct TerminalAgentEventTranslatorTests {
         .subagentStarted(
           nickname: "dia-color-recovery",
           role: nil,
-          task: "Recover the color palettes Dia ships for Profile custom colors."
+          task: "Recover the color palettes Dia ships for Profile custom colors.",
+          transcriptPath: subagentTranscriptPath(
+            for: transcript,
+            runID: "wf_0c5cf178-0c1",
+            agentID: "child-1"
+          )
         )
       ]
     )
@@ -466,7 +472,12 @@ struct TerminalAgentEventTranslatorTests {
         .subagentStarted(
           nickname: nil,
           role: nil,
-          task: "Recover the color palettes Dia ships."
+          task: "Recover the color palettes Dia ships.",
+          transcriptPath: subagentTranscriptPath(
+            for: transcript,
+            runID: "wf_0c5cf178-0c1",
+            agentID: "child-1"
+          )
         )
       ]
     )
@@ -501,7 +512,12 @@ struct TerminalAgentEventTranslatorTests {
       actions == [
         .subagentDescribed(
           nickname: nil,
-          task: String(prompt.trimmingCharacters(in: .whitespaces).prefix(140)) + "…"
+          task: String(prompt.trimmingCharacters(in: .whitespaces).prefix(140)) + "…",
+          transcriptPath: subagentTranscriptPath(
+            for: transcript,
+            runID: "wf_0c5cf178-0c1",
+            agentID: "child-1"
+          )
         ),
         .turnRunning(detail: "Bash"),
       ]
@@ -532,14 +548,13 @@ struct TerminalAgentEventTranslatorTests {
   }
 
   @Test
-  func claudeTeammateStopIdlesChildInsteadOfRemovingIt() throws {
+  func claudeTeammateStopRemovesChild() throws {
     let transcript = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
     try ClaudeProgressFixtures.writeSubagentMetadata(
       agentID: "child-1",
       name: "supaterm-config-map",
       description: "Map supaterm Ghostty config plumbing",
-      taskKind: "in_process_teammate",
       forTranscriptAt: transcript
     )
     let request = SupatermAgentHookRequest(
@@ -556,7 +571,7 @@ struct TerminalAgentEventTranslatorTests {
     let events = TerminalAgentEventTranslator.events(for: request)
 
     #expect(events.map(\.scope.subagentID) == ["child-1"])
-    #expect(events.map(\.action) == [.turnCompleted(message: nil)])
+    #expect(events.map(\.action) == [.subagentStopped])
   }
 
   @Test
@@ -614,7 +629,11 @@ struct TerminalAgentEventTranslatorTests {
 
     #expect(
       TerminalAgentEventTranslator.events(for: request).map(\.action) == [
-        .subagentDescribed(nickname: nil, task: "GOO-4560 board API table"),
+        .subagentDescribed(
+          nickname: nil,
+          task: "GOO-4560 board API table",
+          transcriptPath: subagentTranscriptPath(for: transcript, agentID: "child-1")
+        ),
         .turnRunning(detail: "Bash"),
       ]
     )
@@ -685,5 +704,24 @@ struct TerminalAgentEventTranslatorTests {
         from: Data(json.utf8)
       )
     )
+  }
+
+  private func subagentTranscriptPath(
+    for transcript: URL,
+    runID: String? = nil,
+    agentID: String
+  ) -> String {
+    var directory =
+      transcript
+      .deletingPathExtension()
+      .appendingPathComponent("subagents")
+    if let runID {
+      directory.appendPathComponent("workflows")
+      directory.appendPathComponent(runID)
+    }
+    return
+      directory
+      .appendingPathComponent("agent-\(agentID).jsonl")
+      .path
   }
 }

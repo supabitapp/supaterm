@@ -158,6 +158,114 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func refreshPreservesFindNavigationDefaultsForPartialShortcutSource() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.supatermSettings) var settings = .default
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+
+      let editMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "Edit" })?.submenu)
+      let findMenu = try #require(editMenu.items.last?.submenu)
+      assertDefaultFindNavigationShortcuts(findMenu)
+
+      var shortcuts = [
+        "new_window": KeyboardShortcut("u", modifiers: [.command, .option])
+      ]
+      registry.register(
+        keyboardShortcutForAction: { shortcuts[$0] },
+        windowControllerID: UUID(),
+        store: Store(initialState: AppFeature.State()) {
+          AppFeature()
+        },
+        terminal: TerminalHostState(managesTerminalSurfaces: false),
+        requestConfirmedWindowClose: {}
+      )
+      controller.refresh()
+
+      assertDefaultFindNavigationShortcuts(findMenu)
+
+      shortcuts["reload_config"] = KeyboardShortcut("g", modifiers: [.command])
+      controller.refresh()
+
+      let commandG = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "g",
+          charactersIgnoringModifiers: "g",
+          isARepeat: false,
+          keyCode: UInt16(kVK_ANSI_G)
+        )
+      )
+      #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: commandG))
+      assertDefaultFindNavigationShortcuts(findMenu)
+
+      shortcuts["reload_config"] = nil
+      shortcuts["toggle_split_zoom"] = KeyboardShortcut("g", modifiers: [.command])
+      controller.refresh()
+
+      #expect(findMenu.items[1].keyEquivalent.isEmpty)
+      #expect(findMenu.items[1].keyEquivalentModifierMask.isEmpty)
+      let windowMenu = try #require(
+        app.mainMenu?.items.first(where: { $0.title == "Window" })?.submenu
+      )
+      let zoomSplit = try #require(windowMenu.items.first(where: { $0.title == "Zoom Split" }))
+      #expect(zoomSplit.keyEquivalent == "g")
+      #expect(zoomSplit.keyEquivalentModifierMask == [.command])
+
+      shortcuts["toggle_split_zoom"] = nil
+      $settings.withLock {
+        $0.shortcutOverrides[.toggleSidebar] = SupatermShortcutOverride(
+          keyCode: UInt16(kVK_ANSI_G),
+          modifiers: [.command]
+        )
+      }
+      controller.refresh()
+
+      #expect(findMenu.items[1].keyEquivalent.isEmpty)
+      #expect(findMenu.items[1].keyEquivalentModifierMask.isEmpty)
+      let viewMenu = try #require(
+        app.mainMenu?.items.first(where: { $0.title == "View" })?.submenu
+      )
+      #expect(viewMenu.items[0].keyEquivalent == "g")
+      #expect(viewMenu.items[0].keyEquivalentModifierMask == [.command])
+
+      $settings.withLock {
+        $0.shortcutOverrides[.toggleSidebar] = nil
+      }
+      shortcuts["copy_to_clipboard"] = KeyboardShortcut("g", modifiers: [.command])
+      controller.refresh()
+
+      assertDefaultFindNavigationShortcuts(findMenu)
+      let copy = try #require(editMenu.items.first(where: { $0.title == "Copy" }))
+      #expect(copy.keyEquivalent == "c")
+      #expect(copy.keyEquivalentModifierMask == [.command])
+
+      shortcuts["navigate_search:previous"] = KeyboardShortcut(
+        "j",
+        modifiers: [.command, .option]
+      )
+      controller.refresh()
+
+      #expect(findMenu.items[2].keyEquivalent == "j")
+      #expect(findMenu.items[2].keyEquivalentModifierMask == [.command, .option])
+    }
+  }
+
+  @Test
   func performNewWindowUsesConfiguredAction() {
     let controller = SupatermMenuController(registry: TerminalWindowRegistry())
     var invocations = 0
@@ -253,7 +361,7 @@ struct SupatermMenuControllerTests {
         keyboardShortcutForAction: { action in
           switch action {
           case "open_config":
-            KeyboardShortcut("p", modifiers: [.command, .shift])
+            KeyboardShortcut("P", modifiers: [.command])
           default:
             nil
           }
@@ -275,6 +383,11 @@ struct SupatermMenuControllerTests {
 
       controller.install()
       controller.refresh()
+
+      let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+      let settingsItem = try #require(appMenu.items.first(where: { $0.title == "Settings..." }))
+      #expect(settingsItem.keyEquivalent == "p")
+      #expect(settingsItem.keyEquivalentModifierMask == [.command, .shift])
 
       let event = try #require(
         NSEvent.keyEvent(
@@ -326,7 +439,7 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func performGhosttyBindingMenuKeyEquivalentRoutesIndexedGhosttyItemsOnly() throws {
+  func performGhosttyBindingMenuKeyEquivalentRoutesForwardDeleteWithFunctionModifier() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -342,7 +455,7 @@ struct SupatermMenuControllerTests {
         keyboardShortcutForAction: { action in
           switch action {
           case "new_window":
-            KeyboardShortcut("h", modifiers: [.command])
+            KeyboardShortcut(.deleteForward, modifiers: [])
           default:
             nil
           }
@@ -369,14 +482,14 @@ struct SupatermMenuControllerTests {
         NSEvent.keyEvent(
           with: .keyDown,
           location: .zero,
-          modifierFlags: [.command],
+          modifierFlags: [.function],
           timestamp: 0,
           windowNumber: 0,
           context: nil,
-          characters: "h",
-          charactersIgnoringModifiers: "h",
+          characters: KeyEquivalent.deleteForward.character.description,
+          charactersIgnoringModifiers: KeyEquivalent.deleteForward.character.description,
           isARepeat: false,
-          keyCode: 4
+          keyCode: UInt16(kVK_ForwardDelete)
         )
       )
 
@@ -884,6 +997,13 @@ struct SupatermMenuControllerTests {
       #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: defaultEvent))
       #expect(delegate.quitCount == 1)
     }
+  }
+
+  private func assertDefaultFindNavigationShortcuts(_ findMenu: NSMenu) {
+    #expect(findMenu.items[1].keyEquivalent == "g")
+    #expect(findMenu.items[1].keyEquivalentModifierMask == [.command])
+    #expect(findMenu.items[2].keyEquivalent == "g")
+    #expect(findMenu.items[2].keyEquivalentModifierMask == [.command, .shift])
   }
 
   private func assertAppMenu(_ menu: NSMenu?) throws {

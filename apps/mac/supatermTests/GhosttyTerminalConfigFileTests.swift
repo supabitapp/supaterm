@@ -62,6 +62,7 @@ struct GhosttyTerminalConfigFileTests {
       font-family = "Menlo"
       cursor-style = block
       cursor-style-blink = false
+      shell-integration-features = ssh-env
       """,
       to: configURL
     )
@@ -111,6 +112,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(contents.contains("theme = light:Builtin Light,dark:Zenbones Dark"))
     #expect(contents.contains("cursor-style = block"))
     #expect(contents.contains("cursor-style-blink = false"))
+    #expect(contents.contains("shell-integration-features = ssh-env"))
     #expect(contents.contains(#"font-family = "JetBrains Mono""#))
     #expect(contents.contains("font-size = 18"))
     #expect(contents.contains("confirm-close-surface = always"))
@@ -118,6 +120,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(occurrenceCount(of: "cursor-style-blink =", in: contents) == 1)
     #expect(occurrenceCount(of: "font-family =", in: contents) == 1)
     #expect(occurrenceCount(of: "font-size =", in: contents) == 1)
+    #expect(occurrenceCount(of: "shell-integration-features = ssh-env", in: contents) == 1)
     #expect(reloadCounter.count() == 1)
   }
 

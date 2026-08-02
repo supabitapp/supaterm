@@ -19,8 +19,8 @@ final class FoundationSmokeUITests: SupatermUITestCase {
 
     let command =
       "supaterm_path=\"$(command -v supaterm)\"; "
-      + "[ \"$supaterm_path\" = \"${SUPATERM_CLI_PATH%/sp}/supaterm\" ] && "
-      + "case \"$supaterm_path\" in */supaterm.app/Contents/Resources/bin/supaterm) "
+      + "[ \"$supaterm_path\" = \"${SUPATERM_CLI_PATH%/sp}/commands/supaterm\" ] && "
+      + "case \"$supaterm_path\" in */supaterm.app/Contents/MacOS/commands/supaterm) "
       + "echo SUPATERM-PATH-\"MATCHED\";; esac\n"
     app.typeText(command)
 
@@ -29,7 +29,7 @@ final class FoundationSmokeUITests: SupatermUITestCase {
     }
     XCTAssertTrue(
       supatermMatched,
-      "bare supaterm did not resolve to Contents/Resources/bin/supaterm on pane PATH"
+      "bare supaterm did not resolve to Contents/MacOS/commands/supaterm on pane PATH"
     )
   }
 

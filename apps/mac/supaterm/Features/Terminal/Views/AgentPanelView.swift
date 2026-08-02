@@ -371,7 +371,7 @@ struct AgentPanelView: View {
         pullRequestChecksSummaryRow(checks)
       }
       .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
-      .accessibilityLabel(checks.title)
+      .accessibilityLabel(checks.accessibilityTitle)
       .accessibilityValue(checksAreExpanded ? "Expanded" : "Collapsed")
 
       if checksAreExpanded {

@@ -15,7 +15,7 @@ nonisolated enum TerminalAgentEventTranslator {
           )
         ]
       case .subagentStop:
-        return [event(request, scope: scope, action: subagentStoppedAction(for: request))]
+        return [event(request, scope: scope, action: .subagentStopped)]
       default:
         break
       }
@@ -50,7 +50,8 @@ nonisolated enum TerminalAgentEventTranslator {
       return .subagentStarted(
         nickname: metadata?.nickname,
         role: role == "workflow-subagent" ? nil : role,
-        task: metadata?.task
+        task: metadata?.task,
+        transcriptPath: metadata?.transcriptPath
       )
     }
     let nickname = CodexTranscriptMetadataParser.subagentNickname(
@@ -63,20 +64,6 @@ nonisolated enum TerminalAgentEventTranslator {
       role: role?.lowercased() == "default" ? nil : role,
       transcriptPath: request.event.transcriptPath
     )
-  }
-
-  private static func subagentStoppedAction(
-    for request: SupatermAgentHookRequest
-  ) -> TerminalAgentEvent.Action {
-    guard request.agent == .claude,
-      ClaudeSubagentMetadataParser.metadata(
-        transcriptPath: request.event.transcriptPath,
-        agentID: request.event.agentID
-      )?.isTeammate == true
-    else {
-      return .subagentStopped
-    }
-    return .turnCompleted(message: nil)
   }
 
   private static func claudeEvents(
@@ -159,7 +146,11 @@ nonisolated enum TerminalAgentEventTranslator {
       event(
         request,
         scope: scope,
-        action: .subagentDescribed(nickname: metadata.nickname, task: metadata.task)
+        action: .subagentDescribed(
+          nickname: metadata.nickname,
+          task: metadata.task,
+          transcriptPath: metadata.transcriptPath
+        )
       )
     ]
   }

@@ -153,13 +153,19 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_TAB_ID`
 - `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled (the default)
 
-The app also prepends `Contents/Resources/bin` to pane `PATH`. It contains `sp`, `ap`, and the Rust prompt TUI. Launch the prompt TUI from a pane with:
+The app also prepends `Contents/MacOS/commands` and `Contents/MacOS` to pane `PATH`. The first contains the Rust prompt TUI; the second contains `sp` and `ap`. Launch the prompt TUI from a pane with:
 
 ```bash
 supaterm
 ```
 
 The first version edits a prompt and uses Tab or Shift-Tab to pick Codex, Claude, or Pi. Shift-Enter inserts a newline. Long prompts grow to one-third of the pane, then scroll as Up, Down, Control-P, or Control-N moves through wrapped rows. The layout reflows when the pane resizes. Enter does nothing.
+
+### SSH entry point
+
+Supaterm keeps `ssh-env` in new terminal configs. The bundled shell integrations call the exact `SUPATERM_CLI_PATH` and let `sp ssh` replace itself with the user's `ssh` executable. This reuses the signed CLI already in the app bundle and does not require another app entry point.
+
+`sp ssh` sets the terminal environment and adds `SendEnv` rules. It does not pass `SetEnv`, so user SSH config keeps ownership of those values. Supaterm does not rewrite existing terminal configs; users without `ssh-env` keep their current behavior.
 
 ## Marketing website
 

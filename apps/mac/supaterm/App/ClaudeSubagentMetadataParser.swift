@@ -5,7 +5,7 @@ nonisolated enum ClaudeSubagentMetadataParser {
   struct Metadata: Equatable {
     let nickname: String?
     let task: String?
-    let isTeammate: Bool
+    let transcriptPath: String
   }
 
   static func metadata(
@@ -25,11 +25,14 @@ nonisolated enum ClaudeSubagentMetadataParser {
     let task =
       AgentProgressParsing.normalizedTitle(object["description"]?.stringValue)
       ?? spawnPromptTask(besides: metadataURL, agentID: agentID)
-    guard nickname != nil || task != nil else { return nil }
     return Metadata(
       nickname: nickname,
       task: task,
-      isTeammate: object["taskKind"]?.stringValue == "in_process_teammate"
+      transcriptPath:
+        metadataURL
+        .deletingLastPathComponent()
+        .appendingPathComponent("agent-\(agentID).jsonl")
+        .path
     )
   }
 
@@ -52,14 +55,17 @@ nonisolated enum ClaudeSubagentMetadataParser {
     if FileManager.default.fileExists(atPath: direct.path) {
       return direct
     }
+    let workflows = subagents.appendingPathComponent("workflows")
     let workflowRuns =
       (try? FileManager.default.contentsOfDirectory(
-        at: subagents.appendingPathComponent("workflows"),
+        at: workflows,
         includingPropertiesForKeys: nil
       )) ?? []
     return
       workflowRuns
-      .map { $0.appendingPathComponent(fileName) }
+      .map {
+        workflows.appendingPathComponent($0.lastPathComponent).appendingPathComponent(fileName)
+      }
       .first { FileManager.default.fileExists(atPath: $0.path) }
   }
 

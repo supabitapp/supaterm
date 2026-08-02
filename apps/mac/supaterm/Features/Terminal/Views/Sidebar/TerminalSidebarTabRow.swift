@@ -156,6 +156,9 @@ struct TerminalSidebarTabRow: View {
   }
 
   var body: some View {
+    let isGrouped = groupID != nil
+    let contentInsets = TerminalSidebarLayout.tabContentHorizontalInsets(isGrouped: isGrouped)
+    let surfaceInsets = TerminalSidebarLayout.tabSurfaceHorizontalInsets(isGrouped: isGrouped)
     let summary = TerminalSidebarTabSummaryView(
       tab: tab,
       palette: palette,
@@ -184,26 +187,29 @@ struct TerminalSidebarTabRow: View {
         summary
       }
     }
-    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+    .padding(.leading, contentInsets.leading)
+    .padding(.trailing, contentInsets.trailing)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity)
-    .background(
+    .background {
       rowAppearance.fill(
         isSelected: isPrimarySelected,
         isPressed: false,
         isHovering: isHovering
       )
-    )
-    .modifier(
-      SelectableRowChrome(
-        isSelected: isPrimarySelected,
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-        appearance: rowAppearance,
-        showsSelectionEdge: true,
-        showsSelectionShadow: false
+      .modifier(
+        SelectableRowChrome(
+          isSelected: isPrimarySelected,
+          cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+          appearance: rowAppearance,
+          showsSelectionEdge: true,
+          showsSelectionShadow: false
+        )
       )
-    )
+      .padding(.leading, surfaceInsets.leading)
+      .padding(.trailing, surfaceInsets.trailing)
+    }
     .terminalAnimation(
       .spring(response: 0.24, dampingFraction: 0.88),
       value: animatedPresentation,

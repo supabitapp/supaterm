@@ -500,35 +500,64 @@ public struct SupatermSocketResponse: Equatable, Sendable, Codable {
     }
   }
 
-  public let id: String?
-  public let ok: Bool
-  public let result: JSONObject?
-  public let error: ErrorPayload?
+  private enum Outcome: Equatable, Sendable {
+    case failure(id: String?, error: ErrorPayload)
+    case success(id: String, result: JSONObject)
+  }
 
-  public init(
-    id: String?,
-    ok: Bool,
-    result: JSONObject? = nil,
-    error: ErrorPayload? = nil
-  ) {
-    self.id = id
-    self.ok = ok
-    self.result = result
-    self.error = error
+  private enum CodingKeys: String, CodingKey {
+    case error
+    case id
+    case ok
+    case result
+  }
+
+  private let outcome: Outcome
+
+  private init(outcome: Outcome) {
+    self.outcome = outcome
+  }
+
+  public var id: String? {
+    switch outcome {
+    case .failure(let id, _):
+      return id
+    case .success(let id, _):
+      return id
+    }
+  }
+
+  public var ok: Bool {
+    switch outcome {
+    case .failure:
+      return false
+    case .success:
+      return true
+    }
+  }
+
+  public var result: JSONObject? {
+    guard case .success(_, let result) = outcome else { return nil }
+    return result
+  }
+
+  public var error: ErrorPayload? {
+    guard case .failure(_, let error) = outcome else { return nil }
+    return error
   }
 
   public static func ok(
     id: String,
     result: JSONObject = [:]
   ) -> Self {
-    Self(id: id, ok: true, result: result)
+    Self(outcome: .success(id: id, result: result))
   }
 
   public static func ok<T: Encodable>(
     id: String,
     encodableResult: T
   ) throws -> Self {
-    Self(id: id, ok: true, result: try JSONObject(encodableResult))
+    Self(outcome: .success(id: id, result: try JSONObject(encodableResult)))
   }
 
   public static func error(
@@ -536,7 +565,50 @@ public struct SupatermSocketResponse: Equatable, Sendable, Codable {
     code: String,
     message: String
   ) -> Self {
-    Self(id: id, ok: false, error: ErrorPayload(code: code, message: message))
+    Self(outcome: .failure(id: id, error: ErrorPayload(code: code, message: message)))
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let isSuccess = try container.decode(Bool.self, forKey: .ok)
+
+    if isSuccess {
+      guard !container.contains(.error) else {
+        throw DecodingError.dataCorruptedError(
+          forKey: .error,
+          in: container,
+          debugDescription: "A successful socket response cannot include an error."
+        )
+      }
+      let id = try container.decode(String.self, forKey: .id)
+      let result = try container.decode(JSONObject.self, forKey: .result)
+      outcome = .success(id: id, result: result)
+    } else {
+      guard !container.contains(.result) else {
+        throw DecodingError.dataCorruptedError(
+          forKey: .result,
+          in: container,
+          debugDescription: "A failed socket response cannot include a result."
+        )
+      }
+      let id = try container.decodeIfPresent(String.self, forKey: .id)
+      let error = try container.decode(ErrorPayload.self, forKey: .error)
+      outcome = .failure(id: id, error: error)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(ok, forKey: .ok)
+
+    switch outcome {
+    case .failure(let id, let error):
+      try container.encodeIfPresent(id, forKey: .id)
+      try container.encode(error, forKey: .error)
+    case .success(let id, let result):
+      try container.encode(id, forKey: .id)
+      try container.encode(result, forKey: .result)
+    }
   }
 
   public func decodeResult<T: Decodable>(_ type: T.Type = T.self) throws -> T {

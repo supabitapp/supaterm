@@ -110,6 +110,24 @@ struct SPTmuxCompatTests {
   }
 
   @Test
+  func resolvedCLIPathCanonicalizesExplicitSymlink() throws {
+    let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    let executableURL = temporaryDirectory.appendingPathComponent("sp-real", isDirectory: false)
+    let symlinkURL = temporaryDirectory.appendingPathComponent("sp", isDirectory: false)
+    try writeExecutable(at: executableURL, script: "#!/bin/sh\nexit 0\n")
+    try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: executableURL)
+
+    let resolvedPath = try SPRunLauncher.resolvedCLIPath(
+      cliExecutablePath: symlinkURL.path,
+      environment: [:]
+    )
+
+    #expect(resolvedPath == executableURL.path)
+  }
+
+  @Test
   func tmuxResizeDirectionRequiresDirectionalFlag() {
     #expect(tmuxResizeDirection(flags: []) == nil)
     #expect(tmuxResizeDirection(flags: ["-L"]) == .left)

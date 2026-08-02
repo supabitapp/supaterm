@@ -164,29 +164,32 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
-  static func cliDirectory(_ cliPath: String?) -> String? {
-    guard let cliPath else { return nil }
+  static func bundledCommandDirectories(_ cliPath: String?) -> [String] {
+    guard let cliPath else { return [] }
     let trimmedPath = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedPath.isEmpty else { return nil }
-    return URL(fileURLWithPath: trimmedPath).deletingLastPathComponent().path
+    guard !trimmedPath.isEmpty else { return [] }
+    let cliURL = URL(fileURLWithPath: trimmedPath)
+    return [
+      SupatermBundleLayout.commandsDirectoryURL(nextTo: cliURL).path,
+      cliURL.deletingLastPathComponent().path,
+    ]
   }
 
   static func prependedPath(
-    _ directory: String,
+    _ directories: [String],
     currentPath: String?
   ) -> String {
-    let trimmedDirectory = directory.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedDirectory.isEmpty else {
-      return currentPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
+    let trimmedDirectories =
+      directories
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
 
-    var components =
+    let currentComponents =
       currentPath?
       .split(separator: ":")
       .map { String($0) }
-      .filter { !$0.isEmpty && $0 != trimmedDirectory } ?? []
-    components.insert(trimmedDirectory, at: 0)
-    return components.joined(separator: ":")
+      .filter { !$0.isEmpty && !trimmedDirectories.contains($0) } ?? []
+    return (trimmedDirectories + currentComponents).joined(separator: ":")
   }
 
   static func titleOverride(from title: String) -> String? {
@@ -250,7 +253,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       )
     }
     let path = prependedPath(
-      cliDirectory(cliPath) ?? "",
+      bundledCommandDirectories(cliPath),
       currentPath: processEnvironment["PATH"]
     )
     if !path.isEmpty {
@@ -291,7 +294,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       surfaceID: id,
       tabID: tabID,
       socketPath: SupatermProcessSocketEndpoint.current()?.path,
-      cliPath: GhosttySupport.bundledCLIPath(resourcesURL: Bundle.main.resourceURL),
+      cliPath: GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL),
       zmxSessionsEnabled: zmxSessionsEnabled
     )
     self.commandWrapper = commandWrapper
@@ -515,7 +518,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   override func layout() {
     super.layout()
-    notifySizeChanged()
+    if scrollWrapper == nil {
+      updateSurfaceSize()
+    }
   }
 
   private func notifySizeChanged() {
@@ -765,25 +770,55 @@ final class GhosttySurfaceView: NSView, Identifiable {
       return
     }
     syncPreedit(clearIfNeeded: markedTextBefore)
-    if let list = keyTextAccumulator, !list.isEmpty {
+
+    let composing = markedText.length > 0 || markedTextBefore
+
+    if markedTextBefore,
+      let list = keyTextAccumulator,
+      !list.isEmpty
+    {
       for text in list {
+        if Self.shouldSuppressComposingControlInput(text, composing: composing) {
+          continue
+        }
+        _ = sendCommittedPreeditText(text, action: action)
+      }
+      if Self.shouldReplayCommittedPreeditKey(translationEvent) {
         _ = sendKey(
           action: action,
           event: event,
           translationEvent: translationEvent,
           translationMods: translationMods,
-          text: text,
           composing: false
         )
       }
+      return
+    }
+
+    if let list = keyTextAccumulator, !list.isEmpty {
+      for text in list {
+        if Self.shouldSuppressComposingControlInput(text, composing: composing) {
+          continue
+        }
+        _ = sendKey(
+          action: action,
+          event: event,
+          translationEvent: translationEvent,
+          translationMods: translationMods,
+          text: text
+        )
+      }
     } else {
+      if Self.shouldSuppressComposingControlInput(event.characters, composing: composing) {
+        return
+      }
       _ = sendKey(
         action: action,
         event: event,
         translationEvent: translationEvent,
         translationMods: translationMods,
         text: GhosttyKeyEvent.characters(translationEvent),
-        composing: markedText.length > 0 || markedTextBefore
+        composing: composing
       )
     }
   }
@@ -1384,13 +1419,26 @@ final class GhosttySurfaceView: NSView, Identifiable {
       NSApp.sendEvent(current)
       return
     }
+    guard let action = Self.appKitDocumentBindingAction(for: selector, event: NSApp.currentEvent) else {
+      return
+    }
+    performBindingAction(action)
+  }
+
+  static func appKitDocumentBindingAction(for selector: Selector, event: NSEvent?) -> String? {
+    if let event,
+      event.modifierFlags.contains(.command),
+      event.keyCode == kVK_UpArrow || event.keyCode == kVK_DownArrow
+    {
+      return nil
+    }
     switch selector {
     case #selector(moveToBeginningOfDocument(_:)):
-      performBindingAction("scroll_to_top")
+      return "scroll_to_top"
     case #selector(moveToEndOfDocument(_:)):
-      performBindingAction("scroll_to_bottom")
+      return "scroll_to_bottom"
     default:
-      break
+      return nil
     }
   }
 
@@ -1612,6 +1660,56 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     key.text = nil
     return ghostty_surface_key(surface, key)
+  }
+
+  static func shouldReplayCommittedPreeditKey(_ event: NSEvent) -> Bool {
+    switch Int(event.keyCode) {
+    case kVK_DownArrow, kVK_RightArrow, kVK_UpArrow:
+      return true
+    case kVK_LeftArrow:
+      return !event.modifierFlags.isDisjoint(with: [.shift, .control, .option, .command])
+    default:
+      return false
+    }
+  }
+
+  static func withCommittedPreeditKey<Result>(
+    action: ghostty_input_action_e,
+    text: String,
+    perform: (ghostty_input_key_s) -> Result
+  ) -> Result {
+    var key = ghostty_input_key_s()
+    key.action = action
+    key.keycode = 0
+    key.text = nil
+    key.composing = false
+    key.mods = GHOSTTY_MODS_NONE
+    key.consumed_mods = GHOSTTY_MODS_NONE
+    key.unshifted_codepoint = 0
+    return text.withCString { pointer in
+      key.text = pointer
+      return perform(key)
+    }
+  }
+
+  private func sendCommittedPreeditText(
+    _ text: String,
+    action: ghostty_input_action_e
+  ) -> Bool {
+    guard let surface else { return false }
+    return Self.withCommittedPreeditKey(action: action, text: text) { key in
+      ghostty_surface_key(surface, key)
+    }
+  }
+
+  static func shouldSuppressComposingControlInput(
+    _ text: String?,
+    composing: Bool
+  ) -> Bool {
+    guard composing, let text else { return false }
+    let scalars = text.unicodeScalars
+    guard scalars.count == 1, let scalar = scalars.first else { return false }
+    return scalar.value < 0x20
   }
 
   @discardableResult
@@ -1926,6 +2024,7 @@ extension GhosttySurfaceView: NSTextInputClient {
     default:
       return
     }
+    let hadMarkedText = hasMarkedText()
     unmarkText()
     if var acc = keyTextAccumulator {
       acc.append(chars)
@@ -1933,8 +2032,11 @@ extension GhosttySurfaceView: NSTextInputClient {
       return
     }
     defer { recordUserInput() }
+    if hadMarkedText, !chars.isEmpty {
+      _ = sendCommittedPreeditText(chars, action: GHOSTTY_ACTION_PRESS)
+      return
+    }
     let len = chars.utf8CString.count
-    if len == 0 { return }
     chars.withCString { ptr in
       ghostty_surface_text(surface, ptr, UInt(len - 1))
     }

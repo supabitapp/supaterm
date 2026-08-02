@@ -3,6 +3,9 @@ name: ci
 on:
   workflow_call: {}
   workflow_dispatch: {}
+  merge_group:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -37,7 +40,7 @@ env:
 jobs:
   changes:
     name: changes
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     outputs:
       graph: ${{ steps.changes.outputs.graph }}
       mac: ${{ steps.changes.outputs.mac }}
@@ -98,7 +101,7 @@ jobs:
     name: swiftlint
     needs: changes
     if: needs.changes.outputs.mac == 'true'
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v4
@@ -113,7 +116,7 @@ jobs:
     name: mac-test
     needs: changes
     if: needs.changes.outputs.mac == 'true'
-    runs-on: macos-26
+    runs-on: depot-macos-26
     steps:
       - uses: actions/checkout@v6
         with:
@@ -127,7 +130,7 @@ jobs:
     name: mac-test-e2e
     needs: changes
     if: needs.changes.outputs.mac == 'true'
-    runs-on: macos-26
+    runs-on: depot-macos-26
     steps:
       - uses: actions/checkout@v6
         with:
@@ -147,7 +150,7 @@ jobs:
     name: mac-test-ui-build
     needs: changes
     if: needs.changes.outputs.mac == 'true'
-    runs-on: macos-26
+    runs-on: depot-macos-26
     timeout-minutes: 60
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
@@ -170,7 +173,7 @@ jobs:
     if: >-
       needs.mac_test_ui_build.result == 'success' &&
       toJSON(fromJSON(needs.mac_test_ui_build.outputs.matrix || '{"shard":[]}').shard) != '[]'
-    runs-on: macos-26
+    runs-on: depot-macos-26
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -202,7 +205,7 @@ jobs:
       - mac_test_e2e
       - mac_test_ui_build
       - mac_test_ui
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     env:
       MAC: ${{ needs.changes.outputs.mac }}
       SWIFTLINT: ${{ needs.swiftlint.result }}
@@ -228,7 +231,7 @@ jobs:
       - changes
       - required_checks
     if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main' && needs.changes.outputs.graph == 'true'
-    runs-on: macos-26
+    runs-on: depot-macos-26
     steps:
       - uses: actions/checkout@v6
         with:

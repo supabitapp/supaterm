@@ -11,7 +11,7 @@ public enum SPEntrypoint {
     do {
       if let redirectedCLIPath = redirectedCLIPath(
         environment: environment,
-        currentExecutablePath: currentExecutablePath()
+        currentExecutablePath: SPExecutable.currentPath()
       ) {
         try exec(path: redirectedCLIPath, arguments: [redirectedCLIPath] + arguments.dropFirst())
       }
@@ -35,7 +35,7 @@ public enum SPEntrypoint {
   static func redirectedCLIPath(
     environment: [String: String],
     currentExecutablePath: String?,
-    isExecutableFile: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)
+    isExecutableFile: (String) -> Bool = SPExecutable.isExecutableFile(atPath:)
   ) -> String? {
     guard
       let candidatePath = environment[SupatermCLIEnvironment.cliPathKey]?
@@ -45,8 +45,8 @@ public enum SPEntrypoint {
       return nil
     }
 
-    let normalizedCandidatePath = normalizedExecutablePath(candidatePath)
-    guard isExecutableFile(normalizedCandidatePath) else {
+    let canonicalCandidatePath = SPExecutable.canonicalPath(candidatePath)
+    guard isExecutableFile(canonicalCandidatePath) else {
       return nil
     }
 
@@ -54,12 +54,12 @@ public enum SPEntrypoint {
       return nil
     }
 
-    let normalizedCurrentExecutablePath = normalizedExecutablePath(currentExecutablePath)
-    guard normalizedCandidatePath != normalizedCurrentExecutablePath else {
+    let canonicalCurrentExecutablePath = SPExecutable.canonicalPath(currentExecutablePath)
+    guard canonicalCandidatePath != canonicalCurrentExecutablePath else {
       return nil
     }
 
-    return normalizedCandidatePath
+    return canonicalCandidatePath
   }
 
   static func handleRawInvocation(
@@ -104,58 +104,14 @@ public enum SPEntrypoint {
     }
   }
 
-  static func normalizedExecutablePath(_ path: String) -> String {
-    URL(fileURLWithPath: path, isDirectory: false)
-      .standardizedFileURL
-      .resolvingSymlinksInPath()
-      .path
-  }
-
-  static func currentExecutablePath() -> String? {
-    var size: UInt32 = 0
-    _ = _NSGetExecutablePath(nil, &size)
-
-    let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(size))
-    defer {
-      buffer.deallocate()
-    }
-
-    guard _NSGetExecutablePath(buffer, &size) == 0 else {
-      return nil
-    }
-
-    return String(cString: buffer)
-  }
-
   static func exec(
     path: String,
     arguments: [String]
   ) throws -> Never {
-    let argv = makeCStringArray(arguments)
-    defer {
-      freeCStringArray(argv)
-    }
-
-    execv(path, argv)
-    let message = String(cString: strerror(errno))
-    throw ValidationError("Failed to launch Supaterm CLI: \(message)")
+    try SPProcess.replaceCurrent(
+      executablePath: path,
+      arguments: arguments,
+      failureDescription: "Failed to launch Supaterm CLI"
+    )
   }
-}
-
-private func makeCStringArray(_ values: [String]) -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> {
-  let pointer = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: values.count + 1)
-  for (index, value) in values.enumerated() {
-    pointer[index] = strdup(value)
-  }
-  pointer[values.count] = nil
-  return pointer
-}
-
-private func freeCStringArray(_ pointer: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) {
-  var index = 0
-  while let value = pointer[index] {
-    free(value)
-    index += 1
-  }
-  pointer.deallocate()
 }

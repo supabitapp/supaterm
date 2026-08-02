@@ -19,17 +19,22 @@ let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
 
-func embedExecutable(
+func embedSignedExecutable(
   name: String,
   sourcePath: Path,
   fingerprintPath: Path,
-  destination: String
+  destinationDirectorySetting: String,
+  destinationSubdirectory: String? = nil,
+  destinationName: String
 ) -> TargetScript {
-  .post(
+  let destinationSubdirectorySuffix = destinationSubdirectory.map { "/\($0)" } ?? ""
+
+  return .post(
     script: """
       set -euo pipefail
 
-      destination_path="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\(destination)"
+      destination_dir="${TARGET_BUILD_DIR}/${\(destinationDirectorySetting)}\(destinationSubdirectorySuffix)"
+      destination_path="${destination_dir}/\(destinationName)"
       source_path="${SRCROOT}/\(sourcePath.pathString)"
 
       if [ ! -x "${source_path}" ]; then
@@ -37,9 +42,13 @@ func embedExecutable(
         exit 1
       fi
 
-      mkdir -p "${destination_path%/*}"
+      mkdir -p "${destination_dir}"
       rm -f "${destination_path}"
-      /bin/cp -f "${source_path}" "${destination_path}"
+      /usr/bin/install -m 755 "${source_path}" "${destination_path}"
+      if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
+        identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+        /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
+      fi
       """,
     name: "Embed \(name)",
     inputPaths: [
@@ -47,7 +56,7 @@ func embedExecutable(
       "$(SRCROOT)/\(fingerprintPath.pathString)",
     ],
     outputPaths: [
-      "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/\(destination)",
+      "$(TARGET_BUILD_DIR)/$(\(destinationDirectorySetting))\(destinationSubdirectorySuffix)/\(destinationName)",
     ]
   )
 }
@@ -371,6 +380,14 @@ let project = Project(
         "supaterm/Features/Chrome",
         "supaterm/Features/Terminal",
       ],
+      copyFiles: [
+        .executables(
+          name: "Embed sp CLI",
+          files: [
+            .buildProduct(name: "sp", codeSignOnCopy: true),
+          ]
+        ),
+      ],
       scripts: [
         .pre(
           script: """
@@ -420,59 +437,28 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty-resources.fingerprint",
           ],
         ),
-        embedExecutable(
+        embedSignedExecutable(
           name: "zmx",
           sourcePath: zmxBinaryPath,
           fingerprintPath: zmxFingerprintPath,
-          destination: "zmx/zmx"
+          destinationDirectorySetting: "CONTENTS_FOLDER_PATH",
+          destinationSubdirectory: "Helpers",
+          destinationName: "zmx"
         ),
-        .post(
-          script: """
-            set -eu
-
-            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
-            destination_path="${destination_dir}/sp"
-            source_candidates=(
-              "${BUILT_PRODUCTS_DIR}/sp"
-              "${UNINSTALLED_PRODUCTS_DIR}/${PLATFORM_NAME}/sp"
-            )
-
-            source_path=""
-            for candidate in "${source_candidates[@]}"; do
-              if [ -x "${candidate}" ]; then
-                source_path="${candidate}"
-                break
-              fi
-            done
-
-            if [ -z "${source_path}" ]; then
-              echo "error: missing built sp executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            /bin/cp -f "${source_path}" "${destination_path}"
-            """,
-          name: "Embed sp CLI",
-          inputPaths: [
-            "$(BUILT_PRODUCTS_DIR)/sp",
-            "$(UNINSTALLED_PRODUCTS_DIR)/$(PLATFORM_NAME)/sp",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
-          ]
-        ),
-        embedExecutable(
+        embedSignedExecutable(
           name: "ap",
           sourcePath: apBinaryPath,
           fingerprintPath: apFingerprintPath,
-          destination: "bin/ap"
+          destinationDirectorySetting: "EXECUTABLE_FOLDER_PATH",
+          destinationName: "ap"
         ),
-        embedExecutable(
+        embedSignedExecutable(
           name: "Supaterm TUI",
           sourcePath: supatermTUIBinaryPath,
           fingerprintPath: supatermTUIFingerprintPath,
-          destination: "bin/supaterm"
+          destinationDirectorySetting: "EXECUTABLE_FOLDER_PATH",
+          destinationSubdirectory: "commands",
+          destinationName: "supaterm"
         ),
         .post(
           script: """
