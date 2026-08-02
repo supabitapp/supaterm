@@ -1656,8 +1656,8 @@ struct TerminalAgentPanelTests {
   @Test
   func pullRequestChecksCountsKnownItemsByStatus() {
     let checks = PaneAgentPullRequestChecks(
-      status: .pending,
-      totalCount: 7,
+      status: .failing,
+      totalCount: 5,
       items: [
         PaneAgentPullRequestCheck(name: "lint", status: .passing),
         PaneAgentPullRequestCheck(name: "test", status: .pending),
@@ -1723,7 +1723,7 @@ struct TerminalAgentPanelTests {
                                   "__typename": "CheckRun",
                                   "name": "first-page-check",
                                   "status": "COMPLETED",
-                                  "conclusion": "SUCCESS"
+                                  "conclusion": "FAILURE"
                                 }
                               ]
                             }
