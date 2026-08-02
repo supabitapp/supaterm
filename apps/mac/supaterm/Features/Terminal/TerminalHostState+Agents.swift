@@ -157,7 +157,28 @@ extension TerminalHostState {
     }
   }
 
-  func agentPanelRefreshContext(for surfaceID: UUID) -> TerminalAgentPanelRefreshContext? {
+  func agentPanelWorkspaceContext(for surfaceID: UUID) -> TerminalAgentPanelWorkspaceContext? {
+    guard agentPanelIsEnabled else {
+      return nil
+    }
+    guard surfaces[surfaceID] != nil else {
+      return nil
+    }
+    guard tabID(containing: surfaceID) != nil else {
+      return nil
+    }
+    guard !agentStateStore.snapshots(for: surfaceID).isEmpty else {
+      return nil
+    }
+    let current = currentAgentStateInstance(in: agentStateInstances(for: surfaceID))
+    let workingDirectoryPath = agentPanelWorkingDirectoryPath(
+      for: surfaceID,
+      agentWorkingDirectoryPath: current?.presentation.workingDirectoryPath
+    )
+    return TerminalAgentPanelWorkspaceContext(workingDirectoryPath: workingDirectoryPath)
+  }
+
+  func panePortScanContext(for surfaceID: UUID) -> TerminalPanePortScanContext? {
     guard agentPanelIsEnabled else {
       return nil
     }
@@ -167,21 +188,14 @@ extension TerminalHostState {
     guard tabID(containing: surfaceID) != nil else {
       return nil
     }
-    let current = currentAgentStateInstance(in: agentStateInstances(for: surfaceID))
-    let workingDirectoryPath = agentPanelWorkingDirectoryPath(
-      for: surfaceID,
-      agentWorkingDirectoryPath: current?.presentation.workingDirectoryPath
-    )
-    var processIDs = agentStateStore.snapshots(for: surfaceID).reduce(into: Set<Int32>()) {
+    let processIDs = agentStateStore.snapshots(for: surfaceID).reduce(into: Set<Int32>()) {
       $0.formUnion($1.processIDs)
     }
-    if let foregroundProcessID = surface.processIdentity.foregroundProcessID {
-      processIDs.insert(foregroundProcessID)
-    }
-    return TerminalAgentPanelRefreshContext(
-      workingDirectoryPath: workingDirectoryPath,
-      processIDs: processIDs
+    let context = TerminalPanePortScanContext(
+      processIDs: processIDs,
+      foregroundProcessGroupID: surface.processIdentity.foregroundProcessGroupID
     )
+    return context.isEmpty ? nil : context
   }
 
   var agentPanelIsEnabled: Bool {

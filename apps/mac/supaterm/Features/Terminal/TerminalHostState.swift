@@ -1332,7 +1332,7 @@ final class TerminalHostState {
         lastCommandDurationMs: nil,
         lastChildExitCode: nil,
         lastChildExitTimeMs: nil,
-        foregroundProcessID: nil,
+        foregroundProcessGroupID: nil,
         ttyName: nil
       )
     }
@@ -1355,7 +1355,7 @@ final class TerminalHostState {
       lastCommandDurationMs: state.commandDuration,
       lastChildExitCode: state.childExitCode,
       lastChildExitTimeMs: state.childExitTimeMs,
-      foregroundProcessID: processIdentity.foregroundProcessID,
+      foregroundProcessGroupID: processIdentity.foregroundProcessGroupID,
       ttyName: processIdentity.ttyName
     )
   }

@@ -89,10 +89,10 @@ catalog order. A space the window has not opened yet in this run reports `isWarm
 the tabs from its saved layout; its panes exist on disk but have no live surface until the window
 displays that space or a command creates a tab there.
 
-Each live `app.debug` pane reads `foregroundProcessID` and `ttyName` from its Ghostty surface when
-the request runs. PID `0` and an empty tty are reported as unavailable. `sp diagnostic` renders the
-same values for the current pane, and `sp diagnostic --json` keeps them under the matching pane in
-`app.windows`.
+Each live `app.debug` pane reads `foregroundProcessGroupID` and `ttyName` from its Ghostty surface
+when the request runs. Process-group ID `0` and an empty tty are reported as unavailable.
+`sp diagnostic` renders the same values for the current pane, and `sp diagnostic --json` keeps them
+under the matching pane in `app.windows`.
 
 ```json
 {

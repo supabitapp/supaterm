@@ -32,7 +32,7 @@ The integration is split into three layers.
 - inject pane context into the process environment
 - inject the Debug or bundled `sp` path
 - preserve isolated `SUPATERM_STATE_HOME` for development runs
-- read the foreground process ID and tty from the live Ghostty surface when needed
+- read the foreground process-group ID and tty from the live Ghostty surface when needed
 
 ### Agent Adapter
 
@@ -50,10 +50,11 @@ The integration is split into three layers.
 - emit in-app or desktop notifications when needed
 - clear pane-bound agent state when the shell reports the foreground command has finished
 - consume transcript files through a bounded, file-event-driven stream when an agent exposes progress that hooks do not carry
-- use the pane foreground process with hook-reported processes as port-scan roots
+- use the pane foreground process group with hook-reported processes as port-scan roots
 
-Port discovery still expands each root through the system process-parent table and finds listening
-ports with `lsof`. The pane process source lets a shell contribute without an agent hook.
+Port discovery expands hook process trees and every live member of the pane's foreground process
+group, then finds listening ports with `lsof`. The pane process source lets a shell contribute
+without an agent hook.
 
 Future agent integrations should keep that split. The wrapper or adapter should stay thin, and all UI state should stay inside the app.
 

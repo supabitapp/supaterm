@@ -1,4 +1,4 @@
 nonisolated struct TerminalPaneProcessIdentity: Equatable, Sendable {
-  let foregroundProcessID: Int32?
+  let foregroundProcessGroupID: Int32?
   let ttyName: String?
 }

@@ -373,24 +373,24 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   var processIdentity: TerminalPaneProcessIdentity {
     guard let surface else {
-      return TerminalPaneProcessIdentity(foregroundProcessID: nil, ttyName: nil)
+      return TerminalPaneProcessIdentity(foregroundProcessGroupID: nil, ttyName: nil)
     }
     return Self.processIdentity(
-      foregroundProcessID: { ghostty_surface_foreground_pid(surface) },
+      foregroundProcessGroupID: { ghostty_surface_foreground_pid(surface) },
       ttyName: { ghostty_surface_tty_name(surface) }
     )
   }
 
   static func processIdentity(
-    foregroundProcessID: () -> UInt64,
+    foregroundProcessGroupID: () -> UInt64,
     ttyName: () -> ghostty_string_s,
     freeString: (ghostty_string_s) -> Void = ghostty_string_free
   ) -> TerminalPaneProcessIdentity {
-    let rawProcessID = foregroundProcessID()
-    let processID = rawProcessID == 0 ? nil : Int32(exactly: rawProcessID)
+    let rawProcessGroupID = foregroundProcessGroupID()
+    let processGroupID = rawProcessGroupID == 0 ? nil : Int32(exactly: rawProcessGroupID)
     let rawTTYName = string(consuming: ttyName(), freeString: freeString)
     return TerminalPaneProcessIdentity(
-      foregroundProcessID: processID,
+      foregroundProcessGroupID: processGroupID,
       ttyName: rawTTYName.isEmpty ? nil : rawTTYName
     )
   }

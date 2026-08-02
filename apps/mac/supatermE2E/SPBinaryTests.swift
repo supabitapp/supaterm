@@ -44,11 +44,11 @@ extension SupatermE2ESuite {
             .flatMap(\.panes)
             .first { $0.id == space.tab.paneID }
         )
-        #expect(debugPane.foregroundProcessID != nil)
+        #expect(debugPane.foregroundProcessGroupID != nil)
         #expect(debugPane.ttyName?.hasPrefix("/dev/") == true)
-        #expect(spPane.foregroundProcessID == debugPane.foregroundProcessID)
+        #expect(spPane.foregroundProcessGroupID == debugPane.foregroundProcessGroupID)
         #expect(spPane.ttyName == debugPane.ttyName)
-        let debugProcessID = try #require(debugPane.foregroundProcessID)
+        let debugProcessGroupID = try #require(debugPane.foregroundProcessGroupID)
         let debugTTYName = try #require(debugPane.ttyName)
 
         let diagnosticPlain = try requireSuccessfulSPResult(
@@ -59,7 +59,8 @@ extension SupatermE2ESuite {
           )
         )
         #expect(diagnosticPlain.stdout.contains("request succeeded: yes"))
-        #expect(diagnosticPlain.stdout.contains("foreground pid: \(debugProcessID)"))
+        let processGroupLine = "foreground process group: \(debugProcessGroupID)"
+        #expect(diagnosticPlain.stdout.contains(processGroupLine))
         #expect(diagnosticPlain.stdout.contains("tty: \(debugTTYName)"))
 
         let instances = try requireSuccessfulSPResult(

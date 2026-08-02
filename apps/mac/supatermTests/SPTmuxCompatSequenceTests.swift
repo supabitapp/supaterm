@@ -187,7 +187,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
           lastCommandDurationMs: nil,
           lastChildExitCode: nil,
           lastChildExitTimeMs: nil,
-          foregroundProcessID: nil,
+          foregroundProcessGroupID: nil,
           ttyName: nil
         )
       }

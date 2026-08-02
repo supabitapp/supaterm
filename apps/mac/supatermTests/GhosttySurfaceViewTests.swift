@@ -123,12 +123,12 @@ struct GhosttySurfaceViewTests {
   func unavailableProcessIdentityNormalizesZeroPIDAndEmptyTTY() {
     var freeCount = 0
     let identity = GhosttySurfaceView.processIdentity(
-      foregroundProcessID: { 0 },
+      foregroundProcessGroupID: { 0 },
       ttyName: { ghostty_string_s(ptr: nil, len: 0, sentinel: false) },
       freeString: { _ in freeCount += 1 }
     )
 
-    #expect(identity.foregroundProcessID == nil)
+    #expect(identity.foregroundProcessGroupID == nil)
     #expect(identity.ttyName == nil)
     #expect(freeCount == 1)
   }
@@ -141,7 +141,7 @@ struct GhosttySurfaceViewTests {
     var freeCount = 0
 
     let identity = GhosttySurfaceView.processIdentity(
-      foregroundProcessID: { 42 },
+      foregroundProcessGroupID: { 42 },
       ttyName: {
         ghostty_string_s(
           ptr: UnsafePointer(pointer),
@@ -156,7 +156,13 @@ struct GhosttySurfaceViewTests {
       }
     )
 
-    #expect(identity == TerminalPaneProcessIdentity(foregroundProcessID: 42, ttyName: "/dev/ttys001"))
+    #expect(
+      identity
+        == TerminalPaneProcessIdentity(
+          foregroundProcessGroupID: 42,
+          ttyName: "/dev/ttys001"
+        )
+    )
     #expect(freeCount == 1)
   }
 
@@ -166,7 +172,7 @@ struct GhosttySurfaceViewTests {
     var freeCount = 0
     let readIdentity = {
       GhosttySurfaceView.processIdentity(
-        foregroundProcessID: {
+        foregroundProcessGroupID: {
           nextProcessID += 1
           return nextProcessID
         },
@@ -175,8 +181,8 @@ struct GhosttySurfaceViewTests {
       )
     }
 
-    #expect(readIdentity().foregroundProcessID == 41)
-    #expect(readIdentity().foregroundProcessID == 42)
+    #expect(readIdentity().foregroundProcessGroupID == 41)
+    #expect(readIdentity().foregroundProcessGroupID == 42)
     #expect(freeCount == 2)
   }
 
@@ -214,12 +220,12 @@ struct GhosttySurfaceViewTests {
 
     let shell = try #require(
       try await waitForProcessIdentity(surface) {
-        $0.foregroundProcessID != nil && $0.ttyName != nil
+        $0.foregroundProcessGroupID != nil && $0.ttyName != nil
       }
     )
-    let shellProcessID = try #require(shell.foregroundProcessID)
-    let refreshContext = try #require(host.agentPanelRefreshContext(for: surface.id))
-    #expect(refreshContext.processIDs.contains(shellProcessID))
+    let shellProcessGroupID = try #require(shell.foregroundProcessGroupID)
+    let portScanContext = try #require(host.panePortScanContext(for: surface.id))
+    #expect(portScanContext.foregroundProcessGroupID == shellProcessGroupID)
 
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("supaterm-process-identity-\(UUID().uuidString)", isDirectory: true)
@@ -230,21 +236,21 @@ struct GhosttySurfaceViewTests {
       "/bin/sh -c 'ps -o pgid= -p $$ > \(childPIDURL.path); exec /bin/sleep 120'"
     )
 
-    let foregroundChildProcessID = try #require(try await waitForProcessID(at: childPIDURL))
+    let foregroundChildProcessGroupID = try #require(try await waitForProcessID(at: childPIDURL))
     let child = try #require(
       try await waitForProcessIdentity(surface) {
-        $0.foregroundProcessID == foregroundChildProcessID
+        $0.foregroundProcessGroupID == foregroundChildProcessGroupID
       }
     )
     #expect(child.ttyName == shell.ttyName)
 
-    #expect(Darwin.kill(-foregroundChildProcessID, SIGTERM) == 0)
+    #expect(Darwin.kill(-foregroundChildProcessGroupID, SIGTERM) == 0)
     let postExit = try #require(
       try await waitForProcessIdentity(surface) {
-        $0.foregroundProcessID != foregroundChildProcessID
+        $0.foregroundProcessGroupID != foregroundChildProcessGroupID
       }
     )
-    #expect(postExit.foregroundProcessID != foregroundChildProcessID)
+    #expect(postExit.foregroundProcessGroupID != foregroundChildProcessGroupID)
     #expect(postExit.ttyName == shell.ttyName)
   }
 
