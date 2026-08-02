@@ -5,7 +5,7 @@ import SupatermCLIShared
 final class TerminalAgentMonitorStore {
   typealias Updates = @Sendable (String) -> AsyncStream<AgentTranscriptUpdate>
 
-  private struct Key: Hashable {
+  nonisolated private struct Key: Hashable, Sendable {
     let agent: SupatermAgentKind
     let sessionID: String
     let subagentID: String?
@@ -43,6 +43,11 @@ final class TerminalAgentMonitorStore {
     }
   }
 
+  nonisolated private struct RunningTimeout: Sendable {
+    let surfaceID: UUID?
+    let task: Task<Void, Never>
+  }
+
   var onMonitorSnapshot:
     @MainActor (
       AgentMonitorSnapshot,
@@ -62,8 +67,7 @@ final class TerminalAgentMonitorStore {
   private let updates: Updates
   private var entries: [Key: Entry] = [:]
   private var monitorTasks: [Key: Task<Void, Never>] = [:]
-  private var runningTimeoutTasks: [Key: Task<Void, Never>] = [:]
-  private var timeoutSurfaceIDs: [Key: UUID] = [:]
+  private var runningTimeouts: [Key: RunningTimeout] = [:]
 
   init(
     agentRunningTimeout: Duration,
@@ -93,8 +97,8 @@ final class TerminalAgentMonitorStore {
     for task in monitorTasks.values {
       task.cancel()
     }
-    for task in runningTimeoutTasks.values {
-      task.cancel()
+    for timeout in runningTimeouts.values {
+      timeout.task.cancel()
     }
   }
 
@@ -178,12 +182,11 @@ final class TerminalAgentMonitorStore {
       monitorTasks.removeValue(forKey: key)?.cancel()
       entries.removeValue(forKey: key)
     }
-    let timeoutKeys = timeoutSurfaceIDs.compactMap { key, timeoutSurfaceID in
-      timeoutSurfaceID == surfaceID ? key : nil
+    let timeoutKeys = runningTimeouts.compactMap { key, timeout in
+      timeout.surfaceID == surfaceID ? key : nil
     }
     for key in timeoutKeys {
-      runningTimeoutTasks.removeValue(forKey: key)?.cancel()
-      timeoutSurfaceIDs.removeValue(forKey: key)
+      runningTimeouts.removeValue(forKey: key)?.task.cancel()
     }
   }
 
@@ -197,25 +200,21 @@ final class TerminalAgentMonitorStore {
     context: SupatermCLIContext?
   ) {
     let key = Key(agent: agent, sessionID: sessionID)
-    runningTimeoutTasks.removeValue(forKey: key)?.cancel()
-    if let surfaceID = context?.surfaceID {
-      timeoutSurfaceIDs[key] = surfaceID
-    }
+    runningTimeouts.removeValue(forKey: key)?.task.cancel()
     let timeout = agentRunningTimeout
     let sleep = sleep
-    runningTimeoutTasks[key] = Task { [weak self] in
+    let task = Task { [weak self] in
       try? await sleep(timeout)
       guard !Task.isCancelled, let self else { return }
-      self.runningTimeoutTasks.removeValue(forKey: key)
-      self.timeoutSurfaceIDs.removeValue(forKey: key)
+      self.runningTimeouts.removeValue(forKey: key)
       self.onRunningTimeoutExpired(agent, sessionID, context)
     }
+    runningTimeouts[key] = RunningTimeout(surfaceID: context?.surfaceID, task: task)
   }
 
   func cancelRunningTimeout(agent: SupatermAgentKind, sessionID: String) {
     let key = Key(agent: agent, sessionID: sessionID)
-    runningTimeoutTasks.removeValue(forKey: key)?.cancel()
-    timeoutSurfaceIDs.removeValue(forKey: key)
+    runningTimeouts.removeValue(forKey: key)?.task.cancel()
   }
 
   private func extendRunningTimeoutIfArmed(
@@ -223,7 +222,7 @@ final class TerminalAgentMonitorStore {
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    guard runningTimeoutTasks[Key(agent: agent, sessionID: sessionID)] != nil else { return }
+    guard runningTimeouts[Key(agent: agent, sessionID: sessionID)] != nil else { return }
     armRunningTimeout(agent: agent, sessionID: sessionID, context: context)
   }
 

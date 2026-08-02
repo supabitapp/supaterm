@@ -109,6 +109,30 @@ struct TerminalAgentMonitorStoreTests {
   }
 
   @Test
+  func rearmingTimeoutWithoutSurfaceClearsPreviousSurfaceOwnership() async {
+    let clock = TestClock()
+    let events = MonitorStoreEventsSpy()
+    let store = TerminalAgentMonitorStore(
+      agentRunningTimeout: .seconds(5),
+      transcriptEventDelay: .zero,
+      sleep: { duration in try await clock.sleep(for: duration) },
+      updates: { _ in AsyncStream { $0.finish() } }
+    )
+    events.bind(to: store)
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+
+    store.armRunningTimeout(agent: .claude, sessionID: "session-1", context: context)
+    await flushEffects()
+    store.armRunningTimeout(agent: .claude, sessionID: "session-1", context: nil)
+    await flushEffects()
+    store.clearSessions(for: context.surfaceID)
+    await clock.advance(by: .seconds(5))
+    await flushEffects()
+
+    #expect(events.expirations.map(\.sessionID) == ["session-1"])
+  }
+
+  @Test
   func transcriptGrowthExtendsArmedTimeout() async {
     let clock = TestClock()
     let (updates, continuation) = AsyncStream<AgentTranscriptUpdate>.makeStream()
