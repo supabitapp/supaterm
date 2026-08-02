@@ -1,0 +1,235 @@
+# Depot CI Migration
+# Source: .github/workflows/ci.yml
+#
+# Changes made:
+# - Rewrote .github/ path references to .depot/
+# - Changed runs-on from "ubuntu-latest" to "depot-ubuntu-latest" throughout
+# - Changed runs-on from "macos-26" to "depot-ubuntu-latest" throughout
+
+name: ci
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - ".depot/actions/setup-macos/**"
+      - ".github/scripts/**"
+      - ".depot/workflows/ci.yml"
+      - ".depot/workflows/release-tip.yml"
+      - ".gitmodules"
+      - "apps/mac/**"
+      - "integrations/supaterm-skills"
+      - "Makefile"
+      - "mise.toml"
+      - "!**/*.md"
+  pull_request:
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+  id-token: write
+env:
+  MISE_HTTP_TIMEOUT: 120
+  MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_SHARD_REFERENCE: ${{ github.run_id }}
+jobs:
+  changes:
+    name: changes
+    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    outputs:
+      graph: ${{ steps.changes.outputs.graph }}
+      mac: ${{ steps.changes.outputs.mac }}
+    steps:
+      - if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            echo "graph=false" >> "$GITHUB_OUTPUT"
+            echo "mac=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" != push ] && [ "$EVENT_NAME" != pull_request ]; then
+            echo "graph=false" >> "$GITHUB_OUTPUT"
+            echo "mac=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          graph=false
+          mac=false
+          if [ "$EVENT_NAME" = push ]; then
+            mac=true
+          fi
+
+          while IFS= read -r path; do
+            case "$path" in
+              *.md)
+                continue
+                ;;
+            esac
+
+            case "$path" in
+              .depot/actions/setup-macos/* | .depot/workflows/ci.yml | .gitmodules | apps/mac/* | integrations/supaterm-skills | Makefile | mise.toml)
+                mac=true
+                ;;
+            esac
+
+            case "$path" in
+              .depot/actions/setup-macos/* | .depot/workflows/ci.yml | apps/mac/Configurations/* | apps/mac/Makefile | apps/mac/Project.swift | apps/mac/Tuist.swift | apps/mac/Tuist/* | apps/mac/Workspace.swift | Makefile | mise.toml)
+                graph=true
+                ;;
+            esac
+          done < <(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "graph=$graph" >> "$GITHUB_OUTPUT"
+          echo "mac=$mac" >> "$GITHUB_OUTPUT"
+  swiftlint:
+    name: swiftlint
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.3.0
+          cache: true
+          install: false
+      - run: mise install -C "$RUNNER_TEMP" "swiftlint@$(mise current swiftlint)"
+      - run: make swiftlint
+  mac_test:
+    name: mac-test
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: depot-ubuntu-latest # was: macos-26. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: ./.depot/actions/setup-macos
+        with:
+          cache-native-builds: true
+      - run: make mac-test
+  mac_test_e2e:
+    name: mac-test-e2e
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: depot-ubuntu-latest # was: macos-26. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: ./.depot/actions/setup-macos
+        with:
+          cache-native-builds: true
+      - run: make mac-test-e2e E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-test-e2e-xcresult
+          path: ${{ runner.temp }}/supatermE2E.xcresult
+          if-no-files-found: ignore
+  mac_test_ui_build:
+    name: mac-test-ui-build
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: depot-ubuntu-latest # was: macos-26. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    timeout-minutes: 60
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: ./.depot/actions/setup-macos
+        with:
+          cache-native-builds: true
+      - run: make mac-tuist-install
+      - run: make -C apps/mac build-ghostty build-zmx build-ap
+      - id: build
+        run: mise exec -- tuist test supatermUITests --build-only --shard-total 4 --shard-granularity suite
+        working-directory: apps/mac
+  mac_test_ui:
+    name: mac-test-ui (${{ matrix.shard }})
+    needs: mac_test_ui_build
+    if: >-
+      needs.mac_test_ui_build.result == 'success' && toJSON(fromJSON(needs.mac_test_ui_build.outputs.matrix || '{"shard":[]}').shard) != '[]'
+    runs-on: depot-ubuntu-latest # was: macos-26. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.mac_test_ui_build.outputs.matrix).shard }}
+    env:
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.depot/actions/setup-macos
+        with:
+          cache-native-builds: false
+      - run: mise exec -- tuist test --without-building --result-bundle-path "$RUNNER_TEMP/supatermUITests.xcresult" -- -destination "platform=macOS"
+        working-directory: apps/mac
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-test-ui-xcresult-${{ matrix.shard }}
+          path: ${{ runner.temp }}/supatermUITests.xcresult
+          if-no-files-found: ignore
+  required_checks:
+    name: required-checks
+    if: always()
+    needs:
+      - changes
+      - swiftlint
+      - mac_test
+      - mac_test_e2e
+      - mac_test_ui_build
+      - mac_test_ui
+    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    env:
+      MAC: ${{ needs.changes.outputs.mac }}
+      SWIFTLINT: ${{ needs.swiftlint.result }}
+      UNIT: ${{ needs.mac_test.result }}
+      E2E: ${{ needs.mac_test_e2e.result }}
+      UI_BUILD: ${{ needs.mac_test_ui_build.result }}
+      UI: ${{ needs.mac_test_ui.result }}
+    steps:
+      - run: |
+          if [ "$MAC" = false ]; then
+            exit 0
+          fi
+          test "$SWIFTLINT" = success
+          test "$UNIT" = success
+          test "$E2E" = success
+          test "$UI_BUILD" = success
+          test "$UI" = success
+  warm_cache:
+    name: warm-cache
+    continue-on-error: true
+    needs:
+      - changes
+      - required_checks
+    if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main' && needs.changes.outputs.graph == 'true'
+    runs-on: depot-ubuntu-latest # was: macos-26. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: ./.depot/actions/setup-macos
+        with:
+          cache-native-builds: false
+      - run: make mac-warm-cache
+      - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release
