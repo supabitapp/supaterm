@@ -662,7 +662,7 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func refreshUsesDefaultCommandPaletteShortcutWhenShortcutSourceOmitsAction() throws {
+  func refreshClearsCommandPaletteShortcutWhenGhosttyLeavesActionUnbound() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -698,13 +698,13 @@ struct SupatermMenuControllerTests {
 
       let fileMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "File" })?.submenu)
       let item = try #require(fileMenu.items.first(where: { $0.title == "Open Command Palette" }))
-      #expect(item.keyEquivalent == "p")
-      #expect(item.keyEquivalentModifierMask == [.command, .shift])
+      #expect(item.keyEquivalent.isEmpty)
+      #expect(item.keyEquivalentModifierMask.isEmpty)
     }
   }
 
   @Test
-  func refreshUsesDefaultQuitShortcutWhenShortcutSourceOmitsAction() throws {
+  func refreshClearsQuitShortcutWhenGhosttyLeavesQuitUnbound() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -740,8 +740,8 @@ struct SupatermMenuControllerTests {
 
       let appMenu = try #require(app.mainMenu?.items.first?.submenu)
       let quitItem = try #require(appMenu.items.last)
-      #expect(quitItem.keyEquivalent == "q")
-      #expect(quitItem.keyEquivalentModifierMask == [.command])
+      #expect(quitItem.keyEquivalent.isEmpty)
+      #expect(quitItem.keyEquivalentModifierMask.isEmpty)
     }
   }
 

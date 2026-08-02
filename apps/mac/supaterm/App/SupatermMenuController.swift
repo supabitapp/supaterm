@@ -1235,7 +1235,18 @@ final class SupatermMenuController: NSObject {
     action: String,
     defaultShortcut: KeyboardShortcut?
   ) -> KeyboardShortcut? {
-    registry.keyboardShortcut(forAction: action) ?? defaultShortcut
+    if let shortcut = registry.keyboardShortcut(forAction: action) {
+      return shortcut
+    }
+    if registry.hasShortcutSource && !isFindNavigationAction(action) {
+      return nil
+    }
+    return defaultShortcut
+  }
+
+  private func isFindNavigationAction(_ action: String) -> Bool {
+    action == SupatermCommand.navigateSearch(.next).ghosttyBindingAction
+      || action == SupatermCommand.navigateSearch(.previous).ghosttyBindingAction
   }
 
   private func syncGhosttyBindingItem(_ item: NSMenuItem, shortcut: KeyboardShortcut?) {
