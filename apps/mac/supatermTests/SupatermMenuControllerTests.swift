@@ -200,6 +200,18 @@ struct SupatermMenuControllerTests {
 
       #expect(findMenu.items[2].keyEquivalent == "j")
       #expect(findMenu.items[2].keyEquivalentModifierMask == [.command, .option])
+
+      shortcuts["toggle_split_zoom"] = KeyboardShortcut("g", modifiers: [.command])
+      controller.refresh()
+
+      #expect(findMenu.items[1].keyEquivalent.isEmpty)
+      #expect(findMenu.items[1].keyEquivalentModifierMask.isEmpty)
+      let windowMenu = try #require(
+        app.mainMenu?.items.first(where: { $0.title == "Window" })?.submenu
+      )
+      let zoomSplit = try #require(windowMenu.items.first(where: { $0.title == "Zoom Split" }))
+      #expect(zoomSplit.keyEquivalent == "g")
+      #expect(zoomSplit.keyEquivalentModifierMask == [.command])
     }
   }
 

@@ -1238,10 +1238,30 @@ final class SupatermMenuController: NSObject {
     if let shortcut = registry.keyboardShortcut(forAction: action) {
       return shortcut
     }
-    if registry.hasShortcutSource && !isFindNavigationAction(action) {
-      return nil
+    if registry.hasShortcutSource {
+      guard isFindNavigationAction(action),
+        let defaultShortcut,
+        !runtimeClaimsShortcut(defaultShortcut)
+      else { return nil }
     }
     return defaultShortcut
+  }
+
+  private func runtimeClaimsShortcut(_ shortcut: KeyboardShortcut) -> Bool {
+    let key = MenuShortcutKey(shortcut: shortcut)
+    return menuEntries.contains { entry in
+      let action: String
+      switch entry.spec.shortcut {
+      case .command(let command):
+        action = command.ghosttyBindingAction
+      case .ghosttyAction(let ghosttyAction, _):
+        action = ghosttyAction
+      case .app, .appRouted, .none:
+        return false
+      }
+      guard let runtimeShortcut = registry.keyboardShortcut(forAction: action) else { return false }
+      return MenuShortcutKey(shortcut: runtimeShortcut) == key
+    }
   }
 
   private func isFindNavigationAction(_ action: String) -> Bool {
