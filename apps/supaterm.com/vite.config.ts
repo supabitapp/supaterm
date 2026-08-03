@@ -10,6 +10,20 @@ const rewriteDownloadPath = (path: string) => {
 };
 
 export default defineConfig({
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "analytics",
+              test: /node_modules[\\/]posthog-js/,
+            },
+          ],
+        },
+      },
+    },
+  },
   lint: { options: { typeAware: true, typeCheck: true } },
   server: {
     proxy: {
