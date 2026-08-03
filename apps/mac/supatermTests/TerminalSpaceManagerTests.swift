@@ -31,15 +31,15 @@ struct TerminalSpaceManagerTests {
   }
 
   @Test
-  func hiddenInstancesKeepTheirOwnTabs() throws {
+  func hiddenInstancesKeepTheirOwnTabs() {
     let spaces = [TerminalSpaceItem(name: "A"), TerminalSpaceItem(name: "B")]
     let manager = TerminalSpaceManager(
       catalog: makeCatalog(spaces),
       displayedSpaceID: spaces[0].id
     )
-    let firstTabID = try #require(manager.tabManager.createTab(title: "Terminal 1"))
+    let firstTabID = manager.tabManager.createTab(title: "Terminal 1")
     manager.display(spaces[1].id)
-    let secondTabID = try #require(manager.tabManager.createTab(title: "Terminal 2"))
+    let secondTabID = manager.tabManager.createTab(title: "Terminal 2")
 
     #expect(manager.tabs.map(\.id) == [secondTabID])
     #expect(manager.tabs(in: spaces[0].id).map(\.id) == [firstTabID])
@@ -60,10 +60,10 @@ struct TerminalSpaceManagerTests {
   }
 
   @Test
-  func catalogUpdatesRenameWithoutChangingTabs() throws {
+  func catalogUpdatesRenameWithoutChangingTabs() {
     let space = TerminalSpaceItem(name: "A")
     let manager = TerminalSpaceManager(catalog: makeCatalog([space]), displayedSpaceID: space.id)
-    let tabID = try #require(manager.tabManager.createTab(title: "Terminal 1"))
+    let tabID = manager.tabManager.createTab(title: "Terminal 1")
 
     manager.applyCatalog(
       TerminalSpaceCatalog(
@@ -89,7 +89,7 @@ struct TerminalSpaceManagerTests {
       catalog: makeCatalog(spaces),
       displayedSpaceID: spaces[1].id
     )
-    manager.tabManager.createTab(title: "Terminal 1")
+    _ = manager.tabManager.createTab(title: "Terminal 1")
 
     let discarded = manager.applyCatalog(
       TerminalSpaceCatalog(

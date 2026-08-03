@@ -136,7 +136,7 @@ final class SettingsUITests: SupatermUITestCase {
 
     let keyControl = element(tab.keyControlIdentifier, in: settingsWindow)
     let didShowKeyControl = await wait(for: keyControl) { $0.exists }
-    try XCTUnwrap(didShowKeyControl ? keyControl : nil)
+    _ = try XCTUnwrap(didShowKeyControl ? keyControl : nil)
   }
 
   @MainActor
