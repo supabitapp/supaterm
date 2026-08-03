@@ -1,12 +1,12 @@
 import { Copy01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { posthog } from "posthog-js";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import heroUrl from "../assets/hero.png";
 import agentsUrl from "../assets/agents.mp4";
 import splitUrl from "../assets/split.mp4";
 import pinUrl from "../assets/pin.mp4";
 import { cn } from "@/lib/utils";
+import { capture } from "@/lib/analytics";
 import { CtaLink, downloadHref, githubHref } from "@/components/layout";
 
 type FeatureSection = {
@@ -188,7 +188,7 @@ function HomePage() {
               href={downloadHref}
               icon="download"
               download
-              onClick={() => posthog.capture("download_clicked")}
+              onClick={() => capture("download_clicked")}
               className="rounded-full bg-[#f1ede4] px-7 text-base text-[#12100b] hover:bg-white"
             >
               Download for macOS
@@ -197,7 +197,7 @@ function HomePage() {
               href={githubHref}
               icon="github"
               variant="outline"
-              onClick={() => posthog.capture("hero_github_clicked")}
+              onClick={() => capture("hero_github_clicked")}
               className="rounded-full border-white/12 bg-white/6 px-6 text-base text-white/88 hover:border-white/18 hover:bg-white/10"
             >
               GitHub
@@ -311,7 +311,7 @@ function HomePage() {
               href={downloadHref}
               icon="download"
               download
-              onClick={() => posthog.capture("cta_download_clicked")}
+              onClick={() => capture("cta_download_clicked")}
               className="min-w-0 rounded-full bg-[#f1ede4] px-8 py-7 text-[1.15rem] text-[#12100b] hover:bg-white md:min-w-[21rem]"
             >
               Download for macOS
@@ -320,7 +320,7 @@ function HomePage() {
               href={githubHref}
               icon="github"
               variant="outline"
-              onClick={() => posthog.capture("cta_github_clicked")}
+              onClick={() => capture("cta_github_clicked")}
               className="min-w-0 rounded-full border-white/10 bg-white/6 px-8 py-7 text-[1.15rem] text-white/88 hover:border-white/18 hover:bg-white/10 md:min-w-[19rem]"
             >
               View on GitHub

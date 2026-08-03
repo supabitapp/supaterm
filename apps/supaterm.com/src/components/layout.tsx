@@ -1,9 +1,9 @@
 import { AppleIcon, GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, Outlet } from "@tanstack/react-router";
-import { posthog } from "posthog-js";
 import { type ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
+import { capture } from "@/lib/analytics";
 import { downloadHref } from "@/lib/downloads";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +93,7 @@ function Layout() {
               icon="download"
               showIcon={false}
               download
-              onClick={() => posthog.capture("nav_download_clicked")}
+              onClick={() => capture("nav_download_clicked")}
               className="h-[1.55rem] rounded-full bg-[#f1ede4] px-3.5 text-[0.7rem] leading-none font-normal text-[#12100b] hover:bg-white"
             >
               Download
@@ -113,7 +113,7 @@ function Layout() {
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <a
               href={githubHref}
-              onClick={() => posthog.capture("footer_github_clicked")}
+              onClick={() => capture("footer_github_clicked")}
               className="transition-colors hover:text-white/78"
             >
               GitHub
@@ -123,14 +123,14 @@ function Layout() {
             </Link>
             <a
               href={releasesHref}
-              onClick={() => posthog.capture("footer_releases_clicked")}
+              onClick={() => capture("footer_releases_clicked")}
               className="transition-colors hover:text-white/78"
             >
               Releases
             </a>
             <a
               href="https://x.com/khoiracle"
-              onClick={() => posthog.capture("footer_twitter_clicked")}
+              onClick={() => capture("footer_twitter_clicked")}
               className="transition-colors hover:text-white/78"
             >
               Made by @khoiracle
