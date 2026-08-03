@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import GhosttyKit
 import SupatermSupport
 import SwiftUI
 
@@ -64,8 +65,10 @@ final class TerminalWindowController: NSWindowController {
   let windowControllerID: UUID
   var onWindowWillClose: ((TerminalWindowController) -> Void)?
 
+  private let runtime: GhosttyRuntime
   private let registry: TerminalWindowRegistry
   private let commandHoldObserver: CommandHoldObserver
+  private var runtimeObservers: [NSObjectProtocol] = []
   private var isPerformingConfirmedClose = false
   private var terminatesTerminalSessionsOnClose = true
 
@@ -79,6 +82,7 @@ final class TerminalWindowController: NSWindowController {
     zmxSessionsEnabled: Bool = true,
     onSessionChange: @escaping @MainActor () -> Void = {}
   ) {
+    self.runtime = runtime
     self.registry = registry
     let windowControllerID = UUID()
     self.windowControllerID = windowControllerID
@@ -145,9 +149,6 @@ final class TerminalWindowController: NSWindowController {
     window.isReleasedWhenClosed = false
     window.tabbingMode = .disallowed
     window.titleVisibility = .hidden
-    window.titlebarAppearsTransparent = true
-    window.isOpaque = false
-    window.backgroundColor = .clear
     Self.applyRestoredFrame(session?.frame, to: window)
     window.onModifierFlagsChanged = { [commandHoldObserver] modifierFlags in
       commandHoldObserver.update(modifierFlags: modifierFlags)
@@ -162,6 +163,8 @@ final class TerminalWindowController: NSWindowController {
     super.init(window: window)
 
     window.delegate = self
+    observeRuntimeAppearance()
+    applyWindowBackgroundAppearance()
     registry.register(
       keyboardShortcutForAction: { [ghosttyShortcuts] action in
         ghosttyShortcuts.keyboardShortcut(forAction: action)
@@ -203,7 +206,8 @@ final class TerminalWindowController: NSWindowController {
     terminal.ensureInitialTab(focusing: false, startupCommand: startupCommand)
   }
 
-  deinit {
+  isolated deinit {
+    runtimeObservers.forEach { NotificationCenter.default.removeObserver($0) }
     let windowControllerID = self.windowControllerID
     let registry = self.registry
     Task { @MainActor in
@@ -243,12 +247,65 @@ final class TerminalWindowController: NSWindowController {
     window.close()
   }
 
+  private func observeRuntimeAppearance() {
+    let center = NotificationCenter.default
+    for name in [
+      Notification.Name.ghosttyRuntimeConfigDidChange,
+      .ghosttyRuntimeBackgroundOpacityDidChange,
+    ] {
+      runtimeObservers.append(
+        center.addObserver(
+          forName: name,
+          object: runtime,
+          queue: .main
+        ) { [weak self] _ in
+          MainActor.assumeIsolated {
+            self?.applyWindowBackgroundAppearance()
+          }
+        })
+    }
+  }
+
+  private func applyWindowBackgroundAppearance() {
+    guard let window else { return }
+    let usesOpaqueBackground =
+      window.styleMask.contains(.fullScreen) || runtime.backgroundOpacityOverrideIsActive()
+    if !usesOpaqueBackground {
+      window.isOpaque = false
+      window.titlebarAppearsTransparent = true
+      window.backgroundColor = .clear
+      if window.isVisible, let app = runtime.app {
+        ghostty_set_window_background_blur(
+          app,
+          Unmanaged.passUnretained(window).toOpaque()
+        )
+      }
+      return
+    }
+    window.isOpaque = true
+    window.titlebarAppearsTransparent = false
+    window.backgroundColor = runtime.backgroundColor().withAlphaComponent(1)
+  }
+
 }
 
 extension TerminalWindowController: NSWindowDelegate {
   func windowDidBecomeKey(_ notification: Notification) {
+    applyWindowBackgroundAppearance()
     commandHoldObserver.update(modifierFlags: NSEvent.modifierFlags)
     registry.markWindowFocused(windowControllerID)
+  }
+
+  func windowDidChangeOcclusionState(_ notification: Notification) {
+    applyWindowBackgroundAppearance()
+  }
+
+  func windowDidEnterFullScreen(_ notification: Notification) {
+    applyWindowBackgroundAppearance()
+  }
+
+  func windowDidExitFullScreen(_ notification: Notification) {
+    applyWindowBackgroundAppearance()
   }
 
   func windowDidResignKey(_ notification: Notification) {

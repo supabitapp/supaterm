@@ -294,6 +294,11 @@ struct GhosttyRuntimeTests {
     #expect(
       GhosttyRuntime.dispatchAppAction(
         ghostty_action_s(
+          tag: GHOSTTY_ACTION_TOGGLE_BACKGROUND_OPACITY,
+          action: ghostty_action_u())))
+    #expect(
+      GhosttyRuntime.dispatchAppAction(
+        ghostty_action_s(
           tag: GHOSTTY_ACTION_TOGGLE_VISIBILITY,
           action: ghostty_action_u())))
     #expect(GhosttyRuntime.dispatchAppAction(ghostty_action_s(tag: GHOSTTY_ACTION_QUIT, action: ghostty_action_u())))
@@ -302,6 +307,7 @@ struct GhosttyRuntimeTests {
     #expect(delegate.closeAllWindowsCount == 1)
     #expect(delegate.checkForUpdatesCount == 1)
     #expect(delegate.openConfigCount == 1)
+    #expect(delegate.toggleBackgroundOpacityCount == 1)
     #expect(delegate.toggleVisibilityCount == 1)
     #expect(delegate.quitCount == 1)
   }
@@ -313,6 +319,29 @@ struct GhosttyRuntimeTests {
         ghostty_action_s(
           tag: GHOSTTY_ACTION_PRESENT_TERMINAL,
           action: ghostty_action_u())))
+  }
+
+  @Test
+  func backgroundOpacityToggleUsesOneRuntimeState() throws {
+    let runtime = try makeGhosttyRuntime("background-opacity = 0.6")
+
+    #expect(abs(runtime.backgroundOpacity() - 0.6) < 0.0001)
+    #expect(!runtime.backgroundOpacityOverrideIsActive())
+    #expect(runtime.toggleBackgroundOpacity())
+    #expect(runtime.backgroundOpacity() == 1)
+    #expect(runtime.backgroundOpacityOverrideIsActive())
+    #expect(runtime.toggleBackgroundOpacity())
+    #expect(abs(runtime.backgroundOpacity() - 0.6) < 0.0001)
+    #expect(!runtime.backgroundOpacityOverrideIsActive())
+  }
+
+  @Test
+  func backgroundOpacityToggleRejectsOpaqueConfig() throws {
+    let runtime = try makeGhosttyRuntime("background-opacity = 1")
+
+    #expect(!runtime.toggleBackgroundOpacity())
+    #expect(runtime.backgroundOpacity() == 1)
+    #expect(!runtime.backgroundOpacityOverrideIsActive())
   }
 
   @Test

@@ -28,9 +28,12 @@ struct TerminalHostStateCommandPaletteTests {
     let runtime = try makeGhosttyRuntime(
       [
         "keybind = super+shift+y=open_config",
+        "keybind = super+shift+b=toggle_background_opacity",
         "keybind = super+ctrl+f=toggle_fullscreen",
         "keybind = super+shift+u=check_for_updates",
         "command-palette-entry = title:Open Config,description:Open the configuration file.,action:open_config",
+        "command-palette-entry = title:Toggle Background Opacity,"
+          + "description:Toggle terminal background opacity.,action:toggle_background_opacity",
         "command-palette-entry = title:Check for Updates,"
           + "description:Check for available updates.,action:check_for_updates",
         "command-palette-entry = title:Next Window,description:Focus the next window.,action:goto_window:next",
@@ -52,6 +55,11 @@ struct TerminalHostStateCommandPaletteTests {
     let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
     #expect(commands.contains(where: { $0.action == "open_config" }))
+    #expect(commands.contains(where: { $0.actionKey == "toggle_background_opacity" }))
+    #expect(
+      commands.first(where: { $0.actionKey == "toggle_background_opacity" })?.description
+        == "Toggle background opacity for all terminal windows."
+    )
     #expect(!commands.contains(where: { $0.actionKey == "check_for_updates" }))
     #expect(!commands.contains(where: { $0.actionKey == "goto_window" }))
     #expect(!commands.contains(where: { $0.actionKey == "reset_window_size" }))
@@ -60,6 +68,7 @@ struct TerminalHostStateCommandPaletteTests {
     #expect(!commands.contains(where: { $0.actionKey == "toggle_quick_terminal" }))
     #expect(!commands.contains(where: { $0.actionKey == "toggle_window_float_on_top" }))
     #expect(shortcuts["open_config"] == "⌘⇧Y")
+    #expect(shortcuts["toggle_background_opacity"] == "⌘⇧B")
     #expect(shortcuts["check_for_updates"] == nil)
     #expect(shortcuts["goto_window:next"] == nil)
     #expect(shortcuts["reset_window_size"] == nil)

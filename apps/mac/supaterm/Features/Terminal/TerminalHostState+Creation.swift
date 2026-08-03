@@ -183,7 +183,6 @@ extension TerminalHostState {
       commandWrapper: launchCommand.commandWrapper,
       fontSize: inherited.fontSize,
       context: context,
-      managesWindowAppearance: false,
       zmxSessionsEnabled: launchCommand.usesZmx
     )
     configureBridgeCallbacks(for: view, tabID: tabID)

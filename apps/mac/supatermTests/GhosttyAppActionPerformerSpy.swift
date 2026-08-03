@@ -12,6 +12,8 @@ final class GhosttyAppActionPerformerSpy: NSObject, NSApplicationDelegate, Ghost
   var openConfigCount = 0
   var quitCount = 0
   var quitTerminatingSessionsCount = 0
+  var toggleBackgroundOpacityCount = 0
+  var onToggleBackgroundOpacity: (() -> Bool)?
   var toggleVisibilityCount = 0
 
   func performCheckForUpdates() -> Bool {
@@ -42,6 +44,11 @@ final class GhosttyAppActionPerformerSpy: NSObject, NSApplicationDelegate, Ghost
   func performQuitTerminatingSessions() -> Bool {
     quitTerminatingSessionsCount += 1
     return true
+  }
+
+  func performToggleBackgroundOpacity() -> Bool {
+    toggleBackgroundOpacityCount += 1
+    return onToggleBackgroundOpacity?() ?? true
   }
 
   func performToggleVisibility() -> Bool {

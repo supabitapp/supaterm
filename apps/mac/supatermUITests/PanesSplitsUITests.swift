@@ -3,6 +3,7 @@ import XCTest
 
 final class PanesSplitsUITests: SupatermUITestCase {
   private static let paneIdentifierPrefix = "terminal.pane."
+  private static let opacityBackground = RGB(red: 255, green: 0, blue: 255)
 
   @MainActor
   private var terminalPanes: XCUIElementQuery {
@@ -172,6 +173,66 @@ final class PanesSplitsUITests: SupatermUITestCase {
     let paneMetrics = try imageMetrics(in: pane.screenshot().image)
     XCTAssertGreaterThan(buttonMetrics.luminanceRange, 0.08)
     XCTAssertLessThanOrEqual(buttonMetrics.dominantRGB.distance(to: paneMetrics.dominantRGB), 2)
+  }
+
+  @MainActor
+  func testBackgroundOpacityToggleUpdatesTwoWindowsInLightAndDark() async throws {
+    try configureBackgroundOpacityProof()
+
+    for appearance in ["light", "dark"] {
+      try Data(
+        """
+        [appearance]
+        mode = "\(appearance)"
+
+        """.utf8
+      ).write(to: stateHome.appendingPathComponent("settings.toml"))
+      try relaunch(removing: ["session.json"])
+      _ = mainTerminal
+      let initialWindowIdentifier = mainWindow.identifier
+      let initialWindow = try opacityWindowIdentity(identifier: initialWindowIdentifier)
+      try await requireOpacity(
+        in: initialWindow,
+        appearance: appearance,
+        window: 0,
+        isOpaque: false
+      )
+
+      try clickMenuItem(.newWindow, timeout: 30)
+
+      let didOpenTwoWindows = await wait(timeout: .seconds(30)) {
+        self.app.windows.count == 2 && self.terminalPanes.count == 2
+      }
+      XCTAssertTrue(didOpenTwoWindows)
+      let newWindowIdentifier = try XCTUnwrap(
+        app.windows.allElementsBoundByIndex
+          .map(\.identifier)
+          .first { $0 != initialWindowIdentifier }
+      )
+      let newWindow = try opacityWindowIdentity(identifier: newWindowIdentifier)
+      try await requireOpacity(
+        in: newWindow,
+        appearance: appearance,
+        window: 1,
+        isOpaque: false
+      )
+
+      try await toggleBackgroundOpacity()
+
+      try await requireOpacity(
+        in: newWindow,
+        appearance: appearance,
+        window: 1,
+        isOpaque: true
+      )
+      try await selectOpacityWindow(initialWindow)
+      try await requireOpacity(
+        in: initialWindow,
+        appearance: appearance,
+        window: 0,
+        isOpaque: true
+      )
+    }
   }
 
   @MainActor
@@ -464,6 +525,140 @@ final class PanesSplitsUITests: SupatermUITestCase {
     try relaunch()
   }
 
+  @MainActor
+  private func configureBackgroundOpacityProof() throws {
+    let ghosttyConfigDirectory = stateHome.appendingPathComponent("ghostty", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: ghosttyConfigDirectory,
+      withIntermediateDirectories: true
+    )
+    try Data(
+      """
+      background = #ff00ff
+      background-opacity = 0.6
+      keybind = super+shift+b=toggle_background_opacity
+
+      """.utf8
+    ).write(to: ghosttyConfigDirectory.appendingPathComponent("config"))
+    app.launchEnvironment["XDG_CONFIG_HOME"] = stateHome.path
+  }
+
+  @MainActor
+  private func opacityPane(in window: OpacityWindowIdentity) -> XCUIElement {
+    app.windows.matching(identifier: window.windowIdentifier).firstMatch
+      .textViews.matching(identifier: window.paneIdentifier).firstMatch
+  }
+
+  @MainActor
+  private func opacityWindowIdentity(identifier: String) throws -> OpacityWindowIdentity {
+    let window = app.windows.matching(identifier: identifier).firstMatch
+    let pane = try require(
+      window.textViews.matching(
+        NSPredicate(format: "identifier BEGINSWITH %@", Self.paneIdentifierPrefix)
+      ).firstMatch,
+      timeout: 30
+    )
+    return OpacityWindowIdentity(
+      windowIdentifier: identifier,
+      paneIdentifier: pane.identifier
+    )
+  }
+
+  @MainActor
+  private func selectOpacityWindow(_ window: OpacityWindowIdentity) async throws {
+    let windowMenu = try require(app.menuBars.menuBarItems["Window"])
+    windowMenu.click()
+    let windowMenuItems = windowMenu.menus.menuItems.matching(
+      identifier: "makeKeyAndOrderFront:"
+    )
+    let didShowWindowMenuItems = await wait { windowMenuItems.count == 2 }
+    XCTAssertTrue(didShowWindowMenuItems)
+    let inactiveWindowItem = try XCTUnwrap(
+      windowMenuItems.allElementsBoundByIndex.first { !$0.isSelected }
+    )
+    inactiveWindowItem.click()
+    let pane = opacityPane(in: window)
+    let didSelectWindow = await wait(for: pane) { $0.exists && $0.isHittable }
+    XCTAssertTrue(
+      didSelectWindow,
+      "Expected pane \(window.paneIdentifier) to become visible"
+    )
+  }
+
+  @MainActor
+  private func toggleBackgroundOpacity() async throws {
+    app.typeKey("p", modifierFlags: [.command, .shift])
+    let input = try require(
+      app.textFields[SupatermUITestIdentifier.Accessibility.paletteInput],
+      timeout: 30
+    )
+    let title = "Toggle Background Opacity"
+    input.typeText(title)
+    let rows = app.buttons.matching(
+      identifier: SupatermUITestIdentifier.Accessibility.paletteResultRow
+    )
+    let didFindCommand = await wait(for: rows.firstMatch) {
+      $0.exists && rows.count == 1 && $0.label.contains(title)
+    }
+    XCTAssertTrue(didFindCommand)
+    app.typeKey(.return, modifierFlags: [])
+    let didDismiss = await wait(for: input) { !$0.exists }
+    XCTAssertTrue(didDismiss)
+  }
+
+  @MainActor
+  private func requireOpacity(
+    in window: OpacityWindowIdentity,
+    appearance: String,
+    window windowIndex: Int,
+    isOpaque: Bool
+  ) async throws {
+    let pane = opacityPane(in: window)
+    let sample = try await waitForOpacity(in: pane, isOpaque: isOpaque)
+    let state = isOpaque ? "opaque" : "transparent"
+    let lastRGB = sample.color.map { "\($0.red),\($0.green),\($0.blue)" } ?? "unavailable"
+    addOpacityScreenshot(
+      sample.screenshot,
+      appearance: appearance,
+      state: state,
+      window: windowIndex
+    )
+    XCTAssertTrue(
+      sample.didReach,
+      "Expected window \(windowIndex + 1) to become \(state); last RGB: \(lastRGB)"
+    )
+  }
+
+  @MainActor
+  private func waitForOpacity(
+    in pane: XCUIElement,
+    isOpaque: Bool
+  ) async throws -> OpacitySample {
+    var sample: OpacitySample?
+    _ = await wait(timeout: .seconds(30), pollInterval: 1) {
+      let screenshot = pane.screenshot()
+      let color = try? self.imageMetrics(in: screenshot.image).dominantRGB
+      let didReach = color.map {
+        ($0.distance(to: Self.opacityBackground) <= 8) == isOpaque
+      } ?? false
+      sample = OpacitySample(didReach: didReach, screenshot: screenshot, color: color)
+      return didReach
+    }
+    return try XCTUnwrap(sample)
+  }
+
+  private func addOpacityScreenshot(
+    _ screenshot: XCUIScreenshot,
+    appearance: String,
+    state: String,
+    window: Int
+  ) {
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = "background-opacity-\(appearance)-\(state)-window-\(window + 1)"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+
   private func imageMetrics(in image: NSImage) throws -> ImageMetrics {
     let representation = try XCTUnwrap(image.tiffRepresentation)
     let bitmap = try XCTUnwrap(NSBitmapImageRep(data: representation))
@@ -496,6 +691,17 @@ final class PanesSplitsUITests: SupatermUITestCase {
       dominantRGB: XCTUnwrap(counts.max { $0.value < $1.value }?.key)
     )
   }
+}
+
+private struct OpacityWindowIdentity {
+  let windowIdentifier: String
+  let paneIdentifier: String
+}
+
+private struct OpacitySample {
+  let didReach: Bool
+  let screenshot: XCUIScreenshot
+  let color: RGB?
 }
 
 private struct ImageMetrics {

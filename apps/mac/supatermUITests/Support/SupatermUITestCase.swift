@@ -144,6 +144,7 @@ class SupatermUITestCase: XCTestCase {
   @MainActor
   func wait(
     timeout: Duration = .seconds(10),
+    pollInterval: TimeInterval = 0.1,
     until condition: @escaping () -> Bool
   ) async -> Bool {
     guard !condition() else { return true }
@@ -154,7 +155,7 @@ class SupatermUITestCase: XCTestCase {
       + TimeInterval(components.attoseconds) / 1e18
     let condition = UICondition(condition)
     let expectation = XCTestExpectation(description: "UI state")
-    let timer = Timer(timeInterval: 0.1, repeats: true) { timer in
+    let timer = Timer(timeInterval: pollInterval, repeats: true) { timer in
       let isSatisfied = MainActor.assumeIsolated { condition.evaluate() }
       guard isSatisfied else { return }
       timer.invalidate()

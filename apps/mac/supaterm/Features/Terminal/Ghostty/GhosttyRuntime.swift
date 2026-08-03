@@ -4,6 +4,12 @@ import GhosttyKit
 import SwiftUI
 
 final class GhosttyRuntime {
+  private enum BackgroundOpacityKeyDispatchState {
+    case idle
+    case awaitingToggle
+    case toggled
+  }
+
   final class CallbackState {
     weak var runtime: GhosttyRuntime?
   }
@@ -30,6 +36,8 @@ final class GhosttyRuntime {
   private var observers: [NSObjectProtocol] = []
   private var surfaceRefs: [SurfaceReference] = []
   private var lastColorScheme: ghostty_color_scheme_e?
+  private var backgroundOpacityOverrideIsOpaque = false
+  private var backgroundOpacityKeyDispatchState = BackgroundOpacityKeyDispatchState.idle
 
   private static let notificationAttentionPaletteIndexes = [4, 12]
   private static let minNotificationContrastRatio = 2.2
@@ -643,7 +651,20 @@ final class GhosttyRuntime {
       event,
       action: GHOSTTY_ACTION_PRESS
     )
-    return ghostty_app_key(app, key)
+    return withBackgroundOpacityKeyDispatch {
+      ghostty_app_key(app, key)
+    }
+  }
+
+  func withBackgroundOpacityKeyDispatch<Result>(_ dispatch: () -> Result) -> Result {
+    guard backgroundOpacityKeyDispatchState == .idle else {
+      return dispatch()
+    }
+    backgroundOpacityKeyDispatchState = .awaitingToggle
+    defer {
+      backgroundOpacityKeyDispatchState = .idle
+    }
+    return dispatch()
   }
 
   @MainActor
@@ -664,6 +685,8 @@ final class GhosttyRuntime {
       return performer?.performCheckForUpdates() ?? false
     case GHOSTTY_ACTION_OPEN_CONFIG:
       return (NSApp.delegate as? any GhosttyOpenConfigPerforming)?.performOpenConfig() ?? false
+    case GHOSTTY_ACTION_TOGGLE_BACKGROUND_OPACITY:
+      return performer?.performToggleBackgroundOpacity() ?? false
     case GHOSTTY_ACTION_TOGGLE_VISIBILITY:
       return performer?.performToggleVisibility() ?? false
     default:
@@ -714,6 +737,33 @@ final class GhosttyRuntime {
   }
 
   func backgroundOpacity() -> Double {
+    backgroundOpacityOverrideIsOpaque ? 1 : configuredBackgroundOpacity()
+  }
+
+  func backgroundOpacityOverrideIsActive() -> Bool {
+    backgroundOpacityOverrideIsOpaque
+  }
+
+  @discardableResult
+  func toggleBackgroundOpacity() -> Bool {
+    guard configuredBackgroundOpacity() < 1 else { return false }
+    switch backgroundOpacityKeyDispatchState {
+    case .idle:
+      break
+    case .awaitingToggle:
+      backgroundOpacityKeyDispatchState = .toggled
+    case .toggled:
+      return true
+    }
+    backgroundOpacityOverrideIsOpaque.toggle()
+    NotificationCenter.default.post(
+      name: .ghosttyRuntimeBackgroundOpacityDidChange,
+      object: self
+    )
+    return true
+  }
+
+  private func configuredBackgroundOpacity() -> Double {
     guard let config else { return 1 }
     var value: Double = 1
     let key = "background-opacity"
@@ -855,6 +905,9 @@ final class GhosttyRuntime {
 }
 
 extension Notification.Name {
+  static let ghosttyRuntimeBackgroundOpacityDidChange = Notification.Name(
+    "ghosttyRuntimeBackgroundOpacityDidChange"
+  )
   static let ghosttyRuntimeConfigDidChange = Notification.Name("ghosttyRuntimeConfigDidChange")
 }
 

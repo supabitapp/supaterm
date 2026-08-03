@@ -155,6 +155,7 @@ final class GhosttySurfaceBridge {
       }
       return false
     }
+    if handleColorChange(action) { return false }
     if handleMouseAndLink(action) {
       onStateChange?()
       return action.tag == GHOSTTY_ACTION_OPEN_URL
@@ -317,6 +318,14 @@ final class GhosttySurfaceBridge {
       GHOSTTY_ACTION_OPEN_CONFIG,
       GHOSTTY_ACTION_QUIT,
       GHOSTTY_ACTION_TOGGLE_VISIBILITY:
+      return GhosttyRuntime.dispatchAppAction(action)
+    case GHOSTTY_ACTION_TOGGLE_BACKGROUND_OPACITY:
+      guard
+        let styleMask = surfaceView?.window?.styleMask,
+        !styleMask.contains(.fullScreen)
+      else {
+        return false
+      }
       return GhosttyRuntime.dispatchAppAction(action)
     default:
       return nil
@@ -535,17 +544,24 @@ final class GhosttySurfaceBridge {
       }
       return true
 
-    case GHOSTTY_ACTION_COLOR_CHANGE:
-      let change = action.action.color_change
-      state.colorChangeKind = change.kind
-      state.colorChangeR = change.r
-      state.colorChangeG = change.g
-      state.colorChangeB = change.b
-      return true
-
     default:
       return false
     }
+  }
+
+  private func handleColorChange(_ action: ghostty_action_s) -> Bool {
+    guard action.tag == GHOSTTY_ACTION_COLOR_CHANGE else { return false }
+    let change = action.action.color_change
+    guard change.kind == GHOSTTY_ACTION_COLOR_KIND_BACKGROUND else { return false }
+    surfaceView?.setTerminalBackgroundColor(
+      NSColor(
+        srgbRed: CGFloat(change.r) / 255,
+        green: CGFloat(change.g) / 255,
+        blue: CGFloat(change.b) / 255,
+        alpha: 1
+      )
+    )
+    return true
   }
 
   private func handleSearchAndScroll(_ action: ghostty_action_s) -> Bool {

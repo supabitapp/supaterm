@@ -3,7 +3,15 @@ import Foundation
 extension TerminalHostState {
   func commandPaletteGhosttyCommands() -> [GhosttyCommand] {
     _ = runtimeConfigGeneration
-    return runtime?.commandPaletteEntries().filter(\.isSupported) ?? []
+    return runtime?.commandPaletteEntries().filter(\.isSupported).map { command in
+      guard command.actionKey == "toggle_background_opacity" else { return command }
+      return GhosttyCommand(
+        title: command.title,
+        description: "Toggle background opacity for all terminal windows.",
+        action: command.action,
+        actionKey: command.actionKey
+      )
+    } ?? []
   }
 
   func commandPaletteGhosttyShortcutDisplayByAction() -> [String: String] {

@@ -14,6 +14,7 @@ protocol GhosttyAppActionPerforming: AnyObject {
   func performNewWindow() -> Bool
   func performQuit() -> Bool
   func performQuitTerminatingSessions() -> Bool
+  func performToggleBackgroundOpacity() -> Bool
   func performToggleVisibility() -> Bool
 }
 
@@ -319,6 +320,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     terminatesSessionsForNextQuit = true
     NSApp.terminate(nil)
     return true
+  }
+
+  @discardableResult
+  func performToggleBackgroundOpacity() -> Bool {
+    ghosttyRuntime.toggleBackgroundOpacity()
   }
 
   @discardableResult

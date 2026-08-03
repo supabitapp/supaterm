@@ -53,7 +53,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  private let runtime: GhosttyRuntime
+  fileprivate let runtime: GhosttyRuntime
   let id: UUID
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
@@ -64,7 +64,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let environmentVariables: [SupatermCLIEnvironmentVariable]
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
-  private let managesWindowAppearance: Bool
   private let applicationAndWindowAreActive: (NSWindow) -> Bool
   private let selectionReader: @MainActor (ghostty_surface_t) -> String?
   private let accessibilitySelectionNotifier: @MainActor (GhosttySurfaceView) -> Void
@@ -82,6 +81,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private var lastScrollbar: ScrollbarState?
   private var lastOcclusion: Bool?
   private var lastSurfaceFocus: Bool?
+  private var terminalBackgroundColor: NSColor?
   private var eventMonitor: Any?
   private var notificationObservers: [NSObjectProtocol] = []
   private var accessibilitySelectionTask: Task<Void, Never>?
@@ -280,7 +280,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     commandWrapper: [String] = [],
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
-    managesWindowAppearance: Bool = false,
     zmxSessionsEnabled: Bool = true,
     applicationAndWindowAreActive: @escaping (NSWindow) -> Bool = {
       NSApp.isActive && $0.isKeyWindow
@@ -310,7 +309,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.commandWrapper = commandWrapper
     self.fontSize = fontSize ?? 0
     self.context = context
-    self.managesWindowAppearance = managesWindowAppearance
     self.applicationAndWindowAreActive = applicationAndWindowAreActive
     self.selectionReader = selectionReader
     self.accessibilitySelectionNotifier = accessibilitySelectionNotifier
@@ -458,7 +456,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     )
   }
 
-  private func updateScreenObservers() {
+  private func updateWindowObservers() {
     clearNotificationObservers()
     guard let window else { return }
     let center = NotificationCenter.default
@@ -472,56 +470,21 @@ final class GhosttySurfaceView: NSView, Identifiable {
           self?.windowDidChangeScreen()
         }
       })
-    notificationObservers.append(
-      center.addObserver(
-        forName: NSWindow.didEnterFullScreenNotification,
-        object: window,
-        queue: .main
-      ) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          self?.applyWindowBackgroundAppearance()
-        }
-      })
-    notificationObservers.append(
-      center.addObserver(
-        forName: NSWindow.didExitFullScreenNotification,
-        object: window,
-        queue: .main
-      ) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          self?.applyWindowBackgroundAppearance()
-        }
-      })
-    notificationObservers.append(
-      center.addObserver(
-        forName: NSWindow.didBecomeKeyNotification,
-        object: window,
-        queue: .main
-      ) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          self?.applyWindowBackgroundAppearance()
-        }
-      })
-    notificationObservers.append(
-      center.addObserver(
-        forName: NSWindow.didChangeOcclusionStateNotification,
-        object: window,
-        queue: .main
-      ) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          self?.applyWindowBackgroundAppearance()
-        }
-      })
-    notificationObservers.append(
-      center.addObserver(
-        forName: .ghosttyRuntimeConfigDidChange,
-        object: runtime,
-        queue: .main
-      ) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          self?.applyWindowBackgroundAppearance()
-        }
-      })
+    for name in [
+      NSWindow.didEnterFullScreenNotification,
+      NSWindow.didExitFullScreenNotification,
+    ] {
+      notificationObservers.append(
+        center.addObserver(
+          forName: name,
+          object: window,
+          queue: .main
+        ) { [weak self] _ in
+          MainActor.assumeIsolated {
+            self?.scrollWrapper?.refreshAppearance()
+          }
+        })
+    }
   }
 
   private func windowDidChangeScreen() {
@@ -547,10 +510,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     if window == nil {
       runtime.cancelClipboardConfirmation(for: surfaceRef)
     }
-    updateScreenObservers()
+    updateWindowObservers()
     updateContentScale()
     notifySizeChanged()
-    applyWindowBackgroundAppearance()
   }
 
   override func viewDidChangeBackingProperties() {
@@ -596,27 +558,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   override func resetCursorRects() {
     addCursorRect(bounds, cursor: currentCursor)
-  }
-
-  private func applyWindowBackgroundAppearance() {
-    guard managesWindowAppearance else { return }
-    guard let window, window.isVisible else { return }
-    let opacity = runtime.backgroundOpacity()
-    if !window.styleMask.contains(.fullScreen), opacity < 1 {
-      window.isOpaque = false
-      window.titlebarAppearsTransparent = true
-      window.backgroundColor = .white.withAlphaComponent(0.001)
-      if let app = runtime.app {
-        ghostty_set_window_background_blur(
-          app,
-          Unmanaged.passUnretained(window).toOpaque()
-        )
-      }
-      return
-    }
-    window.isOpaque = true
-    window.titlebarAppearsTransparent = false
-    window.backgroundColor = runtime.backgroundColor().withAlphaComponent(1)
   }
 
   func focusDidChange(_ focused: Bool) {
@@ -1206,6 +1147,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
     runtime.shouldShowScrollbar()
   }
 
+  func opaqueBackgroundColor() -> NSColor? {
+    guard
+      runtime.backgroundOpacity() == 1
+        || window?.styleMask.contains(.fullScreen) == true
+    else { return nil }
+    return terminalBackgroundColor ?? runtime.backgroundColor()
+  }
+
+  func setTerminalBackgroundColor(_ color: NSColor) {
+    terminalBackgroundColor = color
+    scrollWrapper?.refreshAppearance()
+  }
+
   func scrollbarAppearanceName() -> NSAppearance.Name {
     runtime.scrollbarAppearanceName()
   }
@@ -1269,6 +1223,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   func syncRuntimeConfigState() {
+    terminalBackgroundColor = nil
     bridge.state.progressStyleEnabled = runtime.progressStyle()
   }
 
@@ -1729,17 +1684,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
       translationMods: resolvedMods,
       composing: composing
     )
-    let finalText = text ?? GhosttyKeyEvent.characters(resolvedEvent)
-    if let finalText, !finalText.isEmpty,
-      let codepoint = finalText.utf8.first, codepoint >= 0x20
-    {
-      return finalText.withCString { ptr in
-        key.text = ptr
-        return ghostty_surface_key(surface, key)
+    return runtime.withBackgroundOpacityKeyDispatch {
+      let finalText = text ?? GhosttyKeyEvent.characters(resolvedEvent)
+      if let finalText, !finalText.isEmpty,
+        let codepoint = finalText.utf8.first, codepoint >= 0x20
+      {
+        return finalText.withCString { ptr in
+          key.text = ptr
+          return ghostty_surface_key(surface, key)
+        }
       }
+      key.text = nil
+      return ghostty_surface_key(surface, key)
     }
-    key.text = nil
-    return ghostty_surface_key(surface, key)
   }
 
   static func shouldReplayCommittedPreeditKey(_ event: NSEvent) -> Bool {
@@ -1777,8 +1734,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     action: ghostty_input_action_e
   ) -> Bool {
     guard let surface else { return false }
-    return Self.withCommittedPreeditKey(action: action, text: text) { key in
-      ghostty_surface_key(surface, key)
+    return runtime.withBackgroundOpacityKeyDispatch {
+      Self.withCommittedPreeditKey(action: action, text: text) { key in
+        ghostty_surface_key(surface, key)
+      }
     }
   }
 
@@ -2246,11 +2205,21 @@ final class GhosttySurfaceScrollView: NSView {
     observers.append(
       NotificationCenter.default.addObserver(
         forName: .ghosttyRuntimeConfigDidChange,
-        object: nil,
+        object: surfaceView.runtime,
         queue: .main
       ) { [weak self] _ in
         MainActor.assumeIsolated {
           self?.surfaceView.syncRuntimeConfigState()
+          self?.refreshAppearance()
+        }
+      })
+    observers.append(
+      NotificationCenter.default.addObserver(
+        forName: .ghosttyRuntimeBackgroundOpacityDidChange,
+        object: surfaceView.runtime,
+        queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated {
           self?.refreshAppearance()
         }
       })
@@ -2294,6 +2263,12 @@ final class GhosttySurfaceScrollView: NSView {
   func refreshAppearance() {
     scrollView.hasVerticalScroller = surfaceView.shouldShowScrollbar()
     scrollView.appearance = NSAppearance(named: surfaceView.scrollbarAppearanceName())
+    if let backgroundColor = surfaceView.opaqueBackgroundColor() {
+      scrollView.backgroundColor = backgroundColor
+      scrollView.drawsBackground = true
+    } else {
+      scrollView.drawsBackground = false
+    }
     scrollView.scrollerStyle = .overlay
     updateTrackingAreas()
   }

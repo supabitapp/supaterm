@@ -4,6 +4,7 @@ import Clocks
 import Darwin
 import GhosttyKit
 import SwiftUI
+import Synchronization
 import Testing
 
 @testable import supaterm
@@ -69,6 +70,235 @@ struct GhosttySurfaceViewTests {
     #expect(wrapper.safeAreaInsets.left == 0)
     #expect(wrapper.safeAreaInsets.bottom == 0)
     #expect(wrapper.safeAreaInsets.right == 0)
+  }
+
+  @Test
+  @MainActor
+  func backgroundOpacityToggleUpdatesEverySurfaceFromSharedRuntime() throws {
+    initializeGhosttyForTests()
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #123456
+      background-opacity = 0.6
+      """
+    )
+    let attachedSurfaces = AttachedGhosttySurfaces(runtime: runtime)
+    let scrollViews = try attachedSurfaces.wrappers.map { wrapper in
+      try #require(wrapper.subviews.first as? NSScrollView)
+    }
+
+    #expect(scrollViews.allSatisfy { !$0.drawsBackground })
+
+    #expect(runtime.toggleBackgroundOpacity())
+
+    #expect(scrollViews.allSatisfy { $0.drawsBackground })
+    #expect(scrollViews.allSatisfy { $0.backgroundColor == runtime.backgroundColor() })
+
+    #expect(runtime.toggleBackgroundOpacity())
+
+    #expect(scrollViews.allSatisfy { !$0.drawsBackground })
+  }
+
+  @Test
+  @MainActor
+  func backgroundOpacityBindingRoutesToAppDelegate() throws {
+    let fixture = try BackgroundOpacityActionFixture()
+
+    withFocusedSurface(runtime: fixture.runtime) { surfaceView, _ in
+      #expect(surfaceView.performBindingAction("toggle_background_opacity"))
+      #expect(fixture.performer.toggleBackgroundOpacityCount == 1)
+      #expect(fixture.runtime.backgroundOpacity() == 1)
+    }
+  }
+
+  @Test
+  @MainActor
+  func backgroundOpacityBindingIsRejectedInFullscreen() throws {
+    let fixture = try BackgroundOpacityActionFixture()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: fixture.runtime,
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .fullScreen],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = surfaceView
+    defer {
+      surfaceView.closeSurface()
+      window.contentView = nil
+      window.orderOut(nil)
+    }
+
+    #expect(!surfaceView.performBindingAction("toggle_background_opacity"))
+    #expect(fixture.performer.toggleBackgroundOpacityCount == 0)
+    #expect(abs(fixture.runtime.backgroundOpacity() - 0.6) < 0.0001)
+  }
+
+  @Test(arguments: BackgroundOpacityKeyDispatchPath.allCases)
+  @MainActor
+  fileprivate func globalBackgroundOpacityBindingTogglesSharedRuntimeOnce(
+    path: BackgroundOpacityKeyDispatchPath
+  ) throws {
+    let fixture = try BackgroundOpacityActionFixture(
+      """
+      background-opacity = 0.6
+      keybind = global:super+shift+b=toggle_background_opacity
+      """,
+      applicationIsActive: { path == .surface }
+    )
+    let attachedSurfaces = AttachedGhosttySurfaces(runtime: fixture.runtime)
+    let refreshCount = Mutex(0)
+    let observer = NotificationCenter.default.addObserver(
+      forName: .ghosttyRuntimeBackgroundOpacityDidChange,
+      object: fixture.runtime,
+      queue: .main
+    ) { _ in
+      refreshCount.withLock { $0 += 1 }
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    switch path {
+    case .app:
+      #expect(fixture.runtime.handleGlobalKeyEvent(try toggleBackgroundOpacityGlobalKeyEvent()))
+    case .surface:
+      attachedSurfaces.surfaces[0].focusDidChange(true)
+      attachedSurfaces.surfaces[0].keyDown(with: try toggleBackgroundOpacityKeyEvent())
+    }
+
+    #expect(fixture.runtime.backgroundOpacity() == 1)
+    #expect(refreshCount.withLock { $0 } == 1)
+    #expect(
+      attachedSurfaces.wrappers.allSatisfy { wrapper in
+        (wrapper.subviews.first as? NSScrollView)?.drawsBackground == true
+      })
+  }
+
+  @Test
+  @MainActor
+  func oscBackgroundColorBacksOpaqueSurfaceUntilConfigReload() async throws {
+    let fixture = try makePersistentGhosttyRuntime(
+      """
+      background = #123456
+      background-opacity = 0.6
+      """
+    )
+    defer {
+      fixture.cleanup()
+    }
+    let surface = GhosttySurfaceView(
+      runtime: fixture.runtime,
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let wrapper = GhosttySurfaceScrollView(surfaceView: surface)
+    let scrollView = try #require(wrapper.subviews.first as? NSScrollView)
+    #expect(fixture.runtime.toggleBackgroundOpacity())
+
+    let backgroundAction = colorChangeAction(
+      kind: GHOSTTY_ACTION_COLOR_KIND_BACKGROUND,
+      red: 0xAB,
+      green: 0xCD,
+      blue: 0xEF
+    )
+    #expect(surface.bridge.handleAction(target: selectionTarget(), action: backgroundAction) == false)
+    let oscColor = scrollView.backgroundColor
+    try expectRGB(oscColor, red: 0xAB, green: 0xCD, blue: 0xEF)
+
+    let foregroundAction = colorChangeAction(
+      kind: GHOSTTY_ACTION_COLOR_KIND_FOREGROUND,
+      red: 0,
+      green: 0,
+      blue: 0
+    )
+    #expect(surface.bridge.handleAction(target: selectionTarget(), action: foregroundAction) == false)
+    #expect(scrollView.backgroundColor == oscColor)
+
+    try """
+    background = #654321
+    background-opacity = 0.6
+    """
+    .write(to: fixture.configURL, atomically: true, encoding: .utf8)
+    fixture.runtime.reloadAppConfig()
+    for _ in 0..<5 {
+      await Task.yield()
+    }
+
+    #expect(scrollView.backgroundColor == fixture.runtime.backgroundColor())
+  }
+
+  @Test
+  @MainActor
+  func fullscreenSurfaceUsesLiveOSCBackground() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #123456
+      background-opacity = 0.6
+      """
+    )
+    let surface = GhosttySurfaceView(
+      runtime: runtime,
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let wrapper = GhosttySurfaceScrollView(surfaceView: surface)
+    defer {
+      surface.closeSurface()
+    }
+    let scrollView = try #require(wrapper.subviews.first as? NSScrollView)
+    let action = colorChangeAction(
+      kind: GHOSTTY_ACTION_COLOR_KIND_BACKGROUND,
+      red: 0xAB,
+      green: 0xCD,
+      blue: 0xEF
+    )
+
+    #expect(surface.bridge.handleAction(target: selectionTarget(), action: action) == false)
+    #expect(!scrollView.drawsBackground)
+
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .fullScreen],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = wrapper
+    defer {
+      window.contentView = nil
+      window.orderOut(nil)
+    }
+    NotificationCenter.default.post(name: NSWindow.didEnterFullScreenNotification, object: window)
+
+    #expect(scrollView.drawsBackground)
+    try expectRGB(scrollView.backgroundColor, red: 0xAB, green: 0xCD, blue: 0xEF)
+
+    window.contentView = nil
+    let regularWindow = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    regularWindow.contentView = wrapper
+    defer {
+      regularWindow.contentView = nil
+      regularWindow.orderOut(nil)
+    }
+    NotificationCenter.default.post(
+      name: NSWindow.didExitFullScreenNotification,
+      object: regularWindow
+    )
+
+    #expect(!scrollView.drawsBackground)
   }
 
   @Test
@@ -1371,6 +1601,34 @@ private func selectionChangedAction() -> ghostty_action_s {
   ghostty_action_s(tag: GHOSTTY_ACTION_SELECTION_CHANGED, action: ghostty_action_u())
 }
 
+private func colorChangeAction(
+  kind: ghostty_action_color_kind_e,
+  red: UInt8,
+  green: UInt8,
+  blue: UInt8
+) -> ghostty_action_s {
+  var action = ghostty_action_s(tag: GHOSTTY_ACTION_COLOR_CHANGE, action: ghostty_action_u())
+  action.action.color_change = ghostty_action_color_change_s(
+    kind: kind,
+    r: red,
+    g: green,
+    b: blue
+  )
+  return action
+}
+
+private func expectRGB(
+  _ color: NSColor,
+  red: UInt8,
+  green: UInt8,
+  blue: UInt8
+) throws {
+  let color = try #require(color.usingColorSpace(.sRGB))
+  #expect(abs(color.redComponent - CGFloat(red) / 255) < 0.0001)
+  #expect(abs(color.greenComponent - CGFloat(green) / 255) < 0.0001)
+  #expect(abs(color.blueComponent - CGFloat(blue) / 255) < 0.0001)
+}
+
 @MainActor
 private final class SelectionTextSource {
   var value: String?
@@ -1378,6 +1636,105 @@ private final class SelectionTextSource {
 
 private final class FocusableWrapperView: NSView {
   override var acceptsFirstResponder: Bool { true }
+}
+
+private func toggleBackgroundOpacityKeyEvent() throws -> NSEvent {
+  try #require(
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [.command, .shift],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: "B",
+      charactersIgnoringModifiers: "b",
+      isARepeat: false,
+      keyCode: UInt16(kVK_ANSI_B)
+    )
+  )
+}
+
+private func toggleBackgroundOpacityGlobalKeyEvent() throws -> GhosttyGlobalKeyEvent {
+  GhosttyGlobalKeyEvent(try toggleBackgroundOpacityKeyEvent())
+}
+
+private enum BackgroundOpacityKeyDispatchPath: CaseIterable {
+  case app
+  case surface
+}
+
+@MainActor
+private final class BackgroundOpacityActionFixture {
+  let runtime: GhosttyRuntime
+  let performer: GhosttyAppActionPerformerSpy
+
+  private let app: NSApplication
+  private let previousAppHandler: (any NSApplicationDelegate)?
+
+  init(
+    _ config: String = "background-opacity = 0.6",
+    applicationIsActive: () -> Bool = { NSApp.isActive }
+  ) throws {
+    initializeGhosttyForTests()
+    let app = NSApplication.shared
+    let runtime = try makeGhosttyRuntime(
+      config,
+      applicationIsActive: applicationIsActive
+    )
+    let performer = GhosttyAppActionPerformerSpy()
+    performer.onToggleBackgroundOpacity = { runtime.toggleBackgroundOpacity() }
+
+    self.app = app
+    self.previousAppHandler = app.delegate
+    self.runtime = runtime
+    self.performer = performer
+    app.delegate = performer
+  }
+
+  isolated deinit {
+    app.delegate = previousAppHandler
+  }
+}
+
+@MainActor
+private final class AttachedGhosttySurfaces {
+  let surfaces: [GhosttySurfaceView]
+  let wrappers: [GhosttySurfaceScrollView]
+  let windows: [NSWindow]
+
+  init(runtime: GhosttyRuntime) {
+    let surfaces = (0..<2).map { _ in
+      GhosttySurfaceView(
+        runtime: runtime,
+        tabID: UUID(),
+        workingDirectory: nil,
+        context: GHOSTTY_SURFACE_CONTEXT_TAB
+      )
+    }
+    let wrappers = surfaces.map(GhosttySurfaceScrollView.init(surfaceView:))
+    let windows = wrappers.map { wrapper in
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+        styleMask: [.titled],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = wrapper
+      return window
+    }
+    self.surfaces = surfaces
+    self.wrappers = wrappers
+    self.windows = windows
+  }
+
+  isolated deinit {
+    for (surface, window) in zip(surfaces, windows) {
+      surface.closeSurface()
+      window.contentView = nil
+      window.orderOut(nil)
+    }
+  }
 }
 
 @MainActor

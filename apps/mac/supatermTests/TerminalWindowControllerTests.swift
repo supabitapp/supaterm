@@ -14,10 +14,10 @@ struct TerminalWindowControllerTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      initializeGhosttyForTests()
+      let runtime = try makeGhosttyRuntime("")
 
       let controller = TerminalWindowController(
-        runtime: GhosttyRuntime(applicationIsActive: { false }),
+        runtime: runtime,
         registry: TerminalWindowRegistry(zmxClient: .noop),
         zmxClient: .noop,
         zmxSessionsEnabled: false
@@ -29,7 +29,58 @@ struct TerminalWindowControllerTests {
       let window = try #require(controller.window)
 
       #expect(!window.isOpaque)
+      #expect(window.titlebarAppearsTransparent)
       #expect(window.backgroundColor == .clear)
+    }
+  }
+
+  @Test
+  func backgroundOpacityToggleUpdatesEveryWindow() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let runtime = try makeGhosttyRuntime(
+        """
+        background = #123456
+        background-opacity = 0.6
+        """
+      )
+      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let controllers = (0..<2).map { _ in
+        TerminalWindowController(
+          runtime: runtime,
+          registry: registry,
+          zmxClient: .noop,
+          zmxSessionsEnabled: false
+        )
+      }
+      defer {
+        for controller in controllers {
+          controller.window?.delegate = nil
+          controller.window?.close()
+        }
+      }
+      let windows = try controllers.map { try #require($0.window) }
+
+      #expect(windows.allSatisfy { !$0.isOpaque })
+      #expect(windows.allSatisfy { $0.titlebarAppearsTransparent })
+      #expect(windows.allSatisfy { $0.backgroundColor == .clear })
+
+      #expect(runtime.toggleBackgroundOpacity())
+
+      #expect(windows.allSatisfy { $0.isOpaque })
+      #expect(windows.allSatisfy { !$0.titlebarAppearsTransparent })
+      #expect(
+        windows.allSatisfy {
+          $0.backgroundColor == runtime.backgroundColor().withAlphaComponent(1)
+        }
+      )
+
+      #expect(runtime.toggleBackgroundOpacity())
+
+      #expect(windows.allSatisfy { !$0.isOpaque })
+      #expect(windows.allSatisfy { $0.titlebarAppearsTransparent })
+      #expect(windows.allSatisfy { $0.backgroundColor == .clear })
     }
   }
 
