@@ -96,6 +96,15 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
+  func selectionChangedWithoutSurfaceViewIsHarmless() {
+    let bridge = GhosttySurfaceBridge()
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    let action = ghostty_action_s(tag: GHOSTTY_ACTION_SELECTION_CHANGED, action: ghostty_action_u())
+
+    #expect(bridge.handleAction(target: target, action: action) == false)
+  }
+
+  @Test
   func promptSurfaceTitleEmitsCallback() {
     let bridge = GhosttySurfaceBridge()
     var promptSurfaceTitle = 0
