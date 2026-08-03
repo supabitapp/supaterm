@@ -8,8 +8,8 @@ import Testing
 @MainActor
 struct TerminalHostStatePaneCreationTests {
   @Test
-  func createPaneEqualizesSplitsWhenRequested() async throws {
-    try await withDependencies {
+  func createPaneEqualizesSplitsWhenRequested() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -36,8 +36,8 @@ struct TerminalHostStatePaneCreationTests {
   }
 
   @Test
-  func createPanePreservesExistingRatiosWhenEqualizeIsDisabled() async throws {
-    try await withDependencies {
+  func createPanePreservesExistingRatiosWhenEqualizeIsDisabled() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()

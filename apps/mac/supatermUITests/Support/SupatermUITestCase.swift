@@ -4,6 +4,7 @@ import XCTest
 class SupatermUITestCase: XCTestCase {
   private(set) var app: XCUIApplication!
 
+  @MainActor
   var stateHome: URL {
     guard let path = app.launchEnvironment["SUPATERM_STATE_HOME"] else {
       preconditionFailure("Missing SUPATERM_STATE_HOME")
@@ -11,6 +12,7 @@ class SupatermUITestCase: XCTestCase {
     return URL(fileURLWithPath: path, isDirectory: true)
   }
 
+  @MainActor
   var sessionFileURL: URL {
     stateHome.appendingPathComponent("session.json")
   }

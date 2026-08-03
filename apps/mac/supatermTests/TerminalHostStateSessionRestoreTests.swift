@@ -119,8 +119,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func ensureInitialTabUsesRequestedWorkingDirectoryPath() async throws {
-    try await withDependencies {
+  func ensureInitialTabUsesRequestedWorkingDirectoryPath() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -149,8 +149,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func restorationSnapshotRoundTripsTabsSplitsAndSelections() async throws {
-    try await withDependencies {
+  func restorationSnapshotRoundTripsTabsSplitsAndSelections() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -243,8 +243,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func restorePreservesGroupLifetimesAndSelectedGroupCollapse() async throws {
-    try await withDependencies {
+  func restorePreservesGroupLifetimesAndSelectedGroupCollapse() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -351,8 +351,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func hiddenSpaceKeepsItsLayoutUntilItIsDisplayed() async throws {
-    try await withDependencies {
+  func hiddenSpaceKeepsItsLayoutUntilItIsDisplayed() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -402,8 +402,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func focusingAHiddenPaneWarmsItsSpaceAndDisplaysIt() async throws {
-    try await withDependencies {
+  func focusingAHiddenPaneWarmsItsSpaceAndDisplaysIt() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -504,8 +504,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func aPaneStaysReadyWhileItsSpaceIsOffScreen() async throws {
-    try await withDependencies {
+  func aPaneStaysReadyWhileItsSpaceIsOffScreen() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -540,8 +540,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func emptyDisplayedSpaceKeepsTheHiddenSpacesItRestoredWith() async throws {
-    try await withDependencies {
+  func emptyDisplayedSpaceKeepsTheHiddenSpacesItRestoredWith() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
