@@ -9,6 +9,27 @@ import Testing
 @MainActor
 struct GhosttyClipboardConfirmationTests {
   @Test
+  func boundedScrollbackCapturePreservesTrailingBlankLines() async throws {
+    let fixture = try ClipboardSurfaceFixture(
+      command: "/bin/sh -c 'printf \"SUPATERM_TAIL_READY\\none\\ntwo\\n\\n\\n\"; stty -echo; cat'"
+    )
+    defer { fixture.close() }
+    _ = try await capturedText(from: fixture.surface, containing: "two")
+
+    func capture(lines: Int) -> String? {
+      fixture.surface.captureText(
+        scope: .scrollback,
+        lines: TerminalCapturePaneRequest.LineCount(exactly: lines)
+      )
+    }
+
+    #expect(capture(lines: 1)?.isEmpty == true)
+    #expect(capture(lines: 2) == "\n")
+    #expect(capture(lines: 3) == "two\n\n")
+    #expect(capture(lines: 4) == "one\ntwo\n\n")
+  }
+
+  @Test
   func submittingMultilineTextUsesBracketedPasteBeforeEnter() async throws {
     let text = "alpha\nβeta"
     let expectedInput = "\u{1B}[200~\(text)\u{1B}[201~\r"

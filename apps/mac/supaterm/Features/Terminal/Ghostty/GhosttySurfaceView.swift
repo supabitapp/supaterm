@@ -731,8 +731,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   func captureText(
     scope: SupatermCapturePaneScope,
-    lines: Int?
+    lines: TerminalCapturePaneRequest.LineCount?
   ) -> String? {
+    if scope == .scrollback, let lines {
+      return readTextTail(lines: lines.value)
+    }
+
     let text =
       switch scope {
       case .scrollback:
@@ -746,11 +750,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
           bottomRightTag: GHOSTTY_POINT_VIEWPORT
         )
       }
-    guard let text else { return nil }
-    guard let lines, lines > 0 else { return text }
+    guard let text, let lines else { return text }
+    let lineCount = Int(lines.value)
     let components = text.components(separatedBy: .newlines)
-    guard components.count > lines else { return text }
-    return components.suffix(lines).joined(separator: "\n")
+    guard components.count > lineCount else { return text }
+    return components.suffix(lineCount).joined(separator: "\n")
+  }
+
+  private func readTextTail(lines: UInt32) -> String? {
+    guard let surface else { return nil }
+    var text = ghostty_text_s()
+    guard ghostty_surface_read_text_tail(surface, lines, &text) else { return nil }
+    defer { ghostty_surface_free_text(surface, &text) }
+    return String(cString: text.text)
   }
 
   private func readText(

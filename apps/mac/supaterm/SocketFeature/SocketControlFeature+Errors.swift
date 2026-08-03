@@ -92,18 +92,14 @@ extension SocketControlFeature {
     _ error: TerminalControlError,
     requestID: String
   ) -> SupatermSocketResponse {
+    if let response = captureErrorResponse(error, requestID: requestID) {
+      return response
+    }
     if let response = tabGroupErrorResponse(error, requestID: requestID) {
       return response
     }
 
     switch error {
-    case .captureFailed:
-      return .error(
-        id: requestID,
-        code: "internal_error",
-        message: "Failed to capture pane text."
-      )
-
     case .contextPaneNotFound:
       return .error(
         id: requestID,
@@ -111,7 +107,8 @@ extension SocketControlFeature {
         message: "The current pane could not be resolved."
       )
 
-    case .groupNotFound, .groupSpaceMismatch, .invalidGroupIndex, .invalidGroupTitle:
+    case .captureFailed, .groupNotFound, .groupSpaceMismatch, .invalidCaptureLines,
+      .invalidGroupIndex, .invalidGroupTitle:
       preconditionFailure()
 
     case .invalidSpaceName:
@@ -191,6 +188,28 @@ extension SocketControlFeature {
         code: "not_found",
         message: "Window \(windowIndex) was not found."
       )
+    }
+  }
+
+  private func captureErrorResponse(
+    _ error: TerminalControlError,
+    requestID: String
+  ) -> SupatermSocketResponse? {
+    switch error {
+    case .captureFailed:
+      return .error(
+        id: requestID,
+        code: "internal_error",
+        message: "Failed to capture pane text."
+      )
+    case .invalidCaptureLines(let lines):
+      return .error(
+        id: requestID,
+        code: "invalid_request",
+        message: "Capture lines must be between 1 and \(UInt32.max), not \(lines)."
+      )
+    default:
+      return nil
     }
   }
 

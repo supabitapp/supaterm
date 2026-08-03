@@ -97,10 +97,16 @@ extension SocketControlFeature {
 
     case SupatermSocketMethod.terminalCapturePane:
       let payload = try request.decodeParams(SupatermCapturePaneRequest.self)
+      let lines = try payload.lines.map { lines in
+        guard let lineCount = TerminalCapturePaneRequest.LineCount(exactly: lines) else {
+          throw TerminalControlError.invalidCaptureLines(lines)
+        }
+        return lineCount
+      }
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .capturePane(
           TerminalCapturePaneRequest(
-            lines: payload.lines,
+            lines: lines,
             scope: payload.scope,
             target: createPaneTarget(from: payload.target)
           )

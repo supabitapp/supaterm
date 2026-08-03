@@ -273,12 +273,21 @@ public struct TerminalSendKeyRequest: Equatable, Sendable {
 }
 
 public struct TerminalCapturePaneRequest: Equatable, Sendable {
-  public let lines: Int?
+  public struct LineCount: Equatable, Sendable {
+    public let value: UInt32
+
+    public init?(exactly value: Int) {
+      guard let value = UInt32(exactly: value), value > 0 else { return nil }
+      self.value = value
+    }
+  }
+
+  public let lines: LineCount?
   public let scope: SupatermCapturePaneScope
   public let target: TerminalPaneTarget
 
   public init(
-    lines: Int?,
+    lines: LineCount?,
     scope: SupatermCapturePaneScope,
     target: TerminalPaneTarget
   ) {
@@ -433,6 +442,7 @@ public enum TerminalControlError: Error, Equatable {
   case contextPaneNotFound
   case groupNotFound(UUID)
   case groupSpaceMismatch
+  case invalidCaptureLines(Int)
   case invalidGroupTitle
   case invalidGroupIndex(Int)
   case invalidSpaceName

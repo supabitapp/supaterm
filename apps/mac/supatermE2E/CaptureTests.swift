@@ -34,9 +34,19 @@ extension SupatermE2ESuite {
         try app.type("echo \(marker)\n", into: space.pane)
         try await app.waitForCapture(space.pane, contains: marker)
 
-        let limited = try app.capture(space.pane, lines: 5)
-        #expect(limited.split(separator: "\n").count <= 5)
-        #expect(limited.contains(marker))
+        let visible = try app.capture(space.pane)
+        let visibleTail = try app.capture(space.pane, lines: 5)
+        let expectedVisibleTail = visible.components(separatedBy: .newlines).suffix(5)
+          .joined(separator: "\n")
+        #expect(visibleTail == expectedVisibleTail)
+        #expect(visibleTail.contains(marker))
+
+        let scrollback = try app.capture(space.pane, scope: .scrollback)
+        let scrollbackTail = try app.capture(space.pane, scope: .scrollback, lines: 5)
+        let expectedScrollbackTail = scrollback.components(separatedBy: .newlines).suffix(5)
+          .joined(separator: "\n")
+        #expect(scrollbackTail == expectedScrollbackTail)
+        #expect(scrollbackTail.contains(marker))
       }
     }
   }

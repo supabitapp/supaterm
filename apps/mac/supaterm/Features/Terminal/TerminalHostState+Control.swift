@@ -580,7 +580,11 @@ extension TerminalHostState {
     let hasBridgeSurface = surface.bridge.surface != nil
     let isAttachedToWindow = surface.window != nil
     let isWindowVisible = surface.window?.isVisible == true
-    let canCaptureText = surface.captureText(scope: .visible, lines: 1) != nil
+    let canCaptureText =
+      surface.captureText(
+        scope: .visible,
+        lines: TerminalCapturePaneRequest.LineCount(exactly: 1)
+      ) != nil
     return SupatermPaneHealthResult(
       target: try paneTarget(
         spaceID: resolvedTarget.spaceID,

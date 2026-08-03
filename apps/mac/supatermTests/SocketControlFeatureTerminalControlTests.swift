@@ -448,6 +448,43 @@ struct SocketControlFeatureTerminalControlTests {
     #expect(records.first?.handle == handle)
     #expect(try records.first?.response.decodeResult(SupatermPaneTarget.self) == result)
   }
+
+  @Test(arguments: [0, -1, Int(UInt32.max) + 1])
+  func capturePaneRequestRejectsInvalidLines(_ lines: Int) async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID()
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .capturePane(
+        SupatermCapturePaneRequest(
+          lines: lines,
+          scope: .scrollback,
+          target: SupatermPaneTargetRequest(paneID: controlPaneID)
+        ),
+        id: "capture-pane-invalid-lines"
+      )
+    )
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.capturePane = { _ in
+        Issue.record("Invalid capture lines reached the terminal client.")
+        throw TerminalControlError.captureFailed
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let response = try #require(await recorder.snapshot().first?.response)
+    #expect(response.error?.code == "invalid_request")
+    #expect(
+      response.error?.message
+        == "Capture lines must be between 1 and \(UInt32.max), not \(lines)."
+    )
+  }
+
   @Test
   func tilePanesRequestRepliesWithResolvedTarget() async throws {
     let recorder = SocketReplyRecorder()
