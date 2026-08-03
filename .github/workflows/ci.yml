@@ -2,6 +2,13 @@ name: ci
 
 on:
   workflow_call: {}
+  workflow_dispatch:
+    inputs:
+      ui_shards:
+        description: UI test shard count
+        required: true
+        default: "5"
+        type: string
   merge_group:
     branches:
       - main
@@ -24,7 +31,7 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.ui_shards || 'default' }}
   cancel-in-progress: true
 
 permissions:
@@ -162,7 +169,7 @@ jobs:
       - run: make mac-tuist-install
       - run: make -C apps/mac build-ghostty build-zmx build-ap
       - id: build
-        run: mise exec -- tuist test supatermUITests --build-only --shard-total 5 --shard-granularity suite
+        run: mise exec -- tuist test supatermUITests --build-only --shard-total "${{ inputs.ui_shards || '5' }}" --shard-granularity suite
         working-directory: apps/mac
       - uses: actions/upload-artifact@v6
         with:
