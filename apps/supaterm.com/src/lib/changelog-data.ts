@@ -17,37 +17,6 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
-    version: "Unreleased",
-    date: "Next release",
-    title: "Terminal Core Update",
-    description:
-      "This update brings a newer terminal core with more reliable selection, input, search, rendering, and remote-shell behavior.",
-    sections: [
-      {
-        category: "new",
-        items: [
-          "Added 129 terminal themes",
-          "Added scrollback-limit-lines and scrollback-compression settings",
-        ],
-      },
-      {
-        category: "improvements",
-        items: [
-          "Raised the scrollback default from 10 MB to 50 MB and renamed scrollback-limit to scrollback-limit-bytes",
-          "Expanded color settings to accept wider hex, rgb:, and rgbi: forms",
-          "An empty command-palette-entry now restores defaults, while command-palette-entry = clear removes them",
-          "SSH shell integration now uses Supaterm's bundled sp command while nested native terminals keep their own SSH support",
-        ],
-      },
-      {
-        category: "fixes",
-        items: [
-          "Improved terminal selection, input methods, wrapped search, resize behavior, prompt links, and large scrollback handling",
-        ],
-      },
-    ],
-  },
-  {
     version: "v26.4.0",
     date: "2026-07-15",
     title: "🧰 Agent Workflow Toolkit",
