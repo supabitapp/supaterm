@@ -3,7 +3,6 @@ import XCTest
 
 final class PanesSplitsUITests: SupatermUITestCase {
   private static let paneIdentifierPrefix = "terminal.pane."
-  private static let opacityBackground = RGB(red: 255, green: 0, blue: 255)
 
   @MainActor
   private var terminalPanes: XCUIElementQuery {
@@ -191,11 +190,10 @@ final class PanesSplitsUITests: SupatermUITestCase {
       _ = mainTerminal
       let initialWindowIdentifier = mainWindow.identifier
       let initialWindow = try opacityWindowIdentity(identifier: initialWindowIdentifier)
-      try await requireOpacity(
+      let initialTransparentColor = try await captureTransparentBackground(
         in: initialWindow,
         appearance: appearance,
-        window: 0,
-        isOpaque: false
+        window: 0
       )
 
       try clickMenuItem(.newWindow, timeout: 30)
@@ -210,27 +208,26 @@ final class PanesSplitsUITests: SupatermUITestCase {
           .first { $0 != initialWindowIdentifier }
       )
       let newWindow = try opacityWindowIdentity(identifier: newWindowIdentifier)
-      try await requireOpacity(
+      let newTransparentColor = try await captureTransparentBackground(
         in: newWindow,
         appearance: appearance,
-        window: 1,
-        isOpaque: false
+        window: 1
       )
 
       try await toggleBackgroundOpacity()
 
-      try await requireOpacity(
+      try await requireOpaqueBackground(
         in: newWindow,
         appearance: appearance,
         window: 1,
-        isOpaque: true
+        transparentColor: newTransparentColor
       )
       try await selectOpacityWindow(initialWindow)
-      try await requireOpacity(
+      try await requireOpaqueBackground(
         in: initialWindow,
         appearance: appearance,
         window: 0,
-        isOpaque: true
+        transparentColor: initialTransparentColor
       )
     }
   }
@@ -607,42 +604,71 @@ final class PanesSplitsUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private func requireOpacity(
+  private func captureTransparentBackground(
     in window: OpacityWindowIdentity,
     appearance: String,
-    window windowIndex: Int,
-    isOpaque: Bool
-  ) async throws {
+    window windowIndex: Int
+  ) async throws -> RGB {
     let pane = opacityPane(in: window)
-    let sample = try await waitForOpacity(in: pane, isOpaque: isOpaque)
-    let state = isOpaque ? "opaque" : "transparent"
-    let lastRGB = sample.color.map { "\($0.red),\($0.green),\($0.blue)" } ?? "unavailable"
+    let sample = try await waitForOpacitySample(in: pane) { color, previousColor in
+      previousColor.map { color.distance(to: $0) <= 2 } ?? false
+    }
     addOpacityScreenshot(
       sample.screenshot,
       appearance: appearance,
-      state: state,
+      state: "transparent",
       window: windowIndex
     )
     XCTAssertTrue(
-      sample.didReach,
-      "Expected window \(windowIndex + 1) to become \(state); last RGB: \(lastRGB)"
+      sample.didMatch,
+      "Expected a stable transparent baseline for window \(windowIndex + 1); "
+        + "last RGB: \(sample.color?.components ?? "unavailable")"
+    )
+    return try XCTUnwrap(sample.color)
+  }
+
+  @MainActor
+  private func requireOpaqueBackground(
+    in window: OpacityWindowIdentity,
+    appearance: String,
+    window windowIndex: Int,
+    transparentColor: RGB
+  ) async throws {
+    let pane = opacityPane(in: window)
+    let sample = try await waitForOpacitySample(in: pane) { color, _ in
+      color.distance(to: transparentColor) >= 20
+    }
+    let lastColor = sample.color
+    let delta = lastColor.map { $0.distance(to: transparentColor) }
+    addOpacityScreenshot(
+      sample.screenshot,
+      appearance: appearance,
+      state: "opaque",
+      window: windowIndex
+    )
+    XCTAssertTrue(
+      sample.didMatch,
+      "Expected window \(windowIndex + 1) to become opaque; "
+        + "baseline RGB: \(transparentColor.components); "
+        + "last RGB: \(lastColor?.components ?? "unavailable"); "
+        + "delta: \(delta.map(String.init) ?? "unavailable")"
     )
   }
 
   @MainActor
-  private func waitForOpacity(
+  private func waitForOpacitySample(
     in pane: XCUIElement,
-    isOpaque: Bool
+    matching predicate: @escaping (RGB, RGB?) -> Bool
   ) async throws -> OpacitySample {
+    var previousColor: RGB?
     var sample: OpacitySample?
     _ = await wait(timeout: .seconds(30), pollInterval: 1) {
       let screenshot = pane.screenshot()
       let color = try? self.imageMetrics(in: screenshot.image).dominantRGB
-      let didReach = color.map {
-        ($0.distance(to: Self.opacityBackground) <= 8) == isOpaque
-      } ?? false
-      sample = OpacitySample(didReach: didReach, screenshot: screenshot, color: color)
-      return didReach
+      let didMatch = color.map { predicate($0, previousColor) } ?? false
+      sample = OpacitySample(didMatch: didMatch, screenshot: screenshot, color: color)
+      previousColor = color
+      return didMatch
     }
     return try XCTUnwrap(sample)
   }
@@ -699,7 +725,7 @@ private struct OpacityWindowIdentity {
 }
 
 private struct OpacitySample {
-  let didReach: Bool
+  let didMatch: Bool
   let screenshot: XCUIScreenshot
   let color: RGB?
 }
@@ -713,6 +739,10 @@ private struct RGB: Hashable {
   let red: Int
   let green: Int
   let blue: Int
+
+  var components: String {
+    "\(red),\(green),\(blue)"
+  }
 
   func distance(to other: Self) -> Int {
     max(abs(red - other.red), abs(green - other.green), abs(blue - other.blue))
