@@ -72,20 +72,6 @@ jobs:
       - run: mise install -C "$RUNNER_TEMP" "swiftlint@$(mise current swiftlint)"
       - run: make swiftlint
 
-  mac_test:
-    name: mac-test
-    needs: changes
-    if: needs.changes.outputs.mac == 'true'
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-      - uses: ./.github/actions/setup-macos
-        with:
-          cache-native-builds: true
-      - run: make mac-test
-
   mac_test_e2e:
     name: mac-test-e2e
     needs: changes
@@ -106,14 +92,17 @@ jobs:
           path: ${{ runner.temp }}/supatermE2E.xcresult
           if-no-files-found: ignore
 
-  mac_test_ui_build:
-    name: mac-test-ui-build
+  mac_test_build:
+    name: mac-test-build
     needs: changes
     if: needs.changes.outputs.mac == 'true'
     runs-on: macos-26
     timeout-minutes: 60
     outputs:
-      matrix: ${{ steps.build.outputs.matrix }}
+      unit: ${{ steps.unit.outputs.matrix }}
+      ui: ${{ steps.ui.outputs.matrix }}
+    env:
+      SHARD_REFERENCE: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -123,8 +112,11 @@ jobs:
           cache-native-builds: true
       - run: make mac-tuist-install
       - run: make -C apps/mac build-ghostty build-zmx build-ap
-      - id: build
-        run: mise exec -- tuist test supatermUITests --build-only --configuration Debug --shard-total 12 --shard-granularity suite
+      - id: unit
+        run: mise exec -- tuist test supaterm --build-only --configuration Debug --shard-total 1 --shard-reference "$SHARD_REFERENCE-unit"
+        working-directory: apps/mac
+      - id: ui
+        run: mise exec -- tuist test supatermUITests --build-only --configuration Debug --shard-total 12 --shard-granularity suite --shard-reference "$SHARD_REFERENCE-ui"
         working-directory: apps/mac
       - uses: actions/upload-artifact@v6
         with:
@@ -135,17 +127,39 @@ jobs:
           retention-days: 1
           overwrite: true
 
+  mac_test:
+    name: mac-test
+    needs: mac_test_build
+    if: >-
+      needs.mac_test_build.result == 'success' &&
+      toJSON(fromJSON(needs.mac_test_build.outputs.unit || '{"shard":[]}').shard) != '[]'
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.mac_test_build.outputs.unit) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-macos
+        with:
+          cache-native-builds: false
+      - run: mise exec -- tuist test --without-building --configuration Debug --inspect-mode off -- -destination "platform=macOS"
+        working-directory: apps/mac
+        env:
+          TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          TUIST_SHARD_PLAN_ID: ${{ matrix.shard_plan_id }}
+
   mac_test_ui:
     name: mac-test-ui (${{ matrix.shard }})
-    needs: mac_test_ui_build
+    needs: mac_test_build
     if: >-
-      needs.mac_test_ui_build.result == 'success' &&
-      toJSON(fromJSON(needs.mac_test_ui_build.outputs.matrix || '{"shard":[]}').shard) != '[]'
+      needs.mac_test_build.result == 'success' &&
+      toJSON(fromJSON(needs.mac_test_build.outputs.ui || '{"shard":[]}').shard) != '[]'
     runs-on: macos-26
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.mac_test_ui_build.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.mac_test_build.outputs.ui) }}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-macos
@@ -168,7 +182,7 @@ jobs:
   mac_test_ui_results:
     name: mac-test-ui-results
     needs:
-      - mac_test_ui_build
+      - mac_test_build
       - mac_test_ui
     if: needs.mac_test_ui.result == 'success'
     runs-on: macos-26
@@ -194,7 +208,7 @@ jobs:
           test "$#" -eq "$(jq -r '.shard | length' <<< "$SHARD_MATRIX")"
           xcrun xcresulttool merge --output-path "$RUNNER_TEMP/supatermUITests.xcresult" "$@"
         env:
-          SHARD_MATRIX: ${{ needs.mac_test_ui_build.outputs.matrix }}
+          SHARD_MATRIX: ${{ needs.mac_test_build.outputs.ui }}
       - run: mise exec -- tuist inspect test --mode local "$RUNNER_TEMP/supatermUITests.xcresult"
         working-directory: apps/mac
         env:
@@ -206,17 +220,17 @@ jobs:
     needs:
       - changes
       - swiftlint
+      - mac_test_build
       - mac_test
       - mac_test_e2e
-      - mac_test_ui_build
       - mac_test_ui
     runs-on: ubuntu-latest
     env:
       MAC: ${{ needs.changes.outputs.mac }}
       SWIFTLINT: ${{ needs.swiftlint.result }}
+      BUILD: ${{ needs.mac_test_build.result }}
       UNIT: ${{ needs.mac_test.result }}
       E2E: ${{ needs.mac_test_e2e.result }}
-      UI_BUILD: ${{ needs.mac_test_ui_build.result }}
       UI: ${{ needs.mac_test_ui.result }}
     steps:
       - run: |
@@ -224,7 +238,7 @@ jobs:
             exit 0
           fi
           test "$SWIFTLINT" = success
+          test "$BUILD" = success
           test "$UNIT" = success
           test "$E2E" = success
-          test "$UI_BUILD" = success
           test "$UI" = success
