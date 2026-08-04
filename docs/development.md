@@ -67,8 +67,7 @@ Useful macOS development commands:
 make mac-generate       # Generate the Xcode workspace
 make mac-xcode-open     # Open the Xcode workspace
 make mac-build          # Debug build
-make mac-run            # Debug run with isolated ephemeral state
-make mac-reap-run-state # Kill zmx sessions and state left by finished runs
+make mac-run            # Debug run with isolated persistent state
 make mac-inspect-dependencies # Check Tuist dependency graph hygiene
 ```
 
@@ -123,34 +122,28 @@ make bump-and-release
 
 ## Isolated App State
 
-`make mac-run` creates disposable state and zmx directories under `apps/mac/.build/run-state` by default. To reuse a specific development state root:
+`make mac-run` gives the checkout one development identity: an instance name derived from the
+checkout path and a state home at `apps/mac/.build/run-state/dev`. State and sessions persist
+across runs, so the next `make mac-run` reattaches the previous run's zmx sessions the same way
+the shipped app does. Different checkouts derive different names, so worktrees stay isolated, and
+the launch guard refuses a second concurrent run of the same checkout.
+
+zmx sessions live in the default per-user directory. The instance hash in every session name
+separates development sessions from the installed app's, and each app process reaps only its own
+namespace.
+
+For a clean slate, quit the app terminating its sessions, then delete the state home:
 
 ```bash
-SUPATERM_RUN_STATE_HOME=/tmp/supaterm-dev make mac-run
-```
-
-To reuse a named development instance and make `sp --instance` stable:
-
-```bash
-SUPATERM_RUN_INSTANCE_NAME=supaterm-dev SUPATERM_RUN_STATE_HOME=/tmp/supaterm-dev make mac-run
+rm -rf apps/mac/.build/run-state/dev
 ```
 
 `make mac-run` accepts these runtime overrides:
 
-- `SUPATERM_RUN_ID` controls the disposable run directory suffix.
 - `SUPATERM_RUN_INSTANCE_NAME` becomes `SUPATERM_INSTANCE_NAME` for the app process.
 - `SUPATERM_RUN_STATE_HOME` becomes `SUPATERM_STATE_HOME` for the app process and spawned panes.
-- `SUPATERM_RUN_ZMX_DIR` becomes `ZMX_DIR` for the app process.
 
 All Makefile app launch targets set `SUPATERM_VERBOSE_LOGGING=1`, so development runs always emit verbose diagnostics.
-
-### Reaping finished runs
-
-A zmx session daemon detaches from the app that spawned it, so quitting a development run leaves its daemons behind. `make mac-run` and `make mac-run-demo` reap before they launch, and `make mac-reap-run-state` reaps without building anything:
-
-```bash
-make mac-reap-run-state
-```
 
 Reaping walks every state home under `apps/mac/.build/run-state`. A state home whose run still has a live `supaterm` process naming it in `SUPATERM_STATE_HOME` is left alone, so concurrent development runs survive each other. For every other state home, `apps/mac/scripts/reap-run-state.sh` kills each process group whose environment carries that run's `ZMX_DIR` and then deletes the directory. It reads the process table rather than the socket directory, because a daemon whose socket was unlinked keeps running and `zmx ls` no longer reports it.
 

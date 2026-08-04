@@ -33,7 +33,7 @@ LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 APP_RUN_ENV := SUPATERM_VERBOSE_LOGGING=1
 RUN_STATE_ROOT := $(CURRENT_MAKEFILE_DIR)/.build/run-state
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog reap-run-state generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -106,18 +106,14 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
 	product="$$(echo "$$settings" | jq -r '.FULL_PRODUCT_NAME')"; \
 	exec_name="$$(echo "$$settings" | jq -r '.EXECUTABLE_NAME')"; \
-	run_id="$${SUPATERM_RUN_ID:-$$(date +%Y%m%d%H%M%S)-$$$$}"; \
-	instance_name="$${SUPATERM_RUN_INSTANCE_NAME:-dev-$$(printf '%s' "$(CURRENT_MAKEFILE_DIR)" | shasum -a 256 | awk '{print substr($$1, 1, 12)}')-$$run_id}"; \
-	state_home="$${SUPATERM_RUN_STATE_HOME:-$(RUN_STATE_ROOT)/$$run_id}"; \
-	zmx_dir="$${SUPATERM_RUN_ZMX_DIR:-$$state_home/zmx}"; \
-	bash scripts/reap-run-state.sh "$(RUN_STATE_ROOT)"; \
-	mkdir -p "$$state_home" "$$zmx_dir"; \
+	instance_name="$${SUPATERM_RUN_INSTANCE_NAME:-dev-$$(printf '%s' "$(CURRENT_MAKEFILE_DIR)" | shasum -a 256 | awk '{print substr($$1, 1, 12)}')}"; \
+	state_home="$${SUPATERM_RUN_STATE_HOME:-$(RUN_STATE_ROOT)/dev}"; \
+	mkdir -p "$$state_home"; \
 	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u ZMX_DIR \
 		$(APP_RUN_ENV) \
 		SUPATERM_PRINT_SOCKET=1 \
 		SUPATERM_INSTANCE_NAME="$$instance_name" \
 		SUPATERM_STATE_HOME="$$state_home" \
-		ZMX_DIR="$$zmx_dir" \
 		"$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
 run-snapshot-catalog: build-snapshot-catalog # Build then launch the snapshot catalog app.
@@ -139,22 +135,15 @@ run-app-demo: build-app-demo # Build then launch seeded demo mode (Debug)
 	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
 	product="$$(echo "$$settings" | jq -r '.FULL_PRODUCT_NAME')"; \
 	exec_name="$$(echo "$$settings" | jq -r '.EXECUTABLE_NAME')"; \
-	run_id="demo"; \
-	instance_name="demo-$$(printf '%s' "$(CURRENT_MAKEFILE_DIR)" | shasum -a 256 | awk '{print substr($$1, 1, 12)}')-$$run_id"; \
-	state_home="$(RUN_STATE_ROOT)/$$run_id"; \
-	zmx_dir="$$state_home/zmx"; \
-	bash scripts/reap-run-state.sh "$(RUN_STATE_ROOT)"; \
-	mkdir -p "$$state_home" "$$zmx_dir"; \
+	instance_name="demo-$$(printf '%s' "$(CURRENT_MAKEFILE_DIR)" | shasum -a 256 | awk '{print substr($$1, 1, 12)}')"; \
+	state_home="$(RUN_STATE_ROOT)/demo"; \
+	mkdir -p "$$state_home"; \
 	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u ZMX_DIR \
 		$(APP_RUN_ENV) \
 		SUPATERM_PRINT_SOCKET=1 \
 		SUPATERM_INSTANCE_NAME="$$instance_name" \
 		SUPATERM_STATE_HOME="$$state_home" \
-		ZMX_DIR="$$zmx_dir" \
 		"$$build_dir/$$product/Contents/MacOS/$$exec_name"
-
-reap-run-state: # Kill zmx sessions and delete state left by finished development runs
-	@bash scripts/reap-run-state.sh "$(RUN_STATE_ROOT)"
 
 install-tip: # Install tip build from github
 	@tmpdir="$$(mktemp -d)"; \
