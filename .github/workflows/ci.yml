@@ -124,7 +124,7 @@ jobs:
       - run: make mac-tuist-install
       - run: make -C apps/mac build-ghostty build-zmx build-ap
       - id: build
-        run: mise exec -- tuist test supatermUITests --build-only --shard-total 12 --shard-granularity suite
+        run: mise exec -- tuist test supatermUITests --build-only --configuration Debug --shard-total 12 --shard-granularity suite
         working-directory: apps/mac
       - uses: actions/upload-artifact@v6
         with:
@@ -151,7 +151,7 @@ jobs:
       - uses: ./.github/actions/setup-macos
         with:
           cache-native-builds: false
-      - run: mise exec -- tuist test --without-building --inspect-mode off --result-bundle-path "$RUNNER_TEMP/supatermUITests.xcresult" -- -destination "platform=macOS"
+      - run: mise exec -- tuist test --without-building --configuration Debug --inspect-mode off --result-bundle-path "$RUNNER_TEMP/supatermUITests.xcresult" -- -destination "platform=macOS"
         working-directory: apps/mac
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}

@@ -25,7 +25,7 @@ TUIST_CACHED_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_B
 TUIST_SOURCE_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
 TUIST_GENERATION_INPUTS := Project.swift Workspace.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= $(TUIST_BINARY_CACHE_PROFILE)
-TUIST_CACHE_CONFIGURATION ?= Debug
+TUIST_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
@@ -68,7 +68,7 @@ $(TUIST_INSTALL_STAMP): $(TUIST_GENERATION_INPUTS)
 $(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
-	mise exec -- tuist generate --no-open --cache-profile "$*"
+	mise exec -- tuist generate --no-open --cache-profile "$*" --configuration "$(TUIST_CONFIGURATION)"
 	touch "$@"
 
 $(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
@@ -218,6 +218,6 @@ inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant 
 	mise exec -- tuist inspect dependencies
 
 warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for external dependencies
-	mise exec -- tuist cache warm --configuration "$(TUIST_CACHE_CONFIGURATION)" --cache-profile "$(TUIST_BINARY_CACHE_PROFILE)"
+	mise exec -- tuist cache warm --configuration "$(TUIST_CONFIGURATION)" --cache-profile "$(TUIST_BINARY_CACHE_PROFILE)"
 
 check: format lint # Format and lint

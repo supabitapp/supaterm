@@ -40,4 +40,4 @@ jobs:
         with:
           cache-native-builds: false
       - run: make mac-warm-cache
-      - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release
+      - run: make mac-warm-cache TUIST_CONFIGURATION=Release
