@@ -19,6 +19,18 @@ This document captures the stable rules of Supaterm's socket IPC. The source rem
 - `sp instance ls` lists reachable managed endpoints.
 - `sp instance ls --json` returns endpoint IDs for unambiguous targeting.
 
+One instance name belongs to one live app process.
+
+- The name also keys the persistent session names and the saved layout, so two processes sharing a
+  name share their terminal sessions: each would attach to the other's live sessions, and closing
+  either window would kill them for both.
+- A launching app takes an exclusive lock on its name in the managed socket directory. When another
+  live process already holds the name, the launching app reports the clash and exits.
+- The kernel owns the lock, so it drops the moment the owning process dies. No file has to be
+  reaped, and a crash never blocks the next launch.
+- Running a second app process is still a matter of naming it: launch it with a distinct
+  `SUPATERM_INSTANCE_NAME`.
+
 ## Target Resolution
 
 Socket selection and terminal object targeting are separate.
