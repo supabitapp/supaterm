@@ -331,6 +331,7 @@ private struct SidebarRowSnapshotFixture: View {
   var body: some View {
     TerminalSidebarTabSummaryView(
       tab: item.tab,
+      favicon: .shell,
       palette: palette,
       isSelected: item.isSelected,
       isPinned: item.isPinned,

@@ -185,6 +185,7 @@ final class TerminalSidebarTabSelectionState {
 
 struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
+  let favicon: TerminalFavicon
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
   let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
@@ -214,6 +215,7 @@ enum TerminalSidebarRowPresentation: Equatable {
       let fields = [
         presentation.tab.id.rawValue.uuidString,
         presentation.tab.title,
+        presentation.favicon.measurementKey,
         presentation.notificationPresentation?.previewText ?? "",
         presentation.paneWorkingDirectories.joined(separator: "|"),
       ]
@@ -319,6 +321,7 @@ struct TerminalSidebarHostedRow: View {
         store: context.store,
         terminal: context.terminal,
         tab: presentation.tab,
+        favicon: presentation.favicon,
         groupID: presentation.groupID,
         rootIsPinned: presentation.rootIsPinned,
         renameState: context.renameState,

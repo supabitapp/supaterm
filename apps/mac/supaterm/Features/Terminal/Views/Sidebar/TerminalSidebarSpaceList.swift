@@ -132,6 +132,7 @@ struct TerminalSidebarSpaceList: View {
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
+      favicon: terminal.tabFavicon(for: tab.id),
       groupID: groupID,
       rootIsPinned: rootIsPinned,
       notificationPresentation: terminal.latestSidebarNotificationPresentation(for: tab.id),

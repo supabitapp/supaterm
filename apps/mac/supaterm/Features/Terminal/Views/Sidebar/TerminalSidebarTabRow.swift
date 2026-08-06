@@ -70,6 +70,7 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
+  let favicon: TerminalFavicon
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
   let renameState: TerminalSidebarRenameState?
@@ -158,6 +159,7 @@ struct TerminalSidebarTabRow: View {
     let surfaceInsets = TerminalSidebarLayout.tabSurfaceHorizontalInsets(isGrouped: isGrouped)
     let summary = TerminalSidebarTabSummaryView(
       tab: tab,
+      favicon: favicon,
       palette: palette,
       isSelected: isSelected,
       isPinned: groupID == nil && rootIsPinned,

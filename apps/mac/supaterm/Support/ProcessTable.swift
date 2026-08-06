@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import SupatermCLIShared
 
 struct ProcessInvocation: Sendable, Equatable {
   let arguments: [String]
@@ -27,6 +28,35 @@ struct ProcessTable: Sendable, Equatable {
       $0.terminalDevice == entry.terminalDevice
         && $0.processGroupID == entry.foregroundProcessGroupID
     }
+  }
+
+  func foregroundGroup(
+    inZmxSession sessionName: String,
+    invocation: @Sendable (pid_t) -> ProcessInvocation?
+  ) -> [ProcessEntry] {
+    guard let shell = zmxSessionShell(sessionName: sessionName, invocation: invocation) else {
+      return []
+    }
+    return foregroundGroup(onTerminalOf: shell)
+  }
+
+  func commandName(
+    processGroupID: pid_t?,
+    zmxSessionName: String?,
+    invocation: @Sendable (pid_t) -> ProcessInvocation?
+  ) -> String? {
+    let group: [ProcessEntry]
+    if let zmxSessionName {
+      group = foregroundGroup(inZmxSession: zmxSessionName, invocation: invocation)
+    } else if let processGroupID {
+      group = entries.filter { $0.processGroupID == processGroupID }
+    } else {
+      group = []
+    }
+    guard let leader = group.first(where: { $0.processID == $0.processGroupID }) ?? group.first else {
+      return nil
+    }
+    return leader.name.isEmpty ? nil : leader.name
   }
 
   static func snapshot() -> ProcessTable {
@@ -128,5 +158,34 @@ struct ProcessTable: Sendable, Equatable {
     guard index < buffer.count else { return nil }
     defer { index += 1 }
     return buffer[start..<index]
+  }
+
+  private func zmxSessionShell(
+    sessionName: String,
+    invocation: @Sendable (pid_t) -> ProcessInvocation?
+  ) -> ProcessEntry? {
+    for entry in entries where entry.name == SupatermBundleLayout.zmxExecutableName {
+      guard invocation(entry.processID)?.arguments.contains(sessionName) == true else { continue }
+      if let shell = children(of: entry.processID).first(where: {
+        $0.name != SupatermBundleLayout.zmxExecutableName
+      }) {
+        return shell
+      }
+    }
+    return nil
+  }
+}
+
+public enum TerminalForegroundProcess {
+  public static func commandName(
+    processGroupID: Int32?,
+    zmxSessionName: String?
+  ) -> String? {
+    let table = ProcessTable.snapshot()
+    return table.commandName(
+      processGroupID: processGroupID,
+      zmxSessionName: zmxSessionName,
+      invocation: { ProcessTable.invocation(forProcessID: $0) }
+    )
   }
 }

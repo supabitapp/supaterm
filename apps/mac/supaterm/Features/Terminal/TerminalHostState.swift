@@ -860,16 +860,19 @@ final class TerminalHostState {
 
   func configureBridgeCallbacks(
     for view: GhosttySurfaceView,
-    tabID: TerminalTabID
+    tabID: TerminalTabID,
+    usesZmx: Bool
   ) {
-    view.bridge.onTitleChange = { [weak self] _ in
-      guard let self else { return }
+    view.bridge.onTitleChange = { [weak self, weak view] _ in
+      guard let self, let view else { return }
       self.updateTabTitle(for: tabID)
+      view.refreshFavicon(usesZmx: usesZmx)
       self.sessionDidChange()
     }
-    view.bridge.onPathChange = { [weak self] in
-      guard let self else { return }
+    view.bridge.onPathChange = { [weak self, weak view] in
+      guard let self, let view else { return }
       self.updateTabTitle(for: tabID)
+      view.refreshFavicon(usesZmx: usesZmx)
       self.agentPanelController?.surfacePathChanged(view.id)
       self.sessionDidChange()
     }
@@ -918,6 +921,7 @@ final class TerminalHostState {
     view.bridge.onCommandFinished = { [weak self, weak view] in
       guard let self, let view else { return }
       self.handleCommandFinished(for: view.id)
+      view.refreshFavicon(usesZmx: usesZmx)
     }
     configureBridgeCloseCallbacks(for: view)
     view.bridge.onDesktopNotification = { [weak self, weak view] title, body in

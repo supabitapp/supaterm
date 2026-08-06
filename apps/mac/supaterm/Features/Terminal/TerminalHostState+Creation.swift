@@ -192,9 +192,10 @@ extension TerminalHostState {
       managesWindowAppearance: false,
       zmxSessionsEnabled: launchCommand.usesZmx
     )
-    configureBridgeCallbacks(for: view, tabID: tabID)
+    configureBridgeCallbacks(for: view, tabID: tabID, usesZmx: launchCommand.usesZmx)
     configureSurfaceCallbacks(for: view, tabID: tabID)
     surfaces[view.id] = view
+    view.refreshFavicon(usesZmx: launchCommand.usesZmx)
     return view
   }
 

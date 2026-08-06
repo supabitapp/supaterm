@@ -82,6 +82,14 @@ extension TerminalHostState {
     )
   }
 
+  func tabFavicon(for tabID: TerminalTabID) -> TerminalFavicon {
+    Self.resolvedTabFavicon(
+      focusedSurfaceID: focusHistoryByTab[tabID]?.current,
+      in: trees[tabID],
+      favicon: { $0.bridge.state.favicon }
+    )
+  }
+
   func tabHasBell(for tabID: TerminalTabID) -> Bool {
     trees[tabID]?.leaves().contains {
       $0.bridge.state.bellCount > 0
@@ -220,6 +228,19 @@ extension TerminalHostState {
       pwd: pwd(surface),
       defaultValue: paneFallbackTitle(for: surface.id, in: tree)
     )
+  }
+
+  static func resolvedTabFavicon<Surface: NSView & Identifiable>(
+    focusedSurfaceID: UUID?,
+    in tree: SplitTree<Surface>?,
+    favicon: (Surface) -> TerminalFavicon
+  ) -> TerminalFavicon where Surface.ID == UUID {
+    let leaves = tree?.leaves() ?? []
+    let activeSurface =
+      focusedSurfaceID.flatMap { id in
+        leaves.first { $0.id == id }
+      } ?? leaves.first
+    return activeSurface.map(favicon) ?? .shell
   }
 
   static func paneWorkingDirectories<Surface: NSView & Identifiable>(

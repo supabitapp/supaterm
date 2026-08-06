@@ -1,4 +1,5 @@
 import SupaTheme
+import SupatermCLIShared
 import SwiftUI
 
 struct TerminalSidebarTabSummaryView: View {
@@ -11,6 +12,7 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   let tab: TerminalTabItem
+  let favicon: TerminalFavicon
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
@@ -111,6 +113,8 @@ struct TerminalSidebarTabSummaryView: View {
     )
 
     HStack(alignment: .center, spacing: 6) {
+      faviconView
+
       VStack(alignment: .leading, spacing: 2) {
         Text(tab.title)
           .font(.system(size: 12, weight: .medium))
@@ -173,6 +177,32 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   @ViewBuilder
+  private var faviconView: some View {
+    let image = favicon.image
+    switch image {
+    case .asset(let name):
+      Image(name)
+        .renderingMode(.template)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(width: 14, height: 14)
+        .frame(width: 16, height: 16)
+        .foregroundStyle(faviconColor)
+        .accessibilityHidden(true)
+    case .system(let name):
+      Image(systemName: name)
+        .font(.system(size: 11, weight: .medium))
+        .frame(width: 16, height: 16)
+        .foregroundStyle(faviconColor)
+        .accessibilityHidden(true)
+    }
+  }
+
+  private var faviconColor: Color {
+    isSelected ? palette.selectedSecondaryText : palette.secondaryText
+  }
+
+  @ViewBuilder
   private func statusAccessoryView(
     _ statusAccessory: StatusAccessory
   ) -> some View {
@@ -217,6 +247,59 @@ struct TerminalSidebarTabSummaryView: View {
         isSelected: isSelected,
         palette: palette
       )
+    }
+  }
+}
+
+private enum TerminalFaviconImage {
+  case asset(String)
+  case system(String)
+}
+
+extension TerminalFavicon {
+  fileprivate var image: TerminalFaviconImage {
+    switch self {
+    case .command(let command):
+      return command.image
+    case .project(.swift):
+      return .system("swift")
+    case .project(let project):
+      return .asset("\(project.rawValue)-mark")
+    case .shell:
+      return .system("terminal")
+    }
+  }
+}
+
+extension CommandGlyph {
+  fileprivate var image: TerminalFaviconImage {
+    switch self {
+    case .claude:
+      return .asset(SupatermAgentKind.claude.markImageName)
+    case .codex:
+      return .asset(SupatermAgentKind.codex.markImageName)
+    case .pi:
+      return .asset(SupatermAgentKind.pi.markImageName)
+    case .sourceControl:
+      return .system("arrow.triangle.branch")
+    case .remote:
+      return .system("network")
+    case .editor:
+      return .system("text.cursor")
+    case .build:
+      return .system("hammer.fill")
+    case .package:
+      return .system("shippingbox.fill")
+    case .code:
+      return .system("chevron.left.forwardslash.chevron.right")
+    case .ruby:
+      return .asset("ruby-mark")
+    case .container:
+      return .system("shippingbox")
+    case .search:
+      return .system("magnifyingglass")
+    case .rust:
+      return .asset("rust-mark")
     }
   }
 }

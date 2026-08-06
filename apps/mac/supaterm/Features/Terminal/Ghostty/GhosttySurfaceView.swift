@@ -84,6 +84,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private var eventMonitor: Any?
   private var notificationObservers: [NSObjectProtocol] = []
   private var accessibilitySelectionTask: Task<Void, Never>?
+  private var faviconTask: Task<Void, Never>?
+  private var faviconUpdateSequence = TerminalFaviconUpdateSequence()
   private var prevPressureStage: Int = 0
   private var suppressNextLeftMouseUp = false
   private lazy var cachedScreenContents = CachedValue<String>(duration: .milliseconds(500)) {
@@ -354,6 +356,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   isolated deinit {
+    faviconTask?.cancel()
     if let eventMonitor {
       NSEvent.removeMonitor(eventMonitor)
     }
@@ -374,6 +377,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
   func closeSurface() {
     accessibilitySelectionTask?.cancel()
     accessibilitySelectionTask = nil
+    faviconTask?.cancel()
+    faviconTask = nil
     clearNotificationObservers()
     if let surface {
       if let surfaceRef {
@@ -396,6 +401,31 @@ final class GhosttySurfaceView: NSView, Identifiable {
       foregroundProcessGroupID: { ghostty_surface_foreground_pid(surface) },
       ttyName: { ghostty_surface_tty_name(surface) }
     )
+  }
+
+  func refreshFavicon(usesZmx: Bool) {
+    faviconTask?.cancel()
+    let update = faviconUpdateSequence.begin()
+    let surfaceID = id
+    let processGroupID = processIdentity.foregroundProcessGroupID
+    let workingDirectoryPath = bridge.state.pwd
+    faviconTask = Task { @MainActor [weak self] in
+      let favicon = await TerminalFaviconLoader.resolve(
+        surfaceID: surfaceID,
+        foregroundProcessGroupID: processGroupID,
+        usesZmx: usesZmx,
+        workingDirectoryPath: workingDirectoryPath
+      )
+      guard
+        let self,
+        !Task.isCancelled,
+        self.faviconUpdateSequence.accepts(update)
+      else {
+        return
+      }
+      self.bridge.state.favicon = favicon
+      self.faviconTask = nil
+    }
   }
 
   static func processIdentity(

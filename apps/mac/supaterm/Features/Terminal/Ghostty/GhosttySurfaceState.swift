@@ -9,6 +9,7 @@ enum GhosttySurfaceFailure: Equatable {
 @MainActor
 @Observable
 final class GhosttySurfaceState {
+  var favicon: TerminalFavicon = .shell
   var title: String?
   var titleOverride: String?
   var pwd: String?

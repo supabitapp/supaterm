@@ -205,6 +205,7 @@ struct TerminalSidebarPointerTests {
   private func presentation(_ tab: TerminalTabItem) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
+      favicon: .shell,
       groupID: nil,
       rootIsPinned: false,
       notificationPresentation: nil,

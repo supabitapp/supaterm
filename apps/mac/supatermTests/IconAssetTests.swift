@@ -20,6 +20,15 @@ struct IconAssetTests {
     #expect(svg.contains(#"fill="currentColor""#))
   }
 
+  @Test
+  func projectFaviconsUseTemplateVectorImagesets() throws {
+    for project in ["node", "rust", "go", "python", "ruby", "zig"] {
+      let svg = try templateVectorImagesetSVG("\(project)-mark")
+
+      #expect(svg.contains(#"viewBox="0 0 24 24""#))
+    }
+  }
+
   private func templateVectorImagesetSVG(_ iconName: String) throws -> String {
     let imagesetURL = assetsURL().appendingPathComponent("\(iconName).imageset")
     let contentsURL = imagesetURL.appendingPathComponent("Contents.json")

@@ -110,4 +110,47 @@ struct ProcessTableTests {
     #expect(table.children(of: 10) == [foreground, otherTerminal])
     #expect(table.foregroundGroup(onTerminalOf: leader) == [foreground])
   }
+
+  @Test
+  func resolvesForegroundCommandThroughZmxSessionOwnership() {
+    let sessionName = "spt-session"
+    let table = ProcessTable(
+      entries: [
+        ProcessEntry(
+          processID: 100,
+          parentProcessID: 1,
+          processGroupID: 100,
+          foregroundProcessGroupID: 100,
+          terminalDevice: 5,
+          name: "zmx"
+        ),
+        ProcessEntry(
+          processID: 200,
+          parentProcessID: 100,
+          processGroupID: 200,
+          foregroundProcessGroupID: 300,
+          terminalDevice: 6,
+          name: "zsh"
+        ),
+        ProcessEntry(
+          processID: 300,
+          parentProcessID: 200,
+          processGroupID: 300,
+          foregroundProcessGroupID: 300,
+          terminalDevice: 6,
+          name: "codex"
+        ),
+      ]
+    )
+
+    let command = table.commandName(
+      processGroupID: nil,
+      zmxSessionName: sessionName,
+      invocation: { processID in
+        processID == 100 ? ProcessInvocation(arguments: ["zmx", "attach", sessionName], terminalType: nil) : nil
+      }
+    )
+
+    #expect(command == "codex")
+  }
 }
