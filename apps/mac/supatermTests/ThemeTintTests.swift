@@ -7,16 +7,16 @@ import Testing
 
 struct ThemeTintTests {
   @Test
-  func tonesMapToReferenceAnchors() {
+  func tonesMapToReferenceTriTonePrimaries() {
     let reference = ReferencePalette.default
-    #expect(ThemeTint.neutral.tone(in: reference) == reference.neutral)
-    #expect(ThemeTint.red.tone(in: reference) == reference.rose)
-    #expect(ThemeTint.orange.tone(in: reference) == reference.clay)
-    #expect(ThemeTint.yellow.tone(in: reference) == reference.gold)
-    #expect(ThemeTint.green.tone(in: reference) == reference.green)
-    #expect(ThemeTint.blue.tone(in: reference) == reference.blue)
-    #expect(ThemeTint.pink.tone(in: reference) == reference.blush)
-    #expect(ThemeTint.purple.tone(in: reference) == reference.violet)
+    #expect(ThemeTint.neutral.tone(in: reference) == reference.neutral.primary)
+    #expect(ThemeTint.red.tone(in: reference) == reference.rose.primary)
+    #expect(ThemeTint.orange.tone(in: reference) == reference.clay.primary)
+    #expect(ThemeTint.yellow.tone(in: reference) == reference.gold.primary)
+    #expect(ThemeTint.green.tone(in: reference) == reference.green.primary)
+    #expect(ThemeTint.blue.tone(in: reference) == reference.blue.primary)
+    #expect(ThemeTint.pink.tone(in: reference) == reference.blush.primary)
+    #expect(ThemeTint.purple.tone(in: reference) == reference.violet.primary)
   }
 
   @Test

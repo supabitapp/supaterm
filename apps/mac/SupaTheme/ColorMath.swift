@@ -113,38 +113,6 @@ public enum ColorMath {
     )
   }
 
-  public static func adjustedForContrast(
-    anchor: ThemeColor,
-    against background: ThemeColor,
-    minimumContrast: Double
-  ) -> ThemeColor {
-    if contrastRatio(anchor, background) >= minimumContrast {
-      return anchor
-    }
-
-    let source = oklch(from: anchor)
-    let targetLightness = relativeLuminance(background) < 0.35 ? 1.0 : 0.0
-    let stepCount = 160
-
-    for index in 1...stepCount {
-      let progress = Double(index) / Double(stepCount)
-      let lightness = source.lightness + (targetLightness - source.lightness) * progress
-      let color = clampedColor(
-        from: OKLCH(
-          lightness: lightness,
-          chroma: source.chroma,
-          hue: source.hue
-        )
-      )
-      if contrastRatio(color, background) >= minimumContrast {
-        return color
-      }
-    }
-
-    let foreground = readableForeground(on: background)
-    return contrastRatio(foreground, background) >= minimumContrast ? foreground : anchor
-  }
-
   private static func linearComponent(_ component: Double) -> Double {
     let value = clamped(component)
     if value <= 0.04045 {

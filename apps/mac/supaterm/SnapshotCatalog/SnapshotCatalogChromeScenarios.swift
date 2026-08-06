@@ -117,10 +117,14 @@ private struct PaletteTokenSheetSnapshotFixture: View {
 
   private func tokens(for palette: Palette) -> [TokenSwatch] {
     let sidebarTabRow = palette.selectableRow
+    let gradientStops = palette.backgroundGradientStops
     let semanticTokens = [
-      TokenSwatch(name: "backgroundIlluminationTop", color: palette.backgroundIlluminationTopValue.color),
-      TokenSwatch(name: "backgroundIlluminationBody", color: palette.backgroundIlluminationBodyValue.color),
-      TokenSwatch(name: "backgroundIlluminationFooter", color: palette.backgroundIlluminationFooterValue.color),
+      TokenSwatch(name: "backgroundGradientStop1", color: gradientStops[0].color),
+      TokenSwatch(name: "backgroundGradientStop2", color: gradientStops[1].color),
+      TokenSwatch(name: "backgroundGradientStop3", color: gradientStops[2].color),
+      TokenSwatch(name: "backgroundGradientStop4", color: gradientStops[3].color),
+      TokenSwatch(name: "backgroundGradientStop5", color: gradientStops[4].color),
+      TokenSwatch(name: "backgroundGradientStop6", color: gradientStops[5].color),
       TokenSwatch(name: "chromeBackgroundStart", color: palette.chromeBackgroundStartValue.color),
       TokenSwatch(name: "chromeBackgroundStop", color: palette.chromeBackgroundStopValue.color),
       TokenSwatch(name: "windowBackgroundTint", color: palette.windowBackgroundTint),

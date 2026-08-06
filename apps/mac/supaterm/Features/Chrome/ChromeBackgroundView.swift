@@ -28,11 +28,8 @@ struct ChromeBackgroundView: NSViewRepresentable {
 }
 
 final class ChromeBackgroundNSView: NSView {
-  static let themeTintOpacity = 0.55
-
   let effectView = NSVisualEffectView()
   let baseRampView = GradientRampView()
-  let illuminationView = GradientRampView()
   let grainView = NSView()
 
   private var appliedTint: ThemeTint?
@@ -45,10 +42,9 @@ final class ChromeBackgroundNSView: NSView {
     configureBackdrop(material: material, blendingMode: blendingMode)
     effectView.state = .followsWindowActiveState
     effectView.isEmphasized = true
-    baseRampView.alphaValue = Self.themeTintOpacity
     grainView.wantsLayer = true
     grainView.layer?.backgroundColor = Self.grainPattern
-    for subview in [effectView, baseRampView, illuminationView, grainView] {
+    for subview in [effectView, baseRampView, grainView] {
       subview.frame = bounds
       subview.autoresizingMask = [.width, .height]
       addSubview(subview)
@@ -72,18 +68,7 @@ final class ChromeBackgroundNSView: NSView {
     let crossfades = appliedTint != nil && appliedTint != palette.tint
     appliedTint = palette.tint
     baseRampView.apply(
-      ChromeBackgroundRamp.stops(
-        from: palette.backgroundTopValue,
-        to: palette.backgroundBottomValue
-      ),
-      crossfading: crossfades
-    )
-    illuminationView.apply(
-      ChromeBackgroundRamp.illuminationStops(
-        top: palette.backgroundIlluminationTopValue,
-        body: palette.backgroundIlluminationBodyValue,
-        footer: palette.backgroundIlluminationFooterValue
-      ),
+      ChromeBackgroundRamp.stops(palette.backgroundGradientStops),
       crossfading: crossfades
     )
   }
@@ -143,28 +128,10 @@ enum ChromeBackgroundRamp {
     let color: ThemeColor
   }
 
-  static let rampEnd = 0.75
-  static let footerStart = 0.92
-  static let sampleCount = 9
+  static let locations = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
-  static func illuminationStops(top: ThemeColor, body: ThemeColor, footer: ThemeColor) -> [Stop] {
-    [
-      Stop(location: 0, color: top),
-      Stop(location: footerStart, color: body),
-      Stop(location: 1, color: footer),
-    ]
-  }
-
-  static func stops(from start: ThemeColor, to stop: ThemeColor) -> [Stop] {
-    let interior = (1..<(sampleCount - 1)).map { index in
-      let progress = Double(index) / Double(sampleCount - 1)
-      return Stop(
-        location: rampEnd * progress,
-        color: ColorMath.perceptualMix(start, stop, by: progress)
-      )
-    }
-    return [Stop(location: 0, color: start)]
-      + interior
-      + [Stop(location: rampEnd, color: stop), Stop(location: 1, color: stop)]
+  static func stops(_ colors: [ThemeColor]) -> [Stop] {
+    precondition(colors.count == locations.count)
+    return zip(locations, colors).map { Stop(location: $0.0, color: $0.1) }
   }
 }

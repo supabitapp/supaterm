@@ -13,15 +13,10 @@ public enum ThemeTint: String, CaseIterable, Codable, Sendable {
   }
 
   public func tone(in palette: ReferencePalette) -> ReferenceTone {
-    switch self {
-    case .neutral: palette.neutral
-    case .red: palette.rose
-    case .orange: palette.clay
-    case .yellow: palette.gold
-    case .green: palette.green
-    case .blue: palette.blue
-    case .pink: palette.blush
-    case .purple: palette.violet
-    }
+    triTone(in: palette).primary
+  }
+
+  public func triTone(in palette: ReferencePalette) -> ReferenceTriTone {
+    palette.triTone(for: self)
   }
 }
