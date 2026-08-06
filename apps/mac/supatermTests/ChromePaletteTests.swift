@@ -120,33 +120,43 @@ struct ChromePaletteTests {
     }
   }
 
-  @Test func chromaticSpaceTitleHoldsTheTintHueAtPrimaryTextContrast() {
-    for colorScheme in [ColorScheme.light, ColorScheme.dark] {
-      for tint in ThemeTint.chromatic {
-        let palette = Palette(colorScheme: colorScheme, tint: tint)
-        let background = palette.backgroundTopValue
-        let ink = palette.primaryTextValue
-        let title = ColorMath.oklch(from: palette.spaceTitleValue)
-        let anchor = ColorMath.oklch(from: tint.tone(in: .default).color(for: colorScheme))
-        expectContrast(
-          palette.spaceTitleValue,
-          background,
-          minimum: ColorMath.contrastRatio(
-            ColorMath.composited(ink, opacity: ink.alpha, over: background),
-            background
-          ),
-          token: "spaceTitle-\(colorScheme)-\(tint.rawValue)"
-        )
-        #expect(
-          hueDelta(title, anchor) < 0.01,
-          "spaceTitleHue-\(colorScheme)-\(tint.rawValue): \(hueDelta(title, anchor))"
-        )
-        #expect(title.chroma > 0.01, "spaceTitleChroma-\(colorScheme)-\(tint.rawValue): \(title.chroma)")
-        #expect(
-          colorScheme == .dark ? title.lightness > anchor.lightness : title.lightness < anchor.lightness,
-          "spaceTitleLightness-\(colorScheme)-\(tint.rawValue): \(title.lightness) vs \(anchor.lightness)"
-        )
-      }
+  @Test func lightChromaticSpaceTitleKeepsVisibleHueAtNineToOneContrast() {
+    for tint in ThemeTint.chromatic {
+      let palette = Palette(colorScheme: .light, tint: tint)
+      let title = ColorMath.oklch(from: palette.spaceTitleValue)
+      let anchor = ColorMath.oklch(from: tint.tone(in: .default).light)
+      expectContrast(
+        palette.spaceTitleValue,
+        palette.chromeBackgroundStartValue,
+        minimum: 9,
+        token: "spaceTitle-\(tint.rawValue)"
+      )
+      #expect(hueDelta(title, anchor) < 0.01, "spaceTitleHue-\(tint.rawValue): \(hueDelta(title, anchor))")
+      #expect(title.chroma > 0.02, "spaceTitleChroma-\(tint.rawValue): \(title.chroma)")
+      #expect(
+        title.lightness < anchor.lightness,
+        "spaceTitleLightness-\(tint.rawValue): \(title.lightness) vs \(anchor.lightness)"
+      )
+    }
+  }
+
+  @Test func darkChromaticSpaceTitleKeepsTheTintHueAtNineToOneContrast() {
+    for tint in ThemeTint.chromatic {
+      let palette = Palette(colorScheme: .dark, tint: tint)
+      let title = ColorMath.oklch(from: palette.spaceTitleValue)
+      let anchor = ColorMath.oklch(from: tint.tone(in: .default).dark)
+      expectContrast(
+        palette.spaceTitleValue,
+        palette.chromeBackgroundStartValue,
+        minimum: 9,
+        token: "spaceTitle-\(tint.rawValue)"
+      )
+      #expect(hueDelta(title, anchor) < 0.01, "spaceTitleHue-\(tint.rawValue): \(hueDelta(title, anchor))")
+      #expect(title.chroma > 0.01, "spaceTitleChroma-\(tint.rawValue): \(title.chroma)")
+      #expect(
+        title.lightness > anchor.lightness,
+        "spaceTitleLightness-\(tint.rawValue): \(title.lightness) vs \(anchor.lightness)"
+      )
     }
   }
 
@@ -244,8 +254,8 @@ struct ChromePaletteTests {
         let palette = Palette(colorScheme: colorScheme, tint: tint)
         for background in [
           palette.agentPanelBackgroundValue,
-          palette.backgroundTopValue,
-          palette.backgroundBottomValue,
+          palette.chromeBackgroundStartValue,
+          palette.chromeBackgroundStopValue,
         ] {
           expectContrast(palette.accentValue, background, minimum: 4.5, token: "accent-\(tint.rawValue)")
           expectContrast(palette.warningValue, background, minimum: 4.5, token: "warning-\(tint.rawValue)")
@@ -263,8 +273,8 @@ struct ChromePaletteTests {
     for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
       for background in [
         palette.agentPanelBackgroundValue,
-        palette.backgroundTopValue,
-        palette.backgroundBottomValue,
+        palette.chromeBackgroundStartValue,
+        palette.chromeBackgroundStopValue,
       ] {
         expectContrast(palette.accentValue, background, minimum: 4.5, token: "accent")
         expectContrast(palette.warningValue, background, minimum: 4.5, token: "warning")
@@ -281,12 +291,48 @@ struct ChromePaletteTests {
     }
   }
 
+  @Test func lightTintSemanticSolverUsesTheRenderedChromeComposite() {
+    let palette = Palette(colorScheme: .light, tint: .blue)
+    let anchor = ReferencePalette.default.blue.light
+    let renderedBackgrounds = [
+      palette.chromeBackgroundStartValue,
+      palette.chromeBackgroundStopValue,
+      palette.agentPanelBackgroundValue,
+    ]
+    let renderedBackground = renderedBackgrounds.min {
+      ColorMath.contrastRatio(anchor, $0) < ColorMath.contrastRatio(anchor, $1)
+    }!
+    let expected = ColorMath.adjustedForContrast(
+      anchor: anchor,
+      against: renderedBackground,
+      minimumContrast: 4.5
+    )
+    let rawBackgrounds = [
+      palette.backgroundTopValue,
+      palette.backgroundBottomValue,
+      palette.agentPanelBackgroundValue,
+    ]
+    let rawBackground = rawBackgrounds.min {
+      ColorMath.contrastRatio(anchor, $0) < ColorMath.contrastRatio(anchor, $1)
+    }!
+    let rawValue = ColorMath.adjustedForContrast(
+      anchor: anchor,
+      against: rawBackground,
+      minimumContrast: 4.5
+    )
+
+    expectSameThemeColor(palette.accentValue, expected, "renderedAccent")
+    #expect(
+      ColorMath.oklch(from: palette.accentValue).lightness > ColorMath.oklch(from: rawValue).lightness
+    )
+  }
+
   @Test func fillTokensMeetControlContrast() {
     for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
       for background in [
         palette.agentPanelBackgroundValue,
-        palette.backgroundTopValue,
-        palette.backgroundBottomValue,
+        palette.chromeBackgroundStartValue,
+        palette.chromeBackgroundStopValue,
       ] {
         expectContrast(palette.warningFillValue, background, minimum: 3, token: "warningFill")
         expectContrast(palette.dangerFillValue, background, minimum: 3, token: "dangerFill")

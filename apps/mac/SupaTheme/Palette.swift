@@ -42,14 +42,26 @@ public struct Palette {
   private var selectableRowPrimarySelectionValue: ThemeColor { isDark ? .black : .white }
   private var selectableRowPrimarySelectionOpacity: Double { isDark ? 1 : 0.88 }
 
-  public var backgroundIlluminationTopValue: ThemeColor { illumination(Self.lightChromeIllumination.top) }
-  public var backgroundIlluminationBodyValue: ThemeColor { illumination(Self.lightChromeIllumination.body) }
-  public var backgroundIlluminationFooterValue: ThemeColor { illumination(Self.lightChromeIllumination.footer) }
+  public var backgroundIlluminationTopValue: ThemeColor {
+    Self.illumination(Self.lightChromeIllumination.top, isDark: isDark)
+  }
+  public var backgroundIlluminationBodyValue: ThemeColor {
+    Self.illumination(Self.lightChromeIllumination.body, isDark: isDark)
+  }
+  public var backgroundIlluminationFooterValue: ThemeColor {
+    Self.illumination(Self.lightChromeIllumination.footer, isDark: isDark)
+  }
   public var chromeBackgroundStartValue: ThemeColor {
-    ColorMath.composited(.white, opacity: backgroundIlluminationTopValue.alpha, over: backgroundTopValue)
+    Self.chromeBackground(
+      backgroundTopValue,
+      illumination: backgroundIlluminationTopValue
+    )
   }
   public var chromeBackgroundStopValue: ThemeColor {
-    ColorMath.composited(.white, opacity: backgroundIlluminationFooterValue.alpha, over: backgroundBottomValue)
+    Self.chromeBackground(
+      backgroundBottomValue,
+      illumination: backgroundIlluminationFooterValue
+    )
   }
   public var windowBackgroundTint: Color { surfaceSeed.color.mix(with: .black, by: isDark ? 0.8 : 0).opacity(0.3) }
   public var detailBackground: Color { detailBackgroundValue.color }
@@ -105,11 +117,8 @@ public struct Palette {
     guard tint != .neutral else { return primaryTextValue }
     return ColorMath.adjustedForContrast(
       anchor: tint.tone(in: referencePalette).color(for: colorScheme),
-      against: backgroundTopValue,
-      minimumContrast: ColorMath.contrastRatio(
-        ColorMath.composited(primaryTextValue, opacity: primaryTextValue.alpha, over: backgroundTopValue),
-        backgroundTopValue
-      )
+      against: chromeBackgroundStartValue,
+      minimumContrast: Self.spaceTitleContrast
     )
   }
   public var spaceTitle: Color { spaceTitleValue.color }
@@ -203,9 +212,17 @@ public struct Palette {
       .mixed(with: tintColor, by: wash.bottom)
     let detailBackgroundValue = surfaceSeed.mixed(with: isDark ? .black : .white, by: 0.85)
     let agentPanelBackgroundValue = surfaceSeed.mixed(with: isDark ? .black : .white, by: isDark ? 0.82 : 0.85)
-    let semanticBackgrounds = [
+    let chromeBackgroundStartValue = Self.chromeBackground(
       backgroundTopValue,
+      illumination: Self.illumination(Self.lightChromeIllumination.top, isDark: isDark)
+    )
+    let chromeBackgroundStopValue = Self.chromeBackground(
       backgroundBottomValue,
+      illumination: Self.illumination(Self.lightChromeIllumination.footer, isDark: isDark)
+    )
+    let semanticBackgrounds = [
+      chromeBackgroundStartValue,
+      chromeBackgroundStopValue,
       agentPanelBackgroundValue,
     ]
     let accentAnchor = tint == .neutral ? referencePalette.blue.color(for: colorScheme) : tintColor
@@ -267,9 +284,17 @@ public struct Palette {
   }
 
   private static let lightChromeIllumination = ChromeIllumination(top: 0.22, body: 0.36, footer: 0.62)
+  private static let spaceTitleContrast = 9.0
 
-  private func illumination(_ opacity: Double) -> ThemeColor {
+  private static func illumination(_ opacity: Double, isDark: Bool) -> ThemeColor {
     ThemeColor(red: 1, green: 1, blue: 1, alpha: isDark ? 0 : opacity)
+  }
+
+  private static func chromeBackground(
+    _ background: ThemeColor,
+    illumination: ThemeColor
+  ) -> ThemeColor {
+    ColorMath.composited(.white, opacity: illumination.alpha, over: background)
   }
 
   private static func semantic(_ anchor: ThemeColor, backgrounds: [ThemeColor]) -> ThemeColor {
