@@ -134,6 +134,11 @@ private final class TerminalTabSplitTargetView: NSView {
     )
   }
 
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    applyStyle()
+  }
+
   private func applyStyle() {
     let color = isActive ? NSColor.controlAccentColor : NSColor.secondaryLabelColor
     iconView.contentTintColor = color

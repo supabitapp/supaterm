@@ -358,6 +358,11 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       additionalCompletion?()
       consumePendingUpdate()
     }
+    if isInitialSnapshot {
+      dataSource.apply(snapshot, animatingDifferences: false)
+      completion()
+      return
+    }
     guard animated else {
       dataSource.apply(snapshot, animatingDifferences: false, completion: completion)
       return
