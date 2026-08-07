@@ -54,7 +54,7 @@ final class TerminalTabDragRegistry {
   }
 
   var transfer: ((TerminalTabDragPayload, Destination) -> TerminalTabTransferResult?)?
-  var split: ((TerminalTabDragPayload, SplitDestination) -> TerminalTabSplitResult?)?
+  var split: ((TerminalTabDragPayload, SplitDestination) -> Bool)?
   var detach: ((TerminalTabDragPayload, CGRect) -> Bool)?
   var sessionMoved: ((TerminalTabDragPayload, CGPoint) -> Void)?
   var sessionFinished: (() -> Void)?
@@ -65,10 +65,6 @@ final class TerminalTabDragRegistry {
 
   var activePayload: TerminalTabDragPayload? {
     session?.payload
-  }
-
-  var previewFrame: CGRect? {
-    session?.previewFrame
   }
 
   func begin(
@@ -112,12 +108,12 @@ final class TerminalTabDragRegistry {
   func performSplit(
     _ payload: TerminalTabDragPayload,
     to destination: SplitDestination
-  ) -> TerminalTabSplitResult? {
-    guard let session, session.payload == payload, let result = split?(payload, destination) else {
-      return nil
+  ) -> Bool {
+    guard let session, session.payload == payload, split?(payload, destination) == true else {
+      return false
     }
     session.didTransfer(payload.moveOperationID)
-    return result
+    return true
   }
 
   func move(to screenPoint: CGPoint) {

@@ -2,7 +2,6 @@ import AppKit
 import ComposableArchitecture
 import GhosttyKit
 import Sharing
-import SupatermTerminalCore
 import Testing
 
 @testable import supaterm
@@ -100,9 +99,8 @@ struct TerminalTabTransferTests {
         )
       )
 
-      let result = try TerminalHostState.commitLiveTabSplit(plan, from: host, to: host)
+      try TerminalHostState.commitLiveTabSplit(plan, from: host, to: host)
 
-      #expect(result.sourceTabID == sourceTabID)
       #expect(host.spaceManager.tabCollection.tabs.map(\.id) == [destinationTabID])
       #expect(host.trees[sourceTabID] == nil)
       #expect(

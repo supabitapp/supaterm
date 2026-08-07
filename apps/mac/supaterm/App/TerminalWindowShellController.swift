@@ -313,7 +313,7 @@ final class TerminalWindowShellController: NSViewController {
       let activeSplitDrop,
       tabDragRegistry.resolve(info.draggingPasteboard) == activeSplitDrop.payload
     else { return false }
-    let result = tabDragRegistry.performSplit(
+    let didSplit = tabDragRegistry.performSplit(
       activeSplitDrop.payload,
       to: TerminalTabDragRegistry.SplitDestination(
         windowControllerID: windowControllerID,
@@ -323,7 +323,7 @@ final class TerminalWindowShellController: NSViewController {
       )
     )
     clearSplitDrop()
-    return result != nil
+    return didSplit
   }
 
   private func clearSplitDrop() {

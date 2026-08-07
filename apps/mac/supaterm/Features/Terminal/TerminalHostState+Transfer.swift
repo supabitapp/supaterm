@@ -15,7 +15,6 @@ extension TerminalHostState {
     fileprivate let extractionPlan: TerminalTabCollection.ExtractionPlan
     fileprivate let incomingFocusedSurfaceID: UUID?
     fileprivate let joinedTree: SplitTree<GhosttySurfaceView>
-    fileprivate let side: TerminalTabSplitSide
     fileprivate let sourceInstance: TerminalSpaceInstance
     fileprivate let sourceTabID: TerminalTabID
     let surfaceIDs: Set<UUID>
@@ -25,6 +24,7 @@ extension TerminalHostState {
     fileprivate let collectionPlan: TerminalTabCollection.TransferPlan
     fileprivate let destinationInstance: TerminalSpaceInstance
     fileprivate let didMoveSelectedTab: Bool
+    fileprivate let movedGroupIDs: Set<TerminalTabGroupID>
     fileprivate let sourceInstance: TerminalSpaceInstance
     let surfaceIDs: Set<UUID>
     let tabIDs: [TerminalTabID]
@@ -69,6 +69,12 @@ extension TerminalHostState {
       collectionPlan: collectionPlan,
       destinationInstance: instances.destination,
       didMoveSelectedTab: instances.source.selectedTabID.map(tabIDs.contains) == true,
+      movedGroupIDs: Set(
+        request.itemIDs.compactMap { itemID in
+          guard case .group(let groupID) = itemID else { return nil }
+          return groupID
+        }
+      ),
       sourceInstance: instances.source,
       surfaceIDs: surfaceIDs,
       tabIDs: tabIDs
@@ -110,7 +116,6 @@ extension TerminalHostState {
     }
     let extractionPlan = try TerminalTabCollection.prepareExtraction(
       TerminalTabExtractionRequest(
-        operationID: payload.moveOperationID,
         expectedTopologyRevision: payload.sourceTopologyRevision,
         itemIDs: payload.itemIDs
       ),
@@ -126,7 +131,6 @@ extension TerminalHostState {
       incomingFocusedSurfaceID: source.focusHistoryByTab[sourceTabID]?.current
         ?? sourceTree.leaves().first?.id,
       joinedTree: joinedTree,
-      side: target.side,
       sourceInstance: instances.source,
       sourceTabID: sourceTabID,
       surfaceIDs: surfaceIDs
@@ -153,13 +157,12 @@ extension TerminalHostState {
     return result
   }
 
-  @discardableResult
   static func commitLiveTabSplit(
     _ plan: LiveTabSplitPlan,
     from source: TerminalHostState,
     to destination: TerminalHostState
-  ) throws -> TerminalTabSplitResult {
-    let extraction = try TerminalTabCollection.commitExtraction(
+  ) throws {
+    let deletedEmptyGroupIDs = try TerminalTabCollection.commitExtraction(
       plan.extractionPlan,
       from: plan.sourceInstance.tabCollection
     )
@@ -185,7 +188,7 @@ extension TerminalHostState {
       source.lastEmittedFocusSurfaceID = nil
     }
     destination.lastEmittedFocusSurfaceID = nil
-    plan.sourceInstance.collapsedTabGroupIDs.subtract(extraction.deletedEmptyGroupIDs)
+    plan.sourceInstance.collapsedTabGroupIDs.subtract(deletedEmptyGroupIDs)
     if plan.sourceInstance.previousSelectedTabID == plan.sourceTabID {
       plan.sourceInstance.previousSelectedTabID = nil
     }
@@ -200,13 +203,6 @@ extension TerminalHostState {
       destination.syncFocus(destination.windowActivity)
     }
     notifySessionChange(source: source, destination: destination)
-    return TerminalTabSplitResult(
-      operationID: extraction.operationID,
-      sourceTabID: plan.sourceTabID,
-      destinationTabID: plan.destinationTabID,
-      side: plan.side,
-      sourceRevision: extraction.topologyRevision
-    )
   }
 
   private static func transferInstances(
@@ -324,14 +320,9 @@ extension TerminalHostState {
     _ plan: LiveTabTransferPlan,
     result: TerminalTabTransferResult
   ) {
-    let movedGroupIDs = Set(
-      result.itemIDs.compactMap { itemID -> TerminalTabGroupID? in
-        guard case .group(let groupID) = itemID else { return nil }
-        return groupID
-      })
-    let movedCollapsedGroupIDs = plan.sourceInstance.collapsedTabGroupIDs.intersection(movedGroupIDs)
+    let movedCollapsedGroupIDs = plan.sourceInstance.collapsedTabGroupIDs.intersection(plan.movedGroupIDs)
     plan.sourceInstance.collapsedTabGroupIDs.subtract(result.deletedEmptyGroupIDs)
-    plan.sourceInstance.collapsedTabGroupIDs.subtract(movedGroupIDs)
+    plan.sourceInstance.collapsedTabGroupIDs.subtract(plan.movedGroupIDs)
     plan.destinationInstance.collapsedTabGroupIDs.formUnion(movedCollapsedGroupIDs)
     if plan.sourceInstance.previousSelectedTabID.map(plan.tabIDs.contains) == true {
       plan.sourceInstance.previousSelectedTabID = nil

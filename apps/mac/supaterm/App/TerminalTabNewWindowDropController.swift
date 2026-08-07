@@ -29,6 +29,12 @@ final class TerminalTabNewWindowDropController {
     }
   }
 
+  func stop() {
+    tabDragRegistry.sessionMoved = nil
+    tabDragRegistry.sessionFinished = nil
+    destinationWindow.orderOut(nil)
+  }
+
   private func route(payload: TerminalTabDragPayload, point: CGPoint) {
     guard tabDragRegistry.activePayload == payload else {
       destinationWindow.orderOut(nil)

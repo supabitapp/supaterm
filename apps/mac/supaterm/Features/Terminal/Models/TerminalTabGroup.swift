@@ -161,17 +161,8 @@ nonisolated struct TerminalTabCloseResult: Equatable, Sendable {
 }
 
 nonisolated struct TerminalTabExtractionRequest: Equatable, Sendable {
-  let operationID: TerminalTabMoveOperationID
   let expectedTopologyRevision: UInt64
   let itemIDs: [TerminalTabRootItemID]
-}
-
-nonisolated struct TerminalTabExtractionResult: Equatable, Sendable {
-  let operationID: TerminalTabMoveOperationID
-  let itemIDs: [TerminalTabRootItemID]
-  let tabIDs: [TerminalTabID]
-  let deletedEmptyGroupIDs: [TerminalTabGroupID]
-  let topologyRevision: UInt64
 }
 
 nonisolated enum TerminalTabSplitSide: Equatable, Sendable {
@@ -179,44 +170,16 @@ nonisolated enum TerminalTabSplitSide: Equatable, Sendable {
   case right
 }
 
-nonisolated struct TerminalTabSplitResult: Equatable, Sendable {
-  let operationID: TerminalTabMoveOperationID
-  let sourceTabID: TerminalTabID
-  let destinationTabID: TerminalTabID
-  let side: TerminalTabSplitSide
-  let sourceRevision: UInt64
-}
-
 nonisolated struct TerminalTabTransferRequest: Equatable, Sendable {
-  let operationID: TerminalTabMoveOperationID
   let expectedSourceRevision: UInt64
   let expectedDestinationRevision: UInt64
   let itemIDs: [TerminalTabRootItemID]
   let destination: TerminalTabPlacement
-
-  init(
-    operationID: TerminalTabMoveOperationID = TerminalTabMoveOperationID(),
-    expectedSourceRevision: UInt64,
-    expectedDestinationRevision: UInt64,
-    itemIDs: [TerminalTabRootItemID],
-    destination: TerminalTabPlacement
-  ) {
-    self.operationID = operationID
-    self.expectedSourceRevision = expectedSourceRevision
-    self.expectedDestinationRevision = expectedDestinationRevision
-    self.itemIDs = itemIDs
-    self.destination = destination
-  }
 }
 
 nonisolated struct TerminalTabTransferResult: Equatable, Sendable {
-  let operationID: TerminalTabMoveOperationID
-  let itemIDs: [TerminalTabRootItemID]
   let tabIDs: [TerminalTabID]
-  let destination: TerminalTabPlacement
   let deletedEmptyGroupIDs: [TerminalTabGroupID]
-  let sourceRevision: UInt64
-  let destinationRevision: UInt64
 }
 
 nonisolated enum TerminalTabTransferError: Error, Equatable {
