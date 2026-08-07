@@ -7,6 +7,8 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
   let terminal: TerminalHostState
   let palette: Palette
   let swipe: SpaceSwipeController
+  let controllerCache: TerminalSidebarControllerCache
+  let spaceID: TerminalSpaceID
   let outline: TerminalSidebarOutline
   let rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation]
   let selectedTabID: TerminalTabID?
@@ -16,7 +18,7 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
   let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
 
   func makeNSViewController(context: Context) -> TerminalSidebarListController {
-    TerminalSidebarListController()
+    controllerCache.controller(for: spaceID)
   }
 
   func updateNSViewController(

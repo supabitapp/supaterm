@@ -3,16 +3,13 @@ import ComposableArchitecture
 import Sharing
 import SupaTheme
 import SupatermSettingsFeature
-import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalView: View {
   let commandPaletteClient: TerminalCommandPaletteClient
   let store: StoreOf<TerminalWindowFeature>
-  let updateStore: StoreOf<UpdateFeature>
-  let releaseAnnouncement: ReleaseAnnouncement?
   @Bindable var terminal: TerminalHostState
-  let dismissReleaseAnnouncement: () -> Void
+  let updateWindowShell: (TerminalWindowShellPresentation) -> Void
   @Shared(.supatermSettings) private var supatermSettings = .default
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -74,16 +71,9 @@ struct TerminalView: View {
     )
   }
 
-  private var floatingSidebarVisibilityBinding: Binding<Bool> {
-    Binding(
-      get: { store.isFloatingSidebarVisible },
-      set: { _ = store.send(.floatingSidebarVisibilityChanged($0)) }
-    )
-  }
-
   var body: some View {
-    GeometryReader(content: terminalLayout)
-      .frame(minWidth: 1_080, minHeight: 720)
+    terminalLayout
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(ChromeBackgroundView(palette: palette))
       .background {
         WindowAppearanceApplier(appliedAppearance: windowAppearance)
@@ -103,6 +93,9 @@ struct TerminalView: View {
       .task(id: resolvedWindowActivity) {
         let activity = resolvedWindowActivity
         _ = store.send(.windowActivityChanged(activity))
+      }
+      .onChange(of: shellPresentation, initial: true) { _, presentation in
+        updateWindowShell(presentation)
       }
       .onChange(of: store.commandPalette != nil) { wasPresented, isPresented in
         guard wasPresented, !isPresented else { return }
@@ -273,49 +266,27 @@ struct TerminalView: View {
   }
 
   @ViewBuilder
-  private func terminalLayout(geometry: GeometryProxy) -> some View {
-    ZStack(alignment: .leading) {
-      TerminalSplitView(
+  private var terminalLayout: some View {
+    if let selectedTabID = terminal.selectedTabID {
+      TerminalDetailView(
         store: store,
-        updateStore: updateStore,
-        releaseAnnouncement: releaseAnnouncement,
         palette: palette,
         terminal: terminal,
-        totalWidth: geometry.size.width,
-        isSidebarCollapsed: store.isSidebarCollapsed,
-        sidebarWidth: store.sidebarWidth,
-        sidebarResizeState: store.sidebarResizeState,
-        onResizeInput: { input in
-          sendSidebarResizeInput(input, totalWidth: geometry.size.width)
-        },
-        dismissReleaseAnnouncement: dismissReleaseAnnouncement
+        selectedTabID: selectedTabID
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-      if store.isSidebarCollapsed {
-        FloatingSidebarOverlay(
-          store: store,
-          updateStore: updateStore,
-          releaseAnnouncement: releaseAnnouncement,
-          palette: palette,
-          terminal: terminal,
-          totalWidth: geometry.size.width,
-          sidebarWidth: store.sidebarWidth,
-          sidebarResizeState: store.sidebarResizeState,
-          isVisible: floatingSidebarVisibilityBinding,
-          onResizeInput: { input in
-            sendSidebarResizeInput(input, totalWidth: geometry.size.width)
-          },
-          dismissReleaseAnnouncement: dismissReleaseAnnouncement
-        )
-      }
+    } else {
+      Color.clear
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
   }
 
-  private func sendSidebarResizeInput(
-    _ input: TerminalSidebarResizeInput,
-    totalWidth: CGFloat
-  ) {
-    _ = store.send(.sidebarResizeInput(input, totalWidth: totalWidth))
+  private var shellPresentation: TerminalWindowShellPresentation {
+    TerminalWindowShellPresentation(
+      isFloatingSidebarVisible: store.isFloatingSidebarVisible,
+      isSidebarCollapsed: store.isSidebarCollapsed,
+      sidebarResizeState: store.sidebarResizeState,
+      sidebarWidth: store.sidebarWidth
+    )
   }
 }

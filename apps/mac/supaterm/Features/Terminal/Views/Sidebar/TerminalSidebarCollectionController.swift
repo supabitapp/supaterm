@@ -3,6 +3,42 @@ import QuartzCore
 import SupaTheme
 import SwiftUI
 
+@MainActor
+final class TerminalSidebarControllerCache {
+  private var controllersBySpaceID: [TerminalSpaceID: TerminalSidebarListController] = [:]
+  private let tabDragRegistry: TerminalTabDragRegistry
+  private let windowControllerID: UUID
+
+  init(
+    windowControllerID: UUID = UUID(),
+    tabDragRegistry: TerminalTabDragRegistry = TerminalTabDragRegistry()
+  ) {
+    self.windowControllerID = windowControllerID
+    self.tabDragRegistry = tabDragRegistry
+  }
+
+  var count: Int {
+    controllersBySpaceID.count
+  }
+
+  func controller(for spaceID: TerminalSpaceID) -> TerminalSidebarListController {
+    if let controller = controllersBySpaceID[spaceID] {
+      return controller
+    }
+    let controller = TerminalSidebarListController(
+      windowControllerID: windowControllerID,
+      tabDragRegistry: tabDragRegistry
+    )
+    controllersBySpaceID[spaceID] = controller
+    return controller
+  }
+
+  func retain(_ spaceIDs: [TerminalSpaceID]) {
+    let retained = Set(spaceIDs)
+    controllersBySpaceID = controllersBySpaceID.filter { retained.contains($0.key) }
+  }
+}
+
 final class TerminalSidebarScrollView: NSScrollView {
   nonisolated override var hasVerticalScroller: Bool {
     get { false }
@@ -73,6 +109,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private var pendingRevealTabID: TerminalTabID?
   private var motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: false)
   private var isLayingOut = false
+  private let tabDragRegistry: TerminalTabDragRegistry
+  private let windowControllerID: UUID
 
   private lazy var collapseAnimator = TerminalSidebarCollapseAnimator(
     collectionView: collectionView,
@@ -86,6 +124,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collectionView: collectionView,
     collectionLayout: collectionLayout,
     scrollView: scrollView,
+    sourceWindowID: windowControllerID,
+    tabDragRegistry: tabDragRegistry,
     host: TerminalSidebarDragController.Host(
       content: { [weak self] in
         guard let self, let context else { return nil }
@@ -110,6 +150,17 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       setHoveredGroupID: { [weak self] in self?.setHoveredGroupID($0) }
     )
   )
+
+  init(windowControllerID: UUID, tabDragRegistry: TerminalTabDragRegistry) {
+    self.windowControllerID = windowControllerID
+    self.tabDragRegistry = tabDragRegistry
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable")
+  }
 
   override func loadView() {
     view = NSView()
@@ -198,8 +249,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       TerminalSidebarCollectionItem.self,
       forItemWithIdentifier: TerminalSidebarCollectionItem.identifier
     )
-    collectionView.registerForDraggedTypes([.terminalSidebarOutlineItem])
-    collectionView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
+    collectionView.registerForDraggedTypes([.terminalTabDrag])
+    collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
     collectionView.delegate = self
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     collectionView.onPointerMoved = { [weak self] point in

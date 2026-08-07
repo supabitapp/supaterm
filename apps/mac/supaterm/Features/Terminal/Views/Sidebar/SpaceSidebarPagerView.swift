@@ -8,6 +8,7 @@ struct SpaceSidebarPagerView: View {
   let terminal: TerminalHostState
   let palette: Palette
   let isActive: Bool
+  let sidebarControllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
   @Binding var position: Double?
 
@@ -36,6 +37,9 @@ struct SpaceSidebarPagerView: View {
     .onAppear(perform: connect)
     .onDisappear(perform: disconnect)
     .onChange(of: isActive) { _, _ in connect() }
+    .onChange(of: terminal.spaces.map(\.id), initial: true) { _, spaceIDs in
+      sidebarControllerCache.retain(spaceIDs)
+    }
   }
 
   private var pages: [Page] {
@@ -55,6 +59,7 @@ struct SpaceSidebarPagerView: View {
         instance: instance,
         palette: pagePalette,
         swipe: swipe,
+        controllerCache: sidebarControllerCache,
         fixedHoveredGroupID: fixedHoveredGroupID
       )
     } else {

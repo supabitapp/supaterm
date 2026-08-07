@@ -103,7 +103,7 @@ final class TerminalSidebarPinnedControlView: TerminalSidebarHostingContainerVie
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    registerForDraggedTypes([.terminalSidebarOutlineItem])
+    registerForDraggedTypes([.terminalTabDrag])
   }
 
   @available(*, unavailable)

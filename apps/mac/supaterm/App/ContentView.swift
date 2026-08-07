@@ -6,6 +6,7 @@ struct ContentView: View {
   let commandHoldObserver: CommandHoldObserver
   let ghosttyShortcuts: GhosttyShortcutManager
   let commandPaletteClient: TerminalCommandPaletteClient
+  let updateWindowShell: (TerminalWindowShellPresentation) -> Void
   let store: StoreOf<AppFeature>
   @Bindable var terminal: TerminalHostState
 
@@ -13,12 +14,14 @@ struct ContentView: View {
     commandHoldObserver: CommandHoldObserver,
     ghosttyShortcuts: GhosttyShortcutManager,
     commandPaletteClient: TerminalCommandPaletteClient,
+    updateWindowShell: @escaping (TerminalWindowShellPresentation) -> Void,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState
   ) {
     self.commandHoldObserver = commandHoldObserver
     self.ghosttyShortcuts = ghosttyShortcuts
     self.commandPaletteClient = commandPaletteClient
+    self.updateWindowShell = updateWindowShell
     self.store = store
     self._terminal = Bindable(terminal)
   }
@@ -35,12 +38,9 @@ struct ContentView: View {
     TerminalView(
       commandPaletteClient: commandPaletteClient,
       store: terminalStore,
-      updateStore: updateStore,
-      releaseAnnouncement: store.releaseAnnouncement,
-      terminal: terminal
-    ) {
-      store.send(.releaseAnnouncementDismissed)
-    }
+      terminal: terminal,
+      updateWindowShell: updateWindowShell
+    )
     .environment(commandHoldObserver)
     .environment(ghosttyShortcuts)
     .task {
@@ -48,5 +48,41 @@ struct ContentView: View {
       updateStore.send(.task)
       terminalStore.send(.task)
     }
+  }
+}
+
+struct TerminalSidebarContentView: View {
+  let commandHoldObserver: CommandHoldObserver
+  let ghosttyShortcuts: GhosttyShortcutManager
+  let shellState: TerminalWindowShellState
+  let store: StoreOf<AppFeature>
+  let terminal: TerminalHostState
+  let resizeSidebar: (TerminalSidebarResizeInput) -> Void
+  let sidebarControllerCache: TerminalSidebarControllerCache
+  let spacePagingDidEnd: () -> Void
+
+  private var terminalStore: StoreOf<TerminalWindowFeature> {
+    store.scope(state: \.terminal, action: \.terminal)
+  }
+
+  private var updateStore: StoreOf<UpdateFeature> {
+    store.scope(state: \.update, action: \.update)
+  }
+
+  var body: some View {
+    TerminalWindowSidebarRoot(
+      store: terminalStore,
+      updateStore: updateStore,
+      releaseAnnouncement: store.releaseAnnouncement,
+      terminal: terminal,
+      shellState: shellState,
+      onResizeInput: resizeSidebar,
+      sidebarControllerCache: sidebarControllerCache,
+      spacePagingDidEnd: spacePagingDidEnd
+    ) {
+      store.send(.releaseAnnouncementDismissed)
+    }
+    .environment(commandHoldObserver)
+    .environment(ghosttyShortcuts)
   }
 }

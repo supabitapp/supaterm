@@ -1,0 +1,106 @@
+import CoreGraphics
+import Testing
+
+@testable import supaterm
+
+struct TerminalWindowShellControllerTests {
+  private let bounds = CGRect(x: 0, y: 0, width: 1_000, height: 700)
+
+  @Test
+  func dockedSidebarOwnsLeadingWindowRegion() {
+    let layout = TerminalWindowShellLayout(
+      bounds: bounds,
+      presentation: presentation(collapsed: false, visible: false, width: 240)
+    )
+
+    #expect(layout.sidebarWidth == 240)
+    #expect(layout.sidebarFrame == CGRect(x: 0, y: 0, width: 240, height: 700))
+    #expect(layout.detailFrame == CGRect(x: 240, y: 0, width: 760, height: 700))
+    #expect(layout.revealFrame.isEmpty)
+  }
+
+  @Test
+  func collapsedSidebarLeavesARevealStripAndFullDetail() {
+    let layout = TerminalWindowShellLayout(
+      bounds: bounds,
+      presentation: presentation(collapsed: true, visible: false, width: 240)
+    )
+
+    #expect(layout.sidebarFrame == CGRect(x: -252, y: 0, width: 240, height: 700))
+    #expect(layout.detailFrame == bounds)
+    #expect(layout.revealFrame == CGRect(x: 0, y: 0, width: 10, height: 700))
+  }
+
+  @Test
+  func floatingSidebarOverlaysFullDetailAndExpandsRevealRegion() {
+    let layout = TerminalWindowShellLayout(
+      bounds: bounds,
+      presentation: presentation(collapsed: true, visible: true, width: 240)
+    )
+
+    #expect(layout.sidebarFrame == CGRect(x: 0, y: 0, width: 240, height: 700))
+    #expect(layout.detailFrame == bounds)
+    #expect(layout.revealFrame == layout.sidebarFrame)
+  }
+
+  @Test
+  func liveResizeUsesTheSettledPolicyRange() {
+    let layout = TerminalWindowShellLayout(
+      bounds: bounds,
+      presentation: TerminalWindowShellPresentation(
+        isFloatingSidebarVisible: false,
+        isSidebarCollapsed: false,
+        sidebarResizeState: TerminalSidebarResizeState(startingWidth: 240, delta: 80),
+        sidebarWidth: 240
+      )
+    )
+
+    #expect(layout.sidebarWidth == 300)
+    #expect(layout.detailFrame.minX == 300)
+  }
+
+  private func presentation(
+    collapsed: Bool,
+    visible: Bool,
+    width: CGFloat
+  ) -> TerminalWindowShellPresentation {
+    TerminalWindowShellPresentation(
+      isFloatingSidebarVisible: visible,
+      isSidebarCollapsed: collapsed,
+      sidebarResizeState: nil,
+      sidebarWidth: width
+    )
+  }
+}
+
+@MainActor
+struct TerminalSidebarControllerCacheTests {
+  @Test
+  func reusesOneControllerPerSpace() {
+    let cache = TerminalSidebarControllerCache()
+    let firstSpaceID = TerminalSpaceID()
+    let secondSpaceID = TerminalSpaceID()
+
+    let first = cache.controller(for: firstSpaceID)
+    let repeated = cache.controller(for: firstSpaceID)
+    let second = cache.controller(for: secondSpaceID)
+
+    #expect(first === repeated)
+    #expect(first !== second)
+    #expect(cache.count == 2)
+  }
+
+  @Test
+  func dropsControllersForDeletedSpaces() {
+    let cache = TerminalSidebarControllerCache()
+    let retainedSpaceID = TerminalSpaceID()
+    let deletedSpaceID = TerminalSpaceID()
+    let retained = cache.controller(for: retainedSpaceID)
+    _ = cache.controller(for: deletedSpaceID)
+
+    cache.retain([retainedSpaceID])
+
+    #expect(cache.count == 1)
+    #expect(cache.controller(for: retainedSpaceID) === retained)
+  }
+}

@@ -30,6 +30,7 @@ struct TerminalSidebarSpaceList: View {
   let instance: TerminalSpaceInstance
   let palette: Palette
   let swipe: SpaceSwipeController
+  let controllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
@@ -43,6 +44,8 @@ struct TerminalSidebarSpaceList: View {
       terminal: terminal,
       palette: palette,
       swipe: swipe,
+      controllerCache: controllerCache,
+      spaceID: instance.spaceID,
       outline: outline,
       rows: rows,
       selectedTabID: snapshot.collection.selectedTabID,
