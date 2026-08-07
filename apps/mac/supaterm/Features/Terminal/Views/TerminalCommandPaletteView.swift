@@ -16,9 +16,9 @@ struct TerminalCommandPaletteOverlay: View {
   @FocusState private var isQueryFocused: Bool
   @State private var hoveredRowID: TerminalCommandPaletteRow.ID?
 
-  private let cardHeight: CGFloat = 272
-  private let cardCornerRadius: CGFloat = 26
-  private let maxWidth: CGFloat = 750
+  private let cardHeight: CGFloat = 360
+  private let cardCornerRadius: CGFloat = 16
+  private let maxWidth: CGFloat = 334
   private let minWidth: CGFloat = 280
 
   private var selectedRowID: TerminalCommandPaletteRow.ID? {
@@ -96,7 +96,7 @@ struct TerminalCommandPaletteOverlay: View {
         .padding(9)
         .frame(width: cardWidth, height: cardHeight, alignment: .top)
         .blurCard(palette, cornerRadius: cardCornerRadius)
-        .shadow(color: palette.overlayShadow, radius: 22, y: 12)
+        .shadow(color: palette.overlayShadow, radius: 16, y: 8)
         .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
       }
     }
