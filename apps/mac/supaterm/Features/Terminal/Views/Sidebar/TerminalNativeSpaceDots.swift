@@ -1,6 +1,5 @@
 import AppKit
 import SupaTheme
-import SupatermSupport
 import SwiftUI
 
 extension NSPasteboard.PasteboardType {
@@ -12,70 +11,54 @@ nonisolated struct TerminalSpaceDragPayload: Codable, Equatable, Sendable {
   let orderedSpaceIDs: [TerminalSpaceID]
 }
 
-struct TerminalNativeSpaceSwitcherConfiguration {
+struct TerminalNativeSpaceDotsConfiguration {
   let palette: Palette
   let spaces: [TerminalSpaceItem]
-  let selectedSpaceID: TerminalSpaceID
-  let shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride]
+  let selectionPosition: Double
   let select: (TerminalSpaceID) -> Void
-  let create: () -> Void
   let edit: (TerminalSpaceItem) -> Void
   let delete: (TerminalSpaceItem) -> Void
+  let newTab: (TerminalSpaceID) -> Void
   let reorder: (TerminalSpaceID, Int) -> Void
   let dropTab: (TerminalTabDragPayload, TerminalSpaceID) -> Bool
 }
 
-struct TerminalNativeSpaceSwitcher: NSViewRepresentable {
-  let configuration: TerminalNativeSpaceSwitcherConfiguration
+struct TerminalNativeSpaceDots: NSViewRepresentable {
+  let configuration: TerminalNativeSpaceDotsConfiguration
 
-  func makeNSView(context: Context) -> TerminalNativeSpaceSwitcherView {
-    TerminalNativeSpaceSwitcherView()
+  func makeNSView(context: Context) -> TerminalNativeSpaceDotsView {
+    TerminalNativeSpaceDotsView()
   }
 
-  func updateNSView(_ view: TerminalNativeSpaceSwitcherView, context: Context) {
+  func updateNSView(_ view: TerminalNativeSpaceDotsView, context: Context) {
     view.apply(configuration)
   }
 }
 
 @MainActor
-final class TerminalNativeSpaceSwitcherView: NSView {
-  private var buttons: [TerminalNativeSpaceButton] = []
+final class TerminalNativeSpaceDotsView: NSView {
+  private var buttons: [TerminalNativeSpaceDotView] = []
   private var canDelete = false
-  private var create: () -> Void = {}
   private var delete: (TerminalSpaceItem) -> Void = { _ in }
   private var dropTab: (TerminalTabDragPayload, TerminalSpaceID) -> Bool = { _, _ in false }
   private var edit: (TerminalSpaceItem) -> Void = { _ in }
   private var hoverWorkItem: DispatchWorkItem?
   private let insertionView = NSView()
-  private let newSpaceButton = NSButton()
+  private var newTab: (TerminalSpaceID) -> Void = { _ in }
   private var reorder: (TerminalSpaceID, Int) -> Void = { _, _ in }
   private var select: (TerminalSpaceID) -> Void = { _ in }
-  private var selectedSpaceID: TerminalSpaceID?
-  private var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] = [:]
   private var spaces: [TerminalSpaceItem] = []
   private var tabDropSpaceID: TerminalSpaceID?
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    setAccessibilityElement(true)
-    setAccessibilityRole(.group)
-    setAccessibilityIdentifier("titlebar.space-switcher")
+    setAccessibilityElement(false)
     registerForDraggedTypes([.terminalSpaceDrag, .terminalTabDrag])
     insertionView.wantsLayer = true
     insertionView.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
     insertionView.layer?.cornerRadius = 1
     insertionView.isHidden = true
     addSubview(insertionView)
-    newSpaceButton.bezelStyle = .inline
-    newSpaceButton.isBordered = false
-    newSpaceButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Space")
-    newSpaceButton.imageScaling = .scaleProportionallyDown
-    newSpaceButton.contentTintColor = .secondaryLabelColor
-    newSpaceButton.target = self
-    newSpaceButton.action = #selector(createSpace)
-    newSpaceButton.toolTip = "New Space"
-    newSpaceButton.setAccessibilityIdentifier("titlebar.space-new")
-    addSubview(newSpaceButton)
   }
 
   @available(*, unavailable)
@@ -84,83 +67,53 @@ final class TerminalNativeSpaceSwitcherView: NSView {
   }
 
   override var intrinsicContentSize: NSSize {
-    let selectedWidth = selectedButtonWidth()
-    let otherWidth = CGFloat(max(0, spaces.count - 1)) * 20
-    return NSSize(width: min(184, selectedWidth + otherWidth + 28), height: 28)
+    NSSize(
+      width: CGFloat(spaces.count) * SpacePageDotMetrics.slot,
+      height: SpacePageDotMetrics.slot
+    )
   }
 
   override func layout() {
     super.layout()
-    let buttonHeight = min(28, bounds.height)
-    let buttonY = bounds.maxY - buttonHeight
-    let newButtonWidth: CGFloat = 24
-    newSpaceButton.frame = CGRect(
-      x: bounds.maxX - newButtonWidth,
-      y: buttonY,
-      width: newButtonWidth,
-      height: buttonHeight
-    )
-    let availableWidth = max(0, bounds.width - newButtonWidth - 4)
-    let selectedWidth = min(selectedButtonWidth(), availableWidth)
-    let otherCount = max(0, buttons.count - 1)
-    let otherWidth = otherCount == 0 ? 0 : min(20, max(9, (availableWidth - selectedWidth) / CGFloat(otherCount)))
-    var x = bounds.minX
-    for button in buttons {
-      let width = button.space.id == selectedSpaceID ? selectedWidth : otherWidth
-      button.frame = CGRect(x: x, y: buttonY, width: width, height: buttonHeight)
-      x += width
+    let y = floor((bounds.height - SpacePageDotMetrics.slot) / 2)
+    for (index, button) in buttons.enumerated() {
+      button.frame = CGRect(
+        x: CGFloat(index) * SpacePageDotMetrics.slot,
+        y: y,
+        width: SpacePageDotMetrics.slot,
+        height: SpacePageDotMetrics.slot
+      )
     }
   }
 
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    guard bounds.contains(point) else { return nil }
-    if let button = buttons.first(where: { $0.frame.insetBy(dx: 0, dy: 4).contains(point) }) {
-      return button
-    }
-    if newSpaceButton.frame.insetBy(dx: 0, dy: 4).contains(point) {
-      return newSpaceButton
-    }
-    return nil
-  }
-
-  func apply(_ configuration: TerminalNativeSpaceSwitcherConfiguration) {
+  func apply(_ configuration: TerminalNativeSpaceDotsConfiguration) {
     spaces = configuration.spaces
-    selectedSpaceID = configuration.selectedSpaceID
-    if let selectedSpace = configuration.spaces.first(where: { $0.id == configuration.selectedSpaceID }) {
-      setAccessibilityLabel("Space \(selectedSpace.name)")
-    }
-    canDelete = configuration.spaces.count > 1
-    shortcutOverrides = configuration.shortcutOverrides
+    canDelete = spaces.count > 1
     select = configuration.select
-    create = configuration.create
     edit = configuration.edit
     delete = configuration.delete
+    newTab = configuration.newTab
     reorder = configuration.reorder
     dropTab = configuration.dropTab
-    let orderedSpaceIDs = configuration.spaces.map(\.id)
+    let orderedSpaceIDs = spaces.map(\.id)
     let spaceIDs = Set(orderedSpaceIDs)
     let existingButtons = Dictionary(uniqueKeysWithValues: buttons.map { ($0.space.id, $0) })
     for button in buttons where !spaceIDs.contains(button.space.id) {
       button.removeFromSuperview()
     }
-    buttons = configuration.spaces.map { space in
-      let button = existingButtons[space.id] ?? TerminalNativeSpaceButton(space: space)
+    buttons = spaces.enumerated().map { index, space in
+      let button = existingButtons[space.id] ?? TerminalNativeSpaceDotView(space: space)
+      let emphasis = SpacePageDotMetrics.emphasis(
+        at: index,
+        position: configuration.selectionPosition
+      )
       button.apply(
         space: space,
         orderedSpaceIDs: orderedSpaceIDs,
-        isSelected: space.id == configuration.selectedSpaceID,
-        dotColor: space.color.sidebarNSColor(palette: configuration.palette),
-        textColor: NSColor(configuration.palette.spaceTitle)
+        color: NSColor(configuration.palette.primaryText),
+        opacity: SpacePageDotMetrics.opacity(emphasis: emphasis)
       )
-      button.select = { [weak self, weak button] in
-        guard let self else { return }
-        if space.id == configuration.selectedSpaceID, let button {
-          showSpaceListMenu(relativeTo: button)
-        } else {
-          select(space.id)
-        }
-      }
-      button.edit = { [weak self] in self?.edit(space) }
+      button.select = { [weak self] in self?.select(space.id) }
       button.menuProvider = { [weak self] in self?.menu(for: space) }
       button.isDropTarget = tabDropSpaceID == space.id
       if button.superview == nil {
@@ -187,7 +140,7 @@ final class TerminalNativeSpaceSwitcherView: NSView {
     insertionView.isHidden = true
     guard
       let payload = TerminalTabDragPasteboard.read(from: pasteboard),
-      let button = buttons.first(where: { $0.frame.contains(location) }),
+      let button = button(at: location),
       button.space.id != payload.sourceSpaceID
     else {
       clearTabDrop()
@@ -220,18 +173,14 @@ final class TerminalNativeSpaceSwitcherView: NSView {
     }
     guard
       let payload = TerminalTabDragPasteboard.read(from: pasteboard),
-      let button = buttons.first(where: { $0.frame.contains(location) }),
+      let button = button(at: location),
       button.space.id != payload.sourceSpaceID
     else { return false }
     return dropTab(payload, button.space.id)
   }
 
-  private func selectedButtonWidth() -> CGFloat {
-    guard let selected = spaces.first(where: { $0.id == selectedSpaceID }) else { return 44 }
-    let width = (selected.name as NSString).size(
-      withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium)]
-    ).width
-    return min(110, max(44, ceil(width) + 26))
+  private func button(at point: CGPoint) -> TerminalNativeSpaceDotView? {
+    buttons.first { $0.frame.contains(point) }
   }
 
   private func insertionIndex(for x: CGFloat) -> Int {
@@ -247,9 +196,9 @@ final class TerminalNativeSpaceSwitcherView: NSView {
       }
     insertionView.frame = CGRect(
       x: x - 1,
-      y: bounds.maxY - 25,
+      y: floor((bounds.height - SpacePageDotMetrics.slot) / 2),
       width: 2,
-      height: min(22, max(0, bounds.height - 6))
+      height: SpacePageDotMetrics.slot
     )
     insertionView.isHidden = false
   }
@@ -289,14 +238,19 @@ final class TerminalNativeSpaceSwitcherView: NSView {
 
   private func menu(for space: TerminalSpaceItem) -> NSMenu {
     let menu = NSMenu()
-    let createItem = NSMenuItem(title: "New Space", action: #selector(createSpace), keyEquivalent: "")
-    createItem.target = self
-    menu.addItem(createItem)
-    menu.addItem(.separator())
     let editItem = NSMenuItem(title: "Edit Space", action: #selector(editSpace(_:)), keyEquivalent: "")
     editItem.target = self
     editItem.representedObject = space.id.rawValue as NSUUID
     menu.addItem(editItem)
+    let newTabItem = NSMenuItem(
+      title: "New Tab Here",
+      action: #selector(createTab(_:)),
+      keyEquivalent: ""
+    )
+    newTabItem.target = self
+    newTabItem.representedObject = space.id.rawValue as NSUUID
+    menu.addItem(newTabItem)
+    menu.addItem(.separator())
     let deleteItem = NSMenuItem(
       title: "Delete Space",
       action: #selector(deleteSpace(_:)),
@@ -309,50 +263,19 @@ final class TerminalNativeSpaceSwitcherView: NSView {
     return menu
   }
 
-  private func showSpaceListMenu(relativeTo button: NSView) {
-    let menu = NSMenu()
-    for (index, space) in spaces.enumerated() {
-      let item = NSMenuItem(
-        title: space.name,
-        action: #selector(selectSpaceFromMenu(_:)),
-        keyEquivalent: ""
-      )
-      item.target = self
-      item.representedObject = space.id.rawValue as NSUUID
-      item.state = space.id == selectedSpaceID ? .on : .off
-      SupatermMenuShortcut.apply(
-        TerminalSpaceShortcut.shortcutBinding(
-          forSpaceAt: index,
-          overrides: shortcutOverrides
-        )?.keyboardShortcut,
-        to: item
-      )
-      menu.addItem(item)
-    }
-    menu.addItem(.separator())
-    let createItem = NSMenuItem(title: "New Space", action: #selector(createSpace), keyEquivalent: "")
-    createItem.target = self
-    menu.addItem(createItem)
-    menu.popUp(positioning: nil, at: CGPoint(x: 0, y: button.bounds.minY - 3), in: button)
-  }
-
-  @objc private func createSpace() {
-    create()
-  }
-
   @objc private func editSpace(_ item: NSMenuItem) {
     guard let space = space(from: item) else { return }
     edit(space)
   }
 
+  @objc private func createTab(_ item: NSMenuItem) {
+    guard let space = space(from: item) else { return }
+    newTab(space.id)
+  }
+
   @objc private func deleteSpace(_ item: NSMenuItem) {
     guard let space = space(from: item) else { return }
     delete(space)
-  }
-
-  @objc private func selectSpaceFromMenu(_ item: NSMenuItem) {
-    guard let space = space(from: item) else { return }
-    select(space.id)
   }
 
   private func space(from item: NSMenuItem) -> TerminalSpaceItem? {
@@ -362,26 +285,25 @@ final class TerminalNativeSpaceSwitcherView: NSView {
 }
 
 @MainActor
-private final class TerminalNativeSpaceButton: NSView, NSDraggingSource {
+private final class TerminalNativeSpaceDotView: NSView, NSDraggingSource {
   private(set) var space: TerminalSpaceItem
-  var edit: () -> Void = {}
   var menuProvider: () -> NSMenu? = { nil }
   var select: () -> Void = {}
   var isDropTarget = false { didSet { needsDisplay = true } }
 
-  private var dotColor = NSColor.clear
+  private var color = NSColor.labelColor
   private var isHovered = false { didSet { needsDisplay = true } }
-  private var isSelected = false
   private var mouseDownLocation: CGPoint?
+  private var opacity = SpacePageDotMetrics.restOpacity
   private var orderedSpaceIDs: [TerminalSpaceID] = []
-  private var textColor = NSColor.labelColor
   private var trackingArea: NSTrackingArea?
 
   init(space: TerminalSpaceItem) {
     self.space = space
     super.init(frame: .zero)
+    setAccessibilityElement(true)
     setAccessibilityRole(.button)
-    setAccessibilityIdentifier("titlebar.space.\(space.id.rawValue.uuidString)")
+    applyAccessibility()
   }
 
   @available(*, unavailable)
@@ -392,17 +314,15 @@ private final class TerminalNativeSpaceButton: NSView, NSDraggingSource {
   func apply(
     space: TerminalSpaceItem,
     orderedSpaceIDs: [TerminalSpaceID],
-    isSelected: Bool,
-    dotColor: NSColor,
-    textColor: NSColor
+    color: NSColor,
+    opacity: Double
   ) {
     self.space = space
     self.orderedSpaceIDs = orderedSpaceIDs
-    self.isSelected = isSelected
-    self.dotColor = dotColor
-    self.textColor = textColor
+    self.color = color
+    self.opacity = opacity
     toolTip = space.name
-    setAccessibilityLabel("Space \(space.name)")
+    applyAccessibility()
     needsDisplay = true
   }
 
@@ -445,19 +365,14 @@ private final class TerminalNativeSpaceButton: NSView, NSDraggingSource {
     let pasteboardItem = NSPasteboardItem()
     pasteboardItem.setData(data, forType: .terminalSpaceDrag)
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-    let image = snapshot()
-    draggingItem.setDraggingFrame(bounds, contents: image)
+    draggingItem.setDraggingFrame(bounds, contents: snapshot())
     beginDraggingSession(with: [draggingItem], event: event, source: self)
   }
 
   override func mouseUp(with event: NSEvent) {
     guard mouseDownLocation != nil else { return }
     mouseDownLocation = nil
-    if event.clickCount == 2 {
-      edit()
-    } else {
-      select()
-    }
+    select()
   }
 
   override func rightMouseDown(with event: NSEvent) {
@@ -467,29 +382,17 @@ private final class TerminalNativeSpaceButton: NSView, NSDraggingSource {
 
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
-    let backgroundRect = bounds.insetBy(dx: 1, dy: 1)
-    if isSelected || isHovered || isDropTarget {
-      let alpha: CGFloat = isDropTarget ? 0.18 : isHovered ? 0.1 : 0.07
-      textColor.withAlphaComponent(alpha).setFill()
-      NSBezierPath(roundedRect: backgroundRect, xRadius: 7, yRadius: 7).fill()
-    }
-    let dotSize: CGFloat = isSelected ? 8 : 7
-    let dotX = isSelected ? 8 : floor((bounds.width - dotSize) / 2)
-    dotColor.setFill()
+    let diameter: CGFloat = isDropTarget ? 8 : SpacePageDotMetrics.diameter
+    let alpha = isDropTarget || isHovered ? 1 : opacity
+    color.withAlphaComponent(alpha).setFill()
     NSBezierPath(
-      ovalIn: CGRect(x: dotX, y: floor((bounds.height - dotSize) / 2), width: dotSize, height: dotSize)
+      ovalIn: CGRect(
+        x: floor((bounds.width - diameter) / 2),
+        y: floor((bounds.height - diameter) / 2),
+        width: diameter,
+        height: diameter
+      )
     ).fill()
-    guard isSelected, bounds.width > 32 else { return }
-    let paragraph = NSMutableParagraphStyle()
-    paragraph.lineBreakMode = .byTruncatingTail
-    (space.name as NSString).draw(
-      in: CGRect(x: 21, y: 6, width: max(0, bounds.width - 27), height: 16),
-      withAttributes: [
-        .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-        .foregroundColor: textColor,
-        .paragraphStyle: paragraph,
-      ]
-    )
   }
 
   func draggingSession(
@@ -497,6 +400,11 @@ private final class TerminalNativeSpaceButton: NSView, NSDraggingSource {
     sourceOperationMaskFor context: NSDraggingContext
   ) -> NSDragOperation {
     .move
+  }
+
+  private func applyAccessibility() {
+    setAccessibilityIdentifier(TerminalSidebarAccessibilityIdentifier.spaceDot(space.id))
+    setAccessibilityLabel("Space \(space.name)")
   }
 
   private func snapshot() -> NSImage {

@@ -486,9 +486,9 @@ enum SidebarChromeSnapshotContext {
     return terminal
   }()
 
-  static let spacePageDotsTerminal: TerminalHostState = {
+  static let spacePageDotSpaces: [TerminalSpaceItem] = {
     let colors: [ThemeTint] = [.blue, .green, .orange, .purple]
-    let spaces = ["supaterm", "research", "ops", "docs"].enumerated().map { index, name in
+    return ["supaterm", "research", "ops", "docs"].enumerated().map { index, name in
       TerminalSpaceItem(
         id: TerminalSpaceID(
           rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-00000000001\(index)")
@@ -497,7 +497,6 @@ enum SidebarChromeSnapshotContext {
         color: colors[index]
       )
     }
-    return makeTerminal(space: spaces[1], spaces: spaces)
   }()
 
   static func windowStore() -> StoreOf<TerminalWindowFeature> {
@@ -566,12 +565,21 @@ private struct SpacePageDotsSnapshotFixture: View {
   }
 
   var body: some View {
-    SpacePageDotsView(
-      store: SidebarChromeSnapshotContext.windowStore(),
-      terminal: SidebarChromeSnapshotContext.spacePageDotsTerminal,
-      palette: palette,
-      position: position
+    TerminalNativeSpaceDots(
+      configuration: TerminalNativeSpaceDotsConfiguration(
+        palette: palette,
+        spaces: SidebarChromeSnapshotContext.spacePageDotSpaces,
+        selectionPosition: position ?? 1,
+        select: { _ in },
+        edit: { _ in },
+        delete: { _ in },
+        newTab: { _ in },
+        reorder: { _, _ in },
+        dropTab: { _, _ in false }
+      )
     )
+    .fixedSize()
+    .frame(maxWidth: .infinity)
     .padding(.leading, TerminalSidebarLayout.cardHorizontalInsets.leading)
     .padding(.trailing, TerminalSidebarLayout.cardHorizontalInsets.trailing)
     .frame(maxHeight: .infinity)

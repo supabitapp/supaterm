@@ -203,6 +203,27 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func spaceSwitcherResolvesSelectionAndDeleteState() throws {
+    let first = TerminalSpaceItem(id: TerminalSpaceID(), name: "First")
+    let second = TerminalSpaceItem(id: TerminalSpaceID(), name: "Second")
+    let presentation = try #require(
+      TerminalSpaceSwitcherPresentation(
+        spaces: [first, second],
+        selectedSpaceID: second.id
+      )
+    )
+
+    #expect(presentation.selectedSpace == second)
+    #expect(presentation.canDelete)
+    #expect(
+      TerminalSpaceSwitcherPresentation(
+        spaces: [first],
+        selectedSpaceID: TerminalSpaceID()
+      ) == nil
+    )
+  }
+
+  @Test
   func spaceSwitcherUsesEffectiveSpaceShortcuts() {
     let bindings = (0..<4).map {
       TerminalSpaceShortcut.shortcutBinding(
@@ -231,24 +252,23 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func spaceSwitcherKeepsNativeControlsAcrossUpdates() {
+  func spaceDotsKeepNativeControlsAcrossUpdates() {
     let first = TerminalSpaceItem(id: TerminalSpaceID(), name: "First")
     let second = TerminalSpaceItem(id: TerminalSpaceID(), name: "Second")
-    let view = TerminalNativeSpaceSwitcherView()
+    let view = TerminalNativeSpaceDotsView()
 
     func configuration(
       spaces: [TerminalSpaceItem],
       selectedSpaceID: TerminalSpaceID
-    ) -> TerminalNativeSpaceSwitcherConfiguration {
-      TerminalNativeSpaceSwitcherConfiguration(
+    ) -> TerminalNativeSpaceDotsConfiguration {
+      TerminalNativeSpaceDotsConfiguration(
         palette: Palette(colorScheme: .dark),
         spaces: spaces,
-        selectedSpaceID: selectedSpaceID,
-        shortcutOverrides: [:],
+        selectionPosition: Double(spaces.firstIndex { $0.id == selectedSpaceID } ?? 0),
         select: { _ in },
-        create: {},
         edit: { _ in },
         delete: { _ in },
+        newTab: { _ in },
         reorder: { _, _ in },
         dropTab: { _, _ in false }
       )

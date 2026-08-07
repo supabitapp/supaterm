@@ -10,14 +10,6 @@ enum TerminalSidebarDragLog {
     ]
   }
 
-  static func topologyFields(_ stamp: TerminalSidebarTopologyStamp?) -> [String] {
-    guard let stamp else { return ["space=nil", "revision=0"] }
-    return [
-      "space=\(SupatermLog.uuid(stamp.spaceID.rawValue))",
-      "revision=\(stamp.revision)",
-    ]
-  }
-
   static func operationFields(_ operationID: TerminalTabMoveOperationID) -> [String] {
     ["operationID=\(SupatermLog.uuid(operationID.rawValue))"]
   }
