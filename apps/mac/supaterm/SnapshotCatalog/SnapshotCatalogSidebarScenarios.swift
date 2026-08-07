@@ -584,6 +584,7 @@ private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
   let fixedHoveredGroupID: TerminalTabGroupID?
   var terminal = SidebarChromeSnapshotContext.terminal
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
 
   private var palette: Palette {
     Palette(colorScheme: appearance.colorScheme)
@@ -597,6 +598,7 @@ private struct SidebarChromeSnapshotFixture: View {
       palette: palette,
       terminal: terminal,
       isPagingActive: false,
+      sidebarControllerCache: sidebarControllerCache,
       fixedHoveredGroupID: fixedHoveredGroupID,
       dismissReleaseAnnouncement: {}
     )
@@ -611,6 +613,7 @@ private struct SidebarChromeSnapshotFixture: View {
 private struct SidebarWindowControlsSnapshotFixture: View {
   let appearance: SnapshotAppearance
   var terminal = SidebarChromeSnapshotContext.selectedBeforeNewTabTerminal
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
 
   private var palette: Palette {
     Palette(colorScheme: appearance.colorScheme)
@@ -624,6 +627,7 @@ private struct SidebarWindowControlsSnapshotFixture: View {
       palette: palette,
       terminal: terminal,
       isPagingActive: false,
+      sidebarControllerCache: sidebarControllerCache,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)

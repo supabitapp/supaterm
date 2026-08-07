@@ -159,6 +159,7 @@ struct TerminalWindowFeature {
     case closeTabsRequested([TerminalTabID])
     case closeTabsBelowRequested(TerminalTabID)
     case floatingSidebarVisibilityChanged(Bool)
+    case hiddenAgentPanelsTransferred(remove: Set<UUID>, insert: Set<UUID>)
     case agentPanelCopyText(String)
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
@@ -397,6 +398,11 @@ struct TerminalWindowFeature {
 
       case .floatingSidebarVisibilityChanged(let isVisible):
         state.isFloatingSidebarVisible = isVisible
+        return .none
+
+      case .hiddenAgentPanelsTransferred(let removedSurfaceIDs, let insertedSurfaceIDs):
+        state.hiddenAgentPanelSurfaceIDs.subtract(removedSurfaceIDs)
+        state.hiddenAgentPanelSurfaceIDs.formUnion(insertedSurfaceIDs)
         return .none
 
       case .agentPanelCopyText(let value):

@@ -1,8 +1,74 @@
 import AppKit
 import ComposableArchitecture
+import Sharing
 import SupaTheme
+import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI
+
+struct TerminalWindowSidebarRoot: View {
+  let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
+  let releaseAnnouncement: ReleaseAnnouncement?
+  let terminal: TerminalHostState
+  let shellState: TerminalWindowShellState
+  let onResizeInput: (TerminalSidebarResizeInput) -> Void
+  let sidebarControllerCache: TerminalSidebarControllerCache
+  let spacePagingDidEnd: () -> Void
+  let dismissReleaseAnnouncement: () -> Void
+
+  @Shared(.supatermSettings) private var supatermSettings = .default
+
+  private var chromeColorScheme: ColorScheme {
+    supatermSettings.appearanceMode.colorScheme ?? terminal.terminalChromeColorScheme
+  }
+
+  private var palette: Palette {
+    Palette(colorScheme: chromeColorScheme, tint: terminal.displayedSpace.color)
+  }
+
+  var body: some View {
+    ZStack(alignment: .trailing) {
+      if shellState.isFloating {
+        TerminalFloatingSidebarShell(palette: palette) {
+          sidebar
+        }
+      } else {
+        sidebar
+          .background(ChromeBackgroundView(palette: palette))
+      }
+
+      SidebarResizeHandle(
+        sidebarWidth: shellState.sidebarWidth,
+        onInput: onResizeInput
+      )
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .coordinateSpace(
+      name: shellState.isFloating
+        ? TerminalCoordinateSpace.floatingSidebar
+        : TerminalCoordinateSpace.split
+    )
+    .onChange(of: terminal.spacePager?.isTracking == true) { wasTracking, isTracking in
+      guard wasTracking, !isTracking else { return }
+      spacePagingDidEnd()
+    }
+    .environment(\.colorScheme, chromeColorScheme)
+  }
+
+  private var sidebar: some View {
+    TerminalSidebarView(
+      store: store,
+      updateStore: updateStore,
+      releaseAnnouncement: releaseAnnouncement,
+      palette: palette,
+      terminal: terminal,
+      isPagingActive: true,
+      sidebarControllerCache: sidebarControllerCache,
+      dismissReleaseAnnouncement: dismissReleaseAnnouncement
+    )
+  }
+}
 
 struct TerminalSplitView: View {
   let store: StoreOf<TerminalWindowFeature>
@@ -16,6 +82,7 @@ struct TerminalSplitView: View {
   let sidebarResizeState: TerminalSidebarResizeState?
   let onResizeInput: (TerminalSidebarResizeInput) -> Void
   let dismissReleaseAnnouncement: () -> Void
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
 
   var body: some View {
     let currentSidebarWidth = TerminalSidebarWidthPolicy.displayedWidth(
@@ -34,6 +101,7 @@ struct TerminalSplitView: View {
           palette: palette,
           terminal: terminal,
           isPagingActive: !isSidebarCollapsed,
+          sidebarControllerCache: sidebarControllerCache,
           dismissReleaseAnnouncement: dismissReleaseAnnouncement
         )
         .frame(width: currentSidebarWidth)
@@ -78,6 +146,7 @@ struct TerminalSidebarView: View {
   let palette: Palette
   let terminal: TerminalHostState
   let isPagingActive: Bool
+  let sidebarControllerCache: TerminalSidebarControllerCache
   let dismissReleaseAnnouncement: () -> Void
 
   var body: some View {
@@ -88,6 +157,7 @@ struct TerminalSidebarView: View {
       palette: palette,
       terminal: terminal,
       isPagingActive: isPagingActive,
+      sidebarControllerCache: sidebarControllerCache,
       fixedHoveredGroupID: nil,
       dismissReleaseAnnouncement: dismissReleaseAnnouncement
     )
@@ -191,7 +261,7 @@ struct FloatingSidebarOverlay: View {
   }
 }
 
-private struct SidebarResizeHandle: View {
+struct SidebarResizeHandle: View {
   let sidebarWidth: CGFloat
   let onInput: (TerminalSidebarResizeInput) -> Void
 
@@ -346,6 +416,7 @@ private struct FloatingSidebarView: View {
   let terminal: TerminalHostState
   let width: CGFloat
   let dismissReleaseAnnouncement: () -> Void
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
 
   var body: some View {
     TerminalFloatingSidebarShell(palette: palette) {
@@ -356,6 +427,7 @@ private struct FloatingSidebarView: View {
         palette: palette,
         terminal: terminal,
         isPagingActive: true,
+        sidebarControllerCache: sidebarControllerCache,
         dismissReleaseAnnouncement: dismissReleaseAnnouncement
       )
     }

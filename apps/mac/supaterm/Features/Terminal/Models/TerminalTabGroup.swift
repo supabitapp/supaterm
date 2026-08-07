@@ -193,8 +193,12 @@ nonisolated struct TerminalTabTransferResult: Equatable, Sendable {
 }
 
 nonisolated enum TerminalTabTransferError: Error, Equatable {
+  case destinationContainsSurface
   case destinationContainsGroup(TerminalTabGroupID)
   case destinationContainsTab(TerminalTabID)
+  case incompatibleRuntime
+  case invalidSpace
+  case missingLiveTree
   case sameCollection
   case staleDestination(expected: UInt64, actual: UInt64)
   case staleSource(expected: UInt64, actual: UInt64)

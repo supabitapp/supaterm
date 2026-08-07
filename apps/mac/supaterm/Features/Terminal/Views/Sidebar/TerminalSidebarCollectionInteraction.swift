@@ -329,7 +329,7 @@ final class TerminalSidebarCollectionView: NSCollectionView {
     _ session: NSDraggingSession,
     sourceOperationMaskFor context: NSDraggingContext
   ) -> NSDragOperation {
-    [.copy, .move]
+    .move
   }
 
   override func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
@@ -343,10 +343,4 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   ) {
     onDraggingSessionEnded?(screenPoint, operation)
   }
-}
-
-extension NSPasteboard.PasteboardType {
-  static let terminalSidebarOutlineItem = NSPasteboard.PasteboardType(
-    "app.supaterm.sidebar-outline-item"
-  )
 }

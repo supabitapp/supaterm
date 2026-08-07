@@ -83,4 +83,26 @@ struct TerminalNotificationStore {
     notificationsBySurfaceID.removeValue(forKey: surfaceID)
     recentStructuredBySurfaceID.removeValue(forKey: surfaceID)
   }
+
+  mutating func take(_ surfaceIDs: Set<UUID>) -> TerminalNotificationStore {
+    var taken = TerminalNotificationStore()
+    for surfaceID in surfaceIDs {
+      if let notifications = notificationsBySurfaceID.removeValue(forKey: surfaceID) {
+        taken.notificationsBySurfaceID[surfaceID] = notifications
+      }
+      if let recent = recentStructuredBySurfaceID.removeValue(forKey: surfaceID) {
+        taken.recentStructuredBySurfaceID[surfaceID] = recent
+      }
+    }
+    return taken
+  }
+
+  mutating func merge(_ other: TerminalNotificationStore) {
+    precondition(notificationsBySurfaceID.keys.allSatisfy { other.notificationsBySurfaceID[$0] == nil })
+    precondition(
+      recentStructuredBySurfaceID.keys.allSatisfy { other.recentStructuredBySurfaceID[$0] == nil }
+    )
+    notificationsBySurfaceID.merge(other.notificationsBySurfaceID) { _, incoming in incoming }
+    recentStructuredBySurfaceID.merge(other.recentStructuredBySurfaceID) { _, incoming in incoming }
+  }
 }

@@ -9,7 +9,10 @@ import Testing
 struct TerminalSidebarLayoutTests {
   @Test
   func scrollViewportClearsTrafficLightsWithoutContentInsets() throws {
-    let controller = TerminalSidebarListController()
+    let controller = TerminalSidebarListController(
+      windowControllerID: UUID(),
+      tabDragRegistry: TerminalTabDragRegistry()
+    )
     controller.view.frame = CGRect(x: 0, y: 0, width: 280, height: 160)
     controller.view.layoutSubtreeIfNeeded()
     let scrollView = try #require(

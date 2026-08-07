@@ -11,6 +11,8 @@ import SwiftUI
 
 @MainActor
 final class TerminalWindowRegistry {
+  let tabDragRegistry: TerminalTabDragRegistry
+
   struct CloseAllWindowsCandidate {
     let windowID: ObjectIdentifier
     let needsConfirmation: Bool
@@ -80,7 +82,12 @@ final class TerminalWindowRegistry {
   var onChange: @MainActor () -> Void = {}
 
   init(zmxClient: ZmxClient = .live) {
+    let tabDragRegistry = TerminalTabDragRegistry()
+    self.tabDragRegistry = tabDragRegistry
     self.zmxClient = zmxClient
+    tabDragRegistry.transfer = { [weak self] payload, destination in
+      self?.transferTab(payload, to: destination)
+    }
   }
 
   var hasShortcutSource: Bool {
@@ -171,6 +178,62 @@ final class TerminalWindowRegistry {
 
   func paneCount(inSpace spaceID: TerminalSpaceID) -> Int {
     activeEntries().reduce(0) { $0 + $1.terminal.paneCount(inSpace: spaceID) }
+  }
+
+  func transferTab(
+    _ payload: TerminalTabDragPayload,
+    to destination: TerminalTabDragRegistry.Destination
+  ) -> TerminalTabTransferResult? {
+    guard
+      let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
+      let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
+    else { return nil }
+    destinationEntry.terminal.warmInstance(for: destination.spaceID)
+    guard
+      let destinationCollection = destinationEntry.terminal.spaceManager.tabCollection(
+        for: destination.spaceID
+      )
+    else { return nil }
+    let request = TerminalTabTransferRequest(
+      operationID: payload.moveOperationID,
+      expectedSourceRevision: payload.sourceTopologyRevision,
+      expectedDestinationRevision: destinationCollection.topologyRevision,
+      itemIDs: payload.itemIDs,
+      destination: destination.placement
+    )
+    guard
+      let plan = try? TerminalHostState.prepareLiveTabTransfer(
+        request,
+        from: sourceEntry.terminal,
+        sourceSpaceID: payload.sourceSpaceID,
+        to: destinationEntry.terminal,
+        destinationSpaceID: destination.spaceID
+      )
+    else { return nil }
+    let hiddenSurfaceIDs = sourceEntry.store.terminal.hiddenAgentPanelSurfaceIDs.intersection(
+      plan.surfaceIDs
+    )
+    guard
+      let result = try? TerminalHostState.commitLiveTabTransfer(
+        plan,
+        from: sourceEntry.terminal,
+        to: destinationEntry.terminal
+      )
+    else { return nil }
+    if sourceEntry.windowControllerID != destinationEntry.windowControllerID {
+      sourceEntry.store.send(
+        .terminal(
+          .hiddenAgentPanelsTransferred(remove: hiddenSurfaceIDs, insert: [])
+        )
+      )
+      destinationEntry.store.send(
+        .terminal(
+          .hiddenAgentPanelsTransferred(remove: [], insert: hiddenSurfaceIDs)
+        )
+      )
+    }
+    onChange()
+    return result
   }
 
   @discardableResult

@@ -59,6 +59,17 @@ private final class TerminalGestureWindow: NSWindow {
 
 @MainActor
 final class TerminalWindowController: NSWindowController {
+  private struct ShellInput {
+    let commandHoldObserver: CommandHoldObserver
+    let commandPaletteClient: TerminalCommandPaletteClient
+    let ghosttyShortcuts: GhosttyShortcutManager
+    let runtime: GhosttyRuntime
+    let store: StoreOf<AppFeature>
+    let tabDragRegistry: TerminalTabDragRegistry
+    let terminal: TerminalHostState
+    let windowControllerID: UUID
+  }
+
   let terminal: TerminalHostState
   let store: StoreOf<AppFeature>
   let windowControllerID: UUID
@@ -119,18 +130,17 @@ final class TerminalWindowController: NSWindowController {
     self.terminal = terminal
     self.store = store
 
-    let hostingController = NSHostingController(
-      rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: runtime) {
-          ContentView(
-            commandHoldObserver: commandHoldObserver,
-            ghosttyShortcuts: ghosttyShortcuts,
-            commandPaletteClient: commandPaletteClient,
-            store: store,
-            terminal: terminal
-          )
-        }
-      }
+    let shellController = Self.makeShellController(
+      ShellInput(
+        commandHoldObserver: commandHoldObserver,
+        commandPaletteClient: commandPaletteClient,
+        ghosttyShortcuts: ghosttyShortcuts,
+        runtime: runtime,
+        store: store,
+        tabDragRegistry: registry.tabDragRegistry,
+        terminal: terminal,
+        windowControllerID: windowControllerID
+      )
     )
 
     let window = TerminalGestureWindow(
@@ -139,7 +149,7 @@ final class TerminalWindowController: NSWindowController {
       backing: .buffered,
       defer: false
     )
-    window.contentViewController = hostingController
+    window.contentViewController = shellController
     window.contentMinSize = NSSize(width: 1_080, height: 720)
     window.identifier = NSUserInterfaceItemIdentifier(
       "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(windowControllerID.uuidString)")
@@ -191,6 +201,62 @@ final class TerminalWindowController: NSWindowController {
     window.onSwipeRight = {
       _ = store.send(.terminal(.previousSpaceRequested))
     }
+  }
+
+  private static func makeShellController(_ input: ShellInput) -> TerminalWindowShellController {
+    let shellController = TerminalWindowShellController(
+      windowControllerID: input.windowControllerID,
+      tabDragRegistry: input.tabDragRegistry
+    )
+    let detailController = NSHostingController(
+      rootView: AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
+          ContentView(
+            commandHoldObserver: input.commandHoldObserver,
+            ghosttyShortcuts: input.ghosttyShortcuts,
+            commandPaletteClient: input.commandPaletteClient,
+            updateWindowShell: { [weak shellController] presentation in
+              shellController?.apply(presentation)
+            },
+            store: input.store,
+            terminal: input.terminal
+          )
+        }
+      }
+    )
+    let sidebarController = NSHostingController(
+      rootView: AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
+          TerminalSidebarContentView(
+            commandHoldObserver: input.commandHoldObserver,
+            ghosttyShortcuts: input.ghosttyShortcuts,
+            shellState: shellController.state,
+            store: input.store,
+            terminal: input.terminal,
+            resizeSidebar: { [weak shellController, store = input.store] resizeInput in
+              guard let shellController else { return }
+              _ = store.send(
+                .terminal(
+                  .sidebarResizeInput(resizeInput, totalWidth: shellController.view.bounds.width)
+                )
+              )
+            },
+            sidebarControllerCache: shellController.sidebarControllerCache,
+            spacePagingDidEnd: { [weak shellController] in
+              shellController?.spacePagingDidEnd()
+            }
+          )
+        }
+      }
+    )
+    shellController.onFloatingSidebarVisibilityChange = { [store = input.store] isVisible in
+      _ = store.send(.terminal(.floatingSidebarVisibilityChanged(isVisible)))
+    }
+    shellController.isSpacePaging = { [weak terminal = input.terminal] in
+      terminal?.spacePager?.isTracking == true
+    }
+    shellController.install(sidebar: sidebarController, detail: detailController)
+    return shellController
   }
 
   private static func prepareTerminal(
