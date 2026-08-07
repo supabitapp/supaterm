@@ -17,6 +17,30 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "Next",
+    date: "Pending",
+    title: "🖥️ Terminal Engine Update",
+    description:
+      "The next Supaterm release expands terminal history, themes, color formats, custom commands, and SSH workflows.",
+    sections: [
+      {
+        category: "new",
+        items: [
+          "Added 129 built-in terminal themes, bringing the total to 592",
+          "Color settings now also accept rgb:R/G/B, rgbi:r/g/b, #RRRGGGBBB, and #RRRRGGGGBBBB values",
+        ],
+      },
+      {
+        category: "improvements",
+        items: [
+          "Renamed scrollback-limit to scrollback-limit-bytes and raised its default from 10,000,000 to 50,000,000 bytes; scrollback-limit-lines defaults to unlimited, both limits accept unlimited, and scrollback compression is on by default",
+          "Custom command-palette-entry actions now appear in the command palette; clear removes every entry added so far, while an empty value restores the defaults",
+          "New tabs and splits can inherit the host from a foreground interactive SSH session",
+        ],
+      },
+    ],
+  },
+  {
     version: "v26.4.0",
     date: "2026-07-15",
     title: "🧰 Agent Workflow Toolkit",
