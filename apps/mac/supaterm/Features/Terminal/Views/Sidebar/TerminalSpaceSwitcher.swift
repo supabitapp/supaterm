@@ -59,6 +59,7 @@ struct TerminalWindowHeader: View {
         TerminalSpaceSwitcher(
           store: store,
           palette: palette,
+          terminal: terminal,
           spaces: terminal.spaces,
           selectedSpaceID: terminal.displayedSpaceID
         )
@@ -80,92 +81,31 @@ struct TerminalWindowHeader: View {
 struct TerminalSpaceSwitcher: View {
   let store: StoreOf<TerminalWindowFeature>
   let palette: Palette
+  let terminal: TerminalHostState
   let spaces: [TerminalSpaceItem]
   let selectedSpaceID: TerminalSpaceID?
-
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Shared(.supatermSettings) private var supatermSettings = .default
-  @State private var isHovered = false
 
   var body: some View {
     if let presentation = TerminalSpaceSwitcherPresentation(
       spaces: spaces,
       selectedSpaceID: selectedSpaceID
     ) {
-      Menu {
-        ForEach(Array(spaces.enumerated()), id: \.element.id) { index, space in
-          Toggle(
-            isOn: Binding(
-              get: { space.id == selectedSpaceID },
-              set: { _ in _ = store.send(.selectSpaceButtonTapped(space.id)) }
-            )
-          ) {
-            Label {
-              Text(space.name)
-            } icon: {
-              Image(nsImage: colorDot(for: space.color))
-                .accessibilityHidden(true)
-            }
-          }
-          .supatermKeyboardShortcut(
-            TerminalSpaceSwitcherPresentation.shortcutBinding(
-              forSpaceAt: index,
-              overrides: supatermSettings.shortcutOverrides
-            )?.keyboardShortcut
-          )
-        }
-
-        Divider()
-
-        Button {
-          _ = store.send(.spaceCreateButtonTapped)
-        } label: {
-          Label("New Space", systemImage: "plus")
-        }
-
-        Button {
-          _ = store.send(.spaceRenameRequested(presentation.selectedSpace))
-        } label: {
-          Label("Edit Space", systemImage: "textformat")
-        }
-
-        Button(role: .destructive) {
-          _ = store.send(.spaceDeleteRequested(presentation.selectedSpace))
-        } label: {
-          Label("Delete Space", systemImage: "trash")
-        }
-        .disabled(!presentation.canDelete)
-      } label: {
-        TerminalSpaceSwitcherLabel(
-          palette: palette,
-          name: presentation.selectedSpace.name,
-          isHovered: isHovered
-        )
-      }
-      .menuStyle(.button)
-      .buttonStyle(.plain)
-      .menuIndicator(.hidden)
-      .fixedSize()
-      .onHover { hovering in
-        TerminalMotion.animate(.easeInOut(duration: 0.1), reduceMotion: reduceMotion) {
-          isHovered = hovering
-        }
-      }
+      TerminalNativeSpaceSwitcher(
+        palette: palette,
+        spaces: spaces,
+        selectedSpaceID: selectedSpaceID,
+        canDelete: presentation.canDelete,
+        select: { _ = store.send(.selectSpaceButtonTapped($0)) },
+        create: { _ = store.send(.spaceCreateButtonTapped) },
+        edit: { space in _ = store.send(.spaceRenameRequested(space)) },
+        delete: { space in _ = store.send(.spaceDeleteRequested(space)) },
+        reorder: { terminal.reorderSpace($0, toInsertionIndex: $1) },
+        dropTab: { terminal.dropTab($0, on: $1) }
+      )
+      .frame(height: TerminalWindowHeaderMetrics.switcherHeight)
       .accessibilityLabel("Space \(presentation.selectedSpace.name)")
       .accessibilityIdentifier("titlebar.space-switcher")
-      .help("Switch Space")
     }
-  }
-
-  private func colorDot(for color: ThemeTint) -> NSImage {
-    let nsColor = color.sidebarNSColor(palette: palette)
-    let image = NSImage(size: NSSize(width: 10, height: 10), flipped: false) { rect in
-      nsColor.setFill()
-      NSBezierPath(ovalIn: rect).fill()
-      return true
-    }
-    image.isTemplate = false
-    return image
   }
 }
 

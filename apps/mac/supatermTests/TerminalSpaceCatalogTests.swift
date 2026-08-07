@@ -106,4 +106,32 @@ struct TerminalSpaceCatalogTests {
     #expect(catalog.defaultSelectedSpaceID == firstSpace.id)
     #expect(catalog.spaces.map(\.name) == ["A", "B"])
   }
+
+  @Test
+  func movingSpaceUsesAnInsertionBoundary() {
+    let spaces = [
+      TerminalSpaceItem(name: "A"),
+      TerminalSpaceItem(name: "B"),
+      TerminalSpaceItem(name: "C"),
+      TerminalSpaceItem(name: "D"),
+    ]
+    var catalog = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+
+    let movedToEnd = catalog.moveSpace(spaces[1].id, toInsertionIndex: 4)
+    #expect(movedToEnd)
+    #expect(catalog.spaces.map(\.name) == ["A", "C", "D", "B"])
+    let movedToStart = catalog.moveSpace(spaces[3].id, toInsertionIndex: 0)
+    #expect(movedToStart)
+    #expect(catalog.spaces.map(\.name) == ["D", "A", "C", "B"])
+  }
+
+  @Test
+  func movingSpaceToItsOwnBoundaryDoesNothing() {
+    let spaces = [TerminalSpaceItem(name: "A"), TerminalSpaceItem(name: "B")]
+    var catalog = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+
+    let didMove = catalog.moveSpace(spaces[0].id, toInsertionIndex: 1)
+    #expect(!didMove)
+    #expect(catalog.spaces.map(\.name) == ["A", "B"])
+  }
 }

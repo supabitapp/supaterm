@@ -47,6 +47,15 @@ extension TerminalHostState {
     onSpaceAction(.select(spaceID))
   }
 
+  func reorderSpace(_ spaceID: TerminalSpaceID, toInsertionIndex insertionIndex: Int) {
+    onSpaceAction(.reorder(spaceID, insertionIndex: insertionIndex))
+  }
+
+  @discardableResult
+  func dropTab(_ payload: TerminalTabDragPayload, on spaceID: TerminalSpaceID) -> Bool {
+    onTabDroppedOnSpace(payload, spaceID)
+  }
+
   func warmSpace(_ spaceID: TerminalSpaceID) {
     applyObservedSpaceCatalog(spaceCatalog)
     guard managesTerminalSurfaces, spaceManager.space(for: spaceID) != nil else { return }
