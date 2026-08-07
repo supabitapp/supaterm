@@ -20,8 +20,6 @@ final class TerminalSidebarDragController {
     let indexPath: (TerminalSidebarEntryID) -> IndexPath?
     let entryID: (IndexPath) -> TerminalSidebarEntryID?
     let invalidateLayout: () -> Void
-    let reconcileCompletedDrop: () -> Void
-    let hasPendingUpdate: () -> Bool
     let didFinish: () -> Void
     let setHoveredGroupID: (TerminalTabGroupID?) -> Void
   }
@@ -30,7 +28,6 @@ final class TerminalSidebarDragController {
     case inactive
     case unchanged
     case queue
-    case queueAndReconcile
     case replaceAndCancel(reason: String)
   }
 
@@ -99,7 +96,7 @@ final class TerminalSidebarDragController {
     },
     draggingExited: { [weak self] in self?.draggingExited() },
     draggingEnded: { [weak self] in
-      self?.nativeDraggingEnded(source: "pinnedControl", operation: nil)
+      self?.destinationDraggingEnded()
     },
     prepareForDragOperation: { [weak self] info in
       self?.prepareForDragOperation(info) == true
@@ -137,7 +134,7 @@ final class TerminalSidebarDragController {
     }
     collectionView.onDraggingExited = { [weak self] in self?.draggingExited() }
     collectionView.onDraggingEnded = { [weak self] in
-      self?.nativeDraggingEnded(source: "destination", operation: nil)
+      self?.destinationDraggingEnded()
     }
     collectionView.onPrepareForDragOperation = { [weak self] info in
       self?.prepareForDragOperation(info) == true
@@ -155,7 +152,6 @@ final class TerminalSidebarDragController {
 
   var isActive: Bool { activeDrag != nil }
   var liftedGroupID: TerminalTabGroupID? { dragPresentation.groupID }
-  var operationID: TerminalTabMoveOperationID? { activeDrag?.payload.operationID }
 
   func disposition(
     for incoming: TerminalSidebarOutline,
@@ -174,67 +170,22 @@ final class TerminalSidebarDragController {
         return .replaceAndCancel(reason: "sourceSnapshotMismatch")
       }
       return .unchanged
-    case .frozen, .awaitingNativeEnd, .awaitingSnapshot:
-      return .queueAndReconcile
-    case .settling, .finished:
+    case .frozen, .awaitingNativeEnd:
+      return .queue
+    case .cancelled, .settling, .finished:
       return .queue
     }
   }
 
-  func snapshotDisposition(
-    for outline: TerminalSidebarOutline
-  ) -> TerminalSidebarDragCoordinator.SnapshotDisposition? {
-    activeDrag?.coordinator.snapshotDisposition(for: outline)
-  }
-
-  func recordSnapshot(
-    _ acceptance: TerminalSidebarDragCoordinator.SnapshotAcceptance,
-    outline: TerminalSidebarOutline
-  ) {
+  func cancelTopologyChange(reason: String) {
     guard var activeDrag else { return }
-    let settlement = activeDrag.coordinator.recordSnapshot(acceptance)
-    self.activeDrag = activeDrag
-    logDrag(
-      "sidebar.drag.snapshotSettlement",
-      fields: TerminalSidebarDragLog.operationFields(activeDrag.payload.operationID)
-        + TerminalSidebarDragLog.topologyFields(outline.topologyStamp)
-        + ["outcome=\(acceptance)"]
-    )
-    if let settlement {
-      guard let content = host.content() else {
-        finishDragging()
-        return
-      }
-      beginSettlement(settlement, content: content)
-    } else if host.hasPendingUpdate() {
-      host.reconcileCompletedDrop()
-    }
-  }
-
-  func cancelTopologyChange(
-    reason: String,
-    operationID: TerminalTabMoveOperationID? = nil
-  ) {
-    guard var activeDrag, operationID == nil || activeDrag.payload.operationID == operationID else {
-      return
-    }
-    let settlement = activeDrag.coordinator.cancel(topologyChanged: true)
+    activeDrag.coordinator.cancel(topologyChanged: true)
+    activeDrag.target = nil
     self.activeDrag = activeDrag
     logCancel(reason: reason, operationID: activeDrag.payload.operationID)
-    if let settlement {
-      guard let content = host.content() else {
-        finishDragging()
-        return
-      }
-      beginSettlement(settlement, content: content)
-    }
-  }
-
-  func stopDropTargetPresentation() {
     autoscrollController.stop()
     layoutAnimator.finish()
     collectionLayout.dragDropState = nil
-    activeDrag?.target = nil
     externalDropController.clear()
     isDraggingOverPinnedControl = false
     dragPresentation.resetHapticTarget()
@@ -735,7 +686,6 @@ final class TerminalSidebarDragController {
           + ["reason=transactionRejected"]
       )
     }
-    host.reconcileCompletedDrop()
     return receipt != nil
   }
 
@@ -743,8 +693,8 @@ final class TerminalSidebarDragController {
     guard let activeDrag else { return }
     tabDragRegistry.move(to: screenPoint)
     switch activeDrag.coordinator.phase {
-    case .settling, .finished: return
-    case .tracking, .frozen, .awaitingNativeEnd, .awaitingSnapshot: break
+    case .cancelled, .settling, .finished: return
+    case .tracking, .frozen, .awaitingNativeEnd: break
     }
     dragPresentation.move(to: screenPoint)
   }
@@ -755,6 +705,14 @@ final class TerminalSidebarDragController {
     autoscrollController.stop()
     externalDropController.clear()
     guard var activeDrag else { return }
+    logDrag(
+      "sidebar.drag.nativeEnd",
+      fields: TerminalSidebarDragLog.operationFields(activeDrag.payload.operationID) + [
+        "source=\(source)",
+        "operation=\(String(describing: operation))",
+        "phase=\(String(describing: activeDrag.coordinator.phase))",
+      ]
+    )
     if operation?.contains(.move) == true {
       activeDrag.registryOutcome = .moved
     }
@@ -774,12 +732,12 @@ final class TerminalSidebarDragController {
         reason: "nativeEndedWithoutReceipt.\(source)",
         operationID: activeDrag.payload.operationID
       )
-    case .awaitingNativeEnd(_, nil, _):
+    case .awaitingNativeEnd(_, nil):
       logCancel(
         reason: "transactionRejected.\(source)",
         operationID: activeDrag.payload.operationID
       )
-    case .awaitingNativeEnd, .awaitingSnapshot, .settling, .finished:
+    case .awaitingNativeEnd, .cancelled, .settling, .finished:
       break
     }
     if let settlement {
@@ -789,6 +747,12 @@ final class TerminalSidebarDragController {
       }
       beginSettlement(settlement, content: content)
     }
+  }
+
+  private func destinationDraggingEnded() {
+    isDraggingOverPinnedControl = false
+    autoscrollController.stop()
+    externalDropController.clear()
   }
 
   private func updateDropTarget(pointerY: CGFloat, content: Content) {
@@ -864,8 +828,6 @@ final class TerminalSidebarDragController {
     switch settlement {
     case .accepted:
       settleDragging(accepted: true, content: content)
-    case .superseded:
-      finishDragging()
     case .rejected(let topologyChanged):
       if topologyChanged {
         finishDragging()

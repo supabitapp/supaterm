@@ -64,13 +64,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     let height: CGFloat
   }
 
-  private struct ReconciliationCandidate {
-    let update: Update
-    let isPending: Bool
-
-    var outline: TerminalSidebarOutline { update.outline }
-  }
-
   private enum UpdatePhase {
     case idle
     case collapsing(Update)
@@ -144,8 +137,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       indexPath: { [weak self] in self?.dataSource?.indexPath(for: $0) },
       entryID: { [weak self] in self?.dataSource?.itemIdentifier(for: $0) },
       invalidateLayout: { [weak self] in self?.invalidateLayout() },
-      reconcileCompletedDrop: { [weak self] in self?.reconcileCompletedDrop() },
-      hasPendingUpdate: { [weak self] in self?.pendingUpdate != nil },
       didFinish: { [weak self] in self?.consumePendingUpdate() },
       setHoveredGroupID: { [weak self] in self?.setHoveredGroupID($0) }
     )
@@ -395,45 +386,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       return
     case .queue:
       queue(update)
-    case .queueAndReconcile:
-      queue(update)
-      reconcileCompletedDrop()
     case .replaceAndCancel(let reason):
-      applyIncompatibleSnapshotAndCancel(update, reason: reason)
-    }
-  }
-
-  private func reconcileCompletedDrop() {
-    let candidate = reconciliationCandidate()
-    guard let disposition = dragController.snapshotDisposition(for: candidate.outline) else { return }
-    switch disposition {
-    case .waiting, .rejected:
-      return
-    case .exact:
-      if candidate.isPending {
-        pendingUpdate = nil
-        applySnapshot(candidate.update, animated: false) { [weak self] in
-          self?.dragController.recordSnapshot(.exact, outline: candidate.outline)
-        }
-      } else {
-        dragController.recordSnapshot(.exact, outline: candidate.outline)
-      }
-    case .superseding:
-      dragController.stopDropTargetPresentation()
-      if candidate.isPending {
-        pendingUpdate = nil
-        applySnapshot(candidate.update, animated: false) { [weak self] in
-          self?.dragController.recordSnapshot(.superseding, outline: candidate.outline)
-        }
-      } else {
-        dragController.recordSnapshot(.superseding, outline: candidate.outline)
-      }
-    case .incompatible:
-      if candidate.isPending {
-        applyIncompatibleSnapshotAndCancel(candidate.update, reason: "receiptSnapshotMismatch")
-      } else {
-        dragController.cancelTopologyChange(reason: "receiptSnapshotMismatch")
-      }
+      queue(update)
+      dragController.cancelTopologyChange(reason: reason)
     }
   }
 
@@ -451,32 +406,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       return
     }
     if nextStamp.revision >= currentStamp.revision { pendingUpdate = update }
-  }
-
-  private func reconciliationCandidate() -> ReconciliationCandidate {
-    if let pendingUpdate {
-      guard
-        let pendingStamp = pendingUpdate.outline.topologyStamp,
-        let appliedStamp = appliedOutline.topologyStamp,
-        pendingStamp.spaceID == appliedStamp.spaceID
-      else { return ReconciliationCandidate(update: pendingUpdate, isPending: true) }
-      if pendingStamp.revision >= appliedStamp.revision {
-        return ReconciliationCandidate(update: pendingUpdate, isPending: true)
-      }
-      self.pendingUpdate = nil
-    }
-    return ReconciliationCandidate(
-      update: Update(outline: appliedOutline, reduceMotion: motionPolicy.reduceMotion),
-      isPending: false
-    )
-  }
-
-  private func applyIncompatibleSnapshotAndCancel(_ update: Update, reason: String) {
-    guard let operationID = dragController.operationID else { return }
-    pendingUpdate = nil
-    applySnapshot(update, animated: false) { [weak self] in
-      self?.dragController.cancelTopologyChange(reason: reason, operationID: operationID)
-    }
   }
 
   private func preferredHeight(for id: TerminalSidebarEntryID, width: CGFloat) -> CGFloat {

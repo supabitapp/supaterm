@@ -98,7 +98,6 @@ struct TerminalView: View {
           _ = store.send(.windowActivityChanged(activity))
         }
       )
-      .ignoresSafeArea()
       .task(id: resolvedWindowActivity) {
         let activity = resolvedWindowActivity
         _ = store.send(.windowActivityChanged(activity))

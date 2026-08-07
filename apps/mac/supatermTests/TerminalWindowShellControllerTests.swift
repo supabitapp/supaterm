@@ -1,9 +1,36 @@
-import CoreGraphics
+import AppKit
+import Foundation
+import SwiftUI
 import Testing
 
 @testable import supaterm
 
 struct TerminalWindowShellControllerTests {
+  @Test @MainActor
+  func shellGivesBothHostsTheWholeWindowContentArea() {
+    let shell = TerminalWindowShellController(
+      windowControllerID: UUID(),
+      tabDragRegistry: TerminalTabDragRegistry()
+    )
+    let sidebar = NSHostingController(rootView: Color.clear)
+    let detail = NSHostingController(rootView: Color.clear)
+    shell.install(sidebar: sidebar, detail: detail)
+    let window = NSWindow(
+      contentRect: CGRect(x: 0, y: 0, width: 1_000, height: 700),
+      styleMask: [.titled, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentViewController = shell
+    window.layoutIfNeeded()
+
+    #expect(shell.view.safeAreaInsets.top == 0)
+    #expect(sidebar.view.safeAreaInsets.top == 0)
+    #expect(detail.view.safeAreaInsets.top == 0)
+    #expect(sidebar.view.frame.minY == detail.view.frame.minY)
+    #expect(sidebar.view.frame.maxY == detail.view.frame.maxY)
+  }
+
   @Test
   func tabDragPreviewKeepsTheSourceAspectRatioAndPointerAnchor() {
     let frame = TerminalTabDragPreviewLayout.frame(

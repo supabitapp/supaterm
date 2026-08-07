@@ -71,6 +71,8 @@ final class TerminalWindowShellView: NSView {
   private var revealFrame = CGRect.zero
   private var revealTrackingArea: NSTrackingArea?
 
+  nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
+
   func setRevealFrame(_ revealFrame: CGRect) {
     guard self.revealFrame != revealFrame else { return }
     self.revealFrame = revealFrame

@@ -343,33 +343,6 @@ struct TerminalSidebarDropReceipt: Equatable {
   var topologyRevision: UInt64 { topologyStamp.revision }
 
   var deletedEmptyGroupIDs: [TerminalTabGroupID] { result.deletedEmptyGroupIDs }
-
-  func matches(_ outline: TerminalSidebarOutline, command: TerminalSidebarDropCommand) -> Bool {
-    guard operationID == command.operationID else { return false }
-    guard outline.topologyStamp == topologyStamp else { return false }
-    guard deletedEmptyGroupIDs.allSatisfy({ outline.group($0) == nil }) else { return false }
-    guard command.topologyStamp.spaceID == topologyStamp.spaceID else { return false }
-    guard result.itemIDs == command.itemIDs, result.location == command.destination else {
-      return false
-    }
-    switch command.destination {
-    case .root(let placement):
-      let roots = outline.roots.filter { $0.isPinned == placement.isPinned }.map(\.id)
-      let end = placement.index + command.itemIDs.count
-      guard placement.index >= 0, end <= roots.count else { return false }
-      return Array(roots[placement.index..<end]) == command.itemIDs
-    case .group(let groupID, let index):
-      let tabIDs = command.itemIDs.compactMap { itemID -> TerminalTabID? in
-        guard case .tab(let tabID) = itemID else { return nil }
-        return tabID
-      }
-      guard tabIDs.count == command.itemIDs.count else { return false }
-      let children = outline.tabIDs(in: groupID)
-      let end = index + tabIDs.count
-      guard index >= 0, end <= children.count else { return false }
-      return Array(children[index..<end]) == tabIDs
-    }
-  }
 }
 
 enum TerminalSidebarDropPlanner {

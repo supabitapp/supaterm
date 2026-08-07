@@ -24,59 +24,23 @@ struct SpacePageDotsView: View {
   let position: Double?
 
   var body: some View {
-    ViewThatFits(in: .horizontal) {
-      dots(slot: SpacePageDotMetrics.slot)
-      dots(slot: SpacePageDotMetrics.diameter)
-    }
+    TerminalNativeSpaceDots(
+      configuration: TerminalNativeSpaceDotsConfiguration(
+        palette: palette,
+        spaces: terminal.spaces,
+        selectionPosition: position ?? Double(terminal.displayedSpaceIndex),
+        select: { spaceID in
+          guard spaceID != terminal.displayedSpaceID else { return }
+          _ = store.send(.selectSpaceButtonTapped(spaceID))
+        },
+        edit: { space in _ = store.send(.spaceRenameRequested(space)) },
+        delete: { space in _ = store.send(.spaceDeleteRequested(space)) },
+        newTab: { _ = store.send(.newTabInSpaceRequested($0)) },
+        reorder: { terminal.reorderSpace($0, toInsertionIndex: $1) },
+        dropTab: { terminal.dropTab($0, on: $1) }
+      )
+    )
+    .fixedSize()
     .frame(maxWidth: .infinity)
-  }
-
-  private var selectionPosition: Double {
-    position ?? Double(terminal.displayedSpaceIndex)
-  }
-
-  private func dots(slot: CGFloat) -> some View {
-    HStack(spacing: 0) {
-      ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
-        dot(space, at: index, slot: slot)
-      }
-    }
-  }
-
-  private func dot(_ space: TerminalSpaceItem, at index: Int, slot: CGFloat) -> some View {
-    let emphasis = SpacePageDotMetrics.emphasis(at: index, position: selectionPosition)
-    return Button {
-      select(space, at: index)
-    } label: {
-      Circle()
-        .fill(palette.primaryText.opacity(SpacePageDotMetrics.opacity(emphasis: emphasis)))
-        .frame(width: SpacePageDotMetrics.diameter, height: SpacePageDotMetrics.diameter)
-        .frame(width: slot, height: SpacePageDotMetrics.slot)
-        .contentShape(.rect)
-    }
-    .buttonStyle(.plain)
-    .help(space.name)
-    .accessibilityLabel("Space \(space.name)")
-    .accessibilityIdentifier(TerminalSidebarAccessibilityIdentifier.spaceDot(space.id))
-    .contextMenu {
-      Button("Edit Space", systemImage: "textformat") {
-        _ = store.send(.spaceRenameRequested(space))
-      }
-      Button("New Tab Here", systemImage: "plus") {
-        _ = store.send(.newTabInSpaceRequested(space.id))
-      }
-      Divider()
-      Button(role: .destructive) {
-        _ = store.send(.spaceDeleteRequested(space))
-      } label: {
-        Label("Delete Space", systemImage: "trash")
-      }
-      .disabled(terminal.spaces.count == 1)
-    }
-  }
-
-  private func select(_ space: TerminalSpaceItem, at index: Int) {
-    guard index != terminal.displayedSpaceIndex else { return }
-    _ = store.send(.selectSpaceButtonTapped(space.id))
   }
 }
