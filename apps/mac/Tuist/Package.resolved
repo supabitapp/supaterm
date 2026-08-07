@@ -1,5 +1,5 @@
 {
-  "originHash" : "bb1fd55c68ab0343761b15158402c68bd8f41f55dade9ddf90c22a802317505a",
+  "originHash" : "a4bf7dd50ac03be5314acc6681443239de629903f8115e9221ae91906b6d963c",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
         "version" : "1.1.0"
-      }
-    },
-    {
-      "identity" : "ink",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/JohnSundell/Ink",
-      "state" : {
-        "revision" : "bcc9f219900a62c4210e6db726035d7f03ae757b",
-        "version" : "0.6.0"
       }
     },
     {

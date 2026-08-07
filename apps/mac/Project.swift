@@ -170,7 +170,6 @@ let project = Project(
       dependencies: [
         .target(name: "SupatermCLIShared"),
         .external(name: "ComposableArchitecture"),
-        .external(name: "Ink"),
         .external(name: "Sharing"),
         .external(name: "TOML"),
       ],

@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import Ink
 
 public struct MarkdownPageClient: Sendable {
   public var create: @MainActor @Sendable (String) throws -> URL
@@ -33,6 +32,7 @@ extension DependencyValues {
 
 enum MarkdownPageError: Error {
   case creationFailed
+  case rendererMissing
 }
 
 @MainActor
@@ -58,6 +58,28 @@ struct MarkdownPageRenderer {
       withIntermediateDirectories: false,
       attributes: [.posixPermissions: 0o700]
     )
+    var succeeded = false
+    defer {
+      if !succeeded {
+        try? fileManager.removeItem(at: directoryURL)
+      }
+    }
+
+    guard
+      let bundledRendererURL = Bundle.module.url(
+        forResource: "markdown-it-15.0.0.min",
+        withExtension: "js"
+      )
+    else {
+      throw MarkdownPageError.rendererMissing
+    }
+    let rendererURL = directoryURL.appending(
+      path: "markdown-it.min.js",
+      directoryHint: .notDirectory
+    )
+    try fileManager.copyItem(at: bundledRendererURL, to: rendererURL)
+    try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: rendererURL.path)
+
     let pageURL = directoryURL.appending(path: "last-agent-message.html", directoryHint: .notDirectory)
     guard
       fileManager.createFile(
@@ -68,210 +90,100 @@ struct MarkdownPageRenderer {
     else {
       throw MarkdownPageError.creationFailed
     }
+    succeeded = true
     return pageURL
   }
 
   private func pageData(_ markdown: String) -> Data {
-    let body = MarkdownParser(modifiers: [
-      Modifier(target: .images) { input in
-        Self.escapeHTML(input.markdown)
-      },
-      Modifier(target: .links) { input in
-        Self.linkHTML(input)
-      },
-      Modifier(target: .codeBlocks) { input in
-        Self.codeBlockHTML(input)
-      },
-    ]).html(from: Self.preparedMarkdown(markdown))
-    return Data(Self.document(body).utf8)
+    let encodedMarkdown = Data(markdown.utf8).base64EncodedString()
+    let nonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+    return Data(Self.document(encodedMarkdown: encodedMarkdown, nonce: nonce).utf8)
   }
 
-  private static func preparedMarkdown(_ markdown: String) -> String {
-    var output = ""
-    var index = markdown.startIndex
-    var codeDelimiter: (value: String, isBlock: Bool)?
-    var precedingBackslashes = 0
-
-    while index < markdown.endIndex {
-      let character = markdown[index]
-
-      if character == "\\" {
-        output.append(character)
-        precedingBackslashes += 1
-        markdown.formIndex(after: &index)
-        continue
-      }
-
-      let isEscaped = !precedingBackslashes.isMultiple(of: 2)
-      precedingBackslashes = 0
-
-      if character.isNewline, codeDelimiter?.isBlock == false {
-        codeDelimiter = nil
-      }
-
-      if !isEscaped, character == "`" {
-        let end = markdown[index...].firstIndex { $0 != character } ?? markdown.endIndex
-        let delimiter = String(markdown[index..<end])
-        if codeDelimiter == nil {
-          codeDelimiter = (delimiter, delimiter.count >= 3)
-        } else if codeDelimiter?.value == delimiter {
-          codeDelimiter = nil
-        }
-        output += delimiter
-        index = end
-        continue
-      }
-
-      if !isEscaped,
-        codeDelimiter == nil,
-        character == "<",
-        let end = markdown[index...].firstIndex(where: { $0 == ">" || $0.isNewline }),
-        markdown[end] == ">",
-        let autolink = autolink(for: markdown[markdown.index(after: index)..<end])
-      {
-        output += autolink
-        index = markdown.index(after: end)
-        continue
-      }
-
-      switch character {
-      case "<" where codeDelimiter == nil: output += "&lt;"
-      case ">" where codeDelimiter == nil: output += "&gt;"
-      default: output.append(character)
-      }
-      markdown.formIndex(after: &index)
-    }
-
-    return output
-  }
-
-  private static func autolink(for source: Substring) -> String? {
-    let value = String(source)
-    let destination = isEmailAddress(value) ? "mailto:\(value)" : value
-    guard let url = safeLinkURL(destination) else { return nil }
-
-    let label = value.replacingOccurrences(of: "\\", with: "\\\\")
-      .replacingOccurrences(of: "]", with: "\\]")
-    let escapedDestination =
-      url.absoluteString
-      .replacingOccurrences(of: "(", with: "%28")
-      .replacingOccurrences(of: ")", with: "%29")
-    return "[\(label)](\(escapedDestination))"
-  }
-
-  private static func isEmailAddress(_ value: String) -> Bool {
-    let parts = value.split(separator: "@", omittingEmptySubsequences: false)
-    guard parts.count == 2, !parts[0].isEmpty else { return false }
-    let domain = parts[1].split(separator: ".", omittingEmptySubsequences: false)
-    return domain.count >= 2
-      && domain.allSatisfy { !$0.isEmpty }
-      && !value.contains(where: \.isWhitespace)
-  }
-
-  private static func linkHTML(_ input: Modifier.Input) -> String {
-    guard
-      let document = try? XMLDocument(
-        data: Data(input.html.utf8),
-        options: .documentTidyHTML
-      ),
-      let element = try? document.nodes(forXPath: "//a").first as? XMLElement,
-      let href = element.attribute(forName: "href")?.stringValue?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-      let url = safeLinkURL(href)
-    else {
-      return escapeHTML(input.markdown)
-    }
-    return "<a href=\"\(escapeHTML(url.absoluteString))\">\(escapeHTML(element.stringValue ?? ""))</a>"
-  }
-
-  private static func safeLinkURL(_ value: String) -> URL? {
-    guard let url = URL(string: value), let scheme = url.scheme?.lowercased() else { return nil }
-    switch scheme {
-    case "http", "https":
-      return url.host == nil ? nil : url
-    case "mailto":
-      let address = String(value.dropFirst("mailto:".count))
-      return isEmailAddress(address) ? url : nil
-    default:
-      return nil
-    }
-  }
-
-  private static func codeBlockHTML(_ input: Modifier.Input) -> String {
-    guard
-      let document = try? XMLDocument(
-        data: Data(input.html.utf8),
-        options: .documentTidyHTML
-      ),
-      let code = try? document.nodes(forXPath: "//pre/code").first?.stringValue
-    else {
-      return escapeHTML(input.markdown)
-    }
-    return "<pre><code>\(escapeHTML(code))</code></pre>"
-  }
-
-  private static func escapeHTML<S: StringProtocol>(_ source: S) -> String {
-    source.reduce(into: "") { result, character in
-      switch character {
-      case "&": result += "&amp;"
-      case "<": result += "&lt;"
-      case ">": result += "&gt;"
-      case "\"": result += "&quot;"
-      default: result.append(character)
-      }
-    }
-  }
-
-  private static func document(_ body: String) -> String {
+  private static func document(encodedMarkdown: String, nonce: String) -> String {
     """
     <!doctype html>
     <html>
     <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
     <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; media-src 'none';
-      font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none';
-      form-action 'none'; base-uri 'none'">
+      content="default-src 'none'; script-src 'nonce-\(nonce)'; style-src 'unsafe-inline';
+      img-src https:; media-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none';
+      object-src 'none'; form-action 'none'; base-uri 'none'">
     <title>Agent message — Supaterm</title>
     <style>
-    html { min-height: 100%; background: #12100b; color-scheme: dark; }
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: #12100b; }
     body {
-      box-sizing: border-box;
       max-width: 880px;
       min-height: 100%;
       margin: 0 auto;
       padding: 48px 32px 80px;
       background: #12100b;
       color: #ebe8df;
-      font: 16px -apple-system, BlinkMacSystemFont, sans-serif;
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    p { margin: 0 0 1em; line-height: 1.6; }
     h1, h2, h3, h4, h5, h6 {
       margin: 1.5em 0 0.55em;
       color: #f5f1e7;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.25;
     }
+    h1 { font-size: 2em; }
+    h2 { padding-bottom: 0.3em; border-bottom: 1px solid #403b32; font-size: 1.5em; }
+    h3 { font-size: 1.25em; }
     h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
-    p, li, blockquote, td, th {
-      color: #ebe8df;
-      font: 16px -apple-system, BlinkMacSystemFont, sans-serif;
-      line-height: 1.6;
-    }
-    a { color: #82aaff; }
-    code, pre {
-      color: #ebe8df;
-      background: #24211c;
-      font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-    table { width: 100%; border-collapse: collapse; margin: 1.25em 0; }
-    td, th { padding: 8px 12px; border: 1px solid #403b32; text-align: left; }
-    blockquote { margin: 1.25em 0; padding-left: 16px; border-left: 3px solid #5d5548; color: #b7b1a5; }
+    p, ul, ol, pre, blockquote, table, hr { margin: 0 0 1em; }
+    ul, ol { padding-left: 2em; }
+    li + li { margin-top: 0.25em; }
+    li > ul, li > ol { margin: 0.25em 0 0; }
+    a { color: #82aaff; overflow-wrap: anywhere; }
+    code, pre { background: #24211c; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code { padding: 0.15em 0.35em; border-radius: 4px; }
+    pre { overflow-x: auto; padding: 16px; border: 1px solid #403b32; border-radius: 8px; }
+    pre code { padding: 0; border-radius: 0; background: none; }
+    blockquote { padding-left: 16px; border-left: 3px solid #5d5548; color: #b7b1a5; }
+    blockquote > :last-child { margin-bottom: 0; }
+    table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
+    td, th { padding: 8px 12px; border: 1px solid #403b32; text-align: left; white-space: nowrap; }
+    th { background: #24211c; }
+    img { display: block; max-width: 100%; height: auto; border-radius: 8px; }
+    hr { height: 1px; border: 0; background: #5d5548; }
+    s { color: #8f897e; }
     @media (max-width: 640px) { body { padding: 28px 20px 56px; } }
     </style>
     </head>
     <body>
-    \(body)
+    <main id="content"></main>
+    <script nonce="\(nonce)" src="markdown-it.min.js"></script>
+    <script nonce="\(nonce)">
+    try {
+      const bytes = Uint8Array.from(atob("\(encodedMarkdown)"), character => character.charCodeAt(0));
+      const markdown = new TextDecoder().decode(bytes);
+      const renderer = markdownit({ html: false, linkify: true });
+      renderer.validateLink = value => /^(https?:|mailto:)/i.test(value);
+      renderer.renderer.rules.link_open = (tokens, index, options, environment, self) => {
+        tokens[index].attrSet("target", "_blank");
+        tokens[index].attrSet("rel", "noreferrer noopener");
+        return self.renderToken(tokens, index, options);
+      };
+      const renderImage = renderer.renderer.rules.image;
+      renderer.renderer.rules.image = (tokens, index, options, environment, self) => {
+        const source = tokens[index].attrGet("src");
+        if (!source || !source.toLowerCase().startsWith("https://")) {
+          return renderer.utils.escapeHtml(tokens[index].content);
+        }
+        tokens[index].attrSet("loading", "lazy");
+        tokens[index].attrSet("referrerpolicy", "no-referrer");
+        return renderImage(tokens, index, options, environment, self);
+      };
+      document.getElementById("content").innerHTML = renderer.render(markdown);
+    } catch {
+      document.getElementById("content").textContent = "Could not render this message.";
+    }
+    </script>
     </body>
     </html>
     """
