@@ -53,7 +53,8 @@ final class TerminalTabNewWindowDropController {
         window !== destinationWindow,
         window.isVisible,
         window.alphaValue > 0,
-        !window.isMiniaturized
+        !window.isMiniaturized,
+        !window.ignoresMouseEvents
       else { return nil }
       return window.frame
     }
