@@ -47,7 +47,9 @@ final class TerminalTabDragRegistry {
   private struct Session {
     let payload: TerminalTabDragPayload
     let didTransfer: (TerminalTabMoveOperationID) -> Void
+    let previewImage: NSImage?
     let previewSize: CGSize
+    let sourceWindowFrame: CGRect?
     var previewFrame: CGRect?
   }
 
@@ -58,6 +60,7 @@ final class TerminalTabDragRegistry {
   var sessionFinished: (() -> Void)?
 
   private var session: Session?
+  private let previewController = TerminalTabDragPreviewController()
   private(set) var lastOutcome: Outcome?
 
   var activePayload: TerminalTabDragPayload? {
@@ -70,14 +73,18 @@ final class TerminalTabDragRegistry {
 
   func begin(
     _ payload: TerminalTabDragPayload,
+    previewImage: NSImage? = nil,
     previewSize: CGSize = CGSize(width: 1_000, height: 700),
+    sourceWindowFrame: CGRect? = nil,
     didTransfer: @escaping (TerminalTabMoveOperationID) -> Void = { _ in }
   ) -> Bool {
     guard session == nil else { return false }
     session = Session(
       payload: payload,
       didTransfer: didTransfer,
+      previewImage: previewImage,
       previewSize: previewSize,
+      sourceWindowFrame: sourceWindowFrame,
       previewFrame: nil
     )
     lastOutcome = nil
@@ -123,6 +130,12 @@ final class TerminalTabDragRegistry {
       height: size.height
     )
     self.session = session
+    previewController.update(
+      image: session.previewImage,
+      sourceSize: size,
+      sourceWindowFrame: session.sourceWindowFrame,
+      screenPoint: screenPoint
+    )
     sessionMoved?(session.payload, screenPoint)
   }
 
@@ -140,6 +153,7 @@ final class TerminalTabDragRegistry {
   func finish(operationID: TerminalTabMoveOperationID, outcome: Outcome) {
     guard session?.payload.operationID == operationID.rawValue else { return }
     session = nil
+    previewController.hide()
     lastOutcome = outcome
     sessionFinished?()
   }
