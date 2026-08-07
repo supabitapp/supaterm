@@ -35,6 +35,14 @@ extension SnapshotCatalog {
     ) { appearance in
       AnyView(FloatingSidebarSnapshotFixture(appearance: appearance))
     },
+    scenario(
+      "split-drop-target",
+      group: "Terminal Chrome",
+      title: "Split drop target",
+      size: CGSize(width: 760, height: 420)
+    ) { appearance in
+      AnyView(SplitDropTargetSnapshotFixture(appearance: appearance))
+    },
   ]
 }
 
@@ -179,5 +187,37 @@ private struct FloatingSidebarSnapshotFixture: View {
     .environment(SidebarChromeSnapshotContext.ghosttyShortcuts)
     .background(ChromeBackgroundView(palette: palette))
     .environment(\.colorScheme, appearance.colorScheme)
+  }
+}
+
+private struct SplitDropTargetSnapshotFixture: View {
+  let appearance: SnapshotAppearance
+
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
+  }
+
+  var body: some View {
+    SplitDropTargetSnapshotView(appearance: appearance)
+      .background(ChromeBackgroundView(palette: palette))
+      .environment(\.colorScheme, appearance.colorScheme)
+  }
+}
+
+private struct SplitDropTargetSnapshotView: NSViewRepresentable {
+  let appearance: SnapshotAppearance
+
+  func makeNSView(context: Context) -> TerminalTabSplitDropOverlayView {
+    TerminalTabSplitDropOverlayView()
+  }
+
+  func updateNSView(_ nsView: TerminalTabSplitDropOverlayView, context: Context) {
+    nsView.appearance = NSAppearance(
+      named: appearance == .light ? .aqua : .darkAqua
+    )
+    nsView.alphaValue = 1
+    nsView.layoutSubtreeIfNeeded()
+    let target = TerminalTabSplitDropLayout(bounds: nsView.bounds).rightFrame
+    _ = nsView.update(point: CGPoint(x: target.midX, y: target.midY))
   }
 }
