@@ -103,8 +103,6 @@ struct TerminalSpaceSwitcher: View {
         dropTab: { terminal.dropTab($0, on: $1) }
       )
       .frame(height: TerminalWindowHeaderMetrics.switcherHeight)
-      .accessibilityLabel("Space \(presentation.selectedSpace.name)")
-      .accessibilityIdentifier("titlebar.space-switcher")
     }
   }
 }
