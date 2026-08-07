@@ -2,36 +2,77 @@ import Foundation
 import Observation
 import SupaTheme
 
+struct TerminalTabTopology: Equatable {
+  var tabsByID: [TerminalTabID: TerminalTabItem] = [:]
+  var groupsByID: [TerminalTabGroupID: TerminalTabGroup] = [:]
+  var pinnedRootIDs: [TerminalTabRootItemID] = []
+  var regularRootIDs: [TerminalTabRootItemID] = []
+  var childIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]] = [:]
+  var revision: UInt64 = 0
+}
+
+struct TerminalTabSelection: Equatable {
+  var primaryTabID: TerminalTabID?
+
+  mutating func select(_ tabID: TerminalTabID?, validTabIDs: Set<TerminalTabID>) {
+    primaryTabID = tabID.flatMap { validTabIDs.contains($0) ? $0 : nil }
+  }
+
+  mutating func repair(validTabIDs: [TerminalTabID]) {
+    guard primaryTabID.map(validTabIDs.contains) != true else { return }
+    primaryTabID = validTabIDs.first
+  }
+}
+
 @MainActor
 @Observable
-final class TerminalTabManager {
-  private struct Storage: Equatable {
-    var tabsByID: [TerminalTabID: TerminalTabItem] = [:]
-    var groupsByID: [TerminalTabGroupID: TerminalTabGroup] = [:]
-    var pinnedRootIDs: [TerminalTabRootItemID] = []
-    var regularRootIDs: [TerminalTabRootItemID] = []
-    var childIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]] = [:]
-    var topologyRevision: UInt64 = 0
+final class TerminalTabCollection {
+  struct TransferPlan {
+    fileprivate let destinationTopology: TerminalTabTopology
+    fileprivate let expectedDestinationRevision: UInt64
+    fileprivate let expectedSourceRevision: UInt64
+    fileprivate let sourceTopology: TerminalTabTopology
+    let result: TerminalTabTransferResult
   }
 
   private struct AppliedMove {
     let deletedEmptyGroupIDs: [TerminalTabGroupID]
   }
 
+  private struct ExtractedItems {
+    let childIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]]
+    let deletedEmptyGroupIDs: [TerminalTabGroupID]
+    let groupsByID: [TerminalTabGroupID: TerminalTabGroup]
+    let tabIDs: [TerminalTabID]
+    let tabsByID: [TerminalTabID: TerminalTabItem]
+  }
+
   private struct MoveSource {
     let groupIDs: [TerminalTabGroupID]
   }
 
-  private var storage = Storage()
-  var selectedTabId: TerminalTabID?
+  private var topology = TerminalTabTopology()
+  private(set) var selection = TerminalTabSelection()
+
+  var selectedTabID: TerminalTabID? {
+    selection.primaryTabID
+  }
 
   var topologyRevision: UInt64 {
-    storage.topologyRevision
+    topology.revision
+  }
+
+  var snapshot: TerminalTabCollectionSnapshot {
+    TerminalTabCollectionSnapshot(
+      rootItems: rootItems,
+      selectedTabID: selectedTabID,
+      topologyRevision: topologyRevision
+    )
   }
 
   var rootItems: [TerminalTabRootItem] {
-    (storage.pinnedRootIDs + storage.regularRootIDs).compactMap {
-      rootItem(for: $0, in: storage)
+    (topology.pinnedRootIDs + topology.regularRootIDs).compactMap {
+      rootItem(for: $0, in: topology)
     }
   }
 
@@ -40,11 +81,11 @@ final class TerminalTabManager {
   }
 
   var pinnedRootItems: [TerminalTabRootItem] {
-    storage.pinnedRootIDs.compactMap { rootItem(for: $0, in: storage) }
+    topology.pinnedRootIDs.compactMap { rootItem(for: $0, in: topology) }
   }
 
   var regularRootItems: [TerminalTabRootItem] {
-    storage.regularRootIDs.compactMap { rootItem(for: $0, in: storage) }
+    topology.regularRootIDs.compactMap { rootItem(for: $0, in: topology) }
   }
 
   var visibleTabs: [TerminalTabItem] {
@@ -56,7 +97,7 @@ final class TerminalTabManager {
     isTitleLocked: Bool = false
   ) -> TerminalTabID {
     let placement = TerminalTabPlacement.root(
-      TerminalRootPlacement(isPinned: false, index: storage.regularRootIDs.count)
+      TerminalRootPlacement(isPinned: false, index: topology.regularRootIDs.count)
     )
     return createTab(title: title, isTitleLocked: isTitleLocked, at: placement)!
   }
@@ -67,22 +108,21 @@ final class TerminalTabManager {
     at placement: TerminalTabPlacement
   ) -> TerminalTabID? {
     let tab = TerminalTabItem(title: title, isTitleLocked: isTitleLocked)
-    var next = storage
+    var next = topology
     guard Self.insertTabID(tab.id, at: placement, in: &next) else { return nil }
     next.tabsByID[tab.id] = tab
-    next.topologyRevision += 1
-    storage = next
-    selectedTabId = tab.id
+    next.revision += 1
+    topology = next
+    selection.primaryTabID = tab.id
     return tab.id
   }
 
   func selectTab(_ id: TerminalTabID) {
-    guard storage.tabsByID[id] != nil else { return }
-    selectedTabId = id
+    selection.select(id, validTabIDs: Set(topology.tabsByID.keys))
   }
 
   func clearSelection() {
-    selectedTabId = nil
+    selection.primaryTabID = nil
   }
 
   func updateTitle(_ id: TerminalTabID, title: String) {
@@ -116,15 +156,15 @@ final class TerminalTabManager {
     let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalizedTitle.isEmpty else { return nil }
     guard Set(tabIDs).count == tabIDs.count else { return nil }
-    guard tabIDs.allSatisfy({ storage.tabsByID[$0] != nil }) else { return nil }
+    guard tabIDs.allSatisfy({ topology.tabsByID[$0] != nil }) else { return nil }
 
-    let insertion = groupInsertion(containing: tabIDs, in: storage)
+    let insertion = groupInsertion(containing: tabIDs, in: topology)
     guard tabIDs.isEmpty || insertion != nil else { return nil }
     let resolvedInsertion =
       insertion
-      ?? TerminalRootPlacement(isPinned: false, index: storage.regularRootIDs.count)
+      ?? TerminalRootPlacement(isPinned: false, index: topology.regularRootIDs.count)
     let groupID = TerminalTabGroupID()
-    var next = storage
+    var next = topology
     next.groupsByID[groupID] = TerminalTabGroup(
       id: groupID,
       title: normalizedTitle,
@@ -138,7 +178,7 @@ final class TerminalTabManager {
     let deletedEmptyGroupIDs: [TerminalTabGroupID]
     if !tabIDs.isEmpty {
       let request = TerminalTabMoveRequest(
-        expectedTopologyRevision: next.topologyRevision,
+        expectedTopologyRevision: next.revision,
         itemIDs: tabIDs.map(TerminalTabRootItemID.tab),
         destination: .group(groupID, index: 0)
       )
@@ -147,43 +187,43 @@ final class TerminalTabManager {
     } else {
       deletedEmptyGroupIDs = []
     }
-    next.topologyRevision = storage.topologyRevision + 1
-    storage = next
+    next.revision = topology.revision + 1
+    topology = next
     repairSelection()
     return TerminalTabGroupCreationResult(
       groupID: groupID,
       deletedEmptyGroupIDs: deletedEmptyGroupIDs,
-      topologyRevision: next.topologyRevision
+      topologyRevision: next.revision
     )
   }
 
   @discardableResult
   func renameGroup(_ id: TerminalTabGroupID, title: String) -> Bool {
     let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalizedTitle.isEmpty, var group = storage.groupsByID[id] else { return false }
+    guard !normalizedTitle.isEmpty, var group = topology.groupsByID[id] else { return false }
     group.title = normalizedTitle
-    storage.groupsByID[id] = group
+    topology.groupsByID[id] = group
     return true
   }
 
   @discardableResult
   func setGroupColor(_ id: TerminalTabGroupID, color: ThemeTint) -> Bool {
-    guard var group = storage.groupsByID[id] else { return false }
+    guard var group = topology.groupsByID[id] else { return false }
     group.color = color
-    storage.groupsByID[id] = group
+    topology.groupsByID[id] = group
     return true
   }
 
   @discardableResult
   func move(_ request: TerminalTabMoveRequest) throws -> TerminalTabMoveResult {
-    var next = storage
+    var next = topology
     let applied = try Self.applyMove(request, to: &next)
-    if next != storage {
-      next.topologyRevision = storage.topologyRevision + 1
-      storage = next
+    if next != topology {
+      next.revision = topology.revision + 1
+      topology = next
       repairSelection()
     }
-    guard let location = Self.location(of: request.itemIDs[0], in: storage) else {
+    guard let location = Self.location(of: request.itemIDs[0], in: topology) else {
       preconditionFailure("Moved item must have a final location")
     }
     return TerminalTabMoveResult(
@@ -191,13 +231,93 @@ final class TerminalTabManager {
       itemIDs: request.itemIDs,
       location: location,
       deletedEmptyGroupIDs: applied.deletedEmptyGroupIDs,
-      topologyRevision: storage.topologyRevision
+      topologyRevision: topology.revision
+    )
+  }
+
+  static func prepareTransfer(
+    _ request: TerminalTabTransferRequest,
+    from source: TerminalTabCollection,
+    to destination: TerminalTabCollection
+  ) throws -> TransferPlan {
+    guard source !== destination else { throw TerminalTabTransferError.sameCollection }
+    guard request.expectedSourceRevision == source.topology.revision else {
+      throw TerminalTabTransferError.staleSource(
+        expected: request.expectedSourceRevision,
+        actual: source.topology.revision
+      )
+    }
+    guard request.expectedDestinationRevision == destination.topology.revision else {
+      throw TerminalTabTransferError.staleDestination(
+        expected: request.expectedDestinationRevision,
+        actual: destination.topology.revision
+      )
+    }
+
+    var sourceTopology = source.topology
+    var destinationTopology = destination.topology
+    let extracted: ExtractedItems
+    do {
+      extracted = try extract(request.itemIDs, from: &sourceTopology)
+      try insert(
+        request.itemIDs,
+        extracted: extracted,
+        at: request.destination,
+        into: &destinationTopology
+      )
+    } catch let error as TerminalTabMoveError {
+      throw TerminalTabTransferError.topology(error)
+    }
+    sourceTopology.revision += 1
+    destinationTopology.revision += 1
+
+    return TransferPlan(
+      destinationTopology: destinationTopology,
+      expectedDestinationRevision: request.expectedDestinationRevision,
+      expectedSourceRevision: request.expectedSourceRevision,
+      sourceTopology: sourceTopology,
+      result: TerminalTabTransferResult(
+        operationID: request.operationID,
+        itemIDs: request.itemIDs,
+        tabIDs: extracted.tabIDs,
+        destination: request.destination,
+        deletedEmptyGroupIDs: extracted.deletedEmptyGroupIDs,
+        sourceRevision: sourceTopology.revision,
+        destinationRevision: destinationTopology.revision
+      )
     )
   }
 
   @discardableResult
+  static func commitTransfer(
+    _ plan: TransferPlan,
+    from source: TerminalTabCollection,
+    to destination: TerminalTabCollection
+  ) throws -> TerminalTabTransferResult {
+    guard source !== destination else { throw TerminalTabTransferError.sameCollection }
+    guard source.topology.revision == plan.expectedSourceRevision else {
+      throw TerminalTabTransferError.staleSource(
+        expected: plan.expectedSourceRevision,
+        actual: source.topology.revision
+      )
+    }
+    guard destination.topology.revision == plan.expectedDestinationRevision else {
+      throw TerminalTabTransferError.staleDestination(
+        expected: plan.expectedDestinationRevision,
+        actual: destination.topology.revision
+      )
+    }
+
+    source.topology = plan.sourceTopology
+    destination.topology = plan.destinationTopology
+    source.repairSelection()
+    destination.selection.primaryTabID = plan.result.tabIDs.first
+    return plan.result
+  }
+
+  @discardableResult
   func togglePinned(_ id: TerminalTabRootItemID) -> TerminalTabMoveResult? {
-    guard case .root(let placement) = Self.location(of: id, in: storage) else { return nil }
+    guard case .root(let placement) = Self.location(of: id, in: topology) else { return nil }
     return setPinned(id, isPinned: !placement.isPinned)
   }
 
@@ -206,14 +326,14 @@ final class TerminalTabManager {
     _ id: TerminalTabRootItemID,
     isPinned: Bool
   ) -> TerminalTabMoveResult? {
-    guard case .root(let current) = Self.location(of: id, in: storage) else { return nil }
+    guard case .root(let current) = Self.location(of: id, in: topology) else { return nil }
     let index =
       current.isPinned == isPinned
       ? current.index
-      : Self.rootIDs(isPinned: isPinned, in: storage).count
+      : Self.rootIDs(isPinned: isPinned, in: topology).count
     return try? move(
       TerminalTabMoveRequest(
-        expectedTopologyRevision: storage.topologyRevision,
+        expectedTopologyRevision: topology.revision,
         itemIDs: [id],
         destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
       )
@@ -222,7 +342,7 @@ final class TerminalTabManager {
 
   @discardableResult
   func togglePinned(_ id: TerminalTabID) -> TerminalTabMoveResult? {
-    guard let location = Self.location(of: .tab(id), in: storage) else { return nil }
+    guard let location = Self.location(of: .tab(id), in: topology) else { return nil }
     switch location {
     case .root(let placement):
       return setPinned(.tab(id), isPinned: !placement.isPinned)
@@ -230,7 +350,7 @@ final class TerminalTabManager {
       guard let index = rootCount(isPinned: true, afterRemoving: [.tab(id)]) else { return nil }
       return try? move(
         TerminalTabMoveRequest(
-          expectedTopologyRevision: storage.topologyRevision,
+          expectedTopologyRevision: topology.revision,
           itemIDs: [.tab(id)],
           destination: .root(
             TerminalRootPlacement(isPinned: true, index: index)
@@ -242,7 +362,7 @@ final class TerminalTabManager {
 
   @discardableResult
   func setTabPinned(_ id: TerminalTabID, isPinned: Bool) -> TerminalTabMoveResult? {
-    guard let location = Self.location(of: .tab(id), in: storage) else { return nil }
+    guard let location = Self.location(of: .tab(id), in: topology) else { return nil }
     switch location {
     case .root:
       return setPinned(.tab(id), isPinned: isPinned)
@@ -251,7 +371,7 @@ final class TerminalTabManager {
       guard let index = rootCount(isPinned: true, afterRemoving: [.tab(id)]) else { return nil }
       return try? move(
         TerminalTabMoveRequest(
-          expectedTopologyRevision: storage.topologyRevision,
+          expectedTopologyRevision: topology.revision,
           itemIDs: [.tab(id)],
           destination: .root(
             TerminalRootPlacement(isPinned: true, index: index)
@@ -263,18 +383,18 @@ final class TerminalTabManager {
 
   @discardableResult
   func removeTabFromGroup(_ id: TerminalTabID) -> TerminalTabMoveResult? {
-    guard case .group(let groupID, _) = Self.location(of: .tab(id), in: storage) else {
+    guard case .group(let groupID, _) = Self.location(of: .tab(id), in: topology) else {
       return nil
     }
-    guard case .root(let groupPlacement) = Self.location(of: .group(groupID), in: storage) else {
+    guard case .root(let groupPlacement) = Self.location(of: .group(groupID), in: topology) else {
       return nil
     }
     let groupIsDeleted =
-      storage.groupsByID[groupID]?.lifetime == .automatic
-      && storage.childIDsByGroupID[groupID]?.count == 1
+      topology.groupsByID[groupID]?.lifetime == .automatic
+      && topology.childIDsByGroupID[groupID]?.count == 1
     return try? move(
       TerminalTabMoveRequest(
-        expectedTopologyRevision: storage.topologyRevision,
+        expectedTopologyRevision: topology.revision,
         itemIDs: [.tab(id)],
         destination: .root(
           TerminalRootPlacement(
@@ -289,37 +409,37 @@ final class TerminalTabManager {
   @discardableResult
   func ungroup(_ id: TerminalTabGroupID) -> Bool {
     guard
-      case .root(let placement) = Self.location(of: .group(id), in: storage),
-      storage.groupsByID[id] != nil
+      case .root(let placement) = Self.location(of: .group(id), in: topology),
+      topology.groupsByID[id] != nil
     else {
       return false
     }
-    let childIDs = storage.childIDsByGroupID[id] ?? []
-    var next = storage
+    let childIDs = topology.childIDsByGroupID[id] ?? []
+    var next = topology
     if !childIDs.isEmpty {
       let request = TerminalTabMoveRequest(
-        expectedTopologyRevision: next.topologyRevision,
+        expectedTopologyRevision: next.revision,
         itemIDs: childIDs.map(TerminalTabRootItemID.tab),
         destination: .root(placement)
       )
       guard (try? Self.applyMove(request, to: &next)) != nil else { return false }
     }
     Self.deleteGroup(id, from: &next)
-    next.topologyRevision = storage.topologyRevision + 1
-    storage = next
+    next.revision = topology.revision + 1
+    topology = next
     repairSelection()
     return true
   }
 
   @discardableResult
   func deleteEmptyGroup(_ id: TerminalTabGroupID) -> Bool {
-    guard storage.groupsByID[id] != nil, storage.childIDsByGroupID[id]?.isEmpty == true else {
+    guard topology.groupsByID[id] != nil, topology.childIDsByGroupID[id]?.isEmpty == true else {
       return false
     }
-    var next = storage
+    var next = topology
     Self.deleteGroup(id, from: &next)
-    next.topologyRevision += 1
-    storage = next
+    next.revision += 1
+    topology = next
     return true
   }
 
@@ -327,8 +447,8 @@ final class TerminalTabManager {
   func closeTab(_ id: TerminalTabID) -> TerminalTabCloseResult? {
     let previousTabs = tabs
     guard let index = previousTabs.firstIndex(where: { $0.id == id }) else { return nil }
-    let wasSelected = selectedTabId == id
-    var next = storage
+    let wasSelected = selectedTabID == id
+    var next = topology
     let sourceGroupID: TerminalTabGroupID?
     if case .group(let groupID, _) = Self.location(of: .tab(id), in: next) {
       sourceGroupID = groupID
@@ -343,19 +463,19 @@ final class TerminalTabManager {
     } else {
       deletedEmptyGroupIDs = []
     }
-    next.topologyRevision += 1
-    storage = next
+    next.revision += 1
+    topology = next
     if wasSelected {
       let remainingTabs = tabs
       if remainingTabs.indices.contains(index) {
-        selectedTabId = remainingTabs[index].id
+        selection.primaryTabID = remainingTabs[index].id
       } else {
-        selectedTabId = remainingTabs.last?.id
+        selection.primaryTabID = remainingTabs.last?.id
       }
     }
     return TerminalTabCloseResult(
       deletedEmptyGroupIDs: deletedEmptyGroupIDs,
-      topologyRevision: next.topologyRevision
+      topologyRevision: next.revision
     )
   }
 
@@ -372,22 +492,22 @@ final class TerminalTabManager {
   }
 
   func groupID(containing tabID: TerminalTabID) -> TerminalTabGroupID? {
-    guard case .group(let groupID, _) = Self.location(of: .tab(tabID), in: storage) else {
+    guard case .group(let groupID, _) = Self.location(of: .tab(tabID), in: topology) else {
       return nil
     }
     return groupID
   }
 
   func tabIDs(in groupID: TerminalTabGroupID) -> [TerminalTabID] {
-    storage.childIDsByGroupID[groupID] ?? []
+    topology.childIDsByGroupID[groupID] ?? []
   }
 
   func group(for id: TerminalTabGroupID) -> TerminalTabGroupItem? {
-    groupItem(for: id, in: storage)
+    groupItem(for: id, in: topology)
   }
 
   func rootItemID(containing tabID: TerminalTabID) -> TerminalTabRootItemID? {
-    guard let location = Self.location(of: .tab(tabID), in: storage) else { return nil }
+    guard let location = Self.location(of: .tab(tabID), in: topology) else { return nil }
     switch location {
     case .root:
       return .tab(tabID)
@@ -397,7 +517,7 @@ final class TerminalTabManager {
   }
 
   func isPinned(_ tabID: TerminalTabID) -> Bool? {
-    guard let location = Self.location(of: .tab(tabID), in: storage) else { return nil }
+    guard let location = Self.location(of: .tab(tabID), in: topology) else { return nil }
     switch location {
     case .root(let placement):
       return placement.isPinned
@@ -410,7 +530,7 @@ final class TerminalTabManager {
     _ rootItems: [TerminalTabRootItem],
     selectedTabID: TerminalTabID?
   ) {
-    var next = Storage(topologyRevision: storage.topologyRevision + 1)
+    var next = TerminalTabTopology(revision: topology.revision + 1)
     var seenTabIDs: Set<TerminalTabID> = []
     var seenGroupIDs: Set<TerminalTabGroupID> = []
     let normalizedItems = rootItems.filter(\.isPinned) + rootItems.filter { !$0.isPinned }
@@ -436,24 +556,24 @@ final class TerminalTabManager {
         Self.appendRootID(.group(group.id), isPinned: group.isPinned, to: &next)
       }
     }
-    storage = next
-    selectedTabId =
+    topology = next
+    selection.primaryTabID =
       selectedTabID.flatMap { next.tabsByID[$0]?.id }
       ?? tabs.first?.id
   }
 
   private func updateTab(_ id: TerminalTabID, update: (inout TerminalTabItem) -> Void) {
-    guard var tab = storage.tabsByID[id] else { return }
+    guard var tab = topology.tabsByID[id] else { return }
     update(&tab)
-    storage.tabsByID[id] = tab
+    topology.tabsByID[id] = tab
   }
 
   private func groupInsertion(
     containing tabIDs: [TerminalTabID],
-    in storage: Storage
+    in topology: TerminalTabTopology
   ) -> TerminalRootPlacement? {
     guard let firstTabID = tabIDs.first else { return nil }
-    guard let location = Self.location(of: .tab(firstTabID), in: storage) else { return nil }
+    guard let location = Self.location(of: .tab(firstTabID), in: topology) else { return nil }
     let rootID: TerminalTabRootItemID
     let followsSourceRoot: Bool
     switch location {
@@ -464,11 +584,11 @@ final class TerminalTabManager {
       rootID = .group(groupID)
       followsSourceRoot = true
     }
-    guard case .root(let rootPlacement) = Self.location(of: rootID, in: storage) else {
+    guard case .root(let rootPlacement) = Self.location(of: rootID, in: topology) else {
       return nil
     }
     let selectedRootIDs = Set(tabIDs.map(TerminalTabRootItemID.tab))
-    let roots = Self.rootIDs(isPinned: rootPlacement.isPinned, in: storage)
+    let roots = Self.rootIDs(isPinned: rootPlacement.isPinned, in: topology)
     guard let rootIndex = roots.firstIndex(of: rootID) else { return nil }
     let index =
       roots[..<rootIndex].count { !selectedRootIDs.contains($0) }
@@ -478,25 +598,25 @@ final class TerminalTabManager {
 
   private func rootItem(
     for id: TerminalTabRootItemID,
-    in storage: Storage
+    in topology: TerminalTabTopology
   ) -> TerminalTabRootItem? {
-    guard case .root(let placement) = Self.location(of: id, in: storage) else { return nil }
+    guard case .root(let placement) = Self.location(of: id, in: topology) else { return nil }
     switch id {
     case .tab(let tabID):
-      guard let tab = storage.tabsByID[tabID] else { return nil }
+      guard let tab = topology.tabsByID[tabID] else { return nil }
       return .tab(TerminalUngroupedTabItem(tab: tab, isPinned: placement.isPinned))
     case .group(let groupID):
-      return groupItem(for: groupID, in: storage).map(TerminalTabRootItem.group)
+      return groupItem(for: groupID, in: topology).map(TerminalTabRootItem.group)
     }
   }
 
   private func groupItem(
     for id: TerminalTabGroupID,
-    in storage: Storage
+    in topology: TerminalTabTopology
   ) -> TerminalTabGroupItem? {
     guard
-      let group = storage.groupsByID[id],
-      case .root(let placement) = Self.location(of: .group(id), in: storage)
+      let group = topology.groupsByID[id],
+      case .root(let placement) = Self.location(of: .group(id), in: topology)
     else {
       return nil
     }
@@ -505,30 +625,111 @@ final class TerminalTabManager {
       title: group.title,
       color: group.color,
       isPinned: placement.isPinned,
-      tabs: (storage.childIDsByGroupID[id] ?? []).compactMap { storage.tabsByID[$0] },
+      tabs: (topology.childIDsByGroupID[id] ?? []).compactMap { topology.tabsByID[$0] },
       lifetime: group.lifetime
     )
   }
 
   private func repairSelection() {
-    guard selectedTabId.flatMap({ storage.tabsByID[$0] }) == nil else { return }
-    selectedTabId = tabs.first?.id
+    selection.repair(validTabIDs: tabs.map(\.id))
+  }
+
+  private static func extract(
+    _ itemIDs: [TerminalTabRootItemID],
+    from topology: inout TerminalTabTopology
+  ) throws -> ExtractedItems {
+    let source = try moveSource(for: itemIDs, in: topology)
+    var childIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]] = [:]
+    var groupsByID: [TerminalTabGroupID: TerminalTabGroup] = [:]
+    var tabIDs: [TerminalTabID] = []
+    var tabsByID: [TerminalTabID: TerminalTabItem] = [:]
+
+    for itemID in itemIDs {
+      switch itemID {
+      case .tab(let tabID):
+        guard let tab = topology.tabsByID[tabID] else {
+          throw TerminalTabMoveError.itemNotFound(itemID)
+        }
+        tabIDs.append(tabID)
+        tabsByID[tabID] = tab
+        remove(itemID, from: &topology)
+        topology.tabsByID[tabID] = nil
+
+      case .group(let groupID):
+        guard let group = topology.groupsByID[groupID] else {
+          throw TerminalTabMoveError.itemNotFound(itemID)
+        }
+        let childIDs = topology.childIDsByGroupID[groupID] ?? []
+        groupsByID[groupID] = group
+        childIDsByGroupID[groupID] = childIDs
+        for tabID in childIDs {
+          guard let tab = topology.tabsByID[tabID] else {
+            throw TerminalTabMoveError.itemNotFound(.tab(tabID))
+          }
+          tabIDs.append(tabID)
+          tabsByID[tabID] = tab
+          topology.tabsByID[tabID] = nil
+        }
+        remove(itemID, from: &topology)
+        topology.groupsByID[groupID] = nil
+        topology.childIDsByGroupID[groupID] = nil
+      }
+    }
+
+    let deletedEmptyGroupIDs = source.groupIDs.filter {
+      deleteAutomaticGroupIfEmpty($0, from: &topology)
+    }
+    return ExtractedItems(
+      childIDsByGroupID: childIDsByGroupID,
+      deletedEmptyGroupIDs: deletedEmptyGroupIDs,
+      groupsByID: groupsByID,
+      tabIDs: tabIDs,
+      tabsByID: tabsByID
+    )
+  }
+
+  private static func insert(
+    _ itemIDs: [TerminalTabRootItemID],
+    extracted: ExtractedItems,
+    at destination: TerminalTabPlacement,
+    into topology: inout TerminalTabTopology
+  ) throws {
+    try validateDestination(destination, for: itemIDs, in: topology)
+    for tabID in extracted.tabIDs {
+      guard topology.tabsByID[tabID] == nil else {
+        throw TerminalTabTransferError.destinationContainsTab(tabID)
+      }
+    }
+    for groupID in extracted.groupsByID.keys {
+      guard topology.groupsByID[groupID] == nil else {
+        throw TerminalTabTransferError.destinationContainsGroup(groupID)
+      }
+    }
+
+    for (tabID, tab) in extracted.tabsByID {
+      topology.tabsByID[tabID] = tab
+    }
+    for (groupID, group) in extracted.groupsByID {
+      topology.groupsByID[groupID] = group
+      topology.childIDsByGroupID[groupID] = extracted.childIDsByGroupID[groupID] ?? []
+    }
+    try insertMovedItems(itemIDs, at: destination, in: &topology)
   }
 
   private static func applyMove(
     _ request: TerminalTabMoveRequest,
-    to storage: inout Storage
+    to topology: inout TerminalTabTopology
   ) throws -> AppliedMove {
-    guard request.expectedTopologyRevision == storage.topologyRevision else {
+    guard request.expectedTopologyRevision == topology.revision else {
       throw TerminalTabMoveError.staleTopology(
         expected: request.expectedTopologyRevision,
-        actual: storage.topologyRevision
+        actual: topology.revision
       )
     }
-    let source = try moveSource(for: request.itemIDs, in: storage)
-    try validateDestination(request.destination, for: request.itemIDs, in: storage)
+    let source = try moveSource(for: request.itemIDs, in: topology)
+    try validateDestination(request.destination, for: request.itemIDs, in: topology)
     for itemID in request.itemIDs {
-      remove(itemID, from: &storage)
+      remove(itemID, from: &topology)
     }
     var deletedEmptyGroupIDs: [TerminalTabGroupID] = []
     let destinationGroupID: TerminalTabGroupID? =
@@ -538,11 +739,11 @@ final class TerminalTabManager {
       }
     for groupID in source.groupIDs
     where groupID != destinationGroupID
-      && deleteAutomaticGroupIfEmpty(groupID, from: &storage)
+      && deleteAutomaticGroupIfEmpty(groupID, from: &topology)
     {
       deletedEmptyGroupIDs.append(groupID)
     }
-    try insertMovedItems(request.itemIDs, at: request.destination, in: &storage)
+    try insertMovedItems(request.itemIDs, at: request.destination, in: &topology)
     return AppliedMove(
       deletedEmptyGroupIDs: deletedEmptyGroupIDs
     )
@@ -552,8 +753,8 @@ final class TerminalTabManager {
     isPinned: Bool,
     afterRemoving itemIDs: [TerminalTabRootItemID]
   ) -> Int? {
-    guard let source = try? Self.moveSource(for: itemIDs, in: storage) else { return nil }
-    var projected = storage
+    guard let source = try? Self.moveSource(for: itemIDs, in: topology) else { return nil }
+    var projected = topology
     for itemID in itemIDs {
       Self.remove(itemID, from: &projected)
     }
@@ -565,7 +766,7 @@ final class TerminalTabManager {
 
   private static func moveSource(
     for itemIDs: [TerminalTabRootItemID],
-    in storage: Storage
+    in topology: TerminalTabTopology
   ) throws -> MoveSource {
     guard !itemIDs.isEmpty else { throw TerminalTabMoveError.emptyItems }
     let requestedGroupIDs = Set(
@@ -576,7 +777,7 @@ final class TerminalTabManager {
     for itemID in itemIDs {
       guard case .tab(let tabID) = itemID else { continue }
       guard
-        case .group(let groupID, _) = location(of: itemID, in: storage),
+        case .group(let groupID, _) = location(of: itemID, in: topology),
         requestedGroupIDs.contains(groupID)
       else { continue }
       throw TerminalTabMoveError.ancestorAndDescendant(groupID, tabID)
@@ -587,7 +788,7 @@ final class TerminalTabManager {
       guard seenIDs.insert(itemID).inserted else {
         throw TerminalTabMoveError.duplicateItem(itemID)
       }
-      guard let location = location(of: itemID, in: storage) else {
+      guard let location = location(of: itemID, in: topology) else {
         throw TerminalTabMoveError.itemNotFound(itemID)
       }
       if case .tab = itemID, case .group(let groupID, _) = location,
@@ -602,10 +803,10 @@ final class TerminalTabManager {
   private static func validateDestination(
     _ destination: TerminalTabPlacement,
     for itemIDs: [TerminalTabRootItemID],
-    in storage: Storage
+    in topology: TerminalTabTopology
   ) throws {
     if case .group(let groupID, _) = destination {
-      guard storage.groupsByID[groupID] != nil else {
+      guard topology.groupsByID[groupID] != nil else {
         throw TerminalTabMoveError.invalidDestination(destination)
       }
       guard itemIDs.allSatisfy({ if case .tab = $0 { true } else { false } }) else {
@@ -617,15 +818,15 @@ final class TerminalTabManager {
   private static func insertMovedItems(
     _ itemIDs: [TerminalTabRootItemID],
     at destination: TerminalTabPlacement,
-    in storage: inout Storage
+    in topology: inout TerminalTabTopology
   ) throws {
     switch destination {
     case .root(let placement):
-      guard insertRootIDs(itemIDs, at: placement, in: &storage) else {
+      guard insertRootIDs(itemIDs, at: placement, in: &topology) else {
         throw TerminalTabMoveError.invalidDestination(destination)
       }
     case .group(let groupID, let index):
-      guard var childIDs = storage.childIDsByGroupID[groupID],
+      guard var childIDs = topology.childIDsByGroupID[groupID],
         (0...childIDs.count).contains(index)
       else {
         throw TerminalTabMoveError.invalidDestination(destination)
@@ -635,22 +836,22 @@ final class TerminalTabManager {
         return tabID
       }
       childIDs.insert(contentsOf: tabIDs, at: index)
-      storage.childIDsByGroupID[groupID] = childIDs
+      topology.childIDsByGroupID[groupID] = childIDs
     }
   }
 
   private static func location(
     of id: TerminalTabRootItemID,
-    in storage: Storage
+    in topology: TerminalTabTopology
   ) -> TerminalTabPlacement? {
-    if let index = storage.pinnedRootIDs.firstIndex(of: id) {
+    if let index = topology.pinnedRootIDs.firstIndex(of: id) {
       return .root(TerminalRootPlacement(isPinned: true, index: index))
     }
-    if let index = storage.regularRootIDs.firstIndex(of: id) {
+    if let index = topology.regularRootIDs.firstIndex(of: id) {
       return .root(TerminalRootPlacement(isPinned: false, index: index))
     }
     guard case .tab(let tabID) = id else { return nil }
-    for (groupID, childIDs) in storage.childIDsByGroupID {
+    for (groupID, childIDs) in topology.childIDsByGroupID {
       if let index = childIDs.firstIndex(of: tabID) {
         return .group(groupID, index: index)
       }
@@ -660,32 +861,32 @@ final class TerminalTabManager {
 
   private static func remove(
     _ id: TerminalTabRootItemID,
-    from storage: inout Storage
+    from topology: inout TerminalTabTopology
   ) {
-    storage.pinnedRootIDs.removeAll { $0 == id }
-    storage.regularRootIDs.removeAll { $0 == id }
+    topology.pinnedRootIDs.removeAll { $0 == id }
+    topology.regularRootIDs.removeAll { $0 == id }
     guard case .tab(let tabID) = id else { return }
-    for groupID in storage.childIDsByGroupID.keys {
-      storage.childIDsByGroupID[groupID]?.removeAll { $0 == tabID }
+    for groupID in topology.childIDsByGroupID.keys {
+      topology.childIDsByGroupID[groupID]?.removeAll { $0 == tabID }
     }
   }
 
   private static func insertTabID(
     _ id: TerminalTabID,
     at placement: TerminalTabPlacement,
-    in storage: inout Storage
+    in topology: inout TerminalTabTopology
   ) -> Bool {
     switch placement {
     case .root(let placement):
-      return insertRootIDs([.tab(id)], at: placement, in: &storage)
+      return insertRootIDs([.tab(id)], at: placement, in: &topology)
     case .group(let groupID, let index):
-      guard var childIDs = storage.childIDsByGroupID[groupID],
+      guard var childIDs = topology.childIDsByGroupID[groupID],
         (0...childIDs.count).contains(index)
       else {
         return false
       }
       childIDs.insert(id, at: index)
-      storage.childIDsByGroupID[groupID] = childIDs
+      topology.childIDsByGroupID[groupID] = childIDs
       return true
     }
   }
@@ -693,22 +894,22 @@ final class TerminalTabManager {
   private static func insertRootID(
     _ id: TerminalTabRootItemID,
     at placement: TerminalRootPlacement,
-    in storage: inout Storage
+    in topology: inout TerminalTabTopology
   ) -> Bool {
-    insertRootIDs([id], at: placement, in: &storage)
+    insertRootIDs([id], at: placement, in: &topology)
   }
 
   private static func insertRootIDs(
     _ ids: [TerminalTabRootItemID],
     at placement: TerminalRootPlacement,
-    in storage: inout Storage
+    in topology: inout TerminalTabTopology
   ) -> Bool {
     if placement.isPinned {
-      guard (0...storage.pinnedRootIDs.count).contains(placement.index) else { return false }
-      storage.pinnedRootIDs.insert(contentsOf: ids, at: placement.index)
+      guard (0...topology.pinnedRootIDs.count).contains(placement.index) else { return false }
+      topology.pinnedRootIDs.insert(contentsOf: ids, at: placement.index)
     } else {
-      guard (0...storage.regularRootIDs.count).contains(placement.index) else { return false }
-      storage.regularRootIDs.insert(contentsOf: ids, at: placement.index)
+      guard (0...topology.regularRootIDs.count).contains(placement.index) else { return false }
+      topology.regularRootIDs.insert(contentsOf: ids, at: placement.index)
     }
     return true
   }
@@ -716,38 +917,38 @@ final class TerminalTabManager {
   private static func appendRootID(
     _ id: TerminalTabRootItemID,
     isPinned: Bool,
-    to storage: inout Storage
+    to topology: inout TerminalTabTopology
   ) {
     if isPinned {
-      storage.pinnedRootIDs.append(id)
+      topology.pinnedRootIDs.append(id)
     } else {
-      storage.regularRootIDs.append(id)
+      topology.regularRootIDs.append(id)
     }
   }
 
   private static func rootIDs(
     isPinned: Bool,
-    in storage: Storage
+    in topology: TerminalTabTopology
   ) -> [TerminalTabRootItemID] {
-    isPinned ? storage.pinnedRootIDs : storage.regularRootIDs
+    isPinned ? topology.pinnedRootIDs : topology.regularRootIDs
   }
 
   private static func deleteAutomaticGroupIfEmpty(
     _ id: TerminalTabGroupID,
-    from storage: inout Storage
+    from topology: inout TerminalTabTopology
   ) -> Bool {
-    guard storage.groupsByID[id]?.lifetime == .automatic else { return false }
-    guard storage.childIDsByGroupID[id]?.isEmpty == true else { return false }
-    deleteGroup(id, from: &storage)
+    guard topology.groupsByID[id]?.lifetime == .automatic else { return false }
+    guard topology.childIDsByGroupID[id]?.isEmpty == true else { return false }
+    deleteGroup(id, from: &topology)
     return true
   }
 
   private static func deleteGroup(
     _ id: TerminalTabGroupID,
-    from storage: inout Storage
+    from topology: inout TerminalTabTopology
   ) {
-    remove(.group(id), from: &storage)
-    storage.groupsByID[id] = nil
-    storage.childIDsByGroupID[id] = nil
+    remove(.group(id), from: &topology)
+    topology.groupsByID[id] = nil
+    topology.childIDsByGroupID[id] = nil
   }
 }

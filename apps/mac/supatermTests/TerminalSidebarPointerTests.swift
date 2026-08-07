@@ -113,7 +113,7 @@ struct TerminalSidebarPointerTests {
 
   private func fixture() async throws -> Fixture {
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    let manager = host.spaceManager.tabManager
+    let manager = host.spaceManager.tabCollection
     let firstTabID = manager.createTab(title: "First")
     let secondTabID = manager.createTab(title: "Second")
     manager.selectTab(secondTabID)

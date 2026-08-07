@@ -33,8 +33,8 @@ final class TerminalSpaceManager {
     space(for: displayedSpaceID) ?? spaces[0]
   }
 
-  var tabManager: TerminalTabManager {
-    displayedInstance.tabManager
+  var tabCollection: TerminalTabCollection {
+    displayedInstance.tabCollection
   }
 
   var tabs: [TerminalTabItem] {
@@ -42,11 +42,11 @@ final class TerminalSpaceManager {
   }
 
   var rootItems: [TerminalTabRootItem] {
-    displayedInstance.tabManager.rootItems
+    displayedInstance.tabCollection.rootItems
   }
 
   var visibleTabs: [TerminalTabItem] {
-    displayedInstance.tabManager.visibleTabs
+    displayedInstance.tabCollection.visibleTabs
   }
 
   var selectedTabID: TerminalTabID? {
@@ -152,16 +152,16 @@ final class TerminalSpaceManager {
   }
 
   func instance(for tabID: TerminalTabID) -> TerminalSpaceInstance? {
-    instancesBySpaceID.values.first { $0.tabManager.tabs.contains { $0.id == tabID } }
+    instancesBySpaceID.values.first { $0.tabCollection.tabs.contains { $0.id == tabID } }
   }
 
   func instance(for groupID: TerminalTabGroupID) -> TerminalSpaceInstance? {
-    instancesBySpaceID.values.first { $0.tabManager.group(for: groupID) != nil }
+    instancesBySpaceID.values.first { $0.tabCollection.group(for: groupID) != nil }
   }
 
-  func tabManager(for spaceID: TerminalSpaceID) -> TerminalTabManager? {
+  func tabCollection(for spaceID: TerminalSpaceID) -> TerminalTabCollection? {
     guard spaces.contains(where: { $0.id == spaceID }) else { return nil }
-    return instance(warming: spaceID).tabManager
+    return instance(warming: spaceID).tabCollection
   }
 
   func space(for spaceID: TerminalSpaceID) -> TerminalSpaceItem? {
@@ -181,7 +181,7 @@ final class TerminalSpaceManager {
   }
 
   func rootItems(in spaceID: TerminalSpaceID) -> [TerminalTabRootItem] {
-    instance(for: spaceID)?.tabManager.rootItems ?? []
+    instance(for: spaceID)?.tabCollection.rootItems ?? []
   }
 
   func selectedTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
@@ -193,7 +193,7 @@ final class TerminalSpaceManager {
   }
 
   func tab(for tabID: TerminalTabID) -> TerminalTabItem? {
-    instance(for: tabID)?.tabManager.tabs.first { $0.id == tabID }
+    instance(for: tabID)?.tabCollection.tabs.first { $0.id == tabID }
   }
 
   @discardableResult
@@ -202,8 +202,8 @@ final class TerminalSpaceManager {
     selectedTabID: TerminalTabID?,
     in spaceID: TerminalSpaceID
   ) -> Bool {
-    guard let tabManager = tabManager(for: spaceID) else { return false }
-    tabManager.restoreRootItems(rootItems, selectedTabID: selectedTabID)
+    guard let tabCollection = tabCollection(for: spaceID) else { return false }
+    tabCollection.restoreRootItems(rootItems, selectedTabID: selectedTabID)
     return true
   }
 }

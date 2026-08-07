@@ -19,7 +19,7 @@ extension TerminalHostState {
 
     case .create(let request):
       let target = try resolveSpaceTarget(request.target)
-      guard let manager = spaceManager.tabManager(for: target.space.id) else {
+      guard let manager = spaceManager.tabCollection(for: target.space.id) else {
         throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
       }
       guard
@@ -125,7 +125,7 @@ extension TerminalHostState {
     warmInstance(containingGroup: groupID)
     guard
       let space = spaceManager.space(for: groupID),
-      let group = spaceManager.tabManager(for: space.id)?.group(for: groupID),
+      let group = spaceManager.tabCollection(for: space.id)?.group(for: groupID),
       let spaceIndex = spaceManager.spaceIndex(for: space.id)
     else {
       throw TerminalControlError.groupNotFound(rawGroupID)
@@ -137,7 +137,7 @@ extension TerminalHostState {
     in spaceID: TerminalSpaceID,
     groupID: UUID
   ) throws -> UInt64 {
-    guard let manager = spaceManager.tabManager(for: spaceID) else {
+    guard let manager = spaceManager.tabCollection(for: spaceID) else {
       throw TerminalControlError.groupNotFound(groupID)
     }
     return manager.topologyRevision
@@ -170,7 +170,7 @@ extension TerminalHostState {
     _ request: TerminalMoveTabRequest
   ) throws -> SupatermMoveTabResult {
     let target = try resolveTabItemTarget(request.target)
-    guard let manager = spaceManager.tabManager(for: target.spaceID) else {
+    guard let manager = spaceManager.tabCollection(for: target.spaceID) else {
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
     }
 

@@ -37,9 +37,9 @@ struct TerminalSpaceManagerTests {
       catalog: makeCatalog(spaces),
       displayedSpaceID: spaces[0].id
     )
-    let firstTabID = manager.tabManager.createTab(title: "Terminal 1")
+    let firstTabID = manager.tabCollection.createTab(title: "Terminal 1")
     manager.display(spaces[1].id)
-    let secondTabID = manager.tabManager.createTab(title: "Terminal 2")
+    let secondTabID = manager.tabCollection.createTab(title: "Terminal 2")
 
     #expect(manager.tabs.map(\.id) == [secondTabID])
     #expect(manager.tabs(in: spaces[0].id).map(\.id) == [firstTabID])
@@ -54,7 +54,7 @@ struct TerminalSpaceManagerTests {
     let otherSpaceID = TerminalSpaceID()
 
     #expect(!manager.display(otherSpaceID))
-    #expect(manager.tabManager(for: otherSpaceID) == nil)
+    #expect(manager.tabCollection(for: otherSpaceID) == nil)
     #expect(manager.tabs(in: otherSpaceID).isEmpty)
     #expect(manager.spaceIndex(for: space.id) == 1)
   }
@@ -63,7 +63,7 @@ struct TerminalSpaceManagerTests {
   func catalogUpdatesRenameWithoutChangingTabs() {
     let space = TerminalSpaceItem(name: "A")
     let manager = TerminalSpaceManager(catalog: makeCatalog([space]), displayedSpaceID: space.id)
-    let tabID = manager.tabManager.createTab(title: "Terminal 1")
+    let tabID = manager.tabCollection.createTab(title: "Terminal 1")
 
     manager.applyCatalog(
       TerminalSpaceCatalog(
@@ -89,7 +89,7 @@ struct TerminalSpaceManagerTests {
       catalog: makeCatalog(spaces),
       displayedSpaceID: spaces[1].id
     )
-    _ = manager.tabManager.createTab(title: "Terminal 1")
+    _ = manager.tabCollection.createTab(title: "Terminal 1")
 
     let discarded = manager.applyCatalog(
       TerminalSpaceCatalog(

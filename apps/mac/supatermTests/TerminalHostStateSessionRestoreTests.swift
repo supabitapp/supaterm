@@ -196,7 +196,7 @@ struct TerminalHostStateSessionRestoreTests {
       let firstTabID = try #require(tabs.first?.id)
       let groupedTabID = try #require(tabs.last?.id)
       host.handleCommand(.selectTab(groupedTabID))
-      host.spaceManager.tabManager(for: spaceID)?.setLockedTitle(
+      host.spaceManager.tabCollection(for: spaceID)?.setLockedTitle(
         groupedTabID, title: "Grouped Tab")
       host.selectedSurfaceView?.setTitleOverride("Pane Title")
       let groupID = try #require(
@@ -219,10 +219,10 @@ struct TerminalHostStateSessionRestoreTests {
       #expect(restored.spaceManager.tabs(in: spaceID).map(\.id) == tabs.map(\.id))
       #expect(restored.collapsedTabGroupIDs == [groupID])
       #expect(
-        restored.spaceManager.tabManager(for: spaceID)?.groupID(containing: groupedTabID) == groupID
+        restored.spaceManager.tabCollection(for: spaceID)?.groupID(containing: groupedTabID) == groupID
       )
       #expect(
-        restored.spaceManager.tabManager(for: spaceID)?.group(for: groupID)?.lifetime
+        restored.spaceManager.tabCollection(for: spaceID)?.group(for: groupID)?.lifetime
           == .automatic
       )
       #expect(restored.spaceManager.tabs(in: spaceID).last?.title == "Grouped Tab")
@@ -306,9 +306,9 @@ struct TerminalHostStateSessionRestoreTests {
           from: TerminalWindowSession(displayedSpaceID: spaceID, spaces: [session])
         )
       )
-      let manager = try #require(host.spaceManager.tabManager(for: spaceID))
+      let manager = try #require(host.spaceManager.tabCollection(for: spaceID))
       #expect(manager.tabs.map(\.id) == [automaticTabID, durableTabID])
-      #expect(manager.selectedTabId == automaticTabID)
+      #expect(manager.selectedTabID == automaticTabID)
       #expect(host.collapsedTabGroupIDs == [automaticGroupID, durableGroupID])
       #expect(manager.group(for: automaticGroupID)?.lifetime == .automatic)
       #expect(manager.group(for: durableGroupID)?.lifetime == .durable)
@@ -397,7 +397,7 @@ struct TerminalHostStateSessionRestoreTests {
       #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == nil)
       #expect(host.trees[hiddenTabID]?.leaves().map(\.id) == [hiddenSurfaceID])
       #expect(host.spaceManager.tabs(in: spaces[1].id).first?.title == "Hidden Tab")
-      #expect(host.spaceManager.tabManager(for: spaces[1].id)?.isPinned(hiddenTabID) == true)
+      #expect(host.spaceManager.tabCollection(for: spaces[1].id)?.isPinned(hiddenTabID) == true)
     }
   }
 

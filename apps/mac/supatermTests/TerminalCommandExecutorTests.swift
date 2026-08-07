@@ -676,15 +676,15 @@ struct TerminalCommandExecutorTests {
       let unpinned = try commandExecutor.unpinTab(TerminalTabTarget(tabID: groupedTabID.rawValue))
 
       #expect(!unpinned.isPinned)
-      #expect(host.spaceManager.tabManager.rootItemID(containing: groupedTabID) == .group(groupID))
-      #expect(host.spaceManager.tabManager.tabIDs(in: groupID) == [firstTabID, groupedTabID])
+      #expect(host.spaceManager.tabCollection.rootItemID(containing: groupedTabID) == .group(groupID))
+      #expect(host.spaceManager.tabCollection.tabIDs(in: groupID) == [firstTabID, groupedTabID])
 
       let pinned = try commandExecutor.pinTab(TerminalTabTarget(tabID: groupedTabID.rawValue))
 
       #expect(pinned.isPinned)
-      #expect(host.spaceManager.tabManager.rootItemID(containing: groupedTabID) == .tab(groupedTabID))
-      #expect(host.spaceManager.tabManager.pinnedRootItems.map(\.id) == [.tab(groupedTabID)])
-      #expect(host.spaceManager.tabManager.tabIDs(in: groupID) == [firstTabID])
+      #expect(host.spaceManager.tabCollection.rootItemID(containing: groupedTabID) == .tab(groupedTabID))
+      #expect(host.spaceManager.tabCollection.pinnedRootItems.map(\.id) == [.tab(groupedTabID)])
+      #expect(host.spaceManager.tabCollection.tabIDs(in: groupID) == [firstTabID])
     }
   }
 }

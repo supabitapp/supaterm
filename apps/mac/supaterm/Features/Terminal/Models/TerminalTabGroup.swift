@@ -160,6 +160,47 @@ nonisolated struct TerminalTabCloseResult: Equatable, Sendable {
   let topologyRevision: UInt64
 }
 
+nonisolated struct TerminalTabTransferRequest: Equatable, Sendable {
+  let operationID: TerminalTabMoveOperationID
+  let expectedSourceRevision: UInt64
+  let expectedDestinationRevision: UInt64
+  let itemIDs: [TerminalTabRootItemID]
+  let destination: TerminalTabPlacement
+
+  init(
+    operationID: TerminalTabMoveOperationID = TerminalTabMoveOperationID(),
+    expectedSourceRevision: UInt64,
+    expectedDestinationRevision: UInt64,
+    itemIDs: [TerminalTabRootItemID],
+    destination: TerminalTabPlacement
+  ) {
+    self.operationID = operationID
+    self.expectedSourceRevision = expectedSourceRevision
+    self.expectedDestinationRevision = expectedDestinationRevision
+    self.itemIDs = itemIDs
+    self.destination = destination
+  }
+}
+
+nonisolated struct TerminalTabTransferResult: Equatable, Sendable {
+  let operationID: TerminalTabMoveOperationID
+  let itemIDs: [TerminalTabRootItemID]
+  let tabIDs: [TerminalTabID]
+  let destination: TerminalTabPlacement
+  let deletedEmptyGroupIDs: [TerminalTabGroupID]
+  let sourceRevision: UInt64
+  let destinationRevision: UInt64
+}
+
+nonisolated enum TerminalTabTransferError: Error, Equatable {
+  case destinationContainsGroup(TerminalTabGroupID)
+  case destinationContainsTab(TerminalTabID)
+  case sameCollection
+  case staleDestination(expected: UInt64, actual: UInt64)
+  case staleSource(expected: UInt64, actual: UInt64)
+  case topology(TerminalTabMoveError)
+}
+
 nonisolated enum TerminalTabMoveError: Error, Equatable {
   case ancestorAndDescendant(TerminalTabGroupID, TerminalTabID)
   case duplicateItem(TerminalTabRootItemID)

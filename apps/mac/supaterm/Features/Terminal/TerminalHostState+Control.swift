@@ -368,13 +368,13 @@ extension TerminalHostState {
     } catch let error as TerminalCreateTabError {
       if let createdTabID {
         removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw error
     } catch {
       if let createdTabID {
         removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw TerminalCreateTabError.creationFailed
     }
@@ -386,13 +386,13 @@ extension TerminalHostState {
       focusRequested: input.focusRequested,
       currentSelectedTabID: input.previousSelectedTabID
     )
-    if let tabManager = spaceManager.tabManager(for: input.targetSpaceID),
-      resolvedSelectedTabID != tabManager.selectedTabId
+    if let tabCollection = spaceManager.tabCollection(for: input.targetSpaceID),
+      resolvedSelectedTabID != tabCollection.selectedTabID
     {
       if input.focusRequested {
         applySelectedTab(resolvedSelectedTabID, in: input.targetSpaceID)
       } else {
-        tabManager.selectTab(resolvedSelectedTabID)
+        tabCollection.selectTab(resolvedSelectedTabID)
       }
     }
 
@@ -662,7 +662,7 @@ extension TerminalHostState {
 
   func unpinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
     let resolvedTarget = try resolveTabItemTarget(target)
-    if let manager = spaceManager.tabManager(for: resolvedTarget.spaceID),
+    if let manager = spaceManager.tabCollection(for: resolvedTarget.spaceID),
       manager.rootItemID(containing: resolvedTarget.tabID) == .tab(resolvedTarget.tabID)
     {
       _ = setTabPinned(resolvedTarget.tabID, isPinned: false)
@@ -925,7 +925,7 @@ extension TerminalHostState {
   func pinTabResult(for tabID: TerminalTabID) throws -> SupatermPinTabResult {
     let isPinned: Bool
     if let space = spaceManager.space(for: tabID),
-      let manager = spaceManager.tabManager(for: space.id),
+      let manager = spaceManager.tabCollection(for: space.id),
       manager.rootItemID(containing: tabID) == .tab(tabID)
     {
       isPinned = manager.isPinned(tabID) == true
