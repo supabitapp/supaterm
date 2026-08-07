@@ -53,6 +53,7 @@ final class TerminalHostState {
     case next
     case previous
     case rename(TerminalSpaceID, String)
+    case reorder(TerminalSpaceID, insertionIndex: Int)
     case select(TerminalSpaceID)
     case selectSlot(Int)
     case setColor(TerminalSpaceID, ThemeTint)
@@ -280,6 +281,9 @@ final class TerminalHostState {
   var runtimeConfigObserver: NSObjectProtocol?
   var onSessionChange: @MainActor () -> Void = {}
   var onSpaceAction: @MainActor (SpaceAction) -> Void = { _ in }
+  var onTabDroppedOnSpace: @MainActor (TerminalTabDragPayload, TerminalSpaceID) -> Bool = { _, _ in
+    false
+  }
   @ObservationIgnored
   var paneCountAcrossWindows: @MainActor (TerminalSpaceID) -> Int = { _ in 0 }
   @ObservationIgnored

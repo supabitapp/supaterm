@@ -61,6 +61,19 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
     return spaces[(index + step + spaces.count) % spaces.count].id
   }
 
+  @discardableResult
+  mutating func moveSpace(_ spaceID: TerminalSpaceID, toInsertionIndex insertionIndex: Int) -> Bool {
+    guard let sourceIndex = spaces.firstIndex(where: { $0.id == spaceID }) else { return false }
+    let space = spaces.remove(at: sourceIndex)
+    var destinationIndex = min(max(0, insertionIndex), spaces.count + 1)
+    if insertionIndex > sourceIndex {
+      destinationIndex -= 1
+    }
+    destinationIndex = min(destinationIndex, spaces.count)
+    spaces.insert(space, at: destinationIndex)
+    return sourceIndex != destinationIndex
+  }
+
   static func sanitized(_ catalog: Self?) -> Self {
     guard let catalog else { return .default }
 
