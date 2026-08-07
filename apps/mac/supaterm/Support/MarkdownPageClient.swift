@@ -73,9 +73,6 @@ struct MarkdownPageRenderer {
 
   private func pageData(_ markdown: String) -> Data {
     let body = MarkdownParser(modifiers: [
-      Modifier(target: .html) { input in
-        Self.escapeHTML(input.markdown)
-      },
       Modifier(target: .images) { input in
         Self.escapeHTML(input.markdown)
       },
@@ -85,8 +82,90 @@ struct MarkdownPageRenderer {
       Modifier(target: .codeBlocks) { input in
         Self.codeBlockHTML(input)
       },
-    ]).html(from: markdown)
+    ]).html(from: Self.preparedMarkdown(markdown))
     return Data(Self.document(body).utf8)
+  }
+
+  private static func preparedMarkdown(_ markdown: String) -> String {
+    var output = ""
+    var index = markdown.startIndex
+    var codeDelimiter: (value: String, isBlock: Bool)?
+    var precedingBackslashes = 0
+
+    while index < markdown.endIndex {
+      let character = markdown[index]
+
+      if character == "\\" {
+        output.append(character)
+        precedingBackslashes += 1
+        markdown.formIndex(after: &index)
+        continue
+      }
+
+      let isEscaped = !precedingBackslashes.isMultiple(of: 2)
+      precedingBackslashes = 0
+
+      if character.isNewline, codeDelimiter?.isBlock == false {
+        codeDelimiter = nil
+      }
+
+      if !isEscaped, character == "`" {
+        let end = markdown[index...].firstIndex { $0 != character } ?? markdown.endIndex
+        let delimiter = String(markdown[index..<end])
+        if codeDelimiter == nil {
+          codeDelimiter = (delimiter, delimiter.count >= 3)
+        } else if codeDelimiter?.value == delimiter {
+          codeDelimiter = nil
+        }
+        output += delimiter
+        index = end
+        continue
+      }
+
+      if !isEscaped,
+        codeDelimiter == nil,
+        character == "<",
+        let end = markdown[index...].firstIndex(where: { $0 == ">" || $0.isNewline }),
+        markdown[end] == ">",
+        let autolink = autolink(for: markdown[markdown.index(after: index)..<end])
+      {
+        output += autolink
+        index = markdown.index(after: end)
+        continue
+      }
+
+      switch character {
+      case "<" where codeDelimiter == nil: output += "&lt;"
+      case ">" where codeDelimiter == nil: output += "&gt;"
+      default: output.append(character)
+      }
+      markdown.formIndex(after: &index)
+    }
+
+    return output
+  }
+
+  private static func autolink(for source: Substring) -> String? {
+    let value = String(source)
+    let destination = isEmailAddress(value) ? "mailto:\(value)" : value
+    guard let url = safeLinkURL(destination) else { return nil }
+
+    let label = value.replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "]", with: "\\]")
+    let escapedDestination =
+      url.absoluteString
+      .replacingOccurrences(of: "(", with: "%28")
+      .replacingOccurrences(of: ")", with: "%29")
+    return "[\(label)](\(escapedDestination))"
+  }
+
+  private static func isEmailAddress(_ value: String) -> Bool {
+    let parts = value.split(separator: "@", omittingEmptySubsequences: false)
+    guard parts.count == 2, !parts[0].isEmpty else { return false }
+    let domain = parts[1].split(separator: ".", omittingEmptySubsequences: false)
+    return domain.count >= 2
+      && domain.allSatisfy { !$0.isEmpty }
+      && !value.contains(where: \.isWhitespace)
   }
 
   private static func linkHTML(_ input: Modifier.Input) -> String {
@@ -96,15 +175,26 @@ struct MarkdownPageRenderer {
         options: .documentTidyHTML
       ),
       let element = try? document.nodes(forXPath: "//a").first as? XMLElement,
-      let href = element.attribute(forName: "href")?.stringValue,
-      let url = URL(string: href),
-      let scheme = url.scheme?.lowercased(),
-      ["http", "https"].contains(scheme),
-      url.host != nil
+      let href = element.attribute(forName: "href")?.stringValue?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+      let url = safeLinkURL(href)
     else {
       return escapeHTML(input.markdown)
     }
     return "<a href=\"\(escapeHTML(url.absoluteString))\">\(escapeHTML(element.stringValue ?? ""))</a>"
+  }
+
+  private static func safeLinkURL(_ value: String) -> URL? {
+    guard let url = URL(string: value), let scheme = url.scheme?.lowercased() else { return nil }
+    switch scheme {
+    case "http", "https":
+      return url.host == nil ? nil : url
+    case "mailto":
+      let address = String(value.dropFirst("mailto:".count))
+      return isEmailAddress(address) ? url : nil
+    default:
+      return nil
+    }
   }
 
   private static func codeBlockHTML(_ input: Modifier.Input) -> String {
