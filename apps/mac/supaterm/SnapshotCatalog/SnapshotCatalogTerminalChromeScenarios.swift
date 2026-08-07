@@ -67,16 +67,18 @@ private struct SpaceSwitcherHoverSnapshotFixture: View {
 
   var body: some View {
     TerminalNativeSpaceSwitcher(
-      palette: palette,
-      spaces: SidebarChromeSnapshotContext.selectedGroupTerminal.spaces,
-      selectedSpaceID: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpaceID,
-      canDelete: false,
-      select: { _ in },
-      create: {},
-      edit: { _ in },
-      delete: { _ in },
-      reorder: { _, _ in },
-      dropTab: { _, _ in false }
+      configuration: TerminalNativeSpaceSwitcherConfiguration(
+        palette: palette,
+        spaces: SidebarChromeSnapshotContext.selectedGroupTerminal.spaces,
+        selectedSpaceID: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpaceID,
+        shortcutOverrides: [:],
+        select: { _ in },
+        create: {},
+        edit: { _ in },
+        delete: { _ in },
+        reorder: { _, _ in },
+        dropTab: { _, _ in false }
+      )
     )
     .padding(10)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

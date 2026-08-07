@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import SupaTheme
+import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -191,22 +192,6 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func spaceSwitcherResolvesSelectedSpace() throws {
-    let first = TerminalSpaceItem(id: TerminalSpaceID(), name: "First")
-    let second = TerminalSpaceItem(id: TerminalSpaceID(), name: "Second")
-
-    let presentation = try #require(
-      TerminalSpaceSwitcherPresentation(
-        spaces: [first, second],
-        selectedSpaceID: second.id
-      )
-    )
-
-    #expect(presentation.selectedSpace == second)
-    #expect(presentation.canDelete)
-  }
-
-  @Test
   func spaceSwitcherAlignsWithTrafficLightCenters() {
     let trafficLightCenter =
       WindowTrafficLightMetrics.edgePadding + WindowTrafficLightMetrics.buttonSize / 2
@@ -220,7 +205,7 @@ struct TerminalSidebarLayoutTests {
   @Test
   func spaceSwitcherUsesEffectiveSpaceShortcuts() {
     let bindings = (0..<4).map {
-      TerminalSpaceSwitcherPresentation.shortcutBinding(
+      TerminalSpaceShortcut.shortcutBinding(
         forSpaceAt: $0,
         overrides: [:]
       )?.display
@@ -232,13 +217,13 @@ struct TerminalSidebarLayoutTests {
   @Test
   func spaceSwitcherOmitsDisabledAndOutOfRangeShortcuts() {
     #expect(
-      TerminalSpaceSwitcherPresentation.shortcutBinding(
+      TerminalSpaceShortcut.shortcutBinding(
         forSpaceAt: 0,
         overrides: [.selectSpace(1): .disabled]
       ) == nil
     )
     #expect(
-      TerminalSpaceSwitcherPresentation.shortcutBinding(
+      TerminalSpaceShortcut.shortcutBinding(
         forSpaceAt: 10,
         overrides: [:]
       ) == nil
@@ -246,28 +231,33 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func spaceSwitcherDisablesDeletingOnlySpace() throws {
-    let space = TerminalSpaceItem(id: TerminalSpaceID(), name: "Only")
+  func spaceSwitcherKeepsNativeControlsAcrossUpdates() {
+    let first = TerminalSpaceItem(id: TerminalSpaceID(), name: "First")
+    let second = TerminalSpaceItem(id: TerminalSpaceID(), name: "Second")
+    let view = TerminalNativeSpaceSwitcherView()
 
-    let presentation = try #require(
-      TerminalSpaceSwitcherPresentation(
-        spaces: [space],
-        selectedSpaceID: space.id
+    func configuration(
+      spaces: [TerminalSpaceItem],
+      selectedSpaceID: TerminalSpaceID
+    ) -> TerminalNativeSpaceSwitcherConfiguration {
+      TerminalNativeSpaceSwitcherConfiguration(
+        palette: Palette(colorScheme: .dark),
+        spaces: spaces,
+        selectedSpaceID: selectedSpaceID,
+        shortcutOverrides: [:],
+        select: { _ in },
+        create: {},
+        edit: { _ in },
+        delete: { _ in },
+        reorder: { _, _ in },
+        dropTab: { _, _ in false }
       )
-    )
+    }
 
-    #expect(!presentation.canDelete)
-  }
+    view.apply(configuration(spaces: [first, second], selectedSpaceID: first.id))
+    let originalSubviewIDs = Set(view.subviews.map(ObjectIdentifier.init))
+    view.apply(configuration(spaces: [second, first], selectedSpaceID: second.id))
 
-  @Test
-  func spaceSwitcherRejectsMissingSelection() {
-    let space = TerminalSpaceItem(id: TerminalSpaceID(), name: "Only")
-
-    #expect(
-      TerminalSpaceSwitcherPresentation(
-        spaces: [space],
-        selectedSpaceID: TerminalSpaceID()
-      ) == nil
-    )
+    #expect(Set(view.subviews.map(ObjectIdentifier.init)) == originalSubviewIDs)
   }
 }

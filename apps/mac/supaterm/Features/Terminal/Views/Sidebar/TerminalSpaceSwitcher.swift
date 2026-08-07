@@ -5,18 +5,7 @@ import SupaTheme
 import SupatermSupport
 import SwiftUI
 
-struct TerminalSpaceSwitcherPresentation: Equatable {
-  let selectedSpace: TerminalSpaceItem
-  let canDelete: Bool
-
-  init?(spaces: [TerminalSpaceItem], selectedSpaceID: TerminalSpaceID?) {
-    guard let selectedSpace = spaces.first(where: { $0.id == selectedSpaceID }) else {
-      return nil
-    }
-    self.selectedSpace = selectedSpace
-    self.canDelete = spaces.count > 1
-  }
-
+enum TerminalSpaceShortcut {
   static func shortcutBinding(
     forSpaceAt index: Int,
     overrides: [SupatermShortcutID: SupatermShortcutOverride]
@@ -83,24 +72,25 @@ struct TerminalSpaceSwitcher: View {
   let palette: Palette
   let terminal: TerminalHostState
   let spaces: [TerminalSpaceItem]
-  let selectedSpaceID: TerminalSpaceID?
+  let selectedSpaceID: TerminalSpaceID
+
+  @Shared(.supatermSettings) private var supatermSettings = .default
 
   var body: some View {
-    if let presentation = TerminalSpaceSwitcherPresentation(
-      spaces: spaces,
-      selectedSpaceID: selectedSpaceID
-    ) {
+    if spaces.contains(where: { $0.id == selectedSpaceID }) {
       TerminalNativeSpaceSwitcher(
-        palette: palette,
-        spaces: spaces,
-        selectedSpaceID: selectedSpaceID,
-        canDelete: presentation.canDelete,
-        select: { _ = store.send(.selectSpaceButtonTapped($0)) },
-        create: { _ = store.send(.spaceCreateButtonTapped) },
-        edit: { space in _ = store.send(.spaceRenameRequested(space)) },
-        delete: { space in _ = store.send(.spaceDeleteRequested(space)) },
-        reorder: { terminal.reorderSpace($0, toInsertionIndex: $1) },
-        dropTab: { terminal.dropTab($0, on: $1) }
+        configuration: TerminalNativeSpaceSwitcherConfiguration(
+          palette: palette,
+          spaces: spaces,
+          selectedSpaceID: selectedSpaceID,
+          shortcutOverrides: supatermSettings.shortcutOverrides,
+          select: { _ = store.send(.selectSpaceButtonTapped($0)) },
+          create: { _ = store.send(.spaceCreateButtonTapped) },
+          edit: { space in _ = store.send(.spaceRenameRequested(space)) },
+          delete: { space in _ = store.send(.spaceDeleteRequested(space)) },
+          reorder: { terminal.reorderSpace($0, toInsertionIndex: $1) },
+          dropTab: { terminal.dropTab($0, on: $1) }
+        )
       )
       .frame(height: TerminalWindowHeaderMetrics.switcherHeight)
     }
