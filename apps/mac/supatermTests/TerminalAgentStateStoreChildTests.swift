@@ -650,6 +650,7 @@ extension TerminalAgentStateStoreTests {
         detail: nil,
         attentionRequestID: nil,
         hoverMessages: [],
+        previousMessage: nil,
         isActionable: false,
         progressRowsBySource: [:],
         activeChildren: [

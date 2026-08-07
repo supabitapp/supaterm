@@ -4,13 +4,14 @@ import SupatermCLIShared
 nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   var progressRows: [PaneAgentProgressRow] = []
   var activeChildren: [TerminalAgentActiveChild] = []
+  var latestMessage: String?
   var workingDirectoryPath: String?
   var branchDetails: PaneAgentBranchDetails?
   var artifacts: [PaneAgentArtifact] = []
   var session: PaneAgentPanelSession?
 
   var isEmpty: Bool {
-    workingDirectoryPath == nil && !hasContentBesidesWorkspace
+    latestMessage == nil && workingDirectoryPath == nil && !hasContentBesidesWorkspace
   }
 
   var hasContentBesidesWorkspace: Bool {

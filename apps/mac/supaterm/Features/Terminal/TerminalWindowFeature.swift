@@ -160,6 +160,7 @@ struct TerminalWindowFeature {
     case closeTabsBelowRequested(TerminalTabID)
     case floatingSidebarVisibilityChanged(Bool)
     case agentPanelCopyText(String)
+    case agentPanelShowMarkdown(String)
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
@@ -213,6 +214,7 @@ struct TerminalWindowFeature {
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(ClipboardClient.self) var clipboardClient
   @Dependency(ExternalNavigationClient.self) var externalNavigationClient
+  @Dependency(MarkdownPageClient.self) var markdownPageClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalCommandPaletteClient.self) var terminalCommandPaletteClient
   @Dependency(TerminalClient.self) var terminalClient
@@ -402,6 +404,12 @@ struct TerminalWindowFeature {
       case .agentPanelCopyText(let value):
         return .run { [clipboardClient] _ in
           await clipboardClient.copyString(value)
+        }
+
+      case .agentPanelShowMarkdown(let markdown):
+        return .run { [externalNavigationClient, markdownPageClient] _ in
+          guard let url = try? await markdownPageClient.create(markdown) else { return }
+          _ = await externalNavigationClient.open(url)
         }
 
       case .agentPanelForkSessionRequested(

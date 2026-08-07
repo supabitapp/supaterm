@@ -412,6 +412,7 @@ struct TerminalSessionCatalogTests {
       phase: .needsInput,
       detail: "Approve tests",
       hoverMessages: ["Inspecting", "Testing"],
+      previousMessage: "Previous result",
       nativePlanRows: [
         PaneAgentProgressRow(id: "plan-1", title: "Implement", status: .running)
       ],

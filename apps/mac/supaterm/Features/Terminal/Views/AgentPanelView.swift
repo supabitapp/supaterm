@@ -26,6 +26,7 @@ struct AgentPanelView: View {
   let showsShortcutHints: Bool
   let copyText: (String) -> Void
   let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
+  let showMarkdown: (String) -> Void
   let openURL: (URL) -> Void
 
   @Shared(.supatermSettings) private var supatermSettings = .default
@@ -106,8 +107,8 @@ struct AgentPanelView: View {
         }
       }
 
-      if let session = presentation.session {
-        actionBar(session)
+      if presentation.latestMessage != nil || presentation.session != nil {
+        actionBar
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -293,29 +294,43 @@ struct AgentPanelView: View {
     }
   }
 
-  private func actionBar(_ session: PaneAgentPanelSession) -> some View {
+  private var actionBar: some View {
     section("Agent actions") {
       VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
-        AgentPanelActionRow(
-          icon: .asset("git-fork"),
-          title: Self.forkTitle(forksDown: forksDown),
-          palette: palette,
-          shortcutHint: shortcutHint(.forkAgentSession),
-          helpText: Self.forkHelpText(forksDown: forksDown),
-          action: {
-            forkSession(Self.forkDirection(forksDown: forksDown), session)
-          }
-        )
-        AgentPanelActionRow(
-          icon: .asset("copy"),
-          title: copyTitle("Copy session ID", for: .sessionID),
-          palette: palette,
-          shortcutHint: shortcutHint(.copyAgentSessionID),
-          helpText: "Copy session ID",
-          action: {
-            copy(session.sessionID, target: .sessionID)
-          }
-        )
+        if let latestMessage = presentation.latestMessage {
+          AgentPanelActionRow(
+            icon: .system("doc.text"),
+            title: "Show last message in Markdown",
+            palette: palette,
+            shortcutHint: nil,
+            helpText: "Show last message in Markdown",
+            action: {
+              showMarkdown(latestMessage)
+            }
+          )
+        }
+        if let session = presentation.session {
+          AgentPanelActionRow(
+            icon: .asset("git-fork"),
+            title: Self.forkTitle(forksDown: forksDown),
+            palette: palette,
+            shortcutHint: shortcutHint(.forkAgentSession),
+            helpText: Self.forkHelpText(forksDown: forksDown),
+            action: {
+              forkSession(Self.forkDirection(forksDown: forksDown), session)
+            }
+          )
+          AgentPanelActionRow(
+            icon: .asset("copy"),
+            title: copyTitle("Copy session ID", for: .sessionID),
+            palette: palette,
+            shortcutHint: shortcutHint(.copyAgentSessionID),
+            helpText: "Copy session ID",
+            action: {
+              copy(session.sessionID, target: .sessionID)
+            }
+          )
+        }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }

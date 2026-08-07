@@ -121,6 +121,7 @@ extension TerminalHostState {
     let presentation = metadata.panelPresentation(
       progressRows: current?.presentation.progressRows ?? [],
       activeChildren: current?.presentation.activeChildren ?? [],
+      latestMessage: current?.presentation.latestMessage,
       workingDirectoryPath: workingDirectoryPath,
       session: session
     )
@@ -140,6 +141,7 @@ extension TerminalHostState {
             status: .running
           )
         ],
+        latestMessage: current.presentation.latestMessage,
         workingDirectoryPath: workingDirectoryPath
       )
     case .needsInput:
@@ -151,6 +153,7 @@ extension TerminalHostState {
             status: .pending
           )
         ],
+        latestMessage: current.presentation.latestMessage,
         workingDirectoryPath: workingDirectoryPath
       )
     case .idle:

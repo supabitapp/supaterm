@@ -201,6 +201,7 @@ struct TerminalSplitTreeView: View {
     case drop(payloadId: UUID, destinationId: UUID, zone: DropZone)
     case equalize
     case agentPanelCopyText(String)
+    case agentPanelShowMarkdown(String)
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
@@ -489,6 +490,9 @@ struct TerminalSplitTreeView: View {
               )
             )
           },
+          showMarkdown: { markdown in
+            action(.agentPanelShowMarkdown(markdown))
+          },
           toggle: toggleAgentPanel,
           openURL: { url in
             action(.agentPanelURLTapped(url))
@@ -771,6 +775,7 @@ struct TerminalSplitTreeView: View {
     let topPadding: CGFloat
     let copyText: (String) -> Void
     let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
+    let showMarkdown: (String) -> Void
     let toggle: () -> Void
     let openURL: (URL) -> Void
 
@@ -791,6 +796,7 @@ struct TerminalSplitTreeView: View {
             showsShortcutHints: shortcutHint != nil,
             copyText: copyText,
             forkSession: forkSession,
+            showMarkdown: showMarkdown,
             openURL: openURL
           )
           .onGeometryChange(for: CGFloat.self) { proxy in

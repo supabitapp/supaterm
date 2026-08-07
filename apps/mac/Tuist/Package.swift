@@ -23,6 +23,7 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-argument-parser", exact: "1.8.2"),
     .package(url: "https://github.com/mattt/swift-toml", exact: "2.0.0"),
     .package(url: "https://github.com/PostHog/posthog-ios.git", exact: "3.64.6"),
+    .package(url: "https://github.com/JohnSundell/Ink.git", exact: "0.6.0"),
     .package(url: "https://github.com/pointfreeco/swift-clocks", exact: "1.1.0"),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", exact: "1.26.0"),
     .package(url: "https://github.com/pointfreeco/swift-sharing", exact: "2.9.1"),

@@ -706,6 +706,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
   let detail: String?
   let attentionRequestID: String?
   let hoverMessages: [String]
+  let previousMessage: String?
   let nativePlanRows: [PaneAgentProgressRow]
   let transcriptRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
@@ -724,6 +725,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     detail: String? = nil,
     attentionRequestID: String? = nil,
     hoverMessages: [String] = [],
+    previousMessage: String? = nil,
     nativePlanRows: [PaneAgentProgressRow] = [],
     transcriptRows: [PaneAgentProgressRow] = [],
     activeChildren: [TerminalAgentActiveChild] = [],
@@ -741,6 +743,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     self.detail = detail
     self.attentionRequestID = attentionRequestID
     self.hoverMessages = hoverMessages
+    self.previousMessage = previousMessage
     self.nativePlanRows = nativePlanRows
     self.transcriptRows = transcriptRows
     self.activeChildren = activeChildren
@@ -761,6 +764,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       detail: snapshot.detail,
       attentionRequestID: snapshot.attentionRequestID,
       hoverMessages: snapshot.hoverMessages,
+      previousMessage: snapshot.previousMessage,
       nativePlanRows: snapshot.progressRowsBySource[.nativePlan] ?? [],
       transcriptRows: snapshot.progressRowsBySource[.transcript] ?? [],
       activeChildren: snapshot.activeChildren,
@@ -793,6 +797,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       detail: detail,
       attentionRequestID: attentionRequestID,
       hoverMessages: hoverMessages,
+      previousMessage: previousMessage,
       isActionable: false,
       progressRowsBySource: progressRowsBySource,
       activeChildren: activeChildren,
@@ -819,6 +824,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       detail: detail,
       attentionRequestID: attentionRequestID,
       hoverMessages: hoverMessages,
+      previousMessage: previousMessage,
       nativePlanRows: nativePlanRows,
       transcriptRows: transcriptRows,
       activeChildren: activeChildren,

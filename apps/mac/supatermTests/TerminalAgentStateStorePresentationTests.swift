@@ -238,6 +238,51 @@ extension TerminalAgentStateStoreTests {
   }
 
   @Test
+  func latestMessageSurvivesTheNextTurn() throws {
+    let fixture = startedStore()
+    let surfaceID = fixture.surfaceID
+    let context = fixture.context
+    var store = fixture.store
+
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-1",
+        context: context,
+        action: .turnCompleted(message: "First answer")
+      )
+    )
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-2",
+        context: context,
+        action: .turnStarted
+      )
+    )
+
+    var presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
+    #expect(presentation.latestMessage == "First answer")
+    #expect(presentation.hoverMessages.isEmpty)
+
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-2",
+        context: context,
+        action: .hoverMessagesUpdated(["Second answer"])
+      )
+    )
+
+    presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
+    #expect(presentation.latestMessage == "Second answer")
+
+    var restored = TerminalAgentStateStore()
+    restored.restore(store.snapshots(for: surfaceID))
+    #expect(restored.presentation(for: surfaceID, agent: .codex)?.latestMessage == "Second answer")
+  }
+
+  @Test
   func invalidProcessIDsAreIgnoredAndStaleProcessIdentitiesArePruned() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())

@@ -31,6 +31,19 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "last-message-action",
+      group: "Agent Panel",
+      title: "Last message action",
+      size: CGSize(width: 338, height: 96)
+    ) { appearance in
+      AnyView(
+        AgentPanelSnapshotFixture(
+          appearance: appearance,
+          presentation: PaneAgentPanelPresentation(latestMessage: "# Finished")
+        )
+      )
+    },
+    scenario(
       "branch-pr-checks",
       group: "Agent Panel",
       title: "Branch with failing checks",
@@ -546,6 +559,7 @@ private struct AgentPanelSnapshotFixture: View {
       showsShortcutHints: showsShortcutHints,
       copyText: { _ in },
       forkSession: { _, _ in },
+      showMarkdown: { _ in },
       openURL: { _ in }
     )
     .background(palette.agentPanelBackground, in: .rect(cornerRadius: AgentPanelMetrics.expandedCornerRadius))

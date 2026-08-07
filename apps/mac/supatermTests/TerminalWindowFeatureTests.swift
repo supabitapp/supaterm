@@ -1151,6 +1151,31 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func agentPanelShowMarkdownCreatesAndOpensPage() async {
+    let pageURL = URL(fileURLWithPath: "/tmp/last-agent-message.html")
+    var createdMarkdown: [String] = []
+    var openedURLs: [URL] = []
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.markdownPageClient.create = { markdown in
+        createdMarkdown.append(markdown)
+        return pageURL
+      }
+      $0.externalNavigationClient.open = { url in
+        openedURLs.append(url)
+        return true
+      }
+    }
+
+    await store.send(.agentPanelShowMarkdown("# Finished"))
+
+    #expect(createdMarkdown == ["# Finished"])
+    #expect(openedURLs == [pageURL])
+  }
+
+  @Test
   func agentPanelForkSessionRequestedCreatesFocusedPaneInContextSurface() async throws {
     let surfaceID = UUID()
     let spaceID = UUID()

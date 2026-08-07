@@ -134,6 +134,7 @@ nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
   let phase: AgentActivityPhase
   let detail: String?
   let hoverMessages: [String]
+  let latestMessage: String?
   let isActionable: Bool
   let progressRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
@@ -156,6 +157,7 @@ nonisolated struct TerminalAgentStateSnapshot: Equatable, Sendable {
   let detail: String?
   let attentionRequestID: String?
   let hoverMessages: [String]
+  let previousMessage: String?
   let isActionable: Bool
   let progressRowsBySource: [TerminalAgentEvent.ProgressSource: [PaneAgentProgressRow]]
   let activeChildren: [TerminalAgentActiveChild]
@@ -195,6 +197,7 @@ nonisolated struct TerminalAgentStateStore {
     var detail: String?
     var attentionRequestID: String?
     var hoverMessages: [String] = []
+    var previousMessage: String?
     var hasPendingBackgroundWork = false
     var isActionable = false
     var phase = AgentActivityPhase.idle
@@ -494,6 +497,7 @@ nonisolated struct TerminalAgentStateStore {
     state: inout SessionState
   ) {
     state.activeChildren = state.activeChildren.filter { $0.key.turnID == turnID }
+    state.previousMessage = state.hoverMessages.last ?? state.previousMessage
     state.turnLifecycle = .active(turnID)
     state.isActionable = true
     state.phase = .running
@@ -677,6 +681,7 @@ nonisolated struct TerminalAgentStateStore {
       phase: phase,
       detail: detail,
       hoverMessages: state.hoverMessages,
+      latestMessage: state.hoverMessages.last ?? state.previousMessage,
       isActionable: state.isActionable,
       progressRows: Self.progressRows(in: state),
       activeChildren: activeChildren,
@@ -729,6 +734,7 @@ nonisolated struct TerminalAgentStateStore {
         detail: state.detail,
         attentionRequestID: state.attentionRequestID,
         hoverMessages: state.hoverMessages,
+        previousMessage: state.previousMessage,
         isActionable: state.isActionable,
         progressRowsBySource: state.progressRowsBySource,
         activeChildren: Self.sortedChildren(state.activeChildren.values),
@@ -758,6 +764,7 @@ nonisolated struct TerminalAgentStateStore {
         detail: snapshot.detail,
         attentionRequestID: snapshot.attentionRequestID,
         hoverMessages: snapshot.hoverMessages,
+        previousMessage: snapshot.previousMessage,
         hasPendingBackgroundWork: snapshot.hasPendingBackgroundWork,
         isActionable: snapshot.isActionable,
         phase: snapshot.phase,

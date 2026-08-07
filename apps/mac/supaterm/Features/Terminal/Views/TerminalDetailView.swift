@@ -277,6 +277,8 @@ private struct TerminalSurfacePaneView: View {
       switch operation {
       case .agentPanelCopyText(let text):
         _ = store.send(.agentPanelCopyText(text))
+      case .agentPanelShowMarkdown(let markdown):
+        _ = store.send(.agentPanelShowMarkdown(markdown))
       case .agentPanelForkSessionRequested(
         let surfaceID,
         let direction,

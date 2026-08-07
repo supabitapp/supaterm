@@ -14,6 +14,14 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  func latestMessageKeepsPanelVisibleWithoutForkSupport() {
+    let presentation = PaneAgentPanelPresentation(latestMessage: "Done")
+
+    #expect(!presentation.isEmpty)
+    #expect(presentation.session == nil)
+  }
+
+  @Test
   @MainActor
   func childTitleMatchesCodexLabels() {
     #expect(AgentPanelView.childTitle(child(nickname: "Mendel")) == "Mendel")

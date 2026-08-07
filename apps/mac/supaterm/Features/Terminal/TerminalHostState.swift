@@ -203,12 +203,14 @@ final class TerminalHostState {
     func panelPresentation(
       progressRows: [PaneAgentProgressRow] = [],
       activeChildren: [TerminalAgentActiveChild] = [],
+      latestMessage: String? = nil,
       workingDirectoryPath: String? = nil,
       session: PaneAgentPanelSession? = nil
     ) -> PaneAgentPanelPresentation {
       PaneAgentPanelPresentation(
         progressRows: progressRows,
         activeChildren: activeChildren,
+        latestMessage: latestMessage,
         workingDirectoryPath: workingDirectoryPath,
         branchDetails: branchDetails,
         artifacts: artifacts,
@@ -788,6 +790,7 @@ final class TerminalHostState {
       sessionDidChange()
 
     case .agentPanelCopyText,
+      .agentPanelShowMarkdown,
       .agentPanelForkSessionRequested,
       .agentPanelVisibilityToggled,
       .agentPanelURLTapped:
