@@ -66,10 +66,17 @@ private struct SpaceSwitcherHoverSnapshotFixture: View {
   }
 
   var body: some View {
-    TerminalSpaceSwitcherLabel(
+    TerminalNativeSpaceSwitcher(
       palette: palette,
-      name: "supaterm",
-      isHovered: true
+      spaces: SidebarChromeSnapshotContext.selectedGroupTerminal.spaces,
+      selectedSpaceID: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpaceID,
+      canDelete: false,
+      select: { _ in },
+      create: {},
+      edit: { _ in },
+      delete: { _ in },
+      reorder: { _, _ in },
+      dropTab: { _, _ in false }
     )
     .padding(10)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -81,6 +88,7 @@ private struct SpaceSwitcherHoverSnapshotFixture: View {
 @MainActor
 private struct TerminalChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
 
   private var palette: Palette {
     Palette(
@@ -90,28 +98,46 @@ private struct TerminalChromeSnapshotFixture: View {
   }
 
   var body: some View {
-    TerminalSplitView(
-      store: SidebarChromeSnapshotContext.windowStore(),
-      updateStore: SidebarChromeSnapshotContext.updateStore(),
-      releaseAnnouncement: nil,
-      palette: palette,
-      terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
-      totalWidth: 760,
-      isSidebarCollapsed: false,
-      sidebarWidth: 228,
-      sidebarResizeState: nil,
-      onResizeInput: { _ in },
-      dismissReleaseAnnouncement: {}
-    )
+    HStack(spacing: 0) {
+      TerminalSidebarView(
+        store: SidebarChromeSnapshotContext.windowStore(),
+        updateStore: SidebarChromeSnapshotContext.updateStore(),
+        releaseAnnouncement: nil,
+        palette: palette,
+        terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+        isPagingActive: true,
+        sidebarControllerCache: sidebarControllerCache,
+        dismissReleaseAnnouncement: {}
+      )
+      .frame(width: 228)
+
+      detail
+    }
+    .coordinateSpace(name: TerminalCoordinateSpace.split)
     .environment(SidebarChromeSnapshotContext.commandHold)
     .environment(SidebarChromeSnapshotContext.ghosttyShortcuts)
     .background(ChromeBackgroundView(palette: palette))
+  }
+
+  @ViewBuilder
+  private var detail: some View {
+    if let selectedTabID = SidebarChromeSnapshotContext.selectedGroupTerminal.selectedTabID {
+      TerminalDetailView(
+        store: SidebarChromeSnapshotContext.windowStore(),
+        palette: palette,
+        terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+        selectedTabID: selectedTabID
+      )
+    } else {
+      Color.clear
+    }
   }
 }
 
 @MainActor
 private struct FloatingSidebarSnapshotFixture: View {
   let appearance: SnapshotAppearance
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
 
   private var palette: Palette {
     Palette(
@@ -121,20 +147,32 @@ private struct FloatingSidebarSnapshotFixture: View {
   }
 
   var body: some View {
-    FloatingSidebarOverlay(
-      store: SidebarChromeSnapshotContext.windowStore(),
-      updateStore: SidebarChromeSnapshotContext.updateStore(),
-      releaseAnnouncement: nil,
-      palette: palette,
-      terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
-      totalWidth: 760,
-      sidebarWidth: 228,
-      sidebarResizeState: nil,
-      isVisible: .constant(true),
-      onResizeInput: { _ in },
-      dismissReleaseAnnouncement: {}
-    )
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    ZStack(alignment: .leading) {
+      if let selectedTabID = SidebarChromeSnapshotContext.selectedGroupTerminal.selectedTabID {
+        TerminalDetailView(
+          store: SidebarChromeSnapshotContext.windowStore(),
+          palette: palette,
+          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+          selectedTabID: selectedTabID
+        )
+      } else {
+        Color.clear
+      }
+
+      TerminalFloatingSidebarShell(palette: palette) {
+        TerminalSidebarView(
+          store: SidebarChromeSnapshotContext.windowStore(),
+          updateStore: SidebarChromeSnapshotContext.updateStore(),
+          releaseAnnouncement: nil,
+          palette: palette,
+          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+          isPagingActive: true,
+          sidebarControllerCache: sidebarControllerCache,
+          dismissReleaseAnnouncement: {}
+        )
+      }
+      .frame(width: 228)
+    }
     .environment(SidebarChromeSnapshotContext.commandHold)
     .environment(SidebarChromeSnapshotContext.ghosttyShortcuts)
     .background(ChromeBackgroundView(palette: palette))

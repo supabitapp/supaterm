@@ -5,6 +5,18 @@ import Testing
 
 struct TerminalWindowShellControllerTests {
   @Test
+  func tabDragPreviewKeepsTheSourceAspectRatioAndPointerAnchor() {
+    let frame = TerminalTabDragPreviewLayout.frame(
+      for: CGSize(width: 1_440, height: 900),
+      at: CGPoint(x: 800, y: 500)
+    )
+
+    #expect(frame.size == CGSize(width: 420, height: 262.5))
+    #expect(frame.minX == 724.4)
+    #expect(frame.minY == 284.75)
+  }
+
+  @Test
   func splitDropTargetsUseStableSideGeometry() {
     let layout = TerminalTabSplitDropLayout(
       bounds: CGRect(x: 0, y: 0, width: 1_200, height: 800)

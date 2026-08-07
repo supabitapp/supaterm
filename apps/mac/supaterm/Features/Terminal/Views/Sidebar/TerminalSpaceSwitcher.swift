@@ -108,22 +108,3 @@ struct TerminalSpaceSwitcher: View {
     }
   }
 }
-
-struct TerminalSpaceSwitcherLabel: View {
-  let palette: Palette
-  let name: String
-  let isHovered: Bool
-
-  var body: some View {
-    Text(name)
-      .font(.system(size: 12, weight: .medium))
-      .lineLimit(1)
-      .foregroundStyle(palette.spaceTitle)
-      .padding(.horizontal, 8)
-      .frame(height: TerminalWindowHeaderMetrics.switcherHeight)
-      .background(
-        isHovered ? palette.secondaryText.opacity(0.1) : .clear,
-        in: .rect(cornerRadius: 7)
-      )
-  }
-}
