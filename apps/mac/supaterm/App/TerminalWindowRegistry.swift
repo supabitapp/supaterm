@@ -89,7 +89,7 @@ final class TerminalWindowRegistry {
       self?.transferTab(payload, to: destination)
     }
     tabDragRegistry.split = { [weak self] payload, destination in
-      self?.splitTab(payload, to: destination)
+      self?.splitTab(payload, to: destination) == true
     }
   }
 
@@ -197,7 +197,6 @@ final class TerminalWindowRegistry {
       )
     else { return nil }
     let request = TerminalTabTransferRequest(
-      operationID: payload.moveOperationID,
       expectedSourceRevision: payload.sourceTopologyRevision,
       expectedDestinationRevision: destinationCollection.topologyRevision,
       itemIDs: payload.itemIDs,
@@ -241,7 +240,7 @@ final class TerminalWindowRegistry {
   func splitTab(
     _ payload: TerminalTabDragPayload,
     to destination: TerminalTabDragRegistry.SplitDestination
-  ) -> TerminalTabSplitResult? {
+  ) -> Bool {
     guard
       let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
       let destinationEntry = entry(forWindowControllerID: destination.windowControllerID),
@@ -255,17 +254,17 @@ final class TerminalWindowRegistry {
           tabID: destination.tabID
         )
       )
-    else { return nil }
+    else { return false }
     let hiddenSurfaceIDs = sourceEntry.store.terminal.hiddenAgentPanelSurfaceIDs.intersection(
       plan.surfaceIDs
     )
     guard
-      let result = try? TerminalHostState.commitLiveTabSplit(
+      (try? TerminalHostState.commitLiveTabSplit(
         plan,
         from: sourceEntry.terminal,
         to: destinationEntry.terminal
-      )
-    else { return nil }
+      )) != nil
+    else { return false }
     if sourceEntry.windowControllerID != destinationEntry.windowControllerID {
       sourceEntry.store.send(
         .terminal(.hiddenAgentPanelsTransferred(remove: hiddenSurfaceIDs, insert: []))
@@ -275,7 +274,7 @@ final class TerminalWindowRegistry {
       )
     }
     onChange()
-    return result
+    return true
   }
 
   @discardableResult

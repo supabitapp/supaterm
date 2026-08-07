@@ -510,8 +510,8 @@ struct TerminalTabCollectionTests {
     #expect(destination.tabs.map(\.id) == [existing, first, second])
     #expect(destination.selectedTabID == first)
     #expect(result.tabIDs == [first, second])
-    #expect(result.sourceRevision == request.expectedSourceRevision + 1)
-    #expect(result.destinationRevision == request.expectedDestinationRevision + 1)
+    #expect(source.topologyRevision == request.expectedSourceRevision + 1)
+    #expect(destination.topologyRevision == request.expectedDestinationRevision + 1)
   }
 
   @Test

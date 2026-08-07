@@ -93,10 +93,8 @@ private final class TerminalTabSplitTargetView: NSView {
 
   private let iconView = NSImageView()
   private let label = NSTextField(labelWithString: "")
-  private let side: TerminalTabSplitSide
 
   init(side: TerminalTabSplitSide) {
-    self.side = side
     super.init(frame: .zero)
     wantsLayer = true
     layer?.cornerRadius = 18

@@ -28,9 +28,9 @@ struct TerminalTabSelection: Equatable {
 @Observable
 final class TerminalTabCollection {
   struct ExtractionPlan {
+    fileprivate let deletedEmptyGroupIDs: [TerminalTabGroupID]
     fileprivate let expectedTopologyRevision: UInt64
     fileprivate let topology: TerminalTabTopology
-    let result: TerminalTabExtractionResult
   }
 
   struct TransferPlan {
@@ -283,13 +283,8 @@ final class TerminalTabCollection {
       expectedSourceRevision: request.expectedSourceRevision,
       sourceTopology: sourceTopology,
       result: TerminalTabTransferResult(
-        operationID: request.operationID,
-        itemIDs: request.itemIDs,
         tabIDs: extracted.tabIDs,
-        destination: request.destination,
-        deletedEmptyGroupIDs: extracted.deletedEmptyGroupIDs,
-        sourceRevision: sourceTopology.revision,
-        destinationRevision: destinationTopology.revision
+        deletedEmptyGroupIDs: extracted.deletedEmptyGroupIDs
       )
     )
   }
@@ -313,22 +308,16 @@ final class TerminalTabCollection {
     }
     topology.revision += 1
     return ExtractionPlan(
+      deletedEmptyGroupIDs: extracted.deletedEmptyGroupIDs,
       expectedTopologyRevision: request.expectedTopologyRevision,
-      topology: topology,
-      result: TerminalTabExtractionResult(
-        operationID: request.operationID,
-        itemIDs: request.itemIDs,
-        tabIDs: extracted.tabIDs,
-        deletedEmptyGroupIDs: extracted.deletedEmptyGroupIDs,
-        topologyRevision: topology.revision
-      )
+      topology: topology
     )
   }
 
   static func commitExtraction(
     _ plan: ExtractionPlan,
     from source: TerminalTabCollection
-  ) throws -> TerminalTabExtractionResult {
+  ) throws -> [TerminalTabGroupID] {
     guard source.topology.revision == plan.expectedTopologyRevision else {
       throw TerminalTabTransferError.staleSource(
         expected: plan.expectedTopologyRevision,
@@ -337,7 +326,7 @@ final class TerminalTabCollection {
     }
     source.topology = plan.topology
     source.repairSelection()
-    return plan.result
+    return plan.deletedEmptyGroupIDs
   }
 
   @discardableResult
