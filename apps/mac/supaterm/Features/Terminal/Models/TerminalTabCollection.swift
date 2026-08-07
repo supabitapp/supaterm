@@ -27,6 +27,12 @@ struct TerminalTabSelection: Equatable {
 @MainActor
 @Observable
 final class TerminalTabCollection {
+  struct ExtractionPlan {
+    fileprivate let expectedTopologyRevision: UInt64
+    fileprivate let topology: TerminalTabTopology
+    let result: TerminalTabExtractionResult
+  }
+
   struct TransferPlan {
     fileprivate let destinationTopology: TerminalTabTopology
     fileprivate let expectedDestinationRevision: UInt64
@@ -286,6 +292,52 @@ final class TerminalTabCollection {
         destinationRevision: destinationTopology.revision
       )
     )
+  }
+
+  static func prepareExtraction(
+    _ request: TerminalTabExtractionRequest,
+    from source: TerminalTabCollection
+  ) throws -> ExtractionPlan {
+    guard request.expectedTopologyRevision == source.topology.revision else {
+      throw TerminalTabTransferError.staleSource(
+        expected: request.expectedTopologyRevision,
+        actual: source.topology.revision
+      )
+    }
+    var topology = source.topology
+    let extracted: ExtractedItems
+    do {
+      extracted = try extract(request.itemIDs, from: &topology)
+    } catch let error as TerminalTabMoveError {
+      throw TerminalTabTransferError.topology(error)
+    }
+    topology.revision += 1
+    return ExtractionPlan(
+      expectedTopologyRevision: request.expectedTopologyRevision,
+      topology: topology,
+      result: TerminalTabExtractionResult(
+        operationID: request.operationID,
+        itemIDs: request.itemIDs,
+        tabIDs: extracted.tabIDs,
+        deletedEmptyGroupIDs: extracted.deletedEmptyGroupIDs,
+        topologyRevision: topology.revision
+      )
+    )
+  }
+
+  static func commitExtraction(
+    _ plan: ExtractionPlan,
+    from source: TerminalTabCollection
+  ) throws -> TerminalTabExtractionResult {
+    guard source.topology.revision == plan.expectedTopologyRevision else {
+      throw TerminalTabTransferError.staleSource(
+        expected: plan.expectedTopologyRevision,
+        actual: source.topology.revision
+      )
+    }
+    source.topology = plan.topology
+    source.repairSelection()
+    return plan.result
   }
 
   @discardableResult

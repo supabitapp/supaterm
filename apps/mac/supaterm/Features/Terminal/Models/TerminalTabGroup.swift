@@ -160,6 +160,33 @@ nonisolated struct TerminalTabCloseResult: Equatable, Sendable {
   let topologyRevision: UInt64
 }
 
+nonisolated struct TerminalTabExtractionRequest: Equatable, Sendable {
+  let operationID: TerminalTabMoveOperationID
+  let expectedTopologyRevision: UInt64
+  let itemIDs: [TerminalTabRootItemID]
+}
+
+nonisolated struct TerminalTabExtractionResult: Equatable, Sendable {
+  let operationID: TerminalTabMoveOperationID
+  let itemIDs: [TerminalTabRootItemID]
+  let tabIDs: [TerminalTabID]
+  let deletedEmptyGroupIDs: [TerminalTabGroupID]
+  let topologyRevision: UInt64
+}
+
+nonisolated enum TerminalTabSplitSide: Equatable, Sendable {
+  case left
+  case right
+}
+
+nonisolated struct TerminalTabSplitResult: Equatable, Sendable {
+  let operationID: TerminalTabMoveOperationID
+  let sourceTabID: TerminalTabID
+  let destinationTabID: TerminalTabID
+  let side: TerminalTabSplitSide
+  let sourceRevision: UInt64
+}
+
 nonisolated struct TerminalTabTransferRequest: Equatable, Sendable {
   let operationID: TerminalTabMoveOperationID
   let expectedSourceRevision: UInt64
@@ -197,6 +224,8 @@ nonisolated enum TerminalTabTransferError: Error, Equatable {
   case destinationContainsGroup(TerminalTabGroupID)
   case destinationContainsTab(TerminalTabID)
   case incompatibleRuntime
+  case invalidSplitDestination
+  case invalidSplitSource
   case invalidSpace
   case missingLiveTree
   case sameCollection

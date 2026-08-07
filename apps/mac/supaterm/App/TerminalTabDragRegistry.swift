@@ -32,6 +32,13 @@ final class TerminalTabDragRegistry {
     let placement: TerminalTabPlacement
   }
 
+  struct SplitDestination: Equatable {
+    let windowControllerID: UUID
+    let spaceID: TerminalSpaceID
+    let tabID: TerminalTabID
+    let side: TerminalTabSplitSide
+  }
+
   enum Outcome: Equatable {
     case cancelled
     case moved
@@ -40,9 +47,15 @@ final class TerminalTabDragRegistry {
   private struct Session {
     let payload: TerminalTabDragPayload
     let didTransfer: (TerminalTabMoveOperationID) -> Void
+    let previewSize: CGSize
+    var previewFrame: CGRect?
   }
 
   var transfer: ((TerminalTabDragPayload, Destination) -> TerminalTabTransferResult?)?
+  var split: ((TerminalTabDragPayload, SplitDestination) -> TerminalTabSplitResult?)?
+  var detach: ((TerminalTabDragPayload, CGRect) -> Bool)?
+  var sessionMoved: ((TerminalTabDragPayload, CGPoint) -> Void)?
+  var sessionFinished: (() -> Void)?
 
   private var session: Session?
   private(set) var lastOutcome: Outcome?
@@ -51,12 +64,22 @@ final class TerminalTabDragRegistry {
     session?.payload
   }
 
+  var previewFrame: CGRect? {
+    session?.previewFrame
+  }
+
   func begin(
     _ payload: TerminalTabDragPayload,
+    previewSize: CGSize = CGSize(width: 1_000, height: 700),
     didTransfer: @escaping (TerminalTabMoveOperationID) -> Void = { _ in }
   ) -> Bool {
     guard session == nil else { return false }
-    session = Session(payload: payload, didTransfer: didTransfer)
+    session = Session(
+      payload: payload,
+      didTransfer: didTransfer,
+      previewSize: previewSize,
+      previewFrame: nil
+    )
     lastOutcome = nil
     return true
   }
@@ -79,9 +102,45 @@ final class TerminalTabDragRegistry {
     return result
   }
 
+  func performSplit(
+    _ payload: TerminalTabDragPayload,
+    to destination: SplitDestination
+  ) -> TerminalTabSplitResult? {
+    guard let session, session.payload == payload, let result = split?(payload, destination) else {
+      return nil
+    }
+    session.didTransfer(payload.moveOperationID)
+    return result
+  }
+
+  func move(to screenPoint: CGPoint) {
+    guard var session else { return }
+    let size = session.previewSize
+    session.previewFrame = CGRect(
+      x: screenPoint.x - size.width * 0.18,
+      y: screenPoint.y - size.height * 0.82,
+      width: size.width,
+      height: size.height
+    )
+    self.session = session
+    sessionMoved?(session.payload, screenPoint)
+  }
+
+  func performDetach(_ payload: TerminalTabDragPayload) -> Bool {
+    guard
+      let session,
+      session.payload == payload,
+      let previewFrame = session.previewFrame,
+      detach?(payload, previewFrame) == true
+    else { return false }
+    session.didTransfer(payload.moveOperationID)
+    return true
+  }
+
   func finish(operationID: TerminalTabMoveOperationID, outcome: Outcome) {
     guard session?.payload.operationID == operationID.rawValue else { return }
     session = nil
     lastOutcome = outcome
+    sessionFinished?()
   }
 }

@@ -99,6 +99,25 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     )
   }
 
+  func joining(
+    _ other: Self,
+    direction: Direction,
+    placingOtherAfter: Bool
+  ) -> Self? {
+    guard let root, let otherRoot = other.root else { return nil }
+    return Self(
+      root: .split(
+        Split(
+          direction: direction,
+          ratio: 0.5,
+          left: placingOtherAfter ? root : otherRoot,
+          right: placingOtherAfter ? otherRoot : root
+        )
+      ),
+      zoomed: nil
+    )
+  }
+
   func removing(_ target: Node) -> Self {
     guard let root else { return self }
     if root == target {
