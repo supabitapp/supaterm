@@ -11,6 +11,7 @@ struct TerminalView: View {
   @Bindable var terminal: TerminalHostState
   let updateWindowShell: (TerminalWindowShellPresentation) -> Void
   @Shared(.supatermSettings) private var supatermSettings = .default
+  @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var window: NSWindow?
@@ -84,6 +85,14 @@ struct TerminalView: View {
           .frame(width: 0, height: 0)
       }
       .background(WindowReader(window: $window))
+      .background {
+        if let commandPalette = store.commandPalette {
+          TerminalCommandPalettePanelPresenter(
+            configuration: commandPalettePanelConfiguration(commandPalette)
+          )
+          .frame(width: 0, height: 0)
+        }
+      }
       .background(
         WindowFocusObserverView { activity in
           _ = store.send(.windowActivityChanged(activity))
@@ -100,35 +109,6 @@ struct TerminalView: View {
       .onChange(of: store.commandPalette != nil) { wasPresented, isPresented in
         guard wasPresented, !isPresented else { return }
         restoreTerminalFocusIfNeeded()
-      }
-      .overlay {
-        if let commandPalette = store.commandPalette {
-          let snapshot = commandPaletteClient.snapshot(store.windowID)
-          let matches = TerminalCommandPalettePresentation.matches(
-            from: snapshot,
-            query: commandPalette.query
-          )
-          TerminalCommandPaletteOverlay(
-            palette: palette,
-            state: commandPalette,
-            matches: matches,
-            onActivate: {
-              _ = store.send(.commandPaletteActivateSelection)
-            },
-            onClose: {
-              _ = store.send(.commandPaletteCloseRequested)
-            },
-            onQueryChange: {
-              _ = store.send(.commandPaletteQueryChanged($0))
-            },
-            onMoveSelection: {
-              _ = store.send(.commandPaletteSelectionMoved($0))
-            },
-            onSelectionChange: {
-              _ = store.send(.commandPaletteSelectionChanged($0))
-            }
-          )
-        }
       }
       .overlay {
         if let confirmationRequest = store.confirmationRequest {
@@ -223,6 +203,26 @@ struct TerminalView: View {
         reduceMotion: reduceMotion
       )
       .environment(\.colorScheme, chromeColorScheme)
+  }
+
+  private func commandPalettePanelConfiguration(
+    _ commandPalette: TerminalCommandPaletteState
+  ) -> TerminalCommandPalettePanelConfiguration {
+    let snapshot = commandPaletteClient.snapshot(store.windowID)
+    return TerminalCommandPalettePanelConfiguration(
+      commandHoldObserver: commandHoldObserver,
+      matches: TerminalCommandPalettePresentation.matches(
+        from: snapshot,
+        query: commandPalette.query
+      ),
+      palette: palette,
+      state: commandPalette,
+      activate: { _ = store.send(.commandPaletteActivateSelection) },
+      close: { _ = store.send(.commandPaletteCloseRequested) },
+      moveSelection: { _ = store.send(.commandPaletteSelectionMoved($0)) },
+      queryChanged: { _ = store.send(.commandPaletteQueryChanged($0)) },
+      selectionChanged: { _ = store.send(.commandPaletteSelectionChanged($0)) }
+    )
   }
 
   private func restoreTerminalFocusIfNeeded() {
