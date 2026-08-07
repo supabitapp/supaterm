@@ -56,6 +56,15 @@ struct TerminalCommandPaletteMatch: Equatable, Identifiable, Sendable {
   enum MatchedCharacter: Equatable, Sendable {
     case title(Int)
     case subtitle(Int)
+    case description(Int)
+
+    fileprivate var searchRank: Int {
+      switch self {
+      case .title: 0
+      case .subtitle: 1
+      case .description: 2
+      }
+    }
   }
 
   let row: TerminalCommandPaletteRow
@@ -70,10 +79,35 @@ struct TerminalCommandPaletteMatch: Equatable, Identifiable, Sendable {
     }
   }
 
-  var subtitleMatchedCharacterOffsets: [Int] {
-    matchedCharacters.compactMap { character in
+  var displaySubtitle: String? {
+    displaysDescription ? row.description : row.subtitle
+  }
+
+  var displaySubtitleMatchedCharacterOffsets: [Int] {
+    if displaysDescription {
+      return matchedCharacters.compactMap { character in
+        guard case .description(let offset) = character else { return nil }
+        return offset
+      }
+    }
+
+    return matchedCharacters.compactMap { character in
       guard case .subtitle(let offset) = character else { return nil }
       return offset
+    }
+  }
+
+  fileprivate var searchRank: Int {
+    matchedCharacters.reduce(0) { rank, character in
+      max(rank, character.searchRank)
+    }
+  }
+
+  private var displaysDescription: Bool {
+    guard row.subtitle != nil else { return true }
+    return matchedCharacters.contains { character in
+      guard case .description = character else { return false }
+      return true
     }
   }
 }
@@ -149,7 +183,8 @@ enum TerminalCommandPalettePresentation {
       }
     }
 
-    return rows.compactMap { row in
+    let matches: [(sourceOffset: Int, match: TerminalCommandPaletteMatch)] = rows.enumerated().compactMap {
+      sourceOffset, row in
       let searchableContent = searchableContent(for: row)
       guard let indices = matchedIndices(in: searchableContent.text, for: query) else {
         return nil
@@ -159,8 +194,19 @@ enum TerminalCommandPalettePresentation {
           searchableContent.text.distance(from: searchableContent.text.startIndex, to: index)
         ]
       }
-      return TerminalCommandPaletteMatch(row: row, matchedCharacters: matchedCharacters)
+      return (
+        sourceOffset: sourceOffset,
+        match: TerminalCommandPaletteMatch(row: row, matchedCharacters: matchedCharacters)
+      )
     }
+
+    return matches.sorted { lhs, rhs in
+      if lhs.match.searchRank != rhs.match.searchRank {
+        return lhs.match.searchRank < rhs.match.searchRank
+      }
+      return lhs.sourceOffset < rhs.sourceOffset
+    }
+    .map(\.match)
   }
 
   static func normalizedSelection(
@@ -220,6 +266,14 @@ enum TerminalCommandPalettePresentation {
       appendSearchableText(
         subtitle,
         source: TerminalCommandPaletteMatch.MatchedCharacter.subtitle,
+        to: &text,
+        characterSources: &characterSources
+      )
+    }
+    if let description = row.description {
+      appendSearchableText(
+        description,
+        source: TerminalCommandPaletteMatch.MatchedCharacter.description,
         to: &text,
         characterSources: &characterSources
       )
