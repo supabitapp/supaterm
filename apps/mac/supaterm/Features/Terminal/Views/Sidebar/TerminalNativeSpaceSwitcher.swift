@@ -1,5 +1,6 @@
 import AppKit
 import SupaTheme
+import SupatermSupport
 import SwiftUI
 
 extension NSPasteboard.PasteboardType {
@@ -14,8 +15,8 @@ nonisolated struct TerminalSpaceDragPayload: Codable, Equatable, Sendable {
 struct TerminalNativeSpaceSwitcherConfiguration {
   let palette: Palette
   let spaces: [TerminalSpaceItem]
-  let selectedSpaceID: TerminalSpaceID?
-  let canDelete: Bool
+  let selectedSpaceID: TerminalSpaceID
+  let shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride]
   let select: (TerminalSpaceID) -> Void
   let create: () -> Void
   let edit: (TerminalSpaceItem) -> Void
@@ -25,36 +26,14 @@ struct TerminalNativeSpaceSwitcherConfiguration {
 }
 
 struct TerminalNativeSpaceSwitcher: NSViewRepresentable {
-  let palette: Palette
-  let spaces: [TerminalSpaceItem]
-  let selectedSpaceID: TerminalSpaceID?
-  let canDelete: Bool
-  let select: (TerminalSpaceID) -> Void
-  let create: () -> Void
-  let edit: (TerminalSpaceItem) -> Void
-  let delete: (TerminalSpaceItem) -> Void
-  let reorder: (TerminalSpaceID, Int) -> Void
-  let dropTab: (TerminalTabDragPayload, TerminalSpaceID) -> Bool
+  let configuration: TerminalNativeSpaceSwitcherConfiguration
 
   func makeNSView(context: Context) -> TerminalNativeSpaceSwitcherView {
     TerminalNativeSpaceSwitcherView()
   }
 
   func updateNSView(_ view: TerminalNativeSpaceSwitcherView, context: Context) {
-    view.apply(
-      TerminalNativeSpaceSwitcherConfiguration(
-        palette: palette,
-        spaces: spaces,
-        selectedSpaceID: selectedSpaceID,
-        canDelete: canDelete,
-        select: select,
-        create: create,
-        edit: edit,
-        delete: delete,
-        reorder: reorder,
-        dropTab: dropTab
-      )
-    )
+    view.apply(configuration)
   }
 }
 
@@ -72,6 +51,7 @@ final class TerminalNativeSpaceSwitcherView: NSView {
   private var reorder: (TerminalSpaceID, Int) -> Void = { _, _ in }
   private var select: (TerminalSpaceID) -> Void = { _ in }
   private var selectedSpaceID: TerminalSpaceID?
+  private var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] = [:]
   private var spaces: [TerminalSpaceItem] = []
   private var tabDropSpaceID: TerminalSpaceID?
 
@@ -149,18 +129,25 @@ final class TerminalNativeSpaceSwitcherView: NSView {
     if let selectedSpace = configuration.spaces.first(where: { $0.id == configuration.selectedSpaceID }) {
       setAccessibilityLabel("Space \(selectedSpace.name)")
     }
-    canDelete = configuration.canDelete
+    canDelete = configuration.spaces.count > 1
+    shortcutOverrides = configuration.shortcutOverrides
     select = configuration.select
     create = configuration.create
     edit = configuration.edit
     delete = configuration.delete
     reorder = configuration.reorder
     dropTab = configuration.dropTab
-    buttons.forEach { $0.removeFromSuperview() }
+    let orderedSpaceIDs = configuration.spaces.map(\.id)
+    let spaceIDs = Set(orderedSpaceIDs)
+    let existingButtons = Dictionary(uniqueKeysWithValues: buttons.map { ($0.space.id, $0) })
+    for button in buttons where !spaceIDs.contains(button.space.id) {
+      button.removeFromSuperview()
+    }
     buttons = configuration.spaces.map { space in
-      let button = TerminalNativeSpaceButton(
+      let button = existingButtons[space.id] ?? TerminalNativeSpaceButton(space: space)
+      button.apply(
         space: space,
-        orderedSpaceIDs: configuration.spaces.map(\.id),
+        orderedSpaceIDs: orderedSpaceIDs,
         isSelected: space.id == configuration.selectedSpaceID,
         dotColor: space.color.sidebarNSColor(palette: configuration.palette),
         textColor: NSColor(configuration.palette.spaceTitle)
@@ -175,7 +162,10 @@ final class TerminalNativeSpaceSwitcherView: NSView {
       }
       button.edit = { [weak self] in self?.edit(space) }
       button.menuProvider = { [weak self] in self?.menu(for: space) }
-      addSubview(button, positioned: .below, relativeTo: insertionView)
+      button.isDropTarget = tabDropSpaceID == space.id
+      if button.superview == nil {
+        addSubview(button, positioned: .below, relativeTo: insertionView)
+      }
       return button
     }
     invalidateIntrinsicContentSize()
@@ -321,7 +311,7 @@ final class TerminalNativeSpaceSwitcherView: NSView {
 
   private func showSpaceListMenu(relativeTo button: NSView) {
     let menu = NSMenu()
-    for space in spaces {
+    for (index, space) in spaces.enumerated() {
       let item = NSMenuItem(
         title: space.name,
         action: #selector(selectSpaceFromMenu(_:)),
@@ -330,6 +320,13 @@ final class TerminalNativeSpaceSwitcherView: NSView {
       item.target = self
       item.representedObject = space.id.rawValue as NSUUID
       item.state = space.id == selectedSpaceID ? .on : .off
+      SupatermMenuShortcut.apply(
+        TerminalSpaceShortcut.shortcutBinding(
+          forSpaceAt: index,
+          overrides: shortcutOverrides
+        )?.keyboardShortcut,
+        to: item
+      )
       menu.addItem(item)
     }
     menu.addItem(.separator())
@@ -366,21 +363,33 @@ final class TerminalNativeSpaceSwitcherView: NSView {
 
 @MainActor
 private final class TerminalNativeSpaceButton: NSView, NSDraggingSource {
-  let space: TerminalSpaceItem
+  private(set) var space: TerminalSpaceItem
   var edit: () -> Void = {}
   var menuProvider: () -> NSMenu? = { nil }
   var select: () -> Void = {}
   var isDropTarget = false { didSet { needsDisplay = true } }
 
-  private let dotColor: NSColor
+  private var dotColor = NSColor.clear
   private var isHovered = false { didSet { needsDisplay = true } }
-  private let isSelected: Bool
+  private var isSelected = false
   private var mouseDownLocation: CGPoint?
-  private let orderedSpaceIDs: [TerminalSpaceID]
-  private let textColor: NSColor
+  private var orderedSpaceIDs: [TerminalSpaceID] = []
+  private var textColor = NSColor.labelColor
   private var trackingArea: NSTrackingArea?
 
-  init(
+  init(space: TerminalSpaceItem) {
+    self.space = space
+    super.init(frame: .zero)
+    setAccessibilityRole(.button)
+    setAccessibilityIdentifier("titlebar.space.\(space.id.rawValue.uuidString)")
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable")
+  }
+
+  func apply(
     space: TerminalSpaceItem,
     orderedSpaceIDs: [TerminalSpaceID],
     isSelected: Bool,
@@ -392,16 +401,9 @@ private final class TerminalNativeSpaceButton: NSView, NSDraggingSource {
     self.isSelected = isSelected
     self.dotColor = dotColor
     self.textColor = textColor
-    super.init(frame: .zero)
     toolTip = space.name
-    setAccessibilityRole(.button)
     setAccessibilityLabel("Space \(space.name)")
-    setAccessibilityIdentifier("titlebar.space.\(space.id.rawValue.uuidString)")
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) is unavailable")
+    needsDisplay = true
   }
 
   override func updateTrackingAreas() {
