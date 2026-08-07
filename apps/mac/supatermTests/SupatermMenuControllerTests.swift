@@ -702,7 +702,8 @@ struct SupatermMenuControllerTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(NSWindow(), for: windowControllerID)
+      let window = NSWindow()
+      registry.updateWindow(window, for: windowControllerID)
       let controller = SupatermMenuController(registry: registry)
       defer {
         app.mainMenu = previousMainMenu
@@ -729,12 +730,10 @@ struct SupatermMenuControllerTests {
         tabCollection.createGroup(title: "Group", containing: [tabID])
       ).groupID
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
-      await flushEffects()
-
-      #expect(
-        recorder.commands
-          == [.createTabInGroup(groupID, inheritingFromSurfaceID: nil)]
-      )
+      let receivedCommand = await waitUntil {
+        recorder.commands == [.createTabInGroup(groupID, inheritingFromSurfaceID: nil)]
+      }
+      #expect(receivedCommand)
     }
   }
 

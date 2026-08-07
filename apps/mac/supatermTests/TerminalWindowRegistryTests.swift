@@ -1010,9 +1010,10 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(window, for: windowControllerID)
 
       registry.requestCloseTabInKeyWindow()
-      await flushEffects()
-
-      #expect(recorder.commands == [.requestCloseTab(tabID)])
+      let receivedCommand = await waitUntil {
+        recorder.commands == [.requestCloseTab(tabID)]
+      }
+      #expect(receivedCommand)
     }
   }
   @Test
@@ -1041,9 +1042,10 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(window, for: windowControllerID)
 
       registry.requestNewTabInKeyWindow()
-      await flushEffects()
-
-      #expect(recorder.commands == [.createTab(inheritingFromSurfaceID: nil)])
+      let receivedCommand = await waitUntil {
+        recorder.commands == [.createTab(inheritingFromSurfaceID: nil)]
+      }
+      #expect(receivedCommand)
     }
   }
   @Test
@@ -1079,12 +1081,10 @@ struct TerminalWindowRegistryTests {
 
       #expect(registry.menuContext().hasSelectedGroup)
       registry.requestNewTabInSelectedGroupInKeyWindow()
-      await flushEffects()
-
-      #expect(
-        recorder.commands
-          == [.createTabInGroup(groupID, inheritingFromSurfaceID: nil)]
-      )
+      let receivedCommand = await waitUntil {
+        recorder.commands == [.createTabInGroup(groupID, inheritingFromSurfaceID: nil)]
+      }
+      #expect(receivedCommand)
     }
   }
   @Test
@@ -1113,9 +1113,10 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(window, for: windowControllerID)
 
       registry.requestBindingActionInKeyWindow(.newSplit(.left))
-      await flushEffects()
-
-      #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.newSplit(.left))])
+      let receivedCommand = await waitUntil {
+        recorder.commands == [.performBindingActionOnFocusedSurface(.newSplit(.left))]
+      }
+      #expect(receivedCommand)
     }
   }
   @Test
@@ -1141,9 +1142,8 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(window, for: windowControllerID)
 
       registry.requestToggleCommandPaletteInKeyWindow()
-      await flushEffects()
-
-      #expect(store.terminal.commandPalette != nil)
+      let openedPalette = await waitUntil { store.terminal.commandPalette != nil }
+      #expect(openedPalette)
     }
   }
 
@@ -1288,9 +1288,8 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(window, for: windowControllerID)
 
       registry.requestOpenAgentPanelPullRequestInKeyWindow()
-      await flushEffects()
-
-      #expect(openedURLs == [pullRequestURL])
+      let openedPullRequest = await waitUntil { openedURLs == [pullRequestURL] }
+      #expect(openedPullRequest)
       #expect(registry.commandAvailability().hasAgentPanelPullRequest)
       withExtendedLifetime(window) {}
     }
@@ -1331,12 +1330,12 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       registry.requestCopyAgentPanelSessionIDInKeyWindow()
-      await flushEffects()
-
-      #expect(copiedSessionIDs == ["session-1"])
+      let copiedSession = await waitUntil { copiedSessionIDs == ["session-1"] }
+      #expect(copiedSession)
     }
   }
 
@@ -1388,7 +1387,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       registry.requestForkAgentPanelSessionInKeyWindow(direction: .right)
       let clock = ContinuousClock()
@@ -1451,7 +1451,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       let availability = registry.commandAvailability()
       #expect(availability.hasAgentPanel)
@@ -1486,9 +1487,10 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(window, for: windowControllerID)
 
       registry.requestNavigateSearchInKeyWindow(.previous)
-      await flushEffects()
-
-      #expect(recorder.commands == [.navigateSearch(.previous)])
+      let receivedCommand = await waitUntil {
+        recorder.commands == [.navigateSearch(.previous)]
+      }
+      #expect(receivedCommand)
     }
   }
   @Test
