@@ -447,6 +447,8 @@ final class TerminalSidebarDragController {
       ),
       tabDragRegistry.begin(
         tabDragPayload,
+        previewSize: collectionView.window?.frame.size
+          ?? CGSize(width: 1_000, height: 700),
         didTransfer: { [weak self] in self?.externalTransferDidComplete($0) }
       )
     else {
@@ -461,6 +463,7 @@ final class TerminalSidebarDragController {
     )
     content.swipe?.isRowDragActive = true
     let screenPoint = screenPoint(for: event)
+    tabDragRegistry.move(to: screenPoint)
     collectionLayout.dragDropState = TerminalSidebarDragDropState(
       draggingItemIDs: liftedEntryIDs,
       target: nil
@@ -859,6 +862,7 @@ final class TerminalSidebarDragController {
 
   private func draggingSessionMoved(to screenPoint: NSPoint) {
     guard let activeDrag else { return }
+    tabDragRegistry.move(to: screenPoint)
     switch activeDrag.coordinator.phase {
     case .settling, .finished: return
     case .tracking, .frozen, .awaitingNativeEnd, .awaitingSnapshot: break

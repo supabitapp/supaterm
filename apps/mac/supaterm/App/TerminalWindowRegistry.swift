@@ -88,6 +88,9 @@ final class TerminalWindowRegistry {
     tabDragRegistry.transfer = { [weak self] payload, destination in
       self?.transferTab(payload, to: destination)
     }
+    tabDragRegistry.split = { [weak self] payload, destination in
+      self?.splitTab(payload, to: destination)
+    }
   }
 
   var hasShortcutSource: Bool {
@@ -226,6 +229,46 @@ final class TerminalWindowRegistry {
         .terminal(
           .hiddenAgentPanelsTransferred(remove: [], insert: hiddenSurfaceIDs)
         )
+      )
+    }
+    onChange()
+    return result
+  }
+
+  func splitTab(
+    _ payload: TerminalTabDragPayload,
+    to destination: TerminalTabDragRegistry.SplitDestination
+  ) -> TerminalTabSplitResult? {
+    guard
+      let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
+      let destinationEntry = entry(forWindowControllerID: destination.windowControllerID),
+      let plan = try? TerminalHostState.prepareLiveTabSplit(
+        payload: payload,
+        from: sourceEntry.terminal,
+        to: TerminalHostState.LiveTabSplitTarget(
+          host: destinationEntry.terminal,
+          side: destination.side,
+          spaceID: destination.spaceID,
+          tabID: destination.tabID
+        )
+      )
+    else { return nil }
+    let hiddenSurfaceIDs = sourceEntry.store.terminal.hiddenAgentPanelSurfaceIDs.intersection(
+      plan.surfaceIDs
+    )
+    guard
+      let result = try? TerminalHostState.commitLiveTabSplit(
+        plan,
+        from: sourceEntry.terminal,
+        to: destinationEntry.terminal
+      )
+    else { return nil }
+    if sourceEntry.windowControllerID != destinationEntry.windowControllerID {
+      sourceEntry.store.send(
+        .terminal(.hiddenAgentPanelsTransferred(remove: hiddenSurfaceIDs, insert: []))
+      )
+      destinationEntry.store.send(
+        .terminal(.hiddenAgentPanelsTransferred(remove: [], insert: hiddenSurfaceIDs))
       )
     }
     onChange()

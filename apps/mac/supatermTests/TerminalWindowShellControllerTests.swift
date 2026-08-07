@@ -4,6 +4,42 @@ import Testing
 @testable import supaterm
 
 struct TerminalWindowShellControllerTests {
+  @Test
+  func splitDropTargetsUseStableSideGeometry() {
+    let layout = TerminalTabSplitDropLayout(
+      bounds: CGRect(x: 0, y: 0, width: 1_200, height: 800)
+    )
+
+    #expect(layout.leftFrame.minX == 22)
+    #expect(layout.rightFrame.maxX == 1_178)
+    #expect(layout.side(at: CGPoint(x: layout.leftFrame.midX, y: layout.leftFrame.midY)) == .left)
+    #expect(
+      layout.side(at: CGPoint(x: layout.rightFrame.midX, y: layout.rightFrame.midY)) == .right
+    )
+    #expect(layout.side(at: CGPoint(x: 600, y: 20)) == nil)
+  }
+
+  @Test
+  func desktopDropReceiverRequiresAnUnblockedScreenPoint() {
+    let screens = [CGRect(x: 0, y: 0, width: 1_200, height: 800)]
+    let blocked = [CGRect(x: 100, y: 100, width: 600, height: 500)]
+
+    #expect(
+      TerminalTabDesktopDropRouting.receiverFrame(
+        for: CGPoint(x: 50, y: 50),
+        screenFrames: screens,
+        blockedFrames: blocked
+      ) == screens[0]
+    )
+    #expect(
+      TerminalTabDesktopDropRouting.receiverFrame(
+        for: CGPoint(x: 200, y: 200),
+        screenFrames: screens,
+        blockedFrames: blocked
+      ) == nil
+    )
+  }
+
   private let bounds = CGRect(x: 0, y: 0, width: 1_000, height: 700)
 
   @Test

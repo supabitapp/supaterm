@@ -63,6 +63,10 @@ final class TerminalWindowShellState {
 @MainActor
 final class TerminalWindowShellView: NSView {
   var onRevealChanged: ((Bool) -> Void)?
+  var onDraggingUpdated: ((any NSDraggingInfo) -> NSDragOperation)?
+  var onDraggingExited: (() -> Void)?
+  var onPrepareForDragOperation: ((any NSDraggingInfo) -> Bool)?
+  var onPerformDragOperation: ((any NSDraggingInfo) -> Bool)?
   private(set) var isPointerInsideRevealFrame = false
   private var revealFrame = CGRect.zero
   private var revealTrackingArea: NSTrackingArea?
@@ -102,6 +106,31 @@ final class TerminalWindowShellView: NSView {
     setPointerInside(false)
   }
 
+  override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+    onDraggingUpdated?(sender) ?? []
+  }
+
+  override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+    onDraggingUpdated?(sender) ?? []
+  }
+
+  override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+    onDraggingExited?()
+  }
+
+  override func draggingEnded(_ sender: any NSDraggingInfo) {
+    onDraggingExited?()
+  }
+
+  override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+    sender.animatesToDestination = false
+    return onPrepareForDragOperation?(sender) == true
+  }
+
+  override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+    onPerformDragOperation?(sender) == true
+  }
+
   private func setPointerInside(_ isInside: Bool) {
     guard isInside != isPointerInsideRevealFrame else { return }
     isPointerInsideRevealFrame = isInside
@@ -111,12 +140,21 @@ final class TerminalWindowShellView: NSView {
 
 @MainActor
 final class TerminalWindowShellController: NSViewController {
+  private struct ActiveSplitDrop {
+    let destination: (spaceID: TerminalSpaceID, tabID: TerminalTabID)
+    let payload: TerminalTabDragPayload
+    let side: TerminalTabSplitSide
+  }
+
   let sidebarControllerCache: TerminalSidebarControllerCache
   let state = TerminalWindowShellState()
   var onFloatingSidebarVisibilityChange: ((Bool) -> Void)?
   var isSpacePaging: () -> Bool = { false }
+  var splitDestination: () -> (spaceID: TerminalSpaceID, tabID: TerminalTabID)? = { nil }
 
+  private var activeSplitDrop: ActiveSplitDrop?
   private var detailController: NSViewController?
+  private var detailFrame = CGRect.zero
   private var presentation = TerminalWindowShellPresentation(
     isFloatingSidebarVisible: false,
     isSidebarCollapsed: false,
@@ -124,12 +162,17 @@ final class TerminalWindowShellController: NSViewController {
     sidebarWidth: nil
   )
   private var sidebarController: NSViewController?
+  private let splitDropOverlay = TerminalTabSplitDropOverlayView()
+  private let tabDragRegistry: TerminalTabDragRegistry
+  private let windowControllerID: UUID
 
   init(windowControllerID: UUID, tabDragRegistry: TerminalTabDragRegistry) {
     sidebarControllerCache = TerminalSidebarControllerCache(
       windowControllerID: windowControllerID,
       tabDragRegistry: tabDragRegistry
     )
+    self.tabDragRegistry = tabDragRegistry
+    self.windowControllerID = windowControllerID
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -143,6 +186,19 @@ final class TerminalWindowShellController: NSViewController {
     shellView.onRevealChanged = { [weak self] isInside in
       self?.revealChanged(isInside)
     }
+    shellView.onDraggingUpdated = { [weak self] in
+      self?.draggingUpdated($0) ?? []
+    }
+    shellView.onDraggingExited = { [weak self] in
+      self?.clearSplitDrop()
+    }
+    shellView.onPrepareForDragOperation = { [weak self] in
+      self?.prepareForDragOperation($0) == true
+    }
+    shellView.onPerformDragOperation = { [weak self] in
+      self?.performDragOperation($0) == true
+    }
+    shellView.registerForDraggedTypes([.terminalTabDrag])
     view = shellView
   }
 
@@ -155,6 +211,7 @@ final class TerminalWindowShellController: NSViewController {
     precondition(sidebarController == nil && detailController == nil)
     addChild(detail)
     view.addSubview(detail.view)
+    view.addSubview(splitDropOverlay)
     addChild(sidebar)
     view.addSubview(sidebar.view)
     sidebarController = sidebar
@@ -183,6 +240,7 @@ final class TerminalWindowShellController: NSViewController {
   private func applyLayout(animated: Bool) {
     guard let sidebarController, let detailController else { return }
     let layout = TerminalWindowShellLayout(bounds: view.bounds, presentation: presentation)
+    detailFrame = layout.detailFrame
     state.apply(layout: layout, presentation: presentation)
     (view as? TerminalWindowShellView)?.setRevealFrame(layout.revealFrame)
     if animated, view.window != nil {
@@ -196,6 +254,7 @@ final class TerminalWindowShellController: NSViewController {
       sidebarController.view.frame = layout.sidebarFrame
       detailController.view.frame = layout.detailFrame
     }
+    splitDropOverlay.frame = layout.detailFrame
   }
 
   private func revealChanged(_ isInside: Bool) {
@@ -205,5 +264,70 @@ final class TerminalWindowShellController: NSViewController {
     } else if !isSpacePaging() {
       onFloatingSidebarVisibilityChange?(false)
     }
+  }
+
+  private func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
+    guard
+      let payload = tabDragRegistry.resolve(info.draggingPasteboard),
+      payload.itemIDs.count == 1,
+      case .tab(let sourceTabID) = payload.itemIDs[0],
+      let destination = splitDestination(),
+      destination.tabID != sourceTabID
+    else {
+      clearSplitDrop()
+      return []
+    }
+    let location = view.convert(info.draggingLocation, from: nil)
+    guard detailFrame.contains(location) else {
+      clearSplitDrop()
+      return []
+    }
+    splitDropOverlay.present()
+    let overlayPoint = CGPoint(
+      x: location.x - detailFrame.minX,
+      y: location.y - detailFrame.minY
+    )
+    guard let side = splitDropOverlay.update(point: overlayPoint) else {
+      activeSplitDrop = nil
+      return []
+    }
+    activeSplitDrop = ActiveSplitDrop(
+      destination: destination,
+      payload: payload,
+      side: side
+    )
+    info.numberOfValidItemsForDrop = 1
+    return .move
+  }
+
+  private func prepareForDragOperation(_ info: any NSDraggingInfo) -> Bool {
+    guard
+      let activeSplitDrop,
+      tabDragRegistry.resolve(info.draggingPasteboard) == activeSplitDrop.payload
+    else { return false }
+    return true
+  }
+
+  private func performDragOperation(_ info: any NSDraggingInfo) -> Bool {
+    guard
+      let activeSplitDrop,
+      tabDragRegistry.resolve(info.draggingPasteboard) == activeSplitDrop.payload
+    else { return false }
+    let result = tabDragRegistry.performSplit(
+      activeSplitDrop.payload,
+      to: TerminalTabDragRegistry.SplitDestination(
+        windowControllerID: windowControllerID,
+        spaceID: activeSplitDrop.destination.spaceID,
+        tabID: activeSplitDrop.destination.tabID,
+        side: activeSplitDrop.side
+      )
+    )
+    clearSplitDrop()
+    return result != nil
+  }
+
+  private func clearSplitDrop() {
+    activeSplitDrop = nil
+    splitDropOverlay.dismiss()
   }
 }

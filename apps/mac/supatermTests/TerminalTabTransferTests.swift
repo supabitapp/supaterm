@@ -48,6 +48,74 @@ struct TerminalTabTransferTests {
   }
 
   @Test
+  func splitTransferJoinsTheLiveTreeWithoutClosingItsSurface() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let space = TerminalSpaceItem(name: "Main")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let runtime = GhosttyRuntime()
+      let host = TerminalHostState(
+        runtime: runtime,
+        spaceID: space.id,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
+      let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
+      host.spaceManager.tabCollection.selectTab(destinationTabID)
+      let destinationSurface = unbackedSurface(runtime: runtime, tabID: destinationTabID)
+      let sourceSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
+      host.trees[destinationTabID] = SplitTree(view: destinationSurface)
+      host.trees[sourceTabID] = SplitTree(view: sourceSurface)
+      host.surfaces[destinationSurface.id] = destinationSurface
+      host.surfaces[sourceSurface.id] = sourceSurface
+      host.focusHistoryByTab[destinationTabID] = TerminalHostState.FocusHistory(
+        current: destinationSurface.id
+      )
+      host.focusHistoryByTab[sourceTabID] = TerminalHostState.FocusHistory(
+        current: sourceSurface.id
+      )
+      let payload = try #require(
+        TerminalTabDragPayload(
+          operationID: TerminalTabMoveOperationID(),
+          sourceWindowID: UUID(),
+          sourceSpaceID: space.id,
+          sourceTopologyRevision: host.spaceManager.tabCollection.topologyRevision,
+          itemIDs: [.tab(sourceTabID)]
+        )
+      )
+      let plan = try TerminalHostState.prepareLiveTabSplit(
+        payload: payload,
+        from: host,
+        to: TerminalHostState.LiveTabSplitTarget(
+          host: host,
+          side: .left,
+          spaceID: space.id,
+          tabID: destinationTabID
+        )
+      )
+
+      let result = try TerminalHostState.commitLiveTabSplit(plan, from: host, to: host)
+
+      #expect(result.sourceTabID == sourceTabID)
+      #expect(host.spaceManager.tabCollection.tabs.map(\.id) == [destinationTabID])
+      #expect(host.trees[sourceTabID] == nil)
+      #expect(
+        host.trees[destinationTabID]?.leaves().map(\.id) == [
+          sourceSurface.id,
+          destinationSurface.id,
+        ])
+      #expect(host.surfaces[sourceSurface.id] === sourceSurface)
+      #expect(host.focusHistoryByTab[destinationTabID]?.current == sourceSurface.id)
+    }
+  }
+
+  @Test
   func registryMovesTheSameLiveSurfaceBetweenWindows() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -150,5 +218,18 @@ struct TerminalTabTransferTests {
     let window = NSWindow()
     registry.updateWindow(window, for: id)
     return window
+  }
+
+  private func unbackedSurface(
+    runtime: GhosttyRuntime,
+    tabID: TerminalTabID
+  ) -> GhosttySurfaceView {
+    GhosttySurfaceView(
+      runtime: runtime,
+      tabID: tabID.rawValue,
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      surfaceFactory: { _, _ in nil }
+    )
   }
 }

@@ -86,6 +86,7 @@ final class TerminalWindowController: NSWindowController {
     session: TerminalWindowSession? = nil,
     spaceID: TerminalSpaceID? = nil,
     startupCommand: String? = nil,
+    createsInitialTab: Bool = true,
     zmxClient: ZmxClient = .live,
     zmxSessionsEnabled: Bool = true,
     onSessionChange: @escaping @MainActor () -> Void = {}
@@ -101,7 +102,12 @@ final class TerminalWindowController: NSWindowController {
       zmxSessionsEnabled: zmxSessionsEnabled
     )
     terminal.onSessionChange = onSessionChange
-    Self.prepareTerminal(terminal, session: session, startupCommand: startupCommand)
+    Self.prepareTerminal(
+      terminal,
+      session: session,
+      startupCommand: startupCommand,
+      createsInitialTab: createsInitialTab
+    )
     let commandPaletteClient = TerminalCommandPaletteClient.live(registry: registry)
     let store = Store(
       initialState: AppFeature.State(
@@ -255,6 +261,10 @@ final class TerminalWindowController: NSWindowController {
     shellController.isSpacePaging = { [weak terminal = input.terminal] in
       terminal?.spacePager?.isTracking == true
     }
+    shellController.splitDestination = { [weak terminal = input.terminal] in
+      guard let terminal, let tabID = terminal.selectedTabID else { return nil }
+      return (terminal.displayedSpaceID, tabID)
+    }
     shellController.install(sidebar: sidebarController, detail: detailController)
     return shellController
   }
@@ -262,11 +272,13 @@ final class TerminalWindowController: NSWindowController {
   private static func prepareTerminal(
     _ terminal: TerminalHostState,
     session: TerminalWindowSession?,
-    startupCommand: String?
+    startupCommand: String?,
+    createsInitialTab: Bool
   ) {
     if let session, terminal.restore(from: session) {
       return
     }
+    guard createsInitialTab else { return }
     terminal.ensureInitialTab(focusing: false, startupCommand: startupCommand)
   }
 
