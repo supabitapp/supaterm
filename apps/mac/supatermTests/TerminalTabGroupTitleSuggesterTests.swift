@@ -172,7 +172,7 @@ struct TerminalTabGroupTitleSuggesterTests {
   @Test
   func hostBuildsSuggestionFromCanonicalTabs() throws {
     let terminal = TerminalHostState(managesTerminalSurfaces: false)
-    let manager = terminal.spaceManager.tabManager
+    let manager = terminal.spaceManager.tabCollection
     let first = manager.createTab(title: "Release Web", isTitleLocked: true)
     let second = manager.createTab(title: "Release API", isTitleLocked: true)
 

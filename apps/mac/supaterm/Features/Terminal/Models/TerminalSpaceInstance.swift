@@ -5,7 +5,7 @@ import Observation
 @Observable
 final class TerminalSpaceInstance {
   let spaceID: TerminalSpaceID
-  let tabManager = TerminalTabManager()
+  let tabCollection = TerminalTabCollection()
   var previousSelectedTabID: TerminalTabID?
   var collapsedTabGroupIDs: Set<TerminalTabGroupID> = []
   var pendingSession: TerminalSpaceSession?
@@ -16,10 +16,18 @@ final class TerminalSpaceInstance {
   }
 
   var tabs: [TerminalTabItem] {
-    tabManager.tabs
+    tabCollection.tabs
   }
 
   var selectedTabID: TerminalTabID? {
-    tabManager.selectedTabId
+    tabCollection.selectedTabID
+  }
+
+  var tabSurfaceSnapshot: TerminalTabSurfaceSnapshot {
+    TerminalTabSurfaceSnapshot(
+      spaceID: spaceID,
+      collection: tabCollection.snapshot,
+      collapsedGroupIDs: collapsedTabGroupIDs
+    )
   }
 }

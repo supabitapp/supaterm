@@ -72,7 +72,7 @@ extension TerminalHostState {
   }
 
   func requestCloseGroup(_ groupID: TerminalTabGroupID) {
-    guard let manager = spaceManager.instance(for: groupID)?.tabManager else { return }
+    guard let manager = spaceManager.instance(for: groupID)?.tabCollection else { return }
     guard !manager.tabIDs(in: groupID).isEmpty else {
       _ = deleteEmptyGroup(groupID)
       return
@@ -82,19 +82,19 @@ extension TerminalHostState {
   }
 
   func requestCloseTabsBelow(_ tabID: TerminalTabID) {
-    guard let tabManager = spaceManager.instance(for: tabID)?.tabManager else { return }
-    requestCloseTabs(tabManager.tabIDsBelow(tabID))
+    guard let tabCollection = spaceManager.instance(for: tabID)?.tabCollection else { return }
+    requestCloseTabs(tabCollection.tabIDsBelow(tabID))
   }
 
   func requestCloseOtherTabs(keeping tabIDs: [TerminalTabID]) {
     guard
       let tabID = tabIDs.first,
-      let tabManager = spaceManager.instance(for: tabID)?.tabManager
+      let tabCollection = spaceManager.instance(for: tabID)?.tabCollection
     else {
       return
     }
     let retained = Set(tabIDs)
-    requestCloseTabs(tabManager.tabs.map(\.id).filter { !retained.contains($0) })
+    requestCloseTabs(tabCollection.tabs.map(\.id).filter { !retained.contains($0) })
   }
 
   func requestCloseTabs(_ tabIDs: [TerminalTabID]) {
@@ -149,7 +149,7 @@ extension TerminalHostState {
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusHistoryByTab.removeValue(forKey: tabID)
-      instance?.tabManager.closeTab(tabID)
+      instance?.tabCollection.closeTab(tabID)
       if let instance {
         updateSelectionAfterClosingTab(
           in: instance.spaceID,
@@ -402,7 +402,7 @@ extension TerminalHostState {
       )
 
     case .group(let groupID):
-      guard let manager = spaceManager.instance(for: groupID)?.tabManager else { return nil }
+      guard let manager = spaceManager.instance(for: groupID)?.tabCollection else { return nil }
       let tabIDs = manager.tabIDs(in: groupID)
       guard !tabIDs.isEmpty else { return nil }
       if shouldCloseWindow(afterClosing: tabIDs) {

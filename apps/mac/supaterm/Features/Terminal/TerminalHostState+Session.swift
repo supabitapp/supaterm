@@ -30,7 +30,7 @@ extension TerminalHostState {
     }
     var rootOrderByPinned = [true: 0, false: 0]
     var rootSnapshots: [TerminalRootSessionSnapshot] = []
-    for item in instance.tabManager.rootItems {
+    for item in instance.tabCollection.rootItems {
       let rootOrder = rootOrderByPinned[item.isPinned, default: 0]
       guard let snapshot = restorationSnapshot(for: item, rootOrder: rootOrder) else {
         continue
@@ -420,7 +420,7 @@ extension TerminalHostState {
     )
     removeTrees(for: existingTabIDs, terminateSessions: false, source: .sessionClear)
     for instance in spaceManager.instances {
-      instance.tabManager.restoreRootItems([], selectedTabID: nil)
+      instance.tabCollection.restoreRootItems([], selectedTabID: nil)
       instance.collapsedTabGroupIDs.removeAll()
       instance.previousSelectedTabID = nil
       instance.pendingSession = nil

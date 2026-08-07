@@ -292,9 +292,9 @@ struct TerminalWindowRegistryTests {
       }
       let windowControllerID = UUID()
 
-      let tabManager = host.spaceManager.tabManager
-      let tabID = tabManager.createTab(title: "Terminal 1")
-      tabManager.selectTab(tabID)
+      let tabCollection = host.spaceManager.tabCollection
+      let tabID = tabCollection.createTab(title: "Terminal 1")
+      tabCollection.selectTab(tabID)
 
       registry.register(
         keyboardShortcutForAction: { _ in nil },
@@ -995,9 +995,9 @@ struct TerminalWindowRegistryTests {
       }
       let windowControllerID = UUID()
 
-      let tabManager = host.spaceManager.tabManager
-      let tabID = tabManager.createTab(title: "Terminal 1")
-      tabManager.selectTab(tabID)
+      let tabCollection = host.spaceManager.tabCollection
+      let tabID = tabCollection.createTab(title: "Terminal 1")
+      tabCollection.selectTab(tabID)
 
       registry.register(
         keyboardShortcutForAction: { _ in nil },
@@ -1060,12 +1060,12 @@ struct TerminalWindowRegistryTests {
         $0.terminalClient.send = { recorder.record($0) }
       }
       let windowControllerID = UUID()
-      let tabManager = host.spaceManager.tabManager
-      let tabID = tabManager.createTab(title: "Terminal 1")
+      let tabCollection = host.spaceManager.tabCollection
+      let tabID = tabCollection.createTab(title: "Terminal 1")
       let groupID = try #require(
-        tabManager.createGroup(title: "Group", containing: [tabID])
+        tabCollection.createGroup(title: "Group", containing: [tabID])
       ).groupID
-      tabManager.selectTab(tabID)
+      tabCollection.selectTab(tabID)
 
       registry.register(
         keyboardShortcutForAction: { _ in nil },

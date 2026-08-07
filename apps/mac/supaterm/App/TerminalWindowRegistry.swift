@@ -787,7 +787,7 @@ final class TerminalWindowRegistry {
 
   private func selectedGroupID(in entry: Entry) -> TerminalTabGroupID? {
     guard let tabID = entry.terminal.selectedTabID else { return nil }
-    return entry.terminal.spaceManager.displayedInstance.tabManager.groupID(containing: tabID)
+    return entry.terminal.spaceManager.displayedInstance.tabCollection.groupID(containing: tabID)
   }
 
   private func commandAvailability(for entry: Entry) -> CommandAvailability {

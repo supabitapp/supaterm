@@ -62,6 +62,25 @@ struct TerminalSidebarOutline: Equatable {
     }
   }
 
+  init(snapshot: TerminalTabSurfaceSnapshot) {
+    roots = snapshot.collection.rootItems.map { root in
+      switch root {
+      case .tab(let item):
+        Root(content: .tab(item.tab.id), isPinned: item.isPinned)
+      case .group(let group):
+        Root(
+          content: .group(group.id, group.color, group.lifetime, group.tabs.map(\.id)),
+          isPinned: group.isPinned
+        )
+      }
+    }
+    collapsedGroupIDs = snapshot.collapsedGroupIDs
+    topologyStamp = TerminalSidebarTopologyStamp(
+      spaceID: snapshot.spaceID,
+      revision: snapshot.collection.topologyRevision
+    )
+  }
+
   var visibleEntries: [TerminalSidebarEntry] {
     var entries: [TerminalSidebarEntry] = []
     let hasPinned = roots.contains { $0.isPinned }

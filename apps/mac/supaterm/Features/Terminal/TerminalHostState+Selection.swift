@@ -15,8 +15,8 @@ extension TerminalHostState {
     if currentSelectedTabID != tabID, let currentSelectedTabID {
       instance.previousSelectedTabID = currentSelectedTabID
     }
-    instance.tabManager.selectTab(tabID)
-    if let groupID = instance.tabManager.groupID(containing: tabID) {
+    instance.tabCollection.selectTab(tabID)
+    if let groupID = instance.tabCollection.groupID(containing: tabID) {
       instance.collapsedTabGroupIDs.remove(groupID)
     }
   }
@@ -84,7 +84,7 @@ extension TerminalHostState {
       return
     }
 
-    spaceManager.instance(for: spaceID)?.tabManager.clearSelection()
+    spaceManager.instance(for: spaceID)?.tabCollection.clearSelection()
 
     lastEmittedFocusSurfaceID = nil
   }

@@ -45,7 +45,7 @@ struct TerminalSidebarSpaceList: View {
       swipe: swipe,
       outline: outline,
       rows: rows,
-      selectedTabID: instance.selectedTabID,
+      selectedTabID: snapshot.collection.selectedTabID,
       fixedHoveredGroupID: fixedHoveredGroupID,
       reduceMotion: reduceMotion,
       actions: rowActions,
@@ -54,36 +54,18 @@ struct TerminalSidebarSpaceList: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  private var rootItems: [TerminalTabRootItem] {
-    instance.tabManager.rootItems
+  private var snapshot: TerminalTabSurfaceSnapshot {
+    instance.tabSurfaceSnapshot
   }
 
   private var outline: TerminalSidebarOutline {
-    TerminalSidebarOutline(
-      roots: rootItems.map { root in
-        switch root {
-        case .tab(let item):
-          TerminalSidebarOutline.Root(
-            content: .tab(item.tab.id),
-            isPinned: item.isPinned
-          )
-        case .group(let group):
-          TerminalSidebarOutline.Root(
-            content: .group(group.id, group.color, group.lifetime, group.tabs.map(\.id)),
-            isPinned: group.isPinned
-          )
-        }
-      },
-      collapsedGroupIDs: instance.collapsedTabGroupIDs,
-      topologyRevision: instance.tabManager.topologyRevision,
-      spaceID: instance.spaceID
-    )
+    TerminalSidebarOutline(snapshot: snapshot)
   }
 
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
     var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
     let shortcutHints = tabShortcutHintsByID
-    for root in rootItems {
+    for root in snapshot.collection.rootItems {
       switch root {
       case .tab(let item):
         rows[.tab(item.tab.id)] = .tab(
@@ -101,7 +83,7 @@ struct TerminalSidebarSpaceList: View {
             title: group.title,
             color: group.color,
             isPinned: group.isPinned,
-            isCollapsed: instance.collapsedTabGroupIDs.contains(group.id),
+            isCollapsed: snapshot.collapsedGroupIDs.contains(group.id),
             tabCount: group.tabs.count
           )
         )
@@ -117,6 +99,7 @@ struct TerminalSidebarSpaceList: View {
         }
       }
     }
+    let rootItems = snapshot.collection.rootItems
     if rootItems.contains(where: \.isPinned), rootItems.contains(where: { !$0.isPinned }) {
       rows[.pinDivider] = .pinDivider
     }
@@ -159,7 +142,7 @@ struct TerminalSidebarSpaceList: View {
   }
 
   private var tabShortcutHintsByID: [TerminalTabID: String] {
-    TerminalSidebarTabShortcutHints.byTabID(for: instance.tabManager.visibleTabs) { slot in
+    TerminalSidebarTabShortcutHints.byTabID(for: snapshot.collection.tabs) { slot in
       ghosttyShortcuts.keyboardShortcut(for: .goToTab(slot))
     }
   }

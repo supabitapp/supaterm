@@ -32,7 +32,7 @@ extension TerminalHostState {
   }
 
   var selectedSpaceTopologyRevision: UInt64 {
-    spaceManager.tabManager.topologyRevision
+    spaceManager.tabCollection.topologyRevision
   }
 
   var visibleTabs: [TerminalTabItem] {
@@ -44,7 +44,7 @@ extension TerminalHostState {
   }
 
   func isPinned(_ tabID: TerminalTabID) -> Bool {
-    spaceManager.instance(for: tabID)?.tabManager.isPinned(tabID) == true
+    spaceManager.instance(for: tabID)?.tabCollection.isPinned(tabID) == true
   }
 
   var hasUnreadSidebarNotifications: Bool {

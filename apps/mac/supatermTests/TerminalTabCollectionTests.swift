@@ -5,10 +5,28 @@ import Testing
 @testable import supaterm
 
 @MainActor
-struct TerminalTabManagerTests {
+struct TerminalTabCollectionTests {
+  @Test
+  func snapshotProjectsTopologySelectionAndOrder() throws {
+    let collection = TerminalTabCollection()
+    let first = collection.createTab(title: "First")
+    let second = collection.createTab(title: "Second")
+    let groupID = try #require(
+      collection.createGroup(title: "Group", containing: [first, second])?.groupID
+    )
+    collection.selectTab(second)
+
+    let snapshot = collection.snapshot
+
+    #expect(snapshot.rootItems.map(\.id) == [.group(groupID)])
+    #expect(snapshot.tabs.map(\.id) == [first, second])
+    #expect(snapshot.selectedTabID == second)
+    #expect(snapshot.topologyRevision == collection.topologyRevision)
+  }
+
   @Test
   func createTabUsesRequestedRootLaneAndSelectsIt() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let regular = manager.createTab(title: "Regular")
     let pinned = try #require(
       manager.createTab(
@@ -20,12 +38,12 @@ struct TerminalTabManagerTests {
     #expect(manager.tabs.map(\.id) == [pinned, regular])
     #expect(manager.pinnedRootItems.map(\.id) == [.tab(pinned)])
     #expect(manager.regularRootItems.map(\.id) == [.tab(regular)])
-    #expect(manager.selectedTabId == pinned)
+    #expect(manager.selectedTabID == pinned)
   }
 
   @Test
   func createGroupUsesTargetPositionAndSuppliedTabOrder() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let target = manager.createTab(title: "Target")
     let source = manager.createTab(title: "Source")
@@ -43,7 +61,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func createGroupFromGroupedChildDeletesEmptiedAutomaticSource() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let sourceGroupID = try #require(
@@ -64,7 +82,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func invalidGroupCreationDoesNotMutateTopologyOrSelection() {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     manager.selectTab(first)
@@ -76,12 +94,12 @@ struct TerminalTabManagerTests {
 
     #expect(manager.rootItems == rootItems)
     #expect(manager.tabs.map(\.id) == [first, second])
-    #expect(manager.selectedTabId == first)
+    #expect(manager.selectedTabID == first)
   }
 
   @Test
   func movingLastTabBetweenGroupsDeletesAutomaticSourceAndReturnsReceipt() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let source = manager.createTab(title: "Source")
     let target = manager.createTab(title: "Target")
     let sourceGroupID = try #require(
@@ -116,7 +134,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func explicitEmptyGroupRemainsAfterItsLastChildLeaves() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let tabID = manager.createTab(title: "Tab")
     let groupID = try #require(manager.createGroup(title: "Durable", containing: [])).groupID
     _ = try manager.move(
@@ -142,7 +160,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func batchMoveUsesPostRemovalIndexAndPreservesRequestOrder() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let third = manager.createTab(title: "Third")
@@ -168,7 +186,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func batchMoveRemovesAutomaticSourceGroupsBeforeRootInsertion() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let tail = manager.createTab(title: "Tail")
@@ -190,7 +208,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func removingLastAutomaticChildUsesRootIndexAfterGroupDeletion() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let grouped = manager.createTab(title: "Grouped")
     let trailing = manager.createTab(title: "Trailing")
@@ -204,7 +222,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func batchMoveRejectsGroupWithItsDescendantWithoutMutation() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let child = manager.createTab(title: "Child")
     let sibling = manager.createTab(title: "Sibling")
     let groupID = try #require(
@@ -230,7 +248,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func movingRootItemsUsesPostRemovalLaneIndices() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let third = manager.createTab(title: "Third")
@@ -255,7 +273,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func groupedPinExtractsTabToPinnedRoot() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let groupID = try #require(
@@ -270,7 +288,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func pinningGroupMovesWholeRootWithoutChangingChildren() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let groupID = try #require(
@@ -285,7 +303,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func removeTabFromGroupInheritsGroupPinAndFollowsGroup() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let groupID = try #require(
@@ -301,7 +319,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func ungroupReplacesGroupWithChildrenInOrderAndInheritedLane() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let second = manager.createTab(title: "Second")
     let groupID = try #require(
@@ -316,7 +334,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func closingLastChildDeletesAutomaticGroupAndSelectsNextFlattenedTab() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let grouped = manager.createTab(title: "Grouped")
     let next = manager.createTab(title: "Next")
     let groupID = try #require(
@@ -327,14 +345,14 @@ struct TerminalTabManagerTests {
     let result = try #require(manager.closeTab(grouped))
 
     #expect(manager.group(for: groupID) == nil)
-    #expect(manager.selectedTabId == next)
+    #expect(manager.selectedTabID == next)
     #expect(result.deletedEmptyGroupIDs == [groupID])
     #expect(result.topologyRevision == manager.topologyRevision)
   }
 
   @Test
   func closeBelowAndOthersUseStableFlattenedOrderAcrossGroups() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let groupedA = manager.createTab(title: "Grouped A")
     let groupedB = manager.createTab(title: "Grouped B")
@@ -348,7 +366,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func invalidMoveDoesNotMutateTopologyOrRevision() {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let before = manager.rootItems
     let revision = manager.topologyRevision
@@ -372,7 +390,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func staleMoveDoesNotMutateTopologyOrRevision() {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let first = manager.createTab(title: "First")
     let staleRevision = manager.topologyRevision
     let second = manager.createTab(title: "Second")
@@ -400,7 +418,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func groupMetadataDoesNotAdvanceTopologyRevision() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let groupID = try #require(manager.createGroup(title: "Group", containing: [])).groupID
     let revision = manager.topologyRevision
 
@@ -411,7 +429,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func nestedTabTitleAndDirtyMutationsUpdateCanonicalTopology() throws {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let tabID = manager.createTab(title: "Terminal")
     let groupID = try #require(
       manager.createGroup(title: "Group", containing: [tabID])
@@ -430,7 +448,7 @@ struct TerminalTabManagerTests {
 
   @Test
   func restoreNormalizesPinLanesAndDropsDuplicateTabsAndGroups() {
-    let manager = TerminalTabManager()
+    let manager = TerminalTabCollection()
     let tab = TerminalTabItem(title: "Tab")
     let groupID = TerminalTabGroupID()
     let group = TerminalTabGroupItem(
@@ -454,6 +472,142 @@ struct TerminalTabManagerTests {
     #expect(manager.rootItems.count == 2)
     #expect(manager.rootItems.first?.id == .group(groupID))
     #expect(manager.tabs.filter { $0.id == tab.id }.count == 1)
-    #expect(manager.selectedTabId == tab.id)
+    #expect(manager.selectedTabID == tab.id)
+  }
+
+  @Test
+  func transferMovesTabsAtomicallyAndSelectsTheFirstMovedTab() throws {
+    let source = TerminalTabCollection()
+    let first = source.createTab(title: "First")
+    let second = source.createTab(title: "Second")
+    source.selectTab(first)
+    let destination = TerminalTabCollection()
+    let existing = destination.createTab(title: "Existing")
+    let request = TerminalTabTransferRequest(
+      expectedSourceRevision: source.topologyRevision,
+      expectedDestinationRevision: destination.topologyRevision,
+      itemIDs: [.tab(first), .tab(second)],
+      destination: .root(TerminalRootPlacement(isPinned: false, index: 1))
+    )
+
+    let plan = try TerminalTabCollection.prepareTransfer(
+      request,
+      from: source,
+      to: destination
+    )
+
+    #expect(source.tabs.map(\.id) == [first, second])
+    #expect(destination.tabs.map(\.id) == [existing])
+
+    let result = try TerminalTabCollection.commitTransfer(
+      plan,
+      from: source,
+      to: destination
+    )
+
+    #expect(source.tabs.isEmpty)
+    #expect(source.selectedTabID == nil)
+    #expect(destination.tabs.map(\.id) == [existing, first, second])
+    #expect(destination.selectedTabID == first)
+    #expect(result.tabIDs == [first, second])
+    #expect(result.sourceRevision == request.expectedSourceRevision + 1)
+    #expect(result.destinationRevision == request.expectedDestinationRevision + 1)
+  }
+
+  @Test
+  func transferPreservesGroupIdentityMetadataAndChildOrder() throws {
+    let source = TerminalTabCollection()
+    let first = source.createTab(title: "First")
+    let second = source.createTab(title: "Second")
+    let groupID = try #require(
+      source.createGroup(title: "Build", color: .purple, containing: [second, first])
+    ).groupID
+    let destination = TerminalTabCollection()
+    let request = TerminalTabTransferRequest(
+      expectedSourceRevision: source.topologyRevision,
+      expectedDestinationRevision: destination.topologyRevision,
+      itemIDs: [.group(groupID)],
+      destination: .root(TerminalRootPlacement(isPinned: true, index: 0))
+    )
+
+    let plan = try TerminalTabCollection.prepareTransfer(
+      request,
+      from: source,
+      to: destination
+    )
+    let result = try TerminalTabCollection.commitTransfer(
+      plan,
+      from: source,
+      to: destination
+    )
+    let group = try #require(destination.group(for: groupID))
+
+    #expect(source.rootItems.isEmpty)
+    #expect(destination.rootItems.map(\.id) == [.group(groupID)])
+    #expect(group.title == "Build")
+    #expect(group.color == .purple)
+    #expect(group.isPinned)
+    #expect(group.tabs.map(\.id) == [second, first])
+    #expect(result.tabIDs == [second, first])
+  }
+
+  @Test
+  func transferCommitRejectsAChangedSourceWithoutApplyingThePlan() throws {
+    let source = TerminalTabCollection()
+    let tabID = source.createTab(title: "Source")
+    let destination = TerminalTabCollection()
+    let plan = try TerminalTabCollection.prepareTransfer(
+      TerminalTabTransferRequest(
+        expectedSourceRevision: source.topologyRevision,
+        expectedDestinationRevision: destination.topologyRevision,
+        itemIDs: [.tab(tabID)],
+        destination: .root(TerminalRootPlacement(isPinned: false, index: 0))
+      ),
+      from: source,
+      to: destination
+    )
+    let expectedRevision = source.topologyRevision
+    _ = source.createTab(title: "Later")
+
+    #expect(
+      throws: TerminalTabTransferError.staleSource(
+        expected: expectedRevision,
+        actual: source.topologyRevision
+      )
+    ) {
+      try TerminalTabCollection.commitTransfer(plan, from: source, to: destination)
+    }
+    #expect(source.tabs.count == 2)
+    #expect(destination.tabs.isEmpty)
+  }
+
+  @Test
+  func transferRejectsTabIdentityCollisionsBeforeMutation() {
+    let tab = TerminalTabItem(title: "Shared")
+    let source = TerminalTabCollection()
+    source.restoreRootItems(
+      [.tab(TerminalUngroupedTabItem(tab: tab, isPinned: false))],
+      selectedTabID: tab.id
+    )
+    let destination = TerminalTabCollection()
+    destination.restoreRootItems(
+      [.tab(TerminalUngroupedTabItem(tab: tab, isPinned: false))],
+      selectedTabID: tab.id
+    )
+
+    #expect(throws: TerminalTabTransferError.destinationContainsTab(tab.id)) {
+      try TerminalTabCollection.prepareTransfer(
+        TerminalTabTransferRequest(
+          expectedSourceRevision: source.topologyRevision,
+          expectedDestinationRevision: destination.topologyRevision,
+          itemIDs: [.tab(tab.id)],
+          destination: .root(TerminalRootPlacement(isPinned: false, index: 1))
+        ),
+        from: source,
+        to: destination
+      )
+    }
+    #expect(source.tabs.map(\.id) == [tab.id])
+    #expect(destination.tabs.map(\.id) == [tab.id])
   }
 }
