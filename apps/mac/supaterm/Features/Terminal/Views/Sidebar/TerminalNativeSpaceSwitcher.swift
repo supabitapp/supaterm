@@ -77,6 +77,9 @@ final class TerminalNativeSpaceSwitcherView: NSView {
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
+    setAccessibilityElement(true)
+    setAccessibilityRole(.group)
+    setAccessibilityIdentifier("titlebar.space-switcher")
     registerForDraggedTypes([.terminalSpaceDrag, .terminalTabDrag])
     insertionView.wantsLayer = true
     insertionView.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
@@ -108,11 +111,12 @@ final class TerminalNativeSpaceSwitcherView: NSView {
 
   override func layout() {
     super.layout()
-    let buttonHeight = bounds.height
+    let buttonHeight = min(28, bounds.height)
+    let buttonY = bounds.maxY - buttonHeight
     let newButtonWidth: CGFloat = 24
     newSpaceButton.frame = CGRect(
       x: bounds.maxX - newButtonWidth,
-      y: 0,
+      y: buttonY,
       width: newButtonWidth,
       height: buttonHeight
     )
@@ -123,14 +127,28 @@ final class TerminalNativeSpaceSwitcherView: NSView {
     var x = bounds.minX
     for button in buttons {
       let width = button.space.id == selectedSpaceID ? selectedWidth : otherWidth
-      button.frame = CGRect(x: x, y: 0, width: width, height: buttonHeight)
+      button.frame = CGRect(x: x, y: buttonY, width: width, height: buttonHeight)
       x += width
     }
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard bounds.contains(point) else { return nil }
+    if let button = buttons.first(where: { $0.frame.insetBy(dx: 0, dy: 4).contains(point) }) {
+      return button
+    }
+    if newSpaceButton.frame.insetBy(dx: 0, dy: 4).contains(point) {
+      return newSpaceButton
+    }
+    return nil
   }
 
   func apply(_ configuration: TerminalNativeSpaceSwitcherConfiguration) {
     spaces = configuration.spaces
     selectedSpaceID = configuration.selectedSpaceID
+    if let selectedSpace = configuration.spaces.first(where: { $0.id == configuration.selectedSpaceID }) {
+      setAccessibilityLabel("Space \(selectedSpace.name)")
+    }
     canDelete = configuration.canDelete
     select = configuration.select
     create = configuration.create
@@ -237,7 +255,12 @@ final class TerminalNativeSpaceSwitcherView: NSView {
       } else {
         buttons[index].frame.minX
       }
-    insertionView.frame = CGRect(x: x - 1, y: 3, width: 2, height: max(0, bounds.height - 6))
+    insertionView.frame = CGRect(
+      x: x - 1,
+      y: bounds.maxY - 25,
+      width: 2,
+      height: min(22, max(0, bounds.height - 6))
+    )
     insertionView.isHidden = false
   }
 
