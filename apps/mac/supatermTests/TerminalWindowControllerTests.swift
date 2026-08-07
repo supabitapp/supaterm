@@ -10,6 +10,29 @@ import Testing
 @MainActor
 struct TerminalWindowControllerTests {
   @Test
+  func windowStartsWithDefaultContentSize() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let controller = TerminalWindowController(
+        runtime: GhosttyRuntime(applicationIsActive: { false }),
+        registry: TerminalWindowRegistry(zmxClient: .noop),
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      defer {
+        controller.window?.delegate = nil
+        controller.window?.close()
+      }
+      let window = try #require(controller.window)
+
+      #expect(window.contentRect(forFrameRect: window.frame).size == NSSize(width: 1_440, height: 900))
+    }
+  }
+
+  @Test
   func windowAllowsBehindWindowMaterials() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

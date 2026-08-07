@@ -150,13 +150,14 @@ final class TerminalWindowController: NSWindowController {
     )
 
     let window = TerminalGestureWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
+      contentRect: .zero,
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
     window.contentViewController = shellController
     window.contentMinSize = NSSize(width: 1_080, height: 720)
+    window.setContentSize(NSSize(width: 1_440, height: 900))
     window.identifier = NSUserInterfaceItemIdentifier(
       "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(windowControllerID.uuidString)")
     window.isReleasedWhenClosed = false
