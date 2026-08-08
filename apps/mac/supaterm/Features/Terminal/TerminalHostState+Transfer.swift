@@ -39,6 +39,19 @@ extension TerminalHostState {
     let trees: [TerminalTabID: SplitTree<GhosttySurfaceView>]
   }
 
+  func liveTabSplitDestinationTabID(
+    sourceTabID: TerminalTabID,
+    requestedTabID: TerminalTabID,
+    spaceID: TerminalSpaceID
+  ) -> TerminalTabID? {
+    let tabs = spaceManager.tabs(in: spaceID)
+    guard tabs.contains(where: { $0.id == requestedTabID }) else { return nil }
+    if requestedTabID != sourceTabID, isSelectableTab(requestedTabID) {
+      return requestedTabID
+    }
+    return replacementLiveTabID(in: spaceID, excluding: sourceTabID)
+  }
+
   static func prepareLiveTabTransfer(
     _ request: TerminalTabTransferRequest,
     from source: TerminalHostState,
@@ -90,22 +103,24 @@ extension TerminalHostState {
     guard payload.itemIDs.count == 1, case .tab(let sourceTabID) = payload.itemIDs[0] else {
       throw TerminalTabTransferError.invalidSplitSource
     }
-    guard sourceTabID != target.tabID else {
-      throw TerminalTabTransferError.invalidSplitDestination
-    }
     let instances = try transferInstances(
       from: source,
       sourceSpaceID: payload.sourceSpaceID,
       to: destination,
       destinationSpaceID: target.spaceID
     )
-    guard instances.destination.tabCollection.tabs.contains(where: { $0.id == target.tabID })
+    guard
+      let destinationTabID = destination.liveTabSplitDestinationTabID(
+        sourceTabID: sourceTabID,
+        requestedTabID: target.tabID,
+        spaceID: target.spaceID
+      )
     else {
       throw TerminalTabTransferError.invalidSplitDestination
     }
     guard
       let sourceTree = source.trees[sourceTabID],
-      let destinationTree = destination.trees[target.tabID],
+      let destinationTree = destination.trees[destinationTabID],
       let joinedTree = destinationTree.joining(
         sourceTree,
         direction: .horizontal,
@@ -125,7 +140,7 @@ extension TerminalHostState {
     try validateSurfaceOwnership(surfaceIDs, from: source, to: destination)
     return LiveTabSplitPlan(
       destinationInstance: instances.destination,
-      destinationTabID: target.tabID,
+      destinationTabID: destinationTabID,
       didMoveSelectedTab: instances.source.selectedTabID == sourceTabID,
       extractionPlan: extractionPlan,
       incomingFocusedSurfaceID: source.focusHistoryByTab[sourceTabID]?.current

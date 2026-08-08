@@ -34,7 +34,6 @@ final class TerminalTabSplitDropOverlayView: NSView {
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
-    layer?.backgroundColor = NSColor.black.withAlphaComponent(0.08).cgColor
     addSubview(leftTarget)
     addSubview(rightTarget)
     alphaValue = 0
@@ -93,12 +92,16 @@ private final class TerminalTabSplitTargetView: NSView {
 
   private let iconView = NSImageView()
   private let label = NSTextField(labelWithString: "")
+  private let outlineLayer = CAShapeLayer()
 
   init(side: TerminalTabSplitSide) {
     super.init(frame: .zero)
     wantsLayer = true
-    layer?.cornerRadius = 18
-    layer?.borderWidth = 1
+    layer?.cornerRadius = 20
+    layer?.addSublayer(outlineLayer)
+    outlineLayer.fillColor = NSColor.clear.cgColor
+    outlineLayer.lineDashPattern = [6, 6]
+    outlineLayer.lineWidth = 1.5
     iconView.image = NSImage(
       systemSymbolName: side == .left ? "rectangle.lefthalf.inset.filled" : "rectangle.righthalf.inset.filled",
       accessibilityDescription: nil
@@ -119,16 +122,22 @@ private final class TerminalTabSplitTargetView: NSView {
 
   override func layout() {
     super.layout()
-    let contentHeight: CGFloat = 36
+    outlineLayer.frame = bounds
+    outlineLayer.path = CGPath(
+      roundedRect: bounds.insetBy(dx: 12, dy: 12),
+      cornerWidth: 14,
+      cornerHeight: 14,
+      transform: nil
+    )
     iconView.frame = CGRect(
       x: bounds.midX - 8,
-      y: bounds.midY + 2,
+      y: bounds.midY + 10,
       width: 16,
       height: 16
     )
     label.frame = CGRect(
       x: 4,
-      y: bounds.midY - contentHeight / 2,
+      y: bounds.midY - 26,
       width: bounds.width - 8,
       height: 20
     )
@@ -143,8 +152,11 @@ private final class TerminalTabSplitTargetView: NSView {
     let color = isActive ? NSColor.controlAccentColor : NSColor.secondaryLabelColor
     iconView.contentTintColor = color
     label.textColor = color
-    layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.86).cgColor
-    layer?.borderColor = color.withAlphaComponent(isActive ? 0.7 : 0.25).cgColor
+    layer?.backgroundColor =
+      NSColor.windowBackgroundColor.withAlphaComponent(
+        isActive ? 0.94 : 0.82
+      ).cgColor
+    outlineLayer.strokeColor = color.withAlphaComponent(isActive ? 0.8 : 0.32).cgColor
     layer?.shadowColor = NSColor.black.cgColor
     layer?.shadowOpacity = isActive ? 0.2 : 0.1
     layer?.shadowRadius = isActive ? 16 : 8

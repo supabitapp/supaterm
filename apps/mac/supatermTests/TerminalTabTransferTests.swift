@@ -47,7 +47,7 @@ struct TerminalTabTransferTests {
   }
 
   @Test
-  func splitTransferJoinsTheLiveTreeWithoutClosingItsSurface() throws {
+  func splitTransferMovesTheSelectedTabIntoItsPreviousTab() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -66,7 +66,8 @@ struct TerminalTabTransferTests {
       )
       let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
       let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
-      host.spaceManager.tabCollection.selectTab(destinationTabID)
+      host.applySelectedTab(destinationTabID, in: space.id)
+      host.applySelectedTab(sourceTabID, in: space.id)
       let destinationSurface = unbackedSurface(runtime: runtime, tabID: destinationTabID)
       let sourceSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
       host.trees[destinationTabID] = SplitTree(view: destinationSurface)
@@ -95,7 +96,7 @@ struct TerminalTabTransferTests {
           host: host,
           side: .left,
           spaceID: space.id,
-          tabID: destinationTabID
+          tabID: sourceTabID
         )
       )
 
@@ -111,6 +112,20 @@ struct TerminalTabTransferTests {
       #expect(host.surfaces[sourceSurface.id] === sourceSurface)
       #expect(host.focusHistoryByTab[destinationTabID]?.current == sourceSurface.id)
     }
+  }
+
+  @Test
+  func splitDestinationRejectsASelectedTabWithoutAReplacement() {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let tabID = host.spaceManager.tabCollection.createTab(title: "Only")
+
+    #expect(
+      host.liveTabSplitDestinationTabID(
+        sourceTabID: tabID,
+        requestedTabID: tabID,
+        spaceID: host.displayedSpaceID
+      ) == nil
+    )
   }
 
   @Test
