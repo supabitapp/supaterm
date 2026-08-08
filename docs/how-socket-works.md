@@ -168,6 +168,7 @@ sp space focus 2
 sp space next
 sp space last
 sp space destroy -y 3
+sp ssh --name Production -p 2222 user@example.com
 sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
 sp pane split --in 1/2 right
 sp pane send --newline 'echo hello'
@@ -247,6 +248,7 @@ Space methods carry the ambient `context` instead of a window index:
 - `terminal.close_space` destroys the space everywhere: it kills that space's tabs in every window, and windows displaying it fall back to the catalog neighbor. No window closes.
 - `terminal.new_tab` aimed at a space resolves the space inside the ambient window, opens its saved tabs first when needed, and with `focus` also switches the window to that space.
 - `sp space ls` needs no method of its own; the CLI reads `app.tree` and prints the ambient window's spaces.
+- `sp ssh` needs no method of its own; the CLI reads `app.tree`, sends a focused `terminal.new_tab` with the reconnecting SSH startup command, and sends `terminal.rename_tab` only when `--name` is present.
 
 ## Code Index
 

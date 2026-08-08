@@ -2,6 +2,7 @@ import Foundation
 
 public enum SupatermSSHCommand {
   public static let program = "ssh"
+  public static let sessionProgram = "ssh-session"
   public static let term = "xterm-256color"
   private static let forwardedEnvironmentVariables = [
     "COLORTERM",
@@ -50,7 +51,7 @@ public enum SupatermSSHCommand {
       .flatMap { $0.isEmpty ? nil : $0 }
     var tokens: [String]
     if let cliPath {
-      tokens = ["/usr/bin/env", cliPath, program]
+      tokens = ["/usr/bin/env", cliPath, "internal", program]
       if let terminalType {
         tokens += ["--term", terminalType]
       }
@@ -69,7 +70,7 @@ public enum SupatermSSHCommand {
       .joined(separator: " ")
   }
 
-  private static func sessionArguments(_ arguments: [String]) -> [String]? {
+  public static func sessionArguments(_ arguments: [String]) -> [String]? {
     var options: [String] = []
     var index = 0
 

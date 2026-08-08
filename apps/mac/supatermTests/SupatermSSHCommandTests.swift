@@ -7,6 +7,20 @@ struct SupatermSSHCommandTests {
   private static let cliPath = "/Applications/supaterm.app/Contents/MacOS/sp"
 
   @Test
+  func parsesCommonInteractiveSessionOptionsWithoutRemoteCommands() {
+    let arguments = [
+      "-i", "~/.ssh/work",
+      "-o", "ProxyJump=bastion.example.com",
+      "-p2222",
+      "-tt",
+      "user@example.com",
+    ]
+
+    #expect(SupatermSSHCommand.sessionArguments(arguments) == arguments)
+    #expect(SupatermSSHCommand.sessionArguments(arguments + ["uptime"]) == nil)
+  }
+
+  @Test
   func routesTheInheritedSessionThroughTheBundledCLI() {
     let command = commandLine(
       arguments: [
@@ -23,7 +37,7 @@ struct SupatermSSHCommandTests {
     )
 
     let expected =
-      "/usr/bin/env \(Self.cliPath) ssh --term xterm-custom --ssh /usr/bin/ssh -- "
+      "/usr/bin/env \(Self.cliPath) internal ssh --term xterm-custom --ssh /usr/bin/ssh -- "
       + "-o SetEnv=PRODUCT=custom -p 2222 dev@example.com"
     #expect(command == expected)
   }
@@ -39,7 +53,7 @@ struct SupatermSSHCommandTests {
 
     #expect(
       command
-        == "/usr/bin/env \(Self.cliPath) ssh --term vt100-custom --ssh /opt/custom/client -- dev@example.com"
+        == "/usr/bin/env \(Self.cliPath) internal ssh --term vt100-custom --ssh /opt/custom/client -- dev@example.com"
     )
   }
 
@@ -53,7 +67,7 @@ struct SupatermSSHCommandTests {
 
     #expect(
       command
-        == "/usr/bin/env \(Self.cliPath) ssh --ssh /usr/bin/ssh -- -o SendEnv=COLORTERM dev@example.com"
+        == "/usr/bin/env \(Self.cliPath) internal ssh --ssh /usr/bin/ssh -- -o SendEnv=COLORTERM dev@example.com"
     )
   }
 

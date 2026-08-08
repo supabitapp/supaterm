@@ -16,13 +16,13 @@ struct SPHelpTests {
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("Example:"))
     #expect(help.contains("sp ls"))
+    #expect(help.contains("sp ssh example.com"))
     #expect(help.contains("sp group new Work --color blue"))
     #expect(help.contains("sp tab new --focus -- ping 1.1.1.1"))
     #expect(help.contains("sp pane split down -- tail -f /tmp/server.log"))
     #expect(help.contains("sp skills"))
     #expect(help.contains("sp diagnostic"))
     #expect(help.contains("sp instance ls"))
-    #expect(!help.contains("ssh"))
     #expect(!help.contains("install-agent-hooks"))
     #expect(!help.contains("development"))
   }
@@ -83,6 +83,8 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.InstallAgentHook.Claude.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHook.Codex.self, columns: 100),
       SP.helpMessage(for: SP.Internal.self, columns: 100),
+      SP.helpMessage(for: SP.InternalSSH.self, columns: 100),
+      SP.helpMessage(for: SP.InternalSSHSession.self, columns: 100),
       SP.helpMessage(for: SP.AgentSettings.self, columns: 100),
       SP.helpMessage(for: SP.Development.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.self, columns: 100),
@@ -95,12 +97,18 @@ struct SPHelpTests {
   }
 
   @Test
-  func sshHelpShowsArgumentSeparatorAndCompatibleTermExamples() {
+  func sshHelpShowsTabNameOptionsAndReconnectPolicy() {
     let help = SP.helpMessage(for: SP.SSH.self, columns: 100)
 
-    #expect(help.contains("sp ssh -- example.com"))
-    #expect(help.contains("sp ssh -- -p 2222 example.com"))
-    #expect(help.contains("sp ssh --term xterm-ghostty -- example.com"))
+    #expect(help.contains("--name <name>"))
+    #expect(help.contains("--socket <socket>"))
+    #expect(help.contains("sp ssh example.com"))
+    #expect(help.contains("sp ssh --name Production user@example.com"))
+    #expect(help.contains("sp ssh -p 2222 -i ~/.ssh/work user@example.com"))
+    #expect(help.contains("exit 255"))
+    #expect(help.contains("Control-C"))
+    #expect(!help.contains("--term"))
+    #expect(!help.contains("--ssh"))
   }
 
   @Test

@@ -14,6 +14,7 @@ enum SPHelp {
 
     Example:
       sp ls
+      sp ssh example.com
       sp group new Work --color blue
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
@@ -353,14 +354,34 @@ enum SPHelp {
     """
 
   static let sshDiscussion = """
-    `sp ssh` launches ssh from PATH with a compatible TERM and forwards terminal environment variables.
+    `sp ssh` opens a focused tab beside the current tab and starts an interactive SSH session.
 
-    Place SSH options and arguments after `--`.
+    Supaterm options must come before SSH options. The SSH argument parser recognizes the current
+    OpenSSH short options needed to find one destination. It does not implement the full OpenSSH grammar.
+
+    The session retries exit 255 after 2, 4, 8, 16, then 30 seconds. Other exits return the tab to
+    a local login shell. Press Control-C to stop reconnecting.
+
+    `--name` locks the new tab title. `command ssh` runs the shell's SSH command in the current pane.
 
     Example:
-      sp ssh -- example.com
-      sp ssh -- -p 2222 example.com
-      sp ssh --term xterm-ghostty -- example.com
+      sp ssh example.com
+      sp ssh --name Production user@example.com
+      sp ssh -p 2222 -i ~/.ssh/work user@example.com
+      sp ssh -o ProxyJump=bastion.example.com user@example.com
+      sp ssh --instance work-mac example.com
+    """
+
+  static let internalSSHDiscussion = """
+    Example:
+      sp internal ssh -- example.com
+      sp internal ssh --term xterm-ghostty -- -p 2222 example.com
+    """
+
+  static let internalSSHSessionDiscussion = """
+    Example:
+      sp internal ssh-session -- example.com
+      sp internal ssh-session --ssh /usr/bin/ssh -- example.com
     """
 
   static let configDiscussion = """
@@ -691,6 +712,7 @@ enum SPHelp {
   static let internalDiscussion = """
     Example:
       sp internal ping
+      sp internal ssh -- example.com
       sp internal agent-settings claude
       sp internal dev claude session-start
     """

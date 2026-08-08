@@ -15,6 +15,8 @@ extension SP {
       shouldDisplay: false,
       subcommands: [
         Ping.self,
+        InternalSSH.self,
+        InternalSSHSession.self,
         AgentSettings.self,
         Development.self,
       ]
@@ -237,7 +239,7 @@ struct SPDevelopmentClaudeEventBuilder {
     let sessionID = try resolvedSessionID(context: context, sessionIDOverride: sessionIDOverride)
     switch kind {
     case .sessionStart:
-      return .init(
+      return SupatermAgentHookEvent(
         agentType: "assistant",
         cwd: currentDirectoryPath,
         hookEventName: .sessionStart,
@@ -247,14 +249,14 @@ struct SPDevelopmentClaudeEventBuilder {
       )
 
     case .preToolUse:
-      return .init(
+      return SupatermAgentHookEvent(
         cwd: currentDirectoryPath,
         hookEventName: .preToolUse,
         sessionID: sessionID
       )
 
     case .notification:
-      return .init(
+      return SupatermAgentHookEvent(
         cwd: currentDirectoryPath,
         hookEventName: .notification,
         message: "Claude needs your attention",
@@ -264,14 +266,14 @@ struct SPDevelopmentClaudeEventBuilder {
       )
 
     case .userPromptSubmit:
-      return .init(
+      return SupatermAgentHookEvent(
         cwd: currentDirectoryPath,
         hookEventName: .userPromptSubmit,
         sessionID: sessionID
       )
 
     case .stop:
-      return .init(
+      return SupatermAgentHookEvent(
         cwd: currentDirectoryPath,
         hookEventName: .stop,
         lastAssistantMessage: "Done.",
@@ -279,7 +281,7 @@ struct SPDevelopmentClaudeEventBuilder {
       )
 
     case .sessionEnd:
-      return .init(
+      return SupatermAgentHookEvent(
         cwd: currentDirectoryPath,
         hookEventName: .sessionEnd,
         sessionID: sessionID
@@ -331,7 +333,7 @@ private func sendDevelopmentClaudeEvent(
   )
   let response = try client.send(
     .agentHook(
-      .init(
+      SupatermAgentHookRequest(
         agent: .claude,
         context: context,
         event: event
@@ -353,7 +355,7 @@ private func requireDevelopmentBuild(connection: SPConnectionOptions) throws {
   )
   let response = try client.send(
     .debug(
-      .init(context: SupatermCLIContext.current)
+      SupatermDebugRequest(context: SupatermCLIContext.current)
     )
   )
   guard response.ok else {

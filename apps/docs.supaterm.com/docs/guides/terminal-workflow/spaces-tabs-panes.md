@@ -40,6 +40,15 @@ sp tab next
 
 A new tab with no command or explicit working directory opens the same remote host when its source pane runs a plain interactive SSH login. Pass `--cwd`, a command after `--`, or `--script` to open a local shell instead. **New Supaterm Tab Here** always opens a local shell in the chosen folder.
 
+Start a new remote tab directly with `sp ssh` or the `ssh` shell command:
+
+```bash
+sp ssh user@example.com
+sp ssh --name Production -p 2222 user@example.com
+```
+
+The tab reconnects only when SSH exits with status 255. It waits 2, 4, 8, 16, then at most 30 seconds between attempts. Press `Control-C` to stop. A normal disconnect returns the tab to a local login shell. Use `command ssh` when the SSH process should stay in the current pane.
+
 ## Panes
 
 Split a tab when related processes should stay visible together:

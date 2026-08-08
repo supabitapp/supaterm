@@ -91,7 +91,7 @@ struct SSHSessionInheritanceTests {
     let command = try #require(resolved)
     #expect(
       command.hasPrefix(
-        "/usr/bin/env \(Self.cliPath) ssh --term xterm-custom --ssh /usr/bin/ssh -- -p 2222 dev@example.com;"
+        "/usr/bin/env \(Self.cliPath) internal ssh --term xterm-custom --ssh /usr/bin/ssh -- -p 2222 dev@example.com;"
       )
     )
     #expect(!command.contains("SendEnv"))
@@ -186,7 +186,7 @@ struct SSHSessionInheritanceTests {
       )
     )
 
-    #expect(command.hasPrefix("/usr/bin/env \(Self.cliPath) ssh --ssh ssh -- example.com;"))
+    #expect(command.hasPrefix("/usr/bin/env \(Self.cliPath) internal ssh --ssh ssh -- example.com;"))
     #expect(command.contains("exec"))
   }
 }
