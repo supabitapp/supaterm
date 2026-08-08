@@ -206,6 +206,49 @@ struct TerminalSidebarMotionTests {
     )
   }
 
+  @Test @MainActor
+  func dropHandoffKeepsThePreviewInstalledUntilTheDestinationIsReady() {
+    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
+    let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
+    let hostedView = NSView(frame: source.bounds)
+    source.addSubview(hostedView)
+    let row = TerminalSidebarLiftedRow(
+      hostedView: hostedView,
+      sourceFrame: source.frame,
+      restore: {
+        source.addSubview(hostedView)
+        hostedView.frame = source.bounds
+      }
+    )
+    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
+    presentation.begin(
+      TerminalSidebarDragPresentation.Lift(
+        rows: [row],
+        groupBackground: nil,
+        fanAnchorIndex: nil,
+        sourceFrame: source.frame,
+        hotspot: .zero,
+        screenPoint: .zero,
+        timestamp: 0
+      ),
+      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
+    )
+    var previewWasInstalled = false
+    var destinationWasCompleted = false
+
+    presentation.handoff {
+      if hostedView.superview !== source {
+        previewWasInstalled = true
+      } else {
+        destinationWasCompleted = true
+      }
+    }
+
+    #expect(previewWasInstalled)
+    #expect(destinationWasCompleted)
+    #expect(hostedView.superview === source)
+  }
+
   @Test
   func batchPreviewUsesACompactFanAnchoredToTheClickedRow() {
     #expect(TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: 1) == 0)

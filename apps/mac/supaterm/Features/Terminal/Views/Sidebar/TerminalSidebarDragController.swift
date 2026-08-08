@@ -938,9 +938,10 @@ final class TerminalSidebarDragController {
     isDraggingOverPinnedControl = false
     host.content()?.swipe?.isRowDragActive = false
     guard let receipt else {
-      dragPresentation.finish()
-      collectionLayout.dragDropState = nil
-      host.invalidateLayout()
+      dragPresentation.handoff {
+        collectionLayout.dragDropState = nil
+        host.invalidateLayout()
+      }
       host.didFinish()
       return
     }
@@ -953,9 +954,10 @@ final class TerminalSidebarDragController {
       TerminalSidebarDropHandoff(topologyStamp: receipt.topologyStamp)
     ) { [weak self] in
       guard let self else { return }
-      dragPresentation.finish()
-      collectionLayout.dragDropState = nil
-      host.invalidateLayout()
+      dragPresentation.handoff {
+        collectionLayout.dragDropState = nil
+        host.invalidateLayout()
+      }
       host.didFinish()
     }
   }

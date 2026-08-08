@@ -353,6 +353,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       hasAppliedSnapshot = true
       updatePhase = .idle
       collectionLayout.finishStructuralUpdate()
+      additionalCompletion?()
       invalidateLayout()
       if isInitialSnapshot {
         let contentView = scrollView.contentView
@@ -360,7 +361,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         scrollView.reflectScrolledClipView(contentView)
       }
       revealSelectedTabIfNeeded()
-      additionalCompletion?()
       consumePendingUpdate()
     }
     if isInitialSnapshot {
