@@ -43,6 +43,19 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
+  func openUrlRequestRecognizesOSC8Targets() {
+    let request = withOpenURLAction(
+      url: "https://supaterm.com/docs",
+      kind: GHOSTTY_ACTION_OPEN_URL_KIND_OSC8
+    ) {
+      ghosttyOpenURLRequest(from: $0.action.open_url)
+    }
+
+    #expect(request?.kind == .osc8)
+    #expect(request?.value == "https://supaterm.com/docs")
+  }
+
+  @Test
   func inputChunksSplitControlScalarsIntoKeys() {
     #expect(
       ghosttyInputChunks("echo hello\r\u{03}tail\t\u{1B}\u{7F}\u{04}\u{0C}\u{1A}")
@@ -67,7 +80,7 @@ struct GhosttySurfaceBridgeTests {
     let bridge = GhosttySurfaceBridge(findPasteboard: pasteboard)
 
     withStartSearchAction(needle: "") { action in
-      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action) == false)
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     }
 
     #expect(bridge.state.searchNeedle == "restored")
@@ -81,7 +94,7 @@ struct GhosttySurfaceBridgeTests {
     let bridge = GhosttySurfaceBridge(findPasteboard: pasteboard)
 
     withStartSearchAction(needle: "new") { action in
-      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action) == false)
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     }
 
     #expect(bridge.state.searchNeedle == "new")
@@ -96,7 +109,7 @@ struct GhosttySurfaceBridgeTests {
     bridge.state.searchNeedle = "same"
 
     withStartSearchAction(needle: "same") { action in
-      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action) == false)
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     }
 
     #expect(bridge.state.searchNeedle == "same")
@@ -183,7 +196,7 @@ struct GhosttySurfaceBridgeTests {
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
     let action = ghostty_action_s(tag: GHOSTTY_ACTION_SELECTION_CHANGED, action: ghostty_action_u())
 
-    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(!bridge.handleAction(target: target, action: action))
   }
 
   @Test
@@ -202,7 +215,7 @@ struct GhosttySurfaceBridgeTests {
     var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROMPT_TITLE, action: ghostty_action_u())
     action.action.prompt_title = GHOSTTY_PROMPT_TITLE_SURFACE
 
-    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.handleAction(target: target, action: action))
     #expect(promptSurfaceTitle == 1)
     #expect(promptTabTitle == 0)
   }
@@ -223,7 +236,7 @@ struct GhosttySurfaceBridgeTests {
     var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROMPT_TITLE, action: ghostty_action_u())
     action.action.prompt_title = GHOSTTY_PROMPT_TITLE_TAB
 
-    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.handleAction(target: target, action: action))
     #expect(promptSurfaceTitle == 0)
     #expect(promptTabTitle == 1)
   }
@@ -243,7 +256,7 @@ struct GhosttySurfaceBridgeTests {
       free(title)
     }
 
-    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.handleAction(target: target, action: action))
     #expect(bridge.state.title == "sleep 10")
     #expect(bridge.state.titleOverride == "Pinned")
     #expect(emittedTitles.isEmpty)
@@ -251,13 +264,132 @@ struct GhosttySurfaceBridgeTests {
 
   @Test
   func openUrlReturnsHandledResult() {
-    let bridge = GhosttySurfaceBridge()
+    var openedURL: URL?
+    let bridge = GhosttySurfaceBridge {
+      openedURL = $0
+      return true
+    }
 
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
-    withOpenURLAction(url: "not a valid url") { action in
+    withOpenURLAction(url: "https://supaterm.com/docs") { action in
       #expect(bridge.handleAction(target: target, action: action))
-      #expect(bridge.state.openUrl == "not a valid url")
-      #expect(bridge.state.openUrlKind == action.action.open_url.kind)
+      #expect(openedURL?.absoluteString == "https://supaterm.com/docs")
+    }
+  }
+
+  @Test
+  func parsedOpenUrlStaysHandledWhenOpeningFails() {
+    var openedURL: URL?
+    let bridge = GhosttySurfaceBridge {
+      openedURL = $0
+      return false
+    }
+
+    withOpenURLAction(url: "https://supaterm.com/docs") { action in
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+      #expect(openedURL?.absoluteString == "https://supaterm.com/docs")
+    }
+  }
+
+  @Test
+  func osc8OpenUrlStaysHandledWhenOpeningFails() {
+    var openedURL: URL?
+    let bridge = GhosttySurfaceBridge {
+      openedURL = $0
+      return false
+    }
+
+    withOpenURLAction(
+      url: "https://supaterm.com/docs",
+      kind: GHOSTTY_ACTION_OPEN_URL_KIND_OSC8
+    ) { action in
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+      #expect(openedURL?.absoluteString == "https://supaterm.com/docs")
+    }
+  }
+
+  @Test
+  func malformedOsc8OpenUrlStaysHandled() {
+    let bridge = GhosttySurfaceBridge { _ in
+      Issue.record("malformed OSC 8 target should not open")
+      return true
+    }
+    let byte = UnsafeMutablePointer<CChar>.allocate(capacity: 1)
+    byte.initialize(to: CChar(bitPattern: 0xFF))
+    defer {
+      byte.deinitialize(count: 1)
+      byte.deallocate()
+    }
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_URL, action: ghostty_action_u())
+    action.action.open_url.kind = GHOSTTY_ACTION_OPEN_URL_KIND_OSC8
+    action.action.open_url.url = UnsafePointer(byte)
+    action.action.open_url.len = 1
+
+    #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+  }
+
+  @Test
+  func handledActionsReturnTrue() {
+    let bridge = GhosttySurfaceBridge()
+    let tags = [GHOSTTY_ACTION_RING_BELL]
+
+    for tag in tags {
+      let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    }
+  }
+
+  @Test
+  func actionsWithoutEffectsReturnFalse() {
+    let bridge = GhosttySurfaceBridge()
+    let tags = [
+      GHOSTTY_ACTION_COLOR_CHANGE,
+      GHOSTTY_ACTION_CONFIG_CHANGE,
+      GHOSTTY_ACTION_SIZE_LIMIT,
+      GHOSTTY_ACTION_INITIAL_SIZE,
+      GHOSTTY_ACTION_RESET_WINDOW_SIZE,
+      GHOSTTY_ACTION_FLOAT_WINDOW,
+      GHOSTTY_ACTION_PRESENT_TERMINAL,
+      GHOSTTY_ACTION_QUIT_TIMER,
+    ]
+
+    for tag in tags {
+      let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
+      #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    }
+  }
+
+  @Test
+  func undoAndRedoReturnResponderResults() {
+    var selectors: [Selector] = []
+    let bridge = GhosttySurfaceBridge(sendAction: {
+      selectors.append($0)
+      return false
+    })
+
+    for tag in [GHOSTTY_ACTION_UNDO, GHOSTTY_ACTION_REDO] {
+      let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
+      #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    }
+
+    #expect(selectors == [#selector(UndoManager.undo), #selector(UndoManager.redo)])
+  }
+
+  @Test
+  func viewActionsWithoutSurfaceViewReturnFalse() {
+    let bridge = GhosttySurfaceBridge()
+    let tags = [
+      GHOSTTY_ACTION_SELECTION_CHANGED,
+      GHOSTTY_ACTION_MOUSE_SHAPE,
+      GHOSTTY_ACTION_MOUSE_VISIBILITY,
+      GHOSTTY_ACTION_SCROLLBAR,
+      GHOSTTY_ACTION_CELL_SIZE,
+      GHOSTTY_ACTION_SECURE_INPUT,
+    ]
+
+    for tag in tags {
+      let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
+      #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     }
   }
 
@@ -267,12 +399,12 @@ struct GhosttySurfaceBridgeTests {
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
 
     withMouseOverLinkAction(url: "https://supaterm.com/docs") { action in
-      #expect(bridge.handleAction(target: target, action: action) == false)
+      #expect(bridge.handleAction(target: target, action: action))
       #expect(bridge.state.mouseOverLink == "https://supaterm.com/docs")
     }
 
     withMouseOverLinkAction(url: "") { action in
-      #expect(bridge.handleAction(target: target, action: action) == false)
+      #expect(bridge.handleAction(target: target, action: action))
       #expect(bridge.state.mouseOverLink == nil)
     }
   }
@@ -298,7 +430,7 @@ struct GhosttySurfaceBridgeTests {
     var action = ghostty_action_s(tag: GHOSTTY_ACTION_RENDERER_HEALTH, action: ghostty_action_u())
     action.action.renderer_health = GHOSTTY_RENDERER_HEALTH_UNHEALTHY
 
-    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.handleAction(target: target, action: action))
     #expect(bridge.state.failure == .rendererUnavailable)
   }
 
@@ -311,7 +443,7 @@ struct GhosttySurfaceBridgeTests {
     _ = bridge.handleAction(target: target, action: action)
 
     action.action.renderer_health = GHOSTTY_RENDERER_HEALTH_HEALTHY
-    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.handleAction(target: target, action: action))
     #expect(bridge.state.failure == nil)
   }
 

@@ -341,6 +341,31 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func surfaceReloadActionReturnsHandledResult() throws {
+    let runtime = try makeGhosttyRuntime("")
+    let surfaceView = GhosttySurfaceView(
+      runtime: runtime,
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    defer { surfaceView.closeSurface() }
+    let surface = try #require(surfaceView.surface)
+    var target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    target.target.surface = surface
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_RELOAD_CONFIG, action: ghostty_action_u())
+    action.action.reload_config.soft = true
+
+    #expect(
+      GhosttyRuntime.actionCallbackForTesting(
+        runtime.appBitsForTesting(),
+        target,
+        action
+      )
+    )
+  }
+
+  @Test
   func configurationDiagnosticsExposeTrimmedCurrentErrors() throws {
     let runtime = try makeGhosttyRuntime(
       """
@@ -464,6 +489,43 @@ struct GhosttyRuntimeTests {
       }
     }
     #expect(tickCount.withLock { $0 } == 2)
+  }
+
+  @Test
+  func closeSurfaceCallbackRetainsBridgeUntilMainActorDelivery() async {
+    let processStates = Mutex<[Bool]>([])
+    var bridge: GhosttySurfaceBridge? = GhosttySurfaceBridge()
+    weak let bridgeReference = bridge
+    bridge?.onCloseRequest = { processAlive in
+      processStates.withLock { $0.append(processAlive) }
+    }
+    let userdataBits = bridge.map {
+      UInt(bitPattern: Unmanaged.passUnretained($0).toOpaque())
+    }
+    let callbackReturned = DispatchSemaphore(value: 0)
+
+    DispatchQueue.global().async {
+      GhosttyRuntime.closeSurfaceCallbackForTesting(userdataBits, processAlive: true)
+      callbackReturned.signal()
+    }
+    waitForCallback(callbackReturned)
+    bridge = nil
+
+    #expect(bridgeReference != nil)
+    #expect(processStates.withLock { $0 }.isEmpty)
+
+    await withCheckedContinuation { continuation in
+      DispatchQueue.main.async {
+        continuation.resume()
+      }
+    }
+
+    #expect(processStates.withLock { $0 } == [true])
+    #expect(bridgeReference == nil)
+  }
+
+  private func waitForCallback(_ semaphore: DispatchSemaphore) {
+    semaphore.wait()
   }
 
   @Test
