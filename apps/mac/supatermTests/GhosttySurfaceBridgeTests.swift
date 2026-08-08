@@ -43,6 +43,19 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
+  func openUrlRequestRecognizesOSC8Targets() {
+    let request = withOpenURLAction(
+      url: "https://supaterm.com/docs",
+      kind: GHOSTTY_ACTION_OPEN_URL_KIND_OSC8
+    ) {
+      ghosttyOpenURLRequest(from: $0.action.open_url)
+    }
+
+    #expect(request?.kind == .osc8)
+    #expect(request?.value == "https://supaterm.com/docs")
+  }
+
+  @Test
   func inputChunksSplitControlScalarsIntoKeys() {
     #expect(
       ghosttyInputChunks("echo hello\r\u{03}tail\t\u{1B}\u{7F}\u{04}\u{0C}\u{1A}")
@@ -271,6 +284,43 @@ struct GhosttySurfaceBridgeTests {
     withOpenURLAction(url: "https://supaterm.com/docs") { action in
       #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     }
+  }
+
+  @Test
+  func osc8OpenUrlStaysHandledWhenOpeningFails() {
+    var openedURL: URL?
+    let bridge = GhosttySurfaceBridge {
+      openedURL = $0
+      return false
+    }
+
+    withOpenURLAction(
+      url: "https://supaterm.com/docs",
+      kind: GHOSTTY_ACTION_OPEN_URL_KIND_OSC8
+    ) { action in
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+      #expect(openedURL?.absoluteString == "https://supaterm.com/docs")
+    }
+  }
+
+  @Test
+  func malformedOsc8OpenUrlStaysHandled() {
+    let bridge = GhosttySurfaceBridge { _ in
+      Issue.record("malformed OSC 8 target should not open")
+      return true
+    }
+    let byte = UnsafeMutablePointer<CChar>.allocate(capacity: 1)
+    byte.initialize(to: CChar(bitPattern: 0xFF))
+    defer {
+      byte.deinitialize(count: 1)
+      byte.deallocate()
+    }
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_URL, action: ghostty_action_u())
+    action.action.open_url.kind = GHOSTTY_ACTION_OPEN_URL_KIND_OSC8
+    action.action.open_url.url = UnsafePointer(byte)
+    action.action.open_url.len = 1
+
+    #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
   }
 
   @Test

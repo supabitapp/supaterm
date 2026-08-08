@@ -14,6 +14,7 @@ enum GhosttyOpenURLKind: Equatable {
   case unknown
   case text
   case html
+  case osc8
 
   init(_ value: ghostty_action_open_url_kind_e) {
     switch value {
@@ -21,6 +22,8 @@ enum GhosttyOpenURLKind: Equatable {
       self = .text
     case GHOSTTY_ACTION_OPEN_URL_KIND_HTML:
       self = .html
+    case GHOSTTY_ACTION_OPEN_URL_KIND_OSC8:
+      self = .osc8
     default:
       self = .unknown
     }
@@ -29,20 +32,21 @@ enum GhosttyOpenURLKind: Equatable {
 
 struct GhosttyOpenURLRequest: Equatable {
   let kind: GhosttyOpenURLKind
-  let url: URL
+  let value: String
+
+  var url: URL {
+    if let candidate = URL(string: value), candidate.scheme != nil {
+      return candidate
+    }
+    return URL(filePath: NSString(string: value).standardizingPath)
+  }
 }
 
 func ghosttyOpenURLRequest(from action: ghostty_action_open_url_s) -> GhosttyOpenURLRequest? {
   guard let pointer = action.url, action.len > 0 else { return nil }
   let data = Data(bytes: pointer, count: Int(action.len))
-  guard let urlString = String(data: data, encoding: .utf8) else { return nil }
-  let url: URL
-  if let candidate = URL(string: urlString), candidate.scheme != nil {
-    url = candidate
-  } else {
-    url = URL(filePath: NSString(string: urlString).standardizingPath)
-  }
-  return GhosttyOpenURLRequest(kind: GhosttyOpenURLKind(action.kind), url: url)
+  guard let value = String(data: data, encoding: .utf8) else { return nil }
+  return GhosttyOpenURLRequest(kind: GhosttyOpenURLKind(action.kind), value: value)
 }
 
 func ghosttyInputKey(for scalar: UnicodeScalar) -> SupatermInputKey? {
@@ -541,8 +545,27 @@ final class GhosttySurfaceBridge {
 
     case GHOSTTY_ACTION_OPEN_URL:
       let openUrl = action.action.open_url
-      guard let request = ghosttyOpenURLRequest(from: openUrl) else { return false }
-      return openURL(request.url)
+      guard let request = ghosttyOpenURLRequest(from: openUrl) else {
+        return GhosttyOpenURLKind(openUrl.kind) == .osc8
+      }
+      guard request.kind == .osc8 else { return openURL(request.url) }
+
+      let target = GhosttyUntrustedURL(request.value)
+      switch target.decision {
+      case .allow(let url):
+        _ = openURL(url)
+      case .confirm(let url):
+        GhosttyUntrustedURLAlert.presentConfirmation(
+          for: url,
+          displayString: target.displayString
+        )
+      case .deny(let reason):
+        GhosttyUntrustedURLAlert.presentBlock(
+          reason: reason,
+          displayString: target.displayString
+        )
+      }
+      return true
 
     default:
       return false

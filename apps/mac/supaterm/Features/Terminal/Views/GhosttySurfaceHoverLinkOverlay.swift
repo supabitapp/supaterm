@@ -33,6 +33,10 @@ struct GhosttySurfaceHoverLinkPresentation: View {
   private let horizontalPadding: CGFloat = 10
   private let verticalPadding: CGFloat = 4
 
+  private var displayedLink: String {
+    GhosttyUntrustedURL(link).displayString
+  }
+
   var body: some View {
     GeometryReader { geometry in
       let placement = Self.placement(pointerIsNearLeadingBanner: pointerIsNearLeadingBanner)
@@ -72,7 +76,7 @@ struct GhosttySurfaceHoverLinkPresentation: View {
         Spacer(minLength: reservedWidth)
       }
 
-      Text(verbatim: link)
+      Text(verbatim: displayedLink)
         .font(.caption)
         .foregroundStyle(palette.primaryText)
         .lineLimit(1)
@@ -91,7 +95,7 @@ struct GhosttySurfaceHoverLinkPresentation: View {
         }
         .shadow(color: palette.shadow, radius: 3, y: 1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: "Hovered link: \(link)"))
+        .accessibilityLabel(Text(verbatim: "Hovered link: \(displayedLink)"))
         .accessibilityIdentifier("terminal-hovered-link")
         .allowsHitTesting(false)
 
