@@ -58,10 +58,10 @@ struct TerminalCommandPaletteOverlay: View {
           fontSize: 13,
           isSelected: match.id == selectedRowID
         ),
-        subtitle: match.row.subtitle.map {
+        subtitle: match.displaySubtitle.map {
           highlightedText(
             $0,
-            offsets: match.subtitleMatchedCharacterOffsets,
+            offsets: match.displaySubtitleMatchedCharacterOffsets,
             fontSize: 11,
             isSelected: match.id == selectedRowID
           )

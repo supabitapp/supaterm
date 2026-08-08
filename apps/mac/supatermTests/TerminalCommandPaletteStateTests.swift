@@ -101,6 +101,62 @@ struct TerminalCommandPaletteStateTests {
   }
 
   @Test
+  func descriptionMatchHighlightsDisplayedDescription() {
+    let match = TerminalCommandPalettePresentation.matches(
+      in: [
+        makeRow(
+          id: "config",
+          title: "Open",
+          description: "Open the configuration file."
+        )
+      ],
+      query: "configuration"
+    ).first
+
+    #expect(
+      match?.matchedCharacters == (9...21).map(TerminalCommandPaletteMatch.MatchedCharacter.description)
+    )
+    #expect(match?.displaySubtitle == "Open the configuration file.")
+    #expect(match?.displaySubtitleMatchedCharacterOffsets == Array(9...21))
+  }
+
+  @Test
+  func explicitSubtitleTakesDisplayPriorityOverDescription() {
+    let match = TerminalCommandPalettePresentation.matches(
+      in: [
+        makeRow(
+          id: "config",
+          title: "Open",
+          subtitle: "Configuration",
+          description: "Open the configuration file."
+        )
+      ],
+      query: "open"
+    ).first
+
+    #expect(match?.displaySubtitle == "Configuration")
+    #expect(match?.displaySubtitleMatchedCharacterOffsets == [])
+  }
+
+  @Test
+  func descriptionMatchDisplaysAndHighlightsDescriptionInsteadOfSubtitle() {
+    let match = TerminalCommandPalettePresentation.matches(
+      in: [
+        makeRow(
+          id: "config",
+          title: "Open",
+          subtitle: "Configuration",
+          description: "Open the preferences file."
+        )
+      ],
+      query: "preferences"
+    ).first
+
+    #expect(match?.displaySubtitle == "Open the preferences file.")
+    #expect(match?.displaySubtitleMatchedCharacterOffsets == Array(9...19))
+  }
+
+  @Test
   func substringMatchCanSpanTitleAndSubtitle() {
     let match = TerminalCommandPalettePresentation.matches(
       in: [makeRow(id: "config", title: "Open", subtitle: "Config")],
@@ -135,6 +191,54 @@ struct TerminalCommandPaletteStateTests {
     let matches = TerminalCommandPalettePresentation.matches(in: rows, query: "al")
 
     #expect(matches.map(\.id) == ["substring", "initials", "exact"])
+  }
+
+  @Test
+  func matchingRanksTitleAboveSubtitleAboveDescription() {
+    let rows = [
+      makeRow(
+        id: "description",
+        title: "Execute",
+        subtitle: "Actions",
+        description: "Open Settings"
+      ),
+      makeRow(
+        id: "subtitle",
+        title: "Execute",
+        subtitle: "Open Settings",
+        description: "Manage preferences"
+      ),
+      makeRow(
+        id: "title",
+        title: "Open Settings",
+        subtitle: "Actions",
+        description: "Manage preferences"
+      ),
+    ]
+
+    let matches = TerminalCommandPalettePresentation.matches(in: rows, query: "open settings")
+
+    #expect(matches.map(\.id) == ["title", "subtitle", "description"])
+  }
+
+  @Test
+  func matchingRanksTitleAndDescriptionBelowFullSubtitle() {
+    let rows = [
+      makeRow(
+        id: "title-description",
+        title: "Open",
+        description: "Settings"
+      ),
+      makeRow(
+        id: "subtitle",
+        title: "Execute",
+        subtitle: "Open Settings"
+      ),
+    ]
+
+    let matches = TerminalCommandPalettePresentation.matches(in: rows, query: "open settings")
+
+    #expect(matches.map(\.id) == ["subtitle", "title-description"])
   }
 
   @Test
@@ -205,13 +309,14 @@ struct TerminalCommandPaletteStateTests {
   private func makeRow(
     id: String,
     title: String,
-    subtitle: String? = nil
+    subtitle: String? = nil,
+    description: String? = nil
   ) -> TerminalCommandPaletteRow {
     TerminalCommandPaletteRow(
       id: id,
       title: title,
       subtitle: subtitle,
-      description: nil,
+      description: description,
       leadingIcon: nil,
       badge: nil,
       emphasis: false,
