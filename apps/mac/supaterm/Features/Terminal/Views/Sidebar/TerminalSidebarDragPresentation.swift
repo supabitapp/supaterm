@@ -92,6 +92,15 @@ final class TerminalSidebarDragPresentation {
     hapticTracker.reset()
   }
 
+  func handoff(layoutDestination: () -> Void) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    layoutDestination()
+    finish()
+    layoutDestination()
+    CATransaction.commit()
+  }
+
   func settle(
     _ settlement: Settlement,
     completion: @escaping @MainActor @Sendable () -> Void
