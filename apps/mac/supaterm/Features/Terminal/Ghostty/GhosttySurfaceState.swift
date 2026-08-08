@@ -1,3 +1,4 @@
+import AppKit
 import GhosttyKit
 import Observation
 
@@ -12,7 +13,8 @@ final class GhosttySurfaceState {
   var title: String?
   var titleOverride: String?
   var pwd: String?
-  var progressStyleEnabled = true
+  var derivedConfig = GhosttySurfaceConfig()
+  var oscBackgroundColor: NSColor?
   var progressState: ghostty_action_progress_report_state_e?
   var progressValue: Int?
   var commandExitCode: Int?
@@ -38,5 +40,13 @@ final class GhosttySurfaceState {
     }
     guard let title, !title.isEmpty else { return nil }
     return title
+  }
+
+  var effectiveBackgroundColor: NSColor {
+    oscBackgroundColor ?? derivedConfig.backgroundColor
+  }
+
+  var progressStyleEnabled: Bool {
+    derivedConfig.progressStyleEnabled
   }
 }

@@ -155,6 +155,16 @@ final class GhosttySurfaceBridge {
     state.mouseOverLink = nil
   }
 
+  func updateSurfaceConfig(_ config: GhosttySurfaceConfig) {
+    state.derivedConfig = config
+    if let oscBackgroundColor = state.oscBackgroundColor,
+      oscBackgroundColor != config.backgroundColor
+    {
+      state.oscBackgroundColor = nil
+    }
+    surfaceView?.surfaceAppearanceDidChange()
+  }
+
   func handleAction(target _: ghostty_target_s, action: ghostty_action_s) -> Bool {
     if action.tag == GHOSTTY_ACTION_SELECTION_CHANGED {
       guard let surfaceView else { return false }
@@ -682,6 +692,23 @@ final class GhosttySurfaceBridge {
 
   private func handleConfigAndShell(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
+    case GHOSTTY_ACTION_CONFIG_CHANGE:
+      updateSurfaceConfig(GhosttySurfaceConfig(action.action.config_change.config))
+      return true
+
+    case GHOSTTY_ACTION_COLOR_CHANGE:
+      let change = action.action.color_change
+      if change.kind == GHOSTTY_ACTION_COLOR_KIND_BACKGROUND {
+        state.oscBackgroundColor = NSColor(
+          red: Double(change.r) / 255,
+          green: Double(change.g) / 255,
+          blue: Double(change.b) / 255,
+          alpha: 1
+        )
+        surfaceView?.surfaceAppearanceDidChange()
+      }
+      return true
+
     case GHOSTTY_ACTION_SECURE_INPUT:
       guard let surfaceView else { return false }
       switch action.action.secure_input {

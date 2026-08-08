@@ -1,4 +1,5 @@
 import Foundation
+import GhosttyKit
 import Observation
 import SwiftUI
 import Synchronization
@@ -26,6 +27,46 @@ struct TerminalHostStateColorSchemeTests {
 
     #expect(darkHost.terminalChromeColorScheme == .dark)
     #expect(lightHost.terminalChromeColorScheme == .light)
+  }
+
+  @Test
+  func selectedSurfaceBackgroundDrivesTerminalChrome() async throws {
+    let runtime = try makeGhosttyRuntime("background = #101010")
+    let host = TerminalHostState(
+      runtime: runtime,
+      zmxClient: .noop,
+      zmxSessionsEnabled: false
+    )
+    host.ensureInitialTab(focusing: false)
+    let surface = try #require(host.selectedSurfaceView)
+    defer { surface.closeSurface() }
+
+    #expect(host.terminalChromeColorScheme == .dark)
+    let invalidationCount = Mutex<Int>(0)
+    withObservationTracking {
+      _ = host.terminalBackgroundColor
+    } onChange: {
+      invalidationCount.withLock { $0 += 1 }
+    }
+
+    let action = ghosttyColorChangeAction(
+      kind: GHOSTTY_ACTION_COLOR_KIND_BACKGROUND,
+      red: 244,
+      green: 230,
+      blue: 216
+    )
+    #expect(surface.bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    await flushObservation()
+
+    let background = try #require(
+      NSColor(host.terminalBackgroundColor).usingColorSpace(.sRGB)
+    )
+    #expect(background.redComponent == 244.0 / 255)
+    #expect(background.greenComponent == 230.0 / 255)
+    #expect(background.blueComponent == 216.0 / 255)
+    #expect(host.terminalChromeColorScheme == .light)
+    #expect(runtime.chromeColorScheme() == .dark)
+    #expect(invalidationCount.withLock { $0 } == 1)
   }
 
   @Test
