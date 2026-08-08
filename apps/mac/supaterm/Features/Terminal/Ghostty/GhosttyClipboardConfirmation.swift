@@ -66,13 +66,13 @@ final class GhosttyClipboardConfirmationCoordinator {
       window.isVisible,
       window.firstResponder === view
     else {
-      completion(false)
+      reject(completion)
       return
     }
 
     let key = ObjectIdentifier(window)
     guard pendingRequests[key] == nil, window.attachedSheet == nil else {
-      completion(false)
+      reject(completion)
       return
     }
 
@@ -135,6 +135,12 @@ final class GhosttyClipboardConfirmationCoordinator {
     pending.completion(
       allowed && pending.surface.isValid && pending.view?.window === pending.window
     )
+  }
+
+  private func reject(_ completion: @escaping (Bool) -> Void) {
+    DispatchQueue.main.async {
+      completion(false)
+    }
   }
 
   private static func alert(

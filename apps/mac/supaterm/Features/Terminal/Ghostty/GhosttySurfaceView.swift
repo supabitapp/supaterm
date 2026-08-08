@@ -20,6 +20,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private final class CachedValue<T> {
+    private let lock = NSLock()
     private var value: T?
     private let fetch: () -> T
     private let duration: Duration
@@ -31,25 +32,35 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
 
     deinit {
+      lock.lock()
       expiryTask?.cancel()
+      lock.unlock()
     }
 
     func get() -> T {
+      lock.lock()
+      defer { lock.unlock() }
+
       if let value {
         return value
       }
 
       let fetched = fetch()
+      let expires = ContinuousClock.now + duration
       value = fetched
-      expiryTask?.cancel()
       expiryTask = Task { [weak self] in
-        guard let self else { return }
-        try? await ContinuousClock().sleep(for: self.duration)
+        try? await Task.sleep(until: expires)
         guard !Task.isCancelled else { return }
-        self.value = nil
-        self.expiryTask = nil
+        self?.expire()
       }
       return fetched
+    }
+
+    private func expire() {
+      lock.lock()
+      defer { lock.unlock() }
+      value = nil
+      expiryTask = nil
     }
   }
 

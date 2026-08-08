@@ -46,7 +46,10 @@ final class GhosttyClipboard {
       let surfaceReference,
       surfaceReference.isValid
     else {
-      complete("")
+      DispatchQueue.main.async {
+        guard view.surface == surface else { return }
+        complete("")
+      }
       return
     }
     confirmations.present(
