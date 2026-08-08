@@ -135,7 +135,12 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
 
     let itemByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
-    let groups = Self.groups(entries: entries, itemByID: itemByID)
+    let groups = Self.groups(
+      entries: entries,
+      itemByID: itemByID,
+      dropPlaceholderFrame: dropPlaceholderFrame,
+      destinationGroupID: dragDropState?.target?.destinationGroupID
+    )
     let targetGeometry = Self.targetGeometry(
       TargetGeometryContext(
         outline: outline,
@@ -239,7 +244,9 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
   private static func groups(
     entries: [TerminalSidebarEntry],
-    itemByID: [TerminalSidebarEntryID: Item]
+    itemByID: [TerminalSidebarEntryID: Item],
+    dropPlaceholderFrame: CGRect?,
+    destinationGroupID: TerminalTabGroupID?
   ) -> [Group] {
     entries.compactMap { entry -> Group? in
       guard case .group(let id, let color, _, _) = entry.kind,
@@ -255,7 +262,11 @@ struct TerminalSidebarLayoutPlan: Equatable {
       let descendantFrames = descendants.compactMap { itemByID[$0.id]?.frame }.filter {
         $0.height > 0
       }
-      let frame = descendantFrames.reduce(header.frame) { $0.union($1) }
+      let projectedFrames =
+        id == destinationGroupID
+        ? descendantFrames + [dropPlaceholderFrame].compactMap { $0 }
+        : descendantFrames
+      let frame = projectedFrames.reduce(header.frame) { $0.union($1) }
       return Group(
         id: id,
         color: color,

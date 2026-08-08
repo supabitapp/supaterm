@@ -18,6 +18,13 @@ enum TerminalSidebarDragLog {
     ["semanticTarget=\(semanticPath(plan.path))", "destination=\(destination(plan.destination))"]
   }
 
+  static func targetFields(_ resolution: TerminalSidebarDropResolution) -> [String] {
+    [
+      "semanticTarget=\(resolution.path.map(semanticPath) ?? "none")",
+      "destination=\(resolution.plan.map { destination($0.destination) } ?? "none")",
+    ]
+  }
+
   static func coordinate(_ value: CGFloat) -> String {
     String(format: "%.1f", Double(value))
   }

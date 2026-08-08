@@ -125,6 +125,46 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func groupEndDropProjectsPlaceholderIntoGroupSurface() throws {
+    let first = TerminalTabID()
+    let last = TerminalTabID()
+    let source = TerminalTabID()
+    let tail = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [first, last]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
+      ],
+      revision: 3
+    )
+    let payload = try #require(outline.dragPayload(for: .tab(source)))
+    let target = try #require(
+      TerminalSidebarDropPlanner.plan(
+        payload: payload,
+        path: .group(groupID, index: 2),
+        outline: outline
+      )
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)],
+      target: target
+    )
+    let placeholder = try #require(plan.dropPlaceholderFrame)
+    let group = try #require(plan.groups.first { $0.id == groupID })
+    let tailFrame = try #require(plan.items.first { $0.id == .tab(tail) }?.frame)
+
+    #expect(group.frame.maxY == placeholder.maxY + TerminalSidebarLayout.groupSurfaceOverflow)
+    #expect(group.frame.contains(CGPoint(x: placeholder.midX, y: placeholder.midY)))
+    #expect(tailFrame.minY > group.frame.maxY)
+  }
+
+  @Test
   func variableRowsDriveTargetsWithoutFrozenIndices() throws {
     let root = TerminalTabID()
     let child = TerminalTabID()
