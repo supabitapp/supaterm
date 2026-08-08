@@ -3,6 +3,65 @@ import Foundation
 import GhosttyKit
 import SwiftUI
 
+struct GhosttySurfaceConfig: Equatable {
+  let backgroundColor: NSColor
+  let backgroundOpacity: Double
+  let showsScrollbar: Bool
+  let progressStyleEnabled: Bool
+
+  init(_ config: ghostty_config_t? = nil) {
+    backgroundColor = ghosttyConfigColor(config, key: "background") ?? .windowBackgroundColor
+    backgroundOpacity = min(
+      max(ghosttyConfigValue(config, key: "background-opacity", default: 1), 0.001),
+      1
+    )
+    progressStyleEnabled = ghosttyConfigValue(
+      config,
+      key: "progress-style",
+      default: true
+    )
+    showsScrollbar = ghosttyConfigShowsScrollbar(config)
+  }
+
+  var scrollbarAppearanceName: NSAppearance.Name {
+    backgroundColor.isLightColor ? .aqua : .darkAqua
+  }
+
+  static func colorScheme(for backgroundColor: NSColor) -> ColorScheme {
+    backgroundColor.isLightColor ? .light : .dark
+  }
+}
+
+private func ghosttyConfigValue<Value: BitwiseCopyable>(
+  _ config: ghostty_config_t?,
+  key: String,
+  default defaultValue: Value
+) -> Value {
+  guard let config else { return defaultValue }
+  var value = defaultValue
+  guard ghostty_config_get(config, &value, key, UInt(key.utf8.count)) else {
+    return defaultValue
+  }
+  return value
+}
+
+private func ghosttyConfigColor(_ config: ghostty_config_t?, key: String) -> NSColor? {
+  guard let config else { return nil }
+  var color = ghostty_config_color_s()
+  guard ghostty_config_get(config, &color, key, UInt(key.utf8.count)) else { return nil }
+  return NSColor(ghostty: color)
+}
+
+private func ghosttyConfigShowsScrollbar(_ config: ghostty_config_t?) -> Bool {
+  guard let config else { return true }
+  var value: UnsafePointer<CChar>?
+  let key = "scrollbar"
+  guard ghostty_config_get(config, &value, key, UInt(key.utf8.count)), let value else {
+    return true
+  }
+  return String(cString: value) != "never"
+}
+
 final class GhosttyRuntime {
   final class CallbackState {
     weak var runtime: GhosttyRuntime?
@@ -698,18 +757,6 @@ final class GhosttyRuntime {
     return value
   }
 
-  func shouldShowScrollbar() -> Bool {
-    guard let config else { return true }
-    var valuePtr: UnsafePointer<CChar>?
-    let key = "scrollbar"
-    if ghostty_config_get(config, &valuePtr, key, UInt(key.lengthOfBytes(using: .utf8))),
-      let ptr = valuePtr
-    {
-      return String(cString: ptr) != "never"
-    }
-    return true
-  }
-
   func splitPreserveZoomOnNavigation() -> Bool {
     guard let config else { return false }
     var value: CUnsignedInt = 0
@@ -720,20 +767,8 @@ final class GhosttyRuntime {
     return value & (1 << 0) != 0
   }
 
-  func backgroundOpacity() -> Double {
-    guard let config else { return 1 }
-    var value: Double = 1
-    let key = "background-opacity"
-    _ = ghostty_config_get(config, &value, key, UInt(key.lengthOfBytes(using: .utf8)))
-    return min(max(value, 0.001), 1)
-  }
-
-  func progressStyle() -> Bool {
-    guard let config else { return true }
-    var value = true
-    let key = "progress-style"
-    _ = ghostty_config_get(config, &value, key, UInt(key.lengthOfBytes(using: .utf8)))
-    return value
+  func surfaceConfig() -> GhosttySurfaceConfig {
+    GhosttySurfaceConfig(config)
   }
 
   func backgroundColor() -> NSColor {
@@ -798,20 +833,11 @@ final class GhosttyRuntime {
   }
 
   func chromeColorScheme() -> ColorScheme {
-    backgroundColor().isLightColor ? .light : .dark
-  }
-
-  func scrollbarAppearanceName() -> NSAppearance.Name {
-    backgroundColor().isLightColor ? .aqua : .darkAqua
+    GhosttySurfaceConfig.colorScheme(for: backgroundColor())
   }
 
   private func color(forKey key: String) -> NSColor? {
-    guard let config else { return nil }
-    var color: ghostty_config_color_s = ghostty_config_color_s()
-    if !ghostty_config_get(config, &color, key, UInt(key.lengthOfBytes(using: .utf8))) {
-      return nil
-    }
-    return NSColor(ghostty: color)
+    ghosttyConfigColor(config, key: key)
   }
 
   private static func keyboardShortcut(for trigger: ghostty_input_trigger_s) -> KeyboardShortcut? {

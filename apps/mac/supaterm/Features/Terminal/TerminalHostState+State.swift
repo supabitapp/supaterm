@@ -124,11 +124,19 @@ extension TerminalHostState {
   }
 
   var terminalBackgroundColor: Color {
+    if let selectedSurfaceState {
+      return Color(nsColor: selectedSurfaceState.effectiveBackgroundColor)
+    }
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
   }
 
   var terminalChromeColorScheme: ColorScheme {
+    if let selectedSurfaceState {
+      return GhosttySurfaceConfig.colorScheme(
+        for: selectedSurfaceState.effectiveBackgroundColor
+      )
+    }
     _ = runtimeConfigGeneration
     if let runtime {
       return runtime.chromeColorScheme()

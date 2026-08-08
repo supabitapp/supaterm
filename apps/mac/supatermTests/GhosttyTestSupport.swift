@@ -64,6 +64,33 @@ func withStartSearchAction<T>(
   }
 }
 
+func withConfigChangeAction<T>(
+  _ source: String,
+  _ body: (ghostty_action_s) -> T
+) throws -> T {
+  try withGhosttyConfig(source) { config in
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_CONFIG_CHANGE, action: ghostty_action_u())
+    action.action.config_change.config = config
+    return body(action)
+  }
+}
+
+func ghosttyColorChangeAction(
+  kind: ghostty_action_color_kind_e,
+  red: UInt8,
+  green: UInt8,
+  blue: UInt8
+) -> ghostty_action_s {
+  var action = ghostty_action_s(tag: GHOSTTY_ACTION_COLOR_CHANGE, action: ghostty_action_u())
+  action.action.color_change = ghostty_action_color_change_s(
+    kind: kind,
+    r: red,
+    g: green,
+    b: blue
+  )
+  return action
+}
+
 func ghosttySurfaceTarget() -> ghostty_target_s {
   ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
 }
@@ -75,19 +102,46 @@ func makeGhosttyRuntime(
     NSPasteboard.ghostty($0)
   }
 ) throws -> GhosttyRuntime {
+  try withGhosttyConfigFile(config) { url in
+    GhosttyRuntime(
+      configPath: url.path,
+      applicationIsActive: applicationIsActive,
+      pasteboardProvider: pasteboardProvider
+    )
+  }
+}
+
+private func withGhosttyConfig<T>(
+  _ source: String,
+  _ body: (ghostty_config_t) -> T
+) throws -> T {
+  try withGhosttyConfigFile(source) { url in
+    guard let config = ghostty_config_new() else {
+      preconditionFailure("ghostty_config_new failed")
+    }
+    defer {
+      ghostty_config_free(config)
+    }
+    ghostty_config_load_file(config, url.path)
+    ghostty_config_load_recursive_files(config)
+    ghostty_config_finalize(config)
+    return body(config)
+  }
+}
+
+private func withGhosttyConfigFile<T>(
+  _ source: String,
+  _ body: (URL) throws -> T
+) throws -> T {
   initializeGhosttyForTests()
   let url = FileManager.default.temporaryDirectory
     .appendingPathComponent(UUID().uuidString)
     .appendingPathExtension("ghostty")
-  try config.write(to: url, atomically: true, encoding: .utf8)
+  try source.write(to: url, atomically: true, encoding: .utf8)
   defer {
     try? FileManager.default.removeItem(at: url)
   }
-  return GhosttyRuntime(
-    configPath: url.path,
-    applicationIsActive: applicationIsActive,
-    pasteboardProvider: pasteboardProvider
-  )
+  return try body(url)
 }
 
 struct GhosttyRuntimeFixture {

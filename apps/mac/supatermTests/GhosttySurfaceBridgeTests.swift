@@ -343,8 +343,6 @@ struct GhosttySurfaceBridgeTests {
   func actionsWithoutEffectsReturnFalse() {
     let bridge = GhosttySurfaceBridge()
     let tags = [
-      GHOSTTY_ACTION_COLOR_CHANGE,
-      GHOSTTY_ACTION_CONFIG_CHANGE,
       GHOSTTY_ACTION_SIZE_LIMIT,
       GHOSTTY_ACTION_INITIAL_SIZE,
       GHOSTTY_ACTION_RESET_WINDOW_SIZE,
@@ -357,6 +355,71 @@ struct GhosttySurfaceBridgeTests {
       let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
       #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     }
+  }
+
+  @Test
+  func configChangeOwnsSurfaceAppearanceAndClearsStaleOSCBackground() throws {
+    let bridge = GhosttySurfaceBridge()
+    bridge.state.oscBackgroundColor = NSColor(
+      red: 16.0 / 255,
+      green: 16.0 / 255,
+      blue: 16.0 / 255,
+      alpha: 1
+    )
+
+    try withConfigChangeAction(
+      """
+      background = #101010
+      background-opacity = 0.4
+      scrollbar = never
+      progress-style = false
+      """
+    ) { action in
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    }
+
+    #expect(bridge.state.oscBackgroundColor != nil)
+    #expect(bridge.state.derivedConfig.backgroundOpacity == 0.4)
+    #expect(!bridge.state.derivedConfig.showsScrollbar)
+    #expect(!bridge.state.progressStyleEnabled)
+
+    try withConfigChangeAction("background = #202020") { action in
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    }
+
+    #expect(bridge.state.oscBackgroundColor == nil)
+    #expect(bridge.state.effectiveBackgroundColor == bridge.state.derivedConfig.backgroundColor)
+  }
+
+  @Test
+  func colorChangesAreConsumedButOnlyBackgroundChangesNativeState() {
+    let bridge = GhosttySurfaceBridge()
+    let ignoredKinds = [
+      GHOSTTY_ACTION_COLOR_KIND_FOREGROUND,
+      GHOSTTY_ACTION_COLOR_KIND_CURSOR,
+      ghostty_action_color_kind_e(rawValue: 7),
+    ]
+
+    for kind in ignoredKinds {
+      let action = ghosttyColorChangeAction(
+        kind: kind,
+        red: 244,
+        green: 230,
+        blue: 216
+      )
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+      #expect(bridge.state.oscBackgroundColor == nil)
+    }
+
+    let backgroundAction = ghosttyColorChangeAction(
+      kind: GHOSTTY_ACTION_COLOR_KIND_BACKGROUND,
+      red: 244,
+      green: 230,
+      blue: 216
+    )
+    #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: backgroundAction))
+    #expect(bridge.state.oscBackgroundColor != nil)
+    #expect(bridge.state.effectiveBackgroundColor != bridge.state.derivedConfig.backgroundColor)
   }
 
   @Test
