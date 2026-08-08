@@ -207,15 +207,17 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test @MainActor
-  func dropHandoffKeepsThePreviewInstalledUntilTheDestinationIsReady() {
+  func destinationHandoffKeepsThenDiscardsThePreviewRows() {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
     let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
     let hostedView = NSView(frame: source.bounds)
     source.addSubview(hostedView)
+    var restored = false
     let row = TerminalSidebarLiftedRow(
       hostedView: hostedView,
       sourceFrame: source.frame,
       restore: {
+        restored = true
         source.addSubview(hostedView)
         hostedView.frame = source.bounds
       }
@@ -235,9 +237,11 @@ struct TerminalSidebarMotionTests {
     )
     var previewWasInstalled = false
     var destinationWasCompleted = false
+    var layoutPass = 0
 
-    presentation.handoff {
-      if hostedView.superview !== source {
+    presentation.handoffToDestination {
+      layoutPass += 1
+      if layoutPass == 1 {
         previewWasInstalled = true
       } else {
         destinationWasCompleted = true
@@ -246,7 +250,8 @@ struct TerminalSidebarMotionTests {
 
     #expect(previewWasInstalled)
     #expect(destinationWasCompleted)
-    #expect(hostedView.superview === source)
+    #expect(!restored)
+    #expect(hostedView.superview == nil)
   }
 
   @Test

@@ -15,9 +15,12 @@ struct TerminalSidebarPointerTests {
   private struct Fixture {
     let firstTabID: TerminalTabID
     let secondTabID: TerminalTabID
+    let secondTab: TerminalTabItem
     let recorder: TerminalCommandRecorder
     let selectionState: TerminalSidebarTabSelectionState
     let outline: TerminalSidebarOutline
+    let context: TerminalSidebarRowContext
+    let item: TerminalSidebarCollectionItem
     let pointerEvents: PointerEvents
     let window: NSWindow
     let location: NSPoint
@@ -111,6 +114,34 @@ struct TerminalSidebarPointerTests {
     #expect(pressedStates == [true, false])
   }
 
+  @Test
+  func liftedRowCannotBeReboundThroughItsCollectionItem() async throws {
+    let fixture = try await fixture()
+    defer {
+      fixture.window.contentView = nil
+      fixture.window.orderOut(nil)
+    }
+    let lifted = try #require(
+      fixture.item.liftHostedView(sourceFrame: fixture.item.view.frame)
+    )
+    let preview = try #require(
+      lifted.hostedView as? NSHostingView<TerminalSidebarHostedRow>
+    )
+    let previewPresentation = preview.rootView.presentation
+
+    fixture.item.host(
+      entryID: .tab(fixture.secondTabID),
+      TerminalSidebarHostedRow(
+        presentation: .tab(presentation(fixture.secondTab)),
+        context: fixture.context
+      )
+    )
+
+    #expect(fixture.item.entryID == .tab(fixture.secondTabID))
+    #expect(fixture.item.view.subviews.first !== preview)
+    #expect(preview.rootView.presentation == previewPresentation)
+  }
+
   private func fixture() async throws -> Fixture {
     let host = TerminalHostState(managesTerminalSurfaces: false)
     let manager = host.spaceManager.tabCollection
@@ -118,6 +149,7 @@ struct TerminalSidebarPointerTests {
     let secondTabID = manager.createTab(title: "Second")
     manager.selectTab(secondTabID)
     let firstTab = try #require(host.tabs.first { $0.id == firstTabID })
+    let secondTab = try #require(host.tabs.first { $0.id == secondTabID })
     let recorder = TerminalCommandRecorder()
     let store = Store(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
@@ -156,20 +188,22 @@ struct TerminalSidebarPointerTests {
       return entryID == .tab(firstTabID)
     }
     let item = TerminalSidebarCollectionItem()
+    let rowContext = TerminalSidebarRowContext(
+      store: store,
+      terminal: host,
+      palette: Palette(colorScheme: .dark),
+      renameState: TerminalSidebarRenameState(),
+      groupHeaderHoverState: TerminalSidebarGroupHoverState(),
+      tabSelectionState: selectionState,
+      outline: outline,
+      fixedHoveredGroupID: nil,
+      actions: rowActions
+    )
     item.host(
+      entryID: .tab(firstTabID),
       TerminalSidebarHostedRow(
         presentation: .tab(presentation(firstTab)),
-        context: TerminalSidebarRowContext(
-          store: store,
-          terminal: host,
-          palette: Palette(colorScheme: .dark),
-          renameState: TerminalSidebarRenameState(),
-          groupHeaderHoverState: TerminalSidebarGroupHoverState(),
-          tabSelectionState: selectionState,
-          outline: outline,
-          fixedHoveredGroupID: nil,
-          actions: rowActions
-        )
+        context: rowContext
       )
     )
     item.view.frame = NSRect(x: 0, y: 0, width: 240, height: 60)
@@ -193,9 +227,12 @@ struct TerminalSidebarPointerTests {
     return Fixture(
       firstTabID: firstTabID,
       secondTabID: secondTabID,
+      secondTab: secondTab,
       recorder: recorder,
       selectionState: selectionState,
       outline: outline,
+      context: rowContext,
+      item: item,
       pointerEvents: pointerEvents,
       window: window,
       location: location

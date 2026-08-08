@@ -44,7 +44,7 @@ final class TerminalSidebarDragPresentation {
     _ lift: Lift,
     motionPolicy: TerminalSidebarMotionPolicy
   ) {
-    finish()
+    finish(restoringRows: true)
     hotspot = lift.hotspot
     velocityTracker = TerminalSidebarDragVelocityTracker()
     velocityTracker.update(point: lift.screenPoint, timestamp: lift.timestamp)
@@ -92,12 +92,20 @@ final class TerminalSidebarDragPresentation {
     hapticTracker.reset()
   }
 
-  func handoff(layoutDestination: () -> Void) {
+  func handoffToSource(layoutSource: () -> Void) {
+    handoff(restoringRows: true, layout: layoutSource)
+  }
+
+  func handoffToDestination(layoutDestination: () -> Void) {
+    handoff(restoringRows: false, layout: layoutDestination)
+  }
+
+  private func handoff(restoringRows: Bool, layout: () -> Void) {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    layoutDestination()
-    finish()
-    layoutDestination()
+    layout()
+    finish(restoringRows: restoringRows)
+    layout()
     CATransaction.commit()
   }
 
@@ -172,9 +180,9 @@ final class TerminalSidebarDragPresentation {
     CATransaction.commit()
   }
 
-  func finish() {
+  private func finish(restoringRows: Bool) {
     guard let collectionView else { return }
-    liveView?.restore(in: collectionView)
+    liveView?.restore(in: collectionView, restoringRows: restoringRows)
     liveView?.removeFromSuperview()
     liveView = nil
     hotspot = .zero
@@ -301,8 +309,12 @@ private final class TerminalSidebarLiveDragView: NSView {
     layer.add(TerminalSidebarTransformSpring.animation(from: 0, to: -2), forKey: "lift")
   }
 
-  func restore(in collectionView: NSCollectionView) {
-    for row in rows { row.restore() }
+  func restore(in collectionView: NSCollectionView, restoringRows: Bool) {
+    if restoringRows {
+      for row in rows { row.restore() }
+    } else {
+      for row in rows { row.hostedView.removeFromSuperview() }
+    }
     groupBackground?.restore(in: collectionView)
   }
 }
