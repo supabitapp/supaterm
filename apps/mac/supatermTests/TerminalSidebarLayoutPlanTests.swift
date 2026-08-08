@@ -165,6 +165,82 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func upwardRootDropKeepsItsProjectedGapTargetable() throws {
+    let first = TerminalTabID()
+    let middle = TerminalTabID()
+    let source = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [first, middle, source].map {
+        TerminalSidebarOutline.Root(content: .tab($0), isPinned: false)
+      },
+      revision: 3
+    )
+    let payload = try #require(outline.dragPayload(for: .tab(source)))
+    let target = try #require(
+      TerminalSidebarDropPlanner.plan(
+        payload: payload,
+        path: .rootBoundary(index: 0, affinity: .before),
+        outline: outline
+      )
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)],
+      target: target
+    )
+    let placeholder = try #require(plan.dropPlaceholderFrame)
+    let rawMap = TerminalSidebarDropTargetMap(targets: plan.semanticTargets)
+    let projectedMap = TerminalSidebarDropTargetMap(plan: plan, activePath: target.path)
+
+    #expect(rawMap.semanticTarget(at: placeholder.midY) == nil)
+    #expect(projectedMap.semanticTarget(at: placeholder.midY)?.path == target.path)
+  }
+
+  @Test
+  func boundaryBetweenAdjacentGroupsOwnsItsProjectedGap() throws {
+    let firstChild = TerminalTabID()
+    let secondChild = TerminalTabID()
+    let source = TerminalTabID()
+    let firstGroup = TerminalTabGroupID()
+    let secondGroup = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(firstGroup, .blue, .automatic, [firstChild]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(
+          content: .group(secondGroup, .green, .automatic, [secondChild]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+      ],
+      revision: 3
+    )
+    let payload = try #require(outline.dragPayload(for: .tab(source)))
+    let path = TerminalSidebarSemanticPath.rootBoundary(index: 0, affinity: .after)
+    let target = try #require(
+      TerminalSidebarDropPlanner.plan(payload: payload, path: path, outline: outline)
+    )
+    let baseline = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)]
+    )
+    let projected = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)],
+      target: target
+    )
+    let placeholder = try #require(projected.dropPlaceholderFrame)
+    let staleMap = TerminalSidebarDropTargetMap(targets: baseline.semanticTargets)
+    let projectedMap = TerminalSidebarDropTargetMap(plan: projected, activePath: path)
+
+    #expect(target.destination == .root(isPinned: false, index: 1))
+    #expect(staleMap.semanticTarget(at: placeholder.midY)?.path == .rootItem(index: 1))
+    #expect(projectedMap.semanticTarget(at: placeholder.midY)?.path == path)
+  }
+
+  @Test
   func variableRowsDriveTargetsWithoutFrozenIndices() throws {
     let root = TerminalTabID()
     let child = TerminalTabID()

@@ -155,6 +155,16 @@ struct TerminalSidebarDragCoordinator: Equatable {
   }
 }
 
+struct TerminalSidebarDropHandoff: Equatable {
+  let topologyStamp: TerminalSidebarTopologyStamp
+
+  func accepts(_ candidate: TerminalSidebarTopologyStamp?) -> Bool {
+    guard let candidate else { return false }
+    return candidate.spaceID == topologyStamp.spaceID
+      && candidate.revision >= topologyStamp.revision
+  }
+}
+
 @MainActor
 final class TerminalSidebarCollectionView: NSCollectionView {
   private var pointerTrackingArea: NSTrackingArea?

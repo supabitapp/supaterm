@@ -130,6 +130,50 @@ struct TerminalSidebarDropPlanningTests {
   }
 
   @Test
+  func dropHandoffAcceptsOnlyTheCommittedSpaceAndRevision() {
+    let handoff = TerminalSidebarDropHandoff(
+      topologyStamp: TerminalSidebarTopologyStamp(
+        spaceID: TerminalSidebarTestFixture.primarySpaceID,
+        revision: 8
+      )
+    )
+
+    #expect(!handoff.accepts(nil))
+    #expect(
+      !handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 7
+        )
+      )
+    )
+    #expect(
+      !handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.secondarySpaceID,
+          revision: 8
+        )
+      )
+    )
+    #expect(
+      handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 8
+        )
+      )
+    )
+    #expect(
+      handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 9
+        )
+      )
+    )
+  }
+
+  @Test
   func mixedBatchUsesPostRemovalIndexesAndDeletesAutomaticSources() throws {
     let first = TerminalTabID()
     let second = TerminalTabID()

@@ -64,6 +64,11 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     let height: CGFloat
   }
 
+  private struct PendingDropHandoff {
+    let requirement: TerminalSidebarDropHandoff
+    let completion: TerminalSidebarDragController.DropHandoffCompletion
+  }
+
   private enum UpdatePhase {
     case idle
     case collapsing(Update)
@@ -95,6 +100,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     topologyRevision: 0
   )
   private var pendingUpdate: Update?
+  private var pendingDropHandoff: PendingDropHandoff?
   private var updatePhase = UpdatePhase.idle
   private var hasAppliedSnapshot = false
   private var selectedTabID: TerminalTabID?
@@ -138,6 +144,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       entryID: { [weak self] in self?.dataSource?.itemIdentifier(for: $0) },
       invalidateLayout: { [weak self] in self?.invalidateLayout() },
       didFinish: { [weak self] in self?.consumePendingUpdate() },
+      completeDropHandoff: { [weak self] requirement, completion in
+        self?.completeDropHandoff(requirement, completion: completion)
+      },
       setHoveredGroupID: { [weak self] in self?.setHoveredGroupID($0) }
     )
   )
@@ -209,6 +218,11 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     let update = Update(outline: outline, reduceMotion: reduceMotion)
     if dragController.isActive {
       handleActiveDragUpdate(update)
+      return
+    }
+    if pendingDropHandoff != nil {
+      queue(update)
+      consumeDropHandoffUpdate()
       return
     }
     guard case .idle = updatePhase else {
@@ -367,12 +381,40 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func consumePendingUpdate() {
     Task { @MainActor [weak self] in
-      guard let self, case .idle = updatePhase, !dragController.isActive, let pendingUpdate else {
+      guard let self, case .idle = updatePhase, !dragController.isActive else { return }
+      if pendingDropHandoff != nil {
+        consumeDropHandoffUpdate()
         return
       }
+      guard let pendingUpdate else { return }
       self.pendingUpdate = nil
       process(pendingUpdate)
     }
+  }
+
+  private func completeDropHandoff(
+    _ requirement: TerminalSidebarDropHandoff,
+    completion: @escaping TerminalSidebarDragController.DropHandoffCompletion
+  ) {
+    precondition(pendingDropHandoff == nil)
+    pendingDropHandoff = PendingDropHandoff(
+      requirement: requirement,
+      completion: completion
+    )
+    consumeDropHandoffUpdate()
+  }
+
+  private func consumeDropHandoffUpdate() {
+    guard
+      case .idle = updatePhase,
+      !dragController.isActive,
+      let handoff = pendingDropHandoff,
+      let update = pendingUpdate,
+      handoff.requirement.accepts(update.outline.topologyStamp)
+    else { return }
+    pendingDropHandoff = nil
+    pendingUpdate = nil
+    applySnapshot(update, animated: false, completion: handoff.completion)
   }
 
   private func handleActiveDragUpdate(_ update: Update) {
