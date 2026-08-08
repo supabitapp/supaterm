@@ -268,21 +268,21 @@ final class GhosttyRuntime {
     clipboard.cancel(surface: surfaceReference)
   }
 
-  func reloadConfig(soft: Bool, target: ghostty_target_s) {
-    guard let app else { return }
+  func reloadConfig(soft: Bool, target: ghostty_target_s) -> Bool {
+    guard let app else { return false }
+    let reloadedConfig: ghostty_config_t?
     if soft, let config {
-      guard let clone = ghostty_config_clone(config) else { return }
-      applyConfig(clone, target: target, app: app)
-      ghostty_config_free(clone)
-      return
+      reloadedConfig = ghostty_config_clone(config)
+    } else {
+      reloadedConfig = Self.loadConfig(at: configPath, includeCLIArgs: includeCLIArgs)
     }
-    guard let config = Self.loadConfig(at: configPath, includeCLIArgs: includeCLIArgs) else { return }
-    applyConfig(config, target: target, app: app)
-    ghostty_config_free(config)
+    guard let reloadedConfig else { return false }
+    defer { ghostty_config_free(reloadedConfig) }
+    return applyConfig(reloadedConfig, target: target, app: app)
   }
 
   func reloadAppConfig() {
-    reloadConfig(
+    _ = reloadConfig(
       soft: false,
       target: ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: ghostty_target_u())
     )
@@ -297,15 +297,17 @@ final class GhosttyRuntime {
     _ config: ghostty_config_t,
     target: ghostty_target_s,
     app: ghostty_app_t
-  ) {
+  ) -> Bool {
     switch target.tag {
     case GHOSTTY_TARGET_APP:
       ghostty_app_update_config(app, config)
+      return true
     case GHOSTTY_TARGET_SURFACE:
-      guard let surface = target.target.surface else { return }
+      guard let surface = target.target.surface else { return false }
       ghostty_surface_update_config(surface, config)
+      return true
     default:
-      return
+      return false
     }
   }
 
@@ -383,6 +385,14 @@ final class GhosttyRuntime {
   ) -> Bool {
     let app = appBits.flatMap(ghostty_app_t.init(bitPattern:))
     return actionCallback(app, target, action)
+  }
+
+  nonisolated static func closeSurfaceCallbackForTesting(
+    _ userdataBits: UInt?,
+    processAlive: Bool
+  ) {
+    let userdata = userdataBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
+    closeSurfaceCallback(userdata, processAlive)
   }
 
   private nonisolated static func readClipboardCallback(
@@ -478,16 +488,22 @@ final class GhosttyRuntime {
     _ userdata: UnsafeMutableRawPointer?,
     _ processAlive: Bool
   ) {
-    let userdataBits = userdata.map { UInt(bitPattern: $0) }
+    guard let userdata else { return }
+    let userdataBits = UInt(bitPattern: userdata)
     if Thread.isMainThread {
       MainActor.assumeIsolated {
-        closeSurface(userdataBits: userdataBits, processAlive: processAlive)
+        let pointer = UnsafeMutableRawPointer(bitPattern: userdataBits)!
+        surfaceBridge(fromUserdata: pointer)?.closeSurface(processAlive: processAlive)
       }
       return
     }
+    let retainedBridge = Unmanaged<GhosttySurfaceBridge>.fromOpaque(userdata).retain()
+    let retainedBridgeBits = UInt(bitPattern: retainedBridge.toOpaque())
     DispatchQueue.main.async {
       MainActor.assumeIsolated {
-        closeSurface(userdataBits: userdataBits, processAlive: processAlive)
+        let pointer = UnsafeMutableRawPointer(bitPattern: retainedBridgeBits)!
+        let bridge = Unmanaged<GhosttySurfaceBridge>.fromOpaque(pointer).takeRetainedValue()
+        bridge.closeSurface(processAlive: processAlive)
       }
     }
   }
@@ -533,10 +549,7 @@ final class GhosttyRuntime {
       }
       if action.tag == GHOSTTY_ACTION_RELOAD_CONFIG {
         let soft = action.action.reload_config.soft
-        runtime.reloadConfig(soft: soft, target: target)
-        if target.tag == GHOSTTY_TARGET_APP {
-          return true
-        }
+        return runtime.reloadConfig(soft: soft, target: target)
       }
     }
     switch target.tag {
@@ -591,12 +604,6 @@ final class GhosttyRuntime {
     let userdata = userdataBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
     guard let view = surfaceBridge(fromUserdata: userdata)?.surfaceView else { return }
     view.writeClipboard(location: location, items: items, confirm: confirm)
-  }
-
-  private static func closeSurface(userdataBits: UInt?, processAlive: Bool) {
-    let userdata = userdataBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
-    guard let bridge = surfaceBridge(fromUserdata: userdata) else { return }
-    bridge.closeSurface(processAlive: processAlive)
   }
 
   private func setConfig(_ config: ghostty_config_t) {

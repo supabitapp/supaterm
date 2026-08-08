@@ -296,19 +296,19 @@ struct GhosttySurfaceViewTests {
     defer { surfaceView.closeSurface() }
 
     selection.value = "first"
-    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()) == false)
+    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()))
     #expect(selectionReadCount == 0)
     await advanceClock(clock, by: .milliseconds(100))
     #expect(notifiedSelections == ["first"])
 
     selection.value = "second"
     #expect(surfaceView.accessibilitySelectedText() == "second")
-    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()) == false)
+    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()))
     await advanceClock(clock, by: .milliseconds(100))
     #expect(notifiedSelections == ["first", "second"])
 
     selection.value = nil
-    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()) == false)
+    #expect(surfaceView.bridge.handleAction(target: selectionTarget(), action: selectionChangedAction()))
     await advanceClock(clock, by: .milliseconds(100))
     #expect(notifiedSelections == ["first", "second", nil])
   }
@@ -1253,7 +1253,7 @@ struct GhosttySurfaceViewTests {
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
     let action = ghostty_action_s(tag: GHOSTTY_ACTION_END_SEARCH, action: ghostty_action_u())
 
-    #expect(surface.bridge.handleAction(target: target, action: action) == false)
+    #expect(surface.bridge.handleAction(target: target, action: action))
 
     #expect(window.firstResponder === surface)
     #expect(surface.bridge.state.searchNeedle == nil)

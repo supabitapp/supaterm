@@ -98,6 +98,7 @@ func ghosttyInputChunks(_ text: String) -> [GhosttyInputChunk] {
 final class GhosttySurfaceBridge {
   let state = GhosttySurfaceState()
   private let findPasteboard: NSPasteboard
+  private let openURL: (URL) -> Bool
   var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
   var onTitleChange: ((String) -> Void)?
@@ -120,8 +121,12 @@ final class GhosttySurfaceBridge {
   var onStateChange: (() -> Void)?
   private var progressResetTask: Task<Void, Never>?
 
-  init(findPasteboard: NSPasteboard = NSPasteboard(name: .find)) {
+  init(
+    findPasteboard: NSPasteboard = NSPasteboard(name: .find),
+    openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }
+  ) {
     self.findPasteboard = findPasteboard
+    self.openURL = openURL
   }
 
   deinit {
@@ -143,38 +148,39 @@ final class GhosttySurfaceBridge {
 
   func handleAction(target _: ghostty_target_s, action: ghostty_action_s) -> Bool {
     if action.tag == GHOSTTY_ACTION_SELECTION_CHANGED {
-      surfaceView?.selectionDidChange()
-      return false
+      guard let surfaceView else { return false }
+      surfaceView.selectionDidChange()
+      return true
     }
     if let handled = handleAppAction(action) { return handled }
     if let handled = handleSplitAction(action) { return handled }
     if let handled = handleTabAction(action) { return handled }
     if handleTitleAndPath(action) {
       onStateChange?()
-      return false
+      return true
     }
     if handleCommandStatus(action) {
       onStateChange?()
       if action.tag == GHOSTTY_ACTION_SHOW_CHILD_EXITED {
         return onChildExited?() ?? false
       }
-      return false
+      return true
     }
     if handleMouseAndLink(action) {
       onStateChange?()
-      return action.tag == GHOSTTY_ACTION_OPEN_URL
+      return true
     }
     if handleSearchAndScroll(action) {
       onStateChange?()
-      return false
+      return true
     }
     if handleSizeAndKey(action) {
       onStateChange?()
-      return false
+      return true
     }
     if handleConfigAndShell(action) {
       onStateChange?()
-      return false
+      return true
     }
     return false
   }
@@ -416,20 +422,21 @@ final class GhosttySurfaceBridge {
     switch action.tag {
     case GHOSTTY_ACTION_SET_TITLE:
       let previousTitle = state.effectiveTitle
-      if let title = string(from: action.action.set_title.title) {
-        state.title = title
-        titleDidChange(from: previousTitle)
-      }
+      guard let title = string(from: action.action.set_title.title) else { return false }
+      state.title = title
+      titleDidChange(from: previousTitle)
       return true
 
     case GHOSTTY_ACTION_PROMPT_TITLE:
       switch action.action.prompt_title {
       case GHOSTTY_PROMPT_TITLE_SURFACE:
-        onPromptSurfaceTitle?()
+        guard let onPromptSurfaceTitle else { return false }
+        onPromptSurfaceTitle()
       case GHOSTTY_PROMPT_TITLE_TAB:
-        onPromptTabTitle?()
+        guard let onPromptTabTitle else { return false }
+        onPromptTabTitle()
       default:
-        break
+        return false
       }
       return true
 
@@ -450,7 +457,8 @@ final class GhosttySurfaceBridge {
       let title = string(from: note.title) ?? ""
       let body = string(from: note.body) ?? ""
       guard !(title.isEmpty && body.isEmpty) else { return true }
-      onDesktopNotification?(title, body)
+      guard let onDesktopNotification else { return false }
+      onDesktopNotification(title, body)
       return true
 
     default:
@@ -510,13 +518,13 @@ final class GhosttySurfaceBridge {
   private func handleMouseAndLink(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
     case GHOSTTY_ACTION_MOUSE_SHAPE:
-      state.mouseShape = action.action.mouse_shape
-      surfaceView?.setMouseShape(action.action.mouse_shape)
+      guard let surfaceView else { return false }
+      surfaceView.setMouseShape(action.action.mouse_shape)
       return true
 
     case GHOSTTY_ACTION_MOUSE_VISIBILITY:
-      state.mouseVisibility = action.action.mouse_visibility
-      surfaceView?.setMouseVisibility(action.action.mouse_visibility == GHOSTTY_MOUSE_VISIBLE)
+      guard let surfaceView else { return false }
+      surfaceView.setMouseVisibility(action.action.mouse_visibility == GHOSTTY_MOUSE_VISIBLE)
       return true
 
     case GHOSTTY_ACTION_MOUSE_OVER_LINK:
@@ -533,20 +541,8 @@ final class GhosttySurfaceBridge {
 
     case GHOSTTY_ACTION_OPEN_URL:
       let openUrl = action.action.open_url
-      state.openUrlKind = openUrl.kind
-      state.openUrl = string(from: openUrl.url, length: openUrl.len)
-      if let request = ghosttyOpenURLRequest(from: openUrl) {
-        NSWorkspace.shared.open(request.url)
-      }
-      return true
-
-    case GHOSTTY_ACTION_COLOR_CHANGE:
-      let change = action.action.color_change
-      state.colorChangeKind = change.kind
-      state.colorChangeR = change.r
-      state.colorChangeG = change.g
-      state.colorChangeB = change.b
-      return true
+      guard let request = ghosttyOpenURLRequest(from: openUrl) else { return false }
+      return openURL(request.url)
 
     default:
       return false
@@ -556,8 +552,9 @@ final class GhosttySurfaceBridge {
   private func handleSearchAndScroll(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
     case GHOSTTY_ACTION_SCROLLBAR:
+      guard let surfaceView else { return false }
       let scroll = action.action.scrollbar
-      surfaceView?.updateScrollbar(
+      surfaceView.updateScrollbar(
         total: scroll.total,
         offset: scroll.offset,
         length: scroll.len
@@ -638,8 +635,9 @@ final class GhosttySurfaceBridge {
       return true
 
     case GHOSTTY_ACTION_CELL_SIZE:
+      guard let surfaceView else { return false }
       let cell = action.action.cell_size
-      surfaceView?.updateCellSize(width: cell.width, height: cell.height)
+      surfaceView.updateCellSize(width: cell.width, height: cell.height)
       return true
 
     case GHOSTTY_ACTION_RESET_WINDOW_SIZE:
@@ -681,29 +679,22 @@ final class GhosttySurfaceBridge {
   private func handleConfigAndShell(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
     case GHOSTTY_ACTION_SECURE_INPUT:
+      guard let surfaceView else { return false }
       state.secureInput = action.action.secure_input
       switch action.action.secure_input {
       case GHOSTTY_SECURE_INPUT_ON:
-        surfaceView?.passwordInput = true
+        surfaceView.passwordInput = true
       case GHOSTTY_SECURE_INPUT_OFF:
-        surfaceView?.passwordInput = false
+        surfaceView.passwordInput = false
       case GHOSTTY_SECURE_INPUT_TOGGLE:
-        surfaceView?.passwordInput.toggle()
+        surfaceView.passwordInput.toggle()
       default:
-        break
+        return false
       }
       return true
 
     case GHOSTTY_ACTION_FLOAT_WINDOW:
       state.floatWindow = action.action.float_window
-      return true
-
-    case GHOSTTY_ACTION_RELOAD_CONFIG:
-      state.reloadConfigSoft = action.action.reload_config.soft
-      return true
-
-    case GHOSTTY_ACTION_CONFIG_CHANGE:
-      state.configChangeCount += 1
       return true
 
     case GHOSTTY_ACTION_PRESENT_TERMINAL:
@@ -727,10 +718,6 @@ final class GhosttySurfaceBridge {
     guard let pointer, length > 0 else { return nil }
     let data = Data(bytes: pointer, count: length)
     return String(data: data, encoding: .utf8)
-  }
-
-  private func string(from pointer: UnsafePointer<CChar>?, length: UInt) -> String? {
-    string(from: pointer, length: Int(length))
   }
 
 }
