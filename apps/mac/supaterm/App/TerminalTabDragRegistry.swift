@@ -44,13 +44,18 @@ final class TerminalTabDragRegistry {
     case moved
   }
 
+  enum PresentationState: Equatable {
+    case sourceSurface
+    case sharedPreview(CGRect)
+  }
+
   private struct Session {
     let payload: TerminalTabDragPayload
     let didTransfer: (TerminalTabMoveOperationID) -> Void
     let previewImage: NSImage?
-    let previewSize: CGSize
-    let sourceWindowFrame: CGRect?
-    var previewFrame: CGRect?
+    let previewContentSize: CGSize?
+    let sourceSurfaceFrame: CGRect
+    var presentationState: PresentationState
   }
 
   var transfer: ((TerminalTabDragPayload, Destination) -> TerminalTabTransferResult?)?
@@ -60,8 +65,14 @@ final class TerminalTabDragRegistry {
   var sessionFinished: (() -> Void)?
 
   private var session: Session?
-  private let previewController = TerminalTabDragPreviewController()
+  private let previewPresenter: any TerminalTabDragPreviewPresenting
   private(set) var lastOutcome: Outcome?
+
+  init(
+    previewPresenter: any TerminalTabDragPreviewPresenting = TerminalTabDragPreviewController()
+  ) {
+    self.previewPresenter = previewPresenter
+  }
 
   var activePayload: TerminalTabDragPayload? {
     session?.payload
@@ -70,8 +81,8 @@ final class TerminalTabDragRegistry {
   func begin(
     _ payload: TerminalTabDragPayload,
     previewImage: NSImage? = nil,
-    previewSize: CGSize = CGSize(width: 1_000, height: 700),
-    sourceWindowFrame: CGRect? = nil,
+    previewContentSize: CGSize? = nil,
+    sourceSurfaceFrame: CGRect,
     didTransfer: @escaping (TerminalTabMoveOperationID) -> Void = { _ in }
   ) -> Bool {
     guard session == nil else { return false }
@@ -79,9 +90,9 @@ final class TerminalTabDragRegistry {
       payload: payload,
       didTransfer: didTransfer,
       previewImage: previewImage,
-      previewSize: previewSize,
-      sourceWindowFrame: sourceWindowFrame,
-      previewFrame: nil
+      previewContentSize: previewContentSize,
+      sourceSurfaceFrame: sourceSurfaceFrame,
+      presentationState: .sourceSurface
     )
     lastOutcome = nil
     return true
@@ -116,30 +127,32 @@ final class TerminalTabDragRegistry {
     return true
   }
 
-  func move(to screenPoint: CGPoint) {
-    guard var session else { return }
-    let size = session.previewSize
-    session.previewFrame = CGRect(
-      x: screenPoint.x - size.width * 0.18,
-      y: screenPoint.y - size.height * 0.82,
-      width: size.width,
-      height: size.height
-    )
+  func move(to screenPoint: CGPoint) -> PresentationState? {
+    guard var session else { return nil }
+    let presentationState: PresentationState
+    if session.sourceSurfaceFrame.contains(screenPoint) {
+      previewPresenter.hide()
+      presentationState = .sourceSurface
+    } else {
+      let frame = TerminalTabDragPreviewLayout.frame(
+        for: session.previewContentSize,
+        at: screenPoint
+      )
+      presentationState = .sharedPreview(
+        previewPresenter.show(image: session.previewImage, frame: frame)
+      )
+    }
+    session.presentationState = presentationState
     self.session = session
-    previewController.update(
-      image: session.previewImage,
-      sourceSize: size,
-      sourceWindowFrame: session.sourceWindowFrame,
-      screenPoint: screenPoint
-    )
     sessionMoved?(session.payload, screenPoint)
+    return presentationState
   }
 
   func performDetach(_ payload: TerminalTabDragPayload) -> Bool {
     guard
       let session,
       session.payload == payload,
-      let previewFrame = session.previewFrame,
+      case .sharedPreview(let previewFrame) = session.presentationState,
       detach?(payload, previewFrame) == true
     else { return false }
     session.didTransfer(payload.moveOperationID)
@@ -149,7 +162,7 @@ final class TerminalTabDragRegistry {
   func finish(operationID: TerminalTabMoveOperationID, outcome: Outcome) {
     guard session?.payload.operationID == operationID.rawValue else { return }
     session = nil
-    previewController.hide()
+    previewPresenter.hide()
     lastOutcome = outcome
     sessionFinished?()
   }

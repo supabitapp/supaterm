@@ -32,15 +32,39 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test
-  func tabDragPreviewKeepsTheSourceAspectRatioAndPointerAnchor() {
+  func tabDragPreviewUsesTheContentRatioAndPointerCenter() {
     let frame = TerminalTabDragPreviewLayout.frame(
-      for: CGSize(width: 1_440, height: 900),
+      for: CGSize(width: 1_440, height: 820),
       at: CGPoint(x: 800, y: 500)
     )
 
-    #expect(frame.size == CGSize(width: 420, height: 262.5))
-    #expect(frame.minX == 724.4)
-    #expect(frame.minY == 284.75)
+    #expect(frame.width == 210)
+    #expect(abs(frame.height - 119.583_333_333_333_33) < 0.000_001)
+    #expect(frame.midX == 800)
+    #expect(frame.midY == 500)
+
+    let fallback = TerminalTabDragPreviewLayout.frame(
+      for: nil,
+      at: CGPoint(x: 800, y: 500)
+    )
+    #expect(fallback.size == CGSize(width: 210, height: 138.6))
+    #expect(fallback.midX == 800)
+    #expect(fallback.midY == 500)
+    #expect(
+      TerminalTabDragPreviewLayout.frame(
+        for: CGSize(width: 1_440, height: 0),
+        at: CGPoint(x: 800, y: 500)
+      ).size == fallback.size
+    )
+
+    let snapshotFrame = TerminalTabDragPreviewLayout.snapshotFrame(
+      for: CGSize(width: 1_440, height: 900),
+      in: CGRect(origin: .zero, size: frame.size)
+    )
+    #expect(snapshotFrame.width == frame.width)
+    #expect(snapshotFrame.height == 131.25)
+    #expect(snapshotFrame.minY == 0)
+    #expect(snapshotFrame.maxY > frame.height)
   }
 
   @Test
@@ -77,6 +101,22 @@ struct TerminalWindowShellControllerTests {
         blockedFrames: blocked
       ) == nil
     )
+  }
+
+  @Test
+  func detachedWindowKeepsThePreviewCenterAndUsesTheNormalWindowSize() {
+    let previewFrame = CGRect(x: 700, y: 400, width: 210, height: 120)
+    let windowSize = CGSize(width: 1_440, height: 900)
+
+    let frame = TerminalTabNewWindowLayout.frame(
+      previewFrame: previewFrame,
+      windowSize: windowSize,
+      visibleFrame: CGRect(x: 0, y: 0, width: 2_000, height: 1_200)
+    )
+
+    #expect(frame.size == windowSize)
+    #expect(frame.midX == previewFrame.midX)
+    #expect(frame.midY == previewFrame.midY)
   }
 
   private let bounds = CGRect(x: 0, y: 0, width: 1_000, height: 700)

@@ -262,11 +262,9 @@ final class TerminalWindowController: NSWindowController {
     shellController.isSpacePaging = { [weak terminal = input.terminal] in
       terminal?.spacePager?.isTracking == true
     }
-    shellController.splitDestination = { [weak terminal = input.terminal] payload in
+    shellController.splitDestination = { [weak terminal = input.terminal] sourceTabID in
       guard
         let terminal,
-        payload.itemIDs.count == 1,
-        case .tab(let sourceTabID) = payload.itemIDs[0],
         let selectedTabID = terminal.selectedTabID,
         let destinationTabID = terminal.liveTabSplitDestinationTabID(
           sourceTabID: sourceTabID,

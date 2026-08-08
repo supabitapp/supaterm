@@ -153,7 +153,7 @@ final class TerminalWindowShellController: NSViewController {
   var onFloatingSidebarVisibilityChange: ((Bool) -> Void)?
   var isSpacePaging: () -> Bool = { false }
   var splitDestination:
-    (TerminalTabDragPayload) -> (
+    (TerminalTabID) -> (
       spaceID: TerminalSpaceID,
       tabID: TerminalTabID
     )? = { _ in nil }
@@ -274,16 +274,20 @@ final class TerminalWindowShellController: NSViewController {
 
   private func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
     guard
-      let payload = tabDragRegistry.resolve(info.draggingPasteboard),
-      payload.itemIDs.count == 1,
-      case .tab = payload.itemIDs[0],
-      let destination = splitDestination(payload)
+      let payload = tabDragRegistry.resolve(info.draggingPasteboard)
     else {
       clearSplitDrop()
       return []
     }
     let location = view.convert(info.draggingLocation, from: nil)
     guard detailFrame.contains(location) else {
+      clearSplitDrop()
+      return []
+    }
+    guard
+      let sourceTabID = payload.singleTabID,
+      let destination = splitDestination(sourceTabID)
+    else {
       clearSplitDrop()
       return []
     }

@@ -123,6 +123,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collectionView: collectionView,
     collectionLayout: collectionLayout,
     scrollView: scrollView,
+    sourceSurfaceView: view,
     sourceWindowID: windowControllerID,
     tabDragRegistry: tabDragRegistry,
     host: TerminalSidebarDragController.Host(

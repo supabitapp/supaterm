@@ -60,13 +60,23 @@ final class TerminalSidebarDragPresentation {
     if motionPolicy.lift { liveView.lift() }
   }
 
-  func move(to screenPoint: CGPoint) {
+  func move(
+    to screenPoint: CGPoint,
+    presentationState: TerminalTabDragRegistry.PresentationState
+  ) {
     guard
       let collectionView,
       let liveView,
       let window = collectionView.window
     else { return }
     velocityTracker.update(point: screenPoint, timestamp: CACurrentMediaTime())
+    switch presentationState {
+    case .sourceSurface:
+      liveView.isHidden = false
+    case .sharedPreview:
+      liveView.isHidden = true
+      return
+    }
     let windowPoint = window.convertPoint(fromScreen: screenPoint)
     let pointer = collectionView.convert(windowPoint, from: nil)
     let horizontalBounds = TerminalSidebarLayout.cardHorizontalInsets.frame(
@@ -117,6 +127,7 @@ final class TerminalSidebarDragPresentation {
       completion()
       return
     }
+    liveView.isHidden = false
     if settlement.accepted, settlement.motionPolicy.ripple {
       applyDropRipple(
         candidates: settlement.rippleCandidates,

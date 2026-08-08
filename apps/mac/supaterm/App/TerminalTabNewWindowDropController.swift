@@ -11,6 +11,22 @@ struct TerminalTabDesktopDropRouting {
   }
 }
 
+struct TerminalTabNewWindowLayout {
+  static func frame(
+    previewFrame: CGRect,
+    windowSize: CGSize,
+    visibleFrame: CGRect
+  ) -> CGRect {
+    let frame = CGRect(
+      x: previewFrame.midX - windowSize.width / 2,
+      y: previewFrame.midY - windowSize.height / 2,
+      width: windowSize.width,
+      height: windowSize.height
+    )
+    return frame.constrained(to: visibleFrame)
+  }
+}
+
 @MainActor
 final class TerminalTabNewWindowDropController {
   private let destinationView: TerminalTabNewWindowDestinationView

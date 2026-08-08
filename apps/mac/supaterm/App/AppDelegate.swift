@@ -558,16 +558,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       return false
     }
     if let window = controller.window {
-      let size = CGSize(
-        width: max(window.contentMinSize.width, previewFrame.width),
-        height: max(window.contentMinSize.height, previewFrame.height)
-      )
-      let frame = CGRect(origin: previewFrame.origin, size: size)
+      let previewCenter = CGPoint(x: previewFrame.midX, y: previewFrame.midY)
       let visibleFrame =
-        NSScreen.screens.first(where: { $0.frame.intersects(frame) })?.visibleFrame
+        NSScreen.screens.first(where: { $0.frame.contains(previewCenter) })?.visibleFrame
         ?? NSScreen.main?.visibleFrame
-        ?? frame
-      window.setFrame(frame.constrained(to: visibleFrame), display: false)
+        ?? window.frame
+      window.setFrame(
+        TerminalTabNewWindowLayout.frame(
+          previewFrame: previewFrame,
+          windowSize: window.frame.size,
+          visibleFrame: visibleFrame
+        ),
+        display: false
+      )
       activateForWindowPresentation()
       window.makeKeyAndOrderFront(nil)
     }

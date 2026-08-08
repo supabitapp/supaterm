@@ -100,7 +100,7 @@ extension TerminalHostState {
     to target: LiveTabSplitTarget
   ) throws -> LiveTabSplitPlan {
     let destination = target.host
-    guard payload.itemIDs.count == 1, case .tab(let sourceTabID) = payload.itemIDs[0] else {
+    guard let sourceTabID = payload.singleTabID else {
       throw TerminalTabTransferError.invalidSplitSource
     }
     let instances = try transferInstances(

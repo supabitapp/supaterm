@@ -63,6 +63,7 @@ final class TerminalSidebarDragController {
   private let collectionView: TerminalSidebarCollectionView
   private let collectionLayout: TerminalSidebarCollectionLayout
   private let scrollView: TerminalSidebarScrollView
+  private let sourceSurfaceView: NSView
   private let sourceWindowID: UUID
   private let tabDragRegistry: TerminalTabDragRegistry
   private let host: Host
@@ -82,6 +83,11 @@ final class TerminalSidebarDragController {
   )
   private lazy var dragPresentation = TerminalSidebarDragPresentation(
     collectionView: collectionView
+  )
+  private lazy var nativeDragSession = TerminalSidebarNativeDragSession(
+    collectionView: collectionView,
+    sourceSurfaceView: sourceSurfaceView,
+    registry: tabDragRegistry
   )
   private lazy var externalDropController = TerminalSidebarExternalDropController(
     configuration: TerminalSidebarExternalDropController.Configuration(
@@ -116,6 +122,7 @@ final class TerminalSidebarDragController {
     collectionView: TerminalSidebarCollectionView,
     collectionLayout: TerminalSidebarCollectionLayout,
     scrollView: TerminalSidebarScrollView,
+    sourceSurfaceView: NSView,
     sourceWindowID: UUID,
     tabDragRegistry: TerminalTabDragRegistry,
     host: Host
@@ -123,6 +130,7 @@ final class TerminalSidebarDragController {
     self.collectionView = collectionView
     self.collectionLayout = collectionLayout
     self.scrollView = scrollView
+    self.sourceSurfaceView = sourceSurfaceView
     self.sourceWindowID = sourceWindowID
     self.tabDragRegistry = tabDragRegistry
     self.host = host
@@ -392,6 +400,7 @@ final class TerminalSidebarDragController {
     let liftedEntryIDs = content.outline.liftedEntryIDs(for: payload.source)
     host.setHoveredGroupID(nil)
     content.context.groupHeaderHoverState.set(nil)
+    guard let sourceCapture = nativeDragSession.captureSource() else { return false }
     guard
       let geometry = dragSourceGeometry(
         payload: payload,
@@ -408,11 +417,9 @@ final class TerminalSidebarDragController {
         sourceTopologyRevision: payload.topologyStamp.revision,
         itemIDs: payload.source.itemIDs
       ),
-      tabDragRegistry.begin(
+      nativeDragSession.register(
         tabDragPayload,
-        previewImage: collectionView.window?.terminalTabDragSnapshot(),
-        previewSize: collectionView.window?.frame.size ?? CGSize(width: 1_000, height: 700),
-        sourceWindowFrame: collectionView.window?.frame,
+        source: sourceCapture,
         didTransfer: { [weak self] in self?.externalTransferDidComplete($0) }
       )
     else {
@@ -427,7 +434,7 @@ final class TerminalSidebarDragController {
     )
     content.swipe?.isRowDragActive = true
     let screenPoint = screenPoint(for: event)
-    tabDragRegistry.move(to: screenPoint)
+    let presentationState = nativeDragSession.move(to: screenPoint)
     collectionLayout.dragDropState = TerminalSidebarDragDropState(
       draggingItemIDs: liftedEntryIDs,
       target: nil
@@ -444,6 +451,7 @@ final class TerminalSidebarDragController {
       ),
       motionPolicy: content.motionPolicy
     )
+    dragPresentation.move(to: screenPoint, presentationState: presentationState)
     host.invalidateLayout()
     logDrag(
       "sidebar.drag.activation",
@@ -452,7 +460,11 @@ final class TerminalSidebarDragController {
         "sourceMaxY=\(TerminalSidebarDragLog.coordinate(geometry.frame.maxY))",
       ]
     )
-    beginNativeDraggingSession(payload: tabDragPayload, frame: geometry.frame, event: event)
+    nativeDragSession.beginDraggingSession(
+      payload: tabDragPayload,
+      frame: geometry.frame,
+      event: event
+    )
     return true
   }
 
@@ -544,24 +556,6 @@ final class TerminalSidebarDragController {
       return nil
     }
     return TerminalSidebarLiftedGroupBackground(id: groupID, view: view, sourceFrame: view.frame)
-  }
-
-  private func beginNativeDraggingSession(
-    payload: TerminalTabDragPayload,
-    frame: CGRect,
-    event: NSEvent
-  ) {
-    let pasteboardItem = NSPasteboardItem()
-    precondition(TerminalTabDragPasteboard.write(payload, to: pasteboardItem))
-    let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-    draggingItem.setDraggingFrame(frame, contents: nil)
-    let session = collectionView.beginDraggingSession(
-      with: [draggingItem],
-      event: event,
-      source: collectionView
-    )
-    session.draggingFormation = .none
-    session.animatesToStartingPositionsOnCancelOrFail = false
   }
 
   private func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
@@ -705,12 +699,12 @@ final class TerminalSidebarDragController {
 
   private func draggingSessionMoved(to screenPoint: NSPoint) {
     guard let activeDrag else { return }
-    tabDragRegistry.move(to: screenPoint)
+    let presentationState = nativeDragSession.move(to: screenPoint)
     switch activeDrag.coordinator.phase {
     case .cancelled, .settling, .finished: return
     case .tracking, .frozen, .awaitingNativeEnd: break
     }
-    dragPresentation.move(to: screenPoint)
+    dragPresentation.move(to: screenPoint, presentationState: presentationState)
   }
 
   private func nativeDraggingEnded(source: String, operation: NSDragOperation?) {
@@ -925,7 +919,7 @@ final class TerminalSidebarDragController {
 
   private func finishDragging(receipt: TerminalSidebarDropReceipt? = nil) {
     guard var activeDrag else { return }
-    tabDragRegistry.finish(
+    nativeDragSession.finish(
       operationID: activeDrag.payload.operationID,
       outcome: activeDrag.registryOutcome
     )

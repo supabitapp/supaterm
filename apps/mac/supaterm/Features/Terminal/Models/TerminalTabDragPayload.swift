@@ -64,6 +64,11 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     items.map(\.rootItemID)
   }
 
+  var singleTabID: TerminalTabID? {
+    guard items.count == 1, items[0].kind == .tab else { return nil }
+    return TerminalTabID(rawValue: items[0].id)
+  }
+
   var isValid: Bool {
     version == Self.schemaVersion
       && !items.isEmpty
