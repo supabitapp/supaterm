@@ -27,24 +27,10 @@ final class GhosttySurfaceState {
   var searchSelected: Int?
   var searchFocusCount = 0
   var searchSelectionRequestCount = 0
-  var sizeLimitMinWidth: UInt32?
-  var sizeLimitMinHeight: UInt32?
-  var sizeLimitMaxWidth: UInt32?
-  var sizeLimitMaxHeight: UInt32?
-  var initialSizeWidth: UInt32?
-  var initialSizeHeight: UInt32?
   var keySequenceActive: Bool?
-  var keySequenceTrigger: ghostty_input_trigger_s?
-  var keyTableTag: ghostty_action_key_table_tag_e?
-  var keyTableName: String?
   var keyTableDepth: Int = 0
   var userInputGeneration = 0
-  var secureInput: ghostty_action_secure_input_e?
-  var floatWindow: ghostty_action_float_window_e?
   var bellCount: Int = 0
-  var presentTerminalCount: Int = 0
-  var resetWindowSizeCount: Int = 0
-  var quitTimer: ghostty_action_quit_timer_e?
 
   var effectiveTitle: String? {
     if let titleOverride {

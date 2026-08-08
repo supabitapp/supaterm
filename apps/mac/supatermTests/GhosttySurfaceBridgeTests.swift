@@ -326,10 +326,7 @@ struct GhosttySurfaceBridgeTests {
   @Test
   func handledActionsReturnTrue() {
     let bridge = GhosttySurfaceBridge()
-    let tags = [
-      GHOSTTY_ACTION_RING_BELL,
-      GHOSTTY_ACTION_RESET_WINDOW_SIZE,
-    ]
+    let tags = [GHOSTTY_ACTION_RING_BELL]
 
     for tag in tags {
       let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
@@ -343,12 +340,34 @@ struct GhosttySurfaceBridgeTests {
     let tags = [
       GHOSTTY_ACTION_COLOR_CHANGE,
       GHOSTTY_ACTION_CONFIG_CHANGE,
+      GHOSTTY_ACTION_SIZE_LIMIT,
+      GHOSTTY_ACTION_INITIAL_SIZE,
+      GHOSTTY_ACTION_RESET_WINDOW_SIZE,
+      GHOSTTY_ACTION_FLOAT_WINDOW,
+      GHOSTTY_ACTION_PRESENT_TERMINAL,
+      GHOSTTY_ACTION_QUIT_TIMER,
     ]
 
     for tag in tags {
       let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
       #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     }
+  }
+
+  @Test
+  func undoAndRedoReturnResponderResults() {
+    var selectors: [Selector] = []
+    let bridge = GhosttySurfaceBridge(sendAction: {
+      selectors.append($0)
+      return false
+    })
+
+    for tag in [GHOSTTY_ACTION_UNDO, GHOSTTY_ACTION_REDO] {
+      let action = ghostty_action_s(tag: tag, action: ghostty_action_u())
+      #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    }
+
+    #expect(selectors == [#selector(UndoManager.undo), #selector(UndoManager.redo)])
   }
 
   @Test

@@ -102,6 +102,7 @@ func ghosttyInputChunks(_ text: String) -> [GhosttyInputChunk] {
 final class GhosttySurfaceBridge {
   let state = GhosttySurfaceState()
   private let findPasteboard: NSPasteboard
+  private let sendAction: (Selector) -> Bool
   private let openURL: (URL) -> Bool
   var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
@@ -127,10 +128,14 @@ final class GhosttySurfaceBridge {
 
   init(
     findPasteboard: NSPasteboard = NSPasteboard(name: .find),
-    openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }
+    openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
+    sendAction: @escaping (Selector) -> Bool = {
+      NSApp.sendAction($0, to: nil, from: nil)
+    }
   ) {
     self.findPasteboard = findPasteboard
     self.openURL = openURL
+    self.sendAction = sendAction
   }
 
   deinit {
@@ -315,11 +320,9 @@ final class GhosttySurfaceBridge {
       GHOSTTY_ACTION_TOGGLE_QUICK_TERMINAL:
       return false
     case GHOSTTY_ACTION_UNDO:
-      NSApp.sendAction(#selector(UndoManager.undo), to: nil, from: nil)
-      return true
+      return sendAction(#selector(UndoManager.undo))
     case GHOSTTY_ACTION_REDO:
-      NSApp.sendAction(#selector(UndoManager.redo), to: nil, from: nil)
-      return true
+      return sendAction(#selector(UndoManager.redo))
     default:
       return nil
     }
@@ -643,54 +646,29 @@ final class GhosttySurfaceBridge {
 
   private func handleSizeAndKey(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
-    case GHOSTTY_ACTION_SIZE_LIMIT:
-      let sizeLimit = action.action.size_limit
-      state.sizeLimitMinWidth = sizeLimit.min_width
-      state.sizeLimitMinHeight = sizeLimit.min_height
-      state.sizeLimitMaxWidth = sizeLimit.max_width
-      state.sizeLimitMaxHeight = sizeLimit.max_height
-      return true
-
-    case GHOSTTY_ACTION_INITIAL_SIZE:
-      let initial = action.action.initial_size
-      state.initialSizeWidth = initial.width
-      state.initialSizeHeight = initial.height
-      return true
-
     case GHOSTTY_ACTION_CELL_SIZE:
       guard let surfaceView else { return false }
       let cell = action.action.cell_size
       surfaceView.updateCellSize(width: cell.width, height: cell.height)
       return true
 
-    case GHOSTTY_ACTION_RESET_WINDOW_SIZE:
-      state.resetWindowSizeCount += 1
-      return true
-
     case GHOSTTY_ACTION_KEY_SEQUENCE:
-      let seq = action.action.key_sequence
-      state.keySequenceActive = seq.active
-      state.keySequenceTrigger = seq.trigger
+      state.keySequenceActive = action.action.key_sequence.active
       return true
 
     case GHOSTTY_ACTION_KEY_TABLE:
       let table = action.action.key_table
-      state.keyTableTag = table.tag
       switch table.tag {
       case GHOSTTY_KEY_TABLE_ACTIVATE:
-        state.keyTableName = string(
-          from: table.value.activate.name, length: table.value.activate.len)
         state.keyTableDepth += 1
       case GHOSTTY_KEY_TABLE_DEACTIVATE:
-        state.keyTableName = nil
         if state.keyTableDepth > 0 {
           state.keyTableDepth -= 1
         }
       case GHOSTTY_KEY_TABLE_DEACTIVATE_ALL:
-        state.keyTableName = nil
         state.keyTableDepth = 0
       default:
-        state.keyTableName = nil
+        return false
       }
       return true
 
@@ -703,7 +681,6 @@ final class GhosttySurfaceBridge {
     switch action.tag {
     case GHOSTTY_ACTION_SECURE_INPUT:
       guard let surfaceView else { return false }
-      state.secureInput = action.action.secure_input
       switch action.action.secure_input {
       case GHOSTTY_SECURE_INPUT_ON:
         surfaceView.passwordInput = true
@@ -714,17 +691,6 @@ final class GhosttySurfaceBridge {
       default:
         return false
       }
-      return true
-
-    case GHOSTTY_ACTION_FLOAT_WINDOW:
-      state.floatWindow = action.action.float_window
-      return true
-
-    case GHOSTTY_ACTION_PRESENT_TERMINAL:
-      state.presentTerminalCount += 1
-      return true
-    case GHOSTTY_ACTION_QUIT_TIMER:
-      state.quitTimer = action.action.quit_timer
       return true
 
     default:
