@@ -629,7 +629,15 @@ final class TerminalSidebarDragController {
       case .tracking = activeDrag.coordinator.phase,
       let content = host.content()
     else { return }
-    setDropTarget(nil, pointerY: nil, content: content)
+    setDropTarget(
+      TerminalSidebarDropResolution(
+        payload: activeDrag.payload,
+        path: nil,
+        outline: content.outline
+      ),
+      pointerY: nil,
+      content: content
+    )
   }
 
   private func prepareForDragOperation(_ info: any NSDraggingInfo) -> Bool {
@@ -758,14 +766,12 @@ final class TerminalSidebarDragController {
   private func updateDropTarget(pointerY: CGFloat, content: Content) {
     guard let activeDrag, case .tracking = activeDrag.coordinator.phase else { return }
     let semanticTarget = collectionLayout.dropTargetMap.semanticTarget(at: pointerY)
-    let target = semanticTarget.flatMap {
-      TerminalSidebarDropPlanner.plan(
-        payload: activeDrag.payload,
-        path: $0.path,
-        outline: content.outline
-      )
-    }
-    setDropTarget(target, pointerY: pointerY, content: content)
+    let resolution = TerminalSidebarDropResolution(
+      payload: activeDrag.payload,
+      path: semanticTarget?.path,
+      outline: content.outline
+    )
+    setDropTarget(resolution, pointerY: pointerY, content: content)
   }
 
   private func updateDropTargetAfterAutoscroll(pointerY: CGFloat) {
@@ -786,19 +792,21 @@ final class TerminalSidebarDragController {
 
   private func updatePinnedNewTabDropTarget(content: Content) {
     guard let activeDrag, case .tracking = activeDrag.coordinator.phase else { return }
-    let target = TerminalSidebarPinnedDropRouting.target(
+    let resolution = TerminalSidebarDropResolution(
       payload: activeDrag.payload,
+      path: .trailingRoot,
       outline: content.outline
     )
-    setDropTarget(target, pointerY: nil, content: content)
+    setDropTarget(resolution, pointerY: nil, content: content)
   }
 
   private func setDropTarget(
-    _ target: TerminalSidebarDropPlan?,
+    _ resolution: TerminalSidebarDropResolution,
     pointerY: CGFloat?,
     content: Content
   ) {
     guard var activeDrag else { return }
+    let target = resolution.plan
     let changed = activeDrag.target != target
     if changed {
       activeDrag.target = target
@@ -807,7 +815,7 @@ final class TerminalSidebarDragController {
         "sidebar.drag.targetTransition",
         fields: TerminalSidebarDragLog.activeFields(activeDrag.payload)
           + ["pointerY=\(pointerY.map(TerminalSidebarDragLog.coordinate) ?? "nil")"]
-          + (target.map(TerminalSidebarDragLog.targetFields) ?? ["semanticTarget=none"])
+          + TerminalSidebarDragLog.targetFields(resolution)
       )
       layoutAnimator.animate(enabled: content.motionPolicy.targetInterpolation) {
         collectionLayout.dragDropState = TerminalSidebarDragDropState(
@@ -816,7 +824,7 @@ final class TerminalSidebarDragController {
         )
       }
     }
-    dragPresentation.updateHapticTarget(target?.path)
+    dragPresentation.updateHapticTarget(resolution.path)
     if changed { host.invalidateLayout() }
   }
 

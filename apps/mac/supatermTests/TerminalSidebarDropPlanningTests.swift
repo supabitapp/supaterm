@@ -103,6 +103,33 @@ struct TerminalSidebarDropPlanningTests {
   }
 
   @Test
+  func noOpDropResolutionKeepsItsSemanticPathForFeedback() throws {
+    let child = TerminalTabID()
+    let source = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [child]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+      ],
+      revision: 3
+    )
+    let payload = try #require(outline.dragPayload(for: .tab(source)))
+    let path = TerminalSidebarSemanticPath.rootBoundary(index: 0, affinity: .after)
+    let resolution = TerminalSidebarDropResolution(
+      payload: payload,
+      path: path,
+      outline: outline
+    )
+
+    #expect(resolution.path == path)
+    #expect(resolution.plan == nil)
+  }
+
+  @Test
   func mixedBatchUsesPostRemovalIndexesAndDeletesAutomaticSources() throws {
     let first = TerminalTabID()
     let second = TerminalTabID()

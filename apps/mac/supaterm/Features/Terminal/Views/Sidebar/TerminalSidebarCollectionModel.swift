@@ -283,18 +283,25 @@ struct TerminalSidebarDropPlan: Equatable {
   let path: TerminalSidebarSemanticPath
   let destination: TerminalSidebarDropDestination
   let placeholder: TerminalSidebarDropPlaceholder
-  let highlightedGroupID: TerminalTabGroupID?
 
   init(
     path: TerminalSidebarSemanticPath,
     destination: TerminalSidebarDropDestination,
-    placeholder: TerminalSidebarDropPlaceholder,
-    highlightedGroupID: TerminalTabGroupID? = nil
+    placeholder: TerminalSidebarDropPlaceholder
   ) {
     self.path = path
     self.destination = destination
     self.placeholder = placeholder
-    self.highlightedGroupID = highlightedGroupID
+  }
+
+  var destinationGroupID: TerminalTabGroupID? {
+    guard case .group(let groupID, _) = destination else { return nil }
+    return groupID
+  }
+
+  var highlightedGroupID: TerminalTabGroupID? {
+    guard case .rootItem = path else { return nil }
+    return destinationGroupID
   }
 
   func command(for payload: TerminalSidebarDragPayload) -> TerminalSidebarDropCommand? {
@@ -321,6 +328,22 @@ struct TerminalSidebarDropPlan: Equatable {
 struct TerminalSidebarDragDropState: Equatable {
   let draggingItemIDs: [TerminalSidebarEntryID]
   let target: TerminalSidebarDropPlan?
+}
+
+struct TerminalSidebarDropResolution: Equatable {
+  let path: TerminalSidebarSemanticPath?
+  let plan: TerminalSidebarDropPlan?
+
+  init(
+    payload: TerminalSidebarDragPayload,
+    path: TerminalSidebarSemanticPath?,
+    outline: TerminalSidebarOutline
+  ) {
+    self.path = path
+    plan = path.flatMap {
+      TerminalSidebarDropPlanner.plan(payload: payload, path: $0, outline: outline)
+    }
+  }
 }
 
 struct TerminalSidebarDropCommand: Equatable {
@@ -405,8 +428,7 @@ enum TerminalSidebarDropPlanner {
         TerminalSidebarDropPlan(
           path: .rootItem(index: index),
           destination: .group(groupID, index: tabIDs.count { !selected.contains($0) }),
-          placeholder: .groupEnd(groupID),
-          highlightedGroupID: groupID
+          placeholder: .groupEnd(groupID)
         ),
         payload: payload,
         outline: outline

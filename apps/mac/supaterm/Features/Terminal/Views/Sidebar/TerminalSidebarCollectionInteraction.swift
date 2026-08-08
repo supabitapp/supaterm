@@ -23,17 +23,6 @@ enum TerminalSidebarPinnedDropRouting {
   static func autoscrollPointerY(in visibleRect: CGRect) -> CGFloat {
     visibleRect.maxY
   }
-
-  static func target(
-    payload: TerminalSidebarDragPayload,
-    outline: TerminalSidebarOutline
-  ) -> TerminalSidebarDropPlan? {
-    TerminalSidebarDropPlanner.plan(
-      payload: payload,
-      path: .trailingRoot,
-      outline: outline
-    )
-  }
 }
 
 enum TerminalSidebarTabPressDecision: Equatable {

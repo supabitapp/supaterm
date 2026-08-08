@@ -38,30 +38,26 @@ final class TerminalSidebarExternalDropController {
       clear()
       return []
     }
-    let target: TerminalSidebarDropPlan?
+    let path: TerminalSidebarSemanticPath?
     if isPinnedTarget {
       configuration.updateAutoscroll(
         TerminalSidebarPinnedDropRouting.autoscrollPointerY(
           in: configuration.collectionView.visibleRect
         )
       )
-      target = TerminalSidebarPinnedDropRouting.target(
-        payload: sidebarPayload,
-        outline: content.outline
-      )
+      path = .trailingRoot
     } else {
       let location = configuration.collectionView.convert(info.draggingLocation, from: nil)
       configuration.updateAutoscroll(location.y)
-      target = configuration.collectionLayout.dropTargetMap.semanticTarget(at: location.y).flatMap {
-        TerminalSidebarDropPlanner.plan(
-          payload: sidebarPayload,
-          path: $0.path,
-          outline: content.outline
-        )
-      }
+      path = configuration.collectionLayout.dropTargetMap.semanticTarget(at: location.y)?.path
     }
-    setTarget(payload: payload, sidebarPayload: sidebarPayload, target: target)
-    guard target != nil else { return [] }
+    let resolution = TerminalSidebarDropResolution(
+      payload: sidebarPayload,
+      path: path,
+      outline: content.outline
+    )
+    setTarget(payload: payload, sidebarPayload: sidebarPayload, resolution: resolution)
+    guard resolution.plan != nil else { return [] }
     info.numberOfValidItemsForDrop = 1
     return .move
   }
@@ -76,25 +72,19 @@ final class TerminalSidebarExternalDropController {
 
   func updateAfterAutoscroll(pointerY: CGFloat, isPinnedTarget: Bool) {
     guard let activeDrop, let content = configuration.content() else { return }
-    let target =
-      if isPinnedTarget {
-        TerminalSidebarPinnedDropRouting.target(
-          payload: activeDrop.sidebarPayload,
-          outline: content.outline
-        )
-      } else {
-        configuration.collectionLayout.dropTargetMap.semanticTarget(at: pointerY).flatMap {
-          TerminalSidebarDropPlanner.plan(
-            payload: activeDrop.sidebarPayload,
-            path: $0.path,
-            outline: content.outline
-          )
-        }
-      }
+    let path =
+      isPinnedTarget
+      ? TerminalSidebarSemanticPath.trailingRoot
+      : configuration.collectionLayout.dropTargetMap.semanticTarget(at: pointerY)?.path
+    let resolution = TerminalSidebarDropResolution(
+      payload: activeDrop.sidebarPayload,
+      path: path,
+      outline: content.outline
+    )
     setTarget(
       payload: activeDrop.payload,
       sidebarPayload: activeDrop.sidebarPayload,
-      target: target
+      resolution: resolution
     )
   }
 
@@ -117,11 +107,13 @@ final class TerminalSidebarExternalDropController {
   }
 
   func clear() {
-    guard activeDrop != nil else { return }
+    let hadTarget = activeDrop != nil
     activeDrop = nil
-    configuration.collectionLayout.dragDropState = nil
+    if hadTarget {
+      configuration.collectionLayout.dragDropState = nil
+      configuration.invalidateLayout()
+    }
     configuration.resetHapticTarget()
-    configuration.invalidateLayout()
   }
 
   private func sidebarPayload(
@@ -151,10 +143,11 @@ final class TerminalSidebarExternalDropController {
   private func setTarget(
     payload: TerminalTabDragPayload,
     sidebarPayload: TerminalSidebarDragPayload,
-    target: TerminalSidebarDropPlan?
+    resolution: TerminalSidebarDropResolution
   ) {
-    guard let target else {
-      clear()
+    configuration.updateHapticTarget(resolution.path)
+    guard let target = resolution.plan else {
+      clearTarget()
       return
     }
     let next = ActiveDrop(
@@ -168,7 +161,13 @@ final class TerminalSidebarExternalDropController {
       draggingItemIDs: entryIDs(for: sidebarPayload.source),
       target: target
     )
-    configuration.updateHapticTarget(target.path)
+    configuration.invalidateLayout()
+  }
+
+  private func clearTarget() {
+    guard activeDrop != nil else { return }
+    activeDrop = nil
+    configuration.collectionLayout.dragDropState = nil
     configuration.invalidateLayout()
   }
 

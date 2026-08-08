@@ -158,13 +158,17 @@ struct TerminalSidebarMotionTests {
     let payload = try #require(outline.dragPayload(for: .tab(source)))
     let visibleRect = CGRect(x: 0, y: 100, width: 220, height: 300)
     let pointerY = TerminalSidebarPinnedDropRouting.autoscrollPointerY(in: visibleRect)
-    let dropPlan = TerminalSidebarPinnedDropRouting.target(payload: payload, outline: outline)
+    let resolution = TerminalSidebarDropResolution(
+      payload: payload,
+      path: .trailingRoot,
+      outline: outline
+    )
 
     #expect(pointerY == visibleRect.maxY)
     #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: pointerY, visibleRect: visibleRect) == .down)
-    #expect(dropPlan?.path == .trailingRoot)
-    #expect(dropPlan?.destination == .root(isPinned: false, index: 1))
-    #expect(dropPlan?.placeholder == .beforeFooter)
+    #expect(resolution.path == .trailingRoot)
+    #expect(resolution.plan?.destination == .root(isPinned: false, index: 1))
+    #expect(resolution.plan?.placeholder == .beforeFooter)
   }
 
   @Test @MainActor
