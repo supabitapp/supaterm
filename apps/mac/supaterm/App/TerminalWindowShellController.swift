@@ -152,7 +152,11 @@ final class TerminalWindowShellController: NSViewController {
   let state = TerminalWindowShellState()
   var onFloatingSidebarVisibilityChange: ((Bool) -> Void)?
   var isSpacePaging: () -> Bool = { false }
-  var splitDestination: () -> (spaceID: TerminalSpaceID, tabID: TerminalTabID)? = { nil }
+  var splitDestination:
+    (TerminalTabDragPayload) -> (
+      spaceID: TerminalSpaceID,
+      tabID: TerminalTabID
+    )? = { _ in nil }
 
   private var activeSplitDrop: ActiveSplitDrop?
   private var detailController: NSViewController?
@@ -272,9 +276,8 @@ final class TerminalWindowShellController: NSViewController {
     guard
       let payload = tabDragRegistry.resolve(info.draggingPasteboard),
       payload.itemIDs.count == 1,
-      case .tab(let sourceTabID) = payload.itemIDs[0],
-      let destination = splitDestination(),
-      destination.tabID != sourceTabID
+      case .tab = payload.itemIDs[0],
+      let destination = splitDestination(payload)
     else {
       clearSplitDrop()
       return []
@@ -291,7 +294,7 @@ final class TerminalWindowShellController: NSViewController {
     )
     guard let side = splitDropOverlay.update(point: overlayPoint) else {
       activeSplitDrop = nil
-      return []
+      return .move
     }
     activeSplitDrop = ActiveSplitDrop(
       destination: destination,
