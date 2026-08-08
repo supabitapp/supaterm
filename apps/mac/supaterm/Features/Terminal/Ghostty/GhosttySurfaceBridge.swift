@@ -551,7 +551,10 @@ final class GhosttySurfaceBridge {
       guard let request = ghosttyOpenURLRequest(from: openUrl) else {
         return GhosttyOpenURLKind(openUrl.kind) == .osc8
       }
-      guard request.kind == .osc8 else { return openURL(request.url) }
+      guard request.kind == .osc8 else {
+        _ = openURL(request.url)
+        return true
+      }
 
       let target = GhosttyUntrustedURL(request.value)
       switch target.decision {

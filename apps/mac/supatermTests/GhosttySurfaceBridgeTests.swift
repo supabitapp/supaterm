@@ -278,11 +278,16 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
-  func openUrlReturnsOpeningResult() {
-    let bridge = GhosttySurfaceBridge { _ in false }
+  func parsedOpenUrlStaysHandledWhenOpeningFails() {
+    var openedURL: URL?
+    let bridge = GhosttySurfaceBridge {
+      openedURL = $0
+      return false
+    }
 
     withOpenURLAction(url: "https://supaterm.com/docs") { action in
-      #expect(!bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+      #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+      #expect(openedURL?.absoluteString == "https://supaterm.com/docs")
     }
   }
 
