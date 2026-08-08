@@ -141,7 +141,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         )
       },
       indexPath: { [weak self] in self?.dataSource?.indexPath(for: $0) },
-      entryID: { [weak self] in self?.dataSource?.itemIdentifier(for: $0) },
       invalidateLayout: { [weak self] in self?.invalidateLayout() },
       didFinish: { [weak self] in self?.consumePendingUpdate() },
       completeDropHandoff: { [weak self] requirement, completion in
@@ -269,7 +268,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         for: indexPath
       )
       guard let item = item as? TerminalSidebarCollectionItem else { return nil }
-      item.host(TerminalSidebarHostedRow(presentation: presentation, context: context))
+      item.host(
+        entryID: entryID,
+        TerminalSidebarHostedRow(presentation: presentation, context: context)
+      )
       item.view.setAccessibilityElement(true)
       item.view.setAccessibilityRole(.row)
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
@@ -353,6 +355,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       hasAppliedSnapshot = true
       updatePhase = .idle
       collectionLayout.finishStructuralUpdate()
+      refreshVisibleRows(ids: Set(rows.keys))
       additionalCompletion?()
       invalidateLayout()
       if isInitialSnapshot {
@@ -482,12 +485,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     for item in collectionView.visibleItems() {
       guard
         let item = item as? TerminalSidebarCollectionItem,
-        let indexPath = collectionView.indexPath(for: item),
-        let id = dataSource?.itemIdentifier(for: indexPath),
+        let id = item.entryID,
         ids.contains(id),
         let presentation = rows[id]
       else { continue }
-      item.host(TerminalSidebarHostedRow(presentation: presentation, context: context))
+      item.host(
+        entryID: id,
+        TerminalSidebarHostedRow(presentation: presentation, context: context)
+      )
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
     }
   }
@@ -662,7 +667,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     willDisplay item: NSCollectionViewItem,
     forRepresentedObjectAt indexPath: IndexPath
   ) {
-    guard let id = dataSource.itemIdentifier(for: indexPath) else { return }
+    guard
+      let item = item as? TerminalSidebarCollectionItem,
+      let id = item.entryID
+    else { return }
     measuredHeights[id] = nil
     invalidateLayout()
   }

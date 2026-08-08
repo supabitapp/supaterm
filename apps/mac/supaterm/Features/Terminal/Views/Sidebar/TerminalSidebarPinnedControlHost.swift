@@ -26,7 +26,10 @@ final class TerminalSidebarPinnedControlHost {
   }
 
   func update(context: TerminalSidebarRowContext) {
-    view.host(TerminalSidebarHostedRow(presentation: .newTab(.pinned), context: context))
+    view.host(
+      entryID: .newTab,
+      TerminalSidebarHostedRow(presentation: .newTab(.pinned), context: context)
+    )
   }
 
   func setPinned(_ isPinned: Bool) -> Bool {

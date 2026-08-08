@@ -20,7 +20,6 @@ final class TerminalSidebarDragController {
   struct Host {
     let content: () -> Content?
     let indexPath: (TerminalSidebarEntryID) -> IndexPath?
-    let entryID: (IndexPath) -> TerminalSidebarEntryID?
     let invalidateLayout: () -> Void
     let didFinish: () -> Void
     let completeDropHandoff:
@@ -903,8 +902,7 @@ final class TerminalSidebarDragController {
       item -> TerminalSidebarDragPresentation.RippleCandidate? in
       guard
         let item = item as? TerminalSidebarCollectionItem,
-        let indexPath = collectionView.indexPath(for: item),
-        let id = host.entryID(indexPath),
+        let id = item.entryID,
         !draggedIDs.contains(id),
         let frame = itemFrames[id],
         frame.height > 0,
@@ -938,7 +936,7 @@ final class TerminalSidebarDragController {
     isDraggingOverPinnedControl = false
     host.content()?.swipe?.isRowDragActive = false
     guard let receipt else {
-      dragPresentation.handoff {
+      dragPresentation.handoffToSource {
         collectionLayout.dragDropState = nil
         host.invalidateLayout()
       }
@@ -954,7 +952,7 @@ final class TerminalSidebarDragController {
       TerminalSidebarDropHandoff(topologyStamp: receipt.topologyStamp)
     ) { [weak self] in
       guard let self else { return }
-      dragPresentation.handoff {
+      dragPresentation.handoffToDestination {
         collectionLayout.dragDropState = nil
         host.invalidateLayout()
       }
