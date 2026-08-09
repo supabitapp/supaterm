@@ -61,6 +61,7 @@ struct TerminalSidebarLiftedRow {
 class TerminalSidebarHostingContainerView: NSView {
   private(set) var entryID: TerminalSidebarEntryID?
   private var hostingView: NSHostingView<TerminalSidebarHostedRow>?
+  private weak var liftedHostingView: NSHostingView<TerminalSidebarHostedRow>?
 
   override func layout() {
     super.layout()
@@ -78,6 +79,7 @@ class TerminalSidebarHostingContainerView: NSView {
       hostingView.frame = bounds
       return
     }
+    liftedHostingView = nil
     let hostingView = NSHostingView(rootView: rootView)
     hostingView.frame = bounds
     hostingView.autoresizingMask = [.width, .height]
@@ -88,15 +90,20 @@ class TerminalSidebarHostingContainerView: NSView {
   func liftHostedView() -> (entryID: TerminalSidebarEntryID, hostedView: NSView)? {
     guard let entryID, let hostingView else { return nil }
     self.hostingView = nil
+    liftedHostingView = hostingView
     hostingView.removeFromSuperview()
     return (entryID, hostingView)
   }
 
   func restoreHostedView(_ view: NSView, entryID: TerminalSidebarEntryID) {
-    guard let hostedView = view as? NSHostingView<TerminalSidebarHostedRow> else { return }
-    hostingView?.removeFromSuperview()
+    guard
+      hostingView == nil,
+      self.entryID == entryID,
+      let hostedView = view as? NSHostingView<TerminalSidebarHostedRow>,
+      liftedHostingView === hostedView
+    else { return }
+    liftedHostingView = nil
     hostedView.removeFromSuperview()
-    self.entryID = entryID
     hostingView = hostedView
     addSubview(hostedView)
     hostedView.frame = bounds

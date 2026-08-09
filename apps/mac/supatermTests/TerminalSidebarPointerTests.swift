@@ -228,6 +228,37 @@ struct TerminalSidebarPointerTests {
     #expect(preview.rootView.presentation == previewPresentation)
   }
 
+  @Test
+  func restoringLiftedRowKeepsTheFreshHostLiftable() async throws {
+    let fixture = try await fixture()
+    defer {
+      fixture.window.contentView = nil
+      fixture.window.orderOut(nil)
+    }
+    let entryID = try #require(fixture.item.entryID)
+    let lifted = try #require(
+      fixture.item.liftHostedView(sourceFrame: fixture.item.view.frame)
+    )
+    let preview = try #require(
+      lifted.hostedView as? NSHostingView<TerminalSidebarHostedRow>
+    )
+
+    fixture.item.host(entryID: entryID, preview.rootView)
+    let freshHost = try #require(fixture.item.view.subviews.first)
+    lifted.restore()
+
+    #expect(fixture.item.view.subviews.first === freshHost)
+    #expect(freshHost !== preview)
+    let freshLift = try #require(
+      fixture.item.liftHostedView(sourceFrame: fixture.item.view.frame)
+    )
+    lifted.restore()
+    #expect(fixture.item.view.subviews.isEmpty)
+    freshLift.restore()
+    #expect(fixture.item.view.subviews.first === freshHost)
+    #expect(fixture.item.liftHostedView(sourceFrame: fixture.item.view.frame) != nil)
+  }
+
   private func fixture() async throws -> Fixture {
     let host = TerminalHostState(managesTerminalSurfaces: false)
     let manager = host.spaceManager.tabCollection

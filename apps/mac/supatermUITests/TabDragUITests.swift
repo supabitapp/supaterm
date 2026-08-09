@@ -2,24 +2,26 @@ import XCTest
 
 final class TabDragUITests: SupatermUITestCase {
   @MainActor
-  func testDraggingTheOnlySelectedTabToSplitCreatesANewPane() async throws {
+  func testDraggingTheOnlySelectedTabToSplitCanDragAgain() async throws {
     try await createNamedTabs(["Only Tab"])
 
     let source = sidebarTabRow(named: "Only Tab")
     XCTAssertTrue(source.isSelected)
-    source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
-      forDuration: 0.5,
-      thenDragTo: mainTerminal.coordinate(
-        withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)
-      ),
-      withVelocity: .slow,
-      thenHoldForDuration: 0.5
-    )
+    for expectedPaneCount in 2...3 {
+      source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+        forDuration: 0.5,
+        thenDragTo: mainTerminal.coordinate(
+          withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)
+        ),
+        withVelocity: .slow,
+        thenHoldForDuration: 0.5
+      )
 
-    _ = try await requireVisiblePanes(count: 2)
-    XCTAssertEqual(sidebarTabRows.count, 1)
-    XCTAssertTrue(source.exists)
-    XCTAssertTrue(source.isSelected)
+      _ = try await requireVisiblePanes(count: expectedPaneCount)
+      XCTAssertEqual(sidebarTabRows.count, 1)
+      XCTAssertTrue(source.exists)
+      XCTAssertTrue(source.isSelected)
+    }
   }
 
   @MainActor
