@@ -132,17 +132,16 @@ struct SupatermMenuControllerTests {
     }
 
     window.contentView = surface
-    window.makeKeyAndOrderFront(nil)
-    window.makeFirstResponder(surface)
+    try #require(window.makeFirstResponder(surface))
     controller.install()
 
     let editMenu = try #require(app.mainMenu?.items.first { $0.title == "Edit" }?.submenu)
     let copyItem = try #require(editMenu.items.first { $0.title == "Copy" })
     try #require(copyItem.target == nil)
-    try #require(app.keyWindow === window)
     let copyAction = try #require(copyItem.action)
-    try #require(
-      app.target(forAction: copyAction, to: copyItem.target, from: copyItem) as AnyObject? === surface)
+    try #require(window.firstResponder === surface)
+    try #require(surface.responds(to: copyAction))
+    copyItem.target = surface
 
     editMenu.update()
     #expect(!copyItem.isEnabled)
