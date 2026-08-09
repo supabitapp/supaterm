@@ -172,16 +172,6 @@ struct TerminalView: View {
         Text(spaceDeleteMessage)
       }
       .terminalAnimation(
-        .spring(response: 0.2, dampingFraction: 1.0),
-        value: store.isSidebarCollapsed,
-        reduceMotion: reduceMotion
-      )
-      .terminalAnimation(
-        .easeOut(duration: 0.1),
-        value: store.isFloatingSidebarVisible,
-        reduceMotion: reduceMotion
-      )
-      .terminalAnimation(
         .easeOut(duration: 0.12),
         value: store.commandPalette != nil,
         reduceMotion: reduceMotion

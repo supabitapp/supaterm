@@ -213,6 +213,31 @@ final class TerminalWindowShellView: NSView {
 
 @MainActor
 final class TerminalWindowShellController: NSViewController {
+  private enum FrameMotion: Equatable {
+    case immediate
+    case sidebar
+    case floating
+  }
+
+  private enum FrameProperty: CaseIterable {
+    case position
+    case bounds
+
+    var animationKey: String {
+      switch self {
+      case .position: "windowShellPosition"
+      case .bounds: "windowShellBounds"
+      }
+    }
+
+    var keyPath: String {
+      switch self {
+      case .position: "position"
+      case .bounds: "bounds"
+      }
+    }
+  }
+
   private(set) lazy var sidebarControllerCache = TerminalSidebarControllerCache(
     windowControllerID: windowControllerID,
     tabDragRegistry: tabDragRegistry,
@@ -229,6 +254,7 @@ final class TerminalWindowShellController: NSViewController {
 
   private var detailController: NSViewController?
   private var detailFrame = CGRect.zero
+  private var layoutBounds = CGRect.null
   private var presentation = TerminalWindowShellPresentation(
     isFloatingSidebarVisible: false,
     isSidebarCollapsed: false,
@@ -238,10 +264,18 @@ final class TerminalWindowShellController: NSViewController {
   private var sidebarController: NSViewController?
   private let splitDropOverlay = TerminalTabSplitDropOverlayView()
   private var splitDropCoordinator = TerminalTabSplitDropCoordinator()
+  private let reduceMotion: () -> Bool
   private let tabDragRegistry: TerminalTabDragRegistry
   private let windowControllerID: UUID
 
-  init(windowControllerID: UUID, tabDragRegistry: TerminalTabDragRegistry) {
+  init(
+    windowControllerID: UUID,
+    tabDragRegistry: TerminalTabDragRegistry,
+    reduceMotion: @escaping () -> Bool = {
+      NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+  ) {
+    self.reduceMotion = reduceMotion
     self.tabDragRegistry = tabDragRegistry
     self.windowControllerID = windowControllerID
     super.init(nibName: nil, bundle: nil)
@@ -278,11 +312,14 @@ final class TerminalWindowShellController: NSViewController {
 
   override func viewDidLayout() {
     super.viewDidLayout()
-    applyLayout(animated: false)
+    guard view.bounds != layoutBounds else { return }
+    applyLayout(motion: .immediate)
   }
 
   func install(sidebar: NSViewController, detail: NSViewController) {
     precondition(sidebarController == nil && detailController == nil)
+    sidebar.view.wantsLayer = true
+    detail.view.wantsLayer = true
     addChild(detail)
     view.addSubview(detail.view)
     view.addSubview(splitDropOverlay)
@@ -290,16 +327,14 @@ final class TerminalWindowShellController: NSViewController {
     view.addSubview(sidebar.view)
     sidebarController = sidebar
     detailController = detail
-    applyLayout(animated: false)
+    applyLayout(motion: .immediate)
   }
 
   func apply(_ presentation: TerminalWindowShellPresentation) {
     guard presentation != self.presentation else { return }
-    let shouldAnimate =
-      presentation.sidebarResizeState == nil
-      && self.presentation.sidebarResizeState == nil
+    let motion = frameMotion(from: self.presentation, to: presentation)
     self.presentation = presentation
-    applyLayout(animated: shouldAnimate)
+    applyLayout(motion: motion)
   }
 
   func spacePagingDidEnd() {
@@ -338,24 +373,115 @@ final class TerminalWindowShellController: NSViewController {
     )
   }
 
-  private func applyLayout(animated: Bool) {
+  private func applyLayout(motion: FrameMotion) {
     guard let sidebarController, let detailController else { return }
     let layout = TerminalWindowShellLayout(bounds: view.bounds, presentation: presentation)
+    layoutBounds = view.bounds
     detailFrame = layout.detailFrame
     state.apply(layout: layout, presentation: presentation)
     (view as? TerminalWindowShellView)?.setRevealFrame(layout.revealFrame)
-    if animated, view.window != nil {
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = 0.2
-        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        sidebarController.view.animator().frame = layout.sidebarFrame
-        detailController.view.animator().frame = layout.detailFrame
-      }
-    } else {
-      sidebarController.view.frame = layout.sidebarFrame
-      detailController.view.frame = layout.detailFrame
-    }
+    setFrame(layout.sidebarFrame, of: sidebarController.view, motion: motion)
+    setFrame(layout.detailFrame, of: detailController.view, motion: motion)
     splitDropOverlay.frame = layout.detailFrame
+  }
+
+  private func frameMotion(
+    from current: TerminalWindowShellPresentation,
+    to next: TerminalWindowShellPresentation
+  ) -> FrameMotion {
+    guard
+      !reduceMotion(),
+      !view.inLiveResize,
+      current.sidebarResizeState == nil,
+      next.sidebarResizeState == nil
+    else { return .immediate }
+    if current.isSidebarCollapsed != next.isSidebarCollapsed {
+      return .sidebar
+    }
+    if current.isFloatingSidebarVisible != next.isFloatingSidebarVisible {
+      return .floating
+    }
+    return .immediate
+  }
+
+  private func setFrame(_ frame: CGRect, of childView: NSView, motion: FrameMotion) {
+    guard motion != .immediate, view.window != nil, let layer = childView.layer else {
+      removeFrameAnimations(from: childView.layer)
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      childView.frame = frame
+      childView.layoutSubtreeIfNeeded()
+      CATransaction.commit()
+      return
+    }
+    let modelPosition = layer.position
+    let modelBounds = layer.bounds
+    let oldPosition = layer.presentation()?.position ?? layer.position
+    let oldBounds = layer.presentation()?.bounds ?? layer.bounds
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    childView.frame = frame
+    childView.layoutSubtreeIfNeeded()
+    CATransaction.commit()
+    if modelPosition != layer.position {
+      addFrameAnimation(
+        to: layer,
+        property: .position,
+        from: NSValue(point: oldPosition),
+        to: NSValue(point: layer.position),
+        motion: motion
+      )
+    }
+    if modelBounds != layer.bounds {
+      addFrameAnimation(
+        to: layer,
+        property: .bounds,
+        from: NSValue(rect: oldBounds),
+        to: NSValue(rect: layer.bounds),
+        motion: motion
+      )
+    }
+  }
+
+  private func addFrameAnimation(
+    to layer: CALayer,
+    property: FrameProperty,
+    from: NSValue,
+    to: NSValue,
+    motion: FrameMotion
+  ) {
+    guard !from.isEqual(to) else {
+      layer.removeAnimation(forKey: property.animationKey)
+      return
+    }
+    let animation: CABasicAnimation
+    switch motion {
+    case .immediate:
+      layer.removeAnimation(forKey: property.animationKey)
+      return
+    case .sidebar:
+      animation = TerminalLayerAnimation.spring(
+        keyPath: property.keyPath,
+        from: from,
+        to: to,
+        spring: TerminalLayerSpring(response: 0.2, dampingRatio: 1)
+      )
+    case .floating:
+      animation = TerminalLayerAnimation.basic(
+        keyPath: property.keyPath,
+        from: from,
+        to: to,
+        duration: 0.1,
+        timingFunction: CAMediaTimingFunction(name: .easeOut)
+      )
+    }
+    layer.add(animation, forKey: property.animationKey)
+  }
+
+  private func removeFrameAnimations(from layer: CALayer?) {
+    for property in FrameProperty.allCases {
+      layer?.removeAnimation(forKey: property.animationKey)
+    }
   }
 
   private func revealChanged(_ isInside: Bool) {

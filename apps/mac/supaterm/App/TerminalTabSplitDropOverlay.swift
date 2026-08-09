@@ -70,14 +70,14 @@ enum TerminalTabSplitDropFeedback: Equatable {
 enum TerminalTabSplitTargetMotion {
   static let compactScale: CGFloat = 0.65
   static let activeScale: CGFloat = 1.15
-  static let geometrySpring = TerminalTabSplitSpring(response: 0.25, dampingRatio: 0.82)
-  static let positionSpring = TerminalTabSplitSpring(response: 0.45, dampingRatio: 0.6)
-  static let hoverSpring = TerminalTabSplitSpring(response: 0.2, dampingRatio: 0.9)
-  static let hideSpring = TerminalTabSplitSpring(response: 0.2, dampingRatio: 0.7)
+  static let geometrySpring = TerminalLayerSpring(response: 0.25, dampingRatio: 0.82)
+  static let positionSpring = TerminalLayerSpring(response: 0.45, dampingRatio: 0.6)
+  static let hoverSpring = TerminalLayerSpring(response: 0.2, dampingRatio: 0.9)
+  static let hideSpring = TerminalLayerSpring(response: 0.2, dampingRatio: 0.7)
   static let colorDuration: TimeInterval = 0.2
 
-  static func showSpring(response: TimeInterval) -> TerminalTabSplitSpring {
-    TerminalTabSplitSpring(response: response, dampingRatio: 0.7)
+  static func showSpring(response: TimeInterval) -> TerminalLayerSpring {
+    TerminalLayerSpring(response: response, dampingRatio: 0.7)
   }
 
   static func activeSide(
@@ -150,11 +150,6 @@ enum TerminalTabSplitTargetMotion {
   private static func influenceRadius(for frame: CGRect) -> CGFloat {
     min(min(frame.width, frame.height) / 2, 500)
   }
-}
-
-struct TerminalTabSplitSpring: Equatable {
-  let response: TimeInterval
-  let dampingRatio: CGFloat
 }
 
 @MainActor
@@ -308,7 +303,7 @@ final class TerminalTabSplitDropOverlayView: NSView {
 
   private func update(state: RenderState, readinessChanged: Bool) {
     let animated = !reduceMotion()
-    let spring: TerminalTabSplitSpring? =
+    let spring: TerminalLayerSpring? =
       if !animated {
         nil
       } else if readinessChanged {
@@ -346,7 +341,7 @@ final class TerminalTabSplitDropOverlayView: NSView {
     CATransaction.commit()
   }
 
-  private func applyFrames(state: RenderState, spring: TerminalTabSplitSpring?) {
+  private func applyFrames(state: RenderState, spring: TerminalLayerSpring?) {
     let layout = TerminalTabSplitDropLayout(
       bounds: bounds,
       scale: state.sharedPreviewReady ? 1 : TerminalTabSplitTargetMotion.compactScale
@@ -476,7 +471,7 @@ private final class TerminalTabSplitTargetView: NSView {
     applyStyle(animated: false)
   }
 
-  func setFrame(_ frame: CGRect, spring: TerminalTabSplitSpring?) {
+  func setFrame(_ frame: CGRect, spring: TerminalLayerSpring?) {
     guard self.frame != frame else { return }
     let modelPosition = layer?.position
     let modelBounds = layer?.bounds
@@ -490,7 +485,7 @@ private final class TerminalTabSplitTargetView: NSView {
     guard let spring, let layer, let oldPosition, let oldBounds else { return }
     if modelPosition != layer.position {
       layer.add(
-        TerminalTabSplitDropAnimation.spring(
+        TerminalLayerAnimation.spring(
           keyPath: "position",
           from: NSValue(point: oldPosition),
           to: NSValue(point: layer.position),
@@ -501,7 +496,7 @@ private final class TerminalTabSplitTargetView: NSView {
     }
     if modelBounds != layer.bounds {
       layer.add(
-        TerminalTabSplitDropAnimation.spring(
+        TerminalLayerAnimation.spring(
           keyPath: "bounds",
           from: NSValue(rect: oldBounds),
           to: NSValue(rect: layer.bounds),
@@ -529,7 +524,7 @@ private final class TerminalTabSplitTargetView: NSView {
     CATransaction.commit()
     guard animated else { return }
     layer.add(
-      TerminalTabSplitDropAnimation.spring(
+      TerminalLayerAnimation.spring(
         keyPath: "transform",
         from: NSValue(caTransform3D: oldTransform),
         to: NSValue(caTransform3D: newTransform),
@@ -540,8 +535,8 @@ private final class TerminalTabSplitTargetView: NSView {
   }
 
   func show(
-    transformSpring: TerminalTabSplitSpring?,
-    opacitySpring: TerminalTabSplitSpring?
+    transformSpring: TerminalLayerSpring?,
+    opacitySpring: TerminalLayerSpring?
   ) {
     guard let layer else { return }
     layer.removeAnimation(forKey: "splitTargetExit")
@@ -553,7 +548,7 @@ private final class TerminalTabSplitTargetView: NSView {
     let startTransform = CATransform3DMakeScale(0.5, 0.5, 1)
     if let transformSpring {
       layer.add(
-        TerminalTabSplitDropAnimation.spring(
+        TerminalLayerAnimation.spring(
           keyPath: "transform",
           from: NSValue(caTransform3D: startTransform),
           to: NSValue(caTransform3D: CATransform3DIdentity),
@@ -564,7 +559,7 @@ private final class TerminalTabSplitTargetView: NSView {
     }
     if let opacitySpring {
       layer.add(
-        TerminalTabSplitDropAnimation.spring(
+        TerminalLayerAnimation.spring(
           keyPath: "opacity",
           from: 0,
           to: 1,
@@ -575,7 +570,7 @@ private final class TerminalTabSplitTargetView: NSView {
     }
   }
 
-  func hide(spring: TerminalTabSplitSpring?) {
+  func hide(spring: TerminalLayerSpring?) {
     guard let layer else { return }
     let endTransform = CATransform3DMakeScale(0.5, 0.5, 1)
     let oldTransform = layer.presentation()?.transform ?? layer.transform
@@ -587,7 +582,7 @@ private final class TerminalTabSplitTargetView: NSView {
     CATransaction.commit()
     guard let spring else { return }
     layer.add(
-      TerminalTabSplitDropAnimation.spring(
+      TerminalLayerAnimation.spring(
         keyPath: "transform",
         from: NSValue(caTransform3D: oldTransform),
         to: NSValue(caTransform3D: endTransform),
@@ -596,7 +591,7 @@ private final class TerminalTabSplitTargetView: NSView {
       forKey: "splitTargetExit"
     )
     layer.add(
-      TerminalTabSplitDropAnimation.spring(
+      TerminalLayerAnimation.spring(
         keyPath: "opacity",
         from: oldOpacity,
         to: 0,
@@ -648,11 +643,12 @@ private final class TerminalTabSplitTargetView: NSView {
     CATransaction.commit()
     guard animated, let oldValue else { return }
     layer.add(
-      TerminalTabSplitDropAnimation.activeStyle(
+      TerminalLayerAnimation.basic(
         keyPath: keyPath,
         from: oldValue,
         to: value,
-        duration: TerminalTabSplitTargetMotion.colorDuration
+        duration: TerminalTabSplitTargetMotion.colorDuration,
+        timingFunction: TerminalTabDragAnimationTiming.directManipulation
       ),
       forKey: "splitTarget\(keyPath)"
     )
@@ -662,39 +658,5 @@ private final class TerminalTabSplitTargetView: NSView {
     guard rect.width > 0, rect.height > 0 else { return .zero }
     let amount = min(amount, rect.width / 2, rect.height / 2)
     return rect.insetBy(dx: amount, dy: amount)
-  }
-}
-
-private enum TerminalTabSplitDropAnimation {
-  static func spring(
-    keyPath: String,
-    from: Any,
-    to: Any,
-    spring: TerminalTabSplitSpring
-  ) -> CASpringAnimation {
-    let angularFrequency = 2 * CGFloat.pi / spring.response
-    let animation = CASpringAnimation(keyPath: keyPath)
-    animation.fromValue = from
-    animation.toValue = to
-    animation.mass = 1
-    animation.stiffness = angularFrequency * angularFrequency
-    animation.damping = 2 * spring.dampingRatio * angularFrequency
-    animation.initialVelocity = 0
-    animation.duration = animation.settlingDuration
-    return animation
-  }
-
-  static func activeStyle(
-    keyPath: String,
-    from: Any,
-    to: Any,
-    duration: TimeInterval
-  ) -> CABasicAnimation {
-    let animation = CABasicAnimation(keyPath: keyPath)
-    animation.fromValue = from
-    animation.toValue = to
-    animation.duration = duration
-    animation.timingFunction = TerminalTabDragAnimationTiming.directManipulation
-    return animation
   }
 }
