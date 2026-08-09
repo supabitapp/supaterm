@@ -2,6 +2,27 @@ import XCTest
 
 final class TabDragUITests: SupatermUITestCase {
   @MainActor
+  func testDraggingTheOnlySelectedTabToSplitCreatesANewPane() async throws {
+    try await createNamedTabs(["Only Tab"])
+
+    let source = sidebarTabRow(named: "Only Tab")
+    XCTAssertTrue(source.isSelected)
+    source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+      forDuration: 0.5,
+      thenDragTo: mainTerminal.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)
+      ),
+      withVelocity: .slow,
+      thenHoldForDuration: 0.5
+    )
+
+    _ = try await requireVisiblePanes(count: 2)
+    XCTAssertEqual(sidebarTabRows.count, 1)
+    XCTAssertTrue(source.exists)
+    XCTAssertTrue(source.isSelected)
+  }
+
+  @MainActor
   func testDraggingUnselectedTabToSplitKeepsTheLiveHostSelected() async throws {
     try await createNamedTabs(["Split Host", "Dragged Source"])
 
@@ -32,7 +53,45 @@ final class TabDragUITests: SupatermUITestCase {
   }
 
   @MainActor
-  func testDraggingTabReordersRegularSectionAndPinsAcrossSections() async throws {
+  func testDraggingIntoACollapsedGroupedHostKeepsTheSplitActive() async throws {
+    try await createNamedTabs(["Grouped Host", "Dragged Source"])
+    try await createGroup(named: "Host Group", containing: "Grouped Host")
+
+    let host = sidebarTabRow(named: "Grouped Host")
+    host.click()
+    let didSelectHost = await waitForSidebarSelection(host)
+    XCTAssertTrue(didSelectHost)
+
+    let header = sidebarGroupHeader(named: "Host Group")
+    try clickSidebarContextMenuItem("Collapse Group", on: header)
+    let didCollapse = await wait(for: header) {
+      ($0.value as? String) == "Collapsed"
+    }
+    XCTAssertTrue(didCollapse)
+
+    let source = sidebarTabRow(named: "Dragged Source")
+    source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+      forDuration: 0.5,
+      thenDragTo: mainTerminal.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)
+      ),
+      withVelocity: .slow,
+      thenHoldForDuration: 0.5
+    )
+
+    _ = try await requireVisiblePanes(count: 2)
+    let didMergeIntoGroup = await wait {
+      header.exists
+        && (header.value as? String) == "Expanded"
+        && host.exists
+        && host.isSelected
+        && !source.exists
+    }
+    XCTAssertTrue(didMergeIntoGroup)
+  }
+
+  @MainActor
+  func testDraggingTabReordersTwiceAndPinsAcrossSections() async throws {
     try await createNamedTabs(["First UI Tab", "Second UI Tab", "Third UI Tab"])
 
     let firstTab = sidebarTabRow(named: "First UI Tab")
@@ -50,6 +109,17 @@ final class TabDragUITests: SupatermUITestCase {
     XCTAssertTrue(didReorder)
 
     let secondTab = sidebarTabRow(named: "Second UI Tab")
+    let didReorderAgain = await dragTab(
+      source: firstTab,
+      destination: secondTab,
+      destinationY: 0.1,
+      until: {
+        self.tabRowsMatch(["First UI Tab", "Second UI Tab", "Third UI Tab"])
+          && firstTab.isSelected
+      }
+    )
+    XCTAssertTrue(didReorderAgain)
+
     try clickSidebarContextMenuItem("Pin Tab", on: secondTab)
     let didPinSecondTab = await wait(for: secondTab) { $0.label.contains("Pinned") }
     XCTAssertTrue(didPinSecondTab)

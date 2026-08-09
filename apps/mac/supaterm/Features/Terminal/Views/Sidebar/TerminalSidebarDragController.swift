@@ -2,6 +2,28 @@ import AppKit
 import ComposableArchitecture
 import SwiftUI
 
+enum TerminalSidebarDragOutlineDisposition: Equatable {
+  case inactive
+  case unchanged
+  case queue
+  case replaceAndCancel(reason: String)
+
+  static func tracking(
+    incoming: TerminalSidebarOutline,
+    applied: TerminalSidebarOutline,
+    sourceTopologyStamp: TerminalSidebarTopologyStamp
+  ) -> Self {
+    guard incoming.topologyStamp == sourceTopologyStamp else {
+      return .replaceAndCancel(reason: "sourceTopologyChanged")
+    }
+    guard incoming.topologyStamp == applied.topologyStamp, incoming.roots == applied.roots else {
+      return .replaceAndCancel(reason: "sourceSnapshotMismatch")
+    }
+    guard incoming.collapsedGroupIDs == applied.collapsedGroupIDs else { return .queue }
+    return .unchanged
+  }
+}
+
 @MainActor
 final class TerminalSidebarDragController {
   typealias DropHandoffCompletion = @MainActor @Sendable () -> Void
@@ -21,6 +43,7 @@ final class TerminalSidebarDragController {
     let content: () -> Content?
     let indexPath: (TerminalSidebarEntryID) -> IndexPath?
     let invalidateLayout: () -> Void
+    let rebindRows: (Set<TerminalSidebarEntryID>) -> Void
     let didFinish: () -> Void
     let completeDropHandoff:
       (
@@ -28,13 +51,6 @@ final class TerminalSidebarDragController {
         @escaping DropHandoffCompletion
       ) -> Void
     let setHoveredGroupID: (TerminalTabGroupID?) -> Void
-  }
-
-  enum OutlineDisposition {
-    case inactive
-    case unchanged
-    case queue
-    case replaceAndCancel(reason: String)
   }
 
   private struct PendingDrag {
@@ -179,19 +195,17 @@ final class TerminalSidebarDragController {
     for incoming: TerminalSidebarOutline,
     applied: TerminalSidebarOutline,
     canApplyUpdate: Bool
-  ) -> OutlineDisposition {
+  ) -> TerminalSidebarDragOutlineDisposition {
     guard let activeDrag else { return .inactive }
     if activeDrag.registryOutcome == .moved { return .queue }
     guard canApplyUpdate else { return .queue }
     switch activeDrag.coordinator.phase {
     case .tracking:
-      guard incoming.topologyStamp == activeDrag.payload.topologyStamp else {
-        return .replaceAndCancel(reason: "sourceTopologyChanged")
-      }
-      guard incoming == applied else {
-        return .replaceAndCancel(reason: "sourceSnapshotMismatch")
-      }
-      return .unchanged
+      return TerminalSidebarDragOutlineDisposition.tracking(
+        incoming: incoming,
+        applied: applied,
+        sourceTopologyStamp: activeDrag.payload.topologyStamp
+      )
     case .frozen, .awaitingNativeEnd:
       return .queue
     case .cancelled, .settling, .finished:
@@ -1023,6 +1037,7 @@ final class TerminalSidebarDragController {
       dragPresentation.handoffToDestination {
         collectionLayout.dragDropState = nil
         host.invalidateLayout()
+        host.rebindRows(Set(liftedEntryIDs))
       }
       host.didFinish()
     }

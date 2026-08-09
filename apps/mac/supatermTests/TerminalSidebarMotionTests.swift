@@ -1,5 +1,6 @@
 import AppKit
 import QuartzCore
+import SupaTheme
 import Testing
 
 @testable import supaterm
@@ -119,6 +120,68 @@ struct TerminalSidebarMotionTests {
         modifiers: [],
         selectedTabIDs: [dragged]
       ) == nil
+    )
+  }
+
+  @Test
+  func collapsedGroupSelectionUpdateQueuesDuringDrag() throws {
+    let groupID = TerminalTabGroupID()
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .red, .automatic, [TerminalTabID()]),
+        isPinned: false
+      )
+    ]
+    let applied = TerminalSidebarTestFixture.outline(
+      roots: roots,
+      revision: 4,
+      collapsedGroupIDs: [groupID]
+    )
+    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 4)
+    let sourceTopologyStamp = try #require(applied.topologyStamp)
+
+    #expect(
+      TerminalSidebarDragOutlineDisposition.tracking(
+        incoming: expanded,
+        applied: applied,
+        sourceTopologyStamp: sourceTopologyStamp
+      ) == .queue
+    )
+  }
+
+  @Test
+  func activeDragOutlinePolicyCancelsTopologyAndStructureChanges() throws {
+    let source = TerminalTabID()
+    let applied = TerminalSidebarTestFixture.outline(
+      roots: [TerminalSidebarOutline.Root(content: .tab(source), isPinned: false)],
+      revision: 4
+    )
+    let changedTopology = TerminalSidebarTestFixture.outline(
+      roots: applied.roots,
+      revision: 5
+    )
+    let changedRoots = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(TerminalTabID()), isPinned: false),
+      ],
+      revision: 4
+    )
+    let sourceTopologyStamp = try #require(applied.topologyStamp)
+
+    #expect(
+      TerminalSidebarDragOutlineDisposition.tracking(
+        incoming: changedTopology,
+        applied: applied,
+        sourceTopologyStamp: sourceTopologyStamp
+      ) == .replaceAndCancel(reason: "sourceTopologyChanged")
+    )
+    #expect(
+      TerminalSidebarDragOutlineDisposition.tracking(
+        incoming: changedRoots,
+        applied: applied,
+        sourceTopologyStamp: sourceTopologyStamp
+      ) == .replaceAndCancel(reason: "sourceSnapshotMismatch")
     )
   }
 

@@ -246,9 +246,25 @@ final class TerminalWindowRegistry {
     to destination: TerminalTabDragRegistry.SplitDestination
   ) -> Bool {
     guard
+      let sourceTabID = payload.singleTabID,
       let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
-      let destinationEntry = entry(forWindowControllerID: destination.windowControllerID),
-      let plan = try? TerminalHostState.prepareLiveTabSplit(
+      let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
+    else { return false }
+    if sourceEntry.windowControllerID == destinationEntry.windowControllerID,
+      payload.sourceSpaceID == destination.spaceID,
+      sourceTabID == destination.tabID
+    {
+      let didSplit = sourceEntry.terminal.splitSelectedTabWithNewPane(
+        sourceTabID,
+        expectedTopologyRevision: payload.sourceTopologyRevision,
+        keepingExistingContentOn: destination.side,
+        in: destination.spaceID
+      )
+      if didSplit { onChange() }
+      return didSplit
+    }
+    guard
+      let plan = try? TerminalHostState.prepareLiveTabMerge(
         payload: payload,
         from: sourceEntry.terminal,
         to: TerminalHostState.LiveTabSplitTarget(
@@ -263,7 +279,7 @@ final class TerminalWindowRegistry {
       plan.surfaceIDs
     )
     guard
-      (try? TerminalHostState.commitLiveTabSplit(
+      (try? TerminalHostState.commitLiveTabMerge(
         plan,
         from: sourceEntry.terminal,
         to: destinationEntry.terminal

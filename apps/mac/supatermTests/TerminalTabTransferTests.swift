@@ -8,6 +8,27 @@ import Testing
 
 @MainActor
 struct TerminalTabTransferTests {
+  enum SelfSplitCase: CaseIterable, Sendable {
+    case groupedLeft
+    case groupedRight
+    case rootLeft
+    case rootRight
+
+    var groupTitle: String? {
+      switch self {
+      case .groupedLeft, .groupedRight: "Group"
+      case .rootLeft, .rootRight: nil
+      }
+    }
+
+    var side: TerminalTabSplitSide {
+      switch self {
+      case .groupedLeft, .rootLeft: .left
+      case .groupedRight, .rootRight: .right
+      }
+    }
+  }
+
   @Test
   func sameWindowTransferMovesTopologyWithoutMovingOwnership() throws {
     try withDependencies {
@@ -89,7 +110,7 @@ struct TerminalTabTransferTests {
           itemIDs: [.tab(sourceTabID)]
         )
       )
-      let plan = try TerminalHostState.prepareLiveTabSplit(
+      let plan = try TerminalHostState.prepareLiveTabMerge(
         payload: payload,
         from: host,
         to: TerminalHostState.LiveTabSplitTarget(
@@ -100,7 +121,7 @@ struct TerminalTabTransferTests {
         )
       )
 
-      try TerminalHostState.commitLiveTabSplit(plan, from: host, to: host)
+      try TerminalHostState.commitLiveTabMerge(plan, from: host, to: host)
 
       #expect(host.spaceManager.tabCollection.tabs.map(\.id) == [destinationTabID])
       #expect(host.trees[sourceTabID] == nil)
@@ -115,35 +136,113 @@ struct TerminalTabTransferTests {
   }
 
   @Test
-  func splitDestinationDoesNotRetargetTheSourceTab() {
+  func splitTargetAcceptsTheSelectedSourceTab() {
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
     let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
-    host.applySelectedTab(destinationTabID, in: host.displayedSpaceID)
     host.applySelectedTab(sourceTabID, in: host.displayedSpaceID)
 
     #expect(
-      host.liveTabSplitDestinationTabID(
-        sourceTabID: sourceTabID,
-        requestedTabID: sourceTabID,
-        spaceID: host.displayedSpaceID
-      ) == nil
+      host.liveTabSplitTargetTabID(
+        sourceTabID,
+        in: host.displayedSpaceID
+      ) == sourceTabID
     )
   }
 
   @Test
-  func splitDestinationUsesTheExactRequestedLiveTab() {
+  func splitTargetUsesTheExactRequestedLiveTab() {
     let host = TerminalHostState(managesTerminalSurfaces: false)
     let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
-    let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
 
     #expect(
-      host.liveTabSplitDestinationTabID(
-        sourceTabID: sourceTabID,
-        requestedTabID: destinationTabID,
-        spaceID: host.displayedSpaceID
+      host.liveTabSplitTargetTabID(
+        destinationTabID,
+        in: host.displayedSpaceID
       ) == destinationTabID
     )
+  }
+
+  @Test(arguments: SelfSplitCase.allCases)
+  func selectedTabDropCreatesANewPaneOnTheOtherSide(
+    testCase: SelfSplitCase
+  ) throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let space = TerminalSpaceItem(name: "Main")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let host = TerminalHostState(
+        runtime: GhosttyRuntime(),
+        spaceID: space.id,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      host.ensureInitialTab(focusing: false)
+      let tabID = try #require(host.selectedTabID)
+      let originalSurface = try #require(host.selectedSurfaceView)
+      let groupID = try testCase.groupTitle.map {
+        try #require(host.createGroup(title: $0, containing: [tabID])).groupID
+      }
+      let topologyRevision = host.spaceManager.tabCollection.topologyRevision
+      #expect(
+        !host.splitSelectedTabWithNewPane(
+          tabID,
+          expectedTopologyRevision: topologyRevision + 1,
+          keepingExistingContentOn: testCase.side,
+          in: space.id
+        )
+      )
+      let unsplitLeaves = try #require(host.trees[tabID]?.leaves())
+      #expect(unsplitLeaves.count == 1)
+      #expect(unsplitLeaves.first === originalSurface)
+      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let windowControllerID = UUID()
+      let window = register(host, id: windowControllerID, in: registry)
+      let payload = try #require(
+        TerminalTabDragPayload(
+          operationID: TerminalTabMoveOperationID(),
+          sourceWindowID: windowControllerID,
+          sourceSpaceID: space.id,
+          sourceTopologyRevision: topologyRevision,
+          itemIDs: [.tab(tabID)]
+        )
+      )
+      var completedOperationID: TerminalTabMoveOperationID?
+      #expect(
+        registry.tabDragRegistry.begin(
+          payload,
+          didTransfer: { completedOperationID = $0 }
+        )
+      )
+
+      let didSplit = registry.tabDragRegistry.performSplit(
+        payload,
+        to: TerminalTabDragRegistry.SplitDestination(
+          windowControllerID: windowControllerID,
+          spaceID: space.id,
+          tabID: tabID,
+          side: testCase.side
+        )
+      )
+
+      let leaves = try #require(host.trees[tabID]?.leaves())
+      #expect(didSplit)
+      #expect(completedOperationID == payload.moveOperationID)
+      #expect(host.spaceManager.tabCollection.tabs.map(\.id) == [tabID])
+      #expect(host.spaceManager.tabCollection.groupID(containing: tabID) == groupID)
+      #expect(leaves.count == 2)
+      #expect(
+        testCase.side == .left
+          ? leaves.first === originalSurface
+          : leaves.last === originalSurface
+      )
+      #expect(host.selectedSurfaceView !== originalSurface)
+      withExtendedLifetime(window) {}
+    }
   }
 
   @Test

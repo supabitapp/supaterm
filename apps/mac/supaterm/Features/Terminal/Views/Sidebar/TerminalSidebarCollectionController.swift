@@ -149,6 +149,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       },
       indexPath: { [weak self] in self?.dataSource?.indexPath(for: $0) },
       invalidateLayout: { [weak self] in self?.invalidateLayout() },
+      rebindRows: { [weak self] in self?.refreshVisibleRows(ids: $0) },
       didFinish: { [weak self] in self?.consumePendingUpdate() },
       completeDropHandoff: { [weak self] requirement, completion in
         self?.completeDropHandoff(requirement, completion: completion)

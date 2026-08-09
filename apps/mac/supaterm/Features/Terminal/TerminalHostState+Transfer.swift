@@ -8,7 +8,7 @@ extension TerminalHostState {
     let tabID: TerminalTabID
   }
 
-  struct LiveTabSplitPlan {
+  struct LiveTabMergePlan {
     fileprivate let destinationInstance: TerminalSpaceInstance
     fileprivate let destinationTabID: TerminalTabID
     fileprivate let didMoveSelectedTab: Bool
@@ -39,18 +39,34 @@ extension TerminalHostState {
     let trees: [TerminalTabID: SplitTree<GhosttySurfaceView>]
   }
 
-  func liveTabSplitDestinationTabID(
-    sourceTabID: TerminalTabID,
-    requestedTabID: TerminalTabID,
-    spaceID: TerminalSpaceID
+  func liveTabSplitTargetTabID(
+    _ requestedTabID: TerminalTabID,
+    in spaceID: TerminalSpaceID
   ) -> TerminalTabID? {
     let tabs = spaceManager.tabs(in: spaceID)
     guard
-      requestedTabID != sourceTabID,
       tabs.contains(where: { $0.id == requestedTabID }),
       isSelectableTab(requestedTabID)
     else { return nil }
     return requestedTabID
+  }
+
+  func splitSelectedTabWithNewPane(
+    _ tabID: TerminalTabID,
+    expectedTopologyRevision: UInt64,
+    keepingExistingContentOn side: TerminalTabSplitSide,
+    in spaceID: TerminalSpaceID
+  ) -> Bool {
+    guard
+      displayedSpaceID == spaceID,
+      let instance = spaceManager.instance(for: spaceID),
+      instance.tabCollection.topologyRevision == expectedTopologyRevision,
+      instance.selectedTabID == tabID,
+      let surface = selectedSurfaceView,
+      self.tabID(containing: surface.id) == tabID
+    else { return false }
+    let direction: GhosttySplitAction.NewDirection = side == .left ? .right : .left
+    return performSplitAction(.newSplit(direction: direction), for: surface.id)
   }
 
   static func prepareLiveTabTransfer(
@@ -95,11 +111,11 @@ extension TerminalHostState {
     )
   }
 
-  static func prepareLiveTabSplit(
+  static func prepareLiveTabMerge(
     payload: TerminalTabDragPayload,
     from source: TerminalHostState,
     to target: LiveTabSplitTarget
-  ) throws -> LiveTabSplitPlan {
+  ) throws -> LiveTabMergePlan {
     let destination = target.host
     guard let sourceTabID = payload.singleTabID else {
       throw TerminalTabTransferError.invalidSplitSource
@@ -111,11 +127,11 @@ extension TerminalHostState {
       destinationSpaceID: target.spaceID
     )
     guard
-      let destinationTabID = destination.liveTabSplitDestinationTabID(
-        sourceTabID: sourceTabID,
-        requestedTabID: target.tabID,
-        spaceID: target.spaceID
-      )
+      let destinationTabID = destination.liveTabSplitTargetTabID(
+        target.tabID,
+        in: target.spaceID
+      ),
+      destinationTabID != sourceTabID
     else {
       throw TerminalTabTransferError.invalidSplitDestination
     }
@@ -139,7 +155,7 @@ extension TerminalHostState {
     )
     let surfaceIDs = Set(sourceTree.leaves().map(\.id))
     try validateSurfaceOwnership(surfaceIDs, from: source, to: destination)
-    return LiveTabSplitPlan(
+    return LiveTabMergePlan(
       destinationInstance: instances.destination,
       destinationTabID: destinationTabID,
       didMoveSelectedTab: instances.source.selectedTabID == sourceTabID,
@@ -173,8 +189,8 @@ extension TerminalHostState {
     return result
   }
 
-  static func commitLiveTabSplit(
-    _ plan: LiveTabSplitPlan,
+  static func commitLiveTabMerge(
+    _ plan: LiveTabMergePlan,
     from source: TerminalHostState,
     to destination: TerminalHostState
   ) throws {
