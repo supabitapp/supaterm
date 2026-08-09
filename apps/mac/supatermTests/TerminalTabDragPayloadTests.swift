@@ -315,6 +315,52 @@ struct TerminalTabDragPayloadTests {
   }
 
   @Test
+  func registryDetachesAGroupFromTheSharedPreview() throws {
+    let previewPresenter = TerminalTabDragPreviewRecorder()
+    let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)
+    let groupID = TerminalTabGroupID()
+    let payload = try #require(
+      TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: UUID(),
+        sourceSpaceID: TerminalSpaceID(),
+        sourceTopologyRevision: 0,
+        itemIDs: [.group(groupID)]
+      )
+    )
+    let sourceSurfaceFrame = CGRect(x: 0, y: 0, width: 240, height: 700)
+    let outsidePoint = CGPoint(x: 800, y: 500)
+    var detachedItemIDs: [TerminalTabRootItemID] = []
+    var sourceDisposition: TerminalTabDragRegistry.SourceDisposition?
+    registry.detach = { payload, _ in
+      detachedItemIDs = payload.itemIDs
+      return true
+    }
+
+    #expect(
+      registry.begin(
+        payload,
+        previewContentSize: CGSize(width: 1_440, height: 820),
+        didTransfer: { _, disposition in sourceDisposition = disposition }
+      )
+    )
+    let state = try #require(
+      registry.move(to: outsidePoint, sourceSurfaceFrame: sourceSurfaceFrame)
+    )
+    guard case .sharedPreview = state else {
+      Issue.record("Expected shared preview")
+      return
+    }
+
+    #expect(registry.performDetach(payload))
+    #expect(detachedItemIDs == [.group(groupID)])
+    #expect(sourceDisposition == .removed)
+
+    registry.finish(operationID: payload.moveOperationID, outcome: .moved)
+    #expect(registry.activePayload == nil)
+  }
+
+  @Test
   func registryKeepsTheSharedPreviewAvailableWithoutASnapshot() throws {
     let previewPresenter = TerminalTabDragPreviewRecorder()
     let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)

@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import GhosttyKit
 import Sharing
+import SupaTheme
 import Testing
 
 @testable import supaterm
@@ -64,6 +65,78 @@ struct TerminalTabTransferTests {
       #expect(source.tabCollection.tabs.isEmpty)
       #expect(destination.tabCollection.tabs.map(\.id) == [tabID])
       #expect(destination.selectedTabID == tabID)
+    }
+  }
+
+  @Test
+  func registryTransfersWholeGroupToEmptyWindowWithIdentityMetadataAndChildOrder() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let space = TerminalSpaceItem(name: "Main")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let runtime = GhosttyRuntime()
+      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let sourceWindowID = UUID()
+      let destinationWindowID = UUID()
+      let source = TerminalHostState(
+        runtime: runtime,
+        managesTerminalSurfaces: false,
+        spaceID: space.id
+      )
+      let destination = TerminalHostState(
+        runtime: runtime,
+        managesTerminalSurfaces: false,
+        spaceID: space.id
+      )
+      let first = source.spaceManager.tabCollection.createTab(title: "First")
+      let second = source.spaceManager.tabCollection.createTab(title: "Second")
+      let groupID = try #require(
+        source.createGroup(title: "Build", color: .purple, containing: [second, first])
+      ).groupID
+      #expect(source.setPinned(.group(groupID), isPinned: true) != nil)
+      source.applySelectedTab(first, in: space.id)
+      #expect(source.setGroupCollapsed(groupID, isCollapsed: true))
+      let sourceWindow = register(source, id: sourceWindowID, in: registry)
+      let destinationWindow = register(destination, id: destinationWindowID, in: registry)
+      let payload = try #require(
+        TerminalTabDragPayload(
+          operationID: TerminalTabMoveOperationID(),
+          sourceWindowID: sourceWindowID,
+          sourceSpaceID: space.id,
+          sourceTopologyRevision: source.spaceManager.tabCollection.topologyRevision,
+          itemIDs: [.group(groupID)],
+        )
+      )
+
+      let result = try #require(
+        registry.transferTab(
+          payload,
+          to: TerminalTabDragRegistry.Destination(
+            windowControllerID: destinationWindowID,
+            spaceID: space.id,
+            expectedTopologyRevision: destination.spaceManager.tabCollection.topologyRevision,
+            placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
+          )
+        )
+      )
+      let group = try #require(destination.spaceManager.tabCollection.group(for: groupID))
+
+      #expect(result.tabIDs == [second, first])
+      #expect(source.spaceManager.tabCollection.rootItems.isEmpty)
+      #expect(destination.spaceManager.tabCollection.rootItems.map(\.id) == [.group(groupID)])
+      #expect(group.title == "Build")
+      #expect(group.color == .purple)
+      #expect(group.lifetime == .automatic)
+      #expect(!group.isPinned)
+      #expect(group.tabs.map(\.id) == [second, first])
+      #expect(destination.selectedTabID == second)
+      #expect(!destination.isGroupCollapsed(groupID, in: space.id))
+      withExtendedLifetime([sourceWindow, destinationWindow]) {}
     }
   }
 
