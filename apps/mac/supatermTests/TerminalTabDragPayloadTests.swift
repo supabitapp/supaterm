@@ -109,9 +109,8 @@ struct TerminalTabDragPayloadTests {
     pasteboard.writeObjects([item])
 
     #expect(registry.resolve(pasteboard) == nil)
-    let sourceSurfaceFrame = CGRect(x: 0, y: 0, width: 240, height: 700)
-    #expect(registry.begin(payload, sourceSurfaceFrame: sourceSurfaceFrame))
-    #expect(!registry.begin(other, sourceSurfaceFrame: sourceSurfaceFrame))
+    #expect(registry.begin(payload))
+    #expect(!registry.begin(other))
     #expect(registry.resolve(pasteboard) == payload)
 
     registry.finish(operationID: payload.moveOperationID, outcome: .moved)
@@ -160,12 +159,12 @@ struct TerminalTabDragPayloadTests {
 
     let registry = TerminalTabDragRegistry(previewPresenter: TerminalTabDragPreviewRecorder())
     #expect(
-      registry.begin(
-        group,
-        sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700)
-      )
+      registry.begin(group)
     )
-    _ = registry.move(to: CGPoint(x: 800, y: 500))
+    _ = registry.move(
+      to: CGPoint(x: 800, y: 500),
+      sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700)
+    )
     #expect(!registry.transitionSharedPreview(group, to: .contentPane))
   }
 
@@ -195,12 +194,12 @@ struct TerminalTabDragPayloadTests {
     #expect(
       registry.begin(
         payload,
-        sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700),
         splitDestinationEntryAction: { entryCount += 1 }
       )
     )
-    _ = registry.move(to: CGPoint(x: 120, y: 350))
-    _ = registry.move(to: CGPoint(x: 800, y: 500))
+    let sourceSurfaceFrame = CGRect(x: 0, y: 0, width: 240, height: 700)
+    _ = registry.move(to: CGPoint(x: 120, y: 350), sourceSurfaceFrame: sourceSurfaceFrame)
+    _ = registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: sourceSurfaceFrame)
     #expect(entryCount == 0)
 
     registry.consumeSplitDestinationEntryAction(for: other)
@@ -239,16 +238,22 @@ struct TerminalTabDragPayloadTests {
       registry.begin(
         payload,
         previewImage: previewImage,
-        previewContentSize: previewContentSize,
-        sourceSurfaceFrame: sourceSurfaceFrame
+        previewContentSize: previewContentSize
       )
     )
     #expect(registry.activePayload == payload)
     #expect(!registry.performDetach(payload))
-    #expect(registry.move(to: CGPoint(x: 120, y: 350)) == .sourceSurface)
+    #expect(
+      registry.move(
+        to: CGPoint(x: 120, y: 350),
+        sourceSurfaceFrame: sourceSurfaceFrame
+      ) == .sourceSurface
+    )
     #expect(!registry.performDetach(payload))
     #expect(previewPresenter.requestedFrames.isEmpty)
-    let outsideState = try #require(registry.move(to: outsidePoint))
+    let outsideState = try #require(
+      registry.move(to: outsidePoint, sourceSurfaceFrame: sourceSurfaceFrame)
+    )
     guard case .sharedPreview(let previewFrame) = outsideState else {
       #expect(outsideState != .sourceSurface)
       return
@@ -295,13 +300,14 @@ struct TerminalTabDragPayloadTests {
       registry.begin(
         payload,
         previewImage: nil,
-        previewContentSize: previewContentSize,
-        sourceSurfaceFrame: sourceSurfaceFrame
+        previewContentSize: previewContentSize
       )
     )
     #expect(registry.activePayload == payload)
     #expect(!registry.performDetach(payload))
-    let outsideState = try #require(registry.move(to: outsidePoint))
+    let outsideState = try #require(
+      registry.move(to: outsidePoint, sourceSurfaceFrame: sourceSurfaceFrame)
+    )
     guard case .sharedPreview(let previewFrame) = outsideState else {
       #expect(outsideState != .sourceSurface)
       return
@@ -340,19 +346,21 @@ struct TerminalTabDragPayloadTests {
     #expect(
       registry.begin(
         payload,
-        previewContentSize: CGSize(width: 1_440, height: 820),
-        sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700)
+        previewContentSize: CGSize(width: 1_440, height: 820)
       )
     )
     #expect(!registry.transitionSharedPreview(payload, to: .contentPane))
-    _ = registry.move(to: CGPoint(x: 800, y: 500))
+    let sourceSurfaceFrame = CGRect(x: 0, y: 0, width: 240, height: 700)
+    _ = registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: sourceSurfaceFrame)
 
     #expect(!registry.transitionSharedPreview(otherPayload, to: .contentPane))
     #expect(registry.transitionSharedPreview(payload, to: .contentPane))
     #expect(!registry.transitionSharedPreview(payload, to: .contentPane))
     #expect(previewPresenter.transitions == [.contentPane])
 
-    let movedState = try #require(registry.move(to: CGPoint(x: 900, y: 600)))
+    let movedState = try #require(
+      registry.move(to: CGPoint(x: 900, y: 600), sourceSurfaceFrame: sourceSurfaceFrame)
+    )
     guard case .sharedPreview = movedState else {
       #expect(movedState != .sourceSurface)
       return
@@ -360,8 +368,15 @@ struct TerminalTabDragPayloadTests {
     #expect(previewPresenter.currentType == .contentPane)
     #expect(previewPresenter.typesDuringShows == [.window, .contentPane])
 
-    #expect(registry.move(to: CGPoint(x: 120, y: 350)) == .sourceSurface)
-    let reshownState = try #require(registry.move(to: CGPoint(x: 1_000, y: 600)))
+    #expect(
+      registry.move(
+        to: CGPoint(x: 120, y: 350),
+        sourceSurfaceFrame: sourceSurfaceFrame
+      ) == .sourceSurface
+    )
+    let reshownState = try #require(
+      registry.move(to: CGPoint(x: 1_000, y: 600), sourceSurfaceFrame: sourceSurfaceFrame)
+    )
     guard case .sharedPreview = reshownState else {
       #expect(reshownState != .sourceSurface)
       return

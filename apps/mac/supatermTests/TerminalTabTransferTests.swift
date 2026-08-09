@@ -208,7 +208,6 @@ struct TerminalTabTransferTests {
       #expect(
         registry.tabDragRegistry.begin(
           payload,
-          sourceSurfaceFrame: .zero,
           didTransfer: { completedOperationID = $0 }
         )
       )

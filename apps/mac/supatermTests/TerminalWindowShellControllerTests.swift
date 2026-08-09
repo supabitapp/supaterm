@@ -382,10 +382,9 @@ private struct TerminalWindowShellDragFixture {
     guard
       shell.view === shellView,
       registry.begin(
-        payload,
-        sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700)
+        payload
       ),
-      registry.move(to: CGPoint(x: 800, y: 500)) != nil
+      registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: .zero) != nil
     else { return false }
     return registry.transitionSharedPreview(payload, to: .contentPane)
   }

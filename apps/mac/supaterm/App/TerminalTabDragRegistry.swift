@@ -59,7 +59,6 @@ final class TerminalTabDragRegistry {
     let didTransfer: (TerminalTabMoveOperationID) -> Void
     let previewImage: NSImage?
     let previewContentSize: CGSize?
-    let sourceSurfaceFrame: CGRect
     var splitDestinationEntryAction: (() -> Void)?
     var presentationState: PresentationState
   }
@@ -95,7 +94,6 @@ final class TerminalTabDragRegistry {
     _ payload: TerminalTabDragPayload,
     previewImage: NSImage? = nil,
     previewContentSize: CGSize? = nil,
-    sourceSurfaceFrame: CGRect,
     splitDestinationEntryAction: (() -> Void)? = nil,
     didTransfer: @escaping (TerminalTabMoveOperationID) -> Void = { _ in }
   ) -> Bool {
@@ -105,7 +103,6 @@ final class TerminalTabDragRegistry {
       didTransfer: didTransfer,
       previewImage: previewImage,
       previewContentSize: previewContentSize,
-      sourceSurfaceFrame: sourceSurfaceFrame,
       splitDestinationEntryAction: splitDestinationEntryAction,
       presentationState: .sourceSurface
     )
@@ -150,10 +147,10 @@ final class TerminalTabDragRegistry {
     action?()
   }
 
-  func move(to screenPoint: CGPoint) -> PresentationState? {
+  func move(to screenPoint: CGPoint, sourceSurfaceFrame: CGRect) -> PresentationState? {
     guard var session else { return nil }
     let presentationState: PresentationState
-    if session.sourceSurfaceFrame.contains(screenPoint) {
+    if sourceSurfaceFrame.contains(screenPoint) {
       previewPresenter.hide()
       presentationState = .sourceSurface
     } else {

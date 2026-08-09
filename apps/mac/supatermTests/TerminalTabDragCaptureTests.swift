@@ -30,6 +30,35 @@ struct TerminalTabDragCaptureTests {
   }
 
   @Test
+  func nativeSessionReadsTheSourceSurfaceBoundsForEveryMove() throws {
+    let capture = ControlledTabDragCapture()
+    let fixture = NativeDragSessionFixture(capture: capture)
+    let payload = try #require(makePayload())
+
+    #expect(fixture.prepareResolvedSourceCapture())
+    var resolvedSource: TerminalSidebarNativeDragSession.SourceCapture?
+    #expect(fixture.session.whenSourceCaptureResolved { resolvedSource = $0 })
+    #expect(
+      fixture.session.register(
+        payload,
+        source: try #require(resolvedSource),
+        didTransfer: { _ in }
+      )
+    )
+    let initialFrame = fixture.sourceSurfaceFrame
+    let point = CGPoint(x: initialFrame.midX, y: initialFrame.midY)
+
+    #expect(fixture.session.move(to: point) == .sourceSurface)
+    fixture.sourceSurfaceView.frame = fixture.sourceSurfaceView.frame.offsetBy(dx: 400, dy: 0)
+    guard case .sharedPreview = fixture.session.move(to: point) else {
+      Issue.record("Expected shared preview after moving the source surface")
+      return
+    }
+    fixture.sourceSurfaceView.frame = fixture.sourceSurfaceView.frame.offsetBy(dx: -400, dy: 0)
+    #expect(fixture.session.move(to: point) == .sourceSurface)
+  }
+
+  @Test
   func nativeSessionWaitsForResolvedImageBeforeRegistration() async throws {
     let capture = ControlledTabDragCapture()
     let fixture = NativeDragSessionFixture(capture: capture)
@@ -361,18 +390,37 @@ private final class CaptureCountProbe {
 private final class NativeDragSessionFixture {
   let presenter = CapturePreviewRecorder()
   let session: TerminalSidebarNativeDragSession
+  let sourceSurfaceView: NSView
+  private let window: NSWindow
   private let captureResolution = CaptureCountProbe()
 
   init(capture: ControlledTabDragCapture) {
     let registry = TerminalTabDragRegistry(previewPresenter: presenter)
-    let collectionView = TerminalSidebarCollectionView(frame: .zero)
+    let window = NSWindow(
+      contentRect: CGRect(x: 100, y: 100, width: 1_000, height: 700),
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    let contentView = NSView(frame: CGRect(origin: .zero, size: window.frame.size))
+    let collectionView = TerminalSidebarCollectionView(frame: contentView.bounds)
+    let sourceSurfaceView = NSView(frame: CGRect(x: 0, y: 0, width: 240, height: 700))
+    contentView.addSubview(collectionView)
+    contentView.addSubview(sourceSurfaceView)
+    window.contentView = contentView
+    self.window = window
+    self.sourceSurfaceView = sourceSurfaceView
     session = TerminalSidebarNativeDragSession(
       collectionView: collectionView,
-      sourceSurfaceView: NSView(frame: .zero),
+      sourceSurfaceView: sourceSurfaceView,
       registry: registry,
       captureClient: capture.client { [captureResolution] in captureResolution.signal() },
       captureRequest: { nil }
     )
+  }
+
+  var sourceSurfaceFrame: CGRect {
+    window.convertToScreen(sourceSurfaceView.convert(sourceSurfaceView.bounds, to: nil))
   }
 
   func waitForCaptureResolutions(_ count: Int) async throws {
@@ -382,7 +430,6 @@ private final class NativeDragSessionFixture {
   func prepareSourceCapture() -> Bool {
     session.prepareSourceCapture(
       previewContentSize: CGSize(width: 1_000, height: 620),
-      sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700),
       request: TerminalTabDragCaptureRequest(
         windowID: 1,
         geometry: TerminalTabDragCaptureGeometry(
@@ -397,7 +444,6 @@ private final class NativeDragSessionFixture {
   func prepareResolvedSourceCapture() -> Bool {
     session.prepareSourceCapture(
       previewContentSize: CGSize(width: 1_000, height: 620),
-      sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700),
       request: nil
     )
   }

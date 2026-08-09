@@ -8,7 +8,6 @@ final class TerminalSidebarNativeDragSession {
     fileprivate let id: UUID
     fileprivate let previewImage: NSImage?
     fileprivate let previewContentSize: CGSize
-    fileprivate let sourceSurfaceFrame: CGRect
   }
 
   private typealias CaptureWaiter = @MainActor (SourceCapture) -> Void
@@ -65,15 +64,11 @@ final class TerminalSidebarNativeDragSession {
       cancelSourceCapture()
       return false
     }
-    let sourceSurfaceFrame = window.convertToScreen(
-      sourceSurfaceView.convert(sourceSurfaceView.bounds, to: nil)
-    )
     return prepareSourceCapture(
       previewContentSize: CGSize(
         width: window.frame.width,
         height: window.frame.height - Self.previewContentVerticalInset
       ),
-      sourceSurfaceFrame: sourceSurfaceFrame,
       request: captureRequest()
     )
   }
@@ -81,17 +76,14 @@ final class TerminalSidebarNativeDragSession {
   @discardableResult
   func prepareSourceCapture(
     previewContentSize: CGSize,
-    sourceSurfaceFrame: CGRect,
     request: TerminalTabDragCaptureRequest?
   ) -> Bool {
     cancelSourceCapture()
-    guard !sourceSurfaceFrame.isEmpty else { return false }
     let captureID = UUID()
     let source = SourceCapture(
       id: captureID,
       previewImage: nil,
-      previewContentSize: previewContentSize,
-      sourceSurfaceFrame: sourceSurfaceFrame
+      previewContentSize: previewContentSize
     )
     guard let request else {
       lifecycle = .resolved(source: source)
@@ -152,7 +144,6 @@ final class TerminalSidebarNativeDragSession {
       payload,
       previewImage: preparedSource.previewImage,
       previewContentSize: preparedSource.previewContentSize,
-      sourceSurfaceFrame: preparedSource.sourceSurfaceFrame,
       splitDestinationEntryAction: splitDestinationEntryAction,
       didTransfer: didTransfer
     )
@@ -165,7 +156,12 @@ final class TerminalSidebarNativeDragSession {
   }
 
   func move(to screenPoint: CGPoint) -> TerminalTabDragRegistry.PresentationState {
-    guard let presentationState = registry.move(to: screenPoint) else {
+    guard
+      let presentationState = registry.move(
+        to: screenPoint,
+        sourceSurfaceFrame: liveSourceSurfaceFrame
+      )
+    else {
       preconditionFailure("Native drag session is not registered")
     }
     return presentationState
@@ -206,10 +202,14 @@ final class TerminalSidebarNativeDragSession {
     let resolvedSource = SourceCapture(
       id: source.id,
       previewImage: image,
-      previewContentSize: source.previewContentSize,
-      sourceSurfaceFrame: source.sourceSurfaceFrame
+      previewContentSize: source.previewContentSize
     )
     lifecycle = .resolved(source: resolvedSource)
     waiter?(resolvedSource)
+  }
+
+  private var liveSourceSurfaceFrame: CGRect {
+    guard let sourceSurfaceView, let window = sourceSurfaceView.window else { return .null }
+    return window.convertToScreen(sourceSurfaceView.convert(sourceSurfaceView.bounds, to: nil))
   }
 }
