@@ -36,13 +36,10 @@ struct TerminalTabDragCaptureTests {
     let payload = try #require(makePayload())
 
     #expect(fixture.prepareResolvedSourceCapture())
-    var resolvedSource: TerminalSidebarNativeDragSession.SourceCapture?
-    #expect(fixture.session.whenSourceCaptureResolved { resolvedSource = $0 })
     #expect(
       fixture.session.register(
         payload,
-        source: try #require(resolvedSource),
-        didTransfer: { _ in }
+        didTransfer: { _, _ in }
       )
     )
     let initialFrame = fixture.sourceSurfaceFrame
@@ -59,129 +56,80 @@ struct TerminalTabDragCaptureTests {
   }
 
   @Test
-  func nativeSessionWaitsForResolvedImageBeforeRegistration() async throws {
+  func nativeSessionRegistersWhileCaptureIsPendingAndUpdatesTheVisiblePreview() async throws {
     let capture = ControlledTabDragCapture()
     let fixture = NativeDragSessionFixture(capture: capture)
     let image = renderedImage()
     let payload = try #require(makePayload())
-    var resolvedSource: TerminalSidebarNativeDragSession.SourceCapture?
-    var resolutionCount = 0
 
     #expect(fixture.prepareSourceCapture())
-    #expect(
-      fixture.session.whenSourceCaptureResolved { source in
-        resolutionCount += 1
-        resolvedSource = source
-      }
-    )
-    #expect(!fixture.session.whenSourceCaptureResolved { _ in })
-    #expect(resolutionCount == 0)
+    #expect(fixture.session.register(payload, didTransfer: { _, _ in }))
+    _ = fixture.session.move(to: CGPoint(x: 5_000, y: 5_000))
+    #expect(fixture.presenter.showCount == 1)
+    #expect(fixture.presenter.shownImage == nil)
     try await capture.waitForStarts(1)
     capture.complete(at: 0, with: image)
     try await fixture.waitForCaptureResolutions(1)
 
-    #expect(resolutionCount == 1)
-    let source = try #require(resolvedSource)
-    #expect(fixture.session.register(payload, source: source, didTransfer: { _ in }))
+    #expect(fixture.presenter.shownImage === image)
+    #expect(fixture.presenter.updateCount == 1)
+  }
+
+  @Test
+  func completedCaptureIsStoredUntilTheSharedPreviewAppears() async throws {
+    let capture = ControlledTabDragCapture()
+    let fixture = NativeDragSessionFixture(capture: capture)
+    let image = renderedImage()
+    let payload = try #require(makePayload())
+
+    #expect(fixture.prepareSourceCapture())
+    #expect(fixture.session.register(payload, didTransfer: { _, _ in }))
+    try await capture.waitForStarts(1)
+    capture.complete(at: 0, with: image)
+    try await fixture.waitForCaptureResolutions(1)
+
+    #expect(fixture.presenter.updateCount == 0)
     _ = fixture.session.move(to: CGPoint(x: 5_000, y: 5_000))
     #expect(fixture.presenter.showCount == 1)
     #expect(fixture.presenter.shownImage === image)
   }
 
   @Test
-  func nativeSessionResolvesMissingImageBeforeRegistration() async throws {
+  func sourceWithoutACaptureRequestRegistersSynchronously() throws {
     let capture = ControlledTabDragCapture()
     let fixture = NativeDragSessionFixture(capture: capture)
     let payload = try #require(makePayload())
-    var resolvedSource: TerminalSidebarNativeDragSession.SourceCapture?
-
-    #expect(fixture.prepareSourceCapture())
-    #expect(
-      fixture.session.whenSourceCaptureResolved { source in
-        resolvedSource = source
-      }
-    )
-    try await capture.waitForStarts(1)
-    capture.complete(at: 0, with: nil)
-    try await fixture.waitForCaptureResolutions(1)
-
-    let source = try #require(resolvedSource)
-    #expect(fixture.session.register(payload, source: source, didTransfer: { _ in }))
-    _ = fixture.session.move(to: CGPoint(x: 5_000, y: 5_000))
-    #expect(fixture.presenter.showCount == 1)
-    #expect(fixture.presenter.shownImage == nil)
-  }
-
-  @Test
-  func resolvedCaptureInvokesWaiterSynchronously() throws {
-    let capture = ControlledTabDragCapture()
-    let fixture = NativeDragSessionFixture(capture: capture)
-    let payload = try #require(makePayload())
-    var registered = false
 
     #expect(fixture.prepareResolvedSourceCapture())
-    #expect(
-      fixture.session.whenSourceCaptureResolved { source in
-        registered = fixture.session.register(payload, source: source, didTransfer: { _ in })
-      }
-    )
-    #expect(registered)
+    #expect(fixture.session.register(payload, didTransfer: { _, _ in }))
   }
 
   @Test
-  func cancellingCaptureDropsItsWaiter() async throws {
+  func cancelledCaptureCannotUpdateANewSession() async throws {
     let capture = ControlledTabDragCapture()
     let fixture = NativeDragSessionFixture(capture: capture)
-    var resolutionCount = 0
+    let staleImage = renderedImage()
+    let currentImage = renderedImage()
+    let payload = try #require(makePayload())
 
     #expect(fixture.prepareSourceCapture())
-    #expect(
-      fixture.session.whenSourceCaptureResolved { _ in
-        resolutionCount += 1
-      }
-    )
-    try await capture.waitForStarts(1)
-    fixture.session.cancelSourceCapture()
-    capture.complete(at: 0, with: renderedImage())
-    try await fixture.waitForCaptureResolutions(1)
-
-    #expect(resolutionCount == 0)
-    #expect(!fixture.session.whenSourceCaptureResolved { _ in })
-  }
-
-  @Test
-  func staleCaptureCannotInvokeOldOrCurrentWaiter() async throws {
-    let capture = ControlledTabDragCapture()
-    let fixture = NativeDragSessionFixture(capture: capture)
-    var staleResolutionCount = 0
-    var currentResolutionCount = 0
-
-    #expect(fixture.prepareSourceCapture())
-    #expect(
-      fixture.session.whenSourceCaptureResolved { _ in
-        staleResolutionCount += 1
-      }
-    )
     try await capture.waitForStarts(1)
     fixture.session.cancelSourceCapture()
 
     #expect(fixture.prepareSourceCapture())
-    #expect(
-      fixture.session.whenSourceCaptureResolved { _ in
-        currentResolutionCount += 1
-      }
-    )
+    #expect(fixture.session.register(payload, didTransfer: { _, _ in }))
+    _ = fixture.session.move(to: CGPoint(x: 5_000, y: 5_000))
     try await capture.waitForStarts(2)
 
-    capture.complete(at: 0, with: renderedImage())
+    capture.complete(at: 0, with: staleImage)
     try await fixture.waitForCaptureResolutions(1)
-    #expect(staleResolutionCount == 0)
-    #expect(currentResolutionCount == 0)
+    #expect(fixture.presenter.shownImage == nil)
+    #expect(fixture.presenter.updateCount == 0)
 
-    capture.complete(at: 1, with: nil)
+    capture.complete(at: 1, with: currentImage)
     try await fixture.waitForCaptureResolutions(2)
-    #expect(staleResolutionCount == 0)
-    #expect(currentResolutionCount == 1)
+    #expect(fixture.presenter.shownImage === currentImage)
+    #expect(fixture.presenter.updateCount == 1)
   }
 
   @Test
@@ -189,36 +137,37 @@ struct TerminalTabDragCaptureTests {
     let capture = ControlledTabDragCapture()
     let fixture = NativeDragSessionFixture(capture: capture)
     let firstPayload = try #require(makePayload())
-    var firstSource: TerminalSidebarNativeDragSession.SourceCapture?
+    let currentPayload = try #require(makePayload())
+    let currentImage = renderedImage()
 
     #expect(fixture.prepareSourceCapture())
-    #expect(fixture.session.whenSourceCaptureResolved { firstSource = $0 })
+    #expect(fixture.session.register(firstPayload, didTransfer: { _, _ in }))
     try await capture.waitForStarts(1)
-    capture.complete(at: 0, with: nil)
-    try await fixture.waitForCaptureResolutions(1)
-    #expect(
-      fixture.session.register(
-        firstPayload,
-        source: try #require(firstSource),
-        didTransfer: { _ in }
-      )
-    )
     fixture.session.finish(operationID: firstPayload.moveOperationID, outcome: .cancelled)
 
-    var currentResolutionCount = 0
     #expect(fixture.prepareSourceCapture())
-    #expect(
-      fixture.session.whenSourceCaptureResolved { _ in
-        currentResolutionCount += 1
-      }
-    )
+    #expect(fixture.session.register(currentPayload, didTransfer: { _, _ in }))
+    _ = fixture.session.move(to: CGPoint(x: 5_000, y: 5_000))
     try await capture.waitForStarts(2)
 
     fixture.session.finish(operationID: firstPayload.moveOperationID, outcome: .cancelled)
-    capture.complete(at: 1, with: nil)
-    try await fixture.waitForCaptureResolutions(2)
-    #expect(currentResolutionCount == 1)
+    capture.complete(at: 1, with: currentImage)
+    try await fixture.waitForCaptureResolutions(1)
+    #expect(fixture.presenter.shownImage === currentImage)
+    #expect(fixture.presenter.updateCount == 1)
     #expect(fixture.presenter.hideCount == 1)
+    capture.complete(at: 0, with: nil)
+    try await fixture.waitForCaptureResolutions(2)
+    #expect(fixture.presenter.updateCount == 1)
+  }
+
+  @Test
+  func nativeDraggingItemUsesOnePointGeometry() {
+    #expect(
+      TerminalSidebarNativeDragSession.draggingFrame(
+        for: CGRect(x: 12, y: 34, width: 220, height: 56)
+      ) == CGRect(x: 12, y: 34, width: 1, height: 1)
+    )
   }
 
   @Test
@@ -261,11 +210,17 @@ private final class CapturePreviewRecorder: TerminalTabDragPreviewPresenting {
   private(set) var shownImage: NSImage?
   private(set) var showCount = 0
   private(set) var hideCount = 0
+  private(set) var updateCount = 0
 
   func show(image: NSImage?, frame: CGRect) -> CGRect {
     shownImage = image
     showCount += 1
     return frame
+  }
+
+  func update(image: NSImage?) {
+    shownImage = image
+    updateCount += 1
   }
 
   func transition(to _: TerminalTabDragPreviewType) -> Bool {

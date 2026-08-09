@@ -115,7 +115,7 @@ struct TerminalSidebarPointerTests {
   }
 
   @Test
-  func tabRowKeepsMouseUpWhileDragActivationWaits() throws {
+  func tabRowKeepsMouseUpAfterDragActivationFails() throws {
     let collectionView = TerminalSidebarCollectionView(
       frame: NSRect(x: 0, y: 0, width: 240, height: 60)
     )

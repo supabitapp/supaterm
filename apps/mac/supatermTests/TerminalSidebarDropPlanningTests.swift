@@ -135,7 +135,8 @@ struct TerminalSidebarDropPlanningTests {
       topologyStamp: TerminalSidebarTopologyStamp(
         spaceID: TerminalSidebarTestFixture.primarySpaceID,
         revision: 8
-      )
+      ),
+      revisionRequirement: .sameOrNewer
     )
 
     #expect(!handoff.accepts(nil))
@@ -157,6 +158,62 @@ struct TerminalSidebarDropPlanningTests {
     )
     #expect(
       handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 8
+        )
+      )
+    )
+    #expect(
+      handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 9
+        )
+      )
+    )
+  }
+
+  @Test
+  func retainedSourceHandoffAcceptsTheSameTopologyRevision() {
+    let handoff = TerminalSidebarDropHandoff(
+      topologyStamp: TerminalSidebarTopologyStamp(
+        spaceID: TerminalSidebarTestFixture.primarySpaceID,
+        revision: 8
+      ),
+      revisionRequirement: .sameOrNewer
+    )
+
+    #expect(
+      handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 8
+        )
+      )
+    )
+    #expect(
+      handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 9
+        )
+      )
+    )
+  }
+
+  @Test
+  func removedSourceHandoffRequiresANewerTopologyRevision() {
+    let handoff = TerminalSidebarDropHandoff(
+      topologyStamp: TerminalSidebarTopologyStamp(
+        spaceID: TerminalSidebarTestFixture.primarySpaceID,
+        revision: 8
+      ),
+      revisionRequirement: .newer
+    )
+
+    #expect(
+      !handoff.accepts(
         TerminalSidebarTopologyStamp(
           spaceID: TerminalSidebarTestFixture.primarySpaceID,
           revision: 8

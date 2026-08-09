@@ -186,23 +186,57 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test
-  func desktopDropReceiverRequiresAnUnblockedScreenPoint() {
+  func desktopDropReceiverRequiresAPointOutsideCurrentProcessWindows() throws {
     let screens = [CGRect(x: 0, y: 0, width: 1_200, height: 800)]
-    let blocked = [CGRect(x: 100, y: 100, width: 600, height: 500)]
+    let windowFrame = try #require(
+      TerminalTabDesktopDropRouting.currentProcessWindowFrame(
+        CGRect(x: 100, y: 100, width: 600, height: 500),
+        isVisibleOnActiveSpace: true,
+        alphaValue: 1,
+        isMiniaturized: false,
+        ignoresMouseEvents: false
+      )
+    )
 
     #expect(
       TerminalTabDesktopDropRouting.receiverFrame(
         for: CGPoint(x: 50, y: 50),
         screenFrames: screens,
-        blockedFrames: blocked
+        currentProcessWindowFrames: [windowFrame]
       ) == screens[0]
     )
     #expect(
       TerminalTabDesktopDropRouting.receiverFrame(
         for: CGPoint(x: 200, y: 200),
         screenFrames: screens,
-        blockedFrames: blocked
+        currentProcessWindowFrames: [windowFrame]
       ) == nil
+    )
+  }
+
+  @Test
+  func desktopDropRoutingExcludesCurrentProcessWindowsOnAnotherSpace() {
+    let frame = TerminalTabDesktopDropRouting.currentProcessWindowFrame(
+      CGRect(x: 0, y: 0, width: 1_200, height: 800),
+      isVisibleOnActiveSpace: false,
+      alphaValue: 1,
+      isMiniaturized: false,
+      ignoresMouseEvents: false
+    )
+
+    #expect(frame == nil)
+  }
+
+  @Test
+  func desktopDropReceiverAllowsPointsOverOtherProcesses() {
+    let screen = CGRect(x: 0, y: 0, width: 1_200, height: 800)
+
+    #expect(
+      TerminalTabDesktopDropRouting.receiverFrame(
+        for: CGPoint(x: 200, y: 200),
+        screenFrames: [screen],
+        currentProcessWindowFrames: []
+      ) == screen
     )
   }
 
@@ -399,6 +433,8 @@ private final class TerminalWindowShellPreviewRecorder: TerminalTabDragPreviewPr
   func show(image _: NSImage?, frame: CGRect) -> CGRect {
     frame
   }
+
+  func update(image _: NSImage?) {}
 
   func transition(to type: TerminalTabDragPreviewType) -> Bool {
     guard type != currentType else { return false }

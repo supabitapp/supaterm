@@ -548,9 +548,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       createsInitialTab: false,
       ordersFront: false
     )
+    guard
+      let expectedTopologyRevision = controller.terminal.spaceManager.tabCollection(
+        for: payload.sourceSpaceID
+      )?.topologyRevision
+    else {
+      controller.window?.close()
+      return false
+    }
     let destination = TerminalTabDragRegistry.Destination(
       windowControllerID: controller.windowControllerID,
       spaceID: payload.sourceSpaceID,
+      expectedTopologyRevision: expectedTopologyRevision,
       placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
     )
     guard terminalWindowRegistry.transferTab(payload, to: destination) != nil else {

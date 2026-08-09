@@ -1,5 +1,43 @@
 import AppKit
 
+struct TerminalSidebarExternalDrop: Equatable {
+  let payload: TerminalTabDragPayload
+  let topologyStamp: TerminalSidebarTopologyStamp
+  let target: TerminalSidebarDropPlan
+
+  func command(in outline: TerminalSidebarOutline) -> TerminalSidebarDropCommand? {
+    guard topologyStamp == outline.topologyStamp else { return nil }
+    guard let sidebarPayload = payload.sidebarPayload(topologyStamp: topologyStamp) else {
+      return nil
+    }
+    return target.command(for: sidebarPayload)
+  }
+}
+
+extension TerminalTabDragPayload {
+  fileprivate func sidebarPayload(
+    topologyStamp: TerminalSidebarTopologyStamp
+  ) -> TerminalSidebarDragPayload? {
+    let source: TerminalSidebarDragSource
+    let tabIDs = itemIDs.compactMap { itemID -> TerminalTabID? in
+      guard case .tab(let tabID) = itemID else { return nil }
+      return tabID
+    }
+    if tabIDs.count == itemIDs.count {
+      source = .tabs(tabIDs)
+    } else if itemIDs.count == 1, case .group(let groupID) = itemIDs[0] {
+      source = .group(groupID)
+    } else {
+      return nil
+    }
+    return TerminalSidebarDragPayload(
+      operationID: moveOperationID,
+      source: source,
+      topologyStamp: topologyStamp
+    )
+  }
+}
+
 @MainActor
 final class TerminalSidebarExternalDropController {
   struct Configuration {
@@ -14,15 +52,9 @@ final class TerminalSidebarExternalDropController {
     let resetHapticTarget: () -> Void
   }
 
-  private struct ActiveDrop {
-    let payload: TerminalTabDragPayload
-    let sidebarPayload: TerminalSidebarDragPayload
-    let target: TerminalSidebarDropPlan
-  }
-
   var isActive: Bool { activeDrop != nil }
 
-  private var activeDrop: ActiveDrop?
+  private var activeDrop: TerminalSidebarExternalDrop?
   private let configuration: Configuration
 
   init(configuration: Configuration) {
@@ -71,19 +103,25 @@ final class TerminalSidebarExternalDropController {
   }
 
   func updateAfterAutoscroll(pointerY: CGFloat, isPinnedTarget: Bool) {
-    guard let activeDrop, let content = configuration.content() else { return }
+    guard
+      let activeDrop,
+      let content = configuration.content(),
+      let sidebarPayload = activeDrop.payload.sidebarPayload(
+        topologyStamp: activeDrop.topologyStamp
+      )
+    else { return }
     let path =
       isPinnedTarget
       ? TerminalSidebarSemanticPath.trailingRoot
       : configuration.collectionLayout.dropTargetMap.semanticTarget(at: pointerY)?.path
     let resolution = TerminalSidebarDropResolution(
-      payload: activeDrop.sidebarPayload,
+      payload: sidebarPayload,
       path: path,
       outline: content.outline
     )
     setTarget(
       payload: activeDrop.payload,
-      sidebarPayload: activeDrop.sidebarPayload,
+      sidebarPayload: sidebarPayload,
       resolution: resolution
     )
   }
@@ -91,18 +129,22 @@ final class TerminalSidebarExternalDropController {
   func perform(_ info: any NSDraggingInfo) -> Bool {
     guard
       let activeDrop,
-      configuration.tabDragRegistry.resolve(info.draggingPasteboard) == activeDrop.payload,
-      let command = activeDrop.target.command(for: activeDrop.sidebarPayload)
+      configuration.tabDragRegistry.resolve(info.draggingPasteboard) == activeDrop.payload
+    else { return false }
+    defer { clear() }
+    guard
+      let outline = configuration.content()?.outline,
+      let command = activeDrop.command(in: outline)
     else { return false }
     let result = configuration.tabDragRegistry.performTransfer(
       activeDrop.payload,
       to: TerminalTabDragRegistry.Destination(
         windowControllerID: configuration.windowControllerID,
         spaceID: command.topologyStamp.spaceID,
+        expectedTopologyRevision: command.topologyStamp.revision,
         placement: command.destination
       )
     )
-    clear()
     return result != nil
   }
 
@@ -121,23 +163,7 @@ final class TerminalSidebarExternalDropController {
     in outline: TerminalSidebarOutline
   ) -> TerminalSidebarDragPayload? {
     guard let topologyStamp = outline.topologyStamp else { return nil }
-    let source: TerminalSidebarDragSource
-    let tabIDs = payload.itemIDs.compactMap { itemID -> TerminalTabID? in
-      guard case .tab(let tabID) = itemID else { return nil }
-      return tabID
-    }
-    if tabIDs.count == payload.itemIDs.count {
-      source = .tabs(tabIDs)
-    } else if payload.itemIDs.count == 1, case .group(let groupID) = payload.itemIDs[0] {
-      source = .group(groupID)
-    } else {
-      return nil
-    }
-    return TerminalSidebarDragPayload(
-      operationID: payload.moveOperationID,
-      source: source,
-      topologyStamp: topologyStamp
-    )
+    return payload.sidebarPayload(topologyStamp: topologyStamp)
   }
 
   private func setTarget(
@@ -150,12 +176,12 @@ final class TerminalSidebarExternalDropController {
       clearTarget()
       return
     }
-    let next = ActiveDrop(
+    let next = TerminalSidebarExternalDrop(
       payload: payload,
-      sidebarPayload: sidebarPayload,
+      topologyStamp: sidebarPayload.topologyStamp,
       target: target
     )
-    guard activeDrop?.payload != payload || activeDrop?.target != target else { return }
+    guard activeDrop != next else { return }
     activeDrop = next
     configuration.collectionLayout.dragDropState = TerminalSidebarDragDropState(
       draggingItemIDs: entryIDs(for: sidebarPayload.source),

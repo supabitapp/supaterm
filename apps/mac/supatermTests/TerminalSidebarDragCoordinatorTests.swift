@@ -118,4 +118,40 @@ struct TerminalSidebarDragCoordinatorTests {
     #expect(!accepts(wrongSpace))
     #expect(!accepts(oldRevision))
   }
+
+  @Test
+  func completionOutcomeComesFromTheReceiptOrExternalTransfer() {
+    let tabID = TerminalTabID()
+    let payload = TerminalSidebarTestFixture.payload(
+      source: .tabs([tabID]),
+      revision: 4
+    )
+    let receipt = TerminalSidebarTestFixture.moveReceipt(
+      payload: payload,
+      destination: .root(TerminalRootPlacement(isPinned: false, index: 0)),
+      revision: 5
+    )
+    var drag = TerminalSidebarActiveDrag(
+      payload: payload,
+      liftedEntryIDs: [.tab(tabID)],
+      coordinator: TerminalSidebarDragCoordinator(payload: payload),
+      target: nil
+    )
+
+    #expect(drag.registryOutcome(receipt: nil) == .cancelled)
+    #expect(drag.registryOutcome(receipt: receipt) == .moved)
+    let rejected = drag.completeExternal(
+      operationID: TerminalTabMoveOperationID(),
+      sourceDisposition: .removed
+    )
+    #expect(!rejected)
+    #expect(drag.registryOutcome(receipt: nil) == .cancelled)
+    let completed = drag.completeExternal(
+      operationID: payload.operationID,
+      sourceDisposition: .retained
+    )
+    #expect(completed)
+    #expect(drag.externalCompletion == .moved(.retained))
+    #expect(drag.registryOutcome(receipt: nil) == .moved)
+  }
 }

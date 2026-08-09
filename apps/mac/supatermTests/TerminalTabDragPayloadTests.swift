@@ -169,6 +169,43 @@ struct TerminalTabDragPayloadTests {
   }
 
   @Test
+  func splitIntoADifferentTabRemovesTheSource() throws {
+    let registry = TerminalTabDragRegistry(previewPresenter: TerminalTabDragPreviewRecorder())
+    let windowID = UUID()
+    let spaceID = TerminalSpaceID()
+    let payload = try #require(
+      TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: windowID,
+        sourceSpaceID: spaceID,
+        sourceTopologyRevision: 4,
+        itemIDs: [.tab(TerminalTabID())]
+      )
+    )
+    var sourceDisposition: TerminalTabDragRegistry.SourceDisposition?
+    registry.split = { _, _ in true }
+    #expect(
+      registry.begin(
+        payload,
+        didTransfer: { _, disposition in sourceDisposition = disposition }
+      )
+    )
+
+    #expect(
+      registry.performSplit(
+        payload,
+        to: TerminalTabDragRegistry.SplitDestination(
+          windowControllerID: windowID,
+          spaceID: spaceID,
+          tabID: TerminalTabID(),
+          side: .left
+        )
+      )
+    )
+    #expect(sourceDisposition == .removed)
+  }
+
+  @Test
   func splitDestinationEntryConsumesItsHandoffOnce() throws {
     let registry = TerminalTabDragRegistry(previewPresenter: TerminalTabDragPreviewRecorder())
     let payload = try #require(
@@ -228,6 +265,7 @@ struct TerminalTabDragPayloadTests {
     let outsidePoint = CGPoint(x: 800, y: 500)
     var detachedPayload: TerminalTabDragPayload?
     var detachedFrame: CGRect?
+    var sourceDisposition: TerminalTabDragRegistry.SourceDisposition?
     registry.detach = { payload, frame in
       detachedPayload = payload
       detachedFrame = frame
@@ -238,7 +276,8 @@ struct TerminalTabDragPayloadTests {
       registry.begin(
         payload,
         previewImage: previewImage,
-        previewContentSize: previewContentSize
+        previewContentSize: previewContentSize,
+        didTransfer: { _, disposition in sourceDisposition = disposition }
       )
     )
     #expect(registry.activePayload == payload)
@@ -269,6 +308,7 @@ struct TerminalTabDragPayloadTests {
     #expect(registry.performDetach(payload))
     #expect(detachedPayload == payload)
     #expect(detachedFrame == previewFrame)
+    #expect(sourceDisposition == .removed)
 
     registry.finish(operationID: payload.moveOperationID, outcome: .moved)
     #expect(registry.activePayload == nil)
@@ -415,6 +455,10 @@ private final class TerminalTabDragPreviewRecorder: TerminalTabDragPreviewPresen
     imageWasPresent.append(image?.isValid == true)
     typesDuringShows.append(currentType)
     return frame.integral
+  }
+
+  func update(image: NSImage?) {
+    imageWasPresent.append(image?.isValid == true)
   }
 
   func transition(to type: TerminalTabDragPreviewType) -> Bool {

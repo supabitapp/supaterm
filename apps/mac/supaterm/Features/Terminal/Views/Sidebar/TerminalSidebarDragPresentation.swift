@@ -1,6 +1,12 @@
 import AppKit
 import QuartzCore
 
+private enum TerminalSidebarDragProjectionDisposition {
+  case restoreSource
+  case commitWithinSource
+  case commitOutsideSource
+}
+
 @MainActor
 final class TerminalSidebarDragPresentation {
   struct Lift {
@@ -44,7 +50,7 @@ final class TerminalSidebarDragPresentation {
     _ lift: Lift,
     motionPolicy: TerminalSidebarMotionPolicy
   ) {
-    finish(restoringRows: true)
+    finish(.restoreSource)
     hotspot = lift.hotspot
     velocityTracker = TerminalSidebarDragVelocityTracker()
     velocityTracker.update(point: lift.screenPoint, timestamp: lift.timestamp)
@@ -103,18 +109,25 @@ final class TerminalSidebarDragPresentation {
   }
 
   func handoffToSource(layoutSource: () -> Void) {
-    handoff(restoringRows: true, layout: layoutSource)
+    handoff(.restoreSource, layout: layoutSource)
   }
 
   func handoffToDestination(layoutDestination: () -> Void) {
-    handoff(restoringRows: false, layout: layoutDestination)
+    handoff(.commitWithinSource, layout: layoutDestination)
   }
 
-  private func handoff(restoringRows: Bool, layout: () -> Void) {
+  func handoffAfterExternalSuccess(layoutSource: () -> Void) {
+    handoff(.commitOutsideSource, layout: layoutSource)
+  }
+
+  private func handoff(
+    _ disposition: TerminalSidebarDragProjectionDisposition,
+    layout: () -> Void
+  ) {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     layout()
-    finish(restoringRows: restoringRows)
+    finish(disposition)
     layout()
     CATransaction.commit()
   }
@@ -191,9 +204,9 @@ final class TerminalSidebarDragPresentation {
     CATransaction.commit()
   }
 
-  private func finish(restoringRows: Bool) {
+  private func finish(_ disposition: TerminalSidebarDragProjectionDisposition) {
     guard let collectionView else { return }
-    liveView?.restore(in: collectionView, restoringRows: restoringRows)
+    liveView?.finish(in: collectionView, disposition: disposition)
     liveView?.removeFromSuperview()
     liveView = nil
     hotspot = .zero
@@ -320,12 +333,20 @@ private final class TerminalSidebarLiveDragView: NSView {
     layer.add(TerminalSidebarTransformSpring.animation(from: 0, to: -2), forKey: "lift")
   }
 
-  func restore(in collectionView: NSCollectionView, restoringRows: Bool) {
-    if restoringRows {
+  func finish(
+    in collectionView: NSCollectionView,
+    disposition: TerminalSidebarDragProjectionDisposition
+  ) {
+    switch disposition {
+    case .restoreSource:
       for row in rows { row.restore() }
-    } else {
+      groupBackground?.restore(in: collectionView)
+    case .commitWithinSource:
       for row in rows { row.hostedView.removeFromSuperview() }
+      groupBackground?.restore(in: collectionView)
+    case .commitOutsideSource:
+      for row in rows { row.hostedView.removeFromSuperview() }
+      groupBackground?.view.removeFromSuperview()
     }
-    groupBackground?.restore(in: collectionView)
   }
 }

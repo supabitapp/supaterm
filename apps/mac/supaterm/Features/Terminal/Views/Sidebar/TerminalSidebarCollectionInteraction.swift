@@ -1,10 +1,116 @@
 import AppKit
 
+enum TerminalSidebarDragOutlineDisposition: Equatable {
+  case inactive
+  case unchanged
+  case queue
+  case replaceAndCancel(reason: String)
+
+  static func tracking(
+    incoming: TerminalSidebarOutline,
+    applied: TerminalSidebarOutline,
+    sourceTopologyStamp: TerminalSidebarTopologyStamp
+  ) -> Self {
+    guard incoming.topologyStamp == sourceTopologyStamp else {
+      return .replaceAndCancel(reason: "sourceTopologyChanged")
+    }
+    guard incoming.topologyStamp == applied.topologyStamp, incoming.roots == applied.roots else {
+      return .replaceAndCancel(reason: "sourceSnapshotMismatch")
+    }
+    guard incoming.collapsedGroupIDs == applied.collapsedGroupIDs else { return .queue }
+    return .unchanged
+  }
+}
+
+struct TerminalSidebarPendingDrag {
+  let entryID: TerminalSidebarEntryID
+  let origin: CGPoint
+  let selectedTabIDs: [TerminalTabID]
+  let defersSelection: Bool
+  let selectionHandoff: TerminalSidebarTabDragSelectionHandoff?
+  var isActivationFailed = false
+}
+
+struct TerminalSidebarDragSourceGeometry {
+  let itemByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item]
+  let fanAnchorIndex: Int?
+  let frame: CGRect
+
+  static func resolve(
+    payload: TerminalSidebarDragPayload,
+    liftedEntryIDs: [TerminalSidebarEntryID],
+    anchorEntryID: TerminalSidebarEntryID,
+    plan: TerminalSidebarLayoutPlan
+  ) -> Self? {
+    let sourceIDs = Set(liftedEntryIDs)
+    let sourceItems = plan.items.filter {
+      sourceIDs.contains($0.id) && $0.frame.height > 0
+    }
+    guard sourceItems.count == liftedEntryIDs.count else { return nil }
+    let itemByID = Dictionary(uniqueKeysWithValues: sourceItems.map { ($0.id, $0) })
+    switch payload.source {
+    case .tabs:
+      guard
+        let anchorIndex = liftedEntryIDs.firstIndex(of: anchorEntryID),
+        let anchorFrame = itemByID[anchorEntryID]?.frame
+      else { return nil }
+      return Self(
+        itemByID: itemByID,
+        fanAnchorIndex: anchorIndex,
+        frame: TerminalSidebarLiveDragGeometry.fanFrame(
+          anchorFrame: anchorFrame,
+          rowHeights: liftedEntryIDs.compactMap { itemByID[$0]?.frame.height },
+          anchorIndex: anchorIndex
+        )
+      )
+    case .group:
+      guard
+        let frame = sourceItems.map(\.frame).reduce(
+          Optional<CGRect>.none,
+          { $0?.union($1) ?? $1 }
+        )
+      else { return nil }
+      return Self(itemByID: itemByID, fanAnchorIndex: nil, frame: frame)
+    }
+  }
+}
+
+enum TerminalSidebarExternalDragCompletion: Equatable {
+  case pending
+  case moved(TerminalTabDragRegistry.SourceDisposition)
+
+  var sourceDisposition: TerminalTabDragRegistry.SourceDisposition? {
+    guard case .moved(let sourceDisposition) = self else { return nil }
+    return sourceDisposition
+  }
+}
+
+struct TerminalSidebarActiveDrag {
+  let payload: TerminalSidebarDragPayload
+  let liftedEntryIDs: [TerminalSidebarEntryID]
+  var coordinator: TerminalSidebarDragCoordinator
+  var target: TerminalSidebarDropPlan?
+  var externalCompletion = TerminalSidebarExternalDragCompletion.pending
+
+  mutating func completeExternal(
+    operationID: TerminalTabMoveOperationID,
+    sourceDisposition: TerminalTabDragRegistry.SourceDisposition
+  ) -> Bool {
+    guard payload.operationID == operationID else { return false }
+    externalCompletion = .moved(sourceDisposition)
+    return true
+  }
+
+  func registryOutcome(receipt: TerminalSidebarDropReceipt?) -> TerminalTabDragRegistry.Outcome {
+    receipt != nil || externalCompletion.sourceDisposition != nil ? .moved : .cancelled
+  }
+}
+
 enum TerminalSidebarDragActivation {
   enum Decision: Equatable {
     case pending
     case begin
-    case refresh
+    case failed
   }
 
   static let threshold: CGFloat = 8
@@ -12,13 +118,14 @@ enum TerminalSidebarDragActivation {
   static func decision(
     origin: CGPoint,
     location: CGPoint,
-    isWaitingForCapture: Bool = false
+    sourceFrame: CGRect
   ) -> Decision {
-    if isWaitingForCapture { return .refresh }
     guard hypot(location.x - origin.x, location.y - origin.y) >= threshold else {
       return .pending
     }
-    return .begin
+    return sourceFrame.insetBy(dx: -threshold, dy: -threshold).contains(location)
+      ? .begin
+      : .failed
   }
 }
 
@@ -186,12 +293,29 @@ struct TerminalSidebarDragCoordinator: Equatable {
 }
 
 struct TerminalSidebarDropHandoff: Equatable {
+  enum RevisionRequirement: Equatable {
+    case sameOrNewer
+    case newer
+  }
+
   let topologyStamp: TerminalSidebarTopologyStamp
+  let revisionRequirement: RevisionRequirement
 
   func accepts(_ candidate: TerminalSidebarTopologyStamp?) -> Bool {
     guard let candidate else { return false }
-    return candidate.spaceID == topologyStamp.spaceID
-      && candidate.revision >= topologyStamp.revision
+    guard candidate.spaceID == topologyStamp.spaceID else { return false }
+    switch revisionRequirement {
+    case .sameOrNewer:
+      return candidate.revision >= topologyStamp.revision
+    case .newer:
+      return candidate.revision > topologyStamp.revision
+    }
+  }
+}
+
+enum TerminalSidebarGroupClick {
+  static func acceptsRelease(_ location: CGPoint, frame: CGRect?) -> Bool {
+    frame?.contains(location) == true
   }
 }
 

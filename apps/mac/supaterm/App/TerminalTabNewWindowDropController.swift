@@ -1,12 +1,28 @@
 import AppKit
 
 struct TerminalTabDesktopDropRouting {
+  static func currentProcessWindowFrame(
+    _ frame: CGRect,
+    isVisibleOnActiveSpace: Bool,
+    alphaValue: CGFloat,
+    isMiniaturized: Bool,
+    ignoresMouseEvents: Bool
+  ) -> CGRect? {
+    guard
+      isVisibleOnActiveSpace,
+      alphaValue > 0,
+      !isMiniaturized,
+      !ignoresMouseEvents
+    else { return nil }
+    return frame
+  }
+
   static func receiverFrame(
     for point: CGPoint,
     screenFrames: [CGRect],
-    blockedFrames: [CGRect]
+    currentProcessWindowFrames: [CGRect]
   ) -> CGRect? {
-    guard !blockedFrames.contains(where: { $0.contains(point) }) else { return nil }
+    guard !currentProcessWindowFrames.contains(where: { $0.contains(point) }) else { return nil }
     return screenFrames.first { $0.contains(point) }
   }
 }
@@ -59,7 +75,7 @@ final class TerminalTabNewWindowDropController {
     let frame = TerminalTabDesktopDropRouting.receiverFrame(
       for: point,
       screenFrames: NSScreen.screens.map(\.frame),
-      blockedFrames: appWindowFrames() + externalWindowFrames()
+      currentProcessWindowFrames: currentProcessWindowFrames()
     )
     guard let frame else {
       destinationWindow.orderOut(nil)
@@ -69,44 +85,15 @@ final class TerminalTabNewWindowDropController {
     destinationWindow.orderFrontRegardless()
   }
 
-  private func appWindowFrames() -> [CGRect] {
+  private func currentProcessWindowFrames() -> [CGRect] {
     NSApp.windows.compactMap { window in
-      guard
-        window !== destinationWindow,
-        window.isVisible,
-        window.alphaValue > 0,
-        !window.isMiniaturized,
-        !window.ignoresMouseEvents
-      else { return nil }
-      return window.frame
-    }
-  }
-
-  private func externalWindowFrames() -> [CGRect] {
-    guard
-      let windowInfo = CGWindowListCopyWindowInfo(
-        [.optionOnScreenOnly, .excludeDesktopElements],
-        kCGNullWindowID
-      ) as? [[CFString: Any]]
-    else { return [] }
-    let ownProcessID = ProcessInfo.processInfo.processIdentifier
-    let primaryTop = NSScreen.screens.first?.frame.maxY ?? 0
-    return windowInfo.compactMap { info in
-      guard
-        let ownerProcessID = info[kCGWindowOwnerPID] as? Int,
-        ownerProcessID != ownProcessID,
-        let alpha = info[kCGWindowAlpha] as? Double,
-        alpha > 0,
-        let layer = info[kCGWindowLayer] as? Int,
-        layer <= 0,
-        let bounds = info[kCGWindowBounds] as? [String: Any],
-        let quartzFrame = CGRect(dictionaryRepresentation: bounds as CFDictionary)
-      else { return nil }
-      return CGRect(
-        x: quartzFrame.minX,
-        y: primaryTop - quartzFrame.maxY,
-        width: quartzFrame.width,
-        height: quartzFrame.height
+      guard window !== destinationWindow else { return nil }
+      return TerminalTabDesktopDropRouting.currentProcessWindowFrame(
+        window.frame,
+        isVisibleOnActiveSpace: window.isVisible && window.isOnActiveSpace,
+        alphaValue: window.alphaValue,
+        isMiniaturized: window.isMiniaturized,
+        ignoresMouseEvents: window.ignoresMouseEvents
       )
     }
   }

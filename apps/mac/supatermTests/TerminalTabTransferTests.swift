@@ -212,10 +212,14 @@ struct TerminalTabTransferTests {
         )
       )
       var completedOperationID: TerminalTabMoveOperationID?
+      var sourceDisposition: TerminalTabDragRegistry.SourceDisposition?
       #expect(
         registry.tabDragRegistry.begin(
           payload,
-          didTransfer: { completedOperationID = $0 }
+          didTransfer: {
+            completedOperationID = $0
+            sourceDisposition = $1
+          }
         )
       )
 
@@ -232,6 +236,8 @@ struct TerminalTabTransferTests {
       let leaves = try #require(host.trees[tabID]?.leaves())
       #expect(didSplit)
       #expect(completedOperationID == payload.moveOperationID)
+      #expect(sourceDisposition == .retained)
+      #expect(host.spaceManager.tabCollection.topologyRevision == topologyRevision)
       #expect(host.spaceManager.tabCollection.tabs.map(\.id) == [tabID])
       #expect(host.spaceManager.tabCollection.groupID(containing: tabID) == groupID)
       #expect(leaves.count == 2)
@@ -246,7 +252,7 @@ struct TerminalTabTransferTests {
   }
 
   @Test
-  func registryMovesTheSameLiveSurfaceBetweenWindows() throws {
+  func registryUsesTheRequestedDestinationRevision() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -284,16 +290,8 @@ struct TerminalTabTransferTests {
       source.trees[tabID] = SplitTree(view: surface)
       source.surfaces[surface.id] = surface
       source.focusHistoryByTab[tabID] = TerminalHostState.FocusHistory(current: surface.id)
-      let sourceWindow = register(
-        source,
-        id: sourceID,
-        in: registry
-      )
-      let destinationWindow = register(
-        destination,
-        id: destinationID,
-        in: registry
-      )
+      let sourceWindow = register(source, id: sourceID, in: registry)
+      let destinationWindow = register(destination, id: destinationID, in: registry)
       let payload = try #require(
         TerminalTabDragPayload(
           operationID: TerminalTabMoveOperationID(),
@@ -303,28 +301,58 @@ struct TerminalTabTransferTests {
           itemIDs: [.tab(tabID)]
         )
       )
+      let hoveredDestinationRevision = destination.spaceManager.tabCollection.topologyRevision
       var completedOperationID: TerminalTabMoveOperationID?
+      var sourceDisposition: TerminalTabDragRegistry.SourceDisposition?
       #expect(
         registry.tabDragRegistry.begin(
           payload,
-          didTransfer: { completedOperationID = $0 }
+          didTransfer: {
+            completedOperationID = $0
+            sourceDisposition = $1
+          }
         )
       )
+      let concurrentTabID = destination.spaceManager.tabCollection.createTab(
+        title: "Concurrent"
+      )
+
+      let staleResult = registry.tabDragRegistry.performTransfer(
+        payload,
+        to: TerminalTabDragRegistry.Destination(
+          windowControllerID: destinationID,
+          spaceID: space.id,
+          expectedTopologyRevision: hoveredDestinationRevision,
+          placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
+        )
+      )
+
+      #expect(staleResult == nil)
+      #expect(completedOperationID == nil)
+      #expect(sourceDisposition == nil)
+      #expect(source.spaceManager.tabCollection.tabs.map(\.id) == [tabID])
+      #expect(destination.spaceManager.tabCollection.tabs.map(\.id) == [concurrentTabID])
 
       let result = registry.tabDragRegistry.performTransfer(
         payload,
         to: TerminalTabDragRegistry.Destination(
           windowControllerID: destinationID,
           spaceID: space.id,
-          placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
+          expectedTopologyRevision: destination.spaceManager.tabCollection.topologyRevision,
+          placement: .root(TerminalRootPlacement(isPinned: false, index: 1))
         )
       )
 
       #expect(result?.tabIDs == [tabID])
       #expect(completedOperationID == payload.moveOperationID)
+      #expect(sourceDisposition == .removed)
       #expect(source.spaceManager.tabCollection.tabs.isEmpty)
       #expect(source.surfaces[surface.id] == nil)
-      #expect(destination.spaceManager.tabCollection.tabs.map(\.id) == [tabID])
+      #expect(
+        destination.spaceManager.tabCollection.tabs.map(\.id) == [
+          concurrentTabID,
+          tabID,
+        ])
       #expect(destination.surfaces[surface.id] === surface)
       #expect(destination.trees[tabID]?.leaves().first === surface)
       withExtendedLifetime([sourceWindow, destinationWindow]) {}

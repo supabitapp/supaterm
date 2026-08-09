@@ -186,40 +186,62 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func activationRequiresThresholdAcrossMouseEvents() {
+  func activationUsesTheEightPointThreshold() {
     #expect(
       TerminalSidebarDragActivation.decision(
         origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 37.9, y: 20)
+        location: CGPoint(x: 37.9, y: 20),
+        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
       ) == .pending
     )
     #expect(
       TerminalSidebarDragActivation.decision(
         origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 38, y: 20)
+        location: CGPoint(x: 38, y: 20),
+        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
       ) == .begin
     )
   }
 
   @Test
-  func coalescedJumpFarFromTheRowStillBeginsTheDrag() {
+  func thresholdCrossingOutsideTheExpandedRowFailsTheDrag() {
     #expect(
       TerminalSidebarDragActivation.decision(
         origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 34, y: 260)
+        location: CGPoint(x: 34, y: 260),
+        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
+      ) == .failed
+    )
+  }
+
+  @Test
+  func thresholdCrossingInsideTheExpandedRowBeginsTheDrag() {
+    #expect(
+      TerminalSidebarDragActivation.decision(
+        origin: CGPoint(x: 30, y: 20),
+        location: CGPoint(x: 30, y: 47.9),
+        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
       ) == .begin
     )
   }
 
   @Test
-  func captureWaitRefreshesTheEventAfterThePointerReturnsInsideTheThreshold() {
+  func failedGroupDragTogglesOnlyWhenReleaseReturnsInsideTheLiveHeader() {
+    let frame = CGRect(x: 12, y: 40, width: 216, height: 37)
+
     #expect(
-      TerminalSidebarDragActivation.decision(
-        origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 31, y: 20),
-        isWaitingForCapture: true
-      ) == .refresh
+      TerminalSidebarGroupClick.acceptsRelease(
+        CGPoint(x: frame.midX, y: frame.midY),
+        frame: frame
+      )
     )
+    #expect(
+      !TerminalSidebarGroupClick.acceptsRelease(
+        CGPoint(x: frame.midX, y: frame.maxY + 1),
+        frame: frame
+      )
+    )
+    #expect(!TerminalSidebarGroupClick.acceptsRelease(.zero, frame: nil))
   }
 
   @Test
@@ -415,6 +437,89 @@ struct TerminalSidebarMotionTests {
     #expect(destinationWasCompleted)
     #expect(!restored)
     #expect(hostedView.superview == nil)
+  }
+
+  @Test @MainActor
+  func cancellationRestoresTheCapturedSourceProjection() {
+    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
+    let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
+    let hostedView = NSView(frame: source.bounds)
+    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
+    source.addSubview(hostedView)
+    collectionView.addSubview(background)
+    var restoreCount = 0
+    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
+    presentation.begin(
+      TerminalSidebarDragPresentation.Lift(
+        rows: [
+          TerminalSidebarLiftedRow(
+            hostedView: hostedView,
+            sourceFrame: source.frame,
+            restore: {
+              restoreCount += 1
+              source.addSubview(hostedView)
+            }
+          )
+        ],
+        groupBackground: TerminalSidebarLiftedGroupBackground(
+          id: TerminalTabGroupID(),
+          view: background,
+          sourceFrame: background.frame
+        ),
+        fanAnchorIndex: nil,
+        sourceFrame: source.frame,
+        hotspot: .zero,
+        screenPoint: .zero,
+        timestamp: 0
+      ),
+      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
+    )
+
+    presentation.handoffToSource {}
+
+    #expect(restoreCount == 1)
+    #expect(hostedView.superview === source)
+    #expect(background.superview === collectionView)
+  }
+
+  @Test @MainActor
+  func externalSuccessDiscardsTheCapturedSourceProjection() {
+    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
+    let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
+    let hostedView = NSView(frame: source.bounds)
+    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
+    source.addSubview(hostedView)
+    collectionView.addSubview(background)
+    var restoreCount = 0
+    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
+    presentation.begin(
+      TerminalSidebarDragPresentation.Lift(
+        rows: [
+          TerminalSidebarLiftedRow(
+            hostedView: hostedView,
+            sourceFrame: source.frame,
+            restore: { restoreCount += 1 }
+          )
+        ],
+        groupBackground: TerminalSidebarLiftedGroupBackground(
+          id: TerminalTabGroupID(),
+          view: background,
+          sourceFrame: background.frame
+        ),
+        fanAnchorIndex: nil,
+        sourceFrame: source.frame,
+        hotspot: .zero,
+        screenPoint: .zero,
+        timestamp: 0
+      ),
+      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
+    )
+
+    presentation.handoffAfterExternalSuccess {}
+
+    #expect(restoreCount == 0)
+    #expect(hostedView.superview == nil)
+    #expect(background.superview == nil)
   }
 
   @Test

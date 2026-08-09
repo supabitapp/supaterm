@@ -34,6 +34,7 @@ final class TerminalTabDragRegistry {
   struct Destination: Equatable {
     let windowControllerID: UUID
     let spaceID: TerminalSpaceID
+    let expectedTopologyRevision: UInt64
     let placement: TerminalTabPlacement
   }
 
@@ -42,11 +43,27 @@ final class TerminalTabDragRegistry {
     let spaceID: TerminalSpaceID
     let tabID: TerminalTabID
     let side: TerminalTabSplitSide
+
+    func sourceDisposition(for payload: TerminalTabDragPayload) -> SourceDisposition {
+      if payload.sourceWindowID == windowControllerID,
+        payload.sourceSpaceID == spaceID,
+        payload.singleTabID == tabID
+      {
+        .retained
+      } else {
+        .removed
+      }
+    }
   }
 
   enum Outcome: Equatable {
     case cancelled
     case moved
+  }
+
+  enum SourceDisposition: Equatable {
+    case retained
+    case removed
   }
 
   enum PresentationState: Equatable {
@@ -56,8 +73,8 @@ final class TerminalTabDragRegistry {
 
   private struct Session {
     let payload: TerminalTabDragPayload
-    let didTransfer: (TerminalTabMoveOperationID) -> Void
-    let previewImage: NSImage?
+    let didTransfer: (TerminalTabMoveOperationID, SourceDisposition) -> Void
+    var previewImage: NSImage?
     let previewContentSize: CGSize?
     var splitDestinationEntryAction: (() -> Void)?
     var presentationState: PresentationState
@@ -95,7 +112,7 @@ final class TerminalTabDragRegistry {
     previewImage: NSImage? = nil,
     previewContentSize: CGSize? = nil,
     splitDestinationEntryAction: (() -> Void)? = nil,
-    didTransfer: @escaping (TerminalTabMoveOperationID) -> Void = { _ in }
+    didTransfer: @escaping (TerminalTabMoveOperationID, SourceDisposition) -> Void = { _, _ in }
   ) -> Bool {
     guard session == nil else { return false }
     session = Session(
@@ -124,7 +141,7 @@ final class TerminalTabDragRegistry {
     guard let session, session.payload == payload, let result = transfer?(payload, destination) else {
       return nil
     }
-    session.didTransfer(payload.moveOperationID)
+    session.didTransfer(payload.moveOperationID, .removed)
     return result
   }
 
@@ -135,7 +152,7 @@ final class TerminalTabDragRegistry {
     guard let session, session.payload == payload, split?(payload, destination) == true else {
       return false
     }
-    session.didTransfer(payload.moveOperationID)
+    session.didTransfer(payload.moveOperationID, destination.sourceDisposition(for: payload))
     return true
   }
 
@@ -172,6 +189,20 @@ final class TerminalTabDragRegistry {
   }
 
   @discardableResult
+  func updatePreviewImage(
+    _ image: NSImage?,
+    operationID: TerminalTabMoveOperationID
+  ) -> Bool {
+    guard var session, session.payload.moveOperationID == operationID else { return false }
+    session.previewImage = image
+    self.session = session
+    if case .sharedPreview = session.presentationState {
+      previewPresenter.update(image: image)
+    }
+    return true
+  }
+
+  @discardableResult
   func transitionSharedPreview(
     _ payload: TerminalTabDragPayload,
     to type: TerminalTabDragPreviewType
@@ -192,7 +223,7 @@ final class TerminalTabDragRegistry {
       case .sharedPreview(let previewFrame) = session.presentationState,
       detach?(payload, previewFrame) == true
     else { return false }
-    session.didTransfer(payload.moveOperationID)
+    session.didTransfer(payload.moveOperationID, .removed)
     return true
   }
 

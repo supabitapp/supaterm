@@ -135,7 +135,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     host: TerminalSidebarDragController.Host(
       content: { [weak self] in
         guard let self, let context else { return nil }
-        let canBeginDrag = if case .idle = updatePhase { true } else { false }
+        let canBeginDrag = if case .idle = updatePhase { pendingDropHandoff == nil } else { false }
         return TerminalSidebarDragController.Content(
           outline: appliedOutline,
           selectedTabID: selectedTabID,

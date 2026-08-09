@@ -4,31 +4,35 @@ import AppKit
 final class TerminalSidebarNativeDragSession {
   private static let previewContentVerticalInset: CGFloat = 80
 
-  struct SourceCapture {
-    fileprivate let id: UUID
-    fileprivate let previewImage: NSImage?
-    fileprivate let previewContentSize: CGSize
+  private struct SourceCapture {
+    let id: UUID
+    var previewImage: NSImage?
+    let previewContentSize: CGSize
   }
-
-  private typealias CaptureWaiter = @MainActor (SourceCapture) -> Void
 
   private enum Lifecycle {
     case idle
-    case pending(
+    case prepared(
       source: SourceCapture,
-      task: Task<Void, Never>?,
-      waiter: CaptureWaiter?
+      task: Task<Void, Never>?
     )
-    case resolved(source: SourceCapture)
-    case registered(operationID: TerminalTabMoveOperationID)
+    case registered(
+      captureID: UUID,
+      operationID: TerminalTabMoveOperationID,
+      task: Task<Void, Never>?
+    )
 
     var task: Task<Void, Never>? {
-      guard case .pending(_, let task, _) = self else { return nil }
-      return task
+      switch self {
+      case .idle:
+        return nil
+      case .prepared(_, let task), .registered(_, _, let task):
+        return task
+      }
     }
 
     var operationID: TerminalTabMoveOperationID? {
-      guard case .registered(let operationID) = self else { return nil }
+      guard case .registered(_, let operationID, _) = self else { return nil }
       return operationID
     }
   }
@@ -78,6 +82,7 @@ final class TerminalSidebarNativeDragSession {
     previewContentSize: CGSize,
     request: TerminalTabDragCaptureRequest?
   ) -> Bool {
+    guard lifecycle.operationID == nil else { return false }
     cancelSourceCapture()
     let captureID = UUID()
     let source = SourceCapture(
@@ -86,10 +91,10 @@ final class TerminalSidebarNativeDragSession {
       previewContentSize: previewContentSize
     )
     guard let request else {
-      lifecycle = .resolved(source: source)
+      lifecycle = .prepared(source: source, task: nil)
       return true
     }
-    lifecycle = .pending(source: source, task: nil, waiter: nil)
+    lifecycle = .prepared(source: source, task: nil)
     let capture = captureClient.capture
     let task = Task(priority: .userInitiated) { [weak self] in
       let image = await capture(request)
@@ -97,53 +102,36 @@ final class TerminalSidebarNativeDragSession {
       guard !Task.isCancelled else { return }
       captureCompleted(image, captureID: captureID)
     }
-    guard case .pending(let pendingSource, nil, let waiter) = lifecycle,
-      pendingSource.id == captureID
+    guard case .prepared(let preparedSource, nil) = lifecycle,
+      preparedSource.id == captureID
     else {
       task.cancel()
       return true
     }
-    lifecycle = .pending(source: pendingSource, task: task, waiter: waiter)
+    lifecycle = .prepared(source: preparedSource, task: task)
     return true
   }
 
   func cancelSourceCapture() {
+    guard case .prepared = lifecycle else { return }
     lifecycle.task?.cancel()
     lifecycle = .idle
   }
 
-  @discardableResult
-  func whenSourceCaptureResolved(
-    _ completion: @escaping @MainActor (SourceCapture) -> Void
-  ) -> Bool {
-    switch lifecycle {
-    case .idle, .registered:
-      return false
-    case .pending(let source, let task, nil):
-      lifecycle = .pending(source: source, task: task, waiter: completion)
-      return true
-    case .pending:
-      return false
-    case .resolved(let source):
-      completion(source)
-      return true
-    }
-  }
-
   func register(
     _ payload: TerminalTabDragPayload,
-    source: SourceCapture,
     splitDestinationEntryAction: (() -> Void)? = nil,
-    didTransfer: @escaping (TerminalTabMoveOperationID) -> Void
+    didTransfer:
+      @escaping (
+        TerminalTabMoveOperationID,
+        TerminalTabDragRegistry.SourceDisposition
+      ) -> Void
   ) -> Bool {
-    guard
-      case .resolved(let preparedSource) = lifecycle,
-      preparedSource.id == source.id
-    else { return false }
+    guard case .prepared(let source, let task) = lifecycle else { return false }
     let didBegin = registry.begin(
       payload,
-      previewImage: preparedSource.previewImage,
-      previewContentSize: preparedSource.previewContentSize,
+      previewImage: source.previewImage,
+      previewContentSize: source.previewContentSize,
       splitDestinationEntryAction: splitDestinationEntryAction,
       didTransfer: didTransfer
     )
@@ -151,7 +139,11 @@ final class TerminalSidebarNativeDragSession {
       cancelSourceCapture()
       return false
     }
-    lifecycle = .registered(operationID: payload.moveOperationID)
+    lifecycle = .registered(
+      captureID: source.id,
+      operationID: payload.moveOperationID,
+      task: task
+    )
     return true
   }
 
@@ -172,7 +164,8 @@ final class TerminalSidebarNativeDragSession {
     outcome: TerminalTabDragRegistry.Outcome
   ) {
     if lifecycle.operationID == operationID {
-      cancelSourceCapture()
+      lifecycle.task?.cancel()
+      lifecycle = .idle
     }
     registry.finish(operationID: operationID, outcome: outcome)
   }
@@ -185,7 +178,7 @@ final class TerminalSidebarNativeDragSession {
     let pasteboardItem = NSPasteboardItem()
     precondition(TerminalTabDragPasteboard.write(payload, to: pasteboardItem))
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-    draggingItem.setDraggingFrame(frame, contents: nil)
+    draggingItem.setDraggingFrame(Self.draggingFrame(for: frame), contents: nil)
     let session = collectionView.beginDraggingSession(
       with: [draggingItem],
       event: event,
@@ -196,16 +189,27 @@ final class TerminalSidebarNativeDragSession {
   }
 
   private func captureCompleted(_ image: NSImage?, captureID: UUID) {
-    guard case .pending(let source, _, let waiter) = lifecycle,
-      source.id == captureID
-    else { return }
-    let resolvedSource = SourceCapture(
-      id: source.id,
-      previewImage: image,
-      previewContentSize: source.previewContentSize
-    )
-    lifecycle = .resolved(source: resolvedSource)
-    waiter?(resolvedSource)
+    switch lifecycle {
+    case .idle:
+      return
+    case .prepared(var source, _) where source.id == captureID:
+      source.previewImage = image
+      lifecycle = .prepared(source: source, task: nil)
+    case .registered(let registeredCaptureID, let operationID, _)
+    where registeredCaptureID == captureID:
+      lifecycle = .registered(
+        captureID: registeredCaptureID,
+        operationID: operationID,
+        task: nil
+      )
+      registry.updatePreviewImage(image, operationID: operationID)
+    case .prepared, .registered:
+      return
+    }
+  }
+
+  static func draggingFrame(for sourceFrame: CGRect) -> CGRect {
+    CGRect(origin: sourceFrame.origin, size: CGSize(width: 1, height: 1))
   }
 
   private var liveSourceSurfaceFrame: CGRect {

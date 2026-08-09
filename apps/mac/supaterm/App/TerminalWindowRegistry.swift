@@ -195,14 +195,9 @@ final class TerminalWindowRegistry {
       let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
     else { return nil }
     destinationEntry.terminal.warmInstance(for: destination.spaceID)
-    guard
-      let destinationCollection = destinationEntry.terminal.spaceManager.tabCollection(
-        for: destination.spaceID
-      )
-    else { return nil }
     let request = TerminalTabTransferRequest(
       expectedSourceRevision: payload.sourceTopologyRevision,
-      expectedDestinationRevision: destinationCollection.topologyRevision,
+      expectedDestinationRevision: destination.expectedTopologyRevision,
       itemIDs: payload.itemIDs,
       destination: destination.placement
     )
@@ -250,10 +245,7 @@ final class TerminalWindowRegistry {
       let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
       let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
     else { return false }
-    if sourceEntry.windowControllerID == destinationEntry.windowControllerID,
-      payload.sourceSpaceID == destination.spaceID,
-      sourceTabID == destination.tabID
-    {
+    if destination.sourceDisposition(for: payload) == .retained {
       let didSplit = sourceEntry.terminal.splitSelectedTabWithNewPane(
         sourceTabID,
         expectedTopologyRevision: payload.sourceTopologyRevision,
@@ -405,6 +397,7 @@ final class TerminalWindowRegistry {
     let destination = TerminalTabDragRegistry.Destination(
       windowControllerID: windowControllerID,
       spaceID: spaceID,
+      expectedTopologyRevision: collection.topologyRevision,
       placement: .root(TerminalRootPlacement(isPinned: false, index: regularIndex))
     )
     guard tabDragRegistry.performTransfer(payload, to: destination) != nil else { return false }
