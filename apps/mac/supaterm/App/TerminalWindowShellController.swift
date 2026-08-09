@@ -379,10 +379,12 @@ final class TerminalWindowShellController: NSViewController {
       dragDestinationExited()
       return []
     }
-    guard
-      let sourceTabID = payload.singleTabID,
-      let destination = splitDestination(sourceTabID)
-    else {
+    guard let sourceTabID = payload.singleTabID else {
+      dragDestinationExited()
+      return []
+    }
+    tabDragRegistry.consumeSplitDestinationEntryAction(for: payload)
+    guard let destination = splitDestination(sourceTabID) else {
       dragDestinationExited()
       return []
     }

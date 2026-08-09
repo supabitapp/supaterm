@@ -141,6 +141,7 @@ final class TerminalSidebarNativeDragSession {
   func register(
     _ payload: TerminalTabDragPayload,
     source: SourceCapture,
+    splitDestinationEntryAction: (() -> Void)? = nil,
     didTransfer: @escaping (TerminalTabMoveOperationID) -> Void
   ) -> Bool {
     guard
@@ -152,6 +153,7 @@ final class TerminalSidebarNativeDragSession {
       previewImage: preparedSource.previewImage,
       previewContentSize: preparedSource.previewContentSize,
       sourceSurfaceFrame: preparedSource.sourceSurfaceFrame,
+      splitDestinationEntryAction: splitDestinationEntryAction,
       didTransfer: didTransfer
     )
     guard didBegin else {

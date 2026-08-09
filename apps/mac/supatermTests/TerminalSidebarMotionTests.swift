@@ -34,7 +34,7 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func plainSingleTabDragHandsSelectionBackToThePriorTab() throws {
+  func plainSingleTabDragRestoresOnlyItsPriorSelection() throws {
     let prior = TerminalTabID()
     let dragged = TerminalTabID()
 
@@ -47,10 +47,25 @@ struct TerminalSidebarMotionTests {
       )
     )
 
-    #expect(handoff.draggedTabID == dragged)
     #expect(handoff.priorTabID == prior)
-    #expect(handoff.tabIDToRestore(liveSelectedTabID: dragged) == prior)
-    #expect(handoff.tabIDToRestore(liveSelectedTabID: TerminalTabID()) == nil)
+    #expect(
+      handoff.tabIDToRestore(
+        draggedTabID: dragged,
+        liveSelectedTabID: dragged
+      ) == prior
+    )
+    #expect(
+      handoff.tabIDToRestore(
+        draggedTabID: dragged,
+        liveSelectedTabID: prior
+      ) == nil
+    )
+    #expect(
+      handoff.tabIDToRestore(
+        draggedTabID: dragged,
+        liveSelectedTabID: TerminalTabID()
+      ) == nil
+    )
   }
 
   @Test

@@ -470,6 +470,10 @@ final class TerminalSidebarDragController {
       nativeDragSession.register(
         tabDragPayload,
         source: source,
+        splitDestinationEntryAction: makeSplitDestinationSelectionHandoff(
+          pendingDrag.selectionHandoff,
+          draggedTabID: tabDragPayload.singleTabID
+        ),
         didTransfer: { [weak self] in self?.externalTransferDidComplete($0) }
       )
     else {
@@ -510,11 +514,6 @@ final class TerminalSidebarDragController {
         "sourceMaxY=\(TerminalSidebarDragLog.coordinate(geometry.frame.maxY))",
       ]
     )
-    if let tabID = pendingDrag.selectionHandoff?.tabIDToRestore(
-      liveSelectedTabID: content.context.terminal.selectedTabID
-    ) {
-      selectTab(tabID, modifiers: [], content: content)
-    }
     collectionView.finishTrackingRowPointer(entryID: pendingDrag.entryID)
     nativeDragSession.beginDraggingSession(
       payload: tabDragPayload,
@@ -761,6 +760,24 @@ final class TerminalSidebarDragController {
     case .tracking, .frozen, .awaitingNativeEnd: break
     }
     dragPresentation.move(to: screenPoint, presentationState: presentationState)
+  }
+
+  private func makeSplitDestinationSelectionHandoff(
+    _ handoff: TerminalSidebarTabDragSelectionHandoff?,
+    draggedTabID: TerminalTabID?
+  ) -> (() -> Void)? {
+    guard let handoff, let draggedTabID else { return nil }
+    return { [weak self] in
+      guard
+        let self,
+        let content = self.host.content(),
+        let tabID = handoff.tabIDToRestore(
+          draggedTabID: draggedTabID,
+          liveSelectedTabID: content.context.terminal.selectedTabID
+        )
+      else { return }
+      self.selectTab(tabID, modifiers: [], content: content)
+    }
   }
 
   private func nativeDraggingEnded(source: String, operation: NSDragOperation?) {

@@ -206,9 +206,11 @@ struct TerminalTabTransferTests {
       )
       var completedOperationID: TerminalTabMoveOperationID?
       #expect(
-        registry.tabDragRegistry.begin(payload, sourceSurfaceFrame: .zero) {
-          completedOperationID = $0
-        }
+        registry.tabDragRegistry.begin(
+          payload,
+          sourceSurfaceFrame: .zero,
+          didTransfer: { completedOperationID = $0 }
+        )
       )
 
       let result = registry.tabDragRegistry.performTransfer(

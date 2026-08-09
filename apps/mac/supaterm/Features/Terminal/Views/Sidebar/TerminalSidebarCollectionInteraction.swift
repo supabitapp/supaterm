@@ -47,7 +47,6 @@ enum TerminalSidebarTabPressDecision: Equatable {
 }
 
 struct TerminalSidebarTabDragSelectionHandoff: Equatable {
-  let draggedTabID: TerminalTabID
   let priorTabID: TerminalTabID
 
   static func resolve(
@@ -63,10 +62,13 @@ struct TerminalSidebarTabDragSelectionHandoff: Equatable {
       primaryTabID != tabID,
       selectedTabIDs == [tabID]
     else { return nil }
-    return Self(draggedTabID: tabID, priorTabID: primaryTabID)
+    return Self(priorTabID: primaryTabID)
   }
 
-  func tabIDToRestore(liveSelectedTabID: TerminalTabID?) -> TerminalTabID? {
+  func tabIDToRestore(
+    draggedTabID: TerminalTabID,
+    liveSelectedTabID: TerminalTabID?
+  ) -> TerminalTabID? {
     liveSelectedTabID == draggedTabID ? priorTabID : nil
   }
 }

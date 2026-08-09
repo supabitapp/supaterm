@@ -35,12 +35,17 @@ final class TabDragUITests: SupatermUITestCase {
   func testDraggingTabReordersRegularSectionAndPinsAcrossSections() async throws {
     try await createNamedTabs(["First UI Tab", "Second UI Tab", "Third UI Tab"])
 
+    let firstTab = sidebarTabRow(named: "First UI Tab")
+    let thirdTab = sidebarTabRow(named: "Third UI Tab")
+    let didSelectThirdTab = await waitForSidebarSelection(thirdTab)
+    XCTAssertTrue(didSelectThirdTab)
+
     let reorderedTitles = ["Second UI Tab", "Third UI Tab", "First UI Tab"]
     let didReorder = await dragTab(
-      source: sidebarTabRow(named: "First UI Tab"),
-      destination: sidebarTabRow(named: "Third UI Tab"),
+      source: firstTab,
+      destination: thirdTab,
       destinationY: 0.9,
-      until: { self.tabRowsMatch(reorderedTitles) }
+      until: { self.tabRowsMatch(reorderedTitles) && firstTab.isSelected }
     )
     XCTAssertTrue(didReorder)
 
@@ -49,7 +54,6 @@ final class TabDragUITests: SupatermUITestCase {
     let didPinSecondTab = await wait(for: secondTab) { $0.label.contains("Pinned") }
     XCTAssertTrue(didPinSecondTab)
 
-    let thirdTab = sidebarTabRow(named: "Third UI Tab")
     let didPinThirdTab = await dragTab(
       source: thirdTab,
       destination: secondTab,

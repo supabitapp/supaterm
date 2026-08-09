@@ -60,6 +60,7 @@ final class TerminalTabDragRegistry {
     let previewImage: NSImage?
     let previewContentSize: CGSize?
     let sourceSurfaceFrame: CGRect
+    var splitDestinationEntryAction: (() -> Void)?
     var presentationState: PresentationState
   }
 
@@ -95,6 +96,7 @@ final class TerminalTabDragRegistry {
     previewImage: NSImage? = nil,
     previewContentSize: CGSize? = nil,
     sourceSurfaceFrame: CGRect,
+    splitDestinationEntryAction: (() -> Void)? = nil,
     didTransfer: @escaping (TerminalTabMoveOperationID) -> Void = { _ in }
   ) -> Bool {
     guard session == nil else { return false }
@@ -104,6 +106,7 @@ final class TerminalTabDragRegistry {
       previewImage: previewImage,
       previewContentSize: previewContentSize,
       sourceSurfaceFrame: sourceSurfaceFrame,
+      splitDestinationEntryAction: splitDestinationEntryAction,
       presentationState: .sourceSurface
     )
     lastOutcome = nil
@@ -137,6 +140,14 @@ final class TerminalTabDragRegistry {
     }
     session.didTransfer(payload.moveOperationID)
     return true
+  }
+
+  func consumeSplitDestinationEntryAction(for payload: TerminalTabDragPayload) {
+    guard payload.singleTabID != nil, var session, session.payload == payload else { return }
+    let action = session.splitDestinationEntryAction
+    session.splitDestinationEntryAction = nil
+    self.session = session
+    action?()
   }
 
   func move(to screenPoint: CGPoint) -> PresentationState? {

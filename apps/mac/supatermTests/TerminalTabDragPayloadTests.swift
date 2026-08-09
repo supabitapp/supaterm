@@ -170,6 +170,47 @@ struct TerminalTabDragPayloadTests {
   }
 
   @Test
+  func splitDestinationEntryConsumesItsHandoffOnce() throws {
+    let registry = TerminalTabDragRegistry(previewPresenter: TerminalTabDragPreviewRecorder())
+    let payload = try #require(
+      TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: UUID(),
+        sourceSpaceID: TerminalSpaceID(),
+        sourceTopologyRevision: 0,
+        itemIDs: [.tab(TerminalTabID())]
+      )
+    )
+    let other = try #require(
+      TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: UUID(),
+        sourceSpaceID: TerminalSpaceID(),
+        sourceTopologyRevision: 0,
+        itemIDs: [.tab(TerminalTabID())]
+      )
+    )
+    var entryCount = 0
+
+    #expect(
+      registry.begin(
+        payload,
+        sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700),
+        splitDestinationEntryAction: { entryCount += 1 }
+      )
+    )
+    _ = registry.move(to: CGPoint(x: 120, y: 350))
+    _ = registry.move(to: CGPoint(x: 800, y: 500))
+    #expect(entryCount == 0)
+
+    registry.consumeSplitDestinationEntryAction(for: other)
+    #expect(entryCount == 0)
+    registry.consumeSplitDestinationEntryAction(for: payload)
+    registry.consumeSplitDestinationEntryAction(for: payload)
+    #expect(entryCount == 1)
+  }
+
+  @Test
   func registryHandsOffAtTheSourceSurfaceAndDetachesAtTheSharedPreviewFrame() throws {
     let previewPresenter = TerminalTabDragPreviewRecorder()
     let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)
