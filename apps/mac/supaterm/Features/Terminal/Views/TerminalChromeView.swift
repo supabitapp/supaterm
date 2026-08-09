@@ -33,9 +33,6 @@ enum TerminalFloatingSidebarShellMetrics {
   static let cornerRadius = TerminalChromeMetrics.paneCornerRadius
   static let shadowRadius: CGFloat = 16
   static let shadowYOffset: CGFloat = 6
-  static var shape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-  }
 }
 
 enum TerminalCoordinateSpace {
@@ -56,37 +53,51 @@ private struct TerminalPaneSurfaceModifier: ViewModifier {
   }
 }
 
-struct TerminalFloatingSidebarShell<Content: View>: View {
+struct TerminalSidebarSurfaceShell<Content: View>: View {
   let palette: Palette
+  let isFloating: Bool
   let content: Content
 
-  init(palette: Palette, @ViewBuilder content: () -> Content) {
+  init(
+    palette: Palette,
+    isFloating: Bool,
+    @ViewBuilder content: () -> Content
+  ) {
     self.palette = palette
+    self.isFloating = isFloating
     self.content = content()
   }
 
   var body: some View {
     content
-      .padding(TerminalFloatingSidebarShellMetrics.contentInset)
+      .padding(isFloating ? TerminalFloatingSidebarShellMetrics.contentInset : 0)
       .background {
         ChromeBackgroundView(
           palette: palette,
-          material: .popover,
-          blendingMode: .withinWindow
+          material: isFloating ? .popover : .underWindowBackground,
+          blendingMode: isFloating ? .withinWindow : .behindWindow
         )
       }
-      .compositingGroup()
-      .clipShape(TerminalFloatingSidebarShellMetrics.shape)
+      .clipShape(surfaceShape)
       .overlay {
-        TerminalFloatingSidebarShellMetrics.shape
-          .stroke(palette.floatingSidebarBorder, lineWidth: TerminalFloatingSidebarShellMetrics.borderWidth)
+        surfaceShape.stroke(
+          palette.floatingSidebarBorder.opacity(isFloating ? 1 : 0),
+          lineWidth: TerminalFloatingSidebarShellMetrics.borderWidth
+        )
       }
       .shadow(
-        color: palette.shadow,
+        color: palette.shadow.opacity(isFloating ? 1 : 0),
         radius: TerminalFloatingSidebarShellMetrics.shadowRadius,
         x: 0,
         y: TerminalFloatingSidebarShellMetrics.shadowYOffset
       )
+  }
+
+  private var surfaceShape: RoundedRectangle {
+    RoundedRectangle(
+      cornerRadius: isFloating ? TerminalFloatingSidebarShellMetrics.cornerRadius : 0,
+      style: .continuous
+    )
   }
 }
 

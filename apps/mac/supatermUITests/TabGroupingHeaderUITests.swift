@@ -35,6 +35,30 @@ final class TabGroupingHeaderUITests: SupatermUITestCase {
   }
 
   @MainActor
+  func testCollapsedGroupSurvivesSidebarToggle() async throws {
+    try await createNamedTabs(["Seed", "Root"])
+    try await createGroup(named: "Toggle", containing: "Seed")
+    let header = try require(sidebarGroupHeader(named: "Toggle"))
+
+    header.click()
+    let didCollapse = await wait(for: sidebarStructuralTabRow(named: "Seed")) { !$0.exists }
+    XCTAssertTrue(didCollapse)
+
+    try clickMenuItem(.toggleSidebar)
+    let didHide = await wait(for: header) { !$0.isHittable }
+    XCTAssertTrue(didHide)
+
+    try clickMenuItem(.toggleSidebar)
+    let restoredHeader = sidebarGroupHeader(named: "Toggle")
+    let didRestore = await wait(for: restoredHeader) {
+      $0.isHittable && ($0.value as? String) == "Collapsed"
+    }
+    XCTAssertTrue(didRestore)
+    XCTAssertTrue(sidebarStructuralTabRow(named: "Root").isHittable)
+    XCTAssertFalse(sidebarStructuralTabRow(named: "Seed").exists)
+  }
+
+  @MainActor
   func testNewTabCommandsChooseRootOrSelectedGroup() async throws {
     try await createNamedTabs(["Seed"])
     try await createGroup(named: "Target", containing: "Seed")

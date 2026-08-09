@@ -29,13 +29,11 @@ struct TerminalWindowSidebarRoot: View {
 
   var body: some View {
     ZStack(alignment: .trailing) {
-      if shellState.isFloating {
-        TerminalFloatingSidebarShell(palette: palette) {
-          sidebar
-        }
-      } else {
+      TerminalSidebarSurfaceShell(
+        palette: palette,
+        isFloating: shellState.isFloating
+      ) {
         sidebar
-          .background(ChromeBackgroundView(palette: palette))
       }
 
       SidebarResizeHandle(

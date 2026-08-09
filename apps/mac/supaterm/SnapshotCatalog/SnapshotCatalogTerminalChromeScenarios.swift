@@ -164,7 +164,7 @@ private struct FloatingSidebarSnapshotFixture: View {
         Color.clear
       }
 
-      TerminalFloatingSidebarShell(palette: palette) {
+      TerminalSidebarSurfaceShell(palette: palette, isFloating: true) {
         TerminalSidebarView(
           store: SidebarChromeSnapshotContext.windowStore(),
           updateStore: SidebarChromeSnapshotContext.updateStore(),
