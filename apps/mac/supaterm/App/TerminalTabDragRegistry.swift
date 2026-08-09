@@ -1,5 +1,10 @@
 import AppKit
 
+enum TerminalTabDragPreviewType: Equatable {
+  case window
+  case contentPane
+}
+
 extension NSPasteboard.PasteboardType {
   static let terminalTabDrag = NSPasteboard.PasteboardType(
     "app.supaterm.terminal-tab-drag.v1"
@@ -46,13 +51,13 @@ final class TerminalTabDragRegistry {
 
   enum PresentationState: Equatable {
     case sourceSurface
-    case sharedPreview(CGRect)
+    case sharedPreview(frame: CGRect)
   }
 
   private struct Session {
     let payload: TerminalTabDragPayload
     let didTransfer: (TerminalTabMoveOperationID) -> Void
-    let previewImage: NSImage?
+    var previewImage: NSImage?
     let previewContentSize: CGSize?
     let sourceSurfaceFrame: CGRect
     var presentationState: PresentationState
@@ -76,6 +81,13 @@ final class TerminalTabDragRegistry {
 
   var activePayload: TerminalTabDragPayload? {
     session?.payload
+  }
+
+  func hasSharedPreview(for payload: TerminalTabDragPayload) -> Bool {
+    guard let session, session.payload == payload, case .sharedPreview = session.presentationState else {
+      return false
+    }
+    return true
   }
 
   func begin(
@@ -139,13 +151,43 @@ final class TerminalTabDragRegistry {
         at: screenPoint
       )
       presentationState = .sharedPreview(
-        previewPresenter.show(image: session.previewImage, frame: frame)
+        frame: previewPresenter.show(
+          image: session.previewImage,
+          frame: frame
+        )
       )
     }
     session.presentationState = presentationState
     self.session = session
     sessionMoved?(session.payload, screenPoint)
     return presentationState
+  }
+
+  @discardableResult
+  func updatePreviewImage(
+    _ image: NSImage,
+    operationID: TerminalTabMoveOperationID
+  ) -> Bool {
+    guard var session, session.payload.operationID == operationID.rawValue else { return false }
+    session.previewImage = image
+    self.session = session
+    guard case .sharedPreview = session.presentationState else { return true }
+    previewPresenter.update(image: image)
+    return true
+  }
+
+  @discardableResult
+  func transitionSharedPreview(
+    _ payload: TerminalTabDragPayload,
+    to type: TerminalTabDragPreviewType
+  ) -> Bool {
+    guard
+      let session,
+      session.payload == payload,
+      case .sharedPreview = session.presentationState,
+      type != .contentPane || payload.singleTabID != nil
+    else { return false }
+    return previewPresenter.transition(to: type)
   }
 
   func performDetach(_ payload: TerminalTabDragPayload) -> Bool {

@@ -8,13 +8,16 @@ final class TerminalSidebarControllerCache {
   private var controllersBySpaceID: [TerminalSpaceID: TerminalSidebarListController] = [:]
   private let tabDragRegistry: TerminalTabDragRegistry
   private let windowControllerID: UUID
+  private let captureRequest: () -> TerminalTabDragCaptureRequest?
 
   init(
     windowControllerID: UUID = UUID(),
-    tabDragRegistry: TerminalTabDragRegistry = TerminalTabDragRegistry()
+    tabDragRegistry: TerminalTabDragRegistry = TerminalTabDragRegistry(),
+    captureRequest: @escaping () -> TerminalTabDragCaptureRequest?
   ) {
     self.windowControllerID = windowControllerID
     self.tabDragRegistry = tabDragRegistry
+    self.captureRequest = captureRequest
   }
 
   var count: Int {
@@ -27,7 +30,8 @@ final class TerminalSidebarControllerCache {
     }
     let controller = TerminalSidebarListController(
       windowControllerID: windowControllerID,
-      tabDragRegistry: tabDragRegistry
+      tabDragRegistry: tabDragRegistry,
+      captureRequest: captureRequest
     )
     controllersBySpaceID[spaceID] = controller
     return controller
@@ -110,6 +114,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private var isLayingOut = false
   private let tabDragRegistry: TerminalTabDragRegistry
   private let windowControllerID: UUID
+  private let captureRequest: () -> TerminalTabDragCaptureRequest?
 
   private lazy var collapseAnimator = TerminalSidebarCollapseAnimator(
     collectionView: collectionView,
@@ -126,6 +131,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     sourceSurfaceView: view,
     sourceWindowID: windowControllerID,
     tabDragRegistry: tabDragRegistry,
+    captureRequest: captureRequest,
     host: TerminalSidebarDragController.Host(
       content: { [weak self] in
         guard let self, let context else { return nil }
@@ -151,9 +157,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     )
   )
 
-  init(windowControllerID: UUID, tabDragRegistry: TerminalTabDragRegistry) {
+  init(
+    windowControllerID: UUID,
+    tabDragRegistry: TerminalTabDragRegistry,
+    captureRequest: @escaping () -> TerminalTabDragCaptureRequest?
+  ) {
     self.windowControllerID = windowControllerID
     self.tabDragRegistry = tabDragRegistry
+    self.captureRequest = captureRequest
     super.init(nibName: nil, bundle: nil)
   }
 

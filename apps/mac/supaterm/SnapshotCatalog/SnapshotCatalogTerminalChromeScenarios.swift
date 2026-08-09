@@ -89,7 +89,9 @@ private struct SpaceSwitcherHoverSnapshotFixture: View {
 @MainActor
 private struct TerminalChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
-  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache(
+    captureRequest: { nil }
+  )
 
   private var palette: Palette {
     Palette(
@@ -138,7 +140,9 @@ private struct TerminalChromeSnapshotFixture: View {
 @MainActor
 private struct FloatingSidebarSnapshotFixture: View {
   let appearance: SnapshotAppearance
-  @State private var sidebarControllerCache = TerminalSidebarControllerCache()
+  @State private var sidebarControllerCache = TerminalSidebarControllerCache(
+    captureRequest: { nil }
+  )
 
   private var palette: Palette {
     Palette(
@@ -199,16 +203,16 @@ private struct SplitDropTargetSnapshotView: NSViewRepresentable {
   let appearance: SnapshotAppearance
 
   func makeNSView(context: Context) -> TerminalTabSplitDropOverlayView {
-    TerminalTabSplitDropOverlayView()
+    TerminalTabSplitDropOverlayView(reduceMotion: { true }, performHaptic: { _ in })
   }
 
   func updateNSView(_ nsView: TerminalTabSplitDropOverlayView, context: Context) {
     nsView.appearance = NSAppearance(
       named: appearance == .light ? .aqua : .darkAqua
     )
-    nsView.alphaValue = 1
     nsView.layoutSubtreeIfNeeded()
     let target = TerminalTabSplitDropLayout(bounds: nsView.bounds).rightFrame
-    _ = nsView.update(point: CGPoint(x: target.midX, y: target.midY))
+    let point = CGPoint(x: target.midX, y: target.midY)
+    nsView.render(.targeted(.right), at: point, sharedPreviewReady: true)
   }
 }

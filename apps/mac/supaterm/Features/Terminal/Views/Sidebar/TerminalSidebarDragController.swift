@@ -66,6 +66,7 @@ final class TerminalSidebarDragController {
   private let sourceSurfaceView: NSView
   private let sourceWindowID: UUID
   private let tabDragRegistry: TerminalTabDragRegistry
+  private let captureRequest: () -> TerminalTabDragCaptureRequest?
   private let host: Host
   private var pendingDrag: PendingDrag?
   private var activeDrag: ActiveDrag?
@@ -87,7 +88,9 @@ final class TerminalSidebarDragController {
   private lazy var nativeDragSession = TerminalSidebarNativeDragSession(
     collectionView: collectionView,
     sourceSurfaceView: sourceSurfaceView,
-    registry: tabDragRegistry
+    registry: tabDragRegistry,
+    captureClient: .live,
+    captureRequest: captureRequest
   )
   private lazy var externalDropController = TerminalSidebarExternalDropController(
     configuration: TerminalSidebarExternalDropController.Configuration(
@@ -125,6 +128,7 @@ final class TerminalSidebarDragController {
     sourceSurfaceView: NSView,
     sourceWindowID: UUID,
     tabDragRegistry: TerminalTabDragRegistry,
+    captureRequest: @escaping () -> TerminalTabDragCaptureRequest?,
     host: Host
   ) {
     self.collectionView = collectionView
@@ -133,6 +137,7 @@ final class TerminalSidebarDragController {
     self.sourceSurfaceView = sourceSurfaceView
     self.sourceWindowID = sourceWindowID
     self.tabDragRegistry = tabDragRegistry
+    self.captureRequest = captureRequest
     self.host = host
     collectionView.onRowMouseDown = { [weak self] entryID, event in
       self?.rowMouseDown(entryID: entryID, event: event) == true
@@ -211,7 +216,9 @@ final class TerminalSidebarDragController {
   }
 
   private func rowMouseDown(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
-    guard activeDrag == nil, let content = host.content() else { return false }
+    guard activeDrag == nil else { return false }
+    nativeDragSession.cancelSourceCapture()
+    guard let content = host.content() else { return false }
     let consumesClick = if case .tab = entryID { true } else { false }
     guard content.canBeginDrag else {
       selectPressedTab(entryID, modifiers: event.modifierFlags, content: content)
@@ -247,6 +254,7 @@ final class TerminalSidebarDragController {
       selectedTabIDs: selection.selectedTabIDs,
       defersSelection: selection.defersSelection
     )
+    nativeDragSession.prepareSourceCapture()
     switch entryID {
     case .group:
       return true
@@ -268,7 +276,10 @@ final class TerminalSidebarDragController {
       return false
     case .begin:
       self.pendingDrag = nil
-      guard let content = host.content() else { return false }
+      guard let content = host.content() else {
+        nativeDragSession.cancelSourceCapture()
+        return false
+      }
       let beganDragging = beginDragging(
         entryID: entryID,
         event: event,
@@ -277,6 +288,7 @@ final class TerminalSidebarDragController {
         content: content
       )
       if !beganDragging {
+        nativeDragSession.cancelSourceCapture()
         resolveDeferredSelection(pendingDrag, content: content)
       }
       return beganDragging
@@ -285,6 +297,9 @@ final class TerminalSidebarDragController {
 
   private func rowMouseUp(entryID: TerminalSidebarEntryID, event _: NSEvent) -> Bool {
     let consumes = activeDrag != nil && pendingDrag?.entryID == nil
+    if activeDrag == nil {
+      nativeDragSession.cancelSourceCapture()
+    }
     guard let pendingDrag, pendingDrag.entryID == entryID else { return consumes }
     self.pendingDrag = nil
     guard let content = host.content() else { return consumes }
@@ -709,6 +724,7 @@ final class TerminalSidebarDragController {
 
   private func nativeDraggingEnded(source: String, operation: NSDragOperation?) {
     pendingDrag = nil
+    nativeDragSession.cancelSourceCapture()
     isDraggingOverPinnedControl = false
     autoscrollController.stop()
     externalDropController.clear()
