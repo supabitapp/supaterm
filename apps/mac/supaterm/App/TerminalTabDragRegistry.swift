@@ -57,7 +57,7 @@ final class TerminalTabDragRegistry {
   private struct Session {
     let payload: TerminalTabDragPayload
     let didTransfer: (TerminalTabMoveOperationID) -> Void
-    var previewImage: NSImage?
+    let previewImage: NSImage?
     let previewContentSize: CGSize?
     let sourceSurfaceFrame: CGRect
     var presentationState: PresentationState
@@ -161,19 +161,6 @@ final class TerminalTabDragRegistry {
     self.session = session
     sessionMoved?(session.payload, screenPoint)
     return presentationState
-  }
-
-  @discardableResult
-  func updatePreviewImage(
-    _ image: NSImage,
-    operationID: TerminalTabMoveOperationID
-  ) -> Bool {
-    guard var session, session.payload.operationID == operationID.rawValue else { return false }
-    session.previewImage = image
-    self.session = session
-    guard case .sharedPreview = session.presentationState else { return true }
-    previewPresenter.update(image: image)
-    return true
   }
 
   @discardableResult

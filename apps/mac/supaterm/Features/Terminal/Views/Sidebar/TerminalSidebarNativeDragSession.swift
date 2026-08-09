@@ -11,26 +11,25 @@ final class TerminalSidebarNativeDragSession {
     fileprivate let sourceSurfaceFrame: CGRect
   }
 
+  private typealias CaptureWaiter = @MainActor (SourceCapture) -> Void
+
   private enum Lifecycle {
     case idle
-    case prepared(source: SourceCapture, task: Task<Void, Never>?)
-    case registered(
-      captureID: UUID,
-      operationID: TerminalTabMoveOperationID,
-      task: Task<Void, Never>?
+    case pending(
+      source: SourceCapture,
+      task: Task<Void, Never>?,
+      waiter: CaptureWaiter?
     )
+    case resolved(source: SourceCapture)
+    case registered(operationID: TerminalTabMoveOperationID)
 
     var task: Task<Void, Never>? {
-      switch self {
-      case .idle:
-        nil
-      case .prepared(_, let task), .registered(_, _, let task):
-        task
-      }
+      guard case .pending(_, let task, _) = self else { return nil }
+      return task
     }
 
     var operationID: TerminalTabMoveOperationID? {
-      guard case .registered(_, let operationID, _) = self else { return nil }
+      guard case .registered(let operationID) = self else { return nil }
       return operationID
     }
   }
@@ -95,9 +94,10 @@ final class TerminalSidebarNativeDragSession {
       sourceSurfaceFrame: sourceSurfaceFrame
     )
     guard let request else {
-      lifecycle = .prepared(source: source, task: nil)
+      lifecycle = .resolved(source: source)
       return true
     }
+    lifecycle = .pending(source: source, task: nil, waiter: nil)
     let capture = captureClient.capture
     let task = Task(priority: .userInitiated) { [weak self] in
       let image = await capture(request)
@@ -105,7 +105,13 @@ final class TerminalSidebarNativeDragSession {
       guard !Task.isCancelled else { return }
       captureCompleted(image, captureID: captureID)
     }
-    lifecycle = .prepared(source: source, task: task)
+    guard case .pending(let pendingSource, nil, let waiter) = lifecycle,
+      pendingSource.id == captureID
+    else {
+      task.cancel()
+      return true
+    }
+    lifecycle = .pending(source: pendingSource, task: task, waiter: waiter)
     return true
   }
 
@@ -114,9 +120,22 @@ final class TerminalSidebarNativeDragSession {
     lifecycle = .idle
   }
 
-  func captureSource() -> SourceCapture? {
-    guard case .prepared(let source, _) = lifecycle else { return nil }
-    return source
+  @discardableResult
+  func whenSourceCaptureResolved(
+    _ completion: @escaping @MainActor (SourceCapture) -> Void
+  ) -> Bool {
+    switch lifecycle {
+    case .idle, .registered:
+      return false
+    case .pending(let source, let task, nil):
+      lifecycle = .pending(source: source, task: task, waiter: completion)
+      return true
+    case .pending:
+      return false
+    case .resolved(let source):
+      completion(source)
+      return true
+    }
   }
 
   func register(
@@ -125,7 +144,7 @@ final class TerminalSidebarNativeDragSession {
     didTransfer: @escaping (TerminalTabMoveOperationID) -> Void
   ) -> Bool {
     guard
-      case .prepared(let preparedSource, let task) = lifecycle,
+      case .resolved(let preparedSource) = lifecycle,
       preparedSource.id == source.id
     else { return false }
     let didBegin = registry.begin(
@@ -139,11 +158,7 @@ final class TerminalSidebarNativeDragSession {
       cancelSourceCapture()
       return false
     }
-    lifecycle = .registered(
-      captureID: source.id,
-      operationID: payload.moveOperationID,
-      task: task
-    )
+    lifecycle = .registered(operationID: payload.moveOperationID)
     return true
   }
 
@@ -183,29 +198,16 @@ final class TerminalSidebarNativeDragSession {
   }
 
   private func captureCompleted(_ image: NSImage?, captureID: UUID) {
-    switch lifecycle {
-    case .idle:
-      return
-    case .prepared(let source, _):
-      guard source.id == captureID else { return }
-      lifecycle = .prepared(
-        source: SourceCapture(
-          id: source.id,
-          previewImage: image,
-          previewContentSize: source.previewContentSize,
-          sourceSurfaceFrame: source.sourceSurfaceFrame
-        ),
-        task: nil
-      )
-    case .registered(let registeredCaptureID, let operationID, _):
-      guard registeredCaptureID == captureID else { return }
-      lifecycle = .registered(
-        captureID: registeredCaptureID,
-        operationID: operationID,
-        task: nil
-      )
-      guard let image else { return }
-      registry.updatePreviewImage(image, operationID: operationID)
-    }
+    guard case .pending(let source, _, let waiter) = lifecycle,
+      source.id == captureID
+    else { return }
+    let resolvedSource = SourceCapture(
+      id: source.id,
+      previewImage: image,
+      previewContentSize: source.previewContentSize,
+      sourceSurfaceFrame: source.sourceSurfaceFrame
+    )
+    lifecycle = .resolved(source: resolvedSource)
+    waiter?(resolvedSource)
   }
 }

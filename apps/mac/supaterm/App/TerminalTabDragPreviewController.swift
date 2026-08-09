@@ -102,7 +102,6 @@ struct TerminalTabDragPreviewLayout {
 @MainActor
 protocol TerminalTabDragPreviewPresenting: AnyObject {
   func show(image: NSImage?, frame: CGRect) -> CGRect
-  func update(image: NSImage)
   func transition(to type: TerminalTabDragPreviewType) -> Bool
   func hide()
 }
@@ -139,11 +138,6 @@ final class TerminalTabDragPreviewController: TerminalTabDragPreviewPresenting {
       type,
       animated: panel?.isVisible == true && !reduceMotion()
     )
-  }
-
-  func update(image: NSImage) {
-    guard image.isValid else { return }
-    snapshotView.image = image
   }
 
   func hide() {

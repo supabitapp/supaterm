@@ -4,14 +4,17 @@ enum TerminalSidebarDragActivation {
   enum Decision: Equatable {
     case pending
     case begin
+    case refresh
   }
 
   static let threshold: CGFloat = 8
 
   static func decision(
     origin: CGPoint,
-    location: CGPoint
+    location: CGPoint,
+    isWaitingForCapture: Bool = false
   ) -> Decision {
+    if isWaitingForCapture { return .refresh }
     guard hypot(location.x - origin.x, location.y - origin.y) >= threshold else {
       return .pending
     }
@@ -40,6 +43,31 @@ enum TerminalSidebarTabPressDecision: Equatable {
       selectedTabIDs.contains(tabID)
     else { return .applySelection }
     return .deferSelection(selectedTabIDs)
+  }
+}
+
+struct TerminalSidebarTabDragSelectionHandoff: Equatable {
+  let draggedTabID: TerminalTabID
+  let priorTabID: TerminalTabID
+
+  static func resolve(
+    entryID: TerminalSidebarEntryID,
+    primaryTabID: TerminalTabID?,
+    modifiers: NSEvent.ModifierFlags,
+    selectedTabIDs: [TerminalTabID]
+  ) -> Self? {
+    guard
+      case .tab(let tabID) = entryID,
+      modifiers.isDisjoint(with: [.command, .shift, .option, .control]),
+      let primaryTabID,
+      primaryTabID != tabID,
+      selectedTabIDs == [tabID]
+    else { return nil }
+    return Self(draggedTabID: tabID, priorTabID: primaryTabID)
+  }
+
+  func tabIDToRestore(liveSelectedTabID: TerminalTabID?) -> TerminalTabID? {
+    liveSelectedTabID == draggedTabID ? priorTabID : nil
   }
 }
 
@@ -168,6 +196,7 @@ struct TerminalSidebarDropHandoff: Equatable {
 @MainActor
 final class TerminalSidebarCollectionView: NSCollectionView {
   private var pointerTrackingArea: NSTrackingArea?
+  private weak var trackingRowPointer: TerminalSidebarRowPointerNSView?
 
   var onRowMouseDown: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
   var onRowMouseDragged: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
@@ -232,6 +261,21 @@ final class TerminalSidebarCollectionView: NSCollectionView {
 
   func rowMouseUp(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
     onRowMouseUp?(entryID, event) == true
+  }
+
+  func beginTrackingRowPointer(_ pointer: TerminalSidebarRowPointerNSView) {
+    trackingRowPointer?.finishTracking()
+    trackingRowPointer = pointer
+  }
+
+  func finishTrackingRowPointer(_ pointer: TerminalSidebarRowPointerNSView) {
+    guard trackingRowPointer === pointer else { return }
+    trackingRowPointer = nil
+  }
+
+  func finishTrackingRowPointer(entryID: TerminalSidebarEntryID) {
+    guard trackingRowPointer?.entryID == entryID else { return }
+    trackingRowPointer?.finishTracking()
   }
 
   private func updatePointer(with event: NSEvent) {

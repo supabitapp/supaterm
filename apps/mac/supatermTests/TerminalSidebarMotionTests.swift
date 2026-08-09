@@ -34,6 +34,80 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
+  func plainSingleTabDragHandsSelectionBackToThePriorTab() throws {
+    let prior = TerminalTabID()
+    let dragged = TerminalTabID()
+
+    let handoff = try #require(
+      TerminalSidebarTabDragSelectionHandoff.resolve(
+        entryID: .tab(dragged),
+        primaryTabID: prior,
+        modifiers: [],
+        selectedTabIDs: [dragged]
+      )
+    )
+
+    #expect(handoff.draggedTabID == dragged)
+    #expect(handoff.priorTabID == prior)
+    #expect(handoff.tabIDToRestore(liveSelectedTabID: dragged) == prior)
+    #expect(handoff.tabIDToRestore(liveSelectedTabID: TerminalTabID()) == nil)
+  }
+
+  @Test
+  func selectionHandoffExcludesSelectedModifiedAndBatchDrags() {
+    let prior = TerminalTabID()
+    let dragged = TerminalTabID()
+
+    #expect(
+      TerminalSidebarTabDragSelectionHandoff.resolve(
+        entryID: .tab(dragged),
+        primaryTabID: dragged,
+        modifiers: [],
+        selectedTabIDs: [dragged]
+      ) == nil
+    )
+    for modifiers in [
+      NSEvent.ModifierFlags.command,
+      .shift,
+      .option,
+      .control,
+    ] {
+      #expect(
+        TerminalSidebarTabDragSelectionHandoff.resolve(
+          entryID: .tab(dragged),
+          primaryTabID: prior,
+          modifiers: modifiers,
+          selectedTabIDs: [dragged]
+        ) == nil
+      )
+    }
+    #expect(
+      TerminalSidebarTabDragSelectionHandoff.resolve(
+        entryID: .tab(dragged),
+        primaryTabID: prior,
+        modifiers: [],
+        selectedTabIDs: [prior, dragged]
+      ) == nil
+    )
+    #expect(
+      TerminalSidebarTabDragSelectionHandoff.resolve(
+        entryID: .tab(dragged),
+        primaryTabID: nil,
+        modifiers: [],
+        selectedTabIDs: [dragged]
+      ) == nil
+    )
+    #expect(
+      TerminalSidebarTabDragSelectionHandoff.resolve(
+        entryID: .group(TerminalTabGroupID()),
+        primaryTabID: prior,
+        modifiers: [],
+        selectedTabIDs: [dragged]
+      ) == nil
+    )
+  }
+
+  @Test
   func activationRequiresThresholdAcrossMouseEvents() {
     #expect(
       TerminalSidebarDragActivation.decision(
@@ -56,6 +130,17 @@ struct TerminalSidebarMotionTests {
         origin: CGPoint(x: 30, y: 20),
         location: CGPoint(x: 34, y: 260)
       ) == .begin
+    )
+  }
+
+  @Test
+  func captureWaitRefreshesTheEventAfterThePointerReturnsInsideTheThreshold() {
+    #expect(
+      TerminalSidebarDragActivation.decision(
+        origin: CGPoint(x: 30, y: 20),
+        location: CGPoint(x: 31, y: 20),
+        isWaitingForCapture: true
+      ) == .refresh
     )
   }
 

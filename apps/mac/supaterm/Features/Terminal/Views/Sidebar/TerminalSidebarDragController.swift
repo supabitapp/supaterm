@@ -38,10 +38,13 @@ final class TerminalSidebarDragController {
   }
 
   private struct PendingDrag {
+    let id: UUID
     let entryID: TerminalSidebarEntryID
     let origin: CGPoint
     let selectedTabIDs: [TerminalTabID]
     let defersSelection: Bool
+    let selectionHandoff: TerminalSidebarTabDragSelectionHandoff?
+    var activationEvent: NSEvent?
   }
 
   private struct DragSourceGeometry {
@@ -249,10 +252,18 @@ final class TerminalSidebarDragController {
       content: content
     )
     pendingDrag = PendingDrag(
+      id: UUID(),
       entryID: entryID,
       origin: location,
       selectedTabIDs: selection.selectedTabIDs,
-      defersSelection: selection.defersSelection
+      defersSelection: selection.defersSelection,
+      selectionHandoff: TerminalSidebarTabDragSelectionHandoff.resolve(
+        entryID: entryID,
+        primaryTabID: content.selectedTabID,
+        modifiers: event.modifierFlags,
+        selectedTabIDs: selection.selectedTabIDs
+      ),
+      activationEvent: nil
     )
     nativeDragSession.prepareSourceCapture()
     switch entryID {
@@ -266,32 +277,32 @@ final class TerminalSidebarDragController {
   }
 
   private func rowMouseDragged(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
-    guard let pendingDrag, pendingDrag.entryID == entryID else { return false }
+    guard var pendingDrag, pendingDrag.entryID == entryID else { return false }
     let location = collectionView.convert(event.locationInWindow, from: nil)
     switch TerminalSidebarDragActivation.decision(
       origin: pendingDrag.origin,
-      location: location
+      location: location,
+      isWaitingForCapture: pendingDrag.activationEvent != nil
     ) {
     case .pending:
       return false
+    case .refresh:
+      pendingDrag.activationEvent = event
+      self.pendingDrag = pendingDrag
+      return false
     case .begin:
-      self.pendingDrag = nil
-      guard let content = host.content() else {
-        nativeDragSession.cancelSourceCapture()
+      pendingDrag.activationEvent = event
+      self.pendingDrag = pendingDrag
+      let pendingDragID = pendingDrag.id
+      guard
+        nativeDragSession.whenSourceCaptureResolved({ [weak self] source in
+          self?.sourceCaptureResolved(source, pendingDragID: pendingDragID)
+        })
+      else {
+        self.pendingDrag?.activationEvent = nil
         return false
       }
-      let beganDragging = beginDragging(
-        entryID: entryID,
-        event: event,
-        pointer: location,
-        selectedTabIDs: pendingDrag.selectedTabIDs,
-        content: content
-      )
-      if !beganDragging {
-        nativeDragSession.cancelSourceCapture()
-        resolveDeferredSelection(pendingDrag, content: content)
-      }
-      return beganDragging
+      return activeDrag != nil
     }
   }
 
@@ -323,7 +334,7 @@ final class TerminalSidebarDragController {
     let modifiers = modifiers.intersection([.command, .shift])
     guard !modifiers.isEmpty else {
       content.context.tabSelectionState.clear()
-      _ = content.context.store.send(.tabSelected(tabID))
+      content.context.terminal.selectTab(tabID)
       return
     }
     applyModifiedSelection(tabID: tabID, modifiers: modifiers, content: content)
@@ -373,6 +384,31 @@ final class TerminalSidebarDragController {
     selectTab(tabID, modifiers: [], content: content)
   }
 
+  private func sourceCaptureResolved(
+    _ source: TerminalSidebarNativeDragSession.SourceCapture,
+    pendingDragID: UUID
+  ) {
+    guard
+      let pendingDrag,
+      pendingDrag.id == pendingDragID,
+      let activationEvent = pendingDrag.activationEvent
+    else { return }
+    self.pendingDrag = nil
+    guard let content = host.content() else {
+      nativeDragSession.cancelSourceCapture()
+      return
+    }
+    let beganDragging = beginDragging(
+      pendingDrag: pendingDrag,
+      event: activationEvent,
+      source: source,
+      content: content
+    )
+    guard !beganDragging else { return }
+    nativeDragSession.cancelSourceCapture()
+    resolveDeferredSelection(pendingDrag, content: content)
+  }
+
   private func applyModifiedSelection(
     tabID: TerminalTabID,
     modifiers: NSEvent.ModifierFlags,
@@ -380,7 +416,7 @@ final class TerminalSidebarDragController {
   ) {
     guard let selectedTabID = content.selectedTabID else {
       content.context.tabSelectionState.clear()
-      _ = content.context.store.send(.tabSelected(tabID))
+      content.context.terminal.selectTab(tabID)
       return
     }
     if modifiers.contains(.shift) {
@@ -396,31 +432,30 @@ final class TerminalSidebarDragController {
   }
 
   private func beginDragging(
-    entryID: TerminalSidebarEntryID,
+    pendingDrag: PendingDrag,
     event: NSEvent,
-    pointer: CGPoint,
-    selectedTabIDs: [TerminalTabID],
+    source: TerminalSidebarNativeDragSession.SourceCapture,
     content: Content
   ) -> Bool {
     guard content.canBeginDrag, content.swipe?.isTracking != true else { return false }
-    if case .group = entryID {
+    let pointer = collectionView.convert(event.locationInWindow, from: nil)
+    if case .group = pendingDrag.entryID {
       content.context.tabSelectionState.clear()
     }
     guard
       let payload = content.outline.dragPayload(
-        for: entryID,
-        selectedTabIDs: selectedTabIDs
+        for: pendingDrag.entryID,
+        selectedTabIDs: pendingDrag.selectedTabIDs
       )
     else { return false }
     let liftedEntryIDs = content.outline.liftedEntryIDs(for: payload.source)
     host.setHoveredGroupID(nil)
     content.context.groupHeaderHoverState.set(nil)
-    guard let sourceCapture = nativeDragSession.captureSource() else { return false }
     guard
       let geometry = dragSourceGeometry(
         payload: payload,
         liftedEntryIDs: liftedEntryIDs,
-        anchorEntryID: entryID
+        anchorEntryID: pendingDrag.entryID
       ),
       let liftedRows = liftRows(liftedEntryIDs, itemByID: geometry.itemByID, content: content)
     else { return false }
@@ -434,7 +469,7 @@ final class TerminalSidebarDragController {
       ),
       nativeDragSession.register(
         tabDragPayload,
-        source: sourceCapture,
+        source: source,
         didTransfer: { [weak self] in self?.externalTransferDidComplete($0) }
       )
     else {
@@ -475,6 +510,12 @@ final class TerminalSidebarDragController {
         "sourceMaxY=\(TerminalSidebarDragLog.coordinate(geometry.frame.maxY))",
       ]
     )
+    if let tabID = pendingDrag.selectionHandoff?.tabIDToRestore(
+      liveSelectedTabID: content.context.terminal.selectedTabID
+    ) {
+      selectTab(tabID, modifiers: [], content: content)
+    }
+    collectionView.finishTrackingRowPointer(entryID: pendingDrag.entryID)
     nativeDragSession.beginDraggingSession(
       payload: tabDragPayload,
       frame: geometry.frame,

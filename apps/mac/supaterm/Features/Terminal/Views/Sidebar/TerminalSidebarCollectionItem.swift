@@ -189,8 +189,7 @@ final class TerminalSidebarRowPointerNSView: NSView {
     self.entryID = entryID
     self.setPressed = setPressed
     guard entryChanged, isTracking else { return }
-    isTracking = false
-    self.setPressed(false)
+    finishTracking()
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
@@ -201,11 +200,15 @@ final class TerminalSidebarRowPointerNSView: NSView {
   }
 
   override func mouseDown(with event: NSEvent) {
-    guard collectionView?.rowMouseDown(entryID: entryID, event: event) == true else {
+    guard
+      let collectionView,
+      collectionView.rowMouseDown(entryID: entryID, event: event)
+    else {
       super.mouseDown(with: event)
       return
     }
     isTracking = true
+    collectionView.beginTrackingRowPointer(self)
     setPressed(true)
   }
 
@@ -215,8 +218,7 @@ final class TerminalSidebarRowPointerNSView: NSView {
       return
     }
     if collectionView.rowMouseDragged(entryID: entryID, event: event) {
-      isTracking = false
-      setPressed(false)
+      finishTracking()
     }
   }
 
@@ -225,20 +227,25 @@ final class TerminalSidebarRowPointerNSView: NSView {
       super.mouseUp(with: event)
       return
     }
-    isTracking = false
-    setPressed(false)
+    finishTracking()
     _ = collectionView.rowMouseUp(entryID: entryID, event: event)
   }
 
   override func viewWillMove(toWindow newWindow: NSWindow?) {
     if newWindow == nil, isTracking {
-      isTracking = false
-      setPressed(false)
+      finishTracking()
     }
     super.viewWillMove(toWindow: newWindow)
   }
 
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+  func finishTracking() {
+    guard isTracking else { return }
+    isTracking = false
+    setPressed(false)
+    collectionView?.finishTrackingRowPointer(self)
+  }
 
   private var collectionView: TerminalSidebarCollectionView? {
     var view = superview

@@ -115,6 +115,92 @@ struct TerminalSidebarPointerTests {
   }
 
   @Test
+  func tabRowKeepsMouseUpWhileDragActivationWaits() throws {
+    let collectionView = TerminalSidebarCollectionView(
+      frame: NSRect(x: 0, y: 0, width: 240, height: 60)
+    )
+    let entryID = TerminalSidebarEntryID.tab(TerminalTabID())
+    var pressedStates: [Bool] = []
+    var mouseUpCount = 0
+    collectionView.onRowMouseDown = { id, _ in id == entryID }
+    collectionView.onRowMouseDragged = { _, _ in false }
+    collectionView.onRowMouseUp = { id, _ in
+      mouseUpCount += 1
+      return id == entryID
+    }
+    let pointer = TerminalSidebarRowPointerNSView(entryID: entryID) {
+      pressedStates.append($0)
+    }
+    pointer.frame = collectionView.bounds
+    collectionView.addSubview(pointer)
+    let window = NSWindow(
+      contentRect: collectionView.frame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = collectionView
+    defer { window.contentView = nil }
+    let mouseDown = try #require(
+      mouseEvent(.leftMouseDown, at: .zero, in: window, eventNumber: 1)
+    )
+    let mouseDragged = try #require(
+      mouseEvent(.leftMouseDragged, at: NSPoint(x: 8, y: 0), in: window, eventNumber: 2)
+    )
+    let mouseUp = try #require(
+      mouseEvent(.leftMouseUp, at: NSPoint(x: 8, y: 0), in: window, eventNumber: 3)
+    )
+
+    pointer.mouseDown(with: mouseDown)
+    pointer.mouseDragged(with: mouseDragged)
+    #expect(pressedStates == [true])
+    pointer.mouseUp(with: mouseUp)
+    #expect(pressedStates == [true, false])
+    #expect(mouseUpCount == 1)
+  }
+
+  @Test
+  func nativeDragActivationEndsRowPointerTracking() throws {
+    let collectionView = TerminalSidebarCollectionView(
+      frame: NSRect(x: 0, y: 0, width: 240, height: 60)
+    )
+    let entryID = TerminalSidebarEntryID.tab(TerminalTabID())
+    var pressedStates: [Bool] = []
+    var mouseUpCount = 0
+    collectionView.onRowMouseDown = { id, _ in id == entryID }
+    collectionView.onRowMouseUp = { _, _ in
+      mouseUpCount += 1
+      return true
+    }
+    let pointer = TerminalSidebarRowPointerNSView(entryID: entryID) {
+      pressedStates.append($0)
+    }
+    pointer.frame = collectionView.bounds
+    collectionView.addSubview(pointer)
+    let window = NSWindow(
+      contentRect: collectionView.frame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = collectionView
+    defer { window.contentView = nil }
+    let mouseDown = try #require(
+      mouseEvent(.leftMouseDown, at: .zero, in: window, eventNumber: 1)
+    )
+    let mouseUp = try #require(
+      mouseEvent(.leftMouseUp, at: .zero, in: window, eventNumber: 2)
+    )
+
+    pointer.mouseDown(with: mouseDown)
+    collectionView.finishTrackingRowPointer(entryID: entryID)
+    pointer.mouseUp(with: mouseUp)
+
+    #expect(pressedStates == [true, false])
+    #expect(mouseUpCount == 0)
+  }
+
+  @Test
   func liftedRowCannotBeReboundThroughItsCollectionItem() async throws {
     let fixture = try await fixture()
     defer {

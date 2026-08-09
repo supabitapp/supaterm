@@ -45,11 +45,12 @@ extension TerminalHostState {
     spaceID: TerminalSpaceID
   ) -> TerminalTabID? {
     let tabs = spaceManager.tabs(in: spaceID)
-    guard tabs.contains(where: { $0.id == requestedTabID }) else { return nil }
-    if requestedTabID != sourceTabID, isSelectableTab(requestedTabID) {
-      return requestedTabID
-    }
-    return replacementLiveTabID(in: spaceID, excluding: sourceTabID)
+    guard
+      requestedTabID != sourceTabID,
+      tabs.contains(where: { $0.id == requestedTabID }),
+      isSelectableTab(requestedTabID)
+    else { return nil }
+    return requestedTabID
   }
 
   static func prepareLiveTabTransfer(

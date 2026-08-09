@@ -401,8 +401,6 @@ private final class TerminalWindowShellPreviewRecorder: TerminalTabDragPreviewPr
     frame
   }
 
-  func update(image _: NSImage) {}
-
   func transition(to type: TerminalTabDragPreviewType) -> Bool {
     guard type != currentType else { return false }
     currentType = type

@@ -47,7 +47,7 @@ struct TerminalTabTransferTests {
   }
 
   @Test
-  func splitTransferMovesTheSelectedTabIntoItsPreviousTab() throws {
+  func splitTransferMovesTheSourceTabIntoTheExactDestinationTab() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -66,8 +66,8 @@ struct TerminalTabTransferTests {
       )
       let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
       let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
-      host.applySelectedTab(destinationTabID, in: space.id)
       host.applySelectedTab(sourceTabID, in: space.id)
+      host.applySelectedTab(destinationTabID, in: space.id)
       let destinationSurface = unbackedSurface(runtime: runtime, tabID: destinationTabID)
       let sourceSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
       host.trees[destinationTabID] = SplitTree(view: destinationSurface)
@@ -96,7 +96,7 @@ struct TerminalTabTransferTests {
           host: host,
           side: .left,
           spaceID: space.id,
-          tabID: sourceTabID
+          tabID: destinationTabID
         )
       )
 
@@ -115,16 +115,34 @@ struct TerminalTabTransferTests {
   }
 
   @Test
-  func splitDestinationRejectsASelectedTabWithoutAReplacement() {
+  func splitDestinationDoesNotRetargetTheSourceTab() {
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    let tabID = host.spaceManager.tabCollection.createTab(title: "Only")
+    let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
+    let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
+    host.applySelectedTab(destinationTabID, in: host.displayedSpaceID)
+    host.applySelectedTab(sourceTabID, in: host.displayedSpaceID)
 
     #expect(
       host.liveTabSplitDestinationTabID(
-        sourceTabID: tabID,
-        requestedTabID: tabID,
+        sourceTabID: sourceTabID,
+        requestedTabID: sourceTabID,
         spaceID: host.displayedSpaceID
       ) == nil
+    )
+  }
+
+  @Test
+  func splitDestinationUsesTheExactRequestedLiveTab() {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
+    let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
+
+    #expect(
+      host.liveTabSplitDestinationTabID(
+        sourceTabID: sourceTabID,
+        requestedTabID: destinationTabID,
+        spaceID: host.displayedSpaceID
+      ) == destinationTabID
     )
   }
 

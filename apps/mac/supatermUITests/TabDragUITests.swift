@@ -2,6 +2,36 @@ import XCTest
 
 final class TabDragUITests: SupatermUITestCase {
   @MainActor
+  func testDraggingUnselectedTabToSplitKeepsTheLiveHostSelected() async throws {
+    try await createNamedTabs(["Split Host", "Dragged Source"])
+
+    let host = sidebarTabRow(named: "Split Host")
+    host.click()
+    let didSelectHost = await waitForSidebarSelection(host)
+    XCTAssertTrue(didSelectHost)
+
+    let source = sidebarTabRow(named: "Dragged Source")
+    let destination = mainTerminal.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)
+    )
+    source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+      forDuration: 0.5,
+      thenDragTo: destination,
+      withVelocity: .slow,
+      thenHoldForDuration: 0.5
+    )
+
+    _ = try await requireVisiblePanes(count: 2)
+    let didMergeIntoHost = await wait {
+      self.sidebarTabRows.count == 1
+        && host.exists
+        && host.isSelected
+        && !source.exists
+    }
+    XCTAssertTrue(didMergeIntoHost)
+  }
+
+  @MainActor
   func testDraggingTabReordersRegularSectionAndPinsAcrossSections() async throws {
     try await createNamedTabs(["First UI Tab", "Second UI Tab", "Third UI Tab"])
 

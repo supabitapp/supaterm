@@ -368,8 +368,6 @@ private final class TerminalTabDragPreviewRecorder: TerminalTabDragPreviewPresen
     return true
   }
 
-  func update(image _: NSImage) {}
-
   func hide() {
     isVisible = false
     hideCount += 1
