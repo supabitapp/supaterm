@@ -253,8 +253,6 @@ final class TerminalWindowShellController: NSViewController {
     )? = { nil }
 
   private var detailController: NSViewController?
-  private var detailFrame = CGRect.zero
-  private var layoutBounds = CGRect.null
   private var presentation = TerminalWindowShellPresentation(
     isFloatingSidebarVisible: false,
     isSidebarCollapsed: false,
@@ -267,6 +265,10 @@ final class TerminalWindowShellController: NSViewController {
   private let reduceMotion: () -> Bool
   private let tabDragRegistry: TerminalTabDragRegistry
   private let windowControllerID: UUID
+
+  private var currentLayout: TerminalWindowShellLayout {
+    TerminalWindowShellLayout(bounds: view.bounds, presentation: presentation)
+  }
 
   init(
     windowControllerID: UUID,
@@ -312,7 +314,12 @@ final class TerminalWindowShellController: NSViewController {
 
   override func viewDidLayout() {
     super.viewDidLayout()
-    guard view.bounds != layoutBounds else { return }
+    guard let sidebarController, let detailController else { return }
+    let layout = currentLayout
+    guard
+      sidebarController.view.frame != layout.sidebarFrame
+        || detailController.view.frame != layout.detailFrame
+    else { return }
     applyLayout(motion: .immediate)
   }
 
@@ -375,9 +382,7 @@ final class TerminalWindowShellController: NSViewController {
 
   private func applyLayout(motion: FrameMotion) {
     guard let sidebarController, let detailController else { return }
-    let layout = TerminalWindowShellLayout(bounds: view.bounds, presentation: presentation)
-    layoutBounds = view.bounds
-    detailFrame = layout.detailFrame
+    let layout = currentLayout
     state.apply(layout: layout, presentation: presentation)
     (view as? TerminalWindowShellView)?.setRevealFrame(layout.revealFrame)
     setFrame(layout.sidebarFrame, of: sidebarController.view, motion: motion)
@@ -479,8 +484,9 @@ final class TerminalWindowShellController: NSViewController {
   }
 
   private func removeFrameAnimations(from layer: CALayer?) {
+    guard let layer else { return }
     for property in FrameProperty.allCases {
-      layer?.removeAnimation(forKey: property.animationKey)
+      layer.removeAnimation(forKey: property.animationKey)
     }
   }
 
@@ -501,6 +507,7 @@ final class TerminalWindowShellController: NSViewController {
       return []
     }
     let location = view.convert(info.draggingLocation, from: nil)
+    let detailFrame = currentLayout.detailFrame
     guard detailFrame.contains(location) else {
       dragDestinationExited()
       return []
