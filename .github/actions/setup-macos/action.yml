@@ -5,6 +5,9 @@ inputs:
   cache-native-builds:
     description: Restore and save native dependency build caches
     required: true
+  github-token:
+    description: Authenticate mise downloads
+    required: true
 
 runs:
   using: composite
@@ -14,9 +17,11 @@ runs:
       run: |
         sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
         xcodebuild -version
-    - uses: jdx/mise-action@v4
+    - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+      env:
+        MISE_GITHUB_TOKEN: ${{ inputs.github-token }}
       with:
-        version: 2026.3.0
+        version: 2026.8.5
         cache: true
     - name: Xcode cache key
       shell: bash
@@ -29,7 +34,7 @@ runs:
         TUIST_VERSION="$(mise exec -- tuist version)"
         printf '%s\n' "TUIST_VERSION=$TUIST_VERSION" >> "$GITHUB_ENV"
     - name: Tuist package cache
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
         path: |
           apps/mac/Tuist/.build/repositories
@@ -47,7 +52,7 @@ runs:
         printf '%s\n' "GHOSTTY_FINGERPRINT=$GHOSTTY_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Ghostty cache
       if: ${{ inputs.cache-native-builds == 'true' }}
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
         path: apps/mac/.build/ghostty
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v3-${{ env.GHOSTTY_FINGERPRINT }}
@@ -59,7 +64,7 @@ runs:
         printf '%s\n' "ZMX_FINGERPRINT=$ZMX_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Zmx cache
       if: ${{ inputs.cache-native-builds == 'true' }}
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
         path: apps/mac/.build/zmx
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v2-${{ env.ZMX_FINGERPRINT }}
@@ -71,7 +76,7 @@ runs:
         printf '%s\n' "AP_FINGERPRINT=$AP_FINGERPRINT" >> "$GITHUB_ENV"
     - name: Ap cache
       if: ${{ inputs.cache-native-builds == 'true' }}
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
         path: apps/mac/.build/ap
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ap-v2-${{ env.AP_FINGERPRINT }}

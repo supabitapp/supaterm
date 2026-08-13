@@ -35,24 +35,14 @@ jobs:
       build-number: ${{ steps.build-number.outputs.build-number }}
     env:
       MISE_HTTP_TIMEOUT: 120
-      MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
-      DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
-      DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
-      DEVELOPER_ID_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
-      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_NOTARIZATION_ISSUER: ${{ secrets.APPLE_NOTARIZATION_ISSUER }}
-      APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
-      APPLE_NOTARIZATION_KEY: ${{ secrets.APPLE_NOTARIZATION_KEY }}
-      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
         with:
           cache-native-builds: true
+          github-token: ${{ github.token }}
       - name: Compute tip build number
         id: build-number
         run: |
@@ -60,6 +50,10 @@ jobs:
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "build-number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
       - name: Setup keychain
+        env:
+          DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           echo "$DEVELOPER_ID_CERT_P12" | base64 --decode > build-cert.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -80,12 +74,19 @@ jobs:
           fi
           echo "DEVELOPER_ID_IDENTITY_SHA=$DEVELOPER_ID_IDENTITY_SHA" >> "$GITHUB_ENV"
       - run: make mac-tuist-install
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-tuist-generate-release-cached
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-build-ghostty
       - run: make mac-build-zmx
       - run: make mac-build-ap
       - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
       - name: Write export options
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          DEVELOPER_ID_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
         run: |
           mkdir -p apps/mac/build
           cat > apps/mac/build/ExportOptions.plist <<EOF
@@ -108,6 +109,10 @@ jobs:
       - name: Re-sign embedded code
         run: bash ./.github/scripts/resign_exported_app.sh apps/mac/build/export
       - name: Store notarization credentials
+        env:
+          APPLE_NOTARIZATION_ISSUER: ${{ secrets.APPLE_NOTARIZATION_ISSUER }}
+          APPLE_NOTARIZATION_KEY: ${{ secrets.APPLE_NOTARIZATION_KEY }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
         run: |
           echo "$APPLE_NOTARIZATION_KEY" > notarization_key.p8
           xcrun notarytool store-credentials "notarytool-profile" \
@@ -165,19 +170,19 @@ jobs:
         run: |
           APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" apps/mac/build/supaterm.app.zip
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: dsyms
           if-no-files-found: error
           path: apps/mac/build/supaterm.xcarchive/dSYMs/**
-      - name: Download Sparkle tools
-        run: .github/scripts/download_sparkle_tools.sh
       - name: Generate tip appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           STAGING=$(mktemp -d)
           cp apps/mac/build/supaterm.app.zip "$STAGING/"
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/build/sparkle-tools/bin/generate_appcast \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
             --download-url-prefix "https://supaterm.com/download/tip/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
@@ -188,7 +193,7 @@ jobs:
           /usr/bin/python3 .github/scripts/generate_release_checksums.py tip apps/mac/build/checksums.json \
             apps/mac/build/supaterm.dmg \
             apps/mac/build/supaterm.app.zip
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: build-artifacts
           if-no-files-found: error
@@ -201,14 +206,13 @@ jobs:
   posthog-dsym:
     runs-on: ubuntu-latest
     needs: [build, ci]
-    env:
-      POSTHOG_CLI_HOST: https://us.posthog.com
-      POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_CLI_PROJECT_ID }}
-      POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - name: Resolve PostHog credentials
         id: posthog-credentials
+        env:
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+          POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_CLI_PROJECT_ID }}
         run: |
           if [ -n "$POSTHOG_CLI_PROJECT_ID" ] && [ -n "$POSTHOG_CLI_API_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -223,23 +227,23 @@ jobs:
       - name: Install posthog-cli
         if: steps.posthog-credentials.outputs.enabled == 'true'
         run: .github/scripts/install_posthog_cli.sh
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         if: steps.posthog-credentials.outputs.enabled == 'true'
         with:
           name: dsyms
           path: dsyms
       - name: Upload dSYMs to PostHog
         if: steps.posthog-credentials.outputs.enabled == 'true'
+        env:
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+          POSTHOG_CLI_HOST: https://us.posthog.com
+          POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_CLI_PROJECT_ID }}
         run: |
           set -euo pipefail
           test -n "$POSTHOG_CLI_PROJECT_ID"
           test -n "$POSTHOG_CLI_API_KEY"
-          POSTHOG_CLI="$HOME/.posthog/posthog-cli"
-          if [ ! -x "$POSTHOG_CLI" ]; then
-            POSTHOG_CLI=$(command -v posthog-cli)
-          fi
           MARKETING_VERSION=$(sed -n 's/^MARKETING_VERSION *= *//p' apps/mac/Configurations/Project.xcconfig)
-          "$POSTHOG_CLI" dsym upload \
+          posthog-cli dsym upload \
             --directory dsyms \
             --project app.supabit.supaterm \
             --version "$MARKETING_VERSION" \
@@ -251,28 +255,33 @@ jobs:
     permissions:
       contents: write
     env:
-      GH_TOKEN: ${{ github.token }}
       RELEASE_SHA: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: build-artifacts
           path: apps/mac/build
       - name: Force-move tip tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -fa tip -m "Latest Continuous Release" "$RELEASE_SHA"
           git push --force origin tip
       - name: Update tip release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release create tip --prerelease --title "Supaterm Tip" --target "$RELEASE_SHA" --notes "" -R "${{ github.repository }}" 2>/dev/null || \
           gh release edit tip --prerelease --title "Supaterm Tip" --target "$RELEASE_SHA" -R "${{ github.repository }}"
           gh release upload tip apps/mac/build/supaterm.dmg apps/mac/build/supaterm.app.zip apps/mac/build/appcast.xml apps/mac/build/checksums.json --clobber -R "${{ github.repository }}"
       - name: Merge tip item into stable appcast
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
           if [ -z "$LATEST_TAG" ]; then

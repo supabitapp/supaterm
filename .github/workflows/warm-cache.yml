@@ -25,19 +25,22 @@ permissions:
 
 env:
   MISE_HTTP_TIMEOUT: 120
-  MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 
 jobs:
   warm_cache:
     name: warm-cache
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
         with:
           cache-native-builds: false
+          github-token: ${{ github.token }}
       - run: make mac-warm-cache
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-warm-cache TUIST_CONFIGURATION=Release
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
