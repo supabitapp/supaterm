@@ -1,5 +1,5 @@
 {
-  "originHash" : "a4bf7dd50ac03be5314acc6681443239de629903f8115e9221ae91906b6d963c",
+  "originHash" : "cbed98e7dd98692e233a23ba2075cf4d8469cc6fa2dc3499071387d463b2e938",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/PostHog/posthog-ios",
       "state" : {
-        "revision" : "76a3e1db35f3153f3388bdf077a717c7350e5f9e",
-        "version" : "3.64.6"
+        "revision" : "9b12d093e774883c40ee456e34b74b45cee03d46",
+        "version" : "3.69.5"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "b6496a74a087257ef5e6da1c5b29a447a60f5bd7",
-        "version" : "2.9.4"
+        "revision" : "79bc9e872948e47877e76f194cb0c8e0412b0b90",
+        "version" : "2.9.5"
       }
     },
     {
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-composable-architecture",
       "state" : {
-        "revision" : "e2fa1df6cd9eec6fa6314aa20513e47da576f24e",
-        "version" : "1.26.0"
+        "revision" : "ead11e04e5011c437722c1990d22f80d87056978",
+        "version" : "1.26.1"
       }
     },
     {
@@ -141,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-snapshot-testing",
       "state" : {
-        "revision" : "1bc16f430d8410e7f087d4c787767b26fd32fe30",
-        "version" : "1.19.3"
+        "revision" : "59a99c458de4d2dee580529b61b4f78dca7b7fa6",
+        "version" : "1.19.4"
       }
     },
     {

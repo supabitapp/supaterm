@@ -98,16 +98,15 @@ nonisolated enum AppPostHog {
         return
       }
 
+      let distinctID = supatermSettings.analyticsEnabled ? hardwareUUID() : nil
       let config = makeConfig(
         configuration: configuration,
-        supatermSettings: supatermSettings
+        supatermSettings: supatermSettings,
+        distinctID: distinctID
       )
       PostHogSDK.shared.setup(config)
       state.setErrorReportingEnabled(supatermSettings.crashReportsEnabled)
       if supatermSettings.analyticsEnabled {
-        if let hardwareUUID = hardwareUUID() {
-          PostHogSDK.shared.identify(hardwareUUID)
-        }
         PostHogSDK.shared.capture("app_launched")
       }
     #endif
@@ -174,17 +173,21 @@ nonisolated enum AppPostHog {
 
   static func makeConfig(
     configuration: Configuration,
-    supatermSettings: SupatermSettings
+    supatermSettings: SupatermSettings,
+    distinctID: String?
   ) -> PostHogConfig {
     let config = PostHogConfig(
       projectToken: configuration.projectToken,
       host: configuration.host
     )
-    config.captureApplicationLifecycleEvents = true
+    config.captureApplicationLifecycleEvents = supatermSettings.analyticsEnabled
     config.captureScreenViews = false
     config.enableSwizzling = false
     config.errorTrackingConfig.autoCapture = supatermSettings.crashReportsEnabled
     config.personProfiles = configuration.personProfiles
+    if let distinctID {
+      config.bootstrap = PostHogBootstrapConfig(distinctId: distinctID, isIdentifiedId: true)
+    }
     config.setBeforeSend { event in
       shouldSend(eventName: event.event) ? event : nil
     }

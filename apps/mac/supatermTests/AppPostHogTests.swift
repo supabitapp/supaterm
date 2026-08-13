@@ -49,7 +49,7 @@ struct AppPostHogTests {
   }
 
   @Test
-  func configKeepsLifecycleAutocaptureAndFiltersOpenBackground() throws {
+  func configBootstrapsAnalyticsIdentityAndFiltersOpenBackground() throws {
     let configuration = try #require(
       AppPostHog.Configuration(
         infoDictionary: [
@@ -61,7 +61,8 @@ struct AppPostHogTests {
     )
     let config = AppPostHog.makeConfig(
       configuration: configuration,
-      supatermSettings: .default
+      supatermSettings: .default,
+      distinctID: "hardware-id"
     )
 
     #expect(config.captureApplicationLifecycleEvents)
@@ -69,11 +70,41 @@ struct AppPostHogTests {
     #expect(!config.enableSwizzling)
     #expect(config.errorTrackingConfig.autoCapture)
     #expect(config.personProfiles == .identifiedOnly)
+    #expect(config.bootstrap?.distinctId == "hardware-id")
+    #expect(config.bootstrap?.isIdentifiedId == true)
     #expect(!AppPostHog.shouldSend(eventName: "Application Opened"))
     #expect(!AppPostHog.shouldSend(eventName: "Application Backgrounded"))
     #expect(AppPostHog.shouldSend(eventName: "Application Installed"))
     #expect(AppPostHog.shouldSend(eventName: "Application Updated"))
     #expect(AppPostHog.shouldSend(eventName: "terminal_tab_created"))
+  }
+
+  @Test
+  func configKeepsCrashReportsFreeOfAnalyticsIdentityAndLifecycleEvents() throws {
+    let configuration = try #require(
+      AppPostHog.Configuration(
+        infoDictionary: [
+          "PostHogProjectToken": "phc_test",
+          "PostHogHost": "https://us.i.posthog.com",
+          "PostHogPersonProfiles": "identified_only",
+        ]
+      )
+    )
+    let settings = SupatermSettings(
+      appearanceMode: .system,
+      analyticsEnabled: false,
+      crashReportsEnabled: true,
+      updateChannel: .stable
+    )
+    let config = AppPostHog.makeConfig(
+      configuration: configuration,
+      supatermSettings: settings,
+      distinctID: nil
+    )
+
+    #expect(!config.captureApplicationLifecycleEvents)
+    #expect(config.errorTrackingConfig.autoCapture)
+    #expect(config.bootstrap == nil)
   }
 
   @Test
