@@ -69,6 +69,11 @@ struct TerminalWindowHeader: View {
         .background {
           WindowDragSurface()
         }
+
+        TerminalAgentsPopoverButton(palette: palette)
+          .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
+          .padding(.leading, 4)
+          .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .top)
       }
       .fixedSize(horizontal: true, vertical: false)
 

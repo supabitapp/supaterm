@@ -20,6 +20,14 @@ extension SnapshotCatalog {
       AnyView(SpaceSwitcherHoverSnapshotFixture(appearance: appearance))
     },
     scenario(
+      "agents-popover",
+      group: "Terminal Chrome",
+      title: "Agents popover",
+      size: CGSize(width: 300, height: 230)
+    ) { appearance in
+      AnyView(AgentsPopoverSnapshotFixture(appearance: appearance))
+    },
+    scenario(
       "detail-pane",
       group: "Terminal Chrome",
       title: "Sidebar and detail pane",
@@ -44,6 +52,34 @@ extension SnapshotCatalog {
       AnyView(SplitDropTargetSnapshotFixture(appearance: appearance))
     },
   ]
+}
+
+private struct AgentsPopoverSnapshotFixture: View {
+  let appearance: SnapshotAppearance
+
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
+  }
+
+  var body: some View {
+    TerminalAgentsPopoverView(
+      items: TerminalAgentsPopoverItem.dummyData,
+      palette: palette
+    )
+    .background {
+      ChromeBackgroundView(
+        palette: palette,
+        material: .popover,
+        blendingMode: .withinWindow
+      )
+    }
+    .compositingGroup()
+    .clipShape(.rect(cornerRadius: 12))
+    .shadow(color: palette.shadow, radius: 12, y: 6)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(palette.windowBackgroundTint)
+    .environment(\.colorScheme, appearance.colorScheme)
+  }
 }
 
 @MainActor
