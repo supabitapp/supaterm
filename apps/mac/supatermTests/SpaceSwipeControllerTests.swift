@@ -111,6 +111,22 @@ struct SpaceSwipeControllerTests {
   }
 
   @Test
+  func acceptedSwipeUsesTheSwipeSelectionHandler() {
+    let host = SpaceSwipeHost()
+    var swipeSelectedIndices: [Int] = []
+    host.controller.swipeSelected = { index in
+      swipeSelectedIndices.append(index)
+    }
+
+    host.controller.handle(SpaceScrollSample(phase: .began, deltaX: -20, time: 100))
+    host.controller.handle(SpaceScrollSample(phase: .changed, deltaX: -90, time: 100.05))
+    host.controller.handle(SpaceScrollSample(phase: .ended, deltaX: 0, time: 100.4))
+
+    #expect(swipeSelectedIndices == [2])
+    #expect(host.selectedIndices.isEmpty)
+  }
+
+  @Test
   func commitsOnAFlickBelowHalfway() {
     let host = SpaceSwipeHost()
     let controller = host.controller

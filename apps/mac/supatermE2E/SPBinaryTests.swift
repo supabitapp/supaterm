@@ -202,7 +202,7 @@ extension SupatermE2ESuite {
         #expect(environment["TMUX"]?.contains(space.spaceID.uuidString.lowercased()) == true)
         #expect(environment["PATH"]?.contains(app.cliHome.path) == true)
 
-        try await expectShellUsesEmbeddedSP(app: app, space: space)
+        try await expectShellUsesEmbeddedCLIs(app: app, space: space)
       }
     }
 
@@ -467,12 +467,17 @@ private struct CLITabE2E {
   let runner: SPBinaryRunner
 }
 
-private func expectShellUsesEmbeddedSP(app: SupatermE2EApp, space: TestSpace) async throws {
-  try app.type(
-    #"[ "$(command -v sp)" = "$SUPATERM_CLI_PATH" ] && printf 'SP_PATH_MATCHED\n'"# + "\n",
-    into: space.pane
-  )
-  try await app.waitForCapture(space.pane, contains: "SP_PATH_MATCHED")
+private func expectShellUsesEmbeddedCLIs(app: SupatermE2EApp, space: TestSpace) async throws {
+  let spCheck = #"[ "$(command -v sp)" = "$SUPATERM_CLI_PATH" ]"#
+  let wtCheck = #"[ "$(command -v wt)" = "${SUPATERM_CLI_PATH%/*}/wt" ]"#
+  let command = [
+    spCheck,
+    wtCheck,
+    "wt --help >/dev/null",
+    #"printf 'CLI_PATHS_MATCHED\n'"#,
+  ].joined(separator: " && ")
+  try app.type(command + "\n", into: space.pane)
+  try await app.waitForCapture(space.pane, contains: "CLI_PATHS_MATCHED")
 }
 
 private func expectOnboardingCommands(

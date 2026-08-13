@@ -55,6 +55,7 @@ final class TerminalHostState {
     case rename(TerminalSpaceID, String)
     case reorder(TerminalSpaceID, insertionIndex: Int)
     case select(TerminalSpaceID)
+    case selectAfterAnimation(TerminalSpaceID)
     case selectSlot(Int)
     case setColor(TerminalSpaceID, ThemeTint)
   }

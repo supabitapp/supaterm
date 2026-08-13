@@ -95,6 +95,38 @@ struct TerminalSidebarChromeViewTests {
     #expect(zip(rowInk, rowInk.dropFirst()).allSatisfy { $0 < $1 })
   }
 
+  @MainActor
+  @Test
+  func anchoredSidebarSurfaceLeavesThePaneGutterUnclipped() throws {
+    let sidebarWidth = 100
+    let gutterWidth = Int(TerminalChromeMetrics.paneInset)
+    let container = NSHostingView(
+      rootView: TerminalSidebarSurfaceShell(
+        palette: Palette(colorScheme: .dark),
+        isFloating: false
+      ) {
+        Color.white
+          .padding(.trailing, -TerminalChromeMetrics.paneInset)
+      }
+      .frame(width: CGFloat(sidebarWidth), height: 40)
+      .frame(width: CGFloat(sidebarWidth + gutterWidth + 4), alignment: .leading)
+    )
+    container.frame.size = container.fittingSize
+    let window = NSWindow(
+      contentRect: container.frame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = container
+    container.layoutSubtreeIfNeeded()
+
+    let raster = try #require(SelectionGlowRaster(view: container))
+
+    #expect(raster.ink(columns: sidebarWidth..<(sidebarWidth + gutterWidth)) > 0)
+    #expect(raster.ink(columns: (sidebarWidth + gutterWidth)..<(sidebarWidth + gutterWidth + 4)) == 0)
+  }
+
   @Test
   func unreadCountTakesPrecedenceOverAgentActivity() {
     #expect(
@@ -694,6 +726,14 @@ private struct SelectionGlowRaster {
   func ink(rows: Range<Int>) -> CGFloat {
     rows.reduce(0) { total, y in
       (0..<raster.pixelsWide).reduce(total) { running, x in
+        running + (raster.colorAt(x: x, y: y)?.alphaComponent ?? 0)
+      }
+    }
+  }
+
+  func ink(columns: Range<Int>) -> CGFloat {
+    columns.reduce(0) { total, x in
+      (0..<raster.pixelsHigh).reduce(total) { running, y in
         running + (raster.colorAt(x: x, y: y)?.alphaComponent ?? 0)
       }
     }

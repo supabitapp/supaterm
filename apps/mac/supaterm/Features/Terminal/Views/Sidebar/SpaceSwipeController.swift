@@ -122,6 +122,7 @@ final class SpaceSwipeController {
   }
   @ObservationIgnored var positionChanged: ((PagingPosition) -> Void)?
   @ObservationIgnored var selected: ((Int) -> Void)?
+  @ObservationIgnored var swipeSelected: ((Int) -> Void)?
   @ObservationIgnored var slide: ((Int, Int) -> Void)?
 
   private var phase = Phase.idle
@@ -218,7 +219,7 @@ final class SpaceSwipeController {
         slide?(home, home)
         return true
       }
-      selected?(target)
+      (swipeSelected ?? selected)?(target)
       return true
     case .idle, .momentum:
       return false

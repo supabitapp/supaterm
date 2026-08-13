@@ -1,7 +1,51 @@
 import AppKit
+import ComposableArchitecture
+import Sharing
 import SupaTheme
+import SupatermSettingsFeature
 import SupatermUI
 import SwiftUI
+
+struct TerminalWindowConfirmationView: View {
+  let store: StoreOf<TerminalWindowFeature>
+  @Bindable var terminal: TerminalHostState
+  @Shared(.supatermSettings) private var supatermSettings = .default
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private var chromeColorScheme: ColorScheme {
+    supatermSettings.appearanceMode.colorScheme ?? terminal.terminalChromeColorScheme
+  }
+
+  private var palette: Palette {
+    Palette(colorScheme: chromeColorScheme, tint: terminal.displayedSpace.color)
+  }
+
+  var body: some View {
+    Group {
+      if let confirmationRequest = store.confirmationRequest {
+        ConfirmationOverlay(
+          palette: palette,
+          title: confirmationRequest.title,
+          message: confirmationRequest.message,
+          confirmTitle: confirmationRequest.confirmTitle,
+          onConfirm: {
+            _ = store.send(.confirmationConfirmButtonTapped)
+          },
+          onCancel: {
+            _ = store.send(.confirmationCancelButtonTapped)
+          }
+        )
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .terminalAnimation(
+      .spring(response: 0.3, dampingFraction: 0.82),
+      value: store.confirmationRequest,
+      reduceMotion: reduceMotion
+    )
+    .environment(\.colorScheme, chromeColorScheme)
+  }
+}
 
 struct ConfirmationOverlay: View {
   let palette: Palette

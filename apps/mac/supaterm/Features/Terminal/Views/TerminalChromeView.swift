@@ -58,7 +58,10 @@ struct TerminalSidebarSurfaceShell<Content: View>: View {
           blendingMode: isFloating ? .withinWindow : .behindWindow
         )
       }
-      .clipShape(surfaceShape)
+      .mask(alignment: .leading) {
+        surfaceShape
+          .padding(.trailing, isFloating ? 0 : -TerminalChromeMetrics.paneInset)
+      }
       .overlay {
         surfaceShape.stroke(
           palette.floatingSidebarBorder.opacity(isFloating ? 1 : 0),

@@ -361,6 +361,13 @@ let project = Project(
             .buildProduct(name: "sp", codeSignOnCopy: true),
           ]
         ),
+        .resources(
+          name: "Embed wt CLI",
+          subpath: "bin",
+          files: [
+            .glob(pattern: "ThirdParty/git-wt/wt"),
+          ]
+        ),
       ],
       scripts: [
         .pre(
@@ -462,6 +469,30 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/ap",
+          ]
+        ),
+        .post(
+          script: """
+            set -euo pipefail
+
+            destination_dir="${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}"
+            destination_path="${destination_dir}/wt"
+            source_path="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin/wt"
+
+            if [ ! -x "${source_path}" ]; then
+              echo "error: missing embedded wt executable" >&2
+              exit 1
+            fi
+
+            mkdir -p "${destination_dir}"
+            /bin/ln -sfn "../Resources/bin/wt" "${destination_path}"
+            """,
+          name: "Link wt CLI",
+          inputPaths: [
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/wt",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/wt",
           ]
         ),
         .post(

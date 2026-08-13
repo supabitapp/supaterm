@@ -268,6 +268,12 @@ final class TerminalWindowController: NSWindowController {
         }
       }
     )
+    let confirmationController = NSHostingController(
+      rootView: TerminalWindowConfirmationView(
+        store: input.store.scope(state: \.terminal, action: \.terminal),
+        terminal: input.terminal
+      )
+    )
     let sidebarController = NSHostingController(
       rootView: AppAppearanceView {
         GhosttyColorSchemeSyncView(ghostty: input.runtime) {
@@ -299,7 +305,11 @@ final class TerminalWindowController: NSWindowController {
       else { return nil }
       return (terminal.displayedSpaceID, destinationTabID)
     }
-    shellController.install(sidebar: sidebarController, detail: detailController)
+    shellController.install(
+      sidebar: sidebarController,
+      detail: detailController,
+      confirmationOverlay: confirmationController
+    )
     return shellController
   }
 

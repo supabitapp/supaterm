@@ -21,6 +21,8 @@ struct SpaceSidebarPagerView: View {
 
   @State private var swipe = SpaceSwipeController()
   @State private var mountedIndices: [Int]?
+  @State private var pendingSwipeSelectionID: UUID?
+  @State private var animationID = UUID()
 
   var body: some View {
     ZStack(alignment: .topLeading) {
@@ -84,6 +86,17 @@ struct SpaceSidebarPagerView: View {
       guard terminal.spaces.indices.contains(index) else { return }
       terminal.selectSpace(terminal.spaces[index].id)
     }
+    swipe.swipeSelected = { [terminal] index in
+      guard terminal.spaces.indices.contains(index) else { return }
+      let selectionID = UUID()
+      let spaceID = terminal.spaces[index].id
+      pendingSwipeSelectionID = selectionID
+      animate(from: terminal.displayedSpaceIndex, to: index) {
+        guard pendingSwipeSelectionID == selectionID else { return }
+        pendingSwipeSelectionID = nil
+        terminal.selectSpaceAfterAnimation(spaceID)
+      }
+    }
     swipe.slide = animate(from:to:)
     terminal.spacePager = swipe
   }
@@ -91,7 +104,9 @@ struct SpaceSidebarPagerView: View {
   private func disconnect() {
     swipe.positionChanged = nil
     swipe.selected = nil
+    swipe.swipeSelected = nil
     swipe.slide = nil
+    pendingSwipeSelectionID = nil
     guard terminal.spacePager === swipe else { return }
     terminal.spacePager = nil
   }
@@ -107,9 +122,20 @@ struct SpaceSidebarPagerView: View {
   }
 
   private func animate(from origin: Int, to destination: Int) {
+    pendingSwipeSelectionID = nil
+    animate(from: origin, to: destination, completion: nil)
+  }
+
+  private func animate(
+    from origin: Int,
+    to destination: Int,
+    completion: (() -> Void)?
+  ) {
     sidebarControllerCache.dismissHoverCards()
     let start = position ?? Double(origin)
     let target = Double(destination)
+    let currentAnimationID = UUID()
+    animationID = currentAnimationID
     mount(spannedIndices(from: start, to: target))
     position = start
     Task { @MainActor in
@@ -117,9 +143,14 @@ struct SpaceSidebarPagerView: View {
       withAnimation(.easeOut(duration: SpaceSwipeController.settleDuration)) {
         position = target
       } completion: {
-        guard !swipe.isTracking, position == target else { return }
+        guard
+          animationID == currentAnimationID,
+          !swipe.isTracking,
+          position == target
+        else { return }
         mountedIndices = nil
         position = nil
+        completion?()
       }
     }
   }

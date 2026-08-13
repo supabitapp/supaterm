@@ -110,22 +110,6 @@ struct TerminalView: View {
         restoreTerminalFocusIfNeeded()
       }
       .overlay {
-        if let confirmationRequest = store.confirmationRequest {
-          ConfirmationOverlay(
-            palette: palette,
-            title: confirmationRequest.title,
-            message: confirmationRequest.message,
-            confirmTitle: confirmationRequest.confirmTitle,
-            onConfirm: {
-              _ = store.send(.confirmationConfirmButtonTapped)
-            },
-            onCancel: {
-              _ = store.send(.confirmationCancelButtonTapped)
-            }
-          )
-        }
-      }
-      .overlay {
         if let spaceEditor = store.spaceEditor {
           SpaceEditorOverlay(
             palette: palette,
@@ -174,11 +158,6 @@ struct TerminalView: View {
       .terminalAnimation(
         .easeOut(duration: 0.12),
         value: store.commandPalette != nil,
-        reduceMotion: reduceMotion
-      )
-      .terminalAnimation(
-        .spring(response: 0.3, dampingFraction: 0.82),
-        value: store.confirmationRequest,
         reduceMotion: reduceMotion
       )
       .terminalAnimation(
