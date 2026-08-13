@@ -181,6 +181,33 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func deferredSwipeSelectionCommitsWithoutStartingAnotherSlide() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let spaces = [TerminalSpaceItem(name: "A"), TerminalSpaceItem(name: "B")]
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let registry = TerminalWindowRegistry()
+      let window = registerWindow(in: registry, spaceID: spaces[0].id, createsInitialTab: true)
+      let pager = SpaceSwipeController()
+      var slides: [[Int]] = []
+      pager.slide = { slides.append([$0, $1]) }
+      window.terminal.spacePager = pager
+
+      window.terminal.selectSpaceAfterAnimation(spaces[1].id)
+
+      #expect(window.terminal.displayedSpaceID == spaces[1].id)
+      #expect(catalog.defaultSelectedSpaceID == spaces[1].id)
+      #expect(slides.isEmpty)
+      withExtendedLifetime(window.window) {}
+    }
+  }
+
+  @Test
   func creatingSpaceTrimsNameAndSwitchesTheWindowInPlace() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

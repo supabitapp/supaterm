@@ -187,8 +187,15 @@ final class TerminalWindowRegistry {
   }
 
   @discardableResult
-  func selectSpace(_ spaceID: TerminalSpaceID, in windowControllerID: UUID? = nil) -> Bool {
-    guard let entry = entry(in: windowControllerID), entry.terminal.switchSpace(to: spaceID) else {
+  func selectSpace(
+    _ spaceID: TerminalSpaceID,
+    in windowControllerID: UUID? = nil,
+    animated: Bool = true
+  ) -> Bool {
+    guard
+      let entry = entry(in: windowControllerID),
+      entry.terminal.switchSpace(to: spaceID, animated: animated)
+    else {
       return false
     }
     if let window = entry.windowReference.value {
@@ -911,6 +918,8 @@ final class TerminalWindowRegistry {
       reorderSpace(spaceID, toInsertionIndex: insertionIndex)
     case .select(let spaceID):
       selectSpace(spaceID, in: windowControllerID)
+    case .selectAfterAnimation(let spaceID):
+      selectSpace(spaceID, in: windowControllerID, animated: false)
     case .selectSlot(let slot):
       selectSpaceSlot(slot, in: windowControllerID)
     case .setColor(let spaceID, let color):

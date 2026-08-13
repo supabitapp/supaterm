@@ -34,17 +34,23 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func switchSpace(to spaceID: TerminalSpaceID) -> Bool {
+  func switchSpace(to spaceID: TerminalSpaceID, animated: Bool = true) -> Bool {
     let origin = displayedSpaceID
     guard displaySpace(spaceID) else { return false }
     guard spaceID != origin else { return true }
-    let from = spaces.firstIndex { $0.id == origin } ?? displayedSpaceIndex
-    spacePager?.slide?(from, displayedSpaceIndex)
+    if animated {
+      let from = spaces.firstIndex { $0.id == origin } ?? displayedSpaceIndex
+      spacePager?.slide?(from, displayedSpaceIndex)
+    }
     return true
   }
 
   func selectSpace(_ spaceID: TerminalSpaceID) {
     onSpaceAction(.select(spaceID))
+  }
+
+  func selectSpaceAfterAnimation(_ spaceID: TerminalSpaceID) {
+    onSpaceAction(.selectAfterAnimation(spaceID))
   }
 
   func reorderSpace(_ spaceID: TerminalSpaceID, toInsertionIndex insertionIndex: Int) {
