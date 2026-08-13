@@ -193,10 +193,12 @@ extension TerminalHostState {
     _ tab: TerminalTabItem,
     spaceID: TerminalSpaceID
   ) -> SupatermAppDebugSnapshot.Tab {
+    let pendingTab = pendingTabSession(for: tab.id)
     let selectedPaneID = selectedPaneSnapshotID(in: tab.id)
     let panes = paneSnapshotIDs(in: tab.id).enumerated().map { paneOffset, paneID in
       debugPaneSnapshot(
         surfaces[paneID],
+        pendingPane: pendingTab?.root.leaf(id: paneID),
         id: paneID,
         index: paneOffset + 1,
         isFocused: paneID == selectedPaneID

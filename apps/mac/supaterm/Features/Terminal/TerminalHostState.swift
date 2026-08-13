@@ -1344,12 +1344,12 @@ final class TerminalHostState {
 
   func debugPaneSnapshot(
     _ surface: GhosttySurfaceView?,
+    pendingPane: TerminalPaneLeafSession?,
     id: UUID,
     index: Int,
     isFocused: Bool
   ) -> SupatermAppDebugSnapshot.Pane {
     guard let surface else {
-      let pendingPane = pendingPaneSession(id: id)
       return SupatermAppDebugSnapshot.Pane(
         index: index,
         id: id,
@@ -1394,17 +1394,6 @@ final class TerminalHostState {
       ttyName: processIdentity.ttyName,
       agent: debugAgentSnapshot(for: id)
     )
-  }
-
-  private func pendingPaneSession(id: UUID) -> TerminalPaneLeafSession? {
-    for instance in spaceManager.instances {
-      for tab in instance.pendingSession?.tabs ?? [] {
-        if let leaf = tab.root.leaf(id: id) {
-          return leaf
-        }
-      }
-    }
-    return nil
   }
 
 }
