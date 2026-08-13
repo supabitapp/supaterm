@@ -140,12 +140,12 @@ struct SPHelpTests {
   }
 
   @Test
-  func paneScreenshotHelpStatesVisibilityAndFocusRules() {
+  func paneScreenshotHelpStatesHiddenPaneAndFocusRules() {
     let paneHelp = SP.helpMessage(for: SP.Pane.self, columns: 100)
     let screenshotHelp = SP.helpMessage(for: SP.ScreenshotPane.self, columns: 100)
 
     #expect(paneHelp.contains("sp pane screenshot --output pane.png"))
-    #expect(screenshotHelp.contains("visible in a non-minimized Supaterm window"))
+    #expect(screenshotHelp.contains("hidden in another space or tab"))
     #expect(screenshotHelp.contains("change the selected space, tab, pane, or application focus"))
     #expect(screenshotHelp.contains("sp pane screenshot <pane-uuid> -o pane.png --json"))
   }

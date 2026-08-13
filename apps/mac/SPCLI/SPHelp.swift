@@ -325,8 +325,9 @@ enum SPHelp {
   static let screenshotPaneDiscussion = """
     If you omit the pane target inside Supaterm, this command captures the current pane.
 
-    The pane must be visible in a non-minimized Supaterm window. Taking a screenshot does not
-    change the selected space, tab, pane, or application focus.
+    The pane can be hidden in another space or tab.
+
+    Taking a screenshot does not change the selected space, tab, pane, or application focus.
 
     Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 

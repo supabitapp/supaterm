@@ -1,6 +1,8 @@
 import AppKit
 import ComposableArchitecture
+import CoreVideo
 import GhosttyKit
+import IOSurface
 import Testing
 
 @testable import SupatermCLIShared
@@ -10,24 +12,31 @@ import Testing
 @MainActor
 struct TerminalCommandExecutorScreenshotTests {
   @Test
-  func screenshotCapturesVisiblePaneAndRejectsHiddenPaneWithoutChangingSelection() async throws {
+  func ioSurfaceCapturePreservesPixelSize() throws {
+    let surface = try #require(
+      IOSurface(
+        properties: [
+          .width: 7,
+          .height: 5,
+          .bytesPerElement: 4,
+          .pixelFormat: kCVPixelFormatType_32BGRA,
+        ]
+      ))
+    let image = try #require(TerminalPaneIOSurfaceCapture.image(for: surface))
+
+    #expect(image.width == 7)
+    #expect(image.height == 5)
+  }
+
+  @Test
+  func screenshotCapturesHiddenPaneWithoutChangingSelection() async throws {
     initializeGhosttyForTests()
     let image = try #require(makeCaptureImage(width: 7, height: 5))
-    let expectedRequest = try #require(
-      TerminalWindowCaptureRequest(
-        windowID: 42,
-        geometry: TerminalWindowCaptureGeometry(
-          windowFrame: CGRect(x: 0, y: 0, width: 100, height: 80),
-          viewScreenFrame: CGRect(x: 10, y: 10, width: 70, height: 50),
-          backingScaleFactor: 2
-        )
-      )
-    )
-    let capture = ScreenshotCaptureRecorder(image: image, request: expectedRequest)
+    let capture = ScreenshotCaptureRecorder(image: image)
     let registry = TerminalWindowRegistry()
     let commandExecutor = TerminalCommandExecutor(
       registry: registry,
-      windowCaptureClient: capture.client
+      paneCaptureClient: capture.client
     )
     registry.commandExecutor = commandExecutor
     let (host, surface) = makeScreenshotHost()
@@ -39,9 +48,8 @@ struct TerminalCommandExecutorScreenshotTests {
       TerminalPaneTarget(paneID: surface.id)
     )
 
-    let request = try #require(capture.request)
     let representation = try #require(NSBitmapImageRep(data: result.pngData))
-    #expect(request == expectedRequest)
+    #expect(capture.surface === surface)
     #expect(result.target.paneID == surface.id)
     #expect(result.pngData.starts(with: [0x89, 0x50, 0x4E, 0x47]))
     #expect(representation.pixelsWide == 7)
@@ -49,10 +57,6 @@ struct TerminalCommandExecutorScreenshotTests {
     #expect(host.selectedTabID == selectedTabID)
     #expect(host.selectedSurfaceView?.id == selectedSurfaceID)
 
-    capture.hidePane()
-    await #expect(throws: TerminalControlError.screenshotPaneNotVisible) {
-      try await commandExecutor.screenshotPane(TerminalPaneTarget(paneID: surface.id))
-    }
     #expect(capture.captureCount == 1)
     withExtendedLifetime(window) {}
   }
@@ -104,24 +108,15 @@ struct TerminalCommandExecutorScreenshotTests {
 @MainActor
 private final class ScreenshotCaptureRecorder {
   private let image: CGImage
-  private var captureRequest: TerminalWindowCaptureRequest?
-  private(set) var request: TerminalWindowCaptureRequest?
+  private(set) weak var surface: GhosttySurfaceView?
   private(set) var captureCount = 0
-  lazy var client = TerminalWindowCaptureClient(
-    requestForSurface: { [weak self] _ in self?.captureRequest },
-    capture: { [weak self] request in
-      self?.request = request
-      self?.captureCount += 1
-      return self?.image
-    }
-  )
-
-  init(image: CGImage, request: TerminalWindowCaptureRequest?) {
-    self.image = image
-    self.captureRequest = request
+  lazy var client = TerminalPaneCaptureClient { [weak self] surface in
+    self?.surface = surface
+    self?.captureCount += 1
+    return self?.image
   }
 
-  func hidePane() {
-    captureRequest = nil
+  init(image: CGImage) {
+    self.image = image
   }
 }

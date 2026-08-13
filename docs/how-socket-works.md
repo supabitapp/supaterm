@@ -245,7 +245,7 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `terminal.*` — space, tab, and pane control, one method per CLI verb
 
 `terminal.capture_pane` returns terminal text. `terminal.screenshot_pane` returns PNG data for a
-pane currently visible in a non-minimized window. The CLI writes that data to its requested path.
+pane, including one hidden in another space or tab. The CLI writes that data to its requested path.
 
 Settings methods read and write the running app:
 

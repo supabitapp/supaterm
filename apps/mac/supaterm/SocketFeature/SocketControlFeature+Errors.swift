@@ -130,7 +130,7 @@ extension SocketControlFeature {
       )
 
     case .captureFailed, .groupNotFound, .groupSpaceMismatch, .invalidCaptureLines,
-      .invalidGroupIndex, .invalidGroupTitle, .screenshotFailed, .screenshotPaneNotVisible:
+      .invalidGroupIndex, .invalidGroupTitle, .screenshotFailed:
       preconditionFailure()
 
     case .invalidSpaceName:
@@ -235,12 +235,6 @@ extension SocketControlFeature {
         id: requestID,
         code: "internal_error",
         message: "Failed to capture pane screenshot."
-      )
-    case .screenshotPaneNotVisible:
-      return .error(
-        id: requestID,
-        code: "invalid_request",
-        message: "Pane must be visible in a window to take a screenshot."
       )
     default:
       return nil

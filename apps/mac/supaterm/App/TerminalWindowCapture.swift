@@ -84,16 +84,11 @@ nonisolated enum TerminalWindowCompositorCapture {
 
 @MainActor
 struct TerminalWindowCaptureClient {
-  let requestForSurface: @MainActor (GhosttySurfaceView) -> TerminalWindowCaptureRequest?
   let capture: @MainActor (TerminalWindowCaptureRequest) async -> CGImage?
 
   init(
-    requestForSurface: @escaping @MainActor (GhosttySurfaceView) -> TerminalWindowCaptureRequest? = {
-      $0.screenshotCaptureRequest()
-    },
     capture: @escaping @MainActor (TerminalWindowCaptureRequest) async -> CGImage?
   ) {
-    self.requestForSurface = requestForSurface
     self.capture = capture
   }
 

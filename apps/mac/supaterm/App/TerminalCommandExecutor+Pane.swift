@@ -78,19 +78,15 @@ extension TerminalCommandExecutor {
   }
 
   func screenshotPane(_ target: TerminalPaneTarget) async throws -> SupatermScreenshotPaneResult {
-    let capture = windowCaptureClient.capture
-    let captureRequest = windowCaptureClient.requestForSurface
-    let (resolvedTarget, request):
+    let capture = paneCaptureClient.capture
+    let (resolvedTarget, surface):
       (
         target: SupatermPaneTarget,
-        request: TerminalWindowCaptureRequest
+        surface: GhosttySurfaceView
       ) =
         try executeTargeted(
           operation: { entry in
             let resolvedTarget = try entry.terminal.resolvePaneTarget(target)
-            guard let request = captureRequest(resolvedTarget.anchorSurface) else {
-              throw TerminalControlError.screenshotPaneNotVisible
-            }
             return (
               target: try entry.terminal.paneTarget(
                 spaceID: resolvedTarget.spaceID,
@@ -98,18 +94,18 @@ extension TerminalCommandExecutor {
                 surfaceID: resolvedTarget.anchorSurface.id,
                 tree: resolvedTarget.tree
               ),
-              request: request
+              surface: resolvedTarget.anchorSurface
             )
           },
           rewrite: { result, windowIndex in
             (
               target: TerminalWindowRegistry.rewrite(result.target, windowIndex: windowIndex),
-              request: result.request
+              surface: result.surface
             )
           }
         )
     guard
-      let image = await capture(request),
+      let image = await capture(surface),
       let pngData = TerminalPNGEncoder.data(for: image)
     else {
       throw TerminalControlError.screenshotFailed

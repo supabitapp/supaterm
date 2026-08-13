@@ -10,7 +10,7 @@ import SupatermTerminalCore
 final class TerminalCommandExecutor {
   let agentMonitorStore: TerminalAgentMonitorStore
   unowned let registry: TerminalWindowRegistry
-  let windowCaptureClient: TerminalWindowCaptureClient
+  let paneCaptureClient: TerminalPaneCaptureClient
   var onQuitRequested: (() -> Void)?
 
   init<C: Clock<Duration>>(
@@ -18,10 +18,10 @@ final class TerminalCommandExecutor {
     agentRunningTimeout: Duration = .seconds(30),
     transcriptEventDelay: Duration = .zero,
     clock: C = ContinuousClock(),
-    windowCaptureClient: TerminalWindowCaptureClient = .live
+    paneCaptureClient: TerminalPaneCaptureClient = .live
   ) {
     self.registry = registry
-    self.windowCaptureClient = windowCaptureClient
+    self.paneCaptureClient = paneCaptureClient
     let sleep = { (duration: Duration) in
       try await clock.sleep(for: duration)
     }
