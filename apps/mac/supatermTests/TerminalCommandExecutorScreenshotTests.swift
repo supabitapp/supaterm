@@ -29,7 +29,7 @@ struct TerminalCommandExecutorScreenshotTests {
   }
 
   @Test
-  func screenshotCapturesHiddenPaneWithoutChangingSelection() async throws {
+  func screenshotCapturesPaneWithoutChangingSelection() throws {
     initializeGhosttyForTests()
     let image = try #require(makeCaptureImage(width: 7, height: 5))
     let capture = ScreenshotCaptureRecorder(image: image)
@@ -44,7 +44,7 @@ struct TerminalCommandExecutorScreenshotTests {
     let selectedSurfaceID = surface.id
     let window = registerScreenshotWindow(host: host, registry: registry)
 
-    let result = try await commandExecutor.screenshotPane(
+    let result = try commandExecutor.screenshotPane(
       TerminalPaneTarget(paneID: surface.id)
     )
 

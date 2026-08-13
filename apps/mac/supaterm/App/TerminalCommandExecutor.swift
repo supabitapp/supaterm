@@ -113,7 +113,7 @@ final class TerminalCommandExecutor {
 
   func execute(
     _ request: SocketRequestExecutor.TerminalPaneRequest
-  ) async throws -> SocketRequestExecutor.TerminalPaneResult {
+  ) throws -> SocketRequestExecutor.TerminalPaneResult {
     switch request {
     case .agentExplain(let target):
       return .agentExplain(try agentDetectionExplain(target))
@@ -130,7 +130,7 @@ final class TerminalCommandExecutor {
     case .capturePane(let capturePaneRequest):
       return .capturePane(try capturePane(capturePaneRequest))
     case .screenshotPane(let target):
-      return .screenshotPane(try await screenshotPane(target))
+      return .screenshotPane(try screenshotPane(target))
     case .paneHealth(let paneHealthRequest):
       return .paneHealth(try paneHealth(paneHealthRequest))
     case .resizePane(let resizePaneRequest):

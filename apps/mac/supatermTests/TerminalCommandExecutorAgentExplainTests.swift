@@ -35,7 +35,7 @@ struct TerminalCommandExecutorAgentExplainTests {
   }
 
   @Test
-  func terminalPaneExecutorReturnsTheTypedAgentExplainResult() async throws {
+  func terminalPaneExecutorReturnsTheTypedAgentExplainResult() throws {
     initializeGhosttyForTests()
     let registry = TerminalWindowRegistry()
     let commandExecutor = makeCommandExecutor(registry: registry)
@@ -44,7 +44,7 @@ struct TerminalCommandExecutorAgentExplainTests {
     let surfaceID = try #require(host.selectedSurfaceView?.id)
     let window = registerAgentExplainWindow(host: host, registry: registry)
 
-    let execution = try await commandExecutor.execute(
+    let execution = try commandExecutor.execute(
       SocketRequestExecutor.TerminalPaneRequest.agentExplain(
         TerminalPaneTarget(paneID: surfaceID)
       )

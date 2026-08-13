@@ -99,29 +99,6 @@ struct TerminalWindowCaptureClient {
   }
 }
 
-extension GhosttySurfaceView {
-  func screenshotCaptureRequest() -> TerminalWindowCaptureRequest? {
-    guard
-      let scrollWrapper,
-      let window = scrollWrapper.window,
-      window.isVisible,
-      !window.isMiniaturized,
-      !scrollWrapper.bounds.isEmpty
-    else { return nil }
-    let viewScreenFrame = window.convertToScreen(
-      scrollWrapper.convert(scrollWrapper.bounds, to: nil)
-    )
-    return TerminalWindowCaptureRequest(
-      windowID: CGWindowID(window.windowNumber),
-      geometry: TerminalWindowCaptureGeometry(
-        windowFrame: window.frame,
-        viewScreenFrame: viewScreenFrame,
-        backingScaleFactor: window.backingScaleFactor
-      )
-    )
-  }
-}
-
 nonisolated enum TerminalPNGEncoder {
   static func data(for image: CGImage) -> Data? {
     NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])

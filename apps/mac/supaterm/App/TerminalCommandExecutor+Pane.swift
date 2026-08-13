@@ -77,7 +77,7 @@ extension TerminalCommandExecutor {
     )
   }
 
-  func screenshotPane(_ target: TerminalPaneTarget) async throws -> SupatermScreenshotPaneResult {
+  func screenshotPane(_ target: TerminalPaneTarget) throws -> SupatermScreenshotPaneResult {
     let capture = paneCaptureClient.capture
     let (resolvedTarget, surface):
       (
@@ -105,7 +105,7 @@ extension TerminalCommandExecutor {
           }
         )
     guard
-      let image = await capture(surface),
+      let image = capture(surface),
       let pngData = TerminalPNGEncoder.data(for: image)
     else {
       throw TerminalControlError.screenshotFailed
