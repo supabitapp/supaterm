@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import SupatermCLIShared
 import Testing
 
 @testable import SPCLI
