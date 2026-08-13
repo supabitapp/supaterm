@@ -1,319 +1,195 @@
 import Foundation
 import SupatermCLIShared
 
-private struct SPTreeSnapshot {
-  struct Window {
-    let index: Int
-    let isKey: Bool
-    let spaces: [Space]
-  }
-
-  struct Space {
-    let index: Int
-    let name: String
-    let color: SupatermThemeColor
-    let isDisplayed: Bool
-    let isWarm: Bool
-    let rootItems: [RootItem]
-  }
-
-  enum RootItem {
-    case group(Group)
-    case tab(Tab)
-  }
-
-  struct Group {
-    let id: UUID
-    let title: String
-    let color: SupatermThemeColor
-    let isPinned: Bool
-    let isCollapsed: Bool
-    let tabs: [Tab]
-  }
-
-  struct Tab {
-    let index: Int
-    let title: String
-    let isSelected: Bool
-    let isPinned: Bool?
-    let panes: [Pane]
-  }
-
-  struct Pane {
-    let index: Int
-    let displayTitle: String?
-    let isFocused: Bool
-  }
-
-  let windows: [Window]
-}
-
 enum SPTreeRenderer {
-  static func render(_ snapshot: SupatermAppDebugSnapshot) -> String {
-    render(projectedSnapshot(from: snapshot))
-  }
-
-  static func renderPlain(_ snapshot: SupatermAppDebugSnapshot) -> String {
-    renderPlain(projectedSnapshot(from: snapshot))
-  }
-
-  private static func render(_ snapshot: SPTreeSnapshot) -> String {
+  static func render(_ snapshot: SPListSnapshot) -> String {
     var lines: [String] = []
-
-    for (windowOffset, window) in snapshot.windows.enumerated() {
-      lines.append(windowLine(window))
-      lines.append(contentsOf: renderSpaces(window.spaces))
-
-      if windowOffset < snapshot.windows.count - 1 {
+    let windowIndexes = snapshot.items.map(\.windowIndex).reduce(into: [Int]()) { indexes, index in
+      if indexes.last != index {
+        indexes.append(index)
+      }
+    }
+    for (offset, windowIndex) in windowIndexes.enumerated() {
+      let isCurrent = snapshot.current?.windowIndex == windowIndex
+      lines.append(isCurrent ? "window \(windowIndex) [current]" : "window \(windowIndex)")
+      let spaces = snapshot.items.filter {
+        $0.windowIndex == windowIndex && $0.kind == .space
+      }
+      lines.append(contentsOf: renderChildren(spaces, snapshot: snapshot, prefix: ""))
+      if offset < windowIndexes.count - 1 {
         lines.append("")
       }
     }
-
     return lines.joined(separator: "\n")
   }
 
-  private static func renderPlain(_ snapshot: SPTreeSnapshot) -> String {
-    snapshot.windows.flatMap { window in
-      window.spaces.flatMap { space in
-        let spaceFlags = spaceLabels(space).joined(separator: ",")
-        let spaceLine = "\(space.index)\tspace\t\(space.name)\t\(spaceFlags)"
-
-        let rootLines = space.rootItems.flatMap { item -> [String] in
-          switch item {
-          case .group(let group):
-            let flagValues: [String?] = [
-              group.color.rawValue,
-              group.isPinned ? "pinned" : nil,
-              group.isCollapsed ? "collapsed" : nil,
-            ]
-            let flags = flagValues.compactMap(\.self)
-            let groupLine =
-              "\(group.id.uuidString.lowercased())\tgroup\t\(group.title)\t\(flags.joined(separator: ","))"
-            return [groupLine] + group.tabs.flatMap { plainTabLines($0, spaceIndex: space.index) }
-          case .tab(let tab):
-            return plainTabLines(tab, spaceIndex: space.index)
-          }
-        }
-
-        return [spaceLine] + rootLines
-      }
-    }
-    .joined(separator: "\n")
+  static func renderPlain(_ snapshot: SPListSnapshot) -> String {
+    snapshot.items.map { item in
+      let parent = parentReference(for: item, snapshot: snapshot) ?? "-"
+      let agent =
+        item.agent.map {
+          "\($0.kind.rawValue):\($0.phase.rawValue):\($0.sessionID)"
+        } ?? "-"
+      return [
+        reference(for: item, snapshot: snapshot),
+        item.kind.rawValue,
+        selector(for: item, snapshot: snapshot) ?? "-",
+        String(item.windowIndex),
+        parent,
+        item.selected ? "selected" : item.isWarm == false ? "cold" : "-",
+        escaped(item.title),
+        escaped(item.cwd ?? "-"),
+        escaped(agent),
+      ].joined(separator: "\t")
+    }.joined(separator: "\n")
   }
 
-  private static func plainTabLines(_ tab: SPTreeSnapshot.Tab, spaceIndex: Int) -> [String] {
-    let tabSelector = "\(spaceIndex)/\(tab.index)"
-    let tabFlags = [
-      tab.isSelected ? "selected" : nil,
-      tab.isPinned == true ? "pinned" : nil,
-    ].compactMap(\.self)
-    let suffix = tabFlags.isEmpty ? "" : "\t\(tabFlags.joined(separator: ","))"
-    let tabLine = "\(tabSelector)\ttab\t\(tab.title)\(suffix)"
-
-    let paneLines = tab.panes.map { pane in
-      let paneSelector = "\(spaceIndex)/\(tab.index)/\(pane.index)"
-      return plainPaneLine(pane, selector: paneSelector)
-    }
-
-    return [tabLine] + paneLines
-  }
-
-  private static func projectedSnapshot(from snapshot: SupatermAppDebugSnapshot) -> SPTreeSnapshot {
-    SPTreeSnapshot(
-      windows: snapshot.windows.map { window in
-        SPTreeSnapshot.Window(
-          index: window.index,
-          isKey: window.isKey,
-          spaces: window.spaces.map { space in
-            var tabIndex = 0
-            return SPTreeSnapshot.Space(
-              index: space.index,
-              name: space.name,
-              color: space.color,
-              isDisplayed: space.id == window.displayedSpaceID,
-              isWarm: space.isWarm,
-              rootItems: space.rootItems.map { item in
-                switch item {
-                case .group(let group):
-                  return .group(
-                    SPTreeSnapshot.Group(
-                      id: group.id,
-                      title: group.title,
-                      color: group.color,
-                      isPinned: group.isPinned,
-                      isCollapsed: group.isCollapsed,
-                      tabs: group.tabs.map { tab in
-                        tabIndex += 1
-                        return projectedTab(tab, index: tabIndex, isPinned: nil)
-                      }
-                    )
-                  )
-                case .tab(let rootTab):
-                  tabIndex += 1
-                  return .tab(
-                    projectedTab(rootTab.tab, index: tabIndex, isPinned: rootTab.isPinned)
-                  )
-                }
-              }
-            )
-          }
-        )
-      }
-    )
-  }
-
-  private static func renderSpaces(_ spaces: [SPTreeSnapshot.Space]) -> [String] {
-    spaces.enumerated().flatMap { spaceOffset, space in
-      let isLastSpace = spaceOffset == spaces.count - 1
-      let spaceBranch = isLastSpace ? "└─ " : "├─ "
-      let spacePrefix = isLastSpace ? "   " : "│  "
-
-      var lines = ["\(spaceBranch)\(spaceLine(space))"]
-      lines.append(contentsOf: renderRootItems(space.rootItems, prefix: spacePrefix))
-      return lines
-    }
-  }
-
-  private static func renderRootItems(
-    _ items: [SPTreeSnapshot.RootItem],
+  private static func renderChildren(
+    _ items: [SPListSnapshot.Item],
+    snapshot: SPListSnapshot,
     prefix: String
   ) -> [String] {
     items.enumerated().flatMap { offset, item in
       let isLast = offset == items.count - 1
       let branch = isLast ? "└─ " : "├─ "
       let childPrefix = prefix + (isLast ? "   " : "│  ")
-      switch item {
-      case .group(let group):
-        return ["\(prefix)\(branch)\(groupLine(group))"]
-          + renderTabs(group.tabs, prefix: childPrefix)
-      case .tab(let tab):
-        return renderTab(tab, branch: branch, childPrefix: childPrefix, prefix: prefix)
+      let children = snapshot.items.filter {
+        $0.windowIndex == item.windowIndex && $0.parentID == item.id
       }
+      return ["\(prefix)\(branch)\(itemLine(item, snapshot: snapshot))"]
+        + renderChildren(children, snapshot: snapshot, prefix: childPrefix)
     }
   }
 
-  private static func renderTabs(
-    _ tabs: [SPTreeSnapshot.Tab],
-    prefix: String
-  ) -> [String] {
-    tabs.enumerated().flatMap { tabOffset, tab in
-      let isLastTab = tabOffset == tabs.count - 1
-      let tabBranch = isLastTab ? "└─ " : "├─ "
-      let tabPrefix = prefix + (isLastTab ? "   " : "│  ")
-
-      return renderTab(tab, branch: tabBranch, childPrefix: tabPrefix, prefix: prefix)
-    }
-  }
-
-  private static func renderTab(
-    _ tab: SPTreeSnapshot.Tab,
-    branch: String,
-    childPrefix: String,
-    prefix: String
-  ) -> [String] {
-    ["\(prefix)\(branch)\(tabLine(tab))"]
-      + tab.panes.enumerated().map { paneOffset, pane in
-        let paneBranch = paneOffset == tab.panes.count - 1 ? "└─ " : "├─ "
-        return "\(childPrefix)\(paneBranch)\(paneLine(pane))"
-      }
-  }
-
-  private static func windowLine(_ window: SPTreeSnapshot.Window) -> String {
+  private static func itemLine(_ item: SPListSnapshot.Item, snapshot: SPListSnapshot) -> String {
+    let selector = selector(for: item, snapshot: snapshot).map { " \($0)" } ?? ""
+    let title = "\"\(escaped(item.title, quoted: true))\""
     var labels: [String] = []
-    if window.isKey {
-      labels.append("key")
-    }
-
-    if labels.isEmpty {
-      return "window \(window.index)"
-    }
-    return "window \(window.index) [\(labels.joined(separator: ", "))]"
-  }
-
-  private static func spaceLine(_ space: SPTreeSnapshot.Space) -> String {
-    "space \(space.index) \"\(space.name)\" [\(spaceLabels(space).joined(separator: ", "))]"
-  }
-
-  private static func spaceLabels(_ space: SPTreeSnapshot.Space) -> [String] {
-    var labels = [space.color.rawValue]
-    if space.isDisplayed {
-      labels.append("displayed")
-    }
-    if !space.isWarm {
-      labels.append("cold")
-    }
-    return labels
-  }
-
-  private static func tabLine(_ tab: SPTreeSnapshot.Tab) -> String {
-    var labels: [String] = []
-    if tab.isSelected {
+    if item.selected {
       labels.append("selected")
     }
-    if tab.isPinned == true {
-      labels.append("pinned")
+    if item.isWarm == false {
+      labels.append("cold")
     }
-
-    if labels.isEmpty {
-      return "tab \(tab.index) \"\(tab.title)\""
+    if let agent = item.agent {
+      labels.append("\(agent.kind.rawValue):\(agent.phase.rawValue)")
     }
-    return "tab \(tab.index) \"\(tab.title)\" [\(labels.joined(separator: ", "))]"
+    if let cwd = item.cwd {
+      labels.append("cwd=\"\(escaped(cwd, quoted: true))\"")
+    }
+    let suffix = labels.isEmpty ? "" : " [\(labels.joined(separator: ", "))]"
+    let reference = reference(for: item, snapshot: snapshot)
+    return "\(reference) \(item.kind.rawValue)\(selector) \(title)\(suffix)"
   }
 
-  private static func groupLine(_ group: SPTreeSnapshot.Group) -> String {
-    var labels = [group.color.rawValue]
-    if group.isPinned {
-      labels.append("pinned")
-    }
-    if group.isCollapsed {
-      labels.append("collapsed")
-    }
-    return
-      "group \(group.id.uuidString.lowercased()) \"\(group.title)\" [\(labels.joined(separator: ", "))]"
-  }
-
-  private static func projectedTab(
-    _ tab: SupatermAppDebugSnapshot.Tab,
-    index: Int,
-    isPinned: Bool?
-  ) -> SPTreeSnapshot.Tab {
-    SPTreeSnapshot.Tab(
-      index: index,
-      title: tab.title,
-      isSelected: tab.isSelected,
-      isPinned: isPinned,
-      panes: tab.panes.map { pane in
-        SPTreeSnapshot.Pane(
-          index: pane.index,
-          displayTitle: pane.displayTitle,
-          isFocused: pane.isFocused
-        )
-      }
+  private static func reference(
+    for item: SPListSnapshot.Item,
+    snapshot: SPListSnapshot
+  ) -> String {
+    SPShortReference.display(
+      kind: item.kind.shortReferenceKind,
+      id: item.id,
+      among: snapshot.items.filter { $0.kind == item.kind }.map(\.id)
     )
   }
 
-  private static func paneLine(_ pane: SPTreeSnapshot.Pane) -> String {
-    var labels: [String] = []
-    if pane.isFocused {
-      labels.append("focused")
-    }
-    let title = pane.displayTitle.map { " \"\($0)\"" } ?? ""
-
-    if labels.isEmpty {
-      return "pane \(pane.index)\(title)"
-    }
-    return "pane \(pane.index)\(title) [\(labels.joined(separator: ", "))]"
+  private static func parentReference(
+    for item: SPListSnapshot.Item,
+    snapshot: SPListSnapshot
+  ) -> String? {
+    guard let parentID = item.parentID else { return nil }
+    guard
+      let parent = snapshot.items.first(where: {
+        $0.windowIndex == item.windowIndex && $0.id == parentID
+      })
+    else { return nil }
+    return reference(for: parent, snapshot: snapshot)
   }
 
-  private static func plainPaneLine(_ pane: SPTreeSnapshot.Pane, selector: String) -> String {
-    var columns = [selector, "pane"]
-    if let displayTitle = pane.displayTitle {
-      columns.append(displayTitle)
+  private static func selector(
+    for item: SPListSnapshot.Item,
+    snapshot: SPListSnapshot
+  ) -> String? {
+    switch item.kind {
+    case .space:
+      guard
+        let index = snapshot.items.filter({
+          $0.windowIndex == item.windowIndex && $0.kind == .space
+        }).firstIndex(where: { $0.id == item.id })
+      else { return nil }
+      return String(index + 1)
+    case .group:
+      return nil
+    case .tab:
+      guard
+        let targetSpaceID = spaceID(for: item, snapshot: snapshot),
+        let index = snapshot.items.filter({ candidate in
+          candidate.windowIndex == item.windowIndex && candidate.kind == .tab
+            && spaceID(for: candidate, snapshot: snapshot) == targetSpaceID
+        }).firstIndex(where: { $0.id == item.id }),
+        let space = snapshot.items.first(where: {
+          $0.windowIndex == item.windowIndex && $0.kind == .space && $0.id == targetSpaceID
+        }),
+        let spaceSelector = selector(for: space, snapshot: snapshot)
+      else { return nil }
+      return "\(spaceSelector)/\(index + 1)"
+    case .pane:
+      guard
+        let tabID = item.parentID,
+        let tab = snapshot.items.first(where: {
+          $0.windowIndex == item.windowIndex && $0.kind == .tab && $0.id == tabID
+        }),
+        let tabSelector = selector(for: tab, snapshot: snapshot),
+        let index = snapshot.items.filter({
+          $0.windowIndex == item.windowIndex && $0.kind == .pane && $0.parentID == tabID
+        }).firstIndex(where: { $0.id == item.id })
+      else { return nil }
+      return "\(tabSelector)/\(index + 1)"
     }
-    if pane.isFocused {
-      columns.append("focused")
+  }
+
+  private static func spaceID(
+    for tab: SPListSnapshot.Item,
+    snapshot: SPListSnapshot
+  ) -> UUID? {
+    guard let parentID = tab.parentID else { return nil }
+    guard
+      let parent = snapshot.items.first(where: {
+        $0.windowIndex == tab.windowIndex && $0.id == parentID
+      })
+    else { return nil }
+    switch parent.kind {
+    case .space:
+      return parent.id
+    case .group:
+      return parent.parentID
+    case .tab, .pane:
+      return nil
     }
-    return columns.joined(separator: "\t")
+  }
+
+  private static func escaped(_ value: String, quoted: Bool = false) -> String {
+    value.unicodeScalars.map { scalar in
+      switch scalar.value {
+      case 9:
+        return "\\t"
+      case 10:
+        return "\\n"
+      case 13:
+        return "\\r"
+      case 34 where quoted:
+        return "\\\""
+      case 92:
+        return "\\\\"
+      default:
+        switch scalar.properties.generalCategory {
+        case .control, .format, .lineSeparator, .paragraphSeparator:
+          return "\\u{\(String(scalar.value, radix: 16, uppercase: false))}"
+        default:
+          return String(scalar)
+        }
+      }
+    }.joined()
   }
 }
 
@@ -498,7 +374,7 @@ enum SPDebugRenderer {
 
     lines.append("")
     lines.append("Topology")
-    lines.append(SPTreeRenderer.render(app))
+    lines.append(SPDiagnosticTopologyRenderer.render(app))
     return lines
   }
 

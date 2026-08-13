@@ -37,11 +37,19 @@ enum SPHelp {
     """
 
   static let treeDiscussion = """
-    `sp ls --json` includes UUIDs for spaces, tabs, and panes.
+    `sp ls` is the compact live snapshot for agents and people.
+
+    Human and plain output show typed short refs: s: for spaces, g: for groups,
+    t: for tabs, and p: for panes. A short ref has 8 to 32 UUID hex characters.
+    Use a longer ref if a prefix becomes ambiguous.
+
+    JSON returns a flat item list with canonical UUIDs, parent IDs, current target,
+    cwd, warm state, and coding-agent state. Its revision is an
+    opaque live snapshot token.
 
     Every window lists every space in catalog order and marks the one it displays.
     A window keeps its own tabs inside each space, so the same space holds different
-    tabs in different windows.
+    tabs in different windows. windowIndex scopes each repeated space occurrence.
 
     Example:
       sp ls
@@ -78,11 +86,12 @@ enum SPHelp {
 
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
-    `--in` accepts a tab selector, a pane selector, or a UUID.
+    `--in` accepts a tab target or pane target, including t: and p: refs.
 
     \(terminalStartupDiscussion)
 
     The new pane does not take focus by default. Add `--focus` to make it active.
+    `--plain` prints the new pane UUID for follow-up commands.
 
     Example:
       sp pane split right
@@ -104,9 +113,11 @@ enum SPHelp {
 
     The ambient tab and pane come from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
-    `--in` accepts a space selector or UUID, resolved inside this window. The space
+    `--in` accepts a space target, including an s: ref, resolved inside this window. The space
     opens its saved tabs first when this window has not displayed it yet. Add `--focus`
     to switch the window to that space as well.
+
+    `--plain` prints the new pane UUID for follow-up commands.
 
     \(terminalStartupDiscussion)
 
@@ -121,7 +132,7 @@ enum SPHelp {
     """
 
   static let groupDiscussion = """
-    Groups are addressed by title or UUID. A unique title is required.
+    Groups are addressed by g: ref, UUID, or exact title. A unique title is required.
 
     Example:
       sp group new Build
@@ -164,7 +175,7 @@ enum SPHelp {
   static let groupTargetDiscussion = """
     If you omit the group target inside Supaterm, the current tab's group is used.
 
-    Group targets accept a unique title or UUID.
+    Group targets accept a g: ref, UUID, or unique title.
 
     Example:
       sp group pin Build
@@ -189,7 +200,7 @@ enum SPHelp {
   static let moveTabDiscussion = """
     If you omit the tab target inside Supaterm, the current tab is used.
 
-    Move to a group by unique title or UUID, or use --root. --index is 1-based.
+    Move to a group by g: ref, UUID, or unique title, or use --root. --index is 1-based.
 
     Example:
       sp tab move --group Build
@@ -201,7 +212,7 @@ enum SPHelp {
   static let notifyDiscussion = """
     If you omit the pane target inside Supaterm, this command targets the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane notify --body "All tests passed"
@@ -213,7 +224,7 @@ enum SPHelp {
   static let focusPaneDiscussion = """
     If you omit the pane target inside Supaterm, this command focuses the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane focus 1/2/3
@@ -223,7 +234,7 @@ enum SPHelp {
   static let closePaneDiscussion = """
     If you omit the pane target inside Supaterm, this command closes the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane close
@@ -234,7 +245,7 @@ enum SPHelp {
   static let selectTabDiscussion = """
     If you omit the tab target inside Supaterm, this command focuses the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept a `space/tab` selector, t: ref, or UUID.
 
     Example:
       sp tab focus 1/2
@@ -244,7 +255,7 @@ enum SPHelp {
   static let pinTabDiscussion = """
     If you omit the tab target inside Supaterm, this command pins the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept a `space/tab` selector, t: ref, or UUID.
 
     Example:
       sp tab pin
@@ -255,7 +266,7 @@ enum SPHelp {
   static let unpinTabDiscussion = """
     If you omit the tab target inside Supaterm, this command unpins the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept a `space/tab` selector, t: ref, or UUID.
 
     Example:
       sp tab unpin
@@ -266,7 +277,7 @@ enum SPHelp {
   static let closeTabDiscussion = """
     If you omit the tab target inside Supaterm, this command closes the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept a `space/tab` selector, t: ref, or UUID.
 
     Example:
       sp tab close
@@ -277,7 +288,7 @@ enum SPHelp {
   static let sendTextDiscussion = """
     If you omit the pane target inside Supaterm, this command targets the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane send --newline 'echo hello'
@@ -290,7 +301,7 @@ enum SPHelp {
   static let sendKeyDiscussion = """
     If you omit the pane target inside Supaterm, this command targets the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Supported keys: \(SPPaneKeyArgument.supportedKeys).
 
@@ -303,7 +314,7 @@ enum SPHelp {
   static let capturePaneDiscussion = """
     If you omit the pane target inside Supaterm, this command captures the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane capture
@@ -317,7 +328,7 @@ enum SPHelp {
     The pane must be visible in a non-minimized Supaterm window. Taking a screenshot does not
     change the selected space, tab, pane, or application focus.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane screenshot --output pane.png
@@ -328,7 +339,7 @@ enum SPHelp {
   static let paneHealthDiscussion = """
     If you omit the pane target inside Supaterm, this command inspects the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane health
@@ -338,7 +349,7 @@ enum SPHelp {
   static let paneWaitReadyDiscussion = """
     If you omit the pane target inside Supaterm, this command waits for the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane wait-ready
@@ -348,7 +359,7 @@ enum SPHelp {
   static let resizePaneDiscussion = """
     If you omit the pane target inside Supaterm, this command resizes the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
     Example:
       sp pane resize right 10
@@ -359,7 +370,7 @@ enum SPHelp {
   static let renameTabDiscussion = """
     If you omit the tab target inside Supaterm, this command renames the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept a `space/tab` selector, t: ref, or UUID.
 
     Example:
       sp tab rename Build

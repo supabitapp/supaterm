@@ -46,7 +46,7 @@ Terminal object targeting happens after socket selection:
 
 - Pane context comes from `SUPATERM_SURFACE_ID` and `SUPATERM_TAB_ID`.
 - Inside Supaterm, commands can omit targets such as `sp tab new`, `sp pane split`, `sp tab focus`, and `sp pane focus`.
-- Outside Supaterm, pass selectors, UUIDs, or `--in` targets.
+- Outside Supaterm, pass selectors, typed short refs, UUIDs, or `--in` targets.
 - The CLI resolves public selectors from a fresh tree and sends stable object IDs.
 - The app resolves those IDs against live state when it runs the command, so an index change cannot retarget a queued command.
 
@@ -84,6 +84,7 @@ Discovery rules:
   - Pane: `1/2/3`
 - Space indexes follow catalog order, which is the order of the switcher dots, and mean the same thing in every window.
 - UUIDs are accepted anywhere the matching command accepts a space, tab, or pane.
+- Typed short refs use `s:`, `g:`, `t:`, or `p:` plus 8 to 32 UUID hex characters. The CLI resolves one fresh snapshot, rejects ambiguity, then sends the full UUID.
 - Creation commands return typed IDs: `spaceID`, `tabID`, and `paneID`.
 
 ### The ambient window
@@ -97,10 +98,9 @@ Space commands, and tab creation aimed at a space, act on one window: the ambien
 
 ### Tree shape
 
-`app.tree` and `app.debug` report every window with the space it displays and every space in
-catalog order. A space the window has not opened yet in this run reports `isWarm: false` along with
-the tabs from its saved layout; its panes exist on disk but have no live surface until the window
-displays that space or a command creates a tab there.
+`app.tree` is the compact internal topology used to resolve mutation targets. `app.debug` reports every window with the space it displays and every space in catalog order. A space the window has not opened yet in this run reports `isWarm: false` along with the tabs from its saved layout; its panes exist on disk but have no live surface until the window displays that space or a command creates a tab there.
+
+`sp ls` requests one rich `app.debug` snapshot and projects it to an ordered flat item list. JSON returns canonical IDs only. Human and plain modes derive the shortest unique typed ref for each item kind. The same space ID can occur once per window, so `windowIndex` scopes space rows and parent joins. `revision` is an opaque live snapshot token. Compare it for equality; it is not a counter or schema version.
 
 Each live `app.debug` pane reads `foregroundProcessGroupID` and `ttyName` from its Ghostty surface
 when the request runs. Process-group ID `0` and an empty tty are reported as unavailable.
@@ -183,6 +183,8 @@ A tab or pane with no command starts the account login shell.
 Use `--script` for builtins, aliases, or raw shell code. Supaterm starts the account login shell and enters the text visibly. It waits for shell readiness when the shell reports it; otherwise it queues the text when it creates the surface. The same shell remains after the script ends.
 
 For `sp tab new` and `sp pane split`, arguments after `--` launch a process directly. The first argument names an executable resolved with the caller's `PATH`, and every argument remains exact. Supaterm skips shell startup files, and the tab or pane closes when the process exits.
+
+Their JSON output includes typed IDs. Their plain output is the new pane UUID for direct chaining.
 
 Agent-panel forks also start the account login shell and enter the agent's native fork command visibly. The pane returns to the same shell when the agent exits. Terminal configuration cannot replace the launch selected by Supaterm.
 

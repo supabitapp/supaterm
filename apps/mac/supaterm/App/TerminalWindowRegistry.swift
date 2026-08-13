@@ -943,9 +943,21 @@ final class TerminalWindowRegistry {
 
   func ambientEntries(for context: SupatermCLIContext?) -> [Entry] {
     var entries = activeEntries()
-    guard let index = ambientIndex(in: entries, context: context) else { return entries }
+    guard let context else {
+      guard
+        let preferred = preferredActiveEntry(),
+        let index = entries.firstIndex(where: {
+          $0.windowControllerID == preferred.windowControllerID
+        })
+      else {
+        return entries
+      }
+      let preferredEntry = entries.remove(at: index)
+      return [preferredEntry] + entries
+    }
+    guard let index = ambientIndex(in: entries, context: context) else { return [] }
     let ambientEntry = entries.remove(at: index)
-    return [ambientEntry] + entries
+    return [ambientEntry]
   }
 
   func windowIndex(of entry: Entry) -> Int {
@@ -953,24 +965,16 @@ final class TerminalWindowRegistry {
     return (index ?? 0) + 1
   }
 
-  private func ambientIndex(in entries: [Entry], context: SupatermCLIContext?) -> Int? {
-    if let context {
-      if let index = entries.firstIndex(where: {
-        $0.terminal.tabID(containing: context.surfaceID) != nil
-          || $0.terminal.spaceManager.pendingInstance(containingSurface: context.surfaceID) != nil
-      }) {
-        return index
-      }
-      let tabID = TerminalTabID(rawValue: context.tabID)
-      if let index = entries.firstIndex(where: {
-        $0.terminal.spaceManager.instance(for: tabID) != nil
-          || $0.terminal.spaceManager.pendingInstance(containingTab: tabID) != nil
-      }) {
-        return index
-      }
+  private func ambientIndex(in entries: [Entry], context: SupatermCLIContext) -> Int? {
+    let tabID = TerminalTabID(rawValue: context.tabID)
+    return entries.firstIndex { entry in
+      let surfaceTabID =
+        entry.terminal.tabID(containing: context.surfaceID)
+        ?? entry.terminal.spaceManager.pendingTabID(containingSurface: context.surfaceID)
+      return surfaceTabID == tabID
+        && (entry.terminal.spaceManager.instance(for: tabID) != nil
+          || entry.terminal.spaceManager.pendingInstance(containingTab: tabID) != nil)
     }
-    guard let preferred = preferredActiveEntry() else { return nil }
-    return entries.firstIndex { $0.windowControllerID == preferred.windowControllerID }
   }
 
   private func spaceResult(

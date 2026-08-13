@@ -115,7 +115,7 @@ struct SPHelpTests {
     #expect(help.contains("--socket <socket>"))
     #expect(help.contains("default: $SUPATERM_SOCKET_PATH"))
     #expect(help.contains("If you omit --in inside Supaterm"))
-    #expect(help.contains("tab selector, a pane selector, or a UUID"))
+    #expect(help.contains("tab target or pane target, including t: and p: refs"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("The new pane does not take focus by default."))
@@ -182,14 +182,15 @@ struct SPHelpTests {
       .joined(separator: " ")
     let notifyHelp = SP.helpMessage(for: SP.Notify.self, columns: 100)
 
-    #expect(normalizedNewTabHelp.contains("space selector or UUID"))
+    #expect(normalizedNewTabHelp.contains("space target, including an s: ref"))
     #expect(
       normalizedNewTabHelp.contains(
         "Arguments after `--` remain exact. The first must name an executable."
       )
     )
     #expect(normalizedNewTabHelp.contains("closes the tab or pane when the process exits"))
-    #expect(normalizedNewTabHelp.contains("Use `--script` for builtins, aliases, or raw shell code."))
+    #expect(
+      normalizedNewTabHelp.contains("Use `--script` for builtins, aliases, or raw shell code."))
     #expect(normalizedNewTabHelp.contains("enters it in the account login shell"))
     #expect(normalizedNewTabHelp.contains("remains open after the script ends"))
     #expect(normalizedNewTabHelp.contains("sp tab new --script 'echo hi; pwd'"))
@@ -206,6 +207,7 @@ struct SPHelpTests {
     let newHelp = SP.helpMessage(for: SP.GroupNew.self, columns: 100)
     let moveHelp = SP.helpMessage(for: SP.GroupMove.self, columns: 100)
     let closeHelp = SP.helpMessage(for: SP.GroupClose.self, columns: 100)
+    let collapseHelp = SP.helpMessage(for: SP.GroupCollapse.self, columns: 100)
     let tabMoveHelp = SP.helpMessage(for: SP.MoveTab.self, columns: 100)
 
     #expect(groupHelp.contains("sp group new Build"))
@@ -217,6 +219,7 @@ struct SPHelpTests {
     #expect(newHelp.contains("sp group new Pinned --pin"))
     #expect(moveHelp.contains("sp group move Deploy --index 2"))
     #expect(closeHelp.contains("sp group close Build --yes"))
+    #expect(collapseHelp.contains("[<group>]"))
     #expect(tabMoveHelp.contains("sp tab move 1/2 --group <group-uuid> --index 1"))
     #expect(tabMoveHelp.contains("sp tab move <tab-uuid> --root --pin --index 1"))
     #expect(!groupHelp.contains("sp group delete"))

@@ -33,10 +33,10 @@ Use the endpoint ID from `sp instance ls --json` when names are duplicated.
 Inspect the live hierarchy:
 
 ```bash
-sp ls --json
+sp ls
 ```
 
-Pass the resulting UUID, or a 1-based selector such as `1/2/3`, rather than relying on ambient pane context. See [targeting](/guides/cli/targeting).
+Pass the resulting typed ref, a canonical UUID from `sp ls --json`, or a 1-based selector such as `1/2/3`, rather than relying on ambient pane context. See [targeting](/guides/cli/targeting).
 
 ## Terminal configuration is invalid
 

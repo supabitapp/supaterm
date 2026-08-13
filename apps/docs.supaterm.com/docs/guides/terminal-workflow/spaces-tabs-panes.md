@@ -67,11 +67,11 @@ sp pane layout main-vertical
 
 ## Inspect the hierarchy
 
-Run `sp ls` for a readable tree or `sp ls --json` for selectors and stable UUIDs. Group entries preserve the same root order shown in the sidebar:
+Run `sp ls` for a readable tree with typed short refs. Use `sp ls --json` for a flat snapshot with canonical UUIDs, parent IDs, cwd, and coding-agent state. Items preserve the same root order shown in the sidebar:
 
 ```bash
 sp ls
 sp ls --json
 ```
 
-Use the UUIDs in durable scripts. See [targeting](/guides/cli/targeting) for selector rules.
+Use short refs for live work and UUIDs in durable scripts. See [targeting](/guides/cli/targeting) for the exact rules.

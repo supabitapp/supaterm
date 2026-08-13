@@ -241,6 +241,8 @@ extension SP {
         return "space \(spaceIndex)"
       case .id:
         return "space \(target.spaceID.uuidString.lowercased())"
+      case .short(let reference):
+        return "space \(reference)"
       }
     }
   }

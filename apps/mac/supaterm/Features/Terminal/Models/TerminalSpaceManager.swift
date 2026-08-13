@@ -71,6 +71,12 @@ final class TerminalSpaceManager {
     pendingInstance { $0.surfaceIDs.contains(surfaceID) }
   }
 
+  func pendingTabID(containingSurface surfaceID: UUID) -> TerminalTabID? {
+    instances.lazy.compactMap(\.pendingSession).lazy
+      .flatMap(\.tabs)
+      .first { $0.root.orderedSurfaceIDs.contains(surfaceID) }?.id
+  }
+
   func pendingInstance(containingTab tabID: TerminalTabID) -> TerminalSpaceInstance? {
     pendingInstance { $0.tabs.contains { $0.id == tabID } }
   }

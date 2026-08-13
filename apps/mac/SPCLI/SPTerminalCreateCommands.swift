@@ -73,7 +73,7 @@ extension SP {
         options: options,
         request: { try .newTab(try requestPayload(client: $0)) },
         as: SupatermNewTabResult.self,
-        plain: { plainTabSelector(spaceIndex: $0.spaceIndex, tabIndex: $0.tabIndex) },
+        plain: { $0.paneID.uuidString.lowercased() },
         human: {
           "window \($0.windowIndex) space \($0.spaceIndex) tab \($0.tabIndex) pane \($0.paneIndex)"
         }
@@ -148,9 +148,7 @@ extension SP {
         options: options,
         request: { try .newPane(try requestPayload(client: $0)) },
         as: SupatermNewPaneResult.self,
-        plain: {
-          plainPaneSelector(spaceIndex: $0.spaceIndex, tabIndex: $0.tabIndex, paneIndex: $0.paneIndex)
-        },
+        plain: { $0.paneID.uuidString.lowercased() },
         human: {
           "window \($0.windowIndex) space \($0.spaceIndex) tab \($0.tabIndex) pane \($0.paneIndex)"
         }

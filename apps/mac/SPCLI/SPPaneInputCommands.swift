@@ -90,7 +90,7 @@ extension SP {
         }
         return SendTextInput(target: nil, text: readStandardInput())
       case 1:
-        if let pane = tryParsePaneReference(arguments[0]) {
+        if let pane = try parsePaneReferenceIfTarget(arguments[0]) {
           guard stdinHasPipedInput() else {
             throw ValidationError("Pipe stdin when only a pane target is provided.")
           }
@@ -98,7 +98,7 @@ extension SP {
         }
         return SendTextInput(target: nil, text: try resolveText(arguments[0]))
       case 2:
-        guard let pane = tryParsePaneReference(arguments[0]) else {
+        guard let pane = try parsePaneReferenceIfTarget(arguments[0]) else {
           throw ValidationError("The first argument must be a pane target.")
         }
         return SendTextInput(target: pane, text: try resolveText(arguments[1]))
@@ -181,8 +181,11 @@ private struct SendTextInput {
   let text: String
 }
 
-private func tryParsePaneReference(_ argument: String) -> SPPaneReference? {
-  try? parsePaneReference(argument)
+private func parsePaneReferenceIfTarget(_ argument: String) throws -> SPPaneReference? {
+  if try SPShortReference.parse(argument) != nil {
+    return try parsePaneReference(argument)
+  }
+  return try? parsePaneReference(argument)
 }
 
 private func readStandardInput() -> String {

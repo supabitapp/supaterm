@@ -1349,12 +1349,13 @@ final class TerminalHostState {
     isFocused: Bool
   ) -> SupatermAppDebugSnapshot.Pane {
     guard let surface else {
+      let pendingPane = pendingPaneSession(id: id)
       return SupatermAppDebugSnapshot.Pane(
         index: index,
         id: id,
         isFocused: isFocused,
-        displayTitle: "Pane \(index)",
-        pwd: nil,
+        displayTitle: pendingPane?.titleOverride ?? "Pane \(index)",
+        pwd: pendingPane?.workingDirectoryPath,
         isReadOnly: false,
         hasSecureInput: false,
         bellCount: 0,
@@ -1393,6 +1394,17 @@ final class TerminalHostState {
       ttyName: processIdentity.ttyName,
       agent: debugAgentSnapshot(for: id)
     )
+  }
+
+  private func pendingPaneSession(id: UUID) -> TerminalPaneLeafSession? {
+    for instance in spaceManager.instances {
+      for tab in instance.pendingSession?.tabs ?? [] {
+        if let leaf = tab.root.leaf(id: id) {
+          return leaf
+        }
+      }
+    }
+    return nil
   }
 
 }

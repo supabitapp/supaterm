@@ -58,7 +58,18 @@ struct SupatermSkillExamplesTests {
     return
       blocks
       .flatMap { mergedCommandLines(in: String($0)) }
-      .filter { $0.hasPrefix("sp ") || $0.contains("| sp ") }
+      .compactMap(extractSPCommand)
+  }
+
+  private func extractSPCommand(_ line: String) -> String? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    if trimmed.hasPrefix("sp ") {
+      return trimmed
+    }
+    if let pipeRange = trimmed.range(of: "| sp ") {
+      return "sp " + trimmed[pipeRange.upperBound...]
+    }
+    return nil
   }
 
   private func mergedCommandLines(in block: String) -> [String] {
@@ -98,16 +109,9 @@ struct SupatermSkillExamplesTests {
   }
 
   private func normalizedCommand(_ command: String) -> String {
-    let rewrittenCommand: String
-    if let pipeRange = command.range(of: "| sp ") {
-      rewrittenCommand = "sp " + command[pipeRange.upperBound...]
-    } else {
-      rewrittenCommand = command
-    }
-
     let cliCommand =
-      rewrittenCommand.range(of: " < ").map { String(rewrittenCommand[..<$0.lowerBound]) }
-      ?? rewrittenCommand
+      command.range(of: " < ").map { String(command[..<$0.lowerBound]) }
+      ?? command
 
     return
       cliCommand
@@ -115,6 +119,8 @@ struct SupatermSkillExamplesTests {
       .replacingOccurrences(of: "<group-uuid>", with: "44444444-4444-4444-8444-444444444444")
       .replacingOccurrences(of: "<tab-uuid>", with: "22222222-2222-4222-8222-222222222222")
       .replacingOccurrences(of: "<pane-uuid>", with: "33333333-3333-4333-8333-333333333333")
+      .replacingOccurrences(of: "$target", with: "t:22222222")
+      .replacingOccurrences(of: "$pane_id", with: "33333333-3333-4333-8333-333333333333")
   }
 
   private func shellSplit(_ command: String) throws -> [String] {
@@ -122,7 +128,7 @@ struct SupatermSkillExamplesTests {
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
     process.arguments = [
       "-fc",
-      "cmd=$1; for arg in ${(z)cmd}; do print -r -- \"$arg\"; done",
+      "cmd=$1; for arg in ${(z)cmd}; do print -r -- ${(Q)arg}; done",
       "--",
       command,
     ]

@@ -89,7 +89,7 @@ extension SP {
     @Argument(help: "New group title.")
     var title: String
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @OptionGroup
@@ -115,7 +115,7 @@ extension SP {
     @Argument(help: "Group color.", transform: parseThemeColor)
     var color: SupatermThemeColor
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @OptionGroup
@@ -126,7 +126,9 @@ extension SP {
       try runGroupMutation(
         group,
         options: options,
-        request: { try .setTabGroupColor(SupatermSetTabGroupColorRequest(color: color, target: $0)) }
+        request: {
+          try .setTabGroupColor(SupatermSetTabGroupColorRequest(color: color, target: $0))
+        }
       )
     }
   }
@@ -138,7 +140,7 @@ extension SP {
       discussion: SPHelp.groupTargetDiscussion
     )
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @OptionGroup
@@ -156,7 +158,7 @@ extension SP {
       discussion: SPHelp.groupTargetDiscussion
     )
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @OptionGroup
@@ -174,7 +176,7 @@ extension SP {
       discussion: SPHelp.groupTargetDiscussion
     )
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @OptionGroup
@@ -192,7 +194,7 @@ extension SP {
       discussion: SPHelp.groupTargetDiscussion
     )
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @OptionGroup
@@ -210,7 +212,7 @@ extension SP {
       discussion: SPHelp.groupMoveDiscussion
     )
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @Option(name: .long, help: "1-based destination index.")
@@ -239,7 +241,7 @@ extension SP {
       discussion: SPHelp.groupTargetDiscussion
     )
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @OptionGroup
@@ -257,7 +259,7 @@ extension SP {
       discussion: SPHelp.groupTargetDiscussion
     )
 
-    @Argument(help: "Optional group title or UUID.")
+    @Argument(help: "Optional group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @Flag(name: [.customShort("y"), .long], help: "Close without interactive confirmation.")
@@ -309,7 +311,7 @@ extension SP {
     @Argument(help: "Optional tab target.")
     var tab: SPTabReference?
 
-    @Option(name: .long, help: "Destination group title or UUID.", transform: parseGroupReference)
+    @Option(name: .long, help: "Destination group target.", transform: parseGroupReference)
     var group: SPGroupReference?
 
     @Flag(name: .long, help: "Move the tab to the space root.")
@@ -331,10 +333,12 @@ extension SP {
         request: { client in
           try .moveTab(
             try resolvePublicMoveTabRequest(
-              tab: tab,
-              destination: destination,
-              index: index,
-              isPinned: pin,
+              SPMoveTabResolutionInput(
+                tab: tab,
+                destination: destination,
+                index: index,
+                isPinned: pin
+              ),
               context: SupatermCLIContext.current,
               snapshot: try treeSnapshot(client)
             )

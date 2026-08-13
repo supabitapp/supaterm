@@ -12,10 +12,10 @@ Click the **+** button at the bottom of the sidebar, or open the command palette
 You can also create and focus one from a terminal. These examples use `jq` to retain the IDs returned by `sp`:
 
 ```bash
-space_id="$(sp space new --json --focus Supaterm | jq -r '.target.spaceID')"
+space_id="$(sp space new --json Supaterm | jq -r '.target.spaceID')"
 ```
 
-`--focus` changes the visible space, but the current shell keeps its original pane context. Retain the new ID for the next commands.
+Creating the space displays it in this window, but the shell that ran the command keeps its original pane context. Retain the new ID for the next commands.
 
 Right-click a space to rename or delete it. Supaterm always keeps at least one space.
 

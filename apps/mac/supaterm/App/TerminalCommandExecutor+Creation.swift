@@ -4,7 +4,7 @@ import SupatermTerminalCore
 
 extension TerminalCommandExecutor {
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
-    for entry in registry.ambientEntries(for: request.context) {
+    for entry in targetedEntries(for: request) {
       do {
         let result = try entry.terminal.createTab(request)
         return TerminalWindowRegistry.rewrite(result, windowIndex: registry.windowIndex(of: entry))
@@ -16,6 +16,26 @@ extension TerminalCommandExecutor {
       }
     }
     throw TerminalCreateTabError.contextPaneNotFound
+  }
+
+  private func targetedEntries(
+    for request: TerminalCreateTabRequest
+  ) -> [TerminalWindowRegistry.Entry] {
+    switch request.target {
+    case .pane(let paneID):
+      return registry.activeEntries().filter {
+        $0.terminal.tabID(containing: paneID) != nil
+          || $0.terminal.spaceManager.pendingInstance(containingSurface: paneID) != nil
+      }
+    case .group(let groupID):
+      let groupID = TerminalTabGroupID(rawValue: groupID)
+      return registry.activeEntries().filter {
+        $0.terminal.spaceManager.instance(for: groupID) != nil
+          || $0.terminal.spaceManager.pendingInstance(containingGroup: groupID) != nil
+      }
+    case .root, .space:
+      return registry.ambientEntries(for: request.context)
+    }
   }
 
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {

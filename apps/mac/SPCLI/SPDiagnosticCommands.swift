@@ -46,7 +46,11 @@ enum SPDiagnosticSocketProbe {
       do {
         let snapshot = try response.decodeResult(SupatermAppDebugSnapshot.self)
         socket.requestSucceeded = true
-        return .init(socket: socket, appSnapshot: snapshot, problems: [])
+        return SPDiagnosticSocketProbeResult(
+          socket: socket,
+          appSnapshot: snapshot,
+          problems: []
+        )
       } catch {
         return failed(socket: socket, message: error.localizedDescription)
       }
@@ -60,7 +64,7 @@ enum SPDiagnosticSocketProbe {
     context: SupatermCLIContext?
   ) throws -> SupatermSocketResponse {
     let client = try SPSocketClient(path: target.path)
-    return try client.send(.debug(.init(context: context)))
+    return try client.send(.debug(SupatermDebugRequest(context: context)))
   }
 
   private static func failed(
@@ -69,7 +73,11 @@ enum SPDiagnosticSocketProbe {
   ) -> SPDiagnosticSocketProbeResult {
     var socket = socket
     socket.error = message
-    return .init(socket: socket, appSnapshot: nil, problems: [message])
+    return SPDiagnosticSocketProbeResult(
+      socket: socket,
+      appSnapshot: nil,
+      problems: [message]
+    )
   }
 }
 
@@ -90,7 +98,7 @@ extension SP {
   struct Tree: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "ls",
-      abstract: "Show the current Supaterm window, space, tab, and pane tree.",
+      abstract: "Show a compact live Supaterm snapshot.",
       discussion: SPHelp.treeDiscussion
     )
 
@@ -103,30 +111,23 @@ extension SP {
         path: options.connection.explicitSocketPath,
         instance: options.connection.instance
       )
+      let response = try client.send(
+        .debug(SupatermDebugRequest(context: SupatermCLIContext.current))
+      )
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+      let snapshot = SPListSnapshot(
+        try response.decodeResult(SupatermAppDebugSnapshot.self)
+      )
+      guard !options.output.quiet else { return }
       switch options.output.mode {
       case .json:
-        let response = try client.send(.tree())
-        guard response.ok else {
-          throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
-        }
-
-        let snapshot = try response.decodeResult(SupatermTreeSnapshot.self)
         print(try jsonString(snapshot))
-      case .plain, .human:
-        let response = try client.send(.debug(.init(context: SupatermCLIContext.current)))
-        guard response.ok else {
-          throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
-        }
-
-        let snapshot = try response.decodeResult(SupatermAppDebugSnapshot.self)
-        switch options.output.mode {
-        case .plain:
-          print(SPTreeRenderer.renderPlain(snapshot))
-        case .human:
-          print(SPTreeRenderer.render(snapshot))
-        case .json:
-          break
-        }
+      case .plain:
+        print(SPTreeRenderer.renderPlain(snapshot))
+      case .human:
+        print(SPTreeRenderer.render(snapshot))
       }
     }
   }
@@ -189,7 +190,7 @@ extension SP {
       )
 
       let report = SPDebugReport(
-        invocation: .init(
+        invocation: SPDebugReport.Invocation(
           isRunningInsideSupaterm: context != nil,
           context: context,
           explicitSocketPath: diagnostics.explicitSocketPath,
@@ -200,7 +201,7 @@ extension SP {
           ),
           resolvedSocketPath: diagnostics.resolvedTarget?.path
         ),
-        discovery: .init(
+        discovery: SPDebugReport.Discovery(
           reachableInstances: diagnostics.discoveredEndpoints,
           removedStalePaths: diagnostics.removedStalePaths
         ),

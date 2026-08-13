@@ -62,7 +62,8 @@ struct SPTmuxCompatSequenceTests {
     #expect(firstSplitRequest.focus == false)
     #expect(firstSplitRequest.target == .pane(transport.leaderPaneID))
 
-    let firstSplitSizeRequest = try terminalRequests[1].decodeParams(SupatermSetPaneSizeRequest.self)
+    let firstSplitSizeRequest = try terminalRequests[1].decodeParams(
+      SupatermSetPaneSizeRequest.self)
     #expect(firstSplitSizeRequest.amount == 70)
     #expect(firstSplitSizeRequest.axis == .horizontal)
     #expect(firstSplitSizeRequest.unit == .percent)
@@ -83,6 +84,42 @@ struct SPTmuxCompatSequenceTests {
     #expect(leaderSizeRequest.unit == .percent)
     #expect(leaderSizeRequest.target.paneID == transport.leaderPaneID)
   }
+
+  @Test
+  func typedRefsResolveThroughTmuxTargets() throws {
+    let transport = SPTmuxTransportStub()
+    let runner = SPTmuxCommandRunner(
+      transport: transport,
+      environment: [
+        SupatermCLIEnvironment.surfaceIDKey: transport.leaderPaneID.uuidString,
+        SupatermCLIEnvironment.tabIDKey: transport.tabID.uuidString,
+      ]
+    )
+
+    try runner.run(arguments: ["has-session", "-t", "s:11111111"])
+    try runner.run(arguments: ["select-window", "-t", "t:22222222"])
+    try runner.run(arguments: ["select-pane", "-t", "p:33333333"])
+
+    let methods = transport.requests.map(\.method)
+    #expect(methods.filter { $0 == SupatermSocketMethod.appDebug }.count == 3)
+    #expect(methods.contains(SupatermSocketMethod.terminalSelectTab))
+    #expect(methods.contains(SupatermSocketMethod.terminalFocusPane))
+  }
+
+  @Test
+  func tmuxSessionWindowTargetsDoNotParseAsTypedRefs() throws {
+    let transport = SPTmuxTransportStub(spaceName: "s")
+    let runner = SPTmuxCommandRunner(
+      transport: transport,
+      environment: [
+        SupatermCLIEnvironment.surfaceIDKey: transport.leaderPaneID.uuidString,
+        SupatermCLIEnvironment.tabIDKey: transport.tabID.uuidString,
+      ]
+    )
+
+    try runner.run(arguments: ["has-session", "-t", "s:1"])
+    try runner.run(arguments: ["has-session", "-t", "s:deadbeef"])
+  }
 }
 
 private final class SPTmuxTransportStub: SPTmuxTransport {
@@ -96,12 +133,13 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
     let windowIndex = 1
     let spaceIndex = 1
     let spaceID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
-    let spaceName = "main"
+    let spaceName: String
     let tabIndex = 1
     let tabID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     let tabTitle = "supaterm"
     var panes: [PaneState] = [
-      PaneState(index: 1, id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, isFocused: true)
+      PaneState(
+        index: 1, id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, isFocused: true)
     ]
     var nextPaneIDs: [UUID] = [
       UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
@@ -275,7 +313,11 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
     state.tabIndex
   }
 
-  private var state = State()
+  private var state: State
+
+  init(spaceName: String = "main") {
+    state = State(spaceName: spaceName)
+  }
 
   func send(_ request: SupatermSocketRequest) throws -> SupatermSocketResponse {
     requests.append(request)
@@ -295,6 +337,33 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
     case SupatermSocketMethod.terminalMainVerticalPanes:
       _ = try request.decodeParams(SupatermTabTargetRequest.self)
       return try .ok(id: request.id, encodableResult: state.tabTarget())
+
+    case SupatermSocketMethod.terminalSelectTab:
+      _ = try request.decodeParams(SupatermTabTargetRequest.self)
+      return try .ok(
+        id: request.id,
+        encodableResult: SupatermSelectTabResult(
+          isFocused: false,
+          isSelectedSpace: true,
+          isSelectedTab: true,
+          isTitleLocked: false,
+          paneIndex: 1,
+          paneID: state.leaderPaneID,
+          target: state.tabTarget()
+        )
+      )
+
+    case SupatermSocketMethod.terminalFocusPane:
+      let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
+      let target = try state.paneTarget(for: payload)
+      return try .ok(
+        id: request.id,
+        encodableResult: SupatermFocusPaneResult(
+          isFocused: true,
+          isSelectedTab: true,
+          target: target
+        )
+      )
 
     default:
       throw NSError(

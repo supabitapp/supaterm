@@ -23,7 +23,7 @@ struct SPTmuxTopology {
     }
 
     var targetRequest: SupatermTabTargetRequest {
-      .init(tabID: tab.id)
+      SupatermTabTargetRequest(tabID: tab.id)
     }
   }
 
@@ -38,7 +38,7 @@ struct SPTmuxTopology {
     }
 
     var targetRequest: SupatermPaneTargetRequest {
-      .init(paneID: pane.id)
+      SupatermPaneTargetRequest(paneID: pane.id)
     }
   }
 
@@ -64,7 +64,7 @@ struct SPTmuxTopology {
       let located = Self.locateTab(id: currentTarget.tabID, in: snapshot),
       let pane = located.tab.panes.first(where: \.isFocused) ?? located.tab.panes.first
     {
-      self.current = .init(
+      self.current = PaneLocation(
         window: located.window,
         space: located.space,
         tab: located.tab,
@@ -81,11 +81,25 @@ struct SPTmuxTopology {
 
   func resolveSpace(raw: String?) throws -> SpaceLocation {
     guard let token = trimmedNonEmpty(raw) else {
-      return .init(window: current.window, space: current.space)
+      return SpaceLocation(window: current.window, space: current.space)
+    }
+
+    if let id = resolvedShortReferenceID(
+      token,
+      kind: .space,
+      ids: snapshot.windows.flatMap(\.spaces).map(\.id)
+    ) {
+      if let space = current.window.spaces.first(where: { $0.id == id }) {
+        return SpaceLocation(window: current.window, space: space)
+      }
+      guard let location = Self.locateSpace(id: id, in: snapshot) else {
+        throw ValidationError("Space target not found: \(token).")
+      }
+      return location
     }
 
     if token.contains(":"), sessionSelector(from: token) == nil {
-      return .init(window: current.window, space: current.space)
+      return SpaceLocation(window: current.window, space: current.space)
     }
     let sessionToken = sessionSelector(from: token) ?? token
     if let location = locateSpace(
@@ -98,14 +112,25 @@ struct SPTmuxTopology {
 
   func resolveTab(raw: String?) throws -> TabLocation {
     guard let token = trimmedNonEmpty(raw) else {
-      return .init(window: current.window, space: current.space, tab: current.tab)
+      return TabLocation(window: current.window, space: current.space, tab: current.tab)
+    }
+
+    if let id = resolvedShortReferenceID(
+      token,
+      kind: .tab,
+      ids: snapshot.windows.flatMap(\.spaces).flatMap(\.flattenedTabs).map(\.id)
+    ) {
+      guard let location = Self.locateTab(id: id, in: snapshot) else {
+        throw ValidationError("Tab target not found: \(token).")
+      }
+      return location
     }
 
     if token.hasPrefix("%"),
       let id = normalizedUUIDToken(String(token.dropFirst())),
       let location = Self.locatePane(id: id, in: snapshot)
     {
-      return .init(window: location.window, space: location.space, tab: location.tab)
+      return TabLocation(window: location.window, space: location.space, tab: location.tab)
     }
 
     let target = splitSpaceAndTab(token)
@@ -113,18 +138,18 @@ struct SPTmuxTopology {
       if let sessionToken = target.spaceSelector {
         try resolveSpace(raw: sessionToken)
       } else {
-        .init(window: current.window, space: current.space)
+        SpaceLocation(window: current.window, space: current.space)
       }
 
     guard let tabToken = target.tabSelector else {
       if current.space.id == space.space.id {
-        return .init(window: current.window, space: current.space, tab: current.tab)
+        return TabLocation(window: current.window, space: current.space, tab: current.tab)
       }
       let tabs = space.space.flattenedTabs
       guard let tab = tabs.first(where: \.isSelected) ?? tabs.first else {
         throw ValidationError("Tab target not found.")
       }
-      return .init(window: space.window, space: space.space, tab: tab)
+      return TabLocation(window: space.window, space: space.space, tab: tab)
     }
 
     if let location = locateTab(selector: tabToken, in: space) {
@@ -137,6 +162,17 @@ struct SPTmuxTopology {
   func resolvePane(raw: String?) throws -> PaneLocation {
     guard let token = trimmedNonEmpty(raw) else {
       return current
+    }
+
+    if let id = resolvedShortReferenceID(
+      token,
+      kind: .pane,
+      ids: snapshot.windows.flatMap(\.spaces).flatMap(\.flattenedTabs).flatMap(\.panes).map(\.id)
+    ) {
+      guard let location = Self.locatePane(id: id, in: snapshot) else {
+        throw ValidationError("Pane target not found: \(token).")
+      }
+      return location
     }
 
     if token.hasPrefix("%") {
@@ -152,7 +188,7 @@ struct SPTmuxTopology {
       if let tabSelector = target.tabSelector {
         try resolveTab(raw: tabSelector)
       } else {
-        .init(window: current.window, space: current.space, tab: current.tab)
+        TabLocation(window: current.window, space: current.space, tab: current.tab)
       }
 
     guard let paneToken = target.paneSelector else {
@@ -162,7 +198,7 @@ struct SPTmuxTopology {
       guard let pane = tab.tab.panes.first(where: \.isFocused) ?? tab.tab.panes.first else {
         throw ValidationError("Pane target not found.")
       }
-      return .init(window: tab.window, space: tab.space, tab: tab.tab, pane: pane)
+      return PaneLocation(window: tab.window, space: tab.space, tab: tab.tab, pane: pane)
     }
 
     if let pane = locatePane(selector: paneToken, in: tab) {
@@ -184,7 +220,7 @@ struct SPTmuxTopology {
         guard tabs.indices.contains(tabIndex - 1) else { continue }
         let tab = tabs[tabIndex - 1]
         for pane in tab.panes where pane.index == paneIndex {
-          return .init(window: window, space: space, tab: tab, pane: pane)
+          return PaneLocation(window: window, space: space, tab: tab, pane: pane)
         }
       }
     }
@@ -204,24 +240,24 @@ struct SPTmuxTopology {
     if let index = Int(strippingSpacePrefix(selector)) {
       for window in snapshot.windows where window.index == preferredWindowIndex {
         if let space = window.spaces.first(where: { $0.index == index }) {
-          return .init(window: window, space: space)
+          return SpaceLocation(window: window, space: space)
         }
       }
       for window in snapshot.windows {
         if let space = window.spaces.first(where: { $0.index == index }) {
-          return .init(window: window, space: space)
+          return SpaceLocation(window: window, space: space)
         }
       }
     }
 
     for window in snapshot.windows where window.index == preferredWindowIndex {
       if let space = window.spaces.first(where: { $0.name == selector }) {
-        return .init(window: window, space: space)
+        return SpaceLocation(window: window, space: space)
       }
     }
     for window in snapshot.windows {
       if let space = window.spaces.first(where: { $0.name == selector }) {
-        return .init(window: window, space: space)
+        return SpaceLocation(window: window, space: space)
       }
     }
     return nil
@@ -233,18 +269,18 @@ struct SPTmuxTopology {
   ) -> TabLocation? {
     if let id = normalizedUUIDToken(selector) {
       for tab in space.space.flattenedTabs where tab.id == id {
-        return .init(window: space.window, space: space.space, tab: tab)
+        return TabLocation(window: space.window, space: space.space, tab: tab)
       }
     }
 
     let tabs = space.space.flattenedTabs
     if let index = Int(strippingTabPrefix(selector)), index > 0, tabs.indices.contains(index - 1) {
       let tab = tabs[index - 1]
-      return .init(window: space.window, space: space.space, tab: tab)
+      return TabLocation(window: space.window, space: space.space, tab: tab)
     }
 
     if let tab = tabs.first(where: { $0.title == selector }) {
-      return .init(window: space.window, space: space.space, tab: tab)
+      return TabLocation(window: space.window, space: space.space, tab: tab)
     }
 
     return nil
@@ -256,14 +292,14 @@ struct SPTmuxTopology {
   ) -> PaneLocation? {
     if let id = normalizedUUIDToken(selector) {
       for pane in tab.tab.panes where pane.id == id {
-        return .init(window: tab.window, space: tab.space, tab: tab.tab, pane: pane)
+        return PaneLocation(window: tab.window, space: tab.space, tab: tab.tab, pane: pane)
       }
     }
 
     if let index = Int(selector),
       let pane = tab.tab.panes.first(where: { $0.index == index })
     {
-      return .init(window: tab.window, space: tab.space, tab: tab.tab, pane: pane)
+      return PaneLocation(window: tab.window, space: tab.space, tab: tab.tab, pane: pane)
     }
 
     return nil
@@ -276,13 +312,18 @@ struct SPTmuxTopology {
 
     if let index = Int(selector) {
       if let pane = current.tab.panes.first(where: { $0.index == index }) {
-        return .init(window: current.window, space: current.space, tab: current.tab, pane: pane)
+        return PaneLocation(
+          window: current.window,
+          space: current.space,
+          tab: current.tab,
+          pane: pane
+        )
       }
       for window in snapshot.windows {
         for space in window.spaces {
           for tab in space.flattenedTabs {
             if let pane = tab.panes.first(where: { $0.index == index }) {
-              return .init(window: window, space: space, tab: tab, pane: pane)
+              return PaneLocation(window: window, space: space, tab: tab, pane: pane)
             }
           }
         }
@@ -290,6 +331,18 @@ struct SPTmuxTopology {
     }
 
     return nil
+  }
+
+  private func resolvedShortReferenceID(
+    _ token: String,
+    kind: SPShortReference.Kind,
+    ids: [UUID]
+  ) -> UUID? {
+    guard
+      let reference = try? SPShortReference.parse(token),
+      reference.kind == kind
+    else { return nil }
+    return try? reference.resolve(in: ids)
   }
 
   private func sessionSelector(from raw: String) -> String? {
@@ -300,9 +353,9 @@ struct SPTmuxTopology {
     return trimmedNonEmpty(session)
   }
 
-  private func splitSpaceAndTab(_ raw: String) -> (
-    raw: String, spaceSelector: String?, tabSelector: String?
-  ) {
+  private func splitSpaceAndTab(
+    _ raw: String
+  ) -> (spaceSelector: String?, tabSelector: String?) {
     let withoutPane: String =
       if let dotIndex = raw.lastIndex(of: ".") {
         String(raw[..<dotIndex])
@@ -312,13 +365,14 @@ struct SPTmuxTopology {
 
     if let colonIndex = withoutPane.lastIndex(of: ":") {
       return (
-        raw,
-        trimmedNonEmpty(String(withoutPane[..<colonIndex])),
-        trimmedNonEmpty(String(withoutPane[withoutPane.index(after: colonIndex)...]))
+        spaceSelector: trimmedNonEmpty(String(withoutPane[..<colonIndex])),
+        tabSelector: trimmedNonEmpty(
+          String(withoutPane[withoutPane.index(after: colonIndex)...])
+        )
       )
     }
 
-    return (raw, nil, trimmedNonEmpty(withoutPane))
+    return (spaceSelector: nil, tabSelector: trimmedNonEmpty(withoutPane))
   }
 
   private func splitTabAndPane(_ raw: String) -> (tabSelector: String?, paneSelector: String?) {
@@ -337,7 +391,7 @@ struct SPTmuxTopology {
   ) -> SpaceLocation? {
     for window in snapshot.windows {
       for space in window.spaces where space.id == id {
-        return .init(window: window, space: space)
+        return SpaceLocation(window: window, space: space)
       }
     }
     return nil
@@ -350,7 +404,7 @@ struct SPTmuxTopology {
     for window in snapshot.windows {
       for space in window.spaces {
         for tab in space.flattenedTabs where tab.id == id {
-          return .init(window: window, space: space, tab: tab)
+          return TabLocation(window: window, space: space, tab: tab)
         }
       }
     }
@@ -365,7 +419,7 @@ struct SPTmuxTopology {
       for space in window.spaces {
         for tab in space.flattenedTabs {
           for pane in tab.panes where pane.id == id {
-            return .init(window: window, space: space, tab: tab, pane: pane)
+            return PaneLocation(window: window, space: space, tab: tab, pane: pane)
           }
         }
       }
@@ -399,7 +453,7 @@ struct SPTmuxTopology {
       guard let pane = tab.panes.first(where: \.isFocused) ?? tab.panes.first else {
         continue
       }
-      return .init(window: window, space: space, tab: tab, pane: pane)
+      return PaneLocation(window: window, space: space, tab: tab, pane: pane)
     }
     return nil
   }
@@ -418,7 +472,7 @@ func loadTmuxCompatStore(
     let data = try? Data(contentsOf: url),
     let store = try? JSONDecoder().decode(SPTmuxCompatStore.self, from: data)
   else {
-    return .init()
+    return SPTmuxCompatStore()
   }
   return store
 }

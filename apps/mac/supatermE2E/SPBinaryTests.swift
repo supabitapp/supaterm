@@ -314,16 +314,37 @@ extension SupatermE2ESuite {
     }
 
     @Test(.timeLimit(.minutes(5)))
-    func jsonTreeMatchesSocketSnapshot() async throws {
+    func jsonListIsACompactAgentSnapshot() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
         let runner = SPBinaryRunner(app: app, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let result = try requireSuccessfulSPResult(
           try runner.run(["ls", "--socket", app.socketPath, "--json"], cwd: space.directory)
         )
-        let decoded = try decodeSPJSON(SupatermTreeSnapshot.self, from: result)
-        let socket = try app.send(.tree(), as: SupatermTreeSnapshot.self)
-        #expect(stableTreeRows(decoded) == stableTreeRows(socket))
+        let plain = try requireSuccessfulSPResult(
+          try runner.run(["ls", "--socket", app.socketPath, "--plain"], cwd: space.directory)
+        )
+        let list = try decodeSPJSON(ListSnapshot.self, from: result)
+        let pane = try #require(list.items.first { $0.id == space.tab.paneID })
+        let paneRef = try listedRef(.pane, id: space.tab.paneID, output: plain.stdout)
+        let capture = try requireSuccessfulSPResult(
+          try runner.run(
+            ["pane", "capture", "--socket", app.socketPath, "--plain", paneRef],
+            cwd: space.directory
+          )
+        )
+
+        #expect(list.revision.count == 16)
+        #expect(list.current?.spaceID == space.spaceID)
+        #expect(list.current?.tabID == space.tab.tabID)
+        #expect(list.current?.paneID == space.tab.paneID)
+        #expect(pane.kind == .pane)
+        #expect(pane.parentID == space.tab.tabID)
+        #expect(pane.cwd == space.directory.path(percentEncoded: false))
+        #expect(capture.stdout.isEmpty == false)
+        #expect(!result.stdout.contains("shortRef"))
+        #expect(!result.stdout.contains("\"ref\""))
+        #expect(!result.stdout.contains("\"selector\""))
       }
     }
 
@@ -491,11 +512,18 @@ private func configureGroup(
     cwd: space.directory
   )
   let groupID = created.group.id
+  let groupRef = try listedRef(
+    .group,
+    id: groupID,
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
   #expect(created.group.color == .blue)
   #expect(!created.group.isPinned)
 
   let renamed: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "rename", "Build", groupID.uuidString],
+    ["group", "rename", "Build", groupRef],
     app: app,
     runner: runner,
     cwd: space.directory
@@ -503,7 +531,7 @@ private func configureGroup(
   #expect(renamed.group.title == "Build")
 
   let colored: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "color", "purple", groupID.uuidString],
+    ["group", "color", "purple", groupRef],
     app: app,
     runner: runner,
     cwd: space.directory
@@ -547,9 +575,7 @@ private func configureGroup(
       runner: runner,
       cwd: space.directory
     ) as SupatermTabGroupMutationResult
-  let reorderedTree: SupatermTreeSnapshot = try runSPJSON(
-    ["ls"], app: app, runner: runner, cwd: space.directory
-  )
+  let reorderedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   let reorderedSpace = try #require(
     reorderedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
   )
@@ -597,9 +623,7 @@ private func exerciseGroupedTabs(
     cwd: space.directory
   )
   #expect(movedIntoGroup.target.tabID == space.tab.tabID)
-  let groupedTree: SupatermTreeSnapshot = try runSPJSON(
-    ["ls"], app: app, runner: runner, cwd: space.directory
-  )
+  let groupedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   let groupedSpace = try #require(
     groupedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
   )
@@ -617,9 +641,7 @@ private func exerciseGroupedTabs(
     cwd: space.directory
   )
   #expect(moved.target.tabID == tab.tabID)
-  let movedTree: SupatermTreeSnapshot = try runSPJSON(
-    ["ls"], app: app, runner: runner, cwd: space.directory
-  )
+  let movedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   let movedSpace = try #require(
     movedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID })
   #expect(
@@ -640,9 +662,7 @@ private func exerciseGroupedTabs(
     cwd: space.directory
   )
   #expect(ungrouped.removedGroupID == groupID)
-  let ungroupedTree: SupatermTreeSnapshot = try runSPJSON(
-    ["ls"], app: app, runner: runner, cwd: space.directory
-  )
+  let ungroupedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   #expect(
     ungroupedTree.windows.flatMap(\.spaces).flatMap(\.rootItems).compactMap(groupValue)
       .contains { $0.id == groupID } == false
@@ -669,9 +689,7 @@ private func exerciseGroupedTabs(
     cwd: space.directory
   )
   #expect(removed.removedGroupID == closeGroup.group.id)
-  let finalTree: SupatermTreeSnapshot = try runSPJSON(
-    ["ls"], app: app, runner: runner, cwd: space.directory
-  )
+  let finalTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   #expect(
     finalTree.windows.flatMap(\.spaces).flatMap(\.rootItems).compactMap(groupValue)
       .contains { $0.id == closeGroup.group.id } == false
@@ -750,9 +768,7 @@ private func exerciseSpaceCommands(
     )
   )
   #expect(duplicateRename.stderr.contains("already in use"))
-  let afterDuplicateRename: SupatermTreeSnapshot = try runSPJSON(
-    ["ls"], app: app, runner: runner, cwd: space.directory
-  )
+  let afterDuplicateRename = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   #expect(
     afterDuplicateRename.windows.flatMap(\.spaces)
       .first { $0.id == created.target.spaceID }?.name == "renamed-\(space.token)"
@@ -762,7 +778,16 @@ private func exerciseSpaceCommands(
     SupatermSelectSpaceResult.self,
     from: try requireSuccessfulSPResult(
       try createdRunner.run(
-        ["space", "focus", "--socket", app.socketPath, "--json", space.spaceID.uuidString],
+        [
+          "space", "focus", "--socket", app.socketPath, "--json",
+          try listedRef(
+            .space,
+            id: space.spaceID,
+            app: app,
+            runner: createdRunner,
+            cwd: space.directory
+          ),
+        ],
         cwd: space.directory
       )
     )
@@ -795,9 +820,7 @@ private func exerciseSpaceCreationAndListing(
   )
   #expect(background.isSelectedSpace)
   #expect(background.isSelectedTab)
-  let backgroundTree: SupatermTreeSnapshot = try runSPJSON(
-    ["ls"], app: app, runner: runner, cwd: space.directory
-  )
+  let backgroundTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   let backgroundWindow = try #require(
     backgroundTree.windows.first { $0.displayedSpaceID == background.target.spaceID }
   )
@@ -850,6 +873,13 @@ private func exerciseTabCommands(
   )
   try await app.waitForShellPrompt(SupatermPaneTargetRequest(paneID: created.paneID))
   let runner = SPBinaryRunner(app: app, tabID: created.tabID, paneID: created.paneID)
+  let tabRef = try listedRef(
+    .tab,
+    id: created.tabID,
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
 
   let renamed = try decodeSPJSON(
     SupatermRenameTabResult.self,
@@ -857,7 +887,7 @@ private func exerciseTabCommands(
       try runner.run(
         [
           "tab", "rename", "--socket", app.socketPath, "--json",
-          "cli-tab-\(space.token)", created.tabID.uuidString,
+          "cli-tab-\(space.token)", tabRef,
         ],
         cwd: space.directory
       )
@@ -953,11 +983,18 @@ private func exercisePaneIO(
   cliTab: CLITabE2E
 ) async throws {
   let created = cliTab.result
+  let paneRef = try listedRef(
+    .pane,
+    id: created.paneID,
+    app: app,
+    runner: cliTab.runner,
+    cwd: space.directory
+  )
   let focusedPane = try decodeSPJSON(
     SupatermFocusPaneResult.self,
     from: try requireSuccessfulSPResult(
       try cliTab.runner.run(
-        ["pane", "focus", "--socket", app.socketPath, "--json", created.paneID.uuidString],
+        ["pane", "focus", "--socket", app.socketPath, "--json", paneRef],
         cwd: space.directory
       )
     )
@@ -969,7 +1006,7 @@ private func exercisePaneIO(
     try cliTab.runner.run(
       [
         "pane", "send", "--socket", app.socketPath, "--newline", "--plain",
-        created.paneID.uuidString, "printf '\(marker)\\n'",
+        paneRef, "printf '\(marker)\\n'",
       ],
       cwd: space.directory
     )
@@ -1330,6 +1367,32 @@ private struct DiagnosticReport: Decodable {
   let app: SupatermAppDebugSnapshot?
 }
 
+private struct ListSnapshot: Decodable {
+  enum Kind: String, CaseIterable, Decodable {
+    case space
+    case group
+    case tab
+    case pane
+  }
+
+  struct Current: Decodable {
+    let spaceID: UUID
+    let tabID: UUID
+    let paneID: UUID?
+  }
+
+  struct Item: Decodable {
+    let kind: Kind
+    let id: UUID
+    let parentID: UUID?
+    let cwd: String?
+  }
+
+  let revision: String
+  let current: Current?
+  let items: [Item]
+}
+
 private func jsonObject(from output: String) throws -> [String: Any] {
   let data = try #require(output.data(using: .utf8))
   let value = try JSONSerialization.jsonObject(with: data)
@@ -1341,6 +1404,52 @@ private func jsonObject(from output: String) throws -> [String: Any] {
 
 private func fileContents(at url: URL) -> String {
   (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+}
+
+private func listedRef(
+  _ kind: ListSnapshot.Kind,
+  id: UUID,
+  app: SupatermE2EApp,
+  runner: SPBinaryRunner,
+  cwd: URL
+) throws -> String {
+  let list = try requireSuccessfulSPResult(
+    try runner.run(["ls", "--socket", app.socketPath, "--plain"], cwd: cwd)
+  )
+  return try listedRef(kind, id: id, output: list.stdout)
+}
+
+private func listedRef(
+  _ kind: ListSnapshot.Kind,
+  id: UUID,
+  output: String
+) throws -> String {
+  let canonicalID = id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+  for line in output.split(whereSeparator: \.isNewline) {
+    let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
+    guard columns.count == 9 else {
+      throw SupatermE2EError("Expected nine plain list columns.")
+    }
+    guard columns[1] == Substring(kind.rawValue) else { continue }
+    let reference = String(columns[0])
+    let prefix = switch kind {
+    case .space: "s:"
+    case .group: "g:"
+    case .tab: "t:"
+    case .pane: "p:"
+    }
+    guard reference.hasPrefix(prefix) else {
+      throw SupatermE2EError("Expected a typed \(kind.rawValue) ref, got \(reference).")
+    }
+    let body = reference.dropFirst(prefix.count)
+    guard (8...32).contains(body.count) else {
+      throw SupatermE2EError("Expected a typed \(kind.rawValue) ref, got \(reference).")
+    }
+    if canonicalID.hasPrefix(body) {
+      return reference
+    }
+  }
+  throw SupatermE2EError("Expected a listed ref for \(id.uuidString.lowercased()).")
 }
 
 private func tmuxSpaceSelector(_ id: UUID) -> String {
@@ -1361,23 +1470,6 @@ private func tmuxSpaceID(_ output: String) throws -> UUID {
 
 private func tmuxTabID(_ output: String) throws -> UUID {
   try tmuxIdentifier(output, prefix: "@", name: "tab")
-}
-
-private func stableTreeRows(_ tree: SupatermTreeSnapshot) -> [String] {
-  tree.windows.flatMap { window in
-    window.spaces.flatMap { space in
-      space.flattenedTabs.enumerated().flatMap { tabOffset, tab in
-        tab.panes.map { pane in
-          [
-            "window:\(window.index):\(window.isKey)",
-            "space:\(space.index):\(space.id):\(space.id == window.displayedSpaceID)",
-            "tab:\(tabOffset + 1):\(tab.id):\(tab.isSelected)",
-            "pane:\(pane.index):\(pane.id):\(pane.isFocused)",
-          ].joined(separator: "|")
-        }
-      }
-    }
-  }
 }
 
 private func tmuxPaneID(_ output: String) throws -> UUID {

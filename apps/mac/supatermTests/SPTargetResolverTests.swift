@@ -216,10 +216,12 @@ struct SPTargetResolverTests {
   @Test
   func resolveMoveTabUsesFlattenedIndexAndPreservesPublicDestinationIndex() throws {
     let request = try resolvePublicMoveTabRequest(
-      tab: .path(spaceIndex: 1, tabIndex: 2),
-      destination: .group(.title("Work")),
-      index: 1,
-      isPinned: false,
+      SPMoveTabResolutionInput(
+        tab: .path(spaceIndex: 1, tabIndex: 2),
+        destination: .group(.title("Work")),
+        index: 1,
+        isPinned: false
+      ),
       context: nil,
       snapshot: treeSnapshot()
     )
@@ -240,17 +242,199 @@ struct SPTargetResolverTests {
   func resolveMoveTabRejectsGroupInAnotherSpace() {
     #expect(throws: ValidationError.self) {
       _ = try resolvePublicMoveTabRequest(
-        tab: .path(spaceIndex: 1, tabIndex: 2),
-        destination: .group(
-          .id(UUID(uuidString: "5C2CCAB6-3BE5-437E-8A70-0C014C45AA23")!)
+        SPMoveTabResolutionInput(
+          tab: .path(spaceIndex: 1, tabIndex: 2),
+          destination: .group(
+            .id(UUID(uuidString: "5C2CCAB6-3BE5-437E-8A70-0C014C45AA23")!)
+          ),
+          index: nil,
+          isPinned: false
         ),
-        index: nil,
-        isPinned: false,
         context: nil,
         snapshot: treeSnapshot()
       )
     }
   }
+
+  @Test
+  func typedShortRefsResolveToCanonicalTargets() throws {
+    let snapshot = treeSnapshot()
+
+    #expect(
+      try resolvePublicSpaceTarget(
+        .short(SPShortReference(kind: .space, prefix: "a6e57b1b")),
+        context: nil,
+        snapshot: snapshot
+      ).spaceID == UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+    )
+    #expect(
+      try resolvePublicGroupTargetRequest(
+        .short(SPShortReference(kind: .group, prefix: "5a52445e")),
+        context: nil,
+        snapshot: snapshot
+      ).groupID == UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
+    )
+    #expect(
+      try resolvePublicTabTarget(
+        .short(SPShortReference(kind: .tab, prefix: "6bfc889d")),
+        context: nil,
+        snapshot: snapshot
+      ).tabID == UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
+    )
+    #expect(
+      try resolvePublicPaneTarget(
+        .short(SPShortReference(kind: .pane, prefix: "8cf762c9")),
+        context: nil,
+        snapshot: snapshot
+      ).paneID == UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
+    )
+  }
+
+  @Test
+  func sharedSpaceShortRefUsesTheAmbientWindow() throws {
+    let snapshot = sharedSpaceSnapshot()
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "D0000000-0000-4000-8000-000000000001")!,
+      tabID: UUID(uuidString: "C0000000-0000-4000-8000-000000000001")!
+    )
+    let space = SPSpaceReference.short(
+      SPShortReference(kind: .space, prefix: "a0000000")
+    )
+
+    #expect(
+      try resolvePublicNewTabPlacement(
+        space: space,
+        group: .group(.title("Build")),
+        context: context,
+        snapshot: snapshot
+      ) == .group(UUID(uuidString: "B0000000-0000-4000-8000-000000000001")!)
+    )
+    #expect(
+      try resolvePublicNewTabPlacement(
+        space: space,
+        group: .group(.title("Build")),
+        context: nil,
+        snapshot: snapshot
+      ) == .group(UUID(uuidString: "B0000000-0000-4000-8000-000000000002")!)
+    )
+  }
+
+  @Test
+  func staleAmbientContextDoesNotFallBackToTheKeyWindow() {
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicSpaceTarget(
+        .short(SPShortReference(kind: .space, prefix: "a0000000")),
+        context: SupatermCLIContext(
+          surfaceID: UUID(uuidString: "E0000000-0000-4000-8000-000000000001")!,
+          tabID: UUID(uuidString: "F0000000-0000-4000-8000-000000000001")!
+        ),
+        snapshot: sharedSpaceSnapshot()
+      )
+    }
+  }
+
+  @Test
+  func mismatchedAmbientContextDoesNotChooseEitherWindow() {
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "D0000000-0000-4000-8000-000000000001")!,
+      tabID: UUID(uuidString: "C0000000-0000-4000-8000-000000000002")!
+    )
+    let snapshot = sharedSpaceSnapshot()
+
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicSpaceTarget(
+        nil,
+        context: context,
+        snapshot: snapshot
+      )
+    }
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicPaneTarget(nil, context: context, snapshot: snapshot)
+    }
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicSplitTarget(nil, context: context, snapshot: snapshot)
+    }
+  }
+
+  @Test
+  func sharedSpaceRejectsAGroupFromAnotherWindow() {
+    let snapshot = sharedSpaceSnapshot()
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "D0000000-0000-4000-8000-000000000001")!,
+      tabID: UUID(uuidString: "C0000000-0000-4000-8000-000000000001")!
+    )
+
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicNewTabPlacement(
+        space: .short(SPShortReference(kind: .space, prefix: "a0000000")),
+        group: .group(
+          .short(SPShortReference(kind: .group, prefix: "b0000000000000000000000000000002"))),
+        context: context,
+        snapshot: snapshot
+      )
+    }
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicMoveTabRequest(
+        SPMoveTabResolutionInput(
+          tab: .short(SPShortReference(kind: .tab, prefix: "c0000000000000000000000000000001")),
+          destination: .group(
+            .short(
+              SPShortReference(kind: .group, prefix: "b0000000000000000000000000000002")
+            )
+          ),
+          index: nil,
+          isPinned: false
+        ),
+        context: context,
+        snapshot: snapshot
+      )
+    }
+  }
+}
+
+private func sharedSpaceSnapshot() -> SupatermTreeSnapshot {
+  let spaceID = UUID(uuidString: "A0000000-0000-4000-8000-000000000001")!
+  func window(index: Int, isKey: Bool) -> SupatermTreeSnapshot.Window {
+    let suffix = index == 1 ? "1" : "2"
+    let groupID = UUID(uuidString: "B0000000-0000-4000-8000-00000000000\(suffix)")!
+    let tabID = UUID(uuidString: "C0000000-0000-4000-8000-00000000000\(suffix)")!
+    let paneID = UUID(uuidString: "D0000000-0000-4000-8000-00000000000\(suffix)")!
+    let tab = SupatermTreeSnapshot.Tab(
+      id: tabID,
+      title: "shell",
+      isSelected: true,
+      panes: [SupatermTreeSnapshot.Pane(index: 1, id: paneID, isFocused: true)]
+    )
+    let group = SupatermTreeSnapshot.Group(
+      color: .neutral,
+      id: groupID,
+      isCollapsed: false,
+      isPinned: false,
+      title: "Build",
+      tabs: [tab]
+    )
+    return SupatermTreeSnapshot.Window(
+      index: index,
+      isKey: isKey,
+      displayedSpaceID: spaceID,
+      spaces: [
+        SupatermTreeSnapshot.Space(
+          index: 1,
+          id: spaceID,
+          name: "Work",
+          color: .neutral,
+          isWarm: true,
+          rootItems: [.group(group)]
+        )
+      ]
+    )
+  }
+  return SupatermTreeSnapshot(
+    windows: [
+      window(index: 1, isKey: false),
+      window(index: 2, isKey: true),
+    ]
+  )
 }
 
 private func treeSnapshot(hasDuplicateGroupTitle: Bool = false) -> SupatermTreeSnapshot {

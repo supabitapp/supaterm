@@ -437,6 +437,48 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
+  func staleContextCannotRetargetTabCreation() throws {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let space = TerminalSpaceItem(name: "Initial")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let registry = TerminalWindowRegistry()
+      let commandExecutor = makeCommandExecutor(registry: registry)
+      let first = registerSpaceCommandWindow(in: registry, spaceID: space.id)
+      let second = registerSpaceCommandWindow(in: registry, spaceID: space.id, isKey: true)
+      let initialCounts = [
+        first.terminal.spaceManager.allTabs.count,
+        second.terminal.spaceManager.allTabs.count,
+      ]
+
+      #expect(throws: (any Error).self) {
+        _ = try commandExecutor.createTab(
+          TerminalCreateTabRequest(
+            startupCommand: nil,
+            cwd: nil,
+            focus: false,
+            target: .space(space.id.rawValue),
+            context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+          )
+        )
+      }
+
+      #expect(
+        [
+          first.terminal.spaceManager.allTabs.count,
+          second.terminal.spaceManager.allTabs.count,
+        ] == initialCounts
+      )
+      withExtendedLifetime([first.window, second.window]) {}
+    }
+  }
+
+  @Test
   func tabTargetSurvivesTopologyReordering() throws {
     initializeGhosttyForTests()
 

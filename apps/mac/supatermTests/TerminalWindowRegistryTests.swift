@@ -68,7 +68,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func coldContextPrefersItsOwningWindowBySurfaceOrTab() throws {
+  func coldContextRequiresItsSurfaceAndTabTogether() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -108,20 +108,24 @@ struct TerminalWindowRegistryTests {
         )
       )
 
-      let surfaceEntry = try #require(
+      let entry = try #require(
         registry.ambientEntries(
-          for: SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
-        ).first
-      )
-      let tabEntry = try #require(
-        registry.ambientEntries(
-          for: SupatermCLIContext(surfaceID: UUID(), tabID: tabID.rawValue)
+          for: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue)
         ).first
       )
 
-      #expect(surfaceEntry.terminal === owner.terminal)
-      #expect(tabEntry.terminal === owner.terminal)
-      #expect(surfaceEntry.terminal !== preferred.terminal)
+      #expect(entry.terminal === owner.terminal)
+      #expect(entry.terminal !== preferred.terminal)
+      #expect(
+        registry.ambientEntries(
+          for: SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+        ).isEmpty
+      )
+      #expect(
+        registry.ambientEntries(
+          for: SupatermCLIContext(surfaceID: UUID(), tabID: tabID.rawValue)
+        ).isEmpty
+      )
       withExtendedLifetime([owner.window, preferred.window]) {}
     }
   }

@@ -346,7 +346,8 @@ struct TerminalHostStateSessionRestoreTests {
         spaceID: spaces[1].id,
         title: "Hidden Tab",
         isPinned: true,
-        surfaceID: hiddenSurfaceID
+        surfaceID: hiddenSurfaceID,
+        workingDirectoryPath: "/tmp/hidden"
       )
       let session = TerminalWindowSession(
         displayedSpaceID: spaces[0].id,
@@ -363,6 +364,16 @@ struct TerminalHostStateSessionRestoreTests {
       #expect(host.trees[hiddenTabID] == nil)
       #expect(host.surfaces[hiddenSurfaceID] == nil)
       #expect(host.sessionSurfaceIDs().contains(hiddenSurfaceID))
+      let debugPane = try #require(
+        host.debugWindowSnapshot(index: 1).spaces
+          .flatMap(\.flattenedTabs)
+          .flatMap(\.panes)
+          .first { $0.id == hiddenSurfaceID }
+      )
+      #expect(debugPane.pwd == "/tmp/hidden")
+      #expect(debugPane.agent == nil)
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == hiddenSpace)
+      #expect(host.surfaces[hiddenSurfaceID] == nil)
 
       let data = try TerminalSessionCatalog.fileStorageEncoder().encode(
         TerminalSessionCatalog(windows: [host.restorationSnapshot()])
@@ -644,6 +655,7 @@ struct TerminalHostStateSessionRestoreTests {
     title: String,
     isPinned: Bool = false,
     surfaceID: UUID = UUID(),
+    workingDirectoryPath: String? = nil,
     restoreMode: TerminalPaneRestoreMode = .shell
   ) -> TerminalSpaceSession {
     let tabID = TerminalTabID()
@@ -667,7 +679,7 @@ struct TerminalHostStateSessionRestoreTests {
           root: .leaf(
             TerminalPaneLeafSession(
               id: surfaceID,
-              workingDirectoryPath: nil,
+              workingDirectoryPath: workingDirectoryPath,
               restoreMode: restoreMode
             )
           )
