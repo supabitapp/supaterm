@@ -188,7 +188,6 @@ nonisolated enum TerminalTabTransferError: Error, Equatable {
   case destinationContainsTab(TerminalTabID)
   case incompatibleRuntime
   case invalidSplitDestination
-  case invalidSplitSource
   case invalidSpace
   case missingLiveTree
   case sameCollection

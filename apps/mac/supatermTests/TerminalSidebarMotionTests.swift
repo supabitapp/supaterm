@@ -7,6 +7,42 @@ import Testing
 
 struct TerminalSidebarMotionTests {
   @Test
+  func optionTabClickRequiresOptionOnlyOnTheFirstClick() {
+    #expect(
+      TerminalSidebarOptionTabClick.accepts(
+        modifiers: .option,
+        clickCount: 1
+      )
+    )
+    #expect(
+      TerminalSidebarOptionTabClick.accepts(
+        modifiers: [.option, .capsLock],
+        clickCount: 1
+      )
+    )
+    for modifiers in [
+      NSEvent.ModifierFlags(),
+      .command,
+      [.command, .option],
+      [.shift, .option],
+      [.control, .option],
+    ] {
+      #expect(
+        !TerminalSidebarOptionTabClick.accepts(
+          modifiers: modifiers,
+          clickCount: 1
+        )
+      )
+    }
+    #expect(
+      !TerminalSidebarOptionTabClick.accepts(
+        modifiers: .option,
+        clickCount: 2
+      )
+    )
+  }
+
+  @Test
   func pressingASelectedTabKeepsTheBatchUntilTheGestureResolves() {
     let first = TerminalTabID()
     let second = TerminalTabID()

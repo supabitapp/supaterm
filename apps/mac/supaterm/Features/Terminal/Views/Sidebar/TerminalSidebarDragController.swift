@@ -190,6 +190,18 @@ final class TerminalSidebarDragController {
     nativeDragSession.cancelSourceCapture()
     guard let content = host.content() else { return false }
     let consumesClick = if case .tab = entryID { true } else { false }
+    if case .tab(let tabID) = entryID,
+      TerminalSidebarOptionTabClick.accepts(
+        modifiers: event.modifierFlags,
+        clickCount: event.clickCount
+      )
+    {
+      guard content.canBeginDrag, content.swipe?.isTracking != true else { return true }
+      if content.context.terminal.mergeTabIntoSelectedTab(tabID) {
+        content.context.tabSelectionState.clear()
+      }
+      return true
+    }
     guard content.canBeginDrag else {
       selectPressedTab(entryID, modifiers: event.modifierFlags, content: content)
       return consumesClick

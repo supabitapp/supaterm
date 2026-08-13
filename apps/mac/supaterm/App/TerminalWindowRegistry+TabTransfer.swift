@@ -78,7 +78,11 @@ extension TerminalWindowRegistry {
     }
     guard
       let plan = try? TerminalHostState.prepareLiveTabMerge(
-        payload: payload,
+        TerminalHostState.LiveTabMergeRequest(
+          expectedSourceRevision: payload.sourceTopologyRevision,
+          sourceSpaceID: payload.sourceSpaceID,
+          sourceTabID: sourceTabID
+        ),
         from: sourceEntry.terminal,
         to: TerminalHostState.LiveTabSplitTarget(
           host: destinationEntry.terminal,

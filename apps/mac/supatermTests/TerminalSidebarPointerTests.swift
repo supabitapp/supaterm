@@ -1,5 +1,7 @@
 import AppKit
 import ComposableArchitecture
+import GhosttyKit
+import Sharing
 import SupaTheme
 import SwiftUI
 import Testing
@@ -24,6 +26,111 @@ struct TerminalSidebarPointerTests {
     let pointerEvents: PointerEvents
     let window: NSWindow
     let location: NSPoint
+  }
+
+  @Test
+  func optionClickMergesIntoTheSelectedTabAndClearsBatchSelection() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let space = TerminalSpaceItem(name: "Main")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let runtime = GhosttyRuntime()
+      let terminal = TerminalHostState(
+        runtime: runtime,
+        spaceID: space.id,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      let sourceTabID = terminal.spaceManager.tabCollection.createTab(title: "Source")
+      let destinationTabID = terminal.spaceManager.tabCollection.createTab(title: "Destination")
+      let sourceSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
+      let destinationSurface = unbackedSurface(runtime: runtime, tabID: destinationTabID)
+      terminal.trees[sourceTabID] = SplitTree(view: sourceSurface)
+      terminal.trees[destinationTabID] = SplitTree(view: destinationSurface)
+      terminal.surfaces[sourceSurface.id] = sourceSurface
+      terminal.surfaces[destinationSurface.id] = destinationSurface
+      terminal.focusHistoryByTab[sourceTabID] = TerminalHostState.FocusHistory(
+        current: sourceSurface.id
+      )
+      terminal.focusHistoryByTab[destinationTabID] = TerminalHostState.FocusHistory(
+        current: destinationSurface.id
+      )
+      terminal.applySelectedTab(destinationTabID, in: space.id)
+      let outline = TerminalSidebarOutline(
+        snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot
+      )
+      let store = Store(initialState: TerminalWindowFeature.State()) {
+        TerminalWindowFeature()
+      }
+      let controller = TerminalSidebarListController(
+        windowControllerID: UUID(),
+        tabDragRegistry: TerminalTabDragRegistry(),
+        captureRequest: { nil }
+      )
+      controller.view.frame = NSRect(x: 0, y: 0, width: 240, height: 160)
+      var rows = Dictionary(
+        uniqueKeysWithValues: terminal.tabs.map {
+          (
+            TerminalSidebarEntryID.tab($0.id),
+            TerminalSidebarRowPresentation.tab(presentation($0))
+          )
+        }
+      )
+      rows[.newTab] = .newTab(.inline)
+      let context = TerminalSidebarRowContext(
+        store: store,
+        terminal: terminal,
+        palette: Palette(colorScheme: .dark),
+        renameState: controller.renameState,
+        groupHeaderHoverState: controller.groupHeaderHoverState,
+        tabSelectionState: controller.tabSelectionState,
+        outline: outline,
+        fixedHoveredGroupID: nil,
+        actions: rowActions
+      )
+      controller.apply(
+        outline: outline,
+        rows: rows,
+        context: context,
+        selectedTabID: destinationTabID,
+        reduceMotion: true
+      )
+      controller.tabSelectionState.toggle(sourceTabID, primaryTabID: destinationTabID)
+      let scrollView = try #require(
+        controller.view.subviews.compactMap { $0 as? TerminalSidebarScrollView }.first
+      )
+      let collectionView = try #require(
+        scrollView.documentView as? TerminalSidebarCollectionView
+      )
+      let event = try #require(
+        NSEvent.mouseEvent(
+          with: .leftMouseDown,
+          location: .zero,
+          modifierFlags: .option,
+          timestamp: ProcessInfo.processInfo.systemUptime,
+          windowNumber: 0,
+          context: nil,
+          eventNumber: 1,
+          clickCount: 1,
+          pressure: 1
+        )
+      )
+
+      #expect(collectionView.rowMouseDown(entryID: .tab(sourceTabID), event: event))
+
+      #expect(terminal.tabs.map(\.id) == [destinationTabID])
+      #expect(
+        terminal.trees[destinationTabID]?.leaves().map(\.id) == [
+          destinationSurface.id,
+          sourceSurface.id,
+        ])
+      #expect(controller.tabSelectionState.secondaryTabIDs.isEmpty)
+    }
   }
 
   @Test
@@ -369,6 +476,19 @@ struct TerminalSidebarPointerTests {
       showsAgentSpinner: false,
       shortcutHint: nil,
       showsShortcutHint: false
+    )
+  }
+
+  private func unbackedSurface(
+    runtime: GhosttyRuntime,
+    tabID: TerminalTabID
+  ) -> GhosttySurfaceView {
+    GhosttySurfaceView(
+      runtime: runtime,
+      tabID: tabID.rawValue,
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      surfaceFactory: { _, _ in nil }
     )
   }
 

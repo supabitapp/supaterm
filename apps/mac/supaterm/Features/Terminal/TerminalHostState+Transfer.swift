@@ -1,6 +1,12 @@
 import Foundation
 
 extension TerminalHostState {
+  struct LiveTabMergeRequest {
+    let expectedSourceRevision: UInt64
+    let sourceSpaceID: TerminalSpaceID
+    let sourceTabID: TerminalTabID
+  }
+
   struct LiveTabSplitTarget {
     let host: TerminalHostState
     let side: TerminalTabSplitSide
@@ -69,6 +75,30 @@ extension TerminalHostState {
     return performSplitAction(.newSplit(direction: direction), for: surface.id)
   }
 
+  func mergeTabIntoSelectedTab(_ sourceTabID: TerminalTabID) -> Bool {
+    guard
+      let instance = spaceManager.instance(for: sourceTabID),
+      instance.spaceID == displayedSpaceID,
+      let destinationTabID = instance.selectedTabID,
+      destinationTabID != sourceTabID,
+      let plan = try? Self.prepareLiveTabMerge(
+        LiveTabMergeRequest(
+          expectedSourceRevision: instance.tabCollection.topologyRevision,
+          sourceSpaceID: instance.spaceID,
+          sourceTabID: sourceTabID
+        ),
+        from: self,
+        to: LiveTabSplitTarget(
+          host: self,
+          side: .right,
+          spaceID: instance.spaceID,
+          tabID: destinationTabID
+        )
+      )
+    else { return false }
+    return (try? Self.commitLiveTabMerge(plan, from: self, to: self)) != nil
+  }
+
   static func prepareLiveTabTransfer(
     _ request: TerminalTabTransferRequest,
     from source: TerminalHostState,
@@ -112,17 +142,14 @@ extension TerminalHostState {
   }
 
   static func prepareLiveTabMerge(
-    payload: TerminalTabDragPayload,
+    _ request: LiveTabMergeRequest,
     from source: TerminalHostState,
     to target: LiveTabSplitTarget
   ) throws -> LiveTabMergePlan {
     let destination = target.host
-    guard let sourceTabID = payload.singleTabID else {
-      throw TerminalTabTransferError.invalidSplitSource
-    }
     let instances = try transferInstances(
       from: source,
-      sourceSpaceID: payload.sourceSpaceID,
+      sourceSpaceID: request.sourceSpaceID,
       to: destination,
       destinationSpaceID: target.spaceID
     )
@@ -131,12 +158,12 @@ extension TerminalHostState {
         target.tabID,
         in: target.spaceID
       ),
-      destinationTabID != sourceTabID
+      destinationTabID != request.sourceTabID
     else {
       throw TerminalTabTransferError.invalidSplitDestination
     }
     guard
-      let sourceTree = source.trees[sourceTabID],
+      let sourceTree = source.trees[request.sourceTabID],
       let destinationTree = destination.trees[destinationTabID],
       let joinedTree = destinationTree.joining(
         sourceTree,
@@ -148,8 +175,8 @@ extension TerminalHostState {
     }
     let extractionPlan = try TerminalTabCollection.prepareExtraction(
       TerminalTabExtractionRequest(
-        expectedTopologyRevision: payload.sourceTopologyRevision,
-        itemIDs: payload.itemIDs
+        expectedTopologyRevision: request.expectedSourceRevision,
+        itemIDs: [.tab(request.sourceTabID)]
       ),
       from: instances.source.tabCollection
     )
@@ -158,13 +185,13 @@ extension TerminalHostState {
     return LiveTabMergePlan(
       destinationInstance: instances.destination,
       destinationTabID: destinationTabID,
-      didMoveSelectedTab: instances.source.selectedTabID == sourceTabID,
+      didMoveSelectedTab: instances.source.selectedTabID == request.sourceTabID,
       extractionPlan: extractionPlan,
-      incomingFocusedSurfaceID: source.focusHistoryByTab[sourceTabID]?.current
+      incomingFocusedSurfaceID: source.focusHistoryByTab[request.sourceTabID]?.current
         ?? sourceTree.leaves().first?.id,
       joinedTree: joinedTree,
       sourceInstance: instances.source,
-      sourceTabID: sourceTabID,
+      sourceTabID: request.sourceTabID,
       surfaceIDs: surfaceIDs
     )
   }
