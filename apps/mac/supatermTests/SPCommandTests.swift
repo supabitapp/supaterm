@@ -139,6 +139,9 @@ struct SPCommandTests {
     let close = try #require(
       try SP.parseAsRoot(["group", "close", "Work", "-y"]) as? SP.GroupClose
     )
+    let collapse = try #require(
+      try SP.parseAsRoot(["group", "collapse"]) as? SP.GroupCollapse
+    )
 
     #expect(create.title == "Work")
     #expect(create.color == .blue)
@@ -150,6 +153,7 @@ struct SPCommandTests {
     #expect(move.index == 2)
     #expect(close.group == .title("Work"))
     #expect(close.yes)
+    #expect(collapse.group == nil)
   }
 
   @Test
@@ -835,64 +839,39 @@ struct SPCommandTests {
   }
 
   @Test
-  func listSnapshotEncodesCanonicalIDsWithoutDerivedRefs() throws {
+  func listSnapshotEncodesExactCanonicalSchema() throws {
     let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+    let groupID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
     let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
-    let snapshot = SPListSnapshot(
-      current: SPListSnapshot.Current(
-        windowIndex: 1,
-        spaceID: spaceID,
-        tabID: tabID,
-        paneID: nil
-      ),
-      items: [
-        SPListSnapshot.Item(
-          kind: .space,
-          id: spaceID,
-          parentID: nil,
-          windowIndex: 1,
-          title: "Work",
-          cwd: nil,
-          selected: true,
-          isWarm: true,
-          agent: nil
-        ),
-        SPListSnapshot.Item(
-          kind: .tab,
-          id: tabID,
-          parentID: spaceID,
-          windowIndex: 1,
-          title: "build",
-          cwd: nil,
-          selected: true,
-          isWarm: nil,
-          agent: nil
-        ),
-      ]
-    )
+    let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    let snapshot = SPListSnapshot(spCommandTestListSnapshot())
     let data = try JSONEncoder().encode(snapshot)
     let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     let current = try #require(object["current"] as? [String: Any])
     let items = try #require(object["items"] as? [[String: Any]])
+    let agent = try #require(items[3]["agent"] as? [String: Any])
 
     #expect(Set(object.keys) == ["revision", "current", "items"])
     #expect((object["revision"] as? String)?.count == 16)
+    #expect(Set(current.keys) == ["windowIndex", "spaceID", "tabID", "paneID"])
     #expect(current["spaceID"] as? String == spaceID.uuidString)
     #expect(current["tabID"] as? String == tabID.uuidString)
-    #expect(items.map { $0["id"] as? String } == [spaceID.uuidString, tabID.uuidString])
-    #expect(items[1]["parentID"] as? String == spaceID.uuidString)
+    #expect(current["paneID"] as? String == paneID.uuidString)
+    #expect(items.map { $0["kind"] as? String } == ["space", "group", "tab", "pane"])
+    #expect(
+      items.map { $0["id"] as? String }
+        == [spaceID.uuidString, groupID.uuidString, tabID.uuidString, paneID.uuidString]
+    )
     #expect(Set(items[0].keys) == ["kind", "id", "windowIndex", "title", "selected", "isWarm"])
     #expect(Set(items[1].keys) == ["kind", "id", "parentID", "windowIndex", "title", "selected"])
-  }
-
-  @Test
-  func listSnapshotExposesExactAgentFields() throws {
-    let snapshot = SPListSnapshot(spCommandTestListSnapshot())
-    let data = try JSONEncoder().encode(snapshot)
-    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-    let items = try #require(object["items"] as? [[String: Any]])
-    let agent = try #require(items.compactMap { $0["agent"] as? [String: Any] }.first)
-
+    #expect(Set(items[2].keys) == ["kind", "id", "parentID", "windowIndex", "title", "selected"])
+    #expect(
+      Set(items[3].keys)
+        == ["kind", "id", "parentID", "windowIndex", "title", "cwd", "selected", "agent"]
+    )
+    #expect(items[1]["parentID"] as? String == spaceID.uuidString)
+    #expect(items[2]["parentID"] as? String == groupID.uuidString)
+    #expect(items[3]["parentID"] as? String == tabID.uuidString)
     #expect(Set(agent.keys) == ["kind", "phase", "sessionID"])
     #expect(agent["kind"] as? String == "codex")
     #expect(agent["sessionID"] as? String == "session-1")

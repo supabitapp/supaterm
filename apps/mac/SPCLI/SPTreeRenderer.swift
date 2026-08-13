@@ -3,24 +3,20 @@ import SupatermCLIShared
 
 enum SPTreeRenderer {
   static func render(_ snapshot: SPListSnapshot) -> String {
-    var lines: [String] = []
     let windowIndexes = snapshot.items.map(\.windowIndex).reduce(into: [Int]()) { indexes, index in
       if indexes.last != index {
         indexes.append(index)
       }
     }
-    for (offset, windowIndex) in windowIndexes.enumerated() {
+    return windowIndexes.map { windowIndex in
       let isCurrent = snapshot.current?.windowIndex == windowIndex
-      lines.append(isCurrent ? "window \(windowIndex) [current]" : "window \(windowIndex)")
+      let window = isCurrent ? "window \(windowIndex) [current]" : "window \(windowIndex)"
       let spaces = snapshot.items.filter {
         $0.windowIndex == windowIndex && $0.kind == .space
       }
-      lines.append(contentsOf: renderChildren(spaces, snapshot: snapshot, prefix: ""))
-      if offset < windowIndexes.count - 1 {
-        lines.append("")
-      }
-    }
-    return lines.joined(separator: "\n")
+      return ([window] + renderChildren(spaces, snapshot: snapshot, prefix: ""))
+        .joined(separator: "\n")
+    }.joined(separator: "\n\n")
   }
 
   static func renderPlain(_ snapshot: SPListSnapshot) -> String {
@@ -30,13 +26,21 @@ enum SPTreeRenderer {
         item.agent.map {
           "\($0.kind.rawValue):\($0.phase.rawValue):\($0.sessionID)"
         } ?? "-"
+      let state =
+        if item.selected {
+          "selected"
+        } else if item.isWarm == false {
+          "cold"
+        } else {
+          "-"
+        }
       return [
         reference(for: item, snapshot: snapshot),
         item.kind.rawValue,
         selector(for: item, snapshot: snapshot) ?? "-",
         String(item.windowIndex),
         parent,
-        item.selected ? "selected" : item.isWarm == false ? "cold" : "-",
+        state,
         escaped(item.title),
         escaped(item.cwd ?? "-"),
         escaped(agent),
@@ -98,11 +102,7 @@ enum SPTreeRenderer {
     snapshot: SPListSnapshot
   ) -> String? {
     guard let parentID = item.parentID else { return nil }
-    guard
-      let parent = snapshot.items.first(where: {
-        $0.windowIndex == item.windowIndex && $0.id == parentID
-      })
-    else { return nil }
+    guard let parent = parent(id: parentID, for: item, snapshot: snapshot) else { return nil }
     return reference(for: parent, snapshot: snapshot)
   }
 
@@ -153,11 +153,7 @@ enum SPTreeRenderer {
     snapshot: SPListSnapshot
   ) -> UUID? {
     guard let parentID = tab.parentID else { return nil }
-    guard
-      let parent = snapshot.items.first(where: {
-        $0.windowIndex == tab.windowIndex && $0.id == parentID
-      })
-    else { return nil }
+    guard let parent = parent(id: parentID, for: tab, snapshot: snapshot) else { return nil }
     switch parent.kind {
     case .space:
       return parent.id
@@ -165,6 +161,16 @@ enum SPTreeRenderer {
       return parent.parentID
     case .tab, .pane:
       return nil
+    }
+  }
+
+  private static func parent(
+    id: UUID,
+    for item: SPListSnapshot.Item,
+    snapshot: SPListSnapshot
+  ) -> SPListSnapshot.Item? {
+    snapshot.items.first {
+      $0.windowIndex == item.windowIndex && $0.id == id
     }
   }
 

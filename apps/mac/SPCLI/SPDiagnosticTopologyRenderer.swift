@@ -3,17 +3,13 @@ import SupatermCLIShared
 
 enum SPDiagnosticTopologyRenderer {
   static func render(_ snapshot: SupatermAppDebugSnapshot) -> String {
-    var lines: [String] = []
-    for (windowOffset, window) in snapshot.windows.enumerated() {
+    snapshot.windows.map { window in
       let suffix = window.isKey ? " [key]" : ""
-      lines.append("window \(window.index)\(suffix)")
-      lines.append(
-        contentsOf: renderSpaces(window.spaces, displayedSpaceID: window.displayedSpaceID))
-      if windowOffset < snapshot.windows.count - 1 {
-        lines.append("")
-      }
-    }
-    return lines.joined(separator: "\n")
+      return
+        (["window \(window.index)\(suffix)"]
+        + renderSpaces(window.spaces, displayedSpaceID: window.displayedSpaceID))
+        .joined(separator: "\n")
+    }.joined(separator: "\n\n")
   }
 
   private static func renderSpaces(
@@ -41,7 +37,8 @@ enum SPDiagnosticTopologyRenderer {
     prefix: String
   ) -> [String] {
     var tabIndex = 0
-    return items.enumerated().flatMap { offset, item in
+    var lines: [String] = []
+    for (offset, item) in items.enumerated() {
       let isLast = offset == items.count - 1
       let branch = isLast ? "└─ " : "├─ "
       let childPrefix = prefix + (isLast ? "   " : "│  ")
@@ -56,7 +53,7 @@ enum SPDiagnosticTopologyRenderer {
         }
         let id = group.id.uuidString.lowercased()
         let label = labels.joined(separator: ", ")
-        var lines = ["\(prefix)\(branch)group \(id) \"\(group.title)\" [\(label)]"]
+        lines.append("\(prefix)\(branch)group \(id) \"\(group.title)\" [\(label)]")
         for (tabOffset, tab) in group.tabs.enumerated() {
           tabIndex += 1
           lines += renderTab(
@@ -67,19 +64,18 @@ enum SPDiagnosticTopologyRenderer {
             prefix: childPrefix
           )
         }
-        return lines
       case .tab(let rootTab):
         tabIndex += 1
-        return renderTab(
+        lines += renderTab(
           rootTab.tab,
           tabIndex: tabIndex,
           isPinned: rootTab.isPinned,
           isLast: isLast,
-          prefix: prefix,
-          branch: branch
+          prefix: prefix
         )
       }
     }
+    return lines
   }
 
   private static func renderTab(
@@ -87,10 +83,9 @@ enum SPDiagnosticTopologyRenderer {
     tabIndex: Int,
     isPinned: Bool,
     isLast: Bool,
-    prefix: String,
-    branch: String? = nil
+    prefix: String
   ) -> [String] {
-    let tabBranch = branch ?? (isLast ? "└─ " : "├─ ")
+    let tabBranch = isLast ? "└─ " : "├─ "
     let panePrefix = prefix + (isLast ? "   " : "│  ")
     let labels: [String?] = [
       tab.isSelected ? "selected" : nil,

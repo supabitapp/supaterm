@@ -596,7 +596,6 @@ func resolvePublicNewTabTarget(
 ) throws -> SupatermNewTabTarget {
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
-    let space = try index.ambientSpaceLocation(context: context)
     if let context {
       let pane = try index.validatedContextLocation(context)
       let tab = try index.requireTabLocation(
@@ -607,13 +606,14 @@ func resolvePublicNewTabTarget(
       if let group = index.groupLocation(containing: tab) {
         return .group(group.groupID)
       }
-      return .pane(context.surfaceID)
+      return .pane(pane.id)
     }
     if let tab = try? index.ambientTabLocation(context: nil),
       let group = index.groupLocation(containing: tab)
     {
       return .group(group.groupID)
     }
+    let space = try index.ambientSpaceLocation(context: nil)
     return .space(space.id)
   }
 
@@ -773,21 +773,22 @@ private func resolveSpaceLocation(
   context: SupatermCLIContext?,
   index: SPTreeIndex
 ) throws -> SPSpaceLocation {
+  let windowIndex = try index.defaultWindowIndex(context: context)
   switch reference {
   case .index(let spaceIndex):
     return try index.requireSpaceLocation(
-      windowIndex: index.defaultWindowIndex(context: context),
+      windowIndex: windowIndex,
       spaceIndex: spaceIndex
     )
   case .id(let spaceID):
     return try index.requireSpaceLocation(
       id: spaceID,
-      windowIndex: index.defaultWindowIndex(context: context)
+      windowIndex: windowIndex
     )
   case .short(let reference):
     return try index.requireSpaceLocation(
       shortReference: reference,
-      windowIndex: index.defaultWindowIndex(context: context)
+      windowIndex: windowIndex
     )
   }
 }
@@ -849,10 +850,7 @@ func resolvePublicPaneTarget(
 ) throws -> SupatermPaneTargetRequest {
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
-    if let context {
-      return SupatermPaneTargetRequest(paneID: try index.validatedContextLocation(context).id)
-    }
-    let location = try index.ambientPaneLocation(context: nil)
+    let location = try index.ambientPaneLocation(context: context)
     return SupatermPaneTargetRequest(paneID: location.id)
   }
 
@@ -873,8 +871,8 @@ func resolvePublicPaneTarget(
     }
     return SupatermPaneTargetRequest(paneID: pane.id)
   case .id(let paneID):
-    _ = try index.requirePaneLocation(id: paneID)
-    return SupatermPaneTargetRequest(paneID: paneID)
+    let pane = try index.requirePaneLocation(id: paneID)
+    return SupatermPaneTargetRequest(paneID: pane.id)
   case .short(let reference):
     return SupatermPaneTargetRequest(
       paneID: try index.requirePaneLocation(shortReference: reference).id
@@ -889,10 +887,7 @@ func resolvePublicSplitTarget(
 ) throws -> SupatermNewPaneTarget {
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
-    if let context {
-      return .pane(try index.validatedContextLocation(context).id)
-    }
-    let location = try index.ambientPaneLocation(context: nil)
+    let location = try index.ambientPaneLocation(context: context)
     return .pane(location.id)
   }
 

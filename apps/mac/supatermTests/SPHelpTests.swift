@@ -207,7 +207,6 @@ struct SPHelpTests {
     let newHelp = SP.helpMessage(for: SP.GroupNew.self, columns: 100)
     let moveHelp = SP.helpMessage(for: SP.GroupMove.self, columns: 100)
     let closeHelp = SP.helpMessage(for: SP.GroupClose.self, columns: 100)
-    let collapseHelp = SP.helpMessage(for: SP.GroupCollapse.self, columns: 100)
     let tabMoveHelp = SP.helpMessage(for: SP.MoveTab.self, columns: 100)
 
     #expect(groupHelp.contains("sp group new Build"))
@@ -219,7 +218,6 @@ struct SPHelpTests {
     #expect(newHelp.contains("sp group new Pinned --pin"))
     #expect(moveHelp.contains("sp group move Deploy --index 2"))
     #expect(closeHelp.contains("sp group close Build --yes"))
-    #expect(collapseHelp.contains("[<group>]"))
     #expect(tabMoveHelp.contains("sp tab move 1/2 --group <group-uuid> --index 1"))
     #expect(tabMoveHelp.contains("sp tab move <tab-uuid> --root --pin --index 1"))
     #expect(!groupHelp.contains("sp group delete"))

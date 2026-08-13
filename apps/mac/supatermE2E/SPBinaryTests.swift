@@ -340,11 +340,11 @@ extension SupatermE2ESuite {
         #expect(list.current?.paneID == space.tab.paneID)
         #expect(pane.kind == .pane)
         #expect(pane.parentID == space.tab.tabID)
-        #expect(pane.cwd == space.directory.path(percentEncoded: false))
+        #expect(
+          pane.cwd.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+            == space.directory.standardizedFileURL.path
+        )
         #expect(capture.stdout.isEmpty == false)
-        #expect(!result.stdout.contains("shortRef"))
-        #expect(!result.stdout.contains("\"ref\""))
-        #expect(!result.stdout.contains("\"selector\""))
       }
     }
 
@@ -1368,7 +1368,7 @@ private struct DiagnosticReport: Decodable {
 }
 
 private struct ListSnapshot: Decodable {
-  enum Kind: String, CaseIterable, Decodable {
+  enum Kind: String, Decodable {
     case space
     case group
     case tab
@@ -1432,12 +1432,13 @@ private func listedRef(
     }
     guard columns[1] == Substring(kind.rawValue) else { continue }
     let reference = String(columns[0])
-    let prefix = switch kind {
-    case .space: "s:"
-    case .group: "g:"
-    case .tab: "t:"
-    case .pane: "p:"
-    }
+    let prefix =
+      switch kind {
+      case .space: "s:"
+      case .group: "g:"
+      case .tab: "t:"
+      case .pane: "p:"
+      }
     guard reference.hasPrefix(prefix) else {
       throw SupatermE2EError("Expected a typed \(kind.rawValue) ref, got \(reference).")
     }

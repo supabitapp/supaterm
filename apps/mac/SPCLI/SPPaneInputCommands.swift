@@ -182,8 +182,8 @@ private struct SendTextInput {
 }
 
 private func parsePaneReferenceIfTarget(_ argument: String) throws -> SPPaneReference? {
-  if try SPShortReference.parse(argument) != nil {
-    return try parsePaneReference(argument)
+  if let reference = try SPShortReference.parse(argument) {
+    return .short(try reference.require(.pane))
   }
   return try? parsePaneReference(argument)
 }

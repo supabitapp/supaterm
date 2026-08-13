@@ -101,9 +101,15 @@ struct SPTmuxCompatSequenceTests {
     try runner.run(arguments: ["select-pane", "-t", "p:33333333"])
 
     let methods = transport.requests.map(\.method)
-    #expect(methods.filter { $0 == SupatermSocketMethod.appDebug }.count == 3)
-    #expect(methods.contains(SupatermSocketMethod.terminalSelectTab))
-    #expect(methods.contains(SupatermSocketMethod.terminalFocusPane))
+    #expect(
+      methods == [
+        SupatermSocketMethod.appDebug,
+        SupatermSocketMethod.appDebug,
+        SupatermSocketMethod.terminalSelectTab,
+        SupatermSocketMethod.appDebug,
+        SupatermSocketMethod.terminalFocusPane,
+      ]
+    )
   }
 
   @Test

@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import SupatermCLIShared
 
-struct SPListSnapshot: Encodable, Equatable {
+struct SPListSnapshot: Encodable {
   enum Kind: String, Encodable, Equatable {
     case space
     case group
@@ -23,20 +23,20 @@ struct SPListSnapshot: Encodable, Equatable {
     }
   }
 
-  struct Current: Encodable, Equatable {
+  struct Current: Encodable {
     let windowIndex: Int
     let spaceID: UUID
     let tabID: UUID
     let paneID: UUID?
   }
 
-  struct Agent: Encodable, Equatable {
+  struct Agent: Encodable {
     let kind: SupatermAgentKind
     let sessionID: String
     let phase: SupatermAppDebugSnapshot.AgentPhase
   }
 
-  struct Item: Encodable, Equatable {
+  struct Item: Encodable {
     let kind: Kind
     let id: UUID
     let parentID: UUID?

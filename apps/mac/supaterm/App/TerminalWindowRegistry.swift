@@ -956,8 +956,7 @@ final class TerminalWindowRegistry {
       return [preferredEntry] + entries
     }
     guard let index = ambientIndex(in: entries, context: context) else { return [] }
-    let ambientEntry = entries.remove(at: index)
-    return [ambientEntry]
+    return [entries[index]]
   }
 
   func windowIndex(of entry: Entry) -> Int {

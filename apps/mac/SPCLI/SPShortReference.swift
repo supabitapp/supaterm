@@ -31,12 +31,14 @@ struct SPShortReference: Equatable, Sendable, CustomStringConvertible {
 
   static func parse(_ argument: String) throws -> Self? {
     let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard trimmed.count >= 2 else { return nil }
-    let tag = String(trimmed.prefix(1)).lowercased()
+    let tag = trimmed.prefix(1).lowercased()
     guard trimmed.dropFirst().first == ":", let kind = Kind(rawValue: tag) else { return nil }
 
-    let prefix = String(trimmed.dropFirst(2)).lowercased()
-    guard (8...32).contains(prefix.count), prefix.unicodeScalars.allSatisfy(isHexDigit) else {
+    let prefix = trimmed.dropFirst(2).lowercased()
+    guard
+      (8...32).contains(prefix.count),
+      prefix.unicodeScalars.allSatisfy({ $0.isASCII && $0.properties.isHexDigit })
+    else {
       throw ValidationError(
         "Typed refs must use s:, g:, t:, or p: followed by 8 to 32 UUID hex characters."
       )
@@ -83,13 +85,4 @@ struct SPShortReference: Equatable, Sendable, CustomStringConvertible {
 
 private func compactUUID(_ id: UUID) -> String {
   id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
-}
-
-private func isHexDigit(_ scalar: Unicode.Scalar) -> Bool {
-  switch scalar.value {
-  case 48...57, 65...70, 97...102:
-    true
-  default:
-    false
-  }
 }

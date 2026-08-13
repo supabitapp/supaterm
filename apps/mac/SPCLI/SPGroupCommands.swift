@@ -122,7 +122,6 @@ extension SP {
     var options: SPCommandOptions
 
     mutating func run() throws {
-      let color = color
       try runGroupMutation(
         group,
         options: options,
@@ -225,7 +224,6 @@ extension SP {
       guard index > 0 else {
         throw ValidationError("--index must be 1 or greater.")
       }
-      let index = index
       try runGroupMutation(
         group,
         options: options,
@@ -393,7 +391,7 @@ private func validatedGroupTitle(_ title: String) throws -> String {
 private func runGroupMutation(
   _ group: SPGroupReference?,
   options: SPCommandOptions,
-  request: @escaping (SupatermTabGroupTargetRequest) throws -> SupatermSocketRequest
+  request: (SupatermTabGroupTargetRequest) throws -> SupatermSocketRequest
 ) throws {
   try runControlCommand(
     options: options,
@@ -415,7 +413,7 @@ private func runGroupMutation(
 private func runGroupRemoval(
   _ group: SPGroupReference?,
   options: SPCommandOptions,
-  request: @escaping (SupatermTabGroupTargetRequest) throws -> SupatermSocketRequest
+  request: (SupatermTabGroupTargetRequest) throws -> SupatermSocketRequest
 ) throws {
   try runControlCommand(
     options: options,
