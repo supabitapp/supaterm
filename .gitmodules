@@ -17,3 +17,7 @@
 	path = apps/mac/ThirdParty/coding-agents-session-picker
 	url = git@github.com:khoi/coding-agents-session-picker.git
 	pushurl = git@github.com:khoi/coding-agents-session-picker.git
+[submodule "ThirdParty/git-wt"]
+	path = apps/mac/ThirdParty/git-wt
+	url = git@github.com:khoi/git-wt.git
+	pushurl = git@github.com:khoi/git-wt.git
