@@ -6,6 +6,42 @@ import SupatermSettingsFeature
 import SupatermUI
 import SwiftUI
 
+@MainActor
+final class TerminalWindowConfirmationController: NSViewController {
+  private let store: StoreOf<TerminalWindowFeature>
+  private let terminal: TerminalHostState
+
+  init(store: StoreOf<TerminalWindowFeature>, terminal: TerminalHostState) {
+    self.store = store
+    self.terminal = terminal
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  override func loadView() {
+    let hostingView = TerminalWindowConfirmationHostingView(
+      rootView: TerminalWindowConfirmationView(store: store, terminal: terminal)
+    )
+    hostingView.isInteractive = { [weak self] in
+      self?.store.confirmationRequest != nil
+    }
+    view = hostingView
+  }
+}
+
+private final class TerminalWindowConfirmationHostingView: NSHostingView<TerminalWindowConfirmationView> {
+  var isInteractive: () -> Bool = { false }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard isInteractive() else { return nil }
+    return super.hitTest(point)
+  }
+}
+
 struct TerminalWindowConfirmationView: View {
   let store: StoreOf<TerminalWindowFeature>
   @Bindable var terminal: TerminalHostState

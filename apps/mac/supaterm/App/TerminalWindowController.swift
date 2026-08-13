@@ -268,11 +268,9 @@ final class TerminalWindowController: NSWindowController {
         }
       }
     )
-    let confirmationController = NSHostingController(
-      rootView: TerminalWindowConfirmationView(
-        store: input.store.scope(state: \.terminal, action: \.terminal),
-        terminal: input.terminal
-      )
+    let confirmationController = TerminalWindowConfirmationController(
+      store: input.store.scope(state: \.terminal, action: \.terminal),
+      terminal: input.terminal
     )
     let sidebarController = NSHostingController(
       rootView: AppAppearanceView {
