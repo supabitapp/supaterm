@@ -140,6 +140,26 @@ final class CommandPaletteUITests: SupatermUITestCase {
   }
 
   @MainActor
+  func testTitleCommandsPresentSheets() async throws {
+    let terminal = try readyTerminal()
+    terminal.click()
+
+    for title in ["Change Tab Title", "Change Terminal Title"] {
+      try await executePaletteCommand(title)
+
+      let sheet = mainWindow.sheets.firstMatch
+      let didPresentSheet = await wait(for: sheet) {
+        $0.exists && $0.staticTexts[title].exists
+      }
+      XCTAssertTrue(didPresentSheet)
+
+      sheet.buttons["Cancel"].click()
+      let didDismissSheet = await wait(for: sheet) { !$0.exists }
+      XCTAssertTrue(didDismissSheet)
+    }
+  }
+
+  @MainActor
   func testCreateSpaceCommandDisplaysNewSpaceInTheSameWindow() async throws {
     let terminal = try readyTerminal()
     terminal.click()

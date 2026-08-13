@@ -87,7 +87,10 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
       dismissPanel()
       self.parentWindow = parentWindow
     }
-    let rootView = TerminalCommandPalettePanelRoot(configuration: configuration)
+    let rootView = TerminalCommandPalettePanelRoot(
+      configuration: configuration,
+      activate: { [weak self] in self?.activateSelection() }
+    )
     if let hostingController, let panel {
       hostingController.rootView = rootView
       updateFrame(panel, parentWindow: parentWindow)
@@ -96,7 +99,7 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
     let hostingController = NSHostingController(rootView: rootView)
     let panel = TerminalCommandPalettePanel(contentViewController: hostingController)
     panel.onPaletteShortcut = { [weak self] slot in
-      self?.configuration?.activateSlot(slot)
+      self?.activateSlot(slot)
     }
     panel.delegate = self
     panel.appearance = parentWindow.appearance
@@ -113,8 +116,24 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
     dismissPanel()
   }
 
+  private func activateSelection() {
+    guard let activate = configuration?.activate else { return }
+    dismissAndRun(activate)
+  }
+
   func windowDidResignKey(_ notification: Notification) {
     configuration?.close()
+  }
+
+  private func activateSlot(_ slot: Int) {
+    guard let activateSlot = configuration?.activateSlot else { return }
+    dismissAndRun { activateSlot(slot) }
+  }
+
+  private func dismissAndRun(_ action: () -> Void) {
+    configuration = nil
+    dismissPanel()
+    action()
   }
 
   private func dismissPanel() {
@@ -201,13 +220,14 @@ enum TerminalCommandPaletteShortcut {
 
 private struct TerminalCommandPalettePanelRoot: View {
   let configuration: TerminalCommandPalettePanelConfiguration
+  let activate: () -> Void
 
   var body: some View {
     TerminalCommandPaletteOverlay(
       palette: configuration.palette,
       state: configuration.state,
       matches: configuration.matches,
-      onActivate: configuration.activate,
+      onActivate: activate,
       onClose: configuration.close,
       onQueryChange: configuration.queryChanged,
       onMoveSelection: configuration.moveSelection,
