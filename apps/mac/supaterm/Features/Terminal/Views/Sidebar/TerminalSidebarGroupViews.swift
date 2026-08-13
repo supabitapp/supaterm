@@ -601,6 +601,7 @@ private struct TerminalSidebarGroupMarker: View {
         .resizable()
         .scaledToFit()
         .frame(width: 12, height: 12)
+        .clipShape(.rect(cornerRadius: 2))
         .accessibilityHidden(true)
     } else {
       Circle()
