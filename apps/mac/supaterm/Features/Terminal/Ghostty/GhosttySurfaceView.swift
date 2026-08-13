@@ -79,6 +79,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private var handledSearchSelectionRequestCount = 0
   private var markedText = NSMutableAttributedString()
   private var keyTextAccumulator: [String]?
+  private var surrogateDecoder = UTF16SurrogateDecoder()
   private var cellSize: CGSize = .zero
   private var lastScrollbar: ScrollbarState?
   private var lastOcclusion: Bool?
@@ -2148,8 +2149,8 @@ extension GhosttySurfaceView: NSTextInputClient {
     switch string {
     case let attributedText as NSAttributedString:
       chars = attributedText.string
-    case let stringValue as String:
-      chars = stringValue
+    case let text as NSString:
+      chars = surrogateDecoder.decode(text)
     default:
       return
     }
@@ -2169,6 +2170,29 @@ extension GhosttySurfaceView: NSTextInputClient {
     chars.withCString { ptr in
       ghostty_surface_text(surface, ptr, UInt(len - 1))
     }
+  }
+}
+
+struct UTF16SurrogateDecoder {
+  private var lead: UTF16.CodeUnit?
+
+  mutating func decode(_ text: NSString) -> String {
+    guard text.length == 1 else {
+      lead = nil
+      return text as String
+    }
+    let codeUnit = text.character(at: 0)
+    if UTF16.isLeadSurrogate(codeUnit) {
+      lead = codeUnit
+      return ""
+    }
+    if UTF16.isTrailSurrogate(codeUnit) {
+      defer { lead = nil }
+      guard let lead else { return "" }
+      return String(decoding: [lead, codeUnit], as: UTF16.self)
+    }
+    lead = nil
+    return text as String
   }
 }
 

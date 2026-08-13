@@ -10,8 +10,8 @@ struct TerminalHostStateCommandPaletteTests {
   func commandPaletteGhosttyShortcutDisplaysResolveForSupportedCommands() throws {
     let runtime = try makeGhosttyRuntime(
       """
-      keybind = super+shift+y=open_config
-      command-palette-entry = title:Open Config,description:Open the configuration file.,action:open_config
+      keybind = super+shift+y=open_config:os_open
+      command-palette-entry = title:Open Config,description:Open the configuration file.,action:open_config:os_open
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
@@ -19,18 +19,19 @@ struct TerminalHostStateCommandPaletteTests {
     let commands = host.commandPaletteGhosttyCommands()
     let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
-    #expect(commands.contains(where: { $0.action == "open_config" }))
-    #expect(shortcuts["open_config"] == "⌘⇧Y")
+    #expect(commands.contains(where: { $0.action == "open_config:os_open" }))
+    #expect(shortcuts["open_config:os_open"] == "⌘⇧Y")
   }
 
   @Test
   func commandPaletteGhosttyCommandsFilterUnsupportedWindowActions() throws {
     let runtime = try makeGhosttyRuntime(
       [
-        "keybind = super+shift+y=open_config",
+        "keybind = super+shift+y=open_config:os_open",
         "keybind = super+ctrl+f=toggle_fullscreen",
         "keybind = super+shift+u=check_for_updates",
-        "command-palette-entry = title:Open Config,description:Open the configuration file.,action:open_config",
+        "command-palette-entry = title:Open Config,"
+          + "description:Open the configuration file.,action:open_config:os_open",
         "command-palette-entry = title:Check for Updates,"
           + "description:Check for available updates.,action:check_for_updates",
         "command-palette-entry = title:Next Window,description:Focus the next window.,action:goto_window:next",
@@ -51,7 +52,7 @@ struct TerminalHostStateCommandPaletteTests {
     let commands = host.commandPaletteGhosttyCommands()
     let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
-    #expect(commands.contains(where: { $0.action == "open_config" }))
+    #expect(commands.contains(where: { $0.action == "open_config:os_open" }))
     #expect(!commands.contains(where: { $0.actionKey == "check_for_updates" }))
     #expect(!commands.contains(where: { $0.actionKey == "goto_window" }))
     #expect(!commands.contains(where: { $0.actionKey == "reset_window_size" }))
@@ -59,7 +60,7 @@ struct TerminalHostStateCommandPaletteTests {
     #expect(!commands.contains(where: { $0.actionKey == "toggle_maximize" }))
     #expect(!commands.contains(where: { $0.actionKey == "toggle_quick_terminal" }))
     #expect(!commands.contains(where: { $0.actionKey == "toggle_window_float_on_top" }))
-    #expect(shortcuts["open_config"] == "⌘⇧Y")
+    #expect(shortcuts["open_config:os_open"] == "⌘⇧Y")
     #expect(shortcuts["check_for_updates"] == nil)
     #expect(shortcuts["goto_window:next"] == nil)
     #expect(shortcuts["reset_window_size"] == nil)

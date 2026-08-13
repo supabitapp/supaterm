@@ -10,6 +10,26 @@ import Testing
 
 @Suite(.serialized)
 struct GhosttySurfaceViewTests {
+  @Test
+  func surrogateDecoderCombinesSplitUnicodeInput() {
+    var decoder = UTF16SurrogateDecoder()
+    let units = Array("😀".utf16)
+
+    #expect(decoder.decode(NSString(characters: [units[0]], length: 1)).isEmpty)
+    #expect(decoder.decode(NSString(characters: [units[1]], length: 1)) == "😀")
+  }
+
+  @Test
+  func surrogateDecoderDropsUnpairedInput() {
+    var decoder = UTF16SurrogateDecoder()
+    let units = Array("😀".utf16)
+
+    #expect(decoder.decode(NSString(characters: [units[1]], length: 1)).isEmpty)
+    #expect(decoder.decode(NSString(characters: [units[0]], length: 1)).isEmpty)
+    #expect(decoder.decode("x") == "x")
+    #expect(decoder.decode(NSString(characters: [units[1]], length: 1)).isEmpty)
+  }
+
   init() {
     _ = NSApplication.shared
   }

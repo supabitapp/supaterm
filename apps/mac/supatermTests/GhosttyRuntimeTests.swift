@@ -286,11 +286,15 @@ struct GhosttyRuntimeTests {
         ghostty_action_s(
           tag: GHOSTTY_ACTION_CHECK_FOR_UPDATES,
           action: ghostty_action_u())))
-    #expect(
-      GhosttyRuntime.dispatchAppAction(
-        ghostty_action_s(
-          tag: GHOSTTY_ACTION_OPEN_CONFIG,
-          action: ghostty_action_u())))
+    for payload in [GHOSTTY_ACTION_OPEN_CONFIG_OS_OPEN, GHOSTTY_ACTION_OPEN_CONFIG_NEW_WINDOW] {
+      var action = ghostty_action_u()
+      action.open_config = payload
+      #expect(
+        GhosttyRuntime.dispatchAppAction(
+          ghostty_action_s(
+            tag: GHOSTTY_ACTION_OPEN_CONFIG,
+            action: action)))
+    }
     #expect(
       GhosttyRuntime.dispatchAppAction(
         ghostty_action_s(
@@ -301,7 +305,7 @@ struct GhosttyRuntimeTests {
     #expect(delegate.newWindowCount == 1)
     #expect(delegate.closeAllWindowsCount == 1)
     #expect(delegate.checkForUpdatesCount == 1)
-    #expect(delegate.openConfigCount == 1)
+    #expect(delegate.openConfigCount == 2)
     #expect(delegate.toggleVisibilityCount == 1)
     #expect(delegate.quitCount == 1)
   }
