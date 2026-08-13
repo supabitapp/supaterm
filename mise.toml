@@ -1,14 +1,13 @@
 [tools]
-hk = "1.52.0"
-pkl = "0.31.1"
+hk = "1.55.0"
 zig = "0.16.0"
-rust = "1.95.0"
+rust = "1.97.1"
 tuist = "4.204.0-canary.6"
-swiftlint = "0.63.2"
+swiftlint = "0.65.0"
 xcbeautify = "3.2.1"
 pnpm = "10.32.1"
 "pipx:dmgbuild" = { version = "1.6.7", os = ["macos"] }
-periphery = { version = "3.7.4", os = ["macos"] }
+periphery = { version = "3.8.0", os = ["macos"] }
 fnox = "latest"
 
 [env]
