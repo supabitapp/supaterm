@@ -86,8 +86,8 @@ closes, the process identity changes, or detection can no longer prove the state
 
 ### Rules
 
-Supaterm compiles the Claude Code, Codex, and Pi process and activity rules into the app. It does not
-read or update rule files at runtime.
+Supaterm bundles the Claude Code, Codex, and Pi activity manifests with the app. It parses them once
+at startup and does not update them over the network.
 
 ## Supaterm Skill
 

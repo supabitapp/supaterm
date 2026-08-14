@@ -599,7 +599,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   private static func makeAgentDetectionRuleRepository() -> AgentDetectionRuleRepository? {
     do {
-      return try AgentDetectionRuleRepository()
+      return try AgentDetectionRuleRepository(bundle: .module)
     } catch {
       SupatermLog.error(
         SupatermLog.terminal,

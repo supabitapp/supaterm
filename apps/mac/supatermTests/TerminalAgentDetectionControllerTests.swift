@@ -408,7 +408,7 @@ struct TerminalAgentDetectionControllerTests {
       to: executableURL
     )
     try adHocSign(executableURL)
-    let repository = try AgentDetectionRuleRepository()
+    let repository = try AgentDetectionRuleRepository(bundle: SupatermResources.bundle)
     let runtime = try makeGhosttyRuntime("")
     let host = TerminalHostState(
       runtime: runtime,

@@ -1,11 +1,13 @@
+import Foundation
 import Testing
 
 @testable import SupatermSupport
+@testable import supaterm
 
 struct AgentDetectionRuleSetTests {
   @Test
-  func embeddedCatalogContainsTheExactRuleOrder() {
-    let agents = AgentDetectionRules.ruleSet.agents
+  func bundledManifestsContainTheExactRuleOrder() throws {
+    let agents = try AgentDetectionRuleSetParser.load(from: SupatermResources.bundle).agents
 
     #expect(agents.map(\.id) == ["claude", "codex", "pi"])
     #expect(
@@ -40,8 +42,8 @@ struct AgentDetectionRuleSetTests {
   }
 
   @Test
-  func embeddedCatalogContainsTheSupportedProcessForms() {
-    let agents = AgentDetectionRules.ruleSet.agents
+  func bundledManifestsUseTheSupportedProcessForms() throws {
+    let agents = try AgentDetectionRuleSetParser.load(from: SupatermResources.bundle).agents
 
     #expect(
       agents[0].processes == [
@@ -65,9 +67,16 @@ struct AgentDetectionRuleSetTests {
   }
 
   @Test
-  func everyEmbeddedRegularExpressionCompiles() throws {
-    for agent in AgentDetectionRules.ruleSet.agents {
+  func everyBundledRegularExpressionCompiles() throws {
+    for agent in try AgentDetectionRuleSetParser.load(from: SupatermResources.bundle).agents {
       _ = try AgentDetectionMatcher(agent: agent)
+    }
+  }
+
+  @Test
+  func parserRejectsUnknownManifestKeys() {
+    #expect(throws: AgentDetectionRuleSetError.self) {
+      try AgentDetectionRuleSetParser.parse(Data("id = 'pi'\nunknown = true\n".utf8))
     }
   }
 }

@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import SupatermSupport
+@testable import supaterm
 
 struct AgentDetectionMatcherTests {
   @Test
@@ -154,7 +155,11 @@ struct AgentDetectionMatcherTests {
   }
 
   private func matcher(agentID: String) throws -> AgentDetectionMatcher {
-    let agent = try #require(AgentDetectionRules.ruleSet.agents.first { $0.id == agentID })
+    let agent = try #require(
+      AgentDetectionRuleSetParser.load(from: SupatermResources.bundle).agents.first {
+        $0.id == agentID
+      }
+    )
     return try AgentDetectionMatcher(agent: agent)
   }
 

@@ -1,3 +1,5 @@
+import Foundation
+
 public enum AgentDetectionRuleOrigin: Equatable, Sendable {
   case embedded
 }
@@ -48,15 +50,16 @@ public actor AgentDetectionRuleRepository {
   private let ruleSet: AgentDetectionRuleSet
   private let matchers: [AgentDetectionMatcher]
 
-  public init() throws {
-    ruleSet = AgentDetectionRules.ruleSet
+  public init(bundle: Bundle) throws {
+    let ruleSet = try AgentDetectionRuleSetParser.load(from: bundle)
+    self.ruleSet = ruleSet
     matchers = try ruleSet.agents.map(AgentDetectionMatcher.init)
   }
 
   public func snapshot() -> AgentDetectionRuleSnapshot {
     AgentDetectionRuleSnapshot(
       origin: .embedded,
-      generation: AgentDetectionRules.generation,
+      generation: ruleSet.generation,
       processManifests: ruleSet.agents.map {
         AgentDetectionProcessManifest(agentID: $0.id, processes: $0.processes)
       }
@@ -73,7 +76,7 @@ public actor AgentDetectionRuleRepository {
     let agent = ruleSet.agents[index]
     return AgentDetectionEvaluation(
       identity: AgentDetectionAgentIdentity(id: agent.id, displayName: agent.displayName),
-      generation: AgentDetectionRules.generation,
+      generation: ruleSet.generation,
       match: matchers[index].match(input)
     )
   }
