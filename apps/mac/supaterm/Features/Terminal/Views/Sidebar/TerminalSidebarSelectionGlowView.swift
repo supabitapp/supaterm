@@ -1,13 +1,29 @@
 import AppKit
 import QuartzCore
+import SupaTheme
 import SwiftUI
 
 @MainActor
 final class TerminalSidebarSelectionGlowView: NSView {
+  struct Style {
+    let surfaceColor: Color
+    let shadowColor: Color
+    let isDark: Bool
+
+    static func resolve(palette: Palette) -> Self {
+      Self(
+        surfaceColor: palette.selectableRow.primarySelectionFill,
+        shadowColor: palette.selectableRow.shadow,
+        isDark: palette.isDark
+      )
+    }
+  }
+
   private static let contentTopFade: CGFloat = 24
 
   private let shadowLayer = CAShapeLayer()
   private let contentTopFadeLayer = CAGradientLayer()
+  private var fadesAtContentTop = true
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -19,7 +35,6 @@ final class TerminalSidebarSelectionGlowView: NSView {
       "bounds": NSNull(),
       "position": NSNull(),
     ]
-    shadowLayer.fillColor = NSColor.white.cgColor
     shadowLayer.shadowOpacity = 1
     shadowLayer.shadowOffset = CGSize(
       width: SelectableRowShadowMetrics.offset.width,
@@ -54,7 +69,7 @@ final class TerminalSidebarSelectionGlowView: NSView {
   }
 
   private func layoutContentTopFade() {
-    guard bounds.height > 0, frame.minY < Self.contentTopFade else {
+    guard fadesAtContentTop, bounds.height > 0, frame.minY < Self.contentTopFade else {
       layer?.mask = nil
       return
     }
@@ -68,9 +83,16 @@ final class TerminalSidebarSelectionGlowView: NSView {
     (bounds.height - (contentY - frame.minY)) / bounds.height
   }
 
-  func update(surfaceFrame: CGRect, color: Color, alpha: CGFloat, isDark: Bool) {
-    shadowLayer.shadowColor = NSColor(color).cgColor
-    shadowLayer.shadowRadius = SelectableRowShadowMetrics.radius(isDark: isDark)
+  func update(
+    surfaceFrame: CGRect,
+    style: Style,
+    alpha: CGFloat,
+    fadesAtContentTop: Bool
+  ) {
+    self.fadesAtContentTop = fadesAtContentTop
+    shadowLayer.fillColor = NSColor(style.surfaceColor).cgColor
+    shadowLayer.shadowColor = NSColor(style.shadowColor).cgColor
+    shadowLayer.shadowRadius = SelectableRowShadowMetrics.radius(isDark: style.isDark)
     frame = Self.visualFrame(for: surfaceFrame)
     alphaValue = alpha
     isHidden = false

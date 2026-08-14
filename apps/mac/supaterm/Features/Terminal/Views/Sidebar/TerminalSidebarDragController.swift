@@ -511,9 +511,17 @@ final class TerminalSidebarDragController {
         liftedRows.forEach { $0.restore() }
         return nil
       }
+      let selectedSurface = liftedSelectedSurface(
+        for: entryID,
+        sourceFrame: sourceItem.frame,
+        content: content
+      )
       if let indexPath = host.indexPath(entryID),
         let item = collectionView.item(at: indexPath) as? TerminalSidebarCollectionItem,
-        let lifted = item.liftHostedView(sourceFrame: sourceItem.frame)
+        let lifted = item.liftHostedView(
+          sourceFrame: sourceItem.frame,
+          selectedSurface: selectedSurface
+        )
       {
         liftedRows.append(lifted)
         continue
@@ -533,11 +541,35 @@ final class TerminalSidebarDragController {
         TerminalSidebarLiftedRow(
           hostedView: hostedView,
           sourceFrame: sourceItem.frame,
+          selectedSurface: selectedSurface,
           restore: {}
         )
       )
     }
     return liftedRows
+  }
+
+  private func liftedSelectedSurface(
+    for entryID: TerminalSidebarEntryID,
+    sourceFrame: CGRect,
+    content: Content
+  ) -> TerminalSidebarLiftedSelectionSurface? {
+    guard
+      case .tab(let tabID) = entryID,
+      tabID == content.selectedTabID,
+      case .tab(let presentation) = content.rows[entryID]
+    else { return nil }
+    let view = TerminalSidebarSelectionGlowView()
+    view.update(
+      surfaceFrame: TerminalSidebarLayout.tabSurfaceFrame(
+        in: sourceFrame,
+        isGrouped: presentation.groupID != nil
+      ),
+      style: .resolve(palette: content.context.palette),
+      alpha: 1,
+      fadesAtContentTop: false
+    )
+    return TerminalSidebarLiftedSelectionSurface(view: view)
   }
 
   private func liftedGroupBackground(

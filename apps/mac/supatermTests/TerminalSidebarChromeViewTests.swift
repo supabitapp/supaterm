@@ -39,7 +39,7 @@ struct TerminalSidebarChromeViewTests {
 
   @MainActor
   @Test
-  func selectionGlowDrawsBehindTheSelectedSurface() throws {
+  func selectionGlowUsesTheSelectedSurfaceAsItsShadowSource() throws {
     let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
     let container = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 160))
     let window = NSWindow(
@@ -51,12 +51,28 @@ struct TerminalSidebarChromeViewTests {
     window.contentView = container
     let glow = TerminalSidebarSelectionGlowView()
     container.addSubview(glow)
-    glow.update(surfaceFrame: itemFrame, color: .white, alpha: 1, isDark: true)
+    glow.update(
+      surfaceFrame: itemFrame,
+      style: TerminalSidebarSelectionGlowView.Style(
+        surfaceColor: .black,
+        shadowColor: .white,
+        isDark: true
+      ),
+      alpha: 1,
+      fadesAtContentTop: true
+    )
     container.layoutSubtreeIfNeeded()
 
-    let raster = try #require(SelectionGlowRaster(view: container))
+    let raster = try #require(SelectionGlowRaster(view: container, scale: 2))
+    let surfaceColor = try #require(
+      raster.color(at: CGPoint(x: itemFrame.midX, y: itemFrame.midY))
+    )
+    let surfaceRGB = try #require(surfaceColor.usingColorSpace(.deviceRGB))
 
-    #expect(raster.alpha(at: CGPoint(x: itemFrame.midX, y: itemFrame.midY)) == 1)
+    #expect(surfaceRGB.alphaComponent == 1)
+    #expect(surfaceRGB.redComponent == 0)
+    #expect(surfaceRGB.greenComponent == 0)
+    #expect(surfaceRGB.blueComponent == 0)
   }
 
   @MainActor
@@ -73,7 +89,16 @@ struct TerminalSidebarChromeViewTests {
     window.contentView = container
     let glow = TerminalSidebarSelectionGlowView()
     container.addSubview(glow)
-    glow.update(surfaceFrame: itemFrame, color: .black, alpha: 1, isDark: false)
+    glow.update(
+      surfaceFrame: itemFrame,
+      style: TerminalSidebarSelectionGlowView.Style(
+        surfaceColor: .white,
+        shadowColor: .black,
+        isDark: false
+      ),
+      alpha: 1,
+      fadesAtContentTop: true
+    )
     container.layoutSubtreeIfNeeded()
 
     let raster = try #require(SelectionGlowRaster(view: container))
@@ -104,7 +129,16 @@ struct TerminalSidebarChromeViewTests {
     window.contentView = container
     let glow = TerminalSidebarSelectionGlowView()
     container.addSubview(glow)
-    glow.update(surfaceFrame: itemFrame, color: .black, alpha: 1, isDark: false)
+    glow.update(
+      surfaceFrame: itemFrame,
+      style: TerminalSidebarSelectionGlowView.Style(
+        surfaceColor: .white,
+        shadowColor: .black,
+        isDark: false
+      ),
+      alpha: 1,
+      fadesAtContentTop: true
+    )
     container.layoutSubtreeIfNeeded()
 
     let raster = try #require(SelectionGlowRaster(view: container))
@@ -721,20 +755,23 @@ private func expectSameColor(
 
 private struct SelectionGlowRaster {
   private let raster: NSBitmapImageRep
+  private let scale: CGFloat
 
   @MainActor
-  init?(view: NSView) {
+  init?(view: NSView, scale: CGFloat = 1) {
+    self.scale = scale
     guard
       let context = CGContext(
         data: nil,
-        width: Int(view.bounds.width),
-        height: Int(view.bounds.height),
+        width: Int(view.bounds.width * scale),
+        height: Int(view.bounds.height * scale),
         bitsPerComponent: 8,
         bytesPerRow: 0,
         space: CGColorSpaceCreateDeviceRGB(),
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
       )
     else { return nil }
+    context.scaleBy(x: scale, y: scale)
     context.translateBy(x: 0, y: view.bounds.height)
     context.scaleBy(x: 1, y: -1)
     view.displayIgnoringOpacity(
@@ -761,7 +798,7 @@ private struct SelectionGlowRaster {
     }
   }
 
-  func alpha(at point: CGPoint) -> CGFloat {
-    raster.colorAt(x: Int(point.x), y: Int(point.y))?.alphaComponent ?? 0
+  func color(at point: CGPoint) -> NSColor? {
+    raster.colorAt(x: Int(point.x * scale), y: Int(point.y * scale))
   }
 }

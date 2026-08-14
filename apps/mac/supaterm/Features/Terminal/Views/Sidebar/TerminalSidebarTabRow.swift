@@ -135,6 +135,15 @@ struct TerminalSidebarTabRow: View {
     selectionStyle != .none
   }
 
+  private var rowFill: Color {
+    guard selectionStyle != .primary else { return .clear }
+    return rowAppearance.fill(
+      selection: selectionStyle,
+      isPressed: isPressed,
+      isHovering: isHovering
+    )
+  }
+
   private var agentPresentation: TerminalHostState.TabAgentPresentation {
     terminal.tabAgentPresentation(for: tab.id)
   }
@@ -190,22 +199,18 @@ struct TerminalSidebarTabRow: View {
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity)
     .background {
-      rowAppearance.fill(
-        selection: selectionStyle,
-        isPressed: isPressed,
-        isHovering: isHovering
-      )
-      .modifier(
-        SelectableRowChrome(
-          selection: selectionStyle,
-          cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-          appearance: rowAppearance,
-          showsSelectionEdge: true,
-          showsSelectionShadow: false
+      rowFill
+        .modifier(
+          SelectableRowChrome(
+            selection: selectionStyle,
+            cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+            appearance: rowAppearance,
+            showsSelectionEdge: true,
+            showsSelectionShadow: false
+          )
         )
-      )
-      .padding(.leading, surfaceInsets.leading)
-      .padding(.trailing, surfaceInsets.trailing)
+        .padding(.leading, surfaceInsets.leading)
+        .padding(.trailing, surfaceInsets.trailing)
     }
     .terminalAnimation(
       .spring(response: 0.24, dampingFraction: 0.88),

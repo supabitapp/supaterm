@@ -428,6 +428,41 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test @MainActor
+  func selectedSurfaceStaysWithTheLiftedRow() throws {
+    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
+    let sourceFrame = CGRect(x: 12, y: 40, width: 216, height: 52)
+    let hostedView = NSView(frame: CGRect(origin: .zero, size: sourceFrame.size))
+    let selectedSurfaceView = TerminalSidebarSelectionGlowView(
+      frame: sourceFrame.insetBy(dx: -4, dy: -4)
+    )
+    let selectedSurface = TerminalSidebarLiftedSelectionSurface(view: selectedSurfaceView)
+    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
+    presentation.begin(
+      TerminalSidebarDragPresentation.Lift(
+        rows: [
+          TerminalSidebarLiftedRow(
+            hostedView: hostedView,
+            sourceFrame: sourceFrame,
+            selectedSurface: selectedSurface,
+            restore: {}
+          )
+        ],
+        groupBackground: nil,
+        fanAnchorIndex: nil,
+        sourceFrame: sourceFrame,
+        hotspot: .zero,
+        screenPoint: .zero,
+        timestamp: 0
+      ),
+      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
+    )
+
+    let liveView = try #require(hostedView.superview)
+    #expect(selectedSurfaceView.superview === liveView)
+    #expect(selectedSurfaceView.frame == CGRect(x: -4, y: -4, width: 224, height: 60))
+  }
+
+  @Test @MainActor
   func destinationHandoffKeepsThenDiscardsThePreviewRows() {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
     let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))

@@ -280,6 +280,24 @@ struct TerminalSidebarLiftedGroupBackground {
 }
 
 @MainActor
+struct TerminalSidebarLiftedSelectionSurface {
+  let view: TerminalSidebarSelectionGlowView
+
+  func install(
+    in container: NSView,
+    sourceRowFrame: CGRect,
+    rowFrame: CGRect,
+    above sibling: NSView?
+  ) {
+    view.frame = view.frame.offsetBy(
+      dx: rowFrame.minX - sourceRowFrame.minX,
+      dy: rowFrame.minY - sourceRowFrame.minY
+    )
+    container.addSubview(view, positioned: .above, relativeTo: sibling)
+  }
+}
+
+@MainActor
 private final class TerminalSidebarLiveDragView: NSView {
   private let rows: [TerminalSidebarLiftedRow]
   private let groupBackground: TerminalSidebarLiftedGroupBackground?
@@ -309,8 +327,9 @@ private final class TerminalSidebarLiveDragView: NSView {
       TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: rows.count)
     }
     for (index, row) in rows.enumerated() {
+      let rowFrame: CGRect
       if let fanSpacing {
-        row.hostedView.frame = CGRect(
+        rowFrame = CGRect(
           x: 0,
           y: CGFloat(index) * fanSpacing,
           width: frame.width,
@@ -319,11 +338,18 @@ private final class TerminalSidebarLiveDragView: NSView {
         row.hostedView.wantsLayer = true
         row.hostedView.layer?.zPosition = index == fanAnchorIndex ? 1 : 0
       } else {
-        row.hostedView.frame = TerminalSidebarLiveDragGeometry.rowFrame(
+        rowFrame = TerminalSidebarLiveDragGeometry.rowFrame(
           sourceFrame: row.sourceFrame,
           containerFrame: frame
         )
       }
+      row.selectedSurface?.install(
+        in: self,
+        sourceRowFrame: row.sourceFrame,
+        rowFrame: rowFrame,
+        above: groupBackground?.view
+      )
+      row.hostedView.frame = rowFrame
       addSubview(row.hostedView)
     }
   }

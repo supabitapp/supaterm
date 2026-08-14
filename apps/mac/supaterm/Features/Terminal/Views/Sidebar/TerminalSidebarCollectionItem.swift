@@ -19,11 +19,15 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
     containerView.host(entryID: entryID, view)
   }
 
-  func liftHostedView(sourceFrame: CGRect) -> TerminalSidebarLiftedRow? {
+  func liftHostedView(
+    sourceFrame: CGRect,
+    selectedSurface: TerminalSidebarLiftedSelectionSurface? = nil
+  ) -> TerminalSidebarLiftedRow? {
     guard let lift = containerView.liftHostedView() else { return nil }
     return TerminalSidebarLiftedRow(
       hostedView: lift.hostedView,
       sourceFrame: sourceFrame,
+      selectedSurface: selectedSurface,
       restore: { [weak self, weak hostedView = lift.hostedView] in
         guard let self, let hostedView else { return }
         restoreHostedView(hostedView, entryID: lift.entryID)
@@ -40,15 +44,18 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
 struct TerminalSidebarLiftedRow {
   let hostedView: NSView
   let sourceFrame: CGRect
+  let selectedSurface: TerminalSidebarLiftedSelectionSurface?
   let restoreAction: @MainActor () -> Void
 
   init(
     hostedView: NSView,
     sourceFrame: CGRect,
+    selectedSurface: TerminalSidebarLiftedSelectionSurface? = nil,
     restore: @escaping @MainActor () -> Void
   ) {
     self.hostedView = hostedView
     self.sourceFrame = sourceFrame
+    self.selectedSurface = selectedSurface
     restoreAction = restore
   }
 
