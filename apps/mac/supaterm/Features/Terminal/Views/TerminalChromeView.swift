@@ -52,11 +52,13 @@ struct TerminalSidebarSurfaceShell<Content: View>: View {
     content
       .padding(isFloating ? TerminalFloatingSidebarShellMetrics.contentInset : 0)
       .background {
-        ChromeBackgroundView(
-          palette: palette,
-          material: isFloating ? .popover : .underWindowBackground,
-          blendingMode: isFloating ? .withinWindow : .behindWindow
-        )
+        if isFloating {
+          ChromeBackgroundView(
+            palette: palette,
+            material: .popover,
+            blendingMode: .withinWindow
+          )
+        }
       }
       .mask(alignment: .leading) {
         surfaceShape

@@ -8,14 +8,15 @@ import Testing
 
 struct TerminalWindowShellControllerTests {
   @Test @MainActor
-  func shellGivesBothHostsTheWholeWindowContentArea() {
+  func shellGivesEveryHostTheWholeWindowContentArea() {
     let shell = TerminalWindowShellController(
       windowControllerID: UUID(),
       tabDragRegistry: TerminalTabDragRegistry()
     )
+    let background = NSHostingController(rootView: Color.clear)
     let sidebar = NSHostingController(rootView: Color.clear)
     let detail = NSHostingController(rootView: Color.clear)
-    shell.install(sidebar: sidebar, detail: detail)
+    shell.install(background: background, sidebar: sidebar, detail: detail)
     let window = NSWindow(
       contentRect: CGRect(x: 0, y: 0, width: 1_000, height: 700),
       styleMask: [.titled, .fullSizeContentView],
@@ -28,8 +29,11 @@ struct TerminalWindowShellControllerTests {
     window.layoutIfNeeded()
 
     #expect(shell.view.safeAreaInsets.top == 0)
+    #expect(background.view.safeAreaInsets.top == 0)
     #expect(sidebar.view.safeAreaInsets.top == 0)
     #expect(detail.view.safeAreaInsets.top == 0)
+    #expect(background.view.frame == shell.view.bounds)
+    #expect(shell.view.subviews.first === background.view)
     #expect(sidebar.view.frame.minY == detail.view.frame.minY)
     #expect(sidebar.view.frame.maxY == detail.view.frame.maxY)
     #expect(shell.tabDragCaptureRequest()?.geometry.sourceRect.size == detail.view.bounds.size)
@@ -44,9 +48,11 @@ struct TerminalWindowShellControllerTests {
     )
     let sidebar = NSHostingController(rootView: Color.clear)
     let detail = NSHostingController(rootView: Color.clear)
+    let background = NSHostingController(rootView: Color.clear)
     let confirmationOverlay = NSViewController()
     confirmationOverlay.view = NSView()
     shell.install(
+      background: background,
       sidebar: sidebar,
       detail: detail,
       confirmationOverlay: confirmationOverlay
@@ -717,7 +723,9 @@ struct TerminalWindowShellControllerTests {
     sidebar.view = NSView()
     let detail = NSViewController()
     detail.view = NSView()
-    shell.install(sidebar: sidebar, detail: detail)
+    let background = NSViewController()
+    background.view = NSView()
+    shell.install(background: background, sidebar: sidebar, detail: detail)
     shell.apply(presentation)
     let window = TerminalSidebarPointerWindow(
       contentRect: bounds,
@@ -824,7 +832,9 @@ struct TerminalWindowShellControllerTests {
     sidebar.view = NSView()
     let detail = NSViewController()
     detail.view = NSView()
-    shell.install(sidebar: sidebar, detail: detail)
+    let background = NSViewController()
+    background.view = NSView()
+    shell.install(background: background, sidebar: sidebar, detail: detail)
     shell.apply(presentation)
     let window = TerminalSidebarPointerWindow(
       contentRect: CGRect(x: 100, y: 100, width: 1_000, height: 700),

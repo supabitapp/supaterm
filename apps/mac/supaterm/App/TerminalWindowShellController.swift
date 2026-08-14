@@ -472,6 +472,7 @@ final class TerminalWindowShellController: NSViewController {
   }
 
   func install(
+    background: NSViewController,
     sidebar: NSViewController,
     detail: NSViewController,
     confirmationOverlay: NSViewController? = nil
@@ -479,6 +480,10 @@ final class TerminalWindowShellController: NSViewController {
     precondition(sidebarController == nil && detailController == nil)
     sidebar.view.wantsLayer = true
     detail.view.wantsLayer = true
+    addChild(background)
+    background.view.frame = view.bounds
+    background.view.autoresizingMask = [.width, .height]
+    view.addSubview(background.view)
     addChild(detail)
     view.addSubview(detail.view)
     view.addSubview(splitDropOverlay)

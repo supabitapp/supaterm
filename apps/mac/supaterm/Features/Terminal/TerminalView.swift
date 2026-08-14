@@ -17,7 +17,7 @@ struct TerminalView: View {
   @State private var window: NSWindow?
 
   private var chromeColorScheme: ColorScheme {
-    supatermSettings.appearanceMode.colorScheme ?? terminal.terminalChromeColorScheme
+    terminal.chromeColorScheme(appearanceMode: supatermSettings.appearanceMode)
   }
 
   private var windowAppearance: NSAppearance? {
@@ -25,7 +25,7 @@ struct TerminalView: View {
   }
 
   private var palette: Palette {
-    Palette(colorScheme: chromeColorScheme, tint: terminal.displayedSpace.color)
+    terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
   }
 
   private var pendingCloseBinding: Binding<Bool> {
@@ -75,7 +75,6 @@ struct TerminalView: View {
   var body: some View {
     terminalLayout
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(ChromeBackgroundView(palette: palette))
       .background {
         WindowAppearanceApplier(appliedAppearance: windowAppearance)
       }
@@ -255,6 +254,32 @@ struct TerminalView: View {
       isSidebarCollapsed: store.isSidebarCollapsed,
       sidebarResizeState: store.sidebarResizeState,
       sidebarWidth: store.sidebarWidth
+    )
+  }
+}
+
+struct TerminalWindowChromeBackground: View {
+  @Shared(.supatermSettings) private var supatermSettings = .default
+  let terminal: TerminalHostState
+
+  private var palette: Palette {
+    terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
+  }
+
+  var body: some View {
+    ChromeBackgroundView(palette: palette)
+  }
+}
+
+extension TerminalHostState {
+  fileprivate func chromeColorScheme(appearanceMode: AppearanceMode) -> ColorScheme {
+    appearanceMode.colorScheme ?? terminalChromeColorScheme
+  }
+
+  fileprivate func chromePalette(appearanceMode: AppearanceMode) -> Palette {
+    Palette(
+      colorScheme: chromeColorScheme(appearanceMode: appearanceMode),
+      tint: displayedSpace.color
     )
   }
 }
