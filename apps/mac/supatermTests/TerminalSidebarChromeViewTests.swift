@@ -41,29 +41,19 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func selectionGlowUsesTheSelectedSurfaceAsItsShadowSource() throws {
     let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
-    let container = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 160))
-    let window = NSWindow(
-      contentRect: container.frame,
-      styleMask: .borderless,
-      backing: .buffered,
-      defer: false
+    let raster = try #require(
+      SelectionGlowRaster(
+        surfaceFrame: itemFrame,
+        style: TerminalSidebarSelectionGlowView.Style(
+          surfaceColor: .black,
+          shadowColor: .white,
+          edgeStrongColor: .clear,
+          edgeWeakColor: .clear,
+          isDark: true
+        ),
+        scale: 2
+      )
     )
-    window.contentView = container
-    let glow = TerminalSidebarSelectionGlowView()
-    container.addSubview(glow)
-    glow.update(
-      surfaceFrame: itemFrame,
-      style: TerminalSidebarSelectionGlowView.Style(
-        surfaceColor: .black,
-        shadowColor: .white,
-        isDark: true
-      ),
-      alpha: 1,
-      fadesAtContentTop: true
-    )
-    container.layoutSubtreeIfNeeded()
-
-    let raster = try #require(SelectionGlowRaster(view: container, scale: 2))
     let surfaceColor = try #require(
       raster.color(at: CGPoint(x: itemFrame.midX, y: itemFrame.midY))
     )
@@ -77,31 +67,68 @@ struct TerminalSidebarChromeViewTests {
 
   @MainActor
   @Test
+  func selectionEdgeHighlightsTheBottomLeftAndTopRight() throws {
+    let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
+    let raster = try #require(
+      SelectionGlowRaster(
+        surfaceFrame: itemFrame,
+        style: TerminalSidebarSelectionGlowView.Style(
+          surfaceColor: .black,
+          shadowColor: .clear,
+          edgeStrongColor: .white,
+          edgeWeakColor: .clear,
+          isDark: true
+        ),
+        scale: 2,
+        fadesAtContentTop: false
+      )
+    )
+    let cornerSize: CGFloat = 14
+    let bottomLeft = CGRect(
+      x: itemFrame.minX,
+      y: itemFrame.minY,
+      width: cornerSize,
+      height: cornerSize
+    )
+    let bottomRight = CGRect(
+      x: itemFrame.maxX - cornerSize,
+      y: itemFrame.minY,
+      width: cornerSize,
+      height: cornerSize
+    )
+    let topLeft = CGRect(
+      x: itemFrame.minX,
+      y: itemFrame.maxY - cornerSize,
+      width: cornerSize,
+      height: cornerSize
+    )
+    let topRight = CGRect(
+      x: itemFrame.maxX - cornerSize,
+      y: itemFrame.maxY - cornerSize,
+      width: cornerSize,
+      height: cornerSize
+    )
+
+    #expect(raster.peakBrightness(in: bottomLeft) > raster.peakBrightness(in: bottomRight) * 2)
+    #expect(raster.peakBrightness(in: topRight) > raster.peakBrightness(in: topLeft) * 2)
+  }
+
+  @MainActor
+  @Test
   func selectionGlowHangsBelowTheSelectedRow() throws {
     let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
-    let container = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 160))
-    let window = NSWindow(
-      contentRect: container.frame,
-      styleMask: .borderless,
-      backing: .buffered,
-      defer: false
+    let raster = try #require(
+      SelectionGlowRaster(
+        surfaceFrame: itemFrame,
+        style: TerminalSidebarSelectionGlowView.Style(
+          surfaceColor: .white,
+          shadowColor: .black,
+          edgeStrongColor: .clear,
+          edgeWeakColor: .clear,
+          isDark: false
+        )
+      )
     )
-    window.contentView = container
-    let glow = TerminalSidebarSelectionGlowView()
-    container.addSubview(glow)
-    glow.update(
-      surfaceFrame: itemFrame,
-      style: TerminalSidebarSelectionGlowView.Style(
-        surfaceColor: .white,
-        shadowColor: .black,
-        isDark: false
-      ),
-      alpha: 1,
-      fadesAtContentTop: true
-    )
-    container.layoutSubtreeIfNeeded()
-
-    let raster = try #require(SelectionGlowRaster(view: container))
     let band = 8
     let above = raster.ink(rows: (Int(itemFrame.minY) - band)..<Int(itemFrame.minY))
     let below = raster.ink(rows: Int(itemFrame.maxY)..<(Int(itemFrame.maxY) + band))
@@ -119,29 +146,18 @@ struct TerminalSidebarChromeViewTests {
       width: 200,
       height: 40
     )
-    let container = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 160))
-    let window = NSWindow(
-      contentRect: container.frame,
-      styleMask: .borderless,
-      backing: .buffered,
-      defer: false
+    let raster = try #require(
+      SelectionGlowRaster(
+        surfaceFrame: itemFrame,
+        style: TerminalSidebarSelectionGlowView.Style(
+          surfaceColor: .white,
+          shadowColor: .black,
+          edgeStrongColor: .clear,
+          edgeWeakColor: .clear,
+          isDark: false
+        )
+      )
     )
-    window.contentView = container
-    let glow = TerminalSidebarSelectionGlowView()
-    container.addSubview(glow)
-    glow.update(
-      surfaceFrame: itemFrame,
-      style: TerminalSidebarSelectionGlowView.Style(
-        surfaceColor: .white,
-        shadowColor: .black,
-        isDark: false
-      ),
-      alpha: 1,
-      fadesAtContentTop: true
-    )
-    container.layoutSubtreeIfNeeded()
-
-    let raster = try #require(SelectionGlowRaster(view: container))
     let rowInk = (0..<Int(itemFrame.minY)).map { raster.ink(rows: $0..<($0 + 1)) }
     let topInk = rowInk.prefix(3).reduce(0, +)
     let rowEdgeInk = rowInk.suffix(3).reduce(0, +)
@@ -758,6 +774,33 @@ private struct SelectionGlowRaster {
   private let scale: CGFloat
 
   @MainActor
+  init?(
+    surfaceFrame: CGRect,
+    style: TerminalSidebarSelectionGlowView.Style,
+    scale: CGFloat = 1,
+    fadesAtContentTop: Bool = true
+  ) {
+    let container = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 160))
+    let window = NSWindow(
+      contentRect: container.frame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = container
+    let glow = TerminalSidebarSelectionGlowView()
+    container.addSubview(glow)
+    glow.update(
+      surfaceFrame: surfaceFrame,
+      style: style,
+      alpha: 1,
+      fadesAtContentTop: fadesAtContentTop
+    )
+    container.layoutSubtreeIfNeeded()
+    self.init(view: container, scale: scale)
+  }
+
+  @MainActor
   init?(view: NSView, scale: CGFloat = 1) {
     self.scale = scale
     guard
@@ -800,5 +843,18 @@ private struct SelectionGlowRaster {
 
   func color(at point: CGPoint) -> NSColor? {
     raster.colorAt(x: Int(point.x * scale), y: Int(point.y * scale))
+  }
+
+  func peakBrightness(in rect: CGRect) -> CGFloat {
+    let xRange = Int(rect.minX * scale)..<Int(rect.maxX * scale)
+    let yRange = Int(rect.minY * scale)..<Int(rect.maxY * scale)
+    return yRange.reduce(0) { peak, y in
+      xRange.reduce(peak) { runningPeak, x in
+        guard let color = raster.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else {
+          return runningPeak
+        }
+        return max(runningPeak, color.redComponent, color.greenComponent, color.blueComponent)
+      }
+    }
   }
 }

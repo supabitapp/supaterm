@@ -495,9 +495,14 @@ struct ChromePaletteTests {
       "sidebarTabRow.shadow"
     )
     expectSameColor(
-      palette.sidebarTabRowSelectedEdge,
-      isDark ? .clear : Color.white.opacity(0.98),
-      "sidebarTabRowSelectedEdge"
+      palette.sidebarTabRowSelectedEdgeStrong,
+      Color.white.opacity(isDark ? 0.30 : 1),
+      "sidebarTabRowSelectedEdgeStrong"
+    )
+    expectSameColor(
+      palette.sidebarTabRowSelectedEdgeWeak,
+      Color.white.opacity(isDark ? 0.15 : 1),
+      "sidebarTabRowSelectedEdgeWeak"
     )
     expectSameThemeColor(
       palette.sidebarGroupStrokeValue,

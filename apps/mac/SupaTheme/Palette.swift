@@ -94,7 +94,8 @@ public struct Palette {
   public var selectedStrokeBright: Color { Color.white.opacity(isDark ? 0.35 : 0.98) }
   public var selectedStrokeDim: Color { Color.white.opacity(isDark ? 0.08 : 0.98) }
   public var selectedShadow: Color { selectableRow.shadow }
-  public var sidebarTabRowSelectedEdge: Color { isDark ? .clear : Color.white.opacity(0.98) }
+  public var sidebarTabRowSelectedEdgeStrong: Color { Color.white.opacity(isDark ? 0.30 : 1) }
+  public var sidebarTabRowSelectedEdgeWeak: Color { Color.white.opacity(isDark ? 0.15 : 1) }
   public var primaryTextValue: ThemeColor {
     isDark
       ? ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.94)
@@ -165,6 +166,22 @@ public struct Palette {
       ],
       startPoint: .topLeading,
       endPoint: .bottomTrailing
+    )
+  }
+
+  public var sidebarTabRowSelectedEdge: LinearGradient {
+    LinearGradient(
+      stops: [
+        Gradient.Stop(color: sidebarTabRowSelectedEdgeStrong, location: 0),
+        Gradient.Stop(color: .clear, location: 0.1),
+        Gradient.Stop(color: .clear, location: 0.4),
+        Gradient.Stop(color: sidebarTabRowSelectedEdgeWeak, location: 0.5),
+        Gradient.Stop(color: .clear, location: 0.6),
+        Gradient.Stop(color: .clear, location: 0.9),
+        Gradient.Stop(color: sidebarTabRowSelectedEdgeStrong, location: 1),
+      ],
+      startPoint: .bottomLeading,
+      endPoint: .topTrailing
     )
   }
 

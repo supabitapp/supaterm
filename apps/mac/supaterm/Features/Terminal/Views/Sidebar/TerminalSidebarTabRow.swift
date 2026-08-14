@@ -205,7 +205,7 @@ struct TerminalSidebarTabRow: View {
             selection: selectionStyle,
             cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
             appearance: rowAppearance,
-            showsSelectionEdge: true,
+            showsSelectionEdge: false,
             showsSelectionShadow: false
           )
         )

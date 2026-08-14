@@ -8,12 +8,16 @@ final class TerminalSidebarSelectionGlowView: NSView {
   struct Style {
     let surfaceColor: Color
     let shadowColor: Color
+    let edgeStrongColor: Color
+    let edgeWeakColor: Color
     let isDark: Bool
 
     static func resolve(palette: Palette) -> Self {
       Self(
         surfaceColor: palette.selectableRow.primarySelectionFill,
         shadowColor: palette.selectableRow.shadow,
+        edgeStrongColor: palette.sidebarTabRowSelectedEdgeStrong,
+        edgeWeakColor: palette.sidebarTabRowSelectedEdgeWeak,
         isDark: palette.isDark
       )
     }
@@ -22,6 +26,8 @@ final class TerminalSidebarSelectionGlowView: NSView {
   private static let contentTopFade: CGFloat = 24
 
   private let shadowLayer = CAShapeLayer()
+  private let edgeLayer = CAGradientLayer()
+  private let edgeMaskLayer = CAShapeLayer()
   private let contentTopFadeLayer = CAGradientLayer()
   private var fadesAtContentTop = true
 
@@ -40,7 +46,13 @@ final class TerminalSidebarSelectionGlowView: NSView {
       width: SelectableRowShadowMetrics.offset.width,
       height: -SelectableRowShadowMetrics.offset.height
     )
+    edgeLayer.locations = [0, 0.1, 0.4, 0.5, 0.6, 0.9, 1]
+    edgeMaskLayer.fillColor = nil
+    edgeMaskLayer.strokeColor = NSColor.white.cgColor
+    edgeMaskLayer.lineWidth = 1
+    edgeLayer.mask = edgeMaskLayer
     layer?.addSublayer(shadowLayer)
+    layer?.addSublayer(edgeLayer)
     isHidden = true
     setAccessibilityElement(false)
   }
@@ -65,6 +77,19 @@ final class TerminalSidebarSelectionGlowView: NSView {
     shadowLayer.frame = bounds
     shadowLayer.path = shapePath
     shadowLayer.shadowPath = shapePath
+    edgeLayer.frame = bounds
+    edgeLayer.startPoint = CGPoint(
+      x: shapeBounds.minX / bounds.width,
+      y: shapeBounds.maxY / bounds.height
+    )
+    edgeLayer.endPoint = CGPoint(
+      x: shapeBounds.maxX / bounds.width,
+      y: shapeBounds.minY / bounds.height
+    )
+    edgeLayer.contentsScale = window?.backingScaleFactor ?? 2
+    edgeMaskLayer.frame = bounds
+    edgeMaskLayer.path = shapePath
+    edgeMaskLayer.contentsScale = edgeLayer.contentsScale
     layoutContentTopFade()
   }
 
@@ -93,6 +118,15 @@ final class TerminalSidebarSelectionGlowView: NSView {
     shadowLayer.fillColor = NSColor(style.surfaceColor).cgColor
     shadowLayer.shadowColor = NSColor(style.shadowColor).cgColor
     shadowLayer.shadowRadius = SelectableRowShadowMetrics.radius(isDark: style.isDark)
+    edgeLayer.colors = [
+      NSColor(style.edgeStrongColor).cgColor,
+      NSColor.clear.cgColor,
+      NSColor.clear.cgColor,
+      NSColor(style.edgeWeakColor).cgColor,
+      NSColor.clear.cgColor,
+      NSColor.clear.cgColor,
+      NSColor(style.edgeStrongColor).cgColor,
+    ]
     frame = Self.visualFrame(for: surfaceFrame)
     alphaValue = alpha
     isHidden = false
