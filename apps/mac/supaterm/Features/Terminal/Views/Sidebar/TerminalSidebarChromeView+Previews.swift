@@ -322,7 +322,7 @@ private struct TerminalSidebarTabPreviewGallery: View {
   let colorScheme: ColorScheme
 
   private var palette: Palette {
-    Palette(colorScheme: colorScheme)
+    Palette(colorScheme: colorScheme, backgroundSeed: previewBackgroundSeed(for: colorScheme))
   }
 
   var body: some View {
@@ -643,7 +643,7 @@ private struct TerminalSidebarGroupedTabPreviewGallery: View {
   let colorScheme: ColorScheme
 
   private var palette: Palette {
-    Palette(colorScheme: colorScheme)
+    Palette(colorScheme: colorScheme, backgroundSeed: previewBackgroundSeed(for: colorScheme))
   }
 
   var body: some View {

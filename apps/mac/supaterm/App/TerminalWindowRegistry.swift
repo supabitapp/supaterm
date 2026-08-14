@@ -4,6 +4,7 @@ import Foundation
 import Sharing
 import SupaTheme
 import SupatermCLIShared
+import SupatermSettingsFeature
 import SupatermSupport
 import SupatermTerminalCore
 import SupatermUpdateFeature
@@ -176,6 +177,10 @@ final class TerminalWindowRegistry {
 
   var preferredTerminalWindow: NSWindow? {
     preferredActiveEntry()?.windowReference.value
+  }
+
+  func chromePalette(for window: NSWindow, appearanceMode: AppearanceMode) -> Palette? {
+    entry(for: window)?.terminal.chromePalette(appearanceMode: appearanceMode)
   }
 
   var spaceCount: Int {

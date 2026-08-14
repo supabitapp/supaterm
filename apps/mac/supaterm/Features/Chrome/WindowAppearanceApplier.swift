@@ -2,21 +2,21 @@ import AppKit
 import SwiftUI
 
 struct WindowAppearanceApplier: NSViewRepresentable {
-  let appliedAppearance: NSAppearance?
+  let colorScheme: ColorScheme
 
   func makeNSView(context: Context) -> WindowAppearanceApplierView {
     let view = WindowAppearanceApplierView()
-    view.appliedAppearance = appliedAppearance
+    view.colorScheme = colorScheme
     return view
   }
 
   func updateNSView(_ nsView: WindowAppearanceApplierView, context: Context) {
-    nsView.appliedAppearance = appliedAppearance
+    nsView.colorScheme = colorScheme
   }
 }
 
 final class WindowAppearanceApplierView: NSView {
-  var appliedAppearance: NSAppearance? {
+  var colorScheme = ColorScheme.light {
     didSet {
       applyAppearance()
     }
@@ -29,7 +29,9 @@ final class WindowAppearanceApplierView: NSView {
 
   private func applyAppearance() {
     guard let window else { return }
-    window.appearance = appliedAppearance
+    let name: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+    guard window.appearance?.name != name else { return }
+    window.appearance = NSAppearance(named: name)
     window.contentView?.needsLayout = true
     window.contentView?.needsDisplay = true
     window.contentView?.displayIfNeeded()

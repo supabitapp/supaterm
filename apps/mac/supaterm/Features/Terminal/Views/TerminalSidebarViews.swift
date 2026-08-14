@@ -18,12 +18,8 @@ struct TerminalWindowSidebarRoot: View {
 
   @Shared(.supatermSettings) private var supatermSettings = .default
 
-  private var chromeColorScheme: ColorScheme {
-    supatermSettings.appearanceMode.colorScheme ?? terminal.terminalChromeColorScheme
-  }
-
   private var palette: Palette {
-    Palette(colorScheme: chromeColorScheme, tint: terminal.displayedSpace.color)
+    terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
   }
 
   var body: some View {
@@ -43,7 +39,7 @@ struct TerminalWindowSidebarRoot: View {
       guard wasTracking, !isTracking else { return }
       spacePagingDidEnd()
     }
-    .environment(\.colorScheme, chromeColorScheme)
+    .environment(\.colorScheme, palette.colorScheme)
   }
 
   private var sidebar: some View {

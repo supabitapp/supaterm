@@ -13,6 +13,7 @@ public struct SelectableRowPalette {
 
 public struct Palette {
   public let colorScheme: ColorScheme
+  private let backgroundSeed: ThemeColor
   public let referencePalette: ReferencePalette
   public let tint: ThemeTint
   public let backgroundTopValue: ThemeColor
@@ -37,7 +38,10 @@ public struct Palette {
   private let detailBackgroundValue: ThemeColor
 
   public var isDark: Bool { colorScheme == .dark }
-  private var surfaceSeed: ThemeColor { referencePalette.neutral.light }
+  private var surfaceSeed: ThemeColor {
+    Self.normalizedBackgroundSeed(backgroundSeed, colorScheme: colorScheme)
+      ?? referencePalette.neutral.light
+  }
   private var selectableRowInkValue: ThemeColor { isDark ? .white : .black }
   private var selectableRowPrimarySelectionValue: ThemeColor { isDark ? .black : .white }
   private var selectableRowPrimarySelectionOpacity: Double { isDark ? 1 : 0.88 }
@@ -198,28 +202,62 @@ public struct Palette {
   }
 
   public func tinted(_ tint: ThemeTint) -> Palette {
-    Palette(colorScheme: colorScheme, referencePalette: referencePalette, tint: tint)
+    Palette(
+      colorScheme: colorScheme,
+      backgroundSeed: backgroundSeed,
+      referencePalette: referencePalette,
+      tint: tint
+    )
   }
 
   public init(
     colorScheme: ColorScheme,
+    backgroundSeed: ThemeColor,
     referencePalette: ReferencePalette = .default,
     tint: ThemeTint = .neutral
   ) {
     self.colorScheme = colorScheme
+    self.backgroundSeed = backgroundSeed
     self.referencePalette = referencePalette
     self.tint = tint
 
-    let surfaceSeed = referencePalette.neutral.light
+    let surfaceSeed = Self.normalizedBackgroundSeed(backgroundSeed, colorScheme: colorScheme)
     let isDark = colorScheme == .dark
     let tintColor = tint.tone(in: referencePalette).color(for: colorScheme)
-    let wash = tint == .neutral ? ChromeWash.neutral : (isDark ? .dark : .light)
-    let backgroundTopValue = (isDark ? ThemeColor(hex: 0x1F1F1F) : ThemeColor(hex: 0xE4E4E4))
-      .mixed(with: tintColor, by: wash.top)
-    let backgroundBottomValue = (isDark ? ThemeColor(hex: 0x161616) : ThemeColor(hex: 0xEDEDED))
-      .mixed(with: tintColor, by: wash.bottom)
-    let detailBackgroundValue = surfaceSeed.mixed(with: isDark ? .black : .white, by: 0.85)
-    let agentPanelBackgroundValue = surfaceSeed.mixed(with: isDark ? .black : .white, by: isDark ? 0.82 : 0.85)
+    let wash = surfaceSeed == nil ? ChromeWash.neutral : (isDark ? .dark : .light)
+    let backgroundTopBase = isDark ? ThemeColor(hex: 0x1F1F1F) : ThemeColor(hex: 0xE4E4E4)
+    let backgroundBottomBase = isDark ? ThemeColor(hex: 0x161616) : ThemeColor(hex: 0xEDEDED)
+    let resolvedSurfaceSeed = surfaceSeed ?? referencePalette.neutral.light
+    let backgroundTopValue = ColorMath.perceptualMix(
+      backgroundTopBase,
+      resolvedSurfaceSeed,
+      by: wash.top
+    )
+    let backgroundBottomValue = ColorMath.perceptualMix(
+      backgroundBottomBase,
+      resolvedSurfaceSeed,
+      by: wash.bottom
+    )
+    let detailBackgroundValue =
+      surfaceSeed.map {
+        ColorMath.perceptualMix(
+          isDark ? ThemeColor(hex: 0x222224) : ThemeColor(hex: 0xFBFBFC),
+          $0,
+          by: isDark ? 0.12 : 0.08
+        )
+      } ?? referencePalette.neutral.light.mixed(with: isDark ? .black : .white, by: 0.85)
+    let agentPanelBackgroundValue =
+      surfaceSeed.map {
+        ColorMath.perceptualMix(
+          isDark ? ThemeColor(hex: 0x292A2B) : ThemeColor(hex: 0xFBFBFC),
+          $0,
+          by: isDark ? 0.10 : 0.06
+        )
+      }
+      ?? referencePalette.neutral.light.mixed(
+        with: isDark ? .black : .white,
+        by: isDark ? 0.82 : 0.85
+      )
     let semanticBackgrounds = [
       backgroundTopValue,
       backgroundBottomValue,
@@ -284,6 +322,22 @@ public struct Palette {
   }
 
   private static let lightChromeIllumination = ChromeIllumination(top: 0.22, body: 0.36, footer: 0.62)
+
+  private static func normalizedBackgroundSeed(
+    _ backgroundSeed: ThemeColor,
+    colorScheme: ColorScheme
+  ) -> ThemeColor? {
+    let source = ColorMath.oklch(from: backgroundSeed)
+    guard source.chroma >= 0.01 else { return nil }
+    let lightnessRange = colorScheme == .dark ? 0.52...0.68 : 0.55...0.78
+    return ColorMath.clampedColor(
+      from: ColorMath.OKLCH(
+        lightness: min(max(source.lightness, lightnessRange.lowerBound), lightnessRange.upperBound),
+        chroma: min(source.chroma, 0.12),
+        hue: source.hue
+      )
+    )
+  }
 
   private func illumination(_ opacity: Double) -> ThemeColor {
     ThemeColor(red: 1, green: 1, blue: 1, alpha: isDark ? 0 : opacity)

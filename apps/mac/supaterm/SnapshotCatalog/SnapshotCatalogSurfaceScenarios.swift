@@ -435,7 +435,7 @@ private struct SurfaceSnapshotBackdrop<Content: View>: View {
   let content: (Palette) -> Content
 
   var body: some View {
-    let palette = Palette(colorScheme: appearance.colorScheme)
+    let palette = Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
 
     content(palette)
       .frame(maxWidth: .infinity, maxHeight: .infinity)

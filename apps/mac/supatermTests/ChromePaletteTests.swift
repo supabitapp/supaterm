@@ -68,15 +68,17 @@ struct ChromePaletteTests {
   }
 
   @Test func lightSchemeMatchesExpectedSurfaces() {
-    expectDefaultSurfaceTokens(Palette(colorScheme: .light), isDark: false)
+    expectDefaultSurfaceTokens(
+      Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light)), isDark: false)
   }
 
   @Test func darkSchemeMatchesExpectedSurfaces() {
-    expectDefaultSurfaceTokens(Palette(colorScheme: .dark), isDark: true)
+    expectDefaultSurfaceTokens(
+      Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)), isDark: true)
   }
 
   @Test func darkSidebarPrimarySelectionIsOpaqueBlack() {
-    let palette = Palette(colorScheme: .dark)
+    let palette = Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark))
     for background in [palette.backgroundTopValue, palette.backgroundBottomValue] {
       expectSameThemeColor(
         palette.sidebarTabPrimarySurface(over: background),
@@ -86,9 +88,9 @@ struct ChromePaletteTests {
     }
   }
 
-  @Test func lightSidebarPrimarySelectionBlendsTheWashIntoWhite() {
-    for tint in ThemeTint.chromatic {
-      let palette = Palette(colorScheme: .light, tint: tint)
+  @Test func lightSidebarPrimarySelectionBlendsTheTerminalTintIntoWhite() {
+    for backgroundSeed in chromaticBackgroundSeeds {
+      let palette = Palette(colorScheme: .light, backgroundSeed: backgroundSeed)
       for wash in [palette.chromeBackgroundStartValue, palette.chromeBackgroundStopValue] {
         let surface = palette.sidebarTabPrimarySurface(over: wash)
         let luminance = ColorMath.relativeLuminance(surface)
@@ -96,25 +98,33 @@ struct ChromePaletteTests {
         let washTone = ColorMath.oklch(from: wash)
         #expect(
           ColorMath.relativeLuminance(wash) < luminance && luminance < ColorMath.relativeLuminance(.white),
-          "surfaceBetweenWashAndWhite-\(tint.rawValue): \(surface) over \(wash)"
+          "surfaceBetweenWashAndWhite: \(surface) over \(wash)"
         )
-        #expect(tone.chroma > 0, "surfaceChroma-\(tint.rawValue): \(surface)")
-        #expect(hueDelta(tone, washTone) < 0.05, "surfaceHue-\(tint.rawValue): \(hueDelta(tone, washTone))")
-        expectContrast(.black, surface, minimum: 4.5, token: "selectedTitle-\(tint.rawValue)")
+        #expect(tone.chroma > 0, "surfaceChroma: \(surface)")
+        #expect(hueDelta(tone, washTone) < 0.05, "surfaceHue: \(hueDelta(tone, washTone))")
+        expectContrast(.black, surface, minimum: 4.5, token: "selectedTitle")
       }
     }
   }
 
   @Test func foregroundFollowsColorScheme() {
-    expectSameColor(Palette(colorScheme: .light).primaryText, Color.black.opacity(0.86), "lightPrimaryText")
-    expectSameColor(Palette(colorScheme: .dark).primaryText, Color.white.opacity(0.94), "darkPrimaryText")
-    expectSameColor(Palette(colorScheme: .light).secondaryText, Color.black.opacity(0.48), "lightSecondaryText")
-    expectSameColor(Palette(colorScheme: .dark).secondaryText, Color.white.opacity(0.58), "darkSecondaryText")
+    expectSameColor(
+      Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light)).primaryText,
+      Color.black.opacity(0.86), "lightPrimaryText")
+    expectSameColor(
+      Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)).primaryText,
+      Color.white.opacity(0.94), "darkPrimaryText")
+    expectSameColor(
+      Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light)).secondaryText,
+      Color.black.opacity(0.48), "lightSecondaryText")
+    expectSameColor(
+      Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)).secondaryText,
+      Color.white.opacity(0.58), "darkSecondaryText")
   }
 
   @Test func neutralSpaceTitleKeepsThePrimaryTextInk() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
-      let palette = Palette(colorScheme: colorScheme)
+      let palette = Palette(colorScheme: colorScheme, backgroundSeed: testBackgroundSeed(for: colorScheme))
       expectSameThemeColor(palette.spaceTitleValue, palette.primaryTextValue, "spaceTitleValue")
       expectSameColor(palette.spaceTitle, palette.primaryText, "spaceTitle")
     }
@@ -123,7 +133,8 @@ struct ChromePaletteTests {
   @Test func chromaticSpaceTitleHoldsTheTintHueAtPrimaryTextContrast() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
       for tint in ThemeTint.chromatic {
-        let palette = Palette(colorScheme: colorScheme, tint: tint)
+        let palette = Palette(
+          colorScheme: colorScheme, backgroundSeed: testBackgroundSeed(for: colorScheme), tint: tint)
         let background = palette.backgroundTopValue
         let ink = palette.primaryTextValue
         let title = ColorMath.oklch(from: palette.spaceTitleValue)
@@ -150,13 +161,22 @@ struct ChromePaletteTests {
     }
   }
 
-  @Test func chromaticTintsWashChromeSurfacesOnly() {
+  @Test func spaceTintsKeepTerminalDerivedSurfacesStable() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
-      let neutral = Palette(colorScheme: colorScheme)
+      let backgroundSeed = ThemeColor(hex: 0x2E3440)
+      let neutral = Palette(colorScheme: colorScheme, backgroundSeed: backgroundSeed)
       for tint in ThemeTint.allCases where tint != .neutral {
-        let palette = Palette(colorScheme: colorScheme, tint: tint)
-        #expect(palette.backgroundTopValue != neutral.backgroundTopValue, "\(tint.rawValue)")
-        #expect(palette.backgroundBottomValue != neutral.backgroundBottomValue, "\(tint.rawValue)")
+        let palette = Palette(colorScheme: colorScheme, backgroundSeed: backgroundSeed, tint: tint)
+        expectSameThemeColor(
+          palette.backgroundTopValue,
+          neutral.backgroundTopValue,
+          "backgroundTop-\(tint.rawValue)"
+        )
+        expectSameThemeColor(
+          palette.backgroundBottomValue,
+          neutral.backgroundBottomValue,
+          "backgroundBottom-\(tint.rawValue)"
+        )
         expectSameThemeColor(
           palette.agentPanelBackgroundValue,
           neutral.agentPanelBackgroundValue,
@@ -166,71 +186,80 @@ struct ChromePaletteTests {
     }
   }
 
-  @Test func darkTintWashKeepsTheReferenceMix() {
-    for tint in ThemeTint.chromatic {
-      let palette = Palette(colorScheme: .dark, tint: tint)
-      let tone = tint.tone(in: .default).color(for: .dark)
-      expectSameThemeColor(
-        palette.backgroundTopValue,
-        ThemeColor(hex: 0x1F1F1F).mixed(with: tone, by: 0.17),
-        "darkBackgroundTop-\(tint.rawValue)"
-      )
-      expectSameThemeColor(
-        palette.backgroundBottomValue,
-        ThemeColor(hex: 0x161616).mixed(with: tone, by: 0.17),
-        "darkBackgroundBottom-\(tint.rawValue)"
-      )
+  @Test func darkChromeKeepsTerminalHueInsideABoundedSurface() {
+    for backgroundSeed in chromaticBackgroundSeeds {
+      let palette = Palette(colorScheme: .dark, backgroundSeed: backgroundSeed)
+      let seedTone = ColorMath.oklch(from: backgroundSeed)
+      let topTone = ColorMath.oklch(from: palette.backgroundTopValue)
+      let bottomTone = ColorMath.oklch(from: palette.backgroundBottomValue)
+      #expect(topTone.chroma > 0)
+      #expect(topTone.chroma < min(seedTone.chroma, 0.12))
+      #expect(bottomTone.chroma > 0)
+      #expect(bottomTone.chroma < min(seedTone.chroma, 0.12))
+      #expect(hueDelta(topTone, seedTone) < 0.08)
+      #expect(hueDelta(bottomTone, seedTone) < 0.08)
       expectSameThemeColor(
         palette.chromeBackgroundStartValue,
         palette.backgroundTopValue,
-        "darkChromeBackgroundStart-\(tint.rawValue)"
+        "darkChromeBackgroundStart"
       )
       expectSameThemeColor(
         palette.chromeBackgroundStopValue,
         palette.backgroundBottomValue,
-        "darkChromeBackgroundStop-\(tint.rawValue)"
+        "darkChromeBackgroundStop"
       )
     }
   }
 
   @Test func lightChromeRunsFromAChromaticTopToAPaleFooter() {
-    for tint in ThemeTint.chromatic {
-      let palette = Palette(colorScheme: .light, tint: tint)
+    for backgroundSeed in chromaticBackgroundSeeds {
+      let palette = Palette(colorScheme: .light, backgroundSeed: backgroundSeed)
       let top = palette.chromeBackgroundStartValue
       let footer = palette.chromeBackgroundStopValue
       #expect(
         ColorMath.oklch(from: top).chroma > ColorMath.oklch(from: footer).chroma,
-        "\(tint.rawValue) chroma"
+        "\(backgroundSeed) chroma"
       )
-      #expect(ColorMath.oklch(from: footer).chroma > 0, "\(tint.rawValue) footer chroma")
+      #expect(ColorMath.oklch(from: footer).chroma > 0, "\(backgroundSeed) footer chroma")
       #expect(
         ColorMath.relativeLuminance(top) < ColorMath.relativeLuminance(footer),
-        "\(tint.rawValue) luminance"
+        "\(backgroundSeed) luminance"
       )
       #expect(
         palette.backgroundIlluminationTopValue.alpha < palette.backgroundIlluminationBodyValue.alpha,
-        "\(tint.rawValue) body illumination"
+        "\(backgroundSeed) body illumination"
       )
       #expect(
         palette.backgroundIlluminationBodyValue.alpha < palette.backgroundIlluminationFooterValue.alpha,
-        "\(tint.rawValue) footer illumination"
+        "\(backgroundSeed) footer illumination"
       )
     }
   }
 
-  @Test func neutralTintKeepsChromeSurfacesGray() {
+  @Test func lowChromaTerminalBackgroundsKeepChromeSurfacesGray() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
-      let palette = Palette(colorScheme: colorScheme)
-      for surface in [palette.chromeBackgroundStartValue, palette.chromeBackgroundStopValue] {
-        #expect(ColorMath.oklch(from: surface).chroma < 0.0001)
+      for backgroundSeed in [ThemeColor.black, .white, ThemeColor(hex: 0x191919)] {
+        let palette = Palette(colorScheme: colorScheme, backgroundSeed: backgroundSeed)
+        for surface in [palette.chromeBackgroundStartValue, palette.chromeBackgroundStopValue] {
+          #expect(ColorMath.oklch(from: surface).chroma < 0.0001)
+        }
       }
     }
   }
 
-  @Test func retintingKeepsTheSchemeAndMatchesADirectlyBuiltPalette() {
+  @Test func retintingKeepsTheSchemeAndTerminalBackground() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
-      let palette = Palette(colorScheme: colorScheme, tint: .blue).tinted(.green)
-      let expected = Palette(colorScheme: colorScheme, tint: .green)
+      let backgroundSeed = ThemeColor(hex: 0x21084A)
+      let palette = Palette(
+        colorScheme: colorScheme,
+        backgroundSeed: backgroundSeed,
+        tint: .blue
+      ).tinted(.green)
+      let expected = Palette(
+        colorScheme: colorScheme,
+        backgroundSeed: backgroundSeed,
+        tint: .green
+      )
       #expect(palette.colorScheme == colorScheme)
       #expect(palette.tint == .green)
       expectSameThemeColor(palette.backgroundTopValue, expected.backgroundTopValue, "backgroundTop")
@@ -238,29 +267,61 @@ struct ChromePaletteTests {
     }
   }
 
-  @Test func tintedSemanticTokensMeetContrastOnChromeSurfaces() {
+  @Test func semanticTokensMeetContrastAcrossTerminalBackgroundsAndSpaceTints() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
-      for tint in ThemeTint.allCases {
-        let palette = Palette(colorScheme: colorScheme, tint: tint)
-        for background in [
-          palette.agentPanelBackgroundValue,
+      for backgroundSeed in terminalBackgroundSeeds {
+        for tint in ThemeTint.allCases {
+          let palette = Palette(
+            colorScheme: colorScheme,
+            backgroundSeed: backgroundSeed,
+            tint: tint
+          )
+          for background in [
+            palette.agentPanelBackgroundValue,
+            palette.backgroundTopValue,
+            palette.backgroundBottomValue,
+          ] {
+            expectContrast(palette.accentValue, background, minimum: 4.5, token: "accent-\(tint.rawValue)")
+            expectContrast(palette.warningValue, background, minimum: 4.5, token: "warning-\(tint.rawValue)")
+            expectContrast(palette.successValue, background, minimum: 4.5, token: "success-\(tint.rawValue)")
+            expectContrast(palette.dangerValue, background, minimum: 4.5, token: "danger-\(tint.rawValue)")
+            expectContrast(palette.mergedValue, background, minimum: 4.5, token: "merged-\(tint.rawValue)")
+            expectContrast(palette.queuedValue, background, minimum: 4.5, token: "queued-\(tint.rawValue)")
+          }
+          expectContrast(
+            palette.onAccentValue,
+            palette.accentValue,
+            minimum: 4.5,
+            token: "onAccent-\(tint.rawValue)"
+          )
+        }
+      }
+    }
+  }
+
+  @Test func terminalBackgroundSeedsProduceDisplayableSurfaces() {
+    for colorScheme in [ColorScheme.light, ColorScheme.dark] {
+      for backgroundSeed in terminalBackgroundSeeds {
+        let palette = Palette(colorScheme: colorScheme, backgroundSeed: backgroundSeed)
+        for surface in [
           palette.backgroundTopValue,
           palette.backgroundBottomValue,
+          palette.agentPanelBackgroundValue,
         ] {
-          expectContrast(palette.accentValue, background, minimum: 4.5, token: "accent-\(tint.rawValue)")
-          expectContrast(palette.warningValue, background, minimum: 4.5, token: "warning-\(tint.rawValue)")
-          expectContrast(palette.successValue, background, minimum: 4.5, token: "success-\(tint.rawValue)")
-          expectContrast(palette.dangerValue, background, minimum: 4.5, token: "danger-\(tint.rawValue)")
-          expectContrast(palette.mergedValue, background, minimum: 4.5, token: "merged-\(tint.rawValue)")
-          expectContrast(palette.queuedValue, background, minimum: 4.5, token: "queued-\(tint.rawValue)")
+          #expect(surface.red >= 0 && surface.red <= 1)
+          #expect(surface.green >= 0 && surface.green <= 1)
+          #expect(surface.blue >= 0 && surface.blue <= 1)
+          #expect(surface.alpha == 1)
         }
-        expectContrast(palette.onAccentValue, palette.accentValue, minimum: 4.5, token: "onAccent-\(tint.rawValue)")
       }
     }
   }
 
   @Test func semanticTokensMeetContrastOnChromeSurfaces() {
-    for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
+    for palette in [
+      Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light)),
+      Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
+    ] {
       for background in [
         palette.agentPanelBackgroundValue,
         palette.backgroundTopValue,
@@ -282,7 +343,10 @@ struct ChromePaletteTests {
   }
 
   @Test func fillTokensMeetControlContrast() {
-    for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
+    for palette in [
+      Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light)),
+      Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
+    ] {
       for background in [
         palette.agentPanelBackgroundValue,
         palette.backgroundTopValue,
@@ -326,7 +390,8 @@ struct ChromePaletteTests {
   }
 
   @Test func contrastAdjustmentComputesDisplayableColor() {
-    let background = Palette(colorScheme: .dark).agentPanelBackgroundValue
+    let background = Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark))
+      .agentPanelBackgroundValue
     let adjusted = ColorMath.adjustedForContrast(
       anchor: ReferencePalette.default.violet.dark,
       against: background,
@@ -345,6 +410,29 @@ struct ChromePaletteTests {
     #expect(color.red >= 0 && color.red <= 1)
     #expect(color.green >= 0 && color.green <= 1)
     #expect(color.blue >= 0 && color.blue <= 1)
+  }
+
+  private var chromaticBackgroundSeeds: [ThemeColor] {
+    [
+      ThemeColor(hex: 0x2E3440),
+      ThemeColor(hex: 0x21084A),
+      ThemeColor(hex: 0xEA3323),
+      ThemeColor(hex: 0x005A70),
+    ]
+  }
+
+  private var terminalBackgroundSeeds: [ThemeColor] {
+    [
+      .black,
+      .white,
+      ThemeColor(hex: 0x191919),
+      ThemeColor(hex: 0xF0EDEC),
+      ThemeColor(hex: 0x2E3440),
+      ThemeColor(hex: 0x21084A),
+      ThemeColor(hex: 0xEA3323),
+      ThemeColor(hex: 0xFFFF54),
+      ThemeColor(hex: 0x0000A4),
+    ]
   }
 
   private func expectDefaultSurfaceTokens(_ palette: Palette, isDark: Bool) {

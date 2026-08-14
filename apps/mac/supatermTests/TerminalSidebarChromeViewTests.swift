@@ -11,7 +11,7 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func sidebarRowAppearanceResolvesEveryState() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
-      let palette = Palette(colorScheme: colorScheme)
+      let palette = Palette(colorScheme: colorScheme, backgroundSeed: testBackgroundSeed(for: colorScheme))
       let row = SelectableRowStyle.Appearance.sidebar.resolve(palette: palette)
       let colors = palette.selectableRow
 
@@ -174,7 +174,7 @@ struct TerminalSidebarChromeViewTests {
     let gutterWidth = Int(TerminalChromeMetrics.paneInset)
     let container = NSHostingView(
       rootView: TerminalSidebarSurfaceShell(
-        palette: Palette(colorScheme: .dark),
+        palette: Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
         isFloating: false
       ) {
         Color.white
@@ -359,7 +359,10 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func selectedWarningBadgeForegroundMeetsContrast() {
-    for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
+    for palette in [
+      Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light)),
+      Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
+    ] {
       let foreground = TerminalSidebarWarningBadgeStyle.foregroundValue(isSelected: true, palette: palette)
       for background in TerminalSidebarWarningBadgeStyle.selectedBackgroundValues(palette: palette) {
         #expect(ColorMath.contrastRatio(foreground, background) >= 4.5)

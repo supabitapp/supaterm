@@ -58,7 +58,7 @@ private struct AgentsPopoverSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -87,7 +87,7 @@ private struct TerminalWindowHeaderSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -106,7 +106,7 @@ private struct SpaceSwitcherHoverSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -134,6 +134,7 @@ private struct TerminalChromeSnapshotFixture: View {
   private var palette: Palette {
     Palette(
       colorScheme: appearance.colorScheme,
+      backgroundSeed: appearance.terminalBackground,
       tint: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpace.color
     )
   }
@@ -187,6 +188,7 @@ private struct FloatingSidebarSnapshotFixture: View {
   private var palette: Palette {
     Palette(
       colorScheme: appearance.colorScheme,
+      backgroundSeed: appearance.terminalBackground,
       tint: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpace.color
     )
   }
@@ -229,7 +231,7 @@ private struct SplitDropTargetSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {

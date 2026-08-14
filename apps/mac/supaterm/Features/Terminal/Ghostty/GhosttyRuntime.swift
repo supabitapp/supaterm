@@ -86,6 +86,7 @@ final class GhosttyRuntime {
   private let callbackState = CallbackState()
   private let clipboard: GhosttyClipboard
   private(set) var app: ghostty_app_t?
+  private var appearanceObservation: NSKeyValueObservation?
   private var observers: [NSObjectProtocol] = []
   private var surfaceRefs: [SurfaceReference] = []
   private var lastColorScheme: ghostty_color_scheme_e?
@@ -172,6 +173,12 @@ final class GhosttyRuntime {
     }
     self.app = app
     ghostty_app_set_focus(app, applicationIsActive())
+    appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.initial, .new]) {
+      [weak self] _, _ in
+      MainActor.assumeIsolated {
+        self?.setColorScheme(Self.colorScheme(for: NSApp.effectiveAppearance))
+      }
+    }
 
     let center = NotificationCenter.default
     observers.append(
@@ -220,6 +227,7 @@ final class GhosttyRuntime {
 
   isolated deinit {
     clipboard.cancelAll()
+    appearanceObservation?.invalidate()
     let center = NotificationCenter.default
     for observer in observers {
       center.removeObserver(observer)
@@ -265,6 +273,10 @@ final class GhosttyRuntime {
     lastColorScheme = ghosttyScheme
     ghostty_app_set_color_scheme(app, ghosttyScheme)
     applyColorSchemeToSurfaces(ghosttyScheme)
+  }
+
+  private static func colorScheme(for appearance: NSAppearance) -> ColorScheme {
+    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
   }
 
   func registerSurface(_ surface: ghostty_surface_t) -> SurfaceReference {
@@ -846,10 +858,6 @@ final class GhosttyRuntime {
         lhs.relativeLuminance < rhs.relativeLuminance
       }
       ?? fallbackColor
-  }
-
-  func chromeColorScheme() -> ColorScheme {
-    GhosttySurfaceConfig.colorScheme(for: backgroundColor())
   }
 
   private func color(forKey key: String) -> NSColor? {

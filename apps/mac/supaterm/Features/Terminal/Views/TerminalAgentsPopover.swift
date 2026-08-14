@@ -312,7 +312,7 @@ private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
   private var isPresented = false
   private var items = [TerminalAgentsPopoverItem]()
   private var onDismiss: (() -> Void)?
-  private var palette = Palette(colorScheme: .light)
+  private var palette: Palette?
   private let popover: NSPopover
 
   override init(frame frameRect: NSRect) {
@@ -366,7 +366,7 @@ private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
   }
 
   private func reconcilePresentation() {
-    guard isPresented, window != nil else {
+    guard isPresented, window != nil, let palette else {
       if popover.isShown {
         popover.close()
       }

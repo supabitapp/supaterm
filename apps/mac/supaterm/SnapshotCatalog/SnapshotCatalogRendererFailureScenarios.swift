@@ -29,7 +29,7 @@ extension SnapshotCatalog {
       AnyView(
         GhosttySurfaceFailureOverlay(
           failure: failure,
-          palette: Palette(colorScheme: appearance.colorScheme)
+          palette: Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
         )
       )
     }

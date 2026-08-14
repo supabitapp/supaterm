@@ -1,3 +1,4 @@
+import SupaTheme
 import SwiftUI
 
 enum SnapshotAppearance: String, CaseIterable, Identifiable {
@@ -23,6 +24,15 @@ enum SnapshotAppearance: String, CaseIterable, Identifiable {
       return .light
     case .dark:
       return .dark
+    }
+  }
+
+  var terminalBackground: ThemeColor {
+    switch self {
+    case .light:
+      ThemeColor(hex: 0xF0EDEC)
+    case .dark:
+      ThemeColor(hex: 0x1C1917)
     }
   }
 }

@@ -73,7 +73,7 @@ struct WindowDragSurfaceTests {
     let header = NSHostingView(
       rootView: TerminalWindowHeader(
         store: store,
-        palette: Palette(colorScheme: .dark),
+        palette: Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
         terminal: terminal
       )
     )

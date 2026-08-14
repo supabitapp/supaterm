@@ -43,7 +43,7 @@ struct ChromeBackgroundViewTests {
 
   @Test
   func illuminationStopsHoldTheBodyUntilTheFooterLift() {
-    let palette = Palette(colorScheme: .light, tint: .blue)
+    let palette = Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light), tint: .blue)
 
     let stops = ChromeBackgroundRamp.illuminationStops(
       top: palette.backgroundIlluminationTopValue,
@@ -82,7 +82,7 @@ struct ChromeBackgroundViewTests {
   @Test
   func applyingPaletteConfiguresLayers() {
     let view = ChromeBackgroundNSView()
-    let palette = Palette(colorScheme: .dark)
+    let palette = Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark))
 
     view.apply(palette)
 
@@ -104,7 +104,7 @@ struct ChromeBackgroundViewTests {
   func firstPaletteLandsWithoutCrossfade() {
     let view = ChromeBackgroundNSView()
 
-    view.apply(Palette(colorScheme: .dark, tint: .blue))
+    view.apply(Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark), tint: .blue))
 
     #expect(view.baseRampView.gradientLayer?.animation(forKey: "colors") == nil)
     #expect(view.illuminationView.gradientLayer?.animation(forKey: "colors") == nil)
@@ -114,20 +114,30 @@ struct ChromeBackgroundViewTests {
   func appearanceChangeKeepingTintLandsWithoutCrossfade() {
     let view = ChromeBackgroundNSView()
 
-    view.apply(Palette(colorScheme: .dark, tint: .blue))
-    view.apply(Palette(colorScheme: .light, tint: .blue))
+    view.apply(Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark), tint: .blue))
+    view.apply(Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light), tint: .blue))
 
     #expect(view.baseRampView.gradientLayer?.animation(forKey: "colors") == nil)
     #expect(view.illuminationView.gradientLayer?.animation(forKey: "colors") == nil)
   }
 
   @Test
-  func tintChangeCrossfadesBothRampsFromTheOutgoingColors() {
+  func terminalBackgroundChangeCrossfadesBothRampsFromTheOutgoingColors() {
     let view = ChromeBackgroundNSView()
-    let outgoing = Palette(colorScheme: .dark, tint: .neutral)
+    let outgoing = Palette(
+      colorScheme: .dark,
+      backgroundSeed: ThemeColor(hex: 0x2E3440),
+      tint: .blue
+    )
 
     view.apply(outgoing)
-    view.apply(Palette(colorScheme: .dark, tint: .blue))
+    view.apply(
+      Palette(
+        colorScheme: .dark,
+        backgroundSeed: ThemeColor(hex: 0x21084A),
+        tint: .blue
+      )
+    )
 
     let baseCrossfade = view.baseRampView.gradientLayer?.animation(forKey: "colors") as? CABasicAnimation
     #expect(

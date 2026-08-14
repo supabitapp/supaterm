@@ -78,7 +78,7 @@ private struct TerminalSidebarUpdatePreviewGallery: View {
   let colorScheme: ColorScheme
 
   private var palette: Palette {
-    Palette(colorScheme: colorScheme)
+    Palette(colorScheme: colorScheme, backgroundSeed: previewBackgroundSeed(for: colorScheme))
   }
 
   var body: some View {

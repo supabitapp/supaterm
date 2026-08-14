@@ -35,7 +35,7 @@ final class ChromeBackgroundNSView: NSView {
   let illuminationView = GradientRampView()
   let grainView = NSView()
 
-  private var appliedTint: ThemeTint?
+  private var appliedSignature: ChromeBackgroundSignature?
 
   init(
     material: NSVisualEffectView.Material = .underWindowBackground,
@@ -69,8 +69,12 @@ final class ChromeBackgroundNSView: NSView {
   }
 
   func apply(_ palette: Palette) {
-    let crossfades = appliedTint != nil && appliedTint != palette.tint
-    appliedTint = palette.tint
+    let signature = ChromeBackgroundSignature(palette: palette)
+    let crossfades =
+      appliedSignature?.colorScheme == signature.colorScheme
+      && appliedSignature != signature
+      && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    appliedSignature = signature
     baseRampView.apply(
       ChromeBackgroundRamp.stops(
         from: palette.backgroundTopValue,
@@ -93,6 +97,33 @@ final class ChromeBackgroundNSView: NSView {
     let image = NSImage(cgImage: tile, size: NSSize(width: tile.width, height: tile.height))
     return NSColor(patternImage: image).cgColor
   }()
+}
+
+private struct ChromeBackgroundSignature: Equatable {
+  let colorScheme: ColorScheme
+  let backgroundTop: ThemeColor
+  let backgroundBottom: ThemeColor
+  let illuminationTop: ThemeColor
+  let illuminationBody: ThemeColor
+  let illuminationFooter: ThemeColor
+
+  init(palette: Palette) {
+    colorScheme = palette.colorScheme
+    backgroundTop = palette.backgroundTopValue
+    backgroundBottom = palette.backgroundBottomValue
+    illuminationTop = palette.backgroundIlluminationTopValue
+    illuminationBody = palette.backgroundIlluminationBodyValue
+    illuminationFooter = palette.backgroundIlluminationFooterValue
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.colorScheme == rhs.colorScheme
+      && lhs.backgroundTop == rhs.backgroundTop
+      && lhs.backgroundBottom == rhs.backgroundBottom
+      && lhs.illuminationTop == rhs.illuminationTop
+      && lhs.illuminationBody == rhs.illuminationBody
+      && lhs.illuminationFooter == rhs.illuminationFooter
+  }
 }
 
 final class GradientRampView: NSView {

@@ -29,41 +29,136 @@ extension SnapshotCatalog {
       AnyView(GroupSurfaceSnapshotFixture(appearance: appearance))
     },
     scenario(
-      "tinted-backgrounds",
+      "terminal-theme-backgrounds",
       group: "Chrome",
-      title: "Tinted backgrounds",
-      size: CGSize(width: 1020, height: 400)
+      title: "Terminal theme backgrounds",
+      size: CGSize(width: 1020, height: 500),
+      appearances: [.dark]
     ) { appearance in
-      AnyView(TintedChromeBackgroundSnapshotFixture(appearance: appearance))
+      AnyView(TerminalThemeBackgroundSnapshotFixture(appearance: appearance))
     },
   ]
 }
 
-private struct TintedChromeBackgroundSnapshotFixture: View {
+private struct TerminalThemeBackgroundSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   var body: some View {
-    let neutral = Palette(colorScheme: appearance.colorScheme)
+    let canvas = Palette(
+      colorScheme: appearance.colorScheme,
+      backgroundSeed: appearance.terminalBackground
+    )
     ZStack {
-      neutral.detailBackground
+      canvas.detailBackground
       LazyVGrid(
-        columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 14
+        columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3),
+        spacing: 14
       ) {
-        ForEach(ThemeTint.allCases.filter { $0 != .neutral }, id: \.self) { tint in
-          VStack(spacing: 5) {
-            ChromeBackgroundView(
-              palette: Palette(colorScheme: appearance.colorScheme, tint: tint)
-            )
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            Text(tint.displayName)
-              .font(.system(size: 10, weight: .medium))
-              .foregroundStyle(neutral.secondaryText)
-          }
+        ForEach(samples) { sample in
+          TerminalThemeChromeSample(sample: sample)
         }
       }
       .padding(20)
     }
+  }
+
+  private var samples: [TerminalThemeSample] {
+    [
+      TerminalThemeSample(
+        name: "Default dark",
+        colorScheme: .dark,
+        background: ThemeColor(hex: 0x1C1917)
+      ),
+      TerminalThemeSample(
+        name: "Default light",
+        colorScheme: .light,
+        background: ThemeColor(hex: 0xF0EDEC)
+      ),
+      TerminalThemeSample(
+        name: "Warm light",
+        colorScheme: .light,
+        background: ThemeColor(hex: 0xFBF1C7)
+      ),
+      TerminalThemeSample(
+        name: "Cool dark",
+        colorScheme: .dark,
+        background: ThemeColor(hex: 0x2E3440)
+      ),
+      TerminalThemeSample(
+        name: "Neutral dark",
+        colorScheme: .dark,
+        background: ThemeColor(hex: 0x191919)
+      ),
+      TerminalThemeSample(
+        name: "Saturated dark",
+        colorScheme: .dark,
+        background: ThemeColor(hex: 0x21084A)
+      ),
+    ]
+  }
+}
+
+private struct TerminalThemeSample: Identifiable {
+  let name: String
+  let colorScheme: ColorScheme
+  let background: ThemeColor
+
+  var id: String { name }
+}
+
+private struct TerminalThemeChromeSample: View {
+  let sample: TerminalThemeSample
+
+  var body: some View {
+    let palette = Palette(
+      colorScheme: sample.colorScheme,
+      backgroundSeed: sample.background
+    )
+    ChromeBackgroundView(palette: palette)
+      .overlay {
+        VStack(spacing: 12) {
+          HStack(spacing: 8) {
+            Image(systemName: "terminal")
+              .accessibilityHidden(true)
+            Text(sample.name)
+              .fontWeight(.semibold)
+            Spacer()
+            Image(systemName: "plus")
+              .accessibilityHidden(true)
+          }
+          .font(.system(size: 12))
+          .foregroundStyle(palette.primaryText)
+
+          Spacer(minLength: 0)
+
+          HStack(spacing: 10) {
+            Text("Terminal")
+              .font(.system(size: 11, weight: .medium))
+              .foregroundStyle(palette.selectableRow.selectedTitle)
+              .padding(.horizontal, 12)
+              .frame(height: 30)
+              .background(
+                palette.selectableRow.primarySelectionFill,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+              )
+            Spacer()
+            Text(sample.colorScheme == .dark ? "Dark" : "Light")
+              .font(.system(size: 10, weight: .medium))
+              .foregroundStyle(palette.secondaryText)
+          }
+        }
+        .padding(14)
+      }
+      .frame(height: 216)
+      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+          .strokeBorder(canvasStroke, lineWidth: 1)
+      }
+  }
+
+  private var canvasStroke: Color {
+    sample.colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.12)
   }
 }
 
@@ -71,7 +166,8 @@ private struct ChromeBackgroundSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   var body: some View {
-    ChromeBackgroundView(palette: Palette(colorScheme: appearance.colorScheme))
+    ChromeBackgroundView(
+      palette: Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground))
   }
 }
 
@@ -79,7 +175,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   var body: some View {
-    let palette = Palette(colorScheme: appearance.colorScheme)
+    let palette = Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
     ZStack {
       palette.detailBackground
       LazyVGrid(
@@ -189,7 +285,7 @@ private struct GroupSurfaceSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   var body: some View {
-    let palette = Palette(colorScheme: appearance.colorScheme)
+    let palette = Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
     ZStack {
       palette.detailBackground
       VStack(spacing: 14) {

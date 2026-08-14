@@ -536,7 +536,7 @@ private struct AgentPanelSnapshotFixture: View {
   var showsShortcutHints = false
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -564,7 +564,7 @@ private struct SidebarCardSnapshotFixture<Content: View>: View {
   let content: (Palette) -> Content
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -579,7 +579,7 @@ private struct TerminalSidebarUpdateSnapshotFixture: View {
   let phase: UpdatePhase
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -612,7 +612,7 @@ private struct CommandPaletteSnapshotFixture: View {
   let commandHeld: Bool
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -661,7 +661,7 @@ private struct DialogSnapshotFixture<Content: View>: View {
   let content: (Palette) -> Content
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {

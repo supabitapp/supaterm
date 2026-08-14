@@ -48,12 +48,8 @@ struct TerminalWindowConfirmationView: View {
   @Shared(.supatermSettings) private var supatermSettings = .default
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  private var chromeColorScheme: ColorScheme {
-    supatermSettings.appearanceMode.colorScheme ?? terminal.terminalChromeColorScheme
-  }
-
   private var palette: Palette {
-    Palette(colorScheme: chromeColorScheme, tint: terminal.displayedSpace.color)
+    terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
   }
 
   var body: some View {
@@ -79,7 +75,7 @@ struct TerminalWindowConfirmationView: View {
       value: store.confirmationRequest,
       reduceMotion: reduceMotion
     )
-    .environment(\.colorScheme, chromeColorScheme)
+    .environment(\.colorScheme, palette.colorScheme)
   }
 }
 

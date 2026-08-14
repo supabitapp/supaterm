@@ -1,6 +1,8 @@
+import AppKit
 import Foundation
 import GhosttyKit
 import Observation
+import SupaTheme
 import SwiftUI
 import Synchronization
 import Testing
@@ -10,10 +12,10 @@ import Testing
 @MainActor
 struct TerminalHostStateColorSchemeTests {
   @Test
-  func terminalChromeColorSchemeResolvesFromRuntimeBackground() throws {
+  func chromePaletteResolvesFromRuntimeBackground() throws {
     let darkRuntime = try makeGhosttyRuntime(
       """
-      background = #101010
+      background = #21084A
       """
     )
     let lightRuntime = try makeGhosttyRuntime(
@@ -25,15 +27,21 @@ struct TerminalHostStateColorSchemeTests {
     let darkHost = TerminalHostState(runtime: darkRuntime, managesTerminalSurfaces: false)
     let lightHost = TerminalHostState(runtime: lightRuntime, managesTerminalSurfaces: false)
 
-    #expect(darkHost.terminalChromeColorScheme == .dark)
-    #expect(lightHost.terminalChromeColorScheme == .light)
+    expectBackground(
+      darkHost.chromePalette(appearanceMode: .system),
+      equals: Palette(colorScheme: .dark, backgroundSeed: ThemeColor(hex: 0x21084A))
+    )
+    expectBackground(
+      lightHost.chromePalette(appearanceMode: .system),
+      equals: Palette(colorScheme: .light, backgroundSeed: ThemeColor(hex: 0xF4E6D8))
+    )
   }
 
   @Test
-  func selectedSurfaceBackgroundDrivesTerminalChrome() async throws {
+  func configuredSurfaceBackgroundDrivesChromeWhileOSCStaysLocal() async throws {
     let runtime = try makeGhosttyRuntime(
       """
-      background = #101010
+      background = #21084A
       background-opacity = 0.4
       """
     )
@@ -46,47 +54,81 @@ struct TerminalHostStateColorSchemeTests {
     let surface = try #require(host.selectedSurfaceView)
     defer { surface.closeSurface() }
 
-    #expect(host.terminalChromeColorScheme == .dark)
+    let configured = host.chromePalette(appearanceMode: .system)
     let invalidationCount = Mutex<Int>(0)
     withObservationTracking {
-      _ = host.terminalBackgroundColor
+      _ = host.chromePalette(appearanceMode: .system)
     } onChange: {
       invalidationCount.withLock { $0 += 1 }
     }
 
-    let action = ghosttyColorChangeAction(
+    let oscAction = ghosttyColorChangeAction(
       kind: GHOSTTY_ACTION_COLOR_KIND_BACKGROUND,
       red: 244,
       green: 230,
       blue: 216
     )
-    #expect(surface.bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    #expect(surface.bridge.handleAction(target: ghosttySurfaceTarget(), action: oscAction))
     await flushObservation()
 
-    let background = try #require(
+    let terminalBackground = try #require(
       NSColor(host.terminalBackgroundColor).usingColorSpace(.sRGB)
     )
-    #expect(background.redComponent == 244.0 / 255)
-    #expect(background.greenComponent == 230.0 / 255)
-    #expect(background.blueComponent == 216.0 / 255)
-    #expect(background.alphaComponent == 0.4)
-    #expect(host.terminalChromeColorScheme == .light)
-    #expect(runtime.chromeColorScheme() == .dark)
+    #expect(terminalBackground.redComponent == 244.0 / 255)
+    #expect(terminalBackground.greenComponent == 230.0 / 255)
+    #expect(terminalBackground.blueComponent == 216.0 / 255)
+    #expect(terminalBackground.alphaComponent == 0.4)
+    expectBackground(host.chromePalette(appearanceMode: .system), equals: configured)
+    #expect(invalidationCount.withLock { $0 } == 0)
+
+    try withConfigChangeAction(
+      """
+      background = #F4E6D8
+      background-opacity = 0.7
+      """
+    ) { action in
+      #expect(surface.bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    }
+    await flushObservation()
+
+    expectBackground(
+      host.chromePalette(appearanceMode: .system),
+      equals: Palette(colorScheme: .light, backgroundSeed: ThemeColor(hex: 0xF4E6D8))
+    )
+    let configuredTerminalBackground = try #require(
+      NSColor(host.terminalBackgroundColor).usingColorSpace(.sRGB)
+    )
+    #expect(configuredTerminalBackground.alphaComponent == 0.7)
     #expect(invalidationCount.withLock { $0 } == 1)
   }
 
   @Test
-  func terminalBackgroundColorInvalidatesWhenMatchingRuntimeChanges() async throws {
+  func explicitAppearanceChangesSchemeWithoutChangingBackgroundSource() throws {
     let runtime = try makeGhosttyRuntime(
       """
-      background = #101010
+      background = #21084A
+      """
+    )
+    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
+
+    expectBackground(
+      host.chromePalette(appearanceMode: .light),
+      equals: Palette(colorScheme: .light, backgroundSeed: ThemeColor(hex: 0x21084A))
+    )
+  }
+
+  @Test
+  func chromePaletteInvalidatesWhenMatchingRuntimeChanges() async throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #21084A
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
     let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
-      _ = host.terminalBackgroundColor
+      _ = host.chromePalette(appearanceMode: .system)
     } onChange: {
       invalidationCount.withLock { $0 += 1 }
     }
@@ -98,22 +140,22 @@ struct TerminalHostStateColorSchemeTests {
   }
 
   @Test
-  func terminalBackgroundColorIgnoresOtherRuntimeChanges() async throws {
+  func chromePaletteIgnoresOtherRuntimeChanges() async throws {
     let runtime = try makeGhosttyRuntime(
       """
-      background = #101010
+      background = #21084A
       """
     )
     let otherRuntime = try makeGhosttyRuntime(
       """
-      background = #202020
+      background = #2E3440
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
     let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
-      _ = host.terminalBackgroundColor
+      _ = host.chromePalette(appearanceMode: .system)
     } onChange: {
       invalidationCount.withLock { $0 += 1 }
     }
@@ -124,26 +166,21 @@ struct TerminalHostStateColorSchemeTests {
     #expect(invalidationCount.withLock { $0 } == 0)
   }
 
-  @Test
-  func terminalChromeColorSchemeInvalidatesWhenMatchingRuntimeChanges() async throws {
-    let runtime = try makeGhosttyRuntime(
-      """
-      background = #101010
-      """
+  private func expectBackground(
+    _ actual: Palette,
+    equals expected: Palette,
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) {
+    #expect(actual.colorScheme == expected.colorScheme, sourceLocation: sourceLocation)
+    #expect(actual.backgroundTopValue == expected.backgroundTopValue, sourceLocation: sourceLocation)
+    #expect(
+      actual.backgroundBottomValue == expected.backgroundBottomValue,
+      sourceLocation: sourceLocation
     )
-    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
-    let invalidationCount = Mutex<Int>(0)
-
-    withObservationTracking {
-      _ = host.terminalChromeColorScheme
-    } onChange: {
-      invalidationCount.withLock { $0 += 1 }
-    }
-
-    NotificationCenter.default.post(name: .ghosttyRuntimeConfigDidChange, object: runtime)
-    await flushObservation()
-
-    #expect(invalidationCount.withLock { $0 } == 1)
+    #expect(
+      actual.agentPanelBackgroundValue == expected.agentPanelBackgroundValue,
+      sourceLocation: sourceLocation
+    )
   }
 
   private func flushObservation() async {

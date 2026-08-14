@@ -5,20 +5,21 @@ Supaterm chrome has one default look. `SupaTheme` owns the palette reference anc
 ## Consumption
 
 - Views take an explicit `let palette: Palette` and read semantic chrome tokens.
-- `TerminalView` builds `Palette(colorScheme:)` from the resolved chrome color scheme.
+- `TerminalHostState` builds one palette from the focused pane's configured background. The runtime config supplies the background before a surface exists.
+- Explicit light or dark appearance sets the palette scheme. Auto appearance derives it from the configured background.
 - Reference colors are stored once in `apps/mac/SupaTheme`; role colors such as accent, warning, success, danger, and merged are computed from those anchors against the chrome surfaces where they render.
 - `ChromeBackgroundView` renders a behind-window material, translucent tint ramp, light-mode illumination, and deterministic grain. One AppKit view hosts the material, two gradient layers with precomputed perceptual stops, and a pattern layer for the grain tile, so the window server composites the chrome without full-window buffers in the app.
-- The tint ramp runs from `backgroundTopValue` to `backgroundBottomValue` and settles at three quarters of the height. In light mode the wash is strong at the top and weak at the bottom, so chroma fades downward; in dark mode both ends carry the same wash. The illumination layer stays low through the body and lifts to near white over the last eight percent, which reads as a footer glow.
+- The terminal background seeds the tint ramp from `backgroundTopValue` to `backgroundBottomValue`. Palette math caps chroma and lightness before it mixes the seed into the chrome. Light mode keeps more color at the top than the bottom. The illumination layer stays low through the body and lifts over the last eight percent.
 - Sidebar tabs use fixed rest, hover, pressed, secondary selection, outline, shadow, and title tokens; unrelated cards and dialogs keep their own surface roles. The primary selection is opaque in dark mode and translucent white in light mode, so the wash under the row tints the selected pill.
 - Neutral tab groups stay clear until hover or drop targeting. Colored groups keep a light tint and strengthen during interaction. Visible group surfaces use a neutral one-pixel stroke.
 - The agent panel uses an opaque floating surface token so terminal content underneath cannot change its color.
-- Spaces store identity, name, and a `ThemeTint`. A chromatic tint washes the window backgrounds toward its reference tone and reseeds accent from it; every derived semantic recomputes through the contrast pipeline. Neutral reproduces the default chrome exactly. The create and rename dialogs expose the swatch row; creation pre-selects a random chromatic tint, and `sp space color` sets it over the socket.
-- A window paints the tint of the space it displays, and its title is that space's name. While a sidebar swipe is in flight each page renders in its own space's palette through `palette.tinted(_:)`, and the window chrome holds the outgoing tint; `ChromeBackgroundView` crossfades to the new tint once the switch commits.
+- Spaces store identity, name, and a `ThemeTint`. A chromatic tint sets the space title, accent, and group identity. The terminal theme owns the large chrome surfaces. The create and rename dialogs expose the swatch row; creation pre-selects a random chromatic tint, and `sp space color` sets it over the socket.
+- While a sidebar swipe is in flight each page renders in its own space palette through `palette.tinted(_:)`. A configured terminal background change crossfades within the same color scheme. Light and dark scheme changes apply at once. Reduce Motion disables the crossfade.
 
 ## Boundaries
 
-Deliberately outside the palette: Ghostty terminal content colors, the Ghostty terminal progress bar, the window traffic lights, and Settings feature form styling.
+Terminal foreground, ANSI colors, OSC color changes, opacity, the terminal progress bar, window traffic lights, and Settings form styling stay outside the palette. OSC background changes and opacity affect terminal content and its top bar, not the shell chrome.
 
 ## Snapshots
 
-Default chrome changes can refresh snapshot baselines with `make mac-record-snapshots`. The Chrome catalog group renders the window background and palette token sheet for review.
+Default chrome changes can refresh snapshot baselines with `make mac-record-snapshots`. The Chrome catalog group renders the window background, palette token sheet, and a common terminal theme matrix for review.

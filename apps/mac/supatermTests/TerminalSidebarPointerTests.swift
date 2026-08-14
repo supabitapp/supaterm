@@ -85,7 +85,7 @@ struct TerminalSidebarPointerTests {
       let context = TerminalSidebarRowContext(
         store: store,
         terminal: terminal,
-        palette: Palette(colorScheme: .dark),
+        palette: Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
         renameState: controller.renameState,
         groupHeaderHoverState: controller.groupHeaderHoverState,
         tabSelectionState: controller.tabSelectionState,
@@ -415,7 +415,7 @@ struct TerminalSidebarPointerTests {
     let rowContext = TerminalSidebarRowContext(
       store: store,
       terminal: host,
-      palette: Palette(colorScheme: .dark),
+      palette: Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
       renameState: TerminalSidebarRenameState(),
       groupHeaderHoverState: TerminalSidebarGroupHoverState(),
       tabSelectionState: selectionState,

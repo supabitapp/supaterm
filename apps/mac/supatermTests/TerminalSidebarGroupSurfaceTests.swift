@@ -84,8 +84,8 @@ struct TerminalSidebarGroupSurfaceTests {
 
   @Test
   func neutralSurfaceTokensMatchEachScheme() {
-    let light = Palette(colorScheme: .light)
-    let dark = Palette(colorScheme: .dark)
+    let light = Palette(colorScheme: .light, backgroundSeed: testBackgroundSeed(for: .light))
+    let dark = Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark))
 
     #expect(
       light.sidebarGroupNeutralHoverFillValue
@@ -102,7 +102,7 @@ struct TerminalSidebarGroupSurfaceTests {
   @Test
   func everyGroupColorKeepsItsBaseTintAcrossSchemes() {
     for scheme in [ColorScheme.light, .dark] {
-      let palette = Palette(colorScheme: scheme)
+      let palette = Palette(colorScheme: scheme, backgroundSeed: testBackgroundSeed(for: scheme))
       for color in ThemeTint.allCases {
         let resolved = color.sidebarNSColor(palette: palette)
         #expect(resolved.alphaComponent == 1)

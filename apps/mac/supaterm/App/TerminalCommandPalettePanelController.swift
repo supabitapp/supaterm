@@ -93,6 +93,7 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
     )
     if let hostingController, let panel {
       hostingController.rootView = rootView
+      panel.appearance = parentWindow.appearance
       updateFrame(panel, parentWindow: parentWindow)
       return
     }

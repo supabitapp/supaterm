@@ -48,15 +48,8 @@ private final class WindowAppearanceView: NSView {
   }
 
   private func applyAppearance() {
-    guard window != nil else { return }
     let appearance = appearanceMode.appearance
+    guard NSApp.appearance?.name != appearance?.name else { return }
     NSApp.appearance = appearance
-    for window in NSApp.windows {
-      window.appearance = appearance
-      window.contentView?.needsLayout = true
-      window.contentView?.needsDisplay = true
-      window.contentView?.displayIfNeeded()
-      window.invalidateShadow()
-    }
   }
 }

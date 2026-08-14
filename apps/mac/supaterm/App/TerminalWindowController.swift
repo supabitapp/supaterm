@@ -98,7 +98,6 @@ final class TerminalWindowController: NSWindowController {
     let commandHoldObserver: CommandHoldObserver
     let commandPaletteClient: TerminalCommandPaletteClient
     let ghosttyShortcuts: GhosttyShortcutManager
-    let runtime: GhosttyRuntime
     let store: StoreOf<AppFeature>
     let tabDragRegistry: TerminalTabDragRegistry
     let terminal: TerminalHostState
@@ -170,7 +169,6 @@ final class TerminalWindowController: NSWindowController {
         commandHoldObserver: commandHoldObserver,
         commandPaletteClient: commandPaletteClient,
         ghosttyShortcuts: ghosttyShortcuts,
-        runtime: runtime,
         store: store,
         tabDragRegistry: registry.tabDragRegistry,
         terminal: terminal,
@@ -254,18 +252,16 @@ final class TerminalWindowController: NSWindowController {
     }
     let detailController = NSHostingController(
       rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          ContentView(
-            commandHoldObserver: input.commandHoldObserver,
-            ghosttyShortcuts: input.ghosttyShortcuts,
-            commandPaletteClient: input.commandPaletteClient,
-            updateWindowShell: { [weak shellController] presentation in
-              shellController?.apply(presentation)
-            },
-            store: input.store,
-            terminal: input.terminal
-          )
-        }
+        ContentView(
+          commandHoldObserver: input.commandHoldObserver,
+          ghosttyShortcuts: input.ghosttyShortcuts,
+          commandPaletteClient: input.commandPaletteClient,
+          updateWindowShell: { [weak shellController] presentation in
+            shellController?.apply(presentation)
+          },
+          store: input.store,
+          terminal: input.terminal
+        )
       }
     )
     let confirmationController = TerminalWindowConfirmationController(
@@ -277,19 +273,17 @@ final class TerminalWindowController: NSWindowController {
     )
     let sidebarController = NSHostingController(
       rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          TerminalSidebarContentView(
-            commandHoldObserver: input.commandHoldObserver,
-            ghosttyShortcuts: input.ghosttyShortcuts,
-            shellState: shellController.state,
-            store: input.store,
-            terminal: input.terminal,
-            sidebarControllerCache: shellController.sidebarControllerCache,
-            spacePagingDidEnd: { [weak shellController] in
-              shellController?.spacePagingDidEnd()
-            }
-          )
-        }
+        TerminalSidebarContentView(
+          commandHoldObserver: input.commandHoldObserver,
+          ghosttyShortcuts: input.ghosttyShortcuts,
+          shellState: shellController.state,
+          store: input.store,
+          terminal: input.terminal,
+          sidebarControllerCache: shellController.sidebarControllerCache,
+          spacePagingDidEnd: { [weak shellController] in
+            shellController?.spacePagingDidEnd()
+          }
+        )
       }
     )
     shellController.isSpacePaging = { [weak terminal = input.terminal] in

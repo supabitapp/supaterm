@@ -325,7 +325,7 @@ private struct SidebarRowSnapshotFixture: View {
   var outerPadding: CGFloat = 10
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -561,7 +561,7 @@ private struct SpacePageDotsSnapshotFixture: View {
   var position: Double?
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -599,7 +599,7 @@ private struct SidebarChromeSnapshotFixture: View {
   )
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {
@@ -632,7 +632,7 @@ private struct SidebarWindowControlsSnapshotFixture: View {
   )
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   var body: some View {

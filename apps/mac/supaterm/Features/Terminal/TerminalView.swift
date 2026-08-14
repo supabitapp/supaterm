@@ -16,14 +16,6 @@ struct TerminalView: View {
 
   @State private var window: NSWindow?
 
-  private var chromeColorScheme: ColorScheme {
-    terminal.chromeColorScheme(appearanceMode: supatermSettings.appearanceMode)
-  }
-
-  private var windowAppearance: NSAppearance? {
-    supatermSettings.appearanceMode.appearance
-  }
-
   private var palette: Palette {
     terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
   }
@@ -76,7 +68,7 @@ struct TerminalView: View {
     terminalLayout
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background {
-        WindowAppearanceApplier(appliedAppearance: windowAppearance)
+        WindowAppearanceApplier(colorScheme: palette.colorScheme)
       }
       .background(WindowTitleApplier(title: terminal.displayedSpace.name))
       .overlay {
@@ -169,7 +161,7 @@ struct TerminalView: View {
         value: terminal.spaces.map(\.id),
         reduceMotion: reduceMotion
       )
-      .environment(\.colorScheme, chromeColorScheme)
+      .environment(\.colorScheme, palette.colorScheme)
   }
 
   private func commandPalettePanelConfiguration(
@@ -268,18 +260,5 @@ struct TerminalWindowChromeBackground: View {
 
   var body: some View {
     ChromeBackgroundView(palette: palette)
-  }
-}
-
-extension TerminalHostState {
-  fileprivate func chromeColorScheme(appearanceMode: AppearanceMode) -> ColorScheme {
-    appearanceMode.colorScheme ?? terminalChromeColorScheme
-  }
-
-  fileprivate func chromePalette(appearanceMode: AppearanceMode) -> Palette {
-    Palette(
-      colorScheme: chromeColorScheme(appearanceMode: appearanceMode),
-      tint: displayedSpace.color
-    )
   }
 }

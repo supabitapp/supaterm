@@ -266,9 +266,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         || terminalWindowRegistry.bypassesQuitConfirmation,
       terminatesSessionsOnQuit: terminatesSessionsOnQuit
     ) {
-      guard let terminalWindow else { return .cancel }
+      guard
+        let terminalWindow,
+        let palette = terminalWindowRegistry.chromePalette(
+          for: terminalWindow,
+          appearanceMode: supatermSettings.appearanceMode
+        )
+      else { return .cancel }
       return quitConfirmationPresenter.confirmQuit(
         parentWindow: terminalWindow,
+        palette: palette,
         terminatesSessions: terminatesSessionsOnQuit
       )
     }

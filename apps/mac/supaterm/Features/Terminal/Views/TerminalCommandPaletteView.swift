@@ -146,7 +146,7 @@ struct TerminalCommandPaletteOverlay: View {
   )
 
   TerminalCommandPaletteOverlay(
-    palette: Palette(colorScheme: .dark),
+    palette: Palette(colorScheme: .dark, backgroundSeed: previewBackgroundSeed(for: .dark)),
     state: TerminalCommandPaletteState(query: "split", selectedRowID: matches.first?.id),
     matches: matches,
     onActivate: {},

@@ -3,7 +3,9 @@ import Foundation
 import GhosttyKit
 import Observation
 import Sharing
+import SupaTheme
 import SupatermCLIShared
+import SupatermSettingsFeature
 import SwiftUI
 
 extension TerminalHostState {
@@ -138,18 +140,24 @@ extension TerminalHostState {
     )
   }
 
-  var terminalChromeColorScheme: ColorScheme {
+  private var terminalChromeBackgroundColor: NSColor {
     if let selectedSurfaceState {
-      return GhosttySurfaceConfig.colorScheme(
-        for: selectedSurfaceState.effectiveBackgroundColor
-      )
+      return selectedSurfaceState.derivedConfig.backgroundColor
     }
     _ = runtimeConfigGeneration
-    if let runtime {
-      return runtime.chromeColorScheme()
-    }
-    let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
-    return appearance == .darkAqua ? .dark : .light
+    return runtime?.surfaceConfig().backgroundColor ?? .windowBackgroundColor
+  }
+
+  func chromePalette(appearanceMode: AppearanceMode) -> Palette {
+    let backgroundColor = terminalChromeBackgroundColor
+    let colorScheme =
+      appearanceMode.colorScheme
+      ?? GhosttySurfaceConfig.colorScheme(for: backgroundColor)
+    return Palette(
+      colorScheme: colorScheme,
+      backgroundSeed: backgroundColor.themeColor,
+      tint: displayedSpace.color
+    )
   }
 
   var notificationAttentionColor: Color {
@@ -719,6 +727,24 @@ extension TerminalHostState {
   ) -> String? {
     guard let trimmed = trimmedNonEmpty(value) else { return nil }
     return trimmed.split(whereSeparator: \.isWhitespace).first.map { String($0) }
+  }
+}
+
+extension NSColor {
+  fileprivate var themeColor: ThemeColor {
+    guard let color = usingColorSpace(.sRGB) else {
+      return GhosttySurfaceConfig.colorScheme(for: self) == .dark ? .black : .white
+    }
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    return ThemeColor(
+      red: Double(red),
+      green: Double(green),
+      blue: Double(blue)
+    )
   }
 }
 

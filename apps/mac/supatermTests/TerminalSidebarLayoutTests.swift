@@ -80,7 +80,7 @@ struct TerminalSidebarLayoutTests {
       TerminalSidebarRowContext(
         store: store,
         terminal: terminal,
-        palette: Palette(colorScheme: .dark),
+        palette: Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
         renameState: controller.renameState,
         groupHeaderHoverState: controller.groupHeaderHoverState,
         tabSelectionState: controller.tabSelectionState,
@@ -455,7 +455,7 @@ struct TerminalSidebarLayoutTests {
       selectedSpaceID: TerminalSpaceID
     ) -> TerminalNativeSpaceDotsConfiguration {
       TerminalNativeSpaceDotsConfiguration(
-        palette: Palette(colorScheme: .dark),
+        palette: Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
         spaces: spaces,
         selectionPosition: Double(spaces.firstIndex { $0.id == selectedSpaceID } ?? 0),
         select: { _ in },

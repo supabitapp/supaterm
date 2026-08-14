@@ -36,7 +36,7 @@ struct TerminalSplitTreeViewTests {
       focusedSurfaceID: nil,
       hiddenAgentPanelSurfaceIDs: [],
       notificationColor: .clear,
-      palette: Palette(colorScheme: .dark),
+      palette: Palette(colorScheme: .dark, backgroundSeed: testBackgroundSeed(for: .dark)),
       agentPanelForksDown: false,
       agentPanelShortcutHint: nil,
       showsGlowingPaneRing: false,

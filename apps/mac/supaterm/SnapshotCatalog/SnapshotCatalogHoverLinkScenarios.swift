@@ -22,7 +22,7 @@ private struct HoverLinkSnapshotFixture: View {
     "https://supaterm.com/docs/terminal/hovered-link-feedback?window=alpha&pane=right"
 
   private var palette: Palette {
-    Palette(colorScheme: appearance.colorScheme)
+    Palette(colorScheme: appearance.colorScheme, backgroundSeed: appearance.terminalBackground)
   }
 
   private var terminalBackground: Color {

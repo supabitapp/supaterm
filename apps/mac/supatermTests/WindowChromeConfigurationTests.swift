@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -161,5 +162,34 @@ struct WindowChromeConfigurationTests {
 
     applier.appliedTitle = "Shipping"
     #expect(window.title == "Shipping")
+  }
+
+  @Test
+  func appearanceApplierPinsOnlyItsWindow() throws {
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let otherWindow = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let view = WindowAppearanceApplierView()
+    let contentView = try #require(window.contentView)
+    contentView.addSubview(view)
+
+    view.colorScheme = .dark
+
+    #expect(window.appearance?.name == .darkAqua)
+    #expect(otherWindow.appearance == nil)
+
+    view.colorScheme = .light
+
+    #expect(window.appearance?.name == .aqua)
+    #expect(otherWindow.appearance == nil)
   }
 }

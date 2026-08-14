@@ -6,6 +6,7 @@ import SwiftUI
 final class QuitConfirmationPresenter {
   func confirmQuit(
     parentWindow: NSWindow,
+    palette: Palette,
     terminatesSessions: Bool
   ) -> QuitConfirmationDecision {
     NSApp.unhide(nil)
@@ -15,6 +16,7 @@ final class QuitConfirmationPresenter {
     parentWindow.makeKeyAndOrderFront(nil)
     return QuitConfirmationPanelController(
       parentWindow: parentWindow,
+      palette: palette,
       terminatesSessions: terminatesSessions
     ).runModal()
   }
@@ -68,7 +70,7 @@ private final class QuitConfirmationPanelController: NSWindowController {
   private weak var parentWindow: NSWindow?
   private var decision = QuitConfirmationDecision.cancel
 
-  init(parentWindow: NSWindow, terminatesSessions: Bool) {
+  init(parentWindow: NSWindow, palette: Palette, terminatesSessions: Bool) {
     self.parentWindow = parentWindow
 
     let window = QuitConfirmationPanel(
@@ -77,6 +79,7 @@ private final class QuitConfirmationPanelController: NSWindowController {
       backing: .buffered,
       defer: false
     )
+    window.appearance = parentWindow.appearance
 
     super.init(window: window)
 
@@ -89,7 +92,6 @@ private final class QuitConfirmationPanelController: NSWindowController {
       return true
     }
 
-    let palette = Palette(colorScheme: Self.colorScheme(for: parentWindow))
     window.contentViewController = NSHostingController(
       rootView: QuitConfirmationOverlay(
         palette: palette,
@@ -104,6 +106,7 @@ private final class QuitConfirmationPanelController: NSWindowController {
           self?.finish(.cancel)
         }
       )
+      .environment(\.colorScheme, palette.colorScheme)
     )
   }
 
@@ -133,10 +136,6 @@ private final class QuitConfirmationPanelController: NSWindowController {
     window.orderOut(nil)
   }
 
-  private static func colorScheme(for window: NSWindow) -> ColorScheme {
-    let appearance = window.contentView?.effectiveAppearance ?? window.effectiveAppearance
-    return appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
-  }
 }
 
 private final class QuitConfirmationPanel: NSPanel {
