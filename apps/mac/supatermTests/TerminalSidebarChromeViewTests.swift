@@ -39,6 +39,28 @@ struct TerminalSidebarChromeViewTests {
 
   @MainActor
   @Test
+  func selectionGlowDrawsBehindTheSelectedSurface() throws {
+    let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
+    let container = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 160))
+    let window = NSWindow(
+      contentRect: container.frame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = container
+    let glow = TerminalSidebarSelectionGlowView()
+    container.addSubview(glow)
+    glow.update(surfaceFrame: itemFrame, color: .white, alpha: 1, isDark: true)
+    container.layoutSubtreeIfNeeded()
+
+    let raster = try #require(SelectionGlowRaster(view: container))
+
+    #expect(raster.alpha(at: CGPoint(x: itemFrame.midX, y: itemFrame.midY)) == 1)
+  }
+
+  @MainActor
+  @Test
   func selectionGlowHangsBelowTheSelectedRow() throws {
     let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
     let container = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 160))
@@ -737,5 +759,9 @@ private struct SelectionGlowRaster {
         running + (raster.colorAt(x: x, y: y)?.alphaComponent ?? 0)
       }
     }
+  }
+
+  func alpha(at point: CGPoint) -> CGFloat {
+    raster.colorAt(x: Int(point.x), y: Int(point.y))?.alphaComponent ?? 0
   }
 }

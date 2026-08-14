@@ -7,7 +7,6 @@ final class TerminalSidebarSelectionGlowView: NSView {
   private static let contentTopFade: CGFloat = 24
 
   private let shadowLayer = CAShapeLayer()
-  private let shadowMaskLayer = CAShapeLayer()
   private let contentTopFadeLayer = CAGradientLayer()
 
   override init(frame frameRect: NSRect) {
@@ -26,9 +25,6 @@ final class TerminalSidebarSelectionGlowView: NSView {
       width: SelectableRowShadowMetrics.offset.width,
       height: -SelectableRowShadowMetrics.offset.height
     )
-    shadowMaskLayer.fillColor = NSColor.white.cgColor
-    shadowMaskLayer.fillRule = .evenOdd
-    shadowLayer.mask = shadowMaskLayer
     layer?.addSublayer(shadowLayer)
     isHidden = true
     setAccessibilityElement(false)
@@ -51,14 +47,9 @@ final class TerminalSidebarSelectionGlowView: NSView {
     )
     .path(in: shapeBounds)
     .cgPath
-    let maskPath = CGMutablePath()
-    maskPath.addRect(bounds)
-    maskPath.addPath(shapePath)
     shadowLayer.frame = bounds
     shadowLayer.path = shapePath
     shadowLayer.shadowPath = shapePath
-    shadowMaskLayer.frame = bounds
-    shadowMaskLayer.path = maskPath
     layoutContentTopFade()
   }
 
