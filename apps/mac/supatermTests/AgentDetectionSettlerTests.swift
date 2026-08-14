@@ -4,18 +4,11 @@ import Testing
 
 struct AgentDetectionSettlerTests {
   @Test
-  func initialNoMatchAndHoldStayUnknown() {
+  func holdWithoutPriorStateStaysUnknown() {
     let now = ContinuousClock().now
     var settler = AgentDetectionSettler<String>()
 
-    #expect(settler.settle(match: .noMatch, processToken: "one", now: now) == .unknown)
-    #expect(
-      settler.settle(
-        match: .matched(result: .hold, ruleID: "overlay", priority: 1),
-        processToken: "one",
-        now: now
-      ) == .unknown
-    )
+    #expect(settler.settle(match: match(.hold), processToken: "one", now: now) == .unknown)
   }
 
   @Test(arguments: [AgentDetectionRuleResult.running, .needsInput])
@@ -23,23 +16,49 @@ struct AgentDetectionSettlerTests {
     let now = ContinuousClock().now
     var settler = AgentDetectionSettler<String>()
 
-    let state = settler.settle(
-      match: .matched(result: result, ruleID: "strong", priority: 1),
-      processToken: "one",
-      now: now
+    #expect(
+      settler.settle(match: match(result), processToken: "one", now: now)
+        == strongState(for: result)
     )
-
-    #expect(state == strongState(for: result))
   }
 
   @Test
-  func initialIdlePublishesImmediately() {
+  func plainIdleNeedsThreeConfirmationsAfterRunning() {
     let now = ContinuousClock().now
     var settler = AgentDetectionSettler<String>()
 
+    #expect(settler.settle(match: match(.running), processToken: "one", now: now) == .running)
+    for _ in 0..<3 {
+      #expect(settler.settle(match: match(.idle), processToken: "one", now: now) == .running)
+    }
+    #expect(settler.settle(match: match(.idle), processToken: "one", now: now) == .idle)
+  }
+
+  @Test
+  func plainIdlePublishesAtThe700MillisecondCap() {
+    let now = ContinuousClock().now
+    var settler = AgentDetectionSettler<String>()
+
+    _ = settler.settle(match: match(.running), processToken: "one", now: now)
+    #expect(settler.settle(match: match(.idle), processToken: "one", now: now) == .running)
     #expect(
       settler.settle(
-        match: .matched(result: .idle, ruleID: "prompt", priority: 1),
+        match: match(.idle),
+        processToken: "one",
+        now: now.advanced(by: .milliseconds(700))
+      ) == .idle
+    )
+  }
+
+  @Test
+  func visibleIdleBypassesTheWorkingToIdleDelay() {
+    let now = ContinuousClock().now
+    var settler = AgentDetectionSettler<String>()
+
+    _ = settler.settle(match: match(.running), processToken: "one", now: now)
+    #expect(
+      settler.settle(
+        match: match(.idle, visibleIdle: true),
         processToken: "one",
         now: now
       ) == .idle
@@ -47,119 +66,46 @@ struct AgentDetectionSettlerTests {
   }
 
   @Test
-  func idleNeedsThreeConsecutiveMatchesAfterRunning() {
+  func needsInputToIdlePublishesImmediately() {
     let now = ContinuousClock().now
     var settler = AgentDetectionSettler<String>()
-    let running = AgentDetectionMatch.matched(result: .running, ruleID: "working", priority: 2)
-    let idle = AgentDetectionMatch.matched(result: .idle, ruleID: "prompt", priority: 1)
 
-    #expect(settler.settle(match: running, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .idle)
+    _ = settler.settle(match: match(.needsInput), processToken: "one", now: now)
+    #expect(settler.settle(match: match(.idle), processToken: "one", now: now) == .idle)
   }
 
   @Test
-  func idlePublishesAtThe700MillisecondCap() {
+  func holdPreservesStateAndClearsPendingIdle() {
     let now = ContinuousClock().now
     var settler = AgentDetectionSettler<String>()
-    let running = AgentDetectionMatch.matched(result: .running, ruleID: "working", priority: 2)
-    let idle = AgentDetectionMatch.matched(result: .idle, ruleID: "prompt", priority: 1)
 
-    #expect(settler.settle(match: running, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .running)
-    #expect(
-      settler.settle(
-        match: idle,
-        processToken: "one",
-        now: now.advanced(by: .milliseconds(699))
-      ) == .running
+    _ = settler.settle(match: match(.running), processToken: "one", now: now)
+    _ = settler.settle(match: match(.idle), processToken: "one", now: now)
+    _ = settler.settle(match: match(.idle), processToken: "one", now: now)
+    #expect(settler.settle(match: match(.hold), processToken: "one", now: now) == .running)
+    for _ in 0..<3 {
+      #expect(settler.settle(match: match(.idle), processToken: "one", now: now) == .running)
+    }
+  }
+
+  @Test
+  func processTokenChangeResetsBeforeApplyingHold() {
+    let now = ContinuousClock().now
+    var settler = AgentDetectionSettler<String>()
+
+    #expect(settler.settle(match: match(.running), processToken: "one", now: now) == .running)
+    #expect(settler.settle(match: match(.hold), processToken: "two", now: now) == .unknown)
+  }
+
+  private func match(
+    _ result: AgentDetectionRuleResult,
+    visibleIdle: Bool = false
+  ) -> AgentDetectionMatch {
+    AgentDetectionMatch(
+      result: result,
+      ruleID: "rule",
+      visibleIdle: visibleIdle
     )
-    #expect(
-      settler.settle(
-        match: idle,
-        processToken: "one",
-        now: now.advanced(by: .milliseconds(700))
-      ) == .idle
-    )
-  }
-
-  @Test(arguments: [AgentDetectionRuleResult.running, .needsInput])
-  func noMatchHoldsStrongStateForAtMost700Milliseconds(result: AgentDetectionRuleResult) {
-    let now = ContinuousClock().now
-    var settler = AgentDetectionSettler<String>()
-    let strong = AgentDetectionMatch.matched(result: result, ruleID: "strong", priority: 1)
-
-    let expectedState = strongState(for: result)
-    #expect(settler.settle(match: strong, processToken: "one", now: now) == expectedState)
-    #expect(settler.settle(match: .noMatch, processToken: "one", now: now) == expectedState)
-    #expect(
-      settler.settle(
-        match: .noMatch,
-        processToken: "one",
-        now: now.advanced(by: .milliseconds(699))
-      ) == expectedState
-    )
-    #expect(
-      settler.settle(
-        match: .noMatch,
-        processToken: "one",
-        now: now.advanced(by: .milliseconds(700))
-      ) == .unknown
-    )
-  }
-
-  @Test
-  func noMatchAfterIdlePublishesUnknownImmediately() {
-    let now = ContinuousClock().now
-    var settler = AgentDetectionSettler<String>()
-    let idle = AgentDetectionMatch.matched(result: .idle, ruleID: "prompt", priority: 1)
-
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .idle)
-    #expect(settler.settle(match: .noMatch, processToken: "one", now: now) == .unknown)
-  }
-
-  @Test
-  func strongEvidenceCancelsPendingIdle() {
-    let now = ContinuousClock().now
-    var settler = AgentDetectionSettler<String>()
-    let running = AgentDetectionMatch.matched(result: .running, ruleID: "working", priority: 2)
-    let idle = AgentDetectionMatch.matched(result: .idle, ruleID: "prompt", priority: 1)
-
-    _ = settler.settle(match: running, processToken: "one", now: now)
-    _ = settler.settle(match: idle, processToken: "one", now: now)
-    _ = settler.settle(match: idle, processToken: "one", now: now)
-    _ = settler.settle(match: running, processToken: "one", now: now)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .running)
-  }
-
-  @Test
-  func holdPreservesStateAndClearsPendingWork() {
-    let now = ContinuousClock().now
-    var settler = AgentDetectionSettler<String>()
-    let running = AgentDetectionMatch.matched(result: .running, ruleID: "working", priority: 3)
-    let idle = AgentDetectionMatch.matched(result: .idle, ruleID: "prompt", priority: 2)
-    let hold = AgentDetectionMatch.matched(result: .hold, ruleID: "transcript", priority: 1)
-
-    _ = settler.settle(match: running, processToken: "one", now: now)
-    _ = settler.settle(match: idle, processToken: "one", now: now)
-    _ = settler.settle(match: idle, processToken: "one", now: now)
-    #expect(settler.settle(match: hold, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: idle, processToken: "one", now: now) == .running)
-  }
-
-  @Test
-  func processTokenChangeResetsBeforeApplyingEvidence() {
-    let now = ContinuousClock().now
-    var settler = AgentDetectionSettler<String>()
-    let running = AgentDetectionMatch.matched(result: .running, ruleID: "working", priority: 1)
-    let hold = AgentDetectionMatch.matched(result: .hold, ruleID: "overlay", priority: 1)
-
-    #expect(settler.settle(match: running, processToken: "one", now: now) == .running)
-    #expect(settler.settle(match: hold, processToken: "two", now: now) == .unknown)
-    #expect(settler.settle(match: .noMatch, processToken: "two", now: now) == .unknown)
   }
 
   private func strongState(for result: AgentDetectionRuleResult) -> AgentDetectionState {

@@ -441,7 +441,21 @@ struct GhosttySurfaceBridgeTests {
     #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
     #expect(bridge.state.progressState == nil)
     #expect(bridge.state.progressValue == nil)
+    #expect(bridge.state.agentOSCProgress == "4;1;42")
     #expect(reportedStates == [GHOSTTY_PROGRESS_STATE_REMOVE])
+  }
+
+  @Test
+  func progressRemovalRetainsIdleDetectionSignal() {
+    let bridge = GhosttySurfaceBridge()
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROGRESS_REPORT, action: ghostty_action_u())
+    action.action.progress_report = ghostty_action_progress_report_s(
+      state: GHOSTTY_PROGRESS_STATE_REMOVE,
+      progress: -1
+    )
+
+    #expect(bridge.handleAction(target: ghosttySurfaceTarget(), action: action))
+    #expect(bridge.state.agentOSCProgress == "4;0;")
   }
 
   @Test

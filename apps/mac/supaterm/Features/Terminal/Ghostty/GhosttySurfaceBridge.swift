@@ -495,6 +495,8 @@ final class GhosttySurfaceBridge {
     switch action.tag {
     case GHOSTTY_ACTION_PROGRESS_REPORT:
       let report = action.action.progress_report
+      state.agentOSCProgress = agentOSCProgress(report)
+      state.agentOSCProgressProcessGroupID = surfaceView?.foregroundProcessGroupID
       guard
         state.progressStyleEnabled,
         report.state != GHOSTTY_PROGRESS_STATE_REMOVE
@@ -537,6 +539,28 @@ final class GhosttySurfaceBridge {
     default:
       return false
     }
+  }
+
+  private func agentOSCProgress(_ report: ghostty_action_progress_report_s) -> String {
+    let stateCode: Int
+    switch report.state {
+    case GHOSTTY_PROGRESS_STATE_REMOVE:
+      stateCode = 0
+    case GHOSTTY_PROGRESS_STATE_SET:
+      stateCode = 1
+    case GHOSTTY_PROGRESS_STATE_ERROR:
+      stateCode = 2
+    case GHOSTTY_PROGRESS_STATE_INDETERMINATE:
+      stateCode = 3
+    case GHOSTTY_PROGRESS_STATE_PAUSE:
+      stateCode = 4
+    default:
+      return ""
+    }
+    if report.progress >= 0 {
+      return "4;\(stateCode);\(report.progress)"
+    }
+    return "4;\(stateCode);"
   }
 
   private func clearProgressReport() {

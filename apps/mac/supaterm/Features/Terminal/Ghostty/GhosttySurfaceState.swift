@@ -16,6 +16,8 @@ final class GhosttySurfaceState {
   var pwd: String?
   var derivedConfig = GhosttySurfaceConfig()
   var oscBackgroundColor: NSColor?
+  var agentOSCProgress = ""
+  var agentOSCProgressProcessGroupID: Int32?
   var progressState: ghostty_action_progress_report_state_e?
   var progressValue: Int?
   var commandExitCode: Int?

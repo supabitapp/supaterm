@@ -8,7 +8,7 @@ public enum AgentDetectionState: Equatable, Sendable {
 public struct AgentDetectionSettler<ProcessToken: Hashable & Sendable>: Sendable {
   private var processToken: ProcessToken?
   private var state = AgentDetectionState.unknown
-  private var pending: Pending?
+  private var pendingIdle: PendingIdle?
 
   public init() {}
 
@@ -20,71 +20,50 @@ public struct AgentDetectionSettler<ProcessToken: Hashable & Sendable>: Sendable
     if self.processToken != processToken {
       self.processToken = processToken
       state = .unknown
-      pending = nil
+      pendingIdle = nil
     }
 
-    switch match {
-    case .matched(.running, _, _):
+    switch match.result {
+    case .running:
       return publish(.running)
-    case .matched(.needsInput, _, _):
+    case .needsInput:
       return publish(.needsInput)
-    case .matched(.hold, _, _):
-      pending = nil
+    case .hold:
+      pendingIdle = nil
       return state
-    case .matched(.idle, _, _):
+    case .idle where match.visibleIdle:
+      return publish(.idle)
+    case .idle:
       return settleIdle(now: now)
-    case .noMatch:
-      return settleNoMatch(now: now)
     }
   }
 
   private mutating func settleIdle(now: ContinuousClock.Instant) -> AgentDetectionState {
-    guard state.isStrong else { return publish(.idle) }
-    let count: Int
+    guard state == .running else { return publish(.idle) }
+    let confirmations: Int
     let startedAt: ContinuousClock.Instant
-    if case .idle(let existingCount, let existingStart) = pending {
-      count = existingCount + 1
-      startedAt = existingStart
+    if let pendingIdle {
+      confirmations = pendingIdle.confirmations + 1
+      startedAt = pendingIdle.startedAt
     } else {
-      count = 1
+      confirmations = 0
       startedAt = now
     }
-    if count >= 3 || startedAt.duration(to: now) >= .milliseconds(700) {
+    if confirmations >= 3 || startedAt.duration(to: now) >= .milliseconds(700) {
       return publish(.idle)
     }
-    pending = .idle(count: count, startedAt: startedAt)
-    return state
-  }
-
-  private mutating func settleNoMatch(now: ContinuousClock.Instant) -> AgentDetectionState {
-    guard state.isStrong else { return publish(.unknown) }
-    let startedAt: ContinuousClock.Instant
-    if case .noMatch(let existingStart) = pending {
-      startedAt = existingStart
-    } else {
-      startedAt = now
-    }
-    if startedAt.duration(to: now) >= .milliseconds(700) {
-      return publish(.unknown)
-    }
-    pending = .noMatch(startedAt: startedAt)
+    pendingIdle = PendingIdle(confirmations: confirmations, startedAt: startedAt)
     return state
   }
 
   private mutating func publish(_ state: AgentDetectionState) -> AgentDetectionState {
     self.state = state
-    pending = nil
+    pendingIdle = nil
     return state
   }
 
-  private enum Pending: Sendable {
-    case idle(count: Int, startedAt: ContinuousClock.Instant)
-    case noMatch(startedAt: ContinuousClock.Instant)
-  }
-}
-
-extension AgentDetectionState {
-  fileprivate var isStrong: Bool {
-    self == .running || self == .needsInput
+  private struct PendingIdle: Sendable {
+    let confirmations: Int
+    let startedAt: ContinuousClock.Instant
   }
 }

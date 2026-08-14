@@ -87,7 +87,7 @@ private func agentExplainResult(paneID: UUID) -> SupatermAgentExplainResult {
     target: agentExplainTarget(paneID: paneID),
     mode: .fallback,
     status: .resolved,
-    rules: SupatermAgentExplainResult.Rules(source: .cache, generation: 7),
+    rules: SupatermAgentExplainResult.Rules(source: .embedded, generation: 7),
     agent: SupatermAgentExplainResult.Agent(
       id: "codex",
       displayName: "Codex",

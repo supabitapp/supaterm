@@ -2,3 +2,4 @@ project
 
 ↑/↓ to scroll · pgup/pgdn to move
 home/end to jump · q to quit
+esc to edit prev

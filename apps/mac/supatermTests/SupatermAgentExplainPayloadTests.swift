@@ -17,7 +17,7 @@ struct SupatermAgentExplainPayloadTests {
     #expect(object["mode"] as? String == "fallback")
     #expect(object["status"] as? String == "no_rule_match_or_settling")
     #expect(object["ruleID"] as? String == "claude.needs-input")
-    #expect(rules["source"] as? String == "cache")
+    #expect(rules["source"] as? String == "embedded")
     #expect((rules["generation"] as? NSNumber)?.uint64Value == 7)
     #expect(agent["displayName"] as? String == "Claude")
     #expect(agent["phase"] as? String == "needs_input")
@@ -77,7 +77,7 @@ struct SupatermAgentExplainPayloadTests {
         ).rawValue == value
       )
     }
-    for value in ["bundle", "cache"] {
+    for value in ["embedded"] {
       #expect(
         try JSONDecoder().decode(
           SupatermAgentExplainResult.RuleSource.self,
@@ -107,7 +107,7 @@ func agentExplainTestResult() -> SupatermAgentExplainResult {
     target: agentExplainTestTarget(),
     mode: .fallback,
     status: .noRuleMatchOrSettling,
-    rules: SupatermAgentExplainResult.Rules(source: .cache, generation: 7),
+    rules: SupatermAgentExplainResult.Rules(source: .embedded, generation: 7),
     agent: SupatermAgentExplainResult.Agent(
       id: "claude",
       displayName: "Claude",

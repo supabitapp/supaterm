@@ -417,33 +417,4 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     #expect(result == nil)
   }
 
-  @Test
-  func processRuleDecodesItsPublicFields() throws {
-    let rule = try JSONDecoder().decode(
-      AgentDetectionProcessRule.self,
-      from: Data(
-        #"{"executable":"node","script_suffix":"/agent/cli.js"}"#.utf8
-      )
-    )
-
-    #expect(
-      rule
-        == AgentDetectionProcessRule(
-          executable: "node",
-          scriptSuffix: "/agent/cli.js"
-        )
-    )
-  }
-
-  @Test
-  func processRuleRejectsUnknownKeys() {
-    #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(
-        AgentDetectionProcessRule.self,
-        from: Data(
-          #"{"executable":"node","script_suffix":"/agent/cli.js","argument":"--agent"}"#.utf8
-        )
-      )
-    }
-  }
 }

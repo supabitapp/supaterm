@@ -1,24 +1,13 @@
 import Darwin
 import Foundation
 
-public struct AgentDetectionProcessRule: Decodable, Equatable, Hashable, Sendable {
+public struct AgentDetectionProcessRule: Equatable, Hashable, Sendable {
   public let executable: String
   public let scriptSuffix: String?
 
   public init(executable: String, scriptSuffix: String? = nil) {
     self.executable = executable
     self.scriptSuffix = scriptSuffix
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let values = try decoder.agentDetectionContainer(keyedBy: CodingKeys.self)
-    executable = try values.decode(String.self, forKey: .executable)
-    scriptSuffix = try values.decodeIfPresent(String.self, forKey: .scriptSuffix)
-  }
-
-  private enum CodingKeys: String, CodingKey, CaseIterable {
-    case executable
-    case scriptSuffix = "script_suffix"
   }
 }
 

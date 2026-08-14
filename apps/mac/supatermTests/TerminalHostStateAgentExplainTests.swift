@@ -104,7 +104,7 @@ struct TerminalHostStateAgentExplainTests {
       for: surfaceID
     )
     let explanation = trace(
-      origin: .bundle,
+      origin: .embedded,
       status: .nativeAuthority,
       processIdentity: identity,
       agent: AgentDetectionAgentIdentity(id: "other-agent", displayName: "Other Agent"),
@@ -137,7 +137,7 @@ struct TerminalHostStateAgentExplainTests {
           startTimeMicroseconds: identity.startTimeMicroseconds
         )
     )
-    #expect(result.rules == SupatermAgentExplainResult.Rules(source: .bundle, generation: 7))
+    #expect(result.rules == SupatermAgentExplainResult.Rules(source: .embedded, generation: 7))
     #expect(result.ruleID == nil)
   }
 
@@ -245,7 +245,7 @@ struct TerminalHostStateAgentExplainTests {
     )
     let applied = host.applyAgentDetection(detection, for: surfaceID)
     let explanation = trace(
-      origin: .cache,
+      origin: .embedded,
       status: .detected,
       processIdentity: identity,
       agent: detection.agent,
@@ -262,7 +262,7 @@ struct TerminalHostStateAgentExplainTests {
     #expect(applied)
     #expect(result.mode == .fallback)
     #expect(result.status == .resolved)
-    #expect(result.rules == SupatermAgentExplainResult.Rules(source: .cache, generation: 7))
+    #expect(result.rules == SupatermAgentExplainResult.Rules(source: .embedded, generation: 7))
     #expect(
       result.agent
         == SupatermAgentExplainResult.Agent(
@@ -291,7 +291,7 @@ struct TerminalHostStateAgentExplainTests {
       processIdentity: TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 123)
     )
     let applied = host.applyAgentDetection(detection, for: surfaceID)
-    let explanation = trace(origin: .cache, generation: 8, status: .detected)
+    let explanation = trace(origin: .embedded, generation: 8, status: .detected)
 
     let result = host.agentDetectionExplain(
       target: target,
@@ -317,7 +317,7 @@ struct TerminalHostStateAgentExplainTests {
     let result = host.agentDetectionExplain(
       target: fixture.target,
       surfaceID: surfaceID,
-      explanation: trace(origin: .bundle, status: .noRuleMatchOrSettling)
+      explanation: trace(origin: .embedded, status: .noRuleMatchOrSettling)
     )
 
     #expect(applied)
@@ -364,7 +364,7 @@ struct TerminalHostStateAgentExplainTests {
     let target = fixture.target
     let identity = TerminalAgentProcessIdentity(processID: 55, startTimeMicroseconds: 456)
     let explanation = trace(
-      origin: .cache,
+      origin: .embedded,
       status: .noRuleMatchOrSettling,
       processIdentity: identity,
       agent: AgentDetectionAgentIdentity(id: "custom-agent", displayName: "Custom Agent"),
@@ -472,7 +472,7 @@ struct TerminalHostStateAgentExplainTests {
     let processGroupID: Int32 = 11
     let generation: UInt64 = 7
     let snapshot = AgentDetectionRuleSnapshot(
-      origin: .bundle,
+      origin: .embedded,
       generation: generation,
       processManifests: [
         AgentDetectionProcessManifest(
@@ -488,7 +488,7 @@ struct TerminalHostStateAgentExplainTests {
     let evaluation = AgentDetectionEvaluation(
       identity: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
       generation: generation,
-      match: .matched(result: .running, ruleID: "running", priority: 10)
+      match: AgentDetectionMatch(result: .running, ruleID: "running")
     )
     return TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
@@ -517,7 +517,7 @@ struct TerminalHostStateAgentExplainTests {
           ]
         },
         capture: { _ in
-          TerminalAgentDetectionCapture(screen: "running", rawTitle: "")
+          TerminalAgentDetectionCapture(screen: "running", oscTitle: "")
         },
         nativeAuthority: { [weak host] surfaceID in
           host?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {

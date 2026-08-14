@@ -49,8 +49,6 @@ const rewriteMeta = async (response: Response, meta: Record<string, string>): Pr
 const cacheControl = "public, max-age=300";
 const noStoreCacheControl = "no-store";
 const downloadCacheHeader = "x-supaterm-cache";
-const agentDetectionCacheControl = "public, max-age=300, must-revalidate";
-const agentDetectionAssetPath = "/agent-detection/v1/rules.toml";
 const byteRangePattern = /^bytes=(\d*)-(\d*)$/;
 const methodNotAllowed = () =>
   new Response("Method Not Allowed", {
@@ -80,12 +78,6 @@ const uncachedDownloadResponse = (response: Response, cacheStatus: string) =>
   withResponseHeaders(response, {
     "cache-control": noStoreCacheControl,
     [downloadCacheHeader]: cacheStatus,
-  });
-
-const serveAgentDetectionAsset = async (request: Request, assets: AssetBinding) =>
-  withResponseHeaders(await assets.fetch(request), {
-    "cache-control": agentDetectionCacheControl,
-    "x-content-type-options": "nosniff",
   });
 
 const upstreamFailureResponse = () =>
@@ -348,10 +340,6 @@ export default {
     const assets = getAssets(env);
     if (!assets) {
       return new Response("ASSETS binding not available", { status: 500 });
-    }
-
-    if (pathname === agentDetectionAssetPath) {
-      return serveAgentDetectionAsset(request, assets);
     }
 
     if (isVideoAsset(pathname)) {

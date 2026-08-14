@@ -123,8 +123,7 @@ extension TerminalHostState {
     }
     let source: SupatermAgentExplainResult.RuleSource =
       switch origin {
-      case .bundle: .bundle
-      case .cache: .cache
+      case .embedded: .embedded
       }
     return SupatermAgentExplainResult.Rules(
       source: source,

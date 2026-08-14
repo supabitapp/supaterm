@@ -1,11 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vite-plus/test";
 import { githubOrigin } from "./src/lib/downloads";
-import config, {
-  agentDetectionRulesFileName,
-  agentDetectionRulesSourcePath,
-  loadAgentDetectionRulesAsset,
-} from "./vite.config";
+import config from "./vite.config";
 
 type ProxyEntry = {
   changeOrigin?: boolean;
@@ -38,15 +33,5 @@ describe("vite config", () => {
 
   it("keeps direct changelog navigation on a real app route", () => {
     expect(proxy["/changelog"]).toBeUndefined();
-  });
-
-  it("emits the canonical agent detection rules without changing their bytes", async () => {
-    const [asset, canonicalRules] = await Promise.all([
-      loadAgentDetectionRulesAsset(),
-      readFile(agentDetectionRulesSourcePath),
-    ]);
-
-    expect(asset.fileName).toBe(agentDetectionRulesFileName);
-    expect(asset.source).toEqual(canonicalRules);
   });
 });

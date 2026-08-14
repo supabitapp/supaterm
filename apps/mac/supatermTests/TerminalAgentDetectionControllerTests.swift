@@ -221,7 +221,7 @@ struct TerminalAgentDetectionControllerTests {
       processGroupID: 11,
       capture: TerminalAgentDetectionCapture(
         screen: screenPrefix + String(repeating: "é", count: 40_000) + screenSuffix,
-        rawTitle: titlePrefix + String(repeating: "é", count: 3_000)
+        oscTitle: titlePrefix + String(repeating: "é", count: 3_000)
       )
     )
     let proof = identity(processID: 101, startTime: 1)
@@ -234,8 +234,8 @@ struct TerminalAgentDetectionControllerTests {
     #expect(input.screen.utf8.count <= TerminalAgentDetectionController.screenByteLimit)
     #expect(input.screen.hasSuffix(screenSuffix))
     #expect(!input.screen.hasPrefix(screenPrefix))
-    #expect(input.rawTitle.utf8.count <= TerminalAgentDetectionController.titleByteLimit)
-    #expect(input.rawTitle.hasPrefix(titlePrefix))
+    #expect(input.oscTitle.utf8.count <= TerminalAgentDetectionController.titleByteLimit)
+    #expect(input.oscTitle.hasPrefix(titlePrefix))
     #expect(fixture.host.observations[surfaceID] != nil)
   }
 
@@ -256,7 +256,9 @@ struct TerminalAgentDetectionControllerTests {
     await fixture.controller.tick(now: now.advanced(by: .milliseconds(100)))
     #expect(fixture.host.applyCalls.count == 1)
 
-    await fixture.rules.setMatch(.matched(result: .idle, ruleID: "idle", priority: 20))
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .idle, ruleID: "idle")
+    )
     await fixture.controller.tick(now: now.advanced(by: .milliseconds(300)))
     await fixture.controller.tick(now: now.advanced(by: .milliseconds(600)))
     #expect(fixture.host.applyCalls.count == 1)
@@ -265,26 +267,39 @@ struct TerminalAgentDetectionControllerTests {
     #expect(fixture.controller.explanation(for: surfaceID).status == .noRuleMatchOrSettling)
 
     await fixture.controller.tick(now: now.advanced(by: .milliseconds(900)))
+    #expect(fixture.host.observations[surfaceID]?.phase == .running)
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_200)))
     let idle = try #require(fixture.host.observations[surfaceID])
     #expect(idle.phase == .idle)
     #expect(idle.ruleID == "idle")
     #expect(idle.sequence == 2)
 
-    await fixture.rules.setMatch(.matched(result: .hold, ruleID: "hold", priority: 30))
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_200)))
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .hold, ruleID: "hold")
+    )
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
     #expect(fixture.host.applyCalls.count == 2)
     #expect(fixture.host.observations[surfaceID]?.ruleID == "idle")
 
-    await fixture.rules.setMatch(.matched(result: .needsInput, ruleID: "attention", priority: 40))
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .needsInput, ruleID: "attention")
+    )
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_800)))
     #expect(fixture.host.observations[surfaceID]?.phase == .needsInput)
     #expect(fixture.host.observations[surfaceID]?.sequence == 3)
 
-    await fixture.rules.setMatch(.noMatch)
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_800)))
-    #expect(fixture.host.observations[surfaceID]?.phase == .needsInput)
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(2_600)))
-    #expect(fixture.host.observations[surfaceID] == nil)
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(
+        result: .idle,
+        ruleID: AgentDetectionMatcher.fallbackRuleID
+      )
+    )
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(2_100)))
+    #expect(fixture.host.observations[surfaceID]?.phase == .idle)
+    #expect(
+      fixture.host.observations[surfaceID]?.ruleID
+        == AgentDetectionMatcher.fallbackRuleID
+    )
   }
 
   @Test
@@ -393,7 +408,7 @@ struct TerminalAgentDetectionControllerTests {
       to: executableURL
     )
     try adHocSign(executableURL)
-    let repository = try canonicalRepository(cacheDirectory: temporaryDirectory)
+    let repository = try AgentDetectionRuleRepository()
     let runtime = try makeGhosttyRuntime("")
     let host = TerminalHostState(
       runtime: runtime,
@@ -438,7 +453,14 @@ struct TerminalAgentDetectionControllerTests {
     surface.bridge.state.title = "⠋ running"
 
     let detected = try await waitForDetection(
-      { fallbackObservation(in: host, for: surface.id) },
+      {
+        guard let observation = fallbackObservation(in: host, for: surface.id),
+          observation.phase == .running
+        else {
+          return nil
+        }
+        return observation
+      },
       explanation: { host.agentDetectionExplanation(for: surface.id) }
     )
     processID = detected.processIdentity.processID
@@ -511,20 +533,6 @@ struct TerminalAgentDetectionControllerTests {
     AgentDetectionProcessMatch(
       agentID: "agent",
       processIdentity: identity
-    )
-  }
-
-  private func canonicalRepository(
-    cacheDirectory: URL
-  ) throws -> AgentDetectionRuleRepository {
-    let resourceDirectory = URL(filePath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appending(path: "supaterm/Resources/AgentDetection", directoryHint: .isDirectory)
-    let rules = try Data(contentsOf: resourceDirectory.appending(path: "rules.toml"))
-    return try AgentDetectionRuleRepository(
-      bundledRules: rules,
-      cacheURL: cacheDirectory.appending(path: "rules.plist")
     )
   }
 
@@ -654,7 +662,7 @@ private final class DetectionHostFixture {
     processGroupID: Int32?,
     capture: TerminalAgentDetectionCapture? = TerminalAgentDetectionCapture(
       screen: "ready",
-      rawTitle: ""
+      oscTitle: ""
     )
   ) -> UUID {
     let id = UUID()
@@ -709,10 +717,9 @@ private actor DetectionRulesFixture {
   private let identity = AgentDetectionAgentIdentity(id: "agent", displayName: "Agent")
   private let gate: DetectionGate?
   private var generation: UInt64 = 1
-  private var match = AgentDetectionMatch.matched(
+  private var match = AgentDetectionMatch(
     result: .running,
-    ruleID: "running",
-    priority: 10
+    ruleID: "running"
   )
   private var capturedInputs: [AgentDetectionInput] = []
 
@@ -722,7 +729,7 @@ private actor DetectionRulesFixture {
 
   func snapshot() -> AgentDetectionRuleSnapshot {
     AgentDetectionRuleSnapshot(
-      origin: .bundle,
+      origin: .embedded,
       generation: generation,
       processManifests: [
         AgentDetectionProcessManifest(

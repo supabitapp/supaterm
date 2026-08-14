@@ -48,7 +48,14 @@ nonisolated struct TerminalAgentDetectionSurfaceSnapshot: Equatable, Sendable {
 
 nonisolated struct TerminalAgentDetectionCapture: Equatable, Sendable {
   let screen: String
-  let rawTitle: String
+  let oscTitle: String
+  let oscProgress: String
+
+  init(screen: String, oscTitle: String, oscProgress: String = "") {
+    self.screen = screen
+    self.oscTitle = oscTitle
+    self.oscProgress = oscProgress
+  }
 }
 
 nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
@@ -441,7 +448,8 @@ final class TerminalAgentDetectionController {
       proof: proof,
       input: AgentDetectionInput(
         screen: Self.utf8Suffix(captured.screen, maximumBytes: Self.screenByteLimit),
-        rawTitle: Self.utf8Prefix(captured.rawTitle, maximumBytes: Self.titleByteLimit)
+        oscTitle: Self.utf8Prefix(captured.oscTitle, maximumBytes: Self.titleByteLimit),
+        oscProgress: captured.oscProgress
       )
     )
   }
@@ -581,15 +589,18 @@ final class TerminalAgentDetectionController {
   }
 
   private func matched(_ evaluation: AgentDetectionEvaluation) -> Matched? {
-    guard case .matched(let result, let ruleID, _) = evaluation.match else { return nil }
     let phase: AgentActivityPhase? =
-      switch result {
+      switch evaluation.match.result {
       case .running: AgentActivityPhase.running
       case .needsInput: AgentActivityPhase.needsInput
       case .idle: AgentActivityPhase.idle
       case .hold: nil
       }
-    return Matched(agent: evaluation.identity, phase: phase, ruleID: ruleID)
+    return Matched(
+      agent: evaluation.identity,
+      phase: phase,
+      ruleID: evaluation.match.ruleID
+    )
   }
 
   private func publishedRuleID(
@@ -608,13 +619,13 @@ final class TerminalAgentDetectionController {
       } else {
         nil
       }
-    switch match {
-    case .matched(.hold, _, _), .noMatch:
+    switch match.result {
+    case .hold:
       return phase(settled) == nil ? nil : previousRuleID
-    case .matched(.idle, let ruleID, _):
-      return settled == .idle ? ruleID : previousRuleID
-    case .matched(_, let ruleID, _):
-      return ruleID
+    case .idle:
+      return settled == .idle ? match.ruleID : previousRuleID
+    case .running, .needsInput:
+      return match.ruleID
     }
   }
 
@@ -732,7 +743,11 @@ final class TerminalAgentDetectionController {
         }
         return TerminalAgentDetectionCapture(
           screen: screen,
-          rawTitle: surface.rawTitle ?? ""
+          oscTitle: surface.rawTitle ?? "",
+          oscProgress: surface.bridge.state.agentOSCProgressProcessGroupID
+            == key.foregroundProcessGroupID
+            ? surface.bridge.state.agentOSCProgress
+            : ""
         )
       },
       nativeAuthority: { [weak terminal] surfaceID in

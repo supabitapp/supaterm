@@ -71,8 +71,8 @@ Fallback detection proves the agent process before it reads terminal content:
 2. Match a declared executable, or a declared wrapper with one complete script argument whose
    suffix is declared.
 3. Record the process ID and process start time as one process identity.
-4. Read at most 64 KiB from the bottom of the active screen and 4 KiB from the start of the raw
-   terminal title.
+4. Read at most 64 KiB from the bottom of the active screen, 4 KiB from the start of the raw
+   terminal title, and the latest terminal progress signal.
 5. Apply the rules for the proved agent, then wait for weak state changes to settle.
 
 The process proof prevents terminal text from naming an agent on its own. Password entry, closed
@@ -86,19 +86,8 @@ closes, the process identity changes, or detection can no longer prove the state
 
 ### Rules
 
-The app bundle contains `AgentDetection/rules.toml`, so detection works before any network request.
-The file declares agent process forms and bounded screen or title rules. Supaterm rejects unknown
-keys, invalid expressions, unsafe bounds, and rule files above 256 KiB.
-
-On launch, and then every six hours, the app checks:
-
-```text
-https://supaterm.com/agent-detection/v1/rules.toml
-```
-
-Supaterm applies the same strict parser and size limits to the downloaded file. It writes valid rules
-to an atomic cache and activates them only when their generation is newer than the active rules. A
-bad, stale, conflicting, missing, or unreachable update leaves the current rules active.
+Supaterm compiles the Claude Code, Codex, and Pi process and activity rules into the app. It does not
+read or update rule files at runtime.
 
 ## Supaterm Skill
 

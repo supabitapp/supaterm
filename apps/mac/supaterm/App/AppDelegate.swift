@@ -39,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private var spaceCatalog = TerminalSpaceCatalog.default
 
   private let menuController: SupatermMenuController
-  private let agentDetectionRuleService: AgentDetectionRuleService?
+  private let agentDetectionRuleRepository: AgentDetectionRuleRepository?
   private let configurationDiagnosticsWindowController = ConfigurationDiagnosticsWindowController()
   private let globalKeybindManager: GhosttyGlobalKeybindManager
   private let ghosttyRuntime: GhosttyRuntime
@@ -89,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
     )
     let terminalCommandExecutor = TerminalCommandExecutor(registry: terminalWindowRegistry)
-    let agentDetectionRuleService = Self.makeAgentDetectionRuleService()
+    let agentDetectionRuleRepository = Self.makeAgentDetectionRuleRepository()
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
     let globalKeybindManager = GhosttyGlobalKeybindManager(runtime: ghosttyRuntime)
     let quitConfirmationPresenter = QuitConfirmationPresenter()
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     } withDependencies: {
       $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
     }
-    self.agentDetectionRuleService = agentDetectionRuleService
+    self.agentDetectionRuleRepository = agentDetectionRuleRepository
     self.menuController = menuController
     self.globalKeybindManager = globalKeybindManager
     self.ghosttyRuntime = ghosttyRuntime
@@ -147,7 +147,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     menuController.install()
     socketStore.send(.task)
     refreshInstalledAgentHooks()
-    agentDetectionRuleService?.start()
     restoreWindowsAtLaunch()
     #if SUPATERM_DEMO
       DemoSeed.decorate(windowControllers.values.map(\.terminal))
@@ -211,7 +210,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       )
     )
     globalKeybindManager.disable()
-    agentDetectionRuleService?.stop()
     socketStore.send(.shutdown)
   }
 
@@ -521,7 +519,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       launch: launch,
       zmxClient: launchZmxClient,
       zmxSessionsEnabled: zmxSessionsEnabledAtLaunch,
-      agentDetectionRuleRepository: agentDetectionRuleService?.repository
+      agentDetectionRuleRepository: agentDetectionRuleRepository
     ) { [weak self] in
       self?.saveSession()
     }
@@ -599,43 +597,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     return performNewWindow()
   }
 
-  private static func makeAgentDetectionRuleService() -> AgentDetectionRuleService? {
-    guard let resourceDirectoryURL = Bundle.main.resourceURL else {
-      SupatermLog.error(
-        SupatermLog.terminal,
-        "agent_detection.rules.bootstrap",
-        fields: ["origin=bundle", "result=disabled", "error=missing_resource_directory"]
-      )
-      return nil
-    }
-    guard
-      let cachesDirectoryURL = FileManager.default.urls(
-        for: .cachesDirectory,
-        in: .userDomainMask
-      ).first
-    else {
-      SupatermLog.error(
-        SupatermLog.terminal,
-        "agent_detection.rules.bootstrap",
-        fields: ["origin=cache", "result=disabled", "error=missing_cache_directory"]
-      )
-      return nil
-    }
-    let cacheURL = AgentDetectionRuleService.cacheURL(
-      in: cachesDirectoryURL,
-      bundleIdentifier: Bundle.main.bundleIdentifier ?? SupatermLog.subsystem
-    )
+  private static func makeAgentDetectionRuleRepository() -> AgentDetectionRuleRepository? {
     do {
-      return try AgentDetectionRuleService(
-        resourceDirectoryURL: resourceDirectoryURL,
-        cacheURL: cacheURL
-      )
+      return try AgentDetectionRuleRepository()
     } catch {
       SupatermLog.error(
         SupatermLog.terminal,
         "agent_detection.rules.bootstrap",
         fields: [
-          "origin=bundle",
+          "origin=embedded",
           "result=disabled",
           "error=\(String(reflecting: type(of: error)))",
         ]

@@ -5,184 +5,126 @@ import Testing
 
 struct AgentDetectionMatcherTests {
   @Test
-  func selectsTheHighestPriorityMatch() throws {
+  func selectsTheHighestPriorityMatchAndKeepsFileOrderForTies() throws {
     let matcher = try AgentDetectionMatcher(
       agent: agent(
         rules: [
-          rule(id: "idle", result: .idle, priority: 10, when: .contains("ready")),
-          rule(id: "input", result: .needsInput, priority: 20, when: .contains("ready")),
+          rule(id: "first", result: .idle, priority: 20, contains: ["ready"]),
+          rule(id: "second", result: .needsInput, priority: 20, contains: ["ready"]),
+          rule(id: "low", result: .running, priority: 10, contains: ["ready"]),
         ]
       )
     )
 
     #expect(
-      matcher.match(AgentDetectionInput(screen: "ready", rawTitle: ""))
-        == .matched(result: .needsInput, ruleID: "input", priority: 20)
+      matcher.match(AgentDetectionInput(screen: "ready", oscTitle: ""))
+        == AgentDetectionMatch(result: .idle, ruleID: "first")
     )
   }
 
   @Test
-  func noMatchingRuleIsUnknownEvidence() throws {
+  func noMatchingRuleUsesTheKnownAgentIdleFallback() throws {
     let matcher = try AgentDetectionMatcher(
-      agent: agent(rules: [rule(when: .contains("ready"))])
+      agent: agent(rules: [rule(contains: ["ready"])])
     )
 
-    #expect(matcher.match(AgentDetectionInput(screen: "working", rawTitle: "")) == .noMatch)
+    #expect(
+      matcher.match(AgentDetectionInput(screen: "working", oscTitle: ""))
+        == AgentDetectionMatch(
+          result: .idle,
+          ruleID: AgentDetectionMatcher.fallbackRuleID
+        )
+    )
   }
 
   @Test
-  func selectsRawAndNonEmptyScreenLines() throws {
-    let rawMatcher = try AgentDetectionMatcher(
+  func evaluatesRecursiveManifestGates() throws {
+    let matcher = try AgentDetectionMatcher(
       agent: agent(
         rules: [
           rule(
-            region: AgentDetectionRegion(source: .screen, lastLines: 2, nonEmpty: false),
-            when: .contains("second")
+            gate: AgentDetectionGate(
+              contains: ["ready"],
+              regex: [#"Press\s+Enter"#],
+              lineRegex: [#"^Press Enter$"#],
+              all: [AgentDetectionGate(contains: ["enter"])],
+              any: [
+                AgentDetectionGate(contains: ["return"]),
+                AgentDetectionGate(contains: ["press"]),
+              ],
+              not: [AgentDetectionGate(contains: ["denied"])]
+            )
           )
         ]
       )
     )
-    let nonEmptyMatcher = try AgentDetectionMatcher(
-      agent: agent(
-        rules: [
-          rule(
-            region: AgentDetectionRegion(source: .screen, lastLines: 2, nonEmpty: true),
-            when: .contains("second")
-          )
-        ]
-      )
-    )
-    let input = AgentDetectionInput(screen: "first\nsecond\n\nthird", rawTitle: "")
-
-    #expect(rawMatcher.match(input) == .noMatch)
-    #expect(nonEmptyMatcher.match(input) != .noMatch)
-  }
-
-  @Test
-  func titleRulesDoNotInspectTheScreen() throws {
-    let matcher = try AgentDetectionMatcher(
-      agent: agent(
-        rules: [
-          rule(region: AgentDetectionRegion(source: .title), when: .contains("Action Required"))
-        ]
-      )
-    )
 
     #expect(
-      matcher.match(AgentDetectionInput(screen: "Action Required", rawTitle: "project")) == .noMatch
+      matcher.match(AgentDetectionInput(screen: "READY\nPress Enter", oscTitle: "")).ruleID
+        == "rule"
     )
     #expect(
-      matcher.match(AgentDetectionInput(screen: "", rawTitle: "Action Required | project"))
-        != .noMatch
+      matcher.match(
+        AgentDetectionInput(screen: "READY\nPress Enter\nDenied", oscTitle: "")
+      ).ruleID == AgentDetectionMatcher.fallbackRuleID
     )
   }
 
   @Test
-  func evaluatesEveryLeafExpression() throws {
-    let expressions: [(AgentDetectionExpression, String)] = [
-      (.contains("Ready"), "Ready"),
-      (.containsCaseInsensitive("ready"), "READY"),
-      (.regex("R.*y"), "Ready"),
-      (.lineRegex("^Ready$"), "before\nReady\nafter"),
+  func extractsEveryUsedRegion() throws {
+    let rules = [
+      rule(id: "bottom", priority: 10, region: .bottomNonEmptyLines(2), contains: ["b\n\nc"]),
+      rule(id: "top", priority: 20, region: .topNonEmptyLines(2), contains: ["a\n\nb"]),
+      rule(id: "prompt", priority: 30, region: .afterLastPromptMarker, contains: ["after"]),
+      rule(id: "box", priority: 40, region: .promptBoxBody, contains: ["inside"]),
+      rule(id: "rule", priority: 50, region: .afterLastHorizontalRule, contains: ["below"]),
+      rule(id: "title", priority: 60, region: .oscTitle, contains: ["title"]),
+      rule(id: "progress", priority: 70, region: .oscProgress, contains: ["4;0"]),
     ]
-
-    for (expression, screen) in expressions {
-      let matcher = try AgentDetectionMatcher(agent: agent(rules: [rule(when: expression)]))
-      #expect(matcher.match(AgentDetectionInput(screen: screen, rawTitle: "")) != .noMatch)
-    }
-  }
-
-  @Test
-  func evaluatesRecursiveBooleanExpressions() throws {
-    let matcher = try AgentDetectionMatcher(
-      agent: agent(
-        rules: [
-          rule(
-            when: .all([
-              .contains("Ready"),
-              .any([.contains("Enter"), .contains("Return")]),
-              .not(.contains("Denied")),
-            ])
-          )
-        ]
-      )
-    )
+    let matcher = try AgentDetectionMatcher(agent: agent(rules: rules))
 
     #expect(
-      matcher.match(AgentDetectionInput(screen: "Ready\nPress Enter", rawTitle: "")) != .noMatch
-    )
-    #expect(
-      matcher.match(AgentDetectionInput(screen: "Ready\nPress Enter\nDenied", rawTitle: ""))
-        == .noMatch
+      matcher.match(
+        AgentDetectionInput(
+          screen: "a\n\nb\n› prompt\nafter\n───\ninside\n───\nbelow\n\nc",
+          oscTitle: "title",
+          oscProgress: "4;0;"
+        )
+      ).ruleID == "progress"
     )
   }
 
   @Test
-  func regexMatchesAcrossTheRegionWhileLineRegexChecksEachLine() throws {
-    let wholeMatcher = try AgentDetectionMatcher(
-      agent: agent(rules: [rule(when: .regex("(?s)start.*finish"))])
-    )
-    let lineMatcher = try AgentDetectionMatcher(
-      agent: agent(rules: [rule(when: .lineRegex("^start.*finish$"))])
-    )
-    let input = AgentDetectionInput(screen: "start\nmiddle\nfinish", rawTitle: "")
+  func currentCatalogDetectsTrustPromptAndNewSpinner() throws {
+    let claude = try matcher(agentID: "claude")
+    let codex = try matcher(agentID: "codex")
 
-    #expect(wholeMatcher.match(input) != .noMatch)
-    #expect(lineMatcher.match(input) == .noMatch)
+    #expect(
+      claude.match(AgentDetectionInput(screen: "", oscTitle: "◐ project")).result == .running
+    )
+    #expect(
+      codex.match(
+        AgentDetectionInput(
+          screen: "> You are in /tmp/project\n\nDo you trust the contents of this directory?",
+          oscTitle: ""
+        )
+      ).ruleID == "trust_directory"
+    )
   }
 
   @Test(arguments: ["claude-needs-input", "codex-needs-input"])
-  func canonicalPermissionFixturesNeedInput(name: String) throws {
-    let fixture = try fixture(name: name)
-    let agentID = String(name.prefix { $0 != "-" })
-    let agent = try #require(fixture.ruleSet.agents.first { $0.id == agentID })
-    let matcher = try AgentDetectionMatcher(agent: agent)
-
-    guard
-      case .matched(let result, _, _) = matcher.match(
-        AgentDetectionInput(screen: fixture.screen, rawTitle: fixture.title)
-      )
-    else {
-      Issue.record("Expected a matched permission rule")
-      return
-    }
-    #expect(result == .needsInput)
+  func permissionFixturesNeedInput(name: String) throws {
+    #expect(try matchFixture(name).result == .needsInput)
   }
 
   @Test(arguments: ["claude-running", "codex-running", "pi-running"])
-  func canonicalWorkingFixturesAreRunning(name: String) throws {
-    let fixture = try fixture(name: name)
-    let agentID = String(name.prefix { $0 != "-" })
-    let agent = try #require(fixture.ruleSet.agents.first { $0.id == agentID })
-    let matcher = try AgentDetectionMatcher(agent: agent)
-
-    guard
-      case .matched(let result, _, _) = matcher.match(
-        AgentDetectionInput(screen: fixture.screen, rawTitle: fixture.title)
-      )
-    else {
-      Issue.record("Expected a matched running rule")
-      return
-    }
-    #expect(result == .running)
+  func workingFixturesAreRunning(name: String) throws {
+    #expect(try matchFixture(name).result == .running)
   }
 
   @Test(arguments: ["claude-transcript", "codex-transcript"])
-  func canonicalTranscriptFixturesHoldThePriorState(name: String) throws {
-    let fixture = try fixture(name: name)
-    let agentID = String(name.prefix { $0 != "-" })
-    let agent = try #require(fixture.ruleSet.agents.first { $0.id == agentID })
-    let matcher = try AgentDetectionMatcher(agent: agent)
-
-    guard
-      case .matched(let result, _, _) = matcher.match(
-        AgentDetectionInput(screen: fixture.screen, rawTitle: fixture.title)
-      )
-    else {
-      Issue.record("Expected a matched transcript rule")
-      return
-    }
-    #expect(result == .hold)
+  func transcriptViewerFixturesHoldThePriorState(name: String) throws {
+    #expect(try matchFixture(name).result == .hold)
   }
 
   private func agent(rules: [AgentDetectionStateRule]) -> AgentDetectionAgentRule {
@@ -198,19 +140,25 @@ struct AgentDetectionMatcherTests {
     id: String = "rule",
     result: AgentDetectionRuleResult = .running,
     priority: Int = 0,
-    region: AgentDetectionRegion = AgentDetectionRegion(source: .screen),
-    when: AgentDetectionExpression
+    region: AgentDetectionRegion = .wholeRecent,
+    contains: [String] = [],
+    gate: AgentDetectionGate? = nil
   ) -> AgentDetectionStateRule {
     AgentDetectionStateRule(
       id: id,
       result: result,
       priority: priority,
       region: region,
-      when: when
+      gate: gate ?? AgentDetectionGate(contains: contains)
     )
   }
 
-  private func fixture(name: String) throws -> Fixture {
+  private func matcher(agentID: String) throws -> AgentDetectionMatcher {
+    let agent = try #require(AgentDetectionRules.ruleSet.agents.first { $0.id == agentID })
+    return try AgentDetectionMatcher(agent: agent)
+  }
+
+  private func matchFixture(_ name: String) throws -> AgentDetectionMatch {
     let fixtureURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .appendingPathComponent("Fixtures/AgentDetection/\(name).txt")
@@ -218,17 +166,9 @@ struct AgentDetectionMatcherTests {
     let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
     let title = lines.first.map(String.init) ?? ""
     let screen = lines.dropFirst(2).joined(separator: "\n")
-    let catalogURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("supaterm/Resources/AgentDetection/rules.toml")
-    let ruleSet = try AgentDetectionRuleSetParser.parse(Data(contentsOf: catalogURL))
-    return Fixture(ruleSet: ruleSet, screen: screen, title: title)
-  }
-
-  private struct Fixture {
-    let ruleSet: AgentDetectionRuleSet
-    let screen: String
-    let title: String
+    let agentID = String(name.prefix { $0 != "-" })
+    return try matcher(agentID: agentID).match(
+      AgentDetectionInput(screen: screen, oscTitle: title)
+    )
   }
 }

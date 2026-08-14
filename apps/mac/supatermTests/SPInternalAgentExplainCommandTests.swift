@@ -33,7 +33,7 @@ struct SPInternalAgentExplainCommandTests {
 
     #expect(
       agentExplainPlain(result)
-        == "1/1/1\tfallback\tno_rule_match_or_settling\tclaude\tneeds_input\t42\t123\tcache\t7\tclaude.needs-input"
+        == "1/1/1\tfallback\tno_rule_match_or_settling\tclaude\tneeds_input\t42\t123\tembedded\t7\tclaude.needs-input"
     )
     #expect(
       agentExplainHuman(result) == """
@@ -41,7 +41,7 @@ struct SPInternalAgentExplainCommandTests {
         Detection: fallback (no rule match or settling)
         Agent: Claude [claude], needs input
         Process: 42, started 123
-        Rules: cache generation 7, matched claude.needs-input
+        Rules: embedded generation 7, matched claude.needs-input
         """
     )
   }

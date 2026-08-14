@@ -1,29 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { fileURLToPath, URL } from "node:url";
-import { defineConfig, type Plugin } from "vite-plus";
+import { defineConfig } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { buildDownloadTargetUrl, githubOrigin } from "./src/lib/downloads.ts";
-
-export const agentDetectionRulesFileName = "agent-detection/v1/rules.toml";
-export const agentDetectionRulesSourcePath = fileURLToPath(
-  new URL("../mac/supaterm/Resources/AgentDetection/rules.toml", import.meta.url),
-);
-
-export const loadAgentDetectionRulesAsset = async () => ({
-  type: "asset" as const,
-  fileName: agentDetectionRulesFileName,
-  source: await readFile(agentDetectionRulesSourcePath),
-});
-
-const agentDetectionRulesPlugin = (): Plugin => ({
-  name: "agent-detection-rules",
-  apply: "build",
-  async buildStart() {
-    this.addWatchFile(agentDetectionRulesSourcePath);
-    this.emitFile(await loadAgentDetectionRulesAsset());
-  },
-});
 
 const rewriteDownloadPath = (path: string) => {
   const targetUrl = buildDownloadTargetUrl(new URL(path, githubOrigin));
@@ -70,5 +49,5 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  plugins: [react(), tailwindcss(), agentDetectionRulesPlugin()],
+  plugins: [react(), tailwindcss()],
 });

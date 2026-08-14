@@ -25,8 +25,7 @@ public struct SupatermAgentExplainResult: Codable, Equatable, Sendable {
   }
 
   public enum RuleSource: String, Codable, Equatable, Sendable {
-    case bundle
-    case cache
+    case embedded
   }
 
   public struct Rules: Codable, Equatable, Sendable {
