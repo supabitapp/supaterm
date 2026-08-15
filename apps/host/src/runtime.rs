@@ -133,8 +133,11 @@ fn load_or_create_machine_id(state_root: &Path) -> Result<MachineId, HostError> 
 }
 
 fn read_machine_id(path: &Path) -> Result<MachineId, HostError> {
-    let mut file = open_owner_file(path, false)
-        .map_err(|_| HostError::InvalidMachineId(path.to_path_buf()))?;
+    let mut file = match open_owner_file(path, false) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Err(error.into()),
+        Err(_) => return Err(HostError::InvalidMachineId(path.to_path_buf())),
+    };
     file.set_permissions(fs::Permissions::from_mode(FILE_MODE))?;
     let mut value = String::new();
     file.read_to_string(&mut value)?;
