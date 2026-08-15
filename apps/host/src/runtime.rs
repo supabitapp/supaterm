@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File, OpenOptions, TryLockError},
-    io::{self, Write},
+    io::{self, Read, Write},
     os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
 };
@@ -32,12 +32,8 @@ impl HostPaths {
         secure_directory(&self.state_root)?;
 
         let lock_path = self.runtime_root.join("host.lock");
-        let lock = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .mode(FILE_MODE)
-            .open(lock_path)?;
+        let lock = open_owner_file(&lock_path, true)
+            .map_err(|_| HostError::InvalidLock(lock_path.clone()))?;
         lock.set_permissions(fs::Permissions::from_mode(FILE_MODE))?;
         lock.try_lock().map_err(|error| match error {
             TryLockError::WouldBlock => HostError::AlreadyRunning,
@@ -137,16 +133,31 @@ fn load_or_create_machine_id(state_root: &Path) -> Result<MachineId, HostError> 
 }
 
 fn read_machine_id(path: &Path) -> Result<MachineId, HostError> {
-    let metadata = fs::symlink_metadata(path)?;
-    if !metadata.file_type().is_file()
-        || metadata.file_type().is_symlink()
-        || metadata.uid() != unsafe { libc::geteuid() }
-    {
-        return Err(HostError::InvalidMachineId(path.to_path_buf()));
-    }
-    fs::set_permissions(path, fs::Permissions::from_mode(FILE_MODE))?;
-    fs::read_to_string(path)?
+    let mut file = open_owner_file(path, false)
+        .map_err(|_| HostError::InvalidMachineId(path.to_path_buf()))?;
+    file.set_permissions(fs::Permissions::from_mode(FILE_MODE))?;
+    let mut value = String::new();
+    file.read_to_string(&mut value)?;
+    value
         .trim()
         .parse()
         .map_err(|_| HostError::InvalidMachineId(path.to_path_buf()))
+}
+
+fn open_owner_file(path: &Path, create: bool) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .create(create)
+        .read(true)
+        .write(create)
+        .mode(FILE_MODE)
+        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() || metadata.uid() != unsafe { libc::geteuid() } {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "file must be a regular file owned by the current user",
+        ));
+    }
+    Ok(file)
 }

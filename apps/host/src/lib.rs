@@ -35,6 +35,8 @@ pub enum HostError {
     InvalidRoot(PathBuf),
     #[error("host root belongs to another user: {0}")]
     RootOwner(PathBuf),
+    #[error("invalid host lock: {0}")]
+    InvalidLock(PathBuf),
     #[error("unsafe socket path: {0}")]
     UnsafeSocket(PathBuf),
     #[error("a live socket already exists at {0}")]
