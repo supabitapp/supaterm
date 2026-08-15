@@ -80,6 +80,9 @@ struct TerminalWindowHeader: View {
         .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
         .padding(.trailing, TerminalWindowHeaderMetrics.spacing)
         .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .top)
+        .background {
+          WindowDragSurface()
+        }
     }
     .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .topLeading)
   }
