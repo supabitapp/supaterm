@@ -364,6 +364,13 @@ let project = Project(
             .buildProduct(name: "sp", codeSignOnCopy: true),
           ]
         ),
+        .wrapper(
+          name: "Embed Supaterm Host Launch Agent",
+          subpath: "Contents/Library/LaunchAgents",
+          files: [
+            .glob(pattern: "supaterm/Resources/LaunchAgents/app.supabit.supaterm.host.plist"),
+          ]
+        ),
         .resources(
           name: "Embed wt CLI",
           subpath: "bin",
