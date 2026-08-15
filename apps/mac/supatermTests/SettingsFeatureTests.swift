@@ -47,14 +47,18 @@ struct SettingsFeatureTests {
           zmxSessionsEnabled: false
         )
       }
+      let terminalGate = SettingsTestGate<GhosttyTerminalSettingsSnapshot>()
+      let claudeGate = SettingsTestGate<CodingAgentIntegrationHealth>()
+      let codexGate = SettingsTestGate<CodingAgentIntegrationHealth>()
+      let piGate = SettingsTestGate<CodingAgentIntegrationHealth>()
 
       let store = TestStore(initialState: SettingsFeature.State()) {
         SettingsFeature()
       } withDependencies: {
-        $0.claudeSettingsClient.integrationHealth = { .absent }
-        $0.codexSettingsClient.integrationHealth = { .absent }
-        $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
-        $0.piSettingsClient.integrationHealth = { .absent }
+        $0.claudeSettingsClient.integrationHealth = { await claudeGate.next() }
+        $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
+        $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
+        $0.piSettingsClient.integrationHealth = { await piGate.next() }
       }
 
       #expect(store.state.appearanceMode == .dark)
@@ -71,28 +75,32 @@ struct SettingsFeatureTests {
 
       await store.send(.task)
       await store.receive(\.terminalSettingsLoadRequested, timeout: Duration.zero) {
-        $0.terminal.isLoading = true
+        $0.terminal.operation = .loading
       }
       await store.receive(\.agentIntegrationStatusRefreshRequested, .claude, timeout: Duration.zero) {
-        $0.claudeIntegration.isRefreshing = true
+        $0.claudeIntegration.operation = .refreshing
       }
       await store.receive(\.agentIntegrationStatusRefreshRequested, .codex, timeout: Duration.zero) {
-        $0.codexIntegration.isRefreshing = true
+        $0.codexIntegration.operation = .refreshing
       }
       await store.receive(\.agentIntegrationStatusRefreshRequested, .pi, timeout: Duration.zero) {
-        $0.piIntegration.isRefreshing = true
+        $0.piIntegration.operation = .refreshing
       }
-      await store.receive(\.terminalSettingsLoaded, terminalSettingsSnapshot(), timeout: Duration.zero) {
+      await terminalGate.send(terminalSettingsSnapshot())
+      await store.receive(\.terminalSettingsLoadResponse) {
         $0.terminal = terminalSettingsState()
       }
-      await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
-        $0.claudeIntegration.isRefreshing = false
+      await claudeGate.send(.absent)
+      await store.receive(\.agentIntegrationStatusRefreshed) {
+        $0.claudeIntegration.operation = .idle
       }
-      await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
-        $0.codexIntegration.isRefreshing = false
+      await codexGate.send(.absent)
+      await store.receive(\.agentIntegrationStatusRefreshed) {
+        $0.codexIntegration.operation = .idle
       }
-      await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
-        $0.piIntegration.isRefreshing = false
+      await piGate.send(.absent)
+      await store.receive(\.agentIntegrationStatusRefreshed) {
+        $0.piIntegration.operation = .idle
       }
     }
   }
@@ -100,42 +108,50 @@ struct SettingsFeatureTests {
   @Test
   func taskMirrorsSparkleUpdateSettingsIntoState() async {
     let (stream, continuation) = makeSettingsStream()
+    let terminalGate = SettingsTestGate<GhosttyTerminalSettingsSnapshot>()
+    let claudeGate = SettingsTestGate<CodingAgentIntegrationHealth>()
+    let codexGate = SettingsTestGate<CodingAgentIntegrationHealth>()
+    let piGate = SettingsTestGate<CodingAgentIntegrationHealth>()
 
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
-      $0.claudeSettingsClient.integrationHealth = { .absent }
-      $0.codexSettingsClient.integrationHealth = { .absent }
-      $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
-      $0.piSettingsClient.integrationHealth = { .absent }
+      $0.claudeSettingsClient.integrationHealth = { await claudeGate.next() }
+      $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
+      $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
+      $0.piSettingsClient.integrationHealth = { await piGate.next() }
       $0.updateClient.observe = { stream }
       $0.updateClient.start = {}
     }
 
     await store.send(.task)
     await store.receive(\.terminalSettingsLoadRequested, timeout: Duration.zero) {
-      $0.terminal.isLoading = true
+      $0.terminal.operation = .loading
     }
     await store.receive(\.agentIntegrationStatusRefreshRequested, .claude, timeout: Duration.zero) {
-      $0.claudeIntegration.isRefreshing = true
+      $0.claudeIntegration.operation = .refreshing
     }
     await store.receive(\.agentIntegrationStatusRefreshRequested, .codex, timeout: Duration.zero) {
-      $0.codexIntegration.isRefreshing = true
+      $0.codexIntegration.operation = .refreshing
     }
     await store.receive(\.agentIntegrationStatusRefreshRequested, .pi, timeout: Duration.zero) {
-      $0.piIntegration.isRefreshing = true
+      $0.piIntegration.operation = .refreshing
     }
-    await store.receive(\.terminalSettingsLoaded, terminalSettingsSnapshot(), timeout: Duration.zero) {
+    await terminalGate.send(terminalSettingsSnapshot())
+    await store.receive(\.terminalSettingsLoadResponse) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
-      $0.claudeIntegration.isRefreshing = false
+    await claudeGate.send(.absent)
+    await store.receive(\.agentIntegrationStatusRefreshed) {
+      $0.claudeIntegration.operation = .idle
     }
-    await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
-      $0.codexIntegration.isRefreshing = false
+    await codexGate.send(.absent)
+    await store.receive(\.agentIntegrationStatusRefreshed) {
+      $0.codexIntegration.operation = .idle
     }
-    await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
-      $0.piIntegration.isRefreshing = false
+    await piGate.send(.absent)
+    await store.receive(\.agentIntegrationStatusRefreshed) {
+      $0.piIntegration.operation = .idle
     }
 
     continuation.yield(

@@ -75,41 +75,49 @@ struct SettingsFeatureCodingAgentsTests {
 
   @Test
   func taskLoadsAgentIntegrationStatuses() async {
+    let terminalGate = SettingsTestGate<GhosttyTerminalSettingsSnapshot>()
+    let claudeGate = SettingsTestGate<CodingAgentIntegrationHealth>()
+    let codexGate = SettingsTestGate<CodingAgentIntegrationHealth>()
+    let piGate = SettingsTestGate<CodingAgentIntegrationHealth>()
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
-      $0.claudeSettingsClient.integrationHealth = { .healthy }
-      $0.codexSettingsClient.integrationHealth = { .absent }
-      $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
-      $0.piSettingsClient.integrationHealth = { .healthy }
+      $0.claudeSettingsClient.integrationHealth = { await claudeGate.next() }
+      $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
+      $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
+      $0.piSettingsClient.integrationHealth = { await piGate.next() }
     }
 
     await store.send(.task)
     await store.receive(\.terminalSettingsLoadRequested, timeout: Duration.zero) {
-      $0.terminal.isLoading = true
+      $0.terminal.operation = .loading
     }
     await store.receive(\.agentIntegrationStatusRefreshRequested, .claude, timeout: Duration.zero) {
-      $0.claudeIntegration.isRefreshing = true
+      $0.claudeIntegration.operation = .refreshing
     }
     await store.receive(\.agentIntegrationStatusRefreshRequested, .codex, timeout: Duration.zero) {
-      $0.codexIntegration.isRefreshing = true
+      $0.codexIntegration.operation = .refreshing
     }
     await store.receive(\.agentIntegrationStatusRefreshRequested, .pi, timeout: Duration.zero) {
-      $0.piIntegration.isRefreshing = true
+      $0.piIntegration.operation = .refreshing
     }
-    await store.receive(\.terminalSettingsLoaded, terminalSettingsSnapshot(), timeout: Duration.zero) {
+    await terminalGate.send(terminalSettingsSnapshot())
+    await store.receive(\.terminalSettingsLoadResponse) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
+    await claudeGate.send(.healthy)
+    await store.receive(\.agentIntegrationStatusRefreshed) {
       $0.claudeIntegration.health = .healthy
-      $0.claudeIntegration.isRefreshing = false
+      $0.claudeIntegration.operation = .idle
     }
-    await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
-      $0.codexIntegration.isRefreshing = false
+    await codexGate.send(.absent)
+    await store.receive(\.agentIntegrationStatusRefreshed) {
+      $0.codexIntegration.operation = .idle
     }
-    await store.receive(\.agentIntegrationStatusRefreshed, timeout: Duration.zero) {
+    await piGate.send(.healthy)
+    await store.receive(\.agentIntegrationStatusRefreshed) {
       $0.piIntegration.health = .healthy
-      $0.piIntegration.isRefreshing = false
+      $0.piIntegration.operation = .idle
     }
   }
 
@@ -125,12 +133,12 @@ struct SettingsFeatureCodingAgentsTests {
       }
 
       await store.send(.agentIntegrationToggled(agent, true)) {
-        $0[keyPath: keyPath].pendingEnabled = true
+        $0[keyPath: keyPath].operation = .settingEnabled(true)
       }
 
       await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
         $0[keyPath: keyPath].health = .healthy
-        $0[keyPath: keyPath].pendingEnabled = nil
+        $0[keyPath: keyPath].operation = .idle
       }
 
       #expect(await recorder.commands() == [.skill, .integration(agent)])
@@ -152,12 +160,12 @@ struct SettingsFeatureCodingAgentsTests {
       }
 
       await store.send(.agentIntegrationToggled(agent, false)) {
-        $0[keyPath: keyPath].pendingEnabled = false
+        $0[keyPath: keyPath].operation = .settingEnabled(false)
       }
 
       await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
         $0[keyPath: keyPath].health = .absent
-        $0[keyPath: keyPath].pendingEnabled = nil
+        $0[keyPath: keyPath].operation = .idle
       }
 
       #expect(await recorder.commands() == [.integration(agent)])
@@ -174,12 +182,12 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.claude, true)) {
-      $0.claudeIntegration.pendingEnabled = true
+      $0.claudeIntegration.operation = .settingEnabled(true)
     }
 
     await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
       $0.claudeIntegration.health = .healthy
-      $0.claudeIntegration.pendingEnabled = nil
+      $0.claudeIntegration.operation = .idle
     }
   }
 
@@ -194,7 +202,7 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.claude, true)) {
-      $0.claudeIntegration.pendingEnabled = true
+      $0.claudeIntegration.operation = .settingEnabled(true)
     }
 
     await store.receive(
@@ -205,7 +213,7 @@ struct SettingsFeatureCodingAgentsTests {
         log: "Claude settings must be valid JSON before Supaterm can install hooks."
       )
       $0.claudeIntegration.errorMessage = "Claude settings must be valid JSON before Supaterm can install hooks."
-      $0.claudeIntegration.pendingEnabled = nil
+      $0.claudeIntegration.operation = .idle
     }
   }
 
@@ -222,12 +230,12 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.codex, false)) {
-      $0.codexIntegration.pendingEnabled = false
+      $0.codexIntegration.operation = .settingEnabled(false)
     }
 
     await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
       $0.codexIntegration.health = .absent
-      $0.codexIntegration.pendingEnabled = nil
+      $0.codexIntegration.operation = .idle
     }
   }
 
@@ -246,11 +254,11 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.codex, false)) {
-      $0.codexIntegration.pendingEnabled = false
+      $0.codexIntegration.operation = .settingEnabled(false)
     }
     await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
       $0.codexIntegration.health = .unavailable
-      $0.codexIntegration.pendingEnabled = nil
+      $0.codexIntegration.operation = .idle
     }
 
     #expect(await recorder.commands() == [.integration(.codex)])
@@ -270,7 +278,7 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.codex, false)) {
-      $0.codexIntegration.pendingEnabled = false
+      $0.codexIntegration.operation = .settingEnabled(false)
     }
 
     await store.receive(
@@ -278,7 +286,7 @@ struct SettingsFeatureCodingAgentsTests {
     ) {
       $0.codexIntegration.errorMessage =
         "Codex must be installed and available in your login shell before Supaterm can install hooks."
-      $0.codexIntegration.pendingEnabled = nil
+      $0.codexIntegration.operation = .idle
     }
   }
 
@@ -291,14 +299,14 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationStatusRefreshRequested(.pi)) {
-      $0.piIntegration.isRefreshing = true
+      $0.piIntegration.operation = .refreshing
     }
 
     await store.receive(
       \.agentIntegrationStatusRefreshed
     ) {
       $0.piIntegration.health = .unavailable
-      $0.piIntegration.isRefreshing = false
+      $0.piIntegration.operation = .idle
     }
   }
 
@@ -317,11 +325,11 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.pi, false)) {
-      $0.piIntegration.pendingEnabled = false
+      $0.piIntegration.operation = .settingEnabled(false)
     }
     await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
       $0.piIntegration.health = .unavailable
-      $0.piIntegration.pendingEnabled = nil
+      $0.piIntegration.operation = .idle
     }
 
     #expect(await recorder.commands() == [.integration(.pi)])
@@ -337,12 +345,12 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.pi, true)) {
-      $0.piIntegration.pendingEnabled = true
+      $0.piIntegration.operation = .settingEnabled(true)
     }
 
     await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
       $0.piIntegration.health = .healthy
-      $0.piIntegration.pendingEnabled = nil
+      $0.piIntegration.operation = .idle
     }
   }
 
@@ -359,13 +367,13 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.pi, true)) {
-      $0.piIntegration.pendingEnabled = true
+      $0.piIntegration.operation = .settingEnabled(true)
     }
 
     await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
       $0.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: .pi, log: message)
       $0.piIntegration.errorMessage = message
-      $0.piIntegration.pendingEnabled = nil
+      $0.piIntegration.operation = .idle
     }
 
     await store.send(.agentIntegrationInstallFailureDismissed) {

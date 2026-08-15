@@ -699,6 +699,38 @@ private struct SettingsSnapshotFixture: View {
   ) -> StoreOf<SettingsFeature> {
     var state = SettingsFeature.State()
     state.selectedTab = tab
+    switch variant {
+    case .terminalLoaded:
+      state.terminal = SettingsTerminalState(
+        snapshot: terminalSettingsSnapshot(warningMessage: nil)
+      )
+    case .terminalWarning:
+      state.terminal = SettingsTerminalState(
+        snapshot: terminalSettingsSnapshot(
+          warningMessage: "Theme file has duplicate keys; Supaterm kept the last value."
+        )
+      )
+    case .terminalError:
+      state.terminal = SettingsTerminalState(
+        snapshot: terminalSettingsSnapshot(warningMessage: nil),
+        errorMessage: "Could not read \(SnapshotFixtureValues.ghosttyConfigPath)."
+      )
+    case .codingAgentsEnabled:
+      state.codexIntegration.health = .healthy
+      state.piIntegration.health = .healthy
+    case .codingAgentsUnavailable:
+      state.piIntegration.health = .unavailable
+    case .codingAgentsInstallFailure:
+      let message = "Unable to update hooks because the settings file is read-only."
+      state.codexIntegration.errorMessage = message
+      state.codexIntegration.health = .healthy
+      state.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(
+        agent: .codex,
+        log: message
+      )
+    default:
+      break
+    }
 
     let store = Store(initialState: state) {
       SettingsFeature()
@@ -732,41 +764,10 @@ private struct SettingsSnapshotFixture: View {
     to store: StoreOf<SettingsFeature>
   ) {
     switch variant {
-    case .standard:
+    case .standard, .terminalLoaded, .terminalWarning, .terminalError:
       break
-    case .terminalLoaded:
-      _ = store.send(.terminalSettingsLoaded(terminalSettingsSnapshot(warningMessage: nil)))
-    case .terminalWarning:
-      _ = store.send(
-        .terminalSettingsLoaded(
-          terminalSettingsSnapshot(
-            warningMessage: "Theme file has duplicate keys; Supaterm kept the last value."
-          )
-        )
-      )
-    case .terminalError:
-      _ = store.send(.terminalSettingsLoaded(terminalSettingsSnapshot(warningMessage: nil)))
-      _ = store.send(
-        .terminalSettingsLoadFailed("Could not read \(SnapshotFixtureValues.ghosttyConfigPath).")
-      )
-    case .codingAgentsEnabled:
-      _ = store.send(.agentIntegrationStatusRefreshed(.codex, .success(.healthy)))
-      _ = store.send(.agentIntegrationStatusRefreshed(.pi, .success(.healthy)))
-    case .codingAgentsUnavailable:
-      _ = store.send(
-        .agentIntegrationStatusRefreshed(
-          .pi,
-          .success(.unavailable)
-        )
-      )
-    case .codingAgentsInstallFailure:
-      _ = store.send(.agentIntegrationStatusRefreshed(.codex, .success(.healthy)))
-      _ = store.send(
-        .agentIntegrationToggleFinished(
-          .codex,
-          .failure("Unable to update hooks because the settings file is read-only.")
-        )
-      )
+    case .codingAgentsEnabled, .codingAgentsUnavailable, .codingAgentsInstallFailure:
+      break
     case .aboutUpdate:
       _ = store.send(
         .updateClientSnapshotReceived(

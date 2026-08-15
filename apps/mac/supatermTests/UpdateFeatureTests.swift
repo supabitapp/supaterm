@@ -128,6 +128,84 @@ struct UpdateFeatureTests {
     #expect(await waitUntil { observationTerminated.value })
     await store.finish()
   }
+
+  @Test
+  func notFoundDismissesAfterFiveSeconds() async {
+    let clock = TestClock()
+    let recorder = UpdateActionRecorder()
+    let store = TestStore(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+
+    await store.send(
+      .updateClientSnapshotReceived(
+        UpdateClient.Snapshot(
+          automaticallyChecksForUpdates: true,
+          automaticallyDownloadsUpdates: false,
+          canCheckForUpdates: true,
+          phase: .notFound
+        )
+      )
+    ) {
+      $0.canCheckForUpdates = true
+      $0.phase = .notFound
+    }
+
+    await clock.advance(by: .seconds(4))
+    #expect(await recorder.actions().isEmpty)
+
+    await clock.advance(by: .seconds(1))
+    await store.receive(\.notFoundDismissalElapsed)
+    #expect(await recorder.actions() == [.dismiss])
+  }
+
+  @Test
+  func leavingNotFoundCancelsDismissal() async {
+    let clock = TestClock()
+    let recorder = UpdateActionRecorder()
+    let store = TestStore(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+
+    await store.send(
+      .updateClientSnapshotReceived(
+        UpdateClient.Snapshot(
+          automaticallyChecksForUpdates: true,
+          automaticallyDownloadsUpdates: false,
+          canCheckForUpdates: true,
+          phase: .notFound
+        )
+      )
+    ) {
+      $0.canCheckForUpdates = true
+      $0.phase = .notFound
+    }
+    await store.send(
+      .updateClientSnapshotReceived(
+        UpdateClient.Snapshot(
+          automaticallyChecksForUpdates: true,
+          automaticallyDownloadsUpdates: false,
+          canCheckForUpdates: true,
+          phase: .idle
+        )
+      )
+    ) {
+      $0.phase = .idle
+    }
+
+    await clock.advance(by: .seconds(5))
+    #expect(await recorder.actions().isEmpty)
+  }
 }
 
 private actor UpdateActionRecorder {

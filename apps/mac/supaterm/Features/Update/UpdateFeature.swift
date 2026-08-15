@@ -2,6 +2,7 @@ import ComposableArchitecture
 import SupatermSupport
 
 private nonisolated enum UpdateFeatureCancelID: Hashable, Sendable {
+  case notFoundDismissal
   case observation
 }
 
@@ -22,6 +23,7 @@ public struct UpdateFeature {
   }
 
   public enum Action {
+    case notFoundDismissalElapsed
     case perform(UpdateUserAction)
     case setUpdateChannel(UpdateChannel)
     case shutdown
@@ -30,6 +32,7 @@ public struct UpdateFeature {
   }
 
   @Dependency(AnalyticsClient.self) var analyticsClient
+  @Dependency(\.continuousClock) var clock
   @Dependency(UpdateClient.self) var updateClient
 
   public init() {}
@@ -37,6 +40,14 @@ public struct UpdateFeature {
   public var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
+      case .notFoundDismissalElapsed:
+        guard state.phase == .notFound else {
+          return .none
+        }
+        return .run { [updateClient] _ in
+          await updateClient.perform(.dismiss)
+        }
+
       case .perform(let action):
         if action == .checkForUpdates && !state.canCheckForUpdates {
           return .none
@@ -54,7 +65,10 @@ public struct UpdateFeature {
         }
 
       case .shutdown:
-        return .cancel(id: UpdateFeatureCancelID.observation)
+        return .merge(
+          .cancel(id: UpdateFeatureCancelID.notFoundDismissal),
+          .cancel(id: UpdateFeatureCancelID.observation)
+        )
 
       case .task:
         return .run { [updateClient] send in
@@ -67,9 +81,20 @@ public struct UpdateFeature {
         .cancellable(id: UpdateFeatureCancelID.observation, cancelInFlight: true)
 
       case .updateClientSnapshotReceived(let snapshot):
+        let wasNotFound = state.phase == .notFound
         state.canCheckForUpdates = snapshot.canCheckForUpdates
         state.phase = snapshot.phase
-        return .none
+        if snapshot.phase == .notFound {
+          guard !wasNotFound else {
+            return .none
+          }
+          return .run { [clock] send in
+            try await clock.sleep(for: .seconds(5))
+            await send(.notFoundDismissalElapsed)
+          }
+          .cancellable(id: UpdateFeatureCancelID.notFoundDismissal, cancelInFlight: true)
+        }
+        return .cancel(id: UpdateFeatureCancelID.notFoundDismissal)
       }
     }
   }

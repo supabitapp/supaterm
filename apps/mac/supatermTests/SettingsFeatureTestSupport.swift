@@ -6,6 +6,28 @@ import Testing
 
 @testable import SupatermSettingsFeature
 
+actor SettingsTestGate<Value: Sendable> {
+  private var values: [Value] = []
+  private var waiters: [CheckedContinuation<Value, Never>] = []
+
+  func next() async -> Value {
+    if !values.isEmpty {
+      return values.removeFirst()
+    }
+    return await withCheckedContinuation { continuation in
+      waiters.append(continuation)
+    }
+  }
+
+  func send(_ value: Value) {
+    if !waiters.isEmpty {
+      waiters.removeFirst().resume(returning: value)
+    } else {
+      values.append(value)
+    }
+  }
+}
+
 nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
   GhosttyTerminalSettingsSnapshot(
     availableFontFamilies: ["JetBrains Mono", "SF Mono"],
@@ -27,9 +49,8 @@ nonisolated func terminalSettingsState(
   errorMessage: String? = nil,
   fontFamily: String? = nil,
   fontSize: Double = 15,
-  isApplying: Bool = false,
-  isLoading: Bool = false,
   lightTheme: String? = "Zenbones Light",
+  operation: SettingsTerminalOperation = .idle,
   warningMessage: String? = nil
 ) -> SettingsTerminalState {
   SettingsTerminalState(
@@ -42,9 +63,8 @@ nonisolated func terminalSettingsState(
     errorMessage: errorMessage,
     fontFamily: fontFamily,
     fontSize: fontSize,
-    isApplying: isApplying,
-    isLoading: isLoading,
     lightTheme: lightTheme,
+    operation: operation,
     warningMessage: warningMessage
   )
 }

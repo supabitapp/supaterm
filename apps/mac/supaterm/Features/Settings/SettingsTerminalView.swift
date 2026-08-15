@@ -8,7 +8,7 @@ struct SettingsTerminalView: View {
   private let defaultFontFamilyTag = "__supaterm_default_font_family__"
 
   private var controlsDisabled: Bool {
-    store.terminal.isApplying || store.terminal.isLoading
+    store.terminal.isBusy
   }
 
   private var fontFamilySelection: Binding<String> {

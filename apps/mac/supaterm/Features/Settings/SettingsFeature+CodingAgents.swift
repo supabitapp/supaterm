@@ -6,60 +6,20 @@ extension SettingsFeature {
   func reduceCodingAgents(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .agentIntegrationStatusRefreshRequested(let agent):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      guard !state[keyPath: keyPath].isPending else {
-        return .none
-      }
-      state[keyPath: keyPath].isRefreshing = true
-      let loadHealth = loadAgentIntegrationHealthOperation(for: agent)
-      return .run { send in
-        do {
-          await send(.agentIntegrationStatusRefreshed(agent, .success(try await loadHealth())))
-        } catch {
-          await send(.agentIntegrationStatusRefreshed(agent, .failure(error.localizedDescription)))
-        }
-      }
+      return refreshAgentIntegrationStatus(&state, agent: agent)
 
-    case .agentIntegrationStatusRefreshed(let agent, .success(let health)):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].errorMessage = nil
-      state[keyPath: keyPath].health = health
-      state[keyPath: keyPath].isRefreshing = false
-      return .none
-
-    case .agentIntegrationStatusRefreshed(let agent, .failure(let message)):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].errorMessage = message
-      state[keyPath: keyPath].isRefreshing = false
-      return .none
+    case .agentIntegrationStatusRefreshed(let agent, let result):
+      return handleAgentIntegrationStatusRefresh(&state, agent: agent, result: result)
 
     case .agentIntegrationToggled(let agent, let isEnabled):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      guard !state[keyPath: keyPath].isPending else {
-        return .none
-      }
-      state.agentIntegrationInstallFailure = nil
-      state[keyPath: keyPath].errorMessage = nil
-      state[keyPath: keyPath].pendingEnabled = isEnabled
-      let loadHealth = loadAgentIntegrationHealthOperation(for: agent)
-      let updateHealth = updateSupatermIntegrationOperation(for: agent, isEnabled: isEnabled)
-      return .run { send in
-        do {
-          if isEnabled, [.unavailable, .unavailableInstalled].contains(try await loadHealth()) {
-            await send(.agentIntegrationToggleFinished(agent, .success(.unavailable)))
-            return
-          }
-          await send(.agentIntegrationToggleFinished(agent, .success(try await updateHealth())))
-        } catch {
-          await send(.agentIntegrationToggleFinished(agent, .failure(error.localizedDescription)))
-        }
-      }
+      return toggleAgentIntegration(&state, agent: agent, isEnabled: isEnabled)
 
     case .agentIntegrationToggleFinished(let agent, .success(let health)):
       let keyPath = agentIntegrationKeyPath(for: agent)
+      guard case .settingEnabled = state[keyPath: keyPath].operation else { return .none }
       state[keyPath: keyPath].errorMessage = nil
       state[keyPath: keyPath].health = health
-      state[keyPath: keyPath].pendingEnabled = nil
+      state[keyPath: keyPath].operation = .idle
       return .none
 
     case .agentIntegrationToggleFinished(let agent, .failure(let message)):
@@ -70,17 +30,87 @@ extension SettingsFeature {
     }
   }
 
+  func refreshAgentIntegrationStatus(
+    _ state: inout State,
+    agent: SupatermAgentKind
+  ) -> Effect<Action> {
+    let keyPath = agentIntegrationKeyPath(for: agent)
+    guard state[keyPath: keyPath].operation == .idle else {
+      return .none
+    }
+    state[keyPath: keyPath].operation = .refreshing
+    let loadHealth = loadAgentIntegrationHealthOperation(for: agent)
+    return .run { send in
+      do {
+        await send(.agentIntegrationStatusRefreshed(agent, .success(try await loadHealth())))
+      } catch is CancellationError {
+        return
+      } catch {
+        await send(.agentIntegrationStatusRefreshed(agent, .failure(error.localizedDescription)))
+      }
+    }
+    .cancellable(id: SettingsFeatureCancelID.agentIntegration(agent.rawValue), cancelInFlight: true)
+  }
+
+  func handleAgentIntegrationStatusRefresh(
+    _ state: inout State,
+    agent: SupatermAgentKind,
+    result: SettingsAgentIntegrationResult
+  ) -> Effect<Action> {
+    let keyPath = agentIntegrationKeyPath(for: agent)
+    guard state[keyPath: keyPath].operation == .refreshing else { return .none }
+    switch result {
+    case .failure(let message):
+      state[keyPath: keyPath].errorMessage = message
+    case .success(let health):
+      state[keyPath: keyPath].errorMessage = nil
+      state[keyPath: keyPath].health = health
+    }
+    state[keyPath: keyPath].operation = .idle
+    return .none
+  }
+
+  func toggleAgentIntegration(
+    _ state: inout State,
+    agent: SupatermAgentKind,
+    isEnabled: Bool
+  ) -> Effect<Action> {
+    let keyPath = agentIntegrationKeyPath(for: agent)
+    guard state[keyPath: keyPath].operation == .idle else {
+      return .none
+    }
+    state.agentIntegrationInstallFailure = nil
+    state[keyPath: keyPath].errorMessage = nil
+    state[keyPath: keyPath].operation = .settingEnabled(isEnabled)
+    let loadHealth = loadAgentIntegrationHealthOperation(for: agent)
+    let updateHealth = updateSupatermIntegrationOperation(for: agent, isEnabled: isEnabled)
+    return .run { send in
+      do {
+        if isEnabled, [.unavailable, .unavailableInstalled].contains(try await loadHealth()) {
+          await send(.agentIntegrationToggleFinished(agent, .success(.unavailable)))
+          return
+        }
+        await send(.agentIntegrationToggleFinished(agent, .success(try await updateHealth())))
+      } catch is CancellationError {
+        return
+      } catch {
+        await send(.agentIntegrationToggleFinished(agent, .failure(error.localizedDescription)))
+      }
+    }
+    .cancellable(id: SettingsFeatureCancelID.agentIntegration(agent.rawValue), cancelInFlight: true)
+  }
+
   func handleAgentIntegrationToggleFailure(
     _ state: inout State,
     agent: SupatermAgentKind,
     message: String
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
-    let isInstallFailure =
-      state[keyPath: keyPath].pendingEnabled
-      ?? (state[keyPath: keyPath].health == .healthy)
+    guard case .settingEnabled(let isInstallFailure) = state[keyPath: keyPath].operation else {
+      return .none
+    }
     state[keyPath: keyPath].errorMessage = message
-    state[keyPath: keyPath].pendingEnabled = nil
+    state[keyPath: keyPath].operation = .idle
     if isInstallFailure {
       state.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: agent, log: message)
     }

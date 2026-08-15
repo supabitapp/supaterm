@@ -53,7 +53,6 @@ struct TerminalSidebarUpdateSection: View {
 
   @Shared(.supatermSettings) private var supatermSettings = .default
   @State private var isHovering = false
-  @State private var resetTask: Task<Void, Never>?
 
   private var phase: UpdatePhase {
     store.phase
@@ -125,15 +124,6 @@ struct TerminalSidebarUpdateSection: View {
       )
     )
     .onHover { isHovering = $0 }
-    .onAppear {
-      handlePhaseChange(to: phase)
-    }
-    .onChange(of: phase) { _, newPhase in
-      handlePhaseChange(to: newPhase)
-    }
-    .onDisappear {
-      resetTask?.cancel()
-    }
   }
 
   @ViewBuilder
@@ -328,19 +318,6 @@ struct TerminalSidebarUpdateSection: View {
       return style.prominentForeground
     case .destructive:
       return style.warning
-    }
-  }
-
-  private func handlePhaseChange(to newPhase: UpdatePhase) {
-    resetTask?.cancel()
-    resetTask = nil
-
-    if case .notFound = newPhase {
-      resetTask = Task { @MainActor in
-        try? await Task.sleep(for: .seconds(5))
-        guard !Task.isCancelled else { return }
-        _ = store.send(.perform(.dismiss))
-      }
     }
   }
 

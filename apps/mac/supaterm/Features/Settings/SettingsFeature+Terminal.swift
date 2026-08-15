@@ -5,10 +5,8 @@ extension SettingsFeature {
   func reduceTerminal(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .terminalSettingsLoadRequested,
-      .terminalSettingsLoaded,
-      .terminalSettingsApplied,
-      .terminalSettingsLoadFailed,
-      .terminalSettingsApplyFailed:
+      .terminalSettingsLoadResponse,
+      .terminalSettingsApplyResponse:
       return reduceTerminalLoading(&state, action: action)
 
     case .terminalLightThemeSelected,
@@ -26,35 +24,46 @@ extension SettingsFeature {
   func reduceTerminalLoading(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .terminalSettingsLoadRequested:
-      guard !state.terminal.isLoading else {
+      guard state.terminal.operation == .idle else {
         return .none
       }
       state.terminal.errorMessage = nil
-      state.terminal.isLoading = true
+      state.terminal.operation = .loading
       return .run { [ghosttyTerminalSettingsClient] send in
         do {
-          await send(.terminalSettingsLoaded(try await ghosttyTerminalSettingsClient.load()))
+          await send(
+            .terminalSettingsLoadResponse(
+              .success(try await ghosttyTerminalSettingsClient.load())
+            )
+          )
+        } catch is CancellationError {
+          return
         } catch {
-          await send(.terminalSettingsLoadFailed(error.localizedDescription))
+          await send(.terminalSettingsLoadResponse(.failure(error)))
         }
       }
+      .cancellable(id: SettingsFeatureCancelID.terminalOperation, cancelInFlight: true)
 
-    case .terminalSettingsLoaded(let snapshot):
+    case .terminalSettingsLoadResponse(.success(let snapshot)):
+      guard state.terminal.operation == .loading else { return .none }
       updateTerminalState(&state.terminal, with: snapshot)
       return .none
 
-    case .terminalSettingsApplied(let values):
+    case .terminalSettingsApplyResponse(.success(let values)):
+      guard state.terminal.operation == .applying else { return .none }
       updateTerminalState(&state.terminal, with: values)
       return .none
 
-    case .terminalSettingsLoadFailed(let message):
-      state.terminal.errorMessage = message
-      state.terminal.isLoading = false
+    case .terminalSettingsLoadResponse(.failure(let error)):
+      guard state.terminal.operation == .loading else { return .none }
+      state.terminal.errorMessage = error.localizedDescription
+      state.terminal.operation = .idle
       return .none
 
-    case .terminalSettingsApplyFailed(let message):
-      state.terminal.errorMessage = message
-      state.terminal.isApplying = false
+    case .terminalSettingsApplyResponse(.failure(let error)):
+      guard state.terminal.operation == .applying else { return .none }
+      state.terminal.errorMessage = error.localizedDescription
+      state.terminal.operation = .idle
       return .none
 
     default:
@@ -100,19 +109,7 @@ extension SettingsFeature {
     _ state: inout SettingsTerminalState,
     with snapshot: GhosttyTerminalSettingsSnapshot
   ) {
-    state.availableFontFamilies = snapshot.availableFontFamilies
-    state.availableDarkThemes = snapshot.availableDarkThemes
-    state.availableLightThemes = snapshot.availableLightThemes
-    state.confirmCloseSurface = snapshot.confirmCloseSurface
-    state.configPath = snapshot.configPath
-    state.darkTheme = snapshot.darkTheme
-    state.errorMessage = nil
-    state.fontFamily = snapshot.fontFamily
-    state.fontSize = snapshot.fontSize
-    state.isApplying = false
-    state.isLoading = false
-    state.lightTheme = snapshot.lightTheme
-    state.warningMessage = snapshot.warningMessage
+    state = SettingsTerminalState(snapshot: snapshot)
   }
 
   func updateTerminalState(
@@ -125,9 +122,8 @@ extension SettingsFeature {
     state.errorMessage = nil
     state.fontFamily = values.fontFamily
     state.fontSize = values.fontSize
-    state.isApplying = false
-    state.isLoading = false
     state.lightTheme = values.lightTheme
+    state.operation = .idle
     state.warningMessage = values.warningMessage
   }
 
@@ -136,7 +132,7 @@ extension SettingsFeature {
       return false
     }
     state.errorMessage = nil
-    state.isApplying = true
+    state.operation = .applying
     return true
   }
 
@@ -144,18 +140,41 @@ extension SettingsFeature {
     .run { [ghosttyTerminalSettingsClient] send in
       do {
         await send(
-          .terminalSettingsApplied(
-            try await ghosttyTerminalSettingsClient.apply(settings)
+          .terminalSettingsApplyResponse(
+            .success(
+              try await ghosttyTerminalSettingsClient.apply(settings)
+            )
           )
         )
+      } catch is CancellationError {
+        return
       } catch {
-        await send(.terminalSettingsApplyFailed(error.localizedDescription))
+        await send(.terminalSettingsApplyResponse(.failure(error)))
       }
     }
+    .cancellable(id: SettingsFeatureCancelID.terminalOperation, cancelInFlight: true)
   }
 }
 
 extension SettingsTerminalState {
+  init(
+    snapshot: GhosttyTerminalSettingsSnapshot,
+    errorMessage: String? = nil
+  ) {
+    availableFontFamilies = snapshot.availableFontFamilies
+    availableDarkThemes = snapshot.availableDarkThemes
+    availableLightThemes = snapshot.availableLightThemes
+    confirmCloseSurface = snapshot.confirmCloseSurface
+    configPath = snapshot.configPath
+    darkTheme = snapshot.darkTheme
+    self.errorMessage = errorMessage
+    fontFamily = snapshot.fontFamily
+    fontSize = snapshot.fontSize
+    lightTheme = snapshot.lightTheme
+    operation = .idle
+    warningMessage = snapshot.warningMessage
+  }
+
   var settingsDraft: GhosttyTerminalSettingsDraft {
     GhosttyTerminalSettingsDraft(
       confirmCloseSurface: confirmCloseSurface,

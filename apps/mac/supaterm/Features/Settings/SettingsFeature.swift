@@ -5,8 +5,16 @@ import SupatermCLIShared
 import SupatermSupport
 import SupatermUpdateFeature
 
-private enum SettingsFeatureCancelID {
-  static let updateObservation = "SettingsFeature.updateObservation"
+nonisolated enum SettingsFeatureCancelID: Hashable, Sendable {
+  case agentIntegration(String)
+  case terminalOperation
+  case updateObservation
+}
+
+enum SettingsTerminalOperation: Equatable {
+  case applying
+  case idle
+  case loading
 }
 
 struct SettingsTerminalState: Equatable {
@@ -19,40 +27,46 @@ struct SettingsTerminalState: Equatable {
   var errorMessage: String?
   var fontFamily: String?
   var fontSize = 15.0
-  var isApplying = false
-  var isLoading = false
   var lightTheme: String?
+  var operation = SettingsTerminalOperation.idle
   var warningMessage: String?
 
   var isBusy: Bool {
-    isApplying || isLoading
+    operation != .idle
+  }
+
+  var isApplying: Bool {
+    operation == .applying
+  }
+
+  var isLoading: Bool {
+    operation == .loading
   }
 }
 
 struct SettingsAgentIntegrationState: Equatable {
   var errorMessage: String?
   var health = CodingAgentIntegrationHealth.absent
-  var isRefreshing = false
-  var pendingEnabled: Bool?
+  var operation = SettingsAgentIntegrationOperation.idle
 
   var isAvailable: Bool {
     health != .unavailable
   }
 
   var isEnabled: Bool {
-    pendingEnabled
-      ?? {
-        switch health {
-        case .unavailable, .absent:
-          return false
-        case .unavailableInstalled, .partial, .drifted, .healthy:
-          return true
-        }
-      }()
+    if case .settingEnabled(let isEnabled) = operation {
+      return isEnabled
+    }
+    switch health {
+    case .unavailable, .absent:
+      return false
+    case .unavailableInstalled, .partial, .drifted, .healthy:
+      return true
+    }
   }
 
   var isPending: Bool {
-    isRefreshing || pendingEnabled != nil
+    operation != .idle
   }
 
   func message(for agent: SupatermAgentKind) -> String? {
@@ -77,6 +91,12 @@ struct SettingsAgentIntegrationState: Equatable {
       return nil
     }
   }
+}
+
+enum SettingsAgentIntegrationOperation: Equatable {
+  case idle
+  case refreshing
+  case settingEnabled(Bool)
 }
 
 struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
@@ -172,11 +192,9 @@ public struct SettingsFeature {
     case terminalFontFamilySelected(String?)
     case terminalFontSizeChanged(Double)
     case terminalLightThemeSelected(String?)
-    case terminalSettingsApplied(GhosttyTerminalSettingsValues)
-    case terminalSettingsApplyFailed(String)
-    case terminalSettingsLoadFailed(String)
+    case terminalSettingsApplyResponse(Result<GhosttyTerminalSettingsValues, any Error>)
     case terminalSettingsLoadRequested
-    case terminalSettingsLoaded(GhosttyTerminalSettingsSnapshot)
+    case terminalSettingsLoadResponse(Result<GhosttyTerminalSettingsSnapshot, any Error>)
     case updateChannelSelected(UpdateChannel)
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
     case updatesAutomaticallyCheckForUpdatesChanged(Bool)
@@ -359,11 +377,9 @@ public struct SettingsFeature {
         .terminalFontFamilySelected,
         .terminalFontSizeChanged,
         .terminalLightThemeSelected,
-        .terminalSettingsApplied,
-        .terminalSettingsApplyFailed,
-        .terminalSettingsLoadFailed,
+        .terminalSettingsApplyResponse,
         .terminalSettingsLoadRequested,
-        .terminalSettingsLoaded:
+        .terminalSettingsLoadResponse:
         return reduceTerminal(&state, action: action)
 
       case .checkForUpdatesButtonTapped,
