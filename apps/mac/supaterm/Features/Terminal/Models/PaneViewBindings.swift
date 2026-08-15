@@ -1,3 +1,4 @@
+import Foundation
 import SupatermTerminalCore
 
 struct PaneViewBindings<View: AnyObject> {
@@ -5,6 +6,10 @@ struct PaneViewBindings<View: AnyObject> {
 
   var paneIDs: Set<PaneID> {
     Set(viewsByPaneID.keys)
+  }
+
+  var views: [View] {
+    Array(viewsByPaneID.values)
   }
 
   subscript(paneID: PaneID) -> View? {
@@ -23,7 +28,17 @@ struct PaneViewBindings<View: AnyObject> {
     viewsByPaneID.removeValue(forKey: paneID)
   }
 
+  mutating func removeAll() {
+    viewsByPaneID.removeAll()
+  }
+
   func paneID(for view: View) -> PaneID? {
     viewsByPaneID.first(where: { $0.value === view })?.key
+  }
+}
+
+extension PaneViewBindings where View: Identifiable, View.ID == UUID {
+  subscript(viewID: UUID) -> View? {
+    viewsByPaneID.values.first(where: { $0.id == viewID })
   }
 }
