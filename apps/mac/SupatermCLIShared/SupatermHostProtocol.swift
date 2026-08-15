@@ -144,6 +144,10 @@ public enum SupatermHostRequest: Equatable, Sendable {
     startupInput: String,
     startupInputDelivery: SupatermHostStartupInputDelivery
   )
+  case cancelReservation(
+    launchTicketID: LaunchTicketID,
+    terminalID: TerminalID
+  )
   case launch(
     launchTicketID: LaunchTicketID,
     terminalID: TerminalID,
@@ -190,6 +194,11 @@ extension SupatermHostRequest: Codable {
           SupatermHostStartupInputDelivery.self,
           forKey: .startupInputDelivery
         )
+      )
+    case .cancelReservation:
+      self = .cancelReservation(
+        launchTicketID: try container.decode(LaunchTicketID.self, forKey: .launchTicketID),
+        terminalID: try container.decode(TerminalID.self, forKey: .terminalID)
       )
     case .launch:
       self = .launch(
@@ -253,6 +262,10 @@ extension SupatermHostRequest: Codable {
       try container.encode(size, forKey: .size)
       try container.encode(startupInput, forKey: .startupInput)
       try container.encode(startupInputDelivery, forKey: .startupInputDelivery)
+    case .cancelReservation(let launchTicketID, let terminalID):
+      try container.encode(Kind.cancelReservation, forKey: .type)
+      try container.encode(launchTicketID, forKey: .launchTicketID)
+      try container.encode(terminalID, forKey: .terminalID)
     case .launch(let launchTicketID, let terminalID, let command, let size):
       try container.encode(Kind.launch, forKey: .type)
       try container.encode(launchTicketID, forKey: .launchTicketID)
@@ -292,6 +305,7 @@ extension SupatermHostRequest: Codable {
   private enum Kind: String, Codable {
     case hello
     case reserve
+    case cancelReservation
     case launch
     case list
     case get
@@ -310,6 +324,8 @@ extension SupatermHostRequest: Codable {
           "type", "launchTicketId", "terminalId", "size", "startupInput",
           "startupInputDelivery",
         ]
+      case .cancelReservation:
+        return ["type", "launchTicketId", "terminalId"]
       case .launch:
         return ["type", "launchTicketId", "terminalId", "command", "size"]
       case .list:

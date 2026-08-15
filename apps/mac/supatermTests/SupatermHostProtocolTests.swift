@@ -69,6 +69,50 @@ struct SupatermHostProtocolTests {
   }
 
   @Test
+  func cancellationMatchesRustJSON() throws {
+    let requestID = try hostRequestID("123e4567-e89b-12d3-a456-426614174002")
+    let request = SupatermHostClientEnvelope(
+      role: .app,
+      requestID: requestID,
+      body: .cancelReservation(
+        launchTicketID: try launchTicketID("123e4567-e89b-12d3-a456-426614174006"),
+        terminalID: try terminalID("123e4567-e89b-12d3-a456-426614174000")
+      )
+    )
+
+    #expect(
+      try jsonObject(request)
+        == jsonObject(
+          """
+          {
+            "epoch": 2,
+            "role": "app",
+            "requestId": "123e4567-e89b-12d3-a456-426614174002",
+            "body": {
+              "type": "cancelReservation",
+              "launchTicketId": "123e4567-e89b-12d3-a456-426614174006",
+              "terminalId": "123e4567-e89b-12d3-a456-426614174000"
+            }
+          }
+          """
+        )
+    )
+    #expect(
+      try jsonObject(SupatermHostEnvelope(requestID: requestID, body: .ack))
+        == jsonObject(
+          """
+          {
+            "epoch": 2,
+            "role": "host",
+            "requestId": "123e4567-e89b-12d3-a456-426614174002",
+            "body": {"type": "ack"}
+          }
+          """
+        )
+    )
+  }
+
+  @Test
   func launchMatchesRustJSON() throws {
     let requestID = try hostRequestID("123e4567-e89b-12d3-a456-426614174002")
     let ticketID = try launchTicketID("123e4567-e89b-12d3-a456-426614174006")
@@ -221,6 +265,36 @@ struct SupatermHostProtocolTests {
       try JSONDecoder().decode(
         SupatermHostRequest.self,
         from: JSONSerialization.data(withJSONObject: launchObject)
+      )
+    }
+  }
+
+  @Test
+  func decoderRequiresExactCancellationFields() throws {
+    let request = SupatermHostRequest.cancelReservation(
+      launchTicketID: try launchTicketID("123e4567-e89b-12d3-a456-426614174006"),
+      terminalID: try terminalID("123e4567-e89b-12d3-a456-426614174000")
+    )
+    let object = try #require(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+    )
+
+    for key in ["launchTicketId", "terminalId"] {
+      var missing = object
+      missing.removeValue(forKey: key)
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(
+          SupatermHostRequest.self,
+          from: JSONSerialization.data(withJSONObject: missing)
+        )
+      }
+    }
+    var extra = object
+    extra["size"] = ["rows": 24, "cols": 80, "pixelWidth": 0, "pixelHeight": 0]
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        SupatermHostRequest.self,
+        from: JSONSerialization.data(withJSONObject: extra)
       )
     }
   }
@@ -529,6 +603,10 @@ struct SupatermHostProtocolTests {
         size: size,
         startupInput: "printf ready\n",
         startupInputDelivery: .prompt
+      ),
+      .cancelReservation(
+        launchTicketID: ticketID,
+        terminalID: terminalID
       ),
       .launch(
         launchTicketID: ticketID,
