@@ -12,6 +12,10 @@ public struct AgentDetectionSettler<ProcessToken: Hashable & Sendable>: Sendable
 
   public init() {}
 
+  public var isConfirmingIdle: Bool {
+    pendingIdle != nil
+  }
+
   public mutating func settle(
     match: AgentDetectionMatch,
     processToken: ProcessToken,

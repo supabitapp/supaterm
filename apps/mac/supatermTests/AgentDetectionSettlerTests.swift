@@ -28,10 +28,13 @@ struct AgentDetectionSettlerTests {
     var settler = AgentDetectionSettler<String>()
 
     #expect(settler.settle(match: match(.running), processToken: "one", now: now) == .running)
+    #expect(!settler.isConfirmingIdle)
     for _ in 0..<3 {
       #expect(settler.settle(match: match(.idle), processToken: "one", now: now) == .running)
+      #expect(settler.isConfirmingIdle)
     }
     #expect(settler.settle(match: match(.idle), processToken: "one", now: now) == .idle)
+    #expect(!settler.isConfirmingIdle)
   }
 
   @Test

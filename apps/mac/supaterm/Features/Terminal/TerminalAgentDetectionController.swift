@@ -118,6 +118,13 @@ final class TerminalAgentDetectionController {
   static let screenByteLimit = 64 * 1_024
   static let titleByteLimit = 4 * 1_024
 
+  private static let evaluationInterval: Duration = .milliseconds(300)
+  private static let idleConfirmationInterval: Duration = .milliseconds(100)
+  private static let processAcquisitionInterval: Duration = .milliseconds(500)
+  private static let processAcquisitionWindow: Duration = .milliseconds(1_500)
+  private static let recognizedProcessInterval: Duration = .seconds(5)
+  private static let unrecognizedProcessInterval: Duration = .seconds(2)
+
   private typealias Proof = AgentDetectionProcessMatch
 
   private struct Matched: Equatable, Sendable {
@@ -131,6 +138,7 @@ final class TerminalAgentDetectionController {
     let nonce: UInt64
     var proof: Proof?
     var nextScanAt: ContinuousClock.Instant
+    var acquisitionStartedAt: ContinuousClock.Instant?
     var settler = AgentDetectionSettler<TerminalAgentProcessIdentity>()
     var matched: Matched?
     var status = TerminalAgentDetectionExplanation.Status.waiting
@@ -207,7 +215,9 @@ final class TerminalAgentDetectionController {
         await self?.tick(now: clock.now)
         guard !Task.isCancelled else { return }
         do {
-          try await clock.sleep(for: .milliseconds(300))
+          try await clock.sleep(
+            for: self?.nextTickDelay(now: clock.now) ?? Self.evaluationInterval
+          )
         } catch {
           return
         }
@@ -311,6 +321,20 @@ final class TerminalAgentDetectionController {
     )
   }
 
+  func nextTickDelay(now: ContinuousClock.Instant) -> Duration {
+    var delay: Duration =
+      states.values.contains { $0.settler.isConfirmingIdle }
+      ? Self.idleConfirmationInterval
+      : Self.evaluationInterval
+    for state in states.values
+    where state.key.foregroundProcessGroupID.map({ $0 > 0 }) == true
+      && state.nextScanAt > now
+    {
+      delay = min(delay, now.duration(to: state.nextScanAt))
+    }
+    return delay
+  }
+
   private func activate(_ snapshot: AgentDetectionRuleSnapshot) {
     guard generation != snapshot.generation else {
       origin = snapshot.origin
@@ -337,6 +361,7 @@ final class TerminalAgentDetectionController {
           key: surface.key,
           nonce: makeNonce(),
           nextScanAt: now,
+          acquisitionStartedAt: now,
           status: surface.key.foregroundProcessGroupID.map { $0 > 0 } != true
             ? .noForegroundProcess
             : .waiting
@@ -387,7 +412,8 @@ final class TerminalAgentDetectionController {
         state.settler = AgentDetectionSettler()
         state.matched = nil
       }
-      state.nextScanAt = now.advanced(by: .seconds(5))
+      state.nextScanAt = now.advanced(by: Self.recognizedProcessInterval)
+      state.acquisitionStartedAt = nil
       state.status = .waiting
       states[key.id] = state
     }
@@ -530,7 +556,13 @@ final class TerminalAgentDetectionController {
     now: ContinuousClock.Instant
   ) {
     resetProof(&state)
-    state.nextScanAt = now.advanced(by: .seconds(2))
+    let acquisitionStartedAt = state.acquisitionStartedAt ?? now
+    state.acquisitionStartedAt = acquisitionStartedAt
+    let interval: Duration =
+      acquisitionStartedAt.duration(to: now) < Self.processAcquisitionWindow
+      ? Self.processAcquisitionInterval
+      : Self.unrecognizedProcessInterval
+    state.nextScanAt = now.advanced(by: interval)
     state.status = .unrecognizedProcess
   }
 

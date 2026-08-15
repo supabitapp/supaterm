@@ -10,7 +10,7 @@ import Testing
 @MainActor
 struct TerminalAgentDetectionControllerTests {
   @Test
-  func batchesDuePanesAndUsesMatchedAndUnmatchedCadence() async {
+  func batchesDuePanesAndUsesMatchedAndAcquisitionCadence() async {
     let fixture = makeFixture()
     let firstID = fixture.host.addSurface(processGroupID: 11)
     let secondID = fixture.host.addSurface(processGroupID: 22)
@@ -31,14 +31,25 @@ struct TerminalAgentDetectionControllerTests {
     #expect(fixture.host.observations[secondID]?.processIdentity == secondIdentity)
     #expect(fixture.host.observations[unmatchedID] == nil)
 
-    await fixture.controller.tick(now: now.advanced(by: .seconds(1)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(499)))
     #expect(await fixture.sampler.batches().count == 1)
 
-    await fixture.controller.tick(now: now.advanced(by: .seconds(2)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(500)))
     #expect(await fixture.sampler.batches() == [[11, 22, 33], [33]])
 
+    await fixture.controller.tick(now: now.advanced(by: .seconds(1)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(3_500)))
+    #expect(
+      await fixture.sampler.batches()
+        == [[11, 22, 33], [33], [33], [33], [33]]
+    )
+
     await fixture.controller.tick(now: now.advanced(by: .seconds(5)))
-    #expect(await fixture.sampler.batches() == [[11, 22, 33], [33], [11, 22, 33]])
+    #expect(
+      await fixture.sampler.batches()
+        == [[11, 22, 33], [33], [33], [33], [33], [11, 22]]
+    )
   }
 
   @Test
@@ -58,7 +69,7 @@ struct TerminalAgentDetectionControllerTests {
     #expect(fixture.controller.explanation(for: surfaceID).status == .unrecognizedProcess)
 
     await fixture.sampler.setCurrent([proof])
-    await fixture.controller.tick(now: now.advanced(by: .seconds(2)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(500)))
 
     #expect(fixture.host.captureCount == 1)
     #expect(fixture.host.observations[surfaceID]?.processIdentity == proof)
@@ -260,31 +271,39 @@ struct TerminalAgentDetectionControllerTests {
       AgentDetectionMatch(result: .idle, ruleID: "idle")
     )
     await fixture.controller.tick(now: now.advanced(by: .milliseconds(300)))
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(600)))
     #expect(fixture.host.applyCalls.count == 1)
     #expect(fixture.host.observations[surfaceID]?.ruleID == "running")
     #expect(fixture.controller.explanation(for: surfaceID).matchedRuleID == "idle")
     #expect(fixture.controller.explanation(for: surfaceID).status == .noRuleMatchOrSettling)
+    #expect(
+      fixture.controller.nextTickDelay(now: now.advanced(by: .milliseconds(300)))
+        == .milliseconds(100)
+    )
 
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(900)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(400)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(500)))
     #expect(fixture.host.observations[surfaceID]?.phase == .running)
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_200)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(600)))
     let idle = try #require(fixture.host.observations[surfaceID])
     #expect(idle.phase == .idle)
     #expect(idle.ruleID == "idle")
     #expect(idle.sequence == 2)
+    #expect(
+      fixture.controller.nextTickDelay(now: now.advanced(by: .milliseconds(600)))
+        == .milliseconds(300)
+    )
 
     await fixture.rules.setMatch(
       AgentDetectionMatch(result: .hold, ruleID: "hold")
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(900)))
     #expect(fixture.host.applyCalls.count == 2)
     #expect(fixture.host.observations[surfaceID]?.ruleID == "idle")
 
     await fixture.rules.setMatch(
       AgentDetectionMatch(result: .needsInput, ruleID: "attention")
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_800)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_200)))
     #expect(fixture.host.observations[surfaceID]?.phase == .needsInput)
     #expect(fixture.host.observations[surfaceID]?.sequence == 3)
 
@@ -294,7 +313,7 @@ struct TerminalAgentDetectionControllerTests {
         ruleID: AgentDetectionMatcher.fallbackRuleID
       )
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(2_100)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
     #expect(fixture.host.observations[surfaceID]?.phase == .idle)
     #expect(
       fixture.host.observations[surfaceID]?.ruleID
