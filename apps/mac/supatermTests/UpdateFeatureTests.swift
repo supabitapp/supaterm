@@ -100,6 +100,34 @@ struct UpdateFeatureTests {
     continuation.finish()
     await store.finish()
   }
+
+  @Test
+  func shutdownCancelsUpdateObservation() async {
+    let observationStarted = LockIsolated(false)
+    let observationTerminated = LockIsolated(false)
+    let stream = AsyncStream<UpdateClient.Snapshot> { continuation in
+      continuation.onTermination = { _ in
+        observationTerminated.withValue { $0 = true }
+      }
+    }
+    let store = TestStore(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.updateClient.observe = {
+        observationStarted.withValue { $0 = true }
+        return stream
+      }
+      $0.updateClient.start = {}
+    }
+
+    await store.send(.task)
+    #expect(await waitUntil { observationStarted.value })
+
+    await store.send(.shutdown)
+
+    #expect(await waitUntil { observationTerminated.value })
+    await store.finish()
+  }
 }
 
 private actor UpdateActionRecorder {

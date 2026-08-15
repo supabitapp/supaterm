@@ -154,7 +154,7 @@ nonisolated enum ReleaseAnnouncementCatalog {
 }
 
 nonisolated struct ReleaseAnnouncementClient: Sendable {
-  var synchronize: @Sendable () -> ReleaseAnnouncement?
+  var synchronize: @Sendable () async -> ReleaseAnnouncement?
   var acknowledge: @Sendable (_ version: String) -> Void
 }
 

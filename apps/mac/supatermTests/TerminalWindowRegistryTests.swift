@@ -365,8 +365,10 @@ struct TerminalWindowRegistryTests {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    var state = AppFeature.State()
-    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    }
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -390,8 +392,10 @@ struct TerminalWindowRegistryTests {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    var state = AppFeature.State()
-    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    }
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -416,8 +420,10 @@ struct TerminalWindowRegistryTests {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    var state = AppFeature.State()
-    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+    }
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -442,8 +448,8 @@ struct TerminalWindowRegistryTests {
     let registry = TerminalWindowRegistry()
     let recorder = UpdateMenuActionRecorder()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    var state = AppFeature.State()
-    state.update.canCheckForUpdates = true
+    let state = AppFeature.State()
+    state.$update.withLock { $0.canCheckForUpdates = true }
     let store = Store(initialState: state) {
       AppFeature()
     } withDependencies: {
@@ -466,13 +472,60 @@ struct TerminalWindowRegistryTests {
     #expect(registry.requestUpdateMenuActionInKeyWindow())
     #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.checkForUpdates])
   }
+
+  @Test
+  func applicationStoreKeepsUpdateCommandsAvailableWithoutWindows() async {
+    let registry = TerminalWindowRegistry()
+    let recorder = UpdateMenuActionRecorder()
+    let state = AppFeature.State()
+    state.$update.withLock { $0.canCheckForUpdates = true }
+    let store = Store(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+    registry.applicationStore = store
+
+    let context = registry.menuContext(keyWindow: nil)
+
+    #expect(context.updateMenuItemText == "Check for Updates...")
+    #expect(context.isUpdateMenuItemEnabled)
+    #expect(registry.requestUpdateMenuActionInKeyWindow())
+    #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.checkForUpdates])
+  }
+
+  @Test
+  func updateChannelChangesRunOnceForTheProcess() async {
+    let registry = TerminalWindowRegistry()
+    let channels = LockIsolated<[UpdateChannel]>([])
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    } withDependencies: {
+      $0.updateClient.setUpdateChannel = { channel in
+        channels.withValue { $0.append(channel) }
+      }
+    }
+    registry.applicationStore = store
+    let firstWindow = registerWindow(in: registry, spaceID: TerminalSpaceID())
+    let secondWindow = registerWindow(in: registry, spaceID: TerminalSpaceID())
+
+    registry.setUpdateChannel(.tip)
+
+    #expect(await waitUntil { channels.value == [.tip] })
+    withExtendedLifetime((firstWindow.window, secondWindow.window)) {}
+  }
+
   @Test
   func requestUpdateMenuActionInKeyWindowDispatchesRestartNowWhenInstallIsPending() async {
     let registry = TerminalWindowRegistry()
     let recorder = UpdateMenuActionRecorder()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    var state = AppFeature.State()
-    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    }
     let store = Store(initialState: state) {
       AppFeature()
     } withDependencies: {
@@ -505,8 +558,8 @@ struct TerminalWindowRegistryTests {
 
       let registry = TerminalWindowRegistry()
       let firstHost = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      var secondState = AppFeature.State()
-      secondState.update.phase = .permissionRequest
+      let secondState = AppFeature.State()
+      secondState.$update.withLock { $0.phase = .permissionRequest }
       let secondHost = try makeCommandPaletteHost(title: "beta", workingDirectory: nil)
       let firstStore = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -594,8 +647,12 @@ struct TerminalWindowRegistryTests {
   func commandPaletteSnapshotBuildsUpdateEntriesFromPhaseActions() {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    var state = AppFeature.State()
-    state.update.phase = .updateAvailable(UpdatePhase.Available(contentLength: 42, releaseDate: nil, version: "1.2.3"))
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.phase = .updateAvailable(
+        UpdatePhase.Available(contentLength: 42, releaseDate: nil, version: "1.2.3")
+      )
+    }
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -627,8 +684,8 @@ struct TerminalWindowRegistryTests {
 
       let registry = TerminalWindowRegistry()
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      var state = AppFeature.State()
-      state.update.canCheckForUpdates = true
+      let state = AppFeature.State()
+      state.$update.withLock { $0.canCheckForUpdates = true }
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -660,8 +717,10 @@ struct TerminalWindowRegistryTests {
 
       let registry = TerminalWindowRegistry()
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      var state = AppFeature.State()
-      state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+      let state = AppFeature.State()
+      state.$update.withLock {
+        $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+      }
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -694,8 +753,10 @@ struct TerminalWindowRegistryTests {
 
       let registry = TerminalWindowRegistry()
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      var state = AppFeature.State()
-      state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: false))
+      let state = AppFeature.State()
+      state.$update.withLock {
+        $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: false))
+      }
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -728,8 +789,10 @@ struct TerminalWindowRegistryTests {
 
       let registry = TerminalWindowRegistry()
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      var state = AppFeature.State()
-      state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+      let state = AppFeature.State()
+      state.$update.withLock {
+        $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+      }
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -930,8 +993,8 @@ struct TerminalWindowRegistryTests {
     let registry = TerminalWindowRegistry()
     let recorder = UpdateMenuActionRecorder()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    var state = AppFeature.State()
-    state.update.phase = .permissionRequest
+    let state = AppFeature.State()
+    state.$update.withLock { $0.phase = .permissionRequest }
     let store = Store(initialState: state) {
       AppFeature()
     } withDependencies: {

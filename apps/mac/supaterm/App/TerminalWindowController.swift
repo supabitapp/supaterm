@@ -119,6 +119,7 @@ final class TerminalWindowController: NSWindowController {
   init(
     runtime: GhosttyRuntime,
     registry: TerminalWindowRegistry,
+    process: Shared<AppFeature.ProcessState> = Shared(value: AppFeature.ProcessState()),
     launch: TerminalWindowLaunch = .newShell(spaceID: nil, startupCommand: nil),
     zmxClient: ZmxClient = .live,
     zmxSessionsEnabled: Bool = true,
@@ -142,6 +143,7 @@ final class TerminalWindowController: NSWindowController {
     let commandPaletteClient = TerminalCommandPaletteClient.live(registry: registry)
     let store = Store(
       initialState: AppFeature.State(
+        process: process,
         terminal: TerminalWindowFeature.State(
           sidebarWidth: session?.sidebarWidth.map { CGFloat($0) },
           windowControllerID: windowControllerID

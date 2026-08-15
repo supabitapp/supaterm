@@ -39,12 +39,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private var spaceCatalog = TerminalSpaceCatalog.default
 
   private let menuController: SupatermMenuController
+  private let appProcess: Shared<AppFeature.ProcessState>
+  private let appStore: StoreOf<AppFeature>
   private let agentDetectionRuleRepository: AgentDetectionRuleRepository?
   private let configurationDiagnosticsWindowController = ConfigurationDiagnosticsWindowController()
   private let globalKeybindManager: GhosttyGlobalKeybindManager
   private let ghosttyRuntime: GhosttyRuntime
   private let quitConfirmationPresenter: QuitConfirmationPresenter
-  private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
   private let tabNewWindowDropController: TerminalTabNewWindowDropController
   private let zmxSessionsEnabledAtLaunch: Bool
@@ -93,18 +94,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
     let globalKeybindManager = GhosttyGlobalKeybindManager(runtime: ghosttyRuntime)
     let quitConfirmationPresenter = QuitConfirmationPresenter()
-    let socketStore = Store(initialState: SocketControlFeature.State()) {
-      SocketControlFeature()
+    let appProcess = Shared(value: AppFeature.ProcessState())
+    let appStore = Store(initialState: AppFeature.State(process: appProcess)) {
+      AppFeature()
         .logActions()
     } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        Task { @MainActor in
+          AppPostHog.capture(event)
+        }
+      }
       $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
     }
+    terminalWindowRegistry.applicationStore = appStore
+    self.appProcess = appProcess
+    self.appStore = appStore
     self.agentDetectionRuleRepository = agentDetectionRuleRepository
     self.menuController = menuController
     self.globalKeybindManager = globalKeybindManager
     self.ghosttyRuntime = ghosttyRuntime
     self.quitConfirmationPresenter = quitConfirmationPresenter
-    self.socketStore = socketStore
     self.terminalWindowRegistry = terminalWindowRegistry
     self.tabNewWindowDropController = tabNewWindowDropController
     self.zmxSessionsEnabledAtLaunch = zmxSessionsEnabledAtLaunch
@@ -145,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     NSApp.servicesProvider = serviceProvider
     UNUserNotificationCenter.current().delegate = self
     menuController.install()
-    socketStore.send(.task)
+    appStore.send(.task)
     refreshInstalledAgentHooks()
     restoreWindowsAtLaunch()
     #if SUPATERM_DEMO
@@ -210,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       )
     )
     globalKeybindManager.disable()
-    socketStore.send(.shutdown)
+    appStore.send(.shutdown)
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -516,6 +525,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let controller = TerminalWindowController(
       runtime: ghosttyRuntime,
       registry: terminalWindowRegistry,
+      process: appProcess,
       launch: launch,
       zmxClient: launchZmxClient,
       zmxSessionsEnabled: zmxSessionsEnabledAtLaunch,

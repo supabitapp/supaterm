@@ -30,10 +30,6 @@ struct ContentView: View {
     store.scope(state: \.terminal, action: \.terminal)
   }
 
-  private var updateStore: StoreOf<UpdateFeature> {
-    store.scope(state: \.update, action: \.update)
-  }
-
   var body: some View {
     TerminalView(
       commandPaletteClient: commandPaletteClient,
@@ -44,20 +40,7 @@ struct ContentView: View {
     .environment(commandHoldObserver)
     .environment(ghosttyShortcuts)
     .task { @MainActor in
-      let appTask = store.send(.task)
-      let terminalTask = terminalStore.send(.task)
-      let updateTask = updateStore.send(.task)
-      await withTaskGroup(of: Void.self) { group in
-        group.addTask {
-          await appTask.finish()
-        }
-        group.addTask {
-          await terminalTask.finish()
-        }
-        group.addTask {
-          await updateTask.finish()
-        }
-      }
+      await terminalStore.send(.task).finish()
     }
   }
 }

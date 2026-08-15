@@ -871,8 +871,8 @@ struct SupatermMenuControllerTests {
       let previousMainMenu = app.mainMenu
       let registry = TerminalWindowRegistry()
       let host = TerminalHostState(managesTerminalSurfaces: false)
-      var state = AppFeature.State()
-      state.update.canCheckForUpdates = true
+      let state = AppFeature.State()
+      state.$update.withLock { $0.canCheckForUpdates = true }
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -912,8 +912,10 @@ struct SupatermMenuControllerTests {
     let previousMainMenu = app.mainMenu
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    var state = AppFeature.State()
-    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    }
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -949,8 +951,10 @@ struct SupatermMenuControllerTests {
     let previousMainMenu = app.mainMenu
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    var state = AppFeature.State()
-    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+    }
     let store = Store(initialState: state) {
       AppFeature()
     }

@@ -162,9 +162,11 @@ struct TerminalCommandExecutorTests {
     let commandExecutor = makeCommandExecutor(registry: registry)
     let host = TerminalHostState(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    var state = AppFeature.State()
-    state.update.canCheckForUpdates = true
-    state.update.phase = .checking
+    let state = AppFeature.State()
+    state.$update.withLock {
+      $0.canCheckForUpdates = true
+      $0.phase = .checking
+    }
     let store = Store(initialState: state) {
       AppFeature()
     }

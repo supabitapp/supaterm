@@ -75,6 +75,8 @@ final class TerminalWindowRegistry {
     }
   }
 
+  var applicationStore: StoreOf<AppFeature>?
+
   private var entries: [Entry] = []
   private let zmxClient: ZmxClient
   @Shared(.terminalSpaceCatalog)
@@ -98,7 +100,13 @@ final class TerminalWindowRegistry {
   }
 
   var bypassesQuitConfirmation: Bool {
-    activeEntries().contains { $0.store.update.phase.bypassesQuitConfirmation }
+    processUpdateState.phase.bypassesQuitConfirmation
+  }
+
+  private var processUpdateState: UpdateFeature.State {
+    applicationStore?.update
+      ?? preferredActiveEntry()?.store.update
+      ?? UpdateFeature.State()
   }
 
   func register(
@@ -415,6 +423,8 @@ final class TerminalWindowRegistry {
 
   func menuContext(keyWindow: NSWindow? = NSApp.keyWindow) -> MenuContext {
     let closesKeyWindowDirectly = closesWindowDirectly(keyWindow)
+    let updateState = processUpdateState
+    let updateMenuItemAction = Self.updateMenuItemAction(for: updateState)
     guard let entry = preferredActiveEntry() else {
       return MenuContext(
         availability: CommandAvailability(
@@ -423,15 +433,12 @@ final class TerminalWindowRegistry {
         hasSearch: false,
         hasSelectedGroup: false,
         hasUnreadNotifications: false,
-        updateMenuItemText: "Check for Updates...",
+        updateMenuItemText: updateState.phase.menuItemTitle,
         visibleTabCount: 0,
         spaceCount: 0,
-        isUpdateMenuItemEnabled: false
+        isUpdateMenuItemEnabled: updateMenuItemAction != nil
       )
     }
-
-    let updateState = entry.store.update
-    let updateMenuItemAction = Self.updateMenuItemAction(for: updateState)
 
     return MenuContext(
       availability: commandAvailability(for: entry),
@@ -579,18 +586,17 @@ final class TerminalWindowRegistry {
 
   @discardableResult
   func requestUpdateMenuActionInKeyWindow() -> Bool {
-    guard let entry = preferredActiveEntry() else { return false }
-    guard let action = Self.updateMenuItemAction(for: entry.store.update) else {
+    guard let store = applicationStore ?? preferredActiveEntry()?.store else { return false }
+    guard let action = Self.updateMenuItemAction(for: store.update) else {
       return false
     }
-    entry.store.send(.update(.perform(action)))
+    store.send(.update(.perform(action)))
     return true
   }
 
   func setUpdateChannel(_ updateChannel: UpdateChannel) {
-    for entry in entries {
-      entry.store.send(.update(.setUpdateChannel(updateChannel)))
-    }
+    (applicationStore ?? preferredActiveEntry()?.store)?
+      .send(.update(.setUpdateChannel(updateChannel)))
   }
 
   func requestCloseSurfaceInKeyWindow() {
@@ -736,7 +742,7 @@ final class TerminalWindowRegistry {
     }
 
     let terminal = entry.terminal
-    let updateState = entry.store.update
+    let updateState = processUpdateState
     let focusTargets = activeEntries().flatMap { activeEntry in
       activeEntry.terminal.commandPaletteFocusTargets(
         windowControllerID: activeEntry.windowControllerID
@@ -807,7 +813,7 @@ final class TerminalWindowRegistry {
     windowID: ObjectIdentifier?
   ) {
     guard let entry = commandPaletteEntry(for: windowID) else { return }
-    entry.store.send(.update(.perform(action)))
+    (applicationStore ?? entry.store).send(.update(.perform(action)))
   }
 
   func activeEntries() -> [Entry] {

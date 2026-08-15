@@ -1,8 +1,8 @@
 import ComposableArchitecture
 import SupatermSupport
 
-private enum UpdateFeatureCancelID {
-  static let observation = "UpdateFeature.observation"
+private nonisolated enum UpdateFeatureCancelID: Hashable, Sendable {
+  case observation
 }
 
 @Reducer
@@ -24,6 +24,7 @@ public struct UpdateFeature {
   public enum Action {
     case perform(UpdateUserAction)
     case setUpdateChannel(UpdateChannel)
+    case shutdown
     case task
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
   }
@@ -51,6 +52,9 @@ public struct UpdateFeature {
         return .run { [updateClient] _ in
           await updateClient.setUpdateChannel(updateChannel)
         }
+
+      case .shutdown:
+        return .cancel(id: UpdateFeatureCancelID.observation)
 
       case .task:
         return .run { [updateClient] send in
