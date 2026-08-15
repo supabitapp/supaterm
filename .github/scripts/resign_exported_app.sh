@@ -31,11 +31,36 @@ code_roots=(
 )
 
 sp_path="$app_path/Contents/MacOS/sp"
+host_path="$app_path/Contents/Helpers/supaterm-host"
 helper_paths=(
   "$sp_path"
   "$app_path/Contents/MacOS/ap"
+  "$host_path"
   "$app_path/Contents/Helpers/zmx"
 )
+
+validate_system_dylibs() {
+  local dependency
+  local dependencies
+  local valid=1
+
+  if ! dependencies=$(otool -L "$1"); then
+    return 1
+  fi
+
+  while IFS= read -r dependency; do
+    case "$dependency" in
+      /System/Library/* | /usr/lib/*)
+        ;;
+      *)
+        echo "::error::Unbundled dynamic dependency in $1: $dependency"
+        valid=0
+        ;;
+    esac
+  done < <(awk 'NR > 1 { print $1 }' <<< "$dependencies")
+
+  [ "$valid" -eq 1 ]
+}
 
 for path in "${helper_paths[@]}"; do
   if [ -L "$path" ]; then
@@ -51,6 +76,8 @@ for path in "${helper_paths[@]}"; do
     exit 1
   fi
 done
+
+validate_system_dylibs "$host_path"
 
 code_paths=()
 for root in "${code_roots[@]}"; do
@@ -91,3 +118,4 @@ done
 
 codesign -vvv --deep --strict "$app_path"
 "$sp_path" --help > /dev/null
+"$host_path" --version > /dev/null

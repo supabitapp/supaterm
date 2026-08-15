@@ -17,6 +17,13 @@ xcframework_path="${ghostty_build_root}/GhosttyKit.xcframework"
 generated_xcframework_path="${ghostty_dir}/macos/GhosttyKit.xcframework"
 ghostty_resources_path="${ghostty_build_root}/share/ghostty"
 ghostty_terminfo_path="${ghostty_build_root}/share/terminfo"
+ghostty_vt_archive_path="${ghostty_build_root}/lib/libghostty-vt.a"
+
+validate_ghostty_vt_archive() {
+  [ -f "${ghostty_vt_archive_path}" ] &&
+    [ "$(lipo -archs "${ghostty_vt_archive_path}" 2>/dev/null || true)" = "arm64" ] &&
+    xcrun ar -t "${ghostty_vt_archive_path}" >/dev/null 2>&1
+}
 
 print_fingerprint() {
   (
@@ -73,6 +80,7 @@ if [ -f "${ghostty_fingerprint_path}" ] &&
   [ -d "${xcframework_path}" ] &&
   [ -d "${ghostty_resources_path}" ] &&
   [ -d "${ghostty_terminfo_path}" ] &&
+  validate_ghostty_vt_archive &&
   [ "$(cat "${ghostty_fingerprint_path}")" = "${fingerprint}" ]; then
   printf '%s\n' "Using cached native runtime build"
   exit 0
@@ -82,4 +90,8 @@ cd "${ghostty_dir}"
 rm -rf "${generated_xcframework_path}"
 mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Demit-macos-app=false -Dxcframework-target=native -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
 rsync -a --delete "${generated_xcframework_path}/" "${xcframework_path}/"
+if ! validate_ghostty_vt_archive; then
+  echo "error: Ghostty build produced no arm64 archive at ${ghostty_vt_archive_path}" >&2
+  exit 1
+fi
 printf '%s\n' "${fingerprint}" > "${ghostty_fingerprint_path}"

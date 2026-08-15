@@ -38,6 +38,7 @@ build/
 supaterm.xcodeproj/
 supaterm.xcworkspace/
 Tuist/Dependencies/
+apps/host/target/
 apps/mac/supaterm.xcodeproj/
 apps/mac/supaterm.xcworkspace/
 apps/mac/Tuist/Dependencies/

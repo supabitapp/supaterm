@@ -6,6 +6,9 @@ MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 
 MAC_APP_DIR := apps/mac
+HOST_APP_DIR := apps/host
+HOST_MANIFEST := $(HOST_APP_DIR)/Cargo.toml
+HOST_GHOSTTY_VT_LIB_DIR := $(abspath $(MAC_APP_DIR)/.build/ghostty/lib)
 WEB_APP_DIR := apps/supaterm.com
 WEB_INSTALL_PREREQS := $(WEB_APP_DIR)/package.json $(WEB_APP_DIR)/pnpm-lock.yaml
 WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
@@ -16,7 +19,7 @@ WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
+.PHONY: help install-git-hooks bump-and-release worktree-create host-build host-format host-format-check host-clippy host-test host-check mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-host mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -51,6 +54,23 @@ worktree-create: install-git-hooks  # Create a worktree and copy ignored and unt
 	test -n "$$wt_bin" || { echo "error: failed to install wt" >&2; exit 1; }; \
 	"$$wt_bin" switch "$(WORKTREE)" --from "$$(git rev-parse HEAD)" --copy-ignored --copy-untracked
 
+host-build: mac-build-ghostty  # Build the host daemon.
+	@SUPATERM_GHOSTTY_VT_LIB_DIR="$(HOST_GHOSTTY_VT_LIB_DIR)" mise exec -- cargo build --locked --all-features --manifest-path "$(HOST_MANIFEST)"
+
+host-format:  # Format host daemon code.
+	@mise exec -- cargo fmt --manifest-path "$(HOST_MANIFEST)"
+
+host-format-check:  # Check host daemon formatting.
+	@mise exec -- cargo fmt --manifest-path "$(HOST_MANIFEST)" -- --check
+
+host-clippy: mac-build-ghostty  # Lint the host daemon.
+	@SUPATERM_GHOSTTY_VT_LIB_DIR="$(HOST_GHOSTTY_VT_LIB_DIR)" mise exec -- cargo clippy --locked --all-targets --all-features --manifest-path "$(HOST_MANIFEST)" -- -D warnings
+
+host-test: mac-build-ghostty  # Run the host daemon tests.
+	@SUPATERM_GHOSTTY_VT_LIB_DIR="$(HOST_GHOSTTY_VT_LIB_DIR)" mise exec -- cargo test --locked --all-features --manifest-path "$(HOST_MANIFEST)"
+
+host-check: host-format-check host-clippy host-test  # Check and test the host daemon.
+
 mac-tuist-install:
 	@$(MAKE) -C "$(MAC_APP_DIR)" tuist-install
 
@@ -68,6 +88,9 @@ mac-tuist-generate-release:
 
 mac-tuist-generate-release-cached:
 	@$(MAKE) -C "$(MAC_APP_DIR)" tuist-generate-release-cached
+
+mac-build-host:
+	@$(MAKE) -C "$(MAC_APP_DIR)" build-host
 
 mac-build-ghostty:
 	@$(MAKE) -C "$(MAC_APP_DIR)" build-ghostty

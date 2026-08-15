@@ -5,6 +5,9 @@ let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
+let hostBinaryPath: Path = ".build/host/bin/supaterm-host"
+let hostBuildScriptPath: Path = "scripts/build-host.sh"
+let hostFingerprintPath: Path = ".build/host/fingerprint"
 let zmxBinaryPath: Path = ".build/zmx/bin/zmx"
 let zmxBuildScriptPath: Path = "scripts/build-zmx.sh"
 let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
@@ -372,6 +375,13 @@ let project = Project(
       scripts: [
         .pre(
           script: """
+            "${SRCROOT}/\(hostBuildScriptPath.pathString)"
+            """,
+          name: "Build Supaterm Host",
+          basedOnDependencyAnalysis: false
+        ),
+        .pre(
+          script: """
             "${SRCROOT}/\(zmxBuildScriptPath.pathString)"
             """,
           name: "Build zmx",
@@ -410,6 +420,36 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/terminfo",
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty-resources.fingerprint",
           ],
+        ),
+        .post(
+          script: """
+            set -euo pipefail
+
+            destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
+            destination_path="${destination_dir}/supaterm-host"
+            source_path="${SRCROOT}/\(hostBinaryPath.pathString)"
+
+            if [ ! -x "${source_path}" ]; then
+              echo "error: missing built host executable" >&2
+              exit 1
+            fi
+
+            mkdir -p "${destination_dir}"
+            rm -f "${destination_path}"
+            /usr/bin/install -m 755 "${source_path}" "${destination_path}"
+            if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
+              identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+              /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
+            fi
+            """,
+          name: "Embed Supaterm Host",
+          inputPaths: [
+            "$(SRCROOT)/\(hostBinaryPath.pathString)",
+            "$(SRCROOT)/\(hostFingerprintPath.pathString)",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/supaterm-host",
+          ]
         ),
         .post(
           script: """
