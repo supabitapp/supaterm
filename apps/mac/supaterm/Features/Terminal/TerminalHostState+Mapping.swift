@@ -147,11 +147,11 @@ extension TerminalHostState {
     }
   }
 
-  func mapDropZone(_ zone: TerminalSplitTreeView.DropZone)
+  func mapDropZone(_ zone: TerminalSplitDropZone)
     -> SplitTree<GhosttySurfaceView>.NewDirection
   {
     switch zone {
-    case .up:
+    case .top:
       return .up
     case .bottom:
       return .down

@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupaTheme
 import SupatermSupport
 import SwiftUI
 
@@ -304,7 +305,14 @@ final class TerminalWindowController: NSWindowController {
           in: terminal.displayedSpaceID
         )
       else { return nil }
-      return (terminal.displayedSpaceID, destinationTabID)
+      let palette = terminal.chromePalette(
+        appearanceMode: terminal.supatermSettings.appearanceMode
+      )
+      return TerminalTabSplitDropDestination(
+        spaceID: terminal.displayedSpaceID,
+        tabID: destinationTabID,
+        color: palette.accent
+      )
     }
     shellController.install(
       background: backgroundController,

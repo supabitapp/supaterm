@@ -42,7 +42,7 @@ final class TerminalTabDragRegistry {
     let windowControllerID: UUID
     let spaceID: TerminalSpaceID
     let tabID: TerminalTabID
-    let side: TerminalTabSplitSide
+    let zone: TerminalSplitDropZone
 
     func sourceDisposition(for payload: TerminalTabDragPayload) -> SourceDisposition {
       if payload.sourceWindowID == windowControllerID,
@@ -98,13 +98,6 @@ final class TerminalTabDragRegistry {
 
   var activePayload: TerminalTabDragPayload? {
     session?.payload
-  }
-
-  func hasSharedPreview(for payload: TerminalTabDragPayload) -> Bool {
-    guard let session, session.payload == payload, case .sharedPreview = session.presentationState else {
-      return false
-    }
-    return true
   }
 
   func begin(

@@ -10,8 +10,9 @@ enum TerminalSplitMetrics {
 }
 
 enum TerminalChromeMetrics {
-  static let paneInset: CGFloat = 6
+  nonisolated static let paneInset: CGFloat = 6
   static let paneCornerRadius: CGFloat = 12
+  nonisolated static let detailToolbarHeight: CGFloat = 36
   static var detailToolbarControlShape: ConcentricRectangle {
     ConcentricRectangle(corners: .concentric(minimum: 6))
   }

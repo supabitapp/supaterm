@@ -243,7 +243,7 @@ private struct SplitDropTargetSnapshotView: NSViewRepresentable {
   let appearance: SnapshotAppearance
 
   func makeNSView(context: Context) -> TerminalTabSplitDropOverlayView {
-    TerminalTabSplitDropOverlayView(reduceMotion: { true }, performHaptic: { _ in })
+    TerminalTabSplitDropOverlayView()
   }
 
   func updateNSView(_ nsView: TerminalTabSplitDropOverlayView, context: Context) {
@@ -251,8 +251,9 @@ private struct SplitDropTargetSnapshotView: NSViewRepresentable {
       named: appearance == .light ? .aqua : .darkAqua
     )
     nsView.layoutSubtreeIfNeeded()
-    let target = TerminalTabSplitDropLayout(bounds: nsView.bounds).rightFrame
-    let point = CGPoint(x: target.midX, y: target.midY)
-    nsView.render(.targeted(.right), at: point, sharedPreviewReady: true)
+    nsView.render(
+      .right,
+      color: Palette(colorScheme: appearance.colorScheme).accent
+    )
   }
 }

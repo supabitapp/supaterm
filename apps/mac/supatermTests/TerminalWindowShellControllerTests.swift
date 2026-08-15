@@ -403,15 +403,30 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test
+  func tabSplitDropSurfaceStartsBelowTheDetailToolbar() {
+    let detailFrame = CGRect(x: 240, y: 0, width: 760, height: 700)
+
+    #expect(
+      TerminalTabSplitDropLayout.surfaceFrame(in: detailFrame)
+        == CGRect(
+          x: 240 + TerminalChromeMetrics.paneInset,
+          y: TerminalChromeMetrics.paneInset,
+          width: 760 - (TerminalChromeMetrics.paneInset * 2),
+          height: 700
+            - TerminalChromeMetrics.detailToolbarHeight
+            - (TerminalChromeMetrics.paneInset * 2)
+        )
+    )
+  }
+
+  @Test
   func splitDropCoordinatorTargetsTheFirstValidUpdate() {
     var coordinator = TerminalTabSplitDropCoordinator()
     let context = splitDropContext()
 
     #expect(coordinator.state == .hidden)
-    #expect(coordinator.presentation == .hidden)
-    coordinator.update(context: context, target: .left)
-    #expect(coordinator.state == .targeted(context, .left))
-    #expect(coordinator.presentation == .targeted(.left))
+    coordinator.update(context: context, target: .top)
+    #expect(coordinator.state == .targeted(context, .top))
     #expect(coordinator.canCommit)
   }
 
@@ -420,20 +435,11 @@ struct TerminalWindowShellControllerTests {
     var coordinator = TerminalTabSplitDropCoordinator()
     let context = splitDropContext()
 
-    coordinator.update(context: context, target: nil)
-    let availableState = coordinator.state
-    coordinator.update(context: context, target: nil)
-    #expect(coordinator.state == availableState)
-    #expect(coordinator.state == .available(context))
-    #expect(coordinator.presentation == .available)
-    #expect(!coordinator.canCommit)
-
     coordinator.update(context: context, target: .right)
     let targetedState = coordinator.state
     coordinator.update(context: context, target: .right)
     #expect(coordinator.state == targetedState)
     #expect(coordinator.state == .targeted(context, .right))
-    #expect(coordinator.presentation == .targeted(.right))
   }
 
   @Test
@@ -441,39 +447,37 @@ struct TerminalWindowShellControllerTests {
     var coordinator = TerminalTabSplitDropCoordinator()
     let context = splitDropContext()
     var committedContext: TerminalTabSplitDropCoordinator.Context?
-    var committedSide: TerminalTabSplitSide?
+    var committedZone: TerminalSplitDropZone?
     var commitCount = 0
-    coordinator.update(context: context, target: nil)
 
-    let didCommitAvailable = coordinator.commit { _, _ in
+    let didCommitHidden = coordinator.commit { _, _ in
       commitCount += 1
       return true
     }
-    #expect(!didCommitAvailable)
+    #expect(!didCommitHidden)
     #expect(commitCount == 0)
-    #expect(coordinator.state == .available(context))
+    #expect(coordinator.state == .hidden)
 
-    coordinator.update(context: context, target: .right)
-    let didCommitTarget = coordinator.commit { context, side in
+    coordinator.update(context: context, target: .bottom)
+    let didCommitTarget = coordinator.commit { context, zone in
       commitCount += 1
       committedContext = context
-      committedSide = side
+      committedZone = zone
       return false
     }
 
     #expect(!didCommitTarget)
     #expect(commitCount == 1)
     #expect(committedContext == context)
-    #expect(committedSide == .right)
+    #expect(committedZone == .bottom)
     #expect(coordinator.state == .hidden)
-    #expect(coordinator.presentation == .hidden)
 
-    let didCommitHidden = coordinator.commit { _, _ in
+    let didCommitAfterTarget = coordinator.commit { _, _ in
       commitCount += 1
       return true
     }
     coordinator.hide()
-    #expect(!didCommitHidden)
+    #expect(!didCommitAfterTarget)
     #expect(commitCount == 1)
     #expect(coordinator.state == .hidden)
   }

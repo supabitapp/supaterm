@@ -198,7 +198,7 @@ struct TerminalTabDragPayloadTests {
           windowControllerID: windowID,
           spaceID: spaceID,
           tabID: TerminalTabID(),
-          side: .left
+          zone: .left
         )
       )
     )
