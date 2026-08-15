@@ -1,4 +1,5 @@
-import AppKit
+import CoreGraphics
+import SupatermTerminalCore
 import Testing
 
 @testable import supaterm
@@ -6,39 +7,39 @@ import Testing
 struct SplitTreeTests {
   @Test
   func focusTargetAfterClosingUsesNextForLeftmostLeaf() throws {
-    let first = SplitTreeTestView()
-    let second = SplitTreeTestView()
-    let third = SplitTreeTestView()
+    let first = SplitTreeTestLeaf()
+    let second = SplitTreeTestLeaf()
+    let third = SplitTreeTestLeaf()
 
     let tree = try SplitTree(view: first)
       .inserting(view: second, at: first, direction: .right)
       .inserting(view: third, at: second, direction: .right)
 
     let node = try #require(tree.find(id: first.id))
-    #expect(tree.focusTargetAfterClosing(node) === second)
+    #expect(tree.focusTargetAfterClosing(node) == second)
   }
 
   @Test
   func focusTargetAfterClosingUsesPreviousForNonLeftmostLeaf() throws {
-    let first = SplitTreeTestView()
-    let second = SplitTreeTestView()
-    let third = SplitTreeTestView()
+    let first = SplitTreeTestLeaf()
+    let second = SplitTreeTestLeaf()
+    let third = SplitTreeTestLeaf()
 
     let tree = try SplitTree(view: first)
       .inserting(view: second, at: first, direction: .right)
       .inserting(view: third, at: second, direction: .right)
 
     let node = try #require(tree.find(id: third.id))
-    #expect(tree.focusTargetAfterClosing(node) === second)
+    #expect(tree.focusTargetAfterClosing(node) == second)
   }
 
   @Test
   func tiledArrangesLeavesIntoBalancedRows() throws {
-    let first = SplitTreeTestView()
-    let second = SplitTreeTestView()
-    let third = SplitTreeTestView()
-    let fourth = SplitTreeTestView()
-    let fifth = SplitTreeTestView()
+    let first = SplitTreeTestLeaf()
+    let second = SplitTreeTestLeaf()
+    let third = SplitTreeTestLeaf()
+    let fourth = SplitTreeTestLeaf()
+    let fifth = SplitTreeTestLeaf()
 
     let tree = try SplitTree(view: first)
       .inserting(view: second, at: first, direction: .right)
@@ -62,11 +63,11 @@ struct SplitTreeTests {
 
   @Test
   func mainVerticalKeepsLeaderOnLeftAndStacksTeammatesOnRight() throws {
-    let first = SplitTreeTestView()
-    let second = SplitTreeTestView()
-    let third = SplitTreeTestView()
-    let fourth = SplitTreeTestView()
-    let fifth = SplitTreeTestView()
+    let first = SplitTreeTestLeaf()
+    let second = SplitTreeTestLeaf()
+    let third = SplitTreeTestLeaf()
+    let fourth = SplitTreeTestLeaf()
+    let fifth = SplitTreeTestLeaf()
 
     let tree = try SplitTree(view: first)
       .inserting(view: second, at: first, direction: .right)
@@ -86,7 +87,7 @@ struct SplitTreeTests {
       Issue.record("Expected leader pane on the left")
       return
     }
-    #expect(leader === first)
+    #expect(leader == first)
 
     guard case .split(let teammateSplit) = rootSplit.right else {
       Issue.record("Expected teammate panes on the right")
@@ -98,8 +99,8 @@ struct SplitTreeTests {
 
   @Test
   func sizingPercentSetsLeaderWidthRelativeToWindowBounds() throws {
-    let first = SplitTreeTestView()
-    let second = SplitTreeTestView()
+    let first = SplitTreeTestLeaf()
+    let second = SplitTreeTestLeaf()
 
     let tree = try SplitTree(view: first)
       .inserting(view: second, at: first, direction: .right)
@@ -120,8 +121,75 @@ struct SplitTreeTests {
     }
     #expect(abs(rootSplit.ratio - 0.3) < 0.0001)
   }
+
+  @Test
+  func stableIdentityFindsValueLeafAcrossPayloadChanges() throws {
+    let paneID = PaneID()
+    let original = SplitTreeTestLeaf(id: paneID, value: 1)
+    let updated = SplitTreeTestLeaf(id: paneID, value: 2)
+    let second = SplitTreeTestLeaf()
+
+    let tree = try SplitTree(view: original)
+      .inserting(view: second, at: updated, direction: .right)
+
+    let found = try #require(tree.root?.node(view: updated))
+    guard case .leaf(let stored) = found else {
+      Issue.record("Expected the original leaf")
+      return
+    }
+    #expect(stored == original)
+  }
+
+  @Test
+  func insertingDuplicateLeafIdentityFails() {
+    let paneID = PaneID()
+    let first = SplitTreeTestLeaf(id: paneID, value: 1)
+    let duplicate = SplitTreeTestLeaf(id: paneID, value: 2)
+    let tree = SplitTree(view: first)
+
+    #expect(throws: SplitTree<SplitTreeTestLeaf>.SplitError.duplicateLeafID) {
+      try tree.inserting(view: duplicate, at: first, direction: .right)
+    }
+  }
+
+  @Test
+  func joiningTreesWithDuplicateLeafIdentityFails() {
+    let paneID = PaneID()
+    let first = SplitTree(view: SplitTreeTestLeaf(id: paneID, value: 1))
+    let second = SplitTree(view: SplitTreeTestLeaf(id: paneID, value: 2))
+
+    #expect(first.joining(second, direction: .horizontal, placingOtherAfter: true) == nil)
+  }
+
+  @Test
+  func referenceLeafReplacementChangesRenderIdentity() throws {
+    let paneID = PaneID()
+    let original = SplitTreeReferenceLeaf(id: paneID)
+    let replacement = SplitTreeReferenceLeaf(id: paneID)
+    let originalNode = SplitTree(view: original).root
+    let replacementNode = SplitTree(view: replacement).root
+    let originalIdentity = try #require(originalNode).structuralIdentity
+    let replacementIdentity = try #require(replacementNode).structuralIdentity
+
+    #expect(originalNode == replacementNode)
+    #expect(originalIdentity != replacementIdentity)
+  }
 }
 
-private final class SplitTreeTestView: NSView, Identifiable {
-  let id = UUID()
+private nonisolated struct SplitTreeTestLeaf: Identifiable, Equatable, Sendable {
+  let id: PaneID
+  let value: Int
+
+  init(id: PaneID = PaneID(), value: Int = 0) {
+    self.id = id
+    self.value = value
+  }
+}
+
+private final class SplitTreeReferenceLeaf: Identifiable {
+  let id: PaneID
+
+  init(id: PaneID) {
+    self.id = id
+  }
 }

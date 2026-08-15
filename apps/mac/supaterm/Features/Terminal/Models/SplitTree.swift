@@ -1,6 +1,6 @@
-import AppKit
+import CoreGraphics
 
-struct SplitTree<ViewType: NSView & Identifiable> {
+struct SplitTree<ViewType: Identifiable> {
   let root: Node?
   let zoomed: Node?
 
@@ -49,8 +49,9 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     let slots: [SpatialSlot]
   }
 
-  enum SplitError: Error {
-    case viewNotFound
+  enum SplitError: Error, Equatable {
+    case duplicateLeafID
+    case leafNotFound
   }
 
   enum NewDirection {
@@ -92,7 +93,8 @@ struct SplitTree<ViewType: NSView & Identifiable> {
   }
 
   func inserting(view: ViewType, at anchor: ViewType, direction: NewDirection) throws -> Self {
-    guard let root else { throw SplitError.viewNotFound }
+    guard let root else { throw SplitError.leafNotFound }
+    guard root.find(id: view.id) == nil else { throw SplitError.duplicateLeafID }
     return Self(
       root: try root.inserting(view: view, at: anchor, direction: direction),
       zoomed: nil
@@ -105,6 +107,8 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     placingOtherAfter: Bool
   ) -> Self? {
     guard let root, let otherRoot = other.root else { return nil }
+    let leafIDs = Set(root.leaves().map(\.id))
+    guard otherRoot.leaves().allSatisfy({ !leafIDs.contains($0.id) }) else { return nil }
     return Self(
       root: .split(
         Split(
@@ -129,8 +133,8 @@ struct SplitTree<ViewType: NSView & Identifiable> {
   }
 
   func replacing(node: Node, with newNode: Node) throws -> Self {
-    guard let root else { throw SplitError.viewNotFound }
-    guard let path = root.path(to: node) else { throw SplitError.viewNotFound }
+    guard let root else { throw SplitError.leafNotFound }
+    guard let path = root.path(to: node) else { throw SplitError.leafNotFound }
     let newRoot = try root.replacingNode(at: path, with: newNode)
     let newZoomed = (zoomed == node) ? newNode : zoomed
     return Self(root: newRoot, zoomed: newZoomed)
@@ -143,7 +147,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     case .previous:
       let allLeaves = root.leaves()
       let currentView = currentNode.leftmostLeaf()
-      guard let currentIndex = allLeaves.firstIndex(where: { $0 === currentView }) else {
+      guard let currentIndex = allLeaves.firstIndex(where: { $0.id == currentView.id }) else {
         return nil
       }
       let index = allLeaves.indexWrapping(before: currentIndex)
@@ -152,7 +156,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     case .next:
       let allLeaves = root.leaves()
       let currentView = currentNode.rightmostLeaf()
-      guard let currentIndex = allLeaves.firstIndex(where: { $0 === currentView }) else {
+      guard let currentIndex = allLeaves.firstIndex(where: { $0.id == currentView.id }) else {
         return nil
       }
       let index = allLeaves.indexWrapping(after: currentIndex)
@@ -183,9 +187,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
   func focusTargetAfterClosing(_ node: Node) -> ViewType? {
     guard let root else { return nil }
 
-    // Match Ghostty's macOS controller: closing the leftmost leaf moves to the next
-    // surface, otherwise we move to the previous one.
-    if root.leftmostLeaf() === node.leftmostLeaf() {
+    if root.leftmostLeaf().id == node.leftmostLeaf().id {
       return focusTarget(for: .next, from: node)
     }
     return focusTarget(for: .previous, from: node)
@@ -249,15 +251,15 @@ struct SplitTree<ViewType: NSView & Identifiable> {
       case .up, .down: .vertical
       case .left, .right: .horizontal
       }
-    guard let root else { throw SplitError.viewNotFound }
+    guard let root else { throw SplitError.leafNotFound }
     let splitLocation = try nearestSplit(for: node, along: targetSplitDirection)
     let splitPath = splitLocation.splitPath
     let splitNode = splitLocation.splitNode
-    guard case .split(let split) = splitNode else { throw SplitError.viewNotFound }
+    guard case .split(let split) = splitNode else { throw SplitError.leafNotFound }
 
     let spatial = root.spatial(within: bounds.size)
     guard let splitSlot = spatial.slots.first(where: { $0.node == splitNode }) else {
-      throw SplitError.viewNotFound
+      throw SplitError.leafNotFound
     }
 
     let pixelOffset = Double(pixels)
@@ -275,7 +277,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     case (.vertical, .down):
       newRatio = split.ratio + (pixelOffset / height)
     default:
-      throw SplitError.viewNotFound
+      throw SplitError.leafNotFound
     }
 
     let clamped = max(0.1, min(0.9, newRatio))
@@ -297,20 +299,20 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     unit: SizeUnit,
     with bounds: CGRect
   ) throws -> Self {
-    guard let root else { throw SplitError.viewNotFound }
+    guard let root else { throw SplitError.leafNotFound }
     let splitLocation = try nearestSplit(for: node, along: axis)
     let splitPath = splitLocation.splitPath
     let splitNode = splitLocation.splitNode
     let pathToNode = splitLocation.pathToNode
-    guard case .split(let split) = splitNode else { throw SplitError.viewNotFound }
+    guard case .split(let split) = splitNode else { throw SplitError.leafNotFound }
     let componentIndex = splitPath.path.count
     guard pathToNode.path.indices.contains(componentIndex) else {
-      throw SplitError.viewNotFound
+      throw SplitError.leafNotFound
     }
     let targetSide = pathToNode.path[componentIndex]
     let spatial = root.spatial(within: bounds.size)
     guard let splitSlot = spatial.slots.first(where: { $0.node == splitNode }) else {
-      throw SplitError.viewNotFound
+      throw SplitError.leafNotFound
     }
 
     let totalDimension =
@@ -349,10 +351,6 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return Self(root: newRoot, zoomed: nil)
   }
 
-  func viewBounds() -> CGSize {
-    root?.viewBounds() ?? .zero
-  }
-
   func leaves() -> [ViewType] {
     root?.leaves() ?? []
   }
@@ -379,20 +377,21 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     for node: Node,
     along direction: Direction
   ) throws -> SplitLocation {
-    guard let root else { throw SplitError.viewNotFound }
-    guard let pathToNode = root.path(to: node) else { throw SplitError.viewNotFound }
-    guard !pathToNode.path.isEmpty else { throw SplitError.viewNotFound }
+    guard let root else { throw SplitError.leafNotFound }
+    guard let pathToNode = root.path(to: node) else { throw SplitError.leafNotFound }
+    guard !pathToNode.path.isEmpty else { throw SplitError.leafNotFound }
 
     for index in stride(from: pathToNode.path.count - 1, through: 0, by: -1) {
       let candidatePath = Path(path: Array(pathToNode.path.prefix(index)))
       guard let candidateNode = root.node(at: candidatePath) else { continue }
       guard case .split(let split) = candidateNode else { continue }
       if split.direction == direction {
-        return SplitLocation(pathToNode: pathToNode, splitNode: candidateNode, splitPath: candidatePath)
+        return SplitLocation(
+          pathToNode: pathToNode, splitNode: candidateNode, splitPath: candidatePath)
       }
     }
 
-    throw SplitError.viewNotFound
+    throw SplitError.leafNotFound
   }
 
   init(root: Node?, zoomed: Node?) {
@@ -412,7 +411,7 @@ extension SplitTree.Node {
   static func == (lhs: Self, rhs: Self) -> Bool {
     switch (lhs, rhs) {
     case (.leaf(let leftView), .leaf(let rightView)):
-      return leftView === rightView
+      return leftView.id == rightView.id
 
     case (.split(let split1), .split(let split2)):
       return split1 == split2
@@ -435,7 +434,7 @@ extension SplitTree.Node {
   func node(view: ViewType) -> Node? {
     switch self {
     case .leaf(let leafView):
-      return leafView === view ? self : nil
+      return leafView.id == view.id ? self : nil
     case .split(let split):
       if let result = split.left.node(view: view) { return result }
       if let result = split.right.node(view: view) { return result }
@@ -477,8 +476,12 @@ extension SplitTree.Node {
   }
 
   func inserting(view: ViewType, at anchor: ViewType, direction: NewDirection) throws -> Self {
-    guard let path = path(to: .leaf(view: anchor)) else {
-      throw SplitError.viewNotFound
+    guard
+      let path = path(to: .leaf(view: anchor)),
+      let existingNode = node(at: path),
+      case .leaf = existingNode
+    else {
+      throw SplitError.leafNotFound
     }
 
     let splitDirection: SplitTree.Direction
@@ -499,7 +502,6 @@ extension SplitTree.Node {
     }
 
     let newNode: Node = .leaf(view: view)
-    let existingNode: Node = .leaf(view: anchor)
     let newSplit: Node = .split(
       Split(
         direction: splitDirection,
@@ -517,7 +519,7 @@ extension SplitTree.Node {
     func replaceInner(current: Node, pathOffset: Int) throws -> Node {
       if pathOffset >= path.path.count { return newNode }
       guard case .split(let split) = current else {
-        throw SplitError.viewNotFound
+        throw SplitError.leafNotFound
       }
       let component = path.path[pathOffset]
       switch component {
@@ -687,28 +689,6 @@ extension SplitTree.Node {
     }
   }
 
-  func viewBounds() -> CGSize {
-    switch self {
-    case .leaf(let view):
-      return view.bounds.size
-    case .split(let split):
-      let leftBounds = split.left.viewBounds()
-      let rightBounds = split.right.viewBounds()
-      switch split.direction {
-      case .horizontal:
-        return CGSize(
-          width: leftBounds.width + rightBounds.width,
-          height: max(leftBounds.height, rightBounds.height)
-        )
-      case .vertical:
-        return CGSize(
-          width: max(leftBounds.width, rightBounds.width),
-          height: leftBounds.height + rightBounds.height
-        )
-      }
-    }
-  }
-
   func spatial(within bounds: CGSize? = nil) -> SplitTree.Spatial {
     let width: Double
     let height: Double
@@ -814,7 +794,10 @@ extension SplitTree.Node {
   fileprivate func isStructurallyEqual(to other: Node) -> Bool {
     switch (self, other) {
     case (.leaf(let view1), .leaf(let view2)):
-      return view1 === view2
+      if ViewType.self is AnyObject.Type {
+        return (view1 as AnyObject) === (view2 as AnyObject)
+      }
+      return view1.id == view2.id
     case (.split(let split1), .split(let split2)):
       return split1.direction == split2.direction
         && split1.left.isStructurallyEqual(to: split2.left)
@@ -828,7 +811,11 @@ extension SplitTree.Node {
     switch self {
     case .leaf(let view):
       hasher.combine(0)
-      hasher.combine(ObjectIdentifier(view))
+      if ViewType.self is AnyObject.Type {
+        hasher.combine(ObjectIdentifier(view as AnyObject))
+      } else {
+        hasher.combine(view.id)
+      }
     case .split(let split):
       hasher.combine(1)
       hasher.combine(split.direction)
