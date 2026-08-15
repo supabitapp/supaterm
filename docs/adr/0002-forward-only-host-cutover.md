@@ -18,7 +18,7 @@ The host must provide:
 - an owner-only local socket;
 - exact protocol-epoch handshake;
 - stable `MachineID` and per-process `BootID`;
-- terminal create, list, get, attach, input, resize, detach, and end operations;
+- terminal reserve, launch, list, get, attach, input, resize, detach, and end operations;
 - direct PTY and child ownership;
 - bounded output queues and explicit terminal exit.
 
@@ -48,21 +48,21 @@ Move hook intake, transcript readers, process discovery, agent reduction, and ho
 
 Tests must prove hooks and transcripts continue while no app runs, reconnect yields one canonical agent snapshot, and repeated hook delivery does not create duplicate state changes.
 
-### Gate 6: One-time state migration
+### Gate 6: Forward-only state cut
 
-Migrate persisted app presentation data once into the new app layout format. Migrate durable host metadata once into the host store. The migration must write new state atomically before marking the old state consumed.
+The app accepts only the new presentation format. Pane leaves contain `PaneID` and a terminal reference. Older session formats fail validation and have no decoder or migration path.
 
-Running zmx PTYs cannot migrate. An update waits until none remain or asks the user to end them. It never adopts their file descriptors or presents restarted commands as the same process.
+The host creates only its current store schema. It rejects an unknown version, a non-empty unversioned schema, or a changed schema definition. It never adopts old terminal metadata or binds a `TerminalID` to a new PTY.
 
-After migration succeeds:
+Running zmx PTYs cannot transfer to the host. They must end before the cut. Supaterm never adopts their file descriptors or presents a restarted command as the same process.
+
+At the cut:
 
 - only the new layout and host stores are read;
 - only the host creates real terminal PTYs;
-- the old decoder and migration entry point are removed;
 - zmx code, settings, environment, build steps, tests, and docs are removed;
-- no direct app PTY fallback remains.
-
-Migration failure leaves the source state intact and stops startup before either runtime mutates it. Supaterm never runs old and new terminal ownership at the same time.
+- no old decoder, migration entry point, or direct app PTY fallback remains;
+- Supaterm never runs old and new terminal ownership at the same time.
 
 ### Gate 7: Host lifecycle and packaging
 
@@ -82,4 +82,4 @@ There is one production terminal runtime at every point. Development-only proof 
 
 ## Consequences
 
-The hardest terminal and lifecycle claims receive proof before app-wide state moves. The final product has one execution owner, one protocol, one state model, and no permanent migration code.
+The hardest terminal and lifecycle claims receive proof before app-wide state moves. The final product has one execution owner, one protocol, one state model, and no migration code.
