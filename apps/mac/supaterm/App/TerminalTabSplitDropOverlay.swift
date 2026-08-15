@@ -12,7 +12,6 @@ final class TerminalTabSplitDropOverlayView: NSView {
   init() {
     super.init(frame: .zero)
     isHidden = true
-    hostingView.autoresizingMask = [.width, .height]
     addSubview(hostingView)
   }
 

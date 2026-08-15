@@ -251,6 +251,9 @@ private struct SplitDropTargetSnapshotView: NSViewRepresentable {
       named: appearance == .light ? .aqua : .darkAqua
     )
     nsView.layoutSubtreeIfNeeded()
-    nsView.render(.right)
+    nsView.render(
+      .right,
+      color: Palette(colorScheme: appearance.colorScheme).accent
+    )
   }
 }
