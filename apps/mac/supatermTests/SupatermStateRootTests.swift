@@ -42,4 +42,42 @@ struct SupatermStateRootTests {
         .standardizedFileURL
     )
   }
+
+  @Test
+  func hostPathsUseStateIdentityInsteadOfAppInstance() {
+    let runtimeBase = URL(fileURLWithPath: "/tmp/supaterm-runtime", isDirectory: true)
+    let first = SupatermHostPaths(
+      environment: [
+        SupatermCLIEnvironment.instanceNameKey: "first",
+        SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-state",
+      ],
+      runtimeBase: runtimeBase
+    )
+    let second = SupatermHostPaths(
+      environment: [
+        SupatermCLIEnvironment.instanceNameKey: "second",
+        SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-state",
+      ],
+      runtimeBase: runtimeBase
+    )
+
+    #expect(first == second)
+    #expect(first.socket == first.runtimeRoot.appendingPathComponent("host.sock"))
+  }
+
+  @Test
+  func hostPathsSeparateStateRoots() {
+    let runtimeBase = URL(fileURLWithPath: "/tmp/supaterm-runtime", isDirectory: true)
+    let first = SupatermHostPaths(
+      environment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-state-a"],
+      runtimeBase: runtimeBase
+    )
+    let second = SupatermHostPaths(
+      environment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-state-b"],
+      runtimeBase: runtimeBase
+    )
+
+    #expect(first.runtimeRoot != second.runtimeRoot)
+    #expect(first.socket != second.socket)
+  }
 }
