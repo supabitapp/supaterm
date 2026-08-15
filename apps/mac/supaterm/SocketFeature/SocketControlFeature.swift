@@ -4,8 +4,9 @@ import SupatermCLIShared
 import SupatermSupport
 import SupatermTerminalCore
 
-private enum SocketControlCancelID {
-  static let requests = "SocketControlFeature.requests"
+private nonisolated enum SocketControlCancelID: Hashable, Sendable {
+  case observation
+  case requests
 }
 
 enum SocketRequestError: Error, Equatable, LocalizedError {
@@ -50,25 +51,26 @@ enum SocketExecutorError: Error {
 @MainActor
 @Reducer
 public struct SocketControlFeature {
+  public enum Status: Equatable {
+    case failed(String)
+    case running(SupatermSocketEndpoint)
+    case starting
+    case stopped
+  }
+
   @ObservableState
   public struct State: Equatable {
-    public var endpoint: SupatermSocketEndpoint?
-    public var startErrorMessage: String?
+    public var status: Status
 
-    public init(
-      endpoint: SupatermSocketEndpoint? = nil,
-      startErrorMessage: String? = nil
-    ) {
-      self.endpoint = endpoint
-      self.startErrorMessage = startErrorMessage
+    public init(status: Status = .stopped) {
+      self.status = status
     }
   }
 
   public enum Action {
     case requestReceived(SocketControlClient.Request)
     case shutdown
-    case started(SupatermSocketEndpoint)
-    case startFailed(String)
+    case startResponse(Result<SupatermSocketEndpoint, any Error>)
     case task
   }
 
@@ -83,6 +85,7 @@ public struct SocketControlFeature {
       switch action {
       case .requestReceived(let request):
         return .run { [desktopNotificationClient, socketControlClient, socketRequestExecutor] _ in
+          guard !Task.isCancelled else { return }
           guard await socketControlClient.isPending(request.handle) else { return }
           let response = await response(
             for: request.payload,
@@ -90,20 +93,23 @@ public struct SocketControlFeature {
             socketControlClient: socketControlClient,
             socketRequestExecutor: socketRequestExecutor
           )
+          guard !Task.isCancelled else { return }
           await socketControlClient.reply(request.handle, response)
         }
+        .cancellable(id: SocketControlCancelID.requests)
 
-      case .started(let endpoint):
-        state.endpoint = endpoint
-        state.startErrorMessage = nil
+      case .startResponse(.success(let endpoint)):
+        state.status = .running(endpoint)
         return .none
 
-      case .startFailed(let message):
-        state.startErrorMessage = message
+      case .startResponse(.failure(let error)):
+        state.status = .failed(error.localizedDescription)
         return .none
 
       case .shutdown:
+        state.status = .stopped
         return .merge(
+          .cancel(id: SocketControlCancelID.observation),
           .cancel(id: SocketControlCancelID.requests),
           .run { [socketControlClient] _ in
             await socketControlClient.stop()
@@ -111,19 +117,24 @@ public struct SocketControlFeature {
         )
 
       case .task:
+        state.status = .starting
         return .run { [socketControlClient] send in
           do {
             let endpoint = try await socketControlClient.start()
-            await send(.started(endpoint))
+            guard !Task.isCancelled else { return }
+            await send(.startResponse(.success(endpoint)))
             let requests = await socketControlClient.requests()
             for await request in requests {
+              guard !Task.isCancelled else { return }
               await send(.requestReceived(request))
             }
+          } catch is CancellationError {
+            return
           } catch {
-            await send(.startFailed(error.localizedDescription))
+            await send(.startResponse(.failure(error)))
           }
         }
-        .cancellable(id: SocketControlCancelID.requests, cancelInFlight: true)
+        .cancellable(id: SocketControlCancelID.observation, cancelInFlight: true)
       }
     }
   }

@@ -10,6 +10,7 @@ import Testing
 @testable import supaterm
 
 func makeStore(
+  initialState: SocketControlFeature.State = SocketControlFeature.State(),
   updateDependencies: (inout DependencyValues) -> Void = { _ in },
   executeApp: (
     @MainActor @Sendable (SocketRequestExecutor.AppRequest) async throws -> SocketRequestExecutor.AppResult
@@ -25,9 +26,10 @@ func makeStore(
     ) async throws -> SocketRequestExecutor.TerminalPaneResult
   )? = nil
 ) -> TestStoreOf<SocketControlFeature> {
-  TestStore(initialState: SocketControlFeature.State()) {
+  TestStore(initialState: initialState) {
     SocketControlFeature()
   } withDependencies: {
+    $0.socketControlClient.isPending = { _ in true }
     updateDependencies(&$0)
     $0.socketRequestExecutor = .testing(
       terminalWindowsClient: $0.terminalWindowsClient,
@@ -66,7 +68,8 @@ extension SocketRequestExecutor {
         if let executeAgentIntegration {
           return try await executeAgentIntegration($0)
         }
-        return try await SocketRequestExecutor.liveValue.executeAgentIntegration($0)
+        Issue.record("Unexpected agent integration request: \($0)")
+        throw SocketControlTestError.unexpectedRequest
       },
       executeTerminalCreation: {
         try await testingCreation($0, terminalWindowsClient: terminalWindowsClient)
@@ -127,7 +130,8 @@ extension SocketRequestExecutor {
         ).result
       )
     case .settingsValidate:
-      return try await SocketRequestExecutor.liveValue.executeApp(request)
+      Issue.record("Unexpected settings validation request")
+      throw SocketControlTestError.unexpectedRequest
     case .treeSnapshot:
       return .treeSnapshot(await terminalWindowsClient.treeSnapshot())
     case .notify(let notifyRequest):
@@ -234,6 +238,10 @@ extension SocketRequestExecutor {
       return .lastSpace(try await terminalWindowsClient.lastSpace(navigationRequest))
     }
   }
+}
+
+private enum SocketControlTestError: Error {
+  case unexpectedRequest
 }
 
 actor SocketReplyRecorder {

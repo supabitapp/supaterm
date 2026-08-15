@@ -66,26 +66,15 @@ extension SocketControlClient: DependencyKey {
   }()
 
   public nonisolated static let testValue = Self(
-    currentEndpoint: {
-      nil
-    },
-    isPending: { _ in true },
-    requests: {
-      AsyncStream { continuation in
-        continuation.finish()
-      }
-    },
-    reply: { _, _ in },
-    start: {
-      SupatermSocketEndpoint(
-        id: UUID(uuidString: "8D630A04-61B5-48E8-9D7E-F7E0BB8B9B16")!,
-        name: "test",
-        path: "/tmp/supaterm-test.sock",
-        pid: 1,
-        startedAt: Date(timeIntervalSince1970: 0)
-      )
-    },
-    stop: {}
+    currentEndpoint: unimplemented("SocketControlClient.currentEndpoint", placeholder: nil),
+    isPending: unimplemented("SocketControlClient.isPending", placeholder: false),
+    requests: unimplemented(
+      "SocketControlClient.requests",
+      placeholder: AsyncStream { $0.finish() }
+    ),
+    reply: unimplemented("SocketControlClient.reply"),
+    start: unimplemented("SocketControlClient.start"),
+    stop: unimplemented("SocketControlClient.stop")
   )
 }
 

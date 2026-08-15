@@ -27,15 +27,139 @@ struct SocketControlFeatureLifecycleTests {
       $0.socketControlClient.start = { endpoint }
     }
 
-    await store.send(.task)
-    await store.receive(\.started) {
-      $0.endpoint = endpoint
-      $0.startErrorMessage = nil
+    await store.send(.task) {
+      $0.status = .starting
+    }
+    await store.receive(\.startResponse) {
+      $0.status = .running(endpoint)
     }
 
     continuation.finish()
     await store.finish()
   }
+
+  @Test
+  func taskFailureStoresOneCoherentStatus() async {
+    let store = makeStore {
+      $0.socketControlClient.start = {
+        throw NSError(
+          domain: "SocketControlFeatureLifecycleTests",
+          code: 1,
+          userInfo: [NSLocalizedDescriptionKey: "Cannot bind socket"]
+        )
+      }
+    }
+
+    await store.send(.task) {
+      $0.status = .starting
+    }
+    await store.receive(\.startResponse) {
+      $0.status = .failed("Cannot bind socket")
+    }
+  }
+
+  @Test
+  func shutdownDuringStartupStaysStopped() async {
+    let startup = LockIsolated((started: false, cancelled: false))
+    let store = makeStore {
+      $0.socketControlClient.start = {
+        startup.withValue { $0.started = true }
+        do {
+          try await Task.sleep(for: .seconds(60))
+        } catch {
+          startup.withValue { $0.cancelled = true }
+          throw error
+        }
+        throw CancellationError()
+      }
+      $0.socketControlClient.stop = {}
+    }
+
+    await store.send(.task) {
+      $0.status = .starting
+    }
+    #expect(await waitUntil { startup.value.started })
+
+    await store.send(.shutdown) {
+      $0.status = .stopped
+    }
+
+    #expect(await waitUntil { startup.value.cancelled })
+    await store.finish()
+  }
+
+  @Test
+  func shutdownCancelsActiveObservation() async {
+    let endpoint = SupatermSocketEndpoint(
+      id: UUID(uuidString: "51BBF8B3-747D-443C-8070-D3B32299A323")!,
+      name: "test",
+      path: "/tmp/supaterm.sock",
+      pid: 1,
+      startedAt: Date(timeIntervalSince1970: 0)
+    )
+    let terminationCount = LockIsolated(0)
+    let stream = AsyncStream<SocketControlClient.Request> { continuation in
+      continuation.onTermination = { _ in
+        terminationCount.withValue { $0 += 1 }
+      }
+    }
+    let store = makeStore {
+      $0.socketControlClient.requests = { stream }
+      $0.socketControlClient.start = { endpoint }
+      $0.socketControlClient.stop = {}
+    }
+
+    await store.send(.task) {
+      $0.status = .starting
+    }
+    await store.receive(\.startResponse) {
+      $0.status = .running(endpoint)
+    }
+    await store.send(.shutdown) {
+      $0.status = .stopped
+    }
+
+    #expect(await waitUntil { terminationCount.value == 1 })
+    await store.finish()
+  }
+
+  @Test
+  func shutdownCancelsInFlightRequest() async throws {
+    let execution = LockIsolated((started: false, cancelled: false))
+    let request = SocketControlClient.Request(
+      handle: UUID(uuidString: "76863D5A-9FD6-4E6F-829E-42797DD88F82")!,
+      payload: try .newTab(
+        SupatermNewTabRequest(
+          startupCommand: .exec(["pwd"], searchPath: "/usr/bin:/bin"),
+          focus: false,
+          target: .space(UUID())
+        ),
+        id: "cancelled-new-tab"
+      )
+    )
+    let store = makeStore {
+      $0.socketControlClient.stop = {}
+      $0.terminalWindowsClient.createTab = { _ in
+        execution.withValue { $0.started = true }
+        do {
+          try await Task.sleep(for: .seconds(60))
+        } catch {
+          execution.withValue { $0.cancelled = true }
+          throw error
+        }
+        throw CancellationError()
+      }
+    }
+
+    await store.send(.requestReceived(request))
+    #expect(await waitUntil { execution.value.started })
+
+    await store.send(.shutdown)
+
+    #expect(await waitUntil { execution.value.cancelled })
+    await store.finish()
+  }
+
   @Test
   func pingRequestRepliesWithPong() async {
     let recorder = SocketReplyRecorder()
@@ -129,14 +253,23 @@ struct SocketControlFeatureLifecycleTests {
   @Test
   func shutdownStopsSocketRuntime() async {
     let recorder = StopRecorder()
+    let endpoint = SupatermSocketEndpoint(
+      id: UUID(uuidString: "C8B0AB8F-B55B-447E-B37B-C1BB2DA42493")!,
+      name: "test",
+      path: "/tmp/supaterm.sock",
+      pid: 1,
+      startedAt: Date(timeIntervalSince1970: 0)
+    )
 
-    let store = makeStore {
+    let store = makeStore(initialState: SocketControlFeature.State(status: .running(endpoint))) {
       $0.socketControlClient.stop = {
         await recorder.recordStop()
       }
     }
 
-    await store.send(.shutdown)
+    await store.send(.shutdown) {
+      $0.status = .stopped
+    }
 
     #expect(await recorder.stopCount() == 1)
   }

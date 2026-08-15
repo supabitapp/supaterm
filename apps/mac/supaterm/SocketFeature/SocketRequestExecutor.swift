@@ -337,7 +337,15 @@ extension SocketRequestExecutor: DependencyKey {
     }
   )
 
-  public static let testValue = liveValue
+  public static let testValue = Self(
+    executeApp: unimplemented("SocketRequestExecutor.executeApp"),
+    executeAgentIntegration: unimplemented("SocketRequestExecutor.executeAgentIntegration"),
+    executeTerminalCreation: unimplemented("SocketRequestExecutor.executeTerminalCreation"),
+    executeTerminalPane: unimplemented("SocketRequestExecutor.executeTerminalPane"),
+    executeTerminalTab: unimplemented("SocketRequestExecutor.executeTerminalTab"),
+    executeTerminalTabGroup: unimplemented("SocketRequestExecutor.executeTerminalTabGroup"),
+    executeTerminalSpace: unimplemented("SocketRequestExecutor.executeTerminalSpace")
+  )
 
   private static let emptyDebugSnapshot = SupatermAppDebugSnapshot(
     build: SupatermAppDebugSnapshot.Build(

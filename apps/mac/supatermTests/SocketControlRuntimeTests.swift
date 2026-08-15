@@ -228,6 +228,48 @@ struct SocketControlRuntimeTests {
   }
 
   @Test
+  func stoppedReaderCannotEmitIntoRestartedRuntime() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let socketURL = rootURL.appendingPathComponent("control.sock", isDirectory: false)
+    let runtime = SocketControlRuntime(endpointProvider: {
+      socketEndpoint(path: socketURL.path)
+    })
+    let firstEndpoint = try await runtime.start()
+    let staleSocket = try openConnectedSocket(path: firstEndpoint.path)
+    defer { Darwin.close(staleSocket) }
+
+    let staleData = try JSONEncoder().encode(SupatermSocketRequest.ping(id: "stale"))
+    try writeData(staleData, to: staleSocket)
+    for _ in 0..<100 {
+      await Task.yield()
+    }
+
+    await runtime.stop()
+    let secondEndpoint = try await runtime.start()
+    let stream = await runtime.requests()
+    let requestTask = Task {
+      var iterator = stream.makeAsyncIterator()
+      return await iterator.next()
+    }
+
+    _ = Darwin.shutdown(staleSocket, SHUT_WR)
+    for _ in 0..<100 {
+      await Task.yield()
+    }
+
+    let currentSocket = try openConnectedSocket(path: secondEndpoint.path)
+    defer { Darwin.close(currentSocket) }
+    try writeRequest(.ping(id: "current"), to: currentSocket)
+
+    let request = try #require(await requestTask.value)
+    #expect(request.payload.id == "current")
+    await runtime.reply(.ok(id: "current"), to: request.handle)
+    await runtime.stop()
+  }
+
+  @Test
   func requestReaderRejectsLinesOverLimit() throws {
     var sockets = [Int32](repeating: -1, count: 2)
     try #require(Darwin.socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0)
@@ -373,6 +415,40 @@ struct SocketControlRuntimeTests {
       throw error
     }
   }
+
+  @Test
+  func replyingCancelsTimeoutTask() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let sleepRecorder = RuntimeCancellableSleepRecorder()
+    let socketURL = rootURL.appendingPathComponent("control.sock", isDirectory: false)
+    let runtime = SocketControlRuntime(
+      endpointProvider: {
+        socketEndpoint(path: socketURL.path)
+      },
+      sleep: { duration in
+        try await sleepRecorder.sleep(duration)
+      }
+    )
+    let endpoint = try await runtime.start()
+    let stream = await runtime.requests()
+    let requestTask = Task {
+      var iterator = stream.makeAsyncIterator()
+      return await iterator.next()
+    }
+    let socketDescriptor = try openConnectedSocket(path: endpoint.path)
+    defer { Darwin.close(socketDescriptor) }
+
+    try writeRequest(.ping(id: "cancel-timeout"), to: socketDescriptor)
+    let request = try #require(await requestTask.value)
+    #expect(await sleepRecorder.waitUntilStarted())
+
+    await runtime.reply(.ok(id: "cancel-timeout"), to: request.handle)
+
+    #expect(await sleepRecorder.waitUntilCancelled())
+    await runtime.stop()
+  }
 }
 
 private func makeTemporaryDirectory() throws -> URL {
@@ -485,6 +561,37 @@ private actor RuntimeSleepGate {
     for continuation in pendingContinuations {
       continuation.resume()
     }
+  }
+}
+
+private actor RuntimeCancellableSleepRecorder {
+  private var cancellationCount = 0
+  private var startCount = 0
+
+  func sleep(_: Duration) async throws {
+    startCount += 1
+    do {
+      try await Task.sleep(for: .seconds(60))
+    } catch {
+      cancellationCount += 1
+      throw error
+    }
+  }
+
+  func waitUntilCancelled() async -> Bool {
+    for _ in 0..<1_000 {
+      if cancellationCount == 1 { return true }
+      await Task.yield()
+    }
+    return cancellationCount == 1
+  }
+
+  func waitUntilStarted() async -> Bool {
+    for _ in 0..<1_000 {
+      if startCount == 1 { return true }
+      await Task.yield()
+    }
+    return startCount == 1
   }
 }
 

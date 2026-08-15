@@ -300,6 +300,7 @@ private func makeTabGroupStore(
   TestStore(initialState: SocketControlFeature.State()) {
     SocketControlFeature()
   } withDependencies: {
+    $0.socketControlClient.isPending = { _ in true }
     $0.socketControlClient.reply = { handle, response in
       await replyRecorder.record(handle: handle, response: response)
     }

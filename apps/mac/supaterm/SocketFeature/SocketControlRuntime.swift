@@ -43,6 +43,7 @@ actor SocketControlRuntime {
 
   private struct PendingReply: Sendable {
     let clientSocket: Int32
+    let timeoutTask: Task<Void, Never>
   }
 
   nonisolated static let shared = SocketControlRuntime(
@@ -53,8 +54,10 @@ actor SocketControlRuntime {
   private let endpointProvider: @Sendable () -> SupatermSocketEndpoint?
   private let replyTimeout: Duration
   private let sleep: @Sendable (Duration) async throws -> Void
+  private var acceptedClientSockets: Set<Int32> = []
   private var bufferedRequests: [SocketControlClient.Request] = []
   private var endpoint: SupatermSocketEndpoint?
+  private var generation: UInt64 = 0
   private var listenerTask: Task<Void, Never>?
   private var pendingReplies: [UUID: PendingReply] = [:]
   private var requestsContinuation: AsyncStream<SocketControlClient.Request>.Continuation?
@@ -148,6 +151,8 @@ actor SocketControlRuntime {
 
       self.serverSocket = serverSocket
       self.endpoint = endpoint
+      generation &+= 1
+      let generation = generation
       if Self.shouldPrintSocket() {
         Self.writeStandardError("Supaterm socket: \(endpoint.displayString)\n")
       }
@@ -155,10 +160,11 @@ actor SocketControlRuntime {
       let runtime = self
       let clientReadTimeout = self.clientReadTimeout
       listenerTask = Task.detached(priority: .utility) {
-        Self.acceptLoop(
+        await Self.acceptLoop(
           serverSocket: serverSocket,
           runtime: runtime,
-          clientReadTimeout: clientReadTimeout
+          clientReadTimeout: clientReadTimeout,
+          generation: generation
         )
       }
 
@@ -173,6 +179,7 @@ actor SocketControlRuntime {
   }
 
   func stop() {
+    generation &+= 1
     let listenerTask = listenerTask
     self.listenerTask = nil
     listenerTask?.cancel()
@@ -182,8 +189,13 @@ actor SocketControlRuntime {
       serverSocket = -1
     }
 
+    for clientSocket in acceptedClientSockets {
+      Self.closeClientSocket(clientSocket)
+    }
+    acceptedClientSockets.removeAll()
     for pendingReply in pendingReplies.values {
-      Darwin.close(pendingReply.clientSocket)
+      pendingReply.timeoutTask.cancel()
+      Self.closeClientSocket(pendingReply.clientSocket)
     }
     pendingReplies.removeAll()
     bufferedRequests.removeAll()
@@ -198,15 +210,28 @@ actor SocketControlRuntime {
 
   func reply(_ response: SupatermSocketResponse, to handle: UUID) {
     guard let pendingReply = pendingReplies.removeValue(forKey: handle) else { return }
+    pendingReply.timeoutTask.cancel()
     Self.writeResponse(response, to: pendingReply.clientSocket)
   }
 
-  private func handleRequestLine(_ requestLine: String?, clientSocket: Int32) {
+  private func registerClientSocket(_ clientSocket: Int32, generation: UInt64) -> Bool {
+    guard self.generation == generation, endpoint != nil else { return false }
+    acceptedClientSockets.insert(clientSocket)
+    return true
+  }
+
+  private func handleRequestLine(
+    _ requestLine: String?,
+    clientSocket: Int32,
+    generation: UInt64
+  ) {
+    guard self.generation == generation else { return }
+    guard acceptedClientSockets.remove(clientSocket) != nil else { return }
     guard
       let requestLine = requestLine?.trimmingCharacters(in: .whitespacesAndNewlines),
       !requestLine.isEmpty
     else {
-      Darwin.close(clientSocket)
+      Self.closeClientSocket(clientSocket)
       return
     }
 
@@ -228,15 +253,22 @@ actor SocketControlRuntime {
     }
 
     let handle = UUID()
-    pendingReplies[handle] = PendingReply(clientSocket: clientSocket)
-    emit(SocketControlClient.Request(handle: handle, payload: request))
-
     let sleep = self.sleep
     let replyTimeout = self.replyTimeout
-    Task { [weak self] in
-      try? await sleep(replyTimeout)
-      await self?.expireReply(handle)
+    let timeoutTask = Task { [weak self] in
+      do {
+        try await sleep(replyTimeout)
+      } catch {
+        return
+      }
+      guard !Task.isCancelled else { return }
+      await self?.expireReply(handle, generation: generation)
     }
+    pendingReplies[handle] = PendingReply(
+      clientSocket: clientSocket,
+      timeoutTask: timeoutTask
+    )
+    emit(SocketControlClient.Request(handle: handle, payload: request))
   }
 
   private func emit(_ request: SocketControlClient.Request) {
@@ -247,23 +279,30 @@ actor SocketControlRuntime {
     requestsContinuation.yield(request)
   }
 
-  private func expireReply(_ handle: UUID) {
+  private func expireReply(_ handle: UUID, generation: UInt64) {
+    guard self.generation == generation else { return }
     guard let pendingReply = pendingReplies.removeValue(forKey: handle) else { return }
     bufferedRequests.removeAll { $0.handle == handle }
-    Darwin.close(pendingReply.clientSocket)
+    Self.closeClientSocket(pendingReply.clientSocket)
   }
 
   private nonisolated static func acceptLoop(
     serverSocket: Int32,
     runtime: SocketControlRuntime,
-    clientReadTimeout: TimeInterval
-  ) {
+    clientReadTimeout: TimeInterval,
+    generation: UInt64
+  ) async {
     while !Task.isCancelled {
       let clientSocket = Darwin.accept(serverSocket, nil, nil)
       guard clientSocket >= 0 else {
         if errno == EBADF || errno == EINVAL {
           return
         }
+        continue
+      }
+
+      guard await runtime.registerClientSocket(clientSocket, generation: generation) else {
+        Self.closeClientSocket(clientSocket)
         continue
       }
 
@@ -278,7 +317,11 @@ actor SocketControlRuntime {
         )
 
         let requestLine = Self.readRequestLine(from: clientSocket)
-        await runtime.handleRequestLine(requestLine, clientSocket: clientSocket)
+        await runtime.handleRequestLine(
+          requestLine,
+          clientSocket: clientSocket,
+          generation: generation
+        )
       }
     }
   }
@@ -418,6 +461,11 @@ actor SocketControlRuntime {
       fputs(pointer, stderr)
     }
     fflush(stderr)
+  }
+
+  private nonisolated static func closeClientSocket(_ socket: Int32) {
+    Darwin.shutdown(socket, SHUT_RDWR)
+    Darwin.close(socket)
   }
 
   nonisolated static func readRequestLine(

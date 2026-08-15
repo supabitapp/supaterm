@@ -50,7 +50,7 @@ struct ActionLoggingTests {
       appLogEvent(for: SettingsFeature.Action.zmxSessionsEnabledChanged(true)).category == .settings
     )
     #expect(
-      appLogEvent(for: SocketControlFeature.Action.startFailed("boom")).category == .socket
+      appLogEvent(for: socketStartFailureAction()).category == .socket
     )
     #expect(
       appLogEvent(for: UpdateFeature.Action.perform(.checkForUpdates)).category == .update
@@ -64,7 +64,7 @@ struct ActionLoggingTests {
       terminalEvent(for: .newTabButtonTapped(inheritingFromSurfaceID: nil)),
       terminalEvent(for: .closeTabRequested(TerminalTabID())),
       appLogEvent(for: SettingsFeature.Action.zmxSessionsEnabledChanged(true)),
-      appLogEvent(for: SocketControlFeature.Action.startFailed("boom")),
+      appLogEvent(for: socketStartFailureAction()),
       appLogEvent(for: UpdateFeature.Action.perform(.checkForUpdates)),
     ]
 
@@ -122,4 +122,16 @@ struct ActionLoggingTests {
   private func terminalEvent(for action: TerminalWindowFeature.Action) -> AppLogEvent {
     appLogEvent(for: AppFeature.Action.terminal(action))
   }
+}
+
+private func socketStartFailureAction() -> SocketControlFeature.Action {
+  .startResponse(
+    .failure(
+      NSError(
+        domain: "ActionLoggingTests",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "boom"]
+      )
+    )
+  )
 }

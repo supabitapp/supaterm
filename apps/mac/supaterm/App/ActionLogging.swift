@@ -113,8 +113,7 @@ nonisolated enum ActionLogPolicy {
   private static let socketExceptionStepFragments = [
     "requestReceived",
     "shutdown",
-    "startFailed",
-    "started",
+    "startResponse(.failure)",
     "task",
   ]
 
