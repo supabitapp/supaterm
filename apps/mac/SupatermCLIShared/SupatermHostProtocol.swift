@@ -20,10 +20,23 @@ public enum SupatermHostSnapshotFormat: String, Codable, Sendable {
   case vtReplayV1
 }
 
+public enum SupatermHostStartupInputDelivery: String, Codable, Sendable {
+  case immediate
+  case prompt
+}
+
 public enum SupatermHostAttachReplaySegment: String, Codable, Sendable {
   case vt
   case title
   case continuation
+}
+
+public nonisolated struct LaunchTicketID: SupatermUUIDIdentifier {
+  public let rawValue: UUID
+
+  public init(rawValue: UUID) {
+    self.rawValue = rawValue
+  }
 }
 
 public struct SupatermHostClientEnvelope: Codable, Equatable, Sendable {
@@ -124,7 +137,15 @@ public struct SupatermHostEnvelope: Codable, Equatable, Sendable {
 
 public enum SupatermHostRequest: Equatable, Sendable {
   case hello(clientID: ClientID)
-  case create(
+  case reserve(
+    launchTicketID: LaunchTicketID,
+    terminalID: TerminalID,
+    size: SupatermHostTerminalSize,
+    startupInput: String,
+    startupInputDelivery: SupatermHostStartupInputDelivery
+  )
+  case launch(
+    launchTicketID: LaunchTicketID,
     terminalID: TerminalID,
     command: SupatermHostCommand,
     size: SupatermHostTerminalSize
@@ -159,8 +180,20 @@ extension SupatermHostRequest: Codable {
     switch kind {
     case .hello:
       self = .hello(clientID: try container.decode(ClientID.self, forKey: .clientID))
-    case .create:
-      self = .create(
+    case .reserve:
+      self = .reserve(
+        launchTicketID: try container.decode(LaunchTicketID.self, forKey: .launchTicketID),
+        terminalID: try container.decode(TerminalID.self, forKey: .terminalID),
+        size: try container.decode(SupatermHostTerminalSize.self, forKey: .size),
+        startupInput: try container.decode(String.self, forKey: .startupInput),
+        startupInputDelivery: try container.decode(
+          SupatermHostStartupInputDelivery.self,
+          forKey: .startupInputDelivery
+        )
+      )
+    case .launch:
+      self = .launch(
+        launchTicketID: try container.decode(LaunchTicketID.self, forKey: .launchTicketID),
         terminalID: try container.decode(TerminalID.self, forKey: .terminalID),
         command: try container.decode(SupatermHostCommand.self, forKey: .command),
         size: try container.decode(SupatermHostTerminalSize.self, forKey: .size)
@@ -207,8 +240,22 @@ extension SupatermHostRequest: Codable {
     case .hello(let clientID):
       try container.encode(Kind.hello, forKey: .type)
       try container.encode(clientID, forKey: .clientID)
-    case .create(let terminalID, let command, let size):
-      try container.encode(Kind.create, forKey: .type)
+    case .reserve(
+      let launchTicketID,
+      let terminalID,
+      let size,
+      let startupInput,
+      let startupInputDelivery
+    ):
+      try container.encode(Kind.reserve, forKey: .type)
+      try container.encode(launchTicketID, forKey: .launchTicketID)
+      try container.encode(terminalID, forKey: .terminalID)
+      try container.encode(size, forKey: .size)
+      try container.encode(startupInput, forKey: .startupInput)
+      try container.encode(startupInputDelivery, forKey: .startupInputDelivery)
+    case .launch(let launchTicketID, let terminalID, let command, let size):
+      try container.encode(Kind.launch, forKey: .type)
+      try container.encode(launchTicketID, forKey: .launchTicketID)
       try container.encode(terminalID, forKey: .terminalID)
       try container.encode(command, forKey: .command)
       try container.encode(size, forKey: .size)
@@ -244,7 +291,8 @@ extension SupatermHostRequest: Codable {
 
   private enum Kind: String, Codable {
     case hello
-    case create
+    case reserve
+    case launch
     case list
     case get
     case attach
@@ -257,8 +305,13 @@ extension SupatermHostRequest: Codable {
       switch self {
       case .hello:
         return ["type", "clientId"]
-      case .create:
-        return ["type", "terminalId", "command", "size"]
+      case .reserve:
+        return [
+          "type", "launchTicketId", "terminalId", "size", "startupInput",
+          "startupInputDelivery",
+        ]
+      case .launch:
+        return ["type", "launchTicketId", "terminalId", "command", "size"]
       case .list:
         return ["type"]
       case .get, .end:
@@ -278,10 +331,13 @@ extension SupatermHostRequest: Codable {
   private enum CodingKeys: String, CodingKey {
     case type
     case clientID = "clientId"
+    case launchTicketID = "launchTicketId"
     case terminalID = "terminalId"
     case attachmentID = "attachmentId"
     case snapshotFormat
     case command
+    case startupInput
+    case startupInputDelivery
     case size
     case sequence
   }
@@ -289,7 +345,8 @@ extension SupatermHostRequest: Codable {
 
 public enum SupatermHostMessage: Equatable, Sendable {
   case hello(machineID: MachineID, bootID: BootID)
-  case created(terminal: SupatermHostTerminalInfo)
+  case reserved
+  case launched(terminal: SupatermHostTerminalInfo)
   case terminals([SupatermHostTerminalInfo])
   case terminal(SupatermHostTerminalInfo)
   case attachReplay(
@@ -336,8 +393,10 @@ extension SupatermHostMessage: Codable {
         machineID: try container.decode(MachineID.self, forKey: .machineID),
         bootID: try container.decode(BootID.self, forKey: .bootID)
       )
-    case .created:
-      self = .created(
+    case .reserved:
+      self = .reserved
+    case .launched:
+      self = .launched(
         terminal: try container.decode(SupatermHostTerminalInfo.self, forKey: .terminal)
       )
     case .terminals:
@@ -402,8 +461,10 @@ extension SupatermHostMessage: Codable {
       try container.encode(Kind.hello, forKey: .type)
       try container.encode(machineID, forKey: .machineID)
       try container.encode(bootID, forKey: .bootID)
-    case .created(let terminal):
-      try container.encode(Kind.created, forKey: .type)
+    case .reserved:
+      try container.encode(Kind.reserved, forKey: .type)
+    case .launched(let terminal):
+      try container.encode(Kind.launched, forKey: .type)
       try container.encode(terminal, forKey: .terminal)
     case .terminals(let terminals):
       try container.encode(Kind.terminals, forKey: .type)
@@ -453,7 +514,8 @@ extension SupatermHostMessage: Codable {
 
   private enum Kind: String, Codable {
     case hello
-    case created
+    case reserved
+    case launched
     case terminals
     case terminal
     case attachReplay
@@ -469,7 +531,9 @@ extension SupatermHostMessage: Codable {
       switch self {
       case .hello:
         return ["type", "machineId", "bootId"]
-      case .created, .terminal:
+      case .reserved:
+        return ["type"]
+      case .launched, .terminal:
         return ["type", "terminal"]
       case .terminals:
         return ["type", "terminals"]
@@ -526,6 +590,7 @@ public enum SupatermHostErrorCode: String, Codable, Sendable {
   case notAttached
   case notFound
   case `protocol`
+  case replayUnavailable
   case terminalExited
   case terminalInUse
 }

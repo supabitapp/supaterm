@@ -5,60 +5,264 @@ import Testing
 
 struct SupatermHostProtocolTests {
   @Test
-  func clientCreateMatchesRustJSON() throws {
-    let envelope = SupatermHostClientEnvelope(
-      role: .test,
-      requestID: try hostRequestID("123e4567-e89b-12d3-a456-426614174002"),
-      body: .create(
-        terminalID: try terminalID("123e4567-e89b-12d3-a456-426614174000"),
-        command: SupatermHostCommand(
-          argv: ["/bin/sh", "-c", "printf ok"],
-          cwd: "/tmp/working directory",
-          environment: SupatermHostEnvironmentSpec(
-            inherit: false,
-            set: ["B": "two", "A": "one"],
-            remove: ["SECRET"]
-          )
-        ),
+  func reservationMatchesRustJSON() throws {
+    let requestID = try hostRequestID("123e4567-e89b-12d3-a456-426614174002")
+    let ticketID = try launchTicketID("123e4567-e89b-12d3-a456-426614174006")
+    let terminalID = try terminalID("123e4567-e89b-12d3-a456-426614174000")
+    let request = SupatermHostClientEnvelope(
+      role: .app,
+      requestID: requestID,
+      body: .reserve(
+        launchTicketID: ticketID,
+        terminalID: terminalID,
         size: SupatermHostTerminalSize(
           rows: 41,
           cols: 103,
           pixelWidth: 721,
           pixelHeight: 533
-        )
+        ),
+        startupInput: "",
+        startupInputDelivery: .immediate
       )
     )
 
-    let actual = try jsonObject(envelope)
-    let expected = try jsonObject(
-      """
-      {
-        "epoch": 2,
-        "role": "test",
-        "requestId": "123e4567-e89b-12d3-a456-426614174002",
-        "body": {
-          "type": "create",
-          "terminalId": "123e4567-e89b-12d3-a456-426614174000",
-          "command": {
-            "argv": ["/bin/sh", "-c", "printf ok"],
-            "cwd": "/tmp/working directory",
-            "environment": {
-              "inherit": false,
-              "set": {"A": "one", "B": "two"},
-              "remove": ["SECRET"]
+    #expect(
+      try jsonObject(request)
+        == jsonObject(
+          """
+          {
+            "epoch": 2,
+            "role": "app",
+            "requestId": "123e4567-e89b-12d3-a456-426614174002",
+            "body": {
+              "type": "reserve",
+              "launchTicketId": "123e4567-e89b-12d3-a456-426614174006",
+              "terminalId": "123e4567-e89b-12d3-a456-426614174000",
+              "size": {
+                "rows": 41,
+                "cols": 103,
+                "pixelWidth": 721,
+                "pixelHeight": 533
+              },
+              "startupInput": "",
+              "startupInputDelivery": "immediate"
             }
-          },
-          "size": {
-            "rows": 41,
-            "cols": 103,
-            "pixelWidth": 721,
-            "pixelHeight": 533
           }
-        }
-      }
-      """
+          """
+        )
     )
-    #expect(actual == expected)
+    #expect(
+      try jsonObject(
+        SupatermHostEnvelope(requestID: requestID, body: .reserved)
+      )
+        == jsonObject(
+          """
+          {
+            "epoch": 2,
+            "role": "host",
+            "requestId": "123e4567-e89b-12d3-a456-426614174002",
+            "body": {"type": "reserved"}
+          }
+          """
+        )
+    )
+  }
+
+  @Test
+  func launchMatchesRustJSON() throws {
+    let requestID = try hostRequestID("123e4567-e89b-12d3-a456-426614174002")
+    let ticketID = try launchTicketID("123e4567-e89b-12d3-a456-426614174006")
+    let terminalID = try terminalID("123e4567-e89b-12d3-a456-426614174000")
+    let command = SupatermHostCommand(
+      argv: ["/bin/sh", "-lc", "pwd"],
+      cwd: "/tmp/project",
+      environment: SupatermHostEnvironmentSpec(
+        inherit: false,
+        set: ["TERM": "xterm-256color"]
+      )
+    )
+    let size = SupatermHostTerminalSize(
+      rows: 41,
+      cols: 103,
+      pixelWidth: 721,
+      pixelHeight: 533
+    )
+    let request = SupatermHostClientEnvelope(
+      role: .attach,
+      requestID: requestID,
+      body: .launch(
+        launchTicketID: ticketID,
+        terminalID: terminalID,
+        command: command,
+        size: size
+      )
+    )
+
+    #expect(
+      try jsonObject(request)
+        == jsonObject(
+          """
+          {
+            "epoch": 2,
+            "role": "attach",
+            "requestId": "123e4567-e89b-12d3-a456-426614174002",
+            "body": {
+              "type": "launch",
+              "launchTicketId": "123e4567-e89b-12d3-a456-426614174006",
+              "terminalId": "123e4567-e89b-12d3-a456-426614174000",
+              "command": {
+                "argv": ["/bin/sh", "-lc", "pwd"],
+                "cwd": "/tmp/project",
+                "environment": {
+                  "inherit": false,
+                  "set": {"TERM": "xterm-256color"},
+                  "remove": []
+                }
+              },
+              "size": {
+                "rows": 41,
+                "cols": 103,
+                "pixelWidth": 721,
+                "pixelHeight": 533
+              }
+            }
+          }
+          """
+        )
+    )
+    #expect(
+      try jsonObject(
+        SupatermHostEnvelope(
+          requestID: requestID,
+          body: .launched(terminal: terminalInfo(status: .running))
+        )
+      )
+        == jsonObject(
+          """
+          {
+            "epoch": 2,
+            "role": "host",
+            "requestId": "123e4567-e89b-12d3-a456-426614174002",
+            "body": {
+              "type": "launched",
+              "terminal": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "bootId": "123e4567-e89b-12d3-a456-426614174005",
+                "argv": ["/bin/sh"],
+                "cwd": "/tmp",
+                "size": {
+                  "rows": 24,
+                  "cols": 80,
+                  "pixelWidth": 0,
+                  "pixelHeight": 0
+                },
+                "status": {"state": "running"},
+                "inputState": "ready"
+              }
+            }
+          }
+          """
+        )
+    )
+  }
+
+  @Test
+  func startupInputDeliveriesUseExactWireNamesAndRejectUnknown() throws {
+    let values: [SupatermHostStartupInputDelivery] = [.immediate, .prompt]
+    let encoded = try JSONEncoder().encode(values)
+
+    #expect(try JSONSerialization.jsonObject(with: encoded) as? [String] == ["immediate", "prompt"])
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        SupatermHostStartupInputDelivery.self,
+        from: Data("\"deferred\"".utf8)
+      )
+    }
+  }
+
+  @Test
+  func decoderRequiresReserveStartupFieldsAndRejectsThemOnLaunch() throws {
+    let ticketID = try launchTicketID("123e4567-e89b-12d3-a456-426614174006")
+    let terminalID = try terminalID("123e4567-e89b-12d3-a456-426614174000")
+    let reserve = SupatermHostRequest.reserve(
+      launchTicketID: ticketID,
+      terminalID: terminalID,
+      size: SupatermHostTerminalSize(),
+      startupInput: "",
+      startupInputDelivery: .immediate
+    )
+    let launch = SupatermHostRequest.launch(
+      launchTicketID: ticketID,
+      terminalID: terminalID,
+      command: SupatermHostCommand(
+        argv: ["/bin/sh"],
+        cwd: "/tmp",
+        environment: SupatermHostEnvironmentSpec()
+      ),
+      size: SupatermHostTerminalSize()
+    )
+    let reserveObject = try #require(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(reserve)) as? [String: Any]
+    )
+
+    for key in ["startupInput", "startupInputDelivery"] {
+      var missing = reserveObject
+      missing.removeValue(forKey: key)
+      let data = try JSONSerialization.data(withJSONObject: missing)
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(SupatermHostRequest.self, from: data)
+      }
+    }
+    var launchObject = try #require(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(launch)) as? [String: Any]
+    )
+    launchObject["startupInput"] = "legacy"
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        SupatermHostRequest.self,
+        from: JSONSerialization.data(withJSONObject: launchObject)
+      )
+    }
+  }
+
+  @Test
+  func launchTicketIDUsesLowercaseScalarUUIDJSON() throws {
+    let encodedValue = "123e4567-e89b-12d3-a456-426614174abc"
+    let value = try JSONDecoder().decode(
+      LaunchTicketID.self,
+      from: Data("\"123E4567-E89B-12D3-A456-426614174ABC\"".utf8)
+    )
+    let encoded = try #require(
+      String(data: try JSONEncoder().encode(value), encoding: .utf8)
+    )
+
+    #expect(encoded == "\"\(encodedValue)\"")
+  }
+
+  @Test
+  func replayUnavailableErrorMatchesRustJSON() throws {
+    let envelope = SupatermHostEnvelope(
+      requestID: try hostRequestID("123e4567-e89b-12d3-a456-426614174002"),
+      body: .error(code: .replayUnavailable, message: "replay is unavailable")
+    )
+
+    #expect(
+      try jsonObject(envelope)
+        == jsonObject(
+          """
+          {
+            "epoch": 2,
+            "role": "host",
+            "requestId": "123e4567-e89b-12d3-a456-426614174002",
+            "body": {
+              "type": "error",
+              "code": "replayUnavailable",
+              "message": "replay is unavailable"
+            }
+          }
+          """
+        )
+    )
   }
 
   @Test
@@ -310,6 +514,7 @@ struct SupatermHostProtocolTests {
     let terminalID = try terminalID("123e4567-e89b-12d3-a456-426614174000")
     let attachmentID = try attachmentID("123e4567-e89b-12d3-a456-426614174001")
     let clientID = try clientID("123e4567-e89b-12d3-a456-426614174003")
+    let ticketID = try launchTicketID("123e4567-e89b-12d3-a456-426614174006")
     let size = SupatermHostTerminalSize(rows: 30, cols: 90, pixelWidth: 900, pixelHeight: 600)
     let command = SupatermHostCommand(
       argv: ["/usr/bin/env"],
@@ -318,7 +523,19 @@ struct SupatermHostProtocolTests {
     )
     let values: [SupatermHostRequest] = [
       .hello(clientID: clientID),
-      .create(terminalID: terminalID, command: command, size: size),
+      .reserve(
+        launchTicketID: ticketID,
+        terminalID: terminalID,
+        size: size,
+        startupInput: "printf ready\n",
+        startupInputDelivery: .prompt
+      ),
+      .launch(
+        launchTicketID: ticketID,
+        terminalID: terminalID,
+        command: command,
+        size: size
+      ),
       .list,
       .get(terminalID: terminalID),
       .attach(terminalID: terminalID, snapshotFormat: .vtReplayV1, size: size),
@@ -360,7 +577,8 @@ struct SupatermHostProtocolTests {
         machineID: try machineID("123e4567-e89b-12d3-a456-426614174004"),
         bootID: try bootID("123e4567-e89b-12d3-a456-426614174005")
       ),
-      .created(terminal: terminal),
+      .reserved,
+      .launched(terminal: terminal),
       .terminals([terminal]),
       .terminal(terminal),
       .attached(
@@ -414,6 +632,7 @@ struct SupatermHostProtocolTests {
       .notAttached,
       .notFound,
       .protocol,
+      .replayUnavailable,
       .terminalExited,
       .terminalInUse,
     ]
@@ -425,8 +644,15 @@ struct SupatermHostProtocolTests {
         options: .fragmentsAllowed
       ) as? String
     )
+    let replayUnavailableCode = try #require(
+      JSONSerialization.jsonObject(
+        with: JSONEncoder().encode(SupatermHostErrorCode.replayUnavailable),
+        options: .fragmentsAllowed
+      ) as? String
+    )
     #expect(rawValues == values.map(\.rawValue))
     #expect(internalCode == "internal")
+    #expect(replayUnavailableCode == "replayUnavailable")
   }
 
   @Test
@@ -449,6 +675,31 @@ struct SupatermHostProtocolTests {
     }
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(SupatermHostMessage.self, from: invalidSegment)
+    }
+  }
+
+  @Test
+  func decoderRejectsLegacyCreationAndReservedPayload() {
+    let legacyRequest = Data("{\"type\":\"create\"}".utf8)
+    let legacyResponse = Data("{\"type\":\"created\"}".utf8)
+    let reservedPayload = Data(
+      """
+      {
+        "type": "reserved",
+        "terminal": {
+          "id": "123e4567-e89b-12d3-a456-426614174000"
+        }
+      }
+      """.utf8
+    )
+
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(SupatermHostRequest.self, from: legacyRequest)
+    }
+    for value in [legacyResponse, reservedPayload] {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(SupatermHostMessage.self, from: value)
+      }
     }
   }
 
@@ -595,6 +846,10 @@ private func attachmentID(_ value: String) throws -> AttachmentID {
 
 private func clientID(_ value: String) throws -> ClientID {
   ClientID(rawValue: try uuid(value))
+}
+
+private func launchTicketID(_ value: String) throws -> LaunchTicketID {
+  LaunchTicketID(rawValue: try uuid(value))
 }
 
 private func machineID(_ value: String) throws -> MachineID {
