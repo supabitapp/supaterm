@@ -23,7 +23,9 @@ struct SettingsFeatureAboutTests {
       }
 
       await store.send(.updateChannelSelected(.tip)) {
-        $0.about.updateChannel = .tip
+        $0.$supatermSettings.withLock {
+          $0.updateChannel = .tip
+        }
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default

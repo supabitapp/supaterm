@@ -5,9 +5,11 @@ extension SettingsFeature {
   func reduceAdvanced(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .verboseLoggingEnabledChanged(let isEnabled):
-      state.verboseLoggingEnabled = isEnabled
       SupatermLog.setVerboseLoggingEnabled(isEnabled)
-      return persist(state)
+      updateSettings(&state) {
+        $0.verboseLoggingEnabled = isEnabled
+      }
+      return .none
 
     default:
       return .none

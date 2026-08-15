@@ -18,7 +18,9 @@ struct SettingsFeatureAdvancedTests {
       }
 
       await store.send(.verboseLoggingEnabledChanged(true)) {
-        $0.verboseLoggingEnabled = true
+        $0.$supatermSettings.withLock {
+          $0.verboseLoggingEnabled = true
+        }
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default

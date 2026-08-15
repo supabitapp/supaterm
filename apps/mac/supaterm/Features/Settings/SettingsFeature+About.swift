@@ -12,13 +12,12 @@ extension SettingsFeature {
       }
 
     case .updateChannelSelected(let updateChannel):
-      state.about.updateChannel = updateChannel
-      return .merge(
-        persist(state),
-        .run { [updateClient] _ in
-          await updateClient.setUpdateChannel(updateChannel)
-        }
-      )
+      updateSettings(&state) {
+        $0.updateChannel = updateChannel
+      }
+      return .run { [updateClient] _ in
+        await updateClient.setUpdateChannel(updateChannel)
+      }
 
     case .updatesAutomaticallyCheckForUpdatesChanged(let isEnabled):
       state.about.updatesAutomaticallyCheckForUpdates = isEnabled

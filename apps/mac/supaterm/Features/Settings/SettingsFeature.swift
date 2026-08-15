@@ -97,7 +97,6 @@ struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
 }
 
 struct SettingsAboutState: Equatable {
-  var updateChannel = SupatermSettings.default.updateChannel
   var updatesAutomaticallyCheckForUpdates = true
   var updatesAutomaticallyDownloadUpdates = true
 }
@@ -111,31 +110,39 @@ public enum SettingsAgentIntegrationResult: Equatable {
 public struct SettingsFeature {
   @ObservableState
   public struct State: Equatable {
-    var appearanceMode = SupatermSettings.default.appearanceMode
-    var analyticsEnabled = SupatermSettings.default.analyticsEnabled
     @Presents var alert: AlertState<Alert>?
-    var claudeIntegration = SettingsAgentIntegrationState()
-    var codingAgentsShowPanel = SupatermSettings.default.codingAgentsShowPanel
-    var codingAgentsShowSpinner = SupatermSettings.default.codingAgentsShowSpinner
-    var codexIntegration = SettingsAgentIntegrationState()
-    var piIntegration = SettingsAgentIntegrationState()
-    var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
-    var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var about = SettingsAboutState()
     var agentIntegrationInstallFailure: SettingsAgentIntegrationInstallFailure?
-    var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
+    var claudeIntegration = SettingsAgentIntegrationState()
+    var codexIntegration = SettingsAgentIntegrationState()
+    var piIntegration = SettingsAgentIntegrationState()
+    var pendingSystemNotificationsEnabled: Bool?
     public var selectedTab = Tab.general
-    var shortcutOverrides = SupatermSettings.default.shortcutOverrides
-    var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
+    @Shared(.supatermSettings) var supatermSettings = .default
     var terminalShortcutDisplays: Set<String> = []
     var terminal = SettingsTerminalState()
-    var verboseLoggingEnabled = SupatermSettings.default.verboseLoggingEnabled
-    var zmxSessionsEnabled = SupatermSettings.default.zmxSessionsEnabled
+
+    var analyticsEnabled: Bool { supatermSettings.analyticsEnabled }
+    var appearanceMode: AppearanceMode { supatermSettings.appearanceMode }
+    var codingAgentsShowPanel: Bool { supatermSettings.codingAgentsShowPanel }
+    var codingAgentsShowSpinner: Bool { supatermSettings.codingAgentsShowSpinner }
+    var crashReportsEnabled: Bool { supatermSettings.crashReportsEnabled }
+    var glowingPaneRingEnabled: Bool { supatermSettings.glowingPaneRingEnabled }
+    var restoreTerminalLayoutEnabled: Bool { supatermSettings.restoreTerminalLayoutEnabled }
+    var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] {
+      supatermSettings.shortcutOverrides
+    }
+    var systemNotificationsEnabled: Bool {
+      pendingSystemNotificationsEnabled ?? supatermSettings.systemNotificationsEnabled
+    }
+    var updateChannel: UpdateChannel { supatermSettings.updateChannel }
+    var verboseLoggingEnabled: Bool { supatermSettings.verboseLoggingEnabled }
+    var zmxSessionsEnabled: Bool { supatermSettings.zmxSessionsEnabled }
 
     public init() {}
   }
 
-  public enum Action: Equatable {
+  public enum Action {
     case agentIntegrationStatusRefreshRequested(SupatermAgentKind)
     case agentIntegrationStatusRefreshed(SupatermAgentKind, SettingsAgentIntegrationResult)
     case agentIntegrationInstallFailureDismissed
@@ -151,7 +158,6 @@ public struct SettingsFeature {
     case glowingPaneRingEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
     case restoreShortcutDefaultsButtonTapped
-    case settingsLoaded(SupatermSettings)
     case shortcutEnabledChanged(SupatermShortcutID, Bool)
     case shortcutRecorded(SupatermShortcutID, SupatermShortcutOverride)
     case shortcutResetButtonTapped(SupatermShortcutID)
@@ -253,11 +259,8 @@ public struct SettingsFeature {
       switch action {
       case .task:
         state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
+        SupatermLog.setVerboseLoggingEnabled(state.verboseLoggingEnabled)
         return loadSettings()
-
-      case .settingsLoaded(let supatermSettings):
-        applyLoadedSettings(&state, supatermSettings: supatermSettings)
-        return .none
 
       case .updateClientSnapshotReceived(let snapshot):
         state.about.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
@@ -284,42 +287,50 @@ public struct SettingsFeature {
         return .none
 
       case .shortcutRecorded(let id, let override):
-        state.shortcutOverrides[id] = override
-        return persistShortcuts(state)
+        return updateShortcuts(&state) {
+          $0[id] = override
+        }
 
       case .shortcutResetButtonTapped(let id):
-        state.shortcutOverrides.removeValue(forKey: id)
-        return persistShortcuts(state)
+        return updateShortcuts(&state) {
+          $0.removeValue(forKey: id)
+        }
 
       case .shortcutEnabledChanged(let id, let isEnabled):
-        if isEnabled {
-          if var existing = state.shortcutOverrides[id],
-            existing != .disabled
-          {
-            existing.isEnabled = true
-            state.shortcutOverrides[id] = existing
+        return updateShortcuts(&state) { shortcutOverrides in
+          if isEnabled {
+            if var existing = shortcutOverrides[id],
+              existing != .disabled
+            {
+              existing.isEnabled = true
+              shortcutOverrides[id] = existing
+            } else {
+              shortcutOverrides.removeValue(forKey: id)
+            }
+          } else if var existing = shortcutOverrides[id] {
+            existing.isEnabled = false
+            shortcutOverrides[id] = existing
           } else {
-            state.shortcutOverrides.removeValue(forKey: id)
+            shortcutOverrides[id] = .disabled
           }
-        } else if var existing = state.shortcutOverrides[id] {
-          existing.isEnabled = false
-          state.shortcutOverrides[id] = existing
-        } else {
-          state.shortcutOverrides[id] = .disabled
         }
-        return persistShortcuts(state)
 
       case .restoreShortcutDefaultsButtonTapped:
-        state.shortcutOverrides = [:]
-        return persistShortcuts(state)
+        return updateShortcuts(&state) {
+          $0 = [:]
+        }
 
       case .codingAgentsShowPanelChanged(let isEnabled):
-        state.codingAgentsShowPanel = isEnabled
-        return persist(state)
+        updateSettings(&state) {
+          $0.codingAgentsShowPanel = isEnabled
+        }
+        return .none
 
       case .codingAgentsShowSpinnerChanged(let isEnabled):
-        state.codingAgentsShowSpinner = isEnabled
-        return persist(state)
+        updateSettings(&state) {
+          $0.codingAgentsShowSpinner = isEnabled
+        }
+        return .none
 
       case .appearanceModeSelected,
         .analyticsEnabledChanged,
@@ -365,9 +376,7 @@ public struct SettingsFeature {
   }
 
   func loadSettings() -> Effect<Action> {
-    @Shared(.supatermSettings) var supatermSettings = .default
     return .merge(
-      .send(.settingsLoaded(supatermSettings)),
       .send(.terminalSettingsLoadRequested),
       .send(.agentIntegrationStatusRefreshRequested(.claude)),
       .send(.agentIntegrationStatusRefreshRequested(.codex)),
@@ -383,62 +392,31 @@ public struct SettingsFeature {
     )
   }
 
-  func applyLoadedSettings(
-    _ state: inout State,
-    supatermSettings: SupatermSettings
-  ) {
-    state.appearanceMode = supatermSettings.appearanceMode
-    state.analyticsEnabled = supatermSettings.analyticsEnabled
-    state.codingAgentsShowPanel = supatermSettings.codingAgentsShowPanel
-    state.codingAgentsShowSpinner = supatermSettings.codingAgentsShowSpinner
-    state.crashReportsEnabled = supatermSettings.crashReportsEnabled
-    state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
-    state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
-    state.shortcutOverrides = supatermSettings.shortcutOverrides
-    state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
-    state.about.updateChannel = supatermSettings.updateChannel
-    state.verboseLoggingEnabled = supatermSettings.verboseLoggingEnabled
-    SupatermLog.setVerboseLoggingEnabled(supatermSettings.verboseLoggingEnabled)
-    state.zmxSessionsEnabled = supatermSettings.zmxSessionsEnabled
-  }
-
   func openSystemNotificationSettings() -> Effect<Action> {
     .run { [desktopNotificationClient] _ in
       await desktopNotificationClient.openSettings()
     }
   }
 
-  func persist(_ state: State) -> Effect<Action> {
-    let supatermSettings = SupatermSettings(
-      appearanceMode: state.appearanceMode,
-      analyticsEnabled: state.analyticsEnabled,
-      codingAgentsShowPanel: state.codingAgentsShowPanel,
-      codingAgentsShowSpinner: state.codingAgentsShowSpinner,
-      crashReportsEnabled: state.crashReportsEnabled,
-      glowingPaneRingEnabled: state.glowingPaneRingEnabled,
-      restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
-      shortcutOverrides: state.shortcutOverrides,
-      systemNotificationsEnabled: state.systemNotificationsEnabled,
-      updateChannel: state.about.updateChannel,
-      verboseLoggingEnabled: state.verboseLoggingEnabled,
-      zmxSessionsEnabled: state.zmxSessionsEnabled
-    )
-    @Shared(.supatermSettings) var sharedSupatermSettings = .default
-    $sharedSupatermSettings.withLock {
-      $0 = supatermSettings
-    }
-    if supatermSettings.analyticsEnabled {
+  func updateSettings(
+    _ state: inout State,
+    _ update: (inout SupatermSettings) -> Void
+  ) {
+    state.$supatermSettings.withLock(update)
+    if state.analyticsEnabled {
       analyticsClient.capture("settings_changed")
     }
-    return .none
   }
 
-  func persistShortcuts(_ state: State) -> Effect<Action> {
-    .merge(
-      persist(state),
-      .run { [shortcutSettingsClient] _ in
-        await shortcutSettingsClient.shortcutsDidChange()
-      }
-    )
+  func updateShortcuts(
+    _ state: inout State,
+    _ update: (inout [SupatermShortcutID: SupatermShortcutOverride]) -> Void
+  ) -> Effect<Action> {
+    updateSettings(&state) {
+      update(&$0.shortcutOverrides)
+    }
+    return .run { [shortcutSettingsClient] _ in
+      await shortcutSettingsClient.shortcutsDidChange()
+    }
   }
 }

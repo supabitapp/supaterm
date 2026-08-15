@@ -7,10 +7,14 @@ extension SettingsFeature {
     switch action {
     case .systemNotificationsEnabledChanged(let isEnabled):
       state.alert = nil
-      state.systemNotificationsEnabled = isEnabled
       guard isEnabled else {
-        return persist(state)
+        state.pendingSystemNotificationsEnabled = nil
+        updateSettings(&state) {
+          $0.systemNotificationsEnabled = false
+        }
+        return .none
       }
+      state.pendingSystemNotificationsEnabled = true
       return .run { [desktopNotificationClient] send in
         let status = await desktopNotificationClient.authorizationStatus()
         await send(.systemNotificationsAuthorizationChecked(status))
@@ -19,7 +23,11 @@ extension SettingsFeature {
     case .systemNotificationsAuthorizationChecked(let status):
       switch status {
       case .authorized:
-        return persist(state)
+        state.pendingSystemNotificationsEnabled = nil
+        updateSettings(&state) {
+          $0.systemNotificationsEnabled = true
+        }
+        return .none
 
       case .denied:
         return .send(
@@ -39,12 +47,18 @@ extension SettingsFeature {
       }
 
     case .systemNotificationsAuthorizationResult(let result):
+      state.pendingSystemNotificationsEnabled = nil
       guard result.granted else {
-        state.systemNotificationsEnabled = false
         state.alert = notificationPermissionAlert(errorMessage: result.errorMessage)
-        return persist(state)
+        updateSettings(&state) {
+          $0.systemNotificationsEnabled = false
+        }
+        return .none
       }
-      return persist(state)
+      updateSettings(&state) {
+        $0.systemNotificationsEnabled = true
+      }
+      return .none
 
     default:
       return .none

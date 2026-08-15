@@ -27,7 +27,9 @@ struct SettingsFeatureShortcutTests {
       }
 
       await store.send(.shortcutRecorded(.toggleSidebar, override)) {
-        $0.shortcutOverrides[.toggleSidebar] = override
+        $0.$supatermSettings.withLock {
+          $0.shortcutOverrides[.toggleSidebar] = override
+        }
       }
 
       @Shared(.supatermSettings) var settings = .default
@@ -46,10 +48,14 @@ struct SettingsFeatureShortcutTests {
       }
 
       await store.send(.shortcutEnabledChanged(.toggleSidebar, false)) {
-        $0.shortcutOverrides[.toggleSidebar] = .disabled
+        $0.$supatermSettings.withLock {
+          $0.shortcutOverrides[.toggleSidebar] = .disabled
+        }
       }
       await store.send(.shortcutEnabledChanged(.toggleSidebar, true)) {
-        $0.shortcutOverrides.removeValue(forKey: .toggleSidebar)
+        $0.$supatermSettings.withLock {
+          _ = $0.shortcutOverrides.removeValue(forKey: .toggleSidebar)
+        }
       }
 
       @Shared(.supatermSettings) var settings = .default
@@ -63,39 +69,45 @@ struct SettingsFeatureShortcutTests {
       keyCode: UInt16(kVK_ANSI_B),
       modifiers: .command
     )
-    var state = SettingsFeature.State()
-    state.shortcutOverrides[.toggleSidebar] = override
-
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
+      let state = SettingsFeature.State()
+      state.$supatermSettings.withLock {
+        $0.shortcutOverrides[.toggleSidebar] = override
+      }
       let store = TestStore(initialState: state) {
         SettingsFeature()
       }
 
       await store.send(.shortcutResetButtonTapped(.toggleSidebar)) {
-        $0.shortcutOverrides.removeValue(forKey: .toggleSidebar)
+        $0.$supatermSettings.withLock {
+          _ = $0.shortcutOverrides.removeValue(forKey: .toggleSidebar)
+        }
       }
     }
   }
 
   @Test
   func restoreDefaultsRemovesAllOverrides() async {
-    var state = SettingsFeature.State()
-    state.shortcutOverrides = [
-      .toggleSidebar: .disabled,
-      .toggleAgentPanel: .disabled,
-    ]
-
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
+      let state = SettingsFeature.State()
+      state.$supatermSettings.withLock {
+        $0.shortcutOverrides = [
+          .toggleSidebar: .disabled,
+          .toggleAgentPanel: .disabled,
+        ]
+      }
       let store = TestStore(initialState: state) {
         SettingsFeature()
       }
 
       await store.send(.restoreShortcutDefaultsButtonTapped) {
-        $0.shortcutOverrides = [:]
+        $0.$supatermSettings.withLock {
+          $0.shortcutOverrides = [:]
+        }
       }
     }
   }

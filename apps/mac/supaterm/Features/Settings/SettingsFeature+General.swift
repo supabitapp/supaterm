@@ -1,33 +1,46 @@
 import ComposableArchitecture
 import Foundation
+import SupatermSupport
 
 extension SettingsFeature {
   func reduceGeneral(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .appearanceModeSelected(let appearanceMode):
-      state.appearanceMode = appearanceMode
-      return persist(state)
+      updateSettings(&state) {
+        $0.appearanceMode = appearanceMode
+      }
+      return .none
 
     case .analyticsEnabledChanged(let isEnabled):
-      state.analyticsEnabled = isEnabled
-      return persist(state)
+      updateSettings(&state) {
+        $0.analyticsEnabled = isEnabled
+      }
+      return .none
 
     case .crashReportsEnabledChanged(let isEnabled):
-      state.crashReportsEnabled = isEnabled
-      return persist(state)
+      updateSettings(&state) {
+        $0.crashReportsEnabled = isEnabled
+      }
+      return .none
 
     case .glowingPaneRingEnabledChanged(let isEnabled):
-      state.glowingPaneRingEnabled = isEnabled
-      return persist(state)
+      updateSettings(&state) {
+        $0.glowingPaneRingEnabled = isEnabled
+      }
+      return .none
 
     case .restoreTerminalLayoutEnabledChanged(let isEnabled):
-      state.restoreTerminalLayoutEnabled = isEnabled
-      return persist(state)
+      updateSettings(&state) {
+        $0.restoreTerminalLayoutEnabled = isEnabled
+      }
+      return .none
 
     case .zmxSessionsEnabledChanged(let isEnabled):
-      state.zmxSessionsEnabled = isEnabled
       state.alert = zmxRestartRequiredAlert()
-      return persist(state)
+      updateSettings(&state) {
+        $0.zmxSessionsEnabled = isEnabled
+      }
+      return .none
 
     default:
       return .none

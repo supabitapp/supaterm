@@ -25,9 +25,8 @@ struct SettingsFeatureTerminalTests {
       $0.terminal.isApplying = true
     }
     await store.receive(
-      .terminalSettingsApplied(
-        terminalSettingsValues(fontFamily: "JetBrains Mono")
-      )
+      \.terminalSettingsApplied,
+      terminalSettingsValues(fontFamily: "JetBrains Mono")
     ) {
       $0.terminal = terminalSettingsState(fontFamily: "JetBrains Mono")
     }
@@ -52,9 +51,8 @@ struct SettingsFeatureTerminalTests {
       $0.terminal.lightTheme = "Builtin Light"
     }
     await store.receive(
-      .terminalSettingsApplied(
-        terminalSettingsValues(lightTheme: "Builtin Light")
-      )
+      \.terminalSettingsApplied,
+      terminalSettingsValues(lightTheme: "Builtin Light")
     ) {
       $0.terminal.isApplying = false
       $0.terminal.lightTheme = "Builtin Light"
@@ -80,9 +78,8 @@ struct SettingsFeatureTerminalTests {
       $0.terminal.isApplying = true
     }
     await store.receive(
-      .terminalSettingsApplied(
-        terminalSettingsValues(darkTheme: "Builtin Dark")
-      )
+      \.terminalSettingsApplied,
+      terminalSettingsValues(darkTheme: "Builtin Dark")
     ) {
       $0.terminal.darkTheme = "Builtin Dark"
       $0.terminal.isApplying = false
@@ -107,7 +104,7 @@ struct SettingsFeatureTerminalTests {
       $0.terminal.errorMessage = nil
       $0.terminal.isLoading = true
     }
-    await store.receive(SettingsFeature.Action.terminalSettingsLoadFailed("Broken config"), timeout: Duration.zero) {
+    await store.receive(\.terminalSettingsLoadFailed, "Broken config", timeout: Duration.zero) {
       $0.terminal.errorMessage = "Broken config"
       $0.terminal.isLoading = false
     }
@@ -132,9 +129,8 @@ struct SettingsFeatureTerminalTests {
       $0.terminal.isApplying = true
     }
     await store.receive(
-      .terminalSettingsApplied(
-        terminalSettingsValues(confirmCloseSurface: .always)
-      )
+      \.terminalSettingsApplied,
+      terminalSettingsValues(confirmCloseSurface: .always)
     ) {
       $0.terminal = terminalSettingsState(confirmCloseSurface: .always)
     }

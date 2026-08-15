@@ -17,7 +17,9 @@ struct SettingsFeatureNotificationsTests {
       }
 
       await store.send(.glowingPaneRingEnabledChanged(false)) {
-        $0.glowingPaneRingEnabled = false
+        $0.$supatermSettings.withLock {
+          $0.glowingPaneRingEnabled = false
+        }
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default
@@ -37,9 +39,14 @@ struct SettingsFeatureNotificationsTests {
       }
 
       await store.send(.systemNotificationsEnabledChanged(true)) {
-        $0.systemNotificationsEnabled = true
+        $0.pendingSystemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.authorized), timeout: Duration.zero)
+      await store.receive(\.systemNotificationsAuthorizationChecked, .authorized, timeout: Duration.zero) {
+        $0.pendingSystemNotificationsEnabled = nil
+        $0.$supatermSettings.withLock {
+          $0.systemNotificationsEnabled = true
+        }
+      }
 
       @Shared(.supatermSettings) var supatermSettings = .default
       #expect(supatermSettings.systemNotificationsEnabled)
@@ -67,18 +74,17 @@ struct SettingsFeatureNotificationsTests {
       }
 
       await store.send(.systemNotificationsEnabledChanged(true)) {
-        $0.systemNotificationsEnabled = true
+        $0.pendingSystemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.notDetermined), timeout: Duration.zero)
+      await store.receive(\.systemNotificationsAuthorizationChecked, .notDetermined, timeout: Duration.zero)
       await store.receive(
-        .systemNotificationsAuthorizationResult(
-          DesktopNotificationClient.AuthorizationRequestResult(
-            granted: false,
-            errorMessage: "Mock request error"
-          )
+        \.systemNotificationsAuthorizationResult,
+        DesktopNotificationClient.AuthorizationRequestResult(
+          granted: false,
+          errorMessage: "Mock request error"
         )
       ) {
-        $0.systemNotificationsEnabled = false
+        $0.pendingSystemNotificationsEnabled = nil
         $0.alert = notificationPermissionAlert(
           "Supaterm cannot send system notifications.\n\nError: Mock request error")
       }
@@ -107,18 +113,17 @@ struct SettingsFeatureNotificationsTests {
       }
 
       await store.send(.systemNotificationsEnabledChanged(true)) {
-        $0.systemNotificationsEnabled = true
+        $0.pendingSystemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.denied), timeout: Duration.zero)
+      await store.receive(\.systemNotificationsAuthorizationChecked, .denied, timeout: Duration.zero)
       await store.receive(
-        .systemNotificationsAuthorizationResult(
-          DesktopNotificationClient.AuthorizationRequestResult(
-            granted: false,
-            errorMessage: "Authorization status is denied."
-          )
+        \.systemNotificationsAuthorizationResult,
+        DesktopNotificationClient.AuthorizationRequestResult(
+          granted: false,
+          errorMessage: "Authorization status is denied."
         )
       ) {
-        $0.systemNotificationsEnabled = false
+        $0.pendingSystemNotificationsEnabled = nil
         $0.alert = notificationPermissionAlert(
           "Supaterm cannot send system notifications.\n\nError: Authorization status is denied."
         )

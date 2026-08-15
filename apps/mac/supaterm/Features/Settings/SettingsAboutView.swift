@@ -9,7 +9,7 @@ struct SettingsAboutView: View {
 
   private var updateChannel: Binding<UpdateChannel> {
     Binding(
-      get: { store.about.updateChannel },
+      get: { store.updateChannel },
       set: { newValue in
         _ = store.send(.updateChannelSelected(newValue))
       }

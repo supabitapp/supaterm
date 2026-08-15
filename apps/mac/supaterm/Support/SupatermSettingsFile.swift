@@ -67,10 +67,6 @@ public struct SupatermSettingsMigration {
     self.fileManager = fileManager
   }
 
-  public static func migrateDefaultSettingsIfNeeded() {
-    try? Self().migrateIfNeeded()
-  }
-
   public func migrateIfNeeded() throws {
     let settingsURL = SupatermStateRoot.settingsFileURL(
       homeDirectoryPath: homeDirectoryURL.path,

@@ -4,7 +4,6 @@ import SupatermCLIShared
 
 extension SharedKey where Self == FileStorageKey<SupatermSettings>.Default {
   public static var supatermSettings: Self {
-    SupatermSettingsMigration.migrateDefaultSettingsIfNeeded()
     return Self[
       .fileStorage(
         SupatermStateRoot.settingsFileURL(),

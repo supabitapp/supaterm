@@ -19,7 +19,9 @@ struct SettingsFeatureGeneralTests {
       }
 
       await store.send(.appearanceModeSelected(.dark)) {
-        $0.appearanceMode = .dark
+        $0.$supatermSettings.withLock {
+          $0.appearanceMode = .dark
+        }
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default
@@ -37,11 +39,15 @@ struct SettingsFeatureGeneralTests {
       }
 
       await store.send(.analyticsEnabledChanged(false)) {
-        $0.analyticsEnabled = false
+        $0.$supatermSettings.withLock {
+          $0.analyticsEnabled = false
+        }
       }
 
       await store.send(.crashReportsEnabledChanged(false)) {
-        $0.crashReportsEnabled = false
+        $0.$supatermSettings.withLock {
+          $0.crashReportsEnabled = false
+        }
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default
@@ -60,7 +66,9 @@ struct SettingsFeatureGeneralTests {
       }
 
       await store.send(.restoreTerminalLayoutEnabledChanged(false)) {
-        $0.restoreTerminalLayoutEnabled = false
+        $0.$supatermSettings.withLock {
+          $0.restoreTerminalLayoutEnabled = false
+        }
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default
@@ -78,7 +86,9 @@ struct SettingsFeatureGeneralTests {
       }
 
       await store.send(.zmxSessionsEnabledChanged(false)) {
-        $0.zmxSessionsEnabled = false
+        $0.$supatermSettings.withLock {
+          $0.zmxSessionsEnabled = false
+        }
         $0.alert = AlertState {
           TextState("Restart Required")
         } actions: {
@@ -111,7 +121,9 @@ struct SettingsFeatureGeneralTests {
       }
 
       await store.send(.crashReportsEnabledChanged(false)) {
-        $0.crashReportsEnabled = false
+        $0.$supatermSettings.withLock {
+          $0.crashReportsEnabled = false
+        }
       }
 
       #expect(recorder.recorded() == ["settings_changed"])
@@ -133,10 +145,39 @@ struct SettingsFeatureGeneralTests {
       }
 
       await store.send(.analyticsEnabledChanged(false)) {
-        $0.analyticsEnabled = false
+        $0.$supatermSettings.withLock {
+          $0.analyticsEnabled = false
+        }
       }
 
       #expect(recorder.recorded().isEmpty)
+    }
+  }
+
+  @Test
+  func localEditPreservesExternalSettingChange() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      $supatermSettings.withLock {
+        $0.crashReportsEnabled = false
+      }
+
+      #expect(!store.state.crashReportsEnabled)
+
+      await store.send(.appearanceModeSelected(.dark)) {
+        $0.$supatermSettings.withLock {
+          $0.appearanceMode = .dark
+        }
+      }
+
+      #expect(supatermSettings.appearanceMode == .dark)
+      #expect(!supatermSettings.crashReportsEnabled)
     }
   }
 }
