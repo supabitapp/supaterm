@@ -521,6 +521,7 @@ public enum SupatermHostErrorCode: String, Codable, Sendable {
   case backpressure
   case conflict
   case inputUncertain
+  case `internal`
   case invalidRequest
   case notAttached
   case notFound
@@ -716,8 +717,12 @@ public enum SupatermHostInputState: String, Codable, Sendable {
 }
 
 public enum SupatermHostTerminalStatus: Equatable, Sendable {
+  case starting
   case running
+  case exiting
   case exited(SupatermHostProcessExit)
+  case failed(message: String)
+  case interrupted
 }
 
 extension SupatermHostTerminalStatus: Codable {
@@ -725,34 +730,60 @@ extension SupatermHostTerminalStatus: Codable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let state = try container.decode(State.self, forKey: .state)
     switch state {
+    case .starting:
+      try validateSupatermHostKeys(decoder, expected: ["state"])
+      self = .starting
     case .running:
       try validateSupatermHostKeys(decoder, expected: ["state"])
       self = .running
+    case .exiting:
+      try validateSupatermHostKeys(decoder, expected: ["state"])
+      self = .exiting
     case .exited:
       try validateSupatermHostKeys(decoder, expected: ["state", "exit"])
       self = .exited(try container.decode(SupatermHostProcessExit.self, forKey: .exit))
+    case .failed:
+      try validateSupatermHostKeys(decoder, expected: ["state", "message"])
+      self = .failed(message: try container.decode(String.self, forKey: .message))
+    case .interrupted:
+      try validateSupatermHostKeys(decoder, expected: ["state"])
+      self = .interrupted
     }
   }
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     switch self {
+    case .starting:
+      try container.encode(State.starting, forKey: .state)
     case .running:
       try container.encode(State.running, forKey: .state)
+    case .exiting:
+      try container.encode(State.exiting, forKey: .state)
     case .exited(let exit):
       try container.encode(State.exited, forKey: .state)
       try container.encode(exit, forKey: .exit)
+    case .failed(let message):
+      try container.encode(State.failed, forKey: .state)
+      try container.encode(message, forKey: .message)
+    case .interrupted:
+      try container.encode(State.interrupted, forKey: .state)
     }
   }
 
   private enum State: String, Codable {
+    case starting
     case running
+    case exiting
     case exited
+    case failed
+    case interrupted
   }
 
   private enum CodingKeys: String, CodingKey {
     case state
     case exit
+    case message
   }
 }
 

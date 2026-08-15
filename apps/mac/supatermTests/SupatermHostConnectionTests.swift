@@ -125,7 +125,7 @@ struct SupatermHostConnectionTests {
 
     await #expect(
       throws: SupatermHostConnectionError.protocolViolation(
-        "running terminal boot ID does not match host"
+        "active terminal boot ID does not match host"
       )
     ) {
       try await connection.create(terminalID: terminalID, command: command)
@@ -166,7 +166,7 @@ struct SupatermHostConnectionTests {
 
     await #expect(
       throws: SupatermHostConnectionError.protocolViolation(
-        "running terminal boot ID does not match host"
+        "active terminal boot ID does not match host"
       )
     ) {
       try await connection.attach(terminalID: terminalID)
@@ -177,21 +177,78 @@ struct SupatermHostConnectionTests {
   }
 
   @Test
-  func rejectsRunningListTerminalFromWrongBoot() async throws {
+  func validatesBootIDForEveryTerminalStatusAndLookup() async throws {
+    let currentBootID = testBootID("123e4567-e89b-12d3-a456-426614174005")
+    let priorBootID = testBootID("123e4567-e89b-12d3-a456-426614174099")
+    let currentBootStatuses: [SupatermHostTerminalStatus] = [
+      .starting,
+      .running,
+      .exiting,
+    ]
+    let historicalStatuses: [SupatermHostTerminalStatus] = [
+      .exited(.code(0)),
+      .failed(message: "spawn failed"),
+      .interrupted,
+    ]
+
+    for lookup in SupatermHostTerminalLookup.allCases {
+      for status in currentBootStatuses {
+        try await verifyBootIDValidation(
+          status: status,
+          bootID: currentBootID,
+          lookup: lookup,
+          accepts: true
+        )
+        try await verifyBootIDValidation(
+          status: status,
+          bootID: priorBootID,
+          lookup: lookup,
+          accepts: false
+        )
+      }
+      for status in historicalStatuses {
+        for bootID in [currentBootID, priorBootID] {
+          try await verifyBootIDValidation(
+            status: status,
+            bootID: bootID,
+            lookup: lookup,
+            accepts: true
+          )
+        }
+      }
+    }
+  }
+
+  private func verifyBootIDValidation(
+    status: SupatermHostTerminalStatus,
+    bootID: BootID,
+    lookup: SupatermHostTerminalLookup,
+    accepts: Bool
+  ) async throws {
     let terminalID = testTerminalID("123e4567-e89b-12d3-a456-426614174000")
-    let wrongBootID = testBootID("123e4567-e89b-12d3-a456-426614174099")
-    let terminal = testTerminalInfo(id: terminalID, bootID: wrongBootID)
+    let terminal = testTerminalInfo(
+      id: terminalID,
+      bootID: bootID,
+      status: status,
+      inputState: .closed
+    )
     let server = try SupatermHostWireTestServer { socket in
       try serveHello(socket)
-      let list = try readClientEnvelope(socket)
+      let request = try readClientEnvelope(socket)
+      let message: SupatermHostMessage
+      switch (lookup, request.body) {
+      case (.list, .list):
+        message = .terminals([terminal])
+      case (.get, .get(let requestedID)) where requestedID == terminalID:
+        message = .terminal(terminal)
+      default:
+        throw SupatermHostWireTestError.unexpectedRequest
+      }
       try writeHostEnvelope(
         socket,
-        SupatermHostEnvelope(
-          requestID: list.requestID,
-          body: .terminals([terminal])
-        )
+        SupatermHostEnvelope(requestID: request.requestID, body: message)
       )
-      return [list]
+      return [request]
     }
     defer { server.destroy() }
     let connection = try await SupatermHostConnection.connect(
@@ -199,66 +256,30 @@ struct SupatermHostConnectionTests {
       role: .test
     )
 
-    await #expect(
-      throws: SupatermHostConnectionError.protocolViolation(
-        "running terminal boot ID does not match host"
-      )
-    ) {
-      try await connection.list()
+    if accepts {
+      switch lookup {
+      case .list:
+        #expect(try await connection.list() == [terminal])
+      case .get:
+        #expect(try await connection.get(terminalID: terminalID) == terminal)
+      }
+    } else {
+      await #expect(
+        throws: SupatermHostConnectionError.protocolViolation(
+          "active terminal boot ID does not match host"
+        )
+      ) {
+        switch lookup {
+        case .list:
+          _ = try await connection.list()
+        case .get:
+          _ = try await connection.get(terminalID: terminalID)
+        }
+      }
     }
 
     await connection.close()
     #expect(try await server.result.value.count == 1)
-  }
-
-  @Test
-  func allowsHistoricalTerminalFromPriorBootButRejectsRunningGet() async throws {
-    let terminalID = testTerminalID("123e4567-e89b-12d3-a456-426614174000")
-    let wrongBootID = testBootID("123e4567-e89b-12d3-a456-426614174099")
-    let historical = testTerminalInfo(
-      id: terminalID,
-      bootID: wrongBootID,
-      status: .exited(.code(0)),
-      inputState: .closed
-    )
-    let running = testTerminalInfo(id: terminalID, bootID: wrongBootID)
-    let server = try SupatermHostWireTestServer { socket in
-      try serveHello(socket)
-      let list = try readClientEnvelope(socket)
-      try writeHostEnvelope(
-        socket,
-        SupatermHostEnvelope(
-          requestID: list.requestID,
-          body: .terminals([historical])
-        )
-      )
-      let get = try readClientEnvelope(socket)
-      try writeHostEnvelope(
-        socket,
-        SupatermHostEnvelope(
-          requestID: get.requestID,
-          body: .terminal(running)
-        )
-      )
-      return [list, get]
-    }
-    defer { server.destroy() }
-    let connection = try await SupatermHostConnection.connect(
-      socketURL: server.socketURL,
-      role: .test
-    )
-
-    #expect(try await connection.list() == [historical])
-    await #expect(
-      throws: SupatermHostConnectionError.protocolViolation(
-        "running terminal boot ID does not match host"
-      )
-    ) {
-      try await connection.get(terminalID: terminalID)
-    }
-
-    await connection.close()
-    #expect(try await server.result.value.count == 2)
   }
 
   @Test
@@ -1549,6 +1570,11 @@ struct SupatermHostConnectionTests {
     await connection.close()
     _ = try await server.result.value
   }
+}
+
+private nonisolated enum SupatermHostTerminalLookup: CaseIterable, Sendable {
+  case list
+  case get
 }
 
 private nonisolated struct SupatermHostCanceledAttachFixture: Sendable {

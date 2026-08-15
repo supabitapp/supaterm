@@ -288,6 +288,24 @@ struct SupatermHostProtocolTests {
   }
 
   @Test
+  func terminalStatusesMatchRustJSON() throws {
+    let values: [(SupatermHostTerminalStatus, String)] = [
+      (.starting, #"{"state":"starting"}"#),
+      (.running, #"{"state":"running"}"#),
+      (.exiting, #"{"state":"exiting"}"#),
+      (.exited(.code(23)), #"{"state":"exited","exit":{"kind":"code","value":23}}"#),
+      (.failed(message: "launch failed"), #"{"state":"failed","message":"launch failed"}"#),
+      (.interrupted, #"{"state":"interrupted"}"#),
+    ]
+
+    for (status, expected) in values {
+      let encoded = try JSONEncoder().encode(status)
+      #expect(try jsonObject(status) == jsonObject(expected))
+      #expect(try JSONDecoder().decode(SupatermHostTerminalStatus.self, from: encoded) == status)
+    }
+  }
+
+  @Test
   func allRequestsRoundTrip() throws {
     let terminalID = try terminalID("123e4567-e89b-12d3-a456-426614174000")
     let attachmentID = try attachmentID("123e4567-e89b-12d3-a456-426614174001")
@@ -391,6 +409,7 @@ struct SupatermHostProtocolTests {
       .backpressure,
       .conflict,
       .inputUncertain,
+      .internal,
       .invalidRequest,
       .notAttached,
       .notFound,
@@ -400,7 +419,14 @@ struct SupatermHostProtocolTests {
     ]
     let encoded = try JSONEncoder().encode(values)
     let rawValues = try #require(JSONSerialization.jsonObject(with: encoded) as? [String])
+    let internalCode = try #require(
+      JSONSerialization.jsonObject(
+        with: JSONEncoder().encode(SupatermHostErrorCode.internal),
+        options: .fragmentsAllowed
+      ) as? String
+    )
     #expect(rawValues == values.map(\.rawValue))
+    #expect(internalCode == "internal")
   }
 
   @Test
@@ -503,6 +529,27 @@ struct SupatermHostProtocolTests {
     }
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(SupatermHostTerminalStatus.self, from: status)
+    }
+  }
+
+  @Test
+  func decoderRejectsInvalidTerminalStatusShapes() {
+    let values = [
+      #"{"state":"starting","message":"unexpected"}"#,
+      #"{"state":"exiting","exit":{"kind":"code","value":0}}"#,
+      #"{"state":"exited"}"#,
+      #"{"state":"failed"}"#,
+      #"{"state":"interrupted","message":"unexpected"}"#,
+      #"{"state":"unknown"}"#,
+    ]
+
+    for value in values {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(
+          SupatermHostTerminalStatus.self,
+          from: Data(value.utf8)
+        )
+      }
     }
   }
 }

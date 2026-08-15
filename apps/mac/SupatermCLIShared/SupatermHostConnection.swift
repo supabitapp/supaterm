@@ -829,14 +829,14 @@ public actor SupatermHostConnection {
   }
 
   private func validateTerminalBootIDs(in message: SupatermHostMessage) throws {
-    let terminals: [(SupatermHostTerminalInfo, Bool)]
+    let terminals: [SupatermHostTerminalInfo]
     switch message {
     case .created(let terminal), .attached(let terminal, _, _, _):
-      terminals = [(terminal, true)]
+      terminals = [terminal]
     case .terminal(let terminal):
-      terminals = [(terminal, terminal.status == .running)]
+      terminals = terminal.status.requiresCurrentBoot ? [terminal] : []
     case .terminals(let values):
-      terminals = values.map { ($0, $0.status == .running) }
+      terminals = values.filter { $0.status.requiresCurrentBoot }
     default:
       return
     }
@@ -845,9 +845,9 @@ public actor SupatermHostConnection {
         "terminal arrived before host identity"
       )
     }
-    guard terminals.allSatisfy({ !$0.1 || $0.0.bootID == currentBootID }) else {
+    guard terminals.allSatisfy({ $0.bootID == currentBootID }) else {
       throw SupatermHostConnectionError.protocolViolation(
-        "running terminal boot ID does not match host"
+        "active terminal boot ID does not match host"
       )
     }
   }
@@ -1231,6 +1231,17 @@ public actor SupatermHostConnection {
     eventWaiterOrder.removeAll()
     for waiter in eventWaiters {
       waiter.resume(throwing: error)
+    }
+  }
+}
+
+extension SupatermHostTerminalStatus {
+  fileprivate var requiresCurrentBoot: Bool {
+    switch self {
+    case .starting, .running, .exiting:
+      true
+    case .exited, .failed, .interrupted:
+      false
     }
   }
 }
