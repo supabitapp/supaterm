@@ -416,13 +416,13 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func dropZoneUsesUpForTopEdge() {
-    let zone = TerminalSplitTreeView.DropZone.calculate(
+  func dropZoneUsesTopForTopEdge() {
+    let zone = TerminalSplitDropZone.calculate(
       at: CGPoint(x: 60, y: 4),
       in: CGSize(width: 120, height: 120)
     )
 
-    #expect(zone == .up)
+    #expect(zone == .top)
   }
 
   @Test

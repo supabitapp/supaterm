@@ -165,11 +165,6 @@ nonisolated struct TerminalTabExtractionRequest: Equatable, Sendable {
   let itemIDs: [TerminalTabRootItemID]
 }
 
-nonisolated enum TerminalTabSplitSide: Equatable, Sendable {
-  case left
-  case right
-}
-
 nonisolated struct TerminalTabTransferRequest: Equatable, Sendable {
   let expectedSourceRevision: UInt64
   let expectedDestinationRevision: UInt64

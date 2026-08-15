@@ -133,30 +133,18 @@ nonisolated struct TerminalTabSplitDropCoordinator {
 
   enum State: Equatable {
     case hidden
-    case available(Context)
-    case targeted(Context, TerminalTabSplitSide)
+    case targeted(Context, TerminalSplitDropZone)
   }
 
   private(set) var state = State.hidden
-
-  var presentation: TerminalTabSplitDropPresentation {
-    switch state {
-    case .hidden:
-      .hidden
-    case .available:
-      .available
-    case .targeted(_, let side):
-      .targeted(side)
-    }
-  }
 
   var canCommit: Bool {
     guard case .targeted = state else { return false }
     return true
   }
 
-  mutating func update(context: Context, target: TerminalTabSplitSide?) {
-    let state = target.map { State.targeted(context, $0) } ?? .available(context)
+  mutating func update(context: Context, target: TerminalSplitDropZone) {
+    let state = State.targeted(context, target)
     guard state != self.state else { return }
     self.state = state
   }
@@ -167,10 +155,10 @@ nonisolated struct TerminalTabSplitDropCoordinator {
   }
 
   mutating func commit(
-    perform: (Context, TerminalTabSplitSide) -> Bool
+    perform: (Context, TerminalSplitDropZone) -> Bool
   ) -> Bool {
-    guard case .targeted(let context, let side) = state else { return false }
-    let result = perform(context, side)
+    guard case .targeted(let context, let zone) = state else { return false }
+    let result = perform(context, zone)
     state = .hidden
     return result
   }
@@ -733,11 +721,7 @@ final class TerminalWindowShellController: NSViewController {
       dragDestinationExited()
       return []
     }
-    let overlayPoint = CGPoint(
-      x: location.x - detailFrame.minX,
-      y: location.y - detailFrame.minY
-    )
-    let sharedPreviewReady = tabDragRegistry.hasSharedPreview(for: payload)
+    let overlayPoint = splitDropOverlay.convert(location, from: view)
     tabDragRegistry.transitionSharedPreview(payload, to: .contentPane)
     let target = splitDropOverlay.target(at: overlayPoint)
     let context = TerminalTabSplitDropCoordinator.Context(
@@ -745,14 +729,7 @@ final class TerminalWindowShellController: NSViewController {
       tabID: destination.tabID
     )
     splitDropCoordinator.update(context: context, target: target)
-    splitDropOverlay.render(
-      splitDropCoordinator.presentation,
-      at: overlayPoint,
-      sharedPreviewReady: sharedPreviewReady
-    )
-    guard target != nil else {
-      return .move
-    }
+    splitDropOverlay.render(target)
     info.numberOfValidItemsForDrop = 1
     return .move
   }
@@ -767,14 +744,14 @@ final class TerminalWindowShellController: NSViewController {
     guard splitDropCoordinator.canCommit else { return false }
     let tabDragRegistry = tabDragRegistry
     let windowControllerID = windowControllerID
-    let didSplit = splitDropCoordinator.commit { context, side in
+    let didSplit = splitDropCoordinator.commit { context, zone in
       tabDragRegistry.performSplit(
         payload,
         to: TerminalTabDragRegistry.SplitDestination(
           windowControllerID: windowControllerID,
           spaceID: context.spaceID,
           tabID: context.tabID,
-          side: side
+          zone: zone
         )
       )
     }
@@ -795,10 +772,6 @@ final class TerminalWindowShellController: NSViewController {
 
   private func resetSplitDrop() {
     splitDropCoordinator.hide()
-    splitDropOverlay.render(
-      splitDropCoordinator.presentation,
-      at: nil,
-      sharedPreviewReady: false
-    )
+    splitDropOverlay.render(nil)
   }
 }

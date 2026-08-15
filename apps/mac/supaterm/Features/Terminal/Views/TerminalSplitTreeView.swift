@@ -198,7 +198,7 @@ struct TerminalSplitTreeView: View {
 
   enum Operation: Equatable {
     case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
-    case drop(payloadId: UUID, destinationId: UUID, zone: DropZone)
+    case drop(payloadId: UUID, destinationId: UUID, zone: TerminalSplitDropZone)
     case equalize
     case agentPanelCopyText(String)
     case agentPanelForkSessionRequested(
@@ -391,7 +391,7 @@ struct TerminalSplitTreeView: View {
           notificationPulseOverlay
         }
         .overlay {
-          dropOverlay(size: geometry.size)
+          dropOverlay
         }
     }
 
@@ -571,9 +571,9 @@ struct TerminalSplitTreeView: View {
     }
 
     @ViewBuilder
-    private func dropOverlay(size: CGSize) -> some View {
+    private var dropOverlay: some View {
       if case .dropping(let zone) = dropState {
-        DropOverlayView(zone: zone, size: size, palette: palette)
+        TerminalSplitDropOverlay(zone: zone, color: palette.accent)
           .allowsHitTesting(false)
       }
     }
@@ -1119,7 +1119,7 @@ struct TerminalSplitTreeView: View {
 
   enum DropState: Equatable {
     case idle
-    case dropping(DropZone)
+    case dropping(TerminalSplitDropZone)
   }
 
   struct SplitDropDelegate: DropDelegate {
@@ -1147,7 +1147,7 @@ struct TerminalSplitTreeView: View {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-      let zone = DropZone.calculate(at: info.location, in: viewSize)
+      let zone = TerminalSplitDropZone.calculate(at: info.location, in: viewSize)
       dropState = .idle
 
       let providers = info.itemProviders(for: [TerminalSplitTreeView.dragType])
@@ -1167,70 +1167,6 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  enum DropZone: String, Equatable {
-    case up
-    case bottom
-    case left
-    case right
-
-    static func calculate(at point: CGPoint, in size: CGSize) -> DropZone {
-      let relX = point.x / size.width
-      let relY = point.y / size.height
-
-      let distToLeft = relX
-      let distToRight = 1 - relX
-      let distToTop = relY
-      let distToBottom = 1 - relY
-
-      let minDist = min(distToLeft, distToRight, distToTop, distToBottom)
-
-      if minDist == distToLeft { return .left }
-      if minDist == distToRight { return .right }
-      if minDist == distToTop { return .up }
-      return .bottom
-    }
-  }
-
-  struct DropOverlayView: View {
-    let zone: DropZone
-    let size: CGSize
-    let palette: Palette
-
-    var body: some View {
-      let overlayColor = palette.accent.opacity(0.3)
-
-      switch zone {
-      case .up:
-        VStack(spacing: 0) {
-          Rectangle()
-            .fill(overlayColor)
-            .frame(height: size.height / 2)
-          Spacer()
-        }
-      case .bottom:
-        VStack(spacing: 0) {
-          Spacer()
-          Rectangle()
-            .fill(overlayColor)
-            .frame(height: size.height / 2)
-        }
-      case .left:
-        HStack(spacing: 0) {
-          Rectangle()
-            .fill(overlayColor)
-            .frame(width: size.width / 2)
-          Spacer()
-        }
-      case .right:
-        HStack(spacing: 0) {
-          Spacer()
-          Rectangle()
-            .fill(overlayColor)
-            .frame(width: size.width / 2)
-        }
-      }
-    }
-  }
 }
 
 extension TerminalSplitTreeView.Operation: @unchecked Sendable {}

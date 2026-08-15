@@ -70,7 +70,7 @@ extension TerminalWindowRegistry {
       let didSplit = sourceEntry.terminal.splitSelectedTabWithNewPane(
         sourceTabID,
         expectedTopologyRevision: payload.sourceTopologyRevision,
-        keepingExistingContentOn: destination.side,
+        keepingExistingContentIn: destination.zone,
         in: destination.spaceID
       )
       if didSplit { onChange() }
@@ -86,7 +86,7 @@ extension TerminalWindowRegistry {
         from: sourceEntry.terminal,
         to: TerminalHostState.LiveTabSplitTarget(
           host: destinationEntry.terminal,
-          side: destination.side,
+          zone: destination.zone,
           spaceID: destination.spaceID,
           tabID: destination.tabID
         )

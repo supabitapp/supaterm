@@ -9,7 +9,7 @@ extension TerminalHostState {
 
   struct LiveTabSplitTarget {
     let host: TerminalHostState
-    let side: TerminalTabSplitSide
+    let zone: TerminalSplitDropZone
     let spaceID: TerminalSpaceID
     let tabID: TerminalTabID
   }
@@ -60,7 +60,7 @@ extension TerminalHostState {
   func splitSelectedTabWithNewPane(
     _ tabID: TerminalTabID,
     expectedTopologyRevision: UInt64,
-    keepingExistingContentOn side: TerminalTabSplitSide,
+    keepingExistingContentIn zone: TerminalSplitDropZone,
     in spaceID: TerminalSpaceID
   ) -> Bool {
     guard
@@ -71,7 +71,13 @@ extension TerminalHostState {
       let surface = selectedSurfaceView,
       self.tabID(containing: surface.id) == tabID
     else { return false }
-    let direction: GhosttySplitAction.NewDirection = side == .left ? .right : .left
+    let direction: GhosttySplitAction.NewDirection =
+      switch zone.opposite {
+      case .top: .up
+      case .bottom: .down
+      case .left: .left
+      case .right: .right
+      }
     return performSplitAction(.newSplit(direction: direction), for: surface.id)
   }
 
@@ -90,7 +96,7 @@ extension TerminalHostState {
         from: self,
         to: LiveTabSplitTarget(
           host: self,
-          side: .right,
+          zone: .right,
           spaceID: instance.spaceID,
           tabID: destinationTabID
         )
@@ -167,8 +173,8 @@ extension TerminalHostState {
       let destinationTree = destination.trees[destinationTabID],
       let joinedTree = destinationTree.joining(
         sourceTree,
-        direction: .horizontal,
-        placingOtherAfter: target.side == .right
+        direction: target.zone.isHorizontal ? .horizontal : .vertical,
+        placingOtherAfter: target.zone.isAfter
       )
     else {
       throw TerminalTabTransferError.missingLiveTree

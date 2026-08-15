@@ -24,20 +24,26 @@ struct TerminalTabTransferTests {
   }
 
   enum SelfSplitCase: CaseIterable, Sendable {
+    case groupedTop
+    case groupedBottom
     case groupedLeft
     case groupedRight
+    case rootTop
+    case rootBottom
     case rootLeft
     case rootRight
 
     var groupTitle: String? {
       switch self {
-      case .groupedLeft, .groupedRight: "Group"
-      case .rootLeft, .rootRight: nil
+      case .groupedTop, .groupedBottom, .groupedLeft, .groupedRight: "Group"
+      case .rootTop, .rootBottom, .rootLeft, .rootRight: nil
       }
     }
 
-    var side: TerminalTabSplitSide {
+    var zone: TerminalSplitDropZone {
       switch self {
+      case .groupedTop, .rootTop: .top
+      case .groupedBottom, .rootBottom: .bottom
       case .groupedLeft, .rootLeft: .left
       case .groupedRight, .rootRight: .right
       }
@@ -399,8 +405,10 @@ struct TerminalTabTransferTests {
     }
   }
 
-  @Test
-  func splitTransferMovesTheSourceTabIntoTheExactDestinationTab() throws {
+  @Test(arguments: TerminalSplitDropZone.allCases)
+  func splitTransferMovesTheSourceTabIntoTheExactDestinationZone(
+    zone: TerminalSplitDropZone
+  ) throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -451,7 +459,7 @@ struct TerminalTabTransferTests {
         from: host,
         to: TerminalHostState.LiveTabSplitTarget(
           host: host,
-          side: .left,
+          zone: zone,
           spaceID: space.id,
           tabID: destinationTabID
         )
@@ -461,11 +469,19 @@ struct TerminalTabTransferTests {
 
       #expect(host.spaceManager.tabCollection.tabs.map(\.id) == [destinationTabID])
       #expect(host.trees[sourceTabID] == nil)
+      let destinationTree = try #require(host.trees[destinationTabID])
+      let expectedLeaves =
+        zone.isAfter
+        ? [destinationSurface.id, sourceSurface.id]
+        : [sourceSurface.id, destinationSurface.id]
       #expect(
-        host.trees[destinationTabID]?.leaves().map(\.id) == [
-          sourceSurface.id,
-          destinationSurface.id,
-        ])
+        destinationTree.leaves().map(\.id) == expectedLeaves
+      )
+      guard case .split(let split) = destinationTree.root else {
+        Issue.record("Expected split tree")
+        return
+      }
+      #expect(split.direction == (zone.isHorizontal ? .horizontal : .vertical))
       #expect(host.surfaces[sourceSurface.id] === sourceSurface)
       #expect(host.focusHistoryByTab[destinationTabID]?.current == sourceSurface.id)
     }
@@ -538,7 +554,7 @@ struct TerminalTabTransferTests {
           windowControllerID: destinationWindowID,
           spaceID: space.id,
           tabID: destinationTabID,
-          side: .right
+          zone: .right
         )
       )
 
@@ -612,7 +628,7 @@ struct TerminalTabTransferTests {
         !host.splitSelectedTabWithNewPane(
           tabID,
           expectedTopologyRevision: topologyRevision + 1,
-          keepingExistingContentOn: testCase.side,
+          keepingExistingContentIn: testCase.zone,
           in: space.id
         )
       )
@@ -655,7 +671,7 @@ struct TerminalTabTransferTests {
           windowControllerID: windowControllerID,
           spaceID: space.id,
           tabID: tabID,
-          side: testCase.side
+          zone: testCase.zone
         )
       )
 
@@ -668,10 +684,15 @@ struct TerminalTabTransferTests {
       #expect(host.spaceManager.tabCollection.groupID(containing: tabID) == groupID)
       #expect(leaves.count == 2)
       #expect(
-        testCase.side == .left
-          ? leaves.first === originalSurface
-          : leaves.last === originalSurface
+        testCase.zone.isAfter
+          ? leaves.last === originalSurface
+          : leaves.first === originalSurface
       )
+      guard case .split(let split) = host.trees[tabID]?.root else {
+        Issue.record("Expected split tree")
+        return
+      }
+      #expect(split.direction == (testCase.zone.isHorizontal ? .horizontal : .vertical))
       #expect(host.selectedSurfaceView !== originalSurface)
       #expect(!didCloseWindow)
       withExtendedLifetime(window) {}
