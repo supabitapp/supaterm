@@ -403,6 +403,23 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test
+  func tabSplitDropSurfaceStartsBelowTheDetailToolbar() {
+    let detailFrame = CGRect(x: 240, y: 0, width: 760, height: 700)
+
+    #expect(
+      TerminalTabSplitDropLayout.surfaceFrame(in: detailFrame)
+        == CGRect(
+          x: 240 + TerminalChromeMetrics.paneInset,
+          y: TerminalChromeMetrics.paneInset,
+          width: 760 - (TerminalChromeMetrics.paneInset * 2),
+          height: 700
+            - TerminalChromeMetrics.detailToolbarHeight
+            - (TerminalChromeMetrics.paneInset * 2)
+        )
+    )
+  }
+
+  @Test
   func splitDropCoordinatorTargetsTheFirstValidUpdate() {
     var coordinator = TerminalTabSplitDropCoordinator()
     let context = splitDropContext()

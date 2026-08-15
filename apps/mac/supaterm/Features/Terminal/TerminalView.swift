@@ -272,11 +272,11 @@ struct TerminalWindowChromeBackground: View {
 }
 
 extension TerminalHostState {
-  fileprivate func chromeColorScheme(appearanceMode: AppearanceMode) -> ColorScheme {
+  func chromeColorScheme(appearanceMode: AppearanceMode) -> ColorScheme {
     appearanceMode.colorScheme ?? terminalChromeColorScheme
   }
 
-  fileprivate func chromePalette(appearanceMode: AppearanceMode) -> Palette {
+  func chromePalette(appearanceMode: AppearanceMode) -> Palette {
     Palette(
       colorScheme: chromeColorScheme(appearanceMode: appearanceMode),
       tint: displayedSpace.color

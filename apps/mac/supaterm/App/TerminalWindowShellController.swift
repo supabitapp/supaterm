@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import QuartzCore
+import SwiftUI
 
 struct TerminalWindowShellPresentation: Equatable {
   let isSidebarCollapsed: Bool
@@ -113,6 +114,27 @@ nonisolated enum TerminalTabDragCaptureLayout {
       height: detailFrame.height
     )
   }
+}
+
+nonisolated enum TerminalTabSplitDropLayout {
+  static func surfaceFrame(in detailFrame: CGRect) -> CGRect {
+    let paneFrame = detailFrame.insetBy(
+      dx: TerminalChromeMetrics.paneInset,
+      dy: TerminalChromeMetrics.paneInset
+    )
+    return CGRect(
+      x: paneFrame.minX,
+      y: paneFrame.minY,
+      width: max(0, paneFrame.width),
+      height: max(0, paneFrame.height - TerminalChromeMetrics.detailToolbarHeight)
+    )
+  }
+}
+
+struct TerminalTabSplitDropDestination {
+  let spaceID: TerminalSpaceID
+  let tabID: TerminalTabID
+  let color: Color
 }
 
 @MainActor
@@ -352,11 +374,7 @@ final class TerminalWindowShellController: NSViewController {
     set { sidebarResizeView.onInput = newValue }
   }
   var isSpacePaging: () -> Bool = { false }
-  var splitDestination:
-    () -> (
-      spaceID: TerminalSpaceID,
-      tabID: TerminalTabID
-    )? = { nil }
+  var splitDestination: () -> TerminalTabSplitDropDestination? = { nil }
 
   private var detailController: NSViewController?
   private var presentation = TerminalWindowShellPresentation(
@@ -548,7 +566,7 @@ final class TerminalWindowShellController: NSViewController {
       hidesSidebar: sidebarPresentation == .hidden
     )
     setFrame(layout.detailFrame, of: detailController.view, motion: motion)
-    splitDropOverlay.frame = layout.detailFrame
+    splitDropOverlay.frame = TerminalTabSplitDropLayout.surfaceFrame(in: layout.detailFrame)
     sidebarResizeView.sidebarWidth = layout.sidebarFrame.width
     setFrame(layout.resizeFrame, of: sidebarResizeView, motion: .immediate)
     sidebarResizeView.isHidden = layout.resizeFrame.isEmpty
@@ -707,8 +725,8 @@ final class TerminalWindowShellController: NSViewController {
       return []
     }
     let location = view.convert(info.draggingLocation, from: nil)
-    let detailFrame = currentLayout.detailFrame
-    guard detailFrame.contains(location) else {
+    let surfaceFrame = TerminalTabSplitDropLayout.surfaceFrame(in: currentLayout.detailFrame)
+    guard surfaceFrame.contains(location) else {
       dragDestinationExited()
       return []
     }
@@ -729,7 +747,7 @@ final class TerminalWindowShellController: NSViewController {
       tabID: destination.tabID
     )
     splitDropCoordinator.update(context: context, target: target)
-    splitDropOverlay.render(target)
+    splitDropOverlay.render(target, color: destination.color)
     info.numberOfValidItemsForDrop = 1
     return .move
   }
@@ -772,6 +790,6 @@ final class TerminalWindowShellController: NSViewController {
 
   private func resetSplitDrop() {
     splitDropCoordinator.hide()
-    splitDropOverlay.render(nil)
+    splitDropOverlay.hide()
   }
 }

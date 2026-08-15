@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -36,9 +37,9 @@ struct TerminalTabSplitDropOverlayTests {
     #expect(overlay.isHidden)
     #expect(topPoint == CGPoint(x: 400, y: 10))
     #expect(overlay.target(at: topPoint) == .top)
-    overlay.render(.top)
+    overlay.render(.top, color: .red)
     #expect(!overlay.isHidden)
-    overlay.render(nil)
+    overlay.hide()
     #expect(overlay.isHidden)
   }
 }

@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 final class TerminalTabSplitDropOverlayView: NSView {
   private let hostingView = NSHostingView(
-    rootView: TerminalSplitDropOverlay(zone: .left, color: .accentColor)
+    rootView: TerminalSplitDropOverlay(zone: .left, color: .clear)
   )
 
   override var isFlipped: Bool { true }
@@ -34,12 +34,12 @@ final class TerminalTabSplitDropOverlayView: NSView {
     TerminalSplitDropZone.calculate(at: point, in: bounds.size)
   }
 
-  func render(_ zone: TerminalSplitDropZone?) {
-    guard let zone else {
-      isHidden = true
-      return
-    }
-    hostingView.rootView = TerminalSplitDropOverlay(zone: zone, color: .accentColor)
+  func render(_ zone: TerminalSplitDropZone, color: Color) {
+    hostingView.rootView = TerminalSplitDropOverlay(zone: zone, color: color)
     isHidden = false
+  }
+
+  func hide() {
+    isHidden = true
   }
 }
