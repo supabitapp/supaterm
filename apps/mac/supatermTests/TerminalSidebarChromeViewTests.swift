@@ -84,33 +84,56 @@ struct TerminalSidebarChromeViewTests {
       )
     )
     let cornerSize: CGFloat = 14
-    let bottomLeft = CGRect(
+    let visualTopLeft = CGRect(
       x: itemFrame.minX,
       y: itemFrame.minY,
       width: cornerSize,
       height: cornerSize
     )
-    let bottomRight = CGRect(
+    let visualTopRight = CGRect(
       x: itemFrame.maxX - cornerSize,
       y: itemFrame.minY,
       width: cornerSize,
       height: cornerSize
     )
-    let topLeft = CGRect(
+    let visualBottomLeft = CGRect(
       x: itemFrame.minX,
       y: itemFrame.maxY - cornerSize,
       width: cornerSize,
       height: cornerSize
     )
-    let topRight = CGRect(
+    let visualBottomRight = CGRect(
       x: itemFrame.maxX - cornerSize,
       y: itemFrame.maxY - cornerSize,
       width: cornerSize,
       height: cornerSize
     )
 
-    #expect(raster.peakBrightness(in: bottomRight) > raster.peakBrightness(in: bottomLeft) * 2)
-    #expect(raster.peakBrightness(in: topLeft) > raster.peakBrightness(in: topRight) * 2)
+    #expect(raster.peakBrightness(in: visualTopLeft) > raster.peakBrightness(in: visualTopRight) * 2)
+    #expect(raster.peakBrightness(in: visualBottomRight) > raster.peakBrightness(in: visualBottomLeft) * 2)
+  }
+
+  @MainActor
+  @Test
+  func selectionEdgeKeepsItsFullStrokeAtPaletteOpacity() throws {
+    let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
+    let palette = Palette(colorScheme: .dark)
+    let raster = try #require(
+      SelectionGlowRaster(
+        surfaceFrame: itemFrame,
+        style: .resolve(palette: palette),
+        scale: 2,
+        fadesAtContentTop: false
+      )
+    )
+    let outsideTopEdge = CGRect(
+      x: itemFrame.minX + 16,
+      y: itemFrame.minY - 1,
+      width: 24,
+      height: 1
+    )
+
+    #expect(raster.peakBrightness(in: outsideTopEdge) > 0.1)
   }
 
   @MainActor

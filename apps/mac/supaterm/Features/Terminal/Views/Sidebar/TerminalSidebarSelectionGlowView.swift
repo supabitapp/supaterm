@@ -26,8 +26,6 @@ final class TerminalSidebarSelectionGlowView: NSView {
   private static let contentTopFade: CGFloat = 24
 
   private let shadowLayer = CAShapeLayer()
-  private let contentLayer = CALayer()
-  private let contentMaskLayer = CAShapeLayer()
   private let edgeLayer = CAGradientLayer()
   private let edgeMaskLayer = CAShapeLayer()
   private let contentTopFadeLayer = CAGradientLayer()
@@ -48,17 +46,13 @@ final class TerminalSidebarSelectionGlowView: NSView {
       width: SelectableRowShadowMetrics.offset.width,
       height: -SelectableRowShadowMetrics.offset.height
     )
-    contentMaskLayer.fillColor = NSColor.white.cgColor
-    contentLayer.mask = contentMaskLayer
-    contentLayer.masksToBounds = true
     edgeLayer.locations = [0, 0.1, 0.4, 0.5, 0.6, 0.9, 1]
     edgeMaskLayer.fillColor = nil
     edgeMaskLayer.strokeColor = NSColor.white.cgColor
     edgeMaskLayer.lineWidth = 1
     edgeLayer.mask = edgeMaskLayer
     layer?.addSublayer(shadowLayer)
-    contentLayer.addSublayer(edgeLayer)
-    layer?.addSublayer(contentLayer)
+    layer?.addSublayer(edgeLayer)
     isHidden = true
     setAccessibilityElement(false)
   }
@@ -83,20 +77,16 @@ final class TerminalSidebarSelectionGlowView: NSView {
     shadowLayer.frame = bounds
     shadowLayer.path = shapePath
     shadowLayer.shadowPath = shapePath
-    contentLayer.frame = bounds
-    contentMaskLayer.frame = bounds
-    contentMaskLayer.path = shapePath
     edgeLayer.frame = bounds
     edgeLayer.startPoint = CGPoint(
       x: shapeBounds.minX / bounds.width,
-      y: shapeBounds.minY / bounds.height
+      y: shapeBounds.maxY / bounds.height
     )
     edgeLayer.endPoint = CGPoint(
       x: shapeBounds.maxX / bounds.width,
-      y: shapeBounds.maxY / bounds.height
+      y: shapeBounds.minY / bounds.height
     )
     edgeLayer.contentsScale = window?.backingScaleFactor ?? 2
-    contentMaskLayer.contentsScale = edgeLayer.contentsScale
     edgeMaskLayer.frame = bounds
     edgeMaskLayer.path = shapePath
     edgeMaskLayer.contentsScale = edgeLayer.contentsScale
