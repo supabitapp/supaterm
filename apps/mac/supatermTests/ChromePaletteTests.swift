@@ -77,31 +77,17 @@ struct ChromePaletteTests {
 
   @Test func darkSidebarPrimarySelectionIsOpaqueBlack() {
     let palette = Palette(colorScheme: .dark)
-    for background in [palette.backgroundTopValue, palette.backgroundBottomValue] {
-      expectSameThemeColor(
-        palette.sidebarTabPrimarySurface(over: background),
-        .black,
-        "sidebarTabPrimarySurface"
-      )
-    }
+    expectSameThemeColor(palette.sidebarTabPrimarySurfaceValue, .black, "sidebarTabPrimarySurface")
   }
 
-  @Test func lightSidebarPrimarySelectionBlendsTheWashIntoWhite() {
+  @Test func lightSidebarPrimarySelectionIsOpaqueWhite() {
     for tint in ThemeTint.chromatic {
       let palette = Palette(colorScheme: .light, tint: tint)
-      for wash in [palette.chromeBackgroundStartValue, palette.chromeBackgroundStopValue] {
-        let surface = palette.sidebarTabPrimarySurface(over: wash)
-        let luminance = ColorMath.relativeLuminance(surface)
-        let tone = ColorMath.oklch(from: surface)
-        let washTone = ColorMath.oklch(from: wash)
-        #expect(
-          ColorMath.relativeLuminance(wash) < luminance && luminance < ColorMath.relativeLuminance(.white),
-          "surfaceBetweenWashAndWhite-\(tint.rawValue): \(surface) over \(wash)"
-        )
-        #expect(tone.chroma > 0, "surfaceChroma-\(tint.rawValue): \(surface)")
-        #expect(hueDelta(tone, washTone) < 0.05, "surfaceHue-\(tint.rawValue): \(hueDelta(tone, washTone))")
-        expectContrast(.black, surface, minimum: 4.5, token: "selectedTitle-\(tint.rawValue)")
-      }
+      expectSameThemeColor(
+        palette.sidebarTabPrimarySurfaceValue,
+        .white,
+        "sidebarTabPrimarySurface-\(tint.rawValue)"
+      )
     }
   }
 
@@ -453,7 +439,7 @@ struct ChromePaletteTests {
   private func expectSidebarTabRowTokens(_ palette: Palette, isDark: Bool) {
     let row = palette.selectableRow
     let ink = isDark ? Color.white : .black
-    let primarySelection = isDark ? Color.black : Color.white.opacity(0.88)
+    let primarySelection = isDark ? Color.black : Color.white
     expectSameColor(
       row.restFill,
       ink.opacity(0.06),

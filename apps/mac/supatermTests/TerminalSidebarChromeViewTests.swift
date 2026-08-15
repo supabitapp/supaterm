@@ -67,7 +67,7 @@ struct TerminalSidebarChromeViewTests {
 
   @MainActor
   @Test
-  func selectionEdgeHighlightsTheBottomLeftAndTopRight() throws {
+  func selectionEdgeHighlightsTheTopLeftAndBottomRight() throws {
     let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
     let raster = try #require(
       SelectionGlowRaster(
@@ -109,8 +109,44 @@ struct TerminalSidebarChromeViewTests {
       height: cornerSize
     )
 
-    #expect(raster.peakBrightness(in: bottomLeft) > raster.peakBrightness(in: bottomRight) * 2)
-    #expect(raster.peakBrightness(in: topRight) > raster.peakBrightness(in: topLeft) * 2)
+    #expect(raster.peakBrightness(in: bottomRight) > raster.peakBrightness(in: bottomLeft) * 2)
+    #expect(raster.peakBrightness(in: topLeft) > raster.peakBrightness(in: topRight) * 2)
+  }
+
+  @MainActor
+  @Test
+  func selectionEdgeDoesNotAlterTheOpaqueLightSurface() throws {
+    let itemFrame = CGRect(x: 20, y: 60, width: 200, height: 40)
+    let edge = try #require(
+      SelectionGlowRaster(
+        surfaceFrame: itemFrame,
+        style: TerminalSidebarSelectionGlowView.Style(
+          surfaceColor: .white,
+          shadowColor: .clear,
+          edgeStrongColor: .white,
+          edgeWeakColor: .white,
+          isDark: false
+        ),
+        scale: 2,
+        fadesAtContentTop: false
+      )
+    )
+    let noEdge = try #require(
+      SelectionGlowRaster(
+        surfaceFrame: itemFrame,
+        style: TerminalSidebarSelectionGlowView.Style(
+          surfaceColor: .white,
+          shadowColor: .clear,
+          edgeStrongColor: .clear,
+          edgeWeakColor: .clear,
+          isDark: false
+        ),
+        scale: 2,
+        fadesAtContentTop: false
+      )
+    )
+
+    #expect(edge.maximumColorDifference(from: noEdge) < 0.01)
   }
 
   @MainActor
@@ -361,9 +397,8 @@ struct TerminalSidebarChromeViewTests {
   func selectedWarningBadgeForegroundMeetsContrast() {
     for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
       let foreground = TerminalSidebarWarningBadgeStyle.foregroundValue(isSelected: true, palette: palette)
-      for background in TerminalSidebarWarningBadgeStyle.selectedBackgroundValues(palette: palette) {
-        #expect(ColorMath.contrastRatio(foreground, background) >= 4.5)
-      }
+      let background = TerminalSidebarWarningBadgeStyle.selectedBackgroundValue(palette: palette)
+      #expect(ColorMath.contrastRatio(foreground, background) >= 4.5)
     }
   }
 
@@ -854,6 +889,27 @@ private struct SelectionGlowRaster {
           return runningPeak
         }
         return max(runningPeak, color.redComponent, color.greenComponent, color.blueComponent)
+      }
+    }
+  }
+
+  func maximumColorDifference(from other: Self) -> CGFloat {
+    guard raster.pixelsWide == other.raster.pixelsWide, raster.pixelsHigh == other.raster.pixelsHigh else {
+      return .infinity
+    }
+    return (0..<raster.pixelsHigh).reduce(0) { rowMaximum, y in
+      (0..<raster.pixelsWide).reduce(rowMaximum) { maximum, x in
+        guard
+          let first = raster.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+          let second = other.raster.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB)
+        else { return maximum }
+        return max(
+          maximum,
+          abs(first.redComponent - second.redComponent),
+          abs(first.greenComponent - second.greenComponent),
+          abs(first.blueComponent - second.blueComponent),
+          abs(first.alphaComponent - second.alphaComponent)
+        )
       }
     }
   }
