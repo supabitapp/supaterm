@@ -143,7 +143,8 @@ final class TerminalWindowController: NSWindowController {
     let store = Store(
       initialState: AppFeature.State(
         terminal: TerminalWindowFeature.State(
-          sidebarWidth: session?.sidebarWidth.map { CGFloat($0) }
+          sidebarWidth: session?.sidebarWidth.map { CGFloat($0) },
+          windowControllerID: windowControllerID
         )
       )
     ) {

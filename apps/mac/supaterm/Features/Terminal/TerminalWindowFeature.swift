@@ -7,8 +7,8 @@ import SupatermCLIShared
 import SupatermSupport
 import SupatermTerminalCore
 
-private enum TerminalWindowCancelID {
-  static let events = "TerminalWindowFeature.events"
+private nonisolated enum TerminalWindowCancelID: Hashable, Sendable {
+  case events(UUID)
 }
 
 struct TerminalSpaceDeleteRequest: Equatable, Identifiable {
@@ -86,6 +86,7 @@ struct TerminalWindowFeature {
     var sidebarResizeState: TerminalSidebarResizeState?
     var sidebarWidth: CGFloat?
     var spaceEditor: TerminalSpaceEditorState?
+    var windowControllerID = UUID()
     var windowID: ObjectIdentifier?
   }
 
@@ -550,13 +551,17 @@ struct TerminalWindowFeature {
         return sendCommand(.selectTab(tabID))
 
       case .task:
+        let windowControllerID = state.windowControllerID
         return .run { [terminalClient] send in
           let events = await terminalClient.events()
           for await event in events {
             await send(.clientEvent(event))
           }
         }
-        .cancellable(id: TerminalWindowCancelID.events, cancelInFlight: true)
+        .cancellable(
+          id: TerminalWindowCancelID.events(windowControllerID),
+          cancelInFlight: true
+        )
 
       case .spaceCreateButtonTapped:
         state.spaceEditor = TerminalSpaceEditorState(

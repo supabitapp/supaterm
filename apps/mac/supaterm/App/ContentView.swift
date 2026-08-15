@@ -43,10 +43,21 @@ struct ContentView: View {
     )
     .environment(commandHoldObserver)
     .environment(ghosttyShortcuts)
-    .task {
-      store.send(.task)
-      updateStore.send(.task)
-      terminalStore.send(.task)
+    .task { @MainActor in
+      let appTask = store.send(.task)
+      let terminalTask = terminalStore.send(.task)
+      let updateTask = updateStore.send(.task)
+      await withTaskGroup(of: Void.self) { group in
+        group.addTask {
+          await appTask.finish()
+        }
+        group.addTask {
+          await terminalTask.finish()
+        }
+        group.addTask {
+          await updateTask.finish()
+        }
+      }
     }
   }
 }

@@ -57,6 +57,52 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func taskKeepsIndependentWindowEventStreamsActive() async {
+    let firstRecorder = TerminalCommandRecorder()
+    let secondRecorder = TerminalCommandRecorder()
+    let firstSurfaceID = UUID()
+    let secondSurfaceID = UUID()
+    let (firstStream, firstContinuation) = makeEventStream()
+    let (secondStream, secondContinuation) = makeEventStream()
+
+    let firstStore = TestStore(
+      initialState: TerminalWindowFeature.State(windowControllerID: UUID())
+    ) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.events = { firstStream }
+      $0.terminalClient.send = { firstRecorder.record($0) }
+    }
+    let secondStore = TestStore(
+      initialState: TerminalWindowFeature.State(windowControllerID: UUID())
+    ) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.events = { secondStream }
+      $0.terminalClient.send = { secondRecorder.record($0) }
+    }
+
+    await firstStore.send(.task)
+    await secondStore.send(.task)
+
+    firstContinuation.yield(.newTabRequested(inheritingFromSurfaceID: firstSurfaceID))
+    secondContinuation.yield(.newTabRequested(inheritingFromSurfaceID: secondSurfaceID))
+
+    await firstStore.receive(\.clientEvent)
+    await firstStore.receive(\.newTabButtonTapped)
+    await secondStore.receive(\.clientEvent)
+    await secondStore.receive(\.newTabButtonTapped)
+
+    #expect(firstRecorder.commands == [.createTab(inheritingFromSurfaceID: firstSurfaceID)])
+    #expect(secondRecorder.commands == [.createTab(inheritingFromSurfaceID: secondSurfaceID)])
+
+    firstContinuation.finish()
+    secondContinuation.finish()
+    await firstStore.finish()
+    await secondStore.finish()
+  }
+
+  @Test
   func closeTabRequestedAsksHostToResolveClose() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
