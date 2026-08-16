@@ -4,6 +4,7 @@ import Foundation
 import Sharing
 import SupaTheme
 import SupatermCLIShared
+import SupatermSettingsFeature
 import SupatermSupport
 import SupatermTerminalCore
 import SupatermUpdateFeature
@@ -532,44 +533,20 @@ final class TerminalWindowRegistry {
   }
 
   func requestToggleAgentPanelInKeyWindow() {
-    guard
-      let entry = preferredActiveEntry(),
-      let surfaceID = selectedAgentPanel(in: entry)?.surfaceID
-    else { return }
-    entry.store.send(.terminal(.agentPanelVisibilityToggled(surfaceID)))
+    performCommandPaletteAppAction(.toggleAgentPanel, windowID: nil)
   }
 
   func requestOpenAgentPanelPullRequestInKeyWindow() {
-    guard
-      let entry = preferredActiveEntry(),
-      let url = selectedAgentPanel(in: entry)?.pullRequestURL
-    else { return }
-    entry.store.send(.terminal(.agentPanelURLTapped(url)))
+    performCommandPaletteAppAction(.openPullRequest, windowID: nil)
   }
 
   func requestForkAgentPanelSessionInKeyWindow(direction: SupatermPaneDirection) {
-    guard
-      let entry = preferredActiveEntry(),
-      let selectedAgentPanel = selectedAgentPanel(in: entry),
-      let session = selectedAgentPanel.session
-    else { return }
-    entry.store.send(
-      .terminal(
-        .agentPanelForkSessionRequested(
-          surfaceID: selectedAgentPanel.surfaceID,
-          direction: direction,
-          session: session
-        )
-      )
-    )
+    guard let entry = preferredActiveEntry() else { return }
+    forkAgentPanelSession(in: entry, direction: direction)
   }
 
   func requestCopyAgentPanelSessionIDInKeyWindow() {
-    guard
-      let entry = preferredActiveEntry(),
-      let session = selectedAgentPanel(in: entry)?.session
-    else { return }
-    entry.store.send(.terminal(.agentPanelCopyText(session.sessionID)))
+    performCommandPaletteAppAction(.copyAgentSessionID, windowID: nil)
   }
 
   func requestToggleCommandPaletteInKeyWindow() {
@@ -743,6 +720,7 @@ final class TerminalWindowRegistry {
 
     let terminal = entry.terminal
     let updateState = processUpdateState
+    let availability = commandAvailability(for: entry)
     let focusTargets = activeEntries().flatMap { activeEntry in
       activeEntry.terminal.commandPaletteFocusTargets(
         windowControllerID: activeEntry.windowControllerID
@@ -750,11 +728,16 @@ final class TerminalWindowRegistry {
     }
 
     return TerminalCommandPaletteSnapshot(
-      ghosttyCommands: terminal.commandPaletteGhosttyCommands(),
+      availableAppActions: commandPaletteAppActions(
+        availability: availability,
+        hasUnreadNotifications: hasUnreadNotifications
+      ),
       ghosttyShortcutDisplayByAction: terminal.commandPaletteGhosttyShortcutDisplayByAction(),
-      hasFocusedSurface: terminal.selectedSurfaceView != nil,
       updateEntries: Self.commandPaletteUpdateEntries(for: updateState),
       focusTargets: focusTargets,
+      selectedSurfaceID: terminal.selectedSurfaceView?.id,
+      selectedTabPaneCount: terminal.selectedTree?.leaves().count ?? 0,
+      selectedPaneIsZoomed: terminal.selectedPaneIsZoomed,
       selectedSpaceID: terminal.displayedSpaceID,
       spaces: terminal.spaces,
       selectedTabID: terminal.selectedTabID,
@@ -816,6 +799,39 @@ final class TerminalWindowRegistry {
     (applicationStore ?? entry.store).send(.update(.perform(action)))
   }
 
+  func performCommandPaletteAppAction(
+    _ action: TerminalCommandPaletteAppAction,
+    windowID: ObjectIdentifier?
+  ) {
+    switch action {
+    case .jumpToLatestUnread:
+      jumpToLatestUnread()
+    case .openSettings:
+      (NSApp.delegate as? AppDelegate)?.performShowSettings(tab: .general)
+    case .copyAgentSessionID:
+      guard
+        let entry = commandPaletteEntry(for: windowID),
+        let session = selectedAgentPanel(in: entry)?.session
+      else { return }
+      entry.store.send(.terminal(.agentPanelCopyText(session.sessionID)))
+    case .forkAgentSession:
+      guard let entry = commandPaletteEntry(for: windowID) else { return }
+      forkAgentPanelSession(in: entry, direction: .right)
+    case .openPullRequest:
+      guard
+        let entry = commandPaletteEntry(for: windowID),
+        let url = selectedAgentPanel(in: entry)?.pullRequestURL
+      else { return }
+      entry.store.send(.terminal(.agentPanelURLTapped(url)))
+    case .toggleAgentPanel:
+      guard
+        let entry = commandPaletteEntry(for: windowID),
+        let surfaceID = selectedAgentPanel(in: entry)?.surfaceID
+      else { return }
+      entry.store.send(.terminal(.agentPanelVisibilityToggled(surfaceID)))
+    }
+  }
+
   func activeEntries() -> [Entry] {
     entries.filter { $0.windowReference.value != nil }
   }
@@ -842,6 +858,25 @@ final class TerminalWindowRegistry {
     )
   }
 
+  private func forkAgentPanelSession(
+    in entry: Entry,
+    direction: SupatermPaneDirection
+  ) {
+    guard
+      let panel = selectedAgentPanel(in: entry),
+      let session = panel.session
+    else { return }
+    entry.store.send(
+      .terminal(
+        .agentPanelForkSessionRequested(
+          surfaceID: panel.surfaceID,
+          direction: direction,
+          session: session
+        )
+      )
+    )
+  }
+
   private func selectedGroupID(in entry: Entry) -> TerminalTabGroupID? {
     guard let tabID = entry.terminal.selectedTabID else { return nil }
     return entry.terminal.spaceManager.displayedInstance.tabCollection.groupID(containing: tabID)
@@ -858,6 +893,26 @@ final class TerminalWindowRegistry {
       hasAgentPanelPullRequest: selectedAgentPanel?.pullRequestURL != nil,
       hasAgentPanelSession: selectedAgentPanel?.session != nil
     )
+  }
+
+  private func commandPaletteAppActions(
+    availability: CommandAvailability,
+    hasUnreadNotifications: Bool
+  ) -> Set<TerminalCommandPaletteAppAction> {
+    var actions: Set<TerminalCommandPaletteAppAction> = [.openSettings]
+    if hasUnreadNotifications {
+      actions.insert(.jumpToLatestUnread)
+    }
+    if availability.hasAgentPanel {
+      actions.insert(.toggleAgentPanel)
+    }
+    if availability.hasAgentPanelPullRequest {
+      actions.insert(.openPullRequest)
+    }
+    if availability.hasAgentPanelSession {
+      actions.formUnion([.copyAgentSessionID, .forkAgentSession])
+    }
+    return actions
   }
 
   private static func updateMenuItemAction(for state: UpdateFeature.State) -> UpdateUserAction? {

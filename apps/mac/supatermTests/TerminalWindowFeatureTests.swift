@@ -846,7 +846,7 @@ struct TerminalWindowFeatureTests {
     let recorder = TerminalCommandRecorder()
     var initialState = TerminalWindowFeature.State()
     initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(selectedRowID: "ghostty:new_split:right")
+      TerminalCommandPaletteState(selectedRowID: "terminal:split-right")
     )
 
     let store = TestStore(initialState: initialState) {
@@ -909,20 +909,21 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func commandPaletteActivateSelectionOpensGitHubIssueAndClosesPalette() async {
-    var openedURLs: [URL] = []
+  func commandPaletteActivateSelectionPerformsAppActionAndClosesPalette() async {
+    let recorder = CommandPaletteClientRecorder()
+    let windowID = ObjectIdentifier(NSObject())
     var initialState = TerminalWindowFeature.State()
+    initialState.windowID = windowID
     initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(selectedRowID: "supaterm:submit-github-issue")
+      TerminalCommandPaletteState(selectedRowID: "app:open-settings")
     )
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
       $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
-      $0.externalNavigationClient.open = { url in
-        openedURLs.append(url)
-        return true
+      $0.terminalCommandPaletteClient.performAppAction = { resolvedWindowID, action in
+        recorder.recordAppAction(windowID: resolvedWindowID, action: action)
       }
     }
 
@@ -930,7 +931,8 @@ struct TerminalWindowFeatureTests {
       $0.destination = nil
     }
 
-    #expect(openedURLs.map(\.absoluteString) == ["https://github.com/supabitapp/supaterm/issues/new"])
+    #expect(recorder.appActions == [.openSettings])
+    #expect(recorder.appActionWindowIDs == [windowID])
   }
 
   @Test
@@ -939,7 +941,7 @@ struct TerminalWindowFeatureTests {
     initialState.destination = .commandPalette(
       TerminalCommandPaletteState(
         query: "zzzzzz",
-        selectedRowID: "ghostty:new_split:right"
+        selectedRowID: "terminal:split-right"
       )
     )
 
@@ -969,7 +971,7 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.commandPaletteSlotActivated(2)) {
+    await store.send(.commandPaletteSlotActivated(1)) {
       $0.destination = nil
     }
 
@@ -1467,25 +1469,11 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
   )
 
   return TerminalCommandPaletteSnapshot(
-    ghosttyCommands: [
-      GhosttyCommand(
-        title: "Split Right",
-        description: "Split the focused terminal to the right.",
-        action: "new_split:right",
-        actionKey: "new_split"
-      ),
-      GhosttyCommand(
-        title: "Open Config",
-        description: "Open the configuration file.",
-        action: "open_config",
-        actionKey: "open_config"
-      ),
-    ],
+    availableAppActions: [.openSettings],
     ghosttyShortcutDisplayByAction: [
       "new_split:right": "⌘D",
       "open_config": "⌘,",
     ],
-    hasFocusedSurface: true,
     updateEntries: [
       TerminalCommandPaletteUpdateEntry(
         id: "update-available:install",
@@ -1499,6 +1487,9 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
       )
     ],
     focusTargets: [focusTarget],
+    selectedSurfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000399")!,
+    selectedTabPaneCount: 2,
+    selectedPaneIsZoomed: false,
     selectedSpaceID: selectedSpaceID,
     spaces: [
       TerminalSpaceItem(id: selectedSpaceID, name: "Workspace Alpha"),
@@ -1524,12 +1515,19 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
 
 @MainActor
 private final class CommandPaletteClientRecorder {
+  private(set) var appActions: [TerminalCommandPaletteAppAction] = []
+  private(set) var appActionWindowIDs: [ObjectIdentifier?] = []
   private(set) var focusTargets: [TerminalCommandPaletteFocusTarget] = []
   private(set) var updateActions: [UpdateUserAction] = []
   private(set) var updateWindowIDs: [ObjectIdentifier?] = []
 
   func recordFocus(_ target: TerminalCommandPaletteFocusTarget) {
     focusTargets.append(target)
+  }
+
+  func recordAppAction(windowID: ObjectIdentifier?, action: TerminalCommandPaletteAppAction) {
+    appActionWindowIDs.append(windowID)
+    appActions.append(action)
   }
 
   func recordUpdate(windowID: ObjectIdentifier?, action: UpdateUserAction) {

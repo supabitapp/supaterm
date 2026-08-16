@@ -3,6 +3,7 @@ extension TerminalCommandPaletteClient {
     Self(
       snapshot: { registry.commandPaletteSnapshot(windowID: $0) },
       focusPane: { registry.focusCommandPalettePane($0) },
+      performAppAction: { registry.performCommandPaletteAppAction($1, windowID: $0) },
       performUpdateAction: { registry.performCommandPaletteUpdateAction($1, windowID: $0) }
     )
   }

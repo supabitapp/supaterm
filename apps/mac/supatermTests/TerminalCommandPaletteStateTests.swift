@@ -8,20 +8,56 @@ struct TerminalCommandPaletteStateTests {
   @Test
   func rowsBuildFromUpdatesFocusTargetsAndWindowContext() {
     let snapshot = makeSnapshot()
-    let focusRowID =
-      "focus:\(snapshot.focusTargets[0].windowControllerID.uuidString):\(snapshot.focusTargets[0].surfaceID.uuidString)"
+    let focusTarget = snapshot.focusTargets[1]
+    let focusRowID = "focus:\(focusTarget.windowControllerID.uuidString):\(focusTarget.surfaceID.uuidString)"
 
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
 
-    #expect(rows.first?.id == "supaterm:create-space")
-    #expect(rows.last?.id == "update:\(snapshot.updateEntries[0].id)")
+    #expect(rows.first?.id == "update:\(snapshot.updateEntries[0].id)")
+    #expect(rows.last?.id == "app:open-settings")
     #expect(rows.contains(where: { $0.id == focusRowID }))
     #expect(
       rows.contains(where: {
-        $0.id == "ghostty:new_split:right" && $0.shortcut == "⌘D"
+        $0.id == "terminal:split-right" && $0.shortcut == "⌘D"
       })
     )
-    #expect(rows.contains(where: { $0.command == .submitGitHubIssue }))
+    #expect(rows.allSatisfy { $0.leadingIcon != nil })
+    #expect(!rows.contains(where: { $0.title == "New Tab" || $0.title == "New Window" }))
+  }
+
+  @Test
+  func rowsUseSemanticPriority() {
+    let rows = TerminalCommandPalettePresentation.rows(from: makeSnapshot())
+
+    #expect(
+      rows.map(\.title) == [
+        "Install and Relaunch",
+        "Jump to Latest Unread",
+        "Open Pull Request",
+        "Fork Agent Session",
+        "Copy Agent Session ID",
+        "Toggle Agent Panel",
+        "Workspace Beta",
+        "Logs",
+        "server.log",
+        "Split Pane Right",
+        "Split Pane Down",
+        "Zoom Pane",
+        "Equalize Panes",
+        "Pin Tab",
+        "Edit Space",
+        "Rename Tab",
+        "Rename Pane",
+        "Create Space",
+        "Find in Terminal",
+        "Clear Screen and Scrollback",
+        "Close Other Tabs",
+        "Close Pane",
+        "Close Tab",
+        "Toggle Sidebar",
+        "Open Settings",
+      ]
+    )
   }
 
   @Test
@@ -54,7 +90,7 @@ struct TerminalCommandPaletteStateTests {
   func queryIgnoresCase() {
     let matches = TerminalCommandPalettePresentation.matches(
       in: TerminalCommandPalettePresentation.rows(from: makeSnapshot()),
-      query: "sPlIt rIgHt"
+      query: "sPlIt pAnE rIgHt"
     )
 
     #expect(matches.map(\.row.command) == [.ghosttyBindingAction("new_split:right")])
@@ -64,7 +100,7 @@ struct TerminalCommandPaletteStateTests {
   func queryTrimsOuterWhitespace() {
     let matches = TerminalCommandPalettePresentation.matches(
       in: TerminalCommandPalettePresentation.rows(from: makeSnapshot()),
-      query: "  split right\n"
+      query: "  split pane right\n"
     )
 
     #expect(matches.map(\.row.command) == [.ghosttyBindingAction("new_split:right")])
@@ -170,14 +206,14 @@ struct TerminalCommandPaletteStateTests {
   }
 
   @Test
-  func wordInitialMatchFindsNewTabInWindow() {
+  func wordInitialMatchFindsSplitPaneRight() {
     let match = TerminalCommandPalettePresentation.matches(
-      in: [makeRow(id: "new-tab", title: "New Tab in Window")],
-      query: "ntw"
+      in: [makeRow(id: "split-right", title: "Split Pane Right")],
+      query: "spr"
     ).first
 
-    #expect(match?.row.title == "New Tab in Window")
-    #expect(match?.matchedCharacters == [.title(0), .title(4), .title(11)])
+    #expect(match?.row.title == "Split Pane Right")
+    #expect(match?.matchedCharacters == [.title(0), .title(6), .title(11)])
   }
 
   @Test
@@ -300,9 +336,9 @@ struct TerminalCommandPaletteStateTests {
       query: "switch"
     )
 
-    let row = TerminalCommandPalettePresentation.rowForSlot(2, in: matches)
+    let row = TerminalCommandPalettePresentation.rowForSlot(1, in: matches)
 
-    #expect(row?.id == matches[1].id)
+    #expect(row?.id == matches[0].id)
     #expect(row?.command == .selectSpace(makeSnapshot().spaces[1].id))
   }
 
@@ -342,25 +378,18 @@ struct TerminalCommandPaletteStateTests {
     let visibleTabs = self.visibleTabs
 
     return TerminalCommandPaletteSnapshot(
-      ghosttyCommands: [
-        GhosttyCommand(
-          title: "Split Right",
-          description: "Split the focused terminal to the right.",
-          action: "new_split:right",
-          actionKey: "new_split"
-        ),
-        GhosttyCommand(
-          title: "Open Config",
-          description: "Open the configuration file.",
-          action: "open_config",
-          actionKey: "open_config"
-        ),
+      availableAppActions: [
+        .copyAgentSessionID,
+        .forkAgentSession,
+        .jumpToLatestUnread,
+        .openPullRequest,
+        .openSettings,
+        .toggleAgentPanel,
       ],
       ghosttyShortcutDisplayByAction: [
         "new_split:right": "⌘D",
         "open_config": "⌘,",
       ],
-      hasFocusedSurface: true,
       updateEntries: [
         TerminalCommandPaletteUpdateEntry(
           id: "update-available:install",
@@ -387,6 +416,9 @@ struct TerminalCommandPaletteStateTests {
           subtitle: "/tmp/logs"
         ),
       ],
+      selectedSurfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
+      selectedTabPaneCount: 2,
+      selectedPaneIsZoomed: false,
       selectedSpaceID: selectedSpaceID,
       spaces: [
         TerminalSpaceItem(id: selectedSpaceID, name: "Workspace Alpha"),

@@ -7,66 +7,21 @@ import Testing
 @MainActor
 struct TerminalHostStateCommandPaletteTests {
   @Test
-  func commandPaletteGhosttyShortcutDisplaysResolveForSupportedCommands() throws {
+  func commandPaletteShortcutDisplaysResolveOnlyForCuratedActions() throws {
     let runtime = try makeGhosttyRuntime(
       """
-      keybind = super+shift+y=open_config:os_open
-      command-palette-entry = title:Open Config,description:Open the configuration file.,action:open_config:os_open
+      keybind = super+shift+y=new_split:right
+      keybind = super+shift+u=new_tab
+      command-palette-entry = title:Custom Command,description:Custom action.,action:open_config:os_open
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
 
-    let commands = host.commandPaletteGhosttyCommands()
     let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
-    #expect(commands.contains(where: { $0.action == "open_config:os_open" }))
-    #expect(shortcuts["open_config:os_open"] == "⌘⇧Y")
-  }
-
-  @Test
-  func commandPaletteGhosttyCommandsFilterUnsupportedWindowActions() throws {
-    let runtime = try makeGhosttyRuntime(
-      [
-        "keybind = super+shift+y=open_config:os_open",
-        "keybind = super+ctrl+f=toggle_fullscreen",
-        "keybind = super+shift+u=check_for_updates",
-        "command-palette-entry = title:Open Config,"
-          + "description:Open the configuration file.,action:open_config:os_open",
-        "command-palette-entry = title:Check for Updates,"
-          + "description:Check for available updates.,action:check_for_updates",
-        "command-palette-entry = title:Next Window,description:Focus the next window.,action:goto_window:next",
-        "command-palette-entry = title:Reset Window Size,"
-          + "description:Return the window to its default size.,action:reset_window_size",
-        "command-palette-entry = title:Toggle Quick Terminal,"
-          + "description:Toggle the quick terminal window.,action:toggle_quick_terminal",
-        "command-palette-entry = title:Toggle Fullscreen,"
-          + "description:Toggle the fullscreen state of the current window.,action:toggle_fullscreen",
-        "command-palette-entry = title:Toggle Maximize,"
-          + "description:Toggle the maximized state of the current window.,action:toggle_maximize",
-        "command-palette-entry = title:Toggle Float On Top,"
-          + "description:Toggle whether the current window floats above others.,action:toggle_window_float_on_top",
-      ].joined(separator: "\n")
-    )
-    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
-
-    let commands = host.commandPaletteGhosttyCommands()
-    let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
-
-    #expect(commands.contains(where: { $0.action == "open_config:os_open" }))
-    #expect(!commands.contains(where: { $0.actionKey == "check_for_updates" }))
-    #expect(!commands.contains(where: { $0.actionKey == "goto_window" }))
-    #expect(!commands.contains(where: { $0.actionKey == "reset_window_size" }))
-    #expect(!commands.contains(where: { $0.actionKey == "toggle_fullscreen" }))
-    #expect(!commands.contains(where: { $0.actionKey == "toggle_maximize" }))
-    #expect(!commands.contains(where: { $0.actionKey == "toggle_quick_terminal" }))
-    #expect(!commands.contains(where: { $0.actionKey == "toggle_window_float_on_top" }))
-    #expect(shortcuts["open_config:os_open"] == "⌘⇧Y")
-    #expect(shortcuts["check_for_updates"] == nil)
-    #expect(shortcuts["goto_window:next"] == nil)
-    #expect(shortcuts["reset_window_size"] == nil)
-    #expect(shortcuts["toggle_fullscreen"] == nil)
-    #expect(shortcuts["toggle_quick_terminal"] == nil)
-    #expect(shortcuts["toggle_window_float_on_top"] == nil)
+    #expect(shortcuts["new_split:right"] == "⌘⇧Y")
+    #expect(shortcuts["new_tab"] == nil)
+    #expect(shortcuts["open_config:os_open"] == nil)
   }
 
   @Test

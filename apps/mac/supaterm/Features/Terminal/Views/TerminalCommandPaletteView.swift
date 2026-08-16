@@ -120,10 +120,10 @@ struct TerminalCommandPaletteOverlay: View {
   let matches = TerminalCommandPalettePresentation.matches(
     in: [
       TerminalCommandPaletteRow(
-        id: "ghostty:new_split:right",
-        title: "Split Right",
-        subtitle: "Terminal",
-        description: "Split the focused terminal to the right.",
+        id: "terminal:split-right",
+        title: "Split Pane Right",
+        subtitle: "Layout",
+        description: "Split the focused pane to the right.",
         leadingIcon: "rectangle.split.2x1",
         badge: nil,
         emphasis: false,
@@ -131,10 +131,10 @@ struct TerminalCommandPaletteOverlay: View {
         command: .ghosttyBindingAction("new_split:right")
       ),
       TerminalCommandPaletteRow(
-        id: "ghostty:new_split:down",
-        title: "Split Down",
-        subtitle: "Terminal",
-        description: "Split the focused terminal below.",
+        id: "terminal:split-down",
+        title: "Split Pane Down",
+        subtitle: "Layout",
+        description: "Split the focused pane below.",
         leadingIcon: "rectangle.split.1x2",
         badge: nil,
         emphasis: false,

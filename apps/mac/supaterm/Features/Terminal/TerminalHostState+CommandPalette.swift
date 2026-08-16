@@ -1,18 +1,13 @@
 import Foundation
 
 extension TerminalHostState {
-  func commandPaletteGhosttyCommands() -> [GhosttyCommand] {
-    _ = runtimeConfigGeneration
-    return runtime?.commandPaletteEntries().filter(\.isSupported) ?? []
-  }
-
   func commandPaletteGhosttyShortcutDisplayByAction() -> [String: String] {
     _ = runtimeConfigGeneration
 
     var displays: [String: String] = [:]
-    for command in commandPaletteGhosttyCommands() {
-      if let shortcut = runtime?.keyboardShortcut(forAction: command.action)?.display {
-        displays[command.action] = shortcut
+    for action in TerminalCommandPalettePresentation.shortcutBindingActions {
+      if let shortcut = runtime?.keyboardShortcut(forAction: action)?.display {
+        displays[action] = shortcut
       }
     }
     return displays

@@ -926,15 +926,15 @@ extension SnapshotCatalog {
         command: .ghosttyBindingAction("new_split:right")
       ),
       TerminalCommandPaletteRow(
-        id: "terminal:new-tab-window",
-        title: "New Tab in Window",
+        id: "terminal:find",
+        title: "Find in Terminal",
         subtitle: "Terminal",
         description: nil,
-        leadingIcon: "macwindow.badge.plus",
+        leadingIcon: "magnifyingglass",
         badge: nil,
         emphasis: false,
-        shortcut: "⌘N",
-        command: .ghosttyBindingAction("new_window")
+        shortcut: "⌘F",
+        command: .ghosttyBindingAction("start_search")
       ),
     ]
   }

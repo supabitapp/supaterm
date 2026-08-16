@@ -593,6 +593,7 @@ struct TerminalWindowRegistryTests {
       let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(secondWindow))
 
       #expect(snapshot.selectedTabID == secondHost.selectedTabID)
+      #expect(snapshot.selectedSurfaceID == secondHost.selectedSurfaceView?.id)
       #expect(snapshot.updateEntries.map(\.title) == ["Not Now", "Allow"])
     }
   }
@@ -704,7 +705,6 @@ struct TerminalWindowRegistryTests {
       let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
 
       #expect(snapshot.updateEntries.map(\.title) == ["Check for Updates..."])
-      #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
     }
   }
 
@@ -740,7 +740,6 @@ struct TerminalWindowRegistryTests {
 
       #expect(snapshot.updateEntries.map(\.title) == ["Restart Later", "Restart Now"])
       #expect(snapshot.updateEntries.map(\.action) == [.restartLater, .restartNow])
-      #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
     }
   }
 
@@ -776,7 +775,6 @@ struct TerminalWindowRegistryTests {
 
       #expect(snapshot.updateEntries.map(\.title) == ["Restart Later", "Restart Now"])
       #expect(snapshot.updateEntries.map(\.action) == [.restartLater, .restartNow])
-      #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
     }
   }
 
@@ -812,7 +810,6 @@ struct TerminalWindowRegistryTests {
 
       #expect(snapshot.updateEntries.map(\.title) == ["Restart to Update..."])
       #expect(snapshot.updateEntries.first?.action == .restartNow)
-      #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
     }
   }
 

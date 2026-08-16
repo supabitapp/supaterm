@@ -829,6 +829,16 @@ struct TerminalWindowFeature {
     state.destination = nil
 
     switch command {
+    case .app(let action):
+      return .run { [terminalCommandPaletteClient, windowID] _ in
+        await terminalCommandPaletteClient.performAppAction(windowID, action)
+      }
+    case .closeOtherTabs(let tabIDs):
+      return sendCommand(.requestCloseOtherTabs(tabIDs))
+    case .closePane(let surfaceID):
+      return sendCommand(.requestCloseSurface(surfaceID))
+    case .closeTab(let tabID):
+      return sendCommand(.requestCloseTab(tabID))
     case .ghosttyBindingAction(let action):
       return sendCommand(.performGhosttyBindingActionOnFocusedSurface(action))
     case .focusPane(let target):
@@ -838,10 +848,6 @@ struct TerminalWindowFeature {
     case .update(let action):
       return .run { [terminalCommandPaletteClient, windowID] _ in
         await terminalCommandPaletteClient.performUpdateAction(windowID, action)
-      }
-    case .submitGitHubIssue:
-      return .run { [externalNavigationClient] _ in
-        _ = await externalNavigationClient.open(SupatermExternalURL.submitGitHubIssue)
       }
     case .toggleSidebar:
       toggleSidebar(state: &state)

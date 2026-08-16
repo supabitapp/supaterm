@@ -76,13 +76,13 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let rows = paletteRows
     let initialRowCount = rows.count
 
-    input.typeText("caw")
+    input.typeText("spr")
 
     let didFilter = await wait(for: rows.firstMatch) {
       $0.exists && rows.count < initialRowCount
     }
     XCTAssertTrue(didFilter)
-    XCTAssertTrue(rows.firstMatch.label.contains("Close All Windows"))
+    XCTAssertTrue(rows.firstMatch.label.contains("Split Pane Right"))
   }
 
   @MainActor
@@ -100,8 +100,8 @@ final class CommandPaletteUITests: SupatermUITestCase {
       $0.exists && rows.count == 2
     }
     XCTAssertTrue(didShowSpaceRows)
-    XCTAssertTrue(firstRow.label.contains("Create Space"))
-    XCTAssertTrue(secondRow.label.contains("Edit Space"))
+    XCTAssertTrue(firstRow.label.contains("Edit Space"))
+    XCTAssertTrue(secondRow.label.contains("Create Space"))
 
     let didSelectFirstRow = await wait(for: firstRow) { $0.isSelected }
     XCTAssertTrue(didSelectFirstRow)
@@ -144,12 +144,15 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let terminal = try readyTerminal()
     terminal.click()
 
-    for title in ["Change Tab Title", "Change Terminal Title"] {
-      try await executePaletteCommand(title)
+    for (commandTitle, sheetTitle) in [
+      ("Rename Tab", "Change Tab Title"),
+      ("Rename Pane", "Change Terminal Title"),
+    ] {
+      try await executePaletteCommand(commandTitle)
 
       let sheet = mainWindow.sheets.firstMatch
       let didPresentSheet = await wait(for: sheet) {
-        $0.exists && $0.staticTexts[title].exists
+        $0.exists && $0.staticTexts[sheetTitle].exists
       }
       XCTAssertTrue(didPresentSheet)
 
