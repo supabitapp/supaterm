@@ -1,6 +1,6 @@
 import Foundation
 
-struct AgentMonitorSnapshot: Equatable {
+nonisolated struct AgentMonitorSnapshot: Equatable, Sendable {
   var status: AgentTurnStatus?
   var detail: String?
   var hoverMessages: [String] = []
@@ -23,8 +23,7 @@ nonisolated struct AgentTranscriptUpdate: Sendable {
   }
 }
 
-@MainActor
-protocol AgentPanelMonitor {
+protocol AgentPanelMonitor: Actor {
   func consume(_ update: AgentTranscriptUpdate) -> AgentMonitorSnapshot?
 }
 

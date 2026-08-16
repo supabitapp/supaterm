@@ -38,10 +38,10 @@ struct CodexTranscriptMonitorTests {
   @MainActor
   private func snapshot(
     _ lines: [CodexTranscriptFixtures.Line]
-  ) throws -> AgentMonitorSnapshot {
+  ) async throws -> AgentMonitorSnapshot {
     let monitor = CodexPanelMonitor()
     return try #require(
-      monitor.consume(AgentTranscriptUpdate(objects: objects(lines)))
+      await monitor.consume(AgentTranscriptUpdate(objects: objects(lines)))
     )
   }
 
@@ -54,7 +54,7 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func startBuildsProjectionFromSyntheticRolloutItems() throws {
+  func startBuildsProjectionFromSyntheticRolloutItems() async throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -65,7 +65,7 @@ struct CodexTranscriptMonitorTests {
     let result = try #require(readStart(at: transcriptURL.path))
     let monitor = CodexPanelMonitor()
     let projection = try #require(
-      monitor.consume(AgentTranscriptUpdate(objects: result.objects))
+      await monitor.consume(AgentTranscriptUpdate(objects: result.objects))
     )
 
     #expect(result.cursor.offset > 0)
@@ -76,8 +76,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func startBuildsCompletedTurnFromSyntheticLifecycle() throws {
-    let projection = try snapshot([
+  func startBuildsCompletedTurnFromSyntheticLifecycle() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .taskComplete(turnID: "turn-1", lastAgentMessage: "Done."),
     ])
@@ -89,8 +89,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func exhaustedUsageLimitFailsActiveTurn() throws {
-    let projection = try snapshot([
+  func exhaustedUsageLimitFailsActiveTurn() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .tokenCount(usedPercent: 100, includesUsage: false),
     ])
@@ -100,8 +100,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func roundedUsagePercentageDoesNotFailActiveTurn() throws {
-    let projection = try snapshot([
+  func roundedUsagePercentageDoesNotFailActiveTurn() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .tokenCount(usedPercent: 100, includesUsage: true),
     ])
@@ -111,14 +111,14 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func advanceIgnoresToolPayloadAndProjectsAssistantMessage() throws {
+  func advanceIgnoresToolPayloadAndProjectsAssistantMessage() async throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
     let start = try #require(readStart(at: transcriptURL.path))
     let monitor = CodexPanelMonitor()
-    _ = monitor.consume(AgentTranscriptUpdate(objects: start.objects))
+    _ = await monitor.consume(AgentTranscriptUpdate(objects: start.objects))
 
     try CodexTranscriptFixtures.append(.assistantMessage("Reading the file"), to: transcriptURL)
     try CodexTranscriptFixtures.append(
@@ -131,7 +131,7 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(advance(start.cursor, at: transcriptURL.path))
     let projection = try #require(
-      monitor.consume(AgentTranscriptUpdate(objects: result.objects))
+      await monitor.consume(AgentTranscriptUpdate(objects: result.objects))
     )
 
     #expect(projection.status == .started("turn-1"))
@@ -141,7 +141,7 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func subagentTaskProvidesDetailUntilAssistantMessage() throws {
+  func subagentTaskProvidesDetailUntilAssistantMessage() async throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -162,7 +162,7 @@ struct CodexTranscriptMonitorTests {
     let start = try #require(readStart(at: transcriptURL.path))
     let monitor = CodexPanelMonitor()
     let initialProjection = try #require(
-      monitor.consume(AgentTranscriptUpdate(objects: start.objects))
+      await monitor.consume(AgentTranscriptUpdate(objects: start.objects))
     )
 
     #expect(initialProjection.detail == "Persistence guard")
@@ -178,7 +178,7 @@ struct CodexTranscriptMonitorTests {
     )
     let result = try #require(advance(start.cursor, at: transcriptURL.path))
     let updatedProjection = try #require(
-      monitor.consume(AgentTranscriptUpdate(objects: result.objects))
+      await monitor.consume(AgentTranscriptUpdate(objects: result.objects))
     )
 
     #expect(updatedProjection.detail == "Tracing persistence failure behavior")
@@ -187,8 +187,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func threadGoalUpdatedAddsGoalProgressRow() throws {
-    let projection = try snapshot([
+  func threadGoalUpdatedAddsGoalProgressRow() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .threadGoalUpdated(
         turnID: "turn-1",
@@ -211,8 +211,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func internalGoalContextAddsGoalProgressRow() throws {
-    let projection = try snapshot([
+  func internalGoalContextAddsGoalProgressRow() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .goalContext(objective: "figure out what in this folder"),
     ])
@@ -231,8 +231,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func activeGoalCarriesIntoManualTurnWithoutGoalContext() throws {
-    let projection = try snapshot([
+  func activeGoalCarriesIntoManualTurnWithoutGoalContext() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .goalContext(objective: "continue to finish firmware mapping"),
       .turnAborted(turnID: "turn-1"),
@@ -254,8 +254,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func completedTurnHidesGoalProgressRow() throws {
-    let projection = try snapshot([
+  func completedTurnHidesGoalProgressRow() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .threadGoalUpdated(
         turnID: "turn-1",
@@ -271,8 +271,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func reasoningIsDiscardedWhileAssistantDetailIsProjected() throws {
-    let projection = try snapshot([
+  func reasoningIsDiscardedWhileAssistantDetailIsProjected() async throws {
+    let projection = try await snapshot([
       .turnContext(turnID: "turn-ctx"),
       .agentReasoning("Planning the next step"),
       .agentMessage("Applying the change"),
@@ -285,7 +285,7 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func startReadsSanitizedJSONLFixture() throws {
+  func startReadsSanitizedJSONLFixture() async throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript(
       copyingFixtureNamed: "codex-transcript-sanitized.jsonl"
     )
@@ -294,7 +294,7 @@ struct CodexTranscriptMonitorTests {
     let result = try #require(readStart(at: transcriptURL.path))
     let monitor = CodexPanelMonitor()
     let projection = try #require(
-      monitor.consume(AgentTranscriptUpdate(objects: result.objects))
+      await monitor.consume(AgentTranscriptUpdate(objects: result.objects))
     )
 
     #expect(projection.status == .started("turn-fixture"))
@@ -327,8 +327,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func finalAnswerReplacesRunningSidebarState() throws {
-    let projection = try snapshot([
+  func finalAnswerReplacesRunningSidebarState() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .agentMessage("Inspecting the repo"),
       .assistantMessage("Done.", phase: "final_answer"),
@@ -340,18 +340,18 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func incrementalProjectionMatchesFullProjection() throws {
+  func incrementalProjectionMatchesFullProjection() async throws {
     let lines = [
       CodexTranscriptFixtures.Line.taskStarted(turnID: "turn-1"),
       .agentMessage("Inspecting the repo"),
       .assistantMessage("Done.", phase: "final_answer"),
     ]
-    let fullProjection = try snapshot(lines)
+    let fullProjection = try await snapshot(lines)
     let incrementalMonitor = CodexPanelMonitor()
     var incrementalProjection: AgentMonitorSnapshot?
     for line in lines {
       incrementalProjection =
-        incrementalMonitor.consume(
+        await incrementalMonitor.consume(
           AgentTranscriptUpdate(objects: try objects([line]))
         ) ?? incrementalProjection
     }
@@ -361,9 +361,9 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func monitorRetainsOnlyRecentHoverMessages() throws {
+  func monitorRetainsOnlyRecentHoverMessages() async throws {
     let messages = (1...12).map { "Progress \($0)" }
-    let projection = try snapshot(
+    let projection = try await snapshot(
       [.taskStarted(turnID: "turn-1")]
         + messages.map { .agentMessage($0) }
     )
@@ -375,8 +375,8 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
-  func monitorBoundsRetainedHoverMessageLength() throws {
-    let projection = try snapshot([
+  func monitorBoundsRetainedHoverMessageLength() async throws {
+    let projection = try await snapshot([
       .taskStarted(turnID: "turn-1"),
       .agentMessage(String(repeating: "x", count: 20_000)),
     ])

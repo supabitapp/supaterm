@@ -1,14 +1,14 @@
 import Foundation
 import SupatermCLIShared
 
-enum AgentTurnStatus: Equatable {
+nonisolated enum AgentTurnStatus: Equatable, Sendable {
   case started(String?)
   case completed(String?)
   case aborted(String?)
   case failed(String?)
 }
 
-private enum CodexTranscriptEvent {
+private nonisolated enum CodexTranscriptEvent {
   case assistantMessage(turnID: String?, text: String, phase: String?)
   case goalContext(String)
   case goalUpdated(JSONObject)
@@ -20,14 +20,14 @@ private enum CodexTranscriptEvent {
   case turnStarted(String?)
 }
 
-private enum CodexTranscriptTurnState {
+private nonisolated enum CodexTranscriptTurnState {
   case aborted
   case completed
   case failed
   case inProgress
 }
 
-private struct CodexTranscriptTurn {
+private nonisolated struct CodexTranscriptTurn {
   let id: String
   var status = CodexTranscriptTurnState.inProgress
   var detail: String?
@@ -47,7 +47,7 @@ private struct CodexTranscriptTurn {
   }
 }
 
-private struct CodexTranscriptProjection {
+private nonisolated struct CodexTranscriptProjection {
   private static let maximumHoverMessageCount = 8
   private static let maximumHoverMessageLength = 16_000
   private static let maximumTurnCount = 8
@@ -303,8 +303,7 @@ private struct CodexTranscriptProjection {
   }
 }
 
-@MainActor
-final class CodexPanelMonitor: AgentPanelMonitor {
+actor CodexPanelMonitor: AgentPanelMonitor {
   private var currentSnapshot: AgentMonitorSnapshot?
   private var projection = CodexTranscriptProjection()
 
@@ -322,7 +321,7 @@ final class CodexPanelMonitor: AgentPanelMonitor {
   }
 }
 
-private enum CodexTranscriptParser {
+private nonisolated enum CodexTranscriptParser {
   static func events(from objects: [JSONObject]) -> [CodexTranscriptEvent] {
     objects.compactMap(event(from:))
   }
@@ -416,14 +415,14 @@ private enum CodexTranscriptParser {
   }
 }
 
-private func messageText(from content: [JSONValue]?) -> String? {
+private nonisolated func messageText(from content: [JSONValue]?) -> String? {
   guard let content else { return nil }
   return normalizedMessage(
     content.compactMap { $0.objectValue?["text"]?.stringValue }.joined(separator: " ")
   )
 }
 
-private func normalizedDetail(_ text: String?) -> String? {
+private nonisolated func normalizedDetail(_ text: String?) -> String? {
   guard let normalized = normalizedMessage(text) else { return nil }
   if normalized.count <= 160 {
     return normalized
@@ -431,6 +430,6 @@ private func normalizedDetail(_ text: String?) -> String? {
   return String(normalized.prefix(157)) + "..."
 }
 
-private func normalizedMessage(_ text: String?) -> String? {
+private nonisolated func normalizedMessage(_ text: String?) -> String? {
   AgentProgressParsing.normalizedTitle(text)
 }

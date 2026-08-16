@@ -1,7 +1,7 @@
 import Foundation
 import SupatermCLIShared
 
-private struct ClaudeWorkflowProgressState {
+private nonisolated struct ClaudeWorkflowProgressState {
   private var transcriptDirectoriesByTaskID: [String: String] = [:]
 
   mutating func completedTranscriptDirectories(
@@ -79,7 +79,7 @@ private struct ClaudeWorkflowProgressState {
   }
 }
 
-private struct ClaudeProgressTask: Equatable {
+private nonisolated struct ClaudeProgressTask: Equatable {
   var taskID: String
   var title: String
   var status: PaneAgentProgressRow.Status
@@ -105,12 +105,12 @@ private struct ClaudeProgressTask: Equatable {
   }
 }
 
-private struct ClaudePendingTask: Equatable {
+private nonisolated struct ClaudePendingTask: Equatable {
   var title: String
   var metadata: JSONObject
 }
 
-private struct ClaudeTranscriptTaskState: Equatable {
+private nonisolated struct ClaudeTranscriptTaskState: Equatable {
   var tasks: [String: ClaudeProgressTask] = [:]
   var pendingCreates: [String: ClaudePendingTask] = [:]
   var goalRow: PaneAgentProgressRow?
@@ -359,8 +359,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 }
 
-@MainActor
-final class ClaudePanelMonitor: AgentPanelMonitor {
+actor ClaudePanelMonitor: AgentPanelMonitor {
   private var transcriptState = ClaudeTranscriptTaskState()
   private var transcriptRows: [PaneAgentProgressRow] = []
   private var currentSnapshot: AgentMonitorSnapshot?

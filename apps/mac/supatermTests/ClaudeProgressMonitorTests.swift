@@ -5,13 +5,13 @@ import Testing
 
 @MainActor
 struct ClaudeProgressMonitorTests {
-  private func rows(at path: String) throws -> [PaneAgentProgressRow] {
+  private func rows(at path: String) async throws -> [PaneAgentProgressRow] {
     let tick = try #require(AgentTranscriptTailer.start(at: path))
-    return try #require(ClaudePanelMonitor().consume(AgentTranscriptUpdate(tick))).progressRows
+    return try #require(await ClaudePanelMonitor().consume(AgentTranscriptUpdate(tick))).progressRows
   }
 
   @Test
-  func todoWriteTranscriptProducesProgressRows() throws {
+  func todoWriteTranscriptProducesProgressRows() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -24,7 +24,7 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(
       rows == [
@@ -48,7 +48,7 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func goalStatusTranscriptPrependsGoalProgressRow() throws {
+  func goalStatusTranscriptPrependsGoalProgressRow() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -65,7 +65,7 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(
       rows == [
@@ -90,7 +90,7 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func completedGoalStatusMarksGoalProgressRowCompleted() throws {
+  func completedGoalStatusMarksGoalProgressRowCompleted() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -100,7 +100,7 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(
       rows == [
@@ -115,7 +115,7 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func panelMonitorPrependsGoalRowToTaskRows() throws {
+  func panelMonitorPrependsGoalRowToTaskRows() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -138,7 +138,7 @@ struct ClaudeProgressMonitorTests {
 
     let monitor = ClaudePanelMonitor()
     let transcriptTick = try #require(AgentTranscriptTailer.start(at: transcriptURL.path))
-    let snapshot = try #require(monitor.consume(AgentTranscriptUpdate(transcriptTick)))
+    let snapshot = try #require(await monitor.consume(AgentTranscriptUpdate(transcriptTick)))
 
     #expect(
       snapshot.progressRows == [
@@ -158,7 +158,7 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func taskCreateAndUpdateTranscriptProducesProgressRows() throws {
+  func taskCreateAndUpdateTranscriptProducesProgressRows() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -179,7 +179,7 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(
       rows == [
@@ -193,7 +193,7 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func transcriptTasksKeepTaskIDOrderAcrossStatusChanges() throws {
+  func transcriptTasksKeepTaskIDOrderAcrossStatusChanges() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -217,7 +217,7 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(
       rows == [
@@ -246,7 +246,7 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func taskReminderTranscriptProducesProgressRows() throws {
+  func taskReminderTranscriptProducesProgressRows() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -269,7 +269,7 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(
       rows == [
@@ -283,7 +283,7 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func emptyTaskReminderClearsTranscriptRows() throws {
+  func emptyTaskReminderClearsTranscriptRows() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -303,13 +303,13 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(rows == [])
   }
 
   @Test
-  func taskUpdateDeletesTranscriptTask() throws {
+  func taskUpdateDeletesTranscriptTask() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -325,23 +325,23 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let rows = try rows(at: transcriptURL.path)
+    let rows = try await rows(at: transcriptURL.path)
 
     #expect(rows == [])
   }
 
   @Test
-  func workflowCompletionPublishesItsTranscriptDirectory() throws {
+  func workflowCompletionPublishesItsTranscriptDirectory() async throws {
     let monitor = ClaudePanelMonitor()
     let transcriptDirectory = "/tmp/session/subagents/workflows/wf-1"
-    _ = monitor.consume(
+    _ = await monitor.consume(
       AgentTranscriptUpdate(
         objects: [workflowLaunch(taskID: "task-1", transcriptDirectory: transcriptDirectory)]
       )
     )
 
     let snapshot = try #require(
-      monitor.consume(
+      await monitor.consume(
         AgentTranscriptUpdate(objects: [workflowCompletion(taskID: "task-1")])
       )
     )
@@ -350,17 +350,17 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func taskStopPublishesItsWorkflowTranscriptDirectory() throws {
+  func taskStopPublishesItsWorkflowTranscriptDirectory() async throws {
     let monitor = ClaudePanelMonitor()
     let transcriptDirectory = "/tmp/session/subagents/workflows/wf-1"
-    _ = monitor.consume(
+    _ = await monitor.consume(
       AgentTranscriptUpdate(
         objects: [workflowLaunch(taskID: "task-1", transcriptDirectory: transcriptDirectory)]
       )
     )
 
     let snapshot = try #require(
-      monitor.consume(
+      await monitor.consume(
         AgentTranscriptUpdate(objects: [workflowStop(taskID: "task-1")])
       )
     )
@@ -369,11 +369,11 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func replayDoesNotCompleteRelaunchedWorkflowDirectory() throws {
+  func replayDoesNotCompleteRelaunchedWorkflowDirectory() async throws {
     let monitor = ClaudePanelMonitor()
     let transcriptDirectory = "/tmp/session/subagents/workflows/wf-1"
     let snapshot = try #require(
-      monitor.consume(
+      await monitor.consume(
         AgentTranscriptUpdate(
           objects: [
             workflowLaunch(taskID: "task-1", transcriptDirectory: transcriptDirectory),
@@ -389,13 +389,13 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
-  func advanceConsumesOnlyCompleteTranscriptLines() throws {
+  func advanceConsumesOnlyCompleteTranscriptLines() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
     let monitor = ClaudePanelMonitor()
     let start = try #require(AgentTranscriptTailer.start(at: transcriptURL.path))
-    _ = monitor.consume(AgentTranscriptUpdate(start))
+    _ = await monitor.consume(AgentTranscriptUpdate(start))
     let handle = try FileHandle(forWritingTo: transcriptURL)
     defer { try? handle.close() }
     try handle.seekToEnd()
@@ -404,11 +404,11 @@ struct ClaudeProgressMonitorTests {
     let result = try #require(AgentTranscriptTailer.advance(start.cursor, at: transcriptURL.path))
 
     #expect(result.cursor.offset == start.cursor.offset)
-    #expect(monitor.consume(AgentTranscriptUpdate(result)) == nil)
+    #expect(await monitor.consume(AgentTranscriptUpdate(result)) == nil)
   }
 
   @Test
-  func advanceConsumesLineThatWasPartialWhenCursorWasPersisted() throws {
+  func advanceConsumesLineThatWasPartialWhenCursorWasPersisted() async throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
     let line = try JSONSerialization.data(
@@ -435,7 +435,7 @@ struct ClaudeProgressMonitorTests {
     try Data(line.prefix(splitIndex)).write(to: transcriptURL)
     let monitor = ClaudePanelMonitor()
     let start = try #require(AgentTranscriptTailer.start(at: transcriptURL.path))
-    _ = monitor.consume(AgentTranscriptUpdate(start))
+    _ = await monitor.consume(AgentTranscriptUpdate(start))
 
     let handle = try FileHandle(forWritingTo: transcriptURL)
     try handle.seekToEnd()
@@ -444,7 +444,7 @@ struct ClaudeProgressMonitorTests {
     try handle.close()
 
     let result = try #require(AgentTranscriptTailer.advance(start.cursor, at: transcriptURL.path))
-    let snapshot = try #require(monitor.consume(AgentTranscriptUpdate(result)))
+    let snapshot = try #require(await monitor.consume(AgentTranscriptUpdate(result)))
 
     #expect(
       snapshot.progressRows == [

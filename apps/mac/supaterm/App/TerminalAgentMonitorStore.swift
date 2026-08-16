@@ -149,7 +149,7 @@ final class TerminalAgentMonitorStore {
             context: context
           )
         }
-        if let snapshot = monitor.consume(update) {
+        if let snapshot = await monitor.consume(update) {
           self.onMonitorSnapshot(snapshot, scope, context)
         }
       }
