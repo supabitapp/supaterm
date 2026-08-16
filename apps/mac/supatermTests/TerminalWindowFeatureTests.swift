@@ -292,15 +292,49 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.spaceCreateButtonTapped) {
-      $0.spaceEditor = TerminalSpaceEditorState(
-        mode: .create,
-        draftName: "",
-        draftColor: .red
+      $0.destination = .spaceEditor(
+        TerminalSpaceEditorState(
+          mode: .create,
+          draftName: "",
+          draftColor: .red
+        )
       )
     }
 
     #expect(analyticsRecorder.recorded().isEmpty)
     #expect(recorder.commands.isEmpty)
+  }
+
+  @Test
+  func destinationAllowsOnePresentationFlow() async {
+    let tabID = TerminalTabID()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(CountingRandomNumberGenerator())
+    }
+
+    await store.send(.spaceCreateButtonTapped) {
+      $0.destination = .spaceEditor(
+        TerminalSpaceEditorState(
+          mode: .create,
+          draftName: "",
+          draftColor: .red
+        )
+      )
+    }
+    await store.send(.commandPaletteToggleRequested)
+    await store.send(
+      .clientEvent(.closeRequested(TerminalCloseRequest(target: .tab(tabID), needsConfirmation: true)))
+    ) {
+      $0.destination = .closeConfirmation(
+        TerminalWindowFeature.PendingCloseRequest(
+          target: .tab(tabID),
+          title: "Close Tab?",
+          message: TerminalWindowFeature.closeTabWarningMessage
+        )
+      )
+    }
   }
 
   @Test
@@ -314,10 +348,12 @@ struct TerminalWindowFeatureTests {
     await store.send(
       .clientEvent(.closeRequested(TerminalCloseRequest(target: .tab(tabID), needsConfirmation: true)))
     ) {
-      $0.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
-        target: .tab(tabID),
-        title: "Close Tab?",
-        message: TerminalWindowFeature.closeTabWarningMessage
+      $0.destination = .closeConfirmation(
+        TerminalWindowFeature.PendingCloseRequest(
+          target: .tab(tabID),
+          title: "Close Tab?",
+          message: TerminalWindowFeature.closeTabWarningMessage
+        )
       )
     }
   }
@@ -335,11 +371,13 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.clientEvent(.windowCloseRequested(needsConfirmation: true))) {
-      $0.confirmationRequest = TerminalWindowFeature.ConfirmationRequest(
-        target: .closeWindow(windowID),
-        title: "Close Window?",
-        message: TerminalWindowFeature.closeWindowWarningMessage,
-        confirmTitle: "Close Window"
+      $0.destination = .windowCloseConfirmation(
+        TerminalWindowFeature.WindowCloseConfirmation(
+          target: .closeWindow(windowID),
+          title: "Close Window?",
+          message: TerminalWindowFeature.closeWindowWarningMessage,
+          confirmTitle: "Close Window"
+        )
       )
     }
   }
@@ -372,10 +410,12 @@ struct TerminalWindowFeatureTests {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
     var initialState = TerminalWindowFeature.State()
-    initialState.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
-      target: .tab(tabID),
-      title: "Close Tab?",
-      message: TerminalWindowFeature.closeTabWarningMessage
+    initialState.destination = .closeConfirmation(
+      TerminalWindowFeature.PendingCloseRequest(
+        target: .tab(tabID),
+        title: "Close Tab?",
+        message: TerminalWindowFeature.closeTabWarningMessage
+      )
     )
 
     let store = TestStore(initialState: initialState) {
@@ -385,7 +425,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.closeConfirmationConfirmButtonTapped) {
-      $0.pendingCloseRequest = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands == [.closeTab(tabID)])
@@ -396,10 +436,12 @@ struct TerminalWindowFeatureTests {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
     var initialState = TerminalWindowFeature.State()
-    initialState.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
-      target: .tab(tabID),
-      title: "Close Tab?",
-      message: TerminalWindowFeature.closeTabWarningMessage
+    initialState.destination = .closeConfirmation(
+      TerminalWindowFeature.PendingCloseRequest(
+        target: .tab(tabID),
+        title: "Close Tab?",
+        message: TerminalWindowFeature.closeTabWarningMessage
+      )
     )
 
     let store = TestStore(initialState: initialState) {
@@ -409,7 +451,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.closeConfirmationCancelButtonTapped) {
-      $0.pendingCloseRequest = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands.isEmpty)
@@ -421,10 +463,12 @@ struct TerminalWindowFeatureTests {
     let firstTabID = TerminalTabID()
     let secondTabID = TerminalTabID()
     var initialState = TerminalWindowFeature.State()
-    initialState.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
-      target: .tabs([firstTabID, secondTabID]),
-      title: "Close Tabs?",
-      message: "A process is still running in one or more of these tabs. Close them anyway?"
+    initialState.destination = .closeConfirmation(
+      TerminalWindowFeature.PendingCloseRequest(
+        target: .tabs([firstTabID, secondTabID]),
+        title: "Close Tabs?",
+        message: "A process is still running in one or more of these tabs. Close them anyway?"
+      )
     )
 
     let store = TestStore(initialState: initialState) {
@@ -434,7 +478,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.closeConfirmationConfirmButtonTapped) {
-      $0.pendingCloseRequest = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands == [.closeTabs([firstTabID, secondTabID])])
@@ -451,10 +495,12 @@ struct TerminalWindowFeatureTests {
     await store.send(
       .clientEvent(.closeRequested(TerminalCloseRequest(target: .surface(surfaceID), needsConfirmation: true)))
     ) {
-      $0.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
-        target: .surface(surfaceID),
-        title: "Close Pane?",
-        message: "A process is still running in this pane. Close it anyway?"
+      $0.destination = .closeConfirmation(
+        TerminalWindowFeature.PendingCloseRequest(
+          target: .surface(surfaceID),
+          title: "Close Pane?",
+          message: "A process is still running in this pane. Close it anyway?"
+        )
       )
     }
   }
@@ -656,8 +702,8 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteToggleRequested) {
-      $0.commandPalette = TerminalCommandPaletteState(
-        selectedRowID: rows.first?.id
+      $0.destination = .commandPalette(
+        TerminalCommandPaletteState(selectedRowID: rows.first?.id)
       )
     }
   }
@@ -665,14 +711,14 @@ struct TerminalWindowFeatureTests {
   @Test
   func commandPaletteToggleDismissesPalette() async {
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState()
+    initialState.destination = .commandPalette(TerminalCommandPaletteState())
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     }
 
     await store.send(.commandPaletteToggleRequested) {
-      $0.commandPalette = nil
+      $0.destination = nil
     }
   }
 
@@ -682,8 +728,8 @@ struct TerminalWindowFeatureTests {
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
     let matches = TerminalCommandPalettePresentation.matches(in: rows, query: "switch")
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      selectedRowID: rows[1].id
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: rows[1].id)
     )
 
     let store = TestStore(initialState: initialState) {
@@ -693,8 +739,9 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteQueryChanged("switch")) {
-      $0.commandPalette?.query = "switch"
-      $0.commandPalette?.selectedRowID = matches.first?.id
+      $0.destination = .commandPalette(
+        TerminalCommandPaletteState(query: "switch", selectedRowID: matches.first?.id)
+      )
     }
   }
 
@@ -704,9 +751,11 @@ struct TerminalWindowFeatureTests {
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
     let matches = TerminalCommandPalettePresentation.matches(in: rows, query: "switch")
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      query: "switch",
-      selectedRowID: matches.first?.id
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(
+        query: "switch",
+        selectedRowID: matches.first?.id
+      )
     )
 
     let store = TestStore(initialState: initialState) {
@@ -716,10 +765,14 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteSelectionMoved(99)) {
-      $0.commandPalette?.selectedRowID = matches.last?.id
+      $0.destination = .commandPalette(
+        TerminalCommandPaletteState(query: "switch", selectedRowID: matches.last?.id)
+      )
     }
     await store.send(.commandPaletteSelectionMoved(-99)) {
-      $0.commandPalette?.selectedRowID = matches.first?.id
+      $0.destination = .commandPalette(
+        TerminalCommandPaletteState(query: "switch", selectedRowID: matches.first?.id)
+      )
     }
   }
 
@@ -734,8 +787,8 @@ struct TerminalWindowFeatureTests {
       }
     )
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      selectedRowID: focusRow.id
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: focusRow.id)
     )
 
     let store = TestStore(initialState: initialState) {
@@ -748,7 +801,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteActivateSelection) {
-      $0.commandPalette = nil
+      $0.destination = nil
     }
 
     #expect(recorder.focusTargets == [snapshot.focusTargets[0]])
@@ -767,8 +820,8 @@ struct TerminalWindowFeatureTests {
     let windowID = ObjectIdentifier(NSObject())
     var initialState = TerminalWindowFeature.State()
     initialState.windowID = windowID
-    initialState.commandPalette = TerminalCommandPaletteState(
-      selectedRowID: updateRow.id
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: updateRow.id)
     )
 
     let store = TestStore(initialState: initialState) {
@@ -781,7 +834,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteActivateSelection) {
-      $0.commandPalette = nil
+      $0.destination = nil
     }
 
     #expect(recorder.updateActions == [.install])
@@ -792,8 +845,8 @@ struct TerminalWindowFeatureTests {
   func commandPaletteActivateSelectionExecutesGhosttyBindingActionAndClosesPalette() async {
     let recorder = TerminalCommandRecorder()
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      selectedRowID: "ghostty:new_split:right"
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: "ghostty:new_split:right")
     )
 
     let store = TestStore(initialState: initialState) {
@@ -804,7 +857,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteActivateSelection) {
-      $0.commandPalette = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands == [.performGhosttyBindingActionOnFocusedSurface("new_split:right")])
@@ -816,8 +869,10 @@ struct TerminalWindowFeatureTests {
     let snapshot = makeCommandPaletteSnapshot()
     let selectedTabID = try #require(snapshot.selectedTabID)
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      selectedRowID: "supaterm:toggle-pinned:\(selectedTabID.rawValue.uuidString)"
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(
+        selectedRowID: "supaterm:toggle-pinned:\(selectedTabID.rawValue.uuidString)"
+      )
     )
 
     let store = TestStore(initialState: initialState) {
@@ -828,7 +883,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteActivateSelection) {
-      $0.commandPalette = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands == [.togglePinned(selectedTabID)])
@@ -837,8 +892,8 @@ struct TerminalWindowFeatureTests {
   @Test
   func commandPaletteActivateSelectionTogglesSidebarAndClosesPalette() async {
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      selectedRowID: "supaterm:toggle-sidebar"
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: "supaterm:toggle-sidebar")
     )
 
     let store = TestStore(initialState: initialState) {
@@ -848,7 +903,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteActivateSelection) {
-      $0.commandPalette = nil
+      $0.destination = nil
       $0.isSidebarCollapsed = true
     }
   }
@@ -857,8 +912,8 @@ struct TerminalWindowFeatureTests {
   func commandPaletteActivateSelectionOpensGitHubIssueAndClosesPalette() async {
     var openedURLs: [URL] = []
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      selectedRowID: "supaterm:submit-github-issue"
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: "supaterm:submit-github-issue")
     )
 
     let store = TestStore(initialState: initialState) {
@@ -872,7 +927,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteActivateSelection) {
-      $0.commandPalette = nil
+      $0.destination = nil
     }
 
     #expect(openedURLs.map(\.absoluteString) == ["https://github.com/supabitapp/supaterm/issues/new"])
@@ -881,9 +936,11 @@ struct TerminalWindowFeatureTests {
   @Test
   func commandPaletteActivateSelectionKeepsPaletteOpenWhenNoVisibleRowMatches() async {
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      query: "zzzzzz",
-      selectedRowID: "ghostty:new_split:right"
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(
+        query: "zzzzzz",
+        selectedRowID: "ghostty:new_split:right"
+      )
     )
 
     let store = TestStore(initialState: initialState) {
@@ -901,9 +958,8 @@ struct TerminalWindowFeatureTests {
     let snapshot = makeCommandPaletteSnapshot()
     let spaceID = snapshot.spaces[1].id
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = TerminalCommandPaletteState(
-      query: "switch",
-      selectedRowID: nil
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(query: "switch", selectedRowID: nil)
     )
 
     let store = TestStore(initialState: initialState) {
@@ -914,7 +970,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.commandPaletteSlotActivated(2)) {
-      $0.commandPalette = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands == [.selectSpace(spaceID)])
@@ -933,8 +989,8 @@ struct TerminalWindowFeatureTests {
 
     await store.send(.clientEvent(.commandPaletteToggleRequested))
     await store.receive(\.commandPaletteToggleRequested) {
-      $0.commandPalette = TerminalCommandPaletteState(
-        selectedRowID: rows.first?.id
+      $0.destination = .commandPalette(
+        TerminalCommandPaletteState(selectedRowID: rows.first?.id)
       )
     }
   }
@@ -983,20 +1039,26 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.spaceCreateButtonTapped) {
-      $0.spaceEditor = TerminalSpaceEditorState(
-        mode: .create,
-        draftName: "",
-        draftColor: .red
+      $0.destination = .spaceEditor(
+        TerminalSpaceEditorState(
+          mode: .create,
+          draftName: "",
+          draftColor: .red
+        )
       )
     }
     await store.send(.spaceEditorTextChanged("Build")) {
-      $0.spaceEditor?.draftName = "Build"
+      $0.destination = .spaceEditor(
+        TerminalSpaceEditorState(mode: .create, draftName: "Build", draftColor: .red)
+      )
     }
     await store.send(.spaceEditorColorSelected(.green)) {
-      $0.spaceEditor?.draftColor = .green
+      $0.destination = .spaceEditor(
+        TerminalSpaceEditorState(mode: .create, draftName: "Build", draftColor: .green)
+      )
     }
     await store.send(.spaceEditorSaveButtonTapped) {
-      $0.spaceEditor = nil
+      $0.destination = nil
     }
 
     #expect(analyticsRecorder.recorded() == ["space_created"])
@@ -1009,10 +1071,12 @@ struct TerminalWindowFeatureTests {
 
     let store = TestStore(
       initialState: TerminalWindowFeature.State(
-        spaceEditor: TerminalSpaceEditorState(
-          mode: .create,
-          draftName: "Build",
-          draftColor: .neutral
+        destination: .spaceEditor(
+          TerminalSpaceEditorState(
+            mode: .create,
+            draftName: "Build",
+            draftColor: .neutral
+          )
         )
       )
     ) {
@@ -1022,7 +1086,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.spaceEditorCancelButtonTapped) {
-      $0.spaceEditor = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands.isEmpty)
@@ -1271,17 +1335,21 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.spaceRenameRequested(space)) {
-      $0.spaceEditor = TerminalSpaceEditorState(
-        mode: .rename(space),
-        draftName: "A",
-        draftColor: .neutral
+      $0.destination = .spaceEditor(
+        TerminalSpaceEditorState(
+          mode: .rename(space),
+          draftName: "A",
+          draftColor: .neutral
+        )
       )
     }
     await store.send(.spaceEditorTextChanged("Shell")) {
-      $0.spaceEditor?.draftName = "Shell"
+      $0.destination = .spaceEditor(
+        TerminalSpaceEditorState(mode: .rename(space), draftName: "Shell", draftColor: .neutral)
+      )
     }
     await store.send(.spaceEditorSaveButtonTapped) {
-      $0.spaceEditor = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands == [.renameSpace(space.id, "Shell")])
@@ -1302,10 +1370,10 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.spaceDeleteRequested(space)) {
-      $0.pendingSpaceDeleteRequest = TerminalSpaceDeleteRequest(space: space)
+      $0.destination = .spaceDeleteConfirmation(TerminalSpaceDeleteRequest(space: space))
     }
     await store.send(.spaceDeleteConfirmButtonTapped) {
-      $0.pendingSpaceDeleteRequest = nil
+      $0.destination = nil
     }
 
     #expect(recorder.commands == [.deleteSpace(space.id)])
@@ -1322,11 +1390,13 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.windowCloseRequested(windowID: windowID)) {
-      $0.confirmationRequest = TerminalWindowFeature.ConfirmationRequest(
-        target: .closeWindow(windowID),
-        title: "Close Window?",
-        message: TerminalWindowFeature.closeWindowWarningMessage,
-        confirmTitle: "Close Window"
+      $0.destination = .windowCloseConfirmation(
+        TerminalWindowFeature.WindowCloseConfirmation(
+          target: .closeWindow(windowID),
+          title: "Close Window?",
+          message: TerminalWindowFeature.closeWindowWarningMessage,
+          confirmTitle: "Close Window"
+        )
       )
     }
   }
@@ -1337,11 +1407,13 @@ struct TerminalWindowFeatureTests {
     let secondWindowID = ObjectIdentifier(NSObject())
     var closedWindowIDs: [[ObjectIdentifier]] = []
     var initialState = TerminalWindowFeature.State()
-    initialState.confirmationRequest = TerminalWindowFeature.ConfirmationRequest(
-      target: .closeAllWindows([firstWindowID, secondWindowID]),
-      title: "Close All Windows?",
-      message: TerminalWindowFeature.closeAllWindowsWarningMessage,
-      confirmTitle: "Close All Windows"
+    initialState.destination = .windowCloseConfirmation(
+      TerminalWindowFeature.WindowCloseConfirmation(
+        target: .closeAllWindows([firstWindowID, secondWindowID]),
+        title: "Close All Windows?",
+        message: TerminalWindowFeature.closeAllWindowsWarningMessage,
+        confirmTitle: "Close All Windows"
+      )
     )
 
     let store = TestStore(initialState: initialState) {
@@ -1353,7 +1425,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.confirmationConfirmButtonTapped) {
-      $0.confirmationRequest = nil
+      $0.destination = nil
     }
 
     #expect(closedWindowIDs == [[firstWindowID, secondWindowID]])

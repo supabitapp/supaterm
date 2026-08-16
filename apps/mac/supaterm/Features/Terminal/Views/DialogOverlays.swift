@@ -27,7 +27,7 @@ final class TerminalWindowConfirmationController: NSViewController {
       rootView: TerminalWindowConfirmationView(store: store, terminal: terminal)
     )
     hostingView.isInteractive = { [weak self] in
-      self?.store.confirmationRequest != nil
+      self?.store.windowCloseConfirmation != nil
     }
     view = hostingView
   }
@@ -58,12 +58,12 @@ struct TerminalWindowConfirmationView: View {
 
   var body: some View {
     Group {
-      if let confirmationRequest = store.confirmationRequest {
+      if let confirmation = store.windowCloseConfirmation {
         ConfirmationOverlay(
           palette: palette,
-          title: confirmationRequest.title,
-          message: confirmationRequest.message,
-          confirmTitle: confirmationRequest.confirmTitle,
+          title: confirmation.title,
+          message: confirmation.message,
+          confirmTitle: confirmation.confirmTitle,
           onConfirm: {
             _ = store.send(.confirmationConfirmButtonTapped)
           },
@@ -76,7 +76,7 @@ struct TerminalWindowConfirmationView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .terminalAnimation(
       .spring(response: 0.3, dampingFraction: 0.82),
-      value: store.confirmationRequest,
+      value: store.windowCloseConfirmation,
       reduceMotion: reduceMotion
     )
     .environment(\.colorScheme, chromeColorScheme)

@@ -75,29 +75,14 @@ struct TerminalWindowFeature {
     "Closing this window terminates its terminal sessions. Reopening the window starts new sessions. "
     + "zmx persistence is for Supaterm restarts."
 
-  @ObservableState
-  struct State: Equatable {
-    var commandPalette: TerminalCommandPaletteState?
-    var confirmationRequest: ConfirmationRequest?
-    var isSidebarCollapsed = false
-    var hiddenAgentPanelSurfaceIDs: Set<UUID> = []
-    var pendingCloseRequest: PendingCloseRequest?
-    var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest?
-    var sidebarResizeState: TerminalSidebarResizeState?
-    var sidebarWidth: CGFloat?
-    var spaceEditor: TerminalSpaceEditorState?
-    var windowControllerID = UUID()
-    var windowID: ObjectIdentifier?
-  }
-
-  struct ConfirmationRequest: Equatable {
-    let target: ConfirmationTarget
+  struct WindowCloseConfirmation: Equatable {
+    let target: WindowCloseConfirmationTarget
     let title: String
     let message: String
     let confirmTitle: String
   }
 
-  enum ConfirmationTarget: Equatable {
+  enum WindowCloseConfirmationTarget: Equatable {
     case closeAllWindows([ObjectIdentifier])
     case closeWindow(ObjectIdentifier)
   }
@@ -126,6 +111,50 @@ struct TerminalWindowFeature {
     case tab(TerminalTabID)
     case tabs([TerminalTabID])
     case group(TerminalTabGroupID)
+  }
+
+  enum Destination: Equatable {
+    case closeConfirmation(PendingCloseRequest)
+    case commandPalette(TerminalCommandPaletteState)
+    case spaceDeleteConfirmation(TerminalSpaceDeleteRequest)
+    case spaceEditor(TerminalSpaceEditorState)
+    case windowCloseConfirmation(WindowCloseConfirmation)
+  }
+
+  @ObservableState
+  struct State: Equatable {
+    var destination: Destination?
+    var isSidebarCollapsed = false
+    var hiddenAgentPanelSurfaceIDs: Set<UUID> = []
+    var sidebarResizeState: TerminalSidebarResizeState?
+    var sidebarWidth: CGFloat?
+    var windowControllerID = UUID()
+    var windowID: ObjectIdentifier?
+
+    var commandPalette: TerminalCommandPaletteState? {
+      guard case .commandPalette(let commandPalette) = destination else { return nil }
+      return commandPalette
+    }
+
+    var pendingCloseRequest: PendingCloseRequest? {
+      guard case .closeConfirmation(let request) = destination else { return nil }
+      return request
+    }
+
+    var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest? {
+      guard case .spaceDeleteConfirmation(let request) = destination else { return nil }
+      return request
+    }
+
+    var spaceEditor: TerminalSpaceEditorState? {
+      guard case .spaceEditor(let editor) = destination else { return nil }
+      return editor
+    }
+
+    var windowCloseConfirmation: WindowCloseConfirmation? {
+      guard case .windowCloseConfirmation(let confirmation) = destination else { return nil }
+      return confirmation
+    }
   }
 
   private struct ResolvedCommandPalette {
@@ -237,7 +266,7 @@ struct TerminalWindowFeature {
             ]
           )
           if request.needsConfirmation {
-            state.pendingCloseRequest = pendingCloseRequest(for: request.target)
+            state.destination = .closeConfirmation(pendingCloseRequest(for: request.target))
             SupatermLog.debug(
               SupatermLog.terminal,
               "terminal.close.reducer.confirmationPresented",
@@ -289,7 +318,7 @@ struct TerminalWindowFeature {
             fields: [
               "needsConfirmation=\(needsConfirmation)",
               "hasWindowID=\(state.windowID != nil)",
-              "hadConfirmationRequest=\(state.confirmationRequest != nil)",
+              "hadConfirmationRequest=\(state.windowCloseConfirmation != nil)",
             ]
           )
           guard let windowID = state.windowID else { return .none }
@@ -302,7 +331,9 @@ struct TerminalWindowFeature {
               await windowCloseClient.closeWindow(windowID)
             }
           }
-          state.confirmationRequest = confirmationRequest(for: .closeWindow(windowID))
+          state.destination = .windowCloseConfirmation(
+            windowCloseConfirmation(for: .closeWindow(windowID))
+          )
           SupatermLog.debug(
             SupatermLog.terminal,
             "terminal.close.reducer.windowConfirmationPresented"
@@ -317,7 +348,8 @@ struct TerminalWindowFeature {
         return executeSelectedCommandPaletteCommand(state: &state)
 
       case .commandPaletteCloseRequested:
-        state.commandPalette = nil
+        guard state.commandPalette != nil else { return .none }
+        state.destination = nil
         return .none
 
       case .commandPaletteQueryChanged(let query):
@@ -336,10 +368,13 @@ struct TerminalWindowFeature {
         return .none
 
       case .commandPaletteToggleRequested:
-        if state.commandPalette == nil {
-          state.commandPalette = openCommandPaletteState(windowID: state.windowID)
-        } else {
-          state.commandPalette = nil
+        switch state.destination {
+        case nil:
+          state.destination = .commandPalette(openCommandPaletteState(windowID: state.windowID))
+        case .commandPalette:
+          state.destination = nil
+        default:
+          return .none
         }
         return .none
 
@@ -351,7 +386,8 @@ struct TerminalWindowFeature {
             "target=\(state.pendingCloseRequest.map { "\($0.target)" } ?? "nil")"
           ]
         )
-        state.pendingCloseRequest = nil
+        guard state.pendingCloseRequest != nil else { return .none }
+        state.destination = nil
         return .none
 
       case .closeConfirmationConfirmButtonTapped:
@@ -368,16 +404,17 @@ struct TerminalWindowFeature {
           "terminal.close.reducer.confirmationConfirmed",
           fields: ["target=\(pendingCloseRequest.target)"]
         )
-        state.pendingCloseRequest = nil
+        state.destination = nil
         return executeClose(for: closeTarget(for: pendingCloseRequest.target))
 
       case .spaceDeleteCancelButtonTapped:
-        state.pendingSpaceDeleteRequest = nil
+        guard state.pendingSpaceDeleteRequest != nil else { return .none }
+        state.destination = nil
         return .none
 
       case .spaceDeleteConfirmButtonTapped:
         guard let request = state.pendingSpaceDeleteRequest else { return .none }
-        state.pendingSpaceDeleteRequest = nil
+        state.destination = nil
         return sendCommand(.deleteSpace(request.space.id))
 
       case .closeOtherTabsRequested(let tabIDs):
@@ -400,7 +437,9 @@ struct TerminalWindowFeature {
 
       case .closeAllWindowsRequested(let windowIDs):
         guard !windowIDs.isEmpty else { return .none }
-        state.confirmationRequest = confirmationRequest(for: .closeAllWindows(windowIDs))
+        state.destination = .windowCloseConfirmation(
+          windowCloseConfirmation(for: .closeAllWindows(windowIDs))
+        )
         return .none
 
       case .hiddenAgentPanelsTransferred(let removedSurfaceIDs, let insertedSurfaceIDs):
@@ -564,38 +603,45 @@ struct TerminalWindowFeature {
         )
 
       case .spaceCreateButtonTapped:
-        state.spaceEditor = TerminalSpaceEditorState(
-          mode: .create,
-          draftName: "",
-          draftColor: withRandomNumberGenerator { generator in
-            ThemeTint.chromatic.randomElement(using: &generator) ?? .blue
-          }
+        state.destination = .spaceEditor(
+          TerminalSpaceEditorState(
+            mode: .create,
+            draftName: "",
+            draftColor: withRandomNumberGenerator { generator in
+              ThemeTint.chromatic.randomElement(using: &generator) ?? .blue
+            }
+          )
         )
         return .none
 
       case .spaceDeleteRequested(let space):
-        state.pendingSpaceDeleteRequest = TerminalSpaceDeleteRequest(space: space)
+        state.destination = .spaceDeleteConfirmation(TerminalSpaceDeleteRequest(space: space))
         return .none
 
       case .spaceEditorCancelButtonTapped:
-        state.spaceEditor = nil
+        guard state.spaceEditor != nil else { return .none }
+        state.destination = nil
         return .none
 
       case .spaceEditorColorSelected(let color):
-        state.spaceEditor?.draftColor = color
+        guard var spaceEditor = state.spaceEditor else { return .none }
+        spaceEditor.draftColor = color
+        state.destination = .spaceEditor(spaceEditor)
         return .none
 
       case .spaceRenameRequested(let space):
-        state.spaceEditor = TerminalSpaceEditorState(
-          mode: .rename(space),
-          draftName: space.name,
-          draftColor: space.color
+        state.destination = .spaceEditor(
+          TerminalSpaceEditorState(
+            mode: .rename(space),
+            draftName: space.name,
+            draftColor: space.color
+          )
         )
         return .none
 
       case .spaceEditorSaveButtonTapped:
         guard let spaceEditor = state.spaceEditor else { return .none }
-        state.spaceEditor = nil
+        state.destination = nil
         switch spaceEditor.mode {
         case .create:
           analyticsClient.capture("space_created")
@@ -607,7 +653,9 @@ struct TerminalWindowFeature {
         }
 
       case .spaceEditorTextChanged(let text):
-        state.spaceEditor?.draftName = text
+        guard var spaceEditor = state.spaceEditor else { return .none }
+        spaceEditor.draftName = text
+        state.destination = .spaceEditor(spaceEditor)
         return .none
 
       case .togglePinned(let tabID):
@@ -627,27 +675,27 @@ struct TerminalWindowFeature {
         return .none
 
       case .confirmationCancelButtonTapped:
-        guard let confirmationRequest = state.confirmationRequest else { return .none }
+        guard let confirmation = state.windowCloseConfirmation else { return .none }
         SupatermLog.debug(
           SupatermLog.terminal,
           "terminal.close.reducer.windowConfirmationCancelled",
-          fields: ["target=\(confirmationTargetLabel(confirmationRequest.target))"]
+          fields: ["target=\(windowCloseConfirmationTargetLabel(confirmation.target))"]
         )
-        state.confirmationRequest = nil
-        switch confirmationRequest.target {
+        state.destination = nil
+        switch confirmation.target {
         case .closeWindow, .closeAllWindows:
           return .none
         }
 
       case .confirmationConfirmButtonTapped:
-        guard let confirmationRequest = state.confirmationRequest else { return .none }
+        guard let confirmation = state.windowCloseConfirmation else { return .none }
         SupatermLog.debug(
           SupatermLog.terminal,
           "terminal.close.reducer.windowConfirmationConfirmed",
-          fields: ["target=\(confirmationTargetLabel(confirmationRequest.target))"]
+          fields: ["target=\(windowCloseConfirmationTargetLabel(confirmation.target))"]
         )
-        state.confirmationRequest = nil
-        switch confirmationRequest.target {
+        state.destination = nil
+        switch confirmation.target {
         case .closeWindow(let windowID):
           return .run { [windowCloseClient] _ in
             await windowCloseClient.closeWindow(windowID)
@@ -669,7 +717,9 @@ struct TerminalWindowFeature {
         if let currentWindowID = state.windowID, currentWindowID != windowID {
           return .none
         }
-        state.confirmationRequest = confirmationRequest(for: .closeWindow(windowID))
+        state.destination = .windowCloseConfirmation(
+          windowCloseConfirmation(for: .closeWindow(windowID))
+        )
         return .none
       }
     }
@@ -717,16 +767,17 @@ struct TerminalWindowFeature {
     _ query: String,
     state: inout State
   ) {
-    guard state.commandPalette != nil else { return }
-    state.commandPalette?.query = query
+    guard var commandPalette = state.commandPalette else { return }
+    commandPalette.query = query
     let matches = TerminalCommandPalettePresentation.matches(
       from: commandPaletteSnapshot(windowID: state.windowID),
       query: query
     )
-    state.commandPalette?.selectedRowID = TerminalCommandPalettePresentation.normalizedSelection(
+    commandPalette.selectedRowID = TerminalCommandPalettePresentation.normalizedSelection(
       nil,
       in: matches
     )
+    state.destination = .commandPalette(commandPalette)
   }
 
   private func updateCommandPaletteSelection(
@@ -736,7 +787,9 @@ struct TerminalWindowFeature {
     guard let resolved = resolvedCommandPalette(for: state) else { return }
     guard let row = TerminalCommandPalettePresentation.row(atVisibleIndex: index, in: resolved.matches)
     else { return }
-    state.commandPalette?.selectedRowID = row.id
+    guard var commandPalette = state.commandPalette else { return }
+    commandPalette.selectedRowID = row.id
+    state.destination = .commandPalette(commandPalette)
   }
 
   private func moveCommandPaletteSelection(
@@ -744,11 +797,13 @@ struct TerminalWindowFeature {
     state: inout State
   ) {
     guard let resolved = resolvedCommandPalette(for: state) else { return }
-    state.commandPalette?.selectedRowID = TerminalCommandPalettePresentation.movedSelection(
+    guard var commandPalette = state.commandPalette else { return }
+    commandPalette.selectedRowID = TerminalCommandPalettePresentation.movedSelection(
       resolved.selectedRowID,
       by: offset,
       in: resolved.matches
     )
+    state.destination = .commandPalette(commandPalette)
   }
 
   private func executeSelectedCommandPaletteCommand(
@@ -766,7 +821,6 @@ struct TerminalWindowFeature {
     guard let resolved = resolvedCommandPalette(for: state) else { return .none }
     guard let row = TerminalCommandPalettePresentation.rowForSlot(slot, in: resolved.matches)
     else { return .none }
-    state.commandPalette?.selectedRowID = row.id
     return executeCommandPaletteCommand(row.command, state: &state)
   }
 
@@ -775,7 +829,7 @@ struct TerminalWindowFeature {
     state: inout State
   ) -> Effect<Action> {
     let windowID = state.windowID
-    state.commandPalette = nil
+    state.destination = nil
 
     switch command {
     case .ghosttyBindingAction(let action):
@@ -826,7 +880,9 @@ struct TerminalWindowFeature {
     }
   }
 
-  private func confirmationTargetLabel(_ target: ConfirmationTarget) -> String {
+  private func windowCloseConfirmationTargetLabel(
+    _ target: WindowCloseConfirmationTarget
+  ) -> String {
     switch target {
     case .closeWindow:
       return "closeWindow"
@@ -877,17 +933,19 @@ struct TerminalWindowFeature {
     }
   }
 
-  private func confirmationRequest(for target: ConfirmationTarget) -> ConfirmationRequest {
+  private func windowCloseConfirmation(
+    for target: WindowCloseConfirmationTarget
+  ) -> WindowCloseConfirmation {
     switch target {
     case .closeWindow(let windowID):
-      return ConfirmationRequest(
+      return WindowCloseConfirmation(
         target: .closeWindow(windowID),
         title: "Close Window?",
         message: Self.closeWindowWarningMessage,
         confirmTitle: "Close Window"
       )
     case .closeAllWindows(let windowIDs):
-      return ConfirmationRequest(
+      return WindowCloseConfirmation(
         target: .closeAllWindows(windowIDs),
         title: "Close All Windows?",
         message: Self.closeAllWindowsWarningMessage,
