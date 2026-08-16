@@ -123,6 +123,31 @@ final class CommandPaletteUITests: SupatermUITestCase {
   }
 
   @MainActor
+  func testClickingCommandActivatesIt() async throws {
+    let terminal = try readyTerminal()
+    terminal.click()
+    let input = try await openPalette()
+    input.typeText("Toggle Sidebar")
+
+    let rows = paletteRows
+    let row = rows.firstMatch
+    let didShowCommand = await wait(for: row) {
+      $0.exists && rows.count == 1 && $0.label.contains("Toggle Sidebar")
+    }
+    XCTAssertTrue(didShowCommand)
+
+    row.hover()
+    let didSelectRow = await wait(for: row) { $0.isSelected }
+    XCTAssertTrue(didSelectRow)
+    row.click()
+
+    let didDismiss = await wait(for: input) { !$0.exists }
+    XCTAssertTrue(didDismiss)
+    let didCollapseSidebar = await waitForSidebarCollapsed()
+    XCTAssertTrue(didCollapseSidebar)
+  }
+
+  @MainActor
   func testToggleSidebarCommandHidesAndRestoresSidebar() async throws {
     let terminal = try readyTerminal()
     terminal.click()

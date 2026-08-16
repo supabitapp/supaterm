@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import SupaTheme
 import SwiftUI
 
@@ -13,6 +14,16 @@ struct TerminalCommandPalettePanelConfiguration {
   let moveSelection: (Int) -> Void
   let queryChanged: (String) -> Void
   let selectionChanged: (Int) -> Void
+}
+
+@MainActor
+@Observable
+private final class TerminalCommandPalettePanelModel {
+  var configuration: TerminalCommandPalettePanelConfiguration
+
+  init(configuration: TerminalCommandPalettePanelConfiguration) {
+    self.configuration = configuration
+  }
 }
 
 struct TerminalCommandPalettePanelPresenter: NSViewRepresentable {
@@ -72,9 +83,8 @@ final class TerminalCommandPalettePanelAnchorView: NSView {
 
 @MainActor
 final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
-  private var configuration: TerminalCommandPalettePanelConfiguration?
   private var frameObservers: [NSObjectProtocol] = []
-  private var hostingController: NSHostingController<TerminalCommandPalettePanelRoot>?
+  private var model: TerminalCommandPalettePanelModel?
   private weak var parentWindow: NSWindow?
   private var panel: TerminalCommandPalettePanel?
 
@@ -82,20 +92,20 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
     _ configuration: TerminalCommandPalettePanelConfiguration,
     from parentWindow: NSWindow
   ) {
-    self.configuration = configuration
     if self.parentWindow !== parentWindow {
       dismissPanel()
       self.parentWindow = parentWindow
     }
-    let rootView = TerminalCommandPalettePanelRoot(
-      configuration: configuration,
-      activate: { [weak self] in self?.activateSelection() }
-    )
-    if let hostingController, let panel {
-      hostingController.rootView = rootView
+    if let model, let panel {
+      model.configuration = configuration
       updateFrame(panel, parentWindow: parentWindow)
       return
     }
+    let model = TerminalCommandPalettePanelModel(configuration: configuration)
+    let rootView = TerminalCommandPalettePanelRoot(
+      model: model,
+      activate: { [weak self] in self?.activateSelection() }
+    )
     let hostingController = NSHostingController(rootView: rootView)
     let panel = TerminalCommandPalettePanel(contentViewController: hostingController)
     panel.onPaletteShortcut = { [weak self] slot in
@@ -106,32 +116,30 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
     updateFrame(panel, parentWindow: parentWindow)
     parentWindow.addChildWindow(panel, ordered: .above)
     observeFrame(of: parentWindow)
-    self.hostingController = hostingController
+    self.model = model
     self.panel = panel
     panel.makeKeyAndOrderFront(nil)
   }
 
   func dismiss() {
-    configuration = nil
     dismissPanel()
   }
 
   private func activateSelection() {
-    guard let activate = configuration?.activate else { return }
+    guard let activate = model?.configuration.activate else { return }
     dismissAndRun(activate)
   }
 
   func windowDidResignKey(_ notification: Notification) {
-    configuration?.close()
+    model?.configuration.close()
   }
 
   private func activateSlot(_ slot: Int) {
-    guard let activateSlot = configuration?.activateSlot else { return }
+    guard let activateSlot = model?.configuration.activateSlot else { return }
     dismissAndRun { activateSlot(slot) }
   }
 
   private func dismissAndRun(_ action: () -> Void) {
-    configuration = nil
     dismissPanel()
     action()
   }
@@ -145,7 +153,7 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
       parentWindow?.removeChildWindow(panel)
       panel.orderOut(nil)
     }
-    hostingController = nil
+    model = nil
     panel = nil
     parentWindow = nil
   }
@@ -219,10 +227,12 @@ enum TerminalCommandPaletteShortcut {
 }
 
 private struct TerminalCommandPalettePanelRoot: View {
-  let configuration: TerminalCommandPalettePanelConfiguration
+  let model: TerminalCommandPalettePanelModel
   let activate: () -> Void
 
   var body: some View {
+    let configuration = model.configuration
+
     TerminalCommandPaletteOverlay(
       palette: configuration.palette,
       state: configuration.state,
