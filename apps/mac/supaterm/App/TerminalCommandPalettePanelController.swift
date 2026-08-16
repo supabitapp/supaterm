@@ -93,7 +93,7 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
     from parentWindow: NSWindow
   ) {
     if self.parentWindow !== parentWindow {
-      dismissPanel()
+      dismiss()
       self.parentWindow = parentWindow
     }
     if let model, let panel {
@@ -122,7 +122,17 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
   }
 
   func dismiss() {
-    dismissPanel()
+    for observer in frameObservers {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    frameObservers.removeAll()
+    if let panel {
+      parentWindow?.removeChildWindow(panel)
+      panel.orderOut(nil)
+    }
+    model = nil
+    panel = nil
+    parentWindow = nil
   }
 
   private func activateSelection() {
@@ -140,22 +150,8 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
   }
 
   private func dismissAndRun(_ action: () -> Void) {
-    dismissPanel()
+    dismiss()
     action()
-  }
-
-  private func dismissPanel() {
-    for observer in frameObservers {
-      NotificationCenter.default.removeObserver(observer)
-    }
-    frameObservers.removeAll()
-    if let panel {
-      parentWindow?.removeChildWindow(panel)
-      panel.orderOut(nil)
-    }
-    model = nil
-    panel = nil
-    parentWindow = nil
   }
 
   private func observeFrame(of parentWindow: NSWindow) {
