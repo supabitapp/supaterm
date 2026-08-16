@@ -290,111 +290,54 @@ extension TerminalWindowsClient: DependencyKey {
   )
 
   public static let testValue = Self(
-    agentHook: { _ in
-      TerminalAgentHookResult(desktopNotification: nil)
-    },
-    capturePane: { _ in
-      throw TerminalControlError.captureFailed
-    },
-    screenshotPane: { _ in
-      throw TerminalControlError.screenshotFailed
-    },
-    closePane: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    closeSpace: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    closeTab: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    createSpace: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    createTab: { _ in
-      throw TerminalCreateTabError.creationFailed
-    },
-    createPane: { _ in
-      throw TerminalCreatePaneError.creationFailed
-    },
-    equalizePanes: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    mainVerticalPanes: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    notify: { _ in
-      throw TerminalCreatePaneError.creationFailed
-    },
-    focusPane: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    lastPane: { _ in
-      throw TerminalControlError.lastPaneNotFound
-    },
-    paneHealth: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    lastSpace: { _ in
-      throw TerminalControlError.lastSpaceNotFound
-    },
-    lastTab: { _ in
-      throw TerminalControlError.lastTabNotFound
-    },
-    nextSpace: { _ in
-      throw TerminalControlError.lastSpaceNotFound
-    },
-    nextTab: { _ in
-      throw TerminalControlError.lastTabNotFound
-    },
-    onboardingSnapshot: { nil },
-    pinTab: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    previousSpace: { _ in
-      throw TerminalControlError.lastSpaceNotFound
-    },
-    previousTab: { _ in
-      throw TerminalControlError.lastTabNotFound
-    },
-    debugSnapshot: { _ in Self.emptyDebugSnapshot },
-    renameSpace: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    renameTab: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    resizePane: { _ in
-      throw TerminalControlError.resizeFailed
-    },
-    setSpaceColor: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    setPaneSize: { _ in
-      throw TerminalControlError.resizeFailed
-    },
-    selectSpace: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    selectTab: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    sendKey: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    sendText: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    tilePanes: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    },
-    treeSnapshot: { SupatermTreeSnapshot(windows: []) },
-    unpinTab: { _ in
-      throw TerminalControlError.contextPaneNotFound
-    }
+    agentHook: unimplemented("TerminalWindowsClient.agentHook"),
+    capturePane: unimplemented("TerminalWindowsClient.capturePane"),
+    screenshotPane: unimplemented("TerminalWindowsClient.screenshotPane"),
+    closePane: unimplemented("TerminalWindowsClient.closePane"),
+    closeSpace: unimplemented("TerminalWindowsClient.closeSpace"),
+    closeTab: unimplemented("TerminalWindowsClient.closeTab"),
+    createSpace: unimplemented("TerminalWindowsClient.createSpace"),
+    createTab: unimplemented("TerminalWindowsClient.createTab"),
+    createPane: unimplemented("TerminalWindowsClient.createPane"),
+    equalizePanes: unimplemented("TerminalWindowsClient.equalizePanes"),
+    mainVerticalPanes: unimplemented("TerminalWindowsClient.mainVerticalPanes"),
+    notify: unimplemented("TerminalWindowsClient.notify"),
+    focusPane: unimplemented("TerminalWindowsClient.focusPane"),
+    lastPane: unimplemented("TerminalWindowsClient.lastPane"),
+    paneHealth: unimplemented("TerminalWindowsClient.paneHealth"),
+    lastSpace: unimplemented("TerminalWindowsClient.lastSpace"),
+    lastTab: unimplemented("TerminalWindowsClient.lastTab"),
+    nextSpace: unimplemented("TerminalWindowsClient.nextSpace"),
+    nextTab: unimplemented("TerminalWindowsClient.nextTab"),
+    onboardingSnapshot: unimplemented(
+      "TerminalWindowsClient.onboardingSnapshot",
+      placeholder: nil
+    ),
+    pinTab: unimplemented("TerminalWindowsClient.pinTab"),
+    previousSpace: unimplemented("TerminalWindowsClient.previousSpace"),
+    previousTab: unimplemented("TerminalWindowsClient.previousTab"),
+    debugSnapshot: unimplemented(
+      "TerminalWindowsClient.debugSnapshot",
+      placeholder: Self.emptyDebugSnapshot
+    ),
+    renameSpace: unimplemented("TerminalWindowsClient.renameSpace"),
+    renameTab: unimplemented("TerminalWindowsClient.renameTab"),
+    resizePane: unimplemented("TerminalWindowsClient.resizePane"),
+    setSpaceColor: unimplemented("TerminalWindowsClient.setSpaceColor"),
+    setPaneSize: unimplemented("TerminalWindowsClient.setPaneSize"),
+    selectSpace: unimplemented("TerminalWindowsClient.selectSpace"),
+    selectTab: unimplemented("TerminalWindowsClient.selectTab"),
+    sendKey: unimplemented("TerminalWindowsClient.sendKey"),
+    sendText: unimplemented("TerminalWindowsClient.sendText"),
+    tilePanes: unimplemented("TerminalWindowsClient.tilePanes"),
+    treeSnapshot: unimplemented(
+      "TerminalWindowsClient.treeSnapshot",
+      placeholder: SupatermTreeSnapshot(windows: [])
+    ),
+    unpinTab: unimplemented("TerminalWindowsClient.unpinTab")
   )
 
-  private static let emptyDebugSnapshot = SupatermAppDebugSnapshot(
+  private nonisolated static let emptyDebugSnapshot = SupatermAppDebugSnapshot(
     build: SupatermAppDebugSnapshot.Build(
       version: "",
       buildNumber: "",

@@ -20,7 +20,13 @@ extension ShortcutSettingsClient: DependencyKey {
     shortcutsDidChange: {}
   )
 
-  public nonisolated static let testValue = liveValue
+  public nonisolated static let testValue = Self(
+    terminalReservedDisplays: unimplemented(
+      "ShortcutSettingsClient.terminalReservedDisplays",
+      placeholder: []
+    ),
+    shortcutsDidChange: unimplemented("ShortcutSettingsClient.shortcutsDidChange")
+  )
 }
 
 extension DependencyValues {

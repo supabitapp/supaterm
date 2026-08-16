@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Sharing
+import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared
@@ -86,6 +87,9 @@ struct SettingsFeatureCodingAgentsTests {
       $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
       $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
       $0.piSettingsClient.integrationHealth = { await piGate.next() }
+      $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
+      $0.updateClient.observe = { AsyncStream { $0.finish() } }
+      $0.updateClient.start = {}
     }
 
     await store.send(.task)
@@ -179,6 +183,7 @@ struct SettingsFeatureCodingAgentsTests {
     } withDependencies: {
       $0.claudeSettingsClient.installSupatermHooks = {}
       $0.claudeSettingsClient.integrationHealth = { .healthy }
+      $0.supatermSkillClient.installSupatermSkill = {}
     }
 
     await store.send(.agentIntegrationToggled(.claude, true)) {
@@ -196,9 +201,11 @@ struct SettingsFeatureCodingAgentsTests {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
+      $0.claudeSettingsClient.integrationHealth = { .healthy }
       $0.claudeSettingsClient.installSupatermHooks = {
         throw ClaudeSettingsInstallerError.invalidJSON
       }
+      $0.supatermSkillClient.installSupatermSkill = {}
     }
 
     await store.send(.agentIntegrationToggled(.claude, true)) {
@@ -342,6 +349,7 @@ struct SettingsFeatureCodingAgentsTests {
     } withDependencies: {
       $0.piSettingsClient.integrationHealth = { .healthy }
       $0.piSettingsClient.installSupatermIntegration = {}
+      $0.supatermSkillClient.installSupatermSkill = {}
     }
 
     await store.send(.agentIntegrationToggled(.pi, true)) {
@@ -361,9 +369,11 @@ struct SettingsFeatureCodingAgentsTests {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
+      $0.piSettingsClient.integrationHealth = { .healthy }
       $0.piSettingsClient.installSupatermIntegration = {
         throw PiSettingsInstallerError.installFailed(log)
       }
+      $0.supatermSkillClient.installSupatermSkill = {}
     }
 
     await store.send(.agentIntegrationToggled(.pi, true)) {

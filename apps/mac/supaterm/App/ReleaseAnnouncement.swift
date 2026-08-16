@@ -177,8 +177,8 @@ extension ReleaseAnnouncementClient: DependencyKey {
   )
 
   static let testValue = Self(
-    synchronize: { nil },
-    acknowledge: { _ in }
+    synchronize: unimplemented("ReleaseAnnouncementClient.synchronize", placeholder: nil),
+    acknowledge: unimplemented("ReleaseAnnouncementClient.acknowledge")
   )
 }
 

@@ -404,7 +404,8 @@ extension TerminalHostState {
       guard let manager = spaceManager.instance(for: groupID)?.tabCollection else { return nil }
       let tabIDs = manager.tabIDs(in: groupID)
       guard !tabIDs.isEmpty else { return nil }
-      let groupNeedsCloseConfirmation = tabIDs.count > 1
+      let groupNeedsCloseConfirmation =
+        tabIDs.count > 1
         || Self.anyTabNeedsCloseConfirmation(
           tabIDs,
           tabNeedsCloseConfirmation: tabNeedsCloseConfirmation

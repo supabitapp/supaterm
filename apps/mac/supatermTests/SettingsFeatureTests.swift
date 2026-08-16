@@ -59,6 +59,9 @@ struct SettingsFeatureTests {
         $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
         $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
         $0.piSettingsClient.integrationHealth = { await piGate.next() }
+        $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
+        $0.updateClient.observe = { AsyncStream { $0.finish() } }
+        $0.updateClient.start = {}
       }
 
       #expect(store.state.appearanceMode == .dark)
@@ -120,6 +123,7 @@ struct SettingsFeatureTests {
       $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
       $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
       $0.piSettingsClient.integrationHealth = { await piGate.next() }
+      $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
       $0.updateClient.observe = { stream }
       $0.updateClient.start = {}
     }

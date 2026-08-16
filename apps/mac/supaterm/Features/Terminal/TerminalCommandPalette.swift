@@ -145,7 +145,7 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
     }
   }
 
-  static let empty = Self(
+  nonisolated static let empty = Self(
     ghosttyCommands: [],
     ghosttyShortcutDisplayByAction: [:],
     hasFocusedSurface: false,

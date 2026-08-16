@@ -34,14 +34,6 @@ struct SettingsTerminalState: Equatable {
   var isBusy: Bool {
     operation != .idle
   }
-
-  var isApplying: Bool {
-    operation == .applying
-  }
-
-  var isLoading: Bool {
-    operation == .loading
-  }
 }
 
 struct SettingsAgentIntegrationState: Equatable {

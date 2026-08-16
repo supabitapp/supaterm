@@ -19,7 +19,7 @@ extension ClipboardClient: DependencyKey {
   )
 
   public static let testValue = Self(
-    copyString: { _ in }
+    copyString: unimplemented("ClipboardClient.copyString")
   )
 }
 

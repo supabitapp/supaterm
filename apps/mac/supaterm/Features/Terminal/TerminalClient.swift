@@ -115,11 +115,12 @@ extension TerminalClient: DependencyKey {
   )
 
   static let testValue = Self(
-    createPane: { _ in
-      throw TerminalCreatePaneError.creationFailed
-    },
-    events: { AsyncStream { $0.finish() } },
-    send: { _ in }
+    createPane: unimplemented("TerminalClient.createPane"),
+    events: unimplemented(
+      "TerminalClient.events",
+      placeholder: AsyncStream { $0.finish() }
+    ),
+    send: unimplemented("TerminalClient.send")
   )
 }
 

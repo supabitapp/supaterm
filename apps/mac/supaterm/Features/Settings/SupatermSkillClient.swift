@@ -14,7 +14,7 @@ extension SupatermSkillClient: DependencyKey {
   )
 
   static let testValue = Self(
-    installSupatermSkill: {}
+    installSupatermSkill: unimplemented("SupatermSkillClient.installSupatermSkill")
   )
 }
 

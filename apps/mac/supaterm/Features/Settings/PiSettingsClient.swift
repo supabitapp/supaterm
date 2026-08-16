@@ -23,9 +23,9 @@ extension PiSettingsClient: DependencyKey {
   )
 
   static let testValue = Self(
-    integrationHealth: { .absent },
-    installSupatermIntegration: {},
-    removeSupatermIntegration: {}
+    integrationHealth: unimplemented("PiSettingsClient.integrationHealth"),
+    installSupatermIntegration: unimplemented("PiSettingsClient.installSupatermIntegration"),
+    removeSupatermIntegration: unimplemented("PiSettingsClient.removeSupatermIntegration")
   )
 }
 

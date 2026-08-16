@@ -1230,6 +1230,7 @@ struct TerminalWindowRegistryTests {
   func requestToggleCommandPaletteInKeyWindowDispatchesReducerCommand() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
+      $0.terminalCommandPaletteClient.snapshot = { _ in .empty }
     } operation: {
       let registry = TerminalWindowRegistry()
       let host = TerminalHostState(managesTerminalSurfaces: false)

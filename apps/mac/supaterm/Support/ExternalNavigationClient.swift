@@ -34,7 +34,7 @@ extension ExternalNavigationClient: DependencyKey {
   )
 
   public static let testValue = Self(
-    open: { _ in false }
+    open: unimplemented("ExternalNavigationClient.open", placeholder: false)
   )
 }
 

@@ -23,9 +23,9 @@ extension CodexSettingsClient: DependencyKey {
   )
 
   static let testValue = Self(
-    integrationHealth: { .absent },
-    installSupatermHooks: {},
-    removeSupatermHooks: {}
+    integrationHealth: unimplemented("CodexSettingsClient.integrationHealth"),
+    installSupatermHooks: unimplemented("CodexSettingsClient.installSupatermHooks"),
+    removeSupatermHooks: unimplemented("CodexSettingsClient.removeSupatermHooks")
   )
 }
 

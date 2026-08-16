@@ -12,7 +12,10 @@ extension WindowCloseClient: DependencyKey {
     closeWindows: { _ in }
   )
 
-  static let testValue = liveValue
+  static let testValue = Self(
+    closeWindow: unimplemented("WindowCloseClient.closeWindow"),
+    closeWindows: unimplemented("WindowCloseClient.closeWindows")
+  )
 }
 
 extension DependencyValues {

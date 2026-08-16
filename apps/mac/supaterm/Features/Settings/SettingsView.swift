@@ -50,11 +50,11 @@ public struct SettingsView: View {
   }
 }
 
-public struct SettingsTabContentView: View {
+struct SettingsTabContentView: View {
   let store: StoreOf<SettingsFeature>
   let tab: SettingsFeature.Tab
 
-  public init(
+  init(
     store: StoreOf<SettingsFeature>,
     tab: SettingsFeature.Tab
   ) {
@@ -62,7 +62,7 @@ public struct SettingsTabContentView: View {
     self.tab = tab
   }
 
-  public var body: some View {
+  var body: some View {
     switch tab {
     case .advanced:
       SettingsAdvancedView(store: store)

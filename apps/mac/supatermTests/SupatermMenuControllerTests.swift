@@ -552,6 +552,7 @@ struct SupatermMenuControllerTests {
   func performGhosttyBindingMenuKeyEquivalentRoutesCommandPaletteShortcut() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
+      $0.terminalCommandPaletteClient.snapshot = { _ in .empty }
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu

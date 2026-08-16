@@ -15,7 +15,11 @@ extension TerminalCommandPaletteClient: DependencyKey {
     performUpdateAction: { _, _ in }
   )
 
-  static let testValue = liveValue
+  static let testValue = Self(
+    snapshot: unimplemented("TerminalCommandPaletteClient.snapshot", placeholder: .empty),
+    focusPane: unimplemented("TerminalCommandPaletteClient.focusPane"),
+    performUpdateAction: unimplemented("TerminalCommandPaletteClient.performUpdateAction")
+  )
 }
 
 extension DependencyValues {

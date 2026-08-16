@@ -145,31 +145,8 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
   )
 
   public nonisolated static let testValue = Self(
-    load: {
-      GhosttyTerminalSettingsSnapshot(
-        availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-        availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-        availableLightThemes: ["Zenbones Light", "Builtin Light"],
-        confirmCloseSurface: .whenNotAtPrompt,
-        configPath: "/tmp/ghostty/config",
-        darkTheme: "Zenbones Dark",
-        fontFamily: nil,
-        fontSize: 15,
-        lightTheme: "Zenbones Light",
-        warningMessage: nil
-      )
-    },
-    apply: { settings in
-      GhosttyTerminalSettingsValues(
-        confirmCloseSurface: settings.confirmCloseSurface,
-        configPath: "/tmp/ghostty/config",
-        darkTheme: settings.darkTheme,
-        fontFamily: settings.fontFamily,
-        fontSize: settings.fontSize,
-        lightTheme: settings.lightTheme,
-        warningMessage: nil
-      )
-    }
+    load: unimplemented("GhosttyTerminalSettingsClient.load"),
+    apply: unimplemented("GhosttyTerminalSettingsClient.apply")
   )
 }
 

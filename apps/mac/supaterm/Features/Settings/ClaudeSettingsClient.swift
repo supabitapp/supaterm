@@ -23,9 +23,9 @@ extension ClaudeSettingsClient: DependencyKey {
   )
 
   static let testValue = Self(
-    integrationHealth: { .absent },
-    installSupatermHooks: {},
-    removeSupatermHooks: {}
+    integrationHealth: unimplemented("ClaudeSettingsClient.integrationHealth"),
+    installSupatermHooks: unimplemented("ClaudeSettingsClient.installSupatermHooks"),
+    removeSupatermHooks: unimplemented("ClaudeSettingsClient.removeSupatermHooks")
   )
 }
 

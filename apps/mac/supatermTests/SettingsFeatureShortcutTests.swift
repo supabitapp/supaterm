@@ -42,6 +42,7 @@ struct SettingsFeatureShortcutTests {
   func disablingAndEnablingDefaultShortcutUsesSparseOverride() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
+      $0.shortcutSettingsClient.shortcutsDidChange = {}
     } operation: {
       let store = TestStore(initialState: SettingsFeature.State()) {
         SettingsFeature()
@@ -71,6 +72,7 @@ struct SettingsFeatureShortcutTests {
     )
     await withDependencies {
       $0.defaultFileStorage = .inMemory
+      $0.shortcutSettingsClient.shortcutsDidChange = {}
     } operation: {
       let state = SettingsFeature.State()
       state.$supatermSettings.withLock {
@@ -92,6 +94,7 @@ struct SettingsFeatureShortcutTests {
   func restoreDefaultsRemovesAllOverrides() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
+      $0.shortcutSettingsClient.shortcutsDidChange = {}
     } operation: {
       let state = SettingsFeature.State()
       state.$supatermSettings.withLock {

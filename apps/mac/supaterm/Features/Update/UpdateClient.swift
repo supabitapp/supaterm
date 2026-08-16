@@ -402,16 +402,17 @@ extension UpdateClient: DependencyKey {
   }()
 
   public static let testValue = Self(
-    observe: {
-      AsyncStream { continuation in
-        continuation.finish()
-      }
-    },
-    perform: { _ in },
-    setAutomaticallyChecksForUpdates: { _ in },
-    setAutomaticallyDownloadsUpdates: { _ in },
-    setUpdateChannel: { _ in },
-    start: {}
+    observe: unimplemented(
+      "UpdateClient.observe",
+      placeholder: AsyncStream { $0.finish() }
+    ),
+    perform: unimplemented("UpdateClient.perform"),
+    setAutomaticallyChecksForUpdates: unimplemented("UpdateClient.setAutomaticallyChecksForUpdates"),
+    setAutomaticallyDownloadsUpdates: unimplemented(
+      "UpdateClient.setAutomaticallyDownloadsUpdates"
+    ),
+    setUpdateChannel: unimplemented("UpdateClient.setUpdateChannel"),
+    start: unimplemented("UpdateClient.start")
   )
 }
 

@@ -128,10 +128,16 @@ extension DesktopNotificationClient: DependencyKey {
   )
 
   public static let testValue = Self(
-    authorizationStatus: { .notDetermined },
-    requestAuthorization: { AuthorizationRequestResult(granted: false, errorMessage: nil) },
-    openSettings: {},
-    deliver: { _ in }
+    authorizationStatus: unimplemented(
+      "DesktopNotificationClient.authorizationStatus",
+      placeholder: .notDetermined
+    ),
+    requestAuthorization: unimplemented(
+      "DesktopNotificationClient.requestAuthorization",
+      placeholder: AuthorizationRequestResult(granted: false, errorMessage: nil)
+    ),
+    openSettings: unimplemented("DesktopNotificationClient.openSettings"),
+    deliver: unimplemented("DesktopNotificationClient.deliver")
   )
 }
 

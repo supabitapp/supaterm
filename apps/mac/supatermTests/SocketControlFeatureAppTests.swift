@@ -264,6 +264,7 @@ struct SocketControlFeatureAppTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
+      $0.terminalWindowsClient.onboardingSnapshot = { nil }
     }
 
     await store.send(.requestReceived(request))

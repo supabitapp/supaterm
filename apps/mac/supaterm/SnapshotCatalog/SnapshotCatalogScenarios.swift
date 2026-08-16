@@ -4,9 +4,10 @@ import Foundation
 import Sharing
 import SupaTheme
 import SupatermCLIShared
-import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI
+
+@testable import SupatermSettingsFeature
 
 extension SnapshotCatalog {
   static let agentPanelScenarios: [SnapshotScenario] = [
