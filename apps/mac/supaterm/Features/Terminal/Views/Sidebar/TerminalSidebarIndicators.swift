@@ -71,56 +71,92 @@ struct TerminalSidebarProgressIndicatorView: View {
   }
 }
 
-struct TerminalSidebarAgentActivityView: View {
+struct TerminalSidebarAgentStatusView: View {
   let activity: TerminalHostState.AgentActivity
-  let isSelected: Bool
+  let showsText: Bool
   let palette: Palette
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isAnimating = false
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 5, style: .continuous)
-      .fill(backgroundColor)
-      .frame(width: 16, height: 16)
-      .overlay {
-        switch activity.phase {
-        case .needsInput:
-          Image(systemName: "bell.fill")
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(TerminalSidebarWarningBadgeStyle.foregroundColor(isSelected: isSelected, palette: palette))
-            .scaleEffect(scale)
-            .offset(y: verticalOffset)
-            .accessibilityHidden(true)
+    HStack(spacing: 4) {
+      indicator
 
-        case .running:
-          TerminalAgentRunningSpinnerView(isSelected: isSelected, palette: palette)
-
-        case .idle:
-          EmptyView()
-        }
+      if showsText, let label {
+        Text(label)
+          .font(.system(size: 10, weight: .semibold))
       }
-      .onAppear {
-        startActivityAnimation(reduceMotion: reduceMotion)
-      }
-      .onChange(of: activity) { _, _ in
-        restartActivityAnimation(reduceMotion: reduceMotion)
-      }
-      .onChange(of: reduceMotion) { _, reduceMotion in
-        restartActivityAnimation(reduceMotion: reduceMotion)
-      }
-      .accessibilityElement(children: .ignore)
-      .accessibilityLabel("Agent activity: \(accessibilityPhase)")
+    }
+    .foregroundStyle(color)
+    .fixedSize()
+    .onAppear {
+      startActivityAnimation(reduceMotion: reduceMotion)
+    }
+    .onChange(of: activity) { _, _ in
+      restartActivityAnimation(reduceMotion: reduceMotion)
+    }
+    .onChange(of: reduceMotion) { _, reduceMotion in
+      restartActivityAnimation(reduceMotion: reduceMotion)
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(accessibilityLabel)
   }
 
-  private var accessibilityPhase: String {
+  @ViewBuilder
+  private var indicator: some View {
     switch activity.phase {
     case .needsInput:
-      "Needs input"
+      Image(systemName: "bell.fill")
+        .font(.system(size: 8, weight: .semibold))
+        .frame(width: 16, height: 16)
+        .scaleEffect(scale)
+        .offset(y: verticalOffset)
+        .accessibilityHidden(true)
+
     case .running:
-      "Running"
+      TerminalProgressRingIndicatorView(
+        fraction: nil,
+        color: palette.accent,
+        trackColor: palette.accent.opacity(0.2),
+        diameter: 10
+      )
+
     case .idle:
-      "Idle"
+      EmptyView()
+    }
+  }
+
+  private var label: String? {
+    switch activity.phase {
+    case .needsInput:
+      "Input"
+    case .running:
+      "Working"
+    case .idle:
+      nil
+    }
+  }
+
+  private var accessibilityLabel: String {
+    switch activity.phase {
+    case .needsInput:
+      "Agent needs input"
+    case .running:
+      "Agent working"
+    case .idle:
+      "Agent idle"
+    }
+  }
+
+  private var color: Color {
+    switch activity.phase {
+    case .needsInput:
+      palette.warning
+    case .running:
+      palette.accent
+    case .idle:
+      palette.secondaryText
     }
   }
 
@@ -146,34 +182,12 @@ struct TerminalSidebarAgentActivityView: View {
     startActivityAnimation(reduceMotion: reduceMotion)
   }
 
-  private var backgroundColor: Color {
-    switch activity.phase {
-    case .needsInput:
-      return TerminalSidebarWarningBadgeStyle.backgroundColor(isSelected: isSelected, palette: palette)
-    case .running:
-      return .clear
-    case .idle:
-      return fillColor(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
-    }
-  }
-
   private var scale: CGFloat {
     activity.phase == .needsInput && isAnimating ? 1.14 : 1
   }
 
   private var verticalOffset: CGFloat {
     activity.phase == .needsInput && isAnimating ? -1 : 0
-  }
-
-  private func fillColor(for tone: TerminalHostState.AgentActivityTone) -> Color {
-    switch tone {
-    case .attention:
-      return palette.warningFill
-    case .active:
-      return palette.accent
-    case .muted:
-      return palette.secondaryText
-    }
   }
 }
 

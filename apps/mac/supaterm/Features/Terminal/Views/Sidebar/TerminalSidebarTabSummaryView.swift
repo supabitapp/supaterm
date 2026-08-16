@@ -110,7 +110,10 @@ struct TerminalSidebarTabSummaryView: View {
       )
     )
 
-    HStack(alignment: .center, spacing: 6) {
+    TerminalSidebarTabSummaryLayout(
+      statusTextMinimumWidth: TerminalSidebarLayout.tabAgentStatusTextMinimumWidth,
+      narrowAccessoryWidth: TerminalSidebarLayout.tabTrailingAccessorySize
+    ) {
       VStack(alignment: .leading, spacing: 2) {
         Text(tab.title)
           .font(.system(size: 12, weight: .medium))
@@ -143,27 +146,43 @@ struct TerminalSidebarTabSummaryView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
 
-      ZStack {
-        if let shortcutHint = rowAccessories.shortcutHint {
-          Text(shortcutHint)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(
-              isSelected
-                ? palette.selectedSecondaryText
-                : palette.secondaryText
-            )
-        }
-
-        if let statusAccessory = rowAccessories.statusAccessory {
-          statusAccessoryView(statusAccessory)
-        }
+      ViewThatFits(in: .horizontal) {
+        trailingAccessory(
+          rowAccessories,
+          showsAgentStatusText: true
+        )
+        trailingAccessory(
+          rowAccessories,
+          showsAgentStatusText: false
+        )
       }
-      .frame(
-        width: TerminalSidebarLayout.tabTrailingAccessorySize,
-        height: TerminalSidebarLayout.tabTrailingAccessorySize
-      )
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func trailingAccessory(
+    _ rowAccessories: RowAccessories,
+    showsAgentStatusText: Bool
+  ) -> some View {
+    ZStack {
+      if let shortcutHint = rowAccessories.shortcutHint {
+        Text(shortcutHint)
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundStyle(
+            isSelected
+              ? palette.selectedSecondaryText
+              : palette.secondaryText
+          )
+      }
+
+      if let statusAccessory = rowAccessories.statusAccessory {
+        statusAccessoryView(
+          statusAccessory,
+          showsAgentStatusText: showsAgentStatusText
+        )
+      }
+    }
+    .frame(minWidth: TerminalSidebarLayout.tabTrailingAccessorySize)
+    .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
   }
 
   private var notificationTextColor: Color {
@@ -174,7 +193,8 @@ struct TerminalSidebarTabSummaryView: View {
 
   @ViewBuilder
   private func statusAccessoryView(
-    _ statusAccessory: StatusAccessory
+    _ statusAccessory: StatusAccessory,
+    showsAgentStatusText: Bool
   ) -> some View {
     switch statusAccessory {
     case .unreadCount(let unreadCount):
@@ -189,9 +209,9 @@ struct TerminalSidebarTabSummaryView: View {
         )
 
     case .agentActivity(let activity):
-      TerminalSidebarAgentActivityView(
+      TerminalSidebarAgentStatusView(
         activity: activity,
-        isSelected: isSelected,
+        showsText: showsAgentStatusText,
         palette: palette
       )
 
@@ -218,5 +238,88 @@ struct TerminalSidebarTabSummaryView: View {
         palette: palette
       )
     }
+  }
+}
+
+private struct TerminalSidebarTabSummaryLayout: Layout {
+  private struct Measurements {
+    let contentProposal: ProposedViewSize
+    let contentSize: CGSize
+    let accessoryProposal: ProposedViewSize
+    let accessorySize: CGSize
+    let size: CGSize
+  }
+
+  let statusTextMinimumWidth: CGFloat
+  let narrowAccessoryWidth: CGFloat
+  private let spacing: CGFloat = 6
+
+  func sizeThatFits(
+    proposal: ProposedViewSize,
+    subviews: Subviews,
+    cache: inout Void
+  ) -> CGSize {
+    measurements(
+      width: proposal.width,
+      height: proposal.height,
+      subviews: subviews
+    ).size
+  }
+
+  func placeSubviews(
+    in bounds: CGRect,
+    proposal: ProposedViewSize,
+    subviews: Subviews,
+    cache: inout Void
+  ) {
+    let measurements = measurements(
+      width: bounds.width,
+      height: proposal.height,
+      subviews: subviews
+    )
+    subviews[0].place(
+      at: CGPoint(x: bounds.minX, y: bounds.midY),
+      anchor: .leading,
+      proposal: measurements.contentProposal
+    )
+    subviews[1].place(
+      at: CGPoint(x: bounds.maxX, y: bounds.midY),
+      anchor: .trailing,
+      proposal: measurements.accessoryProposal
+    )
+  }
+
+  private func measurements(
+    width: CGFloat?,
+    height: CGFloat?,
+    subviews: Subviews
+  ) -> Measurements {
+    let accessoryProposal = ProposedViewSize(
+      width: accessoryWidth(for: width),
+      height: height
+    )
+    let accessorySize = subviews[1].sizeThatFits(accessoryProposal)
+    let contentProposal = ProposedViewSize(
+      width: width.map { max(0, $0 - spacing - accessorySize.width) },
+      height: height
+    )
+    let contentSize = subviews[0].sizeThatFits(contentProposal)
+    let measuredWidth = width ?? contentSize.width + spacing + accessorySize.width
+    return Measurements(
+      contentProposal: contentProposal,
+      contentSize: contentSize,
+      accessoryProposal: accessoryProposal,
+      accessorySize: accessorySize,
+      size: CGSize(
+        width: measuredWidth,
+        height: max(contentSize.height, accessorySize.height)
+      )
+    )
+  }
+
+  private func accessoryWidth(for width: CGFloat?) -> CGFloat? {
+    guard let width else { return nil }
+    guard width < statusTextMinimumWidth else { return nil }
+    return narrowAccessoryWidth
   }
 }

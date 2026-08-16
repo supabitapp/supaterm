@@ -222,13 +222,20 @@ extension SnapshotCatalog {
       AnyView(
         SidebarRowSnapshotFixture(
           appearance: appearance,
-          item: SidebarRowSnapshotItem(
-            id: "10000000-0000-0000-0000-000000000004",
-            title: "Socket cleanup",
-            notificationPreviewText: "Applying patch while keeping the socket route stable",
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
-            statusActivity: .codex(.running)
-          )
+          item: .agentRunning
+        )
+      )
+    },
+    scenario(
+      "agent-running-narrow",
+      group: "Sidebar Rows",
+      title: "Running coding agent, narrow",
+      size: CGSize(width: 220, height: 92)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: .agentRunning
         )
       )
     },
@@ -241,13 +248,20 @@ extension SnapshotCatalog {
       AnyView(
         SidebarRowSnapshotFixture(
           appearance: appearance,
-          item: SidebarRowSnapshotItem(
-            id: "10000000-0000-0000-0000-000000000005",
-            title: "Release note pass",
-            notificationPreviewText: "Approval needed before publishing the release note",
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/supaterm.com")],
-            statusActivity: .codex(.needsInput)
-          )
+          item: .agentNeedsInput
+        )
+      )
+    },
+    scenario(
+      "agent-needs-input-narrow",
+      group: "Sidebar Rows",
+      title: "Agent needs input, narrow",
+      size: CGSize(width: 220, height: 92)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: .agentNeedsInput
         )
       )
     },
@@ -317,6 +331,26 @@ private struct SidebarRowSnapshotItem {
   }
 
   var isSelected: Bool { selection != .none }
+
+  static var agentRunning: Self {
+    SidebarRowSnapshotItem(
+      id: "10000000-0000-0000-0000-000000000004",
+      title: "Socket cleanup",
+      notificationPreviewText: "Applying patch while keeping the socket route stable",
+      paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
+      statusActivity: .codex(.running)
+    )
+  }
+
+  static var agentNeedsInput: Self {
+    SidebarRowSnapshotItem(
+      id: "10000000-0000-0000-0000-000000000005",
+      title: "Release note pass",
+      notificationPreviewText: "Approval needed before publishing the release note",
+      paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/supaterm.com")],
+      statusActivity: .codex(.needsInput)
+    )
+  }
 }
 
 private struct SidebarRowSnapshotFixture: View {

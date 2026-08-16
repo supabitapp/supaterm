@@ -466,14 +466,11 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentActivityPresentationUsesExpectedTonesAndVisibility() {
-    #expect(TerminalHostState.AgentActivity.claude(.running).tone == .active)
+  func agentActivityPresentationUsesExpectedVisibility() {
     #expect(TerminalHostState.AgentActivity.claude(.running).showsLeadingIndicator)
 
-    #expect(TerminalHostState.AgentActivity.codex(.needsInput).tone == .attention)
     #expect(TerminalHostState.AgentActivity.codex(.needsInput).showsLeadingIndicator)
 
-    #expect(TerminalHostState.AgentActivity.claude(.idle).tone == .muted)
     #expect(!TerminalHostState.AgentActivity.claude(.idle).showsLeadingIndicator)
   }
 

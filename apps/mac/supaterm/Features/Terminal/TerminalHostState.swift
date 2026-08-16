@@ -138,12 +138,6 @@ final class TerminalHostState {
     let text: String
   }
 
-  enum AgentActivityTone: Equatable, Sendable {
-    case attention
-    case active
-    case muted
-  }
-
   struct AgentActivity: Equatable, Sendable {
     let identity: AgentDetectionAgentIdentity
     let phase: AgentActivityPhase
@@ -183,17 +177,6 @@ final class TerminalHostState {
       detail: String? = nil
     ) -> Self {
       AgentActivity(agent: .codex, phase: phase, detail: detail)
-    }
-
-    var tone: AgentActivityTone {
-      switch phase {
-      case .needsInput:
-        return .attention
-      case .running:
-        return .active
-      case .idle:
-        return .muted
-      }
     }
 
     var showsLeadingIndicator: Bool {
