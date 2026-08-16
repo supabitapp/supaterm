@@ -20,7 +20,7 @@ struct TerminalCommandPaletteOverlay: View {
 
   var body: some View {
     GeometryReader { geometry in
-      let width = min(334, max(280, geometry.size.width - 32))
+      let width = min(600, max(280, geometry.size.width - 32))
 
       ZStack {
         SearchPanelSurface(
