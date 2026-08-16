@@ -11,7 +11,7 @@ If these files do not exist, proceed without raising their absence. Domain model
 
 ## File structure
 
-This repo uses one domain context:
+This repo uses one domain contex:
 
 ```
 /
@@ -26,7 +26,3 @@ This repo uses one domain context:
 When output names a domain concept, use the term defined in `CONTEXT.md`. Do not replace it with a synonym that the glossary rejects.
 
 If the glossary lacks the concept, check whether the code already uses another term. If not, note the gap for domain modeling.
-
-## Flag ADR conflicts
-
-If output conflicts with an ADR, name the ADR and explain the conflict.
