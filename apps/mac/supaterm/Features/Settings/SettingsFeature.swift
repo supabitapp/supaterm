@@ -270,7 +270,7 @@ public struct SettingsFeature {
       case .task:
         state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
         SupatermLog.setVerboseLoggingEnabled(state.verboseLoggingEnabled)
-        return loadSettings()
+        return startTasks()
 
       case .updateClientSnapshotReceived(let snapshot):
         state.about.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
@@ -364,15 +364,17 @@ public struct SettingsFeature {
         .agentIntegrationToggleFinished:
         return reduceCodingAgents(&state, action: action)
 
+      case .terminalSettingsApplyResponse,
+        .terminalSettingsLoadRequested,
+        .terminalSettingsLoadResponse:
+        return reduceTerminalLoading(&state, action: action)
+
       case .terminalConfirmCloseSurfaceSelected,
         .terminalDarkThemeSelected,
         .terminalFontFamilySelected,
         .terminalFontSizeChanged,
-        .terminalLightThemeSelected,
-        .terminalSettingsApplyResponse,
-        .terminalSettingsLoadRequested,
-        .terminalSettingsLoadResponse:
-        return reduceTerminal(&state, action: action)
+        .terminalLightThemeSelected:
+        return reduceTerminalControls(&state, action: action)
 
       case .checkForUpdatesButtonTapped,
         .updateChannelSelected,
@@ -383,8 +385,8 @@ public struct SettingsFeature {
     }
   }
 
-  func loadSettings() -> Effect<Action> {
-    return .merge(
+  func startTasks() -> Effect<Action> {
+    .merge(
       .send(.terminalSettingsLoadRequested),
       .send(.agentIntegrationStatusRefreshRequested(.claude)),
       .send(.agentIntegrationStatusRefreshRequested(.codex)),

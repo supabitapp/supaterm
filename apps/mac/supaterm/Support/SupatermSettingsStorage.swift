@@ -4,7 +4,7 @@ import SupatermCLIShared
 
 extension SharedKey where Self == FileStorageKey<SupatermSettings>.Default {
   public static var supatermSettings: Self {
-    return Self[
+    Self[
       .fileStorage(
         SupatermStateRoot.settingsFileURL(),
         decode: SupatermSettingsCodec.decode,

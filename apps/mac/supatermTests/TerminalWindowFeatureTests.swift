@@ -1451,11 +1451,7 @@ private func makeEventStream() -> (
   AsyncStream<TerminalClient.Event>,
   AsyncStream<TerminalClient.Event>.Continuation
 ) {
-  var capturedContinuation: AsyncStream<TerminalClient.Event>.Continuation?
-  let stream = AsyncStream<TerminalClient.Event> { continuation in
-    capturedContinuation = continuation
-  }
-  return (stream, capturedContinuation!)
+  AsyncStream.makeStream(of: TerminalClient.Event.self)
 }
 
 private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {

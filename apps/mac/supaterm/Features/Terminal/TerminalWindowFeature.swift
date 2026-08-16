@@ -682,10 +682,7 @@ struct TerminalWindowFeature {
           fields: ["target=\(windowCloseConfirmationTargetLabel(confirmation.target))"]
         )
         state.destination = nil
-        switch confirmation.target {
-        case .closeWindow, .closeAllWindows:
-          return .none
-        }
+        return .none
 
       case .confirmationConfirmButtonTapped:
         guard let confirmation = state.windowCloseConfirmation else { return .none }

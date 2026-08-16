@@ -172,9 +172,5 @@ nonisolated func makeSettingsStream() -> (
   AsyncStream<UpdateClient.Snapshot>,
   AsyncStream<UpdateClient.Snapshot>.Continuation
 ) {
-  var capturedContinuation: AsyncStream<UpdateClient.Snapshot>.Continuation?
-  let stream = AsyncStream<UpdateClient.Snapshot> { continuation in
-    capturedContinuation = continuation
-  }
-  return (stream, capturedContinuation!)
+  AsyncStream.makeStream(of: UpdateClient.Snapshot.self)
 }

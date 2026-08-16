@@ -14,16 +14,8 @@ extension SettingsFeature {
     case .agentIntegrationToggled(let agent, let isEnabled):
       return toggleAgentIntegration(&state, agent: agent, isEnabled: isEnabled)
 
-    case .agentIntegrationToggleFinished(let agent, .success(let health)):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      guard case .settingEnabled = state[keyPath: keyPath].operation else { return .none }
-      state[keyPath: keyPath].errorMessage = nil
-      state[keyPath: keyPath].health = health
-      state[keyPath: keyPath].operation = .idle
-      return .none
-
-    case .agentIntegrationToggleFinished(let agent, .failure(let message)):
-      return handleAgentIntegrationToggleFailure(&state, agent: agent, message: message)
+    case .agentIntegrationToggleFinished(let agent, let result):
+      return handleAgentIntegrationToggleFinished(&state, agent: agent, result: result)
 
     default:
       return .none
@@ -100,19 +92,25 @@ extension SettingsFeature {
     .cancellable(id: SettingsFeatureCancelID.agentIntegration(agent.rawValue), cancelInFlight: true)
   }
 
-  func handleAgentIntegrationToggleFailure(
+  func handleAgentIntegrationToggleFinished(
     _ state: inout State,
     agent: SupatermAgentKind,
-    message: String
+    result: SettingsAgentIntegrationResult
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
-    guard case .settingEnabled(let isInstallFailure) = state[keyPath: keyPath].operation else {
+    guard case .settingEnabled(let wasEnabling) = state[keyPath: keyPath].operation else {
       return .none
     }
-    state[keyPath: keyPath].errorMessage = message
     state[keyPath: keyPath].operation = .idle
-    if isInstallFailure {
-      state.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: agent, log: message)
+    switch result {
+    case .success(let health):
+      state[keyPath: keyPath].errorMessage = nil
+      state[keyPath: keyPath].health = health
+    case .failure(let message):
+      state[keyPath: keyPath].errorMessage = message
+      if wasEnabling {
+        state.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: agent, log: message)
+      }
     }
     return .none
   }
@@ -189,5 +187,4 @@ extension SettingsFeature {
       }
     }
   }
-
 }

@@ -2,25 +2,6 @@ import ComposableArchitecture
 import Foundation
 
 extension SettingsFeature {
-  func reduceTerminal(_ state: inout State, action: Action) -> Effect<Action> {
-    switch action {
-    case .terminalSettingsLoadRequested,
-      .terminalSettingsLoadResponse,
-      .terminalSettingsApplyResponse:
-      return reduceTerminalLoading(&state, action: action)
-
-    case .terminalLightThemeSelected,
-      .terminalDarkThemeSelected,
-      .terminalFontFamilySelected,
-      .terminalFontSizeChanged,
-      .terminalConfirmCloseSurfaceSelected:
-      return reduceTerminalControls(&state, action: action)
-
-    default:
-      return .none
-    }
-  }
-
   func reduceTerminalLoading(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .terminalSettingsLoadRequested:
@@ -46,12 +27,12 @@ extension SettingsFeature {
 
     case .terminalSettingsLoadResponse(.success(let snapshot)):
       guard state.terminal.operation == .loading else { return .none }
-      updateTerminalState(&state.terminal, with: snapshot)
+      state.terminal = SettingsTerminalState(snapshot: snapshot)
       return .none
 
     case .terminalSettingsApplyResponse(.success(let values)):
       guard state.terminal.operation == .applying else { return .none }
-      updateTerminalState(&state.terminal, with: values)
+      state.terminal.apply(values)
       return .none
 
     case .terminalSettingsLoadResponse(.failure(let error)):
@@ -72,9 +53,9 @@ extension SettingsFeature {
   }
 
   func reduceTerminalControls(_ state: inout State, action: Action) -> Effect<Action> {
-    guard prepareTerminalSettingsApply(&state.terminal) else {
-      return .none
-    }
+    guard !state.terminal.isBusy else { return .none }
+    state.terminal.errorMessage = nil
+    state.terminal.operation = .applying
 
     switch action {
     case .terminalLightThemeSelected(let lightTheme):
@@ -105,37 +86,6 @@ extension SettingsFeature {
     return applyTerminalSettings(state.terminal.settingsDraft)
   }
 
-  func updateTerminalState(
-    _ state: inout SettingsTerminalState,
-    with snapshot: GhosttyTerminalSettingsSnapshot
-  ) {
-    state = SettingsTerminalState(snapshot: snapshot)
-  }
-
-  func updateTerminalState(
-    _ state: inout SettingsTerminalState,
-    with values: GhosttyTerminalSettingsValues
-  ) {
-    state.confirmCloseSurface = values.confirmCloseSurface
-    state.configPath = values.configPath
-    state.darkTheme = values.darkTheme
-    state.errorMessage = nil
-    state.fontFamily = values.fontFamily
-    state.fontSize = values.fontSize
-    state.lightTheme = values.lightTheme
-    state.operation = .idle
-    state.warningMessage = values.warningMessage
-  }
-
-  func prepareTerminalSettingsApply(_ state: inout SettingsTerminalState) -> Bool {
-    guard !state.isBusy else {
-      return false
-    }
-    state.errorMessage = nil
-    state.operation = .applying
-    return true
-  }
-
   func applyTerminalSettings(_ settings: GhosttyTerminalSettingsDraft) -> Effect<Action> {
     .run { [ghosttyTerminalSettingsClient] send in
       do {
@@ -157,6 +107,18 @@ extension SettingsFeature {
 }
 
 extension SettingsTerminalState {
+  mutating func apply(_ values: GhosttyTerminalSettingsValues) {
+    confirmCloseSurface = values.confirmCloseSurface
+    configPath = values.configPath
+    darkTheme = values.darkTheme
+    errorMessage = nil
+    fontFamily = values.fontFamily
+    fontSize = values.fontSize
+    lightTheme = values.lightTheme
+    operation = .idle
+    warningMessage = values.warningMessage
+  }
+
   init(
     snapshot: GhosttyTerminalSettingsSnapshot,
     errorMessage: String? = nil

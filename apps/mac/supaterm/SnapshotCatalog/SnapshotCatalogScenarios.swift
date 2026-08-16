@@ -729,7 +729,9 @@ private struct SettingsSnapshotFixture: View {
         agent: .codex,
         log: message
       )
-    default:
+    case .aboutUpdate:
+      state.about.updatesAutomaticallyDownloadUpdates = false
+    case .standard:
       break
     }
 
@@ -756,38 +758,7 @@ private struct SettingsSnapshotFixture: View {
       $0.updateClient = .testValue
     }
 
-    apply(variant: variant, to: store)
     return store
-  }
-
-  private static func apply(
-    variant: SettingsSnapshotVariant,
-    to store: StoreOf<SettingsFeature>
-  ) {
-    switch variant {
-    case .standard, .terminalLoaded, .terminalWarning, .terminalError:
-      break
-    case .codingAgentsEnabled, .codingAgentsUnavailable, .codingAgentsInstallFailure:
-      break
-    case .aboutUpdate:
-      _ = store.send(
-        .updateClientSnapshotReceived(
-          UpdateClient.Snapshot(
-            automaticallyChecksForUpdates: true,
-            automaticallyDownloadsUpdates: false,
-            canCheckForUpdates: true,
-            phase: .updateAvailable(
-              UpdatePhase.Available(
-                buildVersion: "260100",
-                contentLength: 82_300_000,
-                releaseDate: Date(timeIntervalSince1970: 1_785_888_000),
-                version: "26.1.0"
-              )
-            )
-          )
-        )
-      )
-    }
   }
 
   private static func terminalSettingsSnapshot(

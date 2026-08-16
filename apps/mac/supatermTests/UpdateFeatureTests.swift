@@ -73,7 +73,7 @@ struct UpdateFeatureTests {
 
   @Test
   func taskMirrorsUpdateClientSnapshotsIntoState() async {
-    let (stream, continuation) = makeStream()
+    let (stream, continuation) = AsyncStream.makeStream(of: UpdateClient.Snapshot.self)
 
     let store = TestStore(initialState: UpdateFeature.State()) {
       UpdateFeature()
@@ -218,15 +218,4 @@ private actor UpdateActionRecorder {
   func record(_ action: UpdateUserAction) {
     recordedActions.append(action)
   }
-}
-
-private func makeStream() -> (
-  AsyncStream<UpdateClient.Snapshot>,
-  AsyncStream<UpdateClient.Snapshot>.Continuation
-) {
-  var capturedContinuation: AsyncStream<UpdateClient.Snapshot>.Continuation?
-  let stream = AsyncStream<UpdateClient.Snapshot> { continuation in
-    capturedContinuation = continuation
-  }
-  return (stream, capturedContinuation!)
 }
