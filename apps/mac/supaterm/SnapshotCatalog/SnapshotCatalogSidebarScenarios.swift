@@ -359,7 +359,7 @@ private struct SidebarRowSnapshotItem {
   static var agentRunning: Self {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000004",
-      title: "Socket cleanup",
+      title: "khoi/routine-ui-what-happened | Thinking | Tasks 5/5",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
       agentStatus: .working
     )

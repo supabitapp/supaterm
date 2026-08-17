@@ -150,6 +150,7 @@ struct TerminalSidebarTabSummaryView: View {
         rowAccessories,
         showsAgentStatusText: showsAgentStatusText
       )
+      .layoutPriority(1)
     }
   }
 
