@@ -188,7 +188,6 @@ struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
-  let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
@@ -214,7 +213,6 @@ enum TerminalSidebarRowPresentation: Equatable {
       let fields = [
         presentation.tab.id.rawValue.uuidString,
         presentation.tab.title,
-        presentation.notificationPresentation?.previewText ?? "",
         presentation.paneWorkingDirectories.joined(separator: "|"),
       ]
       return AnyHashable(
@@ -324,7 +322,6 @@ struct TerminalSidebarHostedRow: View {
         renameState: context.renameState,
         selectionState: context.tabSelectionState,
         outline: context.outline,
-        notificationPresentation: presentation.notificationPresentation,
         paneWorkingDirectories: presentation.paneWorkingDirectories,
         unreadCount: presentation.unreadCount,
         terminalProgress: presentation.terminalProgress,

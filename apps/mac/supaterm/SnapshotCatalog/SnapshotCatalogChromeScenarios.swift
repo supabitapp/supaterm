@@ -157,6 +157,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "overlayShadow", color: palette.overlayShadow),
       TokenSwatch(name: "divider", color: palette.divider),
       TokenSwatch(name: "accent", color: palette.accent),
+      TokenSwatch(name: "working", color: palette.working),
       TokenSwatch(name: "warning", color: palette.warning),
       TokenSwatch(name: "success", color: palette.success),
       TokenSwatch(name: "danger", color: palette.danger),

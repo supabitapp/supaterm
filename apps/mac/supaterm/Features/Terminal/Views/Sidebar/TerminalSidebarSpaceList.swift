@@ -167,7 +167,6 @@ struct TerminalSidebarSpaceList: View {
       tab: tab,
       groupID: groupID,
       rootIsPinned: rootIsPinned,
-      notificationPresentation: terminal.latestSidebarNotificationPresentation(for: tab.id),
       paneWorkingDirectories: terminal.paneWorkingDirectories(for: tab.id),
       unreadCount: terminal.unreadNotificationCount(for: tab.id),
       terminalProgress: terminal.sidebarTerminalProgress(for: tab.id),

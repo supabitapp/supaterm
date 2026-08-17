@@ -50,7 +50,6 @@ struct TerminalSidebarTabRow: View {
   private struct AnimatedPresentation: Equatable {
     let agentStatus: TerminalHostState.TabAgentStatus?
     let hasTerminalBell: Bool
-    let notificationPreviewText: String?
     let paneWorkingDirectories: [String]
     let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
@@ -58,7 +57,6 @@ struct TerminalSidebarTabRow: View {
     static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.agentStatus == rhs.agentStatus
         && lhs.hasTerminalBell == rhs.hasTerminalBell
-        && lhs.notificationPreviewText == rhs.notificationPreviewText
         && lhs.paneWorkingDirectories == rhs.paneWorkingDirectories
         && lhs.terminalProgress == rhs.terminalProgress
         && lhs.unreadCount == rhs.unreadCount
@@ -73,7 +71,6 @@ struct TerminalSidebarTabRow: View {
   let renameState: TerminalSidebarRenameState?
   let selectionState: TerminalSidebarTabSelectionState
   let outline: TerminalSidebarOutline
-  let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
@@ -167,7 +164,6 @@ struct TerminalSidebarTabRow: View {
       palette: palette,
       isSelected: isSelected,
       isPinned: groupID == nil && rootIsPinned,
-      notificationPreviewText: notificationPresentation?.previewText,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       agentStatus: agentPresentation.status,
@@ -218,7 +214,7 @@ struct TerminalSidebarTabRow: View {
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
-    .overlay(alignment: .trailing) {
+    .overlay(alignment: .topTrailing) {
       let closeButtonPresentation = Self.closeButtonPresentation(
         isHovering: isHovering,
         showsShortcutHint: showsShortcutHint
@@ -243,6 +239,7 @@ struct TerminalSidebarTabRow: View {
         .buttonStyle(.plain)
         .help("Close")
         .accessibilityLabel("Close")
+        .padding(.top, TerminalSidebarLayout.tabRowVerticalPadding)
         .padding(.trailing, TerminalSidebarLayout.rowHorizontalPadding)
         .onHover { isCloseHovering = $0 }
       }
@@ -386,7 +383,6 @@ struct TerminalSidebarTabRow: View {
     AnimatedPresentation(
       agentStatus: agentPresentation.status,
       hasTerminalBell: hasTerminalBell,
-      notificationPreviewText: notificationPresentation?.previewText,
       paneWorkingDirectories: paneWorkingDirectories,
       terminalProgress: terminalProgress,
       unreadCount: unreadCount

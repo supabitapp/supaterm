@@ -117,8 +117,8 @@ struct TerminalSidebarAgentStatusView: View {
     case .working:
       TerminalProgressRingIndicatorView(
         fraction: nil,
-        color: palette.accent,
-        trackColor: palette.accent.opacity(0.2),
+        color: palette.working,
+        trackColor: palette.working.opacity(0.2),
         diameter: 10
       )
 
@@ -157,7 +157,7 @@ struct TerminalSidebarAgentStatusView: View {
     case .needsInput:
       palette.warning
     case .working:
-      palette.accent
+      palette.working
     case .done:
       palette.success
     }

@@ -2,31 +2,16 @@ import SupaTheme
 import SwiftUI
 
 struct TerminalAgentRunningSpinnerView: View {
-  let isSelected: Bool
   let palette: Palette
   var diameter: CGFloat = 14
 
   var body: some View {
     TerminalProgressRingIndicatorView(
       fraction: nil,
-      color: color,
-      trackColor: trackColor,
+      color: palette.working,
+      trackColor: palette.working.opacity(0.2),
       diameter: diameter
     )
-  }
-
-  private var color: Color {
-    if isSelected {
-      return palette.selectedText.opacity(0.56)
-    }
-    return palette.secondaryText.opacity(0.72)
-  }
-
-  private var trackColor: Color {
-    if isSelected {
-      return palette.selectedText.opacity(0.18)
-    }
-    return palette.secondaryText.opacity(0.22)
   }
 }
 

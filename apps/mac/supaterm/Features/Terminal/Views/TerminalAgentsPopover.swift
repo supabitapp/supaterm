@@ -273,7 +273,7 @@ private struct TerminalAgentsPopoverRow: View {
         .foregroundStyle(palette.warning)
         .accessibilityHidden(true)
     case .running:
-      TerminalAgentRunningSpinnerView(isSelected: false, palette: palette, diameter: 11)
+      TerminalAgentRunningSpinnerView(palette: palette, diameter: 11)
         .accessibilityHidden(true)
     }
   }

@@ -19,6 +19,7 @@ public struct Palette {
   public let backgroundBottomValue: ThemeColor
   public let agentPanelBackgroundValue: ThemeColor
   public let accentValue: ThemeColor
+  public let workingValue: ThemeColor
   public let warningValue: ThemeColor
   public let successValue: ThemeColor
   public let dangerValue: ThemeColor
@@ -136,6 +137,7 @@ public struct Palette {
   public var overlayShadow: Color { Color.black.opacity(0.25) }
   public var divider: Color { Color.white.opacity(0.3) }
   public var accent: Color { accentValue.color }
+  public var working: Color { workingValue.color }
   public var warning: Color { warningValue.color }
   public var success: Color { successValue.color }
   public var danger: Color { dangerValue.color }
@@ -217,6 +219,7 @@ public struct Palette {
     ]
     let accentAnchor = tint == .neutral ? referencePalette.blue.color(for: colorScheme) : tintColor
     let accentValue = Self.semantic(accentAnchor, backgrounds: semanticBackgrounds)
+    let workingValue = Self.semantic(referencePalette.blue.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let warningValue = Self.semantic(referencePalette.gold.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let successValue = Self.semantic(referencePalette.green.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let dangerValue = Self.semantic(referencePalette.rose.color(for: colorScheme), backgrounds: semanticBackgrounds)
@@ -241,6 +244,7 @@ public struct Palette {
     self.detailBackgroundValue = detailBackgroundValue
     self.agentPanelBackgroundValue = agentPanelBackgroundValue
     self.accentValue = accentValue
+    self.workingValue = workingValue
     self.warningValue = warningValue
     self.successValue = successValue
     self.dangerValue = dangerValue

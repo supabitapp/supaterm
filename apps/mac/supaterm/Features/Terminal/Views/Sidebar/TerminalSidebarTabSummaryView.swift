@@ -14,7 +14,6 @@ struct TerminalSidebarTabSummaryView: View {
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
-  let notificationPreviewText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentStatus: TerminalHostState.TabAgentStatus?
@@ -101,52 +100,51 @@ struct TerminalSidebarTabSummaryView: View {
       )
     )
 
-    TerminalSidebarTabSummaryLayout(
-      statusTextMinimumWidth: TerminalSidebarLayout.tabAgentStatusTextMinimumWidth,
-      narrowAccessoryWidth: TerminalSidebarLayout.tabTrailingAccessorySize
-    ) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(tab.title)
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(isSelected ? palette.selectedText : palette.selectableRow.title)
-          .lineLimit(1)
-          .truncationMode(Self.titleTruncationMode(tab.title))
-          .frame(maxWidth: .infinity, alignment: .leading)
-
-        if let notificationPreviewText {
-          Text(notificationPreviewText)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(notificationTextColor)
-            .allowsHitTesting(false)
-            .lineLimit(2)
-            .truncationMode(.tail)
-            .multilineTextAlignment(.leading)
-        }
-
-        ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
-          Text(workingDirectory)
-            .font(.system(size: 11, weight: .regular, design: .monospaced))
-            .foregroundStyle(
-              isSelected
-                ? palette.selectedSecondaryText
-                : palette.secondaryText
-            )
-            .lineLimit(1)
-            .truncationMode(.middle)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-
+    VStack(alignment: .leading, spacing: 2) {
       ViewThatFits(in: .horizontal) {
-        trailingAccessory(
+        header(
           rowAccessories,
           showsAgentStatusText: true
         )
-        trailingAccessory(
+        .frame(minWidth: TerminalSidebarLayout.tabAgentStatusTextMinimumWidth)
+        header(
           rowAccessories,
           showsAgentStatusText: false
         )
       }
+
+      ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
+        Text(workingDirectory)
+          .font(.system(size: 11, weight: .regular, design: .monospaced))
+          .foregroundStyle(
+            isSelected
+              ? palette.selectedSecondaryText
+              : palette.secondaryText
+          )
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func header(
+    _ rowAccessories: RowAccessories,
+    showsAgentStatusText: Bool
+  ) -> some View {
+    HStack(spacing: 6) {
+      Text(tab.title)
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(isSelected ? palette.selectedText : palette.selectableRow.title)
+        .lineLimit(1)
+        .truncationMode(Self.titleTruncationMode(tab.title))
+        .frame(maxWidth: .infinity, minHeight: TerminalSidebarLayout.tabTrailingAccessorySize, alignment: .leading)
+
+      trailingAccessory(
+        rowAccessories,
+        showsAgentStatusText: showsAgentStatusText
+      )
     }
   }
 
@@ -174,12 +172,6 @@ struct TerminalSidebarTabSummaryView: View {
     }
     .frame(minWidth: TerminalSidebarLayout.tabTrailingAccessorySize)
     .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
-  }
-
-  private var notificationTextColor: Color {
-    isSelected
-      ? palette.selectedText.opacity(0.82)
-      : palette.secondaryText
   }
 
   @ViewBuilder
@@ -229,84 +221,5 @@ struct TerminalSidebarTabSummaryView: View {
         palette: palette
       )
     }
-  }
-}
-
-private struct TerminalSidebarTabSummaryLayout: Layout {
-  private struct Measurements {
-    let contentProposal: ProposedViewSize
-    let accessoryProposal: ProposedViewSize
-    let size: CGSize
-  }
-
-  let statusTextMinimumWidth: CGFloat
-  let narrowAccessoryWidth: CGFloat
-  private let spacing: CGFloat = 6
-
-  func sizeThatFits(
-    proposal: ProposedViewSize,
-    subviews: Subviews,
-    cache: inout Void
-  ) -> CGSize {
-    measurements(
-      width: proposal.width,
-      height: proposal.height,
-      subviews: subviews
-    ).size
-  }
-
-  func placeSubviews(
-    in bounds: CGRect,
-    proposal: ProposedViewSize,
-    subviews: Subviews,
-    cache: inout Void
-  ) {
-    let measurements = measurements(
-      width: bounds.width,
-      height: proposal.height,
-      subviews: subviews
-    )
-    subviews[0].place(
-      at: CGPoint(x: bounds.minX, y: bounds.midY),
-      anchor: .leading,
-      proposal: measurements.contentProposal
-    )
-    subviews[1].place(
-      at: CGPoint(x: bounds.maxX, y: bounds.midY),
-      anchor: .trailing,
-      proposal: measurements.accessoryProposal
-    )
-  }
-
-  private func measurements(
-    width: CGFloat?,
-    height: CGFloat?,
-    subviews: Subviews
-  ) -> Measurements {
-    let accessoryProposal = ProposedViewSize(
-      width: accessoryWidth(for: width),
-      height: height
-    )
-    let accessorySize = subviews[1].sizeThatFits(accessoryProposal)
-    let contentProposal = ProposedViewSize(
-      width: width.map { max(0, $0 - spacing - accessorySize.width) },
-      height: height
-    )
-    let contentSize = subviews[0].sizeThatFits(contentProposal)
-    let measuredWidth = width ?? contentSize.width + spacing + accessorySize.width
-    return Measurements(
-      contentProposal: contentProposal,
-      accessoryProposal: accessoryProposal,
-      size: CGSize(
-        width: measuredWidth,
-        height: max(contentSize.height, accessorySize.height)
-      )
-    )
-  }
-
-  private func accessoryWidth(for width: CGFloat?) -> CGFloat? {
-    guard let width else { return nil }
-    guard width < statusTextMinimumWidth else { return nil }
-    return narrowAccessoryWidth
   }
 }

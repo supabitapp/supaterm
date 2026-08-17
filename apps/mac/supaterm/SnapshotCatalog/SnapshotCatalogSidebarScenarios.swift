@@ -194,7 +194,7 @@ extension SnapshotCatalog {
     scenario(
       "unread-text",
       group: "Sidebar Rows",
-      title: "Unread text preview",
+      title: "Unread count",
       size: CGSize(width: 320, height: 94)
     ) { appearance in
       AnyView(
@@ -203,7 +203,6 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000003",
             title: "Build failures",
-            notificationPreviewText: "2 failures in TerminalSidebarChromeViewTests after snapshot pass",
             paneWorkingDirectories: [
               SnapshotFixtureValues.workspace("apps/mac"),
               SnapshotFixtureValues.workspace("apps/mac/supatermTests"),
@@ -217,7 +216,7 @@ extension SnapshotCatalog {
       "agent-running",
       group: "Sidebar Rows",
       title: "Running coding agent",
-      size: CGSize(width: 320, height: 92)
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -230,7 +229,7 @@ extension SnapshotCatalog {
       "agent-running-narrow",
       group: "Sidebar Rows",
       title: "Running coding agent, narrow",
-      size: CGSize(width: 220, height: 92)
+      size: CGSize(width: 220, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -243,7 +242,7 @@ extension SnapshotCatalog {
       "agent-needs-input",
       group: "Sidebar Rows",
       title: "Agent needs input",
-      size: CGSize(width: 320, height: 92)
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -256,7 +255,7 @@ extension SnapshotCatalog {
       "agent-needs-input-narrow",
       group: "Sidebar Rows",
       title: "Agent needs input, narrow",
-      size: CGSize(width: 220, height: 92)
+      size: CGSize(width: 220, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -269,7 +268,7 @@ extension SnapshotCatalog {
       "agent-done",
       group: "Sidebar Rows",
       title: "Agent done",
-      size: CGSize(width: 320, height: 92)
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -282,7 +281,7 @@ extension SnapshotCatalog {
       "agent-done-narrow",
       group: "Sidebar Rows",
       title: "Agent done, narrow",
-      size: CGSize(width: 220, height: 92)
+      size: CGSize(width: 220, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -340,7 +339,6 @@ private struct SidebarRowSnapshotItem {
   var isPinned = false
   var isRowHovering = false
   var isPressed = false
-  var notificationPreviewText: String?
   var paneWorkingDirectories: [String] = []
   var unreadCount = 0
   var agentStatus: TerminalHostState.TabAgentStatus?
@@ -362,7 +360,6 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000004",
       title: "Socket cleanup",
-      notificationPreviewText: "Applying patch while keeping the socket route stable",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
       agentStatus: .working
     )
@@ -372,7 +369,6 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000005",
       title: "Release note pass",
-      notificationPreviewText: "Approval needed before publishing the release note",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/supaterm.com")],
       agentStatus: .needsInput
     )
@@ -382,7 +378,6 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000006",
       title: "Docs audit",
-      notificationPreviewText: "Review complete: no further changes needed",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("docs")],
       agentStatus: .done
     )
@@ -404,7 +399,6 @@ private struct SidebarRowSnapshotFixture: View {
       palette: palette,
       isSelected: item.isSelected,
       isPinned: item.isPinned,
-      notificationPreviewText: item.notificationPreviewText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       agentStatus: item.agentStatus,

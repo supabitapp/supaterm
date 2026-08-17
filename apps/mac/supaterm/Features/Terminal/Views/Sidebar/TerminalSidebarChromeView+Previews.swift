@@ -22,7 +22,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let scenario: String
   let title: String
   let isSelected: Bool
-  let notificationPreviewText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentStatus: TerminalHostState.TabAgentStatus?
@@ -46,7 +45,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       stateLabel,
       isSelected ? "Selected" : nil,
       paneCountLabel,
-      notificationPreviewText == nil ? nil : "Message",
     ]
     .compactMap { $0 }
 
@@ -94,7 +92,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     title: String,
     id: String,
     isSelected: Bool = false,
-    notificationPreviewText: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
     agentStatus: TerminalHostState.TabAgentStatus? = nil,
@@ -107,7 +104,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.scenario = scenario
     self.title = title
     self.isSelected = isSelected
-    self.notificationPreviewText = notificationPreviewText
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
     self.agentStatus = agentStatus
@@ -179,7 +175,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Running agent inside a split coding tab",
       title: "Socket cleanup",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05",
-      notificationPreviewText: "Applying patch to socket notification routing while watching stale pane sockets",
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
         cwd("docs")
@@ -191,7 +186,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Agent is waiting for input",
       title: "Release note pass",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06",
-      notificationPreviewText: "Need approval before publishing the release notes",
       paneWorkingDirectories: cwdList(
         cwd("apps", "supaterm.com"),
         cwd("docs")
@@ -203,7 +197,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Agent finished in a background tab",
       title: "Docs audit",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
-      notificationPreviewText: "Review complete: no further changes needed",
       paneWorkingDirectories: cwdList(cwd("docs")),
       agentStatus: .done
     ),
@@ -231,10 +224,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Single unread pane",
       title: "Deploy smoke test",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
-      notificationPreviewText: [
-        "Local preview server is ready with a deliberately long line",
-        "that truncates at the end",
-      ].joined(separator: " "),
       paneWorkingDirectories: cwdList(
         cwd("apps", "supaterm.com"),
         cwd("docs")
@@ -246,7 +235,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Unread count overrides agent attention",
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
-      notificationPreviewText: "2 failures in TerminalSidebarChromeViewTests",
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
         cwd("apps", "mac", "supatermTests")
@@ -277,7 +265,6 @@ private struct TerminalSidebarTabPreviewRow: View {
       palette: palette,
       isSelected: item.isSelected,
       isPinned: false,
-      notificationPreviewText: item.notificationPreviewText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       agentStatus: item.agentStatus,

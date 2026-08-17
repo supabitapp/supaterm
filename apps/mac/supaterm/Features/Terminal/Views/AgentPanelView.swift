@@ -743,7 +743,7 @@ private struct AgentPanelProgressIcon: View {
       case .pending:
         image("circle", color: palette.secondaryText)
       case .running:
-        TerminalAgentRunningSpinnerView(isSelected: false, palette: palette, diameter: 11)
+        TerminalAgentRunningSpinnerView(palette: palette, diameter: 11)
       case .completed:
         image("checkmark.circle.fill", color: palette.success)
       }

@@ -224,6 +224,19 @@ struct ChromePaletteTests {
     }
   }
 
+  @Test func workingTokenKeepsTheReferenceBlueHueAcrossSpaceTints() {
+    for colorScheme in [ColorScheme.light, ColorScheme.dark] {
+      let anchor = ColorMath.oklch(from: ReferencePalette.default.blue.color(for: colorScheme))
+      for tint in ThemeTint.allCases {
+        let working = ColorMath.oklch(from: Palette(colorScheme: colorScheme, tint: tint).workingValue)
+        #expect(
+          hueDelta(working, anchor) < 0.01,
+          "working-\(colorScheme)-\(tint.rawValue): \(hueDelta(working, anchor))"
+        )
+      }
+    }
+  }
+
   @Test func tintedSemanticTokensMeetContrastOnChromeSurfaces() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
       for tint in ThemeTint.allCases {
@@ -234,6 +247,7 @@ struct ChromePaletteTests {
           palette.backgroundBottomValue,
         ] {
           expectContrast(palette.accentValue, background, minimum: 4.5, token: "accent-\(tint.rawValue)")
+          expectContrast(palette.workingValue, background, minimum: 4.5, token: "working-\(tint.rawValue)")
           expectContrast(palette.warningValue, background, minimum: 4.5, token: "warning-\(tint.rawValue)")
           expectContrast(palette.successValue, background, minimum: 4.5, token: "success-\(tint.rawValue)")
           expectContrast(palette.dangerValue, background, minimum: 4.5, token: "danger-\(tint.rawValue)")
@@ -253,6 +267,7 @@ struct ChromePaletteTests {
         palette.backgroundBottomValue,
       ] {
         expectContrast(palette.accentValue, background, minimum: 4.5, token: "accent")
+        expectContrast(palette.workingValue, background, minimum: 4.5, token: "working")
         expectContrast(palette.warningValue, background, minimum: 4.5, token: "warning")
         expectContrast(palette.successValue, background, minimum: 4.5, token: "success")
         expectContrast(palette.dangerValue, background, minimum: 4.5, token: "danger")

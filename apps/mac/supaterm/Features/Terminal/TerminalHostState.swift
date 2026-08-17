@@ -80,10 +80,6 @@ final class TerminalHostState {
     }
   }
 
-  struct SidebarNotificationPresentation: Equatable, Sendable {
-    let previewText: String
-  }
-
   struct PaneNotification: Equatable, Sendable {
     var attentionState: SupatermNotificationAttentionState?
     var body: String
