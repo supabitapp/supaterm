@@ -86,6 +86,7 @@ struct TerminalSidebarAgentStatusView: View {
       if showsText {
         Text(label)
           .font(.system(size: 10, weight: .semibold))
+          .terminalTransition(.opacity, reduceMotion: reduceMotion)
       }
     }
     .foregroundStyle(color)

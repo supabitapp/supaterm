@@ -23,6 +23,8 @@ struct TerminalSidebarTabSummaryView: View {
   let showsShortcutHint: Bool
   let isRowHovering: Bool
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   static func statusAccessory(
     isPinned: Bool,
     unreadCount: Int,
@@ -101,17 +103,20 @@ struct TerminalSidebarTabSummaryView: View {
     )
 
     VStack(alignment: .leading, spacing: 2) {
-      ViewThatFits(in: .horizontal) {
+      GeometryReader { geometry in
+        let showsAgentStatusText =
+          geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
         header(
           rowAccessories,
-          showsAgentStatusText: true
+          showsAgentStatusText: showsAgentStatusText
         )
-        .frame(minWidth: TerminalSidebarLayout.tabAgentStatusTextMinimumWidth)
-        header(
-          rowAccessories,
-          showsAgentStatusText: false
+        .terminalAnimation(
+          .easeInOut(duration: 0.18),
+          value: showsAgentStatusText,
+          reduceMotion: reduceMotion
         )
       }
+      .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
 
       ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
         Text(workingDirectory)
