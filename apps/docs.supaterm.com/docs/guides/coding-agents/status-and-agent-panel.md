@@ -7,15 +7,17 @@ Supaterm keeps agent activity visible without replacing the terminal.
 
 ## Sidebar status
 
-The tab row reflects the foreground agent session in that pane:
+The tab row reflects the foreground agent sessions across its panes:
 
-- **Running** — the agent is processing a turn or using tools.
+- **Working** — the agent is processing a turn or using tools.
 - **Needs input** — a permission request, question, or other attention event is waiting.
-- **Idle** — the current turn completed.
+- **Done** — a turn finished while its tab was not being viewed.
+
+Needs input takes priority over Done, and Done takes priority over Working. Viewing the tab clears Done. A turn that finishes in the tab you are viewing does not show Done. Wide rows show the symbol and word; narrow rows show only the symbol.
 
 Native hooks supply the full lifecycle and remain authoritative. Without them, fallback detection can show basic temporary activity for a recognized foreground agent. Fallback state is read-only and creates no notifications or session actions.
 
-Unread badges and notification previews remain available after activity ends. Hover a tab row to read the latest agent response from its focused pane without switching tabs. Tabs with no response do not show a hover card.
+Unread badges and notification previews remain available after activity ends. Viewing a tab clears its completion state. Hover a tab row to read the latest agent response from its focused pane without switching tabs. Tabs with no response do not show a hover card.
 
 ## Agent panel
 

@@ -126,12 +126,12 @@ extension SupatermE2ESuite {
           SupatermSettingsMutationResult.self,
           from: try requireSuccessfulSPResult(
             try runner.run(
-              ["config", "set", "coding_agents.show_spinner", "false", "--json"],
+              ["config", "set", "coding_agents.show_panel", "false", "--json"],
               cwd: space.directory
             )
           )
         )
-        #expect(set.key == "coding_agents.show_spinner")
+        #expect(set.key == "coding_agents.show_panel")
         #expect(set.oldValue == "true")
         #expect(set.value == "false")
         #expect(!set.isDefault)
@@ -141,7 +141,7 @@ extension SupatermE2ESuite {
           SupatermSettingsGetResult.self,
           from: try requireSuccessfulSPResult(
             try runner.run(
-              ["config", "get", "coding_agents.show_spinner", "--json"],
+              ["config", "get", "coding_agents.show_panel", "--json"],
               cwd: space.directory
             )
           )
@@ -152,13 +152,13 @@ extension SupatermE2ESuite {
         let changed = try requireSuccessfulSPResult(
           try runner.run(["config", "list", "--changed", "--plain"], cwd: space.directory)
         )
-        #expect(changed.stdout.contains("coding_agents.show_spinner\tfalse"))
+        #expect(changed.stdout.contains("coding_agents.show_panel\tfalse"))
 
         let reset = try decodeSPJSON(
           SupatermSettingsMutationResult.self,
           from: try requireSuccessfulSPResult(
             try runner.run(
-              ["config", "reset", "coding_agents.show_spinner", "--json"],
+              ["config", "reset", "coding_agents.show_panel", "--json"],
               cwd: space.directory
             )
           )

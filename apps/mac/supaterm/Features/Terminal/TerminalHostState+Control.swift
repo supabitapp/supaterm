@@ -1017,6 +1017,16 @@ extension TerminalHostState {
       surface: resolvedTarget.anchorSurface
     )
     let attentionState: SupatermNotificationAttentionState = .unread
+    let storedAttentionState: SupatermNotificationAttentionState? =
+      if origin == .structuredAgent(.completion),
+        selectionState.isSelectedTab,
+        windowActivity.isVisible,
+        windowActivity.isKeyWindow
+      {
+        nil
+      } else {
+        attentionState
+      }
     let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(
       allowDesktopNotificationWhenAgentActive: request.allowDesktopNotificationWhenAgentActive,
       isFocused: selectionState.isFocused,
@@ -1035,7 +1045,7 @@ extension TerminalHostState {
     )
     notificationStore.append(
       PaneNotification(
-        attentionState: attentionState,
+        attentionState: storedAttentionState,
         body: request.body,
         createdAt: createdAt,
         title: resolvedTitle,

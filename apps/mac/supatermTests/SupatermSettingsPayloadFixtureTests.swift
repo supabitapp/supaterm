@@ -142,7 +142,7 @@ struct SupatermSettingsPayloadFixtureTests {
       """
       ["appearance.mode","terminal.restore_layout","terminal.zmx_sessions_enabled",\
       "notifications.system_notifications","notifications.glowing_pane_ring",\
-      "coding_agents.show_panel","coding_agents.show_spinner","privacy.analytics_enabled",\
+      "coding_agents.show_panel","privacy.analytics_enabled",\
       "privacy.crash_reports_enabled","updates.channel","logging.verbose_enabled"]
       """
     )

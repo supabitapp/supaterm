@@ -47,4 +47,4 @@ pi install git:github.com/supabitapp/supaterm-skills
 
 ## Verify
 
-Start the agent inside Supaterm and begin a task. The tab should show running activity, then idle or attention state as its lifecycle changes. If no status appears, see [troubleshooting](/guides/troubleshooting#coding-agent-status-does-not-appear).
+Start the agent inside Supaterm and begin a task. The tab should show Working, then Done or Needs input as its lifecycle changes. If no status appears, see [troubleshooting](/guides/troubleshooting#coding-agent-status-does-not-appear).

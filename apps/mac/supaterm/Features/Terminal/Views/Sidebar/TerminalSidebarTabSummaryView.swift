@@ -3,7 +3,7 @@ import SwiftUI
 
 struct TerminalSidebarTabSummaryView: View {
   enum StatusAccessory: Equatable {
-    case agentActivity(TerminalHostState.AgentActivity)
+    case agentStatus(TerminalHostState.TabAgentStatus)
     case pinned
     case terminalBell
     case terminalProgress(TerminalSidebarTerminalProgress)
@@ -17,11 +17,9 @@ struct TerminalSidebarTabSummaryView: View {
   let notificationPreviewText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
-  let statusActivity: TerminalHostState.AgentActivity?
-  let statusActivityIsFocused: Bool
+  let agentStatus: TerminalHostState.TabAgentStatus?
   let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
-  let showsAgentSpinner: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
@@ -29,32 +27,27 @@ struct TerminalSidebarTabSummaryView: View {
   static func statusAccessory(
     isPinned: Bool,
     unreadCount: Int,
-    agentActivity: TerminalHostState.AgentActivity?,
-    agentActivityIsFocused: Bool = false,
+    agentStatus: TerminalHostState.TabAgentStatus?,
     terminalProgress: TerminalSidebarTerminalProgress?,
-    hasTerminalBell: Bool = false,
-    showsAgentSpinner: Bool = true
+    hasTerminalBell: Bool = false
   ) -> StatusAccessory? {
+    if agentStatus == .needsInput {
+      return .agentStatus(.needsInput)
+    }
+    if agentStatus == .done {
+      return .agentStatus(.done)
+    }
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
     }
     if unreadCount > 0 {
       return .unreadCount(unreadCount)
     }
-    if let agentActivity, agentActivity.phase == .needsInput {
-      if !agentActivityIsFocused {
-        return .agentActivity(agentActivity)
-      }
-    }
     if hasTerminalBell {
       return .terminalBell
     }
-    if let agentActivity,
-      agentActivity.showsLeadingIndicator,
-      agentActivity.phase != .needsInput,
-      agentActivity.phase != .running || showsAgentSpinner
-    {
-      return .agentActivity(agentActivity)
+    if agentStatus == .working {
+      return .agentStatus(.working)
     }
     if isPinned {
       return .pinned
@@ -102,11 +95,9 @@ struct TerminalSidebarTabSummaryView: View {
       statusAccessory: Self.statusAccessory(
         isPinned: isPinned,
         unreadCount: unreadCount,
-        agentActivity: statusActivity,
-        agentActivityIsFocused: statusActivityIsFocused,
+        agentStatus: agentStatus,
         terminalProgress: terminalProgress,
-        hasTerminalBell: hasTerminalBell,
-        showsAgentSpinner: showsAgentSpinner
+        hasTerminalBell: hasTerminalBell
       )
     )
 
@@ -208,9 +199,9 @@ struct TerminalSidebarTabSummaryView: View {
           in: Capsule(style: .continuous)
         )
 
-    case .agentActivity(let activity):
+    case .agentStatus(let status):
       TerminalSidebarAgentStatusView(
-        activity: activity,
+        status: status,
         showsText: showsAgentStatusText,
         palette: palette
       )

@@ -137,7 +137,6 @@ public struct SettingsFeature {
     var analyticsEnabled: Bool { supatermSettings.analyticsEnabled }
     var appearanceMode: AppearanceMode { supatermSettings.appearanceMode }
     var codingAgentsShowPanel: Bool { supatermSettings.codingAgentsShowPanel }
-    var codingAgentsShowSpinner: Bool { supatermSettings.codingAgentsShowSpinner }
     var crashReportsEnabled: Bool { supatermSettings.crashReportsEnabled }
     var glowingPaneRingEnabled: Bool { supatermSettings.glowingPaneRingEnabled }
     var restoreTerminalLayoutEnabled: Bool { supatermSettings.restoreTerminalLayoutEnabled }
@@ -165,7 +164,6 @@ public struct SettingsFeature {
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
     case codingAgentsShowPanelChanged(Bool)
-    case codingAgentsShowSpinnerChanged(Bool)
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
@@ -333,12 +331,6 @@ public struct SettingsFeature {
       case .codingAgentsShowPanelChanged(let isEnabled):
         updateSettings(&state) {
           $0.codingAgentsShowPanel = isEnabled
-        }
-        return .none
-
-      case .codingAgentsShowSpinnerChanged(let isEnabled):
-        updateSettings(&state) {
-          $0.codingAgentsShowSpinner = isEnabled
         }
         return .none
 

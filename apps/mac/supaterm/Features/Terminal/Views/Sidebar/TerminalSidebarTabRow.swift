@@ -48,20 +48,18 @@ struct TerminalSidebarTabRow: View {
   }
 
   private struct AnimatedPresentation: Equatable {
-    let statusActivity: TerminalHostState.AgentActivity?
+    let agentStatus: TerminalHostState.TabAgentStatus?
     let hasTerminalBell: Bool
     let notificationPreviewText: String?
     let paneWorkingDirectories: [String]
-    let showsAgentSpinner: Bool
     let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.statusActivity == rhs.statusActivity
+      lhs.agentStatus == rhs.agentStatus
         && lhs.hasTerminalBell == rhs.hasTerminalBell
         && lhs.notificationPreviewText == rhs.notificationPreviewText
         && lhs.paneWorkingDirectories == rhs.paneWorkingDirectories
-        && lhs.showsAgentSpinner == rhs.showsAgentSpinner
         && lhs.terminalProgress == rhs.terminalProgress
         && lhs.unreadCount == rhs.unreadCount
     }
@@ -81,7 +79,6 @@ struct TerminalSidebarTabRow: View {
   let terminalProgress: TerminalSidebarTerminalProgress?
   let hasTerminalBell: Bool
   let palette: Palette
-  let showsAgentSpinner: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
 
@@ -173,11 +170,9 @@ struct TerminalSidebarTabRow: View {
       notificationPreviewText: notificationPresentation?.previewText,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
-      statusActivity: agentPresentation.statusActivity,
-      statusActivityIsFocused: agentPresentation.statusActivityIsFocused,
+      agentStatus: agentPresentation.status,
       hasTerminalBell: hasTerminalBell,
       terminalProgress: terminalProgress,
-      showsAgentSpinner: showsAgentSpinner,
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
       isRowHovering: isHovering
@@ -389,11 +384,10 @@ struct TerminalSidebarTabRow: View {
 
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
-      statusActivity: agentPresentation.statusActivity,
+      agentStatus: agentPresentation.status,
       hasTerminalBell: hasTerminalBell,
       notificationPreviewText: notificationPresentation?.previewText,
       paneWorkingDirectories: paneWorkingDirectories,
-      showsAgentSpinner: showsAgentSpinner,
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
     )

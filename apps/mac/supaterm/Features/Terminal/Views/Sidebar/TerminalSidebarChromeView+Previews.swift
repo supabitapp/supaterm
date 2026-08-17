@@ -26,7 +26,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let notificationPreviewText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
-  let agentActivity: TerminalHostState.AgentActivity?
+  let agentStatus: TerminalHostState.TabAgentStatus?
   let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
 
@@ -60,8 +60,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       return nil
     }
     switch statusAccessory {
-    case .agentActivity(let activity):
-      return "\(activity.identity.displayName) \(phaseLabel(activity.phase))"
+    case .agentStatus(let status):
+      return "Agent \(statusLabel(status))"
     case .pinned:
       return "Pinned"
     case .terminalBell:
@@ -83,10 +83,9 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     TerminalSidebarTabSummaryView.statusAccessory(
       isPinned: false,
       unreadCount: unreadCount,
-      agentActivity: agentActivity,
+      agentStatus: agentStatus,
       terminalProgress: terminalProgress,
-      hasTerminalBell: hasTerminalBell,
-      showsAgentSpinner: true
+      hasTerminalBell: hasTerminalBell
     )
   }
 
@@ -99,7 +98,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     notificationPreviewText: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
-    agentActivity: TerminalHostState.AgentActivity? = nil,
+    agentStatus: TerminalHostState.TabAgentStatus? = nil,
     hasTerminalBell: Bool = false,
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
@@ -112,19 +111,19 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.notificationPreviewText = notificationPreviewText
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
-    self.agentActivity = agentActivity
+    self.agentStatus = agentStatus
     self.hasTerminalBell = hasTerminalBell
     self.terminalProgress = terminalProgress
   }
 
-  private func phaseLabel(_ phase: AgentActivityPhase) -> String {
-    switch phase {
-    case .running:
-      return "Running"
+  private func statusLabel(_ status: TerminalHostState.TabAgentStatus) -> String {
+    switch status {
     case .needsInput:
       return "Needs Input"
-    case .idle:
-      return "Idle"
+    case .done:
+      return "Done"
+    case .working:
+      return "Working"
     }
   }
 
@@ -186,7 +185,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac"),
         cwd("docs")
       ),
-      agentActivity: .claude(.running)
+      agentStatus: .working
     ),
     TerminalSidebarTabPreviewItem(
       section: .codingAgents,
@@ -198,16 +197,16 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "supaterm.com"),
         cwd("docs")
       ),
-      agentActivity: .codex(.needsInput)
+      agentStatus: .needsInput
     ),
     TerminalSidebarTabPreviewItem(
       section: .codingAgents,
-      scenario: "Agent finished and the leading indicator is hidden",
+      scenario: "Agent finished in a background tab",
       title: "Docs audit",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
       notificationPreviewText: "Review complete: no further changes needed",
       paneWorkingDirectories: cwdList(cwd("docs")),
-      agentActivity: TerminalHostState.AgentActivity(agent: .pi, phase: .idle)
+      agentStatus: .done
     ),
     TerminalSidebarTabPreviewItem(
       section: .terminalProgress,
@@ -254,7 +253,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac", "supatermTests")
       ),
       unreadCount: 12,
-      agentActivity: .claude(.needsInput)
+      agentStatus: .needsInput
     ),
   ]
 
@@ -282,11 +281,9 @@ private struct TerminalSidebarTabPreviewRow: View {
       notificationPreviewText: item.notificationPreviewText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
-      statusActivity: item.agentActivity,
-      statusActivityIsFocused: false,
+      agentStatus: item.agentStatus,
       hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
-      showsAgentSpinner: true,
       shortcutHint: nil,
       showsShortcutHint: false,
       isRowHovering: false
@@ -470,7 +467,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
           cwd("apps", "mac"),
           cwd("apps", "supaterm.com"),
         ],
-        agentActivity: .claude(.needsInput)
+        agentStatus: .needsInput
       ),
     ]
   )
@@ -481,7 +478,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
     isSelected: Bool = false,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
-    agentActivity: TerminalHostState.AgentActivity? = nil
+    agentStatus: TerminalHostState.TabAgentStatus? = nil
   ) -> TerminalSidebarTabPreviewItem {
     TerminalSidebarTabPreviewItem(
       section: .attention,
@@ -491,7 +488,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
       isSelected: isSelected,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
-      agentActivity: agentActivity
+      agentStatus: agentStatus
     )
   }
 

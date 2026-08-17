@@ -32,6 +32,6 @@ sp skills get coding-agents
 
 ## Verify the connection
 
-Start a task in the agent. Its tab should show running activity. Attention requests and completion appear in the sidebar; `Command-I` opens the agent panel for progress and workspace details.
+Start a task in the agent. Its tab should show Working. Needs input and unseen completion appear in the sidebar; `Command-I` opens the agent panel for progress and workspace details.
 
 If no status appears, run `sp diagnostic` in the same pane and open [coding-agent setup](/guides/coding-agents/setup).

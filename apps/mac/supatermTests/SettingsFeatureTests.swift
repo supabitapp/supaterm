@@ -37,7 +37,6 @@ struct SettingsFeatureTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           codingAgentsShowPanel: false,
-          codingAgentsShowSpinner: false,
           crashReportsEnabled: true,
           glowingPaneRingEnabled: false,
           restoreTerminalLayoutEnabled: false,
@@ -67,7 +66,6 @@ struct SettingsFeatureTests {
       #expect(store.state.appearanceMode == .dark)
       #expect(!store.state.analyticsEnabled)
       #expect(!store.state.codingAgentsShowPanel)
-      #expect(!store.state.codingAgentsShowSpinner)
       #expect(store.state.crashReportsEnabled)
       #expect(!store.state.glowingPaneRingEnabled)
       #expect(store.state.updateChannel == .tip)

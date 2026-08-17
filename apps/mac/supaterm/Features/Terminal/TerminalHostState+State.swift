@@ -515,6 +515,22 @@ extension TerminalHostState {
     }
   }
 
+  static func notificationsAfterViewingAgentCompletions(
+    _ notifications: [PaneNotification]
+  ) -> [PaneNotification] {
+    notifications.map { notification in
+      guard
+        notification.attentionState != nil,
+        notification.origin == .structuredAgent(.completion)
+      else {
+        return notification
+      }
+      var updatedNotification = notification
+      updatedNotification.attentionState = nil
+      return updatedNotification
+    }
+  }
+
   static func notificationText(_ notification: PaneNotification?) -> String? {
     guard let notification else { return nil }
     return notificationText(body: notification.body, title: notification.title)

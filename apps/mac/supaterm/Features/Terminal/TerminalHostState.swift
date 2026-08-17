@@ -179,14 +179,6 @@ final class TerminalHostState {
       AgentActivity(agent: .codex, phase: phase, detail: detail)
     }
 
-    var showsLeadingIndicator: Bool {
-      switch phase {
-      case .needsInput, .running:
-        return true
-      case .idle:
-        return false
-      }
-    }
   }
 
   struct PaneAgentMetadata: Equatable, Sendable {
@@ -214,9 +206,14 @@ final class TerminalHostState {
     }
   }
 
+  enum TabAgentStatus: Equatable, Sendable {
+    case needsInput
+    case done
+    case working
+  }
+
   struct TabAgentPresentation: Equatable, Sendable {
-    let statusActivity: AgentActivity?
-    let statusActivityIsFocused: Bool
+    let status: TabAgentStatus?
     let detailActivity: AgentActivity?
     let latestResponse: TabAgentResponse?
   }
@@ -1073,6 +1070,7 @@ final class TerminalHostState {
   }
 
   func focusSurface(in tabID: TerminalTabID) {
+    clearAgentCompletionAttention(in: tabID)
     if let unreadSurfaceID = latestUnreadNotifiedSurfaceID(in: tabID),
       let surface = surfaces[unreadSurfaceID]
     {
@@ -1102,6 +1100,7 @@ final class TerminalHostState {
     let previousSurface = focusHistoryByTab[tabID].flatMap { surfaces[$0.current] }
     applyFocusedSurface(surface.id, in: tabID)
     updateTabTitle(for: tabID)
+    clearAgentCompletionAttention(in: tabID)
     clearNotificationAttention(for: surface.id)
     guard tabID == spaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
@@ -1172,7 +1171,27 @@ final class TerminalHostState {
     else {
       return
     }
+    clearAgentCompletionAttention(in: selectedTabID)
     clearNotificationAttention(for: surfaceID)
+  }
+
+  func clearAgentCompletionAttention(in tabID: TerminalTabID) {
+    guard
+      tabID == spaceManager.selectedTabID,
+      windowActivity.isVisible,
+      windowActivity.isKeyWindow,
+      let tree = trees[tabID]
+    else {
+      return
+    }
+    for surface in tree.leaves() {
+      guard let notifications = notificationStore.notifications(for: surface.id) else {
+        continue
+      }
+      let updatedNotifications = Self.notificationsAfterViewingAgentCompletions(notifications)
+      guard updatedNotifications != notifications else { continue }
+      notificationStore.replaceNotifications(updatedNotifications, for: surface.id)
+    }
   }
 
   func clearNotificationAttention(for surfaceID: UUID) {

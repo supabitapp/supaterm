@@ -109,7 +109,7 @@ struct TerminalCommandExecutorAgentHookTests {
       harness.host.agentActivity(for: harness.tabID),
       .claude(.idle)
     )
-    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
   }
   @Test
   func claudeIdlePromptDoesNotOverridePendingBackgroundWork() throws {
@@ -723,9 +723,10 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
     #expect(result.desktopNotification == nil)
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
-    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
-    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.tabAgentPresentation(for: harness.tabID).status == nil)
   }
   @Test
   func claudeStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
@@ -754,6 +755,14 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
     #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+    #expect(harness.host.tabAgentPresentation(for: harness.tabID).status == .done)
+
+    harness.host.updateWindowActivity(
+      WindowActivityState(isKeyWindow: true, isVisible: true)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.tabAgentPresentation(for: harness.tabID).status == nil)
   }
   @Test
   func claudeSessionEndRemovesStoredSessionRouting() throws {
@@ -774,9 +783,9 @@ struct TerminalCommandExecutorAgentHookTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
-    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
-    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
   }
   @Test
   func storedClaudeSessionSurvivesRegistryReattachment() throws {
@@ -1311,6 +1320,32 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
     #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == nil)
+  }
+
+  @Test
+  func stopWithoutAssistantMessageShowsDoneInTheBackground() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    let result = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        event: SupatermAgentHookEvent(
+          cwd: CodexHookFixtures.cwd,
+          hookEventName: .stop,
+          lastAssistantMessage: "   ",
+          sessionID: CodexHookFixtures.sessionID
+        )
+      )
+    )
+
+    #expect(result.desktopNotification?.body == "Agent turn complete")
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Agent turn complete")
+    #expect(harness.host.tabAgentPresentation(for: harness.tabID).status == .done)
     #expect(harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == nil)
   }
 }

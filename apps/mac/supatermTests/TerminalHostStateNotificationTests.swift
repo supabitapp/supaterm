@@ -39,6 +39,36 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func viewingAgentCompletionsKeepsOtherAttentionUnread() {
+    let notifications = [
+      makeNotification(
+        attentionState: .unread,
+        createdAt: 1,
+        title: "Done",
+        origin: .structuredAgent(.completion)
+      ),
+      makeNotification(
+        attentionState: .unread,
+        createdAt: 2,
+        title: "Input",
+        origin: .structuredAgent(.attention)
+      ),
+      makeNotification(
+        attentionState: .unread,
+        createdAt: 3,
+        title: "Build",
+        origin: .terminalDesktop
+      ),
+    ]
+
+    let updatedNotifications = TerminalHostState.notificationsAfterViewingAgentCompletions(
+      notifications
+    )
+
+    #expect(updatedNotifications.map(\.attentionState) == [nil, .unread, .unread])
+  }
+
+  @Test
   func latestNotificationUsesNewestTimestamp() {
     let older = makeNotification(
       attentionState: .unread,
@@ -270,7 +300,7 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .inactive
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
     let tabID = try #require(host.selectedTabID)
@@ -527,7 +557,49 @@ struct TerminalHostStateNotificationTests {
 
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
     #expect(host.showsAgentActivityDetail(for: tabID))
-    #expect(!host.tabAgentPresentation(for: tabID).statusActivityIsFocused)
+    #expect(host.tabAgentPresentation(for: tabID).status == .needsInput)
+  }
+
+  @Test
+  func unseenDoneTakesPriorityOverWorkingUntilTheTabIsViewed() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .inactive
+    host.ensureInitialTab(focusing: false, startupCommand: nil)
+
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .pane(firstSurface.id)
+      )
+    )
+    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+
+    #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
+    #expect(host.setTestAgentActivity(.claude(.idle), for: secondPane.paneID))
+    _ = try host.notifyStructuredAgent(
+      TerminalNotifyRequest(
+        body: "Done.",
+        target: .pane(secondPane.paneID),
+        title: "Claude Code"
+      ),
+      semantic: .completion
+    )
+
+    #expect(host.tabAgentPresentation(for: tabID).status == .done)
+
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+    host.selectTab(tabID)
+
+    #expect(host.unreadNotificationCount(for: tabID) == 0)
+    #expect(host.tabAgentPresentation(for: tabID).status == .working)
+    #expect(host.selectedSurfaceView?.id == firstSurface.id)
   }
 
   @Test
@@ -562,7 +634,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func tabAgentPresentationMarksFocusedStatusActivity() throws {
+  func tabAgentPresentationHidesFocusedInputStatus() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -577,12 +649,11 @@ struct TerminalHostStateNotificationTests {
     #expect(host.setTestAgentActivity(.codex(.needsInput), for: surface.id))
 
     let presentation = host.tabAgentPresentation(for: tabID)
-    #expect(presentation.statusActivity == .codex(.needsInput))
-    #expect(presentation.statusActivityIsFocused)
+    #expect(presentation.status == nil)
   }
 
   @Test
-  func tabAgentPresentationDoesNotMarkBackgroundTabStatusActivityFocused() throws {
+  func tabAgentPresentationShowsBackgroundInputStatus() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -597,8 +668,7 @@ struct TerminalHostStateNotificationTests {
     host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
 
     let presentation = host.tabAgentPresentation(for: firstTabID)
-    #expect(presentation.statusActivity == .codex(.needsInput))
-    #expect(!presentation.statusActivityIsFocused)
+    #expect(presentation.status == .needsInput)
   }
 
   @Test
@@ -926,13 +996,15 @@ struct TerminalHostStateNotificationTests {
     attentionState: SupatermNotificationAttentionState?,
     body: String = "",
     createdAt: TimeInterval,
-    title: String
+    title: String,
+    origin: TerminalHostState.NotificationOrigin = .generic
   ) -> TerminalHostState.PaneNotification {
     TerminalHostState.PaneNotification(
       attentionState: attentionState,
       body: body,
       createdAt: Date(timeIntervalSince1970: createdAt),
-      title: title
+      title: title,
+      origin: origin
     )
   }
 }

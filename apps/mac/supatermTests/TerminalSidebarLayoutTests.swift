@@ -484,7 +484,6 @@ struct TerminalSidebarLayoutTests {
       unreadCount: 0,
       terminalProgress: nil,
       hasTerminalBell: false,
-      showsAgentSpinner: false,
       shortcutHint: nil,
       showsShortcutHint: false
     )

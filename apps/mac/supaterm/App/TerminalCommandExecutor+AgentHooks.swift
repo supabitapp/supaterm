@@ -132,7 +132,7 @@ extension TerminalCommandExecutor {
       semantic = .attention
       subtitle = request.event.title ?? "Attention"
     case .turnCompleted(let message):
-      body = message
+      body = message ?? "Agent turn complete"
       semantic = .completion
       subtitle = "Turn complete"
     default:

@@ -193,7 +193,6 @@ struct TerminalSidebarTabRowPresentation: Equatable {
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
   let hasTerminalBell: Bool
-  let showsAgentSpinner: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
 }
@@ -331,7 +330,6 @@ struct TerminalSidebarHostedRow: View {
         terminalProgress: presentation.terminalProgress,
         hasTerminalBell: presentation.hasTerminalBell,
         palette: context.palette,
-        showsAgentSpinner: presentation.showsAgentSpinner,
         shortcutHint: presentation.shortcutHint,
         showsShortcutHint: presentation.showsShortcutHint
       )

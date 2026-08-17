@@ -23,6 +23,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
 - Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
 - The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.
+- The tab derives `needs input`, `done`, and `working` from lifecycle, focus, and notification state. An unread structured completion shows `done` until the tab is viewed. No separate seen state exists.
 
 ## Shared Responsibilities
 
@@ -160,7 +161,7 @@ The app binds Claude sessions to pane surfaces, tracks the foreground session fo
 - `Notification` marks the tab as `needs input` only for `permission_prompt`, `idle_prompt`, and `elicitation_dialog`. An `idle_prompt` cannot replace active background work with `needs input`. Background-agent notifications and idle prompts emitted while background work remains suppress their matching terminal notifications, so they cannot create pane unread state or glow.
 - `UserPromptSubmit` marks the tab as `running`.
 - `PreToolUse`, `PostToolUse`, and `UserPromptSubmit` recover the pane binding when `SessionStart` was missed or announced a different session ID, which is what `claude --fork-session --resume` does: its `SessionStart` reports the parent session ID and every later hook carries the forked one.
-- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided, unless the payload reports an active `background_tasks` entry or a pending `session_crons` entry. Claude reports both `running` and `pending` task states as active.
+- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided, unless the payload reports an active `background_tasks` entry or a pending `session_crons` entry. A background completion creates `done` status even when the hook omits a final message. Claude reports both `running` and `pending` task states as active.
 - A `Stop` payload that carries `background_tasks` also reconciles child rows. Subagent IDs keep matching rows, an active teammate keeps unmatched Claude child rows alive, and an active workflow keeps workflow child rows alive.
 - Claude activity remains `running` until an explicit hook or fallback screen state changes it.
 - `SessionEnd` clears the tab activity and drops the stored session state.
@@ -188,7 +189,7 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 - `PreToolUse` for `request_user_input` marks the tab as needing input. `PostToolUse` marks ordinary tool activity as
   `running` and recovers the pane binding when `SessionStart` was missed.
 - `UserPromptSubmit` starts the next turn, recovers the pane binding when `SessionStart` was missed, and clears structured completion suppression.
-- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
+- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided. A background completion creates `done` status even when the hook omits a final message.
 - `PermissionRequest` and `request_user_input` mark the foreground session as needing input; only completion of the matching tool resolves that attention state.
 - `SubagentStart` and `SubagentStop` maintain scoped child rows from hook IDs and roles. Reused child IDs and late stop events cannot remove a newer child lifetime.
 - A native `PostToolUse` for `update_plan` reads `tool_input.plan` directly and replaces the plan rows immediately.

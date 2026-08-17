@@ -39,14 +39,6 @@ struct SettingsCodingAgentsView: View {
         )
         .accessibilityIdentifier("settings.coding-agents.show-panel")
 
-        SettingsToggleRow(
-          title: "Show agent spinner",
-          subtitle: "Display a spinner while agents are running.",
-          isOn: Binding(
-            get: { store.codingAgentsShowSpinner },
-            set: { _ = store.send(.codingAgentsShowSpinnerChanged($0)) }
-          )
-        )
       }
 
       Section {

@@ -72,7 +72,7 @@ struct TerminalSidebarProgressIndicatorView: View {
 }
 
 struct TerminalSidebarAgentStatusView: View {
-  let activity: TerminalHostState.AgentActivity
+  let status: TerminalHostState.TabAgentStatus
   let showsText: Bool
   let palette: Palette
 
@@ -83,7 +83,7 @@ struct TerminalSidebarAgentStatusView: View {
     HStack(spacing: 4) {
       indicator
 
-      if showsText, let label {
+      if showsText {
         Text(label)
           .font(.system(size: 10, weight: .semibold))
       }
@@ -93,7 +93,7 @@ struct TerminalSidebarAgentStatusView: View {
     .onAppear {
       startActivityAnimation(reduceMotion: reduceMotion)
     }
-    .onChange(of: activity) { _, _ in
+    .onChange(of: status) { _, _ in
       restartActivityAnimation(reduceMotion: reduceMotion)
     }
     .onChange(of: reduceMotion) { _, reduceMotion in
@@ -105,7 +105,7 @@ struct TerminalSidebarAgentStatusView: View {
 
   @ViewBuilder
   private var indicator: some View {
-    switch activity.phase {
+    switch status {
     case .needsInput:
       Image(systemName: "bell.fill")
         .font(.system(size: 8, weight: .semibold))
@@ -114,7 +114,7 @@ struct TerminalSidebarAgentStatusView: View {
         .offset(y: verticalOffset)
         .accessibilityHidden(true)
 
-    case .running:
+    case .working:
       TerminalProgressRingIndicatorView(
         fraction: nil,
         color: palette.accent,
@@ -122,50 +122,53 @@ struct TerminalSidebarAgentStatusView: View {
         diameter: 10
       )
 
-    case .idle:
-      EmptyView()
+    case .done:
+      Image(systemName: "checkmark")
+        .font(.system(size: 9, weight: .bold))
+        .frame(width: 16, height: 16)
+        .accessibilityHidden(true)
     }
   }
 
-  private var label: String? {
-    switch activity.phase {
+  private var label: String {
+    switch status {
     case .needsInput:
       "Input"
-    case .running:
+    case .working:
       "Working"
-    case .idle:
-      nil
+    case .done:
+      "Done"
     }
   }
 
   private var accessibilityLabel: String {
-    switch activity.phase {
+    switch status {
     case .needsInput:
       "Agent needs input"
-    case .running:
+    case .working:
       "Agent working"
-    case .idle:
-      "Agent idle"
+    case .done:
+      "Agent done"
     }
   }
 
   private var color: Color {
-    switch activity.phase {
+    switch status {
     case .needsInput:
       palette.warning
-    case .running:
+    case .working:
       palette.accent
-    case .idle:
-      palette.secondaryText
+    case .done:
+      palette.success
     }
   }
 
   private var animation: Animation? {
-    switch activity.phase {
+    switch status {
     case .needsInput:
       return .easeInOut(duration: 0.65)
         .repeatForever(autoreverses: true)
-    case .running, .idle:
+    case .working, .done:
       return nil
     }
   }
@@ -183,11 +186,11 @@ struct TerminalSidebarAgentStatusView: View {
   }
 
   private var scale: CGFloat {
-    activity.phase == .needsInput && isAnimating ? 1.14 : 1
+    status == .needsInput && isAnimating ? 1.14 : 1
   }
 
   private var verticalOffset: CGFloat {
-    activity.phase == .needsInput && isAnimating ? -1 : 0
+    status == .needsInput && isAnimating ? -1 : 0
   }
 }
 

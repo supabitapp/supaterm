@@ -259,14 +259,14 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func unreadCountTakesPrecedenceOverAgentActivity() {
+  func agentInputTakesPrecedenceOverUnreadCount() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 3,
-        agentActivity: .claude(.needsInput),
+        agentStatus: .needsInput,
         terminalProgress: nil
-      ) == .unreadCount(3)
+      ) == .agentStatus(.needsInput)
     )
   }
 
@@ -278,7 +278,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 3,
-        agentActivity: nil,
+        agentStatus: nil,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -292,7 +292,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentActivity: nil,
+        agentStatus: nil,
         terminalProgress: progress,
         hasTerminalBell: true
       ) == .terminalProgress(progress)
@@ -305,7 +305,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 3,
-        agentActivity: nil,
+        agentStatus: nil,
         terminalProgress: nil,
         hasTerminalBell: true
       ) == .unreadCount(3)
@@ -318,10 +318,10 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentActivity: .codex(.needsInput),
+        agentStatus: .needsInput,
         terminalProgress: nil,
         hasTerminalBell: true
-      ) == .agentActivity(.codex(.needsInput))
+      ) == .agentStatus(.needsInput)
     )
   }
 
@@ -331,7 +331,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
         unreadCount: 0,
-        agentActivity: .codex(.running),
+        agentStatus: .working,
         terminalProgress: nil,
         hasTerminalBell: true
       ) == .terminalBell
@@ -339,80 +339,26 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentActivityAppearsWhenNoHigherPriorityStatusExists() {
+  func agentWorkingAppearsWhenNoHigherPriorityStatusExists() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentActivity: .claude(.running),
+        agentStatus: .working,
         terminalProgress: nil
-      ) == .agentActivity(.claude(.running))
+      ) == .agentStatus(.working)
     )
   }
 
   @Test
-  func runningAgentActivityIsHiddenWhenAgentSpinnerIsHidden() {
+  func agentDoneTakesPrecedenceOverUnreadCount() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
-        unreadCount: 0,
-        agentActivity: .claude(.running),
-        terminalProgress: nil,
-        showsAgentSpinner: false
-      ) == nil
-    )
-  }
-
-  @Test
-  func hiddenAgentSpinnerFallsBackToPinnedStatus() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: true,
-        unreadCount: 0,
-        agentActivity: .claude(.running),
-        terminalProgress: nil,
-        showsAgentSpinner: false
-      ) == .pinned
-    )
-  }
-
-  @Test
-  func agentInputStatusIgnoresAgentSpinnerSetting() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
-        agentActivity: .claude(.needsInput),
-        terminalProgress: nil,
-        showsAgentSpinner: false
-      ) == .agentActivity(.claude(.needsInput))
-    )
-  }
-
-  @Test
-  func focusedAgentInputStatusIsHidden() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
-        agentActivity: .codex(.needsInput),
-        agentActivityIsFocused: true,
+        unreadCount: 3,
+        agentStatus: .done,
         terminalProgress: nil
-      ) == nil
-    )
-  }
-
-  @Test
-  func focusedAgentInputStatusFallsBackToTerminalBell() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
-        agentActivity: .codex(.needsInput),
-        agentActivityIsFocused: true,
-        terminalProgress: nil,
-        hasTerminalBell: true
-      ) == .terminalBell
+      ) == .agentStatus(.done)
     )
   }
 
@@ -433,7 +379,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentActivity: .claude(.running),
+        agentStatus: .working,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -447,31 +393,22 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentActivity: nil,
+        agentStatus: nil,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
   }
 
   @Test
-  func idleAgentShowsNoStatusAccessory() {
+  func missingAgentStatusShowsNoStatusAccessory() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentActivity: .claude(.idle),
+        agentStatus: nil,
         terminalProgress: nil
       ) == nil
     )
-  }
-
-  @Test
-  func agentActivityPresentationUsesExpectedVisibility() {
-    #expect(TerminalHostState.AgentActivity.claude(.running).showsLeadingIndicator)
-
-    #expect(TerminalHostState.AgentActivity.codex(.needsInput).showsLeadingIndicator)
-
-    #expect(!TerminalHostState.AgentActivity.claude(.idle).showsLeadingIndicator)
   }
 
   @Test
@@ -491,7 +428,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentActivity: nil,
+        agentStatus: nil,
         terminalProgress: nil
       ) == nil
     )
@@ -503,7 +440,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
         unreadCount: 0,
-        agentActivity: nil,
+        agentStatus: nil,
         terminalProgress: nil
       ) == .pinned
     )
@@ -517,7 +454,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
         unreadCount: 0,
-        agentActivity: nil,
+        agentStatus: nil,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -529,7 +466,7 @@ struct TerminalSidebarChromeViewTests {
     let statuses: [TerminalSidebarTabSummaryView.StatusAccessory] = [
       .pinned,
       .terminalProgress(progress),
-      .agentActivity(.codex(.running)),
+      .agentStatus(.working),
       .unreadCount(2),
       .terminalBell,
     ]

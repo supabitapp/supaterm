@@ -19,7 +19,6 @@ struct SupatermSettingsCommandTests {
         "notifications.system_notifications",
         "notifications.glowing_pane_ring",
         "coding_agents.show_panel",
-        "coding_agents.show_spinner",
         "privacy.analytics_enabled",
         "privacy.crash_reports_enabled",
         "updates.channel",

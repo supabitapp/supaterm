@@ -266,6 +266,32 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "agent-done",
+      group: "Sidebar Rows",
+      title: "Agent done",
+      size: CGSize(width: 320, height: 92)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: .agentDone
+        )
+      )
+    },
+    scenario(
+      "agent-done-narrow",
+      group: "Sidebar Rows",
+      title: "Agent done, narrow",
+      size: CGSize(width: 220, height: 92)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: .agentDone
+        )
+      )
+    },
+    scenario(
       "progress-paused",
       group: "Sidebar Rows",
       title: "Paused terminal progress",
@@ -317,7 +343,7 @@ private struct SidebarRowSnapshotItem {
   var notificationPreviewText: String?
   var paneWorkingDirectories: [String] = []
   var unreadCount = 0
-  var statusActivity: TerminalHostState.AgentActivity?
+  var agentStatus: TerminalHostState.TabAgentStatus?
   var hasTerminalBell = false
   var terminalProgress: TerminalSidebarTerminalProgress?
   var shortcutHint: String?
@@ -338,7 +364,7 @@ private struct SidebarRowSnapshotItem {
       title: "Socket cleanup",
       notificationPreviewText: "Applying patch while keeping the socket route stable",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
-      statusActivity: .codex(.running)
+      agentStatus: .working
     )
   }
 
@@ -348,7 +374,17 @@ private struct SidebarRowSnapshotItem {
       title: "Release note pass",
       notificationPreviewText: "Approval needed before publishing the release note",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/supaterm.com")],
-      statusActivity: .codex(.needsInput)
+      agentStatus: .needsInput
+    )
+  }
+
+  static var agentDone: Self {
+    SidebarRowSnapshotItem(
+      id: "10000000-0000-0000-0000-000000000006",
+      title: "Docs audit",
+      notificationPreviewText: "Review complete: no further changes needed",
+      paneWorkingDirectories: [SnapshotFixtureValues.workspace("docs")],
+      agentStatus: .done
     )
   }
 }
@@ -371,11 +407,9 @@ private struct SidebarRowSnapshotFixture: View {
       notificationPreviewText: item.notificationPreviewText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
-      statusActivity: item.statusActivity,
-      statusActivityIsFocused: false,
+      agentStatus: item.agentStatus,
       hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
-      showsAgentSpinner: true,
       shortcutHint: item.shortcutHint,
       showsShortcutHint: item.showsShortcutHint,
       isRowHovering: item.isRowHovering
