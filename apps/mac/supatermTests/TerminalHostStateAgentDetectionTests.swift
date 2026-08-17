@@ -253,7 +253,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func fallbackUsesAuthorityFreeNativeDetailsWithoutNativeActions() throws {
+  func terminalPhaseKeepsMatchingNativeDetailsAndActions() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let tabID = fixture.tabID
@@ -276,7 +276,36 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(applied)
     #expect(host.agentActivity(for: tabID) == .codex(.needsInput, detail: "Native detail"))
     #expect(panel.progressRows == [plan])
-    #expect(panel.session == nil)
+    #expect(panel.session?.sessionID == "restored-session")
+  }
+
+  @Test
+  @MainActor
+  func terminalIdleOverridesCodexHookRunning() throws {
+    let fixture = try hostFixture()
+    let host = fixture.host
+    let tabID = fixture.tabID
+    let surfaceID = fixture.surfaceID
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let appliedNative = host.applyTestAgentActivity(
+      .codex(.running, detail: "Native detail"),
+      for: surfaceID,
+      sessionID: "native-session",
+      processID: identity.processID
+    )
+
+    #expect(appliedNative)
+    #expect(host.tabAgentPresentation(for: tabID).status == .working)
+
+    let appliedDetection = host.applyAgentDetection(
+      observation(processIdentity: identity, phase: .idle),
+      for: surfaceID
+    )
+
+    #expect(appliedDetection)
+    #expect(host.agentActivity(for: tabID) == .codex(.idle, detail: "Native detail"))
+    #expect(host.tabAgentPresentation(for: tabID).status == nil)
+    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
   }
 
   @Test
@@ -288,7 +317,7 @@ struct TerminalHostStateAgentDetectionTests {
     let surfaceID = fixture.surfaceID
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let appliedNative = host.applyTestAgentActivity(
-      .codex(.running, detail: "Native detail"),
+      .pi(.running, detail: "Native detail"),
       for: surfaceID,
       sessionID: "native-session",
       processID: identity.processID
@@ -304,8 +333,8 @@ struct TerminalHostStateAgentDetectionTests {
 
     #expect(appliedNative)
     #expect(appliedDetection)
-    #expect(host.agentActivity(for: tabID) == .codex(.running, detail: "Native detail"))
-    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
+    #expect(host.agentActivity(for: tabID) == .pi(.running, detail: "Native detail"))
+    #expect(host.agentPanelPresentation(for: surfaceID)?.session == nil)
   }
 
   @Test
@@ -367,7 +396,7 @@ struct TerminalHostStateAgentDetectionTests {
       ),
       revision: 1,
       processIdentities: processIdentities,
-      authorityProcessIdentities: authority
+      phaseAuthorityProcessIdentities: authority
     )
   }
 

@@ -626,14 +626,15 @@ nonisolated struct TerminalAgentStateStore {
     sessions[SessionKey(agent: agent, sessionID: sessionID)]?.surfaceID
   }
 
-  func nativeHookAuthorityProcessIdentities(
+  func phaseAuthorityProcessIdentities(
     for surfaceID: UUID,
     agent: SupatermAgentKind? = nil,
     sessionID: String? = nil
   ) -> Set<TerminalAgentProcessIdentity> {
     Set(
       sessions.compactMap { key, state in
-        guard state.surfaceID == surfaceID,
+        guard key.agent == .pi,
+          state.surfaceID == surfaceID,
           agent == nil || key.agent == agent,
           sessionID == nil || key.sessionID == sessionID
         else {

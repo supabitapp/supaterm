@@ -179,6 +179,13 @@ final class TerminalHostState {
       AgentActivity(agent: .codex, phase: phase, detail: detail)
     }
 
+    static func pi(
+      _ phase: AgentActivityPhase,
+      detail: String? = nil
+    ) -> Self {
+      AgentActivity(agent: .pi, phase: phase, detail: detail)
+    }
+
   }
 
   struct PaneAgentMetadata: Equatable, Sendable {
@@ -223,19 +230,20 @@ final class TerminalHostState {
     let text: String
   }
 
+  enum AgentPhaseSource: Equatable, Sendable {
+    case native
+    case terminal
+  }
+
   struct AgentStateInstance: Equatable, Sendable {
     let activity: AgentActivity
     let nativePresentation: TerminalAgentStatePresentation?
+    let phaseSource: AgentPhaseSource
     let revision: UInt64
     let surfaceID: UUID
-    let isFallback: Bool
 
     var hasActivity: Bool {
-      isFallback || nativePresentation?.hasActivity == true
-    }
-
-    var allowsActionSession: Bool {
-      !isFallback
+      phaseSource == .terminal || nativePresentation?.hasActivity == true
     }
   }
 

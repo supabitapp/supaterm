@@ -15,7 +15,7 @@ The tab row reflects the foreground agent sessions across its panes:
 
 Needs input takes priority over Done, and Done takes priority over Working. Viewing the tab clears Done. A turn that finishes in the tab you are viewing does not show Done. Wide rows show the symbol and word; narrow rows show only the symbol.
 
-Native hooks supply the full lifecycle and remain authoritative. Without them, fallback detection can show basic temporary activity for a recognized foreground agent. Fallback state is read-only and creates no notifications or session actions.
+Supaterm reads the terminal to set Claude and Codex phase. Their hooks add session identity, plans, child agents, responses, notifications, and workspace data. Pi reports its phase through its native integration. Terminal-only state is temporary and creates no notifications or session actions.
 
 Unread badges and notification previews remain available after activity ends. Viewing a tab clears its completion state. Hover a tab row to read the latest agent response from its focused pane without switching tabs. Tabs with no response do not show a hover card.
 
@@ -36,7 +36,7 @@ Click the directory or branch row to copy its full value. Pull requests, checks,
 
 The panel follows the foreground root agent. A child agent cannot replace its parent's workspace or session actions.
 
-Fallback detection can supply the agent identity and basic activity state. Native hooks add lifecycle, plan, child-agent, final-response, and session data. Fallback data is not saved.
+Terminal detection supplies the agent identity and basic activity state. Native integrations add lifecycle, plan, child-agent, final-response, and session data. When both sources identify the same session, the panel keeps native actions while the terminal sets Claude and Codex phase. Terminal-only data is not saved.
 
 ## Attention
 

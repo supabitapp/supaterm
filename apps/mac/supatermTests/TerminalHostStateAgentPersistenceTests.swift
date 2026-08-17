@@ -23,7 +23,7 @@ struct TerminalHostStateAgentPersistenceTests {
     ] {
       _ = host.applyAgentEvent(
         TerminalAgentEvent(
-          scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: sessionID),
+          scope: TerminalAgentEvent.Scope(agent: .pi, sessionID: sessionID),
           context: context,
           processID: identity.processID,
           action: .sessionStarted
@@ -35,8 +35,8 @@ struct TerminalHostStateAgentPersistenceTests {
     let candidate = try #require(candidates.only)
 
     #expect(candidate.presentation.sessionID == "foreground")
-    #expect(candidate.authorityProcessIdentities == [foreground])
-    #expect(!candidate.authorityProcessIdentities.contains(background))
+    #expect(candidate.phaseAuthorityProcessIdentities == [foreground])
+    #expect(!candidate.phaseAuthorityProcessIdentities.contains(background))
   }
 
   @Test
@@ -60,7 +60,7 @@ struct TerminalHostStateAgentPersistenceTests {
       processID: identity.processID
     )
     let before = host.agentStateStore.snapshots(for: boundSurfaceID)
-    let authority = host.agentStateStore.nativeHookAuthorityProcessIdentities(
+    let authority = host.agentStateStore.phaseAuthorityProcessIdentities(
       for: boundSurfaceID
     )
 
@@ -79,11 +79,11 @@ struct TerminalHostStateAgentPersistenceTests {
     #expect(host.agentStateStore.snapshots(for: boundSurfaceID) == before)
     #expect(host.agentStateStore.snapshots(for: otherPane.paneID).isEmpty)
     #expect(
-      host.agentStateStore.nativeHookAuthorityProcessIdentities(for: boundSurfaceID)
+      host.agentStateStore.phaseAuthorityProcessIdentities(for: boundSurfaceID)
         == authority
     )
     #expect(
-      host.agentStateStore.nativeHookAuthorityProcessIdentities(for: otherPane.paneID).isEmpty
+      host.agentStateStore.phaseAuthorityProcessIdentities(for: otherPane.paneID).isEmpty
     )
   }
 
@@ -99,7 +99,7 @@ struct TerminalHostStateAgentPersistenceTests {
       processID: identity.processID
     )
     let before = host.agentStateStore.snapshots(for: surfaceID)
-    let authority = host.agentStateStore.nativeHookAuthorityProcessIdentities(for: surfaceID)
+    let authority = host.agentStateStore.phaseAuthorityProcessIdentities(for: surfaceID)
     let deadSurfaceID = UUID()
 
     let application = host.applyAgentEvent(
@@ -118,9 +118,9 @@ struct TerminalHostStateAgentPersistenceTests {
     #expect(host.agentStateStore.snapshots(for: surfaceID) == before)
     #expect(host.agentStateStore.snapshots(for: deadSurfaceID).isEmpty)
     #expect(
-      host.agentStateStore.nativeHookAuthorityProcessIdentities(for: surfaceID) == authority
+      host.agentStateStore.phaseAuthorityProcessIdentities(for: surfaceID) == authority
     )
-    #expect(host.agentStateStore.nativeHookAuthorityProcessIdentities(for: deadSurfaceID).isEmpty)
+    #expect(host.agentStateStore.phaseAuthorityProcessIdentities(for: deadSurfaceID).isEmpty)
   }
 
   @Test
