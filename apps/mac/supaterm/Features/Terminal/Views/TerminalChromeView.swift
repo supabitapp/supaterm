@@ -261,18 +261,17 @@ final class WindowTrafficLightsView: WindowDragSurfaceView {
     isHovered
   }
 
-  func setApplicationActive(_ isActive: Bool) {
-    if isActive {
-      inactiveAppearanceView.isHidden = true
-      buttons.forEach { $0.alphaValue = 1 }
-      return
-    }
-
+  func preserveForegroundAppearance() {
     setHovered(false)
     captureForegroundAppearance()
     guard inactiveAppearanceView.image != nil else { return }
     inactiveAppearanceView.isHidden = false
     buttons.forEach { $0.alphaValue = 0 }
+  }
+
+  func restoreNativeAppearance() {
+    inactiveAppearanceView.isHidden = true
+    buttons.forEach { $0.alphaValue = 1 }
   }
 
   private func configureButtons() {
@@ -317,11 +316,11 @@ final class WindowTrafficLightsView: WindowDragSurfaceView {
   }
 
   @objc private func applicationWillResignActive(_: Notification) {
-    setApplicationActive(false)
+    preserveForegroundAppearance()
   }
 
   @objc private func applicationDidBecomeActive(_: Notification) {
-    setApplicationActive(true)
+    restoreNativeAppearance()
   }
 
   private var idleAlpha: CGFloat {

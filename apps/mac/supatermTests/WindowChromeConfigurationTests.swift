@@ -108,14 +108,14 @@ struct WindowChromeConfigurationTests {
 
     #expect(inactiveAppearanceView.isHidden)
 
-    view.setApplicationActive(false)
+    view.preserveForegroundAppearance()
 
     #expect(inactiveAppearanceView.image != nil)
     #expect(!inactiveAppearanceView.isHidden)
     #expect(buttons.allSatisfy { $0.alphaValue == 0 })
     #expect(view.alphaValue == 0.1)
 
-    view.setApplicationActive(true)
+    view.restoreNativeAppearance()
 
     #expect(inactiveAppearanceView.isHidden)
     #expect(buttons.allSatisfy { $0.alphaValue == 1 })
