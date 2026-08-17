@@ -38,7 +38,7 @@ struct TerminalHostStateChildExitTests {
         executableURL: { nil },
         isBundled: { true },
         killSession: { _ in },
-        sessions: {
+        listSessions: {
           listedSessions.withLock { count in
             count += 1
             return count == 1
@@ -81,7 +81,7 @@ struct TerminalHostStateChildExitTests {
         executableURL: { nil },
         isBundled: { true },
         killSession: { _ in },
-        sessions: {
+        listSessions: {
           listedSessions.withLock { $0 += 1 }
           return listedSurfaceID.withLock {
             $0.map { [ZmxSession(surfaceID: $0, processID: 1)] } ?? []

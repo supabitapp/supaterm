@@ -431,30 +431,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let zmxClient = launchZmxClient
     Task.detached(priority: .utility) {
       SupatermLog.debug(SupatermLog.zmx, "zmx.reap.start")
-      guard let sessionIDs = await zmxClient.listSessions() else {
+      guard let sessions = await zmxClient.listSessions() else {
         SupatermLog.error(SupatermLog.zmx, "zmx.reap.skipped", fields: ["reason=listFailed"])
         return
       }
-      let knownSessionIDs = await MainActor.run { [weak self] in
-        guard let self else { return Set<String>() }
-        return Self.knownZmxSessionIDsForLaunchReaping(
+      let knownSurfaceIDs = await MainActor.run { [weak self] in
+        guard let self else { return Set<UUID>() }
+        return Self.knownZmxSurfaceIDsForLaunchReaping(
           restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
           sessionCatalog: sessionCatalog,
           liveSurfaceIDs: terminalWindowRegistry.liveSurfaceIDs()
         )
       }
-      let orphanSessionIDs =
-        sessionIDs
-        .filter { !knownSessionIDs.contains($0) }
-      let orphanSurfaceIDs =
-        orphanSessionIDs
-        .compactMap { ZmxSessionID.surfaceID(from: $0) }
+      let orphanSessions = sessions.filter {
+        !knownSurfaceIDs.contains($0.surfaceID)
+      }
+      let orphanSessionIDs = orphanSessions.map {
+        ZmxSessionID.make(surfaceID: $0.surfaceID)
+      }
+      let orphanSurfaceIDs = orphanSessions.map(\.surfaceID)
       SupatermLog.debug(
         SupatermLog.zmx,
         "zmx.reap.plan",
         fields: [
-          "sessions=\(sessionIDs.count)",
-          "known=\(knownSessionIDs.count)",
+          "sessions=\(sessions.count)",
+          "known=\(knownSurfaceIDs.count)",
           "orphans=\(orphanSessionIDs.count)",
           "orphanSessionIDs=\(orphanSessionIDs.joined(separator: ","))",
         ]
@@ -474,17 +475,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  static func knownZmxSessionIDsForLaunchReaping(
+  static func knownZmxSurfaceIDsForLaunchReaping(
     restoreTerminalLayoutEnabled: Bool,
     sessionCatalog: TerminalSessionCatalog,
     liveSurfaceIDs: Set<UUID>
-  ) -> Set<String> {
+  ) -> Set<UUID> {
     let persistedSurfaceIDs =
       restoreTerminalLayoutEnabled
       ? sessionCatalog.surfaceIDs
       : []
-    let knownSurfaceIDs = persistedSurfaceIDs.union(liveSurfaceIDs)
-    return Set(knownSurfaceIDs.map { ZmxSessionID.make(surfaceID: $0) })
+    return persistedSurfaceIDs.union(liveSurfaceIDs)
   }
 
   private func openServiceTabs(workingDirectoryPaths: [String]) {

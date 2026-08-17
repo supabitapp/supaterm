@@ -382,18 +382,18 @@ struct AppDelegateTests {
       ]
     )
     #expect(
-      AppDelegate.knownZmxSessionIDsForLaunchReaping(
+      AppDelegate.knownZmxSurfaceIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: true,
         sessionCatalog: sessionCatalog,
         liveSurfaceIDs: [liveSurfaceID]
-      ) == Set([persistedSurfaceID, hiddenSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
+      ) == Set([persistedSurfaceID, hiddenSurfaceID, liveSurfaceID])
     )
     #expect(
-      AppDelegate.knownZmxSessionIDsForLaunchReaping(
+      AppDelegate.knownZmxSurfaceIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: false,
         sessionCatalog: sessionCatalog,
         liveSurfaceIDs: [liveSurfaceID]
-      ) == Set([liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
+      ) == [liveSurfaceID]
     )
   }
 

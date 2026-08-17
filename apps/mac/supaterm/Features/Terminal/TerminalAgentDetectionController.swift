@@ -79,7 +79,7 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
 }
 
 nonisolated struct TerminalAgentDetectionSampler: Sendable {
-  let foregroundProcessGroups: @Sendable ([UUID: Int32]) async -> [UUID: Int32]
+  let resolveForegroundProcessGroups: @Sendable ([UUID: Int32]) async -> [UUID: Int32]
   let matches:
     @Sendable (Set<Int32>, [AgentDetectionProcessManifest]) async ->
       [Int32: AgentDetectionProcessMatch]
@@ -105,21 +105,23 @@ private actor TerminalAgentDetectionLiveSampler {
     self.zmxSessionsEnabled = zmxSessionsEnabled
   }
 
-  func foregroundProcessGroups(_ direct: [UUID: Int32]) async -> [UUID: Int32] {
-    guard zmxSessionsEnabled, let sessions = await zmxClient.sessions() else {
+  func resolveForegroundProcessGroups(_ direct: [UUID: Int32]) async -> [UUID: Int32] {
+    guard zmxSessionsEnabled, let sessions = await zmxClient.listSessions() else {
       return direct
     }
-    return sessions.reduce(into: direct) { processGroups, session in
+    var resolved = direct
+    for session in sessions {
       guard
         direct[session.surfaceID] != nil,
         let processGroupID = TerminalAgentProcessInspector.foregroundProcessGroupID(
           for: session.processID
         )
       else {
-        return
+        continue
       }
-      processGroups[session.surfaceID] = processGroupID
+      resolved[session.surfaceID] = processGroupID
     }
+    return resolved
   }
 
   func matches(
@@ -205,8 +207,8 @@ final class TerminalAgentDetectionController {
     self.init(
       rules: TerminalAgentDetectionRuleAccess(repository: repository),
       sampler: TerminalAgentDetectionSampler(
-        foregroundProcessGroups: { processGroupIDs in
-          await liveSampler.foregroundProcessGroups(processGroupIDs)
+        resolveForegroundProcessGroups: { processGroupIDs in
+          await liveSampler.resolveForegroundProcessGroups(processGroupIDs)
         },
         matches: { processGroupIDs, manifests in
           await liveSampler.matches(
@@ -336,14 +338,21 @@ final class TerminalAgentDetectionController {
       let directProcessGroups = Dictionary(
         uniqueKeysWithValues: due.map { ($0.surface.key.id, $0.processGroupID) }
       )
-      let resolvedProcessGroups = await sampler.foregroundProcessGroups(directProcessGroups)
+      let resolvedProcessGroups = await sampler.resolveForegroundProcessGroups(directProcessGroups)
       guard !Task.isCancelled else { return }
       let resolved = due.map { scan in
-        DueScan(
+        let processGroupID =
+          if let resolvedProcessGroupID = resolvedProcessGroups[scan.surface.key.id],
+            resolvedProcessGroupID > 0
+          {
+            resolvedProcessGroupID
+          } else {
+            scan.processGroupID
+          }
+        return DueScan(
           surface: scan.surface,
           nonce: scan.nonce,
-          processGroupID: resolvedProcessGroups[scan.surface.key.id].flatMap { $0 > 0 ? $0 : nil }
-            ?? scan.processGroupID
+          processGroupID: processGroupID
         )
       }
       let processGroupIDs = Set(resolved.map(\.processGroupID))

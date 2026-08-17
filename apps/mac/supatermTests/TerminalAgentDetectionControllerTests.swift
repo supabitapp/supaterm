@@ -561,8 +561,8 @@ struct TerminalAgentDetectionControllerTests {
         }
       ),
       sampler: TerminalAgentDetectionSampler(
-        foregroundProcessGroups: { processGroupIDs in
-          await sampler.foregroundProcessGroups(processGroupIDs)
+        resolveForegroundProcessGroups: { processGroupIDs in
+          await sampler.resolveForegroundProcessGroups(processGroupIDs)
         },
         matches: { processGroupIDs, manifests in
           await sampler.matches(processGroupIDs, manifests: manifests)
@@ -837,7 +837,7 @@ private actor DetectionSamplerFixture {
     self.gate = gate
   }
 
-  func foregroundProcessGroups(_ processGroupIDs: [UUID: Int32]) -> [UUID: Int32] {
+  func resolveForegroundProcessGroups(_ processGroupIDs: [UUID: Int32]) -> [UUID: Int32] {
     resolvedProcessGroups ?? processGroupIDs
   }
 

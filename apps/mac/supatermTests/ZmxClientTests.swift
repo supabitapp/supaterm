@@ -55,6 +55,32 @@ struct ZmxClientTests {
   }
 
   @Test
+  func listSessionsDrainsLargeOutputWhileProcessRuns() async throws {
+    let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
+    let sessionID = ZmxSessionID.make(surfaceID: surfaceID)
+    let directoryURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let executableURL = directoryURL.appendingPathComponent("zmx", isDirectory: false)
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+    let noise = String(repeating: "x", count: 128 * 1_024)
+    let script = """
+      #!/bin/sh
+      printf 'name=\(sessionID)\\tpid=101\\tclients=0\\n'
+      printf '%s\\n' '\(noise)'
+      """
+    try script.write(to: executableURL, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o700],
+      ofItemAtPath: executableURL.path
+    )
+
+    let sessions = await ZmxClient.makeLive(executableURL: executableURL).listSessions()
+
+    #expect(sessions == [ZmxSession(surfaceID: surfaceID, processID: 101)])
+  }
+
+  @Test
   func buildWrapperArgvKeepsExecutableAsOneArgument() {
     let argv = ZmxAttach.buildWrapperArgv(
       executablePath: "/Applications/Supaterm Runtime.app/Contents/Helpers/zmx",

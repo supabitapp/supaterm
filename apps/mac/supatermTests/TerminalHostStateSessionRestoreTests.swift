@@ -30,7 +30,7 @@ struct TerminalHostStateSessionRestoreTests {
         executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
         isBundled: { true },
         killSession: { _ in },
-        sessions: { [] }
+        listSessions: { [] }
       )
     )
 
@@ -72,7 +72,7 @@ struct TerminalHostStateSessionRestoreTests {
         executableURL: { nil },
         isBundled: { true },
         killSession: { _ in },
-        sessions: { [] }
+        listSessions: { [] }
       )
     )
 
@@ -621,7 +621,7 @@ struct TerminalHostStateSessionRestoreTests {
       executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
       isBundled: { true },
       killSession: killSession,
-      sessions: { [] }
+      listSessions: { [] }
     )
   }
 

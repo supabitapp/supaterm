@@ -78,7 +78,7 @@ public nonisolated struct ZmxSession: Equatable, Sendable {
     self.processID = processID
   }
 
-  public static func parseList(
+  static func parseList(
     _ output: String,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> [ZmxSession] {
@@ -106,33 +106,140 @@ public nonisolated struct ZmxClient: Sendable {
   public var executableURL: @Sendable () -> URL?
   public var isBundled: @Sendable () -> Bool
   public var killSession: @Sendable (_ surfaceID: UUID) async -> Void
-  public var sessions: @Sendable () async -> [ZmxSession]?
+  public var listSessions: @Sendable () async -> [ZmxSession]?
 
   public nonisolated init(
     executableURL: @escaping @Sendable () -> URL?,
     isBundled: @escaping @Sendable () -> Bool,
     killSession: @escaping @Sendable (_ surfaceID: UUID) async -> Void,
-    sessions: @escaping @Sendable () async -> [ZmxSession]?
+    listSessions: @escaping @Sendable () async -> [ZmxSession]?
   ) {
     self.executableURL = executableURL
     self.isBundled = isBundled
     self.killSession = killSession
-    self.sessions = sessions
+    self.listSessions = listSessions
   }
+}
 
-  public func listSessions() async -> [String]? {
-    await sessions()?.map { ZmxSessionID.make(surfaceID: $0.surfaceID) }
+private nonisolated enum ZmxSubprocess {
+  static func run(
+    executableURL: URL?,
+    arguments: [String],
+    captureStdout: Bool,
+    timeout: Duration
+  ) async -> String? {
+    let argumentLabel = arguments.joined(separator: " ")
+    zmxLogRunStart(argumentLabel, captureStdout: captureStdout)
+    guard let executableURL else {
+      zmxLogError(
+        "zmx.run.missingExecutable",
+        fields: ["arguments=\(argumentLabel)"]
+      )
+      return nil
+    }
+    let process = Process()
+    process.executableURL = executableURL
+    process.arguments = arguments
+    var environment = ProcessInfo.processInfo.environment
+    environment[ZmxEnvironment.directoryKey] = ZmxSocketBudget.socketDir()
+    environment[ZmxEnvironment.sessionKey] = ""
+    environment[ZmxEnvironment.sessionPrefixKey] = ""
+    process.environment = environment
+
+    let stdoutPipe: Pipe?
+    if captureStdout {
+      let pipe = Pipe()
+      stdoutPipe = pipe
+      process.standardOutput = pipe
+    } else {
+      stdoutPipe = nil
+      process.standardOutput = FileHandle.nullDevice
+    }
+    process.standardError = FileHandle.nullDevice
+
+    let exitStream = AsyncStream<Int32> { continuation in
+      process.terminationHandler = { process in
+        continuation.yield(process.terminationStatus)
+        continuation.finish()
+      }
+    }
+
+    do {
+      try process.run()
+    } catch {
+      zmxLogRunLaunchFailed(argumentLabel, error: error)
+      return nil
+    }
+
+    let stdoutTask = stdoutPipe.map { pipe in
+      Task.detached(priority: .utility) {
+        pipe.fileHandleForReading.readDataToEndOfFile()
+      }
+    }
+    let exitStatus = await withTaskGroup(of: Int32?.self) { group -> Int32? in
+      group.addTask {
+        for await status in exitStream {
+          return status
+        }
+        return nil
+      }
+      group.addTask {
+        try? await Task.sleep(for: timeout)
+        return nil
+      }
+      defer { group.cancelAll() }
+      guard let result = await group.next() else { return nil }
+      return result
+    }
+
+    guard let exitStatus else {
+      if process.isRunning {
+        process.terminate()
+      }
+      _ = await withTaskGroup(of: Void.self) { group in
+        group.addTask {
+          for await _ in exitStream {}
+        }
+        group.addTask {
+          try? await Task.sleep(for: .seconds(1))
+        }
+        defer { group.cancelAll() }
+        await group.next()
+      }
+      zmxLogError(
+        "zmx.run.timeout",
+        fields: ["arguments=\(argumentLabel)"]
+      )
+      return nil
+    }
+
+    guard exitStatus == 0 else {
+      zmxLogRunFailure(argumentLabel, exitStatus: exitStatus)
+      return nil
+    }
+    guard captureStdout, let stdoutTask else {
+      zmxLogRunFinished(argumentLabel)
+      return nil
+    }
+    let stdout = await stdoutTask.value
+    let output = String(data: stdout, encoding: .utf8) ?? ""
+    zmxLogRunFinished(argumentLabel, stdoutLineCount: output.split(whereSeparator: \.isNewline).count)
+    return output
   }
 }
 
 extension ZmxClient {
   public nonisolated static let subprocessTimeout: Duration = .seconds(5)
 
-  public nonisolated static let live: ZmxClient = {
-    let probed = LockIsolated<Bool?>(nil)
-    let cachedBundledURL = Bundle.main.executableURL.flatMap {
+  public nonisolated static let live = makeLive(
+    executableURL: Bundle.main.executableURL.flatMap {
       SupatermBundleLayout.zmxExecutableURL(nextTo: $0)
     }
+  )
+
+  nonisolated static func makeLive(executableURL: URL?) -> ZmxClient {
+    let probed = LockIsolated<Bool?>(nil)
+    let cachedBundledURL = executableURL
 
     @Sendable func resolveExecutable() -> URL? {
       guard let url = cachedBundledURL else {
@@ -157,102 +264,6 @@ extension ZmxClient {
       return canUseZmx ? url : nil
     }
 
-    @Sendable func runZmx(_ arguments: [String], captureStdout: Bool = false) async -> String? {
-      let argumentLabel = arguments.joined(separator: " ")
-      zmxLogRunStart(argumentLabel, captureStdout: captureStdout)
-      guard let executable = cachedBundledURL else {
-        zmxLogError(
-          "zmx.run.missingExecutable",
-          fields: ["arguments=\(argumentLabel)"]
-        )
-        return nil
-      }
-      let process = Process()
-      process.executableURL = executable
-      process.arguments = arguments
-      var environment = ProcessInfo.processInfo.environment
-      environment[ZmxEnvironment.directoryKey] = ZmxSocketBudget.socketDir()
-      environment[ZmxEnvironment.sessionKey] = ""
-      environment[ZmxEnvironment.sessionPrefixKey] = ""
-      process.environment = environment
-
-      let stdoutPipe: Pipe?
-      if captureStdout {
-        let pipe = Pipe()
-        stdoutPipe = pipe
-        process.standardOutput = pipe
-      } else {
-        stdoutPipe = nil
-        process.standardOutput = FileHandle.nullDevice
-      }
-
-      process.standardError = FileHandle.nullDevice
-
-      let exitStream = AsyncStream<Int32> { continuation in
-        process.terminationHandler = { process in
-          continuation.yield(process.terminationStatus)
-          continuation.finish()
-        }
-      }
-
-      do {
-        try process.run()
-      } catch {
-        zmxLogRunLaunchFailed(argumentLabel, error: error)
-        return nil
-      }
-
-      let exitStatus = await withTaskGroup(of: Int32?.self) { group -> Int32? in
-        group.addTask {
-          for await status in exitStream {
-            return status
-          }
-          return nil
-        }
-        group.addTask {
-          try? await Task.sleep(for: subprocessTimeout)
-          return nil
-        }
-        defer { group.cancelAll() }
-        guard let result = await group.next() else { return nil }
-        return result
-      }
-
-      guard let exitStatus else {
-        if process.isRunning {
-          process.terminate()
-        }
-        _ = await withTaskGroup(of: Void.self) { group in
-          group.addTask {
-            for await _ in exitStream {}
-          }
-          group.addTask {
-            try? await Task.sleep(for: .seconds(1))
-          }
-          defer { group.cancelAll() }
-          await group.next()
-        }
-        zmxLogError(
-          "zmx.run.timeout",
-          fields: ["arguments=\(argumentLabel)"]
-        )
-        return nil
-      }
-
-      guard exitStatus == 0 else {
-        zmxLogRunFailure(argumentLabel, exitStatus: exitStatus)
-        return nil
-      }
-      guard captureStdout, let stdoutPipe else {
-        zmxLogRunFinished(argumentLabel)
-        return nil
-      }
-      let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-      let output = String(data: stdout, encoding: .utf8) ?? ""
-      zmxLogRunFinished(argumentLabel, stdoutLineCount: output.split(whereSeparator: \.isNewline).count)
-      return output
-    }
-
     return ZmxClient(
       executableURL: resolveExecutable,
       isBundled: { cachedBundledURL != nil },
@@ -264,10 +275,22 @@ extension ZmxClient {
             "sessionID=\(ZmxSessionID.make(surfaceID: surfaceID))",
           ]
         )
-        _ = await runZmx(["kill", ZmxSessionID.make(surfaceID: surfaceID)])
+        _ = await ZmxSubprocess.run(
+          executableURL: cachedBundledURL,
+          arguments: ["kill", ZmxSessionID.make(surfaceID: surfaceID)],
+          captureStdout: false,
+          timeout: subprocessTimeout
+        )
       },
-      sessions: {
-        guard let stdout = await runZmx(["ls"], captureStdout: true) else {
+      listSessions: {
+        guard
+          let stdout = await ZmxSubprocess.run(
+            executableURL: cachedBundledURL,
+            arguments: ["ls"],
+            captureStdout: true,
+            timeout: subprocessTimeout
+          )
+        else {
           zmxLogError("zmx.list.failed")
           return nil
         }
@@ -279,13 +302,13 @@ extension ZmxClient {
         return sessions
       }
     )
-  }()
+  }
 
   public nonisolated static let noop = ZmxClient(
     executableURL: { nil },
     isBundled: { false },
     killSession: { _ in },
-    sessions: { nil }
+    listSessions: { nil }
   )
 }
 

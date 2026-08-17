@@ -495,7 +495,7 @@ struct TerminalHostStateAgentExplainTests {
         evaluate: { agentID, _ in agentID == "codex" ? evaluation : nil }
       ),
       sampler: TerminalAgentDetectionSampler(
-        foregroundProcessGroups: { $0 },
+        resolveForegroundProcessGroups: { $0 },
         matches: { processGroupIDs, _ in
           processGroupIDs.contains(processGroupID) ? [processGroupID: match] : [:]
         },
