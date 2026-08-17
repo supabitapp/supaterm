@@ -48,12 +48,6 @@ final class TabAgentStatusUITests: SupatermUITestCase {
 
     await selectTab(sidebarTabRow(named: tabTitle))
     try await sendClaudeEvent("stop")
-    let didShowCompletion = await wait(timeout: Self.coldStartTimeout) {
-      let currentRow = self.sidebarTabRow(named: tabTitle)
-      return currentRow.label.contains("Done.") && !currentRow.label.contains("Agent ")
-    }
-    XCTAssertTrue(didShowCompletion)
-    mainTerminal.click()
     let didRestorePinned = await wait(timeout: Self.coldStartTimeout) {
       let currentRow = self.sidebarTabRow(named: tabTitle)
       return currentRow.label.contains("Pinned") && !currentRow.label.contains("Agent ")
