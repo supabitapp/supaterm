@@ -17,12 +17,9 @@ runs:
       run: |
         sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
         xcodebuild -version
-    - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
-      env:
-        MISE_GITHUB_TOKEN: ${{ inputs.github-token }}
+    - uses: ./.github/actions/setup-mise
       with:
-        version: 2026.8.5
-        cache: true
+        github-token: ${{ inputs.github-token }}
     - name: Xcode cache key
       shell: bash
       run: |

@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".github/actions/setup-macos/**"
+      - ".github/actions/setup-mise/**"
       - ".github/workflows/warm-cache.yml"
       - "apps/mac/Configurations/**"
       - "apps/mac/Makefile"

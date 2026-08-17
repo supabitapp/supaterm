@@ -48,7 +48,7 @@ jobs:
               *.md)
                 continue
                 ;;
-              .github/actions/setup-macos/* | .github/workflows/ci.yml | .gitmodules | apps/mac/* | integrations/supaterm-skills | Makefile | mise.toml)
+              .github/actions/setup-macos/* | .github/actions/setup-mise/* | .github/workflows/ci.yml | .gitmodules | apps/mac/* | integrations/supaterm-skills | Makefile | mise.toml)
                 mac=true
                 ;;
             esac
@@ -62,12 +62,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
-        env:
-          MISE_GITHUB_TOKEN: ${{ github.token }}
+      - uses: ./.github/actions/setup-mise
         with:
-          version: 2026.8.5
-          cache: true
+          github-token: ${{ github.token }}
           install: false
       - run: mise install -C "$RUNNER_TEMP" "swiftlint@$(mise current swiftlint)"
         env:
