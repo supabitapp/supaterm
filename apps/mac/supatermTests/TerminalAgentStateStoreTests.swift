@@ -93,7 +93,7 @@ struct TerminalAgentStateStoreTests {
         subagentID: "child-1",
         context: boundContext,
         processID: 43,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
     let before = store.snapshots(for: boundSurfaceID)
@@ -229,7 +229,7 @@ struct TerminalAgentStateStoreTests {
         subagentID: "child-1",
         context: context,
         workingDirectoryPath: "/tmp/child",
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
 

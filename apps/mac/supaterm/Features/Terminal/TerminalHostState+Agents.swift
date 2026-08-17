@@ -58,7 +58,7 @@ extension TerminalHostState {
     let latestResponse = focusedInstances.compactMap { instance in
       Self.latestAgentResponse(
         agent: instance.activity.identity,
-        messages: instance.nativePresentation?.hoverMessages ?? []
+        text: instance.nativePresentation?.latestResponse
       ).map { (revision: instance.revision, response: $0) }
     }.max { $0.revision < $1.revision }?.response
 
@@ -593,14 +593,9 @@ extension TerminalHostState {
 
   private static func latestAgentResponse(
     agent: AgentDetectionAgentIdentity,
-    messages: [String]
+    text: String?
   ) -> TabAgentResponse? {
-    guard
-      let text = messages.reversed().lazy
-        .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
-        .first(where: { !$0.isEmpty })
-    else { return nil }
-    return TabAgentResponse(agent: agent, text: text)
+    text.map { TabAgentResponse(agent: agent, text: $0) }
   }
 
   func storePaneAgentMetadata(_ metadata: PaneAgentMetadata, for surfaceID: UUID) {

@@ -23,7 +23,7 @@ struct TerminalCommandExecutorHookTests {
     #expect(
       try claudeHookEventNames(homeDirectoryURL: homeDirectoryURL) == [
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
-        "SubagentStart", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit",
+        "SubagentStart", "SubagentStop", "UserPromptSubmit",
       ]
     )
   }

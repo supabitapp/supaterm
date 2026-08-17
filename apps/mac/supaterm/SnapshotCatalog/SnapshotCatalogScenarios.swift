@@ -105,7 +105,6 @@ extension SnapshotCatalog {
                   sessionID: "session-26-0701",
                   turnID: "turn-4"
                 ),
-                nickname: nil,
                 role: "explore",
                 phase: .running,
                 detail: "Reviewing native hook ownership"
@@ -116,7 +115,6 @@ extension SnapshotCatalog {
                   sessionID: "session-26-0701",
                   turnID: "turn-4"
                 ),
-                nickname: nil,
                 role: "general-purpose",
                 phase: .needsInput,
                 detail: "Needs approval to run tests"

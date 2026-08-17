@@ -297,7 +297,7 @@ struct TerminalAgentEventTranslatorTests {
   }
 
   @Test
-  func claudeTaskHooksTrackTeammateWorkOnRootSession() throws {
+  func claudePreCommitTaskHooksDoNotMutateProgress() throws {
     let created = try request(
       agent: .claude,
       json: #"""
@@ -327,22 +327,8 @@ struct TerminalAgentEventTranslatorTests {
         """#
     )
 
-    let createdEvents = TerminalAgentEventTranslator.events(for: created)
-    let completedEvents = TerminalAgentEventTranslator.events(for: completed)
-    let createdEvent = try #require(createdEvents.first)
-    let completedEvent = try #require(completedEvents.first)
-    #expect(createdEvents.count == 1)
-    #expect(completedEvents.count == 1)
-    #expect(createdEvent.scope.subagentID == nil)
-    #expect(completedEvent.scope.subagentID == nil)
-    #expect(
-      createdEvent.action
-        == .progressUpdated(.upsert(id: "task-8", title: "Review changes", status: .pending))
-    )
-    #expect(
-      completedEvent.action
-        == .progressUpdated(.upsert(id: "task-8", title: "Review changes", status: .completed))
-    )
+    #expect(TerminalAgentEventTranslator.events(for: created).isEmpty)
+    #expect(TerminalAgentEventTranslator.events(for: completed).isEmpty)
   }
 
   @Test
@@ -585,7 +571,7 @@ struct TerminalAgentEventTranslatorTests {
     #expect(events.map(\.scope.subagentID) == ["agent-3", "agent-3"])
     #expect(
       events.map(\.action) == [
-        .subagentStarted(nickname: nil, role: "explorer"),
+        .subagentStarted(role: "explorer"),
         .subagentStopped,
       ]
     )
@@ -607,7 +593,7 @@ struct TerminalAgentEventTranslatorTests {
 
     #expect(
       TerminalAgentEventTranslator.events(for: request).map(\.action) == [
-        .subagentStarted(kind: .workflow, nickname: nil, role: "workflow-subagent")
+        .subagentStarted(kind: .workflow, role: "workflow-subagent")
       ]
     )
   }

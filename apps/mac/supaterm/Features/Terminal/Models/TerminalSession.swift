@@ -757,7 +757,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
-  let hoverMessages: [String]
+  let latestResponse: String?
   let progressRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
   let hasPendingBackgroundWork: Bool
@@ -773,7 +773,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     phase: AgentActivityPhase = .idle,
     detail: String? = nil,
     attentionRequestID: String? = nil,
-    hoverMessages: [String] = [],
+    latestResponse: String? = nil,
     progressRows: [PaneAgentProgressRow] = [],
     activeChildren: [TerminalAgentActiveChild] = [],
     hasPendingBackgroundWork: Bool = false,
@@ -788,7 +788,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
-    self.hoverMessages = hoverMessages
+    self.latestResponse = latestResponse
     self.progressRows = progressRows
     self.activeChildren = activeChildren
     self.hasPendingBackgroundWork = hasPendingBackgroundWork
@@ -806,7 +806,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       phase: snapshot.phase,
       detail: snapshot.detail,
       attentionRequestID: snapshot.attentionRequestID,
-      hoverMessages: snapshot.hoverMessages,
+      latestResponse: snapshot.latestResponse,
       progressRows: snapshot.progressRows,
       activeChildren: snapshot.activeChildren,
       hasPendingBackgroundWork: snapshot.hasPendingBackgroundWork,
@@ -829,7 +829,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID,
-      hoverMessages: hoverMessages,
+      latestResponse: latestResponse,
       isActionable: false,
       progressRows: progressRows,
       activeChildren: activeChildren,
@@ -854,7 +854,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID,
-      hoverMessages: hoverMessages,
+      latestResponse: latestResponse,
       progressRows: progressRows,
       activeChildren: activeChildren,
       hasPendingBackgroundWork: hasPendingBackgroundWork,

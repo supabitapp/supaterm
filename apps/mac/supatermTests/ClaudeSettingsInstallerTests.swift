@@ -93,7 +93,7 @@ struct ClaudeSettingsInstallerTests {
     #expect(
       Set(hooks.keys) == [
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
-        "SubagentStart", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit",
+        "SubagentStart", "SubagentStop", "UserPromptSubmit",
       ])
   }
 
@@ -177,7 +177,7 @@ struct ClaudeSettingsInstallerTests {
 
     #expect(supatermHook["command"] as? String == SupatermClaudeHookSettings.command)
     #expect(supatermHook["timeout"] as? Int == 5)
-    #expect(supatermHook["async"] as? Bool == true)
+    #expect(supatermHook["async"] == nil)
   }
 
   @Test

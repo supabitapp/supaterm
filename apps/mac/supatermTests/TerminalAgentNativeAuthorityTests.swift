@@ -46,7 +46,7 @@ extension TerminalAgentStateStoreTests {
         subagentID: "child-1",
         context: context,
         processID: identity.processID,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
     #expect(accepted)
@@ -133,7 +133,7 @@ extension TerminalAgentStateStoreTests {
         subagentID: "child-1",
         context: context,
         processID: childIdentity.processID,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
 

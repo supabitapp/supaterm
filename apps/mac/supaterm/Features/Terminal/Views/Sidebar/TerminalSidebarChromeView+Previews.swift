@@ -1,6 +1,5 @@
 import Foundation
 import SupaTheme
-import SupatermCLIShared
 import SwiftUI
 
 private enum TerminalSidebarTabPreviewSection: String, CaseIterable, Identifiable {

@@ -1,5 +1,4 @@
 import ComposableArchitecture
-import Sharing
 import SupaTheme
 import SupatermCLIShared
 import SwiftUI
@@ -54,7 +53,6 @@ struct TerminalSidebarSpaceList: View {
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
-  @Shared(.supatermSettings) private var supatermSettings = .default
   @State private var groupIconURLs: [TerminalTabGroupID: URL] = [:]
 
   var body: some View {

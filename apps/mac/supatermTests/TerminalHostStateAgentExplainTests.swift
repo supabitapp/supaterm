@@ -451,7 +451,7 @@ struct TerminalHostStateAgentExplainTests {
       phase: .needsInput,
       detail: nil,
       attentionRequestID: nil,
-      hoverMessages: [],
+      latestResponse: nil,
       isActionable: false,
       progressRows: [],
       activeChildren: [],

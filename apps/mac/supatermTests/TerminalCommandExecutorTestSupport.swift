@@ -184,6 +184,16 @@ actor UpdateMenuActionRecorder {
 
 extension TerminalHostState {
   @discardableResult
+  func setTestAgentActivity(_ activity: AgentActivity, for surfaceID: UUID) -> Bool {
+    applyTestAgentActivity(
+      activity,
+      for: surfaceID,
+      sessionID: "test-\(activity.identity.id)-\(surfaceID.uuidString)",
+      processID: nil
+    )
+  }
+
+  @discardableResult
   func startTestAgentSession(
     agent: SupatermAgentKind,
     for surfaceID: UUID,

@@ -497,7 +497,7 @@ struct TerminalSessionCatalogTests {
       turnLifecycle: .active("turn-1"),
       phase: .needsInput,
       detail: "Approve tests",
-      hoverMessages: ["Inspecting", "Testing"],
+      latestResponse: "Testing",
       progressRows: [
         PaneAgentProgressRow(id: "plan-1", title: "Implement", status: .running)
       ],
@@ -509,7 +509,6 @@ struct TerminalSessionCatalogTests {
             turnID: "turn-1"
           ),
           kind: .subagent,
-          nickname: "Mendel",
           role: "reviewer",
           phase: .running,
           detail: "Reviewing"

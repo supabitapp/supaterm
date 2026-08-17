@@ -235,9 +235,7 @@ struct TerminalSidebarTabSummaryView: View {
 private struct TerminalSidebarTabSummaryLayout: Layout {
   private struct Measurements {
     let contentProposal: ProposedViewSize
-    let contentSize: CGSize
     let accessoryProposal: ProposedViewSize
-    let accessorySize: CGSize
     let size: CGSize
   }
 
@@ -298,9 +296,7 @@ private struct TerminalSidebarTabSummaryLayout: Layout {
     let measuredWidth = width ?? contentSize.width + spacing + accessorySize.width
     return Measurements(
       contentProposal: contentProposal,
-      contentSize: contentSize,
       accessoryProposal: accessoryProposal,
-      accessorySize: accessorySize,
       size: CGSize(
         width: measuredWidth,
         height: max(contentSize.height, accessorySize.height)

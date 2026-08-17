@@ -85,7 +85,7 @@ extension TerminalAgentStateStoreTests {
         subagentID: "child-1",
         context: context,
         processID: 43,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
 
@@ -141,7 +141,7 @@ extension TerminalAgentStateStoreTests {
         turnID: "turn-1",
         subagentID: "child-1",
         context: context,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
     store.apply(
@@ -191,7 +191,7 @@ extension TerminalAgentStateStoreTests {
         turnID: "turn-1",
         subagentID: "child-1",
         context: context,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
     store.apply(

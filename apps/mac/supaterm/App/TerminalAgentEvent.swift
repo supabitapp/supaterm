@@ -49,9 +49,7 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
     case sessionStarted
     case subagentStarted(
       kind: TerminalAgentChildKind = .subagent,
-      nickname: String?,
-      role: String?,
-      task: String? = nil
+      role: String?
     )
     case subagentStopped
     case subagentsReconciled(

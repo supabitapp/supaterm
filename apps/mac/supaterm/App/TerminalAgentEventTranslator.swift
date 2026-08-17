@@ -44,7 +44,6 @@ nonisolated enum TerminalAgentEventTranslator {
     let role = AgentHookText.normalized(request.event.agentType)
     return .subagentStarted(
       kind: childKind(agent: request.agent, role: role),
-      nickname: nil,
       role: request.agent == .codex && role?.lowercased() == "default" ? nil : role
     )
   }
@@ -53,15 +52,6 @@ nonisolated enum TerminalAgentEventTranslator {
     for request: SupatermAgentHookRequest,
     scope: TerminalAgentEvent.Scope
   ) -> [TerminalAgentEvent] {
-    if let mutation = claudeTaskHookMutation(for: request) {
-      return [
-        event(
-          request,
-          scope: rootScope(scope),
-          action: .progressUpdated(mutation)
-        )
-      ]
-    }
     let action: TerminalAgentEvent.Action
     switch request.event.hookEventName {
     case .notification:
@@ -409,24 +399,6 @@ nonisolated enum TerminalAgentEventTranslator {
     default:
       return nil
     }
-  }
-
-  private static func claudeTaskHookMutation(
-    for request: SupatermAgentHookRequest
-  ) -> TerminalAgentProgressMutation? {
-    let status: PaneAgentProgressRow.Status
-    switch request.event.hookEventName {
-    case .taskCompleted: status = .completed
-    case .taskCreated: status = .pending
-    default: return nil
-    }
-    guard
-      let id = AgentHookText.normalized(request.event.payload["task_id"]?.stringValue),
-      let title = AgentHookText.normalized(request.event.payload["task_subject"]?.stringValue)
-    else {
-      return nil
-    }
-    return .upsert(id: id, title: title, status: status)
   }
 
   private static func claudeTaskID(from input: JSONObject) -> String? {

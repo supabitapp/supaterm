@@ -57,24 +57,25 @@ struct TerminalCommandExecutorAgentHookTests {
   }
 
   @Test
-  func claudeTaskHooksDrivePanelProgress() throws {
+  func claudeSuccessfulTaskToolsDrivePanelProgress() throws {
     let harness = try makeClaudeHookHarness()
     let created = """
       {
         "session_id": "\(ClaudeHookFixtures.sessionID)",
         "cwd": "\(ClaudeHookFixtures.cwd)",
-        "hook_event_name": "TaskCreated",
-        "task_id": "task-7",
-        "task_subject": "Wire task status"
+        "hook_event_name": "PostToolUse",
+        "tool_name": "TaskCreate",
+        "tool_input": { "subject": "Wire task status" },
+        "tool_response": { "task": { "id": "task-7" } }
       }
       """
     let completed = """
       {
         "session_id": "\(ClaudeHookFixtures.sessionID)",
         "cwd": "\(ClaudeHookFixtures.cwd)",
-        "hook_event_name": "TaskCompleted",
-        "task_id": "task-7",
-        "task_subject": "Wire task status"
+        "hook_event_name": "PostToolUse",
+        "tool_name": "TaskUpdate",
+        "tool_input": { "task_id": "task-7", "status": "completed" }
       }
       """
 

@@ -51,13 +51,13 @@ public enum SupatermClaudeHookSettings {
       "PostToolUse": [
         ClaudeHookGroup(
           matcher: "",
-          hooks: [ClaudeCommandHook(command: command, timeout: 5, isAsync: true)]
+          hooks: [ClaudeCommandHook(command: command, timeout: 5)]
         )
       ],
       "PreToolUse": [
         ClaudeHookGroup(
           matcher: "",
-          hooks: [ClaudeCommandHook(command: command, timeout: 5, isAsync: true)]
+          hooks: [ClaudeCommandHook(command: command, timeout: 5)]
         )
       ],
       "SessionEnd": [
@@ -72,12 +72,6 @@ public enum SupatermClaudeHookSettings {
       ],
       "SubagentStop": [
         ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 10)])
-      ],
-      "TaskCompleted": [
-        ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 5, isAsync: true)])
-      ],
-      "TaskCreated": [
-        ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 5, isAsync: true)])
       ],
       "UserPromptSubmit": [
         ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 10)])
@@ -107,19 +101,10 @@ private struct ClaudeCommandHook: Encodable {
   let type = "command"
   let command: String
   let timeout: Int
-  let isAsync: Bool?
 
-  init(command: String, timeout: Int, isAsync: Bool? = nil) {
+  init(command: String, timeout: Int) {
     self.command = command
     self.timeout = timeout
-    self.isAsync = isAsync
-  }
-
-  enum CodingKeys: String, CodingKey {
-    case type
-    case command
-    case timeout
-    case isAsync = "async"
   }
 }
 

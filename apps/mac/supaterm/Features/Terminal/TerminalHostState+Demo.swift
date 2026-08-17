@@ -52,16 +52,16 @@
           action: .progressUpdated(.replace(Self.demoProgressRows))
         )
       )
-      for nickname in ["Linnaeus", "Mendel", "Turing"] {
+      for role in ["explorer", "reviewer", "test-runner"] {
         _ = applyAgentEvent(
           TerminalAgentEvent(
             scope: TerminalAgentEvent.Scope(
               agent: snapshot.agent,
               sessionID: snapshot.sessionID,
-              subagentID: "demo-\(nickname.lowercased())"
+              subagentID: "demo-\(role)"
             ),
             context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
-            action: .subagentStarted(nickname: nickname, role: nil)
+            action: .subagentStarted(role: role)
           )
         )
       }

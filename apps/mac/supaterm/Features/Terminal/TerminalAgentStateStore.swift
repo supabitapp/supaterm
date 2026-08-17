@@ -14,6 +14,18 @@ nonisolated enum TerminalAgentTurnLifecycle: Codable, Equatable, Sendable {
   case unseen
 }
 
+nonisolated enum TerminalAgentChildPhase: Codable, Equatable, Sendable {
+  case needsInput
+  case running
+
+  var activityPhase: AgentActivityPhase {
+    switch self {
+    case .needsInput: .needsInput
+    case .running: .running
+    }
+  }
+}
+
 nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, Sendable {
   struct Identity: Codable, Equatable, Hashable, Sendable {
     let subagentID: String
@@ -23,28 +35,22 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
 
   let id: Identity
   let kind: TerminalAgentChildKind
-  let nickname: String?
   let role: String?
-  let task: String?
-  let phase: AgentActivityPhase
+  let phase: TerminalAgentChildPhase
   let detail: String?
   let attentionRequestID: String?
 
   init(
     id: Identity,
     kind: TerminalAgentChildKind = .subagent,
-    nickname: String?,
     role: String?,
-    task: String? = nil,
-    phase: AgentActivityPhase,
+    phase: TerminalAgentChildPhase,
     detail: String?,
     attentionRequestID: String? = nil
   ) {
     self.id = id
     self.kind = kind
-    self.nickname = nickname
     self.role = role
-    self.task = task
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
@@ -53,7 +59,6 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   var subagentID: String { id.subagentID }
   var sessionID: String { id.sessionID }
   var turnID: String? { id.turnID }
-  var displayDetail: String? { detail ?? task }
 }
 
 nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
@@ -61,7 +66,7 @@ nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
   let sessionID: String
   let phase: AgentActivityPhase
   let detail: String?
-  let hoverMessages: [String]
+  let latestResponse: String?
   let isActionable: Bool
   let progressRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
@@ -82,7 +87,7 @@ nonisolated struct TerminalAgentStateSnapshot: Equatable, Sendable {
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
-  let hoverMessages: [String]
+  let latestResponse: String?
   let isActionable: Bool
   let progressRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
@@ -121,7 +126,7 @@ nonisolated struct TerminalAgentStateStore {
     var activeChildren: [TerminalAgentActiveChild.Identity: TerminalAgentActiveChild] = [:]
     var detail: String?
     var attentionRequestID: String?
-    var hoverMessages: [String] = []
+    var latestResponse: String?
     var hasPendingBackgroundWork = false
     var isActionable = false
     var nativeHookProcessIdentity: TerminalAgentProcessIdentity?
@@ -353,26 +358,17 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     guard let childKey = Self.childKey(for: event) else { return }
     switch event.action {
-    case .subagentStarted(let kind, let nickname, let role, let task):
+    case .subagentStarted(let kind, let role):
       state.activeChildren = state.activeChildren.filter {
         $0.key.subagentID != childKey.subagentID || $0.key == childKey
       }
       if let child = state.activeChildren[childKey] {
-        let updated = child.updating(
-          kind: kind,
-          nickname: nickname,
-          role: role,
-          task: task
-        )
-        state.activeChildren[childKey] =
-          child.phase == .idle ? updated.updating(phase: .running, detail: nil) : updated
+        state.activeChildren[childKey] = child.updating(kind: kind, role: role)
       } else {
         state.activeChildren[childKey] = TerminalAgentActiveChild(
           id: childKey,
           kind: kind,
-          nickname: nickname,
           role: role,
-          task: task,
           phase: .running,
           detail: nil
         )
@@ -390,7 +386,7 @@ nonisolated struct TerminalAgentStateStore {
     state: inout SessionState
   ) {
     guard let child = state.activeChildren[key] else { return }
-    let update: (AgentActivityPhase, String?)?
+    let update: (TerminalAgentChildPhase, String?)?
     switch action {
     case .attentionRequested(let requestID, let message):
       state.activeChildren[key] = child.updating(
@@ -423,7 +419,7 @@ nonisolated struct TerminalAgentStateStore {
     state.phase = .running
     state.detail = nil
     state.attentionRequestID = nil
-    state.hoverMessages = []
+    state.latestResponse = nil
     state.progressRows = []
   }
 
@@ -444,8 +440,8 @@ nonisolated struct TerminalAgentStateStore {
     state.detail = nil
     state.attentionRequestID = nil
     state.progressRows = []
-    if let message = Self.normalizedMessages([message].compactMap(\.self)).first {
-      state.hoverMessages = [message]
+    if let message = Self.normalizedMessage(message) {
+      state.latestResponse = message
     }
   }
 
@@ -581,17 +577,17 @@ nonisolated struct TerminalAgentStateStore {
       return nil
     }
     let activeChildren = Self.sortedChildren(state.activeChildren.values)
-    let phase = activeChildren.reduce(state.phase) { max($0, $1.phase) }
+    let phase = activeChildren.reduce(state.phase) { max($0, $1.phase.activityPhase) }
     let detail =
       state.phase == phase
       ? state.detail
-      : activeChildren.first(where: { $0.phase == phase })?.displayDetail
+      : activeChildren.first(where: { $0.phase.activityPhase == phase })?.detail
     return TerminalAgentStatePresentation(
       agent: agent,
       sessionID: sessionID,
       phase: phase,
       detail: detail,
-      hoverMessages: state.hoverMessages,
+      latestResponse: state.latestResponse,
       isActionable: state.isActionable,
       progressRows: state.progressRows,
       activeChildren: activeChildren,
@@ -659,7 +655,7 @@ nonisolated struct TerminalAgentStateStore {
         phase: state.phase,
         detail: state.detail,
         attentionRequestID: state.attentionRequestID,
-        hoverMessages: state.hoverMessages,
+        latestResponse: state.latestResponse,
         isActionable: state.isActionable,
         progressRows: state.progressRows,
         activeChildren: Self.sortedChildren(state.activeChildren.values),
@@ -688,7 +684,7 @@ nonisolated struct TerminalAgentStateStore {
         ),
         detail: snapshot.detail,
         attentionRequestID: snapshot.attentionRequestID,
-        hoverMessages: snapshot.hoverMessages,
+        latestResponse: snapshot.latestResponse,
         hasPendingBackgroundWork: snapshot.hasPendingBackgroundWork,
         isActionable: snapshot.isActionable,
         phase: snapshot.phase,
@@ -777,11 +773,13 @@ nonisolated struct TerminalAgentStateStore {
     sessions[key] = state
   }
 
-  private static func normalizedMessages(_ messages: [String]) -> [String] {
-    messages.compactMap { message in
-      let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
-      return message.isEmpty ? nil : message
+  private static func normalizedMessage(_ message: String?) -> String? {
+    guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !message.isEmpty
+    else {
+      return nil
     }
+    return message
   }
 
   private static func normalizedWorkingDirectoryPath(_ path: String?) -> String? {
@@ -810,17 +808,13 @@ nonisolated struct TerminalAgentStateStore {
 
 extension TerminalAgentActiveChild {
   fileprivate nonisolated func updating(
-    kind: TerminalAgentChildKind? = nil,
-    nickname: String?,
-    role: String? = nil,
-    task: String?
+    kind: TerminalAgentChildKind,
+    role: String?
   ) -> Self {
     Self(
       id: id,
-      kind: kind ?? self.kind,
-      nickname: nickname ?? self.nickname,
+      kind: kind,
       role: role ?? self.role,
-      task: task ?? self.task,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID
@@ -828,16 +822,14 @@ extension TerminalAgentActiveChild {
   }
 
   fileprivate nonisolated func updating(
-    phase: AgentActivityPhase,
+    phase: TerminalAgentChildPhase,
     detail: String?,
     attentionRequestID: String? = nil
   ) -> Self {
     Self(
       id: id,
       kind: kind,
-      nickname: nickname,
       role: role,
-      task: task,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID

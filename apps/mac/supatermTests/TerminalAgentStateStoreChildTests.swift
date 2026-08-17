@@ -32,7 +32,7 @@ extension TerminalAgentStateStoreTests {
         turnID: "turn-1",
         subagentID: "child-1",
         context: context,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
 
@@ -46,7 +46,6 @@ extension TerminalAgentStateStoreTests {
             sessionID: "root-session",
             turnID: "turn-1"
           ),
-          nickname: nil,
           role: "reviewer",
           phase: .running,
           detail: nil
@@ -76,7 +75,7 @@ extension TerminalAgentStateStoreTests {
         turnID: "child-turn",
         subagentID: "child-1",
         context: context,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
 
@@ -102,7 +101,7 @@ extension TerminalAgentStateStoreTests {
         turnID: "turn-1",
         subagentID: "child-1",
         context: context,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
 
@@ -158,7 +157,7 @@ extension TerminalAgentStateStoreTests {
     var store = fixture.store
 
     for action in [
-      TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
+      TerminalAgentEvent.Action.subagentStarted(role: "reviewer"),
       .subagentStopped,
     ] {
       store.apply(
@@ -183,7 +182,7 @@ extension TerminalAgentStateStoreTests {
     var store = fixture.store
 
     for action in [
-      TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
+      TerminalAgentEvent.Action.subagentStarted(role: "reviewer"),
       .subagentStopped,
       .turnRunning(detail: "Late tool event"),
     ] {
@@ -209,9 +208,9 @@ extension TerminalAgentStateStoreTests {
     var store = fixture.store
 
     for action in [
-      TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
+      TerminalAgentEvent.Action.subagentStarted(role: "reviewer"),
       .subagentStopped,
-      .subagentStarted(nickname: nil, role: "reviewer"),
+      .subagentStarted(role: "reviewer"),
       .turnRunning(detail: "Bash"),
     ] {
       store.apply(
@@ -240,9 +239,9 @@ extension TerminalAgentStateStoreTests {
     var store = fixture.store
 
     for action in [
-      TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
+      TerminalAgentEvent.Action.subagentStarted(role: "reviewer"),
       .attentionRequested(requestID: nil, message: "Approve"),
-      .subagentStarted(nickname: "Mendel", role: "reviewer"),
+      .subagentStarted(role: "reviewer"),
     ] {
       store.apply(
         event(
@@ -259,95 +258,6 @@ extension TerminalAgentStateStoreTests {
       store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first?.phase
         == .needsInput
     )
-    #expect(
-      store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first?.nickname
-        == "Mendel"
-    )
-  }
-
-  @Test
-  func resolvedChildAttentionFallsBackToTask() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        subagentID: "child-1",
-        context: context,
-        action: .subagentStarted(
-          nickname: nil,
-          role: "Explore",
-          task: "Explore UI test infrastructure"
-        )
-      )
-    )
-    let attentionActions: [TerminalAgentEvent.Action] = [
-      .attentionRequested(requestID: "tool:Bash", message: "Approve command"),
-      .attentionResolved(requestID: "tool:Bash"),
-    ]
-    for action in attentionActions {
-      store.apply(
-        event(
-          sessionID: "session-1",
-          turnID: "turn-1",
-          subagentID: "child-1",
-          context: context,
-          action: action
-        )
-      )
-    }
-
-    let child = try #require(
-      store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first
-    )
-    #expect(child.phase == .running)
-    #expect(child.detail == nil)
-    #expect(child.displayDetail == "Explore UI test infrastructure")
-  }
-
-  @Test
-  func childTaskSurvivesLaterRootTurnsWithoutTurnIDs() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        subagentID: "child-1",
-        context: context,
-        action: .subagentStarted(
-          nickname: "goo4560",
-          role: "general-purpose",
-          task: "GOO-4560 board API table"
-        )
-      )
-    )
-    store.apply(
-      event(sessionID: "session-1", context: context, action: .turnCompleted(message: nil))
-    )
-    store.apply(
-      event(sessionID: "session-1", context: context, action: .turnStarted)
-    )
-    store.apply(
-      event(
-        sessionID: "session-1",
-        subagentID: "child-2",
-        context: context,
-        action: .subagentStarted(kind: .workflow, nickname: nil, role: "workflow-subagent")
-      )
-    )
-
-    let children = try #require(
-      store.presentation(for: surfaceID, agent: .codex)?.activeChildren
-    )
-    #expect(children.map(\.subagentID) == ["child-1", "child-2"])
-    #expect(children.map(\.task) == ["GOO-4560 board API table", nil])
   }
 
   @Test
@@ -364,7 +274,7 @@ extension TerminalAgentStateStoreTests {
           turnID: turnID,
           subagentID: "child-1",
           context: context,
-          action: .subagentStarted(nickname: nil, role: "reviewer")
+          action: .subagentStarted(role: "reviewer")
         )
       )
     }
@@ -399,7 +309,7 @@ extension TerminalAgentStateStoreTests {
         turnID: "turn-1",
         subagentID: "child-1",
         context: context,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
     store.apply(
@@ -439,7 +349,7 @@ extension TerminalAgentStateStoreTests {
           sessionID: "session-1",
           subagentID: subagentID,
           context: context,
-          action: .subagentStarted(nickname: nil, role: "general-purpose")
+          action: .subagentStarted(role: "general-purpose")
         )
       )
     }
@@ -487,7 +397,6 @@ extension TerminalAgentStateStoreTests {
           context: context,
           action: .subagentStarted(
             kind: child.kind,
-            nickname: "codex-balancer-research",
             role: child.role
           )
         )
@@ -550,7 +459,6 @@ extension TerminalAgentStateStoreTests {
         context: context,
         action: .subagentStarted(
           kind: .unknown,
-          nickname: "thermo-risk",
           role: "thermo-risk"
         )
       )
@@ -603,7 +511,7 @@ extension TerminalAgentStateStoreTests {
         phase: .idle,
         detail: nil,
         attentionRequestID: nil,
-        hoverMessages: [],
+        latestResponse: nil,
         isActionable: false,
         progressRows: [],
         activeChildren: [
@@ -613,7 +521,6 @@ extension TerminalAgentStateStoreTests {
               sessionID: "session-1",
               turnID: nil
             ),
-            nickname: nil,
             role: "general-purpose",
             phase: .running,
             detail: nil
@@ -658,7 +565,7 @@ extension TerminalAgentStateStoreTests {
         turnID: scope.turnID,
         subagentID: scope.childID,
         context: context,
-        action: .subagentStarted(nickname: nil, role: "reviewer")
+        action: .subagentStarted(role: "reviewer")
       )
     )
     store.apply(

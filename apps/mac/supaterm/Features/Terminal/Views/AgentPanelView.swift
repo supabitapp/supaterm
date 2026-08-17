@@ -152,7 +152,7 @@ struct AgentPanelView: View {
         Text(Self.childStatus(child))
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.primaryText)
-        if let detail = child.displayDetail {
+        if let detail = child.detail {
           Text(detail)
             .font(.system(size: 11))
             .foregroundStyle(palette.secondaryText)
@@ -166,21 +166,9 @@ struct AgentPanelView: View {
   }
 
   static func childStatus(_ child: TerminalAgentActiveChild) -> String {
-    let nickname = normalizedChildLabel(child.nickname)
     let role = normalizedChildLabel(child.role)
-    let subject =
-      switch (nickname, role) {
-      case (.some(let nickname), .some(let role)):
-        "\(nickname) [\(role)]"
-      case (.some(let nickname), nil):
-        nickname
-      case (nil, .some(let role)):
-        childRoleSubject(role)
-      case (nil, nil):
-        "Subagent"
-      }
+    let subject = role.map(childRoleSubject) ?? "Subagent"
     return switch child.phase {
-    case .idle: "\(subject) is done"
     case .needsInput: "\(subject) needs input"
     case .running: "\(subject) is working"
     }
@@ -203,10 +191,9 @@ struct AgentPanelView: View {
   }
 
   private func childProgressStatus(
-    _ phase: AgentActivityPhase
+    _ phase: TerminalAgentChildPhase
   ) -> PaneAgentProgressRow.Status {
     switch phase {
-    case .idle: .completed
     case .needsInput: .pending
     case .running: .running
     }

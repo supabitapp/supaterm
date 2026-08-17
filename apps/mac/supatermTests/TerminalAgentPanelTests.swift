@@ -16,12 +16,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func childStatusUsesAvailableIdentityAndPhase() {
-    #expect(AgentPanelView.childStatus(child(nickname: "Mendel")) == "Mendel is working")
-    #expect(
-      AgentPanelView.childStatus(child(nickname: "Mendel", role: "reviewer"))
-        == "Mendel [reviewer] is working"
-    )
+  func childStatusUsesAvailableRoleAndPhase() {
     #expect(
       AgentPanelView.childStatus(child(role: "workflow-subagent"))
         == "Workflow Subagent is working"
@@ -31,10 +26,6 @@ struct TerminalAgentPanelTests {
     #expect(
       AgentPanelView.childStatus(child(role: "tester", phase: .needsInput))
         == "Tester subagent needs input"
-    )
-    #expect(
-      AgentPanelView.childStatus(child(role: "reviewer", phase: .idle))
-        == "Reviewer subagent is done"
     )
   }
 
@@ -1703,10 +1694,8 @@ struct TerminalAgentPanelTests {
   private func child(
     subagentID: String = "child-1",
     kind: TerminalAgentChildKind = .subagent,
-    nickname: String? = nil,
     role: String? = nil,
-    task: String? = nil,
-    phase: AgentActivityPhase = .running,
+    phase: TerminalAgentChildPhase = .running,
     detail: String? = nil
   ) -> TerminalAgentActiveChild {
     TerminalAgentActiveChild(
@@ -1716,9 +1705,7 @@ struct TerminalAgentPanelTests {
         turnID: "turn-1"
       ),
       kind: kind,
-      nickname: nickname,
       role: role,
-      task: task,
       phase: phase,
       detail: detail
     )

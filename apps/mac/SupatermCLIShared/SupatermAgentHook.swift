@@ -31,8 +31,6 @@ public struct SupatermAgentHookEventName: Equatable, Hashable, RawRepresentable,
   public static let stop = Self(rawValue: "Stop")
   public static let subagentStart = Self(rawValue: "SubagentStart")
   public static let subagentStop = Self(rawValue: "SubagentStop")
-  public static let taskCompleted = Self(rawValue: "TaskCompleted")
-  public static let taskCreated = Self(rawValue: "TaskCreated")
   public static let userPromptSubmit = Self(rawValue: "UserPromptSubmit")
 
   public let rawValue: String
