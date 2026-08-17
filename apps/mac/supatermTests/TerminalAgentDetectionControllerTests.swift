@@ -53,6 +53,21 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func scansResolvedForegroundProcessGroupWithoutChangingSurfaceIdentity() async {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.sampler.setForegroundProcessGroups([surfaceID: 99])
+    await fixture.sampler.setMatches([99: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+
+    await fixture.controller.tick(now: ContinuousClock.now)
+
+    #expect(await fixture.sampler.batches() == [[99]])
+    #expect(fixture.host.observations[surfaceID]?.processIdentity == proof)
+  }
+
+  @Test
   func rejectsPIDReuseUntilTheExactStartTimeIsCurrent() async {
     let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(processGroupID: 11)
@@ -410,8 +425,10 @@ struct TerminalAgentDetectionControllerTests {
     #expect(retained == nil)
   }
 
-  @Test
-  func liveGhosttyProcessTitleAndExitDriveFallbackEndToEnd() async throws {
+  @Test(arguments: [false, true])
+  func liveGhosttyProcessDetectionWorksAcrossSessionModes(
+    zmxSessionsEnabled: Bool
+  ) async throws {
     initializeGhosttyForTests()
     let temporaryDirectory = FileManager.default.temporaryDirectory.appending(
       path: "supaterm-live-agent-detection-\(UUID().uuidString)",
@@ -431,7 +448,7 @@ struct TerminalAgentDetectionControllerTests {
     let runtime = try makeGhosttyRuntime("")
     let host = TerminalHostState(
       runtime: runtime,
-      zmxSessionsEnabled: false,
+      zmxSessionsEnabled: zmxSessionsEnabled,
       agentDetectionRuleRepository: repository
     )
     var processID: Int32?
@@ -460,21 +477,35 @@ struct TerminalAgentDetectionControllerTests {
     window?.makeKeyAndOrderFront(nil)
     window?.makeFirstResponder(surface)
     let shellProcessGroupID = try await waitForForegroundProcess(on: surface)
-    surface.bridge.submitText("\(executableURL.path) 120")
-    _ = try await waitForForegroundProcess(
-      on: surface,
-      excluding: shellProcessGroupID
-    )
+    let interruptedScreen = [
+      "\\n• Working (8m 21s • esc to interrupt)",
+      "■ Conversation interrupted - tell the model what to do differently.",
+      "› do it in a new worktree\\n",
+    ].joined(separator: "\\n")
+    let command =
+      if zmxSessionsEnabled {
+        "printf '\(interruptedScreen)'; '\(executableURL.path)' 120"
+      } else {
+        "\(executableURL.path) 120"
+      }
+    surface.bridge.submitText(command)
+    if !zmxSessionsEnabled {
+      _ = try await waitForForegroundProcess(
+        on: surface,
+        excluding: shellProcessGroupID
+      )
+    }
     let proof = try await waitForProvenProcess {
       host.agentDetectionExplanation(for: surface.id)
     }
     processID = proof.processID
-    surface.bridge.state.title = "⠋ running"
+    let expectedPhase: AgentActivityPhase = zmxSessionsEnabled ? .idle : .running
+    surface.bridge.state.title = zmxSessionsEnabled ? "project" : "⠋ running"
 
     let detected = try await waitForDetection(
       {
         guard let observation = terminalObservation(in: host, for: surface.id),
-          observation.phase == .running
+          observation.phase == expectedPhase
         else {
           return nil
         }
@@ -486,8 +517,11 @@ struct TerminalAgentDetectionControllerTests {
 
     #expect(detected.processIdentity == proof)
     #expect(detected.agent.id == "codex")
-    #expect(detected.phase == .running)
-    #expect(host.agentActivity(for: try #require(host.selectedTabID)) == .codex(.running))
+    #expect(detected.phase == expectedPhase)
+    #expect(host.agentActivity(for: try #require(host.selectedTabID)) == .codex(expectedPhase))
+    if zmxSessionsEnabled {
+      #expect(detected.ruleID == "osc_title_idle")
+    }
     #expect(host.agentDetectionExplanation(for: surface.id).publishedPhase == detected.phase)
     #expect(host.agentDetectionExplanation(for: surface.id).publishedRuleID == detected.ruleID)
     #expect(Darwin.kill(detected.processIdentity.processID, SIGTERM) == 0)
@@ -527,6 +561,9 @@ struct TerminalAgentDetectionControllerTests {
         }
       ),
       sampler: TerminalAgentDetectionSampler(
+        foregroundProcessGroups: { processGroupIDs in
+          await sampler.foregroundProcessGroups(processGroupIDs)
+        },
         matches: { processGroupIDs, manifests in
           await sampler.matches(processGroupIDs, manifests: manifests)
         },
@@ -793,10 +830,15 @@ private actor DetectionSamplerFixture {
   private let gate: DetectionGate?
   private var processMatches: [Int32: AgentDetectionProcessMatch] = [:]
   private var currentIdentities: Set<TerminalAgentProcessIdentity> = []
+  private var resolvedProcessGroups: [UUID: Int32]?
   private var capturedBatches: [Set<Int32>] = []
 
   init(gate: DetectionGate? = nil) {
     self.gate = gate
+  }
+
+  func foregroundProcessGroups(_ processGroupIDs: [UUID: Int32]) -> [UUID: Int32] {
+    resolvedProcessGroups ?? processGroupIDs
   }
 
   func matches(
@@ -822,6 +864,10 @@ private actor DetectionSamplerFixture {
 
   func setCurrent(_ identities: Set<TerminalAgentProcessIdentity>) {
     currentIdentities = identities
+  }
+
+  func setForegroundProcessGroups(_ processGroupIDs: [UUID: Int32]) {
+    resolvedProcessGroups = processGroupIDs
   }
 
   func batches() -> [Set<Int32>] {

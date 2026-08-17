@@ -32,23 +32,27 @@ struct TerminalHostStateChildExitTests {
   func childExitRetriesAReportedZmxSessionBeforeClosing() async throws {
     initializeGhosttyForTests()
     let listedSessions = Mutex(0)
-    let sessionID = Mutex<String?>(nil)
+    let listedSurfaceID = Mutex<UUID?>(nil)
     let host = TerminalHostState(
       zmxClient: ZmxClient(
         executableURL: { nil },
         isBundled: { true },
         killSession: { _ in },
-        listSessions: {
+        sessions: {
           listedSessions.withLock { count in
             count += 1
-            return count == 1 ? sessionID.withLock { $0.map { [$0] } ?? [] } : []
+            return count == 1
+              ? listedSurfaceID.withLock {
+                $0.map { [ZmxSession(surfaceID: $0, processID: 1)] } ?? []
+              }
+              : []
           }
         }
       )
     )
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let surfaceID = try #require(host.selectedSurfaceView?.id)
-    sessionID.withLock { $0 = ZmxSessionID.make(surfaceID: surfaceID) }
+    listedSurfaceID.withLock { $0 = surfaceID }
 
     host.requestCloseSurfaceAfterProcessExit(
       surfaceID,
@@ -71,21 +75,23 @@ struct TerminalHostStateChildExitTests {
   func childExitReattachesWhenZmxSessionRemainsAfterRetry() async throws {
     initializeGhosttyForTests()
     let listedSessions = Mutex(0)
-    let sessionID = Mutex<String?>(nil)
+    let listedSurfaceID = Mutex<UUID?>(nil)
     let host = TerminalHostState(
       zmxClient: ZmxClient(
         executableURL: { nil },
         isBundled: { true },
         killSession: { _ in },
-        listSessions: {
+        sessions: {
           listedSessions.withLock { $0 += 1 }
-          return sessionID.withLock { $0.map { [$0] } ?? [] }
+          return listedSurfaceID.withLock {
+            $0.map { [ZmxSession(surfaceID: $0, processID: 1)] } ?? []
+          }
         }
       )
     )
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let originalSurface = try #require(host.selectedSurfaceView)
-    sessionID.withLock { $0 = ZmxSessionID.make(surfaceID: originalSurface.id) }
+    listedSurfaceID.withLock { $0 = originalSurface.id }
 
     host.requestCloseSurfaceAfterProcessExit(
       originalSurface.id,

@@ -69,22 +69,59 @@ public nonisolated enum ZmxEnvironment {
   }
 }
 
+public nonisolated struct ZmxSession: Equatable, Sendable {
+  public let surfaceID: UUID
+  public let processID: Int32
+
+  public init(surfaceID: UUID, processID: Int32) {
+    self.surfaceID = surfaceID
+    self.processID = processID
+  }
+
+  public static func parseList(
+    _ output: String,
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> [ZmxSession] {
+    output.split(whereSeparator: \.isNewline).compactMap { line in
+      let fields = line.split(separator: "\t")
+      guard
+        let nameField = fields.first,
+        let nameRange = nameField.range(of: "name="),
+        let processField = fields.first(where: { $0.hasPrefix("pid=") }),
+        let processID = Int32(processField.dropFirst(4)),
+        processID > 0,
+        let surfaceID = ZmxSessionID.surfaceID(
+          from: String(nameField[nameRange.upperBound...]),
+          environment: environment
+        )
+      else {
+        return nil
+      }
+      return ZmxSession(surfaceID: surfaceID, processID: processID)
+    }
+  }
+}
+
 public nonisolated struct ZmxClient: Sendable {
   public var executableURL: @Sendable () -> URL?
   public var isBundled: @Sendable () -> Bool
   public var killSession: @Sendable (_ surfaceID: UUID) async -> Void
-  public var listSessions: @Sendable () async -> [String]?
+  public var sessions: @Sendable () async -> [ZmxSession]?
 
   public nonisolated init(
     executableURL: @escaping @Sendable () -> URL?,
     isBundled: @escaping @Sendable () -> Bool,
     killSession: @escaping @Sendable (_ surfaceID: UUID) async -> Void,
-    listSessions: @escaping @Sendable () async -> [String]?
+    sessions: @escaping @Sendable () async -> [ZmxSession]?
   ) {
     self.executableURL = executableURL
     self.isBundled = isBundled
     self.killSession = killSession
-    self.listSessions = listSessions
+    self.sessions = sessions
+  }
+
+  public func listSessions() async -> [String]? {
+    await sessions()?.map { ZmxSessionID.make(surfaceID: $0.surfaceID) }
   }
 }
 
@@ -229,16 +266,12 @@ extension ZmxClient {
         )
         _ = await runZmx(["kill", ZmxSessionID.make(surfaceID: surfaceID)])
       },
-      listSessions: {
-        guard let stdout = await runZmx(["ls", "--short"], captureStdout: true) else {
+      sessions: {
+        guard let stdout = await runZmx(["ls"], captureStdout: true) else {
           zmxLogError("zmx.list.failed")
           return nil
         }
-        let sessions =
-          stdout
-          .split(whereSeparator: \.isNewline)
-          .map { $0.trimmingCharacters(in: .whitespaces) }
-          .filter { ZmxSessionID.surfaceID(from: $0) != nil }
+        let sessions = ZmxSession.parseList(stdout)
         zmxLogDebug(
           "zmx.list.parsed",
           fields: ["count=\(sessions.count)"]
@@ -252,7 +285,7 @@ extension ZmxClient {
     executableURL: { nil },
     isBundled: { false },
     killSession: { _ in },
-    listSessions: { nil }
+    sessions: { nil }
   )
 }
 

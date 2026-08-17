@@ -36,6 +36,29 @@ public struct TerminalAgentProcessIdentity: Codable, Equatable, Hashable, Sendab
 
 public enum TerminalAgentProcessInspector {
   public static func identity(for processID: Int32) -> TerminalAgentProcessIdentity? {
+    guard let info = bsdInfo(for: processID) else { return nil }
+    return TerminalAgentProcessIdentity(
+      processID: processID,
+      seconds: info.pbi_start_tvsec,
+      microseconds: info.pbi_start_tvusec
+    )
+  }
+
+  public static func isCurrent(_ identity: TerminalAgentProcessIdentity) -> Bool {
+    self.identity(for: identity.processID) == identity
+  }
+
+  public static func foregroundProcessGroupID(for processID: Int32) -> Int32? {
+    guard
+      let processGroupID = bsdInfo(for: processID)?.e_tpgid,
+      processGroupID > 0
+    else {
+      return nil
+    }
+    return Int32(exactly: processGroupID)
+  }
+
+  private static func bsdInfo(for processID: Int32) -> proc_bsdinfo? {
     guard processID > 0 else { return nil }
     var info = proc_bsdinfo()
     let expectedSize = Int32(MemoryLayout<proc_bsdinfo>.size)
@@ -53,14 +76,6 @@ public enum TerminalAgentProcessInspector {
     else {
       return nil
     }
-    return TerminalAgentProcessIdentity(
-      processID: processID,
-      seconds: info.pbi_start_tvsec,
-      microseconds: info.pbi_start_tvusec
-    )
-  }
-
-  public static func isCurrent(_ identity: TerminalAgentProcessIdentity) -> Bool {
-    self.identity(for: identity.processID) == identity
+    return info
   }
 }
