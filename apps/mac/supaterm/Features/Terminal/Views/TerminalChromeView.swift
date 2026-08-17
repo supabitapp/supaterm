@@ -178,16 +178,33 @@ final class WindowTrafficLightsView: WindowDragSurfaceView {
   ]
 
   private var buttons: [NSButton] = []
+  private let inactiveAppearanceView = NSImageView()
   private var isHovered = false
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
+    inactiveAppearanceView.imageScaling = .scaleAxesIndependently
+    inactiveAppearanceView.isHidden = true
+    inactiveAppearanceView.setAccessibilityElement(false)
+    addSubview(inactiveAppearanceView)
     addTrackingArea(
       NSTrackingArea(
         rect: .zero,
         options: [.activeInKeyWindow, .inVisibleRect, .mouseEnteredAndExited],
         owner: self
       )
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(applicationWillResignActive(_:)),
+      name: NSApplication.willResignActiveNotification,
+      object: nil
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(applicationDidBecomeActive(_:)),
+      name: NSApplication.didBecomeActiveNotification,
+      object: nil
     )
   }
 
@@ -208,6 +225,7 @@ final class WindowTrafficLightsView: WindowDragSurfaceView {
 
   override func layout() {
     super.layout()
+    inactiveAppearanceView.frame = bounds
     for (index, button) in buttons.enumerated() {
       button.frame = CGRect(
         x: WindowTrafficLightMetrics.edgePadding
@@ -243,10 +261,26 @@ final class WindowTrafficLightsView: WindowDragSurfaceView {
     isHovered
   }
 
+  func setApplicationActive(_ isActive: Bool) {
+    if isActive {
+      inactiveAppearanceView.isHidden = true
+      buttons.forEach { $0.alphaValue = 1 }
+      return
+    }
+
+    setHovered(false)
+    captureForegroundAppearance()
+    guard inactiveAppearanceView.image != nil else { return }
+    inactiveAppearanceView.isHidden = false
+    buttons.forEach { $0.alphaValue = 0 }
+  }
+
   private func configureButtons() {
     buttons.forEach { $0.removeFromSuperview() }
     guard let window else {
       buttons = []
+      inactiveAppearanceView.image = nil
+      inactiveAppearanceView.isHidden = true
       return
     }
 
@@ -254,6 +288,7 @@ final class WindowTrafficLightsView: WindowDragSurfaceView {
       NSWindow.standardWindowButton($0, for: window.styleMask)
     }
     buttons.forEach(addSubview)
+    addSubview(inactiveAppearanceView, positioned: .above, relativeTo: nil)
     updateAppearance()
     needsLayout = true
   }
@@ -269,6 +304,24 @@ final class WindowTrafficLightsView: WindowDragSurfaceView {
 
   private func updateAppearance() {
     alphaValue = isHovered ? 1 : idleAlpha
+  }
+
+  private func captureForegroundAppearance() {
+    inactiveAppearanceView.isHidden = true
+    buttons.forEach { $0.alphaValue = 1 }
+    layoutSubtreeIfNeeded()
+    let currentAlpha = alphaValue
+    alphaValue = 1
+    inactiveAppearanceView.image = NSImage(data: dataWithPDF(inside: bounds))
+    alphaValue = currentAlpha
+  }
+
+  @objc private func applicationWillResignActive(_: Notification) {
+    setApplicationActive(false)
+  }
+
+  @objc private func applicationDidBecomeActive(_: Notification) {
+    setApplicationActive(true)
   }
 
   private var idleAlpha: CGFloat {

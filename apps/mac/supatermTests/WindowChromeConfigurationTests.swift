@@ -59,7 +59,7 @@ struct WindowChromeConfigurationTests {
 
     let buttons = view.subviews.compactMap { $0 as? NSButton }
     let button = try #require(buttons.first)
-    #expect(view.subviews.allSatisfy { $0 is NSButton })
+    #expect(view.subviews.allSatisfy { $0 is NSButton || $0 is NSImageView })
     #expect(buttons.count == 3)
     #expect(!view.mouseInGroup(button))
     buttons.forEach { $0.needsDisplay = false }
@@ -85,6 +85,40 @@ struct WindowChromeConfigurationTests {
     view.mouseExited(with: hover)
     #expect(!view.mouseInGroup(button))
     #expect(view.alphaValue == 0.1)
+  }
+
+  @Test
+  func inactiveApplicationKeepsForegroundTrafficLightAppearance() throws {
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    let view = WindowTrafficLightsView()
+    view.appearance = NSAppearance(named: .aqua)
+    view.frame = NSRect(x: 0, y: 0, width: 100, height: 80)
+    window.contentView?.addSubview(view)
+    view.layoutSubtreeIfNeeded()
+
+    let buttons = view.subviews.compactMap { $0 as? NSButton }
+    let inactiveAppearanceView = try #require(
+      view.subviews.compactMap { $0 as? NSImageView }.first
+    )
+
+    #expect(inactiveAppearanceView.isHidden)
+
+    view.setApplicationActive(false)
+
+    #expect(inactiveAppearanceView.image != nil)
+    #expect(!inactiveAppearanceView.isHidden)
+    #expect(buttons.allSatisfy { $0.alphaValue == 0 })
+    #expect(view.alphaValue == 0.1)
+
+    view.setApplicationActive(true)
+
+    #expect(inactiveAppearanceView.isHidden)
+    #expect(buttons.allSatisfy { $0.alphaValue == 1 })
   }
 
   @Test
