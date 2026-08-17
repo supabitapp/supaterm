@@ -7,13 +7,13 @@ All supported agents share Supaterm's sidebar, attention, progress, and panel mo
 
 ## Claude
 
-Claude uses public hook events for lifecycle, tool activity, task progress, permission and idle prompts, child agents, completion, and the final response preview. The agent panel reads current Task tools and TodoWrite payloads without reading the transcript.
+Claude uses public hook events for session identity, tool activity, task progress, permission and idle prompts, child agents, completion, and the final response preview. Supaterm reads the terminal for the root phase. The agent panel reads current Task tools and TodoWrite payloads without reading the transcript.
 
 Claude sessions can be forked from the agent panel. The fork opens in a new pane and runs Claude's native fork-and-resume command in the agent workspace.
 
 ## Codex
 
-Codex uses native hooks for attention, tool activity, plans, child-agent boundaries, and final lifecycle events.
+Codex uses native hooks for session identity, attention, tool activity, plans, child-agent boundaries, and final lifecycle events. Supaterm reads the terminal for the root phase.
 
 Codex 0.144.1 or newer is required. Codex sessions can be forked from the agent panel with Codex's native fork command.
 

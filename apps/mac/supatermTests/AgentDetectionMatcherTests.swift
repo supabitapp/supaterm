@@ -113,6 +113,24 @@ struct AgentDetectionMatcherTests {
     )
   }
 
+  @Test
+  func codexInterruptionClearsStaleScreenWorkingState() throws {
+    let codex = try matcher(agentID: "codex")
+    let match = codex.match(
+      AgentDetectionInput(
+        screen: """
+          • Working (8m 21s • esc to interrupt)
+          ■ Conversation interrupted - tell the model what to do differently.
+          › do it in a new worktree
+          """,
+        oscTitle: "project"
+      )
+    )
+
+    #expect(match.result == .idle)
+    #expect(match.ruleID == "osc_title_idle")
+  }
+
   @Test(arguments: ["claude-needs-input", "codex-needs-input"])
   func permissionFixturesNeedInput(name: String) throws {
     #expect(try matchFixture(name).result == .needsInput)

@@ -37,27 +37,30 @@ extension TerminalHostState {
         )
       }
       let observation = agentDetectionStore.observation(for: surfaceID)
+      let phaseAuthority = candidate.phaseAuthorityProcessIdentities
       let exactAuthorityProcess =
         explanation.processIdentity.flatMap { processIdentity in
-          candidate.authorityProcessIdentities.contains(processIdentity)
+          phaseAuthority.contains(processIdentity)
             ? processIdentity
             : nil
         }
         ?? observation.flatMap { observation in
-          candidate.authorityProcessIdentities.contains(observation.processIdentity)
+          phaseAuthority.contains(observation.processIdentity)
             ? observation.processIdentity
             : nil
         }
       let singleAuthorityProcess =
-        candidate.authorityProcessIdentities.count == 1
-        ? candidate.authorityProcessIdentities.first
+        phaseAuthority.count == 1
+        ? phaseAuthority.first
         : nil
       let processIdentity = exactAuthorityProcess ?? singleAuthorityProcess
       let presentation = candidate.presentation
       return SupatermAgentExplainResult(
         target: target,
         mode: .native,
-        status: candidate.authorityProcessIdentities.isEmpty ? .resolved : .nativeAuthority,
+        status: phaseAuthority.isEmpty
+          ? .resolved
+          : .nativeAuthority,
         rules: agentExplainRules(explanation),
         agent: SupatermAgentExplainResult.Agent(
           id: presentation.agent.rawValue,
@@ -67,7 +70,7 @@ extension TerminalHostState {
         process: processIdentity.map(agentExplainProcess),
         ruleID: nil
       )
-    case .fallback(let observation, _):
+    case .terminal(let observation, _):
       let rules =
         explanation.generation == observation.generation
         ? agentExplainRules(explanation)

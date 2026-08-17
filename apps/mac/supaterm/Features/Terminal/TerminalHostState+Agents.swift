@@ -111,8 +111,7 @@ extension TerminalHostState {
       agentWorkingDirectoryPath: current?.nativePresentation?.workingDirectoryPath
     )
     let actionableSessions: [PaneAgentPanelSession] = instances.compactMap { instance in
-      guard instance.allowsActionSession,
-        let nativePresentation = instance.nativePresentation,
+      guard let nativePresentation = instance.nativePresentation,
         nativePresentation.isActionable
       else {
         return nil
@@ -264,10 +263,10 @@ extension TerminalHostState {
     let nativeChangedSurfaceIDs = agentStateStore.pruneDeadProcesses(
       isProcessCurrent: isProcessCurrent
     )
-    let fallbackChangedSurfaceIDs = agentDetectionStore.pruneDeadProcesses(
+    let detectionChangedSurfaceIDs = agentDetectionStore.pruneDeadProcesses(
       isProcessCurrent: isProcessCurrent
     )
-    let changedSurfaceIDs = nativeChangedSurfaceIDs.union(fallbackChangedSurfaceIDs)
+    let changedSurfaceIDs = nativeChangedSurfaceIDs.union(detectionChangedSurfaceIDs)
     for surfaceID in changedSurfaceIDs {
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
     }
@@ -502,7 +501,7 @@ extension TerminalHostState {
         },
         currentNativeCandidate: currentCandidate
       )
-    case .fallback(let observation, let nativeDetails):
+    case .terminal(let observation, let nativeDetails):
       let nativePresentation = nativeDetails?.presentation
       let instance = AgentStateInstance(
         activity: AgentActivity(
@@ -511,9 +510,9 @@ extension TerminalHostState {
           detail: nativePresentation?.detail
         ),
         nativePresentation: nativePresentation,
+        phaseSource: .terminal,
         revision: observation.sequence,
-        surfaceID: surfaceID,
-        isFallback: true
+        surfaceID: surfaceID
       )
       return ResolvedAgentState(
         resolution: resolution,
@@ -538,7 +537,7 @@ extension TerminalHostState {
         presentation: presentation,
         revision: snapshot.revision,
         processIdentities: snapshot.processes,
-        authorityProcessIdentities: agentStateStore.nativeHookAuthorityProcessIdentities(
+        phaseAuthorityProcessIdentities: agentStateStore.phaseAuthorityProcessIdentities(
           for: surfaceID,
           agent: snapshot.agent,
           sessionID: presentation.sessionID
@@ -559,9 +558,9 @@ extension TerminalHostState {
         detail: presentation.detail
       ),
       nativePresentation: presentation,
+      phaseSource: .native,
       revision: UInt64(max(0, candidate.revision)),
-      surfaceID: surfaceID,
-      isFallback: false
+      surfaceID: surfaceID
     )
   }
 

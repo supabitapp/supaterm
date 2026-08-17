@@ -784,7 +784,7 @@ final class TerminalAgentDetectionController {
       },
       nativeAuthority: { [weak terminal] surfaceID in
         terminal?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {
-          $0.formUnion($1.authorityProcessIdentities)
+          $0.formUnion($1.phaseAuthorityProcessIdentities)
         } ?? []
       },
       observation: { [weak terminal] surfaceID in

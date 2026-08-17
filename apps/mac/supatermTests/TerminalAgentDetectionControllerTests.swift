@@ -473,7 +473,7 @@ struct TerminalAgentDetectionControllerTests {
 
     let detected = try await waitForDetection(
       {
-        guard let observation = fallbackObservation(in: host, for: surface.id),
+        guard let observation = terminalObservation(in: host, for: surface.id),
           observation.phase == .running
         else {
           return nil
@@ -493,10 +493,10 @@ struct TerminalAgentDetectionControllerTests {
     #expect(Darwin.kill(detected.processIdentity.processID, SIGTERM) == 0)
 
     try await waitForDetectionClear {
-      fallbackObservation(in: host, for: surface.id)
+      terminalObservation(in: host, for: surface.id)
     }
     processID = nil
-    #expect(fallbackObservation(in: host, for: surface.id) == nil)
+    #expect(terminalObservation(in: host, for: surface.id) == nil)
   }
 
   private func makeFixture(

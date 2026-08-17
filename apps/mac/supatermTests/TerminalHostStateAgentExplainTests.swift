@@ -22,7 +22,7 @@ struct TerminalHostStateAgentExplainTests {
     let target = fixture.target
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let applied = host.applyTestAgentActivity(
-      .codex(.running),
+      .pi(.running),
       for: surfaceID,
       sessionID: "native-session",
       processID: identity.processID
@@ -37,7 +37,7 @@ struct TerminalHostStateAgentExplainTests {
     #expect(applied)
     #expect(result.mode == .native)
     #expect(result.status == .nativeAuthority)
-    #expect(result.agent?.id == "codex")
+    #expect(result.agent?.id == "pi")
     #expect(result.process?.processID == identity.processID)
     #expect(result.process?.startTimeMicroseconds == identity.startTimeMicroseconds)
     #expect(result.rules == nil)
@@ -45,7 +45,7 @@ struct TerminalHostStateAgentExplainTests {
   }
 
   @Test
-  func newerAuthorityFreeCandidateStaysCurrentWithoutFallback() throws {
+  func newerAuthorityFreeCandidateStaysCurrentWithoutTerminalState() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
@@ -89,12 +89,12 @@ struct TerminalHostStateAgentExplainTests {
     let target = fixture.target
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let appliedNative = host.applyTestAgentActivity(
-      .codex(.running, detail: "Private native detail"),
+      .pi(.running, detail: "Private native detail"),
       for: surfaceID,
       sessionID: "private-session",
       processID: identity.processID
     )
-    let appliedFallback = host.applyAgentDetection(
+    let appliedTerminal = host.applyAgentDetection(
       observation(
         agentID: "other-agent",
         displayName: "Other Agent",
@@ -119,14 +119,14 @@ struct TerminalHostStateAgentExplainTests {
     )
 
     #expect(appliedNative)
-    #expect(appliedFallback)
+    #expect(appliedTerminal)
     #expect(result.mode == .native)
     #expect(result.status == .nativeAuthority)
     #expect(
       result.agent
         == SupatermAgentExplainResult.Agent(
-          id: "codex",
-          displayName: "Codex",
+          id: "pi",
+          displayName: "Pi",
           phase: .running
         )
     )
@@ -142,14 +142,14 @@ struct TerminalHostStateAgentExplainTests {
   }
 
   @Test
-  func controllerProofSelectsNativeAuthorityBeforeFallbackPublishes() async throws {
+  func controllerProofSelectsNativeAuthorityBeforeTerminalStatePublishes() async throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
     let target = fixture.target
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let applied = host.applyTestAgentActivity(
-      .codex(.running),
+      .pi(.running),
       for: surfaceID,
       sessionID: "native-session",
       processID: identity.processID
@@ -176,15 +176,15 @@ struct TerminalHostStateAgentExplainTests {
       explanation: controller.explanation(for: surfaceID)
     )
     #expect(applied)
-    #expect(fallbackObservation(in: host, for: surfaceID) == nil)
-    #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "codex")
-    #expect(result.agent?.id == "codex")
+    #expect(terminalObservation(in: host, for: surfaceID) == nil)
+    #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "pi")
+    #expect(result.agent?.id == "pi")
     #expect(result.status == .nativeAuthority)
     #expect(result.process?.processID == identity.processID)
   }
 
   @Test
-  func controllerProofKeepsNativeAuthorityAfterFallbackClears() async throws {
+  func controllerProofKeepsNativeAuthorityAfterTerminalStateClears() async throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
@@ -199,9 +199,9 @@ struct TerminalHostStateAgentExplainTests {
     let now = ContinuousClock.now
 
     await controller.tick(now: now)
-    let fallback = try #require(fallbackObservation(in: host, for: surfaceID))
+    let observation = try #require(terminalObservation(in: host, for: surfaceID))
     let applied = host.applyTestAgentActivity(
-      .codex(.running),
+      .pi(.running),
       for: surfaceID,
       sessionID: "native-session",
       processID: identity.processID
@@ -221,11 +221,11 @@ struct TerminalHostStateAgentExplainTests {
       surfaceID: surfaceID,
       explanation: controller.explanation(for: surfaceID)
     )
-    #expect(fallback.processIdentity == identity)
+    #expect(observation.processIdentity == identity)
     #expect(applied)
-    #expect(fallbackObservation(in: host, for: surfaceID) == nil)
-    #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "codex")
-    #expect(result.agent?.id == "codex")
+    #expect(terminalObservation(in: host, for: surfaceID) == nil)
+    #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "pi")
+    #expect(result.agent?.id == "pi")
     #expect(result.status == .nativeAuthority)
     #expect(result.process?.processID == identity.processID)
   }
@@ -520,7 +520,7 @@ struct TerminalHostStateAgentExplainTests {
         },
         nativeAuthority: { [weak host] surfaceID in
           host?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {
-            $0.formUnion($1.authorityProcessIdentities)
+            $0.formUnion($1.phaseAuthorityProcessIdentities)
           } ?? []
         },
         observation: { [weak host] surfaceID in

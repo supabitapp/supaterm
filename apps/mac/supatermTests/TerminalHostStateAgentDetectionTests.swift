@@ -51,7 +51,7 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(applied)
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [codexWithoutAuthority])
-        == .fallback(observation, nativeDetails: codexWithoutAuthority)
+        == .terminal(observation, nativeDetails: codexWithoutAuthority)
     )
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [codexWithAuthority])
@@ -69,16 +69,16 @@ struct TerminalHostStateAgentDetectionTests {
     )
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [codexWithReusedPID])
-        == .fallback(observation, nativeDetails: nil)
+        == .terminal(observation, nativeDetails: nil)
     )
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [claudeWithoutAuthority])
-        == .fallback(observation, nativeDetails: nil)
+        == .terminal(observation, nativeDetails: nil)
     )
   }
 
   @Test
-  func fallbackLendsNativeDetailsForTheExactProcessIdentity() {
+  func terminalResolutionLendsNativeDetailsForTheExactProcessIdentity() {
     let surfaceID = UUID()
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
     let detection = observation(processIdentity: identity)
@@ -89,12 +89,12 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(applied)
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [details])
-        == .fallback(detection, nativeDetails: details)
+        == .terminal(detection, nativeDetails: details)
     )
   }
 
   @Test
-  func fallbackRejectsNativeDetailsFromAReusedProcessID() {
+  func terminalResolutionRejectsNativeDetailsFromAReusedProcessID() {
     let surfaceID = UUID()
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
     let reused = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 1)
@@ -106,12 +106,12 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(applied)
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [details])
-        == .fallback(detection, nativeDetails: nil)
+        == .terminal(detection, nativeDetails: nil)
     )
   }
 
   @Test
-  func fallbackRejectsNativeDetailsFromADifferentProcessID() {
+  func terminalResolutionRejectsNativeDetailsFromADifferentProcessID() {
     let surfaceID = UUID()
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
     let different = TerminalAgentProcessIdentity(processID: 43, startTimeMicroseconds: 2)
@@ -123,12 +123,12 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(applied)
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [details])
-        == .fallback(detection, nativeDetails: nil)
+        == .terminal(detection, nativeDetails: nil)
     )
   }
 
   @Test
-  func provenProcessSelectsExactNativeAuthorityBeforeFallbackPublishes() {
+  func provenProcessSelectsExactNativeAuthorityBeforeTerminalStatePublishes() {
     let surfaceID = UUID()
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
     let exact = candidate(
@@ -149,7 +149,7 @@ struct TerminalHostStateAgentDetectionTests {
   }
 
   @Test
-  func provenProcessKeepsExactNativeAuthorityAfterFallbackClears() {
+  func provenProcessKeepsExactNativeAuthorityAfterTerminalStateClears() {
     let surfaceID = UUID()
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
     let detection = observation(processIdentity: identity)
@@ -205,7 +205,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func pureFallbackFeedsSidebarPanelWorkspaceAndPortRootsWithoutNativeState() throws {
+  func terminalDetectionFeedsSidebarPanelWorkspaceAndPortRootsWithoutNativeState() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let tabID = fixture.tabID
@@ -235,7 +235,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func idleFallbackRemainsVisibleAsMutedAgentActivity() throws {
+  func terminalIdleRemainsVisibleAsMutedAgentActivity() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let tabID = fixture.tabID
@@ -253,7 +253,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func fallbackUsesAuthorityFreeNativeDetailsWithoutNativeActions() throws {
+  func terminalPhaseKeepsMatchingNativeDetailsAndActions() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let tabID = fixture.tabID
@@ -276,7 +276,36 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(applied)
     #expect(host.agentActivity(for: tabID) == .codex(.needsInput, detail: "Native detail"))
     #expect(panel.progressRows == [plan])
-    #expect(panel.session == nil)
+    #expect(panel.session?.sessionID == "restored-session")
+  }
+
+  @Test
+  @MainActor
+  func terminalIdleOverridesCodexHookRunning() throws {
+    let fixture = try hostFixture()
+    let host = fixture.host
+    let tabID = fixture.tabID
+    let surfaceID = fixture.surfaceID
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let appliedNative = host.applyTestAgentActivity(
+      .codex(.running, detail: "Native detail"),
+      for: surfaceID,
+      sessionID: "native-session",
+      processID: identity.processID
+    )
+
+    #expect(appliedNative)
+    #expect(host.tabAgentPresentation(for: tabID).status == .working)
+
+    let appliedDetection = host.applyAgentDetection(
+      observation(processIdentity: identity, phase: .idle),
+      for: surfaceID
+    )
+
+    #expect(appliedDetection)
+    #expect(host.agentActivity(for: tabID) == .codex(.idle, detail: "Native detail"))
+    #expect(host.tabAgentPresentation(for: tabID).status == nil)
+    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
   }
 
   @Test
@@ -288,7 +317,7 @@ struct TerminalHostStateAgentDetectionTests {
     let surfaceID = fixture.surfaceID
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let appliedNative = host.applyTestAgentActivity(
-      .codex(.running, detail: "Native detail"),
+      .pi(.running, detail: "Native detail"),
       for: surfaceID,
       sessionID: "native-session",
       processID: identity.processID
@@ -304,13 +333,13 @@ struct TerminalHostStateAgentDetectionTests {
 
     #expect(appliedNative)
     #expect(appliedDetection)
-    #expect(host.agentActivity(for: tabID) == .codex(.running, detail: "Native detail"))
-    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
+    #expect(host.agentActivity(for: tabID) == .pi(.running, detail: "Native detail"))
+    #expect(host.agentPanelPresentation(for: surfaceID)?.session == nil)
   }
 
   @Test
   @MainActor
-  func commandAndSurfaceCleanupRemoveFallbackWithoutPersistingIt() throws {
+  func commandAndSurfaceCleanupRemoveTerminalStateWithoutPersistingIt() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
@@ -321,13 +350,13 @@ struct TerminalHostStateAgentDetectionTests {
 
     host.handleCommandFinished(for: surfaceID)
 
-    #expect(fallbackObservation(in: host, for: surfaceID) == nil)
+    #expect(terminalObservation(in: host, for: surfaceID) == nil)
     #expect(host.agentStateRecords(for: surfaceID).isEmpty)
 
     _ = host.applyAgentDetection(detection, for: surfaceID)
     host.performCloseSurface(surfaceID)
 
-    #expect(fallbackObservation(in: host, for: surfaceID) == nil)
+    #expect(terminalObservation(in: host, for: surfaceID) == nil)
   }
 
   private func observation(
@@ -367,7 +396,7 @@ struct TerminalHostStateAgentDetectionTests {
       ),
       revision: 1,
       processIdentities: processIdentities,
-      authorityProcessIdentities: authority
+      phaseAuthorityProcessIdentities: authority
     )
   }
 

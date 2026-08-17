@@ -21,12 +21,12 @@ nonisolated struct TerminalAgentDetectionNativeCandidate: Equatable, Sendable {
   let presentation: TerminalAgentStatePresentation
   let revision: Int
   let processIdentities: Set<TerminalAgentProcessIdentity>
-  let authorityProcessIdentities: Set<TerminalAgentProcessIdentity>
+  let phaseAuthorityProcessIdentities: Set<TerminalAgentProcessIdentity>
 }
 
 nonisolated enum TerminalAgentDetectionResolution: Equatable, Sendable {
   case native([TerminalAgentDetectionNativeCandidate])
-  case fallback(
+  case terminal(
     TerminalAgentDetectionObservation,
     nativeDetails: TerminalAgentDetectionNativeCandidate?
   )
@@ -78,7 +78,7 @@ nonisolated struct TerminalAgentDetectionStore {
     let exactProcessIdentity = provenProcessIdentity ?? observation?.processIdentity
     let authoritativeCandidates = nativeCandidates.filter { candidate in
       guard let exactProcessIdentity else { return false }
-      return candidate.authorityProcessIdentities.contains(exactProcessIdentity)
+      return candidate.phaseAuthorityProcessIdentities.contains(exactProcessIdentity)
     }
     if !authoritativeCandidates.isEmpty {
       return .native(authoritativeCandidates)
@@ -91,9 +91,9 @@ nonisolated struct TerminalAgentDetectionStore {
       .filter {
         AgentDetectionAgentIdentity($0.presentation.agent).id == observation.agent.id
           && $0.processIdentities.contains(observation.processIdentity)
-          && $0.authorityProcessIdentities.isEmpty
+          && $0.phaseAuthorityProcessIdentities.isEmpty
       }
       .max { $0.revision < $1.revision }
-    return .fallback(observation, nativeDetails: nativeDetails)
+    return .terminal(observation, nativeDetails: nativeDetails)
   }
 }

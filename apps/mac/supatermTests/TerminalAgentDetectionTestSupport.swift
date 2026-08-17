@@ -3,11 +3,11 @@ import Foundation
 @testable import supaterm
 
 @MainActor
-func fallbackObservation(
+func terminalObservation(
   in host: TerminalHostState,
   for surfaceID: UUID
 ) -> TerminalAgentDetectionObservation? {
-  guard case .fallback(let observation, _) = host.resolvedAgentState(for: surfaceID).resolution
+  guard case .terminal(let observation, _) = host.resolvedAgentState(for: surfaceID).resolution
   else {
     return nil
   }

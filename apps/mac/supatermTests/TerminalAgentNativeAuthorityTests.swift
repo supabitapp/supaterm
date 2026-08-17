@@ -6,7 +6,7 @@ import Testing
 
 extension TerminalAgentStateStoreTests {
   @Test
-  func nativeSessionStartEstablishesAuthorityBeforeBecomingActionable() throws {
+  func piSessionStartEstablishesAuthorityBeforeBecomingActionable() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
     let identity = try #require(testProcessIdentity(42))
@@ -14,6 +14,7 @@ extension TerminalAgentStateStoreTests {
 
     let accepted = store.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         context: context,
         processID: identity.processID,
@@ -22,8 +23,8 @@ extension TerminalAgentStateStoreTests {
     )
     #expect(accepted)
 
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.isActionable == false)
-    #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID) == [identity])
+    #expect(store.presentation(for: surfaceID, agent: .pi)?.isActionable == false)
+    #expect(store.phaseAuthorityProcessIdentities(for: surfaceID) == [identity])
   }
 
   @Test
@@ -35,6 +36,7 @@ extension TerminalAgentStateStoreTests {
 
     store.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         context: context,
         action: .sessionStarted
@@ -42,6 +44,7 @@ extension TerminalAgentStateStoreTests {
     )
     let accepted = store.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         subagentID: "child-1",
         context: context,
@@ -52,7 +55,7 @@ extension TerminalAgentStateStoreTests {
     #expect(accepted)
 
     #expect(store.snapshots(for: surfaceID).first?.processes == [identity])
-    #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID).isEmpty)
+    #expect(store.phaseAuthorityProcessIdentities(for: surfaceID).isEmpty)
   }
 
   @Test
@@ -64,6 +67,7 @@ extension TerminalAgentStateStoreTests {
 
     source.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         context: context,
         processID: identity.processID,
@@ -74,7 +78,7 @@ extension TerminalAgentStateStoreTests {
     restored.restore(source.snapshots(for: surfaceID))
 
     #expect(restored.snapshots(for: surfaceID).first?.processes == [identity])
-    #expect(restored.nativeHookAuthorityProcessIdentities(for: surfaceID).isEmpty)
+    #expect(restored.phaseAuthorityProcessIdentities(for: surfaceID).isEmpty)
   }
 
   @Test
@@ -90,17 +94,19 @@ extension TerminalAgentStateStoreTests {
 
     store.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         context: context,
         processID: original.processID,
         action: .sessionStarted
       )
     )
-    #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID) == [original])
+    #expect(store.phaseAuthorityProcessIdentities(for: surfaceID) == [original])
 
     currentIdentity = reused
     store.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         context: context,
         processID: reused.processID,
@@ -108,7 +114,7 @@ extension TerminalAgentStateStoreTests {
       )
     )
 
-    #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID) == [reused])
+    #expect(store.phaseAuthorityProcessIdentities(for: surfaceID) == [reused])
   }
 
   @Test
@@ -121,6 +127,7 @@ extension TerminalAgentStateStoreTests {
 
     store.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         context: context,
         processID: rootIdentity.processID,
@@ -129,6 +136,7 @@ extension TerminalAgentStateStoreTests {
     )
     store.apply(
       event(
+        agent: .pi,
         sessionID: "session-1",
         subagentID: "child-1",
         context: context,
@@ -139,8 +147,8 @@ extension TerminalAgentStateStoreTests {
 
     store.pruneDeadProcesses(isProcessCurrent: { $0 == childIdentity })
 
-    #expect(store.hasSession(agent: .codex, sessionID: "session-1"))
-    #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID).isEmpty)
+    #expect(store.hasSession(agent: .pi, sessionID: "session-1"))
+    #expect(store.phaseAuthorityProcessIdentities(for: surfaceID).isEmpty)
   }
 
   @Test
@@ -160,6 +168,7 @@ extension TerminalAgentStateStoreTests {
     ] {
       store.apply(
         event(
+          agent: .pi,
           sessionID: sessionID,
           context: context,
           processID: identity.processID,
@@ -170,30 +179,33 @@ extension TerminalAgentStateStoreTests {
 
     store.apply(
       event(
+        agent: .pi,
         sessionID: "ended",
         context: firstContext,
         action: .sessionEnded
       )
     )
-    #expect(store.nativeHookAuthorityProcessIdentities(for: firstSurfaceID) == [secondIdentity])
+    #expect(store.phaseAuthorityProcessIdentities(for: firstSurfaceID) == [secondIdentity])
 
-    store.clearSession(agent: .codex, sessionID: "cleared")
-    #expect(store.nativeHookAuthorityProcessIdentities(for: firstSurfaceID).isEmpty)
+    store.clearSession(agent: .pi, sessionID: "cleared")
+    #expect(store.phaseAuthorityProcessIdentities(for: firstSurfaceID).isEmpty)
 
     store.clearSessions(for: secondSurfaceID)
-    #expect(store.nativeHookAuthorityProcessIdentities(for: secondSurfaceID).isEmpty)
+    #expect(store.phaseAuthorityProcessIdentities(for: secondSurfaceID).isEmpty)
   }
 
   @Test
-  func authorityQueryCanFilterAgent() throws {
+  func onlyPiOwnsPhaseAuthority() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
-    let codexIdentity = try #require(testProcessIdentity(42))
-    let claudeIdentity = try #require(testProcessIdentity(43))
+    let piIdentity = try #require(testProcessIdentity(42))
+    let codexIdentity = try #require(testProcessIdentity(43))
+    let claudeIdentity = try #require(testProcessIdentity(44))
     var store = TerminalAgentStateStore(processIdentity: testProcessIdentity)
 
     for (agent, identity) in [
-      (SupatermAgentKind.codex, codexIdentity),
+      (SupatermAgentKind.pi, piIdentity),
+      (.codex, codexIdentity),
       (.claude, claudeIdentity),
     ] {
       store.apply(
@@ -208,12 +220,16 @@ extension TerminalAgentStateStoreTests {
     }
 
     #expect(
-      store.nativeHookAuthorityProcessIdentities(for: surfaceID, agent: .codex)
-        == [codexIdentity]
+      store.phaseAuthorityProcessIdentities(for: surfaceID, agent: .pi)
+        == [piIdentity]
     )
     #expect(
-      store.nativeHookAuthorityProcessIdentities(for: surfaceID, agent: .claude)
-        == [claudeIdentity]
+      store.phaseAuthorityProcessIdentities(for: surfaceID, agent: .codex)
+        .isEmpty
+    )
+    #expect(
+      store.phaseAuthorityProcessIdentities(for: surfaceID, agent: .claude)
+        .isEmpty
     )
   }
 
@@ -231,6 +247,7 @@ extension TerminalAgentStateStoreTests {
     ] {
       store.apply(
         event(
+          agent: .pi,
           sessionID: sessionID,
           context: context,
           processID: identity.processID,
@@ -240,16 +257,16 @@ extension TerminalAgentStateStoreTests {
     }
 
     #expect(
-      store.nativeHookAuthorityProcessIdentities(
+      store.phaseAuthorityProcessIdentities(
         for: surfaceID,
-        agent: .codex,
+        agent: .pi,
         sessionID: "first"
       ) == [firstIdentity]
     )
     #expect(
-      store.nativeHookAuthorityProcessIdentities(
+      store.phaseAuthorityProcessIdentities(
         for: surfaceID,
-        agent: .codex,
+        agent: .pi,
         sessionID: "second"
       ) == [secondIdentity]
     )
