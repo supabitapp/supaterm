@@ -1,0 +1,22 @@
+{
+  "version": 3,
+  "windows": [{
+    "selectedSpaceID": {"rawValue": "11111111-1111-1111-1111-111111111111"},
+    "spaces": [{
+      "id": {"rawValue": "11111111-1111-1111-1111-111111111111"},
+      "selectedTabIndex": 0,
+      "tabs": [{
+        "isPinned": false,
+        "lockedTitle": "Legacy",
+        "focusedPaneIndex": 0,
+        "root": {
+          "kind": "leaf",
+          "leaf": {
+            "workingDirectoryPath": "/tmp/supaterm-migration",
+            "titleOverride": "Pane"
+          }
+        }
+      }]
+    }]
+  }]
+}

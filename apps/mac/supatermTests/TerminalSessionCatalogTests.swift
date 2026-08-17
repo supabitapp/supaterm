@@ -17,13 +17,86 @@ struct TerminalSessionCatalogTests {
   }
 
   @Test
-  func catalogRejectsUnsupportedAndPreviousVersions() {
-    for version in [8, 9, 10, 11, 12, 999] {
+  func catalogDecoderRejectsNoncurrentVersions() {
+    let versions =
+      TerminalSessionCatalogVersion.allCases
+      .filter { $0 != .current }
+      .map(\.rawValue) + [999]
+    for version in versions {
       let data = Data("{\"version\":\(version),\"windows\":[]}".utf8)
       #expect(throws: DecodingError.self) {
         try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
       }
     }
+  }
+
+  @Test
+  func everyStoredCatalogVersionMigratesToCurrent() throws {
+    #expect(
+      TerminalSessionCatalogVersion.allCases.map(\.rawValue)
+        == Array(1...TerminalSessionCatalog.currentVersion)
+    )
+    let expectedFixtureNames = Set(
+      TerminalSessionCatalogVersion.allCases.map { "session-v\($0.rawValue).json" }
+    )
+    let fixtureNames = try Set(
+      FileManager.default.contentsOfDirectory(atPath: Self.fixtureDirectory.path)
+        .filter { $0.hasPrefix("session-v") && $0.hasSuffix(".json") }
+    )
+    #expect(fixtureNames == expectedFixtureNames)
+
+    for version in TerminalSessionCatalogVersion.allCases {
+      let sourceData = try Data(contentsOf: Self.fixtureURL(for: version))
+      let migratedData = try TerminalSessionCatalogMigration.migrate(sourceData) ?? sourceData
+      let catalog = try JSONDecoder().decode(TerminalSessionCatalog.self, from: migratedData)
+      let tab = try #require(catalog.windows.first?.spaces.first?.tabs.first)
+      guard case .leaf(let leaf) = tab.root else {
+        Issue.record("Expected one restored pane for version \(version.rawValue)")
+        continue
+      }
+
+      #expect(catalog.version == TerminalSessionCatalog.currentVersion)
+      #expect(catalog.windows.count == 1)
+      #expect(catalog.windows.first?.spaces.count == 1)
+      #expect(catalog.windows.first?.spaces.first?.tabs.count == 1)
+      #expect(tab.lockedTitle == "Legacy")
+      #expect(leaf.workingDirectoryPath == "/tmp/supaterm-migration")
+    }
+  }
+
+  @Test
+  func storedCatalogMigrationWritesPriorVersions() throws {
+    for version in TerminalSessionCatalogVersion.allCases where version != .current {
+      let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      defer { try? FileManager.default.removeItem(at: directory) }
+      let url = directory.appendingPathComponent("session.json")
+      try Data(contentsOf: Self.fixtureURL(for: version)).write(to: url)
+
+      #expect(TerminalSessionCatalogMigration.migrateStoredCatalog(at: url) == .migrated)
+      let catalog = try JSONDecoder().decode(
+        TerminalSessionCatalog.self,
+        from: Data(contentsOf: url)
+      )
+      #expect(catalog.version == TerminalSessionCatalog.currentVersion)
+    }
+  }
+
+  @Test
+  func storedCatalogMigrationRejectsFutureVersionsWithoutWriting() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let url = directory.appendingPathComponent("session.json")
+    let sourceData = Data(
+      "{\"version\":\(TerminalSessionCatalog.currentVersion + 1),\"windows\":[]}".utf8
+    )
+    try sourceData.write(to: url)
+
+    #expect(TerminalSessionCatalogMigration.migrateStoredCatalog(at: url) == .rejected)
+    #expect(try Data(contentsOf: url) == sourceData)
   }
 
   @Test
@@ -607,6 +680,14 @@ struct TerminalSessionCatalogTests {
         )
       )
     )
+  }
+
+  private static let fixtureDirectory = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .appendingPathComponent("Fixtures/TerminalSessions", isDirectory: true)
+
+  private static func fixtureURL(for version: TerminalSessionCatalogVersion) -> URL {
+    fixtureDirectory.appendingPathComponent("session-v\(version.rawValue).json")
   }
 
 }

@@ -5,7 +5,7 @@ import SupatermCLIShared
 import SupatermSupport
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 13
+  static let currentVersion = TerminalSessionCatalogVersion.current.rawValue
   static let `default` = Self(windows: [])
 
   let version: Int

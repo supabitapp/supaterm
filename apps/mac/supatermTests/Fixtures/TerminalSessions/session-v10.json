@@ -1,0 +1,49 @@
+{
+  "version": 10,
+  "windows": [{
+    "displayedSpaceID": {"rawValue": "11111111-1111-1111-1111-111111111111"},
+    "sidebarWidth": 280,
+    "spaces": [{
+      "spaceID": {"rawValue": "11111111-1111-1111-1111-111111111111"},
+      "selectedTabID": {"rawValue": "22222222-2222-2222-2222-222222222222"},
+      "nodes": [{
+        "item": {"kind": "tab", "id": {"rawValue": "22222222-2222-2222-2222-222222222222"}},
+        "parent": {"kind": "root", "isPinned": false},
+        "order": 0
+      }],
+      "groups": [],
+      "collapsedGroupIDs": [],
+      "tabs": [{
+        "id": {"rawValue": "22222222-2222-2222-2222-222222222222"},
+        "lockedTitle": "Legacy",
+        "focusedPaneIndex": 0,
+        "root": {
+          "kind": "leaf",
+          "leaf": {
+            "id": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA",
+            "workingDirectoryPath": "/tmp/supaterm-migration",
+            "titleOverride": "Pane",
+            "agents": [{
+              "agent": "codex",
+              "sessionID": "fixture-session",
+              "processes": [{"processID": 123, "startTimeMicroseconds": 456}],
+              "turnLifecycle": {"unseen": {}},
+              "phase": {"idle": {}},
+              "hoverMessages": [],
+              "nativePlanRows": [],
+              "transcriptRows": [],
+              "activeChildren": [{
+                "id": {"subagentID": "fixture-child", "sessionID": "fixture-session"},
+                "role": "workflow-subagent",
+                "phase": {"running": {}}
+              }],
+              "hasPendingBackgroundWork": false,
+              "isForeground": false,
+              "revision": 1
+            }]
+          }
+        }
+      }]
+    }]
+  }]
+}
