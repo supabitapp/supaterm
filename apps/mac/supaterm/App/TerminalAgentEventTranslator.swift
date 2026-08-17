@@ -53,6 +53,15 @@ nonisolated enum TerminalAgentEventTranslator {
     for request: SupatermAgentHookRequest,
     scope: TerminalAgentEvent.Scope
   ) -> [TerminalAgentEvent] {
+    if let mutation = claudeTaskHookMutation(for: request) {
+      return [
+        event(
+          request,
+          scope: rootScope(scope),
+          action: .progressUpdated(mutation)
+        )
+      ]
+    }
     let action: TerminalAgentEvent.Action
     switch request.event.hookEventName {
     case .notification:
@@ -67,8 +76,21 @@ nonisolated enum TerminalAgentEventTranslator {
       )
     case .postToolUse:
       let resolutionEvents = attentionResolutionEvents(for: request, scope: scope)
+      let progressEvents =
+        claudeToolProgressMutation(for: request).map {
+          [
+            event(
+              request,
+              scope: rootScope(scope),
+              action: .progressUpdated($0)
+            )
+          ]
+        } ?? []
       guard scope.subagentID == nil else {
-        return resolutionEvents + subagentActivityEvents(for: request, scope: scope)
+        return resolutionEvents + progressEvents + subagentActivityEvents(for: request, scope: scope)
+      }
+      if !progressEvents.isEmpty {
+        return resolutionEvents + progressEvents
       }
       return resolutionEvents + [
         event(
@@ -210,7 +232,7 @@ nonisolated enum TerminalAgentEventTranslator {
       request.event.toolName == "update_plan",
       let rows = codexPlanRows(from: request.event.toolInput)
     {
-      return [event(request, scope: scope, action: .progressUpdated(rows))]
+      return [event(request, scope: scope, action: .progressUpdated(.replace(rows)))]
     }
     if request.event.hookEventName == .postToolUse {
       let resolutionEvents = attentionResolutionEvents(for: request, scope: scope)
@@ -332,6 +354,98 @@ nonisolated enum TerminalAgentEventTranslator {
     )
   }
 
+  private static func rootScope(
+    _ scope: TerminalAgentEvent.Scope
+  ) -> TerminalAgentEvent.Scope {
+    TerminalAgentEvent.Scope(
+      agent: scope.agent,
+      sessionID: scope.sessionID,
+      turnID: scope.turnID
+    )
+  }
+
+  private static func claudeToolProgressMutation(
+    for request: SupatermAgentHookRequest
+  ) -> TerminalAgentProgressMutation? {
+    switch request.event.toolName {
+    case "TaskCreate":
+      guard let input = request.event.toolInput?.objectValue,
+        let title = AgentHookText.normalized(input["subject"]?.stringValue),
+        let response = request.event.payload["tool_response"]?.objectValue,
+        let task = response["task"]?.objectValue,
+        let id = AgentHookText.normalized(task["id"]?.stringValue)
+      else {
+        return nil
+      }
+      return .upsert(id: id, title: title, status: .pending)
+    case "TaskUpdate":
+      guard let input = request.event.toolInput?.objectValue,
+        let id = claudeTaskID(from: input)
+      else {
+        return nil
+      }
+      let title = AgentHookText.normalized(input["subject"]?.stringValue)
+      let rawStatus = AgentHookText.normalized(input["status"]?.stringValue)
+      if rawStatus == "deleted" {
+        return .remove(id: id)
+      }
+      let status = rawStatus.flatMap(progressStatus)
+      guard rawStatus == nil || status != nil else { return nil }
+      guard title != nil || status != nil else { return nil }
+      return .upsert(id: id, title: title, status: status)
+    case "TodoWrite":
+      guard let todos = request.event.toolInput?.objectValue?["todos"]?.arrayValue else {
+        return nil
+      }
+      var rows: [PaneAgentProgressRow] = []
+      rows.reserveCapacity(todos.count)
+      for (index, value) in todos.enumerated() {
+        guard let todo = value.objectValue,
+          let title = AgentHookText.normalized(todo["content"]?.stringValue),
+          let status = progressStatus(todo["status"]?.stringValue)
+        else {
+          return nil
+        }
+        rows.append(
+          PaneAgentProgressRow(
+            id: "\(index):\(title)",
+            title: title,
+            status: status
+          )
+        )
+      }
+      return .replace(rows)
+    default:
+      return nil
+    }
+  }
+
+  private static func claudeTaskHookMutation(
+    for request: SupatermAgentHookRequest
+  ) -> TerminalAgentProgressMutation? {
+    let status: PaneAgentProgressRow.Status
+    switch request.event.hookEventName {
+    case .taskCompleted: status = .completed
+    case .taskCreated: status = .pending
+    default: return nil
+    }
+    guard
+      let id = AgentHookText.normalized(request.event.payload["task_id"]?.stringValue),
+      let title = AgentHookText.normalized(request.event.payload["task_subject"]?.stringValue)
+    else {
+      return nil
+    }
+    return .upsert(id: id, title: title, status: status)
+  }
+
+  private static func claudeTaskID(from input: JSONObject) -> String? {
+    AgentHookText.normalized(
+      input["taskId"]?.stringValue
+        ?? input["id"]?.stringValue
+        ?? input["task_id"]?.stringValue
+    )
+  }
+
   private static func codexPlanRows(
     from input: JSONValue?
   ) -> [PaneAgentProgressRow]? {
@@ -341,7 +455,7 @@ nonisolated enum TerminalAgentEventTranslator {
     for (index, value) in plan.enumerated() {
       guard let item = value.objectValue,
         let title = AgentHookText.normalized(item["step"]?.stringValue),
-        let status = codexPlanStatus(item["status"]?.stringValue)
+        let status = progressStatus(item["status"]?.stringValue)
       else {
         return nil
       }
@@ -366,7 +480,7 @@ nonisolated enum TerminalAgentEventTranslator {
     return nil
   }
 
-  private static func codexPlanStatus(
+  private static func progressStatus(
     _ value: String?
   ) -> PaneAgentProgressRow.Status? {
     switch value {

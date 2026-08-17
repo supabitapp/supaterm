@@ -149,36 +149,41 @@ struct AgentPanelView: View {
         palette: palette
       )
       VStack(alignment: .leading, spacing: 2) {
-        Text(Self.childTitle(child))
+        Text(Self.childStatus(child))
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.primaryText)
-        Text(Self.childDetail(child))
-          .font(.system(size: 11))
-          .foregroundStyle(palette.secondaryText)
-          .lineLimit(2)
+        if let detail = child.displayDetail {
+          Text(detail)
+            .font(.system(size: 11))
+            .foregroundStyle(palette.secondaryText)
+            .lineLimit(2)
+        }
       }
       .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .combine)
   }
 
-  static func childTitle(_ child: TerminalAgentActiveChild) -> String {
+  static func childStatus(_ child: TerminalAgentActiveChild) -> String {
     let nickname = normalizedChildLabel(child.nickname)
     let role = normalizedChildLabel(child.role)
-    switch (nickname, role) {
-    case (.some(let nickname), .some(let role)):
-      return "\(nickname) [\(role)]"
-    case (.some(let nickname), nil):
-      return nickname
-    case (nil, .some(let role)):
-      return role.replacingOccurrences(of: "_", with: " ").capitalized
-    case (nil, nil):
-      return "Agent"
+    let subject =
+      switch (nickname, role) {
+      case (.some(let nickname), .some(let role)):
+        "\(nickname) [\(role)]"
+      case (.some(let nickname), nil):
+        nickname
+      case (nil, .some(let role)):
+        childRoleSubject(role)
+      case (nil, nil):
+        "Subagent"
+      }
+    return switch child.phase {
+    case .idle: "\(subject) is done"
+    case .needsInput: "\(subject) needs input"
+    case .running: "\(subject) is working"
     }
-  }
-
-  static func childDetail(_ child: TerminalAgentActiveChild) -> String {
-    child.displayDetail ?? "Working…"
   }
 
   private static func normalizedChildLabel(_ value: String?) -> String? {
@@ -186,6 +191,15 @@ struct AgentPanelView: View {
       !value.isEmpty
     else { return nil }
     return value
+  }
+
+  private static func childRoleSubject(_ role: String) -> String {
+    let words =
+      role
+      .replacingOccurrences(of: "_", with: " ")
+      .replacingOccurrences(of: "-", with: " ")
+      .capitalized
+    return words.lowercased().hasSuffix("subagent") ? words : "\(words) subagent"
   }
 
   private func childProgressStatus(

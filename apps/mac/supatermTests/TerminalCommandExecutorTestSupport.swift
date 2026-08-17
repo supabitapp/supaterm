@@ -303,7 +303,7 @@ extension TerminalHostState {
       TerminalAgentEvent(
         scope: target.scope,
         context: target.context,
-        action: .progressUpdated(progressRows)
+        action: .progressUpdated(.replace(progressRows))
       )
     ).changed
   }

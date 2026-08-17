@@ -132,12 +132,43 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         turnID: "turn-1",
         context: context,
-        action: .progressUpdated([row])
+        action: .progressUpdated(.replace([row]))
       )
     )
 
     let presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
     #expect(presentation.progressRows == [row])
+  }
+
+  @Test
+  func progressMutationsKeepOneRowPerTask() throws {
+    let fixture = startedStore()
+    let surfaceID = fixture.surfaceID
+    let context = fixture.context
+    var store = fixture.store
+
+    for mutation in [
+      TerminalAgentProgressMutation.upsert(id: "task-1", title: "Read state", status: .pending),
+      .upsert(id: "task-1", title: nil, status: .running),
+      .upsert(id: "task-2", title: "Run checks", status: nil),
+      .remove(id: "task-1"),
+    ] {
+      store.apply(
+        event(
+          sessionID: "session-1",
+          turnID: "turn-1",
+          context: context,
+          action: .progressUpdated(mutation)
+        )
+      )
+    }
+
+    let presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
+    #expect(
+      presentation.progressRows == [
+        PaneAgentProgressRow(id: "task-2", title: "Run checks", status: .pending)
+      ]
+    )
   }
 
   @Test

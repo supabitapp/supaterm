@@ -325,8 +325,8 @@ nonisolated struct TerminalAgentStateStore {
         hasActiveTeammate: hasActiveTeammate,
         hasActiveWorkflow: hasActiveWorkflow
       )
-    case .progressUpdated(let rows):
-      updateProgress(rows, turnID: event.scope.turnID, state: &state)
+    case .progressUpdated(let mutation):
+      updateProgress(mutation, turnID: event.scope.turnID, state: &state)
     case .sessionEnded, .subagentStarted, .subagentStopped:
       break
     }
@@ -505,14 +505,36 @@ nonisolated struct TerminalAgentStateStore {
   }
 
   private func updateProgress(
-    _ rows: [PaneAgentProgressRow],
+    _ mutation: TerminalAgentProgressMutation,
     turnID: String?,
     state: inout SessionState
   ) {
     recoverTurnIfNeeded(turnID, state: &state)
     guard targetsActiveTurn(turnID, state: state) else { return }
     state.isActionable = true
-    state.progressRows = rows
+    switch mutation {
+    case .remove(let id):
+      state.progressRows.removeAll { $0.id == id }
+    case .replace(let rows):
+      state.progressRows = rows
+    case .upsert(let id, let title, let status):
+      if let index = state.progressRows.firstIndex(where: { $0.id == id }) {
+        let row = state.progressRows[index]
+        state.progressRows[index] = PaneAgentProgressRow(
+          id: id,
+          title: title ?? row.title,
+          status: status ?? row.status
+        )
+      } else if let title {
+        state.progressRows.append(
+          PaneAgentProgressRow(
+            id: id,
+            title: title,
+            status: status ?? .pending
+          )
+        )
+      }
+    }
   }
 
   private func recoverTurnIfNeeded(

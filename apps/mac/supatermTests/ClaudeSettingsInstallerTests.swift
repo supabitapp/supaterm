@@ -93,7 +93,7 @@ struct ClaudeSettingsInstallerTests {
     #expect(
       Set(hooks.keys) == [
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
-        "SubagentStart", "SubagentStop", "UserPromptSubmit",
+        "SubagentStart", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit",
       ])
   }
 

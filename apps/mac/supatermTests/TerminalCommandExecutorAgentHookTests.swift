@@ -55,6 +55,50 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
   }
+
+  @Test
+  func claudeTaskHooksDrivePanelProgress() throws {
+    let harness = try makeClaudeHookHarness()
+    let created = """
+      {
+        "session_id": "\(ClaudeHookFixtures.sessionID)",
+        "cwd": "\(ClaudeHookFixtures.cwd)",
+        "hook_event_name": "TaskCreated",
+        "task_id": "task-7",
+        "task_subject": "Wire task status"
+      }
+      """
+    let completed = """
+      {
+        "session_id": "\(ClaudeHookFixtures.sessionID)",
+        "cwd": "\(ClaudeHookFixtures.cwd)",
+        "hook_event_name": "TaskCompleted",
+        "task_id": "task-7",
+        "task_subject": "Wire task status"
+      }
+      """
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      ClaudeHookFixtures.request(created, context: harness.context)
+    )
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
+        PaneAgentProgressRow(id: "task-7", title: "Wire task status", status: .pending)
+      ]
+    )
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      ClaudeHookFixtures.request(completed, context: harness.context)
+    )
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
+        PaneAgentProgressRow(id: "task-7", title: "Wire task status", status: .completed)
+      ]
+    )
+  }
   @Test
   func claudeStopKeepsTabRunningWhileBackgroundTaskRemains() throws {
     try verifyClaudeStopKeepsTabRunning(

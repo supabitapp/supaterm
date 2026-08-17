@@ -7,6 +7,12 @@ nonisolated enum TerminalAgentChildKind: String, Codable, Equatable, Sendable {
   case workflow
 }
 
+nonisolated enum TerminalAgentProgressMutation: Equatable, Sendable {
+  case remove(id: String)
+  case replace([PaneAgentProgressRow])
+  case upsert(id: String, title: String?, status: PaneAgentProgressRow.Status?)
+}
+
 nonisolated struct TerminalAgentEvent: Equatable, Sendable {
   struct Scope: Equatable, Hashable, Sendable {
     let agent: SupatermAgentKind
@@ -37,7 +43,7 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
   enum Action: Equatable, Sendable {
     case attentionRequested(requestID: String?, message: String?)
     case attentionResolved(requestID: String?)
-    case progressUpdated([PaneAgentProgressRow])
+    case progressUpdated(TerminalAgentProgressMutation)
     case sessionEnded
     case sessionResumed
     case sessionStarted

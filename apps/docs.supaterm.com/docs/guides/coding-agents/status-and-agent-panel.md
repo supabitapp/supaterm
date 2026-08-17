@@ -23,8 +23,8 @@ Unread badges and notification previews remain available after activity ends. Vi
 
 Press `Command-I` in an agent pane. When the integration supplies the data, the panel can show:
 
-- plan progress
-- active child agents and their latest detail
+- plan and task progress
+- active child agents, their status, and their latest detail
 - the agent's workspace directory
 - Git branch and changed-line counts
 - pull request state and checks

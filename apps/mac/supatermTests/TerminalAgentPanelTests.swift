@@ -16,32 +16,25 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func childTitleMatchesCodexLabels() {
-    #expect(AgentPanelView.childTitle(child(nickname: "Mendel")) == "Mendel")
+  func childStatusUsesAvailableIdentityAndPhase() {
+    #expect(AgentPanelView.childStatus(child(nickname: "Mendel")) == "Mendel is working")
     #expect(
-      AgentPanelView.childTitle(child(nickname: "Mendel", role: "reviewer"))
-        == "Mendel [reviewer]"
-    )
-    #expect(AgentPanelView.childTitle(child(role: "reviewer")) == "Reviewer")
-    #expect(AgentPanelView.childTitle(child()) == "Agent")
-  }
-
-  @Test
-  @MainActor
-  func childDetailFallsBackWhileWaitingForFirstMessage() {
-    #expect(AgentPanelView.childDetail(child()) == "Working…")
-    #expect(
-      AgentPanelView.childDetail(child(task: "Explore UI test infrastructure"))
-        == "Explore UI test infrastructure"
+      AgentPanelView.childStatus(child(nickname: "Mendel", role: "reviewer"))
+        == "Mendel [reviewer] is working"
     )
     #expect(
-      AgentPanelView.childDetail(
-        child(
-          task: "Explore UI test infrastructure",
-          detail: "Tracing persistence failure behavior"
-        )
-      )
-        == "Tracing persistence failure behavior"
+      AgentPanelView.childStatus(child(role: "workflow-subagent"))
+        == "Workflow Subagent is working"
+    )
+    #expect(AgentPanelView.childStatus(child(role: "reviewer")) == "Reviewer subagent is working")
+    #expect(AgentPanelView.childStatus(child()) == "Subagent is working")
+    #expect(
+      AgentPanelView.childStatus(child(role: "tester", phase: .needsInput))
+        == "Tester subagent needs input"
+    )
+    #expect(
+      AgentPanelView.childStatus(child(role: "reviewer", phase: .idle))
+        == "Reviewer subagent is done"
     )
   }
 

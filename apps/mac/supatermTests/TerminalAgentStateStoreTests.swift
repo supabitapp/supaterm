@@ -311,9 +311,10 @@ struct TerminalAgentStateStoreTests {
         sessionID: "session-1",
         turnID: "turn-1",
         context: context,
-        action: .progressUpdated([
-          PaneAgentProgressRow(id: "late", title: "Late plan", status: .running)
-        ])
+        action: .progressUpdated(
+          .replace([
+            PaneAgentProgressRow(id: "late", title: "Late plan", status: .running)
+          ]))
       )
     )
 

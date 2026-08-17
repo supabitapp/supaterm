@@ -73,6 +73,12 @@ public enum SupatermClaudeHookSettings {
       "SubagentStop": [
         ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 10)])
       ],
+      "TaskCompleted": [
+        ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 5, isAsync: true)])
+      ],
+      "TaskCreated": [
+        ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 5, isAsync: true)])
+      ],
       "UserPromptSubmit": [
         ClaudeHookGroup(hooks: [ClaudeCommandHook(command: command, timeout: 10)])
       ],

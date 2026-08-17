@@ -7,7 +7,7 @@ All supported agents share Supaterm's sidebar, attention, progress, and panel mo
 
 ## Claude
 
-Claude uses public hook events for lifecycle, tool activity, permission and idle prompts, child agents, completion, and the final response preview.
+Claude uses public hook events for lifecycle, tool activity, task progress, permission and idle prompts, child agents, completion, and the final response preview. The agent panel reads current Task tools and TodoWrite payloads without reading the transcript.
 
 Claude sessions can be forked from the agent panel. The fork opens in a new pane and runs Claude's native fork-and-resume command in the agent workspace.
 

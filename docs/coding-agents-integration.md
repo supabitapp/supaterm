@@ -150,14 +150,15 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 ## Claude
 
 - Settings file: `~/.claude/settings.json`.
-- Installed hook events: `SessionStart`, `PreToolUse`, `PostToolUse`, `Notification`, `UserPromptSubmit`, `Stop`, `SubagentStart`, `SubagentStop`, `SessionEnd`.
+- Installed hook events: `SessionStart`, `PreToolUse`, `PostToolUse`, `Notification`, `UserPromptSubmit`, `Stop`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `SessionEnd`.
 
 ### App Behavior
 
 The app binds Claude sessions to pane surfaces, tracks the foreground session for each pane, and turns Claude hook events into tab activity.
 
 - `SessionStart` binds canonical session state to the current pane surface.
-- `PreToolUse` and `PostToolUse` mark the tab as `running`.
+- `PreToolUse` and `PostToolUse` mark the tab as `running`. `TaskCreate`, `TaskUpdate`, and `TodoWrite` tool results update panel progress from structured payloads.
+- `TaskCreated` and `TaskCompleted` upsert shared task rows by task ID, including events from child agents and teammates.
 - `Notification` marks the tab as `needs input` only for `permission_prompt`, `idle_prompt`, and `elicitation_dialog`. An `idle_prompt` cannot replace active background work with `needs input`. Background-agent notifications and idle prompts emitted while background work remains suppress their matching terminal notifications, so they cannot create pane unread state or glow.
 - `UserPromptSubmit` marks the tab as `running`.
 - `PreToolUse`, `PostToolUse`, and `UserPromptSubmit` recover the pane binding when `SessionStart` was missed or announced a different session ID, which is what `claude --fork-session --resume` does: its `SessionStart` reports the parent session ID and every later hook carries the forked one.
@@ -165,7 +166,7 @@ The app binds Claude sessions to pane surfaces, tracks the foreground session fo
 - A `Stop` payload that carries `background_tasks` also reconciles child rows. Subagent IDs keep matching rows, an active teammate keeps unmatched Claude child rows alive, and an active workflow keeps workflow child rows alive.
 - Claude activity remains `running` until an explicit hook or fallback screen state changes it.
 - `SessionEnd` clears the tab activity and drops the stored session state.
-- `SubagentStart` and `SubagentStop` maintain scoped child rows without allowing a child to replace the foreground root session. Child tool hooks update only that row with the tool name and salient input. They do not create pane notifications or change root lifecycle.
+- `SubagentStart` and `SubagentStop` maintain scoped child rows without allowing a child to replace the foreground root session. Each row states that the reported child type is working or needs input. Child tool hooks update only that row with the tool name and salient input. They do not create pane notifications or change root lifecycle.
 - A command-finished signal from the shell clears pane-bound agent state.
 
 ## Codex
@@ -191,7 +192,7 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 - `UserPromptSubmit` starts the next turn, recovers the pane binding when `SessionStart` was missed, and clears structured completion suppression.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided. A background completion creates `done` status even when the hook omits a final message.
 - `PermissionRequest` and `request_user_input` mark the foreground session as needing input; only completion of the matching tool resolves that attention state.
-- `SubagentStart` and `SubagentStop` maintain scoped child rows from hook IDs and roles. Reused child IDs and late stop events cannot remove a newer child lifetime.
+- `SubagentStart` and `SubagentStop` maintain scoped child rows from hook IDs and roles. Each row states that the reported child role is working or needs input. Reused child IDs and late stop events cannot remove a newer child lifetime.
 - A native `PostToolUse` for `update_plan` reads `tool_input.plan` directly and replaces the plan rows immediately.
 - While Codex is `running`, the sidebar tab row shows the tab-level running badge without inline activity text. After `Stop`, hovering the row shows the final assistant response from the focused pane when the hook supplied one.
 

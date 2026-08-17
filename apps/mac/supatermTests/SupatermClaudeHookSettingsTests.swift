@@ -23,7 +23,7 @@ struct SupatermClaudeHookSettingsTests {
     #expect(
       Set(hooks.keys) == [
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
-        "SubagentStart", "SubagentStop", "UserPromptSubmit",
+        "SubagentStart", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit",
       ])
     #expect(try commandHook(in: hooks, event: "Notification")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "PostToolUse")["timeout"] as? Int == 5)
@@ -35,6 +35,10 @@ struct SupatermClaudeHookSettingsTests {
     #expect(try commandHook(in: hooks, event: "Stop")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "SubagentStart")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "SubagentStop")["timeout"] as? Int == 10)
+    #expect(try commandHook(in: hooks, event: "TaskCompleted")["timeout"] as? Int == 5)
+    #expect(try commandHook(in: hooks, event: "TaskCompleted")["async"] as? Bool == true)
+    #expect(try commandHook(in: hooks, event: "TaskCreated")["timeout"] as? Int == 5)
+    #expect(try commandHook(in: hooks, event: "TaskCreated")["async"] as? Bool == true)
     #expect(try commandHook(in: hooks, event: "UserPromptSubmit")["timeout"] as? Int == 10)
     #expect(
       try group(in: hooks, event: "Notification")["matcher"] as? String

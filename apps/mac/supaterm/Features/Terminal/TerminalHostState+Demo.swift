@@ -49,7 +49,7 @@
             sessionID: snapshot.sessionID
           ),
           context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
-          action: .progressUpdated(Self.demoProgressRows)
+          action: .progressUpdated(.replace(Self.demoProgressRows))
         )
       )
       for nickname in ["Linnaeus", "Mendel", "Turing"] {

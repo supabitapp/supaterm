@@ -47,23 +47,24 @@ struct TerminalAgentEventTranslatorTests {
             sessionID: "session-1",
             turnID: "turn-2"
           ),
-          action: .progressUpdated([
-            PaneAgentProgressRow(
-              id: "0:Read state",
-              title: "Read state",
-              status: .completed
-            ),
-            PaneAgentProgressRow(
-              id: "1:Update panel",
-              title: "Update panel",
-              status: .running
-            ),
-            PaneAgentProgressRow(
-              id: "2:Verify behavior",
-              title: "Verify behavior",
-              status: .pending
-            ),
-          ])
+          action: .progressUpdated(
+            .replace([
+              PaneAgentProgressRow(
+                id: "0:Read state",
+                title: "Read state",
+                status: .completed
+              ),
+              PaneAgentProgressRow(
+                id: "1:Update panel",
+                title: "Update panel",
+                status: .running
+              ),
+              PaneAgentProgressRow(
+                id: "2:Verify behavior",
+                title: "Verify behavior",
+                status: .pending
+              ),
+            ]))
         )
       ]
     )
@@ -210,6 +211,137 @@ struct TerminalAgentEventTranslatorTests {
         .turnCompleted(message: "Done"),
         .sessionEnded,
       ]
+    )
+  }
+
+  @Test
+  func claudeTodoWriteReplacesProgress() throws {
+    let request = try request(
+      agent: .claude,
+      json: #"""
+        {
+          "session_id": "claude-1",
+          "hook_event_name": "PostToolUse",
+          "tool_name": "TodoWrite",
+          "tool_input": {
+            "todos": [
+              { "content": "Read state", "status": "completed", "activeForm": "Reading state" },
+              { "content": "Wire tasks", "status": "in_progress", "activeForm": "Wiring tasks" },
+              { "content": "Run checks", "status": "pending", "activeForm": "Running checks" }
+            ]
+          }
+        }
+        """#
+    )
+
+    #expect(
+      TerminalAgentEventTranslator.events(for: request).last?.action
+        == .progressUpdated(
+          .replace([
+            PaneAgentProgressRow(id: "0:Read state", title: "Read state", status: .completed),
+            PaneAgentProgressRow(id: "1:Wire tasks", title: "Wire tasks", status: .running),
+            PaneAgentProgressRow(id: "2:Run checks", title: "Run checks", status: .pending),
+          ]))
+    )
+  }
+
+  @Test
+  func claudeTaskToolsMutateProgress() throws {
+    let created = try request(
+      agent: .claude,
+      json: #"""
+        {
+          "session_id": "claude-1",
+          "hook_event_name": "PostToolUse",
+          "tool_name": "TaskCreate",
+          "tool_input": { "subject": "Wire tasks", "description": "Show task state" },
+          "tool_response": { "task": { "id": "task-7", "subject": "Wire tasks" } }
+        }
+        """#
+    )
+    let updated = try request(
+      agent: .claude,
+      json: #"""
+        {
+          "session_id": "claude-1",
+          "hook_event_name": "PostToolUse",
+          "tool_name": "TaskUpdate",
+          "tool_input": { "taskId": "task-7", "status": "in_progress" }
+        }
+        """#
+    )
+    let deleted = try request(
+      agent: .claude,
+      json: #"""
+        {
+          "session_id": "claude-1",
+          "hook_event_name": "PostToolUse",
+          "tool_name": "TaskUpdate",
+          "tool_input": { "task_id": "task-7", "status": "deleted" }
+        }
+        """#
+    )
+
+    #expect(
+      TerminalAgentEventTranslator.events(for: created).last?.action
+        == .progressUpdated(.upsert(id: "task-7", title: "Wire tasks", status: .pending))
+    )
+    #expect(
+      TerminalAgentEventTranslator.events(for: updated).last?.action
+        == .progressUpdated(.upsert(id: "task-7", title: nil, status: .running))
+    )
+    #expect(
+      TerminalAgentEventTranslator.events(for: deleted).last?.action
+        == .progressUpdated(.remove(id: "task-7"))
+    )
+  }
+
+  @Test
+  func claudeTaskHooksTrackTeammateWorkOnRootSession() throws {
+    let created = try request(
+      agent: .claude,
+      json: #"""
+        {
+          "session_id": "claude-1",
+          "turn_id": "turn-2",
+          "agent_id": "worker-3",
+          "hook_event_name": "TaskCreated",
+          "task_id": "task-8",
+          "task_subject": "Review changes",
+          "teammate_name": "reviewer"
+        }
+        """#
+    )
+    let completed = try request(
+      agent: .claude,
+      json: #"""
+        {
+          "session_id": "claude-1",
+          "turn_id": "turn-2",
+          "agent_id": "worker-3",
+          "hook_event_name": "TaskCompleted",
+          "task_id": "task-8",
+          "task_subject": "Review changes",
+          "teammate_name": "reviewer"
+        }
+        """#
+    )
+
+    let createdEvents = TerminalAgentEventTranslator.events(for: created)
+    let completedEvents = TerminalAgentEventTranslator.events(for: completed)
+    let createdEvent = try #require(createdEvents.first)
+    let completedEvent = try #require(completedEvents.first)
+    #expect(createdEvents.count == 1)
+    #expect(completedEvents.count == 1)
+    #expect(createdEvent.scope.subagentID == nil)
+    #expect(completedEvent.scope.subagentID == nil)
+    #expect(
+      createdEvent.action
+        == .progressUpdated(.upsert(id: "task-8", title: "Review changes", status: .pending))
+    )
+    #expect(
+      completedEvent.action
+        == .progressUpdated(.upsert(id: "task-8", title: "Review changes", status: .completed))
     )
   }
 

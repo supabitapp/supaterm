@@ -132,7 +132,7 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         turnID: "turn-1",
         context: context,
-        action: .progressUpdated([row])
+        action: .progressUpdated(.replace([row]))
       )
     )
     store.apply(
@@ -182,7 +182,7 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         turnID: "turn-1",
         context: context,
-        action: .progressUpdated([row])
+        action: .progressUpdated(.replace([row]))
       )
     )
     store.apply(
