@@ -79,6 +79,7 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
 }
 
 nonisolated struct TerminalAgentDetectionSampler: Sendable {
+  let foregroundProcessGroups: @Sendable ([UUID: Int32]) async -> [UUID: Int32]
   let matches:
     @Sendable (Set<Int32>, [AgentDetectionProcessManifest]) async ->
       [Int32: AgentDetectionProcessMatch]
@@ -96,6 +97,31 @@ struct TerminalAgentDetectionHostAccess {
 }
 
 private actor TerminalAgentDetectionLiveSampler {
+  private let zmxClient: ZmxClient
+  private let zmxSessionsEnabled: Bool
+
+  init(zmxClient: ZmxClient, zmxSessionsEnabled: Bool) {
+    self.zmxClient = zmxClient
+    self.zmxSessionsEnabled = zmxSessionsEnabled
+  }
+
+  func foregroundProcessGroups(_ direct: [UUID: Int32]) async -> [UUID: Int32] {
+    guard zmxSessionsEnabled, let sessions = await zmxClient.sessions() else {
+      return direct
+    }
+    return sessions.reduce(into: direct) { processGroups, session in
+      guard
+        direct[session.surfaceID] != nil,
+        let processGroupID = TerminalAgentProcessInspector.foregroundProcessGroupID(
+          for: session.processID
+        )
+      else {
+        return
+      }
+      processGroups[session.surfaceID] = processGroupID
+    }
+  }
+
   func matches(
     foregroundProcessGroupIDs: Set<Int32>,
     manifests: [AgentDetectionProcessManifest]
@@ -154,6 +180,7 @@ final class TerminalAgentDetectionController {
   private struct DueScan: Sendable {
     let surface: TerminalAgentDetectionSurfaceSnapshot
     let nonce: UInt64
+    let processGroupID: Int32
   }
 
   private let rules: TerminalAgentDetectionRuleAccess
@@ -171,10 +198,16 @@ final class TerminalAgentDetectionController {
     host terminal: TerminalHostState,
     repository: AgentDetectionRuleRepository
   ) {
-    let liveSampler = TerminalAgentDetectionLiveSampler()
+    let liveSampler = TerminalAgentDetectionLiveSampler(
+      zmxClient: terminal.zmxClient,
+      zmxSessionsEnabled: terminal.zmxSessionsEnabled
+    )
     self.init(
       rules: TerminalAgentDetectionRuleAccess(repository: repository),
       sampler: TerminalAgentDetectionSampler(
+        foregroundProcessGroups: { processGroupIDs in
+          await liveSampler.foregroundProcessGroups(processGroupIDs)
+        },
         matches: { processGroupIDs, manifests in
           await liveSampler.matches(
             foregroundProcessGroupIDs: processGroupIDs,
@@ -293,10 +326,27 @@ final class TerminalAgentDetectionController {
         return nil
       }
       guard state.nextScanAt <= now else { return nil }
-      return DueScan(surface: surface, nonce: state.nonce)
+      return DueScan(
+        surface: surface,
+        nonce: state.nonce,
+        processGroupID: processGroupID
+      )
     }
     if !due.isEmpty {
-      let processGroupIDs = Set(due.compactMap(\.surface.key.foregroundProcessGroupID))
+      let directProcessGroups = Dictionary(
+        uniqueKeysWithValues: due.map { ($0.surface.key.id, $0.processGroupID) }
+      )
+      let resolvedProcessGroups = await sampler.foregroundProcessGroups(directProcessGroups)
+      guard !Task.isCancelled else { return }
+      let resolved = due.map { scan in
+        DueScan(
+          surface: scan.surface,
+          nonce: scan.nonce,
+          processGroupID: resolvedProcessGroups[scan.surface.key.id].flatMap { $0 > 0 ? $0 : nil }
+            ?? scan.processGroupID
+        )
+      }
+      let processGroupIDs = Set(resolved.map(\.processGroupID))
       let matches = await sampler.matches(processGroupIDs, snapshot.processManifests)
       guard !Task.isCancelled else { return }
       let currentSnapshot = await rules.snapshot()
@@ -308,7 +358,7 @@ final class TerminalAgentDetectionController {
       }
       await applyProcessMatches(
         matches,
-        to: due,
+        to: resolved,
         generation: snapshot.generation,
         now: now
       )
@@ -391,12 +441,11 @@ final class TerminalAgentDetectionController {
     for dueScan in due {
       let key = dueScan.surface.key
       guard live[key.id] == key, var state = states[key.id], state.key == key,
-        state.nonce == dueScan.nonce,
-        let processGroupID = key.foregroundProcessGroupID
+        state.nonce == dueScan.nonce
       else {
         continue
       }
-      guard let match = matches[processGroupID] else {
+      guard let match = matches[dueScan.processGroupID] else {
         markUnrecognized(&state, now: now)
         states[key.id] = state
         continue

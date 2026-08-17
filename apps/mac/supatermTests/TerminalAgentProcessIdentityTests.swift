@@ -29,5 +29,6 @@ struct TerminalAgentProcessIdentityTests {
   @Test(arguments: [Int32.min, -1, 0])
   func nonpositiveProcessIDHasNoIdentity(processID: Int32) {
     #expect(TerminalAgentProcessInspector.identity(for: processID) == nil)
+    #expect(TerminalAgentProcessInspector.foregroundProcessGroupID(for: processID) == nil)
   }
 }
