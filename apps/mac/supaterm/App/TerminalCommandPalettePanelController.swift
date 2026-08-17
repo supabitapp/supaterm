@@ -127,6 +127,7 @@ final class TerminalCommandPalettePanelController: NSObject, NSWindowDelegate {
     }
     frameObservers.removeAll()
     if let panel {
+      panel.delegate = nil
       parentWindow?.removeChildWindow(panel)
       panel.orderOut(nil)
     }
