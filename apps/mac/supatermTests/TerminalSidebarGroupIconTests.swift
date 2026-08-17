@@ -19,20 +19,36 @@ struct TerminalSidebarGroupIconTests {
   }
 
   @Test
-  func keepsTheDotWhenTabsDoNotShareARepository() throws {
+  func resolvesFirstIconWhenTabsDoNotShareARepository() throws {
     let first = try RepositoryIconFixture(name: "first")
     let second = try RepositoryIconFixture(name: "second")
     defer {
       first.remove()
       second.remove()
     }
-    _ = try first.writeIcon()
+    let iconURL = try first.writeIcon()
     _ = try second.writeIcon()
     let request = TerminalSidebarGroupIconRequest(
       workingDirectoryPathsByTab: [[first.rootURL.path], [second.rootURL.path]]
     )
 
-    #expect(request.resolve() == nil)
+    #expect(request.resolve() == iconURL)
+  }
+
+  @Test
+  func skipsPathsWithoutAnIcon() throws {
+    let first = try RepositoryIconFixture(name: "first")
+    let second = try RepositoryIconFixture(name: "second")
+    defer {
+      first.remove()
+      second.remove()
+    }
+    let iconURL = try second.writeIcon()
+    let request = TerminalSidebarGroupIconRequest(
+      workingDirectoryPathsByTab: [[first.rootURL.path], [second.rootURL.path]]
+    )
+
+    #expect(request.resolve() == iconURL)
   }
 }
 

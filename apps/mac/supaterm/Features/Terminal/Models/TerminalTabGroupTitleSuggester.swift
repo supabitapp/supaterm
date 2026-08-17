@@ -45,19 +45,10 @@ nonisolated enum TerminalTabGroupTitleSuggester {
   ) -> String? {
     sharedRepositoryRoot(
       workingDirectoryPathsByTab: workingDirectoryPathsByTab,
-      repositoryRoot: repositoryRoot
+      repositoryRoot: repositoryRoot(for:)
     ).flatMap {
       normalized(URL(fileURLWithPath: $0, isDirectory: true).lastPathComponent)
     }
-  }
-
-  static func sharedRepositoryRoot(
-    workingDirectoryPathsByTab: [[String]]
-  ) -> String? {
-    sharedRepositoryRoot(
-      workingDirectoryPathsByTab: workingDirectoryPathsByTab,
-      repositoryRoot: repositoryRoot
-    )
   }
 
   static func sharedRepositoryRoot(
@@ -83,7 +74,7 @@ nonisolated enum TerminalTabGroupTitleSuggester {
     return sharedRoot
   }
 
-  private static func repositoryRoot(_ path: String) -> String? {
+  static func repositoryRoot(for path: String) -> String? {
     var directory = URL(fileURLWithPath: path, isDirectory: true)
       .standardizedFileURL
       .resolvingSymlinksInPath()

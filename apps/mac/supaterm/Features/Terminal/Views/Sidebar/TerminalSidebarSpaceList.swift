@@ -7,16 +7,18 @@ nonisolated struct TerminalSidebarGroupIconRequest: Hashable, Sendable {
   let workingDirectoryPathsByTab: [[String]]
 
   func resolve() -> URL? {
-    guard
-      let rootPath = TerminalTabGroupTitleSuggester.sharedRepositoryRoot(
-        workingDirectoryPathsByTab: workingDirectoryPathsByTab
-      )
-    else {
-      return nil
+    for path in workingDirectoryPathsByTab.joined() {
+      guard
+        let rootPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path),
+        let iconURL = SupatermProjectIconResolver.resolve(
+          in: URL(fileURLWithPath: rootPath, isDirectory: true)
+        )
+      else {
+        continue
+      }
+      return iconURL
     }
-    return SupatermProjectIconResolver.resolve(
-      in: URL(fileURLWithPath: rootPath, isDirectory: true)
-    )
+    return nil
   }
 }
 
