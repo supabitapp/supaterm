@@ -184,6 +184,9 @@ struct TerminalSidebarTabSummaryView: View {
       Text(Self.unreadCountText(unreadCount))
         .font(.system(size: 9, weight: .bold))
         .foregroundStyle(isSelected ? palette.selectedText : Color.white)
+        .accessibilityLabel(
+          "\(unreadCount) unread \(unreadCount == 1 ? "notification" : "notifications")"
+        )
         .padding(.horizontal, unreadCount > 9 ? 4 : 5)
         .frame(minWidth: 16, minHeight: 16)
         .background(

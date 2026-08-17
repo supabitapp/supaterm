@@ -30,7 +30,7 @@ final class TabSelectionUITests: SupatermUITestCase {
 
     let firstTab = sidebarTabRows.element(boundBy: 0)
     let didRegisterUnread = await wait(for: firstTab, timeout: Self.coldStartTimeout) {
-      $0.label.contains("unread-pane-marker")
+      $0.label.contains("1 unread notification")
     }
     XCTAssertTrue(didRegisterUnread)
 
@@ -44,9 +44,10 @@ final class TabSelectionUITests: SupatermUITestCase {
     firstTab.click()
     let didSelectFirstTab = await waitForSidebarSelection(firstTab)
     XCTAssertTrue(didSelectFirstTab)
+    try await requireFocus(on: paneB)
 
     let didClearUnread = await wait(for: firstTab, timeout: Self.coldStartTimeout) {
-      !$0.label.contains("unread-pane-marker")
+      !$0.label.contains("unread notification")
     }
     XCTAssertTrue(didClearUnread)
   }
