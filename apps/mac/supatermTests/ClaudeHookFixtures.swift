@@ -4,13 +4,11 @@ import Foundation
 
 enum ClaudeHookFixtures {
   static let sessionID = "session-123"
-  static let transcriptPath = "/tmp/claude/transcript.jsonl"
   static let cwd = "/Users/Developer/code/github.com/supabitapp/supaterm"
 
   static let sessionStart = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "SessionStart",
       "source": "startup",
@@ -22,7 +20,6 @@ enum ClaudeHookFixtures {
   static let notification = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "Notification",
       "message": "Claude needs your attention",
@@ -34,7 +31,6 @@ enum ClaudeHookFixtures {
   static let userPromptSubmit = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "permission_mode": "acceptEdits",
       "hook_event_name": "UserPromptSubmit",
@@ -45,7 +41,6 @@ enum ClaudeHookFixtures {
   static let preToolUse = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "permission_mode": "acceptEdits",
       "hook_event_name": "PreToolUse"
@@ -55,7 +50,6 @@ enum ClaudeHookFixtures {
   static let stop = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "permission_mode": "acceptEdits",
       "hook_event_name": "Stop",
@@ -67,7 +61,6 @@ enum ClaudeHookFixtures {
   static let stopWithPendingBackgroundTask = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "permission_mode": "acceptEdits",
       "hook_event_name": "Stop",
@@ -86,61 +79,9 @@ enum ClaudeHookFixtures {
     }
     """
 
-  static let stopWithRunningSubagent = """
-    {
-      "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
-      "cwd": "\(cwd)",
-      "permission_mode": "acceptEdits",
-      "hook_event_name": "Stop",
-      "stop_hook_active": false,
-      "last_assistant_message": "Background agent started.",
-      "background_tasks": [
-        {
-          "id": "child-live",
-          "type": "subagent",
-          "status": "running",
-          "description": "Review PR",
-          "agent_type": "general-purpose"
-        },
-        {
-          "id": "task-1",
-          "type": "shell",
-          "status": "running",
-          "description": "Build",
-          "command": "make build"
-        }
-      ],
-      "session_crons": []
-    }
-    """
-
-  static let stopWithRunningWorkflow = """
-    {
-      "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
-      "cwd": "\(cwd)",
-      "permission_mode": "acceptEdits",
-      "hook_event_name": "Stop",
-      "stop_hook_active": false,
-      "last_assistant_message": "Waiting for the workflow.",
-      "background_tasks": [
-        {
-          "id": "wbcr1wp0d",
-          "type": "workflow",
-          "status": "running",
-          "description": "Research the balancer API surface",
-          "name": "codex-balancer-research"
-        }
-      ],
-      "session_crons": []
-    }
-    """
-
   static let stopWithPendingCron = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "permission_mode": "acceptEdits",
       "hook_event_name": "Stop",
@@ -158,7 +99,6 @@ enum ClaudeHookFixtures {
   static let idlePrompt = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "Notification",
       "message": "Claude is waiting for your input",
@@ -170,7 +110,6 @@ enum ClaudeHookFixtures {
   static let sessionEnd = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "SessionEnd",
       "reason": "exit"

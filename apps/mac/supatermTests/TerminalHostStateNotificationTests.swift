@@ -427,8 +427,8 @@ struct TerminalHostStateNotificationTests {
       )
     )
 
-    #expect(host.setTestAgentHoverMessages(["First message"], replacing: false, for: surface.id))
-    #expect(host.setTestAgentHoverMessages(["Second message"], replacing: false, for: surface.id))
+    #expect(host.setTestAgentResponse("First message", for: surface.id))
+    #expect(host.setTestAgentResponse("Second message", for: surface.id))
 
     #expect(
       host.tabAgentPresentation(for: tabID).latestResponse?.text == "Second message"
@@ -454,8 +454,8 @@ struct TerminalHostStateNotificationTests {
       )
     )
 
-    #expect(host.setTestAgentHoverMessages(["First message", "Second message"], replacing: false, for: surface.id))
-    #expect(host.setTestAgentHoverMessages(["Final answer"], replacing: true, for: surface.id))
+    #expect(host.setTestAgentResponse("Second message", for: surface.id))
+    #expect(host.setTestAgentResponse("Final answer", for: surface.id))
 
     #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Final answer")
   }
@@ -498,7 +498,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func tabStatusUsesHighestPriorityPaneWhileDetailAndHoverStayFocused() throws {
+  func tabStatusUsesHighestPriorityPaneWhileDetailStaysFocused() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -523,14 +523,42 @@ struct TerminalHostStateNotificationTests {
         for: firstSurface.id
       )
     )
-    #expect(host.setTestAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondPane.paneID))
-    #expect(host.setTestAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
 
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
     #expect(host.showsAgentActivityDetail(for: tabID))
-    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Focused hover")
     #expect(!host.tabAgentPresentation(for: tabID).statusActivityIsFocused)
+  }
+
+  @Test
+  func latestAgentResponseFollowsFocusedPaneOnly() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+    host.ensureInitialTab(focusing: false, startupCommand: nil)
+
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .pane(firstSurface.id)
+      )
+    )
+
+    #expect(host.setTestAgentActivity(.codex(.idle), for: firstSurface.id))
+    #expect(host.setTestAgentResponse("Focused response", for: firstSurface.id))
+    #expect(host.setTestAgentActivity(.codex(.idle), for: secondPane.paneID))
+    #expect(host.setTestAgentResponse("Background response", for: secondPane.paneID))
+    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Focused response")
+
+    _ = try host.focusPane(TerminalPaneTarget(paneID: secondPane.paneID))
+
+    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Background response")
   }
 
   @Test
@@ -574,39 +602,6 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func latestAgentResponseFollowsFocusedPaneOnly() throws {
-    initializeGhosttyForTests()
-
-    let host = TerminalHostState()
-    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    host.ensureInitialTab(focusing: false, startupCommand: nil)
-
-    let tabID = try #require(host.selectedTabID)
-    let firstSurface = try #require(host.selectedSurfaceView)
-    let secondPane = try host.createPane(
-      TerminalCreatePaneRequest(
-        startupCommand: nil,
-        direction: .right,
-        focus: false,
-        equalize: true,
-        target: .pane(firstSurface.id)
-      )
-    )
-
-    #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
-    #expect(host.setTestAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
-    #expect(host.setTestAgentActivity(.codex(.idle), for: firstSurface.id))
-    #expect(host.setTestAgentActivity(.codex(.running), for: secondPane.paneID))
-    #expect(host.setTestAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
-    #expect(host.setTestAgentActivity(.codex(.idle), for: secondPane.paneID))
-    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Focused hover")
-
-    _ = try host.focusPane(TerminalPaneTarget(paneID: secondPane.paneID))
-
-    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Background hover")
-  }
-
-  @Test
   func closingStatusOwningPaneFallsBackToRemainingPaneActivity() throws {
     initializeGhosttyForTests()
 
@@ -626,8 +621,12 @@ struct TerminalHostStateNotificationTests {
       )
     )
 
-    #expect(host.setTestAgentActivity(.codex(.running, detail: "Focused detail"), for: firstSurface.id))
-    #expect(host.setTestAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(
+      host.setTestAgentActivity(
+        .codex(.running, detail: "Focused detail"),
+        for: firstSurface.id
+      )
+    )
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondPane.paneID))
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
 
@@ -635,7 +634,6 @@ struct TerminalHostStateNotificationTests {
 
     #expect(host.agentActivity(for: tabID) == .codex(.running, detail: "Focused detail"))
     #expect(host.showsAgentActivityDetail(for: tabID))
-    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Focused hover")
   }
 
   @Test
@@ -649,7 +647,7 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
     #expect(host.setTestAgentActivity(.claude(.running, detail: "Thinking"), for: surface.id))
-    #expect(host.setTestAgentHoverMessages(["Thinking"], replacing: true, for: surface.id))
+    #expect(host.setTestAgentResponse("Thinking", for: surface.id))
 
     surface.bridge.onCommandFinished?()
 

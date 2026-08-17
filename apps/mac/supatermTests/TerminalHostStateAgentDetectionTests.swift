@@ -231,7 +231,6 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(host.agentPanelPresentation(for: surfaceID)?.progressRows.first?.title == "Starting session")
     #expect(host.agentPanelPresentation(for: surfaceID)?.session == nil)
     #expect(host.agentStateRecords(for: surfaceID).isEmpty)
-    #expect(host.agentTranscriptTargets().isEmpty)
   }
 
   @Test
@@ -383,14 +382,13 @@ struct TerminalHostStateAgentDetectionTests {
       sessionID: "restored-session",
       surfaceID: surfaceID,
       processes: [processIdentity],
-      transcriptPath: "/tmp/codex.jsonl",
       turnLifecycle: .active("turn-1"),
       phase: .running,
       detail: detail,
       attentionRequestID: nil,
       hoverMessages: [],
       isActionable: true,
-      progressRowsBySource: [.nativePlan: progressRows],
+      progressRows: progressRows,
       activeChildren: [],
       hasPendingBackgroundWork: false,
       isForeground: true,

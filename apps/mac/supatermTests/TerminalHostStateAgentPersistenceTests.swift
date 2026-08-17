@@ -26,7 +26,7 @@ struct TerminalHostStateAgentPersistenceTests {
           scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: sessionID),
           context: context,
           processID: identity.processID,
-          action: .sessionStarted(transcriptPath: nil)
+          action: .sessionStarted
         )
       )
     }
@@ -107,7 +107,7 @@ struct TerminalHostStateAgentPersistenceTests {
         scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "bound-session"),
         context: SupatermCLIContext(surfaceID: deadSurfaceID, tabID: tabID),
         processID: identity.processID,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
 

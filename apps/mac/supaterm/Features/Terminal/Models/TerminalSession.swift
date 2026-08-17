@@ -5,7 +5,7 @@ import SupatermCLIShared
 import SupatermSupport
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 12
+  static let currentVersion = 13
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -753,14 +753,12 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
   let agent: SupatermAgentKind
   let sessionID: String
   let processes: [TerminalAgentProcessIdentity]
-  let transcriptPath: String?
   let turnLifecycle: TerminalAgentTurnLifecycle
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
   let hoverMessages: [String]
-  let nativePlanRows: [PaneAgentProgressRow]
-  let transcriptRows: [PaneAgentProgressRow]
+  let progressRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
   let hasPendingBackgroundWork: Bool
   let isForeground: Bool
@@ -771,14 +769,12 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     agent: SupatermAgentKind,
     sessionID: String,
     processes: [TerminalAgentProcessIdentity],
-    transcriptPath: String? = nil,
     turnLifecycle: TerminalAgentTurnLifecycle = .unseen,
     phase: AgentActivityPhase = .idle,
     detail: String? = nil,
     attentionRequestID: String? = nil,
     hoverMessages: [String] = [],
-    nativePlanRows: [PaneAgentProgressRow] = [],
-    transcriptRows: [PaneAgentProgressRow] = [],
+    progressRows: [PaneAgentProgressRow] = [],
     activeChildren: [TerminalAgentActiveChild] = [],
     hasPendingBackgroundWork: Bool = false,
     isForeground: Bool = false,
@@ -788,14 +784,12 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     self.agent = agent
     self.sessionID = sessionID
     self.processes = processes
-    self.transcriptPath = transcriptPath
     self.turnLifecycle = turnLifecycle
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
     self.hoverMessages = hoverMessages
-    self.nativePlanRows = nativePlanRows
-    self.transcriptRows = transcriptRows
+    self.progressRows = progressRows
     self.activeChildren = activeChildren
     self.hasPendingBackgroundWork = hasPendingBackgroundWork
     self.isForeground = isForeground
@@ -808,14 +802,12 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       agent: snapshot.agent,
       sessionID: snapshot.sessionID,
       processes: Array(snapshot.processes),
-      transcriptPath: snapshot.transcriptPath,
       turnLifecycle: snapshot.turnLifecycle,
       phase: snapshot.phase,
       detail: snapshot.detail,
       attentionRequestID: snapshot.attentionRequestID,
       hoverMessages: snapshot.hoverMessages,
-      nativePlanRows: snapshot.progressRowsBySource[.nativePlan] ?? [],
-      transcriptRows: snapshot.progressRowsBySource[.transcript] ?? [],
+      progressRows: snapshot.progressRows,
       activeChildren: snapshot.activeChildren,
       hasPendingBackgroundWork: snapshot.hasPendingBackgroundWork,
       isForeground: snapshot.isForeground,
@@ -828,26 +820,18 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     surfaceID: UUID,
     processes: Set<TerminalAgentProcessIdentity>
   ) -> TerminalAgentStateSnapshot {
-    var progressRowsBySource: [TerminalAgentEvent.ProgressSource: [PaneAgentProgressRow]] = [:]
-    if !nativePlanRows.isEmpty {
-      progressRowsBySource[.nativePlan] = nativePlanRows
-    }
-    if !transcriptRows.isEmpty {
-      progressRowsBySource[.transcript] = transcriptRows
-    }
     return TerminalAgentStateSnapshot(
       agent: agent,
       sessionID: sessionID,
       surfaceID: surfaceID,
       processes: processes,
-      transcriptPath: transcriptPath,
       turnLifecycle: turnLifecycle,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID,
       hoverMessages: hoverMessages,
       isActionable: false,
-      progressRowsBySource: progressRowsBySource,
+      progressRows: progressRows,
       activeChildren: activeChildren,
       hasPendingBackgroundWork: hasPendingBackgroundWork,
       isForeground: isForeground,
@@ -866,14 +850,12 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       agent: agent,
       sessionID: sessionID,
       processes: processes,
-      transcriptPath: transcriptPath,
       turnLifecycle: turnLifecycle,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID,
       hoverMessages: hoverMessages,
-      nativePlanRows: nativePlanRows,
-      transcriptRows: transcriptRows,
+      progressRows: progressRows,
       activeChildren: activeChildren,
       hasPendingBackgroundWork: hasPendingBackgroundWork,
       isForeground: isForeground,

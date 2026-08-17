@@ -38,7 +38,6 @@ struct TerminalCommandExecutorScreenshotTests {
       registry: registry,
       paneCaptureClient: capture.client
     )
-    registry.commandExecutor = commandExecutor
     let (host, surface) = makeScreenshotHost()
     let selectedTabID = host.selectedTabID
     let selectedSurfaceID = surface.id

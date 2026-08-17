@@ -284,10 +284,6 @@ final class TerminalHostState {
   @ObservationIgnored
   var paneCountAcrossWindows: @MainActor (TerminalSpaceID) -> Int = { _ in 0 }
   @ObservationIgnored
-  var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
-  @ObservationIgnored
-  var onSurfaceRemoved: @MainActor (UUID) -> Void = { _ in }
-  @ObservationIgnored
   var agentPanelController: TerminalAgentPanelController?
   @ObservationIgnored
   var agentDetectionController: TerminalAgentDetectionController?
@@ -945,7 +941,6 @@ final class TerminalHostState {
     let removedAgentState = clearAgentState(for: surfaceID)
     _ = clearAgentPanelMetadata(for: surfaceID)
     agentPanelController?.surfaceCommandFinished(surfaceID)
-    onSurfaceCommandFinished(surfaceID)
     if removedAgentState {
       sessionDidChange()
     }

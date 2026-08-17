@@ -12,7 +12,6 @@ struct ClaudeHookEventTests {
 
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == ClaudeHookFixtures.sessionID)
-    #expect(event.transcriptPath == ClaudeHookFixtures.transcriptPath)
     #expect(event.cwd == ClaudeHookFixtures.cwd)
   }
 

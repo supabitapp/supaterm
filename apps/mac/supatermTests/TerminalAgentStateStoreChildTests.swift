@@ -15,7 +15,7 @@ extension TerminalAgentStateStoreTests {
       event(
         sessionID: "root-session",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -66,7 +66,7 @@ extension TerminalAgentStateStoreTests {
         event(
           sessionID: sessionID,
           context: context,
-          action: .sessionStarted(transcriptPath: nil)
+          action: .sessionStarted
         )
       )
     }
@@ -159,7 +159,7 @@ extension TerminalAgentStateStoreTests {
 
     for action in [
       TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
-      .subagentStopped(),
+      .subagentStopped,
     ] {
       store.apply(
         event(
@@ -176,42 +176,6 @@ extension TerminalAgentStateStoreTests {
   }
 
   @Test
-  func completedWorkflowRemovesOnlyItsChildren() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-
-    for (subagentID, transcriptPath) in [
-      ("child-1", "/tmp/workflows/wf-1/agent-child-1.jsonl"),
-      ("child-2", "/tmp/workflows/wf-2/agent-child-2.jsonl"),
-    ] {
-      store.apply(
-        event(
-          sessionID: "session-1",
-          turnID: "turn-1",
-          subagentID: subagentID,
-          context: context,
-          action: .subagentStarted(
-            nickname: nil,
-            role: nil,
-            transcriptPath: transcriptPath
-          )
-        )
-      )
-    }
-
-    let didRemove = store.removeChildren(
-      agent: .codex,
-      sessionID: "session-1",
-      transcriptDirectoryPath: "/tmp/workflows/wf-1"
-    )
-    #expect(didRemove)
-    let presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
-    #expect(presentation.activeChildren.map(\.subagentID) == ["child-2"])
-  }
-
-  @Test
   func lateScopedActivityCannotReactivateStoppedChild() {
     let fixture = startedStore()
     let surfaceID = fixture.surfaceID
@@ -220,7 +184,7 @@ extension TerminalAgentStateStoreTests {
 
     for action in [
       TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
-      .subagentStopped(),
+      .subagentStopped,
       .turnRunning(detail: "Late tool event"),
     ] {
       store.apply(
@@ -246,7 +210,7 @@ extension TerminalAgentStateStoreTests {
 
     for action in [
       TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "reviewer"),
-      .subagentStopped(),
+      .subagentStopped,
       .subagentStarted(nickname: nil, role: "reviewer"),
       .turnRunning(detail: "Bash"),
     ] {
@@ -346,92 +310,6 @@ extension TerminalAgentStateStoreTests {
   }
 
   @Test
-  func describedChildGainsNicknameAndTask() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        subagentID: "child-1",
-        context: context,
-        action: .subagentStarted(nickname: nil, role: "general-purpose")
-      )
-    )
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        subagentID: "child-1",
-        context: context,
-        action: .subagentDescribed(nickname: "goo4560", task: "GOO-4560 board API table")
-      )
-    )
-
-    let child = try #require(
-      store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first
-    )
-    #expect(child.nickname == "goo4560")
-    #expect(child.task == "GOO-4560 board API table")
-  }
-
-  @Test
-  func describedChildKeepsKnownValuesWhenUpdateOmitsThem() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-
-    for action in [
-      TerminalAgentEvent.Action.subagentStarted(
-        nickname: "goo4560",
-        role: "general-purpose",
-        task: "GOO-4560 board API table"
-      ),
-      .subagentDescribed(nickname: nil, task: nil),
-    ] {
-      store.apply(
-        event(
-          sessionID: "session-1",
-          turnID: "turn-1",
-          subagentID: "child-1",
-          context: context,
-          action: action
-        )
-      )
-    }
-
-    let child = try #require(
-      store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first
-    )
-    #expect(child.nickname == "goo4560")
-    #expect(child.task == "GOO-4560 board API table")
-  }
-
-  @Test
-  func describeCannotCreateChild() {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        subagentID: "child-1",
-        context: context,
-        action: .subagentDescribed(nickname: "goo4560", task: "GOO-4560 board API table")
-      )
-    )
-
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.activeChildren.isEmpty == true)
-  }
-
-  @Test
   func childTaskSurvivesLaterRootTurnsWithoutTurnIDs() throws {
     let fixture = startedStore()
     let surfaceID = fixture.surfaceID
@@ -500,7 +378,7 @@ extension TerminalAgentStateStoreTests {
         turnID: "turn-1",
         subagentID: "child-1",
         context: context,
-        action: .subagentStopped()
+        action: .subagentStopped
       )
     )
 
@@ -548,7 +426,7 @@ extension TerminalAgentStateStoreTests {
         agent: .claude,
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -594,7 +472,7 @@ extension TerminalAgentStateStoreTests {
         agent: .claude,
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     for child in [
@@ -651,7 +529,7 @@ extension TerminalAgentStateStoreTests {
   }
 
   @Test
-  func reconciliationKeepsTeammatesOnlyWhileATeammateRuns() throws {
+  func reconciliationKeepsUnknownChildrenWhileATeammateRuns() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
@@ -661,7 +539,7 @@ extension TerminalAgentStateStoreTests {
         agent: .claude,
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -671,7 +549,7 @@ extension TerminalAgentStateStoreTests {
         subagentID: "athermo-risk-1",
         context: context,
         action: .subagentStarted(
-          kind: .teammate,
+          kind: .unknown,
           nickname: "thermo-risk",
           role: "thermo-risk"
         )
@@ -721,14 +599,13 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         surfaceID: surfaceID,
         processes: [TerminalAgentProcessIdentity(processID: 7, startTimeMicroseconds: 7)],
-        transcriptPath: nil,
         turnLifecycle: .completed(nil),
         phase: .idle,
         detail: nil,
         attentionRequestID: nil,
         hoverMessages: [],
         isActionable: false,
-        progressRowsBySource: [:],
+        progressRows: [],
         activeChildren: [
           TerminalAgentActiveChild(
             id: TerminalAgentActiveChild.Identity(

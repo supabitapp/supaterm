@@ -67,15 +67,6 @@ final class TerminalWindowRegistry {
     let session: PaneAgentPanelSession?
   }
 
-  var commandExecutor: TerminalCommandExecutor? {
-    didSet {
-      guard let commandExecutor else { return }
-      for entry in activeEntries() {
-        commandExecutor.resumeAgentMonitoring(in: entry.terminal)
-      }
-    }
-  }
-
   var applicationStore: StoreOf<AppFeature>?
 
   private var entries: [Entry] = []
@@ -119,12 +110,6 @@ final class TerminalWindowRegistry {
     setTerminatesTerminalSessionsOnClose: @escaping @MainActor (Bool) -> Void = { _ in }
   ) {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
-    terminal.onSurfaceCommandFinished = { [weak self] surfaceID in
-      self?.commandExecutor?.handleCommandFinished(for: surfaceID)
-    }
-    terminal.onSurfaceRemoved = { [weak self] surfaceID in
-      self?.commandExecutor?.handleSurfaceRemoved(surfaceID)
-    }
     terminal.onSpaceAction = { [weak self] action in
       self?.performSpaceAction(action, from: windowControllerID)
     }
@@ -148,11 +133,6 @@ final class TerminalWindowRegistry {
   }
 
   func unregister(windowControllerID: UUID) {
-    if let entry = entries.first(where: { $0.windowControllerID == windowControllerID }) {
-      for surfaceID in entry.terminal.liveSurfaceIDs() {
-        commandExecutor?.handleSurfaceRemoved(surfaceID)
-      }
-    }
     entries.removeAll { $0.windowControllerID == windowControllerID }
     onChange()
   }
@@ -161,13 +141,6 @@ final class TerminalWindowRegistry {
     guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID })
     else { return }
     entries[index].windowReference.value = window
-    if window != nil {
-      commandExecutor?.resumeAgentMonitoring(in: entries[index].terminal)
-    } else {
-      for surfaceID in entries[index].terminal.liveSurfaceIDs() {
-        commandExecutor?.handleSurfaceRemoved(surfaceID)
-      }
-    }
     onChange()
   }
 

@@ -14,63 +14,6 @@ nonisolated enum TerminalAgentTurnLifecycle: Codable, Equatable, Sendable {
   case unseen
 }
 
-nonisolated struct TerminalAgentChildUsage: Codable, Equatable, Sendable {
-  let model: String?
-  let contextTokens: Int
-  let startedAt: Date
-  let lastActiveAt: Date
-
-  func summary(now: Date) -> String {
-    [modelName, tokenText, elapsedText(now: now)]
-      .compactMap(\.self)
-      .joined(separator: " · ")
-  }
-
-  var modelName: String? {
-    guard let model else { return nil }
-    let components =
-      model
-      .split(separator: "-")
-      .map(String.init)
-      .filter { $0 != "claude" && !isReleaseDate($0) }
-    guard let family = components.first(where: { !isVersion($0) }) else { return nil }
-    let version = components.filter(isVersion).joined(separator: ".")
-    return version.isEmpty ? family.capitalized : "\(family.capitalized) \(version)"
-  }
-
-  private var tokenText: String? {
-    guard contextTokens > 0 else { return nil }
-    guard contextTokens >= 1000 else { return "\(contextTokens) tok" }
-    let thousands = (Double(contextTokens) / 100).rounded() / 10
-    let text =
-      thousands == thousands.rounded()
-      ? String(Int(thousands))
-      : String(format: "%.1f", thousands)
-    return "\(text)k tok"
-  }
-
-  private func elapsedText(now: Date) -> String {
-    let seconds = max(0, Int(now.timeIntervalSince(startedAt).rounded()))
-    let hours = seconds / 3600
-    let minutes = seconds % 3600 / 60
-    if hours > 0 {
-      return String(format: "%dh%02dm", hours, minutes)
-    }
-    if minutes > 0 {
-      return String(format: "%dm%02ds", minutes, seconds % 60)
-    }
-    return "\(seconds)s"
-  }
-
-  private func isVersion(_ component: String) -> Bool {
-    component.allSatisfy(\.isNumber)
-  }
-
-  private func isReleaseDate(_ component: String) -> Bool {
-    component.count == 8 && isVersion(component)
-  }
-}
-
 nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, Sendable {
   struct Identity: Codable, Equatable, Hashable, Sendable {
     let subagentID: String
@@ -82,52 +25,35 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   let kind: TerminalAgentChildKind
   let nickname: String?
   let role: String?
-  let transcriptPath: String?
   let task: String?
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
-  let usage: TerminalAgentChildUsage?
 
   init(
     id: Identity,
     kind: TerminalAgentChildKind = .subagent,
     nickname: String?,
     role: String?,
-    transcriptPath: String? = nil,
     task: String? = nil,
     phase: AgentActivityPhase,
     detail: String?,
-    attentionRequestID: String? = nil,
-    usage: TerminalAgentChildUsage? = nil
+    attentionRequestID: String? = nil
   ) {
     self.id = id
     self.kind = kind
     self.nickname = nickname
     self.role = role
-    self.transcriptPath = transcriptPath
     self.task = task
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
-    self.usage = usage
   }
 
   var subagentID: String { id.subagentID }
   var sessionID: String { id.sessionID }
   var turnID: String? { id.turnID }
   var displayDetail: String? { detail ?? task }
-
-  var runsInWorkflow: Bool { kind == .workflow }
-
-  var transcriptDirectoryPath: String? {
-    transcriptPath.map {
-      URL(fileURLWithPath: $0)
-        .deletingLastPathComponent()
-        .standardizedFileURL
-        .path
-    }
-  }
 }
 
 nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
@@ -152,14 +78,13 @@ nonisolated struct TerminalAgentStateSnapshot: Equatable, Sendable {
   let sessionID: String
   let surfaceID: UUID
   let processes: Set<TerminalAgentProcessIdentity>
-  let transcriptPath: String?
   let turnLifecycle: TerminalAgentTurnLifecycle
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
   let hoverMessages: [String]
   let isActionable: Bool
-  let progressRowsBySource: [TerminalAgentEvent.ProgressSource: [PaneAgentProgressRow]]
+  let progressRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
   let hasPendingBackgroundWork: Bool
   let isForeground: Bool
@@ -202,10 +127,9 @@ nonisolated struct TerminalAgentStateStore {
     var nativeHookProcessIdentity: TerminalAgentProcessIdentity?
     var phase = AgentActivityPhase.idle
     var processes: Set<TerminalAgentProcessIdentity> = []
-    var progressRowsBySource: [TerminalAgentEvent.ProgressSource: [PaneAgentProgressRow]] = [:]
+    var progressRows: [PaneAgentProgressRow] = []
     var revision = 0
     var surfaceID: UUID?
-    var transcriptPath: String?
     var turnLifecycle = TerminalAgentTurnLifecycle.unseen
     var workingDirectoryPath: String?
   }
@@ -279,7 +203,7 @@ nonisolated struct TerminalAgentStateStore {
     case .turnCompleted, .turnContinuesInBackground:
       return state.turnLifecycle == .unseen
         || targetsActiveTurn(event.scope.turnID, state: state)
-    case .attentionRequested, .progressUpdated(_, source: .nativePlan):
+    case .attentionRequested, .progressUpdated:
       return state.turnLifecycle == .unseen
         || targetsActiveTurnOrCanAdopt(event.scope.turnID, state: state)
     case .turnRunning:
@@ -291,11 +215,9 @@ nonisolated struct TerminalAgentStateStore {
       return targetsActiveTurn(event.scope.turnID, state: state)
         && state.phase == .needsInput
         && (state.attentionRequestID == nil || state.attentionRequestID == requestID)
-    case .hoverMessagesUpdated, .progressUpdated(_, source: .transcript):
-      return acceptsTranscriptProjection(turnID: event.scope.turnID, state: state)
     case .subagentsReconciled:
       return true
-    case .subagentDescribed, .subagentStarted, .subagentStopped:
+    case .subagentStarted, .subagentStopped:
       return false
     }
   }
@@ -308,16 +230,15 @@ nonisolated struct TerminalAgentStateStore {
     if case .subagentStarted = event.action { return true }
     guard let child = state.activeChildren[key] else { return false }
     switch event.action {
-    case .subagentDescribed, .subagentStopped, .attentionRequested, .turnStarted,
-      .turnContinuesInBackground:
+    case .subagentStopped, .attentionRequested, .turnStarted, .turnContinuesInBackground:
       return true
     case .attentionResolved(let requestID):
       return child.phase == .needsInput
         && (child.attentionRequestID == nil || child.attentionRequestID == requestID)
     case .turnRunning:
       return child.phase != .needsInput
-    case .hoverMessagesUpdated, .progressUpdated, .sessionEnded, .sessionResumed, .sessionStarted,
-      .subagentStarted, .subagentsReconciled, .turnCompleted:
+    case .progressUpdated, .sessionEnded, .sessionResumed, .sessionStarted, .subagentStarted,
+      .subagentsReconciled, .turnCompleted:
       return false
     }
   }
@@ -345,7 +266,7 @@ nonisolated struct TerminalAgentStateStore {
     {
       state.processes = state.processes.filter { $0.processID != processID }
       state.processes.insert(identity)
-      if event.origin == .native, event.scope.subagentID == nil {
+      if event.scope.subagentID == nil {
         state.nativeHookProcessIdentity = identity
       }
     }
@@ -362,9 +283,7 @@ nonisolated struct TerminalAgentStateStore {
     case .turnStarted:
       foregroundSessions[key] = event.scope.sessionID
     case .attentionRequested, .progressUpdated, .turnContinuesInBackground, .turnRunning:
-      if foregroundSessions[key] == nil
-        || (event.origin == .native && (isNewSession || !state.isActionable))
-      {
+      if foregroundSessions[key] == nil || isNewSession || !state.isActionable {
         foregroundSessions[key] = event.scope.sessionID
       }
     default:
@@ -377,8 +296,7 @@ nonisolated struct TerminalAgentStateStore {
     to state: inout SessionState
   ) {
     switch event.action {
-    case .sessionResumed(let transcriptPath), .sessionStarted(let transcriptPath):
-      state.transcriptPath = transcriptPath
+    case .sessionResumed, .sessionStarted:
       if let surfaceID = state.surfaceID {
         foregroundSessions[
           ForegroundKey(surfaceID: surfaceID, agent: event.scope.agent)
@@ -387,27 +305,13 @@ nonisolated struct TerminalAgentStateStore {
     case .turnStarted:
       startTurn(event.scope.turnID, state: &state)
     case .turnCompleted(let message):
-      completeTurn(
-        event.scope.turnID,
-        message: message,
-        makesActionable: event.origin == .native,
-        state: &state
-      )
+      completeTurn(event.scope.turnID, message: message, state: &state)
     case .turnContinuesInBackground:
-      continueTurnInBackground(
-        event.scope.turnID,
-        makesActionable: event.origin == .native,
-        state: &state
-      )
+      continueTurnInBackground(event.scope.turnID, state: &state)
     case .attentionRequested(let requestID, let message):
       requestAttention(requestID: requestID, message: message, turnID: event.scope.turnID, state: &state)
     case .turnRunning(let detail):
-      runTurn(
-        detail,
-        turnID: event.scope.turnID,
-        makesActionable: event.origin == .native,
-        state: &state
-      )
+      runTurn(detail, turnID: event.scope.turnID, state: &state)
     case .attentionResolved(let requestID):
       resolveAttention(requestID: requestID, turnID: event.scope.turnID, state: &state)
     case .subagentsReconciled(
@@ -421,11 +325,9 @@ nonisolated struct TerminalAgentStateStore {
         hasActiveTeammate: hasActiveTeammate,
         hasActiveWorkflow: hasActiveWorkflow
       )
-    case .hoverMessagesUpdated(let messages):
-      updateHoverMessages(messages, turnID: event.scope.turnID, state: &state)
-    case .progressUpdated(let rows, let source):
-      updateProgress(rows, source: source, turnID: event.scope.turnID, state: &state)
-    case .sessionEnded, .subagentDescribed, .subagentStarted, .subagentStopped:
+    case .progressUpdated(let rows):
+      updateProgress(rows, turnID: event.scope.turnID, state: &state)
+    case .sessionEnded, .subagentStarted, .subagentStopped:
       break
     }
   }
@@ -439,7 +341,6 @@ nonisolated struct TerminalAgentStateStore {
     children.filter { _, child in
       switch child.kind {
       case .subagent: liveSubagentIDs.contains(child.subagentID)
-      case .teammate: hasActiveTeammate
       case .unknown: liveSubagentIDs.contains(child.subagentID) || hasActiveTeammate
       case .workflow: hasActiveWorkflow
       }
@@ -452,7 +353,7 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     guard let childKey = Self.childKey(for: event) else { return }
     switch event.action {
-    case .subagentStarted(let kind, let nickname, let role, let task, let transcriptPath, let usage):
+    case .subagentStarted(let kind, let nickname, let role, let task):
       state.activeChildren = state.activeChildren.filter {
         $0.key.subagentID != childKey.subagentID || $0.key == childKey
       }
@@ -461,9 +362,7 @@ nonisolated struct TerminalAgentStateStore {
           kind: kind,
           nickname: nickname,
           role: role,
-          task: task,
-          transcriptPath: transcriptPath,
-          usage: usage
+          task: task
         )
         state.activeChildren[childKey] =
           child.phase == .idle ? updated.updating(phase: .running, detail: nil) : updated
@@ -473,32 +372,13 @@ nonisolated struct TerminalAgentStateStore {
           kind: kind,
           nickname: nickname,
           role: role,
-          transcriptPath: transcriptPath,
           task: task,
           phase: .running,
-          detail: nil,
-          usage: usage
+          detail: nil
         )
       }
-    case .subagentDescribed(let kind, let nickname, let task, let transcriptPath, let usage):
-      guard let child = state.activeChildren[childKey] else { return }
-      state.activeChildren[childKey] = child.updating(
-        kind: kind,
-        nickname: nickname,
-        task: task,
-        transcriptPath: transcriptPath,
-        usage: usage
-      )
-    case .subagentStopped(let usage):
-      guard let child = state.activeChildren[childKey], child.runsInWorkflow else {
-        state.activeChildren.removeValue(forKey: childKey)
-        return
-      }
-      state.activeChildren[childKey] = child.updating(
-        phase: .idle,
-        detail: nil,
-        usage: usage
-      )
+    case .subagentStopped:
+      state.activeChildren.removeValue(forKey: childKey)
     default:
       updateChild(event.action, key: childKey, state: &state)
     }
@@ -544,13 +424,12 @@ nonisolated struct TerminalAgentStateStore {
     state.detail = nil
     state.attentionRequestID = nil
     state.hoverMessages = []
-    state.progressRowsBySource = [:]
+    state.progressRows = []
   }
 
   private func completeTurn(
     _ turnID: String?,
     message: String?,
-    makesActionable: Bool,
     state: inout SessionState
   ) {
     if state.turnLifecycle == .unseen {
@@ -560,11 +439,11 @@ nonisolated struct TerminalAgentStateStore {
       state.turnLifecycle = .completed(turnID)
     }
     state.hasPendingBackgroundWork = false
-    state.isActionable = state.isActionable || makesActionable
+    state.isActionable = true
     state.phase = .idle
     state.detail = nil
     state.attentionRequestID = nil
-    state.progressRowsBySource = [:]
+    state.progressRows = []
     if let message = Self.normalizedMessages([message].compactMap(\.self)).first {
       state.hoverMessages = [message]
     }
@@ -572,13 +451,12 @@ nonisolated struct TerminalAgentStateStore {
 
   private func continueTurnInBackground(
     _ turnID: String?,
-    makesActionable: Bool,
     state: inout SessionState
   ) {
     recoverTurnIfNeeded(turnID, state: &state)
     guard targetsActiveTurn(turnID, state: state) else { return }
     state.hasPendingBackgroundWork = true
-    state.isActionable = state.isActionable || makesActionable
+    state.isActionable = true
     state.phase = .running
     state.detail = nil
     state.attentionRequestID = nil
@@ -601,12 +479,11 @@ nonisolated struct TerminalAgentStateStore {
   private func runTurn(
     _ detail: String?,
     turnID: String?,
-    makesActionable: Bool,
     state: inout SessionState
   ) {
     recoverTurnIfNeeded(turnID, state: &state)
     guard targetsActiveTurn(turnID, state: state), state.phase != .needsInput else { return }
-    state.isActionable = state.isActionable || makesActionable
+    state.isActionable = true
     state.phase = .running
     state.detail = detail
   }
@@ -629,41 +506,13 @@ nonisolated struct TerminalAgentStateStore {
 
   private func updateProgress(
     _ rows: [PaneAgentProgressRow],
-    source: TerminalAgentEvent.ProgressSource,
     turnID: String?,
     state: inout SessionState
   ) {
-    if source == .nativePlan {
-      recoverTurnIfNeeded(turnID, state: &state)
-      guard targetsActiveTurn(turnID, state: state) else { return }
-      state.isActionable = true
-    } else {
-      guard acceptsTranscriptProjection(turnID: turnID, state: state) else { return }
-    }
-    state.progressRowsBySource[source] = rows
-  }
-
-  private func updateHoverMessages(
-    _ messages: [String],
-    turnID: String?,
-    state: inout SessionState
-  ) {
-    guard acceptsTranscriptProjection(turnID: turnID, state: state) else { return }
-    state.hoverMessages = Self.normalizedMessages(messages)
-  }
-
-  private func acceptsTranscriptProjection(
-    turnID: String?,
-    state: SessionState
-  ) -> Bool {
-    switch state.turnLifecycle {
-    case .unseen:
-      return true
-    case .active(let activeTurnID):
-      return turnID == nil || activeTurnID == turnID
-    case .completed:
-      return false
-    }
+    recoverTurnIfNeeded(turnID, state: &state)
+    guard targetsActiveTurn(turnID, state: state) else { return }
+    state.isActionable = true
+    state.progressRows = rows
   }
 
   private func recoverTurnIfNeeded(
@@ -722,7 +571,7 @@ nonisolated struct TerminalAgentStateStore {
       detail: detail,
       hoverMessages: state.hoverMessages,
       isActionable: state.isActionable,
-      progressRows: Self.progressRows(in: state),
+      progressRows: state.progressRows,
       activeChildren: activeChildren,
       turnLifecycle: state.turnLifecycle,
       workingDirectoryPath: state.workingDirectoryPath
@@ -784,14 +633,13 @@ nonisolated struct TerminalAgentStateStore {
         sessionID: key.sessionID,
         surfaceID: surfaceID,
         processes: state.processes,
-        transcriptPath: state.transcriptPath,
         turnLifecycle: state.turnLifecycle,
         phase: state.phase,
         detail: state.detail,
         attentionRequestID: state.attentionRequestID,
         hoverMessages: state.hoverMessages,
         isActionable: state.isActionable,
-        progressRowsBySource: state.progressRowsBySource,
+        progressRows: state.progressRows,
         activeChildren: Self.sortedChildren(state.activeChildren.values),
         hasPendingBackgroundWork: state.hasPendingBackgroundWork,
         isForeground: foregroundSessionID(for: surfaceID, agent: key.agent) == key.sessionID,
@@ -823,10 +671,9 @@ nonisolated struct TerminalAgentStateStore {
         isActionable: snapshot.isActionable,
         phase: snapshot.phase,
         processes: snapshot.processes,
-        progressRowsBySource: snapshot.progressRowsBySource,
+        progressRows: snapshot.progressRows,
         revision: snapshot.revision,
         surfaceID: snapshot.surfaceID,
-        transcriptPath: snapshot.transcriptPath,
         turnLifecycle: snapshot.turnLifecycle,
         workingDirectoryPath: snapshot.workingDirectoryPath
       )
@@ -844,28 +691,8 @@ nonisolated struct TerminalAgentStateStore {
   }
 
   @discardableResult
-  mutating func removeChildren(
-    agent: SupatermAgentKind,
-    sessionID: String,
-    transcriptDirectoryPath: String
-  ) -> Bool {
-    let key = SessionKey(agent: agent, sessionID: sessionID)
-    guard var state = sessions[key] else { return false }
-    let transcriptDirectoryPath = URL(fileURLWithPath: transcriptDirectoryPath).standardizedFileURL
-      .path
-    let count = state.activeChildren.count
-    state.activeChildren = state.activeChildren.filter { _, child in
-      child.transcriptDirectoryPath != transcriptDirectoryPath
-    }
-    guard state.activeChildren.count != count else { return false }
-    store(state, for: key)
-    return true
-  }
-
-  @discardableResult
   mutating func pruneDeadProcesses(
-    isProcessCurrent: (TerminalAgentProcessIdentity) -> Bool,
-    didClearSession: (SupatermAgentKind, String) -> Void
+    isProcessCurrent: (TerminalAgentProcessIdentity) -> Bool
   ) -> Set<UUID> {
     var changedSurfaceIDs: Set<UUID> = []
     let keys = Array(sessions.keys)
@@ -886,7 +713,6 @@ nonisolated struct TerminalAgentStateStore {
       }
       if currentProcesses.isEmpty {
         clearSession(agent: key.agent, sessionID: key.sessionID)
-        didClearSession(key.agent, key.sessionID)
       } else {
         state.processes = currentProcesses
         state.nativeHookProcessIdentity = currentNativeHookProcessIdentity
@@ -929,14 +755,6 @@ nonisolated struct TerminalAgentStateStore {
     sessions[key] = state
   }
 
-  private static func progressRows(in state: SessionState) -> [PaneAgentProgressRow] {
-    let transcript = state.progressRowsBySource[.transcript] ?? []
-    guard let nativePlan = state.progressRowsBySource[.nativePlan], !nativePlan.isEmpty else {
-      return transcript
-    }
-    return transcript.filter { $0.kind == .goal } + nativePlan
-  }
-
   private static func normalizedMessages(_ messages: [String]) -> [String] {
     messages.compactMap { message in
       let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -973,41 +791,34 @@ extension TerminalAgentActiveChild {
     kind: TerminalAgentChildKind? = nil,
     nickname: String?,
     role: String? = nil,
-    task: String?,
-    transcriptPath: String? = nil,
-    usage: TerminalAgentChildUsage? = nil
+    task: String?
   ) -> Self {
     Self(
       id: id,
       kind: kind ?? self.kind,
       nickname: nickname ?? self.nickname,
       role: role ?? self.role,
-      transcriptPath: transcriptPath ?? self.transcriptPath,
       task: task ?? self.task,
       phase: phase,
       detail: detail,
-      attentionRequestID: attentionRequestID,
-      usage: usage ?? self.usage
+      attentionRequestID: attentionRequestID
     )
   }
 
   fileprivate nonisolated func updating(
     phase: AgentActivityPhase,
     detail: String?,
-    attentionRequestID: String? = nil,
-    usage: TerminalAgentChildUsage? = nil
+    attentionRequestID: String? = nil
   ) -> Self {
     Self(
       id: id,
       kind: kind,
       nickname: nickname,
       role: role,
-      transcriptPath: transcriptPath,
       task: task,
       phase: phase,
       detail: detail,
-      attentionRequestID: attentionRequestID,
-      usage: usage ?? self.usage
+      attentionRequestID: attentionRequestID
     )
   }
 }

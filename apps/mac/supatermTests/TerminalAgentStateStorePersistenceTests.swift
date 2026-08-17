@@ -17,7 +17,7 @@ extension TerminalAgentStateStoreTests {
         agent: .claude,
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: "/tmp/claude.jsonl")
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -59,7 +59,7 @@ extension TerminalAgentStateStoreTests {
         context: context,
         processID: 42,
         workingDirectoryPath: "/tmp/workspace",
-        action: .sessionStarted(transcriptPath: "/tmp/codex.jsonl")
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -148,7 +148,7 @@ extension TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: "/tmp/new.jsonl")
+        action: .sessionStarted
       )
     )
 
@@ -158,12 +158,11 @@ extension TerminalAgentStateStoreTests {
     #expect(presentation.progressRows.isEmpty)
     #expect(presentation.activeChildren.isEmpty)
     #expect(store.snapshots(for: surfaceID).first?.turnLifecycle == .unseen)
-    #expect(store.snapshots(for: surfaceID).first?.transcriptPath == "/tmp/new.jsonl")
     #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == nil)
   }
 
   @Test
-  func compactSessionStartPreservesActiveState() throws {
+  func resumedSessionPreservesActiveState() throws {
     let fixture = startedStore()
     let surfaceID = fixture.surfaceID
     let context = fixture.context
@@ -199,7 +198,7 @@ extension TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionResumed(transcriptPath: "/tmp/compact.jsonl")
+        action: .sessionResumed
       )
     )
 
@@ -209,7 +208,6 @@ extension TerminalAgentStateStoreTests {
     #expect(presentation.progressRows == [row])
     #expect(presentation.activeChildren.map(\.subagentID) == ["child-1"])
     #expect(store.snapshots(for: surfaceID).first?.turnLifecycle == .active("turn-1"))
-    #expect(store.snapshots(for: surfaceID).first?.transcriptPath == "/tmp/compact.jsonl")
   }
 
   @Test
@@ -223,7 +221,7 @@ extension TerminalAgentStateStoreTests {
         event(
           sessionID: sessionID,
           context: context,
-          action: .sessionStarted(transcriptPath: nil)
+          action: .sessionStarted
         )
       )
     }

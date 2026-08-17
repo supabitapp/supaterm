@@ -119,7 +119,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     self.zmxSessionsEnabledAtLaunch = zmxSessionsEnabledAtLaunch
     super.init()
     globalKeybindManager.refresh()
-    terminalWindowRegistry.commandExecutor = terminalCommandExecutor
     terminalWindowRegistry.tabDragRegistry.detach = { [weak self] payload, frame in
       self?.detachTab(payload, previewFrame: frame) == true
     }

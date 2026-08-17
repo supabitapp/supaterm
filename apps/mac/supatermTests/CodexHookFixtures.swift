@@ -4,13 +4,11 @@ import Foundation
 
 enum CodexHookFixtures {
   static let sessionID = "session-123"
-  static let transcriptPath = "/tmp/codex/transcript.jsonl"
   static let cwd = "/Users/Developer/code/github.com/supabitapp/supaterm"
 
   static let sessionStart = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "SessionStart",
       "source": "resume"
@@ -20,7 +18,6 @@ enum CodexHookFixtures {
   static let preToolUse = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "PreToolUse",
       "tool_name": "Bash",
@@ -33,7 +30,6 @@ enum CodexHookFixtures {
   static let postToolUse = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "PostToolUse",
       "tool_name": "Bash",
@@ -46,7 +42,6 @@ enum CodexHookFixtures {
   static let userPromptSubmit = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "UserPromptSubmit",
       "prompt": "continue"
@@ -56,7 +51,6 @@ enum CodexHookFixtures {
   static let stop = """
     {
       "session_id": "\(sessionID)",
-      "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "hook_event_name": "Stop",
       "last_assistant_message": "Done."
@@ -98,9 +92,5 @@ enum CodexHookFixtures {
       toolName: "update_plan",
       turnID: turnID
     )
-  }
-
-  static func replacingTranscriptPath(in json: String, with transcriptPath: String) -> String {
-    json.replacingOccurrences(of: Self.transcriptPath, with: transcriptPath)
   }
 }

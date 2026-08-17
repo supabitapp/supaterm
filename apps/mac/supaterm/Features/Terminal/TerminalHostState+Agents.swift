@@ -2,12 +2,6 @@ import Foundation
 import SupatermCLIShared
 import SupatermSupport
 
-struct TerminalAgentTranscriptTarget {
-  let scope: TerminalAgentEvent.Scope
-  let transcriptPath: String
-  let context: SupatermCLIContext
-}
-
 extension TerminalHostState {
   struct ResolvedAgentState {
     let resolution: TerminalAgentDetectionResolution
@@ -265,12 +259,10 @@ extension TerminalHostState {
   @discardableResult
   func pruneDeadAgentProcesses(
     isProcessCurrent: (TerminalAgentProcessIdentity) -> Bool =
-      TerminalAgentProcessInspector.isCurrent,
-    didClearSession: (SupatermAgentKind, String) -> Void = { _, _ in }
+      TerminalAgentProcessInspector.isCurrent
   ) -> Bool {
     let nativeChangedSurfaceIDs = agentStateStore.pruneDeadProcesses(
-      isProcessCurrent: isProcessCurrent,
-      didClearSession: didClearSession
+      isProcessCurrent: isProcessCurrent
     )
     let fallbackChangedSurfaceIDs = agentDetectionStore.pruneDeadProcesses(
       isProcessCurrent: isProcessCurrent
@@ -392,53 +384,18 @@ extension TerminalHostState {
     agentStateStore.surfaceID(agent: agent, sessionID: sessionID)
   }
 
-  func agentTurnID(agent: SupatermAgentKind, sessionID: String) -> String? {
-    guard let surfaceID = agentStateStore.surfaceID(agent: agent, sessionID: sessionID),
-      let snapshot = agentStateStore.snapshots(for: surfaceID).first(where: {
-        $0.agent == agent && $0.sessionID == sessionID
-      })
-    else {
-      return nil
-    }
-    switch snapshot.turnLifecycle {
-    case .active(let turnID), .completed(let turnID):
-      return turnID
-    case .unseen:
-      return nil
-    }
-  }
-
   func hasAgentSession(agent: SupatermAgentKind, sessionID: String) -> Bool {
     agentStateStore.hasSession(agent: agent, sessionID: sessionID)
   }
 
-  @discardableResult
-  func removeAgentChildren(
-    agent: SupatermAgentKind,
-    sessionID: String,
-    transcriptDirectoryPath: String
-  ) -> Bool {
-    guard let surfaceID = agentStateStore.surfaceID(agent: agent, sessionID: sessionID),
-      agentStateStore.removeChildren(
-        agent: agent,
-        sessionID: sessionID,
-        transcriptDirectoryPath: transcriptDirectoryPath
-      )
-    else {
-      return false
-    }
-    agentPanelController?.surfaceAgentStateChanged(surfaceID)
-    return true
-  }
-
-  func hasForegroundAgentSession(
+  func foregroundAgentWorkingDirectoryPath(
     agent: SupatermAgentKind,
     processID: Int32,
     for surfaceID: UUID
-  ) -> Bool {
-    agentStateStore.snapshots(for: surfaceID).contains {
+  ) -> String? {
+    agentStateStore.snapshots(for: surfaceID).first {
       $0.agent == agent && $0.isForeground && $0.processIDs.contains(processID)
-    }
+    }?.workingDirectoryPath
   }
 
   func agentSessionIsForeground(agent: SupatermAgentKind, sessionID: String) -> Bool {
@@ -447,62 +404,6 @@ extension TerminalHostState {
 
   func agentSessionHasBackgroundWork(agent: SupatermAgentKind, sessionID: String) -> Bool {
     agentStateStore.hasBackgroundWork(agent: agent, sessionID: sessionID)
-  }
-
-  func agentSessionHasActiveGoal(agent: SupatermAgentKind, sessionID: String) -> Bool {
-    guard let surfaceID = agentStateStore.surfaceID(agent: agent, sessionID: sessionID),
-      let presentation = agentStateStore.presentation(for: surfaceID, agent: agent),
-      presentation.sessionID == sessionID
-    else {
-      return false
-    }
-    return presentation.progressRows.contains {
-      $0.kind == .goal && $0.status == .running
-    }
-  }
-
-  func agentTranscriptTargets() -> [TerminalAgentTranscriptTarget] {
-    liveSurfaceIDs().flatMap { surfaceID -> [TerminalAgentTranscriptTarget] in
-      guard let context = agentContext(for: surfaceID) else { return [] }
-      return agentStateStore.snapshots(for: surfaceID).flatMap { snapshot in
-        var targets: [TerminalAgentTranscriptTarget] = []
-        if let transcriptPath = snapshot.transcriptPath {
-          targets.append(
-            TerminalAgentTranscriptTarget(
-              scope: TerminalAgentEvent.Scope(
-                agent: snapshot.agent,
-                sessionID: snapshot.sessionID
-              ),
-              transcriptPath: transcriptPath,
-              context: context
-            )
-          )
-        }
-        targets.append(
-          contentsOf: snapshot.activeChildren.compactMap { child in
-            guard snapshot.agent == .codex else { return nil }
-            guard let transcriptPath = child.transcriptPath else { return nil }
-            return TerminalAgentTranscriptTarget(
-              scope: TerminalAgentEvent.Scope(
-                agent: snapshot.agent,
-                sessionID: child.sessionID,
-                turnID: child.turnID,
-                subagentID: child.subagentID
-              ),
-              transcriptPath: transcriptPath,
-              context: context
-            )
-          }
-        )
-        return targets
-      }
-    }
-  }
-
-  private func agentContext(for surfaceID: UUID) -> SupatermCLIContext? {
-    tabID(containing: surfaceID).map {
-      SupatermCLIContext(surfaceID: surfaceID, tabID: $0.rawValue)
-    }
   }
 
   func resolvedAgentState(for surfaceID: UUID) -> ResolvedAgentState {

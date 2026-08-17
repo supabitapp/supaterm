@@ -49,7 +49,7 @@
             sessionID: snapshot.sessionID
           ),
           context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
-          action: .progressUpdated(Self.demoProgressRows, source: .transcript)
+          action: .progressUpdated(Self.demoProgressRows)
         )
       )
       for nickname in ["Linnaeus", "Mendel", "Turing"] {
@@ -95,7 +95,7 @@
         TerminalAgentEvent(
           scope: scope,
           context: context,
-          action: .sessionResumed(transcriptPath: nil)
+          action: .sessionResumed
         )
       )
       let action: TerminalAgentEvent.Action =

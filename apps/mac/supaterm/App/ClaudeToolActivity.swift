@@ -17,7 +17,7 @@ nonisolated enum ClaudeToolActivity {
   private static func subject(in input: JSONValue?) -> String? {
     guard let object = input?.objectValue else { return nil }
     for key in subjectKeys {
-      guard let value = AgentProgressParsing.normalizedTitle(object[key]?.stringValue) else {
+      guard let value = AgentHookText.normalized(object[key]?.stringValue) else {
         continue
       }
       let subject = key == pathKey ? URL(fileURLWithPath: value).lastPathComponent : value
@@ -26,4 +26,5 @@ nonisolated enum ClaudeToolActivity {
     }
     return nil
   }
+
 }

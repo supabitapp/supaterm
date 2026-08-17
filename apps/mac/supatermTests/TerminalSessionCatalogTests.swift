@@ -18,7 +18,7 @@ struct TerminalSessionCatalogTests {
 
   @Test
   func catalogRejectsUnsupportedAndPreviousVersions() {
-    for version in [8, 9, 10, 11, 999] {
+    for version in [8, 9, 10, 11, 12, 999] {
       let data = Data("{\"version\":\(version),\"windows\":[]}".utf8)
       #expect(throws: DecodingError.self) {
         try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
@@ -69,7 +69,7 @@ struct TerminalSessionCatalogTests {
     )
     let json = try #require(String(bytes: data, encoding: .utf8))
 
-    #expect(json.contains(#""version":12"#))
+    #expect(json.contains(#""version":13"#))
     #expect(json.contains(#""displayedSpaceID":"#))
     #expect(json.contains(#""spaces":[{"#))
     #expect(json.contains(#""sidebarWidth":304"#))
@@ -474,7 +474,7 @@ struct TerminalSessionCatalogTests {
     let decoded = try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
 
     #expect(decoded == catalog)
-    #expect(json.contains(#""version":12"#))
+    #expect(json.contains(#""version":13"#))
     #expect(json.contains(#""nodes""#))
     #expect(
       json.contains(#""parent":{"id":"CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC","kind":"group"}"#))
@@ -494,16 +494,12 @@ struct TerminalSessionCatalogTests {
       processes: [
         TerminalAgentProcessIdentity(processID: 123, startTimeMicroseconds: 456)
       ],
-      transcriptPath: "/tmp/session.jsonl",
       turnLifecycle: .active("turn-1"),
       phase: .needsInput,
       detail: "Approve tests",
       hoverMessages: ["Inspecting", "Testing"],
-      nativePlanRows: [
+      progressRows: [
         PaneAgentProgressRow(id: "plan-1", title: "Implement", status: .running)
-      ],
-      transcriptRows: [
-        PaneAgentProgressRow(id: "goal-1", title: "Ship", status: .running, kind: .goal)
       ],
       activeChildren: [
         TerminalAgentActiveChild(
@@ -512,10 +508,9 @@ struct TerminalSessionCatalogTests {
             sessionID: "session-1",
             turnID: "turn-1"
           ),
-          kind: .teammate,
+          kind: .subagent,
           nickname: "Mendel",
           role: "reviewer",
-          transcriptPath: "/tmp/child.jsonl",
           phase: .running,
           detail: "Reviewing"
         )

@@ -21,7 +21,7 @@ struct TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -46,7 +46,7 @@ struct TerminalAgentStateStoreTests {
         event(
           sessionID: sessionID,
           context: context,
-          action: .sessionStarted(transcriptPath: nil)
+          action: .sessionStarted
         )
       )
     }
@@ -75,7 +75,7 @@ struct TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: boundContext,
         processID: 42,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     let turnStarted = store.apply(
@@ -141,7 +141,7 @@ struct TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: SupatermCLIContext(surfaceID: firstSurfaceID, tabID: tabID),
         processID: 42,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     let secondStart = store.apply(
@@ -149,7 +149,7 @@ struct TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: SupatermCLIContext(surfaceID: secondSurfaceID, tabID: tabID),
         processID: 43,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
 
@@ -177,7 +177,7 @@ struct TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -212,7 +212,7 @@ struct TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: context,
         workingDirectoryPath: "/tmp/first/child/..",
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -257,7 +257,7 @@ struct TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     for turnID in ["older", "current"] {
@@ -333,7 +333,7 @@ struct TerminalAgentStateStoreTests {
         agent: .claude,
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -413,7 +413,7 @@ struct TerminalAgentStateStoreTests {
   }
 
   @Test
-  func unscopedNativeTurnAdoptsTranscriptTurnID() throws {
+  func unscopedHookTurnAdoptsScopedTurnID() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
@@ -422,7 +422,7 @@ struct TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -437,7 +437,7 @@ struct TerminalAgentStateStoreTests {
         sessionID: "session-1",
         turnID: "turn-1",
         context: context,
-        action: .turnRunning(detail: "Transcript detail")
+        action: .turnRunning(detail: "Scoped hook detail")
       )
     )
     store.apply(
@@ -461,8 +461,7 @@ struct TerminalAgentStateStoreTests {
     context: SupatermCLIContext? = nil,
     processID: Int32? = nil,
     workingDirectoryPath: String? = nil,
-    action: TerminalAgentEvent.Action,
-    origin: TerminalAgentEvent.Origin = .native
+    action: TerminalAgentEvent.Action
   ) -> TerminalAgentEvent {
     TerminalAgentEvent(
       scope: TerminalAgentEvent.Scope(
@@ -474,8 +473,7 @@ struct TerminalAgentStateStoreTests {
       context: context,
       processID: processID,
       workingDirectoryPath: workingDirectoryPath,
-      action: action,
-      origin: origin
+      action: action
     )
   }
 
@@ -495,7 +493,7 @@ struct TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(

@@ -8,34 +8,16 @@ import SupatermTerminalCore
 
 @MainActor
 final class TerminalCommandExecutor {
-  let agentMonitorStore: TerminalAgentMonitorStore
   unowned let registry: TerminalWindowRegistry
   let paneCaptureClient: TerminalPaneCaptureClient
   var onQuitRequested: (() -> Void)?
 
-  init<C: Clock<Duration>>(
+  init(
     registry: TerminalWindowRegistry,
-    agentRunningTimeout: Duration = .seconds(30),
-    transcriptEventDelay: Duration = .zero,
-    clock: C = ContinuousClock(),
     paneCaptureClient: TerminalPaneCaptureClient = .live
   ) {
     self.registry = registry
     self.paneCaptureClient = paneCaptureClient
-    let sleep = { (duration: Duration) in
-      try await clock.sleep(for: duration)
-    }
-    agentMonitorStore = TerminalAgentMonitorStore(
-      agentRunningTimeout: agentRunningTimeout,
-      transcriptEventDelay: transcriptEventDelay,
-      sleep: sleep
-    )
-    agentMonitorStore.onMonitorSnapshot = { [weak self] snapshot, scope, context in
-      self?.handleMonitorSnapshot(snapshot, scope: scope, context: context)
-    }
-    agentMonitorStore.onRunningTimeoutExpired = { [weak self] agent, sessionID, context in
-      self?.handleRunningTimeoutExpired(agent: agent, sessionID: sessionID, context: context)
-    }
   }
 
   func executeTargeted<Result>(

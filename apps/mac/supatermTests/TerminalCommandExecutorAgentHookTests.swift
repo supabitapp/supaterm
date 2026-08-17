@@ -1,6 +1,4 @@
 import AppKit
-import Clocks
-import ComposableArchitecture
 import CustomDump
 import SupatermSupport
 import SupatermTerminalCore
@@ -45,137 +43,6 @@ struct TerminalCommandExecutorAgentHookTests {
     )
   }
   @Test
-  func claudeSessionStartStoresTaskProgressRows() async throws {
-    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-    try ClaudeProgressFixtures.appendTaskReminder(
-      [
-        [
-          "id": "1",
-          "subject": "Wire progress rows",
-          "status": "in_progress",
-          "blockedBy": [],
-        ]
-      ],
-      to: transcriptURL
-    )
-    let harness = try makeClaudeHookHarness()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: ClaudeHookFixtures.cwd,
-          hookEventName: .sessionStart,
-          sessionID: ClaudeHookFixtures.sessionID,
-          transcriptPath: transcriptURL.path
-        )
-      )
-    )
-
-    let expectedRows = [
-      PaneAgentProgressRow(
-        id: "claude-task:1",
-        title: "Wire progress rows",
-        status: .running
-      )
-    ]
-    let didLoadRows = await waitUntil {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows
-        == expectedRows
-    }
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    #expect(didLoadRows)
-  }
-  @Test
-  func sessionTranscriptGoalStatusUpdatesPanelProgressRows() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: ClaudeHookFixtures.cwd,
-          hookEventName: .sessionStart,
-          sessionID: ClaudeHookFixtures.sessionID,
-          transcriptPath: transcriptURL.path
-        )
-      )
-    )
-
-    try ClaudeProgressFixtures.appendGoalStatus(
-      condition: "Ship session goal progress",
-      met: false,
-      to: transcriptURL
-    )
-    await advanceClock(clock)
-
-    let didLoadProgress = await waitUntil {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
-        PaneAgentProgressRow(
-          id: "claude-goal:Ship session goal progress",
-          title: "Goal: Ship session goal progress",
-          status: .running,
-          kind: .goal
-        )
-      ]
-    }
-    #expect(didLoadProgress)
-  }
-  @Test
-  func claudeStopWithActiveGoalDoesNotMarkPaneUnread() async throws {
-    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-    try ClaudeProgressFixtures.appendGoalStatus(
-      condition: "CI passes, tests are valid",
-      met: false,
-      to: transcriptURL
-    )
-    let harness = try makeClaudeHookHarness()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: ClaudeHookFixtures.cwd,
-          hookEventName: .sessionStart,
-          sessionID: ClaudeHookFixtures.sessionID,
-          transcriptPath: transcriptURL.path
-        )
-      )
-    )
-    let didLoadGoal = await waitUntil {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
-        PaneAgentProgressRow(
-          id: "claude-goal:CI passes, tests are valid",
-          title: "Goal: CI passes, tests are valid",
-          status: .running,
-          kind: .goal
-        )
-      ]
-    }
-    #expect(didLoadGoal)
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
-    )
-
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-  }
-  @Test
   func claudePreToolUseMarksTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -187,28 +54,6 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
-  }
-  @Test
-  func claudeRunningDoesNotExpireWithoutLifecycleEvent() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
-    )
-
-    await advanceClock(clock)
-
-    expectNoDifference(
-      harness.host.agentActivity(for: harness.tabID),
-      .claude(.running)
-    )
   }
   @Test
   func claudeStopKeepsTabRunningWhileBackgroundTaskRemains() throws {
@@ -266,57 +111,6 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
-  @Test
-  func claudeStopRemovesChildrenMissingFromBackgroundTasks() throws {
-    let harness = try makeClaudeHookHarness()
-    func presentedChildIDs() -> [String] {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.map(\.subagentID) ?? []
-    }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
-    )
-    for agentID in ["child-live", "child-lost"] {
-      _ = try harness.commandExecutor.handleAgentHook(
-        SupatermAgentHookRequest(
-          agent: .claude,
-          context: harness.context,
-          event: SupatermAgentHookEvent(
-            agentType: "general-purpose",
-            hookEventName: .subagentStart,
-            sessionID: ClaudeHookFixtures.sessionID,
-            transcriptPath: ClaudeHookFixtures.transcriptPath,
-            agentID: agentID
-          )
-        )
-      )
-    }
-    #expect(presentedChildIDs() == ["child-live", "child-lost"])
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(
-        ClaudeHookFixtures.stopWithRunningSubagent,
-        context: harness.context
-      )
-    )
-    #expect(presentedChildIDs() == ["child-live"])
-    expectNoDifference(
-      harness.host.agentActivity(for: harness.tabID),
-      .claude(.running)
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.stop, context: harness.context)
-    )
-    #expect(presentedChildIDs() == ["child-live"])
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.stopWithPendingCron, context: harness.context)
-    )
-    #expect(presentedChildIDs().isEmpty)
-  }
-
   @Test
   func claudeIdlePromptDoesNotOverridePendingBackgroundWork() throws {
     let harness = try makeClaudeHookHarness()
@@ -386,99 +180,6 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
-  }
-  @Test
-  func claudeChildTaskArrivesWithSpawnMetadataAndSurvivesLaterTurns() throws {
-    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-    let harness = try makeClaudeHookHarness()
-    let rootScope = TerminalAgentEvent.Scope(
-      agent: .claude,
-      sessionID: ClaudeHookFixtures.sessionID
-    )
-    let childScope = TerminalAgentEvent.Scope(
-      agent: .claude,
-      sessionID: ClaudeHookFixtures.sessionID,
-      subagentID: "child-1"
-    )
-    func childEvent(_ hookEventName: SupatermAgentHookEventName) -> SupatermAgentHookEvent {
-      SupatermAgentHookEvent(
-        agentType: "general-purpose",
-        hookEventName: hookEventName,
-        sessionID: ClaudeHookFixtures.sessionID,
-        toolName: hookEventName == .preToolUse ? "Bash" : nil,
-        transcriptPath: transcriptURL.path,
-        agentID: "child-1"
-      )
-    }
-    func rootEvent(_ hookEventName: SupatermAgentHookEventName) -> SupatermAgentHookEvent {
-      SupatermAgentHookEvent(
-        cwd: ClaudeHookFixtures.cwd,
-        hookEventName: hookEventName,
-        sessionID: ClaudeHookFixtures.sessionID,
-        transcriptPath: transcriptURL.path
-      )
-    }
-    func presentedChild() -> TerminalAgentActiveChild? {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.first
-    }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: rootEvent(.sessionStart)
-      )
-    )
-    #expect(harness.commandExecutor.agentMonitorStore.isTracking(scope: rootScope))
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: childEvent(.subagentStart)
-      )
-    )
-    #expect(!harness.commandExecutor.agentMonitorStore.isTracking(scope: childScope))
-    #expect(try #require(presentedChild()).task == nil)
-
-    try ClaudeProgressFixtures.writeSubagentMetadata(
-      agentID: "child-1",
-      name: "goo4560",
-      description: "GOO-4560 board API table",
-      forTranscriptAt: transcriptURL
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: childEvent(.preToolUse)
-      )
-    )
-
-    var child = try #require(presentedChild())
-    #expect(AgentPanelView.childTitle(child) == "goo4560 [general-purpose]")
-    #expect(child.task == "GOO-4560 board API table")
-    #expect(AgentPanelView.childDetail(child) == "Bash")
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: rootEvent(.stop)
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: rootEvent(.userPromptSubmit)
-      )
-    )
-
-    child = try #require(presentedChild())
-    #expect(AgentPanelView.childTitle(child) == "goo4560 [general-purpose]")
-    #expect(child.task == "GOO-4560 board API table")
   }
   @Test
   func claudeSubagentStopRemovesChildWithoutNotifyingOrIdlingRootTurn() throws {
@@ -638,344 +339,6 @@ struct TerminalCommandExecutorAgentHookTests {
   }
 
   @Test
-  func claudeRootStopKeepsActiveTeammateUntilItsStopHook() throws {
-    let transcript = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
-    try ClaudeProgressFixtures.writeSubagentMetadata(
-      agentID: "athermo-risk-1",
-      name: "thermo-risk",
-      description: "Review the branch",
-      taskKind: "in_process_teammate",
-      forTranscriptAt: transcript
-    )
-    let harness = try makeClaudeHookHarness()
-    func event(
-      _ hookEventName: SupatermAgentHookEventName,
-      payload: JSONObject = [:]
-    ) throws -> SupatermAgentHookEvent {
-      var payload = payload
-      payload["hook_event_name"] = .string(hookEventName.rawValue)
-      payload["session_id"] = .string(ClaudeHookFixtures.sessionID)
-      payload["transcript_path"] = .string(transcript.path)
-      return try JSONDecoder().decode(
-        SupatermAgentHookEvent.self,
-        from: JSONEncoder().encode(JSONValue.object(payload))
-      )
-    }
-    let teammatePayload: JSONObject = [
-      "agent_id": .string("athermo-risk-1"),
-      "agent_type": .string("thermo-risk"),
-    ]
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: event(.sessionStart)
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: event(.subagentStart, payload: teammatePayload)
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: event(
-          .stop,
-          payload: [
-            "background_tasks": .array([
-              .object([
-                "id": .string("t9n6bx4k2"),
-                "type": .string("teammate"),
-                "status": .string("running"),
-                "description": .string("Review the branch"),
-              ])
-            ]),
-            "session_crons": .array([]),
-          ]
-        )
-      )
-    )
-
-    let child = try #require(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.first
-    )
-    #expect(child.kind == .teammate)
-    #expect(child.nickname == "thermo-risk")
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: event(.subagentStop, payload: teammatePayload)
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.isEmpty
-        == true
-    )
-  }
-
-  @Test
-  func claudeStopKeepsUnclassifiedChildUntilTeammateMetadataLands() throws {
-    let transcript = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
-    let harness = try makeClaudeHookHarness()
-    func childEvent(_ hookEventName: SupatermAgentHookEventName) -> SupatermAgentHookEvent {
-      SupatermAgentHookEvent(
-        agentType: "thermo-risk",
-        hookEventName: hookEventName,
-        sessionID: ClaudeHookFixtures.sessionID,
-        toolName: hookEventName == .preToolUse ? "Bash" : nil,
-        transcriptPath: transcript.path,
-        agentID: "athermo-risk-1"
-      )
-    }
-    let stop = try JSONDecoder().decode(
-      SupatermAgentHookEvent.self,
-      from: try JSONEncoder().encode(
-        JSONValue.object([
-          "hook_event_name": .string(SupatermAgentHookEventName.stop.rawValue),
-          "session_id": .string(ClaudeHookFixtures.sessionID),
-          "transcript_path": .string(transcript.path),
-          "background_tasks": .array([
-            .object([
-              "id": .string("t9n6bx4k2"),
-              "type": .string("teammate"),
-              "status": .string("running"),
-            ])
-          ]),
-          "session_crons": .array([]),
-        ])
-      )
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: childEvent(.subagentStart)
-      )
-    )
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.first?.kind == .unknown
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(agent: .claude, context: harness.context, event: stop)
-    )
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.first?.kind == .unknown
-    )
-
-    try ClaudeProgressFixtures.writeSubagentMetadata(
-      agentID: "athermo-risk-1",
-      name: "thermo-risk",
-      taskKind: "in_process_teammate",
-      forTranscriptAt: transcript
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: childEvent(.preToolUse)
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.first?.kind == .teammate
-    )
-  }
-
-  @Test
-  func claudeWorkflowCompletionRemovesChildrenFromEveryCompletedWorkflow() throws {
-    let transcript = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
-    let workflowChildren = [
-      (runID: "wf-1", agentID: "child-1"),
-      (runID: "wf-2", agentID: "child-2"),
-    ]
-    for workflowChild in workflowChildren {
-      try ClaudeProgressFixtures.writeWorkflowSubagentSpawn(
-        agentID: workflowChild.agentID,
-        runID: workflowChild.runID,
-        prompt: "Inspect the session state.",
-        forTranscriptAt: transcript
-      )
-    }
-    let harness = try makeClaudeHookHarness()
-    let rootScope = TerminalAgentEvent.Scope(
-      agent: .claude,
-      sessionID: ClaudeHookFixtures.sessionID
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: ClaudeHookFixtures.cwd,
-          hookEventName: .sessionStart,
-          sessionID: ClaudeHookFixtures.sessionID,
-          transcriptPath: transcript.path
-        )
-      )
-    )
-    for workflowChild in workflowChildren {
-      _ = try harness.commandExecutor.handleAgentHook(
-        SupatermAgentHookRequest(
-          agent: .claude,
-          context: harness.context,
-          event: SupatermAgentHookEvent(
-            agentType: "workflow-subagent",
-            hookEventName: .subagentStart,
-            sessionID: ClaudeHookFixtures.sessionID,
-            transcriptPath: transcript.path,
-            agentID: workflowChild.agentID
-          )
-        )
-      )
-    }
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.count
-        == workflowChildren.count
-    )
-
-    let transcriptDirectories = workflowChildren.map {
-      transcript
-        .deletingPathExtension()
-        .appendingPathComponent("subagents")
-        .appendingPathComponent("workflows")
-        .appendingPathComponent($0.runID)
-        .path
-    }
-    harness.commandExecutor.handleMonitorSnapshot(
-      AgentMonitorSnapshot(
-        completedSubagentTranscriptDirectories: transcriptDirectories
-      ),
-      scope: rootScope,
-      context: harness.context
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.isEmpty
-        == true
-    )
-  }
-
-  @Test
-  func claudeWorkflowChildrenOutliveStopReconciliationAndTheNextTurn() throws {
-    let harness = try makeClaudeHookHarness()
-    func childEvent(agentType: String, agentID: String) -> SupatermAgentHookEvent {
-      SupatermAgentHookEvent(
-        agentType: agentType,
-        hookEventName: .subagentStart,
-        sessionID: ClaudeHookFixtures.sessionID,
-        transcriptPath: ClaudeHookFixtures.transcriptPath,
-        agentID: agentID
-      )
-    }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
-    )
-    for child in [
-      (agentType: "workflow-subagent", agentID: "workflow-child"),
-      (agentType: "general-purpose", agentID: "plain-child"),
-    ] {
-      _ = try harness.commandExecutor.handleAgentHook(
-        SupatermAgentHookRequest(
-          agent: .claude,
-          context: harness.context,
-          event: childEvent(agentType: child.agentType, agentID: child.agentID)
-        )
-      )
-    }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(
-        ClaudeHookFixtures.stopWithRunningWorkflow,
-        context: harness.context
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.map(\.subagentID) == ["workflow-child"]
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.userPromptSubmit, context: harness.context)
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.map(\.subagentID) == ["workflow-child"]
-    )
-  }
-
-  @Test
-  func claudeWorkflowChildIsMarkedDoneAndSweptWhenItsRunEnds() throws {
-    let harness = try makeClaudeHookHarness()
-    func childEvent(_ hookEventName: SupatermAgentHookEventName) -> SupatermAgentHookEvent {
-      SupatermAgentHookEvent(
-        agentType: "workflow-subagent",
-        hookEventName: hookEventName,
-        sessionID: ClaudeHookFixtures.sessionID,
-        transcriptPath: ClaudeHookFixtures.transcriptPath,
-        agentID: "workflow-child"
-      )
-    }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: childEvent(.subagentStart)
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: childEvent(.subagentStop)
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.map(\.phase) == [.idle]
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(
-        ClaudeHookFixtures.stopWithRunningSubagent,
-        context: harness.context
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.isEmpty == true
-    )
-  }
-
-  @Test
   func claudeSubagentTurnStartKeepsRecentStructuredNotification() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
     func childEvent(_ hookEventName: SupatermAgentHookEventName) -> SupatermAgentHookEvent {
@@ -1045,69 +408,6 @@ struct TerminalCommandExecutorAgentHookTests {
   }
 
   @Test
-  func queuedTranscriptUpdateCannotResurrectClearedSession() throws {
-    let harness = try makeClaudeHookHarness()
-    _ = try harness.commandExecutor.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
-    )
-    #expect(
-      harness.host.clearAgentState(for: harness.context.surfaceID)
-    )
-
-    harness.commandExecutor.handleMonitorSnapshot(
-      AgentMonitorSnapshot(status: .started("turn-late"), detail: "Late transcript update"),
-      scope: TerminalAgentEvent.Scope(
-        agent: .codex,
-        sessionID: CodexHookFixtures.sessionID
-      ),
-      context: harness.context
-    )
-
-    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: CodexHookFixtures.sessionID))
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-  }
-  @Test
-  func staleTranscriptSnapshotCannotOverwriteCurrentTurnPresentation() throws {
-    let harness = try makeClaudeHookHarness()
-    _ = try harness.commandExecutor.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .userPromptSubmit,
-          sessionID: CodexHookFixtures.sessionID,
-          turnID: "turn-2"
-        )
-      )
-    )
-
-    harness.commandExecutor.handleMonitorSnapshot(
-      AgentMonitorSnapshot(
-        status: .started("turn-1"),
-        detail: "Stale detail",
-        hoverMessages: ["Stale hover"],
-        progressRows: [
-          PaneAgentProgressRow(id: "stale", title: "Stale progress", status: .running)
-        ]
-      ),
-      scope: TerminalAgentEvent.Scope(
-        agent: .codex,
-        sessionID: CodexHookFixtures.sessionID
-      ),
-      context: harness.context
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-    #expect(harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == nil)
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows.isEmpty
-        == true
-    )
-  }
-  @Test
   func staleTurnCompletionDoesNotNotify() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
     _ = try harness.commandExecutor.handleAgentHook(
@@ -1146,101 +446,6 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(result.desktopNotification == nil)
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-  }
-  @Test
-  func unscopedClaudeAttentionRemainsUntilToolCompletion() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.notification, context: harness.context)
-    )
-
-    await advanceClock(clock)
-
-    #expect(
-      harness.host.agentActivity(for: harness.tabID)
-        == .claude(.needsInput, detail: "Claude needs your attention")
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .postToolUse,
-          sessionID: ClaudeHookFixtures.sessionID,
-          toolName: "Bash",
-          toolUseID: "tool-1"
-        )
-      )
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running, detail: "Bash"))
-  }
-  @Test
-  func closingSurfaceCancelsTranscriptTracking() throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    #expect(
-      harness.commandExecutor.agentMonitorStore.isTracking(
-        scope: TerminalAgentEvent.Scope(
-          agent: .codex,
-          sessionID: CodexHookFixtures.sessionID
-        )
-      )
-    )
-
-    harness.host.closeSurface(harness.context.surfaceID)
-
-    #expect(
-      !harness.commandExecutor.agentMonitorStore.isTracking(
-        scope: TerminalAgentEvent.Scope(
-          agent: .codex,
-          sessionID: CodexHookFixtures.sessionID
-        )
-      )
-    )
-  }
-  @Test
-  func unregisteringWindowCancelsTranscriptTracking() throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-
-    harness.registry.unregister(windowControllerID: harness.windowControllerID)
-
-    #expect(
-      !harness.commandExecutor.agentMonitorStore.isTracking(
-        scope: TerminalAgentEvent.Scope(
-          agent: .codex,
-          sessionID: CodexHookFixtures.sessionID
-        )
-      )
-    )
   }
   @Test
   func piNativeLifecycleRoutesNotifiesAndClearsState() throws {
@@ -1574,46 +779,6 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
   @Test
-  func claudeSessionEndClearsTaskProgressRows() async throws {
-    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-    try ClaudeProgressFixtures.appendTaskReminder(
-      [
-        [
-          "id": "1",
-          "subject": "Wire progress rows",
-          "status": "completed",
-          "blockedBy": [],
-        ]
-      ],
-      to: transcriptURL
-    )
-    let harness = try makeClaudeHookHarness()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .claude,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: ClaudeHookFixtures.cwd,
-          hookEventName: .sessionStart,
-          sessionID: ClaudeHookFixtures.sessionID,
-          transcriptPath: transcriptURL.path
-        )
-      )
-    )
-    let didLoadRows = await waitUntil {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID) != nil
-    }
-    #expect(didLoadRows)
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionEnd)
-    )
-
-    #expect(harness.host.agentPanelPresentation(for: harness.context.surfaceID) == nil)
-  }
-  @Test
   func storedClaudeSessionSurvivesRegistryReattachment() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -1639,222 +804,6 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
-  }
-  @Test
-  func codexSessionStartTracksTranscriptLifecycleWithoutHookFallback() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.userPromptSubmit,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    await advanceClock(clock)
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-
-    try CodexTranscriptFixtures.append(
-      .localShellCall(command: ["git", "status", "--short"]),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Updating the registry and sidebar"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didUpdateDetail = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Updating the registry and sidebar")
-        && harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text
-          == "Updating the registry and sidebar"
-    }
-    #expect(didUpdateDetail)
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage(
-        "Final answer should stay out of the running subtitle",
-        phase: "final_answer"
-      ),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didLoadFinalAnswer = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
-        && harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text
-          == "Final answer should stay out of the running subtitle"
-    }
-    #expect(didLoadFinalAnswer)
-
-    try CodexTranscriptFixtures.append(
-      .taskComplete(turnID: "turn-1", lastAgentMessage: "Done."),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didComplete = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
-    }
-    #expect(didComplete)
-  }
-  @Test
-  func codexSessionStartShowsAlreadyRunningTranscriptSnapshot() async throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(.assistantMessage("Resuming active rollout"), to: transcriptPath)
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-
-    let didLoadSnapshot = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Resuming active rollout")
-    }
-    #expect(didLoadSnapshot)
-  }
-
-  @Test
-  func codexUsageLimitStopsTranscriptDrivenActivity() async throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(
-      .tokenCount(usedPercent: 100, includesUsage: false),
-      to: transcriptPath
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-
-    let didStop = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
-    }
-    #expect(didStop)
-  }
-
-  @Test
-  func restoredCodexSessionResumesTranscriptMonitoringWithoutAnotherHook() async throws {
-    initializeGhosttyForTests()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-restored"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(.assistantMessage("Resumed from transcript"), to: transcriptPath)
-
-    let registry = TerminalWindowRegistry()
-    _ = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
-    host.ensureInitialTab(focusing: false, startupCommand: nil)
-    let surfaceID = try #require(host.selectedSurfaceView?.id)
-    let tabID = try #require(host.selectedTabID)
-    let process = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    host.restoreAgentState(
-      [
-        TerminalPaneAgentRecord(
-          agent: .codex,
-          sessionID: "restored-codex",
-          processes: [process],
-          transcriptPath: transcriptPath.path,
-          turnLifecycle: .active("turn-restored"),
-          phase: .running,
-          detail: "Persisted detail",
-          hoverMessages: [],
-          nativePlanRows: [],
-          transcriptRows: [],
-          activeChildren: [],
-          isForeground: true,
-          revision: 1
-        )
-      ],
-      for: surfaceID
-    )
-    let store = Store(initialState: AppFeature.State()) { AppFeature() }
-    let windowControllerID = UUID()
-    registry.register(
-      keyboardShortcutForAction: { _ in nil },
-      windowControllerID: windowControllerID,
-      store: store,
-      terminal: host,
-      requestConfirmedWindowClose: {}
-    )
-    let window = makeWindow()
-    registry.updateWindow(window, for: windowControllerID)
-
-    let didResume = await waitUntil {
-      host.agentActivity(for: tabID)
-        == .codex(.running, detail: "Resumed from transcript")
-    }
-
-    #expect(didResume)
-    #expect(host.agentPanelPresentation(for: surfaceID)?.session == nil)
-  }
-  @Test
-  func codexSessionStartWithClearSourceShowsAlreadyRunningTranscriptSnapshot() async throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(.assistantMessage("Resuming after clear"), to: transcriptPath)
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: CodexHookFixtures.cwd,
-          hookEventName: .sessionStart,
-          sessionID: CodexHookFixtures.sessionID,
-          source: "clear",
-          transcriptPath: transcriptPath.path
-        )
-      )
-    )
-
-    let didLoadSnapshot = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Resuming after clear")
-    }
-    #expect(didLoadSnapshot)
   }
   @Test
   func codexPreToolUseShowsCurrentTool() throws {
@@ -1883,178 +832,6 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
   }
   @Test
-  func codexPostToolUsePlanUpdatesPanelWithoutTranscript() throws {
-    let harness = try makeClaudeHookHarness()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: CodexHookFixtures.planUpdate([
-          ("Read state", "completed"),
-          ("Update panel", "in_progress"),
-          ("Verify behavior", "pending"),
-        ])
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
-        PaneAgentProgressRow(
-          id: "0:Read state",
-          title: "Read state",
-          status: .completed
-        ),
-        PaneAgentProgressRow(
-          id: "1:Update panel",
-          title: "Update panel",
-          status: .running
-        ),
-        PaneAgentProgressRow(
-          id: "2:Verify behavior",
-          title: "Verify behavior",
-          status: .pending
-        ),
-      ]
-    )
-  }
-  @Test
-  func codexTranscriptlessPostToolUseRecoversMissingSession() throws {
-    let harness = try makeClaudeHookHarness()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: CodexHookFixtures.planUpdate([
-          ("Recovered session", "in_progress")
-        ]),
-        processID: getpid()
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
-        PaneAgentProgressRow(
-          id: "0:Recovered session",
-          title: "Recovered session",
-          status: .running
-        )
-      ]
-    )
-    #expect(
-      harness.host.hasAgentSession(agent: .codex, sessionID: CodexHookFixtures.sessionID)
-    )
-  }
-  @Test
-  func codexPreToolUseRecoversMissingSessionAndStartsPanelTracking() throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.preToolUse,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
-    #expect(
-      harness.commandExecutor.agentMonitorStore.isTracking(
-        scope: TerminalAgentEvent.Scope(
-          agent: .codex,
-          sessionID: CodexHookFixtures.sessionID
-        )
-      )
-    )
-  }
-  @Test
-  func codexTranscriptDetailOverridesOptimisticPreToolUseRunningState() async throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.preToolUse,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Inspecting the transcript path"),
-      to: transcriptPath
-    )
-    let didLoadDetail = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Inspecting the transcript path")
-    }
-
-    #expect(didLoadDetail)
-  }
-  @Test
-  func codexTranscriptStopsAfterCommandFinished() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Tracking before command finished"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didLoadDetail = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Tracking before command finished")
-        && harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text
-          == "Tracking before command finished"
-    }
-    #expect(didLoadDetail)
-
-    let surface = try #require(harness.host.selectedSurfaceView)
-    surface.bridge.onCommandFinished?()
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    #expect(harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == nil)
-    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: CodexHookFixtures.sessionID))
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Late transcript update"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    #expect(harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == nil)
-  }
-  @Test
   func codexUserPromptSubmitStartsTurn() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -2075,388 +852,6 @@ struct TerminalCommandExecutorAgentHookTests {
       )
     )
     #expect(session == expectedSession)
-  }
-  @Test
-  func codexTranscriptIgnoresToolCallsAfterAssistantMessage() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Inspecting the transcript path"),
-      to: transcriptPath
-    )
-    try CodexTranscriptFixtures.append(
-      .functionCall(
-        name: "exec_command",
-        arguments: [
-          "cmd": "sed -n '1,40p' docs/coding-agents-integration.md"
-        ]
-      ),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didKeepAssistantDetail = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Inspecting the transcript path")
-    }
-    #expect(didKeepAssistantDetail)
-  }
-  @Test
-  func codexTranscriptIgnoresReasoningAfterAssistantMessageAcrossPolls() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Inspecting the transcript path"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didLoadAssistantDetail = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Inspecting the transcript path")
-    }
-    #expect(didLoadAssistantDetail)
-
-    try CodexTranscriptFixtures.append(
-      .reasoning("Planning the next step"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    #expect(
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Inspecting the transcript path")
-    )
-  }
-  @Test
-  func codexTranscriptAccumulatesHoverMessagesInChronologicalOrder() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Inspecting the transcript path"),
-      to: transcriptPath
-    )
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Updating the registry and sidebar"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didAccumulateMessages = await waitUntil {
-      harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text
-        == "Updating the registry and sidebar"
-    }
-    #expect(didAccumulateMessages)
-  }
-  @Test
-  func codexTranscriptKeepsFullHoverMessageWhenRunningDetailIsTruncated() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    let longMessage = Array(repeating: "message", count: 30).joined(separator: " ")
-    let truncatedMessage = String(longMessage.prefix(157)) + "..."
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage(longMessage),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didLoadLongMessage = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: truncatedMessage)
-        && harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == longMessage
-    }
-    #expect(didLoadLongMessage)
-  }
-  @Test
-  func codexTranscriptIgnoresExecCommandRunningDetail() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    try CodexTranscriptFixtures.append(
-      .functionCall(
-        name: "exec_command",
-        arguments: [
-          "cmd": "git status --short"
-        ]
-      ),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didRemainRunning = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
-    }
-    #expect(didRemainRunning)
-  }
-  @Test
-  func codexTranscriptEventFallbackUpdatesDetailAndAbortedTurnClearsRunning() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.turnStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    let didStart = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
-    }
-    #expect(didStart)
-
-    try CodexTranscriptFixtures.append(
-      .agentReasoning("Inspecting transcript activity"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-
-    try CodexTranscriptFixtures.append(
-      .agentMessage("Need approval?", phase: "commentary"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didLoadMessage = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Need approval?")
-    }
-    #expect(didLoadMessage)
-
-    try CodexTranscriptFixtures.append(
-      .turnAborted(turnID: "turn-1"),
-      to: transcriptPath
-    )
-    await advanceClock(clock)
-
-    let didAbort = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
-    }
-    #expect(didAbort)
-  }
-  @Test
-  func codexTurnCompleteMarksTabIdle() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.turnStarted(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    let didStart = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
-    }
-    #expect(didStart)
-
-    try CodexTranscriptFixtures.append(.turnComplete(turnID: "turn-1"), to: transcriptPath)
-    await advanceClock(clock)
-
-    let didComplete = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
-    }
-    #expect(didComplete)
-  }
-  @Test
-  func codexChildTranscriptMessageReplacesToolDetailWithoutReplacingRootMonitor() async throws {
-    let harness = try makeClaudeHookHarness()
-    let rootTranscript = try CodexTranscriptFixtures.makeTranscript()
-    let childTranscript = try CodexTranscriptFixtures.makeTranscript()
-    defer {
-      try? FileManager.default.removeItem(at: rootTranscript.deletingLastPathComponent())
-      try? FileManager.default.removeItem(at: childTranscript.deletingLastPathComponent())
-    }
-    let childScope = TerminalAgentEvent.Scope(
-      agent: .codex,
-      sessionID: CodexHookFixtures.sessionID,
-      turnID: "root-turn",
-      subagentID: "child-1"
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: rootTranscript,
-        context: harness.context
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .userPromptSubmit,
-          sessionID: CodexHookFixtures.sessionID,
-          transcriptPath: rootTranscript.path,
-          turnID: "root-turn"
-        )
-      )
-    )
-    try CodexTranscriptFixtures.append(
-      .subagentSessionMeta(
-        id: "child-1",
-        sessionID: CodexHookFixtures.sessionID,
-        nickname: "Mendel"
-      ),
-      to: childTranscript
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "child-turn"), to: childTranscript)
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Tracing native haptic calls"),
-      to: childTranscript
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          agentType: "default",
-          hookEventName: .subagentStart,
-          sessionID: CodexHookFixtures.sessionID,
-          transcriptPath: childTranscript.path,
-          turnID: "root-turn",
-          agentID: "child-1"
-        )
-      )
-    )
-
-    let didLoadChildMessage = await waitUntil {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.first?.detail == "Tracing native haptic calls"
-    }
-    #expect(didLoadChildMessage)
-    #expect(harness.commandExecutor.agentMonitorStore.isTracking(scope: childScope))
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .postToolUse,
-          sessionID: CodexHookFixtures.sessionID,
-          toolName: "Bash",
-          transcriptPath: childTranscript.path,
-          turnID: "root-turn",
-          agentID: "child-1"
-        )
-      )
-    )
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.first?.detail == "Tracing native haptic calls"
-    )
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "root-turn"), to: rootTranscript)
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Coordinating child results"),
-      to: rootTranscript
-    )
-    let didKeepRootMonitor = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Coordinating child results")
-    }
-    #expect(didKeepRootMonitor)
-
-    try CodexTranscriptFixtures.append(.turnComplete(turnID: "child-turn"), to: childTranscript)
-    let didRemoveCompletedChild = await waitUntil {
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
-        .activeChildren.isEmpty == true
-    }
-    #expect(didRemoveCompletedChild)
-    #expect(!harness.commandExecutor.agentMonitorStore.isTracking(scope: childScope))
   }
   @Test
   func codexStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
@@ -2533,77 +928,6 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(session.forkStartupCommand == .shell("codex fork child-session"))
   }
   @Test
-  func codexTranscriptlessSessionCannotReplaceForegroundSession() throws {
-    let harness = try makeClaudeHookHarness()
-    let processID = getpid()
-
-    for hookEventName in [
-      SupatermAgentHookEventName.sessionStart,
-      .userPromptSubmit,
-    ] {
-      _ = try harness.commandExecutor.handleAgentHook(
-        agentHookRequest(
-          agent: .codex,
-          sessionID: "foreground-session",
-          hookEventName: hookEventName,
-          context: harness.context,
-          processID: processID
-        )
-      )
-    }
-
-    let memorySessionID = "memory-session"
-    let memoryWorkingDirectory = "/tmp/codex/memories"
-    let memoryEvents = [
-      SupatermAgentHookEvent(
-        cwd: memoryWorkingDirectory,
-        hookEventName: .sessionStart,
-        sessionID: memorySessionID
-      ),
-      SupatermAgentHookEvent(
-        cwd: memoryWorkingDirectory,
-        hookEventName: .postToolUse,
-        sessionID: memorySessionID,
-        toolInput: .object([
-          "plan": .array([
-            .object([
-              "status": .string("in_progress"),
-              "step": .string("Refresh memory_summary.md"),
-            ])
-          ])
-        ]),
-        toolName: "update_plan",
-        turnID: "memory-turn"
-      ),
-    ]
-    for event in memoryEvents {
-      let result = try harness.commandExecutor.handleAgentHook(
-        SupatermAgentHookRequest(
-          agent: .codex,
-          context: harness.context,
-          event: event,
-          processID: processID
-        )
-      )
-      #expect(result.desktopNotification == nil)
-    }
-
-    let presentation = try #require(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)
-    )
-    #expect(
-      presentation.session
-        == PaneAgentPanelSession.supported(
-          agent: .codex,
-          sessionID: "foreground-session",
-          workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
-        )
-    )
-    #expect(presentation.workingDirectoryPath == "\(CodexHookFixtures.cwd)/")
-    #expect(presentation.progressRows.isEmpty)
-    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: memorySessionID))
-  }
-  @Test
   func codexSamePaneSessionStartRoutesStopToNewestSession() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
@@ -2646,6 +970,90 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Child done.")
     #expect(harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == "Child done.")
+  }
+  @Test
+  func codexSameProcessSessionInForegroundDirectoryReplacesForegroundSession() throws {
+    let harness = try makeClaudeHookHarness()
+    let processID = getpid()
+
+    for sessionID in ["parent-session", "child-session"] {
+      for hookEventName in [
+        SupatermAgentHookEventName.sessionStart,
+        .userPromptSubmit,
+      ] {
+        _ = try harness.commandExecutor.handleAgentHook(
+          agentHookRequest(
+            agent: .codex,
+            sessionID: sessionID,
+            hookEventName: hookEventName,
+            context: harness.context,
+            processID: processID
+          )
+        )
+      }
+    }
+
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "child-session",
+          workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+        )
+    )
+  }
+  @Test
+  func codexInternalSessionCannotReplaceForegroundSession() throws {
+    let harness = try makeClaudeHookHarness()
+    let processID = getpid()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      agentHookRequest(
+        agent: .codex,
+        sessionID: "foreground-session",
+        hookEventName: .sessionStart,
+        context: harness.context,
+        processID: processID
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      agentHookRequest(
+        agent: .codex,
+        sessionID: "foreground-session",
+        hookEventName: .userPromptSubmit,
+        context: harness.context,
+        processID: processID
+      )
+    )
+
+    let internalSessionID = "internal-session"
+    for hookEventName in [
+      SupatermAgentHookEventName.sessionStart,
+      .userPromptSubmit,
+    ] {
+      _ = try harness.commandExecutor.handleAgentHook(
+        SupatermAgentHookRequest(
+          agent: .codex,
+          context: harness.context,
+          event: SupatermAgentHookEvent(
+            cwd: "/tmp/codex/memories",
+            hookEventName: hookEventName,
+            sessionID: internalSessionID
+          ),
+          processID: processID
+        )
+      )
+    }
+
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "foreground-session",
+          workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+        )
+    )
+    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: internalSessionID))
   }
   @Test
   func codexStopAfterCommandFinishedDoesNotRoute() throws {
@@ -2772,40 +1180,6 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Child done.")
   }
   @Test
-  func codexStopReplacesHoverHistoryWithLastAssistantMessage() async throws {
-    let clock = TestClock()
-    let harness = try makeClaudeHookHarness(
-      agentRunningTimeout: .milliseconds(10),
-      clock: clock,
-      windowActivity: .inactive
-    )
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the transcript path"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(.assistantMessage("Updating the registry and sidebar"), to: transcriptPath)
-    await advanceClock(clock)
-
-    let didLoadHistory = await waitUntil {
-      harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text
-        == "Updating the registry and sidebar"
-    }
-    #expect(didLoadHistory)
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.stop, context: harness.context)
-    )
-
-    #expect(harness.host.tabAgentPresentation(for: harness.tabID).latestResponse?.text == "Done.")
-  }
-  @Test
   func codexStopClearsNativePlanImmediately() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
@@ -2848,6 +1222,34 @@ struct TerminalCommandExecutorAgentHookTests {
     )
   }
   @Test
+  func codexPlanUpdateRecoversMissingSession() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: CodexHookFixtures.planUpdate([
+          ("Recovered session", "in_progress")
+        ]),
+        processID: getpid()
+      )
+    )
+
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
+        PaneAgentProgressRow(
+          id: "0:Recovered session",
+          title: "Recovered session",
+          status: .running
+        )
+      ]
+    )
+    #expect(
+      harness.host.hasAgentSession(agent: .codex, sessionID: CodexHookFixtures.sessionID)
+    )
+  }
+  @Test
   func codexStopKeepsStructuredCompletionWhenTerminalFallbackArrives() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
@@ -2884,162 +1286,6 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
     #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Agent turn complete")
-  }
-  @Test
-  func codexNewTurnRemainsRunningDespiteStaleFinalSnapshot() async throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    try CodexTranscriptFixtures.append(
-      .taskComplete(turnID: "turn-0"),
-      to: transcriptPath
-    )
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(CodexHookFixtures.userPromptSubmit, transcriptPath: transcriptPath)
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-
-    await flushEffects()
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-
-    try CodexTranscriptFixtures.append(
-      .taskStarted(turnID: "turn-1"),
-      to: transcriptPath
-    )
-    let didObserveTurn = await waitUntil {
-      harness.host.agentTurnID(
-        agent: .codex,
-        sessionID: CodexHookFixtures.sessionID
-      ) == "turn-1"
-    }
-
-    #expect(didObserveTurn)
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
-
-    try CodexTranscriptFixtures.append(
-      .taskComplete(turnID: "turn-1"),
-      to: transcriptPath
-    )
-    let didComplete = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
-    }
-
-    #expect(didComplete)
-  }
-  @Test
-  func codexTranscriptCompletionHidesNativePlanRows() async throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.sessionStart,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: CodexHookFixtures.planUpdate([
-          ("Inspect state", "completed"),
-          ("Commit and push scoped changes", "in_progress"),
-        ])
-      )
-    )
-
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
-        PaneAgentProgressRow(
-          id: "0:Inspect state",
-          title: "Inspect state",
-          status: .completed
-        ),
-        PaneAgentProgressRow(
-          id: "1:Commit and push scoped changes",
-          title: "Commit and push scoped changes",
-          status: .running
-        ),
-      ]
-    )
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Transcript running"),
-      to: transcriptPath
-    )
-    let didStart = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Transcript running")
-    }
-    #expect(didStart)
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows.count == 2
-    )
-
-    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptPath)
-    let didComplete = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
-    }
-
-    #expect(didComplete)
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows.isEmpty
-        == true
-    )
-  }
-  @Test
-  func codexUserPromptSubmitStartsTrackingWhenTranscriptPathArrivesLater() async throws {
-    let harness = try makeClaudeHookHarness()
-    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
-    try CodexTranscriptFixtures.append(.assistantMessage("Transcript path arrived late"), to: transcriptPath)
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: CodexHookFixtures.cwd,
-          hookEventName: .sessionStart,
-          sessionID: CodexHookFixtures.sessionID
-        )
-      )
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: CodexHookFixtures.cwd,
-          hookEventName: .userPromptSubmit,
-          sessionID: CodexHookFixtures.sessionID,
-          transcriptPath: transcriptPath.path
-        )
-      )
-    )
-
-    let didLoadTranscript = await waitUntil {
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Transcript path arrived late")
-    }
-    #expect(didLoadTranscript)
   }
   @Test
   func stopWithoutAssistantMessageOnlyMarksTabIdle() throws {

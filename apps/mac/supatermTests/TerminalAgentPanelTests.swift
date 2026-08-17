@@ -47,142 +47,6 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func workflowChildTitleShowsTheSpawnTask() {
-    #expect(
-      AgentPanelView.workflowChildTitle(child(task: "Audit the account pool"))
-        == "Audit the account pool"
-    )
-    #expect(
-      AgentPanelView.workflowChildTitle(child(detail: "Bash: rg -n backend-api")) == "Working…"
-    )
-  }
-
-  @Test
-  func childUsageReadsLikeTheAgentFleetDisplay() {
-    let started = Date(timeIntervalSince1970: 1_775_000_000)
-    func usage(
-      model: String? = "claude-opus-5",
-      contextTokens: Int,
-      elapsed: TimeInterval
-    ) -> TerminalAgentChildUsage {
-      TerminalAgentChildUsage(
-        model: model,
-        contextTokens: contextTokens,
-        startedAt: started,
-        lastActiveAt: started.addingTimeInterval(elapsed)
-      )
-    }
-
-    for (usage, summary) in [
-      (usage(contextTokens: 33_084, elapsed: 147), "Opus 5 · 33.1k tok · 2m27s"),
-      (usage(contextTokens: 135_000, elapsed: 303), "Opus 5 · 135k tok · 5m03s"),
-      (usage(contextTokens: 940, elapsed: 8), "Opus 5 · 940 tok · 8s"),
-      (usage(contextTokens: 1_000, elapsed: 3_720), "Opus 5 · 1k tok · 1h02m"),
-      (
-        usage(model: "claude-haiku-4-5-20251001", contextTokens: 12_340, elapsed: 61),
-        "Haiku 4.5 · 12.3k tok · 1m01s"
-      ),
-      (usage(model: nil, contextTokens: 0, elapsed: 12), "12s"),
-    ] {
-      #expect(usage.summary(now: usage.lastActiveAt) == summary)
-    }
-  }
-
-  @Test
-  @MainActor
-  func workflowChildrenNestUnderTheirRun() {
-    let presentation = PaneAgentPanelPresentation(
-      activeChildren: [
-        child(subagentID: "plain", nickname: "Mendel", role: "reviewer"),
-        workflowChild(subagentID: "wf-a", runID: "wf-1", task: "Read the proxy surface"),
-        workflowChild(subagentID: "wf-b", runID: "wf-1", task: "Read the sticky map"),
-        workflowChild(subagentID: "wf-c", runID: "wf-2", task: "Audit the panes"),
-      ]
-    )
-
-    #expect(
-      presentation.childGroups.map(\.workflowName) == [
-        nil, "codex-balancer-research", "codex-balancer-research",
-      ]
-    )
-    #expect(
-      presentation.childGroups.map { $0.children.map(\.subagentID) } == [
-        ["plain"], ["wf-a", "wf-b"], ["wf-c"],
-      ]
-    )
-    #expect(
-      Array(presentation.childGroups.map(\.doneCountText).dropFirst())
-        == ["0/2 done", "0/1 done"]
-    )
-  }
-
-  @Test
-  @MainActor
-  func finishedWorkflowAgentsKeepTheirRowAndCount() {
-    let presentation = PaneAgentPanelPresentation(
-      activeChildren: [
-        workflowChild(subagentID: "wf-a", runID: "wf-1", task: "Read the proxy surface"),
-        workflowChild(
-          subagentID: "wf-b",
-          runID: "wf-1",
-          task: "Read the sticky map",
-          phase: .idle
-        ),
-      ]
-    )
-    let group = presentation.childGroups[0]
-
-    #expect(group.doneCountText == "1/2 done")
-    #expect(group.children.map(\.subagentID) == ["wf-a", "wf-b"])
-    #expect(group.phase == .running)
-  }
-
-  private func child(
-    subagentID: String = "child-1",
-    kind: TerminalAgentChildKind = .subagent,
-    nickname: String? = nil,
-    role: String? = nil,
-    transcriptPath: String? = nil,
-    task: String? = nil,
-    phase: AgentActivityPhase = .running,
-    detail: String? = nil
-  ) -> TerminalAgentActiveChild {
-    TerminalAgentActiveChild(
-      id: TerminalAgentActiveChild.Identity(
-        subagentID: subagentID,
-        sessionID: "session-1",
-        turnID: "turn-1"
-      ),
-      kind: kind,
-      nickname: nickname,
-      role: role,
-      transcriptPath: transcriptPath,
-      task: task,
-      phase: phase,
-      detail: detail
-    )
-  }
-
-  private func workflowChild(
-    subagentID: String,
-    runID: String,
-    task: String,
-    phase: AgentActivityPhase = .running
-  ) -> TerminalAgentActiveChild {
-    child(
-      subagentID: subagentID,
-      kind: .workflow,
-      nickname: "codex-balancer-research",
-      role: "workflow-subagent",
-      transcriptPath:
-        "/tmp/session/subagents/workflows/\(runID)/agent-\(subagentID).jsonl",
-      task: task,
-      phase: phase
-    )
-  }
-
-  @Test
-  @MainActor
   func restoredAgentStateRequiresCurrentProcessIdentityAndPreservesForegroundPlan() throws {
     let host = TerminalHostState(managesTerminalSurfaces: false)
     let surfaceID = UUID()
@@ -204,10 +68,9 @@ struct TerminalAgentPanelTests {
           agent: .codex,
           sessionID: "foreground",
           processes: [identity],
-          transcriptPath: "/tmp/foreground.jsonl",
           turnLifecycle: .active("turn-2"),
           phase: .running,
-          nativePlanRows: [plan],
+          progressRows: [plan],
           isForeground: true,
           revision: 9
         ),
@@ -221,7 +84,7 @@ struct TerminalAgentPanelTests {
     )
     #expect(snapshots.count == 2)
     #expect(host.agentStateStore.foregroundSessionID(for: surfaceID, agent: .codex) == "foreground")
-    #expect(foreground.progressRowsBySource[.nativePlan] == [plan])
+    #expect(foreground.progressRows == [plan])
     #expect(foreground.turnLifecycle == .active("turn-2"))
     #expect(!foreground.isActionable)
   }
@@ -449,43 +312,6 @@ struct TerminalAgentPanelTests {
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
     #expect(presentation.workingDirectoryPath == workingDirectoryPath)
     #expect(presentation.session == nil)
-  }
-
-  @Test
-  @MainActor
-  func workspaceDoesNotHideRunningFallbackRow() throws {
-    initializeGhosttyForTests()
-
-    let host = TerminalHostState()
-    let workingDirectoryPath = FileManager.default.temporaryDirectory.path(percentEncoded: false)
-    let surfaceID = try #require(
-      restoreSplitHost(host, workingDirectoryPath: workingDirectoryPath).first
-    )
-
-    let tabID = try #require(host.tabID(containing: surfaceID))
-    #expect(
-      host.applyAgentEvent(
-        TerminalAgentEvent(
-          scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
-          context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
-          action: .turnRunning(detail: "Inspecting"),
-          origin: .transcript
-        )
-      ).changed
-    )
-    #expect(
-      host.agentPanelPresentation(for: surfaceID)
-        == PaneAgentPanelPresentation(
-          progressRows: [
-            PaneAgentProgressRow(
-              id: "agent-session-running",
-              title: "Inspecting",
-              status: .running
-            )
-          ],
-          workingDirectoryPath: workingDirectoryPath
-        )
-    )
   }
 
   @Test
@@ -1878,6 +1704,30 @@ struct TerminalAgentPanelTests {
         }
       }
       """
+    )
+  }
+
+  private func child(
+    subagentID: String = "child-1",
+    kind: TerminalAgentChildKind = .subagent,
+    nickname: String? = nil,
+    role: String? = nil,
+    task: String? = nil,
+    phase: AgentActivityPhase = .running,
+    detail: String? = nil
+  ) -> TerminalAgentActiveChild {
+    TerminalAgentActiveChild(
+      id: TerminalAgentActiveChild.Identity(
+        subagentID: subagentID,
+        sessionID: "session-1",
+        turnID: "turn-1"
+      ),
+      kind: kind,
+      nickname: nickname,
+      role: role,
+      task: task,
+      phase: phase,
+      detail: detail
     )
   }
 }

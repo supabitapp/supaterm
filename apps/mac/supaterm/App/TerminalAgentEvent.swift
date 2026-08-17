@@ -3,22 +3,11 @@ import SupatermCLIShared
 
 nonisolated enum TerminalAgentChildKind: String, Codable, Equatable, Sendable {
   case subagent
-  case teammate
   case unknown
   case workflow
 }
 
 nonisolated struct TerminalAgentEvent: Equatable, Sendable {
-  enum Origin: Equatable, Sendable {
-    case native
-    case transcript
-  }
-
-  enum ProgressSource: Equatable, Hashable, Sendable {
-    case nativePlan
-    case transcript
-  }
-
   struct Scope: Equatable, Hashable, Sendable {
     let agent: SupatermAgentKind
     let sessionID: String
@@ -48,27 +37,17 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
   enum Action: Equatable, Sendable {
     case attentionRequested(requestID: String?, message: String?)
     case attentionResolved(requestID: String?)
-    case hoverMessagesUpdated([String])
-    case progressUpdated([PaneAgentProgressRow], source: ProgressSource = .nativePlan)
+    case progressUpdated([PaneAgentProgressRow])
     case sessionEnded
-    case sessionResumed(transcriptPath: String?)
-    case sessionStarted(transcriptPath: String?)
-    case subagentDescribed(
-      kind: TerminalAgentChildKind? = nil,
-      nickname: String?,
-      task: String?,
-      transcriptPath: String? = nil,
-      usage: TerminalAgentChildUsage? = nil
-    )
+    case sessionResumed
+    case sessionStarted
     case subagentStarted(
       kind: TerminalAgentChildKind = .subagent,
       nickname: String?,
       role: String?,
-      task: String? = nil,
-      transcriptPath: String? = nil,
-      usage: TerminalAgentChildUsage? = nil
+      task: String? = nil
     )
-    case subagentStopped(usage: TerminalAgentChildUsage? = nil)
+    case subagentStopped
     case subagentsReconciled(
       liveSubagentIDs: Set<String>,
       hasActiveTeammate: Bool,
@@ -85,22 +64,19 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
   let processID: Int32?
   let workingDirectoryPath: String?
   let action: Action
-  let origin: Origin
 
   init(
     scope: Scope,
     context: SupatermCLIContext? = nil,
     processID: Int32? = nil,
     workingDirectoryPath: String? = nil,
-    action: Action,
-    origin: Origin = .native
+    action: Action
   ) {
     self.scope = scope
     self.context = context
     self.processID = processID
     self.workingDirectoryPath = workingDirectoryPath
     self.action = action
-    self.origin = origin
   }
 }
 

@@ -269,7 +269,7 @@ Tests that exercise polling or timeout behavior should inject a clock and advanc
 
 In tests, use `TestClock` from `Clocks` and call `advance(by:)` rather than sleeping for a real poll interval or timeout.
 
-When parsing Codex, Claude Code, or any coding-agent integration, inspect real JSONL files, transcript files, or hook payloads before designing parser behavior. Do not infer event shapes from UI text, source names, or assumptions.
+When handling Codex, Claude Code, or another coding-agent integration, inspect real hook payloads before designing event behavior. Do not infer event shapes from source names or assumptions.
 
 ## Code Review
 

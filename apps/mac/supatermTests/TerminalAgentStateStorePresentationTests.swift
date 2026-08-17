@@ -141,103 +141,6 @@ extension TerminalAgentStateStoreTests {
   }
 
   @Test
-  func transcriptGoalDoesNotReplaceNativePlan() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-    let goal = PaneAgentProgressRow(
-      id: "goal",
-      title: "Goal: Ship",
-      status: .running,
-      kind: .goal
-    )
-    let task = PaneAgentProgressRow(id: "task", title: "Implement", status: .running)
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .progressUpdated([task], source: .nativePlan)
-      )
-    )
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .progressUpdated([goal], source: .transcript)
-      )
-    )
-
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.progressRows == [goal, task])
-  }
-
-  @Test
-  func clearingTranscriptProgressPreservesNativePlan() throws {
-    let fixture = startedStore()
-    let surfaceID = fixture.surfaceID
-    let context = fixture.context
-    var store = fixture.store
-    let task = PaneAgentProgressRow(id: "task", title: "Implement", status: .running)
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .progressUpdated([task], source: .nativePlan)
-      )
-    )
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .progressUpdated([], source: .transcript)
-      )
-    )
-
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.progressRows == [task])
-  }
-
-  @Test
-  func hoverAndActionabilityBelongToSessionState() throws {
-    let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
-    var store = TerminalAgentStateStore()
-    store.apply(
-      event(
-        sessionID: "session-1",
-        context: context,
-        action: .sessionStarted(transcriptPath: nil)
-      )
-    )
-
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.isActionable == false)
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        context: context,
-        action: .turnStarted
-      )
-    )
-    store.apply(
-      event(
-        sessionID: "session-1",
-        context: context,
-        action: .hoverMessagesUpdated(["Inspecting", "Implementing"])
-      )
-    )
-
-    let presentation = try #require(store.presentation(for: surfaceID, agent: .codex))
-    #expect(presentation.isActionable)
-    #expect(presentation.hoverMessages == ["Inspecting", "Implementing"])
-  }
-
-  @Test
   func invalidProcessIDsAreIgnoredAndStaleProcessIdentitiesArePruned() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
@@ -249,7 +152,7 @@ extension TerminalAgentStateStoreTests {
           sessionID: "session-1",
           context: context,
           processID: processID,
-          action: .sessionResumed(transcriptPath: nil)
+          action: .sessionResumed
         )
       )
     }
@@ -258,8 +161,7 @@ extension TerminalAgentStateStoreTests {
     let changedSurfaceIDs = store.pruneDeadProcesses(
       isProcessCurrent: { process in
         process == TerminalAgentProcessIdentity(processID: 43, startTimeMicroseconds: 43)
-      },
-      didClearSession: { _, _ in }
+      }
     )
     #expect(changedSurfaceIDs == [surfaceID])
     #expect(store.snapshots(for: surfaceID).first?.processIDs == Set([43]))

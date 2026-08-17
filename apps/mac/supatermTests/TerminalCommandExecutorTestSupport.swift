@@ -12,7 +12,6 @@ import Testing
 private struct TestAgentTarget {
   let scope: TerminalAgentEvent.Scope
   let context: SupatermCLIContext
-  let hoverMessages: [String]
 }
 
 func makeWindow() -> NSWindow {
@@ -92,17 +91,6 @@ func advanceClock(
   await flushEffects()
 }
 
-func codexHook(
-  _ json: String,
-  transcriptPath: URL,
-  context: SupatermCLIContext? = nil
-) throws -> SupatermAgentHookRequest {
-  try CodexHookFixtures.request(
-    CodexHookFixtures.replacingTranscriptPath(in: json, with: transcriptPath.path),
-    context: context
-  )
-}
-
 func agentHookRequest(
   agent: SupatermAgentKind,
   sessionID: String,
@@ -118,28 +106,19 @@ func agentHookRequest(
       cwd: CodexHookFixtures.cwd,
       hookEventName: hookEventName,
       lastAssistantMessage: lastAssistantMessage,
-      sessionID: sessionID,
-      transcriptPath: agent == .codex ? CodexHookFixtures.transcriptPath : nil
+      sessionID: sessionID
     ),
     processID: processID
   )
 }
 
-func makeClaudeHookHarness<C: Clock<Duration>>(
-  agentRunningTimeout: Duration = .seconds(15),
-  transcriptEventDelay: Duration = .zero,
-  clock: C = ContinuousClock(),
+func makeClaudeHookHarness(
   windowActivity: WindowActivityState = WindowActivityState(isKeyWindow: true, isVisible: true)
 ) throws -> ClaudeHookHarness {
   initializeGhosttyForTests()
 
   let registry = TerminalWindowRegistry()
-  let commandExecutor = makeCommandExecutor(
-    registry: registry,
-    agentRunningTimeout: agentRunningTimeout,
-    transcriptEventDelay: transcriptEventDelay,
-    clock: clock
-  )
+  let commandExecutor = makeCommandExecutor(registry: registry)
   let host = TerminalHostState()
   host.windowActivity = windowActivity
   let store = Store(initialState: AppFeature.State()) {
@@ -188,23 +167,6 @@ struct ClaudeHookHarness {
 
 func makeCommandExecutor(registry: TerminalWindowRegistry) -> TerminalCommandExecutor {
   let commandExecutor = TerminalCommandExecutor(registry: registry)
-  registry.commandExecutor = commandExecutor
-  return commandExecutor
-}
-
-func makeCommandExecutor<C: Clock<Duration>>(
-  registry: TerminalWindowRegistry,
-  agentRunningTimeout: Duration,
-  transcriptEventDelay: Duration,
-  clock: C
-) -> TerminalCommandExecutor {
-  let commandExecutor = TerminalCommandExecutor(
-    registry: registry,
-    agentRunningTimeout: agentRunningTimeout,
-    transcriptEventDelay: transcriptEventDelay,
-    clock: clock
-  )
-  registry.commandExecutor = commandExecutor
   return commandExecutor
 }
 
@@ -236,7 +198,7 @@ extension TerminalHostState {
         context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
         processID: processID,
         workingDirectoryPath: workingDirectoryPath,
-        action: .sessionResumed(transcriptPath: nil)
+        action: .sessionResumed
       )
     ).changed
   }
@@ -310,21 +272,23 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func setTestAgentHoverMessages(
-    _ messages: [String],
-    replacing: Bool,
+  func setTestAgentResponse(
+    _ message: String,
     for surfaceID: UUID
   ) -> Bool {
     guard let target = testAgentTarget(for: surfaceID) else { return false }
-    var nextMessages = replacing ? [] : target.hoverMessages
-    for message in messages.compactMap(normalizedTerminalAgentDetail) where nextMessages.last != message {
-      nextMessages.append(message)
-    }
+    _ = applyAgentEvent(
+      TerminalAgentEvent(
+        scope: target.scope,
+        context: target.context,
+        action: .turnStarted
+      )
+    )
     return applyAgentEvent(
       TerminalAgentEvent(
         scope: target.scope,
         context: target.context,
-        action: .hoverMessagesUpdated(nextMessages)
+        action: .turnCompleted(message: message)
       )
     ).changed
   }
@@ -339,7 +303,7 @@ extension TerminalHostState {
       TerminalAgentEvent(
         scope: target.scope,
         context: target.context,
-        action: .progressUpdated(progressRows, source: .transcript)
+        action: .progressUpdated(progressRows)
       )
     ).changed
   }
@@ -354,8 +318,7 @@ extension TerminalHostState {
     }
     return TestAgentTarget(
       scope: TerminalAgentEvent.Scope(agent: snapshot.agent, sessionID: snapshot.sessionID),
-      context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
-      hoverMessages: snapshot.hoverMessages
+      context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue)
     )
   }
 }

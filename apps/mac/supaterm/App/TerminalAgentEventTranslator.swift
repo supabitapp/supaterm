@@ -19,7 +19,7 @@ nonisolated enum TerminalAgentEventTranslator {
           event(
             request,
             scope: scope,
-            action: .subagentStopped(usage: claudeSubagentMetadata(for: request)?.usage)
+            action: .subagentStopped
           )
         ]
       default:
@@ -41,28 +41,11 @@ nonisolated enum TerminalAgentEventTranslator {
   private static func subagentStartedAction(
     for request: SupatermAgentHookRequest
   ) -> TerminalAgentEvent.Action {
-    let role = normalized(request.event.agentType)
-    guard request.agent == .codex else {
-      let metadata = claudeSubagentMetadata(for: request)
-      return .subagentStarted(
-        kind: childKind(role: role, metadata: metadata),
-        nickname: metadata?.nickname,
-        role: role,
-        task: metadata?.task,
-        transcriptPath: metadata?.transcriptPath,
-        usage: metadata?.usage
-      )
-    }
-    let nickname = CodexTranscriptMetadataParser.subagentNickname(
-      at: request.event.transcriptPath,
-      agentID: request.event.agentID,
-      sessionID: request.event.sessionID
-    )
+    let role = AgentHookText.normalized(request.event.agentType)
     return .subagentStarted(
-      kind: .subagent,
-      nickname: nickname,
-      role: role?.lowercased() == "default" ? nil : role,
-      transcriptPath: request.event.transcriptPath
+      kind: childKind(agent: request.agent, role: role),
+      nickname: nil,
+      role: request.agent == .codex && role?.lowercased() == "default" ? nil : role
     )
   }
 
@@ -85,9 +68,7 @@ nonisolated enum TerminalAgentEventTranslator {
     case .postToolUse:
       let resolutionEvents = attentionResolutionEvents(for: request, scope: scope)
       guard scope.subagentID == nil else {
-        return resolutionEvents
-          + subagentDescribedEvents(for: request, scope: scope)
-          + subagentActivityEvents(for: request, scope: scope)
+        return resolutionEvents + subagentActivityEvents(for: request, scope: scope)
       }
       return resolutionEvents + [
         event(
@@ -98,8 +79,7 @@ nonisolated enum TerminalAgentEventTranslator {
       ]
     case .preToolUse:
       guard scope.subagentID == nil else {
-        return subagentDescribedEvents(for: request, scope: scope)
-          + subagentActivityEvents(for: request, scope: scope)
+        return subagentActivityEvents(for: request, scope: scope)
       }
       action = .turnRunning(detail: request.event.toolName)
     case .sessionEnd:
@@ -166,49 +146,14 @@ nonisolated enum TerminalAgentEventTranslator {
     } == true
   }
 
-  private static func subagentDescribedEvents(
-    for request: SupatermAgentHookRequest,
-    scope: TerminalAgentEvent.Scope
-  ) -> [TerminalAgentEvent] {
-    guard let metadata = claudeSubagentMetadata(for: request) else {
-      return []
-    }
-    return [
-      event(
-        request,
-        scope: scope,
-        action: .subagentDescribed(
-          kind: childKind(role: normalized(request.event.agentType), metadata: metadata),
-          nickname: metadata.nickname,
-          task: metadata.task,
-          transcriptPath: metadata.transcriptPath,
-          usage: metadata.usage
-        )
-      )
-    ]
-  }
-
-  private static func claudeSubagentMetadata(
-    for request: SupatermAgentHookRequest
-  ) -> ClaudeSubagentMetadataParser.Metadata? {
-    guard request.agent != .codex else { return nil }
-    return ClaudeSubagentMetadataParser.metadata(
-      transcriptPath: request.event.transcriptPath,
-      agentID: request.event.agentID
-    )
-  }
-
   private static func childKind(
-    role: String?,
-    metadata: ClaudeSubagentMetadataParser.Metadata?
+    agent: SupatermAgentKind,
+    role: String?
   ) -> TerminalAgentChildKind {
-    if let metadata {
-      return metadata.kind
-    }
     if role?.lowercased() == "workflow-subagent" {
       return .workflow
     }
-    return .unknown
+    return agent == .codex ? .subagent : .unknown
   }
 
   private static func subagentActivityEvents(
@@ -345,9 +290,9 @@ nonisolated enum TerminalAgentEventTranslator {
     for request: SupatermAgentHookRequest
   ) -> TerminalAgentEvent.Action {
     if request.event.source == "compact" {
-      return .sessionResumed(transcriptPath: request.event.transcriptPath)
+      return .sessionResumed
     }
-    return .sessionStarted(transcriptPath: request.event.transcriptPath)
+    return .sessionStarted
   }
 
   private static func attentionRequestID(
@@ -395,7 +340,7 @@ nonisolated enum TerminalAgentEventTranslator {
     rows.reserveCapacity(plan.count)
     for (index, value) in plan.enumerated() {
       guard let item = value.objectValue,
-        let title = normalized(item["step"]?.stringValue),
+        let title = AgentHookText.normalized(item["step"]?.stringValue),
         let status = codexPlanStatus(item["status"]?.stringValue)
       else {
         return nil
@@ -414,7 +359,7 @@ nonisolated enum TerminalAgentEventTranslator {
   private static func userQuestion(from input: JSONValue?) -> String? {
     guard let questions = input?.objectValue?["questions"]?.arrayValue else { return nil }
     for question in questions {
-      if let value = normalized(question.objectValue?["question"]?.stringValue) {
+      if let value = AgentHookText.normalized(question.objectValue?["question"]?.stringValue) {
         return value
       }
     }
@@ -430,15 +375,5 @@ nonisolated enum TerminalAgentEventTranslator {
     case "pending": .pending
     default: nil
     }
-  }
-
-  private static func normalized(_ value: String?) -> String? {
-    guard let value else { return nil }
-    let normalized =
-      value
-      .components(separatedBy: .whitespacesAndNewlines)
-      .filter { !$0.isEmpty }
-      .joined(separator: " ")
-    return normalized.isEmpty ? nil : normalized
   }
 }

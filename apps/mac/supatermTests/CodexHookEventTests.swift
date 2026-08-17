@@ -10,7 +10,6 @@ struct CodexHookEventTests {
 
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
-    #expect(event.transcriptPath == CodexHookFixtures.transcriptPath)
     #expect(event.cwd == CodexHookFixtures.cwd)
   }
 
@@ -77,7 +76,6 @@ struct CodexHookEventTests {
       """
       {
         "session_id": "\(CodexHookFixtures.sessionID)",
-        "transcript_path": false,
         "cwd": "\(CodexHookFixtures.cwd)",
         "hook_event_name": "SessionStart",
         "source": {
@@ -90,7 +88,6 @@ struct CodexHookEventTests {
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
     #expect(event.cwd == CodexHookFixtures.cwd)
-    #expect(event.transcriptPath == nil)
     #expect(event.source == nil)
   }
 

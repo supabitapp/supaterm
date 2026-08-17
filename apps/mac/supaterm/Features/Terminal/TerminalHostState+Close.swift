@@ -268,7 +268,6 @@ extension TerminalHostState {
 
   private func cleanupSurface(_ surface: GhosttySurfaceView) {
     agentDetectionController?.surfaceDidRemove(surface.id)
-    onSurfaceRemoved(surface.id)
     agentPanelController?.surfaceRemoved(surface.id)
     notificationStore.removeSurface(surface.id)
     paneAgentMetadataBySurfaceID.removeValue(forKey: surface.id)

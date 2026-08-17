@@ -66,8 +66,8 @@ struct AgentPanelView: View {
       if !presentation.activeChildren.isEmpty {
         section("Active agents") {
           VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
-            ForEach(presentation.childGroups) { group in
-              childGroupRows(group)
+            ForEach(presentation.activeChildren) { child in
+              activeChildRow(child)
             }
           }
         }
@@ -131,7 +131,6 @@ struct AgentPanelView: View {
     HStack(spacing: AgentPanelMetrics.rowContentSpacing) {
       AgentPanelProgressIcon(
         status: row.status,
-        kind: row.kind,
         palette: palette
       )
       Text(row.title)
@@ -143,104 +142,10 @@ struct AgentPanelView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  @ViewBuilder
-  private func childGroupRows(_ group: PaneAgentChildGroup) -> some View {
-    if let workflowName = group.workflowName {
-      VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
-        workflowRow(workflowName, group: group)
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-          VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
-            ForEach(group.children) { child in
-              workflowChildRow(child, now: context.date)
-            }
-          }
-        }
-        .padding(.leading, AgentPanelMetrics.rowIconWidth)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    } else {
-      ForEach(group.children) { child in
-        activeChildRow(child)
-      }
-    }
-  }
-
-  private func workflowRow(_ name: String, group: PaneAgentChildGroup) -> some View {
-    AgentPanelRowContent(
-      leading: {
-        AgentPanelProgressIcon(
-          status: childProgressStatus(group.phase),
-          kind: .task,
-          palette: palette
-        )
-      },
-      title: name,
-      palette: palette,
-      trailing: {
-        Text(group.doneCountText)
-          .font(.system(size: 11))
-          .foregroundStyle(palette.secondaryText)
-      }
-    )
-  }
-
-  private func workflowChildRow(
-    _ child: TerminalAgentActiveChild,
-    now: Date
-  ) -> some View {
-    let summary = child.usage.map {
-      $0.summary(now: child.phase == .idle ? $0.lastActiveAt : now)
-    }
-    return HStack(alignment: .top, spacing: AgentPanelMetrics.rowContentSpacing) {
-      workflowChildStatus(child.phase)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(Self.workflowChildTitle(child))
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.primaryText)
-          .lineLimit(1)
-        if let summary {
-          Text(summary)
-            .font(.system(size: 11))
-            .foregroundStyle(palette.secondaryText)
-            .lineLimit(1)
-        }
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  static func workflowChildTitle(_ child: TerminalAgentActiveChild) -> String {
-    child.task ?? "Working…"
-  }
-
-  private func workflowChildStatus(_ phase: AgentActivityPhase) -> some View {
-    Group {
-      switch phase {
-      case .idle:
-        Image(systemName: "checkmark")
-          .font(.system(size: 9, weight: .bold))
-          .foregroundStyle(palette.success)
-      case .running:
-        childDot(palette.primaryText)
-      case .needsInput:
-        childDot(palette.warning)
-      }
-    }
-    .frame(width: AgentPanelMetrics.rowIconWidth, height: 15)
-    .accessibilityHidden(true)
-  }
-
-  private func childDot(_ color: Color) -> some View {
-    Circle()
-      .fill(color)
-      .frame(width: 6, height: 6)
-  }
-
   private func activeChildRow(_ child: TerminalAgentActiveChild) -> some View {
     HStack(alignment: .top, spacing: AgentPanelMetrics.rowContentSpacing) {
       AgentPanelProgressIcon(
         status: childProgressStatus(child.phase),
-        kind: .task,
         palette: palette
       )
       VStack(alignment: .leading, spacing: 2) {
@@ -829,23 +734,17 @@ private struct AgentPanelRowButtonStyleBody: View {
 
 private struct AgentPanelProgressIcon: View {
   let status: PaneAgentProgressRow.Status
-  let kind: PaneAgentProgressRow.Kind
   let palette: Palette
 
   var body: some View {
     Group {
-      switch kind {
-      case .goal:
-        assetImage("goal", color: status == .completed ? palette.success : palette.secondaryText)
-      case .task:
-        switch status {
-        case .pending:
-          image("circle", color: palette.secondaryText)
-        case .running:
-          TerminalAgentRunningSpinnerView(isSelected: false, palette: palette, diameter: 11)
-        case .completed:
-          image("checkmark.circle.fill", color: palette.success)
-        }
+      switch status {
+      case .pending:
+        image("circle", color: palette.secondaryText)
+      case .running:
+        TerminalAgentRunningSpinnerView(isSelected: false, palette: palette, diameter: 11)
+      case .completed:
+        image("checkmark.circle.fill", color: palette.success)
       }
     }
     .frame(width: 16)
@@ -854,16 +753,6 @@ private struct AgentPanelProgressIcon: View {
   private func image(_ symbol: String, color: Color) -> some View {
     Image(systemName: symbol)
       .font(.system(size: 11, weight: .semibold))
-      .foregroundStyle(color)
-      .accessibilityHidden(true)
-  }
-
-  private func assetImage(_ name: String, color: Color) -> some View {
-    Image(name)
-      .renderingMode(.template)
-      .resizable()
-      .aspectRatio(contentMode: .fit)
-      .frame(width: 13, height: 13)
       .foregroundStyle(color)
       .accessibilityHidden(true)
   }

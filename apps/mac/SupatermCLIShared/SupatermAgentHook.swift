@@ -43,7 +43,7 @@ public struct SupatermAgentHookEventName: Equatable, Hashable, RawRepresentable,
 extension SupatermAgentHookEventName: Codable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
-    self = .init(rawValue: try container.decode(String.self))
+    self = Self(rawValue: try container.decode(String.self))
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -71,7 +71,6 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public var toolInput: JSONValue? { payload["tool_input"] }
   public var toolName: String? { string("tool_name") }
   public var toolUseID: String? { string("tool_use_id") }
-  public var transcriptPath: String? { string("transcript_path") }
   public var turnID: String? { string("turn_id") }
 
   public init(
@@ -89,7 +88,6 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     toolInput: JSONValue? = nil,
     toolName: String? = nil,
     toolUseID: String? = nil,
-    transcriptPath: String? = nil,
     turnID: String? = nil,
     agentID: String? = nil
   ) {
@@ -107,7 +105,6 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     Self.insert(title, key: "title", into: &payload)
     Self.insert(toolName, key: "tool_name", into: &payload)
     Self.insert(toolUseID, key: "tool_use_id", into: &payload)
-    Self.insert(transcriptPath, key: "transcript_path", into: &payload)
     Self.insert(turnID, key: "turn_id", into: &payload)
     if let toolInput {
       payload["tool_input"] = toolInput

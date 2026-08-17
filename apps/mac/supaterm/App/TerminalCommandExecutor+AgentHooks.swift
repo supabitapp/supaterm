@@ -9,29 +9,6 @@ extension TerminalCommandExecutor {
     let subtitle: String
   }
 
-  func handleCommandFinished(for surfaceID: UUID) {
-    agentMonitorStore.clearSessions(for: surfaceID)
-    for entry in registry.activeEntries() {
-      guard entry.terminal.clearAgentState(for: surfaceID) else { continue }
-      entry.terminal.sessionDidChange()
-      return
-    }
-  }
-
-  func handleSurfaceRemoved(_ surfaceID: UUID) {
-    agentMonitorStore.clearSessions(for: surfaceID)
-  }
-
-  func resumeAgentMonitoring(in terminal: TerminalHostState) {
-    for target in terminal.agentTranscriptTargets() {
-      _ = agentMonitorStore.track(
-        scope: target.scope,
-        transcriptPath: target.transcriptPath,
-        context: target.context
-      )
-    }
-  }
-
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
     pruneDeadAgentProcesses()
     guard let terminal = agentTerminal(for: request),
@@ -70,22 +47,13 @@ extension TerminalCommandExecutor {
       recordTerminalNotificationSuppression(for: request, semantic: .attention, in: terminal)
       return TerminalAgentHookResult(desktopNotification: nil)
     }
-    let suppressesCompletionNotification =
-      request.agent == .claude
-      && terminal.agentSessionHasActiveGoal(
-        agent: request.agent,
-        sessionID: events[0].scope.sessionID
-      )
-
     var didChange = false
-    var didAccept = false
     var result = TerminalAgentHookResult(desktopNotification: nil)
     for event in events {
       if event.action == .turnStarted, event.scope.subagentID == nil {
         clearRecentStructuredNotification(for: terminal, event: event)
       }
       let application = terminal.applyAgentEvent(event)
-      didAccept = application.accepted || didAccept
       didChange = application.changed || didChange
       guard application.accepted else { continue }
       guard
@@ -96,11 +64,7 @@ extension TerminalCommandExecutor {
       else {
         continue
       }
-      if let notification = notification(
-        for: event,
-        request: request,
-        suppressesCompletion: suppressesCompletionNotification
-      ) {
+      if let notification = notification(for: event, request: request) {
         result = try handleAgentEventNotification(
           event.scope.agent,
           event: request.event,
@@ -110,112 +74,10 @@ extension TerminalCommandExecutor {
       }
     }
 
-    updateMonitoring(
-      for: request,
-      events: events,
-      accepted: didAccept,
-      terminal: terminal
-    )
     if didChange {
       terminal.sessionDidChange()
     }
     return result
-  }
-
-  func handleMonitorSnapshot(
-    _ snapshot: AgentMonitorSnapshot,
-    scope: TerminalAgentEvent.Scope,
-    context: SupatermCLIContext?
-  ) {
-    guard
-      let terminal = agentTerminal(
-        agent: scope.agent,
-        sessionID: scope.sessionID,
-        context: context
-      )
-    else {
-      clearMonitoring(scope)
-      return
-    }
-    guard terminal.hasAgentSession(agent: scope.agent, sessionID: scope.sessionID) else {
-      clearMonitoring(scope)
-      return
-    }
-    var didChange = false
-    for transcriptDirectoryPath in snapshot.completedSubagentTranscriptDirectories {
-      didChange =
-        terminal.removeAgentChildren(
-          agent: scope.agent,
-          sessionID: scope.sessionID,
-          transcriptDirectoryPath: transcriptDirectoryPath
-        ) || didChange
-    }
-    let turnID = scope.subagentID == nil ? snapshot.status?.turnID : scope.turnID
-    var actions: [TerminalAgentEvent.Action] = []
-    switch snapshot.status {
-    case .started:
-      actions.append(.turnRunning(detail: snapshot.detail))
-    case .aborted, .completed, .failed:
-      actions.append(
-        scope.subagentID == nil ? .turnCompleted(message: nil) : .subagentStopped()
-      )
-    case nil:
-      if snapshot.detail != nil {
-        actions.append(.turnRunning(detail: snapshot.detail))
-      }
-    }
-    if scope.subagentID == nil {
-      actions.append(.hoverMessagesUpdated(snapshot.hoverMessages))
-      actions.append(.progressUpdated(snapshot.progressRows, source: .transcript))
-    }
-    for action in actions {
-      let event = TerminalAgentEvent(
-        scope: TerminalAgentEvent.Scope(
-          agent: scope.agent,
-          sessionID: scope.sessionID,
-          turnID: turnID,
-          subagentID: scope.subagentID
-        ),
-        context: context,
-        action: action,
-        origin: .transcript
-      )
-      didChange = terminal.applyAgentEvent(event).changed || didChange
-    }
-    if actions.contains(.subagentStopped()) {
-      clearMonitoring(scope)
-    }
-    if didChange {
-      terminal.sessionDidChange()
-    }
-  }
-
-  func handleRunningTimeoutExpired(
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  ) {
-    guard let terminal = agentTerminal(agent: agent, sessionID: sessionID, context: context) else {
-      return
-    }
-    guard terminal.hasAgentSession(agent: agent, sessionID: sessionID) else {
-      agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
-      return
-    }
-    let turnID = terminal.agentTurnID(agent: agent, sessionID: sessionID)
-    if terminal.applyAgentEvent(
-      TerminalAgentEvent(
-        scope: TerminalAgentEvent.Scope(
-          agent: agent,
-          sessionID: sessionID,
-          turnID: turnID
-        ),
-        context: context,
-        action: .turnCompleted(message: nil)
-      )
-    ).changed {
-      terminal.sessionDidChange()
-    }
   }
 
   func handleAgentEventNotification(
@@ -258,8 +120,7 @@ extension TerminalCommandExecutor {
 
   private func notification(
     for event: TerminalAgentEvent,
-    request: SupatermAgentHookRequest,
-    suppressesCompletion: Bool
+    request: SupatermAgentHookRequest
   ) -> AgentHookNotification? {
     guard event.scope.subagentID == nil else { return nil }
     let body: String?
@@ -270,8 +131,6 @@ extension TerminalCommandExecutor {
       body = message ?? request.event.notificationMessage()
       semantic = .attention
       subtitle = request.event.title ?? "Attention"
-    case .turnCompleted where suppressesCompletion:
-      return nil
     case .turnCompleted(let message):
       body = message
       semantic = .completion
@@ -323,104 +182,6 @@ extension TerminalCommandExecutor {
     }
   }
 
-  private func updateMonitoring(
-    for request: SupatermAgentHookRequest,
-    events: [TerminalAgentEvent],
-    accepted: Bool,
-    terminal: TerminalHostState
-  ) {
-    guard accepted else { return }
-    guard let sessionID = request.event.sessionID else { return }
-    guard let scope = events.first?.scope else { return }
-    if request.event.hookEventName == .sessionEnd
-      || request.event.hookEventName == .sessionShutdown
-    {
-      agentMonitorStore.clearSession(agent: request.agent, sessionID: sessionID)
-      return
-    }
-    if shouldCancelTranscriptTracking(for: request, events: events) {
-      agentMonitorStore.cancelTracking(scope: scope)
-    } else if let transcriptPath = transcriptPathForMonitoring(
-      request: request,
-      events: events,
-      scope: scope
-    ) {
-      _ = agentMonitorStore.track(
-        scope: scope,
-        transcriptPath: transcriptPath,
-        context: request.context
-      )
-    }
-    guard scope.subagentID == nil else { return }
-    guard terminal.agentSessionIsForeground(agent: request.agent, sessionID: sessionID) else {
-      return
-    }
-    if requestsAttention(events) {
-      agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
-      return
-    }
-    switch request.event.hookEventName {
-    case .postToolUse, .userPromptSubmit, .preToolUse:
-      guard request.agent.drivesActivityFromTranscript else { return }
-      if agentMonitorStore.isTracking(scope: scope) {
-        agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
-        return
-      }
-      agentMonitorStore.armRunningTimeout(
-        agent: request.agent,
-        sessionID: sessionID,
-        context: request.context
-      )
-    case .stop:
-      agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
-    case .sessionEnd, .sessionShutdown:
-      agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
-    default:
-      break
-    }
-  }
-
-  private func requestsAttention(_ events: [TerminalAgentEvent]) -> Bool {
-    events.contains {
-      if case .attentionRequested = $0.action { return true }
-      return false
-    }
-  }
-
-  private func shouldCancelTranscriptTracking(
-    for request: SupatermAgentHookRequest,
-    events: [TerminalAgentEvent]
-  ) -> Bool {
-    if request.event.hookEventName == .subagentStop { return true }
-    return events.contains {
-      if case .turnCompleted = $0.action { return true }
-      return false
-    }
-  }
-
-  private func transcriptPathForMonitoring(
-    request: SupatermAgentHookRequest,
-    events: [TerminalAgentEvent],
-    scope: TerminalAgentEvent.Scope
-  ) -> String? {
-    guard scope.subagentID != nil else { return request.event.transcriptPath }
-    guard request.agent == .codex else { return nil }
-    for event in events {
-      if case .subagentStarted(_, _, _, _, let transcriptPath, _) = event.action {
-        return transcriptPath
-      }
-    }
-    return nil
-  }
-
-  private func clearMonitoring(_ scope: TerminalAgentEvent.Scope) {
-    if scope.subagentID == nil {
-      agentMonitorStore.clearSession(agent: scope.agent, sessionID: scope.sessionID)
-    } else {
-      agentMonitorStore.cancelTracking(scope: scope)
-    }
-  }
-
   private func clearRecentStructuredNotification(
     for terminal: TerminalHostState,
     event: TerminalAgentEvent
@@ -451,7 +212,6 @@ extension TerminalCommandExecutor {
     in terminal: TerminalHostState
   ) -> Bool {
     guard request.agent == .codex,
-      request.event.transcriptPath == nil,
       let sessionID = request.event.sessionID,
       !terminal.hasAgentSession(agent: .codex, sessionID: sessionID),
       let surfaceID = request.context?.surfaceID,
@@ -459,11 +219,23 @@ extension TerminalCommandExecutor {
     else {
       return true
     }
-    return !terminal.hasForegroundAgentSession(
-      agent: .codex,
-      processID: processID,
-      for: surfaceID
-    )
+    guard
+      let foregroundWorkingDirectoryPath = terminal.foregroundAgentWorkingDirectoryPath(
+        agent: .codex,
+        processID: processID,
+        for: surfaceID
+      )
+    else {
+      return true
+    }
+    guard
+      let workingDirectoryPath = TerminalAgentPanelWorkspaceKey(
+        workingDirectoryPath: request.event.cwd
+      )?.workingDirectoryPath
+    else {
+      return false
+    }
+    return workingDirectoryPath == foregroundWorkingDirectoryPath
   }
 
   private func agentTerminal(
@@ -504,21 +276,8 @@ extension TerminalCommandExecutor {
 
   private func pruneDeadAgentProcesses() {
     for entry in registry.activeEntries()
-    where entry.terminal.pruneDeadAgentProcesses(
-      didClearSession: { [agentMonitorStore] agent, sessionID in
-        agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
-      }
-    ) {
+    where entry.terminal.pruneDeadAgentProcesses() {
       entry.terminal.sessionDidChange()
-    }
-  }
-}
-
-extension AgentTurnStatus {
-  fileprivate var turnID: String? {
-    switch self {
-    case .aborted(let turnID), .completed(let turnID), .failed(let turnID), .started(let turnID):
-      turnID
     }
   }
 }

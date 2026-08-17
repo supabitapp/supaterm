@@ -17,34 +17,13 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: context,
         processID: identity.processID,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     #expect(accepted)
 
     #expect(store.presentation(for: surfaceID, agent: .codex)?.isActionable == false)
     #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID) == [identity])
-  }
-
-  @Test
-  func transcriptEventDoesNotEstablishAuthority() throws {
-    let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
-    let identity = try #require(testProcessIdentity(42))
-    var store = TerminalAgentStateStore(processIdentity: testProcessIdentity)
-
-    let accepted = store.apply(
-      event(
-        sessionID: "session-1",
-        context: context,
-        processID: identity.processID,
-        action: .turnRunning(detail: nil),
-        origin: .transcript
-      )
-    )
-    #expect(accepted)
-
-    #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID).isEmpty)
   }
 
   @Test
@@ -58,7 +37,7 @@ extension TerminalAgentStateStoreTests {
       event(
         sessionID: "session-1",
         context: context,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     let accepted = store.apply(
@@ -88,7 +67,7 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: context,
         processID: identity.processID,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     var restored = TerminalAgentStateStore(processIdentity: testProcessIdentity)
@@ -114,7 +93,7 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: context,
         processID: original.processID,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID) == [original])
@@ -125,7 +104,7 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: context,
         processID: reused.processID,
-        action: .sessionResumed(transcriptPath: nil)
+        action: .sessionResumed
       )
     )
 
@@ -145,7 +124,7 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: context,
         processID: rootIdentity.processID,
-        action: .sessionStarted(transcriptPath: nil)
+        action: .sessionStarted
       )
     )
     store.apply(
@@ -158,10 +137,7 @@ extension TerminalAgentStateStoreTests {
       )
     )
 
-    store.pruneDeadProcesses(
-      isProcessCurrent: { $0 == childIdentity },
-      didClearSession: { _, _ in }
-    )
+    store.pruneDeadProcesses(isProcessCurrent: { $0 == childIdentity })
 
     #expect(store.hasSession(agent: .codex, sessionID: "session-1"))
     #expect(store.nativeHookAuthorityProcessIdentities(for: surfaceID).isEmpty)
@@ -187,7 +163,7 @@ extension TerminalAgentStateStoreTests {
           sessionID: sessionID,
           context: context,
           processID: identity.processID,
-          action: .sessionStarted(transcriptPath: nil)
+          action: .sessionStarted
         )
       )
     }
@@ -226,7 +202,7 @@ extension TerminalAgentStateStoreTests {
           sessionID: agent.rawValue,
           context: context,
           processID: identity.processID,
-          action: .sessionStarted(transcriptPath: nil)
+          action: .sessionStarted
         )
       )
     }
@@ -258,7 +234,7 @@ extension TerminalAgentStateStoreTests {
           sessionID: sessionID,
           context: context,
           processID: identity.processID,
-          action: .sessionStarted(transcriptPath: nil)
+          action: .sessionStarted
         )
       )
     }

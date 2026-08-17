@@ -21,7 +21,7 @@ Unread badges and notification previews remain available after activity ends. Ho
 
 Press `Command-I` in an agent pane. When the integration supplies the data, the panel can show:
 
-- task and goal progress
+- plan progress
 - active child agents and their latest detail
 - the agent's workspace directory
 - Git branch and changed-line counts
@@ -34,7 +34,7 @@ Click the directory or branch row to copy its full value. Pull requests, checks,
 
 The panel follows the foreground root agent. A child agent cannot replace its parent's workspace or session actions.
 
-Fallback detection can supply the agent identity and basic activity state. Native hooks add richer lifecycle detail, progress, transcript, and session data. Fallback data is not saved.
+Fallback detection can supply the agent identity and basic activity state. Native hooks add lifecycle, plan, child-agent, final-response, and session data. Fallback data is not saved.
 
 ## Attention
 

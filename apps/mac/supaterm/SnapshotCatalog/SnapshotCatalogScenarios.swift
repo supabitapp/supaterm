@@ -22,7 +22,7 @@ extension SnapshotCatalog {
           appearance: appearance,
           presentation: PaneAgentPanelPresentation(
             progressRows: [
-              PaneAgentProgressRow(id: "goal", title: "Stabilize snapshot harness", status: .running, kind: .goal),
+              PaneAgentProgressRow(id: "goal", title: "Stabilize snapshot harness", status: .running),
               PaneAgentProgressRow(id: "task-1", title: "Wire catalog scheme", status: .completed),
               PaneAgentProgressRow(id: "task-2", title: "Record baseline images", status: .running),
               PaneAgentProgressRow(id: "task-3", title: "Push branch", status: .pending),
@@ -127,47 +127,6 @@ extension SnapshotCatalog {
       )
     },
     scenario(
-      "workflow-agents",
-      group: "Agent Panel",
-      title: "Workflow child agents",
-      size: CGSize(width: 338, height: 240)
-    ) { appearance in
-      AnyView(
-        AgentPanelSnapshotFixture(
-          appearance: appearance,
-          presentation: PaneAgentPanelPresentation(
-            activeChildren: [
-              workflowChild(
-                subagentID: "a3b6b826",
-                task: "Investigate compaction in codex-lb",
-                contextTokens: 169_100,
-                elapsed: 312
-              ),
-              workflowChild(
-                subagentID: "ace7ef95",
-                task: "Deep-read sticky session handling",
-                contextTokens: 229_300,
-                elapsed: 312
-              ),
-              workflowChild(
-                subagentID: "aee5562e",
-                task: "Establish which endpoints the CLI calls",
-                contextTokens: 135_000,
-                elapsed: 312
-              ),
-              workflowChild(
-                subagentID: "add2ef43",
-                task: "Audit the account pool",
-                contextTokens: 33_084,
-                elapsed: 147,
-                phase: .idle
-              ),
-            ]
-          )
-        )
-      )
-    },
-    scenario(
       "merge-queue",
       group: "Agent Panel",
       title: "Pull request in merge queue",
@@ -254,37 +213,6 @@ extension SnapshotCatalog {
       )
     },
   ]
-
-  private static func workflowChild(
-    subagentID: String,
-    task: String,
-    contextTokens: Int,
-    elapsed: TimeInterval,
-    phase: AgentActivityPhase = .running
-  ) -> TerminalAgentActiveChild {
-    let now = Date()
-    return TerminalAgentActiveChild(
-      id: TerminalAgentActiveChild.Identity(
-        subagentID: subagentID,
-        sessionID: "session-26-0701",
-        turnID: "turn-4"
-      ),
-      kind: .workflow,
-      nickname: "codex-balancer-research",
-      role: "workflow-subagent",
-      transcriptPath:
-        "/tmp/session/subagents/workflows/wf_2c58973b/agent-\(subagentID).jsonl",
-      task: task,
-      phase: phase,
-      detail: nil,
-      usage: TerminalAgentChildUsage(
-        model: "claude-opus-5",
-        contextTokens: contextTokens,
-        startedAt: now.addingTimeInterval(-elapsed),
-        lastActiveAt: now
-      )
-    )
-  }
 
   static let updateScenarios: [SnapshotScenario] = [
     updateScenario("permission", title: "Permission request", phase: .permissionRequest),
