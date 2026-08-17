@@ -25,7 +25,7 @@ final class TabAgentStatusUITests: SupatermUITestCase {
     try await sendClaudeEvent("user-prompt-submit")
 
     let didShowRunning = await wait(for: row, timeout: Self.coldStartTimeout) {
-      $0.label.contains("Agent activity: Running") && !$0.label.contains("Pinned")
+      $0.label.contains("Agent working") && !$0.label.contains("Pinned")
     }
     XCTAssertTrue(didShowRunning)
 
@@ -42,7 +42,7 @@ final class TabAgentStatusUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didSelectSecondTab)
     let didShowNeedsInput = await wait(timeout: Self.coldStartTimeout) {
-      self.sidebarTabRow(named: tabTitle).label.contains("Agent activity: Needs input")
+      self.sidebarTabRow(named: tabTitle).label.contains("Agent needs input")
     }
     XCTAssertTrue(didShowNeedsInput)
 
@@ -50,13 +50,13 @@ final class TabAgentStatusUITests: SupatermUITestCase {
     try await sendClaudeEvent("stop")
     let didShowCompletion = await wait(timeout: Self.coldStartTimeout) {
       let currentRow = self.sidebarTabRow(named: tabTitle)
-      return currentRow.label.contains("Done.") && !currentRow.label.contains("Agent activity:")
+      return currentRow.label.contains("Done.") && !currentRow.label.contains("Agent ")
     }
     XCTAssertTrue(didShowCompletion)
     mainTerminal.click()
     let didRestorePinned = await wait(timeout: Self.coldStartTimeout) {
       let currentRow = self.sidebarTabRow(named: tabTitle)
-      return currentRow.label.contains("Pinned") && !currentRow.label.contains("Agent activity:")
+      return currentRow.label.contains("Pinned") && !currentRow.label.contains("Agent ")
     }
     XCTAssertTrue(didRestorePinned)
 
