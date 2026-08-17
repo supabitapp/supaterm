@@ -65,6 +65,7 @@ runs:
         fi
 
         printf '%s\n' "$mise_dir/bin" >> "$GITHUB_PATH"
+        export PATH="$mise_dir/bin:$PATH"
         printf '%s\n' "MISE_TRUSTED_CONFIG_PATHS=$MISE_TRUSTED_CONFIG_PATHS" >> "$GITHUB_ENV"
         printf '%s\n' "MISE_YES=$MISE_YES" >> "$GITHUB_ENV"
         "$mise_bin" --version
