@@ -75,30 +75,28 @@ nonisolated enum TerminalAgentEventTranslator {
         message: request.event.message
       )
     case .postToolUse:
-      let resolutionEvents = attentionResolutionEvents(for: request, scope: scope)
-      let progressEvents =
-        claudeToolProgressMutation(for: request).map {
-          [
-            event(
-              request,
-              scope: rootScope(scope),
-              action: .progressUpdated($0)
-            )
-          ]
-        } ?? []
-      guard scope.subagentID == nil else {
-        return resolutionEvents + progressEvents + subagentActivityEvents(for: request, scope: scope)
-      }
-      if !progressEvents.isEmpty {
-        return resolutionEvents + progressEvents
-      }
-      return resolutionEvents + [
-        event(
-          request,
-          scope: scope,
-          action: .turnRunning(detail: request.event.toolName)
+      var events = attentionResolutionEvents(for: request, scope: scope)
+      if let mutation = claudeToolProgressMutation(for: request) {
+        events.append(
+          event(
+            request,
+            scope: rootScope(scope),
+            action: .progressUpdated(mutation)
+          )
         )
-      ]
+      } else if scope.subagentID == nil {
+        events.append(
+          event(
+            request,
+            scope: scope,
+            action: .turnRunning(detail: request.event.toolName)
+          )
+        )
+      }
+      if scope.subagentID != nil {
+        events += subagentActivityEvents(for: request, scope: scope)
+      }
+      return events
     case .preToolUse:
       guard scope.subagentID == nil else {
         return subagentActivityEvents(for: request, scope: scope)
@@ -230,7 +228,11 @@ nonisolated enum TerminalAgentEventTranslator {
     }
     if request.event.hookEventName == .postToolUse,
       request.event.toolName == "update_plan",
-      let rows = codexPlanRows(from: request.event.toolInput)
+      let rows = progressRows(
+        from: request.event.toolInput,
+        itemsKey: "plan",
+        titleKey: "step"
+      )
     {
       return [event(request, scope: scope, action: .progressUpdated(.replace(rows)))]
     }
@@ -394,25 +396,14 @@ nonisolated enum TerminalAgentEventTranslator {
       guard title != nil || status != nil else { return nil }
       return .upsert(id: id, title: title, status: status)
     case "TodoWrite":
-      guard let todos = request.event.toolInput?.objectValue?["todos"]?.arrayValue else {
-        return nil
-      }
-      var rows: [PaneAgentProgressRow] = []
-      rows.reserveCapacity(todos.count)
-      for (index, value) in todos.enumerated() {
-        guard let todo = value.objectValue,
-          let title = AgentHookText.normalized(todo["content"]?.stringValue),
-          let status = progressStatus(todo["status"]?.stringValue)
-        else {
-          return nil
-        }
-        rows.append(
-          PaneAgentProgressRow(
-            id: "\(index):\(title)",
-            title: title,
-            status: status
-          )
+      guard
+        let rows = progressRows(
+          from: request.event.toolInput,
+          itemsKey: "todos",
+          titleKey: "content"
         )
+      else {
+        return nil
       }
       return .replace(rows)
     default:
@@ -446,15 +437,17 @@ nonisolated enum TerminalAgentEventTranslator {
     )
   }
 
-  private static func codexPlanRows(
-    from input: JSONValue?
+  private static func progressRows(
+    from input: JSONValue?,
+    itemsKey: String,
+    titleKey: String
   ) -> [PaneAgentProgressRow]? {
-    guard let plan = input?.objectValue?["plan"]?.arrayValue else { return nil }
+    guard let items = input?.objectValue?[itemsKey]?.arrayValue else { return nil }
     var rows: [PaneAgentProgressRow] = []
-    rows.reserveCapacity(plan.count)
-    for (index, value) in plan.enumerated() {
+    rows.reserveCapacity(items.count)
+    for (index, value) in items.enumerated() {
       guard let item = value.objectValue,
-        let title = AgentHookText.normalized(item["step"]?.stringValue),
+        let title = AgentHookText.normalized(item[titleKey]?.stringValue),
         let status = progressStatus(item["status"]?.stringValue)
       else {
         return nil
