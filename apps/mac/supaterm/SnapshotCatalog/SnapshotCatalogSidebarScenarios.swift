@@ -466,8 +466,8 @@ private struct SidebarRowSnapshotItem {
           pullRequestKind: .closed
         ),
         workspace(
-          path: SnapshotFixtureValues.workspace("no-pr"),
-          branch: "feature/no-pr",
+          path: SnapshotFixtureValues.workspace("local-changes"),
+          branch: "feature/local-changes",
           added: 0,
           removed: 0,
           pullRequestNumber: nil,

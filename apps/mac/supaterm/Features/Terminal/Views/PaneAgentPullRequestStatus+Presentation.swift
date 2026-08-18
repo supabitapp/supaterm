@@ -11,8 +11,10 @@ extension PaneAgentPullRequestStatus {
     switch kind {
     case .unavailable:
       .system("exclamationmark.circle")
+    case .none where url != nil:
+      .asset("github")
     case .none:
-      .asset("circle-slash")
+      .system("plus.circle")
     case .open:
       .asset("git-pull-request")
     case .draft:
@@ -59,15 +61,11 @@ extension PaneAgentPullRequestStatus {
     }
   }
 
-  var compactTitle: String {
-    kind == .none ? "No PR" : title
-  }
-
   var compactContextTitle: String {
-    kind == .none ? stateTitle : "\(stateTitle) \(title)"
+    "\(stateTitle) \(title)"
   }
 
   var accessibilityTitle: String {
-    kind == .none ? stateTitle : "\(stateTitle) pull request \(title)"
+    "\(stateTitle) pull request \(title)"
   }
 }

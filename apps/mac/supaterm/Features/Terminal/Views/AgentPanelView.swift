@@ -262,8 +262,7 @@ struct AgentPanelView: View {
 
   @ViewBuilder
   private func pullRequestRow(_ status: PaneAgentPullRequestStatus) -> some View {
-    let icon: TerminalMetadataIcon =
-      status.kind == .none && status.url != nil ? .asset("github") : status.icon
+    let icon = status.icon
     let color = status.color(in: palette)
     if let url = status.url {
       linkRow(
