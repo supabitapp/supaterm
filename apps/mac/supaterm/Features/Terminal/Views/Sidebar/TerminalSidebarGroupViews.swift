@@ -234,10 +234,12 @@ enum TerminalSidebarTabDetail: Equatable, Identifiable {
   }
 }
 
-private struct TerminalSidebarTabMeasurementKey: Hashable {
-  let tabID: TerminalTabID
-  let title: String
-  let detailIDs: [TerminalSidebarTabDetail.ID]
+private enum TerminalSidebarTabMeasurementKey: Hashable {
+  case tab(
+    id: TerminalTabID,
+    title: String,
+    detailIDs: [TerminalSidebarTabDetail.ID]
+  )
 }
 
 struct TerminalSidebarTabRowPresentation: Equatable {
@@ -268,8 +270,8 @@ enum TerminalSidebarRowPresentation: Equatable {
     switch self {
     case .tab(let presentation):
       return AnyHashable(
-        TerminalSidebarTabMeasurementKey(
-          tabID: presentation.tab.id,
+        TerminalSidebarTabMeasurementKey.tab(
+          id: presentation.tab.id,
           title: presentation.tab.title,
           detailIDs: presentation.details.map(\.id)
         )
