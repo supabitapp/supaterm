@@ -26,10 +26,13 @@ final class TabRootDragUITests: SupatermUITestCase {
       .tab("Mover"),
     ])
 
+    let header = try require(sidebarGroupHeader(named: "First"))
+    let beforeGroup = header.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0)
+    ).withOffset(CGVector(dx: 0, dy: 3))
     try drag(
       sidebarStructuralTabRow(named: "Mover"),
-      to: sidebarGroupHeader(named: "First"),
-      destinationOffset: CGVector(dx: 0.5, dy: 0.2)
+      to: beforeGroup
     )
 
     await requireSidebarStructure([
