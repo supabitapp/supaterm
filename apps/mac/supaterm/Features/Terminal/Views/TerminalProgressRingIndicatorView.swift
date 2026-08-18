@@ -2,16 +2,32 @@ import SupaTheme
 import SwiftUI
 
 struct TerminalAgentRunningSpinnerView: View {
+  enum Tone {
+    case working
+    case secondary
+  }
+
+  let tone: Tone
   let palette: Palette
   var diameter: CGFloat = 14
 
   var body: some View {
+    let toneColors = colors
     TerminalProgressRingIndicatorView(
       fraction: nil,
-      color: palette.working,
-      trackColor: palette.working.opacity(0.2),
+      color: toneColors.ring,
+      trackColor: toneColors.track,
       diameter: diameter
     )
+  }
+
+  private var colors: (ring: Color, track: Color) {
+    switch tone {
+    case .working:
+      (palette.working, palette.working.opacity(0.2))
+    case .secondary:
+      (palette.secondaryText.opacity(0.72), palette.secondaryText.opacity(0.22))
+    }
   }
 }
 
