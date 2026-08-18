@@ -247,7 +247,9 @@ private func runCompletedClaudeTurn(_ fixture: ClaudeE2EFixture) async throws {
   let completion = claudeLifecycleCompletion(fixture.space)
   let marker = claudeLifecycleMarker(fixture.space)
   let command = claudeLifecycleCommand(fixture.space)
+  let submissionMarker = "Lifecycle prompt \(fixture.space.token)."
   let prompt = [
+    submissionMarker,
     "First call AskUserQuestion with one question.",
     "Use header \"E2E\", question \"\(question)\", and two options named \"Proceed\" and \"Stop\".",
     "After the answer, use Bash once to run exactly `\(command)`.",
@@ -255,7 +257,7 @@ private func runCompletedClaudeTurn(_ fixture: ClaudeE2EFixture) async throws {
     "Do not call any other tool.",
   ].joined(separator: " ")
 
-  try await fixture.app.submit(prompt, waitingFor: question, into: fixture.space.pane)
+  try await fixture.app.submit(prompt, waitingFor: submissionMarker, into: fixture.space.pane)
   try await fixture.expect(.running)
   fixture.server.releaseNextResponse()
   try await fixture.app.waitForCapture(fixture.space.pane, contains: question, timeout: 90)
@@ -285,12 +287,13 @@ private func runInterruptedClaudeTurn(
 ) async throws {
   let startedURL = claudeInterruptedStartedURL(fixture.space, name: name)
   let command = claudeInterruptedCommand(fixture.space, name: name)
+  let submissionMarker = "Interrupt prompt \(name) \(fixture.space.token)."
   let prompt =
-    "Use Bash once to run exactly `\(command)`. Do not do anything else until it finishes."
+    "\(submissionMarker) Use Bash once to run exactly `\(command)`. Do not do anything else until it finishes."
 
   try await fixture.app.submit(
     prompt,
-    waitingFor: startedURL.lastPathComponent,
+    waitingFor: submissionMarker,
     into: fixture.space.pane
   )
   try await fixture.expect(.running)
