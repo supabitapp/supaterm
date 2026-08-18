@@ -267,13 +267,33 @@ final class GhosttySurfaceBridge {
     case .backspace:
       sendKeyEvent(surface: surface, keycode: UInt32(kVK_Delete))
     case .ctrlC:
-      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_C), mods: GHOSTTY_MODS_CTRL)
+      sendKeyEvent(
+        surface: surface,
+        keycode: UInt32(kVK_ANSI_C),
+        mods: GHOSTTY_MODS_CTRL,
+        unshiftedCodepoint: "c"
+      )
     case .ctrlD:
-      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_D), mods: GHOSTTY_MODS_CTRL)
+      sendKeyEvent(
+        surface: surface,
+        keycode: UInt32(kVK_ANSI_D),
+        mods: GHOSTTY_MODS_CTRL,
+        unshiftedCodepoint: "d"
+      )
     case .ctrlL:
-      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_L), mods: GHOSTTY_MODS_CTRL)
+      sendKeyEvent(
+        surface: surface,
+        keycode: UInt32(kVK_ANSI_L),
+        mods: GHOSTTY_MODS_CTRL,
+        unshiftedCodepoint: "l"
+      )
     case .ctrlZ:
-      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_Z), mods: GHOSTTY_MODS_CTRL)
+      sendKeyEvent(
+        surface: surface,
+        keycode: UInt32(kVK_ANSI_Z),
+        mods: GHOSTTY_MODS_CTRL,
+        unshiftedCodepoint: "z"
+      )
     }
   }
 
@@ -281,6 +301,7 @@ final class GhosttySurfaceBridge {
     surface: ghostty_surface_t,
     keycode: UInt32,
     mods: ghostty_input_mods_e = GHOSTTY_MODS_NONE,
+    unshiftedCodepoint: UnicodeScalar? = nil,
     text: String? = nil
   ) {
     var event = ghostty_input_key_s()
@@ -289,7 +310,7 @@ final class GhosttySurfaceBridge {
     event.mods = mods
     event.composing = false
     event.consumed_mods = GHOSTTY_MODS_NONE
-    event.unshifted_codepoint = 0
+    event.unshifted_codepoint = unshiftedCodepoint?.value ?? 0
     if let text {
       text.withCString { ptr in
         event.text = ptr
