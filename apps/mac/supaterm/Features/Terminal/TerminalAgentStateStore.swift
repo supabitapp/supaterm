@@ -64,6 +64,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
 nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
   let agent: SupatermAgentKind
   let sessionID: String
+  let turnStartedAt: Date?
   let phase: AgentActivityPhase
   let detail: String?
   let latestResponse: String?
@@ -84,6 +85,7 @@ nonisolated struct TerminalAgentStateSnapshot: Equatable, Sendable {
   let surfaceID: UUID
   let processes: Set<TerminalAgentProcessIdentity>
   let turnLifecycle: TerminalAgentTurnLifecycle
+  let turnStartedAt: Date?
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
@@ -136,19 +138,23 @@ nonisolated struct TerminalAgentStateStore {
     var revision = 0
     var surfaceID: UUID?
     var turnLifecycle = TerminalAgentTurnLifecycle.unseen
+    var turnStartedAt: Date?
     var workingDirectoryPath: String?
   }
 
   private var foregroundSessions: [ForegroundKey: String] = [:]
   private var nextRevision = 1
+  private let now: () -> Date
   private let processIdentity: (Int32) -> TerminalAgentProcessIdentity?
   private var sessions: [SessionKey: SessionState] = [:]
 
   init(
     processIdentity: @escaping (Int32) -> TerminalAgentProcessIdentity? =
-      TerminalAgentProcessInspector.identity(for:)
+      TerminalAgentProcessInspector.identity(for:),
+    now: @escaping () -> Date = Date.init
   ) {
     self.processIdentity = processIdentity
+    self.now = now
   }
 
   @discardableResult
@@ -330,6 +336,9 @@ nonisolated struct TerminalAgentStateStore {
         hasActiveTeammate: hasActiveTeammate,
         hasActiveWorkflow: hasActiveWorkflow
       )
+      if state.phase == .idle, state.activeChildren.isEmpty {
+        state.turnStartedAt = nil
+      }
     case .progressUpdated(let mutation):
       updateProgress(mutation, turnID: event.scope.turnID, state: &state)
     case .sessionEnded, .subagentStarted, .subagentStopped:
@@ -359,6 +368,7 @@ nonisolated struct TerminalAgentStateStore {
     guard let childKey = Self.childKey(for: event) else { return }
     switch event.action {
     case .subagentStarted(let kind, let role):
+      state.turnStartedAt = state.turnStartedAt ?? now()
       state.activeChildren = state.activeChildren.filter {
         $0.key.subagentID != childKey.subagentID || $0.key == childKey
       }
@@ -375,7 +385,12 @@ nonisolated struct TerminalAgentStateStore {
       }
     case .subagentStopped:
       state.activeChildren.removeValue(forKey: childKey)
+      if state.phase == .idle, state.activeChildren.isEmpty {
+        state.turnStartedAt = nil
+      }
     default:
+      guard state.activeChildren[childKey] != nil else { return }
+      state.turnStartedAt = state.turnStartedAt ?? now()
       updateChild(event.action, key: childKey, state: &state)
     }
   }
@@ -415,6 +430,7 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     state.activeChildren = state.activeChildren.filter { $0.key.turnID == turnID }
     state.turnLifecycle = .active(turnID)
+    state.turnStartedAt = state.turnStartedAt ?? now()
     state.isActionable = true
     state.phase = .running
     state.detail = nil
@@ -437,6 +453,9 @@ nonisolated struct TerminalAgentStateStore {
     state.hasPendingBackgroundWork = false
     state.isActionable = true
     state.phase = .idle
+    if state.activeChildren.isEmpty {
+      state.turnStartedAt = nil
+    }
     state.detail = nil
     state.attentionRequestID = nil
     state.progressRows = []
@@ -451,6 +470,7 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     recoverTurnIfNeeded(turnID, state: &state)
     guard targetsActiveTurn(turnID, state: state) else { return }
+    state.turnStartedAt = state.turnStartedAt ?? now()
     state.hasPendingBackgroundWork = true
     state.isActionable = true
     state.phase = .running
@@ -466,6 +486,7 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     recoverTurnIfNeeded(turnID, state: &state)
     guard targetsActiveTurn(turnID, state: state) else { return }
+    state.turnStartedAt = state.turnStartedAt ?? now()
     state.isActionable = true
     state.phase = .needsInput
     state.detail = message
@@ -479,6 +500,7 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     recoverTurnIfNeeded(turnID, state: &state)
     guard targetsActiveTurn(turnID, state: state), state.phase != .needsInput else { return }
+    state.turnStartedAt = state.turnStartedAt ?? now()
     state.isActionable = true
     state.phase = .running
     state.detail = detail
@@ -494,6 +516,7 @@ nonisolated struct TerminalAgentStateStore {
     else {
       return
     }
+    state.turnStartedAt = state.turnStartedAt ?? now()
     state.isActionable = true
     state.phase = .running
     state.detail = nil
@@ -507,6 +530,7 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     recoverTurnIfNeeded(turnID, state: &state)
     guard targetsActiveTurn(turnID, state: state) else { return }
+    state.turnStartedAt = state.turnStartedAt ?? now()
     state.isActionable = true
     switch mutation {
     case .remove(let id):
@@ -540,9 +564,11 @@ nonisolated struct TerminalAgentStateStore {
     switch state.turnLifecycle {
     case .unseen:
       state.turnLifecycle = .active(turnID)
+      state.turnStartedAt = now()
       state.phase = .running
     case .active(nil) where turnID != nil:
       state.turnLifecycle = .active(turnID)
+      state.turnStartedAt = state.turnStartedAt ?? now()
     case .active, .completed:
       break
     }
@@ -585,6 +611,7 @@ nonisolated struct TerminalAgentStateStore {
     return TerminalAgentStatePresentation(
       agent: agent,
       sessionID: sessionID,
+      turnStartedAt: state.turnStartedAt,
       phase: phase,
       detail: detail,
       latestResponse: state.latestResponse,
@@ -653,6 +680,7 @@ nonisolated struct TerminalAgentStateStore {
         surfaceID: surfaceID,
         processes: state.processes,
         turnLifecycle: state.turnLifecycle,
+        turnStartedAt: state.turnStartedAt,
         phase: state.phase,
         detail: state.detail,
         attentionRequestID: state.attentionRequestID,
@@ -677,6 +705,9 @@ nonisolated struct TerminalAgentStateStore {
   mutating func restore(_ snapshots: [TerminalAgentStateSnapshot]) {
     for snapshot in snapshots {
       let key = SessionKey(agent: snapshot.agent, sessionID: snapshot.sessionID)
+      let turnStartedAt =
+        snapshot.turnStartedAt
+        ?? (snapshot.phase != .idle || !snapshot.activeChildren.isEmpty ? now() : nil)
       sessions[key] = SessionState(
         activeChildren: Dictionary(
           uniqueKeysWithValues: snapshot.activeChildren.map {
@@ -694,6 +725,7 @@ nonisolated struct TerminalAgentStateStore {
         revision: snapshot.revision,
         surfaceID: snapshot.surfaceID,
         turnLifecycle: snapshot.turnLifecycle,
+        turnStartedAt: turnStartedAt,
         workingDirectoryPath: snapshot.workingDirectoryPath
       )
       if snapshot.isForeground {

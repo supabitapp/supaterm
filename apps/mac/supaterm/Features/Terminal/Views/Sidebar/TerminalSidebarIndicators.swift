@@ -1,3 +1,4 @@
+import Foundation
 import SupaTheme
 import SwiftUI
 
@@ -73,6 +74,7 @@ struct TerminalSidebarProgressIndicatorView: View {
 
 struct TerminalSidebarAgentStatusView: View {
   let status: TerminalHostState.TabAgentStatus
+  let workingStartedAt: Date?
   let showsText: Bool
   let palette: Palette
 
@@ -84,7 +86,7 @@ struct TerminalSidebarAgentStatusView: View {
       indicator
 
       if showsText {
-        Text(label)
+        label
           .font(.system(size: 10, weight: .semibold))
           .terminalTransition(.opacity, reduceMotion: reduceMotion)
       }
@@ -131,14 +133,20 @@ struct TerminalSidebarAgentStatusView: View {
     }
   }
 
-  private var label: String {
+  @ViewBuilder
+  private var label: some View {
     switch status {
     case .needsInput:
-      "Input"
+      Text("Input")
     case .working:
-      "Working"
+      HStack(spacing: 3) {
+        Text("Working")
+        if let workingStartedAt {
+          TerminalSidebarWorkingDurationView(startedAt: workingStartedAt)
+        }
+      }
     case .done:
-      "Done"
+      Text("Done")
     }
   }
 
@@ -192,6 +200,18 @@ struct TerminalSidebarAgentStatusView: View {
 
   private var verticalOffset: CGFloat {
     status == .needsInput && isAnimating ? -1 : 0
+  }
+}
+
+private struct TerminalSidebarWorkingDurationView: View {
+  let startedAt: Date
+
+  var body: some View {
+    TimelineView(.periodic(from: .now, by: 1)) { context in
+      Text(terminalCompactDurationText(from: startedAt, to: context.date))
+    }
+    .monospacedDigit()
+    .accessibilityHidden(true)
   }
 }
 

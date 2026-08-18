@@ -25,6 +25,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentStatus: TerminalHostState.TabAgentStatus?
+  let agentWorkingStartedAt: Date?
   let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
 
@@ -95,6 +96,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
     agentStatus: TerminalHostState.TabAgentStatus? = nil,
+    agentWorkingStartedAt: Date? = nil,
     hasTerminalBell: Bool = false,
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
@@ -107,6 +109,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
     self.agentStatus = agentStatus
+    self.agentWorkingStartedAt = agentWorkingStartedAt
     self.hasTerminalBell = hasTerminalBell
     self.terminalProgress = terminalProgress
   }
@@ -179,7 +182,8 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac"),
         cwd("docs")
       ),
-      agentStatus: .working
+      agentStatus: .working,
+      agentWorkingStartedAt: .now.addingTimeInterval(-300)
     ),
     TerminalSidebarTabPreviewItem(
       section: .codingAgents,
@@ -268,6 +272,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       agentStatus: item.agentStatus,
+      agentWorkingStartedAt: item.agentWorkingStartedAt,
       hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
       shortcutHint: nil,

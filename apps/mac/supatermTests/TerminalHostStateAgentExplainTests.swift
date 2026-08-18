@@ -448,6 +448,7 @@ struct TerminalHostStateAgentExplainTests {
       surfaceID: surfaceID,
       processes: [],
       turnLifecycle: .active(nil),
+      turnStartedAt: nil,
       phase: .needsInput,
       detail: nil,
       attentionRequestID: nil,

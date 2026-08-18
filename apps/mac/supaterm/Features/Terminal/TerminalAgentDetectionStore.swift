@@ -15,6 +15,25 @@ nonisolated struct TerminalAgentDetectionObservation: Equatable, Sendable {
   let ruleID: String
   let generation: UInt64
   let sequence: UInt64
+  let turnStartedAt: Date?
+
+  init(
+    agent: AgentDetectionAgentIdentity,
+    phase: AgentActivityPhase,
+    processIdentity: TerminalAgentProcessIdentity,
+    ruleID: String,
+    generation: UInt64,
+    sequence: UInt64,
+    turnStartedAt: Date? = nil
+  ) {
+    self.agent = agent
+    self.phase = phase
+    self.processIdentity = processIdentity
+    self.ruleID = ruleID
+    self.generation = generation
+    self.sequence = sequence
+    self.turnStartedAt = turnStartedAt
+  }
 }
 
 nonisolated struct TerminalAgentDetectionNativeCandidate: Equatable, Sendable {

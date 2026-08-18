@@ -49,6 +49,7 @@ struct TerminalSidebarTabRow: View {
 
   private struct AnimatedPresentation: Equatable {
     let agentStatus: TerminalHostState.TabAgentStatus?
+    let agentWorkingStartedAt: Date?
     let hasTerminalBell: Bool
     let paneWorkingDirectories: [String]
     let terminalProgress: TerminalSidebarTerminalProgress?
@@ -56,6 +57,7 @@ struct TerminalSidebarTabRow: View {
 
     static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.agentStatus == rhs.agentStatus
+        && lhs.agentWorkingStartedAt == rhs.agentWorkingStartedAt
         && lhs.hasTerminalBell == rhs.hasTerminalBell
         && lhs.paneWorkingDirectories == rhs.paneWorkingDirectories
         && lhs.terminalProgress == rhs.terminalProgress
@@ -167,6 +169,7 @@ struct TerminalSidebarTabRow: View {
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       agentStatus: agentPresentation.status,
+      agentWorkingStartedAt: agentPresentation.workingStartedAt,
       hasTerminalBell: hasTerminalBell,
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
@@ -382,6 +385,7 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
       agentStatus: agentPresentation.status,
+      agentWorkingStartedAt: agentPresentation.workingStartedAt,
       hasTerminalBell: hasTerminalBell,
       paneWorkingDirectories: paneWorkingDirectories,
       terminalProgress: terminalProgress,

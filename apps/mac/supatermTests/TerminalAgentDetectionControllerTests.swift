@@ -337,6 +337,47 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func workingDurationTracksOneContinuousDetectedTurn() async throws {
+    let firstStart = Date(timeIntervalSinceReferenceDate: 10_000)
+    var currentDate = firstStart
+    let fixture = makeFixture(now: { currentDate })
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+    let tickStart = ContinuousClock.now
+
+    await fixture.controller.tick(now: tickStart)
+    #expect(fixture.host.observations[surfaceID]?.turnStartedAt == firstStart)
+
+    currentDate = firstStart.addingTimeInterval(300)
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .needsInput, ruleID: "attention")
+    )
+    await fixture.controller.tick(now: tickStart.advanced(by: .milliseconds(300)))
+    #expect(fixture.host.observations[surfaceID]?.turnStartedAt == firstStart)
+
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .idle, ruleID: "idle")
+    )
+    for milliseconds in [600, 700, 800, 900] {
+      await fixture.controller.tick(
+        now: tickStart.advanced(by: .milliseconds(milliseconds))
+      )
+    }
+    #expect(fixture.host.observations[surfaceID]?.phase == .idle)
+    #expect(fixture.host.observations[surfaceID]?.turnStartedAt == nil)
+
+    let secondStart = firstStart.addingTimeInterval(600)
+    currentDate = secondStart
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .running, ruleID: "running")
+    )
+    await fixture.controller.tick(now: tickStart.advanced(by: .milliseconds(1_200)))
+    #expect(fixture.host.observations[surfaceID]?.turnStartedAt == secondStart)
+  }
+
+  @Test
   func explanationAndDedupeReadTheCanonicalHostObservation() async throws {
     let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(processGroupID: 11)
@@ -535,7 +576,8 @@ struct TerminalAgentDetectionControllerTests {
 
   private func makeFixture(
     matchGate: DetectionGate? = nil,
-    evaluationGate: DetectionGate? = nil
+    evaluationGate: DetectionGate? = nil,
+    now: @escaping () -> Date = Date.init
   ) -> DetectionControllerFixture {
     let host = DetectionHostFixture()
     let rules = DetectionRulesFixture(gate: evaluationGate)
@@ -544,14 +586,15 @@ struct TerminalAgentDetectionControllerTests {
       host: host,
       rules: rules,
       sampler: sampler,
-      controller: makeController(host: host, rules: rules, sampler: sampler)
+      controller: makeController(host: host, rules: rules, sampler: sampler, now: now)
     )
   }
 
   private func makeController(
     host: DetectionHostFixture,
     rules: DetectionRulesFixture,
-    sampler: DetectionSamplerFixture
+    sampler: DetectionSamplerFixture,
+    now: @escaping () -> Date = Date.init
   ) -> TerminalAgentDetectionController {
     TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
@@ -571,7 +614,8 @@ struct TerminalAgentDetectionControllerTests {
           await sampler.current(identities)
         }
       ),
-      host: host.access
+      host: host.access,
+      now: now
     )
   }
 

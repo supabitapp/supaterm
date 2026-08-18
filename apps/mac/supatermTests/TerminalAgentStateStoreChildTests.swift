@@ -508,6 +508,7 @@ extension TerminalAgentStateStoreTests {
         surfaceID: surfaceID,
         processes: [TerminalAgentProcessIdentity(processID: 7, startTimeMicroseconds: 7)],
         turnLifecycle: .completed(nil),
+        turnStartedAt: nil,
         phase: .idle,
         detail: nil,
         attentionRequestID: nil,
@@ -533,6 +534,7 @@ extension TerminalAgentStateStoreTests {
       )
     ])
     #expect(store.presentation(for: surfaceID, agent: .claude)?.phase == .running)
+    #expect(store.presentation(for: surfaceID, agent: .claude)?.turnStartedAt != nil)
 
     store.apply(
       event(
@@ -549,6 +551,7 @@ extension TerminalAgentStateStoreTests {
     let presentation = try #require(store.presentation(for: surfaceID, agent: .claude))
     #expect(presentation.activeChildren.isEmpty)
     #expect(presentation.phase == .idle)
+    #expect(presentation.turnStartedAt == nil)
   }
 
   @Test

@@ -754,6 +754,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
   let sessionID: String
   let processes: [TerminalAgentProcessIdentity]
   let turnLifecycle: TerminalAgentTurnLifecycle
+  let turnStartedAt: Date?
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
@@ -770,6 +771,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     sessionID: String,
     processes: [TerminalAgentProcessIdentity],
     turnLifecycle: TerminalAgentTurnLifecycle = .unseen,
+    turnStartedAt: Date? = nil,
     phase: AgentActivityPhase = .idle,
     detail: String? = nil,
     attentionRequestID: String? = nil,
@@ -785,6 +787,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     self.sessionID = sessionID
     self.processes = processes
     self.turnLifecycle = turnLifecycle
+    self.turnStartedAt = turnStartedAt
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
@@ -803,6 +806,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       sessionID: snapshot.sessionID,
       processes: Array(snapshot.processes),
       turnLifecycle: snapshot.turnLifecycle,
+      turnStartedAt: snapshot.turnStartedAt,
       phase: snapshot.phase,
       detail: snapshot.detail,
       attentionRequestID: snapshot.attentionRequestID,
@@ -826,6 +830,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       surfaceID: surfaceID,
       processes: processes,
       turnLifecycle: turnLifecycle,
+      turnStartedAt: turnStartedAt,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID,
@@ -851,6 +856,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       sessionID: sessionID,
       processes: processes,
       turnLifecycle: turnLifecycle,
+      turnStartedAt: turnStartedAt,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID,
