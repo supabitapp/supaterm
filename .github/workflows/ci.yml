@@ -2,7 +2,6 @@ name: ci
 
 on:
   workflow_call: {}
-  workflow_dispatch: {}
   merge_group:
     branches:
       - main
@@ -97,7 +96,7 @@ jobs:
     env:
       CODEX_BALANCER_API_KEY: ${{ secrets.CODEX_BALANCER_API_KEY }}
       CODEX_BALANCER_BASE_URL: ${{ secrets.CODEX_BALANCER_BASE_URL }}
-      SUPATERM_LIVE_CODEX_E2E: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && '1' || '0' }}
+      SUPATERM_LIVE_CODEX_E2E: ${{ (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && '1' || '0' }}
     steps:
       - name: Check live Codex secrets
         if: env.SUPATERM_LIVE_CODEX_E2E == '1'
