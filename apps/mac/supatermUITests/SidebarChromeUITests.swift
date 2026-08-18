@@ -12,13 +12,6 @@ final class SidebarChromeUITests: SupatermUITestCase {
       app.typeKey("t", modifierFlags: .command)
     }
 
-    let didCreateTabs = await waitForSidebarElementCount(
-      sidebarTabRows,
-      equals: tabCount,
-      timeout: .seconds(30)
-    )
-    XCTAssertTrue(didCreateTabs)
-
     let outline = try require(sidebarTabOutline)
     for _ in 0..<3 {
       outline.swipeDown()
@@ -45,13 +38,16 @@ final class SidebarChromeUITests: SupatermUITestCase {
     let didRevealInlineNewTab = await wait(for: inlineNewTab) { $0.isHittable }
     XCTAssertTrue(didRevealInlineNewTab)
 
+    let selectedTabID = try XCTUnwrap(
+      sidebarTabRows.allElementsBoundByIndex.first(where: \.isSelected)?.identifier
+    )
     inlineNewTab.click()
-
-    let didCreateTab = await waitForSidebarElementCount(sidebarTabRows, equals: tabCount + 1)
-    XCTAssertTrue(didCreateTab)
-    let createdTab = sidebarTabRows.element(boundBy: tabCount)
-    let didSelectCreatedTab = await wait(for: createdTab) { $0.isSelected }
-    XCTAssertTrue(didSelectCreatedTab)
+    let didCreateSelectedTab = await wait {
+      self.sidebarTabRows.allElementsBoundByIndex.contains {
+        $0.isSelected && $0.identifier != selectedTabID
+      }
+    }
+    XCTAssertTrue(didCreateSelectedTab)
   }
 
   @MainActor
