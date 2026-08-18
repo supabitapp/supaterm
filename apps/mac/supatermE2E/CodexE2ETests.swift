@@ -2,17 +2,14 @@ import Foundation
 import SupatermCLIShared
 import Testing
 
-private let liveCodexE2EEnabled = FileManager.default.fileExists(
-  atPath: CodexLiveEnvironment.configurationURL.path
-)
+private let codexE2EBinaryURL = ProcessInfo.processInfo.environment["CODEX_E2E_BINARY"]
+  .flatMap { path in path.isEmpty ? nil : URL(fileURLWithPath: path) }
+private let codexE2EEnabled =
+  codexE2EBinaryURL
+  .map { FileManager.default.isExecutableFile(atPath: $0.path) } ?? false
 
-@Suite(
-  .enabled(
-    if: liveCodexE2EEnabled,
-    "Run the live Codex tests through make mac-test-e2e."
-  )
-)
-struct CodexLiveE2ETests {
+@Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
+struct CodexE2ETests {
   @Test(.timeLimit(.minutes(5)))
   func screenRulesTrackEveryRootStateAndInterrupt() async throws {
     try await runCodexLifecycle(mode: .screenRules)
@@ -24,7 +21,7 @@ struct CodexLiveE2ETests {
   }
 }
 
-private enum CodexLiveMode {
+private enum CodexE2EMode {
   case hooks
   case screenRules
 
@@ -33,76 +30,57 @@ private enum CodexLiveMode {
   }
 }
 
-private struct CodexLiveEnvironment {
-  static let configurationURL = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent()
-    .deletingLastPathComponent()
-    .appendingPathComponent(".build/live-codex-e2e.json", isDirectory: false)
-
-  let apiKey: String
-  let baseURL: String
+private struct CodexE2EEnvironment {
   let executable: URL
 
   init() throws {
-    let data = try Data(contentsOf: Self.configurationURL)
-    let configuration = try JSONDecoder().decode(Configuration.self, from: data)
-    apiKey = try Self.decode(configuration.apiKey, name: "CODEX_BALANCER_API_KEY")
-    baseURL = try Self.decode(configuration.baseURL, name: "CODEX_BALANCER_BASE_URL")
-    let executablePath = try Self.decode(configuration.executable, name: "CODEX_E2E_BINARY")
-    executable = URL(fileURLWithPath: executablePath)
+    guard let executable = codexE2EBinaryURL else {
+      throw SupatermE2EError("Missing CODEX_E2E_BINARY.")
+    }
     guard FileManager.default.isExecutableFile(atPath: executable.path) else {
       throw SupatermE2EError("Codex is not executable at \(executable.path).")
     }
-  }
-
-  private static func decode(_ encoded: String, name: String) throws -> String {
-    guard let data = Data(base64Encoded: encoded),
-      let value = String(data: data, encoding: .utf8),
-      !value.isEmpty
-    else {
-      throw SupatermE2EError("Missing \(name).")
-    }
-    return value
-  }
-
-  private struct Configuration: Decodable {
-    let apiKey: String
-    let baseURL: String
-    let executable: String
+    self.executable = executable
   }
 }
 
-private final class CodexLiveFixture {
+private final class CodexE2EFixture {
   let app: SupatermE2EApp
-  let mode: CodexLiveMode
+  let mode: CodexE2EMode
+  let server: CodexFakeModelServer
   let space: TestSpace
   let initialProcess: SupatermAgentExplainResult.Process
   var sessionID: String?
 
   private init(
     app: SupatermE2EApp,
-    mode: CodexLiveMode,
+    mode: CodexE2EMode,
+    server: CodexFakeModelServer,
     space: TestSpace,
     initialProcess: SupatermAgentExplainResult.Process,
     sessionID: String?
   ) {
     self.app = app
     self.mode = mode
+    self.server = server
     self.space = space
     self.initialProcess = initialProcess
     self.sessionID = sessionID
   }
 
-  static func launch(mode: CodexLiveMode) async throws -> CodexLiveFixture {
-    let environment = try CodexLiveEnvironment()
+  static func launch(mode: CodexE2EMode) async throws -> CodexE2EFixture {
+    let environment = try CodexE2EEnvironment()
     let app = try await SupatermE2EApp.launch(
-      environment: ["CODEX_BALANCER_API_KEY": environment.apiKey],
+      environment: ["CODEX_E2E_API_KEY": "test"],
       pathDirectories: [environment.executable.deletingLastPathComponent()]
     )
+    var server: CodexFakeModelServer?
     do {
       let space = try await makeTestSpace(app)
+      let startedServer = try CodexFakeModelServer(script: makeCodexScript(space))
+      server = startedServer
       try writeConfig(
-        baseURL: environment.baseURL,
+        baseURL: startedServer.baseURL,
         hooksEnabled: mode.hooksEnabled,
         home: app.cliHome,
         workspace: space.directory
@@ -140,14 +118,16 @@ private final class CodexLiveFixture {
       if !mode.hooksEnabled {
         #expect(try app.debugPane(space.tab.paneID)?.agent == nil)
       }
-      return CodexLiveFixture(
+      return CodexE2EFixture(
         app: app,
         mode: mode,
+        server: startedServer,
         space: space,
         initialProcess: initialProcess,
         sessionID: sessionID
       )
     } catch {
+      server?.stop()
       app.terminate()
       throw error
     }
@@ -156,6 +136,7 @@ private final class CodexLiveFixture {
   func close() {
     try? closeTestSpace(app, spaceID: space.spaceID)
     app.terminate()
+    server.stop()
   }
 
   func expect(
@@ -198,7 +179,7 @@ private final class CodexLiveFixture {
     let config = """
       approval_policy = "untrusted"
       model = "gpt-5.6-luna"
-      model_provider = "balancer"
+      model_provider = "e2e"
       model_reasoning_effort = "low"
       model_verbosity = "low"
       sandbox_mode = "read-only"
@@ -220,15 +201,14 @@ private final class CodexLiveFixture {
       [feedback]
       enabled = false
 
-      [model_providers.balancer]
+      [model_providers.e2e]
       base_url = \(tomlString(baseURL))
-      env_key = "CODEX_BALANCER_API_KEY"
-      name = "OpenAI"
-      request_max_retries = 100
-      stream_idle_timeout_ms = 900000
-      stream_max_retries = 100
-      supports_websockets = true
-      websocket_connect_timeout_ms = 60000
+      env_key = "CODEX_E2E_API_KEY"
+      name = "E2E"
+      request_max_retries = 0
+      stream_idle_timeout_ms = 5000
+      stream_max_retries = 0
+      supports_websockets = false
 
       [projects.\(tomlString(workspace.path))]
       trust_level = "trusted"
@@ -265,21 +245,21 @@ private func installCodexHooks(
   }
 }
 
-private func runCodexLifecycle(mode: CodexLiveMode) async throws {
-  let fixture = try await CodexLiveFixture.launch(mode: mode)
+private func runCodexLifecycle(mode: CodexE2EMode) async throws {
+  let fixture = try await CodexE2EFixture.launch(mode: mode)
   defer { fixture.close() }
 
   try await runCompletedTurn(fixture)
   try await runInterruptedTurn(fixture, key: .escape, name: "escape")
   try await runInterruptedTurn(fixture, key: .ctrlC, name: "ctrl-c")
+  try fixture.server.verifyComplete()
 }
 
-private func runCompletedTurn(_ fixture: CodexLiveFixture) async throws {
-  let token = fixture.space.token
-  let question = "Proceed with lifecycle check \(token)?"
-  let completion = "LIFECYCLE_DONE_\(token)"
-  let marker = fixture.space.directory.appendingPathComponent("lifecycle-\(token)")
-  let command = SupatermShellCommand.escapedCommand(["/usr/bin/touch", marker.path])
+private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
+  let question = lifecycleQuestion(fixture.space)
+  let completion = lifecycleCompletion(fixture.space)
+  let marker = lifecycleMarker(fixture.space)
+  let command = lifecycleCommand(fixture.space)
   let prompt = [
     "First call request_user_input with one question.",
     "Use header \"E2E\", question \"\(question)\", and two options named \"Proceed\" and \"Stop\".",
@@ -293,12 +273,9 @@ private func runCompletedTurn(_ fixture: CodexLiveFixture) async throws {
   try await fixture.app.waitForCapture(fixture.space.pane, contains: question, timeout: 90)
   try await fixture.expect(.needsInput)
   try fixture.approve()
-  try await waitForCommandApproval(fixture, marker: marker.lastPathComponent)
+  try await waitForCommandApproval(fixture, marker: marker)
   try await fixture.expect(.needsInput)
   try fixture.approve()
-  try await fixture.app.waitUntil("the approved lifecycle command runs", timeout: 60) {
-    FileManager.default.fileExists(atPath: marker.path)
-  }
   try await fixture.app.waitForCapture(fixture.space.pane, contains: completion, timeout: 90)
   try await fixture.expect(.idle)
 
@@ -312,16 +289,12 @@ private func runCompletedTurn(_ fixture: CodexLiveFixture) async throws {
 }
 
 private func runInterruptedTurn(
-  _ fixture: CodexLiveFixture,
+  _ fixture: CodexE2EFixture,
   key: SupatermInputKey,
   name: String
 ) async throws {
-  let marker = "\(name)-running-\(fixture.space.token)"
-  let command = SupatermShellCommand.escapedCommand([
-    "/bin/sh",
-    "-c",
-    "/bin/echo \(SupatermShellCommand.escapedToken(marker)) >/dev/null; /bin/sleep 30",
-  ])
+  let marker = interruptedMarker(fixture.space, name: name)
+  let command = interruptedCommand(fixture.space, name: name)
   let prompt =
     "Use the shell tool once to run exactly `\(command)`. Do not do anything else until it finishes."
 
@@ -329,15 +302,22 @@ private func runInterruptedTurn(
   try await fixture.expect(.running)
   try await waitForCommandApproval(fixture, marker: marker)
   try await fixture.expect(.needsInput)
+  let workingCount = try fixture.app.capture(fixture.space.pane)
+    .components(separatedBy: "esc to interrupt").count
   try fixture.approve()
   try await fixture.expect(.running)
+  try await fixture.app.waitUntil("Codex starts the \(name) command", timeout: 10) {
+    try fixture.app.capture(fixture.space.pane)
+      .components(separatedBy: "esc to interrupt").count > workingCount
+  }
+  let interruptionCount = try fixture.app.capture(fixture.space.pane)
+    .components(separatedBy: "Conversation interrupted").count
   try fixture.app.press(key, in: fixture.space.pane)
-  try await fixture.expect(.idle)
-  try await fixture.app.waitForCapture(
-    fixture.space.pane,
-    contains: "Conversation interrupted",
-    timeout: 60
-  )
+  try await fixture.app.waitUntil("Codex records the \(name) interruption", timeout: 10) {
+    try fixture.app.capture(fixture.space.pane)
+      .components(separatedBy: "Conversation interrupted").count > interruptionCount
+  }
+  try await fixture.expect(.idle, timeout: 10)
 }
 
 private func waitForAgentExplain(
@@ -366,19 +346,98 @@ private func waitForAgentExplain(
 }
 
 private func waitForCommandApproval(
-  _ fixture: CodexLiveFixture,
+  _ fixture: CodexE2EFixture,
   marker: String
 ) async throws {
   var lastCapture = ""
   do {
-    try await fixture.app.waitUntil("the current command approval is ready", timeout: 90) {
+    try await fixture.app.waitUntil("the current command approval is ready", timeout: 20) {
       lastCapture = try fixture.app.capture(fixture.space.pane)
-        .replacingOccurrences(of: "\n", with: "")
-      return lastCapture.components(separatedBy: marker).count >= 3
+      return lastCapture.contains(marker)
+        && lastCapture.contains("Would you like to run the following command?")
     }
   } catch {
     throw SupatermE2EError("\(error)\n--- pane capture ---\n\(lastCapture)")
   }
+}
+
+private enum CodexFakeCallID {
+  static let lifecycleCommand = "lifecycle-command"
+  static let lifecycleQuestion = "lifecycle-question"
+  static let escapeCommand = "escape-command"
+  static let ctrlCCommand = "ctrl-c-command"
+}
+
+private func makeCodexScript(_ space: TestSpace) -> [CodexFakeExchange] {
+  [
+    CodexFakeExchange(
+      request: .inputText(lifecycleQuestion(space)),
+      response: .requestUserInput(
+        callID: CodexFakeCallID.lifecycleQuestion,
+        question: lifecycleQuestion(space)
+      ),
+      responseDelay: 1
+    ),
+    CodexFakeExchange(
+      request: .functionOutput(callID: CodexFakeCallID.lifecycleQuestion),
+      response: .shellCommand(
+        callID: CodexFakeCallID.lifecycleCommand,
+        command: lifecycleCommand(space)
+      )
+    ),
+    CodexFakeExchange(
+      request: .functionOutput(callID: CodexFakeCallID.lifecycleCommand),
+      response: .message(lifecycleCompletion(space))
+    ),
+    CodexFakeExchange(
+      request: .inputText(interruptedMarker(space, name: "escape")),
+      response: .shellCommand(
+        callID: CodexFakeCallID.escapeCommand,
+        command: interruptedCommand(space, name: "escape")
+      ),
+      responseDelay: 1
+    ),
+    CodexFakeExchange(
+      request: .inputText(interruptedMarker(space, name: "ctrl-c")),
+      response: .shellCommand(
+        callID: CodexFakeCallID.ctrlCCommand,
+        command: interruptedCommand(space, name: "ctrl-c")
+      ),
+      responseDelay: 1
+    ),
+  ]
+}
+
+private func lifecycleQuestion(_ space: TestSpace) -> String {
+  "Proceed with lifecycle check \(space.token)?"
+}
+
+private func lifecycleCompletion(_ space: TestSpace) -> String {
+  "LIFECYCLE_DONE_\(space.token)"
+}
+
+private func lifecycleMarker(_ space: TestSpace) -> String {
+  "lifecycle-\(space.token)"
+}
+
+private func lifecycleCommand(_ space: TestSpace) -> String {
+  SupatermShellCommand.escapedCommand([
+    "/bin/sh",
+    "-c",
+    "/bin/sleep 0.1; /usr/bin/true \(lifecycleMarker(space))",
+  ])
+}
+
+private func interruptedMarker(_ space: TestSpace, name: String) -> String {
+  "\(name)-running-\(space.token)"
+}
+
+private func interruptedCommand(_ space: TestSpace, name: String) -> String {
+  SupatermShellCommand.escapedCommand([
+    "/bin/sh",
+    "-c",
+    "/usr/bin/true \(interruptedMarker(space, name: name)); /bin/sleep 30",
+  ])
 }
 
 private func tomlString(_ value: String) -> String {

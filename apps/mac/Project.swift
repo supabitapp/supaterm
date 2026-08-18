@@ -841,6 +841,9 @@ let project = Project(
             parallelization: .swiftTestingOnly
           ),
         ],
+        arguments: .arguments(
+          environmentVariables: ["CODEX_E2E_BINARY": "$(CODEX_E2E_BINARY)"]
+        ),
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm")
       ),
