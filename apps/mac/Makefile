@@ -29,6 +29,7 @@ TUIST_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
+E2E_LIVE_CONFIG_PATH := $(CURRENT_MAKEFILE_DIR)/.build/live-codex-e2e.json
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 APP_RUN_ENV := SUPATERM_VERBOSE_LOGGING=1
 RUN_STATE_ROOT := $(CURRENT_MAKEFILE_DIR)/.build/run-state
@@ -182,10 +183,26 @@ test-e2e: tuist-generate build-ghostty build-zmx build-ap test-e2e-xcodebuild # 
 
 test-e2e-xcodebuild:
 	@if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(E2E_RESULT_BUNDLE_PATH)"; fi
-	@if [ -t 1 ]; then \
-		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'; \
+	@live_config=""; \
+	trap 'if [ -n "$$live_config" ]; then rm -f "$$live_config"; fi' EXIT; \
+	if [ "$${SUPATERM_LIVE_CODEX_E2E:-0}" = "1" ]; then \
+		test -n "$${CODEX_BALANCER_API_KEY:-}"; \
+		test -n "$${CODEX_BALANCER_BASE_URL:-}"; \
+		codex_binary="$${CODEX_E2E_BINARY:-$$(mise which codex)}"; \
+		test -x "$$codex_binary"; \
+		live_config="$(E2E_LIVE_CONFIG_PATH)"; \
+		test ! -e "$$live_config"; \
+		umask 077; \
+		printf '{"apiKey":"%s","baseURL":"%s","executable":"%s"}\n' \
+			"$$(printf '%s' "$$CODEX_BALANCER_API_KEY" | base64 | tr -d '\n')" \
+			"$$(printf '%s' "$$CODEX_BALANCER_BASE_URL" | base64 | tr -d '\n')" \
+			"$$(printf '%s' "$$codex_binary" | base64 | tr -d '\n')" \
+			> "$$live_config"; \
+	fi; \
+	if [ -t 1 ]; then \
+		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging; \
 	else \
-		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
+		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
 	fi
 
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.

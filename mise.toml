@@ -1,5 +1,6 @@
 [tools]
 hk = "1.55.0"
+codex = "0.147.0"
 zig = "0.16.0"
 rust = "1.97.1"
 tuist = "4.204.0-canary.6"

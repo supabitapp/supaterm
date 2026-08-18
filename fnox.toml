@@ -7,6 +7,8 @@ onepass = { type = "1password", vault = "Supaterm", account = "my.1password.com"
 [secrets]
 CLOUDFLARE_ACCOUNT_ID = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/CLOUDFLARE_ACCOUNT_ID" }
 CLOUDFLARE_API_TOKEN = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/CLOUDFLARE_API_TOKEN" }
+CODEX_BALANCER_API_KEY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/CODEX_BALANCER_API_KEY" }
+CODEX_BALANCER_BASE_URL = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/CODEX_BALANCER_BASE_URL" }
 POSTHOG_CLI_API_KEY = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/POSTHOG_CLI_API_KEY" }
 POSTHOG_CLI_PROJECT_ID = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/POSTHOG_CLI_PROJECT_ID" }
 TUIST_TOKEN = { provider = "onepass", value = "op://Supaterm/Supaterm Environment/TUIST_TOKEN" }

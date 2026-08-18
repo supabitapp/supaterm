@@ -27,11 +27,17 @@ final class SupatermE2EApp: @unchecked Sendable {
 
   static func launch(
     shadowsBundledCLIAtShellStartup: Bool = false,
-    zmxSessionsEnabled: Bool = false
+    zmxSessionsEnabled: Bool = false,
+    inheritedEnvironmentKeys: Set<String> = [],
+    environment: [String: String] = [:],
+    pathDirectories: [URL] = []
   ) async throws -> SupatermE2EApp {
     let app = try SupatermE2EApp(
       shadowsBundledCLIAtShellStartup: shadowsBundledCLIAtShellStartup,
-      zmxSessionsEnabled: zmxSessionsEnabled
+      zmxSessionsEnabled: zmxSessionsEnabled,
+      inheritedEnvironmentKeys: inheritedEnvironmentKeys,
+      explicitEnvironment: environment,
+      pathDirectories: pathDirectories
     )
     try await app.waitUntil("the app socket accepts ping", timeout: 90) {
       (try? app.client.send(.ping()))?.ok == true
@@ -39,7 +45,13 @@ final class SupatermE2EApp: @unchecked Sendable {
     return app
   }
 
-  private init(shadowsBundledCLIAtShellStartup: Bool, zmxSessionsEnabled: Bool) throws {
+  private init(
+    shadowsBundledCLIAtShellStartup: Bool,
+    zmxSessionsEnabled: Bool,
+    inheritedEnvironmentKeys: Set<String>,
+    explicitEnvironment: [String: String],
+    pathDirectories: [URL]
+  ) throws {
     executable = Self.productsDirectory
       .appendingPathComponent("supaterm.app/Contents/MacOS/supaterm")
     guard FileManager.default.isExecutableFile(atPath: executable.path) else {
@@ -73,10 +85,13 @@ final class SupatermE2EApp: @unchecked Sendable {
     }
     FileManager.default.createFile(atPath: logURL.path, contents: nil)
 
+    let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+    let path = (pathDirectories.map(\.path) + [executable.deletingLastPathComponent().path, systemPath])
+      .joined(separator: ":")
     var environment = [
       "HOME": cliHome.path,
       "LOGNAME": NSUserName(),
-      "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+      "PATH": path,
       "SHELL": shellPath,
       "SUPATERM_TEST_MODE": "1",
       "SUPATERM_VERBOSE_LOGGING": "1",
@@ -86,7 +101,15 @@ final class SupatermE2EApp: @unchecked Sendable {
       ZmxEnvironment.directoryKey: workspace.zmxDirectory.path,
       SupatermCLIEnvironment.instanceNameKey: instanceName,
       SupatermCLIEnvironment.stateHomeKey: stateHome.path,
+      SupatermCLIEnvironment.testHomeKey: cliHome.path,
     ]
+    let processEnvironment = ProcessInfo.processInfo.environment
+    for key in inheritedEnvironmentKeys {
+      if let value = processEnvironment[key] {
+        environment[key] = value
+      }
+    }
+    environment.merge(explicitEnvironment) { _, explicit in explicit }
     if zmxSessionsEnabled {
       environment[ZmxEnvironment.enabledKey] = "1"
     } else {
@@ -214,6 +237,10 @@ final class SupatermE2EApp: @unchecked Sendable {
     try send(.debug(SupatermDebugRequest()), as: SupatermAppDebugSnapshot.self)
   }
 
+  func agentExplain(_ target: SupatermPaneTargetRequest) throws -> SupatermAgentExplainResult {
+    try send(.agentExplain(target), as: SupatermAgentExplainResult.self)
+  }
+
   func debugTab(_ tabID: UUID) throws -> SupatermAppDebugSnapshot.Tab? {
     try debugSnapshot()
       .windows
@@ -254,6 +281,13 @@ final class SupatermE2EApp: @unchecked Sendable {
   func type(_ text: String, into target: SupatermPaneTargetRequest) throws {
     _ = try send(
       .sendText(SupatermSendTextRequest(target: target, text: text)),
+      as: SupatermSendTextResult.self
+    )
+  }
+
+  func submit(_ text: String, into target: SupatermPaneTargetRequest) throws {
+    _ = try send(
+      .sendText(SupatermSendTextRequest(mode: .submit, target: target, text: text)),
       as: SupatermSendTextResult.self
     )
   }
@@ -313,11 +347,12 @@ final class SupatermE2EApp: @unchecked Sendable {
 
   func waitForCapture(
     _ target: SupatermPaneTargetRequest,
-    contains marker: String
+    contains marker: String,
+    timeout: TimeInterval = 30
   ) async throws {
     var lastText = ""
     do {
-      try await waitUntil("the pane text contains '\(marker)'") {
+      try await waitUntil("the pane text contains '\(marker)'", timeout: timeout) {
         lastText = (try? capture(target)) ?? lastText
         return lastText.replacingOccurrences(of: "\n", with: "").contains(marker)
       }

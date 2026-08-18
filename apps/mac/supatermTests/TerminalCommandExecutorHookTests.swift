@@ -8,6 +8,28 @@ import Testing
 @MainActor
 struct TerminalCommandExecutorHookTests {
   @Test
+  func liveInstallerUsesIsolatedHomeOnlyInTestMode() {
+    let defaultHome = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
+    let isolatedHome = URL(fileURLWithPath: "/tmp/supaterm-e2e-home", isDirectory: true)
+
+    #expect(
+      CodingAgentHookInstaller.homeDirectoryURL(
+        environment: [
+          "SUPATERM_TEST_MODE": "1",
+          SupatermCLIEnvironment.testHomeKey: isolatedHome.path,
+        ],
+        defaultHomeDirectoryURL: defaultHome
+      ) == isolatedHome
+    )
+    #expect(
+      CodingAgentHookInstaller.homeDirectoryURL(
+        environment: [SupatermCLIEnvironment.testHomeKey: isolatedHome.path],
+        defaultHomeDirectoryURL: defaultHome
+      ) == defaultHome
+    )
+  }
+
+  @Test
   func installWritesManagedClaudeHooksAndReportsHealth() async throws {
     let homeDirectoryURL = try temporaryHookHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

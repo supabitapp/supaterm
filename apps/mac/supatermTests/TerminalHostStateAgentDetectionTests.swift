@@ -281,7 +281,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func terminalIdleOverridesCodexHookRunning() throws {
+  func terminalPhasesOverrideCodexHookPhaseInDebugSnapshot() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let tabID = fixture.tabID
@@ -297,15 +297,33 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(appliedNative)
     #expect(host.tabAgentPresentation(for: tabID).status == .working)
 
-    let appliedDetection = host.applyAgentDetection(
-      observation(processIdentity: identity, phase: .idle),
-      for: surfaceID
-    )
+    let phases: [(AgentActivityPhase, SupatermAppDebugSnapshot.AgentPhase)] = [
+      (.idle, .idle),
+      (.running, .running),
+      (.needsInput, .needsInput),
+    ]
+    for (offset, phase) in phases.enumerated() {
+      let appliedDetection = host.applyAgentDetection(
+        observation(
+          processIdentity: identity,
+          phase: phase.0,
+          sequence: UInt64(offset + 1)
+        ),
+        for: surfaceID
+      )
 
-    #expect(appliedDetection)
-    #expect(host.agentActivity(for: tabID) == .codex(.idle, detail: "Native detail"))
-    #expect(host.tabAgentPresentation(for: tabID).status == nil)
-    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
+      #expect(appliedDetection)
+      #expect(host.agentActivity(for: tabID)?.phase == phase.0)
+      #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
+      #expect(
+        host.debugAgentSnapshot(for: surfaceID)
+          == SupatermAppDebugSnapshot.Agent(
+            kind: .codex,
+            sessionID: "native-session",
+            phase: phase.1
+          )
+      )
+    }
   }
 
   @Test

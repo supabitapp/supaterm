@@ -836,7 +836,10 @@ let project = Project(
       ),
       testAction: .targets(
         [
-          .testableTarget(target: .target("supatermE2E")),
+          .testableTarget(
+            target: .target("supatermE2E"),
+            parallelization: .swiftTestingOnly
+          ),
         ],
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm")
