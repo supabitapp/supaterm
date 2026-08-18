@@ -23,6 +23,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let title: String
   let isSelected: Bool
   let paneWorkingDirectories: [String]
+  let agentWorkspaces: [TerminalTabAgentWorkspace]
   let unreadCount: Int
   let agentStatus: TerminalHostState.TabAgentStatus?
   let hasTerminalBell: Bool
@@ -37,6 +38,13 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       id: tabID,
       title: title,
       isDirty: section == .terminalProgress
+    )
+  }
+
+  var details: [TerminalSidebarTabDetail] {
+    TerminalSidebarTabDetail.resolve(
+      agentWorkspaces: agentWorkspaces,
+      paneWorkingDirectories: paneWorkingDirectories
     )
   }
 
@@ -93,6 +101,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     id: String,
     isSelected: Bool = false,
     paneWorkingDirectories: [String] = [],
+    agentWorkspaces: [TerminalTabAgentWorkspace] = [],
     unreadCount: Int = 0,
     agentStatus: TerminalHostState.TabAgentStatus? = nil,
     hasTerminalBell: Bool = false,
@@ -105,6 +114,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.title = title
     self.isSelected = isSelected
     self.paneWorkingDirectories = paneWorkingDirectories
+    self.agentWorkspaces = agentWorkspaces
     self.unreadCount = unreadCount
     self.agentStatus = agentStatus
     self.hasTerminalBell = hasTerminalBell
@@ -179,6 +189,21 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac"),
         cwd("docs")
       ),
+      agentWorkspaces: [
+        workspace(
+          path: cwd("apps", "mac"),
+          branch: "feature/sidebar-agent-context",
+          added: 42,
+          removed: 7,
+          pullRequestNumber: 128
+        ),
+        workspace(
+          path: cwd("docs"),
+          branch: "docs/agent-tabs",
+          added: 8,
+          removed: 2
+        ),
+      ],
       agentStatus: .working
     ),
     TerminalSidebarTabPreviewItem(
@@ -190,6 +215,15 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "supaterm.com"),
         cwd("docs")
       ),
+      agentWorkspaces: [
+        workspace(
+          path: cwd("apps", "supaterm.com"),
+          branch: "release/sidebar-copy",
+          added: 14,
+          removed: 3,
+          pullRequestNumber: 131
+        )
+      ],
       agentStatus: .needsInput
     ),
     TerminalSidebarTabPreviewItem(
@@ -198,6 +232,15 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Docs audit",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
       paneWorkingDirectories: cwdList(cwd("docs")),
+      agentWorkspaces: [
+        workspace(
+          path: cwd("docs"),
+          branch: "docs/sidebar-agent-context",
+          added: 6,
+          removed: 1,
+          pullRequestNumber: 132
+        )
+      ],
       agentStatus: .done
     ),
     TerminalSidebarTabPreviewItem(
@@ -253,6 +296,36 @@ private enum TerminalSidebarTabPreviewFixtures {
   private static func cwdList(_ values: String...) -> [String] {
     values
   }
+
+  private static func workspace(
+    path: String,
+    branch: String,
+    added: Int,
+    removed: Int,
+    pullRequestNumber: Int? = nil
+  ) -> TerminalTabAgentWorkspace {
+    let pullRequestStatus =
+      pullRequestNumber.map {
+        PaneAgentPullRequestStatus(
+          kind: .open,
+          title: "#\($0)",
+          url: URL(string: "https://github.com/supabitapp/supaterm/pull/\($0)"),
+          addedLineCount: added,
+          removedLineCount: removed,
+          checks: nil
+        )
+      } ?? .unavailable
+    return TerminalTabAgentWorkspace(
+      workingDirectoryPath: path,
+      branchDetails: PaneAgentBranchDetails(
+        repositoryRootPath: cwd(),
+        branchName: branch,
+        addedLineCount: added,
+        removedLineCount: removed,
+        pullRequestStatus: pullRequestStatus
+      )
+    )
+  }
 }
 
 private struct TerminalSidebarTabPreviewRow: View {
@@ -265,7 +338,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       palette: palette,
       isSelected: item.isSelected,
       isPinned: false,
-      paneWorkingDirectories: item.paneWorkingDirectories,
+      details: item.details,
       unreadCount: item.unreadCount,
       agentStatus: item.agentStatus,
       hasTerminalBell: item.hasTerminalBell,

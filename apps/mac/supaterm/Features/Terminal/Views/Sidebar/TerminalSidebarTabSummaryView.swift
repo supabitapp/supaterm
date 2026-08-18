@@ -14,7 +14,7 @@ struct TerminalSidebarTabSummaryView: View {
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
-  let paneWorkingDirectories: [String]
+  let details: [TerminalSidebarTabDetail]
   let unreadCount: Int
   let agentStatus: TerminalHostState.TabAgentStatus?
   let hasTerminalBell: Bool
@@ -82,10 +82,10 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   static func helpText(
-    paneWorkingDirectories: [String]
+    details: [TerminalSidebarTabDetail]
   ) -> String? {
-    guard !paneWorkingDirectories.isEmpty else { return nil }
-    return paneWorkingDirectories.joined(separator: "\n")
+    guard !details.isEmpty else { return nil }
+    return details.map(\.helpText).joined(separator: "\n")
   }
 
   var body: some View {
@@ -118,17 +118,12 @@ struct TerminalSidebarTabSummaryView: View {
       }
       .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
 
-      ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
-        Text(workingDirectory)
-          .font(.system(size: 11, weight: .regular, design: .monospaced))
-          .foregroundStyle(
-            isSelected
-              ? palette.selectedSecondaryText
-              : palette.secondaryText
-          )
-          .lineLimit(1)
-          .truncationMode(.middle)
-          .frame(maxWidth: .infinity, alignment: .leading)
+      ForEach(details) { detail in
+        TerminalSidebarTabDetailView(
+          detail: detail,
+          palette: palette,
+          isSelected: isSelected
+        )
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -230,5 +225,124 @@ struct TerminalSidebarTabSummaryView: View {
         palette: palette
       )
     }
+  }
+}
+
+private struct TerminalSidebarTabDetailView: View {
+  let detail: TerminalSidebarTabDetail
+  let palette: Palette
+  let isSelected: Bool
+
+  var body: some View {
+    switch detail {
+    case .agentWorkspace(let workspace):
+      if let branchDetails = workspace.branchDetails {
+        branchView(workspace, branchDetails: branchDetails)
+      } else {
+        pathView(workspace.abbreviatedWorkingDirectoryPath)
+      }
+    case .workingDirectory(let path):
+      pathView(path)
+    }
+  }
+
+  private func pathView(_ path: String) -> some View {
+    Text(path)
+      .font(.system(size: 11, weight: .regular, design: .monospaced))
+      .foregroundStyle(secondaryText)
+      .lineLimit(1)
+      .truncationMode(.middle)
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func branchView(
+    _ workspace: TerminalTabAgentWorkspace,
+    branchDetails: PaneAgentBranchDetails
+  ) -> some View {
+    HStack(spacing: 5) {
+      Image("git-branch")
+        .renderingMode(.template)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(width: 11, height: 11)
+        .foregroundStyle(secondaryText)
+        .accessibilityHidden(true)
+
+      Text(branchDetails.branchName)
+        .font(.system(size: 11, weight: .medium, design: .monospaced))
+        .foregroundStyle(secondaryText)
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .layoutPriority(1)
+
+      if let pullRequestTitle = workspace.pullRequestTitle {
+        Text(pullRequestTitle)
+          .font(.system(size: 10, weight: .semibold, design: .rounded))
+          .foregroundStyle(isSelected ? palette.selectedText : palette.accent)
+          .fixedSize()
+      }
+
+      if workspace.hasChanges {
+        HStack(spacing: 3) {
+          Text("+\(branchDetails.addedLineCount, format: .number)")
+            .foregroundStyle(palette.success)
+          Text("-\(branchDetails.removedLineCount, format: .number)")
+            .foregroundStyle(palette.danger)
+        }
+        .font(.system(size: 10, weight: .medium, design: .monospaced))
+        .monospacedDigit()
+        .fixedSize()
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .combine)
+  }
+
+  private var secondaryText: Color {
+    isSelected ? palette.selectedSecondaryText : palette.secondaryText
+  }
+}
+
+extension TerminalSidebarTabDetail {
+  fileprivate var helpText: String {
+    switch self {
+    case .agentWorkspace(let workspace):
+      workspace.helpText
+    case .workingDirectory(let path):
+      path
+    }
+  }
+}
+
+extension TerminalTabAgentWorkspace {
+  fileprivate var abbreviatedWorkingDirectoryPath: String {
+    (workingDirectoryPath as NSString).abbreviatingWithTildeInPath
+  }
+
+  fileprivate var pullRequestTitle: String? {
+    guard
+      let status = branchDetails?.displayedPullRequestStatus,
+      status.kind != .none
+    else {
+      return nil
+    }
+    return status.title
+  }
+
+  fileprivate var hasChanges: Bool {
+    guard let branchDetails else { return false }
+    return branchDetails.addedLineCount != 0 || branchDetails.removedLineCount != 0
+  }
+
+  fileprivate var helpText: String {
+    guard let branchDetails else { return abbreviatedWorkingDirectoryPath }
+    var context = [branchDetails.branchName]
+    if let pullRequestTitle {
+      context.append(pullRequestTitle)
+    }
+    if hasChanges {
+      context.append("+\(branchDetails.addedLineCount) -\(branchDetails.removedLineCount)")
+    }
+    return "\(context.joined(separator: " · "))\n\(abbreviatedWorkingDirectoryPath)"
   }
 }

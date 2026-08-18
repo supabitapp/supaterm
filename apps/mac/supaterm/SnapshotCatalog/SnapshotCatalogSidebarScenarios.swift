@@ -239,6 +239,19 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "agent-running-multiple",
+      group: "Sidebar Rows",
+      title: "Running coding agents on two branches",
+      size: CGSize(width: 320, height: 94)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: .agentRunningMultiple
+        )
+      )
+    },
+    scenario(
       "agent-needs-input",
       group: "Sidebar Rows",
       title: "Agent needs input",
@@ -340,6 +353,7 @@ private struct SidebarRowSnapshotItem {
   var isRowHovering = false
   var isPressed = false
   var paneWorkingDirectories: [String] = []
+  var agentWorkspaces: [TerminalTabAgentWorkspace] = []
   var unreadCount = 0
   var agentStatus: TerminalHostState.TabAgentStatus?
   var hasTerminalBell = false
@@ -361,6 +375,43 @@ private struct SidebarRowSnapshotItem {
       id: "10000000-0000-0000-0000-000000000004",
       title: "khoi/routine-ui-what-happened | Thinking | Tasks 5/5",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
+      agentWorkspaces: [
+        workspace(
+          path: SnapshotFixtureValues.workspace("apps/mac"),
+          branch: "feature/sidebar-agent-context",
+          added: 42,
+          removed: 7,
+          pullRequestNumber: 128
+        )
+      ],
+      agentStatus: .working
+    )
+  }
+
+  static var agentRunningMultiple: Self {
+    SidebarRowSnapshotItem(
+      id: "10000000-0000-0000-0000-000000000010",
+      title: "Review authentication",
+      paneWorkingDirectories: [
+        SnapshotFixtureValues.workspace("apps/mac"),
+        SnapshotFixtureValues.workspace("apps/docs.supaterm.com"),
+      ],
+      agentWorkspaces: [
+        workspace(
+          path: SnapshotFixtureValues.workspace("apps/mac"),
+          branch: "feature/auth-refresh",
+          added: 42,
+          removed: 7,
+          pullRequestNumber: 241
+        ),
+        workspace(
+          path: SnapshotFixtureValues.workspace("apps/docs.supaterm.com"),
+          branch: "fix/token-expiry",
+          added: 18,
+          removed: 3,
+          pullRequestNumber: 238
+        ),
+      ],
       agentStatus: .working
     )
   }
@@ -370,6 +421,15 @@ private struct SidebarRowSnapshotItem {
       id: "10000000-0000-0000-0000-000000000005",
       title: "Release note pass",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/supaterm.com")],
+      agentWorkspaces: [
+        workspace(
+          path: SnapshotFixtureValues.workspace("apps/supaterm.com"),
+          branch: "release/sidebar-copy",
+          added: 14,
+          removed: 3,
+          pullRequestNumber: 131
+        )
+      ],
       agentStatus: .needsInput
     )
   }
@@ -379,7 +439,49 @@ private struct SidebarRowSnapshotItem {
       id: "10000000-0000-0000-0000-000000000006",
       title: "Docs audit",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("docs")],
+      agentWorkspaces: [
+        workspace(
+          path: SnapshotFixtureValues.workspace("docs"),
+          branch: "docs/sidebar-agent-context",
+          added: 6,
+          removed: 1,
+          pullRequestNumber: 132
+        )
+      ],
       agentStatus: .done
+    )
+  }
+
+  var details: [TerminalSidebarTabDetail] {
+    TerminalSidebarTabDetail.resolve(
+      agentWorkspaces: agentWorkspaces,
+      paneWorkingDirectories: paneWorkingDirectories
+    )
+  }
+
+  private static func workspace(
+    path: String,
+    branch: String,
+    added: Int,
+    removed: Int,
+    pullRequestNumber: Int
+  ) -> TerminalTabAgentWorkspace {
+    TerminalTabAgentWorkspace(
+      workingDirectoryPath: path,
+      branchDetails: PaneAgentBranchDetails(
+        repositoryRootPath: SnapshotFixtureValues.workspace(),
+        branchName: branch,
+        addedLineCount: added,
+        removedLineCount: removed,
+        pullRequestStatus: PaneAgentPullRequestStatus(
+          kind: .open,
+          title: "#\(pullRequestNumber)",
+          url: URL(string: "https://github.com/supabitapp/supaterm/pull/\(pullRequestNumber)"),
+          addedLineCount: added,
+          removedLineCount: removed,
+          checks: nil
+        )
+      )
     )
   }
 }
@@ -399,7 +501,7 @@ private struct SidebarRowSnapshotFixture: View {
       palette: palette,
       isSelected: item.isSelected,
       isPinned: item.isPinned,
-      paneWorkingDirectories: item.paneWorkingDirectories,
+      details: item.details,
       unreadCount: item.unreadCount,
       agentStatus: item.agentStatus,
       hasTerminalBell: item.hasTerminalBell,

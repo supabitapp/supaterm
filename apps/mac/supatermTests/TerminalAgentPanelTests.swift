@@ -152,12 +152,14 @@ struct TerminalAgentPanelTests {
       url: URL(string: "https://github.com/supabitapp/supaterm/compare/main?expand=1")!
     )
     let mainBranchDetails = PaneAgentBranchDetails(
+      repositoryRootPath: "/repo",
       branchName: "main",
       addedLineCount: 0,
       removedLineCount: 0,
       pullRequestStatus: createStatus
     )
     let featureBranchDetails = PaneAgentBranchDetails(
+      repositoryRootPath: "/repo",
       branchName: "khoi/agent-panel",
       addedLineCount: 0,
       removedLineCount: 0,
@@ -172,6 +174,7 @@ struct TerminalAgentPanelTests {
       checks: nil
     )
     let mainBranchOpenDetails = PaneAgentBranchDetails(
+      repositoryRootPath: "/repo",
       branchName: "main",
       addedLineCount: 0,
       removedLineCount: 0,
@@ -186,6 +189,7 @@ struct TerminalAgentPanelTests {
   @Test
   func branchDetailsHideUnavailablePullRequestStatus() {
     let branchDetails = PaneAgentBranchDetails(
+      repositoryRootPath: "/repo",
       branchName: "khoi/agent-panel",
       addedLineCount: 0,
       removedLineCount: 0,

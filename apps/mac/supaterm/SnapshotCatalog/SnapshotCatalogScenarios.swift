@@ -48,6 +48,9 @@ extension SnapshotCatalog {
               .appending(path: "code/github.com/supabitapp/supaterm/apps/mac")
               .path(percentEncoded: false),
             branchDetails: PaneAgentBranchDetails(
+              repositoryRootPath: FileManager.default.homeDirectoryForCurrentUser
+                .appending(path: "code/github.com/supabitapp/supaterm")
+                .path(percentEncoded: false),
               branchName: "feature/snapshot-catalog",
               addedLineCount: 1482,
               removedLineCount: 28,
@@ -102,6 +105,9 @@ extension SnapshotCatalog {
               .appending(path: "code/github.com/supabitapp/supaterm")
               .path(percentEncoded: false),
             branchDetails: PaneAgentBranchDetails(
+              repositoryRootPath: FileManager.default.homeDirectoryForCurrentUser
+                .appending(path: "code/github.com/supabitapp/supaterm")
+                .path(percentEncoded: false),
               branchName: "feature/merge-queue",
               addedLineCount: 42,
               removedLineCount: 7,
@@ -133,6 +139,9 @@ extension SnapshotCatalog {
               .appending(path: "code/github.com/supabitapp/supaterm")
               .path(percentEncoded: false),
             branchDetails: PaneAgentBranchDetails(
+              repositoryRootPath: FileManager.default.homeDirectoryForCurrentUser
+                .appending(path: "code/github.com/supabitapp/supaterm")
+                .path(percentEncoded: false),
               branchName: "feature/sidebar-polish",
               addedLineCount: 82,
               removedLineCount: 19,

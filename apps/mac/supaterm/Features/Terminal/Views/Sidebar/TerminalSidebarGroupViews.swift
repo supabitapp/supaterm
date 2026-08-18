@@ -205,11 +205,46 @@ final class TerminalSidebarTabSelectionState {
   }
 }
 
+enum TerminalSidebarTabDetail: Equatable, Identifiable {
+  enum ID: Hashable {
+    case agentWorkspace(TerminalTabAgentWorkspace.ID)
+    case workingDirectory(String)
+  }
+
+  case agentWorkspace(TerminalTabAgentWorkspace)
+  case workingDirectory(String)
+
+  var id: ID {
+    switch self {
+    case .agentWorkspace(let workspace):
+      .agentWorkspace(workspace.id)
+    case .workingDirectory(let path):
+      .workingDirectory(path)
+    }
+  }
+
+  static func resolve(
+    agentWorkspaces: [TerminalTabAgentWorkspace],
+    paneWorkingDirectories: [String]
+  ) -> [Self] {
+    guard agentWorkspaces.isEmpty else {
+      return agentWorkspaces.map(Self.agentWorkspace)
+    }
+    return paneWorkingDirectories.map(Self.workingDirectory)
+  }
+}
+
+private struct TerminalSidebarTabMeasurementKey: Hashable {
+  let tabID: TerminalTabID
+  let title: String
+  let detailIDs: [TerminalSidebarTabDetail.ID]
+}
+
 struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
-  let paneWorkingDirectories: [String]
+  let details: [TerminalSidebarTabDetail]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
   let hasTerminalBell: Bool
@@ -231,13 +266,12 @@ enum TerminalSidebarRowPresentation: Equatable {
   var measurementKey: AnyHashable {
     switch self {
     case .tab(let presentation):
-      let fields = [
-        presentation.tab.id.rawValue.uuidString,
-        presentation.tab.title,
-        presentation.paneWorkingDirectories.joined(separator: "|"),
-      ]
       return AnyHashable(
-        fields.joined(separator: ":")
+        TerminalSidebarTabMeasurementKey(
+          tabID: presentation.tab.id,
+          title: presentation.tab.title,
+          detailIDs: presentation.details.map(\.id)
+        )
       )
     case .group(let presentation):
       return AnyHashable("group:\(presentation.id.rawValue):\(presentation.title)")
@@ -343,7 +377,7 @@ struct TerminalSidebarHostedRow: View {
         renameState: context.renameState,
         selectionState: context.tabSelectionState,
         outline: context.outline,
-        paneWorkingDirectories: presentation.paneWorkingDirectories,
+        details: presentation.details,
         unreadCount: presentation.unreadCount,
         terminalProgress: presentation.terminalProgress,
         hasTerminalBell: presentation.hasTerminalBell,

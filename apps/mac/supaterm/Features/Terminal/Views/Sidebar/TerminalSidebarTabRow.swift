@@ -49,15 +49,15 @@ struct TerminalSidebarTabRow: View {
 
   private struct AnimatedPresentation: Equatable {
     let agentStatus: TerminalHostState.TabAgentStatus?
+    let details: [TerminalSidebarTabDetail]
     let hasTerminalBell: Bool
-    let paneWorkingDirectories: [String]
     let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
 
     static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.agentStatus == rhs.agentStatus
+        && lhs.details == rhs.details
         && lhs.hasTerminalBell == rhs.hasTerminalBell
-        && lhs.paneWorkingDirectories == rhs.paneWorkingDirectories
         && lhs.terminalProgress == rhs.terminalProgress
         && lhs.unreadCount == rhs.unreadCount
     }
@@ -71,7 +71,7 @@ struct TerminalSidebarTabRow: View {
   let renameState: TerminalSidebarRenameState?
   let selectionState: TerminalSidebarTabSelectionState
   let outline: TerminalSidebarOutline
-  let paneWorkingDirectories: [String]
+  let details: [TerminalSidebarTabDetail]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
   let hasTerminalBell: Bool
@@ -164,7 +164,7 @@ struct TerminalSidebarTabRow: View {
       palette: palette,
       isSelected: isSelected,
       isPinned: groupID == nil && rootIsPinned,
-      paneWorkingDirectories: paneWorkingDirectories,
+      details: details,
       unreadCount: unreadCount,
       agentStatus: agentPresentation.status,
       hasTerminalBell: hasTerminalBell,
@@ -177,7 +177,7 @@ struct TerminalSidebarTabRow: View {
 
     Group {
       if let helpText = TerminalSidebarTabSummaryView.helpText(
-        paneWorkingDirectories: paneWorkingDirectories
+        details: details
       ) {
         summary.help(helpText)
       } else {
@@ -382,8 +382,8 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
       agentStatus: agentPresentation.status,
+      details: details,
       hasTerminalBell: hasTerminalBell,
-      paneWorkingDirectories: paneWorkingDirectories,
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
     )

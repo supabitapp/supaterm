@@ -137,6 +137,9 @@
       let now = Date()
       return Self(
         branchDetails: PaneAgentBranchDetails(
+          repositoryRootPath: FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: "code/github.com/supabitapp/supaterm")
+            .path(percentEncoded: false),
           branchName: "feat/agent-panel-state",
           addedLineCount: 120,
           removedLineCount: 18,

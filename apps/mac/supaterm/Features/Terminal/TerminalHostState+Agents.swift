@@ -78,6 +78,45 @@ extension TerminalHostState {
     )?.activity
   }
 
+  func tabAgentWorkspaces(for tabID: TerminalTabID) -> [TerminalTabAgentWorkspace] {
+    guard let tree = trees[tabID] else { return [] }
+    let leaves = tree.leaves()
+    let focusedSurfaceID = focusHistoryByTab[tabID]?.current
+    let orderedLeaves: [GhosttySurfaceView]
+    if let focusedSurfaceID,
+      let focusedSurface = leaves.first(where: { $0.id == focusedSurfaceID })
+    {
+      orderedLeaves = [focusedSurface] + leaves.filter { $0.id != focusedSurfaceID }
+    } else {
+      orderedLeaves = leaves
+    }
+
+    var seen = Set<TerminalTabAgentWorkspace.ID>()
+    return orderedLeaves.compactMap { surface in
+      guard
+        !agentStateStore.snapshots(for: surface.id).isEmpty
+          || agentDetectionStore.observation(for: surface.id) != nil
+      else {
+        return nil
+      }
+      let current = resolvedAgentState(for: surface.id).currentInstance
+      guard
+        let workingDirectoryPath = agentPanelWorkingDirectoryPath(
+          for: surface.id,
+          agentWorkingDirectoryPath: current?.nativePresentation?.workingDirectoryPath
+        )
+      else {
+        return nil
+      }
+      let workspace = TerminalTabAgentWorkspace(
+        workingDirectoryPath: workingDirectoryPath,
+        branchDetails: paneAgentMetadataBySurfaceID[surface.id]?.branchDetails
+      )
+      guard seen.insert(workspace.id).inserted else { return nil }
+      return workspace
+    }
+  }
+
   func agentPanelPresentations(for tabID: TerminalTabID) -> [UUID: PaneAgentPanelPresentation] {
     guard agentPanelIsEnabled else {
       return [:]
