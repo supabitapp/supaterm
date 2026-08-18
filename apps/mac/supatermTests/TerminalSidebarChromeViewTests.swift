@@ -611,7 +611,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.helpText(
         details: [.agentWorkspace(workspace)]
-      ) == "feature/sidebar-context · Open #128 · +42 -7\n/repo/apps/mac"
+      ) == "feature/sidebar-context · Open #128\n/repo/apps/mac"
     )
   }
 
@@ -622,14 +622,14 @@ struct TerminalSidebarChromeViewTests {
       branchDetails: PaneAgentBranchDetails(
         repositoryRootPath: "/repo",
         branchName: "feature/sidebar-context",
-        addedLineCount: 0,
-        removedLineCount: 0,
+        addedLineCount: 42,
+        removedLineCount: 7,
         pullRequestStatus: PaneAgentPullRequestStatus(
           kind: .none,
           title: "Create pull request",
           url: nil,
-          addedLineCount: 0,
-          removedLineCount: 0,
+          addedLineCount: 42,
+          removedLineCount: 7,
           checks: nil
         )
       )

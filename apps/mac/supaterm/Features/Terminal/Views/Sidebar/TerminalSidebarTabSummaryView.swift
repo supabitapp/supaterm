@@ -273,18 +273,6 @@ private struct TerminalSidebarTabDetailView: View {
           palette: palette
         )
       }
-
-      if workspace.hasChanges {
-        HStack(spacing: 3) {
-          Text("+\(branchDetails.addedLineCount, format: .number)")
-            .foregroundStyle(palette.success)
-          Text("-\(branchDetails.removedLineCount, format: .number)")
-            .foregroundStyle(palette.danger)
-        }
-        .font(.system(size: 10, weight: .medium, design: .monospaced))
-        .monospacedDigit()
-        .fixedSize()
-      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .accessibilityElement(children: .combine)
@@ -359,19 +347,11 @@ extension TerminalTabAgentWorkspace {
     return status
   }
 
-  fileprivate var hasChanges: Bool {
-    guard let branchDetails else { return false }
-    return branchDetails.addedLineCount != 0 || branchDetails.removedLineCount != 0
-  }
-
   fileprivate var helpText: String {
     guard let branchDetails else { return abbreviatedWorkingDirectoryPath }
     var context = [branchDetails.branchName]
     if let pullRequestStatus {
       context.append(pullRequestStatus.compactContextTitle)
-    }
-    if hasChanges {
-      context.append("+\(branchDetails.addedLineCount) -\(branchDetails.removedLineCount)")
     }
     return "\(context.joined(separator: " · "))\n\(abbreviatedWorkingDirectoryPath)"
   }
