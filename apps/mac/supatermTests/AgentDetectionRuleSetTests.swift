@@ -63,7 +63,20 @@ struct AgentDetectionRuleSetTests {
         ),
       ]
     )
-    #expect(agents[2].processes.count == 3)
+    #expect(
+      agents[2].processes == [
+        AgentDetectionProcessRule(executable: "pi"),
+        AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
+        AgentDetectionProcessRule(
+          executable: "node",
+          scriptSuffix: "/@mariozechner/pi-coding-agent/dist/cli.js"
+        ),
+        AgentDetectionProcessRule(
+          executable: "node",
+          scriptSuffix: "/@earendil-works/pi-coding-agent/dist/cli.js"
+        ),
+      ]
+    )
   }
 
   @Test

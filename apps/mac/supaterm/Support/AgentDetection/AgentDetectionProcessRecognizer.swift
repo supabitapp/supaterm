@@ -4,10 +4,16 @@ import Foundation
 public struct AgentDetectionProcessRule: Equatable, Hashable, Sendable {
   public let executable: String
   public let scriptSuffix: String?
+  public let processTitle: String?
 
-  public init(executable: String, scriptSuffix: String? = nil) {
+  public init(
+    executable: String,
+    scriptSuffix: String? = nil,
+    processTitle: String? = nil
+  ) {
     self.executable = executable
     self.scriptSuffix = scriptSuffix
+    self.processTitle = processTitle
   }
 }
 
@@ -121,7 +127,8 @@ public enum AgentDetectionProcessRecognizer {
     let executable = URL(fileURLWithPath: invocation.executablePath).lastPathComponent
     guard !executable.isEmpty, entry.name == executable else { return nil }
     if manifest.processes.contains(where: {
-      $0.scriptSuffix == nil && !$0.executable.isEmpty && $0.executable == executable
+      $0.scriptSuffix == nil && $0.processTitle == nil && !$0.executable.isEmpty
+        && $0.executable == executable
     }) {
       return Candidate(
         agentID: manifest.agentID,
@@ -131,14 +138,17 @@ public enum AgentDetectionProcessRecognizer {
     }
     guard
       manifest.processes.contains(where: { rule in
-        guard
-          rule.executable == executable,
-          let scriptSuffix = rule.scriptSuffix,
-          !scriptSuffix.isEmpty
-        else {
-          return false
+        guard rule.executable == executable else { return false }
+        if let processTitle = rule.processTitle {
+          guard !processTitle.isEmpty, invocation.arguments.first == processTitle else {
+            return false
+          }
         }
-        return invocation.arguments.dropFirst().contains { $0.hasSuffix(scriptSuffix) }
+        if let scriptSuffix = rule.scriptSuffix {
+          guard !scriptSuffix.isEmpty else { return false }
+          return invocation.arguments.dropFirst().contains { $0.hasSuffix(scriptSuffix) }
+        }
+        return rule.processTitle != nil
       })
     else {
       return nil

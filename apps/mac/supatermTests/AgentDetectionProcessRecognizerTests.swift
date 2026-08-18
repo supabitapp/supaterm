@@ -235,6 +235,68 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
+  func matchesDeclaredProcessTitleAfterArgumentsAreRewritten() {
+    let manifest = AgentDetectionProcessManifest(
+      agentID: "agent",
+      processes: [
+        AgentDetectionProcessRule(executable: "node", processTitle: "pi")
+      ]
+    )
+    let result = Self.match(
+      entries: [Self.process(100, name: "node")],
+      invocations: [
+        100: Self.invocation("/opt/homebrew/bin/node", arguments: ["pi"])
+      ],
+      manifests: [manifest]
+    )
+
+    #expect(
+      result
+        == AgentDetectionProcessMatch(
+          agentID: "agent",
+          processIdentity: TerminalAgentProcessIdentity(
+            processID: 100,
+            startTimeMicroseconds: 100
+          )
+        )
+    )
+  }
+
+  @Test
+  func declaredProcessTitleRequiresMatchingExecutableAndTitle() {
+    let manifest = AgentDetectionProcessManifest(
+      agentID: "agent",
+      processes: [
+        AgentDetectionProcessRule(executable: "node", processTitle: "pi")
+      ]
+    )
+    let cases = [
+      (
+        Self.process(100, name: "python3"),
+        Self.invocation("/opt/homebrew/bin/node", arguments: ["pi"])
+      ),
+      (
+        Self.process(100, name: "node"),
+        Self.invocation("/opt/homebrew/bin/node", arguments: ["other"])
+      ),
+      (
+        Self.process(100, name: "node"),
+        Self.invocation("/usr/bin/python3", arguments: ["pi"])
+      ),
+    ]
+
+    for (entry, invocation) in cases {
+      let result = Self.match(
+        entries: [entry],
+        invocations: [100: invocation],
+        manifests: [manifest]
+      )
+
+      #expect(result == nil)
+    }
+  }
+
+  @Test
   func wrapperRequiresTheDeclaredExecutable() {
     let result = Self.match(
       entries: [Self.process(100, name: "python3")],

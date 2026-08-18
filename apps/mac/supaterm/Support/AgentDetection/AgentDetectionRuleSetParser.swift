@@ -30,6 +30,7 @@ enum AgentDetectionRuleSetParser {
       displayName: "Pi",
       processes: [
         AgentDetectionProcessRule(executable: "pi"),
+        AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
         AgentDetectionProcessRule(
           executable: "node",
           scriptSuffix: "/@mariozechner/pi-coding-agent/dist/cli.js"
