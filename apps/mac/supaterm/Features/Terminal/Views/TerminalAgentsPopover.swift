@@ -94,7 +94,7 @@ struct TerminalAgentsPopoverButton: View {
       isPresented.toggle()
     } label: {
       ZStack(alignment: .topTrailing) {
-        Image(systemName: "chevron.down")
+        Image(systemName: "line.3.horizontal.decrease")
           .font(.system(size: 13, weight: .medium))
           .foregroundStyle(foregroundStyle)
           .frame(width: 28, height: 28)
