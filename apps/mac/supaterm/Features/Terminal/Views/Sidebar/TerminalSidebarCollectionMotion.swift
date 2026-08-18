@@ -62,6 +62,26 @@ enum TerminalSidebarCollapseMotion {
   }
 }
 
+enum TerminalSidebarLayoutMotion {
+  static let defaultDuration: TimeInterval = 0.12
+
+  static func animationDuration(
+    from previous: TerminalSidebarOutline,
+    to current: TerminalSidebarOutline
+  ) -> TimeInterval {
+    let currentGroupIDs = Set(
+      current.roots.compactMap { root -> TerminalTabGroupID? in
+        guard case .group(let id, _, _, _) = root.content else { return nil }
+        return id
+      }
+    )
+    let expandedGroupIDs = previous.collapsedGroupIDs
+      .subtracting(current.collapsedGroupIDs)
+      .intersection(currentGroupIDs)
+    return expandedGroupIDs.isEmpty ? defaultDuration : TerminalSidebarCollapseMotion.rowDuration
+  }
+}
+
 enum TerminalSidebarAutoscrollDirection: Equatable {
   case up
   case down
@@ -406,11 +426,10 @@ final class TerminalSidebarCollapseAnimator {
 
 @MainActor
 final class TerminalSidebarLayoutAnimator {
-  static let duration: TimeInterval = 0.12
-
   private weak var collectionView: NSCollectionView?
   private weak var layout: TerminalSidebarCollectionLayout?
   private let onFrame: () -> Void
+  private var duration = TerminalSidebarLayoutMotion.defaultDuration
   private var startedAt: TimeInterval = 0
   private lazy var displayLinkDriver = TerminalSidebarDisplayLinkDriver(
     collectionView: collectionView,
@@ -427,7 +446,11 @@ final class TerminalSidebarLayoutAnimator {
     self.onFrame = onFrame
   }
 
-  func animate(enabled: Bool, changes: () -> Void) {
+  func animate(
+    enabled: Bool,
+    duration: TimeInterval = TerminalSidebarLayoutMotion.defaultDuration,
+    changes: () -> Void
+  ) {
     guard let layout else {
       changes()
       return
@@ -439,6 +462,7 @@ final class TerminalSidebarLayoutAnimator {
     }
     changes()
     guard enabled else { return }
+    self.duration = duration
     startedAt = CACurrentMediaTime()
     displayLinkDriver.start()
   }
@@ -456,11 +480,11 @@ final class TerminalSidebarLayoutAnimator {
         from: 0,
         to: 1,
         elapsed: elapsed,
-        duration: Self.duration
+        duration: duration
       )
     )
     onFrame()
-    guard elapsed < Self.duration else {
+    guard elapsed < duration else {
       layout.finishTransition()
       return false
     }

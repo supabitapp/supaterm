@@ -294,6 +294,37 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
+  func groupExpansionUsesTheCollapseRowDuration() {
+    let groupID = TerminalTabGroupID()
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .red, .automatic, [TerminalTabID()]),
+        isPinned: false
+      )
+    ]
+    let collapsed = TerminalSidebarTestFixture.outline(
+      roots: roots,
+      revision: 1,
+      collapsedGroupIDs: [groupID]
+    )
+    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 1)
+    let removed = TerminalSidebarTestFixture.outline(roots: [], revision: 2)
+
+    #expect(
+      TerminalSidebarLayoutMotion.animationDuration(from: collapsed, to: expanded)
+        == TerminalSidebarCollapseMotion.rowDuration
+    )
+    #expect(
+      TerminalSidebarLayoutMotion.animationDuration(from: expanded, to: collapsed)
+        == TerminalSidebarLayoutMotion.defaultDuration
+    )
+    #expect(
+      TerminalSidebarLayoutMotion.animationDuration(from: collapsed, to: removed)
+        == TerminalSidebarLayoutMotion.defaultDuration
+    )
+  }
+
+  @Test
   func velocityAndAcceptedDropUseExactPath() {
     var tracker = TerminalSidebarDragVelocityTracker()
     tracker.update(point: CGPoint(x: 10, y: 20), timestamp: 1)

@@ -429,9 +429,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     completion additionalCompletion: (() -> Void)? = nil
   ) {
     let isInitialSnapshot = !hasAppliedSnapshot
+    let animationDuration = TerminalSidebarLayoutMotion.animationDuration(
+      from: appliedOutline,
+      to: update.outline
+    )
     updatePhase = .applyingSnapshot
     collectionLayout.visibilityByEntryID = [:]
-    layoutAnimator.animate(enabled: animated) {
+    layoutAnimator.animate(enabled: animated, duration: animationDuration) {
       collectionLayout.setOutline(update.outline)
     }
     var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()
@@ -464,7 +468,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       return
     }
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = TerminalSidebarLayoutAnimator.duration
+      context.duration = animationDuration
       context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.46, 0.45, 0.94)
       dataSource.apply(snapshot, animatingDifferences: true, completion: completion)
     }
