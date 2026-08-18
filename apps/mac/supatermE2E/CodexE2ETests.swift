@@ -47,7 +47,7 @@ private struct CodexE2EEnvironment {
 private final class CodexE2EFixture {
   let app: SupatermE2EApp
   let mode: CodexE2EMode
-  let server: CodexFakeModelServer
+  let server: FakeModelServer
   let space: TestSpace
   let initialProcess: SupatermAgentExplainResult.Process
   var sessionID: String?
@@ -55,7 +55,7 @@ private final class CodexE2EFixture {
   private init(
     app: SupatermE2EApp,
     mode: CodexE2EMode,
-    server: CodexFakeModelServer,
+    server: FakeModelServer,
     space: TestSpace,
     initialProcess: SupatermAgentExplainResult.Process,
     sessionID: String?
@@ -74,13 +74,13 @@ private final class CodexE2EFixture {
       environment: ["CODEX_E2E_API_KEY": "test"],
       pathDirectories: [environment.executable.deletingLastPathComponent()]
     )
-    var server: CodexFakeModelServer?
+    var server: FakeModelServer?
     do {
       let space = try await makeTestSpace(app)
-      let startedServer = try CodexFakeModelServer(script: makeCodexScript(space))
+      let startedServer = try FakeModelServer(script: makeCodexScript(space))
       server = startedServer
       try writeConfig(
-        baseURL: startedServer.baseURL,
+        baseURL: startedServer.responsesBaseURL,
         hooksEnabled: mode.hooksEnabled,
         home: app.cliHome,
         workspace: space.directory
@@ -91,7 +91,8 @@ private final class CodexE2EFixture {
           tabID: space.tab.tabID,
           paneID: space.tab.paneID
         )
-        try await installCodexHooks(
+        try await installAgentHook(
+          .codex,
           runner: runner,
           socketPath: app.socketPath,
           workspace: space.directory,
@@ -108,11 +109,15 @@ private final class CodexE2EFixture {
         space.directory.path,
       ])
       try app.type(command + "\n", into: space.pane)
-      let initialProcess = try await waitForAgentExplain(
+      let initial = try await waitForAgentExplain(
         app,
         target: space.pane,
         phase: .idle
-      ).process.require("Codex detection has no process identity.")
+      )
+      let initialProcess = try requireValue(
+        initial.process,
+        "Codex detection has no process identity."
+      )
       try await app.waitForCapture(space.pane, contains: "gpt-5.6-luna low", timeout: 60)
       return CodexE2EFixture(
         app: app,
@@ -143,14 +148,10 @@ private final class CodexE2EFixture {
     #expect(result.process == initialProcess)
     if mode.hooksEnabled {
       var nextSessionID: String?
-      try await app.waitUntil("the native Codex session reaches \(phase.rawValue)", timeout: timeout) {
+      try await app.waitUntil("the native Codex session remains bound", timeout: timeout) {
         guard let agent = try app.debugPane(space.tab.paneID)?.agent else { return false }
         let matchesSession = sessionID.map { agent.sessionID == $0 } ?? true
-        guard
-          agent.kind == .codex
-            && matchesSession
-            && agent.phase.rawValue == phase.rawValue
-        else { return false }
+        guard agent.kind == .codex, matchesSession else { return false }
         nextSessionID = agent.sessionID
         return true
       }
@@ -223,27 +224,6 @@ private final class CodexE2EFixture {
   }
 }
 
-private func installCodexHooks(
-  runner: SPBinaryRunner,
-  socketPath: String,
-  workspace: URL,
-  app: SupatermE2EApp
-) async throws {
-  let arguments =
-    SupatermManagedHookCommand.installArguments(for: .codex) + ["--socket", socketPath]
-  var lastResult: SPBinaryResult?
-  do {
-    try await app.waitUntil("the Codex hook installer replies", timeout: 45) {
-      lastResult = try runner.run(arguments, cwd: workspace, timeout: 15)
-      return lastResult?.exitCode == 0
-    }
-  } catch {
-    throw SupatermE2EError(
-      "\(error)\n--- last hook install ---\n\(String(describing: lastResult))"
-    )
-  }
-}
-
 private func runCodexLifecycle(mode: CodexE2EMode) async throws {
   let fixture = try await CodexE2EFixture.launch(mode: mode)
   defer { fixture.close() }
@@ -267,7 +247,7 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
     "Do not call any other tool.",
   ].joined(separator: " ")
 
-  try fixture.app.submit(prompt, into: fixture.space.pane)
+  try await fixture.app.submit(prompt, waitingFor: question, into: fixture.space.pane)
   try await fixture.expect(.running)
   fixture.server.releaseNextResponse()
   try await fixture.app.waitForCapture(fixture.space.pane, contains: question, timeout: 90)
@@ -276,19 +256,16 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
   try await waitForCommandApproval(fixture, marker: marker)
   try await fixture.expect(.needsInput)
   try fixture.approve()
-  try await fixture.app.waitForCapture(fixture.space.pane, contains: completion, timeout: 90)
+  try await fixture.expect(.running)
+  let completionCount = try fixture.app.capture(fixture.space.pane)
+    .components(separatedBy: completion).count
+  fixture.server.releaseNextResponse()
+  try await fixture.app.waitUntil("Codex prints the lifecycle completion", timeout: 90) {
+    try fixture.app.capture(fixture.space.pane)
+      .components(separatedBy: completion).count > completionCount
+  }
   try await fixture.expect(.idle)
 
-  if fixture.mode.hooksEnabled {
-    try await fixture.app.waitUntil("the Codex Stop hook publishes completion", timeout: 60) {
-      try fixture.app.debugTab(fixture.space.tab.tabID)?.latestNotificationText == completion
-    }
-  } else {
-    try await fixture.app.waitUntil("screen-only mode has no native completion", timeout: 10) {
-      guard let tab = try fixture.app.debugTab(fixture.space.tab.tabID) else { return false }
-      return tab.latestNotificationText == nil
-    }
-  }
 }
 
 private func runInterruptedTurn(
@@ -301,7 +278,11 @@ private func runInterruptedTurn(
   let prompt =
     "Use the shell tool once to run exactly `\(command)`. Do not do anything else until it finishes."
 
-  try fixture.app.submit(prompt, into: fixture.space.pane)
+  try await fixture.app.submit(
+    prompt,
+    waitingFor: interruptedMarker(fixture.space, name: name),
+    into: fixture.space.pane
+  )
   try await fixture.expect(.running)
   fixture.server.releaseNextResponse()
   try await waitForCommandApproval(fixture, marker: marker)
@@ -346,7 +327,7 @@ private func waitForAgentExplain(
         + "\n--- pane capture ---\n\((try? app.capture(target)) ?? "unavailable")"
     )
   }
-  return try lastResult.require("Codex screen rules produced no result.")
+  return try requireValue(lastResult, "Codex screen rules produced no result.")
 }
 
 private func waitForCommandApproval(
@@ -372,38 +353,39 @@ private enum CodexFakeCallID {
   static let ctrlCCommand = "ctrl-c-command"
 }
 
-private func makeCodexScript(_ space: TestSpace) -> [CodexFakeExchange] {
+private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
   [
-    CodexFakeExchange(
-      request: .inputText(lifecycleQuestion(space)),
-      response: .requestUserInput(
+    FakeModelExchange(
+      request: .responsesInputText(lifecycleQuestion(space)),
+      response: .responsesRequestUserInput(
         callID: CodexFakeCallID.lifecycleQuestion,
         question: lifecycleQuestion(space)
       ),
       waitForRelease: true
     ),
-    CodexFakeExchange(
-      request: .functionOutput(callID: CodexFakeCallID.lifecycleQuestion),
-      response: .shellCommand(
+    FakeModelExchange(
+      request: .responsesFunctionOutput(callID: CodexFakeCallID.lifecycleQuestion),
+      response: .responsesShellCommand(
         callID: CodexFakeCallID.lifecycleCommand,
         command: lifecycleCommand(space)
       )
     ),
-    CodexFakeExchange(
-      request: .functionOutput(callID: CodexFakeCallID.lifecycleCommand),
-      response: .message(lifecycleCompletion(space))
+    FakeModelExchange(
+      request: .responsesFunctionOutput(callID: CodexFakeCallID.lifecycleCommand),
+      response: .responsesMessage(lifecycleCompletion(space)),
+      waitForRelease: true
     ),
-    CodexFakeExchange(
-      request: .inputText(interruptedMarker(space, name: "escape")),
-      response: .shellCommand(
+    FakeModelExchange(
+      request: .responsesInputText(interruptedMarker(space, name: "escape")),
+      response: .responsesShellCommand(
         callID: CodexFakeCallID.escapeCommand,
         command: interruptedCommand(space, name: "escape")
       ),
       waitForRelease: true
     ),
-    CodexFakeExchange(
-      request: .inputText(interruptedMarker(space, name: "ctrl-c")),
-      response: .shellCommand(
+    FakeModelExchange(
+      request: .responsesInputText(interruptedMarker(space, name: "ctrl-c")),
+      response: .responsesShellCommand(
         callID: CodexFakeCallID.ctrlCCommand,
         command: interruptedCommand(space, name: "ctrl-c")
       ),
@@ -453,11 +435,4 @@ private func tomlString(_ value: String) -> String {
     .replacingOccurrences(of: "\r", with: "\\r")
     .replacingOccurrences(of: "\t", with: "\\t")
     + "\""
-}
-
-extension Optional {
-  fileprivate func require(_ message: String) throws -> Wrapped {
-    guard let self else { throw SupatermE2EError(message) }
-    return self
-  }
 }

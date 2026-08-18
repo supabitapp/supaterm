@@ -285,11 +285,14 @@ final class SupatermE2EApp: @unchecked Sendable {
     )
   }
 
-  func submit(_ text: String, into target: SupatermPaneTargetRequest) throws {
-    _ = try send(
-      .sendText(SupatermSendTextRequest(mode: .submit, target: target, text: text)),
-      as: SupatermSendTextResult.self
-    )
+  func submit(
+    _ text: String,
+    waitingFor marker: String,
+    into target: SupatermPaneTargetRequest
+  ) async throws {
+    try type(text, into: target)
+    try await waitForCapture(target, contains: marker)
+    try press(.enter, in: target)
   }
 
   func press(_ key: SupatermInputKey, in target: SupatermPaneTargetRequest) throws {
