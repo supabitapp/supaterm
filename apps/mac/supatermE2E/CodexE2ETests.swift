@@ -114,17 +114,13 @@ private final class CodexE2EFixture {
         phase: .idle
       ).process.require("Codex detection has no process identity.")
       try await app.waitForCapture(space.pane, contains: "gpt-5.6-luna low", timeout: 60)
-      let sessionID = try app.debugPane(space.tab.paneID)?.agent?.sessionID
-      if !mode.hooksEnabled {
-        #expect(try app.debugPane(space.tab.paneID)?.agent == nil)
-      }
       return CodexE2EFixture(
         app: app,
         mode: mode,
         server: startedServer,
         space: space,
         initialProcess: initialProcess,
-        sessionID: sessionID
+        sessionID: nil
       )
     } catch {
       server?.stop()
@@ -160,7 +156,10 @@ private final class CodexE2EFixture {
       }
       sessionID = sessionID ?? nextSessionID
     } else {
-      #expect(try app.debugPane(space.tab.paneID)?.agent == nil)
+      try await app.waitUntil("the pane has no native Codex session", timeout: timeout) {
+        guard let pane = try app.debugPane(space.tab.paneID) else { return false }
+        return pane.agent == nil
+      }
     }
   }
 
@@ -206,7 +205,7 @@ private final class CodexE2EFixture {
       env_key = "CODEX_E2E_API_KEY"
       name = "E2E"
       request_max_retries = 0
-      stream_idle_timeout_ms = 5000
+      stream_idle_timeout_ms = 120000
       stream_max_retries = 0
       supports_websockets = false
 
@@ -270,6 +269,7 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
 
   try fixture.app.submit(prompt, into: fixture.space.pane)
   try await fixture.expect(.running)
+  fixture.server.releaseNextResponse()
   try await fixture.app.waitForCapture(fixture.space.pane, contains: question, timeout: 90)
   try await fixture.expect(.needsInput)
   try fixture.approve()
@@ -284,7 +284,10 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
       try fixture.app.debugTab(fixture.space.tab.tabID)?.latestNotificationText == completion
     }
   } else {
-    #expect(try fixture.app.debugTab(fixture.space.tab.tabID)?.latestNotificationText == nil)
+    try await fixture.app.waitUntil("screen-only mode has no native completion", timeout: 10) {
+      guard let tab = try fixture.app.debugTab(fixture.space.tab.tabID) else { return false }
+      return tab.latestNotificationText == nil
+    }
   }
 }
 
@@ -300,6 +303,7 @@ private func runInterruptedTurn(
 
   try fixture.app.submit(prompt, into: fixture.space.pane)
   try await fixture.expect(.running)
+  fixture.server.releaseNextResponse()
   try await waitForCommandApproval(fixture, marker: marker)
   try await fixture.expect(.needsInput)
   let workingCount = try fixture.app.capture(fixture.space.pane)
@@ -376,7 +380,7 @@ private func makeCodexScript(_ space: TestSpace) -> [CodexFakeExchange] {
         callID: CodexFakeCallID.lifecycleQuestion,
         question: lifecycleQuestion(space)
       ),
-      responseDelay: 1
+      waitForRelease: true
     ),
     CodexFakeExchange(
       request: .functionOutput(callID: CodexFakeCallID.lifecycleQuestion),
@@ -395,7 +399,7 @@ private func makeCodexScript(_ space: TestSpace) -> [CodexFakeExchange] {
         callID: CodexFakeCallID.escapeCommand,
         command: interruptedCommand(space, name: "escape")
       ),
-      responseDelay: 1
+      waitForRelease: true
     ),
     CodexFakeExchange(
       request: .inputText(interruptedMarker(space, name: "ctrl-c")),
@@ -403,7 +407,7 @@ private func makeCodexScript(_ space: TestSpace) -> [CodexFakeExchange] {
         callID: CodexFakeCallID.ctrlCCommand,
         command: interruptedCommand(space, name: "ctrl-c")
       ),
-      responseDelay: 1
+      waitForRelease: true
     ),
   ]
 }
