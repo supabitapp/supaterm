@@ -526,7 +526,7 @@ enum SidebarChromeSnapshotContext {
       color: .green
     )
     let terminal = makeTerminal(space: space, spaces: [space])
-    let selectedTab = tab("47", title: "/Users/Developer/code/github.com/Goodnotes-CN/Good-Board")
+    let selectedTab = tab("47", title: "/Users/Developer/code/github.com/supabitapp/supaterm")
     terminal.spaceManager.restoreRootItems(
       [
         .group(
@@ -534,7 +534,7 @@ enum SidebarChromeSnapshotContext {
             id: TerminalTabGroupID(
               rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000003")
             ),
-            title: "🎨 Goodboard",
+            title: "🎨 Supaterm",
             color: .yellow,
             isPinned: false,
             tabs: [selectedTab]
