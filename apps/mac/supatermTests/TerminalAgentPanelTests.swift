@@ -1364,6 +1364,14 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  func githubPullRequestDecoderMapsPullRequestStates() {
+    #expect(Self.decodePullRequestState("OPEN", isDraft: false).kind == .open)
+    #expect(Self.decodePullRequestState("OPEN", isDraft: true).kind == .draft)
+    #expect(Self.decodePullRequestState("MERGED", isDraft: false).kind == .merged)
+    #expect(Self.decodePullRequestState("CLOSED", isDraft: true).kind == .closed)
+  }
+
+  @Test
   func githubPullRequestDecoderBuildsCheckDisplayText() throws {
     let status = Self.decodeSinglePullRequestStatus(
       """
@@ -1655,6 +1663,40 @@ struct TerminalAgentPanelTests {
       aliasMap: ["branch0": "feature"],
       remote: TerminalAgentGithubRemote(host: "github.com", owner: "supabitapp", repo: "supaterm")
     )["feature"] ?? .unavailable
+  }
+
+  private static func decodePullRequestState(
+    _ state: String,
+    isDraft: Bool
+  ) -> PaneAgentPullRequestStatus {
+    decodeSinglePullRequestStatus(
+      """
+      {
+        "data": {
+          "repository": {
+            "branch0": {
+              "nodes": [
+                {
+                  "number": 39,
+                  "additions": 10,
+                  "deletions": 2,
+                  "state": "\(state)",
+                  "isDraft": \(isDraft),
+                  "url": "https://github.com/supabitapp/supaterm/pull/39",
+                  "baseRefName": "main",
+                  "headRepository": {
+                    "name": "supaterm",
+                    "owner": { "login": "supabitapp" }
+                  },
+                  "commits": {"nodes": []}
+                }
+              ]
+            }
+          }
+        }
+      }
+      """
+    )
   }
 
   private static func decodePullRequestStatus(

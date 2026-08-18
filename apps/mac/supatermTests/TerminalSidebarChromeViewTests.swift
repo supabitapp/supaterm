@@ -593,8 +593,31 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.helpText(
         details: [.agentWorkspace(workspace)]
-      ) == "feature/sidebar-context · #128 · +42 -7\n/repo/apps/mac"
+      ) == "feature/sidebar-context · Open #128 · +42 -7\n/repo/apps/mac"
     )
+  }
+
+  @Test
+  func pullRequestStatesUseDistinctSymbols() {
+    let states: [(PaneAgentPullRequestStatus.Kind, TerminalMetadataIcon)] = [
+      (.none, .asset("circle-slash")),
+      (.open, .asset("git-pull-request")),
+      (.draft, .asset("git-pull-request-draft")),
+      (.merged, .asset("git-merge")),
+      (.closed, .asset("git-pull-request-closed")),
+    ]
+
+    for (kind, icon) in states {
+      let status = PaneAgentPullRequestStatus(
+        kind: kind,
+        title: "#128",
+        url: nil,
+        addedLineCount: nil,
+        removedLineCount: nil,
+        checks: nil
+      )
+      #expect(status.icon == icon)
+    }
   }
 
   @Test
