@@ -842,7 +842,12 @@ let project = Project(
           ),
         ],
         arguments: .arguments(
-          environmentVariables: ["CODEX_E2E_BINARY": "$(CODEX_E2E_BINARY)"]
+          environmentVariables: [
+            "CLAUDE_E2E_BINARY": "$(CLAUDE_E2E_BINARY)",
+            "CODEX_E2E_BINARY": "$(CODEX_E2E_BINARY)",
+            "PI_E2E_BINARY": "$(PI_E2E_BINARY)",
+            "PI_E2E_PACKAGE": "$(PI_E2E_PACKAGE)",
+          ]
         ),
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm")

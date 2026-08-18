@@ -29,6 +29,10 @@ TUIST_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
+E2E_AGENT ?= all
+CLAUDE_E2E_TOOL := npm:@anthropic-ai/claude-code-darwin-arm64@2.1.235
+PI_E2E_TOOL := npm:@mariozechner/pi-coding-agent@0.73.1
+SUPATERM_SKILLS_DIR := $(abspath $(CURRENT_MAKEFILE_DIR)/../../integrations/supaterm-skills)
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 APP_RUN_ENV := SUPATERM_VERBOSE_LOGGING=1
 RUN_STATE_ROOT := $(CURRENT_MAKEFILE_DIR)/.build/run-state
@@ -182,12 +186,39 @@ test-e2e: tuist-generate build-ghostty build-zmx build-ap test-e2e-xcodebuild # 
 
 test-e2e-xcodebuild:
 	@if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(E2E_RESULT_BUNDLE_PATH)"; fi
-	@codex_binary="$${CODEX_E2E_BINARY:-$$(mise which codex)}"; \
-	test -x "$$codex_binary"; \
+	@agent="$(E2E_AGENT)"; \
+	case "$$agent" in none | codex | claude | pi | all) ;; *) echo "Unknown E2E agent: $$agent" >&2; exit 1 ;; esac; \
+	includes_agent() { [ "$$agent" = all ] || [ "$$agent" = "$$1" ]; }; \
+	codex_binary=""; \
+	claude_binary=""; \
+	pi_binary=""; \
+	pi_package=""; \
+	if includes_agent codex; then \
+		codex_binary="$${CODEX_E2E_BINARY:-$$(mise which codex)}"; \
+		test -x "$$codex_binary"; \
+	fi; \
+	if includes_agent claude; then \
+		claude_binary="$${CLAUDE_E2E_BINARY:-}"; \
+		if [ -z "$$claude_binary" ]; then \
+			claude_tool="$(CLAUDE_E2E_TOOL)"; \
+			mise x "$$claude_tool" -- true; \
+			claude_package="$${claude_tool#npm:}"; \
+			claude_package="$${claude_package%@*}"; \
+			claude_binary="$$(mise where "$$claude_tool")/node_modules/$$claude_package/claude"; \
+		fi; \
+		test -x "$$claude_binary"; \
+	fi; \
+	if includes_agent pi; then \
+		pi_binary="$${PI_E2E_BINARY:-$$(mise x "$(PI_E2E_TOOL)" -- which pi)}"; \
+		test -x "$$pi_binary"; \
+		pi_package="$${PI_E2E_PACKAGE:-$(SUPATERM_SKILLS_DIR)}"; \
+		test -f "$$pi_package/extensions/pi-notify-supaterm/index.ts"; \
+	fi; \
+	xcodebuild_command=(xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" PI_E2E_PACKAGE="$$pi_package" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
 	if [ -t 1 ]; then \
-		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CODEX_E2E_BINARY="$$codex_binary" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging; \
+		"$${xcodebuild_command[@]}" 2>&1 | mise exec -- xcbeautify --disable-logging; \
 	else \
-		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CODEX_E2E_BINARY="$$codex_binary" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
+		"$${xcodebuild_command[@]}"; \
 	fi
 
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.

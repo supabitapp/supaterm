@@ -101,7 +101,11 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-      - run: make mac-test-e2e E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
+      - run: >-
+          make mac-test-e2e
+          E2E_AGENT=none
+          E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
+          XCODEBUILD_FLAGS="-skip-testing:supatermE2E/CodexE2ETests -skip-testing:supatermE2E/ClaudeE2ETests -skip-testing:supatermE2E/PiE2ETests"
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - if: failure()
@@ -109,6 +113,48 @@ jobs:
         with:
           name: mac-test-e2e-xcresult
           path: ${{ runner.temp }}/supatermE2E.xcresult
+          if-no-files-found: ignore
+
+  mac_test_agent_e2e:
+    name: mac-test-agent-e2e (${{ matrix.agent }})
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - agent: codex
+            suite: CodexE2ETests
+          - agent: claude
+            suite: ClaudeE2ETests
+          - agent: pi
+            suite: PiE2ETests
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-macos
+        with:
+          cache-native-builds: true
+          github-token: ${{ github.token }}
+      - if: matrix.agent != 'codex'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: ~/.cache/aube
+          key: agent-e2e-${{ runner.os }}-${{ runner.arch }}-${{ matrix.agent }}-${{ hashFiles('apps/mac/Makefile') }}
+      - run: >-
+          make mac-test-e2e
+          E2E_AGENT="${{ matrix.agent }}"
+          E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E-${{ matrix.agent }}.xcresult"
+          XCODEBUILD_FLAGS="-only-testing:supatermE2E/${{ matrix.suite }}"
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+      - if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: mac-test-agent-e2e-${{ matrix.agent }}-xcresult
+          path: ${{ runner.temp }}/supatermE2E-${{ matrix.agent }}.xcresult
           if-no-files-found: ignore
 
   mac_test_ui_build:
@@ -222,6 +268,7 @@ jobs:
       - swiftlint
       - mac_test
       - mac_test_e2e
+      - mac_test_agent_e2e
       - mac_test_ui_build
       - mac_test_ui
     runs-on: ubuntu-latest
@@ -230,6 +277,7 @@ jobs:
       SWIFTLINT: ${{ needs.swiftlint.result }}
       UNIT: ${{ needs.mac_test.result }}
       E2E: ${{ needs.mac_test_e2e.result }}
+      AGENT_E2E: ${{ needs.mac_test_agent_e2e.result }}
       UI_BUILD: ${{ needs.mac_test_ui_build.result }}
       UI: ${{ needs.mac_test_ui.result }}
     steps:
@@ -240,5 +288,6 @@ jobs:
           test "$SWIFTLINT" = success
           test "$UNIT" = success
           test "$E2E" = success
+          test "$AGENT_E2E" = success
           test "$UI_BUILD" = success
           test "$UI" = success
