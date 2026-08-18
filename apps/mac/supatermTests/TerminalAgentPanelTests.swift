@@ -16,21 +16,6 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func childStatusUsesAvailableRoleAndPhase() {
-    #expect(
-      AgentPanelView.childStatus(child(role: "workflow-subagent"))
-        == "Workflow Subagent is working"
-    )
-    #expect(AgentPanelView.childStatus(child(role: "reviewer")) == "Reviewer subagent is working")
-    #expect(AgentPanelView.childStatus(child()) == "Subagent is working")
-    #expect(
-      AgentPanelView.childStatus(child(role: "tester", phase: .needsInput))
-        == "Tester subagent needs input"
-    )
-  }
-
-  @Test
-  @MainActor
   func restoredAgentStateRequiresCurrentProcessIdentityAndPreservesForegroundPlan() throws {
     let host = TerminalHostState(managesTerminalSurfaces: false)
     let surfaceID = UUID()
@@ -1691,25 +1676,6 @@ struct TerminalAgentPanelTests {
     )
   }
 
-  private func child(
-    subagentID: String = "child-1",
-    kind: TerminalAgentChildKind = .subagent,
-    role: String? = nil,
-    phase: TerminalAgentChildPhase = .running,
-    detail: String? = nil
-  ) -> TerminalAgentActiveChild {
-    TerminalAgentActiveChild(
-      id: TerminalAgentActiveChild.Identity(
-        subagentID: subagentID,
-        sessionID: "session-1",
-        turnID: "turn-1"
-      ),
-      kind: kind,
-      role: role,
-      phase: phase,
-      detail: detail
-    )
-  }
 }
 
 private func isoDate(_ value: String) throws -> Date {

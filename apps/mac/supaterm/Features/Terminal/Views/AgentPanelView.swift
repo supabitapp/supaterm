@@ -63,16 +63,6 @@ struct AgentPanelView: View {
         }
       }
 
-      if !presentation.activeChildren.isEmpty {
-        section("Active agents") {
-          VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
-            ForEach(presentation.activeChildren) { child in
-              activeChildRow(child)
-            }
-          }
-        }
-      }
-
       if presentation.workingDirectoryPath != nil || presentation.branchDetails != nil {
         section("Workspace") {
           VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
@@ -140,63 +130,6 @@ struct AgentPanelView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  private func activeChildRow(_ child: TerminalAgentActiveChild) -> some View {
-    HStack(alignment: .top, spacing: AgentPanelMetrics.rowContentSpacing) {
-      AgentPanelProgressIcon(
-        status: childProgressStatus(child.phase),
-        palette: palette
-      )
-      VStack(alignment: .leading, spacing: 2) {
-        Text(Self.childStatus(child))
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.primaryText)
-        if let detail = child.detail {
-          Text(detail)
-            .font(.system(size: 11))
-            .foregroundStyle(palette.secondaryText)
-            .lineLimit(2)
-        }
-      }
-      .fixedSize(horizontal: false, vertical: true)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .accessibilityElement(children: .combine)
-  }
-
-  static func childStatus(_ child: TerminalAgentActiveChild) -> String {
-    let role = normalizedChildLabel(child.role)
-    let subject = role.map(childRoleSubject) ?? "Subagent"
-    return switch child.phase {
-    case .needsInput: "\(subject) needs input"
-    case .running: "\(subject) is working"
-    }
-  }
-
-  private static func normalizedChildLabel(_ value: String?) -> String? {
-    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-      !value.isEmpty
-    else { return nil }
-    return value
-  }
-
-  private static func childRoleSubject(_ role: String) -> String {
-    let words =
-      role
-      .replacingOccurrences(of: "_", with: " ")
-      .replacingOccurrences(of: "-", with: " ")
-      .capitalized
-    return words.lowercased().hasSuffix("subagent") ? words : "\(words) subagent"
-  }
-
-  private func childProgressStatus(
-    _ phase: TerminalAgentChildPhase
-  ) -> PaneAgentProgressRow.Status {
-    switch phase {
-    case .needsInput: .pending
-    case .running: .running
-    }
   }
 
   private func actionBar(_ session: PaneAgentPanelSession) -> some View {

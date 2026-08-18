@@ -194,13 +194,11 @@ final class TerminalHostState {
 
     func panelPresentation(
       progressRows: [PaneAgentProgressRow] = [],
-      activeChildren: [TerminalAgentActiveChild] = [],
       workingDirectoryPath: String? = nil,
       session: PaneAgentPanelSession? = nil
     ) -> PaneAgentPanelPresentation {
       PaneAgentPanelPresentation(
         progressRows: progressRows,
-        activeChildren: activeChildren,
         workingDirectoryPath: workingDirectoryPath,
         branchDetails: branchDetails,
         artifacts: artifacts,

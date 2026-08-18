@@ -89,42 +89,6 @@ extension SnapshotCatalog {
       )
     },
     scenario(
-      "active-agents",
-      group: "Agent Panel",
-      title: "Active child agents",
-      size: CGSize(width: 338, height: 190)
-    ) { appearance in
-      AnyView(
-        AgentPanelSnapshotFixture(
-          appearance: appearance,
-          presentation: PaneAgentPanelPresentation(
-            activeChildren: [
-              TerminalAgentActiveChild(
-                id: TerminalAgentActiveChild.Identity(
-                  subagentID: "reviewer-1",
-                  sessionID: "session-26-0701",
-                  turnID: "turn-4"
-                ),
-                role: "explore",
-                phase: .running,
-                detail: "Reviewing native hook ownership"
-              ),
-              TerminalAgentActiveChild(
-                id: TerminalAgentActiveChild.Identity(
-                  subagentID: "tester-1",
-                  sessionID: "session-26-0701",
-                  turnID: "turn-4"
-                ),
-                role: "general-purpose",
-                phase: .needsInput,
-                detail: "Needs approval to run tests"
-              ),
-            ]
-          )
-        )
-      )
-    },
-    scenario(
       "merge-queue",
       group: "Agent Panel",
       title: "Pull request in merge queue",

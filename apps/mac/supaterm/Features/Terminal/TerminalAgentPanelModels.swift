@@ -3,7 +3,6 @@ import SupatermCLIShared
 
 nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   var progressRows: [PaneAgentProgressRow] = []
-  var activeChildren: [TerminalAgentActiveChild] = []
   var workingDirectoryPath: String?
   var branchDetails: PaneAgentBranchDetails?
   var artifacts: [PaneAgentArtifact] = []
@@ -15,7 +14,6 @@ nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
 
   var hasContentBesidesWorkspace: Bool {
     !progressRows.isEmpty
-      || !activeChildren.isEmpty
       || branchDetails != nil
       || !artifacts.isEmpty
       || session != nil

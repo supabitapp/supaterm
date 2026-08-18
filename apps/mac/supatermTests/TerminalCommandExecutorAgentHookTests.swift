@@ -268,7 +268,10 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
     #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.isEmpty
+      harness.host.agentStateStore.presentation(
+        for: harness.context.surfaceID,
+        agent: .claude
+      )?.activeChildren.isEmpty
         == true
     )
   }
@@ -309,7 +312,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     let child = try #require(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.activeChildren.first
+      harness.host.agentStateStore.presentation(
+        for: harness.context.surfaceID,
+        agent: .claude
+      )?.activeChildren.first
     )
     #expect(child.phase == .needsInput)
     #expect(result.desktopNotification == nil)

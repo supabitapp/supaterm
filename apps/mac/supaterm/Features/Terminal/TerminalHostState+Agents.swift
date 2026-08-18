@@ -128,7 +128,6 @@ extension TerminalHostState {
     let session = actionableSessions.count == 1 ? actionableSessions[0] : nil
     let presentation = metadata.panelPresentation(
       progressRows: current?.nativePresentation?.progressRows ?? [],
-      activeChildren: current?.nativePresentation?.activeChildren ?? [],
       workingDirectoryPath: workingDirectoryPath,
       session: session
     )
