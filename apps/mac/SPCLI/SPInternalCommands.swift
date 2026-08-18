@@ -178,15 +178,10 @@ extension SP.Development {
   struct Claude: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "claude",
-      abstract: "Emit synthetic Claude hook events for live integration verification.",
+      abstract: "Emit a synthetic Claude session identity for live integration verification.",
       discussion: SPHelp.developmentClaudeDiscussion,
       subcommands: [
-        SessionStart.self,
-        PreToolUse.self,
-        Notification.self,
-        UserPromptSubmit.self,
-        Stop.self,
-        SessionEnd.self,
+        SessionStart.self
       ]
     )
 
@@ -208,82 +203,7 @@ extension SP.Development.Claude {
     var invocation: SPDevelopmentClaudeInvocationOptions
 
     mutating func run() throws {
-      try sendDevelopmentClaudeEvent(.sessionStart, invocation: invocation)
-    }
-  }
-
-  struct PreToolUse: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "pre-tool-use",
-      abstract: "Emit a synthetic pre-tool-use hook for the current Claude session.",
-      discussion: SPHelp.developmentClaudePreToolUseDiscussion
-    )
-
-    @OptionGroup
-    var invocation: SPDevelopmentClaudeInvocationOptions
-
-    mutating func run() throws {
-      try sendDevelopmentClaudeEvent(.preToolUse, invocation: invocation)
-    }
-  }
-
-  struct Notification: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "notification",
-      abstract: "Trigger a generic attention notification for the current Claude session.",
-      discussion: SPHelp.developmentClaudeNotificationDiscussion
-    )
-
-    @OptionGroup
-    var invocation: SPDevelopmentClaudeInvocationOptions
-
-    mutating func run() throws {
-      try sendDevelopmentClaudeEvent(.notification, invocation: invocation)
-    }
-  }
-
-  struct UserPromptSubmit: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "user-prompt-submit",
-      abstract: "Return the current Claude session to running after synthetic input.",
-      discussion: SPHelp.developmentClaudeUserPromptSubmitDiscussion
-    )
-
-    @OptionGroup
-    var invocation: SPDevelopmentClaudeInvocationOptions
-
-    mutating func run() throws {
-      try sendDevelopmentClaudeEvent(.userPromptSubmit, invocation: invocation)
-    }
-  }
-
-  struct Stop: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "stop",
-      abstract: "Mark the current Claude session as idle.",
-      discussion: SPHelp.developmentClaudeStopDiscussion
-    )
-
-    @OptionGroup
-    var invocation: SPDevelopmentClaudeInvocationOptions
-
-    mutating func run() throws {
-      try sendDevelopmentClaudeEvent(.stop, invocation: invocation)
-    }
-  }
-
-  struct SessionEnd: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "session-end",
-      abstract: "Clear synthetic Claude activity for the current session.",
-      discussion: SPHelp.developmentClaudeSessionEndDiscussion
-    )
-
-    @OptionGroup
-    var invocation: SPDevelopmentClaudeInvocationOptions
-
-    mutating func run() throws {
-      try sendDevelopmentClaudeEvent(.sessionEnd, invocation: invocation)
+      try sendDevelopmentClaudeSessionStart(invocation: invocation)
     }
   }
 }
@@ -294,32 +214,6 @@ struct SPDevelopmentClaudeInvocationOptions: ParsableArguments {
 
   @Option(name: .long, help: "Use the specified synthetic Claude session identifier.")
   var sessionID: String?
-}
-
-enum SPDevelopmentClaudeEventKind: Equatable {
-  case sessionEnd
-  case sessionStart
-  case stop
-  case notification
-  case preToolUse
-  case userPromptSubmit
-
-  var commandName: String {
-    switch self {
-    case .sessionStart:
-      return "session-start"
-    case .preToolUse:
-      return "pre-tool-use"
-    case .notification:
-      return "notification"
-    case .userPromptSubmit:
-      return "user-prompt-submit"
-    case .stop:
-      return "stop"
-    case .sessionEnd:
-      return "session-end"
-    }
-  }
 }
 
 struct SPDevelopmentClaudeEventBuilder {
@@ -333,62 +227,19 @@ struct SPDevelopmentClaudeEventBuilder {
     "sp-development-\(context.surfaceID.uuidString.lowercased())"
   }
 
-  func event(
-    _ kind: SPDevelopmentClaudeEventKind,
+  func sessionStartEvent(
     context: SupatermCLIContext,
     sessionIDOverride: String? = nil
   ) throws -> SupatermAgentHookEvent {
     let sessionID = try resolvedSessionID(context: context, sessionIDOverride: sessionIDOverride)
-    switch kind {
-    case .sessionStart:
-      return SupatermAgentHookEvent(
-        agentType: "assistant",
-        cwd: currentDirectoryPath,
-        hookEventName: .sessionStart,
-        model: "sp-development",
-        sessionID: sessionID,
-        source: "sp development"
-      )
-
-    case .preToolUse:
-      return SupatermAgentHookEvent(
-        cwd: currentDirectoryPath,
-        hookEventName: .preToolUse,
-        sessionID: sessionID
-      )
-
-    case .notification:
-      return SupatermAgentHookEvent(
-        cwd: currentDirectoryPath,
-        hookEventName: .notification,
-        message: "Claude needs your attention",
-        notificationType: "permission_prompt",
-        sessionID: sessionID,
-        title: "Needs input"
-      )
-
-    case .userPromptSubmit:
-      return SupatermAgentHookEvent(
-        cwd: currentDirectoryPath,
-        hookEventName: .userPromptSubmit,
-        sessionID: sessionID
-      )
-
-    case .stop:
-      return SupatermAgentHookEvent(
-        cwd: currentDirectoryPath,
-        hookEventName: .stop,
-        lastAssistantMessage: "Done.",
-        sessionID: sessionID
-      )
-
-    case .sessionEnd:
-      return SupatermAgentHookEvent(
-        cwd: currentDirectoryPath,
-        hookEventName: .sessionEnd,
-        sessionID: sessionID
-      )
-    }
+    return SupatermAgentHookEvent(
+      agentType: "assistant",
+      cwd: currentDirectoryPath,
+      hookEventName: .sessionStart,
+      model: "sp-development",
+      sessionID: sessionID,
+      source: "sp development"
+    )
   }
 
   private func resolvedSessionID(
@@ -414,8 +265,7 @@ struct SPDevelopmentAvailability {
   }
 }
 
-private func sendDevelopmentClaudeEvent(
-  _ kind: SPDevelopmentClaudeEventKind,
+private func sendDevelopmentClaudeSessionStart(
   invocation: SPDevelopmentClaudeInvocationOptions
 ) throws {
   try requireDevelopmentBuild(connection: invocation.connection)
@@ -424,8 +274,7 @@ private func sendDevelopmentClaudeEvent(
     throw ValidationError("Run this command inside a Supaterm pane.")
   }
 
-  let event = try SPDevelopmentClaudeEventBuilder().event(
-    kind,
+  let event = try SPDevelopmentClaudeEventBuilder().sessionStartEvent(
     context: context,
     sessionIDOverride: invocation.sessionID
   )
@@ -446,7 +295,7 @@ private func sendDevelopmentClaudeEvent(
     throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
   }
 
-  print("sent \(kind.commandName) for session \(event.sessionID ?? "")")
+  print("sent session-start for session \(event.sessionID ?? "")")
 }
 
 private func requireDevelopmentBuild(connection: SPConnectionOptions) throws {

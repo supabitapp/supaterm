@@ -4,7 +4,7 @@ final class AgentPanelUITests: SupatermUITestCase {
   @MainActor
   func testCommandIAndMenuItemToggleAgentPanel() async throws {
     _ = mainWindow
-    try await sendClaudeEvent("session-start")
+    try await startClaudeSession()
     try await assertAgentPanelMenuItem(isEnabled: true)
 
     let panel = agentPanel
@@ -23,8 +23,7 @@ final class AgentPanelUITests: SupatermUITestCase {
   @MainActor
   func testCopySessionIDShowsTemporaryInlineFeedback() async throws {
     _ = mainWindow
-    try await sendClaudeEvent("session-start")
-    try await sendClaudeEvent("user-prompt-submit")
+    try await startClaudeSession()
 
     let panel = agentPanel
     let copyButton = panel.buttons.matching(

@@ -351,6 +351,24 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func agentActivityTakesPrecedenceOverPinnedStatus() {
+    for status in [
+      TerminalHostState.TabAgentStatus.needsInput,
+      .working,
+      .done,
+    ] {
+      #expect(
+        TerminalSidebarTabSummaryView.statusAccessory(
+          isPinned: true,
+          unreadCount: 0,
+          agentStatus: status,
+          terminalProgress: nil
+        ) == .agentStatus(status)
+      )
+    }
+  }
+
+  @Test
   func agentDoneTakesPrecedenceOverUnreadCount() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(

@@ -49,8 +49,7 @@ extension SupatermUITestCase {
   }
 
   @MainActor
-  func sendClaudeEvent(
-    _ event: String,
+  func startClaudeSession(
     sessionID: String = AgentUITest.sessionID
   ) async throws {
     let terminal = mainTerminal
@@ -60,12 +59,12 @@ extension SupatermUITestCase {
 
     terminal.click()
     terminal.typeText(
-      "\"$SUPATERM_CLI_PATH\" internal dev claude \(event)"
+      "\"$SUPATERM_CLI_PATH\" internal dev claude session-start"
         + " --socket \"$SUPATERM_SOCKET_PATH\" --session-id \(sessionID)"
     )
     terminal.typeKey(.return, modifierFlags: [])
 
-    let expectedOutput = "sent \(event) for session \(sessionID)"
+    let expectedOutput = "sent session-start for session \(sessionID)"
     await assertEventually(terminal, timeout: AgentUITest.coldStartTimeout) {
       ($0.value as? String)?.contains(expectedOutput) == true
     }

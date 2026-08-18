@@ -540,8 +540,6 @@ enum SPHelp {
 
     Example:
       sp internal dev claude session-start
-      sp internal dev claude pre-tool-use
-      sp internal dev claude notification
     """
 
   static let developmentClaudeDiscussion = """
@@ -549,46 +547,13 @@ enum SPHelp {
 
     These commands require the connected Supaterm instance to report a development build.
 
-    Verification flow:
-      sp internal dev claude session-start
-      sp internal dev claude pre-tool-use
-      sp internal dev claude notification
-      sp internal dev claude stop
-      sp internal dev claude session-end
-
     Example:
       sp internal dev claude session-start
-      sp internal dev claude notification
     """
 
   static let developmentClaudeSessionStartDiscussion = """
     Example:
       sp internal dev claude session-start
-    """
-
-  static let developmentClaudePreToolUseDiscussion = """
-    Example:
-      sp internal dev claude pre-tool-use
-    """
-
-  static let developmentClaudeNotificationDiscussion = """
-    Example:
-      sp internal dev claude notification
-    """
-
-  static let developmentClaudeUserPromptSubmitDiscussion = """
-    Example:
-      sp internal dev claude user-prompt-submit
-    """
-
-  static let developmentClaudeStopDiscussion = """
-    Example:
-      sp internal dev claude stop
-    """
-
-  static let developmentClaudeSessionEndDiscussion = """
-    Example:
-      sp internal dev claude session-end
     """
 
   static let instanceDiscussion = """

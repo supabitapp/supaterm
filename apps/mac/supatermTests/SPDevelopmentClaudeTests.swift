@@ -22,39 +22,19 @@ struct SPDevelopmentClaudeTests {
   }
 
   @Test
-  func preToolUseBuildsGenericPayload() throws {
+  func sessionStartBuildsIdentityPayload() throws {
     let builder = SPDevelopmentClaudeEventBuilder(currentDirectoryPath: "/tmp/supaterm")
-    let event = try builder.event(.preToolUse, context: context)
+    let event = try builder.sessionStartEvent(
+      context: context,
+      sessionIDOverride: "debug-session"
+    )
 
     #expect(event.payload["cwd"]?.stringValue == "/tmp/supaterm")
-    #expect(event.hookEventName == .preToolUse)
-    #expect(event.sessionID == builder.defaultSessionID(for: context))
-    #expect(event.toolName == nil)
-    #expect(event.toolUseID == nil)
-    #expect(event.toolInput == nil)
-  }
-
-  @Test
-  func notificationBuildsGenericAttentionPayload() throws {
-    let builder = SPDevelopmentClaudeEventBuilder(currentDirectoryPath: "/tmp/supaterm")
-    let event = try builder.event(.notification, context: context, sessionIDOverride: "debug-session")
-
-    #expect(event.hookEventName == .notification)
-    #expect(event.message == "Claude needs your attention")
-    #expect(event.notificationType == "permission_prompt")
+    #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == "debug-session")
-    #expect(event.title == "Needs input")
-  }
-
-  @Test
-  func stopAndSessionEndUseExpectedHookNames() throws {
-    let builder = SPDevelopmentClaudeEventBuilder(currentDirectoryPath: "/tmp/supaterm")
-    let stop = try builder.event(.stop, context: context)
-    let sessionEnd = try builder.event(.sessionEnd, context: context)
-
-    #expect(stop.hookEventName == .stop)
-    #expect(stop.lastAssistantMessage == "Done.")
-    #expect(sessionEnd.hookEventName == .sessionEnd)
+    #expect(event.agentType == "assistant")
+    #expect(event.payload["model"]?.stringValue == "sp-development")
+    #expect(event.source == "sp development")
   }
 
   @Test

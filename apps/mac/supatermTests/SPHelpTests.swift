@@ -322,14 +322,12 @@ struct SPHelpTests {
   }
 
   @Test
-  func developmentClaudeHelpShowsRuntimeGateAndVerificationFlow() {
+  func developmentClaudeHelpShowsSessionStartFlow() {
     let help = SP.helpMessage(for: SP.Development.Claude.self, columns: 100)
 
     #expect(help.contains("development build"))
     #expect(help.contains("Run these commands inside the Supaterm pane"))
     #expect(help.contains("sp internal dev claude session-start"))
-    #expect(help.contains("sp internal dev claude notification"))
-    #expect(help.contains("sp internal dev claude session-end"))
   }
 
   @Test
