@@ -426,7 +426,7 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
     guard let startedAt, let completedAt else {
       return fallback
     }
-    return "\(prefix) \(terminalCompactDurationText(from: startedAt, to: completedAt))"
+    return "\(prefix) \(Self.durationText(from: startedAt, to: completedAt))"
   }
 
   private static func normalized(_ value: String?) -> String? {
@@ -452,6 +452,22 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
     return days == 1 ? "1 day" : "\(days) days"
   }
 
+  private static func durationText(from start: Date, to end: Date) -> String {
+    let seconds = max(0, Int(end.timeIntervalSince(start).rounded(.down)))
+    if seconds < 60 {
+      return "\(seconds)s"
+    }
+    let minutes = seconds / 60
+    if minutes < 60 {
+      return "\(minutes)m"
+    }
+    let hours = minutes / 60
+    let remainingMinutes = minutes % 60
+    if remainingMinutes == 0 {
+      return "\(hours)h"
+    }
+    return "\(hours)h \(remainingMinutes)m"
+  }
 }
 
 nonisolated struct PaneAgentArtifact: Equatable, Identifiable, Sendable {

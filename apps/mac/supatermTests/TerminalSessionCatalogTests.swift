@@ -561,7 +561,6 @@ struct TerminalSessionCatalogTests {
 
   @Test
   func agentRecordRoundTripsCanonicalState() throws {
-    let turnStartedAt = Date(timeIntervalSinceReferenceDate: 10_000)
     let record = TerminalPaneAgentRecord(
       agent: .claude,
       sessionID: "session-1",
@@ -569,7 +568,6 @@ struct TerminalSessionCatalogTests {
         TerminalAgentProcessIdentity(processID: 123, startTimeMicroseconds: 456)
       ],
       turnLifecycle: .active("turn-1"),
-      turnStartedAt: turnStartedAt,
       phase: .needsInput,
       detail: "Approve tests",
       latestResponse: "Testing",
@@ -597,7 +595,6 @@ struct TerminalSessionCatalogTests {
     let decoded = try JSONDecoder().decode(TerminalPaneAgentRecord.self, from: data)
 
     #expect(decoded == record)
-    #expect(decoded.turnStartedAt == turnStartedAt)
   }
 
   private func windowSession(spaceIDs: [TerminalSpaceID]) -> TerminalWindowSession {

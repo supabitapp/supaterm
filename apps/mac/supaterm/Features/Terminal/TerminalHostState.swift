@@ -217,7 +217,6 @@ final class TerminalHostState {
 
   struct TabAgentPresentation: Equatable, Sendable {
     let status: TabAgentStatus?
-    let workingStartedAt: Date?
     let detailActivity: AgentActivity?
     let latestResponse: TabAgentResponse?
   }
@@ -234,7 +233,6 @@ final class TerminalHostState {
 
   struct AgentStateInstance: Equatable, Sendable {
     let activity: AgentActivity
-    let workingStartedAt: Date?
     let nativePresentation: TerminalAgentStatePresentation?
     let phaseSource: AgentPhaseSource
     let revision: UInt64

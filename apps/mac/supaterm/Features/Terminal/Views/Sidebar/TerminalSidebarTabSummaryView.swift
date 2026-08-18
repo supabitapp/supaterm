@@ -17,7 +17,6 @@ struct TerminalSidebarTabSummaryView: View {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentStatus: TerminalHostState.TabAgentStatus?
-  let agentWorkingStartedAt: Date?
   let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
@@ -204,7 +203,6 @@ struct TerminalSidebarTabSummaryView: View {
     case .agentStatus(let status):
       TerminalSidebarAgentStatusView(
         status: status,
-        workingStartedAt: status == .working ? agentWorkingStartedAt : nil,
         showsText: showsAgentStatusText,
         palette: palette
       )

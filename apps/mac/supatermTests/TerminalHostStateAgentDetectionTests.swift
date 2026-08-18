@@ -385,7 +385,6 @@ struct TerminalHostStateAgentDetectionTests {
       presentation: TerminalAgentStatePresentation(
         agent: agent,
         sessionID: "native-\(agent.rawValue)",
-        turnStartedAt: nil,
         phase: .running,
         detail: "Native detail",
         latestResponse: nil,
@@ -413,7 +412,6 @@ struct TerminalHostStateAgentDetectionTests {
       surfaceID: surfaceID,
       processes: [processIdentity],
       turnLifecycle: .active("turn-1"),
-      turnStartedAt: nil,
       phase: .running,
       detail: detail,
       attentionRequestID: nil,

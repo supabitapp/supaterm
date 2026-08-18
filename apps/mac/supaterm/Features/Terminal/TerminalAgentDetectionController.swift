@@ -188,7 +188,6 @@ final class TerminalAgentDetectionController {
   private let rules: TerminalAgentDetectionRuleAccess
   private let sampler: TerminalAgentDetectionSampler
   private let host: TerminalAgentDetectionHostAccess
-  private let now: () -> Date
   private let clock = ContinuousClock()
   private var task: Task<Void, Never>?
   private var states: [UUID: SurfaceState] = [:]
@@ -228,13 +227,11 @@ final class TerminalAgentDetectionController {
   init(
     rules: TerminalAgentDetectionRuleAccess,
     sampler: TerminalAgentDetectionSampler,
-    host: TerminalAgentDetectionHostAccess,
-    now: @escaping () -> Date = Date.init
+    host: TerminalAgentDetectionHostAccess
   ) {
     self.rules = rules
     self.sampler = sampler
     self.host = host
-    self.now = now
   }
 
   deinit {
@@ -672,36 +669,13 @@ final class TerminalAgentDetectionController {
       processIdentity: proof.processIdentity,
       ruleID: ruleID,
       generation: evaluation.generation,
-      sequence: sequence,
-      turnStartedAt: turnStartedAt(
-        previous: previousObservation,
-        agent: evaluation.identity,
-        processIdentity: proof.processIdentity,
-        phase: phase
-      )
+      sequence: sequence
     )
     if host.apply(observation, surfaceID) {
       state.status = state.matched?.phase == phase ? .detected : .noRuleMatchOrSettling
     } else {
       state.status = .waiting
     }
-  }
-
-  private func turnStartedAt(
-    previous: TerminalAgentDetectionObservation?,
-    agent: AgentDetectionAgentIdentity,
-    processIdentity: TerminalAgentProcessIdentity,
-    phase: AgentActivityPhase
-  ) -> Date? {
-    guard phase != .idle else { return nil }
-    guard let previous,
-      previous.agent == agent,
-      previous.processIdentity == processIdentity,
-      previous.phase != .idle
-    else {
-      return now()
-    }
-    return previous.turnStartedAt ?? now()
   }
 
   private func matched(_ evaluation: AgentDetectionEvaluation) -> Matched? {

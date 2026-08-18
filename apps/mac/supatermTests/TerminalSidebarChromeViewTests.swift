@@ -9,17 +9,6 @@ import Testing
 
 struct TerminalSidebarChromeViewTests {
   @Test
-  func compactDurationUsesTheLargestUsefulUnits() {
-    let start = Date(timeIntervalSinceReferenceDate: 10_000)
-
-    #expect(terminalCompactDurationText(from: start, to: start.addingTimeInterval(-1)) == "0s")
-    #expect(terminalCompactDurationText(from: start, to: start.addingTimeInterval(42)) == "42s")
-    #expect(terminalCompactDurationText(from: start, to: start.addingTimeInterval(300)) == "5m")
-    #expect(terminalCompactDurationText(from: start, to: start.addingTimeInterval(3_600)) == "1h")
-    #expect(terminalCompactDurationText(from: start, to: start.addingTimeInterval(5_400)) == "1h 30m")
-  }
-
-  @Test
   func sidebarRowAppearanceResolvesEveryState() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
       let palette = Palette(colorScheme: colorScheme)

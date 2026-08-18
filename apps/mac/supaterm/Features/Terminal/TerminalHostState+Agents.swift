@@ -16,7 +16,6 @@ extension TerminalHostState {
     guard let tree = trees[tabID] else {
       return TabAgentPresentation(
         status: nil,
-        workingStartedAt: nil,
         detailActivity: nil,
         latestResponse: nil
       )
@@ -65,10 +64,6 @@ extension TerminalHostState {
 
     return TabAgentPresentation(
       status: statusCandidate?.status,
-      workingStartedAt:
-        statusCandidate?.status == .working
-        ? statusCandidate?.instance.workingStartedAt
-        : nil,
       detailActivity: detailActivity,
       latestResponse: latestResponse
     )
@@ -514,7 +509,6 @@ extension TerminalHostState {
           phase: observation.phase,
           detail: nativePresentation?.detail
         ),
-        workingStartedAt: observation.turnStartedAt,
         nativePresentation: nativePresentation,
         phaseSource: .terminal,
         revision: observation.sequence,
@@ -563,7 +557,6 @@ extension TerminalHostState {
         phase: presentation.phase,
         detail: presentation.detail
       ),
-      workingStartedAt: presentation.turnStartedAt,
       nativePresentation: presentation,
       phaseSource: .native,
       revision: UInt64(max(0, candidate.revision)),

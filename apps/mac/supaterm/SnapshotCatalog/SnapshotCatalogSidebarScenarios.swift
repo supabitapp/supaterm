@@ -342,7 +342,6 @@ private struct SidebarRowSnapshotItem {
   var paneWorkingDirectories: [String] = []
   var unreadCount = 0
   var agentStatus: TerminalHostState.TabAgentStatus?
-  var agentWorkingStartedAt: Date?
   var hasTerminalBell = false
   var terminalProgress: TerminalSidebarTerminalProgress?
   var shortcutHint: String?
@@ -362,8 +361,7 @@ private struct SidebarRowSnapshotItem {
       id: "10000000-0000-0000-0000-000000000004",
       title: "khoi/routine-ui-what-happened | Thinking | Tasks 5/5",
       paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
-      agentStatus: .working,
-      agentWorkingStartedAt: .now.addingTimeInterval(-300)
+      agentStatus: .working
     )
   }
 
@@ -404,7 +402,6 @@ private struct SidebarRowSnapshotFixture: View {
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       agentStatus: item.agentStatus,
-      agentWorkingStartedAt: item.agentWorkingStartedAt,
       hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
       shortcutHint: item.shortcutHint,

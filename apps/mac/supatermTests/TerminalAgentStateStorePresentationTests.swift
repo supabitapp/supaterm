@@ -6,67 +6,6 @@ import Testing
 
 extension TerminalAgentStateStoreTests {
   @Test
-  func workingDurationTracksOneContinuousTurn() throws {
-    let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
-    let firstStart = Date(timeIntervalSinceReferenceDate: 10_000)
-    var currentDate = firstStart
-    var store = TerminalAgentStateStore(now: { currentDate })
-
-    store.apply(event(sessionID: "session-1", context: context, action: .sessionStarted))
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .turnStarted
-      )
-    )
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.turnStartedAt == firstStart)
-
-    currentDate = firstStart.addingTimeInterval(300)
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .attentionRequested(requestID: "approval", message: "Approve")
-      )
-    )
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .attentionResolved(requestID: "approval")
-      )
-    )
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.turnStartedAt == firstStart)
-
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-1",
-        context: context,
-        action: .turnCompleted(message: nil)
-      )
-    )
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.turnStartedAt == nil)
-
-    let secondStart = firstStart.addingTimeInterval(600)
-    currentDate = secondStart
-    store.apply(
-      event(
-        sessionID: "session-1",
-        turnID: "turn-2",
-        context: context,
-        action: .turnStarted
-      )
-    )
-    #expect(store.presentation(for: surfaceID, agent: .codex)?.turnStartedAt == secondStart)
-  }
-
-  @Test
   func attentionMarksForegroundTurnAsNeedingInput() throws {
     let fixture = startedStore()
     let surfaceID = fixture.surfaceID

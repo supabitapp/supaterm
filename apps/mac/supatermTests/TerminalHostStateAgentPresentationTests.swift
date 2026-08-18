@@ -25,7 +25,6 @@ struct TerminalHostStateAgentPresentationTests {
       host.agentActivity(for: tabID)
         == .codex(.running, detail: "Bash · git status --short")
     )
-    #expect(host.tabAgentPresentation(for: tabID).workingStartedAt != nil)
     #expect(host.showsAgentActivityDetail(for: tabID))
   }
 
