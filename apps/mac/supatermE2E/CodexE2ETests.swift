@@ -240,6 +240,7 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
   let marker = lifecycleMarker(fixture.space)
   let command = lifecycleCommand(fixture.space)
   let prompt = [
+    marker,
     "First call request_user_input with one question.",
     "Use header \"E2E\", question \"\(question)\", and two options named \"Proceed\" and \"Stop\".",
     "After the answer, use the shell tool once to run exactly `\(command)`.",
@@ -247,7 +248,7 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
     "Do not call any other tool.",
   ].joined(separator: " ")
 
-  try await fixture.app.submit(prompt, waitingFor: question, into: fixture.space.pane)
+  try await fixture.app.submit(prompt, waitingFor: marker, into: fixture.space.pane)
   try await fixture.expect(.running)
   fixture.server.releaseNextResponse()
   try await fixture.app.waitForCapture(fixture.space.pane, contains: question, timeout: 90)
@@ -276,11 +277,11 @@ private func runInterruptedTurn(
   let marker = interruptedMarker(fixture.space, name: name)
   let command = interruptedCommand(fixture.space, name: name)
   let prompt =
-    "Use the shell tool once to run exactly `\(command)`. Do not do anything else until it finishes."
+    "\(marker) Use the shell tool once to run exactly `\(command)`. Do not do anything else until it finishes."
 
   try await fixture.app.submit(
     prompt,
-    waitingFor: interruptedMarker(fixture.space, name: name),
+    waitingFor: marker,
     into: fixture.space.pane
   )
   try await fixture.expect(.running)
