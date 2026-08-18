@@ -152,9 +152,9 @@ struct ZmxTestSessionCleanerTests {
     defer { stop(process) }
     let workspace = try ZmxTestWorkspace(stateHome: stateHome, instanceName: "ui-dead")
     try workspace.recordApp(process)
-    let owner = try readOwner(from: stateHome)
+    let appProcess = try #require(try readOwner(from: stateHome).appProcess)
     try writeOwner(
-      ZmxTestWorkspace.Owner(runnerProcess: deadProcess, appProcess: owner.appProcess),
+      ZmxTestWorkspace.Owner(runnerProcess: deadProcess, appProcess: appProcess),
       to: stateHome
     )
 
@@ -165,7 +165,7 @@ struct ZmxTestSessionCleanerTests {
       cleanupInstance: { _ in }
     )
 
-    #expect(!process.isRunning)
+    #expect(!ZmxTestWorkspace.processMatches(appProcess))
   }
 
   @Test
