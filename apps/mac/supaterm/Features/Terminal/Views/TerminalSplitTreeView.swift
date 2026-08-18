@@ -55,23 +55,6 @@ struct TerminalSplitTreeView: View {
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
 
-  struct ResizeOverlayGridSize: Equatable {
-    let columns: Int
-    let rows: Int
-  }
-
-  struct ResizeOverlayTrigger: Equatable {
-    let viewSize: CGSize
-    let gridSize: ResizeOverlayGridSize
-    let fontSizePoints: Double?
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.viewSize == rhs.viewSize
-        && lhs.gridSize == rhs.gridSize
-        && lhs.fontSizePoints == rhs.fontSizePoints
-    }
-  }
-
   enum OuterEdgeBranch {
     case left
     case right
@@ -125,51 +108,6 @@ struct TerminalSplitTreeView: View {
       return nil
     }
     return provider
-  }
-
-  static func resizeOverlayGridSize(
-    backingSize: CGSize,
-    cellSize: CGSize
-  ) -> ResizeOverlayGridSize? {
-    guard cellSize.width > 0, cellSize.height > 0 else { return nil }
-    let backingWidth = max(1, Int(backingSize.width.rounded(.down)))
-    let backingHeight = max(1, Int(backingSize.height.rounded(.down)))
-    let cellWidth = max(1, Int(cellSize.width.rounded(.down)))
-    let cellHeight = max(1, Int(cellSize.height.rounded(.down)))
-    let columns = backingWidth / cellWidth
-    let rows = backingHeight / cellHeight
-    guard columns >= 5, rows >= 2 else { return nil }
-    return ResizeOverlayGridSize(columns: columns, rows: rows)
-  }
-
-  static func resizeOverlayIsHidden(
-    ready: Bool,
-    lastTrigger: ResizeOverlayTrigger?,
-    currentTrigger: ResizeOverlayTrigger
-  ) -> Bool {
-    guard ready else { return true }
-    guard let lastTrigger else { return true }
-    return lastTrigger == currentTrigger
-  }
-
-  static func resizeOverlayText(
-    lastTrigger: ResizeOverlayTrigger?,
-    currentTrigger: ResizeOverlayTrigger
-  ) -> String {
-    if currentTrigger.fontSizePoints != lastTrigger?.fontSizePoints,
-      let fontSizePoints = currentTrigger.fontSizePoints
-    {
-      return formattedFontSize(fontSizePoints)
-    }
-    return "\(currentTrigger.gridSize.columns) × \(currentTrigger.gridSize.rows)"
-  }
-
-  static func formattedFontSize(_ fontSizePoints: Double) -> String {
-    let rounded = fontSizePoints.rounded()
-    if abs(fontSizePoints - rounded) < 0.05 {
-      return "\(Int(rounded)) pt"
-    }
-    return String(format: "%.1f pt", fontSizePoints)
   }
 
   var body: some View {
@@ -412,9 +350,6 @@ struct TerminalSplitTreeView: View {
           agentPanelOverlay(size: geometry.size)
         }
         .overlay {
-          resizeOverlay(size: geometry.size)
-        }
-        .overlay {
           dimmingOverlay
         }
         .overlay {
@@ -426,13 +361,6 @@ struct TerminalSplitTreeView: View {
         .onHover { hovering in
           isPaneHovering = hovering
         }
-    }
-
-    private func resizeOverlay(size: CGSize) -> some View {
-      ResizeOverlay(
-        geoSize: size,
-        surfaceView: surfaceView
-      )
     }
 
     @ViewBuilder
@@ -1010,68 +938,6 @@ struct TerminalSplitTreeView: View {
         Image(systemName: "info.circle")
           .font(.system(size: 14, weight: .medium))
           .accessibilityHidden(true)
-      }
-    }
-  }
-
-  struct ResizeOverlay: View {
-    let geoSize: CGSize
-    let surfaceView: GhosttySurfaceView
-
-    @State private var lastTrigger: TerminalSplitTreeView.ResizeOverlayTrigger?
-    @State private var ready = false
-
-    private let padding: CGFloat = 5
-    private let durationMilliseconds: UInt64 = 750
-
-    private var gridSize: TerminalSplitTreeView.ResizeOverlayGridSize? {
-      TerminalSplitTreeView.resizeOverlayGridSize(
-        backingSize: surfaceView.convertToBacking(geoSize),
-        cellSize: surfaceView.currentCellSize()
-      )
-    }
-
-    private var trigger: TerminalSplitTreeView.ResizeOverlayTrigger? {
-      guard let gridSize else { return nil }
-      return TerminalSplitTreeView.ResizeOverlayTrigger(
-        viewSize: geoSize,
-        gridSize: gridSize,
-        fontSizePoints: surfaceView.currentFontSizePoints()
-      )
-    }
-
-    var body: some View {
-      if let trigger {
-        let hidden = TerminalSplitTreeView.resizeOverlayIsHidden(
-          ready: ready,
-          lastTrigger: lastTrigger,
-          currentTrigger: trigger
-        )
-        let text = TerminalSplitTreeView.resizeOverlayText(
-          lastTrigger: lastTrigger,
-          currentTrigger: trigger
-        )
-        Text(verbatim: text)
-          .padding(EdgeInsets(top: padding, leading: padding, bottom: padding, trailing: padding))
-          .background(
-            RoundedRectangle(cornerRadius: 4)
-              .fill(.background)
-              .shadow(radius: 3)
-          )
-          .lineLimit(1)
-          .truncationMode(.tail)
-          .allowsHitTesting(false)
-          .opacity(hidden ? 0 : 1)
-          .task {
-            try? await Task.sleep(for: .milliseconds(500))
-            ready = true
-          }
-          .task(id: trigger) {
-            if ready {
-              try? await Task.sleep(for: .milliseconds(durationMilliseconds))
-            }
-            lastTrigger = trigger
-          }
       }
     }
   }
