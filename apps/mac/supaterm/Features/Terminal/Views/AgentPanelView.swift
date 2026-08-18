@@ -2,6 +2,7 @@ import Sharing
 import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
+import SupatermUI
 import SwiftUI
 
 enum AgentPanelMetrics {
@@ -743,7 +744,9 @@ private struct AgentPanelProgressIcon: View {
       case .pending:
         image("circle", color: palette.secondaryText)
       case .running:
-        TerminalAgentRunningSpinnerView(tone: .secondary, palette: palette, diameter: 11)
+        DotsSpinner(size: 11, color: palette.secondaryText.opacity(0.72))
+          .frame(width: 16, height: 16)
+          .accessibilityHidden(true)
       case .completed:
         image("checkmark.circle.fill", color: palette.success)
       }
