@@ -252,6 +252,19 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "agent-pr-states",
+      group: "Sidebar Rows",
+      title: "Coding agent pull request states",
+      size: CGSize(width: 320, height: 160)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: .agentPullRequestStates
+        )
+      )
+    },
+    scenario(
       "agent-needs-input",
       group: "Sidebar Rows",
       title: "Agent needs input",
@@ -416,6 +429,55 @@ private struct SidebarRowSnapshotItem {
     )
   }
 
+  static var agentPullRequestStates: Self {
+    SidebarRowSnapshotItem(
+      id: "10000000-0000-0000-0000-000000000011",
+      title: "Pull request states",
+      agentWorkspaces: [
+        workspace(
+          path: SnapshotFixtureValues.workspace("draft"),
+          branch: "feature/draft",
+          added: 0,
+          removed: 0,
+          pullRequestNumber: 241,
+          pullRequestKind: .draft
+        ),
+        workspace(
+          path: SnapshotFixtureValues.workspace("open"),
+          branch: "feature/open",
+          added: 0,
+          removed: 0,
+          pullRequestNumber: 242
+        ),
+        workspace(
+          path: SnapshotFixtureValues.workspace("merged"),
+          branch: "feature/merged",
+          added: 0,
+          removed: 0,
+          pullRequestNumber: 243,
+          pullRequestKind: .merged
+        ),
+        workspace(
+          path: SnapshotFixtureValues.workspace("closed"),
+          branch: "feature/closed",
+          added: 0,
+          removed: 0,
+          pullRequestNumber: 244,
+          pullRequestKind: .closed
+        ),
+        workspace(
+          path: SnapshotFixtureValues.workspace("no-pr"),
+          branch: "feature/no-pr",
+          added: 0,
+          removed: 0,
+          pullRequestNumber: nil,
+          pullRequestKind: .none
+        ),
+      ],
+      agentStatus: .working
+    )
+  }
+
   static var agentNeedsInput: Self {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000005",
@@ -464,7 +526,8 @@ private struct SidebarRowSnapshotItem {
     branch: String,
     added: Int,
     removed: Int,
-    pullRequestNumber: Int
+    pullRequestNumber: Int?,
+    pullRequestKind: PaneAgentPullRequestStatus.Kind = .open
   ) -> TerminalTabAgentWorkspace {
     TerminalTabAgentWorkspace(
       workingDirectoryPath: path,
@@ -474,9 +537,11 @@ private struct SidebarRowSnapshotItem {
         addedLineCount: added,
         removedLineCount: removed,
         pullRequestStatus: PaneAgentPullRequestStatus(
-          kind: .open,
-          title: "#\(pullRequestNumber)",
-          url: URL(string: "https://github.com/supabitapp/supaterm/pull/\(pullRequestNumber)"),
+          kind: pullRequestKind,
+          title: pullRequestNumber.map { "#\($0)" } ?? "Create pull request",
+          url: pullRequestNumber.flatMap {
+            URL(string: "https://github.com/supabitapp/supaterm/pull/\($0)")
+          },
           addedLineCount: added,
           removedLineCount: removed,
           checks: nil

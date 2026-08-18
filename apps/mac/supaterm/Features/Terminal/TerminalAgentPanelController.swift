@@ -826,14 +826,15 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
     from node: GithubPullRequestNodeResponse
   ) -> PaneAgentPullRequestStatus {
     let kind: PaneAgentPullRequestStatus.Kind =
-      if node.isDraft {
-        .draft
-      } else {
-        switch node.state {
-        case "OPEN": .open
-        case "MERGED": .merged
-        default: .unavailable
-        }
+      switch node.state {
+      case "OPEN":
+        node.isDraft ? .draft : .open
+      case "MERGED":
+        .merged
+      case "CLOSED":
+        .closed
+      default:
+        .unavailable
       }
     let mergeAutomation: PaneAgentPullRequestStatus.MergeAutomation? =
       if node.mergeQueueEntry != nil {

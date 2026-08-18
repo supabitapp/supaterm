@@ -275,11 +275,11 @@ private struct TerminalSidebarTabDetailView: View {
         .truncationMode(.middle)
         .layoutPriority(1)
 
-      if let pullRequestTitle = workspace.pullRequestTitle {
-        Text(pullRequestTitle)
-          .font(.system(size: 10, weight: .semibold, design: .rounded))
-          .foregroundStyle(isSelected ? palette.selectedText : palette.accent)
-          .fixedSize()
+      if let pullRequestStatus = workspace.pullRequestStatus {
+        TerminalSidebarPullRequestView(
+          status: pullRequestStatus,
+          palette: palette
+        )
       }
 
       if workspace.hasChanges {
@@ -303,6 +303,44 @@ private struct TerminalSidebarTabDetailView: View {
   }
 }
 
+private struct TerminalSidebarPullRequestView: View {
+  let status: PaneAgentPullRequestStatus
+  let palette: Palette
+
+  var body: some View {
+    HStack(spacing: 2) {
+      icon
+
+      Text(status.compactTitle)
+        .font(.system(size: 10, weight: .semibold, design: .rounded))
+    }
+    .foregroundStyle(status.color(in: palette))
+    .fixedSize()
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(status.accessibilityTitle)
+  }
+
+  @ViewBuilder
+  private var icon: some View {
+    switch status.icon {
+    case .asset(let name):
+      Image(name)
+        .renderingMode(.template)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(width: 10, height: 10)
+        .accessibilityHidden(true)
+    case .system(let name):
+      Image(systemName: name)
+        .renderingMode(.template)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(width: 10, height: 10)
+        .accessibilityHidden(true)
+    }
+  }
+}
+
 extension TerminalSidebarTabDetail {
   fileprivate var helpText: String {
     switch self {
@@ -319,14 +357,8 @@ extension TerminalTabAgentWorkspace {
     (workingDirectoryPath as NSString).abbreviatingWithTildeInPath
   }
 
-  fileprivate var pullRequestTitle: String? {
-    guard
-      let status = branchDetails?.displayedPullRequestStatus,
-      status.kind != .none
-    else {
-      return nil
-    }
-    return status.title
+  fileprivate var pullRequestStatus: PaneAgentPullRequestStatus? {
+    branchDetails?.displayedPullRequestStatus
   }
 
   fileprivate var hasChanges: Bool {
@@ -337,8 +369,8 @@ extension TerminalTabAgentWorkspace {
   fileprivate var helpText: String {
     guard let branchDetails else { return abbreviatedWorkingDirectoryPath }
     var context = [branchDetails.branchName]
-    if let pullRequestTitle {
-      context.append(pullRequestTitle)
+    if let pullRequestStatus {
+      context.append(pullRequestStatus.compactContextTitle)
     }
     if hasChanges {
       context.append("+\(branchDetails.addedLineCount) -\(branchDetails.removedLineCount)")

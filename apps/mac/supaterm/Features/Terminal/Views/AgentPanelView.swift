@@ -229,7 +229,7 @@ struct AgentPanelView: View {
   }
 
   private func valueRow(
-    icon: AgentPanelIcon,
+    icon: TerminalMetadataIcon,
     title: String,
     iconColor: Color? = nil
   ) -> some View {
@@ -262,8 +262,9 @@ struct AgentPanelView: View {
 
   @ViewBuilder
   private func pullRequestRow(_ status: PaneAgentPullRequestStatus) -> some View {
-    let icon = pullRequestIcon(status)
-    let color = pullRequestColor(status)
+    let icon: TerminalMetadataIcon =
+      status.kind == .none && status.url != nil ? .asset("github") : status.icon
+    let color = status.color(in: palette)
     if let url = status.url {
       linkRow(
         icon: icon,
@@ -278,7 +279,7 @@ struct AgentPanelView: View {
   }
 
   private func linkRow(
-    icon: AgentPanelIcon,
+    icon: TerminalMetadataIcon,
     title: String,
     url: URL,
     iconColor: Color? = nil,
@@ -403,38 +404,6 @@ struct AgentPanelView: View {
       .accessibilityHidden(true)
   }
 
-  private func pullRequestIcon(_ status: PaneAgentPullRequestStatus) -> AgentPanelIcon {
-    switch status.kind {
-    case .unavailable:
-      return .system("exclamationmark.circle")
-    case .none:
-      if status.url != nil {
-        return .asset("github")
-      }
-      return .system("plus.circle")
-    case .open, .draft, .merged:
-      return .asset("git-pull-request-arrow")
-    }
-  }
-
-  private func pullRequestColor(_ status: PaneAgentPullRequestStatus) -> Color {
-    if status.kind == .open, status.mergeAutomation == .mergeQueue {
-      return palette.queued
-    }
-    switch status.kind {
-    case .unavailable:
-      return palette.warning
-    case .none:
-      return palette.secondaryText
-    case .open:
-      return palette.success
-    case .draft:
-      return palette.secondaryText
-    case .merged:
-      return palette.merged
-    }
-  }
-
   private func checkColor(_ status: PaneAgentPullRequestCheck.Status) -> Color {
     switch status {
     case .pending:
@@ -461,13 +430,8 @@ private struct AgentPanelCopyFeedback {
   let target: Target
 }
 
-private enum AgentPanelIcon {
-  case asset(String)
-  case system(String)
-}
-
 private struct AgentPanelIconView: View {
-  let icon: AgentPanelIcon
+  let icon: TerminalMetadataIcon
   let color: Color
 
   var body: some View {
@@ -518,7 +482,7 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
   }
 
   init(
-    icon: AgentPanelIcon,
+    icon: TerminalMetadataIcon,
     title: String,
     palette: Palette,
     iconColor: Color,
@@ -576,7 +540,7 @@ extension AgentPanelRowContent where Trailing == EmptyView {
   }
 
   init(
-    icon: AgentPanelIcon,
+    icon: TerminalMetadataIcon,
     title: String,
     palette: Palette,
     iconColor: Color,
@@ -598,7 +562,7 @@ extension AgentPanelRowContent where Trailing == EmptyView {
 }
 
 private struct AgentPanelActionRow: View {
-  let icon: AgentPanelIcon
+  let icon: TerminalMetadataIcon
   let title: String
   let palette: Palette
   let shortcutHint: String?
