@@ -58,55 +58,6 @@ enum ClaudeHookFixtures {
     }
     """
 
-  static let stopWithPendingBackgroundTask = """
-    {
-      "session_id": "\(sessionID)",
-      "cwd": "\(cwd)",
-      "permission_mode": "acceptEdits",
-      "hook_event_name": "Stop",
-      "stop_hook_active": false,
-      "last_assistant_message": "Background task started.",
-      "background_tasks": [
-        {
-          "id": "task-1",
-          "type": "shell",
-          "status": "running",
-          "description": "Build",
-          "command": "make build"
-        }
-      ],
-      "session_crons": []
-    }
-    """
-
-  static let stopWithPendingCron = """
-    {
-      "session_id": "\(sessionID)",
-      "cwd": "\(cwd)",
-      "permission_mode": "acceptEdits",
-      "hook_event_name": "Stop",
-      "stop_hook_active": false,
-      "last_assistant_message": "Scheduled follow-up.",
-      "background_tasks": [],
-      "session_crons": [
-        {
-          "id": "cron-1"
-        }
-      ]
-    }
-    """
-
-  static let idlePrompt = """
-    {
-      "session_id": "\(sessionID)",
-      "cwd": "\(cwd)",
-      "hook_event_name": "Notification",
-      "message": "Claude is waiting for your input",
-      "title": "Waiting",
-      "notification_type": "idle_prompt"
-    }
-    """
-
   static let sessionEnd = """
     {
       "session_id": "\(sessionID)",

@@ -473,10 +473,6 @@ extension TerminalHostState {
     agentStateStore.isForeground(agent: agent, sessionID: sessionID)
   }
 
-  func agentSessionHasBackgroundWork(agent: SupatermAgentKind, sessionID: String) -> Bool {
-    agentStateStore.hasBackgroundWork(agent: agent, sessionID: sessionID)
-  }
-
   func resolvedAgentState(for surfaceID: UUID) -> ResolvedAgentState {
     let nativeCandidates = nativeAgentDetectionCandidates(for: surfaceID)
     let resolution = agentDetectionStore.resolve(
@@ -535,7 +531,7 @@ extension TerminalHostState {
         return nil
       }
       return TerminalAgentDetectionNativeCandidate(
-        presentation: presentation,
+        presentation: sessionIdentityPresentation(presentation),
         revision: snapshot.revision,
         processIdentities: snapshot.processes,
         phaseAuthorityProcessIdentities: agentStateStore.phaseAuthorityProcessIdentities(
@@ -545,6 +541,24 @@ extension TerminalHostState {
         )
       )
     }
+  }
+
+  private func sessionIdentityPresentation(
+    _ presentation: TerminalAgentStatePresentation
+  ) -> TerminalAgentStatePresentation {
+    guard presentation.agent != .pi else { return presentation }
+    return TerminalAgentStatePresentation(
+      agent: presentation.agent,
+      sessionID: presentation.sessionID,
+      phase: .idle,
+      detail: nil,
+      latestResponse: nil,
+      isActionable: presentation.isActionable,
+      progressRows: [],
+      activeChildren: [],
+      turnLifecycle: .unseen,
+      workingDirectoryPath: presentation.workingDirectoryPath
+    )
   }
 
   private func agentStateInstance(

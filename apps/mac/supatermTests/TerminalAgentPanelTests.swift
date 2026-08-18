@@ -285,7 +285,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func actionableSessionKeepsItsOwnWorkspaceWhenAnotherAgentIsCurrent() throws {
+  func nativeAuthorityHidesAnotherAgentsSessionActions() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -313,14 +313,7 @@ struct TerminalAgentPanelTests {
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
     #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace/")
-    #expect(
-      presentation.session
-        == PaneAgentPanelSession.supported(
-          agent: .codex,
-          sessionID: "session-1",
-          workingDirectoryPath: "/tmp/codex-workspace/"
-        )
-    )
+    #expect(presentation.session == nil)
   }
 
   @Test
@@ -351,7 +344,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func newerHookSessionBecomesForeground() throws {
+  func newerSessionIdentityBecomesForeground() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -392,7 +385,7 @@ struct TerminalAgentPanelTests {
     )
     #expect(
       host.agentActivity(for: tabID)
-        == .codex(.running, detail: "Current")
+        == .codex(.running)
     )
   }
 

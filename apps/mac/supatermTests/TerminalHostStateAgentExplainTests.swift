@@ -50,19 +50,17 @@ struct TerminalHostStateAgentExplainTests {
     let host = fixture.host
     let surfaceID = fixture.surfaceID
     let target = fixture.target
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    let applied = host.applyTestAgentActivity(
-      .codex(.running),
-      for: surfaceID,
-      sessionID: "native-session",
-      processID: identity.processID
-    )
     host.agentStateStore.restore([
+      authorityFreeSnapshot(
+        agent: .codex,
+        surfaceID: surfaceID,
+        revision: 1
+      ),
       authorityFreeSnapshot(
         agent: .claude,
         surfaceID: surfaceID,
         revision: 10_000
-      )
+      ),
     ])
 
     let result = host.agentDetectionExplain(
@@ -72,7 +70,6 @@ struct TerminalHostStateAgentExplainTests {
     )
     let resolved = host.resolvedAgentState(for: surfaceID)
 
-    #expect(applied)
     #expect(resolved.instances.map(\.activity.identity.id) == ["claude", "codex"])
     #expect(resolved.currentInstance?.activity.identity.id == "claude")
     #expect(resolved.currentNativeCandidate?.presentation.agent == .claude)

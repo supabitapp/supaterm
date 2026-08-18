@@ -269,7 +269,7 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let expectedTitle = try #require(host.tabs.first(where: { $0.id == tabID })?.title)
     let surface = try #require(host.selectedSurfaceView)
-    #expect(host.setTestAgentActivity(.claude(.running), for: surface.id))
+    #expect(host.setTestAgentActivity(.pi(.running), for: surface.id))
 
     let result = try host.notify(
       TerminalNotifyRequest(

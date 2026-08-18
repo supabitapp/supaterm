@@ -253,7 +253,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func terminalPhaseKeepsMatchingNativeDetailsAndActions() throws {
+  func terminalPhaseKeepsSessionIdentityWithoutHookDetails() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let tabID = fixture.tabID
@@ -274,8 +274,8 @@ struct TerminalHostStateAgentDetectionTests {
     let panel = try #require(host.agentPanelPresentation(for: surfaceID))
 
     #expect(applied)
-    #expect(host.agentActivity(for: tabID) == .codex(.needsInput, detail: "Native detail"))
-    #expect(panel.progressRows == [plan])
+    #expect(host.agentActivity(for: tabID) == .codex(.needsInput))
+    #expect(panel.progressRows.isEmpty)
     #expect(panel.session?.sessionID == "restored-session")
   }
 
@@ -307,7 +307,7 @@ struct TerminalHostStateAgentDetectionTests {
         observation(
           processIdentity: identity,
           phase: phase.0,
-          sequence: UInt64(offset + 1)
+          sequence: UInt64(offset + 10_000)
         ),
         for: surfaceID
       )

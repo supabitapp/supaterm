@@ -307,6 +307,9 @@ nonisolated struct TerminalAgentStateStore {
           ForegroundKey(surfaceID: surfaceID, agent: event.scope.agent)
         ] = event.scope.sessionID
       }
+      if case .sessionStarted = event.action {
+        state.isActionable = event.scope.agent != .pi
+      }
     case .turnStarted:
       startTurn(event.scope.turnID, state: &state)
     case .turnCompleted(let message):

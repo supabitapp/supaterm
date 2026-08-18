@@ -77,7 +77,9 @@ nonisolated struct TerminalAgentDetectionStore {
     let observation = observationsBySurfaceID[surfaceID]
     let exactProcessIdentity = provenProcessIdentity ?? observation?.processIdentity
     let authoritativeCandidates = nativeCandidates.filter { candidate in
-      guard let exactProcessIdentity else { return false }
+      guard let exactProcessIdentity else {
+        return !candidate.phaseAuthorityProcessIdentities.isEmpty
+      }
       return candidate.phaseAuthorityProcessIdentities.contains(exactProcessIdentity)
     }
     if !authoritativeCandidates.isEmpty {

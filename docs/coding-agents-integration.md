@@ -18,12 +18,12 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - The app process is the only place that decides tab activity, pending input state, and desktop notification delivery.
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.
 - Foreground session routing prevents restored or background sessions from stealing the panel, fork, copy, and tab activity surface.
-- The foreground root agent's hook `cwd` is the panel workspace source. The pane working directory is the fallback until a root hook reports one, and child-agent directories cannot replace it.
+- The foreground root agent's session-start `cwd` is the panel workspace source. The pane working directory is the fallback until the session starts.
 - Agent-panel forks start the account login shell in a new pane and enter the agent's native fork command visibly. Supaterm waits for shell readiness when the shell reports it. The pane returns to that same shell when the forked agent exits.
 - Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
 - Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
 - The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.
-- The tab derives `needs input`, `done`, and `working` from terminal phase, lifecycle, focus, and notification state. An unread structured completion shows `done` until the tab is viewed. No separate seen state exists.
+- The tab derives `needs input`, `done`, and `working` from agent phase, focus, and notification state. No separate seen state exists.
 
 ## Shared Responsibilities
 
@@ -62,8 +62,8 @@ Future agent integrations should keep that split. The wrapper or adapter should 
 ## Terminal Phase Detection
 
 Supaterm reads the terminal to classify the foreground root phase. Terminal output and OSC state
-own the Claude and Codex phase even when hooks are installed. Their hooks add session identity,
-turn boundaries, plans, child agents, responses, notifications, and workspace data. Pi's native
+own the Claude and Codex phase even when hooks are installed. Their hooks add only session identity
+and its workspace. Pi's native
 integration owns its phase, so terminal detection pauses when both sources identify the same exact
 process ID and start time.
 
@@ -148,7 +148,7 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 - It reads one agent hook event JSON object from stdin; the caller must declare the agent explicitly with `--agent`.
 - It forwards that payload to the app over the socket method `terminal.agent_hook`.
 - The forwarded request carries the decoded event, the explicit agent kind, and the ambient `SupatermCLIContext` from the current pane.
-- Root hook payloads should include the agent's absolute `cwd`. Supaterm uses it for the Workspace row, Git status, and forked session working directory.
+- Root session-start payloads should include the agent's absolute `cwd`. Supaterm uses it for the Workspace row, Git status, and forked session working directory.
 
 ## Claude
 
@@ -157,28 +157,20 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 
 ### App Behavior
 
-The app binds Claude sessions to pane surfaces, tracks the foreground session for each pane, and combines hook data with the terminal phase.
+The app uses Claude hooks only for root session identity.
 
-- `SessionStart` binds canonical session state to the current pane surface.
-- `PreToolUse` and `PostToolUse` record tool activity. `TaskCreate`, `TaskUpdate`, and `TodoWrite` tool results update panel progress from structured payloads.
-- `TaskCreated` and `TaskCompleted` upsert shared task rows by task ID, including events from child agents and teammates.
-- `Notification` records attention only for `permission_prompt`, `idle_prompt`, and `elicitation_dialog`. An `idle_prompt` cannot replace active background work with pending attention. Background-agent notifications and idle prompts emitted while background work remains suppress their matching terminal notifications, so they cannot create pane unread state or glow.
-- `UserPromptSubmit` starts the next stored turn.
-- `PreToolUse`, `PostToolUse`, and `UserPromptSubmit` recover the pane binding when `SessionStart` was missed or announced a different session ID, which is what `claude --fork-session --resume` does: its `SessionStart` reports the parent session ID and every later hook carries the forked one.
-- `Stop` completes the stored turn and saves the final assistant message as the latest tab notification when one is provided, unless the payload reports an active `background_tasks` entry or a pending `session_crons` entry. A background completion creates `done` status even when the hook omits a final message. Claude reports both `running` and `pending` task states as active.
-- A `Stop` payload that carries `background_tasks` also reconciles child rows. Subagent IDs keep matching rows, an active teammate keeps unmatched Claude child rows alive, and an active workflow keeps workflow child rows alive.
-- The terminal reader sets Claude's root `idle`, `running`, or `needs input` phase.
-- `SessionEnd` drops the stored session state.
-- `SubagentStart` and `SubagentStop` maintain scoped child rows without allowing a child to replace the foreground root session. Each row states that the reported child type is working or needs input. Child tool hooks update only that row with the tool name and salient input. They do not create pane notifications or change root lifecycle.
-- A command-finished signal from the shell clears pane-bound agent state.
+- `SessionStart` binds the session ID, process, workspace, and pane surface.
+- Every other Claude hook event is ignored by the app.
+- The terminal reader alone sets Claude's root `idle`, `running`, or `needs input` phase.
+- A command-finished signal from the shell clears the pane-bound session identity.
 
 ## Codex
 
-Codex uses the same bridge and canonical state model. Native hooks supply attention, turn boundaries, child agents, and plan changes. The terminal reader owns the root phase.
+Codex uses the same session-identity bridge. The terminal reader alone owns the root phase.
 
 - Settings file: `~/.codex/hooks.json`.
 - Installed hook events: `PermissionRequest`, `PostToolUse`, `PreToolUse`, `SessionStart`, `Stop`, `SubagentStart`, `SubagentStop`, `UserPromptSubmit`.
-- `PreToolUse` is restricted to `request_user_input`; `PostToolUse` remains unfiltered so later activity can resolve attention state.
+- Supaterm keeps the full managed hook set installed, but the app ignores every event except root `SessionStart`.
 - Install enables the Codex hooks feature through the user's login shell, writes the canonical `hooks.json` fragment, then uses `codex app-server --stdio` to discover native hooks and update trust.
 - Hook discovery uses `hooks/list`. User-layer version and trust state come from `config/read`; atomic trust replacement uses `config/batchWrite` with that version.
 - Supaterm does not parse Codex source, reproduce Codex's hook hashing, edit TOML trust state directly, vendor Codex, or depend on its internal modules.
@@ -187,17 +179,11 @@ Codex uses the same bridge and canonical state model. Native hooks supply attent
 
 ### App Behavior
 
-The app binds Codex sessions to pane surfaces and combines hook data with the terminal phase.
+The app uses Codex hooks only for root session identity.
 
-- `SessionStart` binds the session to the current pane surface.
-- `PreToolUse` for `request_user_input` records attention. `PostToolUse` records ordinary tool activity
-  and recovers the pane binding when `SessionStart` was missed.
-- `UserPromptSubmit` starts the next turn, recovers the pane binding when `SessionStart` was missed, and clears structured completion suppression.
-- `Stop` completes the stored turn and saves the final assistant message as the latest tab notification when one is provided. A background completion creates `done` status even when the hook omits a final message.
-- `PermissionRequest` and `request_user_input` record pending attention for the foreground session; only completion of the matching tool resolves it.
-- `SubagentStart` and `SubagentStop` maintain scoped child rows from hook IDs and roles. Each row states that the reported child role is working or needs input. Reused child IDs and late stop events cannot remove a newer child lifetime.
-- A native `PostToolUse` for `update_plan` reads `tool_input.plan` directly and replaces the plan rows immediately.
-- While Codex is `running`, the sidebar tab row shows the tab-level running badge without inline activity text. After `Stop`, hovering the row shows the final assistant response from the focused pane when the hook supplied one.
+- `SessionStart` binds the session ID, process, workspace, and pane surface.
+- Every other Codex hook event is ignored by the app.
+- The terminal reader alone sets Codex's root `idle`, `running`, or `needs input` phase.
 
 ## Pi
 

@@ -10,41 +10,14 @@ extension TerminalCommandExecutor {
   }
 
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
-    pruneDeadAgentProcesses()
-    guard let terminal = agentTerminal(for: request),
-      shouldHandleAgentHook(request, in: terminal)
-    else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    if suppressesClaudeBackgroundNotification(request) {
-      recordTerminalNotificationSuppression(
-        for: request,
-        semantic: request.event.notificationType == "agent_completed" ? .completion : .attention,
-        in: terminal
-      )
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
     let events = TerminalAgentEventTranslator.events(for: request)
     guard !events.isEmpty else {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
-    let childNotificationSemantic = childTerminalNotificationSemantic(
-      for: request,
-      events: events
-    )
-    if let childNotificationSemantic {
-      recordTerminalNotificationSuppression(
-        for: request,
-        semantic: childNotificationSemantic,
-        in: terminal
-      )
-    }
-    if request.agent == .claude,
-      request.event.notificationType == "idle_prompt",
-      let sessionID = request.event.sessionID,
-      terminal.agentSessionHasBackgroundWork(agent: .claude, sessionID: sessionID)
-    {
-      recordTerminalNotificationSuppression(for: request, semantic: .attention, in: terminal)
+    pruneDeadAgentProcesses()
+    guard let terminal = agentTerminal(for: request),
+      shouldHandleAgentHook(request, in: terminal)
+    else {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
     var didChange = false
@@ -140,46 +113,6 @@ extension TerminalCommandExecutor {
     }
     guard let body = normalizedTerminalAgentDetail(body) else { return nil }
     return AgentHookNotification(body: body, semantic: semantic, subtitle: subtitle)
-  }
-
-  private func suppressesClaudeBackgroundNotification(
-    _ request: SupatermAgentHookRequest
-  ) -> Bool {
-    request.agent == .claude
-      && request.event.notificationType.map(
-        SupatermClaudeHookSettings.backgroundNotificationTypes.contains
-      ) == true
-  }
-
-  private func recordTerminalNotificationSuppression(
-    for request: SupatermAgentHookRequest,
-    semantic: TerminalHostState.NotificationSemantic,
-    in terminal: TerminalHostState
-  ) {
-    guard
-      let sessionID = request.event.sessionID,
-      let surfaceID = request.context?.surfaceID
-        ?? terminal.agentStateSurfaceID(agent: request.agent, sessionID: sessionID)
-    else {
-      return
-    }
-    terminal.recordTerminalNotificationSuppression(
-      body: request.event.notificationMessage() ?? "",
-      semantic: semantic,
-      surfaceID: surfaceID,
-      title: request.event.title ?? request.agent.notificationTitle
-    )
-  }
-
-  private func childTerminalNotificationSemantic(
-    for request: SupatermAgentHookRequest,
-    events: [TerminalAgentEvent]
-  ) -> TerminalHostState.NotificationSemantic? {
-    guard events.contains(where: { $0.scope.subagentID != nil }) else { return nil }
-    return switch request.event.hookEventName {
-    case .notification: .attention
-    default: nil
-    }
   }
 
   private func clearRecentStructuredNotification(

@@ -16,14 +16,14 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(
       host.setTestAgentActivity(
-        .codex(.running, detail: "  Bash · git status --short  "),
+        .pi(.running, detail: "  Bash · git status --short  "),
         for: surface.id
       )
     )
 
     #expect(
       host.agentActivity(for: tabID)
-        == .codex(.running, detail: "Bash · git status --short")
+        == .pi(.running, detail: "Bash · git status --short")
     )
     #expect(host.showsAgentActivityDetail(for: tabID))
   }
@@ -35,7 +35,7 @@ struct TerminalHostStateAgentPresentationTests {
     let surface = try #require(host.selectedSurfaceView)
     #expect(
       host.startTestAgentSession(
-        agent: .codex,
+        agent: .pi,
         for: surface.id,
         sessionID: "session-1",
         processID: nil
@@ -65,7 +65,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(
       host.setTestAgentActivity(
-        .codex(.running, detail: "Bash · git status --short"),
+        .pi(.running, detail: "Bash · git status --short"),
         for: firstSurface.id
       )
     )
@@ -95,7 +95,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(
       host.setTestAgentActivity(
-        .codex(.running, detail: "Focused detail"),
+        .pi(.running, detail: "Focused detail"),
         for: firstSurface.id
       )
     )
@@ -123,7 +123,7 @@ struct TerminalHostStateAgentPresentationTests {
     host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
 
     #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
-    #expect(host.setTestAgentActivity(.claude(.idle), for: secondPane.paneID))
+    #expect(host.setTestAgentActivity(.pi(.idle), for: secondPane.paneID))
     _ = try host.notifyStructuredAgent(
       TerminalNotifyRequest(
         body: "Done.",
@@ -158,9 +158,9 @@ struct TerminalHostStateAgentPresentationTests {
       )
     )
 
-    #expect(host.setTestAgentActivity(.codex(.idle), for: firstSurface.id))
+    #expect(host.setTestAgentActivity(.pi(.idle), for: firstSurface.id))
     #expect(host.setTestAgentResponse("Focused response", for: firstSurface.id))
-    #expect(host.setTestAgentActivity(.codex(.idle), for: secondPane.paneID))
+    #expect(host.setTestAgentActivity(.pi(.idle), for: secondPane.paneID))
     #expect(host.setTestAgentResponse("Background response", for: secondPane.paneID))
     #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Focused response")
 
@@ -211,7 +211,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(
       host.setTestAgentActivity(
-        .codex(.running, detail: "Focused detail"),
+        .pi(.running, detail: "Focused detail"),
         for: firstSurface.id
       )
     )
@@ -220,7 +220,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     host.performCloseSurface(secondPane.paneID)
 
-    #expect(host.agentActivity(for: tabID) == .codex(.running, detail: "Focused detail"))
+    #expect(host.agentActivity(for: tabID) == .pi(.running, detail: "Focused detail"))
     #expect(host.showsAgentActivityDetail(for: tabID))
   }
 
@@ -229,7 +229,7 @@ struct TerminalHostStateAgentPresentationTests {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
-    #expect(host.setTestAgentActivity(.claude(.running, detail: "Thinking"), for: surface.id))
+    #expect(host.setTestAgentActivity(.pi(.running, detail: "Thinking"), for: surface.id))
     #expect(host.setTestAgentResponse("Thinking", for: surface.id))
 
     surface.bridge.onCommandFinished?()

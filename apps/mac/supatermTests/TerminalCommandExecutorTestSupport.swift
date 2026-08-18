@@ -118,7 +118,6 @@ func makeClaudeHookHarness(
   initializeGhosttyForTests()
 
   let registry = TerminalWindowRegistry()
-  let commandExecutor = makeCommandExecutor(registry: registry)
   let host = TerminalHostState()
   host.windowActivity = windowActivity
   let store = Store(initialState: AppFeature.State()) {
@@ -141,28 +140,44 @@ func makeClaudeHookHarness(
   let surfaceID = surface.id
   let tabID = try #require(host.selectedTabID)
   let harness = ClaudeHookHarness(
-    commandExecutor: commandExecutor,
     context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
     host: host,
     registry: registry,
-    store: store,
     tabID: tabID,
-    window: window,
-    windowControllerID: windowControllerID
+    window: window
   )
-  registry.updateWindow(harness.window, for: windowControllerID)
+  registry.updateWindow(window, for: windowControllerID)
   return harness
 }
 
 struct ClaudeHookHarness {
-  let commandExecutor: TerminalCommandExecutor
   let context: SupatermCLIContext
-  let host: TerminalHostState
-  let registry: TerminalWindowRegistry
-  let store: StoreOf<AppFeature>
   let tabID: TerminalTabID
-  let window: NSWindow
-  let windowControllerID: UUID
+  private let hostStorage: TerminalHostState
+  private let registry: TerminalWindowRegistry
+  private let window: NSWindow
+
+  var commandExecutor: TerminalCommandExecutor {
+    TerminalCommandExecutor(registry: registry)
+  }
+
+  var host: TerminalHostState {
+    withExtendedLifetime(window) { hostStorage }
+  }
+
+  init(
+    context: SupatermCLIContext,
+    host: TerminalHostState,
+    registry: TerminalWindowRegistry,
+    tabID: TerminalTabID,
+    window: NSWindow
+  ) {
+    self.context = context
+    self.hostStorage = host
+    self.registry = registry
+    self.tabID = tabID
+    self.window = window
+  }
 }
 
 func makeCommandExecutor(registry: TerminalWindowRegistry) -> TerminalCommandExecutor {
@@ -227,12 +242,13 @@ extension TerminalHostState {
     else {
       return false
     }
+    let resolvedProcessID = processID ?? getpid()
     if !hasAgentSession(agent: agent, sessionID: sessionID) {
       _ = startTestAgentSession(
         agent: agent,
         for: surfaceID,
         sessionID: sessionID,
-        processID: processID
+        processID: resolvedProcessID
       )
     }
     let action: TerminalAgentEvent.Action =
@@ -241,15 +257,21 @@ extension TerminalHostState {
       case .needsInput: .attentionRequested(requestID: nil, message: activity.detail)
       case .running: .turnRunning(detail: activity.detail)
       }
-    return applyAgentEvent(
+    let changed = applyAgentEvent(
       TerminalAgentEvent(
         scope: TerminalAgentEvent.Scope(agent: agent, sessionID: sessionID),
         context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
-        processID: processID,
+        processID: resolvedProcessID,
         workingDirectoryPath: workingDirectoryPath,
         action: action
       )
     ).changed
+    return applyTestAgentDetection(
+      agent: agent,
+      phase: activity.phase,
+      processID: resolvedProcessID,
+      surfaceID: surfaceID
+    ) || changed
   }
 
   @discardableResult
@@ -261,24 +283,56 @@ extension TerminalHostState {
     workingDirectoryPath: String? = nil
   ) -> Bool {
     guard let sessionID, let tabID = tabID(containing: surfaceID) else { return false }
+    let resolvedProcessID = processID ?? getpid()
     if !hasAgentSession(agent: agent, sessionID: sessionID) {
       _ = startTestAgentSession(
         agent: agent,
         for: surfaceID,
         sessionID: sessionID,
-        processID: processID,
+        processID: resolvedProcessID,
         workingDirectoryPath: workingDirectoryPath
       )
     }
-    return applyAgentEvent(
+    let changed = applyAgentEvent(
       TerminalAgentEvent(
         scope: TerminalAgentEvent.Scope(agent: agent, sessionID: sessionID),
         context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
-        processID: processID,
+        processID: resolvedProcessID,
         workingDirectoryPath: workingDirectoryPath,
         action: .turnCompleted(message: nil)
       )
     ).changed
+    return applyTestAgentDetection(
+      agent: agent,
+      phase: .idle,
+      processID: resolvedProcessID,
+      surfaceID: surfaceID
+    ) || changed
+  }
+
+  private func applyTestAgentDetection(
+    agent: SupatermAgentKind,
+    phase: AgentActivityPhase,
+    processID: Int32,
+    surfaceID: UUID
+  ) -> Bool {
+    guard agent != .pi,
+      let processIdentity = TerminalAgentProcessInspector.identity(for: processID),
+      let revision = agentStateStore.snapshots(for: surfaceID).map(\.revision).max()
+    else {
+      return false
+    }
+    return applyAgentDetection(
+      TerminalAgentDetectionObservation(
+        agent: AgentDetectionAgentIdentity(agent),
+        phase: phase,
+        processIdentity: processIdentity,
+        ruleID: "test",
+        generation: 1,
+        sequence: UInt64(max(1, revision))
+      ),
+      for: surfaceID
+    )
   }
 
   @discardableResult

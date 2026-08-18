@@ -61,36 +61,4 @@ enum CodexHookFixtures {
     try JSONDecoder().decode(SupatermAgentHookEvent.self, from: Data(json.utf8))
   }
 
-  static func request(
-    _ json: String,
-    context: SupatermCLIContext? = nil
-  ) throws -> SupatermAgentHookRequest {
-    SupatermAgentHookRequest(
-      agent: .codex,
-      context: context,
-      event: try event(json)
-    )
-  }
-
-  static func planUpdate(
-    _ plan: [(step: String, status: String)],
-    turnID: String = "turn-1"
-  ) -> SupatermAgentHookEvent {
-    SupatermAgentHookEvent(
-      hookEventName: .postToolUse,
-      sessionID: sessionID,
-      toolInput: .object([
-        "plan": .array(
-          plan.map { item in
-            .object([
-              "step": .string(item.step),
-              "status": .string(item.status),
-            ])
-          }
-        )
-      ]),
-      toolName: "update_plan",
-      turnID: turnID
-    )
-  }
 }

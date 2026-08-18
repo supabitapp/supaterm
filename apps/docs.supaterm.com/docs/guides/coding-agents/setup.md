@@ -5,7 +5,7 @@ description: Enable Claude, Codex, or Pi integration and install Supaterm's agen
 
 Supaterm can track Claude, Codex, and Pi when they run inside its panes. Basic activity works without hook setup when Supaterm can identify the foreground agent. This terminal-only state is temporary and read-only. It does not create notifications or session actions.
 
-Enable the agent's native integration for richer progress, attention, workspace, and session data. The terminal sets Claude and Codex phase while their hooks add structured data. Pi reports its full lifecycle through its native integration.
+Enable the native integration for Claude and Codex session actions or Pi lifecycle state. The terminal sets Claude and Codex phase while their hooks add only session identity and workspace data. Pi reports its full lifecycle through its native integration.
 
 ## Before you begin
 
