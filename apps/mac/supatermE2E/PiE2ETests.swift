@@ -141,7 +141,7 @@ private final class PiE2EFixture {
         arguments.append("--no-extensions")
       }
       try app.type(SupatermShellCommand.escapedCommand(arguments) + "\n", into: space.pane)
-      try await app.waitForCapture(space.pane, contains: "(e2e) pi-e2e", timeout: 60)
+      try await app.waitForCapture(space.pane, contains: "Pi can explain its own features", timeout: 60)
       let initial = try await waitForPiExplain(
         app,
         mode: mode,
