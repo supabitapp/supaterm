@@ -236,8 +236,8 @@ private struct TerminalSidebarTabDetailView: View {
   var body: some View {
     switch detail {
     case .agentWorkspace(let workspace):
-      if let branchDetails = workspace.branchDetails {
-        branchView(workspace, branchDetails: branchDetails)
+      if let branch = workspace.branch {
+        branchView(branch)
       } else {
         pathView(workspace.abbreviatedWorkingDirectoryPath)
       }
@@ -255,21 +255,18 @@ private struct TerminalSidebarTabDetailView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func branchView(
-    _ workspace: TerminalTabAgentWorkspace,
-    branchDetails: PaneAgentBranchDetails
-  ) -> some View {
+  private func branchView(_ branch: TerminalTabAgentWorkspace.Branch) -> some View {
     HStack(spacing: 5) {
-      Text(branchDetails.branchName)
+      Text(branch.name)
         .font(.system(size: 11, weight: .medium, design: .monospaced))
         .foregroundStyle(secondaryText)
         .lineLimit(1)
         .truncationMode(.middle)
         .layoutPriority(1)
 
-      if let pullRequestStatus = workspace.pullRequestStatus {
+      if let pullRequest = branch.pullRequest {
         TerminalSidebarPullRequestView(
-          status: pullRequestStatus,
+          pullRequest: pullRequest,
           palette: palette
         )
       }
@@ -284,25 +281,25 @@ private struct TerminalSidebarTabDetailView: View {
 }
 
 private struct TerminalSidebarPullRequestView: View {
-  let status: PaneAgentPullRequestStatus
+  let pullRequest: TerminalTabAgentWorkspace.PullRequest
   let palette: Palette
 
   var body: some View {
     HStack(spacing: 2) {
       icon
 
-      Text(status.title)
+      Text(pullRequest.title)
         .font(.system(size: 10, weight: .semibold, design: .rounded))
     }
-    .foregroundStyle(status.color(in: palette))
+    .foregroundStyle(pullRequest.color(in: palette))
     .fixedSize()
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel(status.accessibilityTitle)
+    .accessibilityLabel(pullRequest.accessibilityTitle)
   }
 
   @ViewBuilder
   private var icon: some View {
-    switch status.icon {
+    switch pullRequest.icon {
     case .asset(let name):
       Image(name)
         .renderingMode(.template)
@@ -337,21 +334,11 @@ extension TerminalTabAgentWorkspace {
     (workingDirectoryPath as NSString).abbreviatingWithTildeInPath
   }
 
-  fileprivate var pullRequestStatus: PaneAgentPullRequestStatus? {
-    guard
-      let status = branchDetails?.displayedPullRequestStatus,
-      status.kind != .none
-    else {
-      return nil
-    }
-    return status
-  }
-
   fileprivate var helpText: String {
-    guard let branchDetails else { return abbreviatedWorkingDirectoryPath }
-    var context = [branchDetails.branchName]
-    if let pullRequestStatus {
-      context.append(pullRequestStatus.compactContextTitle)
+    guard let branch else { return abbreviatedWorkingDirectoryPath }
+    var context = [branch.name]
+    if let pullRequest = branch.pullRequest {
+      context.append(pullRequest.compactContextTitle)
     }
     return "\(context.joined(separator: " · "))\n\(abbreviatedWorkingDirectoryPath)"
   }

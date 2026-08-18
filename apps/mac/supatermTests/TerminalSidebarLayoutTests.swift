@@ -479,6 +479,7 @@ struct TerminalSidebarLayoutTests {
       tab: tab,
       groupID: nil,
       rootIsPinned: false,
+      agentStatus: nil,
       details: [],
       unreadCount: 0,
       terminalProgress: nil,

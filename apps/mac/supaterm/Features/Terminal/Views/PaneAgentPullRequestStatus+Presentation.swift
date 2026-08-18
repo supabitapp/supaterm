@@ -8,11 +8,40 @@ enum TerminalMetadataIcon: Equatable, Sendable {
 
 extension PaneAgentPullRequestStatus {
   var icon: TerminalMetadataIcon {
-    switch kind {
+    if kind == .none, url != nil {
+      return .asset("github")
+    }
+    return kind.icon
+  }
+
+  func color(in palette: Palette) -> Color {
+    kind.color(in: palette, mergeAutomation: mergeAutomation)
+  }
+}
+
+extension TerminalTabAgentWorkspace.PullRequest {
+  var icon: TerminalMetadataIcon {
+    kind.icon
+  }
+
+  func color(in palette: Palette) -> Color {
+    kind.color(in: palette, mergeAutomation: mergeAutomation)
+  }
+
+  var compactContextTitle: String {
+    "\(kind.stateTitle) \(title)"
+  }
+
+  var accessibilityTitle: String {
+    "\(kind.stateTitle) pull request \(title)"
+  }
+}
+
+extension PaneAgentPullRequestStatus.Kind {
+  fileprivate var icon: TerminalMetadataIcon {
+    switch self {
     case .unavailable:
       .system("exclamationmark.circle")
-    case .none where url != nil:
-      .asset("github")
     case .none:
       .system("plus.circle")
     case .open:
@@ -26,11 +55,14 @@ extension PaneAgentPullRequestStatus {
     }
   }
 
-  func color(in palette: Palette) -> Color {
-    if kind == .open, mergeAutomation == .mergeQueue {
+  fileprivate func color(
+    in palette: Palette,
+    mergeAutomation: PaneAgentPullRequestStatus.MergeAutomation?
+  ) -> Color {
+    if self == .open, mergeAutomation == .mergeQueue {
       return palette.queued
     }
-    return switch kind {
+    return switch self {
     case .unavailable:
       palette.warning
     case .none, .draft:
@@ -44,8 +76,8 @@ extension PaneAgentPullRequestStatus {
     }
   }
 
-  var stateTitle: String {
-    switch kind {
+  fileprivate var stateTitle: String {
+    switch self {
     case .unavailable:
       "Unavailable"
     case .none:
@@ -59,13 +91,5 @@ extension PaneAgentPullRequestStatus {
     case .closed:
       "Closed"
     }
-  }
-
-  var compactContextTitle: String {
-    "\(stateTitle) \(title)"
-  }
-
-  var accessibilityTitle: String {
-    "\(stateTitle) pull request \(title)"
   }
 }

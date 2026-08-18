@@ -261,15 +261,27 @@ struct TerminalHostStateAgentPresentationTests {
         target: .pane(secondPane.paneID)
       )
     )
+    let fourthPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .pane(thirdPane.paneID)
+      )
+    )
     let secondSurface = try #require(host.surfaces[secondPane.paneID])
     let thirdSurface = try #require(host.surfaces[thirdPane.paneID])
+    let fourthSurface = try #require(host.surfaces[fourthPane.paneID])
     firstSurface.bridge.state.pwd = "/repo/apps/mac"
     secondSurface.bridge.state.pwd = "/other-repo"
     thirdSurface.bridge.state.pwd = "/repo/docs"
+    fourthSurface.bridge.state.pwd = "/repo/other"
 
     #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondSurface.id))
     #expect(host.setTestAgentActivity(.codex(.running), for: thirdSurface.id))
+    #expect(host.setTestAgentActivity(.claude(.needsInput), for: fourthSurface.id))
     host.storePaneAgentMetadata(
       TerminalHostState.PaneAgentMetadata(
         branchDetails: branchDetails(repositoryRootPath: "/repo", branchName: "feature/a")
@@ -278,7 +290,7 @@ struct TerminalHostStateAgentPresentationTests {
     )
     host.storePaneAgentMetadata(
       TerminalHostState.PaneAgentMetadata(
-        branchDetails: branchDetails(repositoryRootPath: "/other-repo", branchName: "feature/b")
+        branchDetails: branchDetails(repositoryRootPath: "/other-repo", branchName: "feature/a")
       ),
       for: secondSurface.id
     )
@@ -288,12 +300,29 @@ struct TerminalHostStateAgentPresentationTests {
       ),
       for: thirdSurface.id
     )
-    _ = try host.focusPane(TerminalPaneTarget(paneID: secondSurface.id))
+    host.storePaneAgentMetadata(
+      TerminalHostState.PaneAgentMetadata(
+        branchDetails: branchDetails(repositoryRootPath: "/repo", branchName: "feature/b")
+      ),
+      for: fourthSurface.id
+    )
+    _ = try host.focusPane(TerminalPaneTarget(paneID: thirdSurface.id))
 
-    let workspaces = host.tabAgentWorkspaces(for: tabID)
+    let context = host.tabAgentContext(for: tabID)
+    let workspaces = context.workspaces
 
-    #expect(workspaces.map(\.branchDetails?.branchName) == ["feature/b", "feature/a"])
-    #expect(workspaces.map(\.workingDirectoryPath) == ["/other-repo/", "/repo/apps/mac/"])
+    #expect(context.presentation.status == .needsInput)
+    #expect(
+      workspaces.map(\.id) == [
+        .git(repositoryRootPath: "/repo", branchName: "feature/a"),
+        .git(repositoryRootPath: "/other-repo", branchName: "feature/a"),
+        .git(repositoryRootPath: "/repo", branchName: "feature/b"),
+      ]
+    )
+    #expect(
+      workspaces.map(\.workingDirectoryPath)
+        == ["/repo/docs/", "/other-repo/", "/repo/other/"]
+    )
   }
 
   private func makeHost(

@@ -71,6 +71,7 @@ struct TerminalSidebarTabRow: View {
   let renameState: TerminalSidebarRenameState?
   let selectionState: TerminalSidebarTabSelectionState
   let outline: TerminalSidebarOutline
+  let agentStatus: TerminalHostState.TabAgentStatus?
   let details: [TerminalSidebarTabDetail]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
@@ -138,10 +139,6 @@ struct TerminalSidebarTabRow: View {
     )
   }
 
-  private var agentPresentation: TerminalHostState.TabAgentPresentation {
-    terminal.tabAgentPresentation(for: tab.id)
-  }
-
   private var contextSurfaceID: UUID? {
     terminal.contextSurfaceID(for: tab.id)
   }
@@ -166,7 +163,7 @@ struct TerminalSidebarTabRow: View {
       isPinned: groupID == nil && rootIsPinned,
       details: details,
       unreadCount: unreadCount,
-      agentStatus: agentPresentation.status,
+      agentStatus: agentStatus,
       hasTerminalBell: hasTerminalBell,
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
@@ -381,7 +378,7 @@ struct TerminalSidebarTabRow: View {
 
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
-      agentStatus: agentPresentation.status,
+      agentStatus: agentStatus,
       details: details,
       hasTerminalBell: hasTerminalBell,
       terminalProgress: terminalProgress,

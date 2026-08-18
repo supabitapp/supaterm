@@ -392,8 +392,6 @@ private struct SidebarRowSnapshotItem {
         workspace(
           path: SnapshotFixtureValues.workspace("apps/mac"),
           branch: "feature/sidebar-agent-context",
-          added: 42,
-          removed: 7,
           pullRequestNumber: 128
         )
       ],
@@ -413,15 +411,11 @@ private struct SidebarRowSnapshotItem {
         workspace(
           path: SnapshotFixtureValues.workspace("apps/mac"),
           branch: "feature/auth-refresh",
-          added: 42,
-          removed: 7,
           pullRequestNumber: 241
         ),
         workspace(
           path: SnapshotFixtureValues.workspace("apps/docs.supaterm.com"),
           branch: "fix/token-expiry",
-          added: 18,
-          removed: 3,
           pullRequestNumber: 238
         ),
       ],
@@ -437,39 +431,29 @@ private struct SidebarRowSnapshotItem {
         workspace(
           path: SnapshotFixtureValues.workspace("draft"),
           branch: "feature/draft",
-          added: 0,
-          removed: 0,
           pullRequestNumber: 241,
           pullRequestKind: .draft
         ),
         workspace(
           path: SnapshotFixtureValues.workspace("open"),
           branch: "feature/open",
-          added: 0,
-          removed: 0,
           pullRequestNumber: 242
         ),
         workspace(
           path: SnapshotFixtureValues.workspace("merged"),
           branch: "feature/merged",
-          added: 0,
-          removed: 0,
           pullRequestNumber: 243,
           pullRequestKind: .merged
         ),
         workspace(
           path: SnapshotFixtureValues.workspace("closed"),
           branch: "feature/closed",
-          added: 0,
-          removed: 0,
           pullRequestNumber: 244,
           pullRequestKind: .closed
         ),
         workspace(
           path: SnapshotFixtureValues.workspace("local-changes"),
           branch: "feature/local-changes",
-          added: 0,
-          removed: 0,
           pullRequestNumber: nil,
           pullRequestKind: .none
         ),
@@ -487,8 +471,6 @@ private struct SidebarRowSnapshotItem {
         workspace(
           path: SnapshotFixtureValues.workspace("apps/supaterm.com"),
           branch: "release/sidebar-copy",
-          added: 14,
-          removed: 3,
           pullRequestNumber: 131
         )
       ],
@@ -505,8 +487,6 @@ private struct SidebarRowSnapshotItem {
         workspace(
           path: SnapshotFixtureValues.workspace("docs"),
           branch: "docs/sidebar-agent-context",
-          added: 6,
-          removed: 1,
           pullRequestNumber: 132
         )
       ],
@@ -524,28 +504,20 @@ private struct SidebarRowSnapshotItem {
   private static func workspace(
     path: String,
     branch: String,
-    added: Int,
-    removed: Int,
     pullRequestNumber: Int?,
     pullRequestKind: PaneAgentPullRequestStatus.Kind = .open
   ) -> TerminalTabAgentWorkspace {
     TerminalTabAgentWorkspace(
       workingDirectoryPath: path,
-      branchDetails: PaneAgentBranchDetails(
+      branch: TerminalTabAgentWorkspace.Branch(
         repositoryRootPath: SnapshotFixtureValues.workspace(),
-        branchName: branch,
-        addedLineCount: added,
-        removedLineCount: removed,
-        pullRequestStatus: PaneAgentPullRequestStatus(
-          kind: pullRequestKind,
-          title: pullRequestNumber.map { "#\($0)" } ?? "Create pull request",
-          url: pullRequestNumber.flatMap {
-            URL(string: "https://github.com/supabitapp/supaterm/pull/\($0)")
-          },
-          addedLineCount: added,
-          removedLineCount: removed,
-          checks: nil
-        )
+        name: branch,
+        pullRequest: pullRequestNumber.map {
+          TerminalTabAgentWorkspace.PullRequest(
+            kind: pullRequestKind,
+            title: "#\($0)"
+          )
+        }
       )
     )
   }

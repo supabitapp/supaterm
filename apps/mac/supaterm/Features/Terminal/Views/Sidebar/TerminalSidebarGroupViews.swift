@@ -244,6 +244,7 @@ struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
+  let agentStatus: TerminalHostState.TabAgentStatus?
   let details: [TerminalSidebarTabDetail]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
@@ -377,6 +378,7 @@ struct TerminalSidebarHostedRow: View {
         renameState: context.renameState,
         selectionState: context.tabSelectionState,
         outline: context.outline,
+        agentStatus: presentation.agentStatus,
         details: presentation.details,
         unreadCount: presentation.unreadCount,
         terminalProgress: presentation.terminalProgress,

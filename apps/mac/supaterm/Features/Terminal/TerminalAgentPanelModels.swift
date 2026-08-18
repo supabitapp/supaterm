@@ -108,26 +108,6 @@ nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
   }
 }
 
-nonisolated struct TerminalTabAgentWorkspace: Equatable, Identifiable, Sendable {
-  enum ID: Equatable, Hashable, Sendable {
-    case directory(String)
-    case git(repositoryRootPath: String, branchName: String)
-  }
-
-  let workingDirectoryPath: String
-  let branchDetails: PaneAgentBranchDetails?
-
-  var id: ID {
-    guard let branchDetails else {
-      return .directory(workingDirectoryPath)
-    }
-    return .git(
-      repositoryRootPath: branchDetails.repositoryRootPath,
-      branchName: branchDetails.branchName
-    )
-  }
-}
-
 nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
   enum Kind: Equatable, Sendable {
     case unavailable
@@ -198,6 +178,71 @@ nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
       addedLineCount: nil,
       removedLineCount: nil,
       checks: nil
+    )
+  }
+}
+
+nonisolated struct TerminalTabAgentWorkspace: Equatable, Identifiable, Sendable {
+  struct Branch: Equatable, Sendable {
+    let repositoryRootPath: String
+    let name: String
+    let pullRequest: PullRequest?
+
+    init(_ details: PaneAgentBranchDetails) {
+      repositoryRootPath = details.repositoryRootPath
+      name = details.branchName
+      pullRequest = details.displayedPullRequestStatus.flatMap(PullRequest.init)
+    }
+
+    init(
+      repositoryRootPath: String,
+      name: String,
+      pullRequest: PullRequest?
+    ) {
+      self.repositoryRootPath = repositoryRootPath
+      self.name = name
+      self.pullRequest = pullRequest
+    }
+  }
+
+  struct PullRequest: Equatable, Sendable {
+    let kind: PaneAgentPullRequestStatus.Kind
+    let title: String
+    let mergeAutomation: PaneAgentPullRequestStatus.MergeAutomation?
+
+    init?(_ status: PaneAgentPullRequestStatus) {
+      guard status.kind != .none, status.kind != .unavailable else { return nil }
+      kind = status.kind
+      title = status.title
+      mergeAutomation = status.mergeAutomation
+    }
+
+    init(
+      kind: PaneAgentPullRequestStatus.Kind,
+      title: String,
+      mergeAutomation: PaneAgentPullRequestStatus.MergeAutomation? = nil
+    ) {
+      self.kind = kind
+      self.title = title
+      self.mergeAutomation = mergeAutomation
+    }
+  }
+
+  enum ID: Equatable, Hashable, Sendable {
+    case directory(String)
+    case git(repositoryRootPath: String, branchName: String)
+  }
+
+  let workingDirectoryPath: String
+  let branch: Branch?
+
+  var id: ID {
+    guard let branch else {
+      return .directory(workingDirectoryPath)
+    }
+    return .git(
+      repositoryRootPath: branch.repositoryRootPath,
+      branchName: branch.name
     )
   }
 }

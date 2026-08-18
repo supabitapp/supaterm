@@ -217,6 +217,12 @@ final class TerminalHostState {
     let status: TabAgentStatus?
     let detailActivity: AgentActivity?
     let latestResponse: TabAgentResponse?
+
+    static let empty = Self(
+      status: nil,
+      detailActivity: nil,
+      latestResponse: nil
+    )
   }
 
   struct TabAgentResponse: Equatable, Sendable {

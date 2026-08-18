@@ -712,7 +712,7 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
         """
         \(alias): pullRequests(
           first: 5
-          states: [OPEN, MERGED]
+          states: [OPEN, MERGED, CLOSED]
           headRefName: "\(escapedBranchName)"
           orderBy: {field: UPDATED_AT, direction: DESC}
         ) {

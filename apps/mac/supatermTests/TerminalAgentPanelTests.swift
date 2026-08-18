@@ -971,6 +971,7 @@ struct TerminalAgentPanelTests {
     #expect(await second.kind == .open)
     #expect(await recorder.graphqlCallCount() == 1)
     let query = await recorder.graphqlQueries().first
+    #expect(query?.contains("states: [OPEN, MERGED, CLOSED]") == true)
     #expect(query?.contains("autoMergeRequest") == true)
     #expect(query?.contains("mergeQueueEntry") == true)
 

@@ -9,27 +9,55 @@ extension TerminalHostState {
     let currentInstance: AgentStateInstance?
     let currentNativeCandidate: TerminalAgentDetectionNativeCandidate?
   }
+
+  struct TabAgentContext {
+    let presentation: TabAgentPresentation
+    let workspaces: [TerminalTabAgentWorkspace]
+  }
+
+  private struct TabAgentSurfaceState {
+    let surface: GhosttySurfaceView
+    let agentState: ResolvedAgentState
+  }
+
+  private struct ResolvedTabAgentState {
+    let focusedSurfaceID: UUID?
+    let surfaces: [TabAgentSurfaceState]
+
+    var instances: [AgentStateInstance] {
+      surfaces.flatMap(\.agentState.instances)
+    }
+  }
 }
 
 extension TerminalHostState {
-  func tabAgentPresentation(for tabID: TerminalTabID) -> TabAgentPresentation {
-    guard let tree = trees[tabID] else {
-      return TabAgentPresentation(
-        status: nil,
-        detailActivity: nil,
-        latestResponse: nil
-      )
+  func tabAgentContext(for tabID: TerminalTabID) -> TabAgentContext {
+    guard let state = resolvedTabAgentState(for: tabID) else {
+      return TabAgentContext(presentation: .empty, workspaces: [])
     }
+    return TabAgentContext(
+      presentation: tabAgentPresentation(for: tabID, in: state),
+      workspaces: tabAgentWorkspaces(in: state)
+    )
+  }
 
-    let focusedSurfaceID = focusHistoryByTab[tabID]?.current
-    let instances = tree.leaves().flatMap { surface in
-      agentStateInstances(for: surface.id)
+  func tabAgentPresentation(for tabID: TerminalTabID) -> TabAgentPresentation {
+    guard let state = resolvedTabAgentState(for: tabID) else {
+      return .empty
     }
+    return tabAgentPresentation(for: tabID, in: state)
+  }
+
+  private func tabAgentPresentation(
+    for tabID: TerminalTabID,
+    in state: ResolvedTabAgentState
+  ) -> TabAgentPresentation {
+    let instances = state.instances
     let statusCandidate = instances.compactMap { instance in
       let isFocused = agentInstanceIsFocused(
         instance,
         in: tabID,
-        focusedSurfaceID: focusedSurfaceID
+        focusedSurfaceID: state.focusedSurfaceID
       )
       return tabAgentStatus(for: instance, isFocused: isFocused).map {
         (instance: instance, status: $0)
@@ -41,15 +69,15 @@ extension TerminalHostState {
         return lhsPriority < rhsPriority
       }
 
-      let lhsIsFocused = lhs.instance.surfaceID == focusedSurfaceID
-      let rhsIsFocused = rhs.instance.surfaceID == focusedSurfaceID
+      let lhsIsFocused = lhs.instance.surfaceID == state.focusedSurfaceID
+      let rhsIsFocused = rhs.instance.surfaceID == state.focusedSurfaceID
       if lhsIsFocused != rhsIsFocused {
         return !lhsIsFocused && rhsIsFocused
       }
 
       return lhs.instance.revision < rhs.instance.revision
     }
-    let focusedInstances = instances.filter { $0.surfaceID == focusedSurfaceID }
+    let focusedInstances = instances.filter { $0.surfaceID == state.focusedSurfaceID }
     let detailActivity = focusedInstances.filter(\.hasActivity).max {
       let lhsPriority = Self.agentActivityPriority($0.activity.phase)
       let rhsPriority = Self.agentActivityPriority($1.activity.phase)
@@ -78,43 +106,58 @@ extension TerminalHostState {
     )?.activity
   }
 
-  func tabAgentWorkspaces(for tabID: TerminalTabID) -> [TerminalTabAgentWorkspace] {
-    guard let tree = trees[tabID] else { return [] }
-    let leaves = tree.leaves()
-    let focusedSurfaceID = focusHistoryByTab[tabID]?.current
-    let orderedLeaves: [GhosttySurfaceView]
-    if let focusedSurfaceID,
-      let focusedSurface = leaves.first(where: { $0.id == focusedSurfaceID })
+  private func tabAgentWorkspaces(
+    in state: ResolvedTabAgentState
+  ) -> [TerminalTabAgentWorkspace] {
+    let orderedSurfaces: [TabAgentSurfaceState]
+    if let focusedSurfaceID = state.focusedSurfaceID,
+      let focusedSurface = state.surfaces.first(where: { $0.surface.id == focusedSurfaceID })
     {
-      orderedLeaves = [focusedSurface] + leaves.filter { $0.id != focusedSurfaceID }
+      orderedSurfaces = [focusedSurface] + state.surfaces.filter { $0.surface.id != focusedSurfaceID }
     } else {
-      orderedLeaves = leaves
+      orderedSurfaces = state.surfaces
     }
 
     var seen = Set<TerminalTabAgentWorkspace.ID>()
-    return orderedLeaves.compactMap { surface in
+    return orderedSurfaces.compactMap { surfaceState in
+      let surfaceID = surfaceState.surface.id
       guard
-        !agentStateStore.snapshots(for: surface.id).isEmpty
-          || agentDetectionStore.observation(for: surface.id) != nil
+        !agentStateStore.snapshots(for: surfaceID).isEmpty
+          || agentDetectionStore.observation(for: surfaceID) != nil
       else {
         return nil
       }
-      let current = resolvedAgentState(for: surface.id).currentInstance
       guard
         let workingDirectoryPath = agentPanelWorkingDirectoryPath(
-          for: surface.id,
-          agentWorkingDirectoryPath: current?.nativePresentation?.workingDirectoryPath
+          for: surfaceID,
+          agentWorkingDirectoryPath: surfaceState.agentState.currentInstance?
+            .nativePresentation?.workingDirectoryPath
         )
       else {
         return nil
       }
       let workspace = TerminalTabAgentWorkspace(
         workingDirectoryPath: workingDirectoryPath,
-        branchDetails: paneAgentMetadataBySurfaceID[surface.id]?.branchDetails
+        branch: paneAgentMetadataBySurfaceID[surfaceID]?.branchDetails.map(
+          TerminalTabAgentWorkspace.Branch.init
+        )
       )
       guard seen.insert(workspace.id).inserted else { return nil }
       return workspace
     }
+  }
+
+  private func resolvedTabAgentState(for tabID: TerminalTabID) -> ResolvedTabAgentState? {
+    guard let tree = trees[tabID] else { return nil }
+    return ResolvedTabAgentState(
+      focusedSurfaceID: focusHistoryByTab[tabID]?.current,
+      surfaces: tree.leaves().map { surface in
+        TabAgentSurfaceState(
+          surface: surface,
+          agentState: resolvedAgentState(for: surface.id)
+        )
+      }
+    )
   }
 
   func agentPanelPresentations(for tabID: TerminalTabID) -> [UUID: PaneAgentPanelPresentation] {

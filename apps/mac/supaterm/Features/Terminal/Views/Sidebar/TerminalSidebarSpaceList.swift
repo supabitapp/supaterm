@@ -164,14 +164,16 @@ struct TerminalSidebarSpaceList: View {
     rootIsPinned: Bool,
     shortcutHints: [TerminalTabID: String]
   ) -> TerminalSidebarTabRowPresentation {
+    let agentContext = terminal.tabAgentContext(for: tab.id)
     let details = TerminalSidebarTabDetail.resolve(
-      agentWorkspaces: terminal.tabAgentWorkspaces(for: tab.id),
+      agentWorkspaces: agentContext.workspaces,
       paneWorkingDirectories: terminal.paneWorkingDirectories(for: tab.id)
     )
     return TerminalSidebarTabRowPresentation(
       tab: tab,
       groupID: groupID,
       rootIsPinned: rootIsPinned,
+      agentStatus: agentContext.presentation.status,
       details: details,
       unreadCount: terminal.unreadNotificationCount(for: tab.id),
       terminalProgress: terminal.sidebarTerminalProgress(for: tab.id),

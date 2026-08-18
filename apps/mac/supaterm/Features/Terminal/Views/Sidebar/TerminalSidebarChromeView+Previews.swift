@@ -193,15 +193,11 @@ private enum TerminalSidebarTabPreviewFixtures {
         workspace(
           path: cwd("apps", "mac"),
           branch: "feature/sidebar-agent-context",
-          added: 42,
-          removed: 7,
           pullRequestNumber: 128
         ),
         workspace(
           path: cwd("docs"),
-          branch: "docs/agent-tabs",
-          added: 8,
-          removed: 2
+          branch: "docs/agent-tabs"
         ),
       ],
       agentStatus: .working
@@ -219,8 +215,6 @@ private enum TerminalSidebarTabPreviewFixtures {
         workspace(
           path: cwd("apps", "supaterm.com"),
           branch: "release/sidebar-copy",
-          added: 14,
-          removed: 3,
           pullRequestNumber: 131
         )
       ],
@@ -236,8 +230,6 @@ private enum TerminalSidebarTabPreviewFixtures {
         workspace(
           path: cwd("docs"),
           branch: "docs/sidebar-agent-context",
-          added: 6,
-          removed: 1,
           pullRequestNumber: 132
         )
       ],
@@ -300,29 +292,19 @@ private enum TerminalSidebarTabPreviewFixtures {
   private static func workspace(
     path: String,
     branch: String,
-    added: Int,
-    removed: Int,
     pullRequestNumber: Int? = nil
   ) -> TerminalTabAgentWorkspace {
-    let pullRequestStatus =
-      pullRequestNumber.map {
-        PaneAgentPullRequestStatus(
-          kind: .open,
-          title: "#\($0)",
-          url: URL(string: "https://github.com/supabitapp/supaterm/pull/\($0)"),
-          addedLineCount: added,
-          removedLineCount: removed,
-          checks: nil
-        )
-      } ?? .unavailable
-    return TerminalTabAgentWorkspace(
+    TerminalTabAgentWorkspace(
       workingDirectoryPath: path,
-      branchDetails: PaneAgentBranchDetails(
+      branch: TerminalTabAgentWorkspace.Branch(
         repositoryRootPath: cwd(),
-        branchName: branch,
-        addedLineCount: added,
-        removedLineCount: removed,
-        pullRequestStatus: pullRequestStatus
+        name: branch,
+        pullRequest: pullRequestNumber.map {
+          TerminalTabAgentWorkspace.PullRequest(
+            kind: .open,
+            title: "#\($0)",
+          )
+        }
       )
     )
   }

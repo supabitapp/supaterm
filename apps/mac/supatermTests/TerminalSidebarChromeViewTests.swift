@@ -577,7 +577,7 @@ struct TerminalSidebarChromeViewTests {
   func agentWorkspacesReplaceAllPaneDirectories() {
     let workspace = TerminalTabAgentWorkspace(
       workingDirectoryPath: "/repo",
-      branchDetails: nil
+      branch: nil
     )
 
     #expect(
@@ -592,18 +592,12 @@ struct TerminalSidebarChromeViewTests {
   func agentWorkspaceHelpIncludesGitContextAndPath() {
     let workspace = TerminalTabAgentWorkspace(
       workingDirectoryPath: "/repo/apps/mac",
-      branchDetails: PaneAgentBranchDetails(
+      branch: TerminalTabAgentWorkspace.Branch(
         repositoryRootPath: "/repo",
-        branchName: "feature/sidebar-context",
-        addedLineCount: 42,
-        removedLineCount: 7,
-        pullRequestStatus: PaneAgentPullRequestStatus(
+        name: "feature/sidebar-context",
+        pullRequest: TerminalTabAgentWorkspace.PullRequest(
           kind: .open,
           title: "#128",
-          url: URL(string: "https://github.com/supabitapp/supaterm/pull/128"),
-          addedLineCount: 42,
-          removedLineCount: 7,
-          checks: nil
         )
       )
     )
@@ -619,19 +613,10 @@ struct TerminalSidebarChromeViewTests {
   func agentWorkspaceHelpOmitsMissingPullRequest() {
     let workspace = TerminalTabAgentWorkspace(
       workingDirectoryPath: "/repo/apps/mac",
-      branchDetails: PaneAgentBranchDetails(
+      branch: TerminalTabAgentWorkspace.Branch(
         repositoryRootPath: "/repo",
-        branchName: "feature/sidebar-context",
-        addedLineCount: 42,
-        removedLineCount: 7,
-        pullRequestStatus: PaneAgentPullRequestStatus(
-          kind: .none,
-          title: "Create pull request",
-          url: nil,
-          addedLineCount: 42,
-          removedLineCount: 7,
-          checks: nil
-        )
+        name: "feature/sidebar-context",
+        pullRequest: nil
       )
     )
 
@@ -652,15 +637,11 @@ struct TerminalSidebarChromeViewTests {
     ]
 
     for (kind, icon) in states {
-      let status = PaneAgentPullRequestStatus(
+      let pullRequest = TerminalTabAgentWorkspace.PullRequest(
         kind: kind,
         title: "#128",
-        url: nil,
-        addedLineCount: nil,
-        removedLineCount: nil,
-        checks: nil
       )
-      #expect(status.icon == icon)
+      #expect(pullRequest.icon == icon)
     }
   }
 
