@@ -15,12 +15,12 @@ nonisolated struct CodexFakeExchange: Sendable {
 
   let request: Request
   let response: Response
-  let responseDelay: TimeInterval
+  let waitForRelease: Bool
 
-  init(request: Request, response: Response, responseDelay: TimeInterval = 0) {
+  init(request: Request, response: Response, waitForRelease: Bool = false) {
     self.request = request
     self.response = response
-    self.responseDelay = responseDelay
+    self.waitForRelease = waitForRelease
   }
 }
 
@@ -30,6 +30,8 @@ nonisolated final class CodexFakeModelServer: @unchecked Sendable {
   private let startup = DispatchSemaphore(value: 0)
   private var script: [CodexFakeExchange]
   private var failure: String?
+  private var pendingResponses: [(body: Data, connection: NWConnection)] = []
+  private var responseReleaseCount = 0
   private var responseIndex = 0
   private var port: UInt16 = 0
 
@@ -74,16 +76,38 @@ nonisolated final class CodexFakeModelServer: @unchecked Sendable {
   }
 
   func stop() {
+    queue.sync {
+      for response in pendingResponses {
+        response.connection.cancel()
+      }
+      pendingResponses.removeAll()
+    }
     listener.cancel()
   }
 
   func verifyComplete() throws {
-    let result = queue.sync { (failure, script.count) }
+    let result = queue.sync {
+      (failure, script.count, pendingResponses.count, responseReleaseCount)
+    }
     if let failure = result.0 {
       throw SupatermE2EError(failure)
     }
     guard result.1 == 0 else {
       throw SupatermE2EError("Fake Codex server has \(result.1) unused responses.")
+    }
+    guard result.2 == 0, result.3 == 0 else {
+      throw SupatermE2EError("Fake Codex server has an unmatched response release.")
+    }
+  }
+
+  func releaseNextResponse() {
+    queue.sync {
+      guard !pendingResponses.isEmpty else {
+        responseReleaseCount += 1
+        return
+      }
+      let response = pendingResponses.removeFirst()
+      sendResponse(response.body, to: response.connection)
     }
   }
 
@@ -135,13 +159,13 @@ nonisolated final class CodexFakeModelServer: @unchecked Sendable {
     responseIndex += 1
     do {
       let body = try exchange.response.sse(index: responseIndex)
-      queue.asyncAfter(deadline: .now() + exchange.responseDelay) { [weak self] in
-        self?.send(
-          status: "200 OK",
-          contentType: "text/event-stream",
-          body: body,
-          to: connection
-        )
+      if exchange.waitForRelease, responseReleaseCount == 0 {
+        pendingResponses.append((body, connection))
+      } else {
+        if exchange.waitForRelease {
+          responseReleaseCount -= 1
+        }
+        sendResponse(body, to: connection)
       }
     } catch {
       fail("Fake Codex server could not encode a response: \(error)", connection: connection)
@@ -154,6 +178,15 @@ nonisolated final class CodexFakeModelServer: @unchecked Sendable {
       status: "500 Internal Server Error",
       contentType: "application/json",
       body: Data("{\"error\":\"script mismatch\"}".utf8),
+      to: connection
+    )
+  }
+
+  private func sendResponse(_ body: Data, to connection: NWConnection) {
+    send(
+      status: "200 OK",
+      contentType: "text/event-stream",
+      body: body,
       to: connection
     )
   }

@@ -317,13 +317,24 @@ final class SupatermE2EApp: @unchecked Sendable {
     _ condition: () throws -> Bool
   ) async throws {
     let deadline = Date().addingTimeInterval(timeout)
+    var lastConditionError: Error?
     while Date() < deadline {
-      if try condition() {
-        return
+      do {
+        if try condition() {
+          return
+        }
+      } catch {
+        lastConditionError = error
       }
       try await Task.sleep(for: .milliseconds(100))
     }
-    throw SupatermE2EError("Timed out waiting until \(label).\n\(diagnostics())")
+    let conditionDiagnostics =
+      lastConditionError.map {
+        "\n--- last condition error ---\n\($0)"
+      } ?? ""
+    throw SupatermE2EError(
+      "Timed out waiting until \(label).\(conditionDiagnostics)\n\(diagnostics())"
+    )
   }
 
   func waitForDebugSnapshot(
