@@ -118,7 +118,8 @@ struct TerminalSidebarSpaceList: View {
             iconURL: groupIconURLs[group.id],
             isPinned: group.isPinned,
             isCollapsed: snapshot.collapsedGroupIDs.contains(group.id),
-            tabCount: group.tabs.count
+            tabCount: group.tabs.count,
+            showsNewTabShortcutHint: commandHoldObserver.isOptionPressed
           )
         )
         for tab in group.tabs {

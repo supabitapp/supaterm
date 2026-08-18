@@ -44,6 +44,27 @@ struct TerminalSidebarGroupRowPresentation: Equatable {
   let isPinned: Bool
   let isCollapsed: Bool
   let tabCount: Int
+  let showsNewTabShortcutHint: Bool
+}
+
+enum TerminalSidebarGroupNewTabAccessory: Equatable {
+  case hidden
+  case icon
+  case shortcut(String)
+
+  static func resolve(
+    isHovered: Bool,
+    showsShortcutHint: Bool,
+    shortcutHint: String?
+  ) -> Self {
+    guard isHovered else { return .hidden }
+    guard showsShortcutHint, let shortcutHint else { return .icon }
+    return .shortcut(shortcutHint)
+  }
+
+  var isVisible: Bool {
+    self != .hidden
+  }
 }
 
 enum TerminalSidebarGroupSurfaceState: Equatable {
@@ -420,6 +441,21 @@ private struct TerminalSidebarGroupHeader: View {
     renameState.groupID == presentation.id
   }
 
+  private var newTabShortcut: SupatermShortcutBinding? {
+    SupatermShortcuts.binding(
+      for: .newTabInGroup,
+      overrides: supatermSettings.shortcutOverrides
+    )
+  }
+
+  private var newTabAccessory: TerminalSidebarGroupNewTabAccessory {
+    TerminalSidebarGroupNewTabAccessory.resolve(
+      isHovered: hoverState.groupID == presentation.id,
+      showsShortcutHint: presentation.showsNewTabShortcutHint,
+      shortcutHint: newTabShortcut?.display
+    )
+  }
+
   var body: some View {
     Group {
       if isRenaming {
@@ -495,19 +531,28 @@ private struct TerminalSidebarGroupHeader: View {
           }
 
           Button {
-            actions.closeGroup(presentation.id)
+            actions.createTabInGroup(presentation.id)
           } label: {
-            Image(systemName: "xmark")
-              .font(.system(size: 11, weight: .semibold))
-              .frame(width: 22, height: 22)
+            Group {
+              switch newTabAccessory {
+              case .hidden, .icon:
+                Image(systemName: "plus")
+                  .font(.system(size: 11, weight: .semibold))
+                  .accessibilityHidden(true)
+              case .shortcut(let shortcut):
+                Text(shortcut)
+                  .font(.system(size: 10, weight: .semibold))
+              }
+            }
+            .frame(minWidth: 22, minHeight: 22)
           }
           .buttonStyle(.plain)
           .foregroundStyle(palette.secondaryText)
           .padding(.trailing, 8)
-          .opacity(hoverState.groupID == presentation.id ? 1 : 0)
-          .allowsHitTesting(hoverState.groupID == presentation.id)
-          .accessibilityHidden(hoverState.groupID != presentation.id)
-          .accessibilityLabel("Close \(presentation.title)")
+          .opacity(newTabAccessory.isVisible ? 1 : 0)
+          .allowsHitTesting(newTabAccessory.isVisible)
+          .accessibilityHidden(!newTabAccessory.isVisible)
+          .accessibilityLabel("New Tab in \(presentation.title)")
         }
         .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       }
@@ -537,12 +582,7 @@ private struct TerminalSidebarGroupHeader: View {
       Button("New Tab in Group", systemImage: "plus") {
         actions.createTabInGroup(presentation.id)
       }
-      .supatermKeyboardShortcut(
-        SupatermShortcuts.binding(
-          for: .newTabInGroup,
-          overrides: supatermSettings.shortcutOverrides
-        )?.keyboardShortcut
-      )
+      .supatermKeyboardShortcut(newTabShortcut?.keyboardShortcut)
       Button("Rename Group", systemImage: "pencil") {
         renameState.begin(groupID: presentation.id, title: presentation.title)
       }

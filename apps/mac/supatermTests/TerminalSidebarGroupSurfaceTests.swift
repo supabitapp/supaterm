@@ -7,6 +7,40 @@ import Testing
 @testable import supaterm
 
 struct TerminalSidebarGroupSurfaceTests {
+  @Test
+  func groupNewTabAccessoryRevealsItsShortcutOnOptionHold() {
+    let shortcut = "⌘⌥T"
+
+    #expect(
+      TerminalSidebarGroupNewTabAccessory.resolve(
+        isHovered: false,
+        showsShortcutHint: true,
+        shortcutHint: shortcut
+      ) == .hidden
+    )
+    #expect(
+      TerminalSidebarGroupNewTabAccessory.resolve(
+        isHovered: true,
+        showsShortcutHint: false,
+        shortcutHint: shortcut
+      ) == .icon
+    )
+    #expect(
+      TerminalSidebarGroupNewTabAccessory.resolve(
+        isHovered: true,
+        showsShortcutHint: true,
+        shortcutHint: shortcut
+      ) == .shortcut(shortcut)
+    )
+    #expect(
+      TerminalSidebarGroupNewTabAccessory.resolve(
+        isHovered: true,
+        showsShortcutHint: true,
+        shortcutHint: nil
+      ) == .icon
+    )
+  }
+
   @Test @MainActor
   func hoverStateTracksWholeGroupTransitions() {
     let first = TerminalTabGroupID()
