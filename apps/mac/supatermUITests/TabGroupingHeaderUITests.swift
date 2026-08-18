@@ -2,20 +2,42 @@ import XCTest
 
 final class TabGroupingHeaderUITests: SupatermUITestCase {
   @MainActor
-  func testGroupCloseAppearsOnlyWhileHoveringItsHeader() async throws {
+  func testGroupNewTabAppearsOnlyWhileHoveringItsHeaderAndCreatesSelectedTab() async throws {
     try await createNamedTabs(["Seed"])
     try await createGroup(named: "Hover", containing: "Seed")
     let header = try require(sidebarGroupHeader(named: "Hover"))
     let child = try require(sidebarStructuralTabRow(named: "Seed"))
-    let close = app.buttons["Close Hover"]
+    let newTab = app.buttons["New Tab in Hover"]
     XCTAssertEqual(header.elementType, .button)
 
     header.hover()
-    XCTAssertTrue(close.waitForExistence(timeout: 2))
+    XCTAssertTrue(newTab.waitForExistence(timeout: 2))
 
     child.hover()
-    let didHideClose = await wait(for: close) { !$0.exists }
-    XCTAssertTrue(didHideClose)
+    let didHideNewTab = await wait(for: newTab) { !$0.exists }
+    XCTAssertTrue(didHideNewTab)
+
+    header.hover()
+    try require(newTab)
+    newTab.click()
+
+    let groupID = header.identifier.dropFirst(
+      SupatermUITestIdentifier.Accessibility.sidebarGroupHeaderPrefix.count
+    )
+    let groupTabPrefix =
+      SupatermUITestIdentifier.Accessibility.sidebarGroupPrefix
+      + groupID
+      + SupatermUITestIdentifier.Accessibility.sidebarGroupedTabMarker
+    let didCreateSelectedTab = await wait {
+      let rows = self.sidebarTabRows.allElementsBoundByIndex
+      return rows.count == 2
+        && rows.contains {
+          $0.identifier != child.identifier
+            && $0.identifier.hasPrefix(groupTabPrefix)
+            && $0.isSelected
+        }
+    }
+    XCTAssertTrue(didCreateSelectedTab)
   }
 
   @MainActor
