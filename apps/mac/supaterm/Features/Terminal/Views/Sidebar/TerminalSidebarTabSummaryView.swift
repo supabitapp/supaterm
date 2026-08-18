@@ -260,14 +260,6 @@ private struct TerminalSidebarTabDetailView: View {
     branchDetails: PaneAgentBranchDetails
   ) -> some View {
     HStack(spacing: 5) {
-      Image("git-branch")
-        .renderingMode(.template)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
-        .frame(width: 11, height: 11)
-        .foregroundStyle(secondaryText)
-        .accessibilityHidden(true)
-
       Text(branchDetails.branchName)
         .font(.system(size: 11, weight: .medium, design: .monospaced))
         .foregroundStyle(secondaryText)
@@ -311,7 +303,7 @@ private struct TerminalSidebarPullRequestView: View {
     HStack(spacing: 2) {
       icon
 
-      Text(status.compactTitle)
+      Text(status.title)
         .font(.system(size: 10, weight: .semibold, design: .rounded))
     }
     .foregroundStyle(status.color(in: palette))
@@ -358,7 +350,13 @@ extension TerminalTabAgentWorkspace {
   }
 
   fileprivate var pullRequestStatus: PaneAgentPullRequestStatus? {
-    branchDetails?.displayedPullRequestStatus
+    guard
+      let status = branchDetails?.displayedPullRequestStatus,
+      status.kind != .none
+    else {
+      return nil
+    }
+    return status
   }
 
   fileprivate var hasChanges: Bool {

@@ -5,7 +5,6 @@ struct IconAssetTests {
   @Test
   func lucideIconsUseTemplateVectorImagesets() throws {
     for iconName in [
-      "circle-slash",
       "git-branch",
       "git-merge",
       "git-pull-request",

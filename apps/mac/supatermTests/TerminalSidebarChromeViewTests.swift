@@ -598,9 +598,35 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func agentWorkspaceHelpOmitsMissingPullRequest() {
+    let workspace = TerminalTabAgentWorkspace(
+      workingDirectoryPath: "/repo/apps/mac",
+      branchDetails: PaneAgentBranchDetails(
+        repositoryRootPath: "/repo",
+        branchName: "feature/sidebar-context",
+        addedLineCount: 0,
+        removedLineCount: 0,
+        pullRequestStatus: PaneAgentPullRequestStatus(
+          kind: .none,
+          title: "Create pull request",
+          url: nil,
+          addedLineCount: 0,
+          removedLineCount: 0,
+          checks: nil
+        )
+      )
+    )
+
+    #expect(
+      TerminalSidebarTabSummaryView.helpText(
+        details: [.agentWorkspace(workspace)]
+      ) == "feature/sidebar-context\n/repo/apps/mac"
+    )
+  }
+
+  @Test
   func pullRequestStatesUseDistinctSymbols() {
     let states: [(PaneAgentPullRequestStatus.Kind, TerminalMetadataIcon)] = [
-      (.none, .asset("circle-slash")),
       (.open, .asset("git-pull-request")),
       (.draft, .asset("git-pull-request-draft")),
       (.merged, .asset("git-merge")),
