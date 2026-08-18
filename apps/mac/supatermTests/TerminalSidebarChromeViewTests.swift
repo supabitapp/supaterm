@@ -544,11 +544,56 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func helpTextIncludesPaneDirectoriesOnly() {
+  func helpTextIncludesPaneDirectories() {
     #expect(
       TerminalSidebarTabSummaryView.helpText(
-        paneWorkingDirectories: ["~/Downloads", "~/Downloads/abc"]
+        details: [
+          .workingDirectory("~/Downloads"),
+          .workingDirectory("~/Downloads/abc"),
+        ]
       ) == "~/Downloads\n~/Downloads/abc"
+    )
+  }
+
+  @Test
+  func agentWorkspacesReplaceAllPaneDirectories() {
+    let workspace = TerminalTabAgentWorkspace(
+      workingDirectoryPath: "/repo",
+      branchDetails: nil
+    )
+
+    #expect(
+      TerminalSidebarTabDetail.resolve(
+        agentWorkspaces: [workspace],
+        paneWorkingDirectories: ["~/repo", "~/Downloads"]
+      ) == [.agentWorkspace(workspace)]
+    )
+  }
+
+  @Test
+  func agentWorkspaceHelpIncludesGitContextAndPath() {
+    let workspace = TerminalTabAgentWorkspace(
+      workingDirectoryPath: "/repo/apps/mac",
+      branchDetails: PaneAgentBranchDetails(
+        repositoryRootPath: "/repo",
+        branchName: "feature/sidebar-context",
+        addedLineCount: 42,
+        removedLineCount: 7,
+        pullRequestStatus: PaneAgentPullRequestStatus(
+          kind: .open,
+          title: "#128",
+          url: URL(string: "https://github.com/supabitapp/supaterm/pull/128"),
+          addedLineCount: 42,
+          removedLineCount: 7,
+          checks: nil
+        )
+      )
+    )
+
+    #expect(
+      TerminalSidebarTabSummaryView.helpText(
+        details: [.agentWorkspace(workspace)]
+      ) == "feature/sidebar-context · #128 · +42 -7\n/repo/apps/mac"
     )
   }
 

@@ -1301,6 +1301,7 @@ final class TerminalAgentPanelController {
         workspaceKey: workspaceKey
       )
       branchDetails = PaneAgentBranchDetails(
+        repositoryRootPath: gitSnapshot.repoRoot.path(percentEncoded: false),
         branchName: gitSnapshot.branchName,
         addedLineCount: pullRequestStatus.addedLineCount ?? gitSnapshot.addedLineCount,
         removedLineCount: pullRequestStatus.removedLineCount ?? gitSnapshot.removedLineCount,

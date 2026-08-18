@@ -479,7 +479,7 @@ struct TerminalSidebarLayoutTests {
       tab: tab,
       groupID: nil,
       rootIsPinned: false,
-      paneWorkingDirectories: [],
+      details: [],
       unreadCount: 0,
       terminalProgress: nil,
       hasTerminalBell: false,

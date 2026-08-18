@@ -92,6 +92,7 @@ nonisolated struct PaneAgentProgressRow: Codable, Equatable, Identifiable, Senda
 }
 
 nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
+  let repositoryRootPath: String
   let branchName: String
   let addedLineCount: Int
   let removedLineCount: Int
@@ -106,6 +107,26 @@ nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
     case .none, .open, .draft, .merged:
       pullRequestStatus
     }
+  }
+}
+
+nonisolated struct TerminalTabAgentWorkspace: Equatable, Identifiable, Sendable {
+  enum ID: Equatable, Hashable, Sendable {
+    case directory(String)
+    case git(repositoryRootPath: String, branchName: String)
+  }
+
+  let workingDirectoryPath: String
+  let branchDetails: PaneAgentBranchDetails?
+
+  var id: ID {
+    guard let branchDetails else {
+      return .directory(workingDirectoryPath)
+    }
+    return .git(
+      repositoryRootPath: branchDetails.repositoryRootPath,
+      branchName: branchDetails.branchName
+    )
   }
 }
 

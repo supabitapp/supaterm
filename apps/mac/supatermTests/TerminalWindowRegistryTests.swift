@@ -1356,6 +1356,7 @@ struct TerminalWindowRegistryTests {
       #expect(
         host.storeAgentPanelBranchDetails(
           PaneAgentBranchDetails(
+            repositoryRootPath: "/repo",
             branchName: "feat/open-pr-hotkey",
             addedLineCount: 9,
             removedLineCount: 0,
