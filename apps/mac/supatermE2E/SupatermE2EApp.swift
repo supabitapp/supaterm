@@ -87,7 +87,9 @@ final class SupatermE2EApp: @unchecked Sendable {
       SupatermCLIEnvironment.instanceNameKey: instanceName,
       SupatermCLIEnvironment.stateHomeKey: stateHome.path,
     ]
-    if !zmxSessionsEnabled {
+    if zmxSessionsEnabled {
+      environment[ZmxEnvironment.enabledKey] = "1"
+    } else {
       environment[ZmxEnvironment.disabledKey] = "1"
     }
     self.environment = environment

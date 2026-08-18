@@ -87,7 +87,7 @@ make mac-test-e2e       # Run socket-driven E2E tests against the real app
 
 E2E tests in `apps/mac/supatermE2E` spawn their own `supaterm.app` with a fresh instance name, state home, and `ZMX_DIR`, then control it through the `sp` socket protocol. They never attach to a running development or user instance.
 
-UI tests in `apps/mac/supatermUITests` control the shared macOS desktop, input focus, and pasteboards. Never run them locally. They're meant for CI.
+UI tests in `apps/mac/supatermUITests` control the shared macOS desktop, input focus, and pasteboards. They disable zmx. Never run them locally. They're meant for CI.
 
 Also prefer to write E2E tests over UI Tests if possible.
 
@@ -127,31 +127,22 @@ make bump-and-release
 ## Isolated App State
 
 `make mac-run` gives the checkout one development identity: an instance name derived from the
-checkout path and a state home at `apps/mac/.build/run-state/dev`. State and sessions persist
-across runs, so the next `make mac-run` reattaches the previous run's zmx sessions the same way
-the shipped app does. Different checkouts derive different names, so worktrees stay isolated, and
-the launch guard refuses a second concurrent run of the same checkout.
+checkout path and a state home at `apps/mac/.build/run-state/dev`. Layout and settings persist
+across runs. Different checkouts derive different names, so worktrees stay isolated, and the
+launch guard refuses a second concurrent run of the same checkout.
 
 Debug builds carry the same identity inside the bundle: a build phase stamps `LSEnvironment` in
 the product's Info.plist with the checkout's instance name and state home. Launching the built app
 directly — `open`, Finder, an agent — runs it as the checkout's development instance instead of
-`default`, so it can never share sessions with the installed app. Explicit environment variables
-and raw binary launches are unaffected, and release builds carry no stamp.
+`default`, so it can never share state with the installed app. Explicit environment variables and
+raw binary launches are unaffected, and release builds carry no stamp.
 
-zmx sessions live in the default per-user directory. The instance hash in every session name
-separates development sessions from the installed app's, and each app process reaps only its own
-namespace.
-
-For a clean slate, quit the app with **Quit Supaterm and Close All Sessions** first, then delete
-the state home:
+Development launches and UI tests never start zmx. The zmx E2E suite opts in with an isolated zmx
+directory. For a clean slate, quit the app, then delete the state home:
 
 ```bash
 rm -rf apps/mac/.build/run-state/dev
 ```
-
-The order is load-bearing. The state home names the app's zmx sessions; delete it while its
-daemons run and they keep running, orphaned in the shared per-user zmx directory where the next
-`make mac-run` can no longer see them.
 
 `make mac-run` accepts these runtime overrides:
 
@@ -173,7 +164,7 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_STATE_HOME` when an app state root is configured
 - `SUPATERM_SURFACE_ID`
 - `SUPATERM_TAB_ID`
-- `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled (the default)
+- `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled
 
 For login-shell panes, the app prepends its `Contents/MacOS` directory to `PATH`. The directory includes `sp`, `ap`, and `wt`. Direct launches keep the caller's `PATH` unchanged.
 

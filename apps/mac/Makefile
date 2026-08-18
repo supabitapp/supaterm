@@ -30,7 +30,7 @@ XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
-APP_RUN_ENV := SUPATERM_DISABLE_ZMX=1 SUPATERM_VERBOSE_LOGGING=1
+APP_RUN_ENV := SUPATERM_VERBOSE_LOGGING=1
 RUN_STATE_ROOT := $(CURRENT_MAKEFILE_DIR)/.build/run-state
 .DEFAULT_GOAL := help
 .PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache

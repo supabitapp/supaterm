@@ -6,13 +6,50 @@ import Testing
 
 struct ZmxClientTests {
   @Test
-  func environmentDisablesSessions() {
-    #expect(ZmxEnvironment.sessionsEnabled(setting: true, environment: [:]))
-    #expect(!ZmxEnvironment.sessionsEnabled(setting: false, environment: [:]))
+  func developmentBuildAndEnvironmentDisableSessions() {
+    #expect(
+      ZmxEnvironment.sessionsEnabled(
+        setting: true,
+        isDevelopmentBuild: false,
+        environment: [:]
+      )
+    )
+    #expect(
+      !ZmxEnvironment.sessionsEnabled(
+        setting: false,
+        isDevelopmentBuild: false,
+        environment: [:]
+      )
+    )
     #expect(
       !ZmxEnvironment.sessionsEnabled(
         setting: true,
+        isDevelopmentBuild: true,
+        environment: [:]
+      )
+    )
+    #expect(
+      ZmxEnvironment.sessionsEnabled(
+        setting: true,
+        isDevelopmentBuild: true,
+        environment: [ZmxEnvironment.enabledKey: "1"]
+      )
+    )
+    #expect(
+      !ZmxEnvironment.sessionsEnabled(
+        setting: true,
+        isDevelopmentBuild: false,
         environment: [ZmxEnvironment.disabledKey: "1"]
+      )
+    )
+    #expect(
+      !ZmxEnvironment.sessionsEnabled(
+        setting: true,
+        isDevelopmentBuild: true,
+        environment: [
+          ZmxEnvironment.disabledKey: "1",
+          ZmxEnvironment.enabledKey: "1",
+        ]
       )
     )
   }
