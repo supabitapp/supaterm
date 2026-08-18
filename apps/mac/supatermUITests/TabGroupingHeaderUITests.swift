@@ -2,20 +2,25 @@ import XCTest
 
 final class TabGroupingHeaderUITests: SupatermUITestCase {
   @MainActor
-  func testGroupCloseAppearsOnlyWhileHoveringItsHeader() async throws {
+  func testGroupNewTabAppearsOnHoverAndCreatesChild() async throws {
     try await createNamedTabs(["Seed"])
     try await createGroup(named: "Hover", containing: "Seed")
     let header = try require(sidebarGroupHeader(named: "Hover"))
     let child = try require(sidebarStructuralTabRow(named: "Seed"))
-    let close = app.buttons["Close Hover"]
+    let newTab = app.buttons["New Tab in Hover"]
     XCTAssertEqual(header.elementType, .button)
+    XCTAssertFalse(newTab.exists)
 
     header.hover()
-    XCTAssertTrue(close.waitForExistence(timeout: 2))
+    XCTAssertTrue(newTab.waitForExistence(timeout: 2))
+
+    newTab.click()
+    let didCreateChild = await wait(for: header) { $0.label.contains("2 tabs") }
+    XCTAssertTrue(didCreateChild)
 
     child.hover()
-    let didHideClose = await wait(for: close) { !$0.exists }
-    XCTAssertTrue(didHideClose)
+    let didHideNewTab = await wait(for: newTab) { !$0.exists }
+    XCTAssertTrue(didHideNewTab)
   }
 
   @MainActor
