@@ -234,6 +234,27 @@ struct SPSocketClientTests {
   }
 
   @Test
+  func environmentSocketResolutionWaitsForTheAppToReply() async throws {
+    try await withSocketRuntime(
+      replying: { request, endpoint in
+        try await Task.sleep(for: .milliseconds(400))
+        return try .ok(id: request.id, encodableResult: endpoint)
+      },
+      run: { endpoint in
+        let diagnostics = SPSocketSelection.resolve(
+          explicitPath: nil,
+          instance: nil,
+          environment: [SupatermCLIEnvironment.socketPathKey: endpoint.path],
+          rootDirectory: URL(fileURLWithPath: endpoint.path).deletingLastPathComponent()
+        )
+
+        #expect(diagnostics.resolvedTarget?.path == endpoint.path)
+        #expect(diagnostics.resolvedTarget?.source == .environmentPath)
+      }
+    )
+  }
+
+  @Test
   func socketResolutionStrategyUsesExplicitPathWithoutDiscoveryWhenNeeded() {
     let strategy = SPSocketResolutionStrategy.make(
       explicitSocketPath: "/tmp/explicit.sock",

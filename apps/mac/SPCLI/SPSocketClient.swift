@@ -337,6 +337,7 @@ enum SPSocketSelection {
   private static let discoveryConnectRetryInterval: TimeInterval = 0.05
   private static let discoveryConnectRetryTimeout: TimeInterval = 0.25
   private static let discoveryResponseTimeout: TimeInterval = 0.25
+  private static let environmentResponseTimeout: TimeInterval = 1
 
   static func resolve(
     explicitPath: String?,
@@ -353,7 +354,8 @@ enum SPSocketSelection {
       ? environmentSocketPath.map {
         probeEndpoint(
           at: $0,
-          connectRetryTimeout: SPSocketClient.defaultConnectRetryTimeout
+          connectRetryTimeout: SPSocketClient.defaultConnectRetryTimeout,
+          responseTimeout: environmentResponseTimeout
         )
       }
       : nil
@@ -373,7 +375,13 @@ enum SPSocketSelection {
       )
       discovery = SupatermManagedSocketDiscovery.discover(
         candidatePaths: candidatePaths,
-        probe: { probeEndpoint(at: $0, connectRetryTimeout: discoveryConnectRetryTimeout) },
+        probe: {
+          probeEndpoint(
+            at: $0,
+            connectRetryTimeout: discoveryConnectRetryTimeout,
+            responseTimeout: discoveryResponseTimeout
+          )
+        },
         removeStalePath: { path in
           removeManagedSocketPath(path)
         }
@@ -438,14 +446,15 @@ enum SPSocketSelection {
 
   private static func probeEndpoint(
     at path: String,
-    connectRetryTimeout: TimeInterval
+    connectRetryTimeout: TimeInterval,
+    responseTimeout: TimeInterval
   ) -> SupatermManagedSocketCandidateStatus {
     guard
       let client = try? SPSocketClient(
         path: path,
         connectRetryInterval: discoveryConnectRetryInterval,
         connectRetryTimeout: connectRetryTimeout,
-        responseTimeout: discoveryResponseTimeout
+        responseTimeout: responseTimeout
       )
     else {
       return .ignored

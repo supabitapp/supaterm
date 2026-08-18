@@ -62,8 +62,7 @@ extension SP {
       let event = try agentHookEvent(from: rawInput)
       let client = try socketClient(
         path: connection.explicitSocketPath,
-        instance: connection.instance,
-        discoveryPolicy: .always
+        instance: connection.instance
       )
       let response = try client.send(
         .agentHook(
