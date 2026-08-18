@@ -529,6 +529,8 @@ struct TerminalAgentDetectionControllerTests {
       } else {
         "\(executableURL.path) 120"
       }
+    let expectedPhase: AgentActivityPhase = zmxSessionsEnabled ? .idle : .running
+    let expectedRuleID = zmxSessionsEnabled ? "osc_title_idle" : "osc_title_working"
     surface.bridge.submitText(command)
     if !zmxSessionsEnabled {
       _ = try await waitForForegroundProcess(
@@ -540,13 +542,13 @@ struct TerminalAgentDetectionControllerTests {
       host.agentDetectionExplanation(for: surface.id)
     }
     processID = proof.processID
-    let expectedPhase: AgentActivityPhase = zmxSessionsEnabled ? .idle : .running
     surface.bridge.state.title = zmxSessionsEnabled ? "project" : "⠋ running"
 
     let detected = try await waitForDetection(
       {
         guard let observation = terminalObservation(in: host, for: surface.id),
-          observation.phase == expectedPhase
+          observation.phase == expectedPhase,
+          observation.ruleID == expectedRuleID
         else {
           return nil
         }
@@ -559,10 +561,8 @@ struct TerminalAgentDetectionControllerTests {
     #expect(detected.processIdentity == proof)
     #expect(detected.agent.id == "codex")
     #expect(detected.phase == expectedPhase)
+    #expect(detected.ruleID == expectedRuleID)
     #expect(host.agentActivity(for: try #require(host.selectedTabID)) == .codex(expectedPhase))
-    if zmxSessionsEnabled {
-      #expect(detected.ruleID == "osc_title_idle")
-    }
     #expect(host.agentDetectionExplanation(for: surface.id).publishedPhase == detected.phase)
     #expect(host.agentDetectionExplanation(for: surface.id).publishedRuleID == detected.ruleID)
     #expect(Darwin.kill(detected.processIdentity.processID, SIGTERM) == 0)
