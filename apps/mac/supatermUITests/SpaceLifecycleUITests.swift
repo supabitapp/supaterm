@@ -47,7 +47,8 @@ final class SpaceLifecycleUITests: SupatermUITestCase {
 
     let didRenameSpace = await waitForDisplayedSpace(named: "Renamed UI Space")
     XCTAssertTrue(didRenameSpace)
-    XCTAssertFalse(spaceDot(named: "UI Space").exists)
+    let didDropOldSpaceDot = await wait { !self.spaceDot(named: "UI Space").exists }
+    XCTAssertTrue(didDropOldSpaceDot)
 
     displayedSpace.click()
     let deleteSpace = app.menuItems["Delete Space"]
