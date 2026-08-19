@@ -242,7 +242,7 @@ extension SupatermUITestCase {
     source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
       forDuration: 0.5,
       thenDragTo: destination,
-      withVelocity: .slow,
+      withVelocity: XCUIGestureVelocity(rawValue: 60),
       thenHoldForDuration: 0.5
     )
   }
