@@ -94,6 +94,7 @@ struct TerminalAgentDetectionHostAccess {
   let observation: (UUID) -> TerminalAgentDetectionObservation?
   let apply: (TerminalAgentDetectionObservation, UUID) -> Bool
   let clear: (UUID) -> Void
+  var pruneDeadAgentProcesses: () -> Void = {}
 }
 
 private actor TerminalAgentDetectionLiveSampler {
@@ -409,12 +410,15 @@ final class TerminalAgentDetectionController {
     now: ContinuousClock.Instant
   ) {
     let liveIDs = Set(surfaces.map(\.key.id))
+    var processFactsChanged = false
     for surfaceID in states.keys where !liveIDs.contains(surfaceID) {
       invalidate(surfaceID)
+      processFactsChanged = true
     }
     for surface in surfaces {
       let surfaceID = surface.key.id
       if states[surfaceID]?.key != surface.key {
+        processFactsChanged = processFactsChanged || states[surfaceID] != nil
         invalidate(surfaceID)
         states[surfaceID] = SurfaceState(
           key: surface.key,
@@ -432,6 +436,9 @@ final class TerminalAgentDetectionController {
         state.status = .noForegroundProcess
         states[surfaceID] = state
       }
+    }
+    if processFactsChanged {
+      host.pruneDeadAgentProcesses()
     }
   }
 
@@ -853,6 +860,10 @@ final class TerminalAgentDetectionController {
       },
       clear: { [weak terminal] surfaceID in
         _ = terminal?.clearAgentDetection(for: surfaceID)
+      },
+      pruneDeadAgentProcesses: { [weak terminal] in
+        guard let terminal, terminal.pruneDeadAgentProcesses() else { return }
+        terminal.sessionDidChange()
       }
     )
   }
