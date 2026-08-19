@@ -1,0 +1,30 @@
+
+
+              .=^*/++=,               
+            /*_/||*"=!_-\_            
+           / ,||/*^^=/!\_~,           
+          " ||/;=_ _^,|\^|+,          
+         /*";\*"|*,    +:+||          
+         | |||"^|\;*   '|*|||         
+         ` ~*\ **|\\,"  / `||         
+        |  ~/_  ~||_/=  | !||         
+        !  ",|" /|"|~~|+|~,||`        
+         |_|||_,|^|_||||__|||         
+         " `^/\\|/"****||"/\|         
+          \~||\,`     ,/ ^/|`         
+           \+\|\\    /;_;|/*          
+            ^-"\_|*/+=;;*|`           
+             '-_ *\\|;+/"             
+                                      
+
+  Welcome to Codex, OpenAI's command-line coding agent
+
+> You are in /tmp/supaterm-e2e/scratch
+
+  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt injection. Trusting the
+  directory allows project-local config, hooks, and exec policies to load.
+
+› 1. Yes, continue
+  2. No, quit
+
+  Press enter to continue

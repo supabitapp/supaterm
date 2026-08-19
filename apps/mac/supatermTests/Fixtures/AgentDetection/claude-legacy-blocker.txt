@@ -1,0 +1,4 @@
+✳ Fix flaky space rename test
+
+● Bash(./scripts/deploy.sh)
+  ⎿ Waiting for permission…

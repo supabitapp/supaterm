@@ -1,0 +1,10 @@
+✳ Fix flaky space rename test
+
+Select model
+Switch between Claude models.
+
+ ❯ 1. Default (recommended)
+   2. Opus
+   3. Sonnet
+
+ enter to set as default · esc to cancel
