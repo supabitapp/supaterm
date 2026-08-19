@@ -18,7 +18,6 @@ public enum SupatermSocketMethod {
   public static let appTree = "app.tree"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
-  public static let terminalAgentExplain = "terminal.agent_explain"
   public static let terminalAgentHook = "terminal.agent_hook"
   public static let terminalCapturePane = "terminal.capture_pane"
   public static let terminalClosePane = "terminal.close_pane"
@@ -263,13 +262,6 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.terminalAgentHook, payload, id: id)
-  }
-
-  public static func agentExplain(
-    _ payload: SupatermPaneTargetRequest,
-    id: String = UUID().uuidString
-  ) throws -> Self {
-    try make(SupatermSocketMethod.terminalAgentExplain, payload, id: id)
   }
 
   public static func capturePane(

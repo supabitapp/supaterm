@@ -241,7 +241,6 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `app.*` — onboarding, debug, tree, settings, hooks, skills
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
-- `terminal.agent_explain` — read-only coding agent detection diagnostics
 - `terminal.*` — space, tab, and pane control, one method per CLI verb
 
 `terminal.capture_pane` returns terminal text. `terminal.screenshot_pane` returns PNG data for a
@@ -257,20 +256,18 @@ Hook methods own the agent settings files:
 - `app.hooks.install` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
 - The app writes `~/.claude/settings.json` and `~/.codex/hooks.json`, and talks to Codex app-server. The CLI never touches those files.
 
-`terminal.agent_explain` takes the same `paneID` request shape as other resolved pane commands. Its
-typed result contains `target`, `mode`, and `status`, plus `rules`, `agent`, `process`, and `ruleID`
-when those values exist.
+Debug snapshot panes carry coding agent detection. Each pane has `agentStatus` and, when an agent
+resolves, an `agent` object.
 
-- `mode` is `native`, `fallback`, or `none`.
-- `status` is `detection_disabled`, `waiting`, `no_foreground_process`,
+- `agentStatus` is `detection_disabled`, `waiting`, `no_foreground_process`,
   `unrecognized_process`, `native_authority`, `screen_unavailable`,
   `no_rule_match_or_settling`, or `resolved`.
-- `rules` contains `source` (`bundle` or `cache`) and `generation`.
-- `agent` contains `id`, `displayName`, and `phase` (`idle`, `running`, or `needs_input`).
+- `agent` contains `kind`, `phase` (`idle`, `running`, or `needs_input`), and `phaseSource`
+  (`native` or `screen`), plus `sessionID`, `ruleID`, and `process` when those values exist.
 - `process` contains `processID` and `startTimeMicroseconds`.
 
-The response omits terminal text, titles, executable paths, rule patterns, and internal match
-weights.
+`sp ls --json` mirrors `agent` and `agentStatus` on pane items. The snapshot omits terminal text,
+rule patterns, and internal match weights.
 
 Skill methods serve the app bundle:
 

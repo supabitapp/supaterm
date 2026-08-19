@@ -32,8 +32,10 @@ struct SPListSnapshot: Encodable {
 
   struct Agent: Encodable {
     let kind: SupatermAgentKind
-    let sessionID: String
     let phase: SupatermAppDebugSnapshot.AgentPhase
+    let phaseSource: SupatermAppDebugSnapshot.AgentPhaseSource
+    let sessionID: String?
+    let ruleID: String?
   }
 
   struct Item: Encodable {
@@ -46,6 +48,7 @@ struct SPListSnapshot: Encodable {
     let selected: Bool
     let isWarm: Bool?
     let agent: Agent?
+    let agentStatus: SupatermAppDebugSnapshot.AgentDetectionStatus?
   }
 
   let current: Current?
@@ -100,7 +103,8 @@ struct SPListSnapshot: Encodable {
           cwd: nil,
           selected: space.id == window.displayedSpaceID,
           isWarm: space.isWarm,
-          agent: nil
+          agent: nil,
+          agentStatus: nil
         )
       ]
       for rootItem in space.rootItems {
@@ -116,7 +120,8 @@ struct SPListSnapshot: Encodable {
               cwd: nil,
               selected: false,
               isWarm: nil,
-              agent: nil
+              agent: nil,
+              agentStatus: nil
             )
           )
           for tab in group.tabs {
@@ -155,7 +160,8 @@ struct SPListSnapshot: Encodable {
         cwd: nil,
         selected: tab.isSelected,
         isWarm: nil,
-        agent: nil
+        agent: nil,
+        agentStatus: nil
       )
     ]
       + tab.panes.map { pane in
@@ -169,8 +175,15 @@ struct SPListSnapshot: Encodable {
           selected: pane.isFocused,
           isWarm: nil,
           agent: pane.agent.map {
-            Agent(kind: $0.kind, sessionID: $0.sessionID, phase: $0.phase)
-          }
+            Agent(
+              kind: $0.kind,
+              phase: $0.phase,
+              phaseSource: $0.phaseSource,
+              sessionID: $0.sessionID,
+              ruleID: $0.ruleID
+            )
+          },
+          agentStatus: pane.agentStatus
         )
       }
   }

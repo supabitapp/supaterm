@@ -90,7 +90,7 @@ private struct PiE2EEnvironment {
 
 private final class PiE2EFixture {
   let app: SupatermE2EApp
-  let initialProcess: SupatermAgentExplainResult.Process
+  let initialProcess: SupatermAppDebugSnapshot.AgentProcess
   let mode: PiE2EMode
   let server: FakeModelServer
   let sessionID: String?
@@ -98,7 +98,7 @@ private final class PiE2EFixture {
 
   private init(
     app: SupatermE2EApp,
-    initialProcess: SupatermAgentExplainResult.Process,
+    initialProcess: SupatermAppDebugSnapshot.AgentProcess,
     mode: PiE2EMode,
     server: FakeModelServer,
     sessionID: String?,
@@ -157,11 +157,11 @@ private final class PiE2EFixture {
       }
       try app.type(SupatermShellCommand.escapedCommand(arguments) + "\n", into: space.pane)
       try await app.waitForCapture(space.pane, contains: "Pi can explain its own features", timeout: 60)
-      let initial = try await waitForPiExplain(
+      let initial = try await waitForPiAgent(
         app,
         mode: mode,
         phase: .idle,
-        target: space.pane
+        paneID: space.tab.paneID
       )
       let initialProcess = try requireValue(
         initial.process,
@@ -195,17 +195,17 @@ private final class PiE2EFixture {
   }
 
   func expect(
-    _ phase: SupatermAgentExplainResult.Phase,
+    _ phase: SupatermAppDebugSnapshot.AgentPhase,
     timeout: TimeInterval = 90
   ) async throws {
-    let result = try await waitForPiExplain(
+    let agent = try await waitForPiAgent(
       app,
       mode: mode,
       phase: phase,
-      target: space.pane,
+      paneID: space.tab.paneID,
       timeout: timeout
     )
-    #expect(result.process == initialProcess)
+    #expect(agent.process == initialProcess)
     let currentSessionID = try await waitForPiSession(
       app,
       mode: mode,
@@ -324,63 +324,52 @@ private func stopPi(_ fixture: PiE2EFixture) async throws {
   try fixture.app.press(.ctrlD, in: fixture.space.pane)
   try await fixture.app.waitForShellPrompt(fixture.space.pane)
   try await fixture.app.waitUntil("Pi clears its process and native session", timeout: 15) {
-    let result = try fixture.app.agentExplain(fixture.space.pane)
-    let pane = try fixture.app.debugPane(fixture.space.tab.paneID)
-    return result.agent?.id != "pi"
-      && result.process != fixture.initialProcess
-      && pane?.agent == nil
+    try fixture.app.debugPane(fixture.space.tab.paneID)?.agent == nil
   }
 }
 
-private func waitForPiExplain(
+private func waitForPiAgent(
   _ app: SupatermE2EApp,
   mode: PiE2EMode,
-  phase: SupatermAgentExplainResult.Phase,
-  target: SupatermPaneTargetRequest,
+  phase: SupatermAppDebugSnapshot.AgentPhase,
+  paneID: UUID,
   timeout: TimeInterval = 90
-) async throws -> SupatermAgentExplainResult {
-  var lastResult: SupatermAgentExplainResult?
-  do {
-    try await app.waitUntil("Pi resolves \(phase.rawValue)", timeout: timeout) {
-      let result = try app.agentExplain(target)
-      lastResult = result
-      let expectedMode: SupatermAgentExplainResult.Mode =
-        mode.usesNativeIntegration ? .native : .fallback
-      let expectedStatus: SupatermAgentExplainResult.Status =
-        mode.usesNativeIntegration ? .nativeAuthority : .resolved
-      return result.mode == expectedMode
-        && result.status == expectedStatus
-        && result.agent?.id == "pi"
-        && result.agent?.phase == phase
-    }
-  } catch {
-    throw SupatermE2EError(
-      "\(error)\n--- last Pi agent explain ---\n\(String(describing: lastResult))"
-        + "\n--- pane capture ---\n\((try? app.capture(target)) ?? "unavailable")"
-    )
-  }
-  return try requireValue(lastResult, "Pi detection produced no result.")
+) async throws -> SupatermAppDebugSnapshot.Agent {
+  try await waitForAgentSnapshot(
+    app,
+    paneID: paneID,
+    kind: .pi,
+    phase: phase,
+    phaseSource: mode.usesNativeIntegration ? .native : .screen,
+    status: mode.usesNativeIntegration ? .nativeAuthority : .resolved,
+    timeout: timeout
+  )
 }
 
 private func waitForPiSession(
   _ app: SupatermE2EApp,
   mode: PiE2EMode,
   paneID: UUID,
-  phase: SupatermAgentExplainResult.Phase,
+  phase: SupatermAppDebugSnapshot.AgentPhase,
   timeout: TimeInterval = 90
 ) async throws -> String? {
   if !mode.usesNativeIntegration {
     try await app.waitUntil("screen-only Pi has no native session", timeout: timeout) {
-      try app.debugPane(paneID)?.agent == nil
+      try app.debugPane(paneID)?.agent?.sessionID == nil
     }
     return nil
   }
 
   var sessionID: String?
   try await app.waitUntil("native Pi session reaches \(phase.rawValue)", timeout: timeout) {
-    guard let agent = try app.debugPane(paneID)?.agent else { return false }
-    guard agent.kind == .pi, agent.phase.rawValue == phase.rawValue else { return false }
-    sessionID = agent.sessionID
+    guard
+      let agent = try app.debugPane(paneID)?.agent,
+      let boundSessionID = agent.sessionID
+    else {
+      return false
+    }
+    guard agent.kind == .pi, agent.phase == phase else { return false }
+    sessionID = boundSessionID
     return true
   }
   return try requireValue(sessionID, "Pi native integration produced no session ID.")

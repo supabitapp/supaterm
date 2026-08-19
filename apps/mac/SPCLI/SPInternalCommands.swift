@@ -15,7 +15,6 @@ extension SP {
       shouldDisplay: false,
       subcommands: [
         Ping.self,
-        Agent.self,
         AgentSettings.self,
         Development.self,
       ]
@@ -69,109 +68,6 @@ extension SP {
       print(Self.helpMessage())
     }
   }
-}
-
-extension SP.Internal {
-  struct Agent: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "agent",
-      abstract: "Run internal coding-agent diagnostics.",
-      shouldDisplay: false,
-      subcommands: [Explain.self]
-    )
-
-    mutating func run() throws {
-      print(Self.helpMessage())
-    }
-  }
-}
-
-extension SP.Internal.Agent {
-  struct Explain: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "explain",
-      abstract: "Explain coding-agent detection for a pane.",
-      shouldDisplay: false
-    )
-
-    @Argument(help: "Optional pane target.")
-    var pane: SPPaneReference?
-
-    @OptionGroup
-    var options: SPCommandOptions
-
-    mutating func run() throws {
-      try runControlCommand(
-        options: options,
-        request: { client in
-          try .agentExplain(
-            resolvePublicPaneTarget(
-              pane,
-              context: SupatermCLIContext.current,
-              snapshot: try treeSnapshot(client)
-            )
-          )
-        },
-        as: SupatermAgentExplainResult.self,
-        plain: agentExplainPlain,
-        human: agentExplainHuman
-      )
-    }
-  }
-}
-
-func agentExplainPlain(_ result: SupatermAgentExplainResult) -> String {
-  let processID = result.process.map { String($0.processID) } ?? "-"
-  let processStartTime = result.process.map { String($0.startTimeMicroseconds) } ?? "-"
-  let ruleGeneration = result.rules.map { String($0.generation) } ?? "-"
-  let fields: [String] = [
-    agentExplainPaneSelector(result.target),
-    result.mode.rawValue,
-    result.status.rawValue,
-    result.agent?.id ?? "-",
-    result.agent?.phase.rawValue ?? "-",
-    processID,
-    processStartTime,
-    result.rules?.source.rawValue ?? "-",
-    ruleGeneration,
-    result.ruleID ?? "-",
-  ]
-  return fields.joined(separator: "\t")
-}
-
-func agentExplainHuman(_ result: SupatermAgentExplainResult) -> String {
-  var lines = [
-    "Pane \(agentExplainPaneSelector(result.target))",
-    "Detection: \(result.mode.rawValue) (\(agentExplainWords(result.status.rawValue)))",
-  ]
-  if let agent = result.agent {
-    lines.append(
-      "Agent: \(agent.displayName) [\(agent.id)], \(agentExplainWords(agent.phase.rawValue))"
-    )
-  }
-  if let process = result.process {
-    lines.append(
-      "Process: \(process.processID), started \(process.startTimeMicroseconds)"
-    )
-  }
-  if let rules = result.rules {
-    var ruleText = "Rules: \(rules.source.rawValue) generation \(rules.generation)"
-    if let ruleID = result.ruleID {
-      ruleText += ", matched \(ruleID)"
-    }
-    lines.append(ruleText)
-  } else if let ruleID = result.ruleID {
-    lines.append("Rule: \(ruleID)")
-  }
-  return lines.joined(separator: "\n")
-}
-
-private func agentExplainPaneSelector(_ target: SupatermPaneTarget) -> String {
-  "\(target.spaceIndex)/\(target.tabIndex)/\(target.paneIndex)"
-}
-
-private func agentExplainWords(_ value: String) -> String {
-  value.replacingOccurrences(of: "_", with: " ")
 }
 
 extension SP.Development {

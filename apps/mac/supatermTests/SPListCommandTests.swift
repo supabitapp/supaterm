@@ -131,7 +131,7 @@ struct SPListCommandTests {
         └─ s:a6e57b1b space 1 "A" [selected]
            └─ g:5a52445e group "Work"
               └─ t:6bfc889d tab 1/1 "fish" [selected]
-                 └─ p:2b8b3a57 pane 1/1/1 "build" [selected, codex:running, cwd="/tmp/build"]
+                 └─ p:2b8b3a57 pane 1/1/1 "build" [selected, codex:running native, cwd="/tmp/build"]
         """
     )
     #expect(
@@ -140,7 +140,7 @@ struct SPListCommandTests {
         s:a6e57b1b\tspace\t1\t1\t-\tselected\tA\t-\t-
         g:5a52445e\tgroup\t-\t1\ts:a6e57b1b\t-\tWork\t-\t-
         t:6bfc889d\ttab\t1/1\t1\tg:5a52445e\tselected\tfish\t-\t-
-        p:2b8b3a57\tpane\t1/1/1\t1\tt:6bfc889d\tselected\tbuild\t/tmp/build\tcodex:running:session-1
+        p:2b8b3a57\tpane\t1/1/1\t1\tt:6bfc889d\tselected\tbuild\t/tmp/build\tcodex:running:native:session-1
         """
     )
   }
@@ -188,15 +188,20 @@ struct SPListCommandTests {
     #expect(Set(items[2].keys) == ["kind", "id", "parentID", "windowIndex", "title", "selected"])
     #expect(
       Set(items[3].keys)
-        == ["kind", "id", "parentID", "windowIndex", "title", "cwd", "selected", "agent"]
+        == [
+          "kind", "id", "parentID", "windowIndex", "title", "cwd", "selected", "agent",
+          "agentStatus",
+        ]
     )
     #expect(items[1]["parentID"] as? String == spaceID.uuidString)
     #expect(items[2]["parentID"] as? String == groupID.uuidString)
     #expect(items[3]["parentID"] as? String == tabID.uuidString)
-    #expect(Set(agent.keys) == ["kind", "phase", "sessionID"])
+    #expect(Set(agent.keys) == ["kind", "phase", "phaseSource", "sessionID"])
     #expect(agent["kind"] as? String == "codex")
     #expect(agent["sessionID"] as? String == "session-1")
     #expect(agent["phase"] as? String == "running")
+    #expect(agent["phaseSource"] as? String == "native")
+    #expect(items[3]["agentStatus"] as? String == "resolved")
   }
 
   @Test
@@ -215,7 +220,8 @@ struct SPListCommandTests {
             cwd: cwd,
             selected: false,
             isWarm: nil,
-            agent: nil
+            agent: nil,
+            agentStatus: nil
           )
         ]
       )
@@ -265,7 +271,8 @@ struct SPListCommandTests {
           cwd: nil,
           selected: true,
           isWarm: true,
-          agent: nil
+          agent: nil,
+          agentStatus: nil
         ),
         SPListSnapshot.Item(
           kind: .tab,
@@ -276,7 +283,8 @@ struct SPListCommandTests {
           cwd: nil,
           selected: true,
           isWarm: nil,
-          agent: nil
+          agent: nil,
+          agentStatus: nil
         ),
         SPListSnapshot.Item(
           kind: .pane,
@@ -287,7 +295,8 @@ struct SPListCommandTests {
           cwd: "/tmp\\build\r",
           selected: false,
           isWarm: nil,
-          agent: nil
+          agent: nil,
+          agentStatus: nil
         ),
       ]
     )
@@ -385,9 +394,11 @@ struct SPListCommandTests {
                             ttyName: nil,
                             agent: SupatermAppDebugSnapshot.Agent(
                               kind: .codex,
-                              sessionID: "session-1",
-                              phase: .running
-                            )
+                              phase: .running,
+                              phaseSource: .native,
+                              sessionID: "session-1"
+                            ),
+                            agentStatus: .resolved
                           )
                         ]
                       )

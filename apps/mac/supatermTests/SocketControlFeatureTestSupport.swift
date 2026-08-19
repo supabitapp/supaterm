@@ -160,8 +160,6 @@ extension SocketRequestExecutor {
     terminalWindowsClient: TerminalWindowsClient
   ) async throws -> TerminalPaneResult {
     switch request {
-    case .agentExplain:
-      throw TerminalControlError.contextPaneNotFound
     case .focusPane(let target):
       return .focusPane(try await terminalWindowsClient.focusPane(target))
     case .lastPane(let target):

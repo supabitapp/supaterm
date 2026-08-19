@@ -1373,6 +1373,7 @@ final class TerminalHostState {
     }
     let state = surface.bridge.state
     let processIdentity = surface.processIdentity
+    let agentSnapshot = debugAgentSnapshot(for: id)
     return SupatermAppDebugSnapshot.Pane(
       index: index,
       id: id,
@@ -1392,7 +1393,8 @@ final class TerminalHostState {
       lastChildExitTimeMs: state.childExitTimeMs,
       foregroundProcessGroupID: processIdentity.foregroundProcessGroupID,
       ttyName: processIdentity.ttyName,
-      agent: debugAgentSnapshot(for: id)
+      agent: agentSnapshot.agent,
+      agentStatus: agentSnapshot.status
     )
   }
 

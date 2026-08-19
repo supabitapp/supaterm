@@ -316,11 +316,17 @@ struct TerminalHostStateAgentDetectionTests {
       #expect(host.agentActivity(for: tabID)?.phase == phase.0)
       #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
       #expect(
-        host.debugAgentSnapshot(for: surfaceID)
+        host.debugAgentSnapshot(for: surfaceID).agent
           == SupatermAppDebugSnapshot.Agent(
             kind: .codex,
+            phase: phase.1,
+            phaseSource: .screen,
             sessionID: "native-session",
-            phase: phase.1
+            ruleID: "prompt-state",
+            process: SupatermAppDebugSnapshot.AgentProcess(
+              processID: identity.processID,
+              startTimeMicroseconds: identity.startTimeMicroseconds
+            )
           )
       )
     }

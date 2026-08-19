@@ -63,7 +63,7 @@ private final class ClaudeE2EFixture {
   let mode: ClaudeE2EMode
   let server: FakeModelServer
   let space: TestSpace
-  let initialProcess: SupatermAgentExplainResult.Process
+  let initialProcess: SupatermAppDebugSnapshot.AgentProcess
   var sessionID: String?
 
   private init(
@@ -71,7 +71,7 @@ private final class ClaudeE2EFixture {
     mode: ClaudeE2EMode,
     server: FakeModelServer,
     space: TestSpace,
-    initialProcess: SupatermAgentExplainResult.Process,
+    initialProcess: SupatermAppDebugSnapshot.AgentProcess,
     sessionID: String?
   ) {
     self.app = app
@@ -140,9 +140,10 @@ private final class ClaudeE2EFixture {
         "AskUserQuestion,Bash",
       ])
       try app.type(command + "\n", into: space.pane)
-      let initial = try await waitForClaudeExplain(
+      let initial = try await waitForAgentSnapshot(
         app,
-        target: space.pane,
+        paneID: space.tab.paneID,
+        kind: .claude,
         phase: .idle
       )
       let initialProcess = try requireValue(
@@ -174,27 +175,38 @@ private final class ClaudeE2EFixture {
   }
 
   func expect(
-    _ phase: SupatermAgentExplainResult.Phase,
+    _ phase: SupatermAppDebugSnapshot.AgentPhase,
     timeout: TimeInterval = 90
   ) async throws {
     try checkServer()
-    let result = try await waitForClaudeExplain(app, target: space.pane, phase: phase, timeout: timeout)
+    let agent = try await waitForAgentSnapshot(
+      app,
+      paneID: space.tab.paneID,
+      kind: .claude,
+      phase: phase,
+      timeout: timeout
+    )
     try checkServer()
-    #expect(result.process == initialProcess)
+    #expect(agent.process == initialProcess)
     if mode.hooksEnabled {
       var nextSessionID: String?
       try await app.waitUntil("the native Claude session remains bound", timeout: timeout) {
-        guard let agent = try app.debugPane(space.tab.paneID)?.agent else { return false }
-        let matchesSession = sessionID.map { agent.sessionID == $0 } ?? true
+        guard
+          let agent = try app.debugPane(space.tab.paneID)?.agent,
+          let boundSessionID = agent.sessionID
+        else {
+          return false
+        }
+        let matchesSession = sessionID.map { boundSessionID == $0 } ?? true
         guard agent.kind == .claude, matchesSession else { return false }
-        nextSessionID = agent.sessionID
+        nextSessionID = boundSessionID
         return true
       }
       sessionID = sessionID ?? nextSessionID
     } else {
       try await app.waitUntil("the pane has no native Claude session", timeout: timeout) {
         guard let pane = try app.debugPane(space.tab.paneID) else { return false }
-        return pane.agent == nil
+        return pane.agent?.sessionID == nil
       }
     }
   }
@@ -254,6 +266,9 @@ private func runClaudeLifecycle(mode: ClaudeE2EMode) async throws {
   try await runCompletedClaudeTurn(fixture)
   try await runInterruptedClaudeTurn(fixture, key: .escape, name: "escape")
   try await runInterruptedClaudeTurn(fixture, key: .ctrlC, name: "ctrl-c")
+  try await runCancelledClaudeTurn(fixture)
+  try await runClaudeDraftClear(fixture)
+  try await stopClaude(fixture)
   try fixture.server.verifyComplete()
 }
 
@@ -324,29 +339,50 @@ private func runInterruptedClaudeTurn(
   try await fixture.expect(.idle, timeout: 10)
 }
 
-private func waitForClaudeExplain(
-  _ app: SupatermE2EApp,
-  target: SupatermPaneTargetRequest,
-  phase: SupatermAgentExplainResult.Phase,
-  timeout: TimeInterval = 90
-) async throws -> SupatermAgentExplainResult {
-  var lastResult: SupatermAgentExplainResult?
-  do {
-    try await app.waitUntil("Claude screen rules resolve \(phase.rawValue)", timeout: timeout) {
-      let result = try app.agentExplain(target)
-      lastResult = result
-      return result.mode == .fallback
-        && result.status == .resolved
-        && result.agent?.id == "claude"
-        && result.agent?.phase == phase
-    }
-  } catch {
-    throw SupatermE2EError(
-      "\(error)\n--- last agent explain ---\n\(String(describing: lastResult))"
-        + "\n--- pane capture ---\n\((try? app.capture(target)) ?? "unavailable")"
-    )
+private func runCancelledClaudeTurn(_ fixture: ClaudeE2EFixture) async throws {
+  let startedURL = claudeInterruptedStartedURL(fixture.space, name: "cancel")
+  let command = claudeInterruptedCommand(fixture.space, name: "cancel")
+  let submissionMarker = "Interrupt prompt cancel \(fixture.space.token)."
+  let prompt =
+    "\(submissionMarker) Use Bash once to run exactly `\(command)`. Do not do anything else until it finishes."
+
+  try await fixture.app.submit(
+    prompt,
+    waitingFor: submissionMarker,
+    into: fixture.space.pane
+  )
+  try await fixture.expect(.running)
+  fixture.server.releaseNextResponse()
+  try await waitForClaudeCommandApproval(fixture, marker: startedURL.lastPathComponent)
+  try await fixture.expect(.needsInput)
+  try fixture.app.press(.ctrlC, in: fixture.space.pane)
+  try await fixture.expect(.needsInput, timeout: 10)
+  try fixture.app.press(.escape, in: fixture.space.pane)
+  try await fixture.expect(.idle, timeout: 10)
+  #expect(!FileManager.default.fileExists(atPath: startedURL.path))
+}
+
+private func runClaudeDraftClear(_ fixture: ClaudeE2EFixture) async throws {
+  let draft = "CLAUDE_DRAFT_\(fixture.space.token)"
+  try fixture.app.type(draft, into: fixture.space.pane)
+  try await fixture.app.waitForCapture(fixture.space.pane, contains: draft, timeout: 5)
+  try fixture.app.press(.ctrlC, in: fixture.space.pane)
+  try await fixture.app.waitUntil("one Ctrl+C clears Claude's draft", timeout: 5) {
+    try !fixture.app.capture(fixture.space.pane)
+      .replacingOccurrences(of: "\n", with: "")
+      .contains(draft)
   }
-  return try requireValue(lastResult, "Claude screen rules produced no result.")
+  try await fixture.expect(.idle, timeout: 10)
+}
+
+private func stopClaude(_ fixture: ClaudeE2EFixture) async throws {
+  try await fixture.app.waitUntil("repeated Ctrl+C exits Claude to the shell", timeout: 15) {
+    try fixture.app.press(.ctrlC, in: fixture.space.pane)
+    return try fixture.app.capture(fixture.space.pane).contains(hermeticShellPrompt)
+  }
+  try await fixture.app.waitUntil("Claude clears its process and native session", timeout: 15) {
+    try fixture.app.debugPane(fixture.space.tab.paneID)?.agent == nil
+  }
 }
 
 private func waitForClaudeCommandApproval(
@@ -370,6 +406,7 @@ private enum ClaudeFakeCallID {
   static let lifecycleQuestion = "claude-lifecycle-question"
   static let escapeCommand = "claude-escape-command"
   static let ctrlCCommand = "claude-ctrl-c-command"
+  static let cancelCommand = "claude-cancel-command"
 }
 
 private func makeClaudeScript(_ space: TestSpace) -> [FakeModelExchange] {
@@ -408,6 +445,16 @@ private func makeClaudeScript(_ space: TestSpace) -> [FakeModelExchange] {
       response: .messagesBash(
         callID: ClaudeFakeCallID.ctrlCCommand,
         command: claudeInterruptedCommand(space, name: "ctrl-c")
+      ),
+      waitForRelease: true
+    ),
+    FakeModelExchange(
+      request: .messagesInputText(
+        claudeInterruptedStartedURL(space, name: "cancel").lastPathComponent
+      ),
+      response: .messagesBash(
+        callID: ClaudeFakeCallID.cancelCommand,
+        command: claudeInterruptedCommand(space, name: "cancel")
       ),
       waitForRelease: true
     ),

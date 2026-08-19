@@ -159,3 +159,36 @@ func requireValue<Wrapped>(_ value: Wrapped?, _ message: String) throws -> Wrapp
   guard let value else { throw SupatermE2EError(message) }
   return value
 }
+
+func waitForAgentSnapshot(
+  _ app: SupatermE2EApp,
+  paneID: UUID,
+  kind: SupatermAgentKind,
+  phase: SupatermAppDebugSnapshot.AgentPhase,
+  phaseSource: SupatermAppDebugSnapshot.AgentPhaseSource = .screen,
+  status: SupatermAppDebugSnapshot.AgentDetectionStatus = .resolved,
+  timeout: TimeInterval = 90
+) async throws -> SupatermAppDebugSnapshot.Agent {
+  var lastPane: SupatermAppDebugSnapshot.Pane?
+  do {
+    try await app.waitUntil(
+      "\(kind.rawValue) detection resolves \(phase.rawValue)",
+      timeout: timeout
+    ) {
+      let pane = try app.debugPane(paneID)
+      lastPane = pane
+      guard let pane, let agent = pane.agent else { return false }
+      return pane.agentStatus == status
+        && agent.kind == kind
+        && agent.phaseSource == phaseSource
+        && agent.phase == phase
+    }
+  } catch {
+    let capture = (try? app.capture(SupatermPaneTargetRequest(paneID: paneID))) ?? "unavailable"
+    throw SupatermE2EError(
+      "\(error)\n--- last pane snapshot ---\n\(String(describing: lastPane))"
+        + "\n--- pane capture ---\n\(capture)"
+    )
+  }
+  return try requireValue(lastPane?.agent, "\(kind.rawValue) detection produced no agent.")
+}
