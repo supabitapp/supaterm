@@ -29,7 +29,7 @@ TUIST_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
-E2E_AGENT ?= all
+E2E_AGENT ?= none
 CLAUDE_E2E_TOOL := npm:@anthropic-ai/claude-code-darwin-arm64@2.1.235
 PI_E2E_TOOL := npm:@mariozechner/pi-coding-agent@0.73.1
 SUPATERM_SKILLS_DIR := $(abspath $(CURRENT_MAKEFILE_DIR)/../../integrations/supaterm-skills)
@@ -195,24 +195,24 @@ test-e2e-xcodebuild:
 	pi_package=""; \
 	if includes_agent codex; then \
 		codex_binary="$${CODEX_E2E_BINARY:-$$(mise which codex)}"; \
-		test -x "$$codex_binary"; \
+		test -x "$$codex_binary" || exit 1; \
 	fi; \
 	if includes_agent claude; then \
 		claude_binary="$${CLAUDE_E2E_BINARY:-}"; \
 		if [ -z "$$claude_binary" ]; then \
 			claude_tool="$(CLAUDE_E2E_TOOL)"; \
-			mise x "$$claude_tool" -- true; \
+			mise x "$$claude_tool" -- true || exit 1; \
 			claude_package="$${claude_tool#npm:}"; \
 			claude_package="$${claude_package%@*}"; \
 			claude_binary="$$(mise where "$$claude_tool")/node_modules/$$claude_package/claude"; \
 		fi; \
-		test -x "$$claude_binary"; \
+		test -x "$$claude_binary" || exit 1; \
 	fi; \
 	if includes_agent pi; then \
 		pi_binary="$${PI_E2E_BINARY:-$$(mise x "$(PI_E2E_TOOL)" -- which pi)}"; \
-		test -x "$$pi_binary"; \
+		test -x "$$pi_binary" || exit 1; \
 		pi_package="$${PI_E2E_PACKAGE:-$(SUPATERM_SKILLS_DIR)}"; \
-		test -f "$$pi_package/extensions/pi-notify-supaterm/index.ts"; \
+		test -f "$$pi_package/extensions/pi-notify-supaterm/index.ts" || exit 1; \
 	fi; \
 	xcodebuild_command=(xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" PI_E2E_PACKAGE="$$pi_package" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
 	if [ -t 1 ]; then \
