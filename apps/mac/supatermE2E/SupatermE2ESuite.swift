@@ -167,6 +167,7 @@ func waitForAgentSnapshot(
   phase: SupatermAppDebugSnapshot.AgentPhase,
   phaseSource: SupatermAppDebugSnapshot.AgentPhaseSource = .screen,
   status: SupatermAppDebugSnapshot.AgentDetectionStatus = .resolved,
+  ruleIDs: Set<String>? = nil,
   timeout: TimeInterval = 90
 ) async throws -> SupatermAppDebugSnapshot.Agent {
   var lastPane: SupatermAppDebugSnapshot.Pane?
@@ -182,6 +183,7 @@ func waitForAgentSnapshot(
         && agent.kind == kind
         && agent.phaseSource == phaseSource
         && agent.phase == phase
+        && ruleIDs.map { agent.ruleID.map($0.contains) ?? false } ?? true
     }
   } catch {
     let capture = (try? app.capture(SupatermPaneTargetRequest(paneID: paneID))) ?? "unavailable"
@@ -191,4 +193,27 @@ func waitForAgentSnapshot(
     )
   }
   return try requireValue(lastPane?.agent, "\(kind.rawValue) detection produced no agent.")
+}
+
+func assertAgentPhaseHolds(
+  _ app: SupatermE2EApp,
+  paneID: UUID,
+  kind: SupatermAgentKind,
+  phase: SupatermAppDebugSnapshot.AgentPhase,
+  for duration: TimeInterval = 1.2
+) async throws {
+  let deadline = Date().addingTimeInterval(duration)
+  while Date() < deadline {
+    let pane = try requireValue(
+      try app.debugPane(paneID),
+      "The pane vanished while holding \(phase.rawValue)."
+    )
+    guard let agent = pane.agent, agent.kind == kind, agent.phase == phase else {
+      throw SupatermE2EError(
+        "Detection left \(phase.rawValue) while an ambiguous screen was open."
+          + "\n--- pane snapshot ---\n\(String(describing: pane))"
+      )
+    }
+    try await Task.sleep(for: .milliseconds(100))
+  }
 }
