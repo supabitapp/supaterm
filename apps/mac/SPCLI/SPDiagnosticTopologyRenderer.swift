@@ -116,7 +116,7 @@ enum SPDiagnosticTopologyRenderer {
             labels.append("pid=\(process.processID)")
           }
         }
-        labels.append("status=\(pane.agentStatus.rawValue)")
+        labels.append("status=\(pane.agentStatus?.rawValue ?? "unknown")")
         return "\(panePrefix)\(branch)pane \(pane.index)\(title) [\(labels.joined(separator: ", "))]"
       }
   }

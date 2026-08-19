@@ -137,6 +137,15 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     case screenUnavailable = "screen_unavailable"
     case noRuleMatchOrSettling = "no_rule_match_or_settling"
     case resolved
+
+    public var namesAnAgentTheListingCannot: Bool {
+      switch self {
+      case .noRuleMatchOrSettling, .screenUnavailable: true
+      case .detectionDisabled, .nativeAuthority, .noForegroundProcess, .resolved,
+        .unrecognizedProcess, .waiting:
+        false
+      }
+    }
   }
 
   public enum AgentPhaseSource: String, Equatable, Sendable, Codable {
@@ -388,7 +397,7 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let foregroundProcessGroupID: Int32?
     public let ttyName: String?
     public let agent: Agent?
-    public let agentStatus: AgentDetectionStatus
+    public let agentStatus: AgentDetectionStatus?
 
     public init(
       index: Int,
@@ -410,7 +419,7 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       foregroundProcessGroupID: Int32?,
       ttyName: String?,
       agent: Agent? = nil,
-      agentStatus: AgentDetectionStatus = .waiting
+      agentStatus: AgentDetectionStatus? = nil
     ) {
       self.index = index
       self.id = id

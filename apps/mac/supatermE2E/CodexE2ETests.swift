@@ -166,6 +166,7 @@ private final class CodexE2EFixture {
     ruleIDs: Set<String>? = nil,
     timeout: TimeInterval = 90
   ) async throws {
+    try checkServer()
     let agent = try await waitForAgentSnapshot(
       app,
       paneID: space.tab.paneID,
@@ -200,6 +201,12 @@ private final class CodexE2EFixture {
 
   func approve() throws {
     try app.press(.enter, in: space.pane)
+  }
+
+  private func checkServer() throws {
+    if let failure = server.recordedFailure {
+      throw SupatermE2EError(failure)
+    }
   }
 
   static func writeConfig(
@@ -264,7 +271,7 @@ private final class CodexE2EFixture {
 private enum CodexRuleID {
   static let blockers: Set<String> = ["osc_title_blocked", "live_strong_blocker"]
   static let idleTitle: Set<String> = ["osc_title_idle"]
-  static let trustPrompt: Set<String> = ["trust_directory", "osc_title_blocked"]
+  static let trustPrompt: Set<String> = ["trust_directory"]
   static let working: Set<String> = ["osc_title_working", "screen_working_fallback"]
 }
 

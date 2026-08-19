@@ -198,6 +198,9 @@ private final class PiE2EFixture {
     _ phase: SupatermAppDebugSnapshot.AgentPhase,
     timeout: TimeInterval = 90
   ) async throws {
+    if let failure = server.recordedFailure {
+      throw SupatermE2EError(failure)
+    }
     let agent = try await waitForPiAgent(
       app,
       mode: mode,

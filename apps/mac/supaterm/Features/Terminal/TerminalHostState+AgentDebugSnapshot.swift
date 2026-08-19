@@ -20,10 +20,7 @@ extension TerminalHostState {
     let resolvedState = resolvedAgentState(for: surfaceID)
     switch resolvedState.resolution {
     case .native:
-      guard
-        let candidate = resolvedState.currentNativeCandidate,
-        let instance = resolvedState.currentInstance
-      else {
+      guard let candidate = resolvedState.currentNativeCandidate else {
         return (
           explanation.status == .detected
             ? .waiting
@@ -55,7 +52,7 @@ extension TerminalHostState {
           kind: candidate.presentation.agent,
           phase: debugAgentPhase(candidate.presentation.phase),
           phaseSource: .native,
-          sessionID: instance.nativePresentation?.sessionID,
+          sessionID: candidate.presentation.sessionID,
           process: processIdentity.map(debugAgentProcess)
         )
       )
