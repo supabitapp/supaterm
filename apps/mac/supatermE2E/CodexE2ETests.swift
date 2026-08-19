@@ -20,6 +20,10 @@ struct CodexE2ETests {
     try await runCodexLifecycle(mode: .hooks)
   }
 
+  @Test(.timeLimit(.minutes(5)))
+  func trustPromptBlocksUntilApproved() async throws {
+    try await runCodexTrustPrompt()
+  }
 }
 
 @Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
@@ -128,7 +132,8 @@ private final class CodexE2EFixture {
         app,
         paneID: space.tab.paneID,
         kind: .codex,
-        phase: .idle
+        phase: .idle,
+        ruleIDs: CodexRuleID.idleTitle
       )
       let initialProcess = try requireValue(
         initial.process,
@@ -158,6 +163,7 @@ private final class CodexE2EFixture {
 
   func expect(
     _ phase: SupatermAppDebugSnapshot.AgentPhase,
+    ruleIDs: Set<String>? = nil,
     timeout: TimeInterval = 90
   ) async throws {
     let agent = try await waitForAgentSnapshot(
@@ -165,6 +171,7 @@ private final class CodexE2EFixture {
       paneID: space.tab.paneID,
       kind: .codex,
       phase: phase,
+      ruleIDs: ruleIDs,
       timeout: timeout
     )
     #expect(agent.process == initialProcess)
@@ -195,11 +202,12 @@ private final class CodexE2EFixture {
     try app.press(.enter, in: space.pane)
   }
 
-  private static func writeConfig(
+  static func writeConfig(
     baseURL: String,
     hooksEnabled: Bool,
     home: URL,
-    workspace: URL
+    workspace: URL,
+    trustsWorkspace: Bool = true
   ) throws {
     let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
     try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
@@ -237,18 +245,82 @@ private final class CodexE2EFixture {
       stream_max_retries = 0
       supports_websockets = false
 
-      [projects.\(tomlString(workspace.path))]
-      trust_level = "trusted"
-
       [shell_environment_policy]
       inherit = "all"
-      """
+      """ + (trustsWorkspace ? """
+
+
+      [projects.\(tomlString(workspace.path))]
+      trust_level = "trusted"
+      """ : "")
     try config.write(
       to: codexHome.appendingPathComponent("config.toml", isDirectory: false),
       atomically: true,
       encoding: .utf8
     )
   }
+}
+
+private enum CodexRuleID {
+  static let blockers: Set<String> = ["osc_title_blocked", "live_strong_blocker"]
+  static let idleTitle: Set<String> = ["osc_title_idle"]
+  static let trustPrompt: Set<String> = ["trust_directory", "osc_title_blocked"]
+  static let working: Set<String> = ["osc_title_working", "screen_working_fallback"]
+}
+
+private func runCodexTrustPrompt() async throws {
+  let environment = try CodexE2EEnvironment()
+  let app = try await SupatermE2EApp.launch(
+    environment: ["CODEX_E2E_API_KEY": "test"],
+    pathDirectories: [environment.executable.deletingLastPathComponent()]
+  )
+  var spaceID: UUID?
+  var server: FakeModelServer?
+  defer {
+    if let spaceID {
+      try? closeTestSpace(app, spaceID: spaceID)
+    }
+    app.terminate()
+    server?.stop()
+  }
+
+  let space = try await makeTestSpace(app)
+  spaceID = space.spaceID
+  let startedServer = try FakeModelServer(script: [])
+  server = startedServer
+  try CodexE2EFixture.writeConfig(
+    baseURL: startedServer.responsesBaseURL,
+    hooksEnabled: false,
+    home: app.cliHome,
+    workspace: space.directory,
+    trustsWorkspace: false
+  )
+  let command = SupatermShellCommand.escapedCommand([
+    "/usr/bin/env",
+    "CODEX_HOME=\(app.cliHome.appendingPathComponent(".codex").path)",
+    environment.executable.path,
+    "--strict-config",
+    "--no-alt-screen",
+    "--cd",
+    space.directory.path,
+  ])
+  try app.type(command + "\n", into: space.pane)
+  _ = try await waitForAgentSnapshot(
+    app,
+    paneID: space.tab.paneID,
+    kind: .codex,
+    phase: .needsInput,
+    ruleIDs: CodexRuleID.trustPrompt
+  )
+  try app.press(.enter, in: space.pane)
+  _ = try await waitForAgentSnapshot(
+    app,
+    paneID: space.tab.paneID,
+    kind: .codex,
+    phase: .idle,
+    ruleIDs: CodexRuleID.idleTitle
+  )
+  try startedServer.verifyComplete()
 }
 
 private func runCodexLifecycle(mode: CodexE2EMode) async throws {
@@ -279,15 +351,15 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
   ].joined(separator: " ")
 
   try await fixture.app.submit(prompt, waitingFor: marker, into: fixture.space.pane)
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.working)
   fixture.server.releaseNextResponse()
   try await fixture.app.waitForCapture(fixture.space.pane, contains: question, timeout: 90)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: CodexRuleID.blockers)
   try fixture.approve()
   try await waitForCommandApproval(fixture, marker: marker)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: CodexRuleID.blockers)
   try fixture.approve()
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.working)
   let completionCount = try fixture.app.capture(fixture.space.pane)
     .components(separatedBy: completion).count
   fixture.server.releaseNextResponse()
@@ -295,8 +367,7 @@ private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
     try fixture.app.capture(fixture.space.pane)
       .components(separatedBy: completion).count > completionCount
   }
-  try await fixture.expect(.idle)
-
+  try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle)
 }
 
 private func runInterruptedTurn(
@@ -314,14 +385,14 @@ private func runInterruptedTurn(
     waitingFor: marker,
     into: fixture.space.pane
   )
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.working)
   fixture.server.releaseNextResponse()
   try await waitForCommandApproval(fixture, marker: marker)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: CodexRuleID.blockers)
   let workingCount = try fixture.app.capture(fixture.space.pane)
     .components(separatedBy: "esc to interrupt").count
   try fixture.approve()
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.working)
   try await fixture.app.waitUntil("Codex starts the \(name) command", timeout: 10) {
     try fixture.app.capture(fixture.space.pane)
       .components(separatedBy: "esc to interrupt").count > workingCount
@@ -333,7 +404,7 @@ private func runInterruptedTurn(
     try fixture.app.capture(fixture.space.pane)
       .components(separatedBy: "Conversation interrupted").count > interruptionCount
   }
-  try await fixture.expect(.idle, timeout: 10)
+  try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle, timeout: 10)
 }
 
 private func runCancelledTurn(_ fixture: CodexE2EFixture) async throws {
@@ -348,10 +419,10 @@ private func runCancelledTurn(_ fixture: CodexE2EFixture) async throws {
     waitingFor: marker,
     into: fixture.space.pane
   )
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.working)
   fixture.server.releaseNextResponse()
   try await waitForCommandApproval(fixture, marker: startedURL.lastPathComponent)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: CodexRuleID.blockers)
   let interruptionCount = try fixture.app.capture(fixture.space.pane)
     .components(separatedBy: "Conversation interrupted").count
   try fixture.app.press(.ctrlC, in: fixture.space.pane)
@@ -359,7 +430,7 @@ private func runCancelledTurn(_ fixture: CodexE2EFixture) async throws {
     try fixture.app.capture(fixture.space.pane)
       .components(separatedBy: "Conversation interrupted").count > interruptionCount
   }
-  try await fixture.expect(.idle, timeout: 10)
+  try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle, timeout: 10)
   #expect(!FileManager.default.fileExists(atPath: startedURL.path))
 }
 
@@ -373,7 +444,7 @@ private func runCodexDraftClear(_ fixture: CodexE2EFixture) async throws {
       .replacingOccurrences(of: "\n", with: "")
       .contains(draft)
   }
-  try await fixture.expect(.idle, timeout: 10)
+  try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle, timeout: 10)
 }
 
 private func stopCodex(_ fixture: CodexE2EFixture) async throws {

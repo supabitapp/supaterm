@@ -342,8 +342,17 @@ private func waitForPiAgent(
     phase: phase,
     phaseSource: mode.usesNativeIntegration ? .native : .screen,
     status: mode.usesNativeIntegration ? .nativeAuthority : .resolved,
+    ruleIDs: mode.usesNativeIntegration ? nil : piScreenRuleIDs(for: phase),
     timeout: timeout
   )
+}
+
+private func piScreenRuleIDs(for phase: SupatermAppDebugSnapshot.AgentPhase) -> Set<String>? {
+  switch phase {
+  case .running: ["working_literal"]
+  case .idle: ["default_known_agent_idle_fallback"]
+  case .needsInput: nil
+  }
 }
 
 private func waitForPiSession(

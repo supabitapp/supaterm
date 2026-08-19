@@ -20,6 +20,10 @@ struct ClaudeE2ETests {
     try await runClaudeLifecycle(mode: .hooks)
   }
 
+  @Test(.timeLimit(.minutes(5)))
+  func screenRulesTrackSplitPanesIndependently() async throws {
+    try await runClaudeSplitPanes()
+  }
 }
 
 @Suite(.enabled(if: claudeE2EEnabled, "Run through make mac-test-e2e."))
@@ -27,6 +31,11 @@ struct ClaudeZmxE2ETests {
   @Test(.timeLimit(.minutes(5)))
   func screenRulesTrackEveryRootStateAndInterrupt() async throws {
     try await runClaudeLifecycle(mode: .zmxScreenRules)
+  }
+
+  @Test(.timeLimit(.minutes(5)))
+  func detectionSurvivesAppRelaunchMidTurn() async throws {
+    try await runClaudeRelaunchLifecycle()
   }
 }
 
@@ -112,33 +121,11 @@ private final class ClaudeE2EFixture {
           app: app
         )
       }
-      let command = SupatermShellCommand.escapedCommand([
-        "/usr/bin/env",
-        "-u",
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN=test",
-        "ANTHROPIC_BASE_URL=\(startedServer.baseURL)",
-        "ANTHROPIC_MODEL=claude-haiku-4-5-20251001",
-        "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1",
-        "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1",
-        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
-        "CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1",
-        "CLAUDE_CONFIG_DIR=\(app.cliHome.appendingPathComponent(".claude").path)",
-        "DISABLE_AUTOUPDATER=1",
-        "DISABLE_TELEMETRY=1",
-        "DISABLE_UPDATES=1",
-        launchExecutable.path,
-        "--effort",
-        "low",
-        "--permission-mode",
-        "manual",
-        "--no-chrome",
-        "--strict-mcp-config",
-        "--mcp-config",
-        #"{"mcpServers":{}}"#,
-        "--tools",
-        "AskUserQuestion,Bash",
-      ])
+      let command = makeClaudeCommand(
+        baseURL: startedServer.baseURL,
+        home: app.cliHome,
+        executable: launchExecutable
+      )
       try app.type(command + "\n", into: space.pane)
       let initial = try await waitForAgentSnapshot(
         app,
@@ -159,7 +146,7 @@ private final class ClaudeE2EFixture {
         initialProcess: initialProcess,
         sessionID: nil
       )
-      try await fixture.expect(.idle)
+      try await fixture.expect(.idle, ruleIDs: ClaudeRuleID.promptBox)
       return fixture
     } catch {
       server?.stop()
@@ -176,6 +163,7 @@ private final class ClaudeE2EFixture {
 
   func expect(
     _ phase: SupatermAppDebugSnapshot.AgentPhase,
+    ruleIDs: Set<String>? = nil,
     timeout: TimeInterval = 90
   ) async throws {
     try checkServer()
@@ -184,6 +172,7 @@ private final class ClaudeE2EFixture {
       paneID: space.tab.paneID,
       kind: .claude,
       phase: phase,
+      ruleIDs: ruleIDs,
       timeout: timeout
     )
     try checkServer()
@@ -221,28 +210,59 @@ private final class ClaudeE2EFixture {
     try app.press(.enter, in: space.pane)
   }
 
-  private static func writeClaudeState(home: URL, workspace: URL) throws {
-    let configDirectory = home.appendingPathComponent(".claude", isDirectory: true)
-    try FileManager.default.createDirectory(
-      at: configDirectory,
-      withIntermediateDirectories: true
-    )
-    let state: [String: Any] = [
-      "hasCompletedOnboarding": true,
-      "projects": [
-        claudeProjectPath(workspace): ["hasTrustDialogAccepted": true]
-      ],
-    ]
-    let data = try JSONSerialization.data(withJSONObject: state, options: [.sortedKeys])
-    try data.write(
-      to: configDirectory.appendingPathComponent(".claude.json", isDirectory: false)
-    )
-  }
+}
+
+private func writeClaudeState(home: URL, workspace: URL) throws {
+  let configDirectory = home.appendingPathComponent(".claude", isDirectory: true)
+  try FileManager.default.createDirectory(
+    at: configDirectory,
+    withIntermediateDirectories: true
+  )
+  let state: [String: Any] = [
+    "hasCompletedOnboarding": true,
+    "projects": [
+      claudeProjectPath(workspace): ["hasTrustDialogAccepted": true]
+    ],
+  ]
+  let data = try JSONSerialization.data(withJSONObject: state, options: [.sortedKeys])
+  try data.write(
+    to: configDirectory.appendingPathComponent(".claude.json", isDirectory: false)
+  )
 }
 
 private func claudeProjectPath(_ workspace: URL) -> String {
   let path = workspace.standardizedFileURL.path
   return path.hasPrefix("/var/") ? "/private\(path)" : path
+}
+
+private func makeClaudeCommand(baseURL: String, home: URL, executable: URL) -> String {
+  SupatermShellCommand.escapedCommand([
+    "/usr/bin/env",
+    "-u",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN=test",
+    "ANTHROPIC_BASE_URL=\(baseURL)",
+    "ANTHROPIC_MODEL=claude-haiku-4-5-20251001",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1",
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
+    "CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1",
+    "CLAUDE_CONFIG_DIR=\(home.appendingPathComponent(".claude").path)",
+    "DISABLE_AUTOUPDATER=1",
+    "DISABLE_TELEMETRY=1",
+    "DISABLE_UPDATES=1",
+    executable.path,
+    "--effort",
+    "low",
+    "--permission-mode",
+    "manual",
+    "--no-chrome",
+    "--strict-mcp-config",
+    "--mcp-config",
+    #"{"mcpServers":{}}"#,
+    "--tools",
+    "AskUserQuestion,Bash",
+  ])
 }
 
 private func makeClaudeLaunchExecutable(_ executable: URL, home: URL) throws -> URL {
@@ -259,11 +279,115 @@ private func makeClaudeLaunchExecutable(_ executable: URL, home: URL) throws -> 
   return destination
 }
 
+private func runClaudeSplitPanes() async throws {
+  let environment = try ClaudeE2EEnvironment()
+  let app = try await SupatermE2EApp.launch(
+    pathDirectories: [environment.executable.deletingLastPathComponent()]
+  )
+  var servers: [FakeModelServer] = []
+  var spaceID: UUID?
+  defer {
+    if let spaceID {
+      try? closeTestSpace(app, spaceID: spaceID)
+    }
+    app.terminate()
+    servers.forEach { $0.stop() }
+  }
+
+  let space = try await makeTestSpace(app)
+  spaceID = space.spaceID
+  let completion = "CLAUDE_SPLIT_DONE_\(space.token)"
+  let submissionMarker = "Split prompt \(space.token)."
+  let firstServer = try FakeModelServer(script: [
+    FakeModelExchange(
+      request: .messagesInputText(submissionMarker),
+      response: .messagesText(completion),
+      waitForRelease: true
+    )
+  ])
+  servers.append(firstServer)
+  let secondServer = try FakeModelServer(script: [])
+  servers.append(secondServer)
+  try writeClaudeState(home: app.cliHome, workspace: space.directory)
+  let launchExecutable = try makeClaudeLaunchExecutable(environment.executable, home: app.cliHome)
+
+  let split = try makeSplit(app, in: space)
+  let firstPaneID = space.tab.paneID
+  let secondPaneID = split.paneID
+  let firstPane = SupatermPaneTargetRequest(paneID: firstPaneID)
+  let secondPane = SupatermPaneTargetRequest(paneID: secondPaneID)
+  try await app.waitForShellPrompt(secondPane)
+  try app.type(
+    makeClaudeCommand(baseURL: firstServer.baseURL, home: app.cliHome, executable: launchExecutable)
+      + "\n",
+    into: firstPane
+  )
+  try app.type(
+    makeClaudeCommand(baseURL: secondServer.baseURL, home: app.cliHome, executable: launchExecutable)
+      + "\n",
+    into: secondPane
+  )
+  let firstAgent = try await waitForAgentSnapshot(
+    app,
+    paneID: firstPaneID,
+    kind: .claude,
+    phase: .idle,
+    ruleIDs: ClaudeRuleID.promptBox
+  )
+  let secondAgent = try await waitForAgentSnapshot(
+    app,
+    paneID: secondPaneID,
+    kind: .claude,
+    phase: .idle,
+    ruleIDs: ClaudeRuleID.promptBox
+  )
+  let firstProcess = try requireValue(firstAgent.process, "The first pane has no process identity.")
+  let secondProcess = try requireValue(
+    secondAgent.process,
+    "The second pane has no process identity."
+  )
+  #expect(firstProcess != secondProcess)
+
+  try await app.submit(
+    "\(submissionMarker) Reply with exactly \(completion).",
+    waitingFor: submissionMarker,
+    into: firstPane
+  )
+  _ = try await waitForAgentSnapshot(
+    app,
+    paneID: firstPaneID,
+    kind: .claude,
+    phase: .running,
+    ruleIDs: ClaudeRuleID.workingTitle
+  )
+  try await assertAgentPhaseHolds(app, paneID: secondPaneID, kind: .claude, phase: .idle)
+  firstServer.releaseNextResponse()
+  let settledFirst = try await waitForAgentSnapshot(
+    app,
+    paneID: firstPaneID,
+    kind: .claude,
+    phase: .idle,
+    ruleIDs: ClaudeRuleID.promptBox
+  )
+  let settledSecond = try await waitForAgentSnapshot(
+    app,
+    paneID: secondPaneID,
+    kind: .claude,
+    phase: .idle,
+    ruleIDs: ClaudeRuleID.promptBox
+  )
+  #expect(settledFirst.process == firstProcess)
+  #expect(settledSecond.process == secondProcess)
+  try firstServer.verifyComplete()
+  try secondServer.verifyComplete()
+}
+
 private func runClaudeLifecycle(mode: ClaudeE2EMode) async throws {
   let fixture = try await ClaudeE2EFixture.launch(mode: mode)
   defer { fixture.close() }
 
   try await runCompletedClaudeTurn(fixture)
+  try await runClaudeModelPickerHold(fixture)
   try await runInterruptedClaudeTurn(fixture, key: .escape, name: "escape")
   try await runInterruptedClaudeTurn(fixture, key: .ctrlC, name: "ctrl-c")
   try await runCancelledClaudeTurn(fixture)
@@ -272,7 +396,33 @@ private func runClaudeLifecycle(mode: ClaudeE2EMode) async throws {
   try fixture.server.verifyComplete()
 }
 
-private func runCompletedClaudeTurn(_ fixture: ClaudeE2EFixture) async throws {
+private func runClaudeRelaunchLifecycle() async throws {
+  let fixture = try await ClaudeE2EFixture.launch(mode: .zmxScreenRules)
+  defer { fixture.close() }
+
+  try await fixture.app.waitForPersistedStateQuiescence(
+    containing: [fixture.space.tab.paneID.uuidString]
+  )
+  try await runCompletedClaudeTurn(fixture) {
+    try await fixture.app.quit()
+    try await fixture.app.relaunch()
+    try await fixture.app.waitUntil("the Claude pane reattaches", timeout: 30) {
+      try fixture.app.debugPane(fixture.space.tab.paneID) != nil
+    }
+    try await fixture.expect(.running, ruleIDs: ClaudeRuleID.workingTitle)
+  }
+  try await runInterruptedClaudeTurn(fixture, key: .escape, name: "escape")
+  try await runInterruptedClaudeTurn(fixture, key: .ctrlC, name: "ctrl-c")
+  try await runCancelledClaudeTurn(fixture)
+  try await runClaudeDraftClear(fixture)
+  try await stopClaude(fixture)
+  try fixture.server.verifyComplete()
+}
+
+private func runCompletedClaudeTurn(
+  _ fixture: ClaudeE2EFixture,
+  afterRunning: (() async throws -> Void)? = nil
+) async throws {
   let question = claudeLifecycleQuestion(fixture.space)
   let completion = claudeLifecycleCompletion(fixture.space)
   let marker = claudeLifecycleMarker(fixture.space)
@@ -288,26 +438,48 @@ private func runCompletedClaudeTurn(_ fixture: ClaudeE2EFixture) async throws {
   ].joined(separator: " ")
 
   try await fixture.app.submit(prompt, waitingFor: submissionMarker, into: fixture.space.pane)
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: ClaudeRuleID.workingTitle)
+  try await afterRunning?()
   fixture.server.releaseNextResponse()
   try await fixture.app.waitForCapture(fixture.space.pane, contains: question, timeout: 90)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: ClaudeRuleID.approvalForms)
   try fixture.approve()
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: ClaudeRuleID.workingTitle)
   let completionCount = try fixture.app.capture(fixture.space.pane)
     .components(separatedBy: completion).count
   fixture.server.releaseNextResponse()
   try await waitForClaudeCommandApproval(fixture, marker: marker)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: ClaudeRuleID.approvalForms)
   try fixture.approve()
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: ClaudeRuleID.workingTitle)
   fixture.server.releaseNextResponse()
   try await fixture.app.waitUntil("Claude prints the lifecycle completion", timeout: 90) {
     try fixture.app.capture(fixture.space.pane)
       .components(separatedBy: completion).count > completionCount
   }
-  try await fixture.expect(.idle)
+  try await fixture.expect(.idle, ruleIDs: ClaudeRuleID.promptBox)
+}
 
+private func runClaudeModelPickerHold(_ fixture: ClaudeE2EFixture) async throws {
+  try fixture.app.type("/model", into: fixture.space.pane)
+  try await fixture.app.waitForCapture(fixture.space.pane, contains: "/model", timeout: 10)
+  try fixture.app.press(.enter, in: fixture.space.pane)
+  try await fixture.app.waitUntil("the Claude model picker opens", timeout: 15) {
+    try fixture.app.capture(fixture.space.pane)
+      .localizedCaseInsensitiveContains("select model")
+  }
+  try await assertAgentPhaseHolds(
+    fixture.app,
+    paneID: fixture.space.tab.paneID,
+    kind: .claude,
+    phase: .idle
+  )
+  try fixture.app.press(.escape, in: fixture.space.pane)
+  try await fixture.app.waitUntil("the Claude model picker closes", timeout: 10) {
+    try !fixture.app.capture(fixture.space.pane)
+      .localizedCaseInsensitiveContains("select model")
+  }
+  try await fixture.expect(.idle, ruleIDs: ClaudeRuleID.promptBox, timeout: 10)
 }
 
 private func runInterruptedClaudeTurn(
@@ -326,17 +498,17 @@ private func runInterruptedClaudeTurn(
     waitingFor: submissionMarker,
     into: fixture.space.pane
   )
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: ClaudeRuleID.workingTitle)
   fixture.server.releaseNextResponse()
   try await waitForClaudeCommandApproval(fixture, marker: startedURL.lastPathComponent)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: ClaudeRuleID.approvalForms)
   try fixture.approve()
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: ClaudeRuleID.workingTitle)
   try await fixture.app.waitUntil("Claude starts the \(name) command", timeout: 10) {
     FileManager.default.fileExists(atPath: startedURL.path)
   }
   try fixture.app.press(key, in: fixture.space.pane)
-  try await fixture.expect(.idle, timeout: 10)
+  try await fixture.expect(.idle, ruleIDs: ClaudeRuleID.promptBox, timeout: 10)
 }
 
 private func runCancelledClaudeTurn(_ fixture: ClaudeE2EFixture) async throws {
@@ -351,14 +523,14 @@ private func runCancelledClaudeTurn(_ fixture: ClaudeE2EFixture) async throws {
     waitingFor: submissionMarker,
     into: fixture.space.pane
   )
-  try await fixture.expect(.running)
+  try await fixture.expect(.running, ruleIDs: ClaudeRuleID.workingTitle)
   fixture.server.releaseNextResponse()
   try await waitForClaudeCommandApproval(fixture, marker: startedURL.lastPathComponent)
-  try await fixture.expect(.needsInput)
+  try await fixture.expect(.needsInput, ruleIDs: ClaudeRuleID.approvalForms)
   try fixture.app.press(.ctrlC, in: fixture.space.pane)
-  try await fixture.expect(.needsInput, timeout: 10)
+  try await fixture.expect(.needsInput, ruleIDs: ClaudeRuleID.approvalForms, timeout: 10)
   try fixture.app.press(.escape, in: fixture.space.pane)
-  try await fixture.expect(.idle, timeout: 10)
+  try await fixture.expect(.idle, ruleIDs: ClaudeRuleID.promptBox, timeout: 10)
   #expect(!FileManager.default.fileExists(atPath: startedURL.path))
 }
 
@@ -372,7 +544,7 @@ private func runClaudeDraftClear(_ fixture: ClaudeE2EFixture) async throws {
       .replacingOccurrences(of: "\n", with: "")
       .contains(draft)
   }
-  try await fixture.expect(.idle, timeout: 10)
+  try await fixture.expect(.idle, ruleIDs: ClaudeRuleID.promptBox, timeout: 10)
 }
 
 private func stopClaude(_ fixture: ClaudeE2EFixture) async throws {
@@ -399,6 +571,16 @@ private func waitForClaudeCommandApproval(
   } catch {
     throw SupatermE2EError("\(error)\n--- pane capture ---\n\(lastCapture)")
   }
+}
+
+private enum ClaudeRuleID {
+  static let approvalForms: Set<String> = [
+    "bash_permission_prompt",
+    "generic_permission_prompt",
+    "live_blocked_form",
+  ]
+  static let promptBox: Set<String> = ["live_prompt_box"]
+  static let workingTitle: Set<String> = ["osc_title_working"]
 }
 
 private enum ClaudeFakeCallID {
