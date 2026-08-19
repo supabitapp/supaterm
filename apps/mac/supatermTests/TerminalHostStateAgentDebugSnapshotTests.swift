@@ -58,7 +58,7 @@ struct TerminalHostStateAgentDebugSnapshotTests {
 
     let result = host.debugAgentSnapshot(
       for: surfaceID,
-      explanation: trace(origin: .embedded, status: .unrecognizedProcess)
+      explanation: trace(status: .unrecognizedProcess)
     )
     let resolved = host.resolvedAgentState(for: surfaceID)
 
@@ -93,11 +93,9 @@ struct TerminalHostStateAgentDebugSnapshotTests {
       for: surfaceID
     )
     let explanation = trace(
-      origin: .embedded,
       status: .nativeAuthority,
       processIdentity: identity,
       agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
-      matchedPhase: .needsInput,
       matchedRuleID: "private-rule"
     )
 
@@ -214,11 +212,9 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     let detection = observation(processIdentity: identity, phase: .needsInput)
     let applied = host.applyAgentDetection(detection, for: surfaceID)
     let explanation = trace(
-      origin: .embedded,
       status: .detected,
       processIdentity: identity,
       agent: detection.agent,
-      matchedPhase: .needsInput,
       matchedRuleID: detection.ruleID
     )
 
@@ -252,7 +248,7 @@ struct TerminalHostStateAgentDebugSnapshotTests {
 
     let result = host.debugAgentSnapshot(
       for: surfaceID,
-      explanation: trace(origin: .embedded, status: .noRuleMatchOrSettling)
+      explanation: trace(status: .noRuleMatchOrSettling)
     )
 
     #expect(applied)
@@ -274,7 +270,7 @@ struct TerminalHostStateAgentDebugSnapshotTests {
 
     let result = host.debugAgentSnapshot(
       for: surfaceID,
-      explanation: trace(origin: .embedded, status: .detected)
+      explanation: trace(status: .detected)
     )
 
     #expect(applied)
@@ -325,21 +321,17 @@ struct TerminalHostStateAgentDebugSnapshotTests {
   }
 
   private func trace(
-    origin: AgentDetectionRuleOrigin? = nil,
     generation: UInt64? = 7,
     status: TerminalAgentDetectionExplanation.Status,
     processIdentity: TerminalAgentProcessIdentity? = nil,
     agent: AgentDetectionAgentIdentity? = nil,
-    matchedPhase: AgentActivityPhase? = nil,
     matchedRuleID: String? = nil
   ) -> TerminalAgentDetectionExplanation {
     TerminalAgentDetectionExplanation(
-      origin: origin,
       generation: generation,
       status: status,
       processIdentity: processIdentity,
       agent: agent,
-      matchedPhase: matchedPhase,
       matchedRuleID: matchedRuleID,
       publishedPhase: nil,
       publishedRuleID: nil

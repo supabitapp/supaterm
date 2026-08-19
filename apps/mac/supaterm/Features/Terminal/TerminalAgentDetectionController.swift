@@ -13,23 +13,19 @@ nonisolated struct TerminalAgentDetectionExplanation: Equatable, Sendable {
     case waiting
   }
 
-  let origin: AgentDetectionRuleOrigin?
   let generation: UInt64?
   let status: Status
   let processIdentity: TerminalAgentProcessIdentity?
   let agent: AgentDetectionAgentIdentity?
-  let matchedPhase: AgentActivityPhase?
   let matchedRuleID: String?
   let publishedPhase: AgentActivityPhase?
   let publishedRuleID: String?
 
   static let disabled = TerminalAgentDetectionExplanation(
-    origin: nil,
     generation: nil,
     status: .disabled,
     processIdentity: nil,
     agent: nil,
-    matchedPhase: nil,
     matchedRuleID: nil,
     publishedPhase: nil,
     publishedRuleID: nil
@@ -192,7 +188,6 @@ final class TerminalAgentDetectionController {
   private let clock = ContinuousClock()
   private var task: Task<Void, Never>?
   private var states: [UUID: SurfaceState] = [:]
-  private var origin: AgentDetectionRuleOrigin?
   private var generation: UInt64?
   private var nextNonce: UInt64 = 0
   private var sequence: UInt64 = 0
@@ -283,24 +278,20 @@ final class TerminalAgentDetectionController {
     let observation = host.observation(surfaceID)
     guard let state = states[surfaceID] else {
       return TerminalAgentDetectionExplanation(
-        origin: origin,
         generation: generation,
         status: .waiting,
         processIdentity: nil,
         agent: observation?.agent,
-        matchedPhase: nil,
         matchedRuleID: nil,
         publishedPhase: observation?.phase,
         publishedRuleID: observation?.ruleID
       )
     }
     return TerminalAgentDetectionExplanation(
-      origin: origin,
       generation: generation,
       status: state.status,
       processIdentity: state.proof?.processIdentity,
       agent: state.matched?.agent ?? observation?.agent,
-      matchedPhase: state.matched?.phase,
       matchedRuleID: state.matched?.ruleID,
       publishedPhase: observation?.phase,
       publishedRuleID: observation?.ruleID
@@ -396,12 +387,8 @@ final class TerminalAgentDetectionController {
   }
 
   private func activate(_ snapshot: AgentDetectionRuleSnapshot) {
-    guard generation != snapshot.generation else {
-      origin = snapshot.origin
-      return
-    }
+    guard generation != snapshot.generation else { return }
     invalidateAll()
-    origin = snapshot.origin
     generation = snapshot.generation
   }
 

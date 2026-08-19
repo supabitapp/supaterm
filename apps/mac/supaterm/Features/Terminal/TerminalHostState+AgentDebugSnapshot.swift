@@ -1,7 +1,6 @@
 import Foundation
 import SupatermCLIShared
 import SupatermSupport
-import SupatermTerminalCore
 
 extension TerminalHostState {
   func debugAgentSnapshot(
