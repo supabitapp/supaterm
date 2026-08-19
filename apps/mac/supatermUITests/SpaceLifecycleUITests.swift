@@ -24,15 +24,7 @@ final class SpaceLifecycleUITests: SupatermUITestCase {
     let didReturnToCreatedSpace = await waitForDisplayedSpace(named: "UI Space")
     XCTAssertTrue(didReturnToCreatedSpace)
 
-    displayedSpace.click()
-    let renameSpace = app.menuItems["Edit Space"]
-    XCTAssertTrue(renameSpace.waitForExistence(timeout: 10))
-    renameSpace.click()
-
-    let nameField = app.textFields[
-      SupatermUITestIdentifier.Accessibility.dialogSpaceName
-    ]
-    XCTAssertTrue(nameField.waitForExistence(timeout: 10))
+    let nameField = try await openSpaceEditor("Edit Space", titled: "Edit Space")
     nameField.click()
     nameField.typeKey("a", modifierFlags: .command)
     nameField.typeText("Renamed UI Space")
@@ -73,18 +65,29 @@ final class SpaceLifecycleUITests: SupatermUITestCase {
 
   @MainActor
   private func createSpace(named name: String) async throws {
-    try require(displayedSpace).click()
-    let createSpace = try require(app.menuItems["New Space"])
-    createSpace.click()
-
-    let nameField = app.textFields[SupatermUITestIdentifier.Accessibility.dialogSpaceName]
-    if !nameField.waitForExistence(timeout: 5), createSpace.exists {
-      createSpace.click()
-    }
-    try require(nameField)
+    let nameField = try await openSpaceEditor("New Space", titled: "Create Space")
     nameField.typeText(name)
 
     try await saveSpaceEditor()
+  }
+
+  @MainActor
+  private func openSpaceEditor(
+    _ menuTitle: String,
+    titled title: String
+  ) async throws -> XCUIElement {
+    let nameField = app.textFields[SupatermUITestIdentifier.Accessibility.dialogSpaceName]
+    for _ in 0..<3 {
+      try require(displayedSpace).click()
+      try require(app.menuItems[menuTitle]).click()
+      let didOpenEditor = await wait(timeout: .seconds(5)) {
+        self.app.staticTexts[title].exists && nameField.exists
+      }
+      if didOpenEditor { return nameField }
+      app.typeKey(.escape, modifierFlags: [])
+    }
+    XCTFail("\(menuTitle) never opened \(title)")
+    return try require(nameField)
   }
 
   @MainActor
