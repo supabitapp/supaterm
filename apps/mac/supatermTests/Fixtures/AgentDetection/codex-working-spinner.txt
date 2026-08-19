@@ -1,0 +1,5 @@
+⠹ project
+
+› fix the flaky rename test
+
+• Working (12s · esc to interrupt)

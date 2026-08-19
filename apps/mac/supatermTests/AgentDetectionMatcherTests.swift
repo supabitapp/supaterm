@@ -111,6 +111,11 @@ struct AgentDetectionMatcherTests {
         )
       ).ruleID == "trust_directory"
     )
+    #expect(
+      claude.match(
+        AgentDetectionInput(screen: "", oscTitle: "", oscProgress: "4;0")
+      ).ruleID == "osc_progress_idle"
+    )
   }
 
   @Test
@@ -131,19 +136,46 @@ struct AgentDetectionMatcherTests {
     #expect(match.ruleID == "osc_title_idle")
   }
 
-  @Test(arguments: ["claude-needs-input", "codex-needs-input"])
+  @Test(arguments: [
+    "claude-legacy-blocker", "claude-needs-input", "codex-needs-input", "codex-trust",
+  ])
   func permissionFixturesNeedInput(name: String) throws {
     #expect(try matchFixture(name).result == .needsInput)
   }
 
-  @Test(arguments: ["claude-running", "codex-running", "pi-running"])
+  @Test(arguments: ["claude-running", "codex-running", "codex-working-spinner", "pi-running"])
   func workingFixturesAreRunning(name: String) throws {
     #expect(try matchFixture(name).result == .running)
   }
 
-  @Test(arguments: ["claude-transcript", "codex-transcript"])
-  func transcriptViewerFixturesHoldThePriorState(name: String) throws {
+  @Test(arguments: ["claude-idle", "codex-idle", "pi-idle"])
+  func idleFixturesAreIdle(name: String) throws {
+    #expect(try matchFixture(name).result == .idle)
+  }
+
+  @Test(arguments: ["claude-model-picker", "claude-transcript", "codex-transcript"])
+  func ambiguousScreenFixturesHoldThePriorState(name: String) throws {
     #expect(try matchFixture(name).result == .hold)
+  }
+
+  @Test(arguments: [
+    ("claude-idle", "live_prompt_box"),
+    ("claude-legacy-blocker", "legacy_no_prompt_blocker"),
+    ("claude-model-picker", "model_picker_menu"),
+    ("claude-needs-input", "live_blocked_form"),
+    ("claude-running", "osc_title_working"),
+    ("claude-transcript", "transcript_viewer"),
+    ("codex-idle", "osc_title_idle"),
+    ("codex-needs-input", "live_strong_blocker"),
+    ("codex-running", "screen_working_fallback"),
+    ("codex-transcript", "transcript_viewer"),
+    ("codex-trust", "trust_directory"),
+    ("codex-working-spinner", "osc_title_working"),
+    ("pi-idle", "default_known_agent_idle_fallback"),
+    ("pi-running", "working_literal"),
+  ])
+  func fixturesMatchTheirOwningRule(name: String, ruleID: String) throws {
+    #expect(try matchFixture(name).ruleID == ruleID)
   }
 
   private func agent(rules: [AgentDetectionStateRule]) -> AgentDetectionAgentRule {
