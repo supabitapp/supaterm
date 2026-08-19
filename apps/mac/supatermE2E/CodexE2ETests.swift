@@ -19,14 +19,28 @@ struct CodexE2ETests {
   func hooksAugmentScreenRulesAcrossEveryRootStateAndInterrupt() async throws {
     try await runCodexLifecycle(mode: .hooks)
   }
+
+}
+
+@Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
+struct CodexZmxE2ETests {
+  @Test(.timeLimit(.minutes(5)))
+  func screenRulesTrackEveryRootStateAndInterrupt() async throws {
+    try await runCodexLifecycle(mode: .zmxScreenRules)
+  }
 }
 
 private enum CodexE2EMode {
   case hooks
   case screenRules
+  case zmxScreenRules
 
   var hooksEnabled: Bool {
     self == .hooks
+  }
+
+  var zmxSessionsEnabled: Bool {
+    self == .zmxScreenRules
   }
 }
 
@@ -71,6 +85,7 @@ private final class CodexE2EFixture {
   static func launch(mode: CodexE2EMode) async throws -> CodexE2EFixture {
     let environment = try CodexE2EEnvironment()
     let app = try await SupatermE2EApp.launch(
+      zmxSessionsEnabled: mode.zmxSessionsEnabled,
       environment: ["CODEX_E2E_API_KEY": "test"],
       pathDirectories: [environment.executable.deletingLastPathComponent()]
     )

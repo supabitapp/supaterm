@@ -19,14 +19,28 @@ struct ClaudeE2ETests {
   func hooksAugmentScreenRulesAcrossEveryRootStateAndInterrupt() async throws {
     try await runClaudeLifecycle(mode: .hooks)
   }
+
+}
+
+@Suite(.enabled(if: claudeE2EEnabled, "Run through make mac-test-e2e."))
+struct ClaudeZmxE2ETests {
+  @Test(.timeLimit(.minutes(5)))
+  func screenRulesTrackEveryRootStateAndInterrupt() async throws {
+    try await runClaudeLifecycle(mode: .zmxScreenRules)
+  }
 }
 
 private enum ClaudeE2EMode {
   case hooks
   case screenRules
+  case zmxScreenRules
 
   var hooksEnabled: Bool {
     self == .hooks
+  }
+
+  var zmxSessionsEnabled: Bool {
+    self == .zmxScreenRules
   }
 }
 
@@ -71,6 +85,7 @@ private final class ClaudeE2EFixture {
   static func launch(mode: ClaudeE2EMode) async throws -> ClaudeE2EFixture {
     let environment = try ClaudeE2EEnvironment()
     let app = try await SupatermE2EApp.launch(
+      zmxSessionsEnabled: mode.zmxSessionsEnabled,
       pathDirectories: [environment.executable.deletingLastPathComponent()]
     )
     var server: FakeModelServer?
