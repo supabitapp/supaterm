@@ -56,7 +56,10 @@ struct TerminalHostStateAgentDebugSnapshotTests {
       ),
     ])
 
-    let result = host.debugAgentSnapshot(for: surfaceID, explanation: .disabled)
+    let result = host.debugAgentSnapshot(
+      for: surfaceID,
+      explanation: trace(origin: .embedded, status: .unrecognizedProcess)
+    )
     let resolved = host.resolvedAgentState(for: surfaceID)
 
     #expect(resolved.instances.map(\.activity.identity.id) == ["claude", "codex"])
@@ -64,7 +67,7 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     #expect(resolved.currentNativeCandidate?.presentation.agent == .claude)
     #expect(result.agent?.kind == .claude)
     #expect(result.agent?.phaseSource == .native)
-    #expect(result.status == .resolved)
+    #expect(result.status == .unrecognizedProcess)
     #expect(result.agent?.process == nil)
   }
 
@@ -284,17 +287,16 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let cases:
-      [(TerminalAgentDetectionExplanation.Status, SupatermAppDebugSnapshot.AgentDetectionStatus)] = [
-        (.detected, .waiting),
-        (.disabled, .detectionDisabled),
-        (.nativeAuthority, .nativeAuthority),
-        (.noForegroundProcess, .noForegroundProcess),
-        (.noRuleMatchOrSettling, .noRuleMatchOrSettling),
-        (.protectedOrUnreadableScreen, .screenUnavailable),
-        (.unrecognizedProcess, .unrecognizedProcess),
-        (.waiting, .waiting),
-      ]
+    let cases: [(TerminalAgentDetectionExplanation.Status, SupatermAppDebugSnapshot.AgentDetectionStatus)] = [
+      (.detected, .waiting),
+      (.disabled, .detectionDisabled),
+      (.nativeAuthority, .nativeAuthority),
+      (.noForegroundProcess, .noForegroundProcess),
+      (.noRuleMatchOrSettling, .noRuleMatchOrSettling),
+      (.protectedOrUnreadableScreen, .screenUnavailable),
+      (.unrecognizedProcess, .unrecognizedProcess),
+      (.waiting, .waiting),
+    ]
 
     for (controllerStatus, resultStatus) in cases {
       let result = host.debugAgentSnapshot(

@@ -124,11 +124,13 @@ public enum AgentDetectionProcessRecognizer {
     invocation: ProcessInvocation,
     manifest: AgentDetectionProcessManifest
   ) -> Candidate? {
-    let executable = URL(fileURLWithPath: invocation.executablePath).lastPathComponent
-    guard !executable.isEmpty, entry.name == executable else { return nil }
+    let executables = Set([
+      URL(fileURLWithPath: invocation.executablePath).lastPathComponent,
+      entry.name,
+    ]).subtracting([""])
+    guard !executables.isEmpty else { return nil }
     if manifest.processes.contains(where: {
-      $0.scriptSuffix == nil && $0.processTitle == nil && !$0.executable.isEmpty
-        && $0.executable == executable
+      $0.scriptSuffix == nil && $0.processTitle == nil && executables.contains($0.executable)
     }) {
       return Candidate(
         agentID: manifest.agentID,
@@ -138,7 +140,7 @@ public enum AgentDetectionProcessRecognizer {
     }
     guard
       manifest.processes.contains(where: { rule in
-        guard rule.executable == executable else { return false }
+        guard executables.contains(rule.executable) else { return false }
         if let processTitle = rule.processTitle {
           guard !processTitle.isEmpty, invocation.arguments.first == processTitle else {
             return false

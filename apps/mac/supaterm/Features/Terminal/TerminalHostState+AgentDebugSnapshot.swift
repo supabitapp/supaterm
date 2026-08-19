@@ -20,13 +20,12 @@ extension TerminalHostState {
     let resolvedState = resolvedAgentState(for: surfaceID)
     switch resolvedState.resolution {
     case .native:
+      let screenStatus: SupatermAppDebugSnapshot.AgentDetectionStatus =
+        explanation.status == .detected
+        ? .waiting
+        : debugAgentStatus(explanation.status)
       guard let candidate = resolvedState.currentNativeCandidate else {
-        return (
-          explanation.status == .detected
-            ? .waiting
-            : debugAgentStatus(explanation.status),
-          nil
-        )
+        return (screenStatus, nil)
       }
       let observation = agentDetectionStore.observation(for: surfaceID)
       let phaseAuthority = candidate.phaseAuthorityProcessIdentities
@@ -47,7 +46,7 @@ extension TerminalHostState {
         : nil
       let processIdentity = exactAuthorityProcess ?? singleAuthorityProcess
       return (
-        phaseAuthority.isEmpty ? .resolved : .nativeAuthority,
+        phaseAuthority.isEmpty ? screenStatus : .nativeAuthority,
         SupatermAppDebugSnapshot.Agent(
           kind: candidate.presentation.agent,
           phase: debugAgentPhase(candidate.presentation.phase),

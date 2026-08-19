@@ -272,15 +272,11 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     )
     let cases = [
       (
-        Self.process(100, name: "python3"),
-        Self.invocation("/opt/homebrew/bin/node", arguments: ["pi"])
-      ),
-      (
         Self.process(100, name: "node"),
         Self.invocation("/opt/homebrew/bin/node", arguments: ["other"])
       ),
       (
-        Self.process(100, name: "node"),
+        Self.process(100, name: "python3"),
         Self.invocation("/usr/bin/python3", arguments: ["pi"])
       ),
     ]
@@ -431,11 +427,11 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
-  func processNameCannotOverrideADifferentExecutablePath() {
+  func argumentsCannotNameAnExecutableNeitherKernelFactNames() {
     let result = Self.match(
-      entries: [Self.process(100, name: "codex")],
+      entries: [Self.process(100, name: "fish")],
       invocations: [
-        100: Self.invocation("/tmp/not-codex", arguments: ["codex"])
+        100: Self.invocation("/opt/homebrew/bin/fish", arguments: ["codex"])
       ]
     )
 
@@ -443,30 +439,48 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
-  func executablePathCannotOverrideADifferentProcessName() {
+  func matchesAnExecutableSymlinkedToAVersionedImage() {
     let result = Self.match(
-      entries: [Self.process(100, name: "node")],
-      invocations: [
-        100: Self.invocation("/opt/homebrew/bin/codex", arguments: ["codex"])
-      ]
-    )
-
-    #expect(result == nil)
-  }
-
-  @Test
-  func wrapperRequiresMatchingProcessNameAndExecutablePath() {
-    let result = Self.match(
-      entries: [Self.process(100, name: "python3")],
+      entries: [Self.process(100, name: "2.1.236")],
       invocations: [
         100: Self.invocation(
-          "/opt/homebrew/bin/node",
-          arguments: ["node", "/pkg/@anthropic-ai/claude-code/cli.js"]
+          "/Users/khoi/.local/bin/claude",
+          arguments: ["claude", "--resume"]
         )
       ]
     )
 
-    #expect(result == nil)
+    #expect(
+      result
+        == AgentDetectionProcessMatch(
+          agentID: "claude",
+          processIdentity: TerminalAgentProcessIdentity(
+            processID: 100,
+            startTimeMicroseconds: 100
+          )
+        )
+    )
+  }
+
+  @Test
+  func matchesAnImageTheLaunchPathDoesNotName() {
+    let result = Self.match(
+      entries: [Self.process(100, name: "codex")],
+      invocations: [
+        100: Self.invocation("/opt/homebrew/bin/codex-shim", arguments: ["codex"])
+      ]
+    )
+
+    #expect(
+      result
+        == AgentDetectionProcessMatch(
+          agentID: "codex",
+          processIdentity: TerminalAgentProcessIdentity(
+            processID: 100,
+            startTimeMicroseconds: 100
+          )
+        )
+    )
   }
 
   @Test
