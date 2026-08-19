@@ -97,8 +97,6 @@ final class TerminalCommandExecutor {
     _ request: SocketRequestExecutor.TerminalPaneRequest
   ) throws -> SocketRequestExecutor.TerminalPaneResult {
     switch request {
-    case .agentExplain(let target):
-      return .agentExplain(try agentDetectionExplain(target))
     case .focusPane(let target):
       return .focusPane(try focusPane(target))
     case .lastPane(let target):

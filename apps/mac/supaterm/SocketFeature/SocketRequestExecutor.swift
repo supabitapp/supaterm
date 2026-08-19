@@ -62,7 +62,6 @@ public struct SocketRequestExecutor: Sendable {
   }
 
   public enum TerminalPaneRequest: Sendable {
-    case agentExplain(TerminalPaneTarget)
     case focusPane(TerminalPaneTarget)
     case lastPane(TerminalPaneTarget)
     case closePane(TerminalPaneTarget)
@@ -76,7 +75,6 @@ public struct SocketRequestExecutor: Sendable {
   }
 
   public enum TerminalPaneResult: Sendable {
-    case agentExplain(SupatermAgentExplainResult)
     case focusPane(SupatermFocusPaneResult)
     case lastPane(SupatermFocusPaneResult)
     case closePane(SupatermClosePaneResult)
@@ -265,8 +263,6 @@ extension SocketRequestExecutor: DependencyKey {
     },
     executeTerminalPane: { request in
       switch request {
-      case .agentExplain:
-        throw TerminalControlError.contextPaneNotFound
       case .focusPane:
         throw TerminalControlError.contextPaneNotFound
       case .lastPane:

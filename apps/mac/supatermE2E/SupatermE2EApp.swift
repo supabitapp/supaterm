@@ -237,10 +237,6 @@ final class SupatermE2EApp: @unchecked Sendable {
     try send(.debug(SupatermDebugRequest()), as: SupatermAppDebugSnapshot.self)
   }
 
-  func agentExplain(_ target: SupatermPaneTargetRequest) throws -> SupatermAgentExplainResult {
-    try send(.agentExplain(target), as: SupatermAgentExplainResult.self)
-  }
-
   func debugTab(_ tabID: UUID) throws -> SupatermAppDebugSnapshot.Tab? {
     try debugSnapshot()
       .windows

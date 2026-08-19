@@ -231,20 +231,6 @@ extension TerminalHostState {
     tabAgentPresentation(for: tabID).detailActivity != nil
   }
 
-  func debugAgentSnapshot(for surfaceID: UUID) -> SupatermAppDebugSnapshot.Agent? {
-    guard
-      let instance = resolvedAgentState(for: surfaceID).currentInstance,
-      let presentation = instance.nativePresentation
-    else {
-      return nil
-    }
-    return SupatermAppDebugSnapshot.Agent(
-      kind: presentation.agent,
-      sessionID: presentation.sessionID,
-      phase: debugAgentPhase(instance.activity.phase)
-    )
-  }
-
   @discardableResult
   func clearAgentState(for surfaceID: UUID) -> Bool {
     let hadNativeState = !agentStateStore.snapshots(for: surfaceID).isEmpty
@@ -583,7 +569,7 @@ extension TerminalHostState {
     resolvedAgentState(for: surfaceID).instances
   }
 
-  private func debugAgentPhase(
+  func debugAgentPhase(
     _ phase: AgentActivityPhase
   ) -> SupatermAppDebugSnapshot.AgentPhase {
     switch phase {

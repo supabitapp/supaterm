@@ -63,7 +63,7 @@ private final class CodexE2EFixture {
   let mode: CodexE2EMode
   let server: FakeModelServer
   let space: TestSpace
-  let initialProcess: SupatermAgentExplainResult.Process
+  let initialProcess: SupatermAppDebugSnapshot.AgentProcess
   var sessionID: String?
 
   private init(
@@ -71,7 +71,7 @@ private final class CodexE2EFixture {
     mode: CodexE2EMode,
     server: FakeModelServer,
     space: TestSpace,
-    initialProcess: SupatermAgentExplainResult.Process,
+    initialProcess: SupatermAppDebugSnapshot.AgentProcess,
     sessionID: String?
   ) {
     self.app = app
@@ -124,9 +124,10 @@ private final class CodexE2EFixture {
         space.directory.path,
       ])
       try app.type(command + "\n", into: space.pane)
-      let initial = try await waitForAgentExplain(
+      let initial = try await waitForAgentSnapshot(
         app,
-        target: space.pane,
+        paneID: space.tab.paneID,
+        kind: .codex,
         phase: .idle
       )
       let initialProcess = try requireValue(
@@ -156,25 +157,36 @@ private final class CodexE2EFixture {
   }
 
   func expect(
-    _ phase: SupatermAgentExplainResult.Phase,
+    _ phase: SupatermAppDebugSnapshot.AgentPhase,
     timeout: TimeInterval = 90
   ) async throws {
-    let result = try await waitForAgentExplain(app, target: space.pane, phase: phase, timeout: timeout)
-    #expect(result.process == initialProcess)
+    let agent = try await waitForAgentSnapshot(
+      app,
+      paneID: space.tab.paneID,
+      kind: .codex,
+      phase: phase,
+      timeout: timeout
+    )
+    #expect(agent.process == initialProcess)
     if mode.hooksEnabled {
       var nextSessionID: String?
       try await app.waitUntil("the native Codex session remains bound", timeout: timeout) {
-        guard let agent = try app.debugPane(space.tab.paneID)?.agent else { return false }
-        let matchesSession = sessionID.map { agent.sessionID == $0 } ?? true
+        guard
+          let agent = try app.debugPane(space.tab.paneID)?.agent,
+          let boundSessionID = agent.sessionID
+        else {
+          return false
+        }
+        let matchesSession = sessionID.map { boundSessionID == $0 } ?? true
         guard agent.kind == .codex, matchesSession else { return false }
-        nextSessionID = agent.sessionID
+        nextSessionID = boundSessionID
         return true
       }
       sessionID = sessionID ?? nextSessionID
     } else {
       try await app.waitUntil("the pane has no native Codex session", timeout: timeout) {
         guard let pane = try app.debugPane(space.tab.paneID) else { return false }
-        return pane.agent == nil
+        return pane.agent?.sessionID == nil
       }
     }
   }
@@ -246,6 +258,9 @@ private func runCodexLifecycle(mode: CodexE2EMode) async throws {
   try await runCompletedTurn(fixture)
   try await runInterruptedTurn(fixture, key: .escape, name: "escape")
   try await runInterruptedTurn(fixture, key: .ctrlC, name: "ctrl-c")
+  try await runCancelledTurn(fixture)
+  try await runCodexDraftClear(fixture)
+  try await stopCodex(fixture)
   try fixture.server.verifyComplete()
 }
 
@@ -321,29 +336,54 @@ private func runInterruptedTurn(
   try await fixture.expect(.idle, timeout: 10)
 }
 
-private func waitForAgentExplain(
-  _ app: SupatermE2EApp,
-  target: SupatermPaneTargetRequest,
-  phase: SupatermAgentExplainResult.Phase,
-  timeout: TimeInterval = 90
-) async throws -> SupatermAgentExplainResult {
-  var lastResult: SupatermAgentExplainResult?
-  do {
-    try await app.waitUntil("Codex screen rules resolve \(phase.rawValue)", timeout: timeout) {
-      let result = try app.agentExplain(target)
-      lastResult = result
-      return result.mode == .fallback
-        && result.status == .resolved
-        && result.agent?.id == "codex"
-        && result.agent?.phase == phase
-    }
-  } catch {
-    throw SupatermE2EError(
-      "\(error)\n--- last agent explain ---\n\(String(describing: lastResult))"
-        + "\n--- pane capture ---\n\((try? app.capture(target)) ?? "unavailable")"
-    )
+private func runCancelledTurn(_ fixture: CodexE2EFixture) async throws {
+  let marker = interruptedMarker(fixture.space, name: "cancel")
+  let startedURL = codexCancelStartedURL(fixture.space)
+  let command = codexCancelCommand(fixture.space)
+  let prompt =
+    "\(marker) Use the shell tool once to run exactly `\(command)`. Do not do anything else until it finishes."
+
+  try await fixture.app.submit(
+    prompt,
+    waitingFor: marker,
+    into: fixture.space.pane
+  )
+  try await fixture.expect(.running)
+  fixture.server.releaseNextResponse()
+  try await waitForCommandApproval(fixture, marker: startedURL.lastPathComponent)
+  try await fixture.expect(.needsInput)
+  let interruptionCount = try fixture.app.capture(fixture.space.pane)
+    .components(separatedBy: "Conversation interrupted").count
+  try fixture.app.press(.ctrlC, in: fixture.space.pane)
+  try await fixture.app.waitUntil("Codex records the cancel interruption", timeout: 10) {
+    try fixture.app.capture(fixture.space.pane)
+      .components(separatedBy: "Conversation interrupted").count > interruptionCount
   }
-  return try requireValue(lastResult, "Codex screen rules produced no result.")
+  try await fixture.expect(.idle, timeout: 10)
+  #expect(!FileManager.default.fileExists(atPath: startedURL.path))
+}
+
+private func runCodexDraftClear(_ fixture: CodexE2EFixture) async throws {
+  let draft = "CODEX_DRAFT_\(fixture.space.token)"
+  try fixture.app.type(draft, into: fixture.space.pane)
+  try await fixture.app.waitForCapture(fixture.space.pane, contains: draft, timeout: 5)
+  try fixture.app.press(.ctrlC, in: fixture.space.pane)
+  try await fixture.app.waitUntil("one Ctrl+C clears Codex's draft", timeout: 5) {
+    try !fixture.app.capture(fixture.space.pane)
+      .replacingOccurrences(of: "\n", with: "")
+      .contains(draft)
+  }
+  try await fixture.expect(.idle, timeout: 10)
+}
+
+private func stopCodex(_ fixture: CodexE2EFixture) async throws {
+  try await fixture.app.waitUntil("repeated Ctrl+C exits Codex to the shell", timeout: 15) {
+    try fixture.app.press(.ctrlC, in: fixture.space.pane)
+    return try fixture.app.capture(fixture.space.pane).contains(hermeticShellPrompt)
+  }
+  try await fixture.app.waitUntil("Codex clears its process and native session", timeout: 15) {
+    try fixture.app.debugPane(fixture.space.tab.paneID)?.agent == nil
+  }
 }
 
 private func waitForCommandApproval(
@@ -367,6 +407,7 @@ private enum CodexFakeCallID {
   static let lifecycleQuestion = "lifecycle-question"
   static let escapeCommand = "escape-command"
   static let ctrlCCommand = "ctrl-c-command"
+  static let cancelCommand = "cancel-command"
 }
 
 private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
@@ -407,6 +448,14 @@ private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
       ),
       waitForRelease: true
     ),
+    FakeModelExchange(
+      request: .responsesInputText(interruptedMarker(space, name: "cancel")),
+      response: .responsesShellCommand(
+        callID: CodexFakeCallID.cancelCommand,
+        command: codexCancelCommand(space)
+      ),
+      waitForRelease: true
+    ),
   ]
 }
 
@@ -439,6 +488,18 @@ private func interruptedCommand(_ space: TestSpace, name: String) -> String {
     "/bin/sh",
     "-c",
     "/usr/bin/true \(interruptedMarker(space, name: name)); /bin/sleep 30",
+  ])
+}
+
+private func codexCancelStartedURL(_ space: TestSpace) -> URL {
+  space.directory.appendingPathComponent("codex-cancel-started-\(space.token)")
+}
+
+private func codexCancelCommand(_ space: TestSpace) -> String {
+  SupatermShellCommand.escapedCommand([
+    "/bin/sh",
+    "-c",
+    "/usr/bin/touch \(codexCancelStartedURL(space).path); /bin/sleep 30",
   ])
 }
 

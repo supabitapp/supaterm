@@ -24,8 +24,8 @@ enum SPTreeRenderer {
       let parent = parentReference(for: item, snapshot: snapshot) ?? "-"
       let agent =
         item.agent.map {
-          "\($0.kind.rawValue):\($0.phase.rawValue):\($0.sessionID)"
-        } ?? "-"
+          "\($0.kind.rawValue):\($0.phase.rawValue):\($0.phaseSource.rawValue):\($0.sessionID ?? "-")"
+        } ?? item.agentStatus.map(\.rawValue) ?? "-"
       let state =
         if item.selected {
           "selected"
@@ -76,7 +76,7 @@ enum SPTreeRenderer {
       labels.append("cold")
     }
     if let agent = item.agent {
-      labels.append("\(agent.kind.rawValue):\(agent.phase.rawValue)")
+      labels.append("\(agent.kind.rawValue):\(agent.phase.rawValue) \(agent.phaseSource.rawValue)")
     }
     if let cwd = item.cwd {
       labels.append("cwd=\"\(escaped(cwd, quoted: true))\"")

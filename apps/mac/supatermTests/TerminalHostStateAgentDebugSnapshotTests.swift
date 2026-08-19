@@ -7,11 +7,10 @@ import Testing
 @testable import supaterm
 
 @MainActor
-struct TerminalHostStateAgentExplainTests {
+struct TerminalHostStateAgentDebugSnapshotTests {
   private struct HostFixture {
     let host: TerminalHostState
     let surfaceID: UUID
-    let target: SupatermPaneTarget
   }
 
   @Test
@@ -19,7 +18,6 @@ struct TerminalHostStateAgentExplainTests {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let target = fixture.target
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let applied = host.applyTestAgentActivity(
       .pi(.running),
@@ -28,20 +26,16 @@ struct TerminalHostStateAgentExplainTests {
       processID: identity.processID
     )
 
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
-      explanation: .disabled
-    )
+    let result = host.debugAgentSnapshot(for: surfaceID, explanation: .disabled)
 
     #expect(applied)
-    #expect(result.mode == .native)
     #expect(result.status == .nativeAuthority)
-    #expect(result.agent?.id == "pi")
-    #expect(result.process?.processID == identity.processID)
-    #expect(result.process?.startTimeMicroseconds == identity.startTimeMicroseconds)
-    #expect(result.rules == nil)
-    #expect(result.ruleID == nil)
+    #expect(result.agent?.kind == .pi)
+    #expect(result.agent?.phaseSource == .native)
+    #expect(result.agent?.sessionID == "native-session")
+    #expect(result.agent?.process?.processID == identity.processID)
+    #expect(result.agent?.process?.startTimeMicroseconds == identity.startTimeMicroseconds)
+    #expect(result.agent?.ruleID == nil)
   }
 
   @Test
@@ -49,7 +43,6 @@ struct TerminalHostStateAgentExplainTests {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let target = fixture.target
     host.agentStateStore.restore([
       authorityFreeSnapshot(
         agent: .codex,
@@ -63,27 +56,23 @@ struct TerminalHostStateAgentExplainTests {
       ),
     ])
 
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
-      explanation: .disabled
-    )
+    let result = host.debugAgentSnapshot(for: surfaceID, explanation: .disabled)
     let resolved = host.resolvedAgentState(for: surfaceID)
 
     #expect(resolved.instances.map(\.activity.identity.id) == ["claude", "codex"])
     #expect(resolved.currentInstance?.activity.identity.id == "claude")
     #expect(resolved.currentNativeCandidate?.presentation.agent == .claude)
-    #expect(result.agent?.id == "claude")
+    #expect(result.agent?.kind == .claude)
+    #expect(result.agent?.phaseSource == .native)
     #expect(result.status == .resolved)
-    #expect(result.process == nil)
+    #expect(result.agent?.process == nil)
   }
 
   @Test
-  func exactNativeAuthorityExplainsTheSameNativeWinnerAsTheUI() throws {
+  func exactNativeAuthorityReportsTheSameNativeWinnerAsTheUI() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let target = fixture.target
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let appliedNative = host.applyTestAgentActivity(
       .pi(.running, detail: "Private native detail"),
@@ -93,8 +82,8 @@ struct TerminalHostStateAgentExplainTests {
     )
     let appliedTerminal = host.applyAgentDetection(
       observation(
-        agentID: "other-agent",
-        displayName: "Other Agent",
+        agentID: "codex",
+        displayName: "Codex",
         processIdentity: identity,
         phase: .needsInput
       ),
@@ -104,38 +93,28 @@ struct TerminalHostStateAgentExplainTests {
       origin: .embedded,
       status: .nativeAuthority,
       processIdentity: identity,
-      agent: AgentDetectionAgentIdentity(id: "other-agent", displayName: "Other Agent"),
+      agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
       matchedPhase: .needsInput,
       matchedRuleID: "private-rule"
     )
 
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
-      explanation: explanation
-    )
+    let result = host.debugAgentSnapshot(for: surfaceID, explanation: explanation)
 
     #expect(appliedNative)
     #expect(appliedTerminal)
-    #expect(result.mode == .native)
     #expect(result.status == .nativeAuthority)
+    #expect(result.agent?.kind == .pi)
+    #expect(result.agent?.phase == .running)
+    #expect(result.agent?.phaseSource == .native)
+    #expect(result.agent?.sessionID == "private-session")
     #expect(
-      result.agent
-        == SupatermAgentExplainResult.Agent(
-          id: "pi",
-          displayName: "Pi",
-          phase: .running
-        )
-    )
-    #expect(
-      result.process
-        == SupatermAgentExplainResult.Process(
+      result.agent?.process
+        == SupatermAppDebugSnapshot.AgentProcess(
           processID: identity.processID,
           startTimeMicroseconds: identity.startTimeMicroseconds
         )
     )
-    #expect(result.rules == SupatermAgentExplainResult.Rules(source: .embedded, generation: 7))
-    #expect(result.ruleID == nil)
+    #expect(result.agent?.ruleID == nil)
   }
 
   @Test
@@ -143,7 +122,6 @@ struct TerminalHostStateAgentExplainTests {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let target = fixture.target
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let applied = host.applyTestAgentActivity(
       .pi(.running),
@@ -167,17 +145,16 @@ struct TerminalHostStateAgentExplainTests {
 
     await controller.tick(now: .now)
 
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
+    let result = host.debugAgentSnapshot(
+      for: surfaceID,
       explanation: controller.explanation(for: surfaceID)
     )
     #expect(applied)
     #expect(terminalObservation(in: host, for: surfaceID) == nil)
     #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "pi")
-    #expect(result.agent?.id == "pi")
+    #expect(result.agent?.kind == .pi)
     #expect(result.status == .nativeAuthority)
-    #expect(result.process?.processID == identity.processID)
+    #expect(result.agent?.process?.processID == identity.processID)
   }
 
   @Test
@@ -185,7 +162,6 @@ struct TerminalHostStateAgentExplainTests {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let target = fixture.target
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let controller = try detectionController(
       host: host,
@@ -213,33 +189,26 @@ struct TerminalHostStateAgentExplainTests {
 
     await controller.tick(now: now.advanced(by: .milliseconds(300)))
 
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
+    let result = host.debugAgentSnapshot(
+      for: surfaceID,
       explanation: controller.explanation(for: surfaceID)
     )
     #expect(observation.processIdentity == identity)
     #expect(applied)
     #expect(terminalObservation(in: host, for: surfaceID) == nil)
     #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "pi")
-    #expect(result.agent?.id == "pi")
+    #expect(result.agent?.kind == .pi)
     #expect(result.status == .nativeAuthority)
-    #expect(result.process?.processID == identity.processID)
+    #expect(result.agent?.process?.processID == identity.processID)
   }
 
   @Test
-  func fallbackUsesOnlyThePublishedObservationAndMatchingRuleSource() throws {
+  func screenObservationReportsItsRuleProcessAndSource() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let target = fixture.target
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 123)
-    let detection = observation(
-      agentID: "custom-agent",
-      displayName: "Custom Agent",
-      processIdentity: identity,
-      phase: .needsInput
-    )
+    let detection = observation(processIdentity: identity, phase: .needsInput)
     let applied = host.applyAgentDetection(detection, for: surfaceID)
     let explanation = trace(
       origin: .embedded,
@@ -250,59 +219,26 @@ struct TerminalHostStateAgentExplainTests {
       matchedRuleID: detection.ruleID
     )
 
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
-      explanation: explanation
-    )
+    let result = host.debugAgentSnapshot(for: surfaceID, explanation: explanation)
 
     #expect(applied)
-    #expect(result.mode == .fallback)
     #expect(result.status == .resolved)
-    #expect(result.rules == SupatermAgentExplainResult.Rules(source: .embedded, generation: 7))
+    #expect(result.agent?.kind == .codex)
+    #expect(result.agent?.phase == .needsInput)
+    #expect(result.agent?.phaseSource == .screen)
+    #expect(result.agent?.sessionID == nil)
+    #expect(result.agent?.ruleID == "prompt-state")
     #expect(
-      result.agent
-        == SupatermAgentExplainResult.Agent(
-          id: "custom-agent",
-          displayName: "Custom Agent",
-          phase: .needsInput
-        )
-    )
-    #expect(
-      result.process
-        == SupatermAgentExplainResult.Process(
+      result.agent?.process
+        == SupatermAppDebugSnapshot.AgentProcess(
           processID: 42,
           startTimeMicroseconds: 123
         )
     )
-    #expect(result.ruleID == "prompt-state")
   }
 
   @Test
-  func fallbackOmitsRulesWhenTheTraceGenerationDoesNotMatch() throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let surfaceID = fixture.surfaceID
-    let target = fixture.target
-    let detection = observation(
-      processIdentity: TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 123)
-    )
-    let applied = host.applyAgentDetection(detection, for: surfaceID)
-    let explanation = trace(origin: .embedded, generation: 8, status: .detected)
-
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
-      explanation: explanation
-    )
-
-    #expect(applied)
-    #expect(result.mode == .fallback)
-    #expect(result.rules == nil)
-  }
-
-  @Test
-  func fallbackReportsTheCurrentSettlingStatus() throws {
+  func screenObservationReportsTheCurrentSettlingStatus() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
@@ -311,15 +247,36 @@ struct TerminalHostStateAgentExplainTests {
     )
     let applied = host.applyAgentDetection(detection, for: surfaceID)
 
-    let result = host.agentDetectionExplain(
-      target: fixture.target,
-      surfaceID: surfaceID,
+    let result = host.debugAgentSnapshot(
+      for: surfaceID,
       explanation: trace(origin: .embedded, status: .noRuleMatchOrSettling)
     )
 
     #expect(applied)
-    #expect(result.mode == .fallback)
+    #expect(result.agent?.phaseSource == .screen)
     #expect(result.status == .noRuleMatchOrSettling)
+  }
+
+  @Test
+  func unknownScreenAgentIDReportsStatusWithoutAnAgent() throws {
+    let fixture = try hostFixture()
+    let host = fixture.host
+    let surfaceID = fixture.surfaceID
+    let detection = observation(
+      agentID: "custom-agent",
+      displayName: "Custom Agent",
+      processIdentity: TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 123)
+    )
+    let applied = host.applyAgentDetection(detection, for: surfaceID)
+
+    let result = host.debugAgentSnapshot(
+      for: surfaceID,
+      explanation: trace(origin: .embedded, status: .detected)
+    )
+
+    #expect(applied)
+    #expect(result.agent == nil)
+    #expect(result.status == .resolved)
   }
 
   @Test
@@ -327,73 +284,26 @@ struct TerminalHostStateAgentExplainTests {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
-    let target = fixture.target
-    let cases: [(TerminalAgentDetectionExplanation.Status, SupatermAgentExplainResult.Status)] = [
-      (.detected, .waiting),
-      (.disabled, .detectionDisabled),
-      (.nativeAuthority, .nativeAuthority),
-      (.noForegroundProcess, .noForegroundProcess),
-      (.noRuleMatchOrSettling, .noRuleMatchOrSettling),
-      (.protectedOrUnreadableScreen, .screenUnavailable),
-      (.unrecognizedProcess, .unrecognizedProcess),
-      (.waiting, .waiting),
-    ]
+    let cases:
+      [(TerminalAgentDetectionExplanation.Status, SupatermAppDebugSnapshot.AgentDetectionStatus)] = [
+        (.detected, .waiting),
+        (.disabled, .detectionDisabled),
+        (.nativeAuthority, .nativeAuthority),
+        (.noForegroundProcess, .noForegroundProcess),
+        (.noRuleMatchOrSettling, .noRuleMatchOrSettling),
+        (.protectedOrUnreadableScreen, .screenUnavailable),
+        (.unrecognizedProcess, .unrecognizedProcess),
+        (.waiting, .waiting),
+      ]
 
     for (controllerStatus, resultStatus) in cases {
-      let result = host.agentDetectionExplain(
-        target: target,
-        surfaceID: surfaceID,
+      let result = host.debugAgentSnapshot(
+        for: surfaceID,
         explanation: trace(status: controllerStatus)
       )
-      #expect(result.mode == .none)
       #expect(result.status == resultStatus)
       #expect(result.agent == nil)
-      #expect(result.process == nil)
-      #expect(result.ruleID == nil)
     }
-  }
-
-  @Test
-  func unresolvedProofIncludesTypedTraceWithoutTerminalContent() throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let surfaceID = fixture.surfaceID
-    let target = fixture.target
-    let identity = TerminalAgentProcessIdentity(processID: 55, startTimeMicroseconds: 456)
-    let explanation = trace(
-      origin: .embedded,
-      status: .noRuleMatchOrSettling,
-      processIdentity: identity,
-      agent: AgentDetectionAgentIdentity(id: "custom-agent", displayName: "Custom Agent"),
-      matchedPhase: .idle,
-      matchedRuleID: "idle-state"
-    )
-
-    let result = host.agentDetectionExplain(
-      target: target,
-      surfaceID: surfaceID,
-      explanation: explanation
-    )
-    let data = try JSONEncoder().encode(result)
-    let object = try #require(
-      JSONSerialization.jsonObject(with: data) as? [String: Any]
-    )
-
-    #expect(result.mode == .none)
-    #expect(result.status == .noRuleMatchOrSettling)
-    #expect(result.agent?.phase == .idle)
-    #expect(result.process?.processID == 55)
-    #expect(result.ruleID == "idle-state")
-    #expect(
-      Set(object.keys)
-        == ["target", "mode", "status", "rules", "agent", "process", "ruleID"]
-    )
-    #expect(Set(try #require(object["rules"] as? [String: Any]).keys) == ["source", "generation"])
-    #expect(Set(try #require(object["agent"] as? [String: Any]).keys) == ["id", "displayName", "phase"])
-    #expect(
-      Set(try #require(object["process"] as? [String: Any]).keys)
-        == ["processID", "startTimeMicroseconds"]
-    )
   }
 
   private func observation(
@@ -539,19 +449,6 @@ struct TerminalHostStateAgentExplainTests {
     let host = TerminalHostState()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let surfaceID = try #require(host.selectedSurfaceView?.id)
-    let tabID = try #require(host.selectedTabID?.rawValue)
-    return HostFixture(
-      host: host,
-      surfaceID: surfaceID,
-      target: SupatermPaneTarget(
-        windowIndex: 1,
-        spaceIndex: 1,
-        spaceID: host.displayedSpaceID.rawValue,
-        tabIndex: 1,
-        tabID: tabID,
-        paneIndex: 1,
-        paneID: surfaceID
-      )
-    )
+    return HostFixture(host: host, surfaceID: surfaceID)
   }
 }

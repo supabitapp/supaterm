@@ -4,25 +4,6 @@ import SupatermCLIShared
 import SupatermTerminalCore
 
 extension TerminalCommandExecutor {
-  func agentDetectionExplain(
-    _ target: TerminalPaneTarget
-  ) throws -> SupatermAgentExplainResult {
-    try executeTargeted(
-      operation: { try $0.terminal.agentDetectionExplain(target) },
-      rewrite: { result, windowIndex in
-        SupatermAgentExplainResult(
-          target: TerminalWindowRegistry.rewrite(result.target, windowIndex: windowIndex),
-          mode: result.mode,
-          status: result.status,
-          rules: result.rules,
-          agent: result.agent,
-          process: result.process,
-          ruleID: result.ruleID
-        )
-      }
-    )
-  }
-
   func focusPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
     try executeTargeted(
       operation: { try $0.terminal.focusPane(target) },
