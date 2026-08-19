@@ -103,9 +103,7 @@ jobs:
           github-token: ${{ github.token }}
       - run: >-
           make mac-test-e2e
-          E2E_AGENT=none
           E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
-          XCODEBUILD_FLAGS="-skip-testing:supatermE2E/CodexE2ETests -skip-testing:supatermE2E/CodexZmxE2ETests -skip-testing:supatermE2E/ClaudeE2ETests -skip-testing:supatermE2E/ClaudeZmxE2ETests -skip-testing:supatermE2E/PiE2ETests -skip-testing:supatermE2E/PiZmxE2ETests"
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - if: failure()
@@ -153,7 +151,7 @@ jobs:
       - if: matrix.agent != 'codex'
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
-          path: ~/.cache/aube
+          path: ~/.local/share/mise/installs
           key: agent-e2e-${{ runner.os }}-${{ runner.arch }}-${{ matrix.agent }}-${{ hashFiles('apps/mac/Makefile') }}
       - run: >-
           make mac-test-e2e
