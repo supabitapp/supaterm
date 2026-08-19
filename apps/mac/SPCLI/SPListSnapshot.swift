@@ -49,6 +49,13 @@ struct SPListSnapshot: Encodable {
     let isWarm: Bool?
     let agent: Agent?
     let agentStatus: SupatermAppDebugSnapshot.AgentDetectionStatus?
+
+    var unresolvedAgentStatus: SupatermAppDebugSnapshot.AgentDetectionStatus? {
+      guard agent == nil, let agentStatus, agentStatus.namesAnAgentTheListingCannot else {
+        return nil
+      }
+      return agentStatus
+    }
   }
 
   let current: Current?

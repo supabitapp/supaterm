@@ -203,8 +203,12 @@ struct SPListCommandTests {
 
     let human = SPTreeRenderer.render(snapshot)
 
+    let plain = SPTreeRenderer.renderPlain(snapshot)
+
     #expect(human.contains("[agent:no_rule_match_or_settling]"))
     #expect(!human.contains("unrecognized_process"))
+    #expect(plain.contains("\tno_rule_match_or_settling"))
+    #expect(!plain.contains("unrecognized_process"))
   }
 
   @Test

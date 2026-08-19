@@ -25,7 +25,7 @@ enum SPTreeRenderer {
       let agent =
         item.agent.map {
           "\($0.kind.rawValue):\($0.phase.rawValue):\($0.phaseSource.rawValue):\($0.sessionID ?? "-")"
-        } ?? item.agentStatus.map(\.rawValue) ?? "-"
+        } ?? item.unresolvedAgentStatus?.rawValue ?? "-"
       let state =
         if item.selected {
           "selected"
@@ -77,9 +77,7 @@ enum SPTreeRenderer {
     }
     if let agent = item.agent {
       labels.append("\(agent.kind.rawValue):\(agent.phase.rawValue) \(agent.phaseSource.rawValue)")
-    } else if let status = item.agentStatus,
-      status == .noRuleMatchOrSettling || status == .screenUnavailable
-    {
+    } else if let status = item.unresolvedAgentStatus {
       labels.append("agent:\(status.rawValue)")
     }
     if let cwd = item.cwd {
