@@ -232,14 +232,8 @@ extension SupatermUITestCase {
     to destination: XCUIElement,
     destinationOffset: CGVector = CGVector(dx: 0.5, dy: 0.5)
   ) throws {
-    let source = try require(source)
     let destination = try require(destination)
-    source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
-      forDuration: 0.5,
-      thenDragTo: destination.coordinate(withNormalizedOffset: destinationOffset),
-      withVelocity: .slow,
-      thenHoldForDuration: 0
-    )
+    try drag(source, to: destination.coordinate(withNormalizedOffset: destinationOffset))
   }
 
   @MainActor
@@ -249,7 +243,7 @@ extension SupatermUITestCase {
       forDuration: 0.5,
       thenDragTo: destination,
       withVelocity: .slow,
-      thenHoldForDuration: 0
+      thenHoldForDuration: 0.5
     )
   }
 
@@ -287,22 +281,14 @@ extension SupatermUITestCase {
   }
 
   @MainActor
-  func waitForSidebarStructure(
-    _ expected: [SidebarRootExpectation],
-    timeout: Duration = .seconds(15)
-  ) async -> Bool {
-    await wait(timeout: timeout) {
-      self.sidebarMatches(expected)
-    }
-  }
-
-  @MainActor
   func requireSidebarStructure(
     _ expected: [SidebarRootExpectation],
     file: StaticString = #filePath,
     line: UInt = #line
   ) async {
-    let didMatch = await waitForSidebarStructure(expected)
+    let didMatch = await wait(timeout: .seconds(15)) {
+      self.sidebarMatches(expected)
+    }
     XCTAssertTrue(
       didMatch,
       "Expected \(expected); actual \(sidebarStructureDescription())",

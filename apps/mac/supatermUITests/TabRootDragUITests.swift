@@ -51,18 +51,15 @@ final class TabRootDragUITests: SupatermUITestCase {
       .tab("Root B"),
     ])
 
-    let expected: [SidebarRootExpectation] = [
+    try drag(
+      sidebarStructuralTabRow(named: "Root A"),
+      to: sidebarGroupHeader(named: "Alpha")
+    )
+
+    await requireSidebarStructure([
       .group("Alpha", children: ["Group Seed", "Root A"]),
       .tab("Root B"),
-    ]
-    for _ in 0..<2 {
-      try drag(
-        sidebarStructuralTabRow(named: "Root A"),
-        to: sidebarGroupHeader(named: "Alpha")
-      )
-      if await waitForSidebarStructure(expected, timeout: .seconds(5)) { return }
-    }
-    await requireSidebarStructure(expected)
+    ])
   }
 
   @MainActor
@@ -72,16 +69,13 @@ final class TabRootDragUITests: SupatermUITestCase {
       sidebarPinnedControl(SupatermUITestIdentifier.Accessibility.sidebarNewTab)
     )
 
-    let expected: [SidebarRootExpectation] = [
+    try drag(sidebarStructuralTabRow(named: "First"), to: newTab)
+
+    await requireSidebarStructure([
       .tab("Second"),
       .tab("Third"),
       .tab("First"),
-    ]
-    for _ in 0..<2 {
-      try drag(sidebarStructuralTabRow(named: "First"), to: newTab)
-      if await waitForSidebarStructure(expected, timeout: .seconds(5)) { break }
-    }
-    await requireSidebarStructure(expected)
+    ])
     XCTAssertEqual(sidebarGroupHeaders.count, 0)
   }
 }
