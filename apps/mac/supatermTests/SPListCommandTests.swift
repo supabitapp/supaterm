@@ -146,6 +146,68 @@ struct SPListCommandTests {
   }
 
   @Test
+  func treeRendererShowsOnlyActionableAgentStatuses() {
+    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+    let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
+    func pane(_ id: UUID, status: SupatermAppDebugSnapshot.AgentDetectionStatus) -> SPListSnapshot.Item {
+      SPListSnapshot.Item(
+        kind: .pane,
+        id: id,
+        parentID: tabID,
+        windowIndex: 1,
+        title: "shell",
+        cwd: nil,
+        selected: false,
+        isWarm: nil,
+        agent: nil,
+        agentStatus: status
+      )
+    }
+    let snapshot = SPListSnapshot(
+      current: nil,
+      items: [
+        SPListSnapshot.Item(
+          kind: .space,
+          id: spaceID,
+          parentID: nil,
+          windowIndex: 1,
+          title: "A",
+          cwd: nil,
+          selected: true,
+          isWarm: true,
+          agent: nil,
+          agentStatus: nil
+        ),
+        SPListSnapshot.Item(
+          kind: .tab,
+          id: tabID,
+          parentID: spaceID,
+          windowIndex: 1,
+          title: "shell",
+          cwd: nil,
+          selected: true,
+          isWarm: nil,
+          agent: nil,
+          agentStatus: nil
+        ),
+        pane(
+          UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+          status: .noRuleMatchOrSettling
+        ),
+        pane(
+          UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!,
+          status: .unrecognizedProcess
+        ),
+      ]
+    )
+
+    let human = SPTreeRenderer.render(snapshot)
+
+    #expect(human.contains("[agent:no_rule_match_or_settling]"))
+    #expect(!human.contains("unrecognized_process"))
+  }
+
+  @Test
   func diagnosticTopologyRendererKeepsRichState() {
     #expect(
       SPDiagnosticTopologyRenderer.render(spCommandTestListSnapshot())
@@ -154,7 +216,7 @@ struct SPListCommandTests {
         └─ space 1 "A" [neutral, displayed]
            └─ group 5a52445e-e42a-48b7-a5dd-c6c7c978b139 "Work" [blue]
               └─ tab 1 "fish" [selected]
-                 └─ pane 1 "build" [focused]
+                 └─ pane 1 "build" [focused, codex:running native, session=session-1, status=resolved]
         """
     )
   }

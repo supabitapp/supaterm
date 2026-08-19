@@ -98,8 +98,26 @@ enum SPDiagnosticTopologyRenderer {
       + tab.panes.enumerated().map { offset, pane in
         let branch = offset == tab.panes.count - 1 ? "└─ " : "├─ "
         let title = pane.displayTitle.isEmpty ? "" : " \"\(pane.displayTitle)\""
-        let suffix = pane.isFocused ? " [focused]" : ""
-        return "\(panePrefix)\(branch)pane \(pane.index)\(title)\(suffix)"
+        var labels: [String] = []
+        if pane.isFocused {
+          labels.append("focused")
+        }
+        if let agent = pane.agent {
+          labels.append(
+            "\(agent.kind.rawValue):\(agent.phase.rawValue) \(agent.phaseSource.rawValue)"
+          )
+          if let sessionID = agent.sessionID {
+            labels.append("session=\(sessionID)")
+          }
+          if let ruleID = agent.ruleID {
+            labels.append("rule=\(ruleID)")
+          }
+          if let process = agent.process {
+            labels.append("pid=\(process.processID)")
+          }
+        }
+        labels.append("status=\(pane.agentStatus.rawValue)")
+        return "\(panePrefix)\(branch)pane \(pane.index)\(title) [\(labels.joined(separator: ", "))]"
       }
   }
 }

@@ -77,6 +77,10 @@ enum SPTreeRenderer {
     }
     if let agent = item.agent {
       labels.append("\(agent.kind.rawValue):\(agent.phase.rawValue) \(agent.phaseSource.rawValue)")
+    } else if let status = item.agentStatus,
+      status == .noRuleMatchOrSettling || status == .screenUnavailable
+    {
+      labels.append("agent:\(status.rawValue)")
     }
     if let cwd = item.cwd {
       labels.append("cwd=\"\(escaped(cwd, quoted: true))\"")
