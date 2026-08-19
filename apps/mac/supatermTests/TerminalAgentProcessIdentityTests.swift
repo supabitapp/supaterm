@@ -26,6 +26,14 @@ struct TerminalAgentProcessIdentityTests {
     #expect(!TerminalAgentProcessInspector.isCurrent(reused))
   }
 
+  @Test
+  func readsAProcessOwnedByAnotherUser() throws {
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: 1))
+
+    #expect(identity.processID == 1)
+    #expect(TerminalAgentProcessInspector.isCurrent(identity))
+  }
+
   @Test(arguments: [Int32.min, -1, 0])
   func nonpositiveProcessIDHasNoIdentity(processID: Int32) {
     #expect(TerminalAgentProcessInspector.identity(for: processID) == nil)

@@ -36,11 +36,11 @@ public struct TerminalAgentProcessIdentity: Codable, Equatable, Hashable, Sendab
 
 public enum TerminalAgentProcessInspector {
   public static func identity(for processID: Int32) -> TerminalAgentProcessIdentity? {
-    guard let info = bsdInfo(for: processID) else { return nil }
+    guard let process = process(for: processID) else { return nil }
     return TerminalAgentProcessIdentity(
       processID: processID,
-      seconds: info.pbi_start_tvsec,
-      microseconds: info.pbi_start_tvusec
+      seconds: process.kp_proc.p_starttime.tv_sec,
+      microseconds: process.kp_proc.p_starttime.tv_usec
     )
   }
 
@@ -50,32 +50,27 @@ public enum TerminalAgentProcessInspector {
 
   public static func foregroundProcessGroupID(for processID: Int32) -> Int32? {
     guard
-      let processGroupID = bsdInfo(for: processID)?.e_tpgid,
+      let processGroupID = process(for: processID)?.kp_eproc.e_tpgid,
       processGroupID > 0
     else {
       return nil
     }
-    return Int32(exactly: processGroupID)
+    return processGroupID
   }
 
-  private static func bsdInfo(for processID: Int32) -> proc_bsdinfo? {
+  private static func process(for processID: Int32) -> kinfo_proc? {
     guard processID > 0 else { return nil }
-    var info = proc_bsdinfo()
-    let expectedSize = Int32(MemoryLayout<proc_bsdinfo>.size)
-    let returnedSize = proc_pidinfo(
-      processID,
-      PROC_PIDTBSDINFO,
-      0,
-      &info,
-      expectedSize
-    )
+    var request: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, processID]
+    var process = kinfo_proc()
+    var size = MemoryLayout<kinfo_proc>.size
     guard
-      returnedSize == expectedSize,
-      info.pbi_pid == UInt32(processID),
-      info.pbi_status != UInt32(SZOMB)
+      sysctl(&request, 4, &process, &size, nil, 0) == 0,
+      size == MemoryLayout<kinfo_proc>.size,
+      process.kp_proc.p_pid == processID,
+      process.kp_proc.p_stat != Int8(SZOMB)
     else {
       return nil
     }
-    return info
+    return process
   }
 }
