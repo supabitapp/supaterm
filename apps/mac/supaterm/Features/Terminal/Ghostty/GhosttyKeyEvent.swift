@@ -84,7 +84,7 @@ enum GhosttyKeyEvent {
   }
 
   static func characters(_ event: NSEvent) -> String? {
-    guard let characters = event.characters else { return nil }
+    guard event.type == .keyDown, let characters = event.characters else { return nil }
     if characters.count == 1,
       let scalar = characters.unicodeScalars.first
     {

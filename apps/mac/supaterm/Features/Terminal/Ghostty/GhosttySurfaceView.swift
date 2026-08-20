@@ -1926,7 +1926,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         resolved.remove(flag)
       }
     }
-    if resolved == event.modifierFlags {
+    if event.type != .keyDown || resolved == event.modifierFlags {
       return (event, resolved)
     }
     let translatedEvent =
