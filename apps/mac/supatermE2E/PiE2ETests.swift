@@ -466,7 +466,12 @@ func makePiNarrowTabFixture(
       ) + "\n",
       into: pane
     )
-    try await app.waitForCapture(pane, contains: "Pi can explain its own features", timeout: 60)
+    try await app.waitUntil("Pi renders its startup screen", timeout: 60) {
+      try app.capture(pane)
+        .split(whereSeparator: \.isWhitespace)
+        .joined(separator: " ")
+        .contains("Pi can explain its own features")
+    }
     _ = try await waitForPiAgent(
       app,
       mode: .screenRules,
