@@ -1,5 +1,5 @@
 id = "codex"
-version = "2026.08.20.1"
+version = "2026.08.20.2"
 min_engine_version = 3
 updated_at = "2026-08-20T00:00:00Z"
 
@@ -76,7 +76,7 @@ state = "working"
 priority = 500
 region = "bottom_non_empty_lines(8)"
 visible_working = true
-line_regex = ['^[•◦]?\s*\S.*\((?:\d+h )?(?:\d+m )?\d+s [•·] [^)]+ to interrupt\)(?: · .*)?$']
+line_regex = ['^[•◦]?\s*\S.*\((?:\d+h )?(?:\d+m )?\d+s [•·] (?:[^)]+ to interrupt\)(?: · .*)?|[^)]*…)$']
 not = [{ contains = ["■ Conversation interrupted"] }]
 
 # Streaming answers hide the status row; a pending-steer preview still means running.

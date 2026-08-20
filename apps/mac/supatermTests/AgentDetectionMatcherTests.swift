@@ -144,9 +144,9 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test(arguments: [
-    "claude-running", "codex-running", "codex-working-spinner", "codex-working-reasoning-header",
-    "codex-working-queued", "codex-working-steers-only", "codex-working-reconnecting",
-    "codex-working-remapped-plain", "pi-running",
+    "claude-running", "codex-running", "codex-working-spinner", "codex-working-clipped",
+    "codex-working-reasoning-header", "codex-working-queued", "codex-working-steers-only",
+    "codex-working-reconnecting", "codex-working-remapped-plain", "pi-running",
   ])
   func workingFixturesAreRunning(name: String) throws {
     #expect(try matchFixture(name).result == .running)
@@ -175,6 +175,7 @@ struct AgentDetectionMatcherTests {
     ("codex-transcript", "transcript_viewer"),
     ("codex-trust", "trust_directory"),
     ("codex-working-spinner", "osc_title_working"),
+    ("codex-working-clipped", "screen_working_fallback"),
     ("codex-working-reasoning-header", "screen_working_fallback"),
     ("codex-working-queued", "screen_working_fallback"),
     ("codex-working-steers-only", "queued_messages_working"),
