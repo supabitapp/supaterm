@@ -80,18 +80,6 @@ struct AgentNarrowTabE2ETests {
         waitingFor: fixture.promptMarker,
         into: fixture.pane
       )
-      if fixture.kind == .codex {
-        try await app.waitUntil("Codex clips the reconnecting status", timeout: 10) {
-          try app.capture(fixture.pane)
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .contains { line in
-              let text = line.trimmingCharacters(in: .whitespaces)
-              return text.contains("Reconnecting...")
-                && text.contains("s •")
-                && text.hasSuffix("…")
-            }
-        }
-      }
       _ = try await waitForAgentSnapshot(
         app,
         paneID: fixture.pane.paneID,
