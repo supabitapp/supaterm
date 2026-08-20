@@ -73,9 +73,10 @@ Terminal detection proves the agent process before it reads terminal content:
 2. Match a declared executable, or a declared wrapper with one complete script argument whose
    suffix is declared.
 3. Record the process ID and process start time as one process identity.
-4. Read at most 64 KiB from the bottom of the active screen, 4 KiB from the start of the raw
+4. Wait until the process has run for three seconds.
+5. Read at most 64 KiB from the bottom of the active screen, 4 KiB from the start of the raw
    terminal title, and the latest terminal progress signal.
-5. Apply the rules for the proved agent, then wait for weak state changes to settle.
+6. Apply the rules for the proved agent, then wait for weak state changes to settle.
 
 The process proof prevents terminal text from naming an agent on its own. Password entry, closed
 surfaces, unreadable screens, unknown processes, and ambiguous process matches produce no detected

@@ -143,6 +143,7 @@ final class TerminalAgentDetectionController {
   static let screenByteLimit = 64 * 1_024
   static let titleByteLimit = 4 * 1_024
 
+  private static let phaseDetectionMinimumAgeMicroseconds: UInt64 = 3_000_000
   private static let evaluationInterval: Duration = .milliseconds(300)
   private static let idleConfirmationInterval: Duration = .milliseconds(100)
   private static let processAcquisitionInterval: Duration = .milliseconds(500)
@@ -185,6 +186,7 @@ final class TerminalAgentDetectionController {
   private let rules: TerminalAgentDetectionRuleAccess
   private let sampler: TerminalAgentDetectionSampler
   private let host: TerminalAgentDetectionHostAccess
+  private let currentTimeMicroseconds: @MainActor () -> UInt64
   private let clock = ContinuousClock()
   private var task: Task<Void, Never>?
   private var states: [UUID: SurfaceState] = [:]
@@ -223,11 +225,15 @@ final class TerminalAgentDetectionController {
   init(
     rules: TerminalAgentDetectionRuleAccess,
     sampler: TerminalAgentDetectionSampler,
-    host: TerminalAgentDetectionHostAccess
+    host: TerminalAgentDetectionHostAccess,
+    currentTimeMicroseconds: @escaping @MainActor () -> UInt64 = {
+      UInt64(Date.now.timeIntervalSince1970 * 1_000_000)
+    }
   ) {
     self.rules = rules
     self.sampler = sampler
     self.host = host
+    self.currentTimeMicroseconds = currentTimeMicroseconds
   }
 
   deinit {
@@ -475,7 +481,21 @@ final class TerminalAgentDetectionController {
     generation: UInt64,
     now: ContinuousClock.Instant
   ) async {
-    let identities = Set(states.values.compactMap(\.proof?.processIdentity))
+    let currentTimeMicroseconds = currentTimeMicroseconds()
+    let identities: Set<TerminalAgentProcessIdentity> = Set(
+      states.values.compactMap { state in
+        guard let identity = state.proof?.processIdentity,
+          Self.canDetectPhase(
+            for: identity,
+            currentTimeMicroseconds: currentTimeMicroseconds
+          )
+        else {
+          return nil
+        }
+        return identity
+      }
+    )
+    guard !identities.isEmpty else { return }
     let currentIdentities = await sampler.current(identities)
     guard !Task.isCancelled else { return }
     guard self.generation == generation else { return }
@@ -492,6 +512,7 @@ final class TerminalAgentDetectionController {
         let attempt = prepareEvaluation(
           for: surfaceID,
           currentIdentities: currentIdentities,
+          currentTimeMicroseconds: currentTimeMicroseconds,
           now: now
         )
       else { continue }
@@ -502,9 +523,18 @@ final class TerminalAgentDetectionController {
   private func prepareEvaluation(
     for surfaceID: UUID,
     currentIdentities: Set<TerminalAgentProcessIdentity>,
+    currentTimeMicroseconds: UInt64,
     now: ContinuousClock.Instant
   ) -> EvaluationAttempt? {
     guard var state = states[surfaceID], let proof = state.proof else { return nil }
+    guard
+      Self.canDetectPhase(
+        for: proof.processIdentity,
+        currentTimeMicroseconds: currentTimeMicroseconds
+      )
+    else {
+      return nil
+    }
     guard currentIdentities.contains(proof.processIdentity) else {
       markUnrecognized(&state, now: now)
       states[surfaceID] = state
@@ -767,6 +797,15 @@ final class TerminalAgentDetectionController {
     precondition(nextNonce < UInt64.max)
     nextNonce += 1
     return nextNonce
+  }
+
+  private static func canDetectPhase(
+    for identity: TerminalAgentProcessIdentity,
+    currentTimeMicroseconds: UInt64
+  ) -> Bool {
+    currentTimeMicroseconds >= identity.startTimeMicroseconds
+      && currentTimeMicroseconds - identity.startTimeMicroseconds
+        >= phaseDetectionMinimumAgeMicroseconds
   }
 
   static func utf8Prefix(_ value: String, maximumBytes: Int) -> String {

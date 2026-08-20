@@ -10,6 +10,39 @@ import Testing
 @MainActor
 struct TerminalAgentDetectionControllerTests {
   @Test
+  func waitsUntilAgentHasRunForThreeSecondsBeforeDetectingPhase() async throws {
+    let startedAt: UInt64 = 1_000_000
+    var currentTime = startedAt
+    let fixture = makeFixture(currentTimeMicroseconds: { currentTime })
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: startedAt)
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+    let now = ContinuousClock.now
+
+    await fixture.controller.tick(now: now)
+
+    #expect(fixture.controller.explanation(for: surfaceID).processIdentity == proof)
+    #expect(fixture.host.captureCount == 0)
+    #expect(await fixture.rules.inputs().isEmpty)
+    #expect(fixture.host.observations[surfaceID] == nil)
+
+    currentTime = startedAt + 2_999_999
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(300)))
+
+    #expect(fixture.host.captureCount == 0)
+    #expect(await fixture.rules.inputs().isEmpty)
+    #expect(fixture.host.observations[surfaceID] == nil)
+
+    currentTime += 1
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(600)))
+
+    #expect(fixture.host.captureCount == 1)
+    #expect(await fixture.rules.inputs().count == 1)
+    #expect(try #require(fixture.host.observations[surfaceID]).phase == .running)
+  }
+
+  @Test
   func batchesDuePanesAndUsesMatchedAndAcquisitionCadence() async {
     let fixture = makeFixture()
     let firstID = fixture.host.addSurface(processGroupID: 11)
@@ -535,7 +568,8 @@ struct TerminalAgentDetectionControllerTests {
 
   private func makeFixture(
     matchGate: DetectionGate? = nil,
-    evaluationGate: DetectionGate? = nil
+    evaluationGate: DetectionGate? = nil,
+    currentTimeMicroseconds: @escaping @MainActor () -> UInt64 = { .max }
   ) -> DetectionControllerFixture {
     let host = DetectionHostFixture()
     let rules = DetectionRulesFixture(gate: evaluationGate)
@@ -544,14 +578,20 @@ struct TerminalAgentDetectionControllerTests {
       host: host,
       rules: rules,
       sampler: sampler,
-      controller: makeController(host: host, rules: rules, sampler: sampler)
+      controller: makeController(
+        host: host,
+        rules: rules,
+        sampler: sampler,
+        currentTimeMicroseconds: currentTimeMicroseconds
+      )
     )
   }
 
   private func makeController(
     host: DetectionHostFixture,
     rules: DetectionRulesFixture,
-    sampler: DetectionSamplerFixture
+    sampler: DetectionSamplerFixture,
+    currentTimeMicroseconds: @escaping @MainActor () -> UInt64 = { .max }
   ) -> TerminalAgentDetectionController {
     TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
@@ -571,7 +611,8 @@ struct TerminalAgentDetectionControllerTests {
           await sampler.current(identities)
         }
       ),
-      host: host.access
+      host: host.access,
+      currentTimeMicroseconds: currentTimeMicroseconds
     )
   }
 
