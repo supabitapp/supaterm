@@ -285,6 +285,47 @@ struct SocketControlRuntimeTests {
     )
   }
 
+  @Test(arguments: [
+    SupatermSocketMethod.appHooksInstall,
+    SupatermSocketMethod.appHooksRemove,
+  ])
+  func hookManagementRequestsUseExtendedReplyTimeout(method: String) async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let sleepRecorder = RuntimeSleepRecorder()
+    let socketURL = rootURL.appendingPathComponent("control.sock", isDirectory: false)
+    let runtime = SocketControlRuntime(
+      endpointProvider: {
+        socketEndpoint(path: socketURL.path)
+      },
+      replyTimeout: .milliseconds(50),
+      sleep: { duration in
+        await sleepRecorder.record(duration)
+      }
+    )
+    let endpoint = try await runtime.start()
+    let socketDescriptor = try openConnectedSocket(path: endpoint.path)
+    defer { Darwin.close(socketDescriptor) }
+
+    do {
+      try writeRequest(
+        SupatermSocketRequest(id: "hook-timeout", method: method),
+        to: socketDescriptor
+      )
+
+      #expect(try readByte(from: socketDescriptor) == 0)
+      #expect(
+        await sleepRecorder.durations()
+          == [.seconds(SupatermAgentHookManagementTiming.serverReplyTimeout)]
+      )
+      await runtime.stop()
+    } catch {
+      await runtime.stop()
+      throw error
+    }
+  }
+
   @Test
   func unrepliedRequestExpiresAndClosesClientSocket() async throws {
     let rootURL = try makeTemporaryDirectory()

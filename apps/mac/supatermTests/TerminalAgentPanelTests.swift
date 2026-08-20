@@ -97,6 +97,39 @@ struct TerminalAgentPanelTests {
     #expect(TerminalAgentPanelWorkspaceKey(workingDirectoryPath: " ") == nil)
   }
 
+  @Test
+  func commandRunnerDrainsConcurrentSubprocessOutput() async throws {
+    let runner = TerminalAgentPanelCommandRunner.live
+    let byteCount = 256 * 1_024
+    let command =
+      "/usr/bin/head -c \(byteCount) /dev/zero; /usr/bin/head -c \(byteCount) /dev/zero >&2"
+
+    let results = try await withThrowingTaskGroup(
+      of: TerminalAgentPanelCommandResult.self,
+      returning: [TerminalAgentPanelCommandResult].self
+    ) { group in
+      for _ in 0..<24 {
+        group.addTask {
+          try await runner.run(
+            URL(fileURLWithPath: "/bin/sh"),
+            ["-c", command],
+            nil
+          )
+        }
+      }
+      var results: [TerminalAgentPanelCommandResult] = []
+      for try await result in group {
+        results.append(result)
+      }
+      return results
+    }
+
+    #expect(results.count == 24)
+    #expect(results.allSatisfy { $0.status == 0 })
+    #expect(results.allSatisfy { $0.stdout.utf8.count == byteCount })
+    #expect(results.allSatisfy { $0.stderr.utf8.count == byteCount })
+  }
+
   @Test(arguments: InheritedSurfaceKind.allCases)
   @MainActor
   func newTabsAndSplitsInheritAgentWorkspace(kind: InheritedSurfaceKind) throws {

@@ -254,7 +254,13 @@ actor SocketControlRuntime {
 
     let handle = UUID()
     let sleep = self.sleep
-    let replyTimeout = self.replyTimeout
+    let replyTimeout =
+      switch request.method {
+      case SupatermSocketMethod.appHooksInstall, SupatermSocketMethod.appHooksRemove:
+        Duration.seconds(SupatermAgentHookManagementTiming.serverReplyTimeout)
+      default:
+        self.replyTimeout
+      }
     let timeoutTask = Task { [weak self] in
       do {
         try await sleep(replyTimeout)
