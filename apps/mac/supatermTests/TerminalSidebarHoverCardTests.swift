@@ -9,6 +9,7 @@ struct TerminalSidebarHoverCardTests {
   func shortResponseUsesItsContentHeight() {
     let content = TerminalSidebarHoverCardContent(
       tabTitle: "Ready",
+      workspace: nil,
       response: TerminalHostState.TabAgentResponse(
         agent: AgentDetectionAgentIdentity(id: "agent", displayName: "Agent"),
         text: "Hello, khoi."
@@ -21,6 +22,55 @@ struct TerminalSidebarHoverCardTests {
     let size = controller.sizeThatFits(in: CGSize(width: 320, height: 800))
 
     #expect(size.height < 180)
+  }
+
+  @Test @MainActor
+  func metadataCardDoesNotRequireAnAgentResponse() {
+    let content = TerminalSidebarHoverCardContent(
+      tabTitle: "Implement agent tab hover details",
+      workspace: TerminalTabAgentWorkspace(
+        workingDirectoryPath: "/Users/khoi/code/supaterm",
+        branch: TerminalTabAgentWorkspace.Branch(
+          repositoryRootPath: "/Users/khoi/code/supaterm",
+          name: "main",
+          pullRequest: nil
+        )
+      ),
+      response: nil
+    )
+    let controller = NSHostingController(
+      rootView: TerminalSidebarHoverCardView(content: content)
+    )
+
+    let size = controller.sizeThatFits(in: CGSize(width: 320, height: 800))
+
+    #expect(size.height > 60)
+    #expect(size.height < 180)
+  }
+
+  @Test @MainActor
+  func fullTitleExpandsCardHeight() {
+    let short = TerminalSidebarHoverCardContent(
+      tabTitle: "Short title",
+      workspace: nil,
+      response: nil
+    )
+    let long = TerminalSidebarHoverCardContent(
+      tabTitle: String(repeating: "A complete agent task title ", count: 12),
+      workspace: nil,
+      response: nil
+    )
+    let shortController = NSHostingController(
+      rootView: TerminalSidebarHoverCardView(content: short)
+    )
+    let longController = NSHostingController(
+      rootView: TerminalSidebarHoverCardView(content: long)
+    )
+
+    let shortHeight = shortController.sizeThatFits(in: CGSize(width: 320, height: 800)).height
+    let longHeight = longController.sizeThatFits(in: CGSize(width: 320, height: 800)).height
+
+    #expect(longHeight > shortHeight)
   }
 
   @Test @MainActor
@@ -382,6 +432,7 @@ struct TerminalSidebarHoverCardTests {
       content: { _ in
         TerminalSidebarHoverCardContent(
           tabTitle: "Ready",
+          workspace: nil,
           response: TerminalHostState.TabAgentResponse(
             agent: AgentDetectionAgentIdentity(id: "agent", displayName: "Agent"),
             text: "Done."

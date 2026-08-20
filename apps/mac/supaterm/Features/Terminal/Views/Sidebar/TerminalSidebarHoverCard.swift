@@ -1,4 +1,5 @@
 import AppKit
+import ComposableArchitecture
 import Observation
 import QuartzCore
 import SupatermUI
@@ -6,7 +7,8 @@ import SwiftUI
 
 struct TerminalSidebarHoverCardContent: Equatable {
   let tabTitle: String
-  let response: TerminalHostState.TabAgentResponse
+  let workspace: TerminalTabAgentWorkspace?
+  let response: TerminalHostState.TabAgentResponse?
 }
 
 enum TerminalSidebarHoverCardMetrics {
@@ -701,20 +703,18 @@ private final class TerminalSidebarHoverCardWindow: NSWindow {
 }
 
 struct TerminalSidebarHoverCardView: View {
-  private let tabTitle: String
-  private let agentName: String
-  private let response: AttributedString
-  private let responseHeight: CGFloat
+  private let content: TerminalSidebarHoverCardContent
+  private let response: AttributedString?
+  private let responseHeight: CGFloat?
 
   @MainActor
   init(content: TerminalSidebarHoverCardContent) {
-    tabTitle = content.tabTitle
-    agentName = content.response.agent.displayName
-    let response =
-      (try? AttributedString(markdown: content.response.text))
-      ?? AttributedString(content.response.text)
+    self.content = content
+    let response = content.response.map {
+      (try? AttributedString(markdown: $0.text)) ?? AttributedString($0.text)
+    }
     self.response = response
-    responseHeight = TerminalSidebarHoverCardMetrics.responseHeight(for: response)
+    responseHeight = response.map(TerminalSidebarHoverCardMetrics.responseHeight)
   }
 
   var body: some View {
@@ -730,26 +730,112 @@ struct TerminalSidebarHoverCardView: View {
       contentPadding: 0
     ) {
       VStack(alignment: .leading, spacing: 10) {
-        VStack(alignment: .leading, spacing: 1) {
-          Text(tabTitle)
-            .font(.system(size: 13, weight: .medium))
-            .lineLimit(2)
+        Text(content.tabTitle)
+          .font(.system(size: 13, weight: .medium))
+          .fixedSize(horizontal: false, vertical: true)
+
+        if let workspace = content.workspace {
+          VStack(alignment: .leading, spacing: 8) {
+            if let branch = workspace.branch {
+              TerminalSidebarHoverCardCopyRow(
+                icon: .asset("git-branch"),
+                title: branch.name,
+                copyValue: branch.name,
+                accessibilityName: "branch"
+              )
+            }
+            TerminalSidebarHoverCardCopyRow(
+              icon: .system("folder"),
+              title: (workspace.workingDirectoryPath as NSString).abbreviatingWithTildeInPath,
+              copyValue: workspace.workingDirectoryPath,
+              accessibilityName: "working directory",
+              truncationMode: .middle
+            )
+          }
+        }
+
+        if let agentName = content.response?.agent.displayName,
+          let response,
+          let responseHeight
+        {
           Text("\(agentName) · Latest response")
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
             .lineLimit(1)
+          Divider()
+          ScrollView {
+            TerminalSidebarHoverCardResponseView(response: response)
+          }
+          .frame(height: responseHeight)
         }
-        Divider()
-        ScrollView {
-          TerminalSidebarHoverCardResponseView(response: response)
-        }
-        .frame(height: responseHeight)
       }
       .padding(.horizontal, TerminalSidebarHoverCardMetrics.horizontalPadding)
       .padding(.vertical, 16)
       .frame(width: TerminalSidebarHoverCardMetrics.width, alignment: .leading)
     }
-    .accessibilityLabel("Latest agent response for \(tabTitle)")
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Agent tab details for \(content.tabTitle)")
+  }
+}
+
+private struct TerminalSidebarHoverCardCopyRow: View {
+  @Dependency(ClipboardClient.self) private var clipboardClient
+
+  let icon: TerminalMetadataIcon
+  let title: String
+  let copyValue: String
+  let accessibilityName: String
+  var truncationMode: Text.TruncationMode = .tail
+
+  @State private var isHovering = false
+
+  var body: some View {
+    HStack(spacing: 8) {
+      iconView
+      Text(title)
+        .font(.system(size: 12))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .truncationMode(truncationMode)
+      Spacer(minLength: 6)
+      Button {
+        clipboardClient.copyString(copyValue)
+      } label: {
+        Image("copy")
+          .renderingMode(.template)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(width: 12, height: 12)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(.secondary)
+      .opacity(isHovering ? 1 : 0)
+      .help("Copy \(accessibilityName)")
+      .accessibilityLabel("Copy \(accessibilityName)")
+      .accessibilityValue(copyValue)
+    }
+    .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
+    .contentShape(.rect)
+    .onHover { isHovering = $0 }
+  }
+
+  private var iconView: some View {
+    Group {
+      switch icon {
+      case .asset(let name):
+        Image(name)
+          .renderingMode(.template)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(width: 13, height: 13)
+      case .system(let name):
+        Image(systemName: name)
+          .font(.system(size: 11, weight: .medium))
+      }
+    }
+    .foregroundStyle(.secondary)
+    .frame(width: 14)
+    .accessibilityHidden(true)
   }
 }
 

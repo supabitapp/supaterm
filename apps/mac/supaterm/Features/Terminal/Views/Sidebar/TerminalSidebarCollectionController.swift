@@ -739,12 +739,19 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func hoverCardContent(for tabID: TerminalTabID) -> TerminalSidebarHoverCardContent? {
     guard let context,
-      case .tab(let presentation) = rows[.tab(tabID)],
-      let response = context.terminal.tabAgentPresentation(for: tabID).latestResponse
+      case .tab(let presentation) = rows[.tab(tabID)]
+    else { return nil }
+    let agentContext = context.terminal.tabAgentContext(for: tabID)
+    guard
+      agentContext.presentation.status != nil
+        || agentContext.presentation.detailActivity != nil
+        || !agentContext.workspaces.isEmpty
+        || agentContext.presentation.latestResponse != nil
     else { return nil }
     return TerminalSidebarHoverCardContent(
       tabTitle: presentation.tab.title,
-      response: response
+      workspace: agentContext.workspaces.first,
+      response: agentContext.presentation.latestResponse
     )
   }
 
