@@ -194,7 +194,8 @@ struct AgentDetectionMatcherTests {
   @Test(arguments: [
     "claude-running", "codex-running", "codex-working-spinner", "codex-working-clipped",
     "codex-working-reasoning-header", "codex-working-queued", "codex-working-steers-only",
-    "codex-working-reconnecting", "codex-working-remapped-plain", "pi-running",
+    "codex-working-reconnecting", "codex-working-reconnecting-narrow",
+    "codex-working-remapped-plain", "pi-running",
   ])
   func workingFixturesAreRunning(name: String) throws {
     #expect(try matchFixture(name).result == .running)
@@ -228,6 +229,7 @@ struct AgentDetectionMatcherTests {
     ("codex-working-queued", "screen_working_fallback"),
     ("codex-working-steers-only", "queued_messages_working"),
     ("codex-working-reconnecting", "screen_working_fallback"),
+    ("codex-working-reconnecting-narrow", "screen_working_fallback"),
     ("codex-working-remapped-plain", "screen_working_fallback"),
     ("pi-idle", "default_known_agent_idle_fallback"),
     ("pi-running", "working_literal"),
