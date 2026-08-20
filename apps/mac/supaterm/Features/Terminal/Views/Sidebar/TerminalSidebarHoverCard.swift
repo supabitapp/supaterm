@@ -780,6 +780,7 @@ struct TerminalSidebarHoverCardView: View {
 
 private struct TerminalSidebarHoverCardCopyRow: View {
   @Dependency(ClipboardClient.self) private var clipboardClient
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   let icon: TerminalMetadataIcon
   let title: String
@@ -788,17 +789,17 @@ private struct TerminalSidebarHoverCardCopyRow: View {
   var truncationMode: Text.TruncationMode = .tail
 
   @State private var isHovering = false
+  @State private var copyFeedbackID: UUID?
 
   var body: some View {
-    Button {
-      clipboardClient.copyString(copyValue)
-    } label: {
+    Button(action: copy) {
       HStack(spacing: 8) {
         iconView
-        Text(title)
+        Text(copyFeedbackID == nil ? title : "Copied")
           .font(.system(size: 12))
           .lineLimit(1)
           .truncationMode(truncationMode)
+          .contentTransition(.opacity)
         Spacer(minLength: 0)
       }
       .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
@@ -814,8 +815,27 @@ private struct TerminalSidebarHoverCardCopyRow: View {
     .foregroundStyle(isHovering ? .primary : .secondary)
     .onHover { isHovering = $0 }
     .help("Copy \(accessibilityName)")
-    .accessibilityLabel("Copy \(accessibilityName)")
-    .accessibilityValue(copyValue)
+    .accessibilityLabel(copyFeedbackID == nil ? "Copy \(accessibilityName)" : "Copied")
+    .accessibilityValue(copyFeedbackID == nil ? copyValue : "")
+    .task(id: copyFeedbackID) {
+      guard let feedbackID = copyFeedbackID else { return }
+      do {
+        try await Task.sleep(for: .seconds(1))
+      } catch {
+        return
+      }
+      guard copyFeedbackID == feedbackID else { return }
+      TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: reduceMotion) {
+        copyFeedbackID = nil
+      }
+    }
+  }
+
+  private func copy() {
+    clipboardClient.copyString(copyValue)
+    TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: reduceMotion) {
+      copyFeedbackID = UUID()
+    }
   }
 
   private var iconView: some View {
