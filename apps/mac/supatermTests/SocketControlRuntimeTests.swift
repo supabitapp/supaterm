@@ -285,6 +285,76 @@ struct SocketControlRuntimeTests {
     )
   }
 
+  @Test
+  func stalledReplyDoesNotBlockOtherClients() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let socketURL = rootURL.appendingPathComponent("control.sock", isDirectory: false)
+    let runtime = SocketControlRuntime(
+      endpointProvider: {
+        socketEndpoint(path: socketURL.path)
+      },
+      clientWriteTimeout: 0.2
+    )
+    let endpoint = try await runtime.start()
+    let stream = await runtime.requests()
+    var iterator = stream.makeAsyncIterator()
+    let stalledSocket = try openConnectedSocket(path: endpoint.path)
+    defer { Darwin.close(stalledSocket) }
+
+    do {
+      try writeRequest(.ping(id: "stalled"), to: stalledSocket)
+      let stalledRequest = try #require(await iterator.next())
+      let clock = ContinuousClock()
+      let stalledReplyStarted = clock.now
+      let stalledReplyTask = Task { @concurrent in
+        await runtime.reply(
+          .ok(
+            id: "stalled",
+            result: ["data": .string(String(repeating: "x", count: 1_048_576))]
+          ),
+          to: stalledRequest.handle
+        )
+      }
+      try waitForSocketRead(stalledSocket)
+
+      let releaseSocket = Darwin.dup(stalledSocket)
+      try #require(releaseSocket >= 0)
+      let releaseStalledReply = Task { @concurrent in
+        defer { Darwin.close(releaseSocket) }
+        do {
+          try await Task.sleep(for: .seconds(2))
+        } catch {
+          return
+        }
+        _ = Darwin.shutdown(releaseSocket, SHUT_RDWR)
+      }
+
+      let responsiveSocket = try openConnectedSocket(path: endpoint.path)
+      defer { Darwin.close(responsiveSocket) }
+      let responsiveRequestStarted = clock.now
+      try writeRequest(.ping(id: "responsive"), to: responsiveSocket)
+      let responsiveRequest = try #require(await iterator.next())
+      await runtime.reply(.ok(id: "responsive"), to: responsiveRequest.handle)
+      let response = try #require(try readSocketResponse(from: responsiveSocket))
+      let responsiveRequestDuration = responsiveRequestStarted.duration(to: clock.now)
+
+      #expect(response.ok)
+      #expect(response.id == "responsive")
+      #expect(responsiveRequestDuration < .milliseconds(750))
+
+      await stalledReplyTask.value
+      releaseStalledReply.cancel()
+      await releaseStalledReply.value
+      #expect(stalledReplyStarted.duration(to: clock.now) < .milliseconds(750))
+      await runtime.stop()
+    } catch {
+      await runtime.stop()
+      throw error
+    }
+  }
+
   @Test(arguments: [
     SupatermSocketMethod.appHooksInstall,
     SupatermSocketMethod.appHooksRemove,
