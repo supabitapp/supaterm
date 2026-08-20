@@ -317,6 +317,7 @@ extension TerminalHostState {
   func clearAgentState(for surfaceID: UUID) -> Bool {
     let hadNativeState = !agentStateStore.snapshots(for: surfaceID).isEmpty
     let removedDetection = agentDetectionStore.clear(for: surfaceID)
+    agentCompletionStore.clear(for: surfaceID)
     agentStateStore.clearSessions(for: surfaceID)
     if hadNativeState || removedDetection {
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
@@ -337,6 +338,7 @@ extension TerminalHostState {
     )
     let changedSurfaceIDs = nativeChangedSurfaceIDs.union(detectionChangedSurfaceIDs)
     for surfaceID in changedSurfaceIDs {
+      clearInvalidAgentCompletion(for: surfaceID)
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
     }
     return !nativeChangedSurfaceIDs.isEmpty
@@ -347,19 +349,85 @@ extension TerminalHostState {
     _ observation: TerminalAgentDetectionObservation,
     for surfaceID: UUID
   ) -> Bool {
-    guard surfaces[surfaceID] != nil, tabID(containing: surfaceID) != nil else {
+    guard surfaces[surfaceID] != nil, let tabID = tabID(containing: surfaceID) else {
       return false
     }
+    let previousObservation = agentDetectionStore.observation(for: surfaceID)
     guard agentDetectionStore.apply(observation, for: surfaceID) else { return false }
+    if case .terminal(let acceptedObservation, _) = resolvedAgentState(for: surfaceID).resolution,
+      acceptedObservation == observation
+    {
+      updateScreenAgentCompletion(
+        previousObservation: previousObservation,
+        observation: observation,
+        surfaceID: surfaceID,
+        tabID: tabID
+      )
+    } else {
+      clearInvalidAgentCompletion(for: surfaceID)
+    }
     agentPanelController?.surfaceAgentStateChanged(surfaceID)
     return true
   }
 
+  private func updateScreenAgentCompletion(
+    previousObservation: TerminalAgentDetectionObservation?,
+    observation: TerminalAgentDetectionObservation,
+    surfaceID: UUID,
+    tabID: TerminalTabID
+  ) {
+    let identity = TerminalAgentCompletionIdentity.screen(
+      agent: observation.agent,
+      processIdentity: observation.processIdentity
+    )
+    guard observation.phase == .idle else {
+      agentCompletionStore.clear(for: surfaceID)
+      return
+    }
+    guard
+      previousObservation?.agent == observation.agent,
+      previousObservation?.processIdentity == observation.processIdentity
+    else {
+      agentCompletionStore.clear(for: surfaceID)
+      return
+    }
+    guard previousObservation?.phase != .idle else { return }
+    guard
+      !agentSurfaceIsFocused(
+        surfaceID,
+        in: tabID,
+        focusedSurfaceID: focusHistoryByTab[tabID]?.current
+      )
+    else {
+      agentCompletionStore.clear(for: surfaceID)
+      return
+    }
+    agentCompletionStore.record(identity, for: surfaceID)
+  }
+
   @discardableResult
   func clearAgentDetection(for surfaceID: UUID) -> Bool {
+    let completionIdentity = agentDetectionStore.observation(for: surfaceID).map {
+      TerminalAgentCompletionIdentity.screen(
+        agent: $0.agent,
+        processIdentity: $0.processIdentity
+      )
+    }
     guard agentDetectionStore.clear(for: surfaceID) else { return false }
+    if let completionIdentity {
+      agentCompletionStore.clear(completionIdentity, for: surfaceID)
+    }
     agentPanelController?.surfaceAgentStateChanged(surfaceID)
     return true
+  }
+
+  private func clearInvalidAgentCompletion(for surfaceID: UUID) {
+    guard let identity = agentCompletionStore.identity(for: surfaceID) else { return }
+    if !resolvedAgentState(for: surfaceID).instances.contains(where: {
+      $0.completionIdentity == identity
+    }) {
+      agentCompletionStore.clear(for: surfaceID)
+    }
   }
 
   func agentStateRecords(for surfaceID: UUID) -> [TerminalPaneAgentRecord] {
@@ -455,7 +523,15 @@ extension TerminalHostState {
     in tabID: TerminalTabID,
     focusedSurfaceID: UUID?
   ) -> Bool {
-    guard let surface = surfaces[instance.surfaceID] else { return false }
+    agentSurfaceIsFocused(instance.surfaceID, in: tabID, focusedSurfaceID: focusedSurfaceID)
+  }
+
+  private func agentSurfaceIsFocused(
+    _ surfaceID: UUID,
+    in tabID: TerminalTabID,
+    focusedSurfaceID: UUID?
+  ) -> Bool {
+    guard let surface = surfaces[surfaceID] else { return false }
     return Self.surfaceActivity(
       isSelectedTab: tabID == spaceManager.selectedTabID,
       windowIsVisible: windowActivity.isVisible,
@@ -477,11 +553,7 @@ extension TerminalHostState {
     case .idle:
       guard
         !isFocused,
-        let lifecycle = instance.nativePresentation?.turnLifecycle,
-        case .completed = lifecycle,
-        notificationStore.notifications(for: instance.surfaceID)?.contains(where: {
-          $0.attentionState == .unread && $0.origin == .structuredAgent(.completion)
-        }) == true
+        agentCompletionStore.contains(instance.completionIdentity, for: instance.surfaceID)
       else {
         return nil
       }
@@ -513,10 +585,55 @@ extension TerminalHostState {
       return TerminalAgentEventApplication(accepted: accepted, changed: false)
     }
     let changed = before != agentStateStore.snapshots(for: resolvedSurfaceID)
+    if accepted {
+      updateNativeAgentCompletion(event, surfaceID: resolvedSurfaceID)
+    }
     if changed {
       agentPanelController?.surfaceAgentStateChanged(resolvedSurfaceID)
     }
     return TerminalAgentEventApplication(accepted: accepted, changed: changed)
+  }
+
+  private func updateNativeAgentCompletion(
+    _ event: TerminalAgentEvent,
+    surfaceID: UUID
+  ) {
+    guard event.scope.subagentID == nil else { return }
+    let identity = TerminalAgentCompletionIdentity.native(
+      agent: event.scope.agent,
+      sessionID: event.scope.sessionID
+    )
+    let resolvedState = resolvedAgentState(for: surfaceID)
+    guard case .native = resolvedState.resolution else { return }
+    guard
+      let instance = resolvedState.instances.first(where: { $0.completionIdentity == identity })
+    else {
+      agentCompletionStore.clear(identity, for: surfaceID)
+      return
+    }
+    guard instance.activity.phase == .idle else {
+      agentCompletionStore.clear(for: surfaceID)
+      return
+    }
+    guard case .turnCompleted = event.action else {
+      agentCompletionStore.clear(for: surfaceID)
+      return
+    }
+    guard let tabID = tabID(containing: surfaceID) else {
+      agentCompletionStore.clear(for: surfaceID)
+      return
+    }
+    guard
+      !agentSurfaceIsFocused(
+        surfaceID,
+        in: tabID,
+        focusedSurfaceID: focusHistoryByTab[tabID]?.current
+      )
+    else {
+      agentCompletionStore.clear(for: surfaceID)
+      return
+    }
+    agentCompletionStore.record(identity, for: surfaceID)
   }
 
   func agentStateSurfaceID(agent: SupatermAgentKind, sessionID: String) -> UUID? {
@@ -573,6 +690,10 @@ extension TerminalHostState {
           identity: observation.agent,
           phase: observation.phase,
           detail: nativePresentation?.detail
+        ),
+        completionIdentity: .screen(
+          agent: observation.agent,
+          processIdentity: observation.processIdentity
         ),
         nativePresentation: nativePresentation,
         phaseSource: .terminal,
@@ -639,6 +760,10 @@ extension TerminalHostState {
         agent: presentation.agent,
         phase: presentation.phase,
         detail: presentation.detail
+      ),
+      completionIdentity: .native(
+        agent: presentation.agent,
+        sessionID: presentation.sessionID
       ),
       nativePresentation: presentation,
       phaseSource: .native,
