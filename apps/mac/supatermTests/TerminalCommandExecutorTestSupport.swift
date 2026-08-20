@@ -112,6 +112,23 @@ func agentHookRequest(
   )
 }
 
+func agentDetectionObservation(
+  agent: SupatermAgentKind = .codex,
+  phase: AgentActivityPhase,
+  processIdentity: TerminalAgentProcessIdentity,
+  ruleID: String = "test",
+  sequence: UInt64
+) -> TerminalAgentDetectionObservation {
+  TerminalAgentDetectionObservation(
+    agent: AgentDetectionAgentIdentity(agent),
+    phase: phase,
+    processIdentity: processIdentity,
+    ruleID: ruleID,
+    generation: 1,
+    sequence: sequence
+  )
+}
+
 func makeClaudeHookHarness(
   windowActivity: WindowActivityState = WindowActivityState(isKeyWindow: true, isVisible: true)
 ) throws -> ClaudeHookHarness {

@@ -23,7 +23,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
 - Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
 - The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.
-- The tab derives `needs input`, `done`, and `working` from agent phase, focus, and notification state. No separate seen state exists.
+- The tab derives `needs input` and `working` from agent phase and focus. A per-surface, temporary completion marker derives `done` until the tab is viewed. Notifications remain separate.
 
 ## Shared Responsibilities
 

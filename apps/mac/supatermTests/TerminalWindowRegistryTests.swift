@@ -1085,8 +1085,8 @@ struct TerminalWindowRegistryTests {
     }
   }
   @Test
-  func requestCloseTabInKeyWindowAsksHostToResolveClose() async throws {
-    try await withDependencies {
+  func requestCloseTabInKeyWindowAsksHostToResolveClose() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       let registry = TerminalWindowRegistry()
@@ -1095,8 +1095,6 @@ struct TerminalWindowRegistryTests {
       defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
-      } withDependencies: {
-        $0.terminalClient = .live(host: host)
       }
       let windowControllerID = UUID()
 
@@ -1114,13 +1112,15 @@ struct TerminalWindowRegistryTests {
       let window = makeWindow()
       registry.updateWindow(window, for: windowControllerID)
 
-      let eventTask = store.send(.terminal(.task))
-      defer { eventTask.cancel() }
       registry.requestCloseTabInKeyWindow()
-      let closed = await waitUntil {
-        !host.tabs.contains { $0.id == tabID }
-      }
-      #expect(closed)
+      let request = try #require(
+        host.pendingEvents.compactMap { event -> TerminalCloseRequest? in
+          guard case .closeRequested(let request) = event else { return nil }
+          return request
+        }.first
+      )
+      #expect(host.pendingEvents.count == 1)
+      #expect(request.target == .tab(tabID))
     }
   }
   @Test
@@ -1450,7 +1450,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandAvailabilityDisablesUnsupportedAgentSessionActions() throws {
+  func commandAvailabilityEnablesSupportedAgentSessionActions() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -1493,7 +1493,7 @@ struct TerminalWindowRegistryTests {
       let availability = registry.commandAvailability()
       #expect(availability.hasAgentPanel)
       #expect(!availability.hasAgentPanelPullRequest)
-      #expect(!availability.hasAgentPanelSession)
+      #expect(availability.hasAgentPanelSession)
     }
   }
 

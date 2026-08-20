@@ -327,6 +327,84 @@ struct TerminalTabTransferTests {
   }
 
   @Test
+  func crossWindowTransferKeepsTerminalCompletionAttention() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let space = TerminalSpaceItem(name: "Main")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let runtime = GhosttyRuntime()
+      let source = TerminalHostState(
+        runtime: runtime,
+        spaceID: space.id,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      let destination = TerminalHostState(
+        runtime: runtime,
+        spaceID: space.id,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      let tabID = source.spaceManager.tabCollection.createTab(title: "Source")
+      let surface = unbackedSurface(runtime: runtime, tabID: tabID)
+      let processIdentity = TerminalAgentProcessIdentity(
+        processID: 42,
+        startTimeMicroseconds: 1
+      )
+      source.trees[tabID] = SplitTree(view: surface)
+      source.surfaces[surface.id] = surface
+      source.focusHistoryByTab[tabID] = TerminalHostState.FocusHistory(current: surface.id)
+      source.applySelectedTab(tabID, in: space.id)
+
+      #expect(
+        source.applyAgentDetection(
+          agentDetectionObservation(
+            phase: .running,
+            processIdentity: processIdentity,
+            ruleID: "screen_working",
+            sequence: 1
+          ),
+          for: surface.id
+        )
+      )
+      #expect(
+        source.applyAgentDetection(
+          agentDetectionObservation(
+            phase: .idle,
+            processIdentity: processIdentity,
+            ruleID: "osc_title_idle",
+            sequence: 2
+          ),
+          for: surface.id
+        )
+      )
+      #expect(source.tabAgentPresentation(for: tabID).status == .done)
+
+      let plan = try TerminalHostState.prepareLiveTabTransfer(
+        TerminalTabTransferRequest(
+          expectedSourceRevision: source.spaceManager.tabCollection.topologyRevision,
+          expectedDestinationRevision: destination.spaceManager.tabCollection.topologyRevision,
+          itemIDs: [.tab(tabID)],
+          destination: .root(TerminalRootPlacement(isPinned: false, index: 0))
+        ),
+        from: source,
+        sourceSpaceID: space.id,
+        to: destination,
+        destinationSpaceID: space.id
+      )
+
+      _ = try TerminalHostState.commitLiveTabTransfer(plan, from: source, to: destination)
+
+      #expect(destination.tabAgentPresentation(for: tabID).status == .done)
+    }
+  }
+
+  @Test
   func registryTransfersWholeGroupToEmptyWindowWithIdentityMetadataAndChildOrder() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

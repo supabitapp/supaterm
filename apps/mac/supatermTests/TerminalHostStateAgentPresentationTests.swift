@@ -8,6 +8,13 @@ import Testing
 
 @MainActor
 struct TerminalHostStateAgentPresentationTests {
+  private struct BackgroundScreenFixture {
+    let host: TerminalHostState
+    let processIdentity: TerminalAgentProcessIdentity
+    let surfaceID: UUID
+    let tabID: TerminalTabID
+  }
+
   @Test
   func agentActivityStoresNormalizedDetail() throws {
     let host = makeHost()
@@ -141,6 +148,148 @@ struct TerminalHostStateAgentPresentationTests {
     #expect(host.unreadNotificationCount(for: tabID) == 0)
     #expect(host.tabAgentPresentation(for: tabID).status == .working)
     #expect(host.selectedSurfaceView?.id == firstSurface.id)
+  }
+
+  @Test(arguments: [AgentActivityPhase.running, .needsInput])
+  func backgroundScreenCompletionShowsDoneOverTerminalNotificationUntilViewed(
+    activePhase: AgentActivityPhase
+  ) throws {
+    let host = makeHost()
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    let window = makeWindow(focusing: surface)
+    defer { window.contentView = nil }
+    let processIdentity = TerminalAgentProcessIdentity(
+      processID: 42,
+      startTimeMicroseconds: 1
+    )
+    _ = host.createTab(inheritingFromSurfaceID: nil)
+
+    #expect(
+      host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: activePhase,
+          processIdentity: processIdentity,
+          ruleID: "screen_working",
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+    host.handleDesktopNotification(
+      body: "Done.",
+      surfaceID: surface.id,
+      title: "Codex"
+    )
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
+
+    #expect(
+      host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          ruleID: "osc_title_idle",
+          sequence: 2
+        ),
+        for: surface.id
+      )
+    )
+    #expect(host.tabAgentPresentation(for: tabID).status == .done)
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
+
+    host.selectTab(tabID)
+
+    #expect(host.tabAgentPresentation(for: tabID).status == nil)
+    #expect(host.unreadNotificationCount(for: tabID) == 0)
+  }
+
+  @Test
+  func backgroundNativeCompletionShowsDoneWithoutNotification() throws {
+    let host = makeHost()
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+
+    #expect(host.setTestAgentActivity(.pi(.running), for: surface.id))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
+
+    #expect(host.setTestAgentActivity(.pi(.idle), for: surface.id))
+    #expect(host.tabAgentPresentation(for: tabID).status == .done)
+    #expect(host.unreadNotificationCount(for: tabID) == 0)
+  }
+
+  @Test(arguments: [1, 2])
+  func screenIdleWithoutActiveTransitionStaysUnread(idleCount: Int) throws {
+    let fixture = try makeBackgroundScreenFixture()
+
+    #expect(applyScreenPhases(Array(repeating: .idle, count: idleCount), to: fixture))
+    fixture.host.handleDesktopNotification(
+      body: "Build finished",
+      surfaceID: fixture.surfaceID,
+      title: "Build"
+    )
+
+    #expect(fixture.host.tabAgentPresentation(for: fixture.tabID).status == nil)
+    #expect(fixture.host.unreadNotificationCount(for: fixture.tabID) == 1)
+  }
+
+  @Test
+  func newScreenTurnClearsDone() throws {
+    let fixture = try makeBackgroundScreenFixture()
+
+    #expect(applyScreenPhases([.running, .idle], to: fixture))
+    #expect(fixture.host.tabAgentPresentation(for: fixture.tabID).status == .done)
+
+    #expect(applyScreenPhases([.running], to: fixture, startingSequence: 3))
+
+    #expect(fixture.host.tabAgentPresentation(for: fixture.tabID).status == .working)
+  }
+
+  @Test
+  func focusedScreenCompletionDoesNotShowDone() throws {
+    let host = makeHost()
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    let window = makeWindow(focusing: surface)
+    defer { window.contentView = nil }
+    let processIdentity = TerminalAgentProcessIdentity(
+      processID: 42,
+      startTimeMicroseconds: 1
+    )
+
+    #expect(
+      applyScreenPhases(
+        [.running, .idle],
+        to: host,
+        surfaceID: surface.id,
+        processIdentity: processIdentity
+      )
+    )
+
+    #expect(host.tabAgentPresentation(for: tabID).status == nil)
+  }
+
+  @Test
+  func screenProcessReplacementClearsDone() throws {
+    let fixture = try makeBackgroundScreenFixture()
+
+    #expect(applyScreenPhases([.running, .idle], to: fixture))
+    #expect(fixture.host.tabAgentPresentation(for: fixture.tabID).status == .done)
+
+    #expect(
+      fixture.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: TerminalAgentProcessIdentity(
+            processID: 42,
+            startTimeMicroseconds: 2
+          ),
+          sequence: 3
+        ),
+        for: fixture.surfaceID
+      )
+    )
+
+    #expect(fixture.host.tabAgentPresentation(for: fixture.tabID).status == nil)
   }
 
   @Test
@@ -336,6 +485,55 @@ struct TerminalHostStateAgentPresentationTests {
     host.windowActivity = windowActivity
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     return host
+  }
+
+  private func makeBackgroundScreenFixture() throws -> BackgroundScreenFixture {
+    let host = makeHost()
+    let tabID = try #require(host.selectedTabID)
+    let surfaceID = try #require(host.selectedSurfaceView?.id)
+    _ = host.createTab(inheritingFromSurfaceID: nil)
+    return BackgroundScreenFixture(
+      host: host,
+      processIdentity: TerminalAgentProcessIdentity(
+        processID: 42,
+        startTimeMicroseconds: 1
+      ),
+      surfaceID: surfaceID,
+      tabID: tabID
+    )
+  }
+
+  private func applyScreenPhases(
+    _ phases: [AgentActivityPhase],
+    to fixture: BackgroundScreenFixture,
+    startingSequence: UInt64 = 1
+  ) -> Bool {
+    applyScreenPhases(
+      phases,
+      to: fixture.host,
+      surfaceID: fixture.surfaceID,
+      processIdentity: fixture.processIdentity,
+      startingSequence: startingSequence
+    )
+  }
+
+  private func applyScreenPhases(
+    _ phases: [AgentActivityPhase],
+    to host: TerminalHostState,
+    surfaceID: UUID,
+    processIdentity: TerminalAgentProcessIdentity,
+    startingSequence: UInt64 = 1
+  ) -> Bool {
+    phases.enumerated().allSatisfy { offset, phase in
+      host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: phase,
+          processIdentity: processIdentity,
+          sequence: startingSequence + UInt64(offset)
+        ),
+        for: surfaceID
+      )
+    }
   }
 
   private func branchDetails(

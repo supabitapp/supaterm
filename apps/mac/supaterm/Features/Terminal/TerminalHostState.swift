@@ -237,6 +237,7 @@ final class TerminalHostState {
 
   struct AgentStateInstance: Equatable, Sendable {
     let activity: AgentActivity
+    let completionIdentity: TerminalAgentCompletionIdentity
     let nativePresentation: TerminalAgentStatePresentation?
     let phaseSource: AgentPhaseSource
     let revision: UInt64
@@ -300,6 +301,7 @@ final class TerminalHostState {
   var surfaces: [UUID: GhosttySurfaceView] = [:]
   var focusHistoryByTab: [TerminalTabID: FocusHistory] = [:]
   var notificationStore = TerminalNotificationStore()
+  var agentCompletionStore = TerminalAgentCompletionStore()
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
   var agentDetectionStore = TerminalAgentDetectionStore()
   var agentStateStore = TerminalAgentStateStore()
@@ -1023,6 +1025,7 @@ final class TerminalHostState {
       return
     }
     for surface in tree.leaves() {
+      agentCompletionStore.clear(for: surface.id)
       guard let notifications = notificationStore.notifications(for: surface.id) else {
         continue
       }
@@ -1043,6 +1046,9 @@ final class TerminalHostState {
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surface: surface
     )
+    if activity.isFocused {
+      agentCompletionStore.clear(for: surfaceID)
+    }
     guard let notifications = notificationStore.notifications(for: surfaceID) else {
       return
     }

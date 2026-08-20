@@ -56,6 +56,23 @@ nonisolated struct TerminalAgentDetectionStore {
     observationsBySurfaceID.removeValue(forKey: surfaceID) != nil
   }
 
+  mutating func take(_ surfaceIDs: Set<UUID>) -> TerminalAgentDetectionStore {
+    var taken = TerminalAgentDetectionStore()
+    for surfaceID in surfaceIDs {
+      if let observation = observationsBySurfaceID.removeValue(forKey: surfaceID) {
+        taken.observationsBySurfaceID[surfaceID] = observation
+      }
+    }
+    return taken
+  }
+
+  mutating func merge(_ other: TerminalAgentDetectionStore) {
+    precondition(
+      observationsBySurfaceID.keys.allSatisfy { other.observationsBySurfaceID[$0] == nil }
+    )
+    observationsBySurfaceID.merge(other.observationsBySurfaceID) { _, incoming in incoming }
+  }
+
   mutating func pruneDeadProcesses(
     isProcessCurrent: (TerminalAgentProcessIdentity) -> Bool
   ) -> Set<UUID> {

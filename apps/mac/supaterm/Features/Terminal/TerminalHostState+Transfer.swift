@@ -37,6 +37,8 @@ extension TerminalHostState {
   }
 
   private struct LiveTabOwnership {
+    let agentCompletions: TerminalAgentCompletionStore
+    let agentDetections: TerminalAgentDetectionStore
     let agentSnapshots: [TerminalAgentStateSnapshot]
     let focusHistories: [TerminalTabID: FocusHistory]
     let metadata: [UUID: PaneAgentMetadata]
@@ -322,6 +324,8 @@ extension TerminalHostState {
     from source: TerminalHostState
   ) -> LiveTabOwnership {
     let ownership = LiveTabOwnership(
+      agentCompletions: source.agentCompletionStore.take(surfaceIDs),
+      agentDetections: source.agentDetectionStore.take(surfaceIDs),
       agentSnapshots: surfaceIDs.flatMap { source.agentStateStore.snapshots(for: $0) },
       focusHistories: Dictionary(
         uniqueKeysWithValues: tabIDs.compactMap { tabID in
@@ -360,6 +364,8 @@ extension TerminalHostState {
     includesTabState: Bool
   ) {
     destination.surfaces.merge(ownership.surfaces) { _, _ in preconditionFailure() }
+    destination.agentCompletionStore.merge(ownership.agentCompletions)
+    destination.agentDetectionStore.merge(ownership.agentDetections)
     destination.notificationStore.merge(ownership.notifications)
     destination.paneAgentMetadataBySurfaceID.merge(ownership.metadata) { _, _ in
       preconditionFailure()

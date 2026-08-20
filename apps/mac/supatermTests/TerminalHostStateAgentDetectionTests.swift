@@ -358,7 +358,8 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(appliedNative)
     #expect(appliedDetection)
     #expect(host.agentActivity(for: tabID) == .pi(.running, detail: "Native detail"))
-    #expect(host.agentPanelPresentation(for: surfaceID)?.session == nil)
+    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.agent == .pi)
+    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
   }
 
   @Test
