@@ -114,32 +114,10 @@ jobs:
           if-no-files-found: ignore
 
   mac_test_agent_e2e:
-    name: mac-test-agent-e2e (${{ matrix.id }})
+    name: mac-test-agent-e2e
     needs: changes
     if: needs.changes.outputs.mac == 'true'
     runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: codex
-            agent: codex
-            suite: CodexE2ETests
-          - id: codex-zmx
-            agent: codex
-            suite: CodexZmxE2ETests
-          - id: claude
-            agent: claude
-            suite: ClaudeE2ETests
-          - id: claude-zmx
-            agent: claude
-            suite: ClaudeZmxE2ETests
-          - id: pi
-            agent: pi
-            suite: PiE2ETests
-          - id: pi-zmx
-            agent: pi
-            suite: PiZmxE2ETests
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -148,23 +126,29 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-      - if: matrix.agent != 'codex'
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: ~/.local/share/mise/installs
-          key: agent-e2e-${{ runner.os }}-${{ runner.arch }}-${{ matrix.agent }}-${{ hashFiles('apps/mac/Makefile') }}
+          key: agent-e2e-${{ runner.os }}-${{ runner.arch }}-all-${{ hashFiles('apps/mac/Makefile') }}
       - run: >-
           make mac-test-e2e
-          E2E_AGENT="${{ matrix.agent }}"
-          E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E-${{ matrix.id }}.xcresult"
-          XCODEBUILD_FLAGS="-only-testing:supatermE2E/${{ matrix.suite }}"
+          E2E_AGENT=all
+          E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermAgentE2E.xcresult"
+          XCODEBUILD_FLAGS="
+          -only-testing:supatermE2E/AgentNarrowTabE2ETests
+          -only-testing:supatermE2E/CodexE2ETests
+          -only-testing:supatermE2E/CodexZmxE2ETests
+          -only-testing:supatermE2E/ClaudeE2ETests
+          -only-testing:supatermE2E/ClaudeZmxE2ETests
+          -only-testing:supatermE2E/PiE2ETests
+          -only-testing:supatermE2E/PiZmxE2ETests"
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: mac-test-agent-e2e-${{ matrix.id }}-xcresult
-          path: ${{ runner.temp }}/supatermE2E-${{ matrix.id }}.xcresult
+          name: mac-test-agent-e2e-xcresult
+          path: ${{ runner.temp }}/supatermAgentE2E.xcresult
           if-no-files-found: ignore
 
   mac_test_ui_build:

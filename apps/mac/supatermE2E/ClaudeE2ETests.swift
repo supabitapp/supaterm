@@ -4,7 +4,7 @@ import Testing
 
 private let claudeE2EBinaryURL = ProcessInfo.processInfo.environment["CLAUDE_E2E_BINARY"]
   .flatMap { path in path.isEmpty ? nil : URL(fileURLWithPath: path) }
-private let claudeE2EEnabled =
+let claudeE2EEnabled =
   claudeE2EBinaryURL
   .map { FileManager.default.isExecutableFile(atPath: $0.path) } ?? false
 
@@ -279,6 +279,57 @@ private func makeClaudeLaunchExecutable(_ executable: URL, home: URL) throws -> 
   return destination
 }
 
+func makeClaudeNarrowTabFixture(
+  app: SupatermE2EApp,
+  space: TestSpace,
+  tab: SupatermNewTabResult
+) async throws -> NarrowAgentTabFixture {
+  let environment = try ClaudeE2EEnvironment()
+  let marker = "narrow-claude-\(space.token)"
+  let server = try FakeModelServer(script: [
+    FakeModelExchange(
+      request: .messagesInputText(marker),
+      response: .messagesText("CLAUDE_NARROW_DONE_\(space.token)"),
+      waitForRelease: true
+    )
+  ])
+  do {
+    try writeClaudeState(home: app.cliHome, workspace: space.directory)
+    let launchExecutable = try makeClaudeLaunchExecutable(
+      environment.executable,
+      home: app.cliHome
+    )
+    let pane = SupatermPaneTargetRequest(paneID: tab.paneID)
+    try app.type(
+      makeClaudeCommand(
+        baseURL: server.baseURL,
+        home: app.cliHome,
+        executable: launchExecutable
+      ) + "\n",
+      into: pane
+    )
+    _ = try await waitForAgentSnapshot(
+      app,
+      paneID: tab.paneID,
+      kind: .claude,
+      phase: .idle,
+      ruleIDs: ClaudeRuleID.promptBox
+    )
+    try await app.waitForCapture(pane, contains: "manual mode on", timeout: 60)
+    return NarrowAgentTabFixture(
+      kind: .claude,
+      pane: pane,
+      prompt: "\(marker) Reply once with exactly CLAUDE_NARROW_DONE_\(space.token).",
+      promptMarker: marker,
+      runningRuleIDs: ClaudeRuleID.workingTitle,
+      server: server
+    )
+  } catch {
+    server.stop()
+    throw error
+  }
+}
+
 private func runClaudeSplitPanes() async throws {
   let environment = try ClaudeE2EEnvironment()
   let app = try await SupatermE2EApp.launch(
@@ -291,7 +342,9 @@ private func runClaudeSplitPanes() async throws {
       try? closeTestSpace(app, spaceID: spaceID)
     }
     app.terminate()
-    servers.forEach { $0.stop() }
+    for server in servers {
+      server.stop()
+    }
   }
 
   let space = try await makeTestSpace(app)

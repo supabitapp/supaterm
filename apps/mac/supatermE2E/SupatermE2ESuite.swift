@@ -102,7 +102,8 @@ func makeTab(_ app: SupatermE2EApp, in space: TestSpace) throws -> SupatermNewTa
 func makeSplit(
   _ app: SupatermE2EApp,
   in space: TestSpace,
-  startupCommand: SupatermTerminalStartup? = hermeticShellStartup
+  startupCommand: SupatermTerminalStartup? = hermeticShellStartup,
+  target: SupatermPaneTargetRequest? = nil
 ) throws -> SupatermNewPaneResult {
   try app.send(
     .newPane(
@@ -112,7 +113,7 @@ func makeSplit(
         direction: .right,
         focus: true,
         equalize: true,
-        target: .pane(space.tab.paneID)
+        target: .pane(target?.paneID ?? space.tab.paneID)
       )
     ),
     as: SupatermNewPaneResult.self

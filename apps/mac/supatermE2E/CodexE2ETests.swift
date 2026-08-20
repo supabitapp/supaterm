@@ -4,7 +4,7 @@ import Testing
 
 private let codexE2EBinaryURL = ProcessInfo.processInfo.environment["CODEX_E2E_BINARY"]
   .flatMap { path in path.isEmpty ? nil : URL(fileURLWithPath: path) }
-private let codexE2EEnabled =
+let codexE2EEnabled =
   codexE2EBinaryURL
   .map { FileManager.default.isExecutableFile(atPath: $0.path) } ?? false
 
@@ -26,7 +26,7 @@ struct CodexE2ETests {
   }
 
   @Test(.timeLimit(.minutes(5)))
-  func narrowSplitTracksClippedReconnectingAndQueuedSteers() async throws {
+  func staticTitleTracksReconnectingAndQueuedSteers() async throws {
     try await runCodexStaticTitleLifecycle()
   }
 }
@@ -130,15 +130,11 @@ private final class CodexE2EFixture {
           app: app
         )
       }
-      let command = SupatermShellCommand.escapedCommand([
-        "/usr/bin/env",
-        "CODEX_HOME=\(app.cliHome.appendingPathComponent(".codex").path)",
-        environment.executable.path,
-        "--strict-config",
-        "--no-alt-screen",
-        "--cd",
-        space.directory.path,
-      ])
+      let command = makeCodexCommand(
+        app: app,
+        executable: environment.executable,
+        workspace: space.directory
+      )
       try app.type(command + "\n", into: space.pane)
       let initial = try await waitForAgentSnapshot(
         app,
@@ -301,6 +297,61 @@ private enum CodexRuleID {
   static let steeredWorking: Set<String> = ["screen_working_fallback", "queued_messages_working"]
 }
 
+func makeCodexNarrowTabFixture(
+  app: SupatermE2EApp,
+  space: TestSpace,
+  tab: SupatermNewTabResult
+) async throws -> NarrowAgentTabFixture {
+  let environment = try CodexE2EEnvironment()
+  let marker = "narrow-codex-\(space.token)"
+  let server = try FakeModelServer(script: [
+    FakeModelExchange(
+      request: .responsesInputText(marker),
+      response: .responsesMessage("CODEX_NARROW_DONE_\(space.token)"),
+      waitForRelease: true,
+      failuresBeforeResponse: 2
+    )
+  ])
+  do {
+    try CodexE2EFixture.writeConfig(
+      baseURL: server.responsesBaseURL,
+      hooksEnabled: false,
+      home: app.cliHome,
+      workspace: space.directory,
+      terminalTitleItems: ["project"],
+      streamMaxRetries: 3
+    )
+    let pane = SupatermPaneTargetRequest(paneID: tab.paneID)
+    try app.type(
+      makeCodexCommand(
+        app: app,
+        executable: environment.executable,
+        workspace: space.directory
+      ) + "\n",
+      into: pane
+    )
+    _ = try await waitForAgentSnapshot(
+      app,
+      paneID: tab.paneID,
+      kind: .codex,
+      phase: .idle,
+      ruleIDs: CodexRuleID.idleTitle
+    )
+    try await app.waitForCapture(pane, contains: "gpt-5.6-luna low", timeout: 60)
+    return NarrowAgentTabFixture(
+      kind: .codex,
+      pane: pane,
+      prompt: "\(marker) Reply once with exactly CODEX_NARROW_DONE_\(space.token).",
+      promptMarker: marker,
+      runningRuleIDs: CodexRuleID.screenWorking,
+      server: server
+    )
+  } catch {
+    server.stop()
+    throw error
+  }
+}
+
 private func runCodexTrustPrompt() async throws {
   let environment = try CodexE2EEnvironment()
   let app = try await SupatermE2EApp.launch(
@@ -328,15 +379,11 @@ private func runCodexTrustPrompt() async throws {
     workspace: space.directory,
     trustsWorkspace: false
   )
-  let command = SupatermShellCommand.escapedCommand([
-    "/usr/bin/env",
-    "CODEX_HOME=\(app.cliHome.appendingPathComponent(".codex").path)",
-    environment.executable.path,
-    "--strict-config",
-    "--no-alt-screen",
-    "--cd",
-    space.directory.path,
-  ])
+  let command = makeCodexCommand(
+    app: app,
+    executable: environment.executable,
+    workspace: space.directory
+  )
   try app.type(command + "\n", into: space.pane)
   _ = try await waitForAgentSnapshot(
     app,
@@ -378,15 +425,6 @@ private func runCodexStaticTitleLifecycle() async throws {
   )
   defer { fixture.close() }
 
-  var splitPaneIDs: [UUID] = []
-  for _ in 0..<3 {
-    let split = try makeSplit(fixture.app, in: fixture.space)
-    splitPaneIDs.append(split.paneID)
-    try await fixture.app.waitForShellPrompt(
-      SupatermPaneTargetRequest(paneID: split.paneID)
-    )
-  }
-
   let marker = staticTitleMarker(fixture.space)
   let command = staticTitleCommand(fixture.space)
   let prompt =
@@ -397,21 +435,7 @@ private func runCodexStaticTitleLifecycle() async throws {
     contains: "Reconnecting...",
     timeout: 60
   )
-  try await fixture.app.waitUntil("Codex clips the reconnecting status", timeout: 10) {
-    try fixture.app.capture(fixture.space.pane)
-      .split(separator: "\n", omittingEmptySubsequences: false)
-      .contains { line in
-        let text = line.trimmingCharacters(in: .whitespaces)
-        return text.contains("Reconnecting...") && text.contains("s •") && text.hasSuffix("…")
-      }
-  }
   try await fixture.expect(.running, ruleIDs: CodexRuleID.screenWorking)
-  for paneID in splitPaneIDs.reversed() {
-    _ = try fixture.app.send(
-      .closePane(SupatermPaneTargetRequest(paneID: paneID)),
-      as: SupatermClosePaneResult.self
-    )
-  }
   fixture.server.releaseNextResponse()
   try await waitForCommandApproval(fixture, marker: marker)
   try await fixture.expect(.needsInput, ruleIDs: CodexRuleID.blockers)
@@ -436,6 +460,22 @@ private func runCodexStaticTitleLifecycle() async throws {
   try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle)
   try await stopCodex(fixture)
   try fixture.server.verifyComplete()
+}
+
+private func makeCodexCommand(
+  app: SupatermE2EApp,
+  executable: URL,
+  workspace: URL
+) -> String {
+  SupatermShellCommand.escapedCommand([
+    "/usr/bin/env",
+    "CODEX_HOME=\(app.cliHome.appendingPathComponent(".codex").path)",
+    executable.path,
+    "--strict-config",
+    "--no-alt-screen",
+    "--cd",
+    workspace.path,
+  ])
 }
 
 private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {
