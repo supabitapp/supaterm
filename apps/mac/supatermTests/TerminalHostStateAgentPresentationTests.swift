@@ -319,7 +319,7 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
-  func tabAgentPresentationHidesFocusedInputStatus() throws {
+  func tabAgentPresentationShowsFocusedInputStatus() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -327,7 +327,7 @@ struct TerminalHostStateAgentPresentationTests {
     defer { window.contentView = nil }
 
     #expect(host.setTestAgentActivity(.codex(.needsInput), for: surface.id))
-    #expect(host.tabAgentPresentation(for: tabID).status == nil)
+    #expect(host.tabAgentPresentation(for: tabID).status == .needsInput)
   }
 
   @Test

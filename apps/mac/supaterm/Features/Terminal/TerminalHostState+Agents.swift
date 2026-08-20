@@ -552,7 +552,7 @@ extension TerminalHostState {
   ) -> TabAgentStatus? {
     switch instance.activity.phase {
     case .needsInput:
-      return isFocused ? nil : .needsInput
+      return .needsInput
     case .running:
       return .working
     case .idle:
