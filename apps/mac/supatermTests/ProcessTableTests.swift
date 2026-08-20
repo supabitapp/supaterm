@@ -147,6 +147,22 @@ struct ProcessTableTests {
     )
   }
 
+  @Test
+  func readsArgumentsOnlyForTheCurrentProcessIdentity() throws {
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let arguments = try #require(TerminalAgentProcessInspector.commandLineArguments(for: identity))
+
+    #expect(arguments == ProcessTable.invocation(forProcessID: getpid())?.arguments)
+    #expect(
+      TerminalAgentProcessInspector.commandLineArguments(
+        for: TerminalAgentProcessIdentity(
+          processID: identity.processID,
+          startTimeMicroseconds: identity.startTimeMicroseconds + 1
+        )
+      ) == nil
+    )
+  }
+
   @Test(arguments: [Int32.min, -1, 0])
   func nonpositiveProcessIDHasNoIdentity(processID: Int32) {
     #expect(TerminalAgentProcessInspector.identity(for: processID) == nil)

@@ -19,7 +19,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.
 - Foreground session routing prevents restored or background sessions from stealing the panel, fork, copy, and tab activity surface.
 - The foreground root agent's session-start `cwd` is the panel workspace source. The pane working directory is the fallback until the session starts.
-- Agent-panel forks start the account login shell in a new pane and enter the agent's native fork command visibly. Supaterm waits for shell readiness when the shell reports it. The pane returns to that same shell when the forked agent exits.
+- Agent-panel forks start the account login shell in a new pane and enter the agent's native fork command visibly. Codex forks keep supported launch options from the source process, such as `--profile`. Supaterm waits for shell readiness when the shell reports it. The pane returns to that same shell when the forked agent exits.
 - Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
 - Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
 - The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.

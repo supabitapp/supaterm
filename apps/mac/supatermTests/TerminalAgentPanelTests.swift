@@ -237,7 +237,8 @@ struct TerminalAgentPanelTests {
     let codex = try #require(
       PaneAgentPanelSession.supported(
         agent: .codex,
-        sessionID: "019c7714-3b77-74d1-9866-e1f484aae2ab"
+        sessionID: "019c7714-3b77-74d1-9866-e1f484aae2ab",
+        commandLineArguments: ["codex", "--profile", "work"]
       )
     )
     let claude = try #require(
@@ -246,13 +247,58 @@ struct TerminalAgentPanelTests {
 
     #expect(
       codex.forkStartupCommand
-        == .shell("codex fork 019c7714-3b77-74d1-9866-e1f484aae2ab")
+        == .shell("codex --profile work fork 019c7714-3b77-74d1-9866-e1f484aae2ab")
     )
     #expect(
       claude.forkStartupCommand
         == .shell("claude --fork-session --resume session_1")
     )
     #expect(PaneAgentPanelSession.supported(agent: .pi, sessionID: "session-1") == nil)
+  }
+
+  @Test
+  func panelSessionKeepsCodexForkOptionsAndDropsPriorSessionArguments() throws {
+    let commandLineArguments = [
+      "node",
+      "/opt/node_modules/@openai/codex/bin/codex.js",
+      "--search",
+      "--config=model=codex-1",
+      "resume",
+      "--profile",
+      "work",
+      "old-session",
+      "old prompt",
+    ]
+    let session = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: "new-session",
+        commandLineArguments: commandLineArguments
+      )
+    )
+
+    #expect(
+      session.forkStartupCommand
+        == .shell(
+          "codex --search --config=model=codex-1 --profile work fork new-session"
+        )
+    )
+  }
+
+  @Test
+  func panelSessionDropsCodexPromptArguments() throws {
+    let session = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: "session-1",
+        commandLineArguments: ["codex", "-pwork", "--no-alt-screen", "old prompt"]
+      )
+    )
+
+    #expect(
+      session.forkStartupCommand
+        == .shell("codex -pwork --no-alt-screen fork session-1")
+    )
   }
 
   @Test

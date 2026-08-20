@@ -25,17 +25,31 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
   let agent: SupatermAgentKind
   let sessionID: String
   let workingDirectoryPath: String?
+  private let launchOptions: [String]
 
-  private init(agent: SupatermAgentKind, sessionID: String, workingDirectoryPath: String?) {
+  private init(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    workingDirectoryPath: String?,
+    commandLineArguments: [String]
+  ) {
     self.agent = agent
     self.sessionID = sessionID
     self.workingDirectoryPath = workingDirectoryPath
+    launchOptions =
+      switch agent {
+      case .codex:
+        Self.codexLaunchOptions(from: commandLineArguments)
+      case .claude, .pi:
+        []
+      }
   }
 
   static func supported(
     agent: SupatermAgentKind,
     sessionID: String,
-    workingDirectoryPath: String? = nil
+    workingDirectoryPath: String? = nil,
+    commandLineArguments: [String] = []
   ) -> Self? {
     switch agent {
     case .claude, .codex:
@@ -53,7 +67,8 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
     return Self(
       agent: agent,
       sessionID: sessionID,
-      workingDirectoryPath: workingDirectoryPath
+      workingDirectoryPath: workingDirectoryPath,
+      commandLineArguments: commandLineArguments
     )
   }
 
@@ -66,11 +81,109 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
     case .claude:
       return ["claude", "--fork-session", "--resume", sessionID]
     case .codex:
-      return ["codex", "fork", sessionID]
+      return ["codex"] + launchOptions + ["fork", sessionID]
     case .pi:
       preconditionFailure("Unsupported agent")
     }
   }
+
+  private static func codexLaunchOptions(from commandLineArguments: [String]) -> [String] {
+    let arguments = codexArguments(from: commandLineArguments)
+    let leading = codexOptions(in: arguments, from: arguments.startIndex)
+    guard leading.nextIndex < arguments.endIndex,
+      ["fork", "resume"].contains(arguments[leading.nextIndex])
+    else {
+      return leading.options
+    }
+    let resumed = codexOptions(in: arguments, from: leading.nextIndex + 1)
+    return leading.options + resumed.options
+  }
+
+  private static func codexArguments(from commandLineArguments: [String]) -> ArraySlice<String> {
+    guard let executable = commandLineArguments.first else { return [] }
+    let executableName = URL(fileURLWithPath: executable).lastPathComponent
+    if ["node", "nodejs"].contains(executableName),
+      commandLineArguments.count > 1,
+      commandLineArguments[1].hasSuffix("/@openai/codex/bin/codex.js")
+    {
+      return commandLineArguments.dropFirst(2)
+    }
+    return commandLineArguments.dropFirst()
+  }
+
+  private static func codexOptions(
+    in arguments: ArraySlice<String>,
+    from startIndex: ArraySlice<String>.Index
+  ) -> (options: [String], nextIndex: ArraySlice<String>.Index) {
+    var options: [String] = []
+    var index = startIndex
+    while index < arguments.endIndex {
+      let argument = arguments[index]
+      if codexFlagOptions.contains(argument) {
+        options.append(argument)
+        index += 1
+        continue
+      }
+      if codexValueOptions.contains(argument) {
+        let valueIndex = index + 1
+        guard valueIndex < arguments.endIndex else { break }
+        options.append(contentsOf: [argument, arguments[valueIndex]])
+        index = valueIndex + 1
+        continue
+      }
+      if let separatorIndex = argument.firstIndex(of: "="),
+        codexValueOptions.contains(String(argument[..<separatorIndex]))
+      {
+        options.append(argument)
+        index += 1
+        continue
+      }
+      if codexAttachedValueOptionPrefixes.contains(where: {
+        argument.hasPrefix($0) && argument.count > $0.count
+      }) {
+        options.append(argument)
+        index += 1
+        continue
+      }
+      break
+    }
+    return (options, index)
+  }
+
+  private static let codexFlagOptions: Set<String> = [
+    "--approve-for-me",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--dangerously-bypass-hook-trust",
+    "--no-alt-screen",
+    "--oss",
+    "--search",
+    "--strict-config",
+  ]
+
+  private static let codexValueOptions: Set<String> = [
+    "--add-dir",
+    "--ask-for-approval",
+    "--cd",
+    "--config",
+    "--disable",
+    "--enable",
+    "--image",
+    "--local-provider",
+    "--model",
+    "--profile",
+    "--remote",
+    "--remote-auth-token-env",
+    "--sandbox",
+    "-C",
+    "-a",
+    "-c",
+    "-i",
+    "-m",
+    "-p",
+    "-s",
+  ]
+
+  private static let codexAttachedValueOptionPrefixes = ["-C", "-a", "-c", "-i", "-m", "-p", "-s"]
 
   private static let sessionIDCharacters = CharacterSet(
     charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"

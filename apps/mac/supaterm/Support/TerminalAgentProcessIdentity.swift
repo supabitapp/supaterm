@@ -48,6 +48,18 @@ public enum TerminalAgentProcessInspector {
     self.identity(for: identity.processID) == identity
   }
 
+  public static func commandLineArguments(
+    for identity: TerminalAgentProcessIdentity
+  ) -> [String]? {
+    guard isCurrent(identity),
+      let arguments = ProcessTable.invocation(forProcessID: identity.processID)?.arguments,
+      isCurrent(identity)
+    else {
+      return nil
+    }
+    return arguments
+  }
+
   public static func foregroundProcessGroupID(for processID: Int32) -> Int32? {
     guard
       let processGroupID = process(for: processID)?.kp_eproc.e_tpgid,
