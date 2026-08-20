@@ -1,0 +1,7 @@
+supaterm — main
+
+Working (0s • f12 to interrupt)
+
+›
+
+Context 3% used · gpt-5.6-luna max · 258K window

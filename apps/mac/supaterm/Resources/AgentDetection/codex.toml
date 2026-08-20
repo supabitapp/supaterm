@@ -1,7 +1,7 @@
 id = "codex"
-version = "2026.08.19.1"
+version = "2026.08.20.1"
 min_engine_version = 3
-updated_at = "2026-08-19T00:00:00Z"
+updated_at = "2026-08-20T00:00:00Z"
 
 [[rules]]
 id = "osc_title_blocked"
@@ -68,13 +68,25 @@ any = [
   { contains = ["would you like to"], any = [{ contains = ["yes"] }, { contains = ["❯"] }] },
 ]
 
+# The header can be any text, the bullet vanishes without animations, and the
+# interrupt key is remappable, so anchor on the elapsed+interrupt suffix instead.
 [[rules]]
 id = "screen_working_fallback"
 state = "working"
 priority = 500
-region = "bottom_non_empty_lines(3)"
+region = "bottom_non_empty_lines(8)"
 visible_working = true
-line_regex = ['^[•◦]\s+Working \([^)]*esc to interrupt\)(?: · .*)?$']
+line_regex = ['^[•◦]?\s*\S.*\((?:\d+h )?(?:\d+m )?\d+s [•·] [^)]+ to interrupt\)(?: · .*)?$']
+not = [{ contains = ["■ Conversation interrupted"] }]
+
+# Streaming answers hide the status row; a pending-steer preview still means running.
+[[rules]]
+id = "queued_messages_working"
+state = "working"
+priority = 450
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+contains = ["to interrupt and send immediately"]
 not = [{ contains = ["■ Conversation interrupted"] }]
 
 [[rules]]

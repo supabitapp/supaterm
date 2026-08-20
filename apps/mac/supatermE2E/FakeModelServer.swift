@@ -55,11 +55,27 @@ nonisolated struct FakeModelExchange: Sendable {
   let request: Request
   let response: Response
   let waitForRelease: Bool
+  let failuresBeforeResponse: Int
 
-  init(request: Request, response: Response, waitForRelease: Bool = false) {
+  init(
+    request: Request,
+    response: Response,
+    waitForRelease: Bool = false,
+    failuresBeforeResponse: Int = 0
+  ) {
     self.request = request
     self.response = response
     self.waitForRelease = waitForRelease
+    self.failuresBeforeResponse = failuresBeforeResponse
+  }
+
+  fileprivate var consumingOneFailure: FakeModelExchange {
+    FakeModelExchange(
+      request: request,
+      response: response,
+      waitForRelease: waitForRelease,
+      failuresBeforeResponse: failuresBeforeResponse - 1
+    )
   }
 }
 
@@ -240,6 +256,16 @@ nonisolated final class FakeModelServer: @unchecked Sendable {
           + "body keys: \(body.keys.sorted().joined(separator: ", ")); "
           + "message shape: \(messagesShape(body)).",
         connection: connection
+      )
+      return
+    }
+    if exchange.failuresBeforeResponse > 0 {
+      script[0] = exchange.consumingOneFailure
+      send(
+        status: "503 Service Unavailable",
+        contentType: "application/json",
+        body: Data(#"{"error":{"message":"E2E reconnect drill"}}"#.utf8),
+        to: connection
       )
       return
     }

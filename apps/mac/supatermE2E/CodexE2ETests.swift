@@ -24,6 +24,11 @@ struct CodexE2ETests {
   func trustPromptBlocksUntilApproved() async throws {
     try await runCodexTrustPrompt()
   }
+
+  @Test(.timeLimit(.minutes(5)))
+  func staticTitleTracksReconnectingAndQueuedSteers() async throws {
+    try await runCodexStaticTitleLifecycle()
+  }
 }
 
 @Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
@@ -86,7 +91,12 @@ private final class CodexE2EFixture {
     self.sessionID = sessionID
   }
 
-  static func launch(mode: CodexE2EMode) async throws -> CodexE2EFixture {
+  static func launch(
+    mode: CodexE2EMode,
+    terminalTitleItems: [String]? = nil,
+    streamMaxRetries: Int = 0,
+    script: (TestSpace) -> [FakeModelExchange] = makeCodexScript
+  ) async throws -> CodexE2EFixture {
     let environment = try CodexE2EEnvironment()
     let app = try await SupatermE2EApp.launch(
       zmxSessionsEnabled: mode.zmxSessionsEnabled,
@@ -96,13 +106,15 @@ private final class CodexE2EFixture {
     var server: FakeModelServer?
     do {
       let space = try await makeTestSpace(app)
-      let startedServer = try FakeModelServer(script: makeCodexScript(space))
+      let startedServer = try FakeModelServer(script: script(space))
       server = startedServer
       try writeConfig(
         baseURL: startedServer.responsesBaseURL,
         hooksEnabled: mode.hooksEnabled,
         home: app.cliHome,
-        workspace: space.directory
+        workspace: space.directory,
+        terminalTitleItems: terminalTitleItems,
+        streamMaxRetries: streamMaxRetries
       )
       if mode.hooksEnabled {
         let runner = SPBinaryRunner(
@@ -214,7 +226,9 @@ private final class CodexE2EFixture {
     hooksEnabled: Bool,
     home: URL,
     workspace: URL,
-    trustsWorkspace: Bool = true
+    trustsWorkspace: Bool = true,
+    terminalTitleItems: [String]? = nil,
+    streamMaxRetries: Int = 0
   ) throws {
     let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
     try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
@@ -249,17 +263,27 @@ private final class CodexE2EFixture {
       name = "E2E"
       request_max_retries = 0
       stream_idle_timeout_ms = 120000
-      stream_max_retries = 0
+      stream_max_retries = \(streamMaxRetries)
       supports_websockets = false
 
       [shell_environment_policy]
       inherit = "all"
-      """ + (trustsWorkspace ? """
+      """
+      + (terminalTitleItems.map { items in
+        """
 
 
-      [projects.\(tomlString(workspace.path))]
-      trust_level = "trusted"
-      """ : "")
+        [tui]
+        terminal_title = [\(items.map(tomlString).joined(separator: ", "))]
+        """
+      } ?? "")
+      + (trustsWorkspace
+        ? """
+
+
+        [projects.\(tomlString(workspace.path))]
+        trust_level = "trusted"
+        """ : "")
     try config.write(
       to: codexHome.appendingPathComponent("config.toml", isDirectory: false),
       atomically: true,
@@ -273,6 +297,8 @@ private enum CodexRuleID {
   static let idleTitle: Set<String> = ["osc_title_idle"]
   static let trustPrompt: Set<String> = ["trust_directory"]
   static let working: Set<String> = ["osc_title_working", "screen_working_fallback"]
+  static let screenWorking: Set<String> = ["screen_working_fallback"]
+  static let steeredWorking: Set<String> = ["screen_working_fallback", "queued_messages_working"]
 }
 
 private func runCodexTrustPrompt() async throws {
@@ -339,6 +365,52 @@ private func runCodexLifecycle(mode: CodexE2EMode) async throws {
   try await runInterruptedTurn(fixture, key: .ctrlC, name: "ctrl-c")
   try await runCancelledTurn(fixture)
   try await runCodexDraftClear(fixture)
+  try await stopCodex(fixture)
+  try fixture.server.verifyComplete()
+}
+
+private func runCodexStaticTitleLifecycle() async throws {
+  let fixture = try await CodexE2EFixture.launch(
+    mode: .screenRules,
+    terminalTitleItems: ["project"],
+    streamMaxRetries: 3,
+    script: makeCodexStaticTitleScript
+  )
+  defer { fixture.close() }
+
+  let marker = staticTitleMarker(fixture.space)
+  let command = staticTitleCommand(fixture.space)
+  let prompt =
+    "\(marker) Use the shell tool once to run exactly `\(command)`. Do not do anything else until it finishes."
+  try await fixture.app.submit(prompt, waitingFor: marker, into: fixture.space.pane)
+  try await fixture.app.waitForCapture(
+    fixture.space.pane,
+    contains: "Reconnecting...",
+    timeout: 60
+  )
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.screenWorking)
+  fixture.server.releaseNextResponse()
+  try await waitForCommandApproval(fixture, marker: marker)
+  try await fixture.expect(.needsInput, ruleIDs: CodexRuleID.blockers)
+  try fixture.approve()
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.screenWorking)
+  for ordinal in ["one", "two"] {
+    let steer = staticTitleSteer(fixture.space, ordinal: ordinal)
+    try await fixture.app.submit(steer, waitingFor: steer, into: fixture.space.pane)
+  }
+  try await fixture.app.waitForCapture(
+    fixture.space.pane,
+    contains: "to interrupt and send immediately",
+    timeout: 30
+  )
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.steeredWorking)
+  try fixture.app.press(.escape, in: fixture.space.pane)
+  try await fixture.app.waitForCapture(
+    fixture.space.pane,
+    contains: staticTitleCompletion(fixture.space),
+    timeout: 90
+  )
+  try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle)
   try await stopCodex(fixture)
   try fixture.server.verifyComplete()
 }
@@ -486,6 +558,7 @@ private enum CodexFakeCallID {
   static let escapeCommand = "escape-command"
   static let ctrlCCommand = "ctrl-c-command"
   static let cancelCommand = "cancel-command"
+  static let staticTitleCommand = "static-title-command"
 }
 
 private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
@@ -535,6 +608,44 @@ private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
       waitForRelease: true
     ),
   ]
+}
+
+private func makeCodexStaticTitleScript(_ space: TestSpace) -> [FakeModelExchange] {
+  [
+    FakeModelExchange(
+      request: .responsesInputText(staticTitleMarker(space)),
+      response: .responsesShellCommand(
+        callID: CodexFakeCallID.staticTitleCommand,
+        command: staticTitleCommand(space)
+      ),
+      waitForRelease: true,
+      failuresBeforeResponse: 2
+    ),
+    FakeModelExchange(
+      request: .responsesInputText(staticTitleSteer(space, ordinal: "one")),
+      response: .responsesMessage(staticTitleCompletion(space))
+    ),
+  ]
+}
+
+private func staticTitleMarker(_ space: TestSpace) -> String {
+  "static-title-\(space.token)"
+}
+
+private func staticTitleSteer(_ space: TestSpace, ordinal: String) -> String {
+  "steer-\(ordinal)-\(space.token)"
+}
+
+private func staticTitleCompletion(_ space: TestSpace) -> String {
+  "STATIC_TITLE_DONE_\(space.token)"
+}
+
+private func staticTitleCommand(_ space: TestSpace) -> String {
+  SupatermShellCommand.escapedCommand([
+    "/bin/sh",
+    "-c",
+    "/usr/bin/true \(staticTitleMarker(space)); /bin/sleep 30",
+  ])
 }
 
 private func lifecycleQuestion(_ space: TestSpace) -> String {

@@ -35,6 +35,7 @@ struct AgentDetectionRuleSetTests {
         "live_strong_blocker",
         "weak_blocker",
         "screen_working_fallback",
+        "queued_messages_working",
         "osc_title_idle",
       ]
     )

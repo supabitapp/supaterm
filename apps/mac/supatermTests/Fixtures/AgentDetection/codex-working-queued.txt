@@ -1,0 +1,12 @@
+supaterm — main
+
+• Working (1s • esc to interrupt)
+
+• Messages to be submitted after next tool call (press esc to interrupt and send immediately)
+  ↳ wef
+  ↳ wef
+  ↳ wef
+
+› Run /review on my current changes
+
+Context 3% used · gpt-5.6-luna max · 258K window
