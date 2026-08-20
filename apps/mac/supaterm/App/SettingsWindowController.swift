@@ -12,7 +12,6 @@ final class SettingsWindowController: NSWindowController {
   init(menuController: SupatermMenuController? = nil) {
     let store = Store(initialState: SettingsFeature.State()) {
       SettingsFeature()
-        .logActions()
     } withDependencies: {
       $0.analyticsClient.capture = { event in
         Task { @MainActor in

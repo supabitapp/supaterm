@@ -12,7 +12,7 @@ import Testing
 @MainActor
 struct SocketControlFeatureLifecycleTests {
   @Test
-  func taskStartsSocketObservationAndStoresEndpoint() async {
+  func taskStartsSocketObservation() async {
     let (stream, continuation) = AsyncStream.makeStream(of: SocketControlClient.Request.self)
     let endpoint = SupatermSocketEndpoint(
       id: UUID(uuidString: "8D630A04-61B5-48E8-9D7E-F7E0BB8B9B16")!,
@@ -27,19 +27,14 @@ struct SocketControlFeatureLifecycleTests {
       $0.socketControlClient.start = { endpoint }
     }
 
-    await store.send(.task) {
-      $0.status = .starting
-    }
-    await store.receive(\.startResponse) {
-      $0.status = .running(endpoint)
-    }
+    await store.send(.task)
 
     continuation.finish()
     await store.finish()
   }
 
   @Test
-  func taskFailureStoresOneCoherentStatus() async {
+  func taskFailureEndsObservation() async {
     let store = makeStore {
       $0.socketControlClient.start = {
         throw NSError(
@@ -50,12 +45,8 @@ struct SocketControlFeatureLifecycleTests {
       }
     }
 
-    await store.send(.task) {
-      $0.status = .starting
-    }
-    await store.receive(\.startResponse) {
-      $0.status = .failed("Cannot bind socket")
-    }
+    await store.send(.task)
+    await store.finish()
   }
 
   @Test
@@ -75,14 +66,10 @@ struct SocketControlFeatureLifecycleTests {
       $0.socketControlClient.stop = {}
     }
 
-    await store.send(.task) {
-      $0.status = .starting
-    }
+    await store.send(.task)
     #expect(await waitUntil { startup.value.started })
 
-    await store.send(.shutdown) {
-      $0.status = .stopped
-    }
+    await store.send(.shutdown)
 
     #expect(await waitUntil { startup.value.cancelled })
     await store.finish()
@@ -98,6 +85,7 @@ struct SocketControlFeatureLifecycleTests {
       startedAt: Date(timeIntervalSince1970: 0)
     )
     let terminationCount = LockIsolated(0)
+    let started = LockIsolated(false)
     let stream = AsyncStream<SocketControlClient.Request> { continuation in
       continuation.onTermination = { _ in
         terminationCount.withValue { $0 += 1 }
@@ -105,19 +93,16 @@ struct SocketControlFeatureLifecycleTests {
     }
     let store = makeStore {
       $0.socketControlClient.requests = { stream }
-      $0.socketControlClient.start = { endpoint }
+      $0.socketControlClient.start = {
+        started.withValue { $0 = true }
+        return endpoint
+      }
       $0.socketControlClient.stop = {}
     }
 
-    await store.send(.task) {
-      $0.status = .starting
-    }
-    await store.receive(\.startResponse) {
-      $0.status = .running(endpoint)
-    }
-    await store.send(.shutdown) {
-      $0.status = .stopped
-    }
+    await store.send(.task)
+    #expect(await waitUntil { started.value })
+    await store.send(.shutdown)
 
     #expect(await waitUntil { terminationCount.value == 1 })
     await store.finish()
@@ -139,7 +124,11 @@ struct SocketControlFeatureLifecycleTests {
     )
     let store = makeStore {
       $0.socketControlClient.stop = {}
-      $0.terminalWindowsClient.createTab = { _ in
+      $0.socketRequestExecutor.executeTerminalCreation = { request in
+        guard case .createTab = request else {
+          Issue.record("Expected create tab request")
+          throw CancellationError()
+        }
         execution.withValue { $0.started = true }
         do {
           try await Task.sleep(for: .seconds(60))
@@ -209,10 +198,6 @@ struct SocketControlFeatureLifecycleTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createTab = { _ in
-        Issue.record("Expired request should not create a tab.")
-        throw POSIXError(.EIO)
-      }
     }
 
     await store.send(.requestReceived(request))
@@ -253,23 +238,13 @@ struct SocketControlFeatureLifecycleTests {
   @Test
   func shutdownStopsSocketRuntime() async {
     let recorder = StopRecorder()
-    let endpoint = SupatermSocketEndpoint(
-      id: UUID(uuidString: "C8B0AB8F-B55B-447E-B37B-C1BB2DA42493")!,
-      name: "test",
-      path: "/tmp/supaterm.sock",
-      pid: 1,
-      startedAt: Date(timeIntervalSince1970: 0)
-    )
-
-    let store = makeStore(initialState: SocketControlFeature.State(status: .running(endpoint))) {
+    let store = makeStore {
       $0.socketControlClient.stop = {
         await recorder.recordStop()
       }
     }
 
-    await store.send(.shutdown) {
-      $0.status = .stopped
-    }
+    await store.send(.shutdown)
 
     #expect(await recorder.stopCount() == 1)
   }

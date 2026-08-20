@@ -42,11 +42,15 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.focusPane = { target in
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .focusPane(let target) = execution else {
+          Issue.record("Expected focus pane request")
+          throw CancellationError()
+        }
         #expect(
           target == TerminalPaneTarget(paneID: controlPaneID)
         )
-        return result
+        return .focusPane(result)
       }
     }
 
@@ -95,14 +99,18 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.paneHealth = { request in
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .paneHealth(let request) = execution else {
+          Issue.record("Expected pane health request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalPaneHealthRequest(
               target: TerminalPaneTarget(paneID: controlPaneID)
             )
         )
-        return result
+        return .paneHealth(result)
       }
     }
 
@@ -140,14 +148,18 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.equalizePanes = { request in
+      $0.socketRequestExecutor.executeTerminalTab = { execution in
+        guard case .equalizePanes(let request) = execution else {
+          Issue.record("Expected equalize panes request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalEqualizePanesRequest(
               target: TerminalTabTarget(tabID: controlTabID)
             )
         )
-        return result
+        return .equalizePanes(result)
       }
     }
 
@@ -184,14 +196,18 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.mainVerticalPanes = { request in
+      $0.socketRequestExecutor.executeTerminalTab = { execution in
+        guard case .mainVerticalPanes(let request) = execution else {
+          Issue.record("Expected main vertical panes request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalMainVerticalPanesRequest(
               target: TerminalTabTarget(tabID: controlTabID)
             )
         )
-        return result
+        return .mainVerticalPanes(result)
       }
     }
 
@@ -232,11 +248,15 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.pinTab = { target in
+      $0.socketRequestExecutor.executeTerminalTab = { execution in
+        guard case .pinTab(let target) = execution else {
+          Issue.record("Expected pin tab request")
+          throw CancellationError()
+        }
         #expect(
           target == TerminalTabTarget(tabID: controlTabID)
         )
-        return result
+        return .pinTab(result)
       }
     }
 
@@ -277,11 +297,15 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.unpinTab = { target in
+      $0.socketRequestExecutor.executeTerminalTab = { execution in
+        guard case .unpinTab(let target) = execution else {
+          Issue.record("Expected unpin tab request")
+          throw CancellationError()
+        }
         #expect(
           target == TerminalTabTarget(tabID: controlTabID)
         )
-        return result
+        return .unpinTab(result)
       }
     }
 
@@ -325,7 +349,11 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.setPaneSize = { request in
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .setPaneSize(let request) = execution else {
+          Issue.record("Expected set pane size request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalSetPaneSizeRequest(
@@ -335,7 +363,7 @@ struct SocketControlFeatureTerminalControlTests {
               unit: .percent
             )
         )
-        return result
+        return .setPaneSize(result)
       }
     }
 
@@ -378,7 +406,11 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.sendText = { request in
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .sendText(let request) = execution else {
+          Issue.record("Expected send text request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalSendTextRequest(
@@ -387,7 +419,7 @@ struct SocketControlFeatureTerminalControlTests {
               text: "first\nsecond"
             )
         )
-        return result
+        return .sendText(result)
       }
     }
 
@@ -429,7 +461,11 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.sendKey = { request in
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .sendKey(let request) = execution else {
+          Issue.record("Expected send key request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalSendKeyRequest(
@@ -437,7 +473,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: TerminalPaneTarget(paneID: controlPaneID)
             )
         )
-        return result
+        return .sendKey(result)
       }
     }
 
@@ -468,10 +504,6 @@ struct SocketControlFeatureTerminalControlTests {
     let store = makeStore {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
-      }
-      $0.terminalWindowsClient.capturePane = { _ in
-        Issue.record("Invalid capture lines reached the terminal client.")
-        throw TerminalControlError.captureFailed
       }
     }
 
@@ -512,9 +544,13 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.screenshotPane = { target in
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .screenshotPane(let target) = execution else {
+          Issue.record("Expected screenshot pane request")
+          throw CancellationError()
+        }
         #expect(target == TerminalPaneTarget(paneID: controlPaneID))
-        return result
+        return .screenshotPane(result)
       }
     }
 
@@ -551,14 +587,18 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.tilePanes = { request in
+      $0.socketRequestExecutor.executeTerminalTab = { execution in
+        guard case .tilePanes(let request) = execution else {
+          Issue.record("Expected tile panes request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalTilePanesRequest(
               target: TerminalTabTarget(tabID: tileTabID)
             )
         )
-        return result
+        return .tilePanes(result)
       }
     }
 
@@ -600,12 +640,16 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createSpace = { request in
+      $0.socketRequestExecutor.executeTerminalSpace = { execution in
+        guard case .createSpace(let request) = execution else {
+          Issue.record("Expected create space request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalCreateSpaceRequest(color: nil, name: "Build", context: controlContext)
         )
-        return result
+        return .createSpace(result)
       }
     }
 
@@ -632,7 +676,11 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createSpace = { _ in
+      $0.socketRequestExecutor.executeTerminalSpace = { execution in
+        guard case .createSpace = execution else {
+          Issue.record("Expected create space request")
+          throw CancellationError()
+        }
         throw TerminalControlError.spaceNameUnavailable
       }
     }
@@ -668,7 +716,11 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.setSpaceColor = { request in
+      $0.socketRequestExecutor.executeTerminalSpace = { execution in
+        guard case .setSpaceColor(let request) = execution else {
+          Issue.record("Expected set space color request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalSetSpaceColorRequest(
@@ -676,7 +728,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: TerminalSpaceTarget(spaceID: controlSpaceID)
             )
         )
-        return result
+        return .setSpaceColor(result)
       }
     }
 
@@ -706,7 +758,11 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.setSpaceColor = { _ in
+      $0.socketRequestExecutor.executeTerminalSpace = { execution in
+        guard case .setSpaceColor = execution else {
+          Issue.record("Expected set space color request")
+          throw CancellationError()
+        }
         throw TerminalControlError.contextPaneNotFound
       }
     }
@@ -734,7 +790,11 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.closeSpace = { _ in
+      $0.socketRequestExecutor.executeTerminalSpace = { execution in
+        guard case .closeSpace = execution else {
+          Issue.record("Expected close space request")
+          throw CancellationError()
+        }
         throw TerminalControlError.onlyRemainingSpace
       }
     }
@@ -779,12 +839,16 @@ struct SocketControlFeatureTerminalControlTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.nextTab = { request in
+      $0.socketRequestExecutor.executeTerminalTab = { execution in
+        guard case .nextTab(let request) = execution else {
+          Issue.record("Expected next tab request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalTabNavigationRequest(spaceID: controlSpaceID)
         )
-        return result
+        return .nextTab(result)
       }
     }
 

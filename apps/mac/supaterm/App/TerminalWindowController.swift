@@ -151,7 +151,6 @@ final class TerminalWindowController: NSWindowController {
       )
     ) {
       AppFeature()
-        .logActions()
     } withDependencies: {
       $0.analyticsClient.capture = { event in
         Task { @MainActor in
