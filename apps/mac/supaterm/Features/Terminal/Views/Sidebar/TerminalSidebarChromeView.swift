@@ -19,7 +19,6 @@ struct TerminalSidebarChromeView: View {
   var body: some View {
     VStack(spacing: 10) {
       SpaceSidebarPagerView(
-        store: store,
         terminal: terminal,
         palette: palette,
         isActive: isPagingActive,

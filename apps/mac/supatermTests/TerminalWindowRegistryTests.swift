@@ -876,7 +876,7 @@ struct TerminalWindowRegistryTests {
       let firstTabID = try #require(host.selectedTabID)
       let secondTabID = try #require(host.createTab(focusing: false))
       let targetSurfaceID = try #require(host.trees[secondTabID]?.root?.leftmostLeaf().id)
-      host.handleCommand(.selectTab(firstTabID))
+      host.selectTab(firstTabID)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -1034,7 +1034,7 @@ struct TerminalWindowRegistryTests {
 
       let secondHost = TerminalHostState()
       secondHost.ensureInitialTab(focusing: false, startupCommand: nil)
-      secondHost.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      _ = secondHost.createTab(inheritingFromSurfaceID: nil)
 
       var firstState = AppFeature.State()
       firstState.terminal.sidebarWidth = 348
@@ -1085,89 +1085,88 @@ struct TerminalWindowRegistryTests {
     }
   }
   @Test
-  func requestCloseTabInKeyWindowDispatchesReducerCommand() async {
-    await withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let registry = TerminalWindowRegistry()
-      let recorder = TerminalCommandRecorder()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
-      let store = Store(initialState: AppFeature.State()) {
-        AppFeature()
-      } withDependencies: {
-        $0.terminalClient.send = { recorder.record($0) }
-      }
-      let windowControllerID = UUID()
-
-      let tabCollection = host.spaceManager.tabCollection
-      let tabID = tabCollection.createTab(title: "Terminal 1")
-      tabCollection.selectTab(tabID)
-
-      registry.register(
-        keyboardShortcutForAction: { _ in nil },
-        windowControllerID: windowControllerID,
-        store: store,
-        terminal: host,
-        requestConfirmedWindowClose: {}
-      )
-      let window = makeWindow()
-      registry.updateWindow(window, for: windowControllerID)
-
-      registry.requestCloseTabInKeyWindow()
-      let receivedCommand = await waitUntil {
-        recorder.commands == [.requestCloseTab(tabID)]
-      }
-      #expect(receivedCommand)
-    }
-  }
-  @Test
-  func requestNewTabInKeyWindowDispatchesReducerCommand() async {
-    await withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let registry = TerminalWindowRegistry()
-      let recorder = TerminalCommandRecorder()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
-      let store = Store(initialState: AppFeature.State()) {
-        AppFeature()
-      } withDependencies: {
-        $0.terminalClient.send = { recorder.record($0) }
-      }
-      let windowControllerID = UUID()
-
-      registry.register(
-        keyboardShortcutForAction: { _ in nil },
-        windowControllerID: windowControllerID,
-        store: store,
-        terminal: host,
-        requestConfirmedWindowClose: {}
-      )
-      let window = makeWindow()
-      registry.updateWindow(window, for: windowControllerID)
-
-      registry.requestNewTabInKeyWindow()
-      let receivedCommand = await waitUntil {
-        recorder.commands == [.createTab(inheritingFromSurfaceID: nil)]
-      }
-      #expect(receivedCommand)
-    }
-  }
-  @Test
-  func requestNewTabInSelectedGroupDispatchesReducerCommand() async throws {
+  func requestCloseTabInKeyWindowAsksHostToResolveClose() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       let registry = TerminalWindowRegistry()
-      let recorder = TerminalCommandRecorder()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      initializeGhosttyForTests()
+      let host = TerminalHostState(runtime: GhosttyRuntime())
+      defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       } withDependencies: {
-        $0.terminalClient.send = { recorder.record($0) }
+        $0.terminalClient = .live(host: host)
+      }
+      let windowControllerID = UUID()
+
+      let tabID = try #require(host.createTab())
+      _ = host.createTab()
+      host.selectTab(tabID)
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      let eventTask = store.send(.terminal(.task))
+      defer { eventTask.cancel() }
+      registry.requestCloseTabInKeyWindow()
+      let closed = await waitUntil {
+        !host.tabs.contains { $0.id == tabID }
+      }
+      #expect(closed)
+    }
+  }
+  @Test
+  func requestNewTabInKeyWindowCreatesTab() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      initializeGhosttyForTests()
+      let host = TerminalHostState(runtime: GhosttyRuntime())
+      defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      let initialCount = host.tabs.count
+      registry.requestNewTabInKeyWindow()
+      #expect(host.tabs.count == initialCount + 1)
+    }
+  }
+  @Test
+  func requestNewTabInSelectedGroupCreatesGroupedTab() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      initializeGhosttyForTests()
+      let host = TerminalHostState(runtime: GhosttyRuntime())
+      defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
       }
       let windowControllerID = UUID()
       let tabCollection = host.spaceManager.tabCollection
-      let tabID = tabCollection.createTab(title: "Terminal 1")
+      let tabID = try #require(host.createTab())
       let groupID = try #require(
         tabCollection.createGroup(title: "Group", containing: [tabID])
       ).groupID
@@ -1185,42 +1184,7 @@ struct TerminalWindowRegistryTests {
 
       #expect(registry.menuContext().hasSelectedGroup)
       registry.requestNewTabInSelectedGroupInKeyWindow()
-      let receivedCommand = await waitUntil {
-        recorder.commands == [.createTabInGroup(groupID, inheritingFromSurfaceID: nil)]
-      }
-      #expect(receivedCommand)
-    }
-  }
-  @Test
-  func requestBindingActionInKeyWindowDispatchesReducerCommand() async {
-    await withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let registry = TerminalWindowRegistry()
-      let recorder = TerminalCommandRecorder()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
-      let store = Store(initialState: AppFeature.State()) {
-        AppFeature()
-      } withDependencies: {
-        $0.terminalClient.send = { recorder.record($0) }
-      }
-      let windowControllerID = UUID()
-
-      registry.register(
-        keyboardShortcutForAction: { _ in nil },
-        windowControllerID: windowControllerID,
-        store: store,
-        terminal: host,
-        requestConfirmedWindowClose: {}
-      )
-      let window = makeWindow()
-      registry.updateWindow(window, for: windowControllerID)
-
-      registry.requestBindingActionInKeyWindow(.newSplit(.left))
-      let receivedCommand = await waitUntil {
-        recorder.commands == [.performBindingActionOnFocusedSurface(.newSplit(.left))]
-      }
-      #expect(receivedCommand)
+      #expect(host.spaceManager.tabCollection.group(for: groupID)?.tabs.count == 2)
     }
   }
   @Test
@@ -1446,8 +1410,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func requestForkAgentPanelSessionInKeyWindowForksSelectedSession() async throws {
-    try await withDependencies {
+  func requestForkAgentPanelSessionInKeyWindowForksSelectedSession() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -1464,25 +1428,8 @@ struct TerminalWindowRegistryTests {
           workingDirectoryPath: "/tmp/agent-workspace"
         )
       )
-      var requests: [TerminalCreatePaneRequest] = []
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
-      } withDependencies: {
-        $0.terminalClient.createPane = { request in
-          requests.append(request)
-          return SupatermNewPaneResult(
-            direction: request.direction,
-            isFocused: true,
-            isSelectedTab: true,
-            windowIndex: 1,
-            spaceIndex: 1,
-            spaceID: UUID(),
-            tabIndex: 1,
-            tabID: UUID(),
-            paneIndex: 2,
-            paneID: UUID()
-          )
-        }
       }
       let windowControllerID = UUID()
 
@@ -1496,24 +1443,9 @@ struct TerminalWindowRegistryTests {
       let window = makeWindow()
       registry.updateWindow(window, for: windowControllerID)
 
+      let initialPaneCount = host.selectedTree?.leaves().count
       registry.requestForkAgentPanelSessionInKeyWindow(direction: .right)
-      let clock = ContinuousClock()
-      let deadline = clock.now.advanced(by: .seconds(1))
-      while requests.isEmpty && clock.now < deadline {
-        await Task.yield()
-      }
-
-      #expect(
-        requests == [
-          TerminalCreatePaneRequest(
-            startupCommand: .shell("codex fork session-1"),
-            cwd: "/tmp/agent-workspace/",
-            direction: .right,
-            focus: true,
-            equalize: false,
-            target: .pane(surfaceID)
-          )
-        ])
+      #expect(host.selectedTree?.leaves().count == initialPaneCount.map { $0 + 1 })
     }
   }
 
@@ -1565,38 +1497,6 @@ struct TerminalWindowRegistryTests {
     }
   }
 
-  @Test
-  func requestNavigateSearchInKeyWindowDispatchesReducerCommand() async {
-    await withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let registry = TerminalWindowRegistry()
-      let recorder = TerminalCommandRecorder()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
-      let store = Store(initialState: AppFeature.State()) {
-        AppFeature()
-      } withDependencies: {
-        $0.terminalClient.send = { recorder.record($0) }
-      }
-      let windowControllerID = UUID()
-
-      registry.register(
-        keyboardShortcutForAction: { _ in nil },
-        windowControllerID: windowControllerID,
-        store: store,
-        terminal: host,
-        requestConfirmedWindowClose: {}
-      )
-      let window = makeWindow()
-      registry.updateWindow(window, for: windowControllerID)
-
-      registry.requestNavigateSearchInKeyWindow(.previous)
-      let receivedCommand = await waitUntil {
-        recorder.commands == [.navigateSearch(.previous)]
-      }
-      #expect(receivedCommand)
-    }
-  }
   @Test
   func closeAllWindowsPlanRequestsConfirmationOnce() {
     let confirmWindow = makeWindow()

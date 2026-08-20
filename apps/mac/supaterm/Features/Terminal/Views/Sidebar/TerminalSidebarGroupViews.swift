@@ -353,7 +353,6 @@ struct TerminalSidebarRowActions {
 }
 
 struct TerminalSidebarRowContext {
-  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let palette: Palette
   let renameState: TerminalSidebarRenameState
@@ -372,7 +371,6 @@ struct TerminalSidebarHostedRow: View {
     switch presentation {
     case .tab(let presentation):
       TerminalSidebarTabRow(
-        store: context.store,
         terminal: context.terminal,
         tab: presentation.tab,
         groupID: presentation.groupID,

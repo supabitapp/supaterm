@@ -120,7 +120,7 @@ struct TerminalHostStateAgentPresentationTests {
         target: .pane(firstSurface.id)
       )
     )
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
 
     #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
     #expect(host.setTestAgentActivity(.pi(.idle), for: secondPane.paneID))
@@ -189,7 +189,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(host.setTestAgentActivity(.codex(.needsInput), for: firstSurface.id))
 
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
 
     #expect(host.tabAgentPresentation(for: firstTabID).status == .needsInput)
   }

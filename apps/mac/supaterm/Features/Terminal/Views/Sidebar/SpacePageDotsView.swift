@@ -31,11 +31,14 @@ struct SpacePageDotsView: View {
         selectionPosition: position ?? Double(terminal.displayedSpaceIndex),
         select: { spaceID in
           guard spaceID != terminal.displayedSpaceID else { return }
-          _ = store.send(.selectSpaceButtonTapped(spaceID))
+          terminal.onSpaceAction(.select(spaceID))
         },
         edit: { space in _ = store.send(.spaceRenameRequested(space)) },
         delete: { space in _ = store.send(.spaceDeleteRequested(space)) },
-        newTab: { _ = store.send(.newTabInSpaceRequested($0)) },
+        newTab: {
+          AppPostHog.capture("terminal_tab_created")
+          terminal.createTabInSpace($0)
+        },
         reorder: { terminal.reorderSpace($0, toInsertionIndex: $1) },
         dropTab: { terminal.dropTab($0, on: $1) }
       )

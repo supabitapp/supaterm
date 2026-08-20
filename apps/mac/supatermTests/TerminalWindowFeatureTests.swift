@@ -27,240 +27,35 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func taskRoutesClientEvents() async {
-    let recorder = TerminalCommandRecorder()
-    let surfaceID = UUID()
-    let (stream, continuation) = makeEventStream()
-
+  func taskRoutesClientEventsToTheWindowHost() async {
+    let (events, continuation) = makeEventStream()
+    initializeGhosttyForTests()
+    let host = TerminalHostState(runtime: GhosttyRuntime())
+    defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
+    let analyticsRecorder = AnalyticsEventRecorder()
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.events = { stream }
-      $0.terminalClient.send = { recorder.record($0) }
+      $0.analyticsClient.capture = { analyticsRecorder.record($0) }
+      $0.terminalClient.events = { events }
+      $0.terminalClient.host = { host }
     }
 
     await store.send(.task)
-    #expect(recorder.commands.isEmpty)
-
-    continuation.yield(.newTabRequested(inheritingFromSurfaceID: surfaceID))
-
+    continuation.yield(.newTabRequested(inheritingFromSurfaceID: nil))
     await store.receive(\.clientEvent)
-    await store.receive(\.newTabButtonTapped)
 
-    #expect(
-      recorder.commands == [
-        .createTab(inheritingFromSurfaceID: surfaceID)
-      ])
+    #expect(host.tabs.count == 1)
+    #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
 
     continuation.finish()
     await store.finish()
   }
 
   @Test
-  func taskKeepsIndependentWindowEventStreamsActive() async {
-    let firstRecorder = TerminalCommandRecorder()
-    let secondRecorder = TerminalCommandRecorder()
-    let firstSurfaceID = UUID()
-    let secondSurfaceID = UUID()
-    let (firstStream, firstContinuation) = makeEventStream()
-    let (secondStream, secondContinuation) = makeEventStream()
-
-    let firstStore = TestStore(
-      initialState: TerminalWindowFeature.State(windowControllerID: UUID())
-    ) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.events = { firstStream }
-      $0.terminalClient.send = { firstRecorder.record($0) }
-    }
-    let secondStore = TestStore(
-      initialState: TerminalWindowFeature.State(windowControllerID: UUID())
-    ) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.events = { secondStream }
-      $0.terminalClient.send = { secondRecorder.record($0) }
-    }
-
-    await firstStore.send(.task)
-    await secondStore.send(.task)
-
-    firstContinuation.yield(.newTabRequested(inheritingFromSurfaceID: firstSurfaceID))
-    secondContinuation.yield(.newTabRequested(inheritingFromSurfaceID: secondSurfaceID))
-
-    await firstStore.receive(\.clientEvent)
-    await firstStore.receive(\.newTabButtonTapped)
-    await secondStore.receive(\.clientEvent)
-    await secondStore.receive(\.newTabButtonTapped)
-
-    #expect(firstRecorder.commands == [.createTab(inheritingFromSurfaceID: firstSurfaceID)])
-    #expect(secondRecorder.commands == [.createTab(inheritingFromSurfaceID: secondSurfaceID)])
-
-    firstContinuation.finish()
-    secondContinuation.finish()
-    await firstStore.finish()
-    await secondStore.finish()
-  }
-
-  @Test
-  func closeTabRequestedAsksHostToResolveClose() async {
-    let recorder = TerminalCommandRecorder()
-    let tabID = TerminalTabID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.closeTabRequested(tabID))
-
-    #expect(recorder.commands == [.requestCloseTab(tabID)])
-  }
-
-  @Test
-  func closeTabsBelowRequestedAsksHostToResolveClose() async {
-    let recorder = TerminalCommandRecorder()
-    let tabID = TerminalTabID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.closeTabsBelowRequested(tabID))
-
-    #expect(recorder.commands == [.requestCloseTabsBelow(tabID)])
-  }
-
-  @Test
-  func closeTabsRequestedAsksHostToResolveClose() async {
-    let recorder = TerminalCommandRecorder()
-    let tabIDs = [TerminalTabID(), TerminalTabID()]
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.closeTabsRequested(tabIDs))
-
-    #expect(recorder.commands == [.requestCloseTabs(tabIDs)])
-  }
-
-  @Test
-  func closeOtherTabsRequestedAsksHostToResolveClose() async {
-    let recorder = TerminalCommandRecorder()
-    let tabIDs = [TerminalTabID(), TerminalTabID()]
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.closeOtherTabsRequested(tabIDs))
-
-    #expect(recorder.commands == [.requestCloseOtherTabs(tabIDs)])
-  }
-
-  @Test
-  func newTabCaptureRecordsAnalyticsAndSendsCommand() async {
-    let analyticsRecorder = AnalyticsEventRecorder()
-    let recorder = TerminalCommandRecorder()
-    let surfaceID = UUID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.analyticsClient.capture = { event in
-        analyticsRecorder.record(event)
-      }
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.newTabButtonTapped(inheritingFromSurfaceID: surfaceID))
-
-    #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
-    #expect(recorder.commands == [.createTab(inheritingFromSurfaceID: surfaceID)])
-  }
-
-  @Test
-  func newTabInGroupCaptureRecordsAnalyticsAndSendsCommand() async {
-    let analyticsRecorder = AnalyticsEventRecorder()
-    let recorder = TerminalCommandRecorder()
-    let groupID = TerminalTabGroupID()
-    let surfaceID = UUID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.analyticsClient.capture = { event in
-        analyticsRecorder.record(event)
-      }
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(
-      .newTabInGroupRequested(groupID, inheritingFromSurfaceID: surfaceID)
-    )
-
-    #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
-    #expect(
-      recorder.commands
-        == [.createTabInGroup(groupID, inheritingFromSurfaceID: surfaceID)]
-    )
-  }
-
-  @Test
-  func newTabInSpaceCaptureRecordsAnalyticsAndSendsCommand() async {
-    let analyticsRecorder = AnalyticsEventRecorder()
-    let recorder = TerminalCommandRecorder()
-    let spaceID = TerminalSpaceID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.analyticsClient.capture = { event in
-        analyticsRecorder.record(event)
-      }
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.newTabInSpaceRequested(spaceID))
-
-    #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
-    #expect(recorder.commands == [.createTabInSpace(spaceID)])
-  }
-
-  @Test
-  func splitOperationCaptureRecordsAnalyticsAndSendsCommand() async {
-    let analyticsRecorder = AnalyticsEventRecorder()
-    let recorder = TerminalCommandRecorder()
-    let tabID = TerminalTabID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.analyticsClient.capture = { event in
-        analyticsRecorder.record(event)
-      }
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.splitOperationRequested(tabID: tabID, operation: .equalize))
-
-    #expect(analyticsRecorder.recorded() == ["terminal_pane_created"])
-    #expect(recorder.commands == [.performSplitOperation(tabID: tabID, operation: .equalize)])
-  }
-
-  @Test
   func agentPanelVisibilityToggleScopesToSurface() async {
     let firstSurfaceID = UUID()
     let secondSurfaceID = UUID()
-
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     }
@@ -277,17 +72,10 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func spaceCreateButtonTappedOpensEditorWithoutSendingCommand() async {
-    let analyticsRecorder = AnalyticsEventRecorder()
-    let recorder = TerminalCommandRecorder()
-
+  func spaceCreateButtonTappedOpensEditor() async {
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.analyticsClient.capture = { event in
-        analyticsRecorder.record(event)
-      }
-      $0.terminalClient.send = { recorder.record($0) }
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(CountingRandomNumberGenerator())
     }
 
@@ -300,9 +88,6 @@ struct TerminalWindowFeatureTests {
         )
       )
     }
-
-    #expect(analyticsRecorder.recorded().isEmpty)
-    #expect(recorder.commands.isEmpty)
   }
 
   @Test
@@ -316,16 +101,16 @@ struct TerminalWindowFeatureTests {
 
     await store.send(.spaceCreateButtonTapped) {
       $0.destination = .spaceEditor(
-        TerminalSpaceEditorState(
-          mode: .create,
-          draftName: "",
-          draftColor: .red
-        )
+        TerminalSpaceEditorState(mode: .create, draftName: "", draftColor: .red)
       )
     }
     await store.send(.commandPaletteToggleRequested)
     await store.send(
-      .clientEvent(.closeRequested(TerminalCloseRequest(target: .tab(tabID), needsConfirmation: true)))
+      .clientEvent(
+        .closeRequested(
+          TerminalCloseRequest(target: .tab(tabID), needsConfirmation: true)
+        )
+      )
     ) {
       $0.destination = .closeConfirmation(
         TerminalWindowFeature.PendingCloseRequest(
@@ -338,66 +123,66 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func closeRequestedPresentsConfirmationWhenNeeded() async {
-    let tabID = TerminalTabID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    }
-
-    await store.send(
-      .clientEvent(.closeRequested(TerminalCloseRequest(target: .tab(tabID), needsConfirmation: true)))
-    ) {
-      $0.destination = .closeConfirmation(
-        TerminalWindowFeature.PendingCloseRequest(
-          target: .tab(tabID),
-          title: "Close Tab?",
-          message: TerminalWindowFeature.closeTabWarningMessage
-        )
+  func closeConfirmationClosesPendingTab() async throws {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let tabCollection = host.spaceManager.tabCollection
+    let tabID = tabCollection.createTab(title: "Close")
+    _ = tabCollection.createTab(title: "Keep")
+    var initialState = TerminalWindowFeature.State()
+    initialState.destination = .closeConfirmation(
+      TerminalWindowFeature.PendingCloseRequest(
+        target: .tab(tabID),
+        title: "Close Tab?",
+        message: TerminalWindowFeature.closeTabWarningMessage
       )
+    )
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.host = { host }
     }
+
+    await store.send(.closeConfirmationConfirmButtonTapped) {
+      $0.destination = nil
+    }
+
+    #expect(!host.tabs.contains { $0.id == tabID })
   }
 
   @Test
-  func windowCloseRequestedPresentsConfirmationWhenNeeded() async {
-    let windowID = ObjectIdentifier(NSString())
-
-    let store = TestStore(
-      initialState: TerminalWindowFeature.State(
-        windowID: windowID
+  func closeConfirmationCancelKeepsPendingTab() async {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let tabID = host.spaceManager.tabCollection.createTab(title: "Keep")
+    var initialState = TerminalWindowFeature.State()
+    initialState.destination = .closeConfirmation(
+      TerminalWindowFeature.PendingCloseRequest(
+        target: .tab(tabID),
+        title: "Close Tab?",
+        message: TerminalWindowFeature.closeTabWarningMessage
       )
-    ) {
+    )
+    let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     }
 
-    await store.send(.clientEvent(.windowCloseRequested(needsConfirmation: true))) {
-      $0.destination = .windowCloseConfirmation(
-        TerminalWindowFeature.WindowCloseConfirmation(
-          target: .closeWindow(windowID),
-          title: "Close Window?",
-          message: TerminalWindowFeature.closeWindowWarningMessage,
-          confirmTitle: "Close Window"
-        )
-      )
+    await store.send(.closeConfirmationCancelButtonTapped) {
+      $0.destination = nil
     }
+
+    #expect(host.tabs.contains { $0.id == tabID })
   }
 
   @Test
-  func windowCloseRequestedClosesImmediatelyWhenRuntimeDoesNotRequireConfirmation() async {
+  func windowCloseRequestClosesImmediatelyWithoutConfirmation() async {
     let window = NSString()
     let windowID = ObjectIdentifier(window)
     var closedWindowIDs: [ObjectIdentifier] = []
-
     let store = TestStore(
-      initialState: TerminalWindowFeature.State(
-        windowID: windowID
-      )
+      initialState: TerminalWindowFeature.State(windowID: windowID)
     ) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.windowCloseClient.closeWindow = { windowID in
-        closedWindowIDs.append(windowID)
-      }
+      $0.windowCloseClient.closeWindow = { closedWindowIDs.append($0) }
     }
 
     await store.send(.clientEvent(.windowCloseRequested(needsConfirmation: false)))
@@ -406,124 +191,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func closeConfirmationConfirmClosesPendingTab() async {
-    let recorder = TerminalCommandRecorder()
-    let tabID = TerminalTabID()
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .closeConfirmation(
-      TerminalWindowFeature.PendingCloseRequest(
-        target: .tab(tabID),
-        title: "Close Tab?",
-        message: TerminalWindowFeature.closeTabWarningMessage
-      )
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.closeConfirmationConfirmButtonTapped) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.commands == [.closeTab(tabID)])
-  }
-
-  @Test
-  func closeConfirmationCancelDoesNotClosePendingTab() async {
-    let recorder = TerminalCommandRecorder()
-    let tabID = TerminalTabID()
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .closeConfirmation(
-      TerminalWindowFeature.PendingCloseRequest(
-        target: .tab(tabID),
-        title: "Close Tab?",
-        message: TerminalWindowFeature.closeTabWarningMessage
-      )
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.closeConfirmationCancelButtonTapped) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.commands.isEmpty)
-  }
-
-  @Test
-  func closeConfirmationConfirmClosesPendingTabs() async {
-    let recorder = TerminalCommandRecorder()
-    let firstTabID = TerminalTabID()
-    let secondTabID = TerminalTabID()
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .closeConfirmation(
-      TerminalWindowFeature.PendingCloseRequest(
-        target: .tabs([firstTabID, secondTabID]),
-        title: "Close Tabs?",
-        message: "A process is still running in one or more of these tabs. Close them anyway?"
-      )
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.closeConfirmationConfirmButtonTapped) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.commands == [.closeTabs([firstTabID, secondTabID])])
-  }
-
-  @Test
-  func closeSurfaceRequestedPresentsConfirmationForLiveProcess() async {
-    let surfaceID = UUID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    }
-
-    await store.send(
-      .clientEvent(.closeRequested(TerminalCloseRequest(target: .surface(surfaceID), needsConfirmation: true)))
-    ) {
-      $0.destination = .closeConfirmation(
-        TerminalWindowFeature.PendingCloseRequest(
-          target: .surface(surfaceID),
-          title: "Close Pane?",
-          message: "A process is still running in this pane. Close it anyway?"
-        )
-      )
-    }
-  }
-
-  @Test
-  func closeSurfaceRequestedClosesImmediatelyWhenProcessIsNotAlive() async {
-    let recorder = TerminalCommandRecorder()
-    let surfaceID = UUID()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(
-      .clientEvent(.closeRequested(TerminalCloseRequest(target: .surface(surfaceID), needsConfirmation: false))))
-
-    #expect(recorder.commands == [.closeSurface(surfaceID)])
-  }
-
-  @Test
-  func notificationReceivedDeliversDesktopNotificationWhenRequested() async throws {
+  func notificationReceivedDeliversDesktopNotification() async throws {
     let recorder = TerminalDesktopNotificationRecorder()
     let sourceSurfaceID = UUID()
     let event = TerminalNotificationEvent(
@@ -539,16 +207,11 @@ struct TerminalWindowFeatureTests {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.supatermSettings) var supatermSettings = .default
-      $supatermSettings.withLock {
-        $0.systemNotificationsEnabled = true
-      }
-
+      $supatermSettings.withLock { $0.systemNotificationsEnabled = true }
       let store = TestStore(initialState: TerminalWindowFeature.State()) {
         TerminalWindowFeature()
       } withDependencies: {
-        $0.desktopNotificationClient.deliver = { request in
-          await recorder.record(request)
-        }
+        $0.desktopNotificationClient.deliver = { await recorder.record($0) }
       }
 
       await store.send(.clientEvent(.notificationReceived(event)))
@@ -568,133 +231,9 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func notificationReceivedSkipsDesktopNotificationWhenNotRequested() async throws {
-    let recorder = TerminalDesktopNotificationRecorder()
-    let event = TerminalNotificationEvent(
-      attentionState: .unread,
-      body: "Build finished",
-      desktopNotificationDisposition: .suppressFocused,
-      resolvedTitle: "Deploy complete",
-      sourceSurfaceID: UUID(),
-      subtitle: ""
-    )
-
-    await withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      @Shared(.supatermSettings) var supatermSettings = .default
-      $supatermSettings.withLock {
-        $0.systemNotificationsEnabled = true
-      }
-
-      let store = TestStore(initialState: TerminalWindowFeature.State()) {
-        TerminalWindowFeature()
-      } withDependencies: {
-        $0.desktopNotificationClient.deliver = { request in
-          await recorder.record(request)
-        }
-      }
-
-      await store.send(.clientEvent(.notificationReceived(event)))
-
-      #expect(await recorder.snapshot().isEmpty)
-    }
-  }
-
-  @Test
-  func notificationReceivedSkipsDesktopNotificationWhenDisabledInPrefs() async throws {
-    let recorder = TerminalDesktopNotificationRecorder()
-    let event = TerminalNotificationEvent(
-      attentionState: .unread,
-      body: "Build finished",
-      desktopNotificationDisposition: .deliver,
-      resolvedTitle: "Deploy complete",
-      sourceSurfaceID: UUID(),
-      subtitle: "CI"
-    )
-
-    await withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let store = TestStore(initialState: TerminalWindowFeature.State()) {
-        TerminalWindowFeature()
-      } withDependencies: {
-        $0.desktopNotificationClient.deliver = { request in
-          await recorder.record(request)
-        }
-      }
-
-      await store.send(.clientEvent(.notificationReceived(event)))
-
-      #expect(await recorder.snapshot().isEmpty)
-    }
-  }
-
-  @Test
-  func bindingMenuItemSelectedSplitRightSendsFocusedSurfaceBindingCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.bindingMenuItemSelected(.newSplit(.right)))
-
-    #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.newSplit(.right))])
-  }
-
-  @Test
-  func bindingMenuItemSelectedSplitDownSendsFocusedSurfaceBindingCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.bindingMenuItemSelected(.newSplit(.down)))
-
-    #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.newSplit(.down))])
-  }
-
-  @Test
-  func bindingMenuItemSelectedEqualizeSendsFocusedSurfaceBindingCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.bindingMenuItemSelected(.equalizeSplits))
-
-    #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.equalizeSplits)])
-  }
-
-  @Test
-  func bindingMenuItemSelectedToggleSplitZoomSendsFocusedSurfaceBindingCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.bindingMenuItemSelected(.toggleSplitZoom))
-
-    #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.toggleSplitZoom)])
-  }
-
-  @Test
-  func commandPaletteTogglePresentsPalette() async {
+  func commandPaletteTogglePresentsAndDismissesPalette() async {
     let snapshot = makeCommandPaletteSnapshot()
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
-
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
@@ -706,24 +245,13 @@ struct TerminalWindowFeatureTests {
         TerminalCommandPaletteState(selectedRowID: rows.first?.id)
       )
     }
-  }
-
-  @Test
-  func commandPaletteToggleDismissesPalette() async {
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .commandPalette(TerminalCommandPaletteState())
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    }
-
     await store.send(.commandPaletteToggleRequested) {
       $0.destination = nil
     }
   }
 
   @Test
-  func commandPaletteQueryChangedUpdatesDraftAndResetsSelection() async {
+  func commandPaletteQueryChangedResetsSelection() async {
     let snapshot = makeCommandPaletteSnapshot()
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
     let matches = TerminalCommandPalettePresentation.matches(in: rows, query: "switch")
@@ -731,7 +259,6 @@ struct TerminalWindowFeatureTests {
     initialState.destination = .commandPalette(
       TerminalCommandPaletteState(selectedRowID: rows[1].id)
     )
-
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
@@ -746,38 +273,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func commandPaletteSelectionMovedClampsToFilteredRows() async {
-    let snapshot = makeCommandPaletteSnapshot()
-    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
-    let matches = TerminalCommandPalettePresentation.matches(in: rows, query: "switch")
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(
-        query: "switch",
-        selectedRowID: matches.first?.id
-      )
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
-    }
-
-    await store.send(.commandPaletteSelectionMoved(99)) {
-      $0.destination = .commandPalette(
-        TerminalCommandPaletteState(query: "switch", selectedRowID: matches.last?.id)
-      )
-    }
-    await store.send(.commandPaletteSelectionMoved(-99)) {
-      $0.destination = .commandPalette(
-        TerminalCommandPaletteState(query: "switch", selectedRowID: matches.first?.id)
-      )
-    }
-  }
-
-  @Test
-  func commandPaletteActivateSelectionFocusesPaneThroughPaletteClient() async throws {
+  func commandPaletteFocusesPaneThroughPaletteClient() async throws {
     let recorder = CommandPaletteClientRecorder()
     let snapshot = makeCommandPaletteSnapshot()
     let focusRow = try #require(
@@ -790,14 +286,11 @@ struct TerminalWindowFeatureTests {
     initialState.destination = .commandPalette(
       TerminalCommandPaletteState(selectedRowID: focusRow.id)
     )
-
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
       $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
-      $0.terminalCommandPaletteClient.focusPane = { target in
-        recorder.recordFocus(target)
-      }
+      $0.terminalCommandPaletteClient.focusPane = { recorder.focusTargets.append($0) }
     }
 
     await store.send(.commandPaletteActivateSelection) {
@@ -808,94 +301,11 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func commandPaletteActivateSelectionPerformsUpdateThroughPaletteClient() async throws {
-    let recorder = CommandPaletteClientRecorder()
-    let snapshot = makeCommandPaletteSnapshot()
-    let updateRow = try #require(
-      TerminalCommandPalettePresentation.rows(from: snapshot).first {
-        if case .update = $0.command { return true }
-        return false
-      }
-    )
-    let windowID = ObjectIdentifier(NSObject())
-    var initialState = TerminalWindowFeature.State()
-    initialState.windowID = windowID
-    initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(selectedRowID: updateRow.id)
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
-      $0.terminalCommandPaletteClient.performUpdateAction = { resolvedWindowID, action in
-        recorder.recordUpdate(windowID: resolvedWindowID, action: action)
-      }
-    }
-
-    await store.send(.commandPaletteActivateSelection) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.updateActions == [.install])
-    #expect(recorder.updateWindowIDs == [windowID])
-  }
-
-  @Test
-  func commandPaletteActivateSelectionExecutesGhosttyBindingActionAndClosesPalette() async {
-    let recorder = TerminalCommandRecorder()
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(selectedRowID: "terminal:split-right")
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.commandPaletteActivateSelection) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.commands == [.performGhosttyBindingActionOnFocusedSurface("new_split:right")])
-  }
-
-  @Test
-  func commandPaletteActivateSelectionTogglesPinnedStateAndClosesPalette() async throws {
-    let recorder = TerminalCommandRecorder()
-    let snapshot = makeCommandPaletteSnapshot()
-    let selectedTabID = try #require(snapshot.selectedTabID)
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(
-        selectedRowID: "supaterm:toggle-pinned:\(selectedTabID.rawValue.uuidString)"
-      )
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.commandPaletteActivateSelection) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.commands == [.togglePinned(selectedTabID)])
-  }
-
-  @Test
-  func commandPaletteActivateSelectionTogglesSidebarAndClosesPalette() async {
+  func commandPaletteTogglesSidebar() async {
     var initialState = TerminalWindowFeature.State()
     initialState.destination = .commandPalette(
       TerminalCommandPaletteState(selectedRowID: "supaterm:toggle-sidebar")
     )
-
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
@@ -909,99 +319,9 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func commandPaletteActivateSelectionPerformsAppActionAndClosesPalette() async {
-    let recorder = CommandPaletteClientRecorder()
-    let windowID = ObjectIdentifier(NSObject())
-    var initialState = TerminalWindowFeature.State()
-    initialState.windowID = windowID
-    initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(selectedRowID: "app:open-settings")
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
-      $0.terminalCommandPaletteClient.performAppAction = { resolvedWindowID, action in
-        recorder.recordAppAction(windowID: resolvedWindowID, action: action)
-      }
-    }
-
-    await store.send(.commandPaletteActivateSelection) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.appActions == [.openSettings])
-    #expect(recorder.appActionWindowIDs == [windowID])
-  }
-
-  @Test
-  func commandPaletteActivateSelectionKeepsPaletteOpenWhenNoVisibleRowMatches() async {
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(
-        query: "zzzzzz",
-        selectedRowID: "terminal:split-right"
-      )
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
-    }
-
-    await store.send(.commandPaletteActivateSelection)
-  }
-
-  @Test
-  func commandPaletteSlotActivatedExecutesFilteredRowThroughSharedPath() async {
-    let recorder = TerminalCommandRecorder()
-    let snapshot = makeCommandPaletteSnapshot()
-    let spaceID = snapshot.spaces[1].id
-    var initialState = TerminalWindowFeature.State()
-    initialState.destination = .commandPalette(
-      TerminalCommandPaletteState(query: "switch", selectedRowID: nil)
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.commandPaletteSlotActivated(1)) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.commands == [.selectSpace(spaceID)])
-  }
-
-  @Test
-  func commandPaletteToggleFromClientEventRoutesToSameReducerPath() async {
-    let snapshot = makeCommandPaletteSnapshot()
-    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
-    }
-
-    await store.send(.clientEvent(.commandPaletteToggleRequested))
-    await store.receive(\.commandPaletteToggleRequested) {
-      $0.destination = .commandPalette(
-        TerminalCommandPaletteState(selectedRowID: rows.first?.id)
-      )
-    }
-  }
-
-  @Test
-  func toggleSidebarButtonTappedTogglesCollapsedStateAndClearsResizeState() async {
+  func toggleSidebarClearsResizeState() async {
     var initialState = TerminalWindowFeature.State()
     initialState.sidebarResizeState = TerminalSidebarResizeState(startingWidth: 240, delta: 40)
-
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     }
@@ -1015,7 +335,6 @@ struct TerminalWindowFeatureTests {
   @Test
   func windowIdentifierChangedStoresWindowID() async {
     let windowID = ObjectIdentifier(NSObject())
-
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     }
@@ -1026,27 +345,22 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func spaceCreateFlowSendsCreateSpaceCommand() async {
+  func spaceCreateFlowPerformsHostAction() async {
     let analyticsRecorder = AnalyticsEventRecorder()
-    let recorder = TerminalCommandRecorder()
-
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var actions: [TerminalHostState.SpaceAction] = []
+    host.onSpaceAction = { actions.append($0) }
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.analyticsClient.capture = { event in
-        analyticsRecorder.record(event)
-      }
-      $0.terminalClient.send = { recorder.record($0) }
+      $0.analyticsClient.capture = { analyticsRecorder.record($0) }
+      $0.terminalClient.host = { host }
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(CountingRandomNumberGenerator())
     }
 
     await store.send(.spaceCreateButtonTapped) {
       $0.destination = .spaceEditor(
-        TerminalSpaceEditorState(
-          mode: .create,
-          draftName: "",
-          draftColor: .red
-        )
+        TerminalSpaceEditorState(mode: .create, draftName: "", draftColor: .red)
       )
     }
     await store.send(.spaceEditorTextChanged("Build")) {
@@ -1063,312 +377,43 @@ struct TerminalWindowFeatureTests {
       $0.destination = nil
     }
 
+    #expect(actions == [.create("Build", .green)])
     #expect(analyticsRecorder.recorded() == ["space_created"])
-    #expect(recorder.commands == [.createSpace(name: "Build", color: .green)])
   }
 
   @Test
-  func spaceCreateCancelClearsEditorWithoutSendingCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(
-      initialState: TerminalWindowFeature.State(
-        destination: .spaceEditor(
-          TerminalSpaceEditorState(
-            mode: .create,
-            draftName: "Build",
-            draftColor: .neutral
-          )
-        )
-      )
-    ) {
+  func spaceRenameAppliesNameBeforeColor() async {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var actions: [TerminalHostState.SpaceAction] = []
+    host.onSpaceAction = { actions.append($0) }
+    let space = TerminalSpaceItem(name: "Before", color: .neutral)
+    var initialState = TerminalWindowFeature.State()
+    initialState.destination = .spaceEditor(
+      TerminalSpaceEditorState(mode: .rename(space), draftName: "After", draftColor: .blue)
+    )
+    let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
+      $0.terminalClient.host = { host }
     }
 
-    await store.send(.spaceEditorCancelButtonTapped) {
-      $0.destination = nil
-    }
-
-    #expect(recorder.commands.isEmpty)
-  }
-
-  @Test
-  func nextSpaceRequestedSendsNextSpaceCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.nextSpaceRequested)
-
-    #expect(recorder.commands == [.nextSpace])
-  }
-
-  @Test
-  func previousSpaceRequestedSendsPreviousSpaceCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.previousSpaceRequested)
-
-    #expect(recorder.commands == [.previousSpace])
-  }
-
-  @Test
-  func sidebarTabSplitRequestedCreatesRightPaneInContextSurface() async {
-    let surfaceID = UUID()
-    let spaceID = UUID()
-    let tabID = UUID()
-    let paneID = UUID()
-    var requests: [TerminalCreatePaneRequest] = []
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.createPane = { request in
-        requests.append(request)
-        return SupatermNewPaneResult(
-          direction: request.direction,
-          isFocused: false,
-          isSelectedTab: true,
-          windowIndex: 1,
-          spaceIndex: 1,
-          spaceID: spaceID,
-          tabIndex: 1,
-          tabID: tabID,
-          paneIndex: 2,
-          paneID: paneID
-        )
-      }
-    }
-
-    await store.send(
-      TerminalWindowFeature.Action.sidebarTabSplitRequested(
-        surfaceID: surfaceID,
-        direction: SupatermPaneDirection.right
-      )
-    )
-
-    #expect(requests.count == 1)
-    #expect(
-      requests.first
-        == TerminalCreatePaneRequest(
-          startupCommand: nil,
-          cwd: nil,
-          direction: SupatermPaneDirection.right,
-          focus: false,
-          equalize: false,
-          target: .pane(surfaceID)
-        )
-    )
-  }
-
-  @Test
-  func sidebarTabSplitRequestedCreatesDownPaneInContextSurface() async {
-    let surfaceID = UUID()
-    let spaceID = UUID()
-    let tabID = UUID()
-    let paneID = UUID()
-    var requests: [TerminalCreatePaneRequest] = []
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.createPane = { request in
-        requests.append(request)
-        return SupatermNewPaneResult(
-          direction: request.direction,
-          isFocused: false,
-          isSelectedTab: true,
-          windowIndex: 1,
-          spaceIndex: 1,
-          spaceID: spaceID,
-          tabIndex: 1,
-          tabID: tabID,
-          paneIndex: 2,
-          paneID: paneID
-        )
-      }
-    }
-
-    await store.send(
-      TerminalWindowFeature.Action.sidebarTabSplitRequested(
-        surfaceID: surfaceID,
-        direction: SupatermPaneDirection.down
-      )
-    )
-
-    #expect(requests.count == 1)
-    #expect(
-      requests.first
-        == TerminalCreatePaneRequest(
-          startupCommand: nil,
-          cwd: nil,
-          direction: SupatermPaneDirection.down,
-          focus: false,
-          equalize: false,
-          target: .pane(surfaceID)
-        )
-    )
-  }
-
-  @Test
-  func agentPanelCopyTextWritesClipboard() async {
-    var copiedValues: [String] = []
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.clipboardClient.copyString = { value in
-        copiedValues.append(value)
-      }
-    }
-
-    await store.send(.agentPanelCopyText("/Users/Developer/code/supaterm"))
-
-    #expect(copiedValues == ["/Users/Developer/code/supaterm"])
-  }
-
-  @Test
-  func agentPanelForkSessionRequestedCreatesFocusedPaneInContextSurface() async throws {
-    let surfaceID = UUID()
-    let spaceID = UUID()
-    let tabID = UUID()
-    let paneID = UUID()
-    var requests: [TerminalCreatePaneRequest] = []
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.createPane = { request in
-        requests.append(request)
-        return SupatermNewPaneResult(
-          direction: request.direction,
-          isFocused: true,
-          isSelectedTab: true,
-          windowIndex: 1,
-          spaceIndex: 1,
-          spaceID: spaceID,
-          tabIndex: 1,
-          tabID: tabID,
-          paneIndex: 2,
-          paneID: paneID
-        )
-      }
-    }
-
-    await store.send(
-      .agentPanelForkSessionRequested(
-        surfaceID: surfaceID,
-        direction: .down,
-        session: try #require(
-          PaneAgentPanelSession.supported(
-            agent: .codex,
-            sessionID: "session-1",
-            workingDirectoryPath: "/tmp/agent-workspace/"
-          )
-        )
-      )
-    )
-
-    #expect(
-      requests == [
-        TerminalCreatePaneRequest(
-          startupCommand: .shell("codex fork session-1"),
-          cwd: "/tmp/agent-workspace/",
-          direction: .down,
-          focus: true,
-          equalize: false,
-          target: .pane(surfaceID)
-        )
-      ]
-    )
-  }
-
-  @Test
-  func moveCommittedSendsStructuralMoveCommand() async {
-    let recorder = TerminalCommandRecorder()
-    let tabID = TerminalTabID()
-    let placement = TerminalTabPlacement.root(
-      TerminalRootPlacement(isPinned: true, index: 1)
-    )
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    let request = TerminalTabMoveRequest(
-      operationID: TerminalTabMoveOperationID(
-        rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
-      ),
-      expectedTopologyRevision: 7,
-      itemIDs: [.tab(tabID)],
-      destination: placement
-    )
-    await store.send(.moveCommitted(request))
-
-    #expect(recorder.commands == [.move(request)])
-  }
-
-  @Test
-  func spaceRenameFlowStoresDraftAndSendsRenameCommand() async {
-    let recorder = TerminalCommandRecorder()
-    let space = TerminalSpaceItem(
-      id: TerminalSpaceID(rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!),
-      name: "A"
-    )
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.spaceRenameRequested(space)) {
-      $0.destination = .spaceEditor(
-        TerminalSpaceEditorState(
-          mode: .rename(space),
-          draftName: "A",
-          draftColor: .neutral
-        )
-      )
-    }
-    await store.send(.spaceEditorTextChanged("Shell")) {
-      $0.destination = .spaceEditor(
-        TerminalSpaceEditorState(mode: .rename(space), draftName: "Shell", draftColor: .neutral)
-      )
-    }
     await store.send(.spaceEditorSaveButtonTapped) {
       $0.destination = nil
     }
 
-    #expect(recorder.commands == [.renameSpace(space.id, "Shell")])
+    #expect(actions == [.rename(space.id, "After"), .setColor(space.id, .blue)])
   }
 
   @Test
-  func spaceDeleteFlowStoresRequestAndSendsDeleteCommand() async {
-    let recorder = TerminalCommandRecorder()
-    let space = TerminalSpaceItem(
-      id: TerminalSpaceID(rawValue: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!),
-      name: "B"
-    )
-
+  func spaceDeleteFlowPerformsHostAction() async {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var actions: [TerminalHostState.SpaceAction] = []
+    host.onSpaceAction = { actions.append($0) }
+    let space = TerminalSpaceItem(name: "Delete")
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
+      $0.terminalClient.host = { host }
     }
 
     await store.send(.spaceDeleteRequested(space)) {
@@ -1378,33 +423,11 @@ struct TerminalWindowFeatureTests {
       $0.destination = nil
     }
 
-    #expect(recorder.commands == [.deleteSpace(space.id)])
+    #expect(actions == [.delete(space.id)])
   }
 
   @Test
-  func windowCloseRequestedPresentsStyledConfirmation() async {
-    let windowID = ObjectIdentifier(NSObject())
-    var initialState = TerminalWindowFeature.State()
-    initialState.windowID = windowID
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    }
-
-    await store.send(.windowCloseRequested(windowID: windowID)) {
-      $0.destination = .windowCloseConfirmation(
-        TerminalWindowFeature.WindowCloseConfirmation(
-          target: .closeWindow(windowID),
-          title: "Close Window?",
-          message: TerminalWindowFeature.closeWindowWarningMessage,
-          confirmTitle: "Close Window"
-        )
-      )
-    }
-  }
-
-  @Test
-  func closeAllWindowsConfirmationClosesProvidedWindowIDs() async {
+  func closeAllWindowsConfirmationClosesProvidedWindows() async {
     let firstWindowID = ObjectIdentifier(NSObject())
     let secondWindowID = ObjectIdentifier(NSObject())
     var closedWindowIDs: [[ObjectIdentifier]] = []
@@ -1417,13 +440,10 @@ struct TerminalWindowFeatureTests {
         confirmTitle: "Close All Windows"
       )
     )
-
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.windowCloseClient.closeWindows = { windowIDs in
-        closedWindowIDs.append(windowIDs)
-      }
+      $0.windowCloseClient.closeWindows = { closedWindowIDs.append($0) }
     }
 
     await store.send(.confirmationConfirmButtonTapped) {
@@ -1431,21 +451,6 @@ struct TerminalWindowFeatureTests {
     }
 
     #expect(closedWindowIDs == [[firstWindowID, secondWindowID]])
-  }
-
-  @Test
-  func selectSpaceMenuItemSelectedSendsSelectSpaceSlotCommand() async {
-    let recorder = TerminalCommandRecorder()
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
-
-    await store.send(.selectSpaceMenuItemSelected(4))
-
-    #expect(recorder.commands == [.selectSpaceSlot(4)])
   }
 }
 
@@ -1457,23 +462,20 @@ private func makeEventStream() -> (
 }
 
 private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
-  let selectedSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000101")!)
-  let otherSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!)
-  let selectedTabID = TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!)
-  let otherTabID = TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!)
+  let selectedSpaceID = TerminalSpaceID()
+  let otherSpaceID = TerminalSpaceID()
+  let selectedTabID = TerminalTabID()
+  let otherTabID = TerminalTabID()
   let focusTarget = TerminalCommandPaletteFocusTarget(
-    windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000301")!,
-    surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000302")!,
+    windowControllerID: UUID(),
+    surfaceID: UUID(),
     title: "ping 1.1.1.1",
     subtitle: "~/Projects/network"
   )
 
   return TerminalCommandPaletteSnapshot(
     availableAppActions: [.openSettings],
-    ghosttyShortcutDisplayByAction: [
-      "new_split:right": "⌘D",
-      "open_config": "⌘,",
-    ],
+    ghosttyShortcutDisplayByAction: ["new_split:right": "⌘D"],
     updateEntries: [
       TerminalCommandPaletteUpdateEntry(
         id: "update-available:install",
@@ -1487,7 +489,7 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
       )
     ],
     focusTargets: [focusTarget],
-    selectedSurfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000399")!,
+    selectedSurfaceID: UUID(),
     selectedTabPaneCount: 2,
     selectedPaneIsZoomed: false,
     selectedSpaceID: selectedSpaceID,
@@ -1515,25 +517,7 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
 
 @MainActor
 private final class CommandPaletteClientRecorder {
-  private(set) var appActions: [TerminalCommandPaletteAppAction] = []
-  private(set) var appActionWindowIDs: [ObjectIdentifier?] = []
-  private(set) var focusTargets: [TerminalCommandPaletteFocusTarget] = []
-  private(set) var updateActions: [UpdateUserAction] = []
-  private(set) var updateWindowIDs: [ObjectIdentifier?] = []
-
-  func recordFocus(_ target: TerminalCommandPaletteFocusTarget) {
-    focusTargets.append(target)
-  }
-
-  func recordAppAction(windowID: ObjectIdentifier?, action: TerminalCommandPaletteAppAction) {
-    appActionWindowIDs.append(windowID)
-    appActions.append(action)
-  }
-
-  func recordUpdate(windowID: ObjectIdentifier?, action: UpdateUserAction) {
-    updateWindowIDs.append(windowID)
-    updateActions.append(action)
-  }
+  var focusTargets: [TerminalCommandPaletteFocusTarget] = []
 }
 
 private actor TerminalDesktopNotificationRecorder {

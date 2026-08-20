@@ -1,5 +1,4 @@
 import AppKit
-import ComposableArchitecture
 import SupaTheme
 import SwiftUI
 
@@ -63,7 +62,6 @@ struct TerminalSidebarTabRow: View {
     }
   }
 
-  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
@@ -255,7 +253,6 @@ struct TerminalSidebarTabRow: View {
       )
       if contextualTabIDs.count > 1 {
         TerminalSidebarBatchTabMenu(
-          store: store,
           terminal: terminal,
           tabIDs: contextualTabIDs,
           contextualTabID: tab.id,
@@ -276,9 +273,8 @@ struct TerminalSidebarTabRow: View {
           switch item {
           case .newTab:
             Button {
-              _ = store.send(
-                .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
-              )
+              AppPostHog.capture("terminal_tab_created")
+              _ = terminal.createTab(inheritingFromSurfaceID: contextSurfaceID)
             } label: {
               Label("New Tab", systemImage: "plus")
             }
@@ -288,7 +284,7 @@ struct TerminalSidebarTabRow: View {
 
           case .togglePinned(let isPinned):
             Button {
-              _ = store.send(.togglePinned(tab.id))
+              terminal.togglePinned(tab.id)
             } label: {
               Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
             }
@@ -308,13 +304,11 @@ struct TerminalSidebarTabRow: View {
             Menu {
               ForEach(availableGroups) { group in
                 Button(group.title) {
-                  _ = store.send(
-                    .moveCommitted(
-                      TerminalTabMoveRequest(
-                        expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
-                        itemIDs: [.tab(tab.id)],
-                        destination: .group(group.id, index: group.tabs.count)
-                      )
+                  _ = try? terminal.move(
+                    TerminalTabMoveRequest(
+                      expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
+                      itemIDs: [.tab(tab.id)],
+                      destination: .group(group.id, index: group.tabs.count)
                     )
                   )
                 }
@@ -326,7 +320,7 @@ struct TerminalSidebarTabRow: View {
 
           case .removeFromGroup:
             Button {
-              _ = store.send(.removeTabFromGroupRequested(tab.id))
+              terminal.removeTabFromGroup(tab.id)
             } label: {
               Label("Remove from Group", systemImage: "arrow.up.backward")
             }
@@ -340,7 +334,7 @@ struct TerminalSidebarTabRow: View {
 
           case .closeTabsBelow(let isEnabled):
             Button {
-              _ = store.send(.closeTabsBelowRequested(tab.id))
+              terminal.requestCloseTabsBelow(tab.id)
             } label: {
               Label("Close All Below", systemImage: "arrow.down.to.line")
             }
@@ -348,7 +342,7 @@ struct TerminalSidebarTabRow: View {
 
           case .closeOtherTabs(let isEnabled):
             Button {
-              _ = store.send(.closeOtherTabsRequested([tab.id]))
+              terminal.requestCloseOtherTabs(keeping: [tab.id])
             } label: {
               Label("Close Others", systemImage: "xmark.circle")
             }
@@ -356,7 +350,7 @@ struct TerminalSidebarTabRow: View {
 
           case .close:
             Button(role: .destructive) {
-              _ = store.send(.closeTabRequested(tab.id))
+              terminal.requestCloseTab(tab.id)
             } label: {
               Label("Close", systemImage: "xmark")
             }
@@ -399,12 +393,12 @@ struct TerminalSidebarTabRow: View {
 
   private func select() {
     selectionState.clear()
-    _ = store.send(.tabSelected(tab.id))
+    terminal.selectTab(tab.id)
   }
 
   private func close() {
     TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: reduceMotion) {
-      _ = store.send(.closeTabRequested(tab.id))
+      terminal.requestCloseTab(tab.id)
     }
   }
 }
@@ -432,7 +426,6 @@ struct TerminalSidebarBatchTabMenu: View {
     case disabled
   }
 
-  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tabIDs: [TerminalTabID]
   let contextualTabID: TerminalTabID
@@ -467,18 +460,18 @@ struct TerminalSidebarBatchTabMenu: View {
     Divider()
 
     Button(role: .destructive) {
-      _ = store.send(.closeTabsRequested(tabIDs))
+      terminal.requestCloseTabs(tabIDs)
     } label: {
       Label("Close \(tabIDs.count) Tabs", systemImage: "xmark")
     }
 
     Button("Close Other Tabs", systemImage: "xmark.circle") {
-      _ = store.send(.closeOtherTabsRequested(tabIDs))
+      terminal.requestCloseOtherTabs(keeping: tabIDs)
     }
     .disabled(!hasOtherTabs)
 
     Button("Close Tabs Below", systemImage: "arrow.down.to.line") {
-      _ = store.send(.closeTabsBelowRequested(contextualTabID))
+      terminal.requestCloseTabsBelow(contextualTabID)
     }
     .disabled(!hasTabsBelow)
   }
@@ -566,13 +559,11 @@ struct TerminalSidebarBatchTabMenu: View {
   }
 
   private func move(_ tabIDs: [TerminalTabID], to destination: TerminalTabPlacement) {
-    _ = store.send(
-      .moveCommitted(
-        TerminalTabMoveRequest(
-          expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
-          itemIDs: tabIDs.map(TerminalTabRootItemID.tab),
-          destination: destination
-        )
+    _ = try? terminal.move(
+      TerminalTabMoveRequest(
+        expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
+        itemIDs: tabIDs.map(TerminalTabRootItemID.tab),
+        destination: destination
       )
     )
   }

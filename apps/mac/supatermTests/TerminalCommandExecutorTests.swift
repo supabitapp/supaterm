@@ -272,7 +272,7 @@ struct TerminalCommandExecutorTests {
     let host = TerminalHostState()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let tabID = try #require(host.selectedTabID)
-    host.handleCommand(.togglePinned(tabID))
+    host.togglePinned(tabID)
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
@@ -358,9 +358,9 @@ struct TerminalCommandExecutorTests {
     let host = TerminalHostState()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let firstTabID = try #require(host.selectedTabID)
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
     let secondTabID = try #require(host.selectedTabID)
-    host.handleCommand(.selectTab(firstTabID))
+    host.selectTab(firstTabID)
 
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
@@ -403,7 +403,7 @@ struct TerminalCommandExecutorTests {
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let firstTabID = try #require(host.selectedTabID)
     let firstPaneID = try #require(host.selectedSurfaceView?.id)
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
     let secondTabID = try #require(host.selectedTabID)
 
     let store = Store(initialState: AppFeature.State()) {
@@ -488,15 +488,15 @@ struct TerminalCommandExecutorTests {
     let commandExecutor = makeCommandExecutor(registry: registry)
     let host = TerminalHostState()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
     let targetTabID = try #require(host.selectedTabID)
     let request = TerminalRenameTabRequest(
       target: TerminalTabTarget(tabID: targetTabID.rawValue),
       title: "Stable target"
     )
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
     let movedTabID = try #require(host.selectedTabID)
-    host.handleCommand(.togglePinned(movedTabID))
+    host.togglePinned(movedTabID)
 
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
@@ -651,7 +651,7 @@ struct TerminalCommandExecutorTests {
       let host = TerminalHostState()
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let firstTabID = try #require(host.selectedTabID)
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      _ = host.createTab(inheritingFromSurfaceID: nil)
       let secondTabID = try #require(host.selectedTabID)
 
       let store = Store(initialState: AppFeature.State()) {
@@ -698,7 +698,7 @@ struct TerminalCommandExecutorTests {
       let host = TerminalHostState()
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let firstTabID = try #require(host.selectedTabID)
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      _ = host.createTab(inheritingFromSurfaceID: nil)
       let groupedTabID = try #require(host.selectedTabID)
       let groupID = try #require(
         host.createGroup(title: "Group", containing: [firstTabID, groupedTabID])

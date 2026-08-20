@@ -7,15 +7,16 @@ struct WindowCloseClient: Sendable {
 }
 
 extension WindowCloseClient: DependencyKey {
-  static let liveValue = Self(
-    closeWindow: { _ in },
-    closeWindows: { _ in }
-  )
+  static let liveValue = unimplementedValue()
 
-  static let testValue = Self(
-    closeWindow: unimplemented("WindowCloseClient.closeWindow"),
-    closeWindows: unimplemented("WindowCloseClient.closeWindows")
-  )
+  static let testValue = unimplementedValue()
+
+  private static func unimplementedValue() -> Self {
+    Self(
+      closeWindow: unimplemented("WindowCloseClient.closeWindow"),
+      closeWindows: unimplemented("WindowCloseClient.closeWindows")
+    )
+  }
 }
 
 extension DependencyValues {

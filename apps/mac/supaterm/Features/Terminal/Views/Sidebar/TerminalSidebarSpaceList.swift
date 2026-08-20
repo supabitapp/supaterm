@@ -1,4 +1,3 @@
-import ComposableArchitecture
 import SupaTheme
 import SupatermCLIShared
 import SwiftUI
@@ -44,7 +43,6 @@ enum TerminalSidebarTabShortcutHints {
 }
 
 struct TerminalSidebarSpaceList: View {
-  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let instance: TerminalSpaceInstance
   let palette: Palette
@@ -59,7 +57,6 @@ struct TerminalSidebarSpaceList: View {
 
   var body: some View {
     TerminalSidebarOutlineList(
-      store: store,
       terminal: terminal,
       palette: palette,
       swipe: swipe,
@@ -185,13 +182,13 @@ struct TerminalSidebarSpaceList: View {
 
   private var rowActions: TerminalSidebarRowActions {
     TerminalSidebarRowActions(
-      toggleGroupCollapsed: { _ = store.send(.toggleGroupCollapsedRequested($0)) },
+      toggleGroupCollapsed: { terminal.toggleGroupCollapsed($0) },
       createTabInGroup: createTab,
       renameGroup: { terminal.renameGroup($0, title: $1) },
       setGroupColor: { terminal.setGroupColor($0, color: $1) },
-      toggleGroupPinned: { _ = store.send(.togglePinnedRootItemRequested(.group($0))) },
-      ungroup: { _ = store.send(.ungroupRequested($0)) },
-      closeGroup: { _ = store.send(.closeGroupRequested($0)) },
+      toggleGroupPinned: { terminal.togglePinned(.group($0)) },
+      ungroup: { terminal.ungroup($0) },
+      closeGroup: { terminal.requestCloseGroup($0) },
       newTab: newTab
     )
   }
@@ -203,19 +200,17 @@ struct TerminalSidebarSpaceList: View {
   }
 
   private func createTab(in groupID: TerminalTabGroupID) {
-    _ = store.send(
-      .newTabInGroupRequested(
-        groupID,
-        inheritingFromSurfaceID: terminal.selectedSurfaceView?.id
-      )
+    AppPostHog.capture("terminal_tab_created")
+    _ = terminal.createTab(
+      in: groupID,
+      inheritingFromSurfaceID: terminal.selectedSurfaceView?.id
     )
   }
 
   private func newTab() {
     TerminalMotion.animate(.easeInOut(duration: 0.2), reduceMotion: reduceMotion) {
-      _ = store.send(
-        .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
-      )
+      AppPostHog.capture("terminal_tab_created")
+      _ = terminal.createTab(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
     }
   }
 
