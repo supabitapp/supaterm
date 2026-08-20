@@ -285,7 +285,7 @@ func makeClaudeNarrowTabFixture(
   tab: SupatermNewTabResult
 ) async throws -> NarrowAgentTabFixture {
   let environment = try ClaudeE2EEnvironment()
-  let marker = "narrow-claude-\(space.token)"
+  let marker = "ncl-\(space.token)"
   let server = try FakeModelServer(script: [
     FakeModelExchange(
       request: .messagesInputText(marker),

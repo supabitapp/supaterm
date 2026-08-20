@@ -441,7 +441,7 @@ func makePiNarrowTabFixture(
   tab: SupatermNewTabResult
 ) async throws -> NarrowAgentTabFixture {
   let environment = try PiE2EEnvironment()
-  let marker = "narrow-pi-\(space.token)"
+  let marker = "np-\(space.token)"
   let server = try FakeModelServer(script: [
     FakeModelExchange(
       request: .messagesInputText(marker),

@@ -303,7 +303,7 @@ func makeCodexNarrowTabFixture(
   tab: SupatermNewTabResult
 ) async throws -> NarrowAgentTabFixture {
   let environment = try CodexE2EEnvironment()
-  let marker = "narrow-codex-\(space.token)"
+  let marker = "nc-\(space.token)"
   let server = try FakeModelServer(script: [
     FakeModelExchange(
       request: .responsesInputText(marker),
