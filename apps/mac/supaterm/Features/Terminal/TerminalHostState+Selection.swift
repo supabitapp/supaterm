@@ -86,7 +86,6 @@ extension TerminalHostState {
 
     spaceManager.instance(for: spaceID)?.tabCollection.clearSelection()
 
-    lastEmittedFocusSurfaceID = nil
   }
 
   func replacementLiveTabID(
@@ -111,10 +110,7 @@ extension TerminalHostState {
   }
 
   func focusSurfaceIfNeeded(in tabID: TerminalTabID) {
-    guard managesTerminalSurfaces else {
-      lastEmittedFocusSurfaceID = nil
-      return
-    }
+    guard managesTerminalSurfaces else { return }
     focusSurface(in: tabID)
   }
 

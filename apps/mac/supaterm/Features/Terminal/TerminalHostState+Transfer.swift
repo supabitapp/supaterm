@@ -249,10 +249,6 @@ extension TerminalHostState {
         default: FocusHistory(current: incomingFocusedSurfaceID)
       ].updateCurrent(incomingFocusedSurfaceID)
     }
-    if source.lastEmittedFocusSurfaceID.map(plan.surfaceIDs.contains) == true {
-      source.lastEmittedFocusSurfaceID = nil
-    }
-    destination.lastEmittedFocusSurfaceID = nil
     plan.sourceInstance.collapsedTabGroupIDs.subtract(deletedEmptyGroupIDs)
     if plan.sourceInstance.previousSelectedTabID == plan.sourceTabID {
       plan.sourceInstance.previousSelectedTabID = nil
@@ -318,10 +314,6 @@ extension TerminalHostState {
     for tabID in plan.tabIDs {
       rebind(tree: destination.trees[tabID], tabID: tabID, to: destination)
     }
-    if source.lastEmittedFocusSurfaceID.map(plan.surfaceIDs.contains) == true {
-      source.lastEmittedFocusSurfaceID = nil
-    }
-    destination.lastEmittedFocusSurfaceID = nil
   }
 
   private static func takeOwnership(

@@ -155,8 +155,6 @@ extension TerminalHostState {
           in: instance.spaceID,
           didCloseSelectedTab: wasSelectedTab
         )
-      } else {
-        lastEmittedFocusSurfaceID = nil
       }
       syncFocus(windowActivity)
       sessionDidChange()

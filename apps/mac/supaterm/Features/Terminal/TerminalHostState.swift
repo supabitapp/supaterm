@@ -303,7 +303,6 @@ final class TerminalHostState {
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
   var agentDetectionStore = TerminalAgentDetectionStore()
   var agentStateStore = TerminalAgentStateStore()
-  var lastEmittedFocusSurfaceID: UUID?
   var runtimeConfigGeneration = 0
   var suppressesSessionChanges = 0
 
@@ -1000,7 +999,6 @@ final class TerminalHostState {
       self.updateTabTitle(for: tabID)
       self.updateRunningState(for: tabID)
       self.clearNotificationAttention(for: view.id)
-      self.emitFocusChangedIfNeeded(view.id)
       self.agentPanelController?.surfaceFocused(view.id)
       self.sessionDidChange()
     }
@@ -1116,7 +1114,6 @@ final class TerminalHostState {
       guard let self, let surface else { return false }
       return selectedSurfaceView === surface
     }
-    emitFocusChangedIfNeeded(surface.id)
   }
 
   static func selectedTabID(
@@ -1234,11 +1231,6 @@ final class TerminalHostState {
 
   nonisolated static func logSurfaceIDs(_ surfaceIDs: some Sequence<UUID>) -> String {
     surfaceIDs.map { SupatermLog.uuid($0) }.sorted().joined(separator: ",")
-  }
-
-  func emitFocusChangedIfNeeded(_ surfaceID: UUID) {
-    guard surfaceID != lastEmittedFocusSurfaceID else { return }
-    lastEmittedFocusSurfaceID = surfaceID
   }
 
   func emit(_ event: TerminalClient.Event) {
