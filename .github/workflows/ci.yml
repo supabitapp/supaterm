@@ -135,6 +135,7 @@ jobs:
           E2E_AGENT=all
           E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermAgentE2E.xcresult"
           XCODEBUILD_FLAGS="
+          -parallel-testing-enabled NO
           -only-testing:supatermE2E/AgentNarrowTabE2ETests
           -only-testing:supatermE2E/CodexE2ETests
           -only-testing:supatermE2E/CodexZmxE2ETests
