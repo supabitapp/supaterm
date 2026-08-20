@@ -365,6 +365,138 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  func panelSessionDropsUnsafeReplayOptions() throws {
+    let claude = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .claude,
+        sessionID: "new-session",
+        commandLineArguments: [
+          "claude",
+          "--file",
+          "prompt.md",
+          "--tmux",
+          "classic",
+          "--worktree",
+          "branch",
+          "--model",
+          "opus",
+        ]
+      )
+    )
+    let codex = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: "new-session",
+        commandLineArguments: [
+          "codex",
+          "--image",
+          "one.png",
+          "two.png",
+          "--remote",
+          "task-1",
+          "--remote-auth-token-env=CODEX_TOKEN",
+          "--profile",
+          "work",
+        ]
+      )
+    )
+    let pi = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .pi,
+        sessionID: "new-session",
+        commandLineArguments: [
+          "pi",
+          "--api-key",
+          "secret",
+          "--api-key=second-secret",
+          "--model",
+          "openai/gpt-5.5",
+        ]
+      )
+    )
+
+    #expect(
+      claude.forkStartupCommand
+        == .shell("claude --model opus --fork-session --resume new-session")
+    )
+    #expect(codex.forkStartupCommand == .shell("codex --profile work fork new-session"))
+    #expect(pi.forkStartupCommand == .shell("pi --model openai/gpt-5.5 --fork new-session"))
+  }
+
+  @Test
+  func panelSessionRejectsNonRestorableLaunches() {
+    #expect(
+      PaneAgentPanelSession.supported(
+        agent: .claude,
+        sessionID: "new-session",
+        commandLineArguments: ["claude", "--print", "prompt"]
+      ) == nil
+    )
+    #expect(
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: "new-session",
+        commandLineArguments: ["codex", "exec", "make", "test"]
+      ) == nil
+    )
+    #expect(
+      PaneAgentPanelSession.supported(
+        agent: .pi,
+        sessionID: "new-session",
+        commandLineArguments: ["pi", "--mode", "rpc"]
+      ) == nil
+    )
+  }
+
+  @Test
+  func panelSessionKeepsTrailingAndMultiValueOptions() throws {
+    let claude = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .claude,
+        sessionID: "new-session",
+        commandLineArguments: [
+          "claude",
+          "--allowed-tools",
+          "Read",
+          "Write",
+          "old prompt",
+          "--permission-mode",
+          "plan",
+          "--model",
+          "opus",
+        ]
+      )
+    )
+    let codex = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: "new-session",
+        commandLineArguments: [
+          "codex",
+          "fork",
+          "old-session",
+          "tag",
+          "--profile",
+          "work",
+          "--sandbox",
+          "read-only",
+        ]
+      )
+    )
+
+    #expect(
+      claude.forkStartupCommand
+        == .shell(
+          "claude --allowed-tools Read Write --permission-mode plan --model opus --fork-session --resume new-session"
+        )
+    )
+    #expect(
+      codex.forkStartupCommand
+        == .shell("codex --profile work --sandbox read-only fork new-session")
+    )
+  }
+
+  @Test
   func panelSessionTrimsSafeSessionIdentifiers() throws {
     let session = try #require(
       PaneAgentPanelSession.supported(

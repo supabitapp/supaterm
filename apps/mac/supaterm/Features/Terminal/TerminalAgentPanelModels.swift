@@ -27,19 +27,24 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
   let workingDirectoryPath: String?
   private let launchOptions: [String]
 
-  private init(
+  private init?(
     agent: SupatermAgentKind,
     sessionID: String,
     workingDirectoryPath: String?,
     commandLineArguments: [String]
   ) {
+    guard
+      let launchOptions = TerminalAgentLaunchOptions.inherited(
+        from: commandLineArguments,
+        agent: agent
+      )
+    else {
+      return nil
+    }
     self.agent = agent
     self.sessionID = sessionID
     self.workingDirectoryPath = workingDirectoryPath
-    launchOptions = TerminalAgentLaunchOptions.inherited(
-      from: commandLineArguments,
-      agent: agent
-    )
+    self.launchOptions = launchOptions
   }
 
   static func supported(

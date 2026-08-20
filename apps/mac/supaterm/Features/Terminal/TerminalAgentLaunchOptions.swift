@@ -5,7 +5,7 @@ nonisolated enum TerminalAgentLaunchOptions {
   static func inherited(
     from commandLineArguments: [String],
     agent: SupatermAgentKind
-  ) -> [String] {
+  ) -> [String]? {
     schema(for: agent).inherited(from: commandLineArguments)
   }
 
@@ -17,6 +17,15 @@ nonisolated enum TerminalAgentLaunchOptions {
     }
   }
 
+  private enum ArgumentResolution {
+    case discard(until: Int)
+    case inherit(until: Int)
+    case positional
+    case reject
+    case stop
+    case unknownOption
+  }
+
   private struct Schema {
     let flagOptions: Set<String>
     let valueOptions: Set<String>
@@ -25,89 +34,209 @@ nonisolated enum TerminalAgentLaunchOptions {
     let discardedValueOptions: Set<String>
     let discardedOptionalValueOptions: Set<String>
     let attachedValueOptionPrefixes: [String]
-    let sourceCommands: Set<String>
+    let variadicOptions: Set<String>
+    let discardedVariadicOptions: Set<String>
+    let discardedAttachedValueOptionPrefixes: [String]
+    let rejectedOptions: Set<String>
+    let nonRestorableCommands: Set<String>
+    let sessionCommands: Set<String>
+    let scansOptionsPastPositionals: Bool
 
-    func inherited(from commandLineArguments: [String]) -> [String] {
+    init(
+      flagOptions: Set<String>,
+      valueOptions: Set<String>,
+      optionalValueOptions: Set<String>,
+      discardedFlagOptions: Set<String>,
+      discardedValueOptions: Set<String>,
+      discardedOptionalValueOptions: Set<String>,
+      attachedValueOptionPrefixes: [String],
+      variadicOptions: Set<String> = [],
+      discardedVariadicOptions: Set<String> = [],
+      discardedAttachedValueOptionPrefixes: [String] = [],
+      rejectedOptions: Set<String> = [],
+      nonRestorableCommands: Set<String> = [],
+      sessionCommands: Set<String> = [],
+      scansOptionsPastPositionals: Bool = false
+    ) {
+      self.flagOptions = flagOptions
+      self.valueOptions = valueOptions
+      self.optionalValueOptions = optionalValueOptions
+      self.discardedFlagOptions = discardedFlagOptions
+      self.discardedValueOptions = discardedValueOptions
+      self.discardedOptionalValueOptions = discardedOptionalValueOptions
+      self.attachedValueOptionPrefixes = attachedValueOptionPrefixes
+      self.variadicOptions = variadicOptions
+      self.discardedVariadicOptions = discardedVariadicOptions
+      self.discardedAttachedValueOptionPrefixes = discardedAttachedValueOptionPrefixes
+      self.rejectedOptions = rejectedOptions
+      self.nonRestorableCommands = nonRestorableCommands
+      self.sessionCommands = sessionCommands
+      self.scansOptionsPastPositionals = scansOptionsPastPositionals
+    }
+
+    func inherited(from commandLineArguments: [String]) -> [String]? {
       let arguments = agentArguments(from: commandLineArguments)
       var inherited: [String] = []
-      var index = arguments.startIndex
-      while index < arguments.endIndex {
+      var index = 0
+      var sawPositional = false
+      var sessionCommandFound = false
+      var skippedSessionIdentifier = false
+      while index < arguments.count {
         let argument = arguments[index]
-        if flagOptions.contains(argument) {
-          inherited.append(argument)
+        switch resolution(in: arguments, at: index) {
+        case .discard(let end):
+          index = end
+        case .inherit(let end):
+          inherited.append(contentsOf: arguments[index..<end])
+          index = end
+        case .reject:
+          return nil
+        case .stop:
+          return inherited
+        case .unknownOption:
+          guard scansOptionsPastPositionals || sessionCommandFound else { return inherited }
           index += 1
-          continue
-        }
-        if valueOptions.contains(argument) {
-          let valueIndex = index + 1
-          guard valueIndex < arguments.endIndex else { break }
-          inherited.append(contentsOf: [argument, arguments[valueIndex]])
-          index = valueIndex + 1
-          continue
-        }
-        if optionalValueOptions.contains(argument) {
-          inherited.append(argument)
-          index += 1
-          if index < arguments.endIndex, !arguments[index].hasPrefix("-") {
-            inherited.append(arguments[index])
+        case .positional:
+          if !sawPositional, sessionCommands.contains(argument) {
+            sawPositional = true
+            sessionCommandFound = true
             index += 1
-          }
-          continue
-        }
-        if discardedFlagOptions.contains(argument) {
-          index += 1
-          continue
-        }
-        if discardedValueOptions.contains(argument) {
-          index = min(index + 2, arguments.endIndex)
-          continue
-        }
-        if discardedOptionalValueOptions.contains(argument) {
-          index += 1
-          if index < arguments.endIndex, !arguments[index].hasPrefix("-") {
+          } else if !sawPositional, nonRestorableCommands.contains(argument) {
+            return nil
+          } else if sessionCommandFound, !skippedSessionIdentifier {
+            sawPositional = true
+            skippedSessionIdentifier = true
             index += 1
-          }
-          continue
-        }
-        if let separatorIndex = argument.firstIndex(of: "=") {
-          let option = String(argument[..<separatorIndex])
-          if valueOptions.contains(option) || optionalValueOptions.contains(option) {
-            inherited.append(argument)
+          } else if scansOptionsPastPositionals || sessionCommandFound {
+            sawPositional = true
             index += 1
-            continue
-          }
-          if discardedValueOptions.contains(option)
-            || discardedOptionalValueOptions.contains(option)
-          {
-            index += 1
-            continue
+          } else {
+            return inherited
           }
         }
-        if attachedValueOptionPrefixes.contains(where: {
-          argument.hasPrefix($0) && argument.count > $0.count
-        }) {
-          inherited.append(argument)
-          index += 1
-          continue
-        }
-        if sourceCommands.contains(argument) {
-          index += 1
-          continue
-        }
-        break
       }
       return inherited
     }
 
-    private func agentArguments(from commandLineArguments: [String]) -> ArraySlice<String> {
+    private func resolution(in arguments: [String], at index: Int) -> ArgumentResolution {
+      let argument = arguments[index]
+      if argument == "--" {
+        return .stop
+      }
+      if rejectedOptions.contains(optionName(argument)) {
+        return .reject
+      }
+      if let end = inheritedOptionEnd(in: arguments, at: index) {
+        return .inherit(until: end)
+      }
+      if let end = discardedOptionEnd(in: arguments, at: index) {
+        return .discard(until: end)
+      }
+      return argument.hasPrefix("-") ? .unknownOption : .positional
+    }
+
+    private func inheritedOptionEnd(in arguments: [String], at index: Int) -> Int? {
+      let argument = arguments[index]
+      if flagOptions.contains(argument) {
+        return index + 1
+      }
+      if variadicOptions.contains(argument) {
+        return variadicEnd(in: arguments, from: index)
+      }
+      if valueOptions.contains(argument) {
+        return valueEnd(in: arguments, from: index)
+      }
+      if optionalValueOptions.contains(argument) {
+        let valueIndex = index + 1
+        return optionalValueFollows(in: arguments, at: valueIndex) ? valueIndex + 1 : valueIndex
+      }
+      if argument.contains("="), inheritedValueOptions.contains(optionName(argument)) {
+        return index + 1
+      }
+      return attachedValueOptionPrefixes.contains(where: {
+        argument.hasPrefix($0) && argument.count > $0.count
+      }) ? index + 1 : nil
+    }
+
+    private func discardedOptionEnd(in arguments: [String], at index: Int) -> Int? {
+      let argument = arguments[index]
+      if discardedFlagOptions.contains(argument) {
+        return index + 1
+      }
+      if discardedVariadicOptions.contains(argument) {
+        return variadicEnd(in: arguments, from: index)
+      }
+      if discardedValueOptions.contains(argument) {
+        return valueEnd(in: arguments, from: index)
+      }
+      if discardedOptionalValueOptions.contains(argument) {
+        let valueIndex = index + 1
+        return optionalValueFollows(in: arguments, at: valueIndex) ? valueIndex + 1 : valueIndex
+      }
+      if argument.contains("="), discardedOptions.contains(optionName(argument)) {
+        return index + 1
+      }
+      return discardedAttachedValueOptionPrefixes.contains(where: {
+        argument.hasPrefix($0) && argument.count > $0.count
+      }) ? index + 1 : nil
+    }
+
+    private var inheritedValueOptions: Set<String> {
+      valueOptions.union(optionalValueOptions).union(variadicOptions)
+    }
+
+    private var discardedOptions: Set<String> {
+      discardedFlagOptions
+        .union(discardedValueOptions)
+        .union(discardedOptionalValueOptions)
+        .union(discardedVariadicOptions)
+    }
+
+    private func agentArguments(from commandLineArguments: [String]) -> [String] {
       guard let executable = commandLineArguments.first else { return [] }
       let executableName = URL(fileURLWithPath: executable).lastPathComponent
       if ["node", "nodejs"].contains(executableName),
         commandLineArguments.count > 1
       {
-        return commandLineArguments.dropFirst(2)
+        return Array(commandLineArguments.dropFirst(2))
       }
-      return commandLineArguments.dropFirst()
+      return Array(commandLineArguments.dropFirst())
+    }
+
+    private func optionName(_ argument: String) -> String {
+      guard let separatorIndex = argument.firstIndex(of: "=") else { return argument }
+      return String(argument[..<separatorIndex])
+    }
+
+    private func valueEnd(in arguments: [String], from index: Int) -> Int {
+      min(index + 2, arguments.count)
+    }
+
+    private func variadicEnd(in arguments: [String], from index: Int) -> Int {
+      var end = index + 1
+      while end < arguments.count,
+        !arguments[end].hasPrefix("-"),
+        variadicValueCanContinue(arguments[end])
+      {
+        end += 1
+      }
+      return end
+    }
+
+    private func variadicValueCanContinue(_ value: String) -> Bool {
+      guard scansOptionsPastPositionals else { return true }
+      return value.rangeOfCharacter(from: .whitespacesAndNewlines) == nil
+        || ["/", "~/", "./", "../"].contains(where: value.hasPrefix)
+    }
+
+    private func optionalValueFollows(in arguments: [String], at index: Int) -> Bool {
+      guard index < arguments.count else { return false }
+      let value = arguments[index]
+      guard !value.hasPrefix("-") else { return false }
+      guard scansOptionsPastPositionals else { return true }
+      let following = index + 1 < arguments.count ? arguments[index + 1] : nil
+      return value.rangeOfCharacter(from: .whitespacesAndNewlines) == nil
+        && (following == nil || value.contains(",") || following?.hasPrefix("-") == true)
     }
 
     static let claude = Self(
@@ -124,24 +253,15 @@ nonisolated enum TerminalAgentLaunchOptions {
         "--no-chrome",
         "--safe-mode",
         "--strict-mcp-config",
-        "--tmux",
         "--verbose",
       ],
       valueOptions: [
-        "--add-dir",
         "--agent",
         "--agents",
-        "--allowed-tools",
-        "--allowedTools",
         "--append-system-prompt",
         "--autocompact",
-        "--betas",
         "--debug-file",
-        "--disallowed-tools",
-        "--disallowedTools",
         "--effort",
-        "--file",
-        "--mcp-config",
         "--model",
         "--name",
         "--permission-mode",
@@ -151,21 +271,17 @@ nonisolated enum TerminalAgentLaunchOptions {
         "--setting-sources",
         "--settings",
         "--system-prompt",
-        "--tools",
         "-n",
       ],
       optionalValueOptions: [
-        "--debug", "--prompt-suggestions", "--remote-control", "--worktree", "-d", "-w",
+        "--debug", "--prompt-suggestions", "--remote-control", "-d",
       ],
       discardedFlagOptions: [
         "--background",
         "--bg",
         "--continue",
         "--fork-session",
-        "--no-session-persistence",
-        "--print",
         "-c",
-        "-p",
       ],
       discardedValueOptions: [
         "--environment",
@@ -174,10 +290,43 @@ nonisolated enum TerminalAgentLaunchOptions {
         "--max-budget-usd",
         "--output-format",
         "--session-id",
+        "--tmux",
+        "--worktree",
+        "-w",
       ],
       discardedOptionalValueOptions: ["--cloud", "--from-pr", "--resume", "--teleport", "-r"],
       attachedValueOptionPrefixes: ["-n"],
-      sourceCommands: []
+      variadicOptions: [
+        "--add-dir",
+        "--allowed-tools",
+        "--allowedTools",
+        "--betas",
+        "--disallowed-tools",
+        "--disallowedTools",
+        "--mcp-config",
+        "--tools",
+      ],
+      discardedVariadicOptions: ["--file"],
+      discardedAttachedValueOptionPrefixes: ["-w"],
+      rejectedOptions: ["--no-session-persistence", "--print", "-p"],
+      nonRestorableCommands: [
+        "agents",
+        "api-key",
+        "auth",
+        "auto-mode",
+        "config",
+        "doctor",
+        "install",
+        "mcp",
+        "plugin",
+        "plugins",
+        "rc",
+        "remote-control",
+        "setup-token",
+        "update",
+        "upgrade",
+      ],
+      scansOptionsPastPositionals: true
     )
 
     static let codex = Self(
@@ -197,27 +346,46 @@ nonisolated enum TerminalAgentLaunchOptions {
         "--config",
         "--disable",
         "--enable",
-        "--image",
         "--local-provider",
         "--model",
         "--profile",
-        "--remote",
-        "--remote-auth-token-env",
         "--sandbox",
         "-C",
         "-a",
         "-c",
-        "-i",
         "-m",
         "-p",
         "-s",
       ],
       optionalValueOptions: [],
       discardedFlagOptions: ["--all", "--last"],
-      discardedValueOptions: [],
+      discardedValueOptions: ["--remote", "--remote-auth-token-env"],
       discardedOptionalValueOptions: [],
-      attachedValueOptionPrefixes: ["-C", "-a", "-c", "-i", "-m", "-p", "-s"],
-      sourceCommands: ["fork", "resume"]
+      attachedValueOptionPrefixes: ["-C", "-a", "-c", "-m", "-p", "-s"],
+      discardedVariadicOptions: ["--image", "-i"],
+      discardedAttachedValueOptionPrefixes: ["-i"],
+      nonRestorableCommands: [
+        "app",
+        "app-server",
+        "a",
+        "apply",
+        "cloud",
+        "completion",
+        "debug",
+        "e",
+        "exec",
+        "exec-server",
+        "features",
+        "fork",
+        "help",
+        "login",
+        "logout",
+        "mcp",
+        "mcp-server",
+        "review",
+        "sandbox",
+      ],
+      sessionCommands: ["fork", "resume"]
     )
 
     static let pi = Self(
@@ -243,11 +411,9 @@ nonisolated enum TerminalAgentLaunchOptions {
         "-nt",
       ],
       valueOptions: [
-        "--api-key",
         "--append-system-prompt",
         "--exclude-tools",
         "--extension",
-        "--mode",
         "--model",
         "--models",
         "--name",
@@ -266,12 +432,29 @@ nonisolated enum TerminalAgentLaunchOptions {
       ],
       optionalValueOptions: [],
       discardedFlagOptions: [
-        "--continue", "--no-session", "--print", "--resume", "-c", "-p", "-r",
+        "--continue", "-c",
       ],
-      discardedValueOptions: ["--export", "--fork", "--session", "--session-id"],
-      discardedOptionalValueOptions: ["--list-models"],
+      discardedValueOptions: [
+        "--api-key", "--fork", "--resume", "--session", "--session-id", "-r",
+      ],
+      discardedOptionalValueOptions: [],
       attachedValueOptionPrefixes: ["-e", "-n", "-t", "-xt"],
-      sourceCommands: ["auth", "config", "install", "list", "remove", "uninstall", "update"]
+      rejectedOptions: [
+        "--export",
+        "--list-models",
+        "--mode",
+        "--no-session",
+        "--print",
+        "--prompt",
+        "--version",
+        "-h",
+        "-p",
+        "-v",
+      ],
+      nonRestorableCommands: [
+        "config", "help", "install", "list", "login", "logout", "remove", "uninstall",
+        "update",
+      ]
     )
   }
 }
