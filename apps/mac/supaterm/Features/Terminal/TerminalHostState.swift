@@ -305,7 +305,6 @@ final class TerminalHostState {
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
   var agentDetectionStore = TerminalAgentDetectionStore()
   var agentStateStore = TerminalAgentStateStore()
-  var lastEmittedFocusSurfaceID: UUID?
   var runtimeConfigGeneration = 0
   var suppressesSessionChanges = 0
 
@@ -383,173 +382,6 @@ final class TerminalHostState {
       }
     }
     return stream
-  }
-
-  func handleCommand(_ command: TerminalClient.Command) {
-    switch command {
-    case .sessionDidChange:
-      sessionDidChange()
-    case .closeSurface,
-      .closeGroup,
-      .closeTab,
-      .closeTabs,
-      .requestCloseSurface,
-      .requestCloseGroup,
-      .requestCloseTab,
-      .requestCloseTabs,
-      .requestCloseTabsBelow,
-      .requestCloseOtherTabs:
-      handleCloseCommand(command)
-    case .createGroup,
-      .createTab,
-      .createTabInGroup,
-      .createTabInSpace,
-      .createSpace:
-      handleCreationCommand(command)
-    case .navigateSearch,
-      .nextTab,
-      .performGhosttyBindingActionOnFocusedSurface,
-      .performBindingActionOnFocusedSurface,
-      .performSplitOperation,
-      .previousTab,
-      .renameSpace,
-      .setSpaceColor:
-      handleInteractionCommand(command)
-    case .nextSpace,
-      .previousSpace,
-      .selectLastTab,
-      .selectTab,
-      .selectTabSlot,
-      .selectSpaceSlot,
-      .selectSpace,
-      .togglePinned,
-      .updateWindowActivity,
-      .deleteSpace:
-      handleSelectionCommand(command)
-    case .move,
-      .removeTabFromGroup,
-      .renameGroup,
-      .setGroupColor,
-      .toggleGroupCollapsed,
-      .togglePinnedRootItem,
-      .ungroup:
-      handleTabGroupCommand(command)
-    }
-  }
-
-  func handleCloseCommand(_ command: TerminalClient.Command) {
-    switch command {
-    case .closeSurface(let surfaceID):
-      closeSurface(surfaceID)
-    case .closeGroup(let groupID):
-      closeGroup(groupID)
-    case .closeTab(let tabID):
-      closeTab(tabID)
-    case .closeTabs(let tabIDs):
-      closeTabs(tabIDs)
-    case .requestCloseSurface(let surfaceID):
-      requestCloseSurface(surfaceID)
-    case .requestCloseGroup(let groupID):
-      requestCloseGroup(groupID)
-    case .requestCloseTab(let tabID):
-      requestCloseTab(tabID)
-    case .requestCloseTabs(let tabIDs):
-      requestCloseTabs(tabIDs)
-    case .requestCloseTabsBelow(let tabID):
-      requestCloseTabsBelow(tabID)
-    case .requestCloseOtherTabs(let tabIDs):
-      requestCloseOtherTabs(keeping: tabIDs)
-    default:
-      return
-    }
-  }
-
-  func handleCreationCommand(_ command: TerminalClient.Command) {
-    switch command {
-    case .createGroup(let title, let color, let tabIDs):
-      _ = createGroup(title: title, color: color, containing: tabIDs)
-    case .createTab(let inheritingFromSurfaceID):
-      _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
-    case .createTabInGroup(let groupID, let inheritingFromSurfaceID):
-      _ = createTab(in: groupID, inheritingFromSurfaceID: inheritingFromSurfaceID)
-    case .createTabInSpace(let spaceID):
-      createTabInSpace(spaceID)
-    case .createSpace(let name, let color):
-      onSpaceAction(.create(name, color))
-    default:
-      return
-    }
-  }
-
-  func handleInteractionCommand(_ command: TerminalClient.Command) {
-    switch command {
-    case .navigateSearch(let direction):
-      _ = navigateSearchOnFocusedSurface(direction)
-    case .nextTab:
-      nextTab()
-    case .performGhosttyBindingActionOnFocusedSurface(let action):
-      _ = performGhosttyBindingActionOnFocusedSurface(action)
-    case .performBindingActionOnFocusedSurface(let command):
-      _ = performBindingActionOnFocusedSurface(command)
-    case .performSplitOperation(let tabID, let operation):
-      performSplitOperation(operation, in: tabID)
-    case .previousTab:
-      previousTab()
-    case .renameSpace(let spaceID, let name):
-      onSpaceAction(.rename(spaceID, name))
-    case .setSpaceColor(let spaceID, let color):
-      onSpaceAction(.setColor(spaceID, color))
-    default:
-      return
-    }
-  }
-
-  func handleSelectionCommand(_ command: TerminalClient.Command) {
-    switch command {
-    case .selectLastTab:
-      selectLastTab()
-    case .nextSpace:
-      onSpaceAction(.next)
-    case .selectTab(let tabID):
-      selectTab(tabID)
-    case .selectTabSlot(let slot):
-      selectTab(slot: slot)
-    case .selectSpaceSlot(let slot):
-      onSpaceAction(.selectSlot(slot))
-    case .selectSpace(let spaceID):
-      onSpaceAction(.select(spaceID))
-    case .previousSpace:
-      onSpaceAction(.previous)
-    case .togglePinned(let tabID):
-      togglePinned(tabID)
-    case .deleteSpace(let spaceID):
-      onSpaceAction(.delete(spaceID))
-    case .updateWindowActivity(let activity):
-      updateWindowActivity(activity)
-    default:
-      return
-    }
-  }
-
-  func handleTabGroupCommand(_ command: TerminalClient.Command) {
-    switch command {
-    case .move(let request):
-      _ = try? move(request)
-    case .removeTabFromGroup(let tabID):
-      removeTabFromGroup(tabID)
-    case .renameGroup(let groupID, let title):
-      renameGroup(groupID, title: title)
-    case .setGroupColor(let groupID, let color):
-      setGroupColor(groupID, color: color)
-    case .toggleGroupCollapsed(let groupID):
-      toggleGroupCollapsed(groupID)
-    case .togglePinnedRootItem(let rootItemID):
-      togglePinned(rootItemID)
-    case .ungroup(let groupID):
-      ungroup(groupID)
-    default:
-      return
-    }
   }
 
   func togglePinned(_ tabID: TerminalTabID) {
@@ -1002,7 +834,6 @@ final class TerminalHostState {
       self.updateTabTitle(for: tabID)
       self.updateRunningState(for: tabID)
       self.clearNotificationAttention(for: view.id)
-      self.emitFocusChangedIfNeeded(view.id)
       self.agentPanelController?.surfaceFocused(view.id)
       self.sessionDidChange()
     }
@@ -1118,7 +949,6 @@ final class TerminalHostState {
       guard let self, let surface else { return false }
       return selectedSurfaceView === surface
     }
-    emitFocusChangedIfNeeded(surface.id)
   }
 
   static func selectedTabID(
@@ -1240,11 +1070,6 @@ final class TerminalHostState {
 
   nonisolated static func logSurfaceIDs(_ surfaceIDs: some Sequence<UUID>) -> String {
     surfaceIDs.map { SupatermLog.uuid($0) }.sorted().joined(separator: ",")
-  }
-
-  func emitFocusChangedIfNeeded(_ surfaceID: UUID) {
-    guard surfaceID != lastEmittedFocusSurfaceID else { return }
-    lastEmittedFocusSurfaceID = surfaceID
   }
 
   func emit(_ event: TerminalClient.Event) {

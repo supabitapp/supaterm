@@ -1,7 +1,5 @@
 import ComposableArchitecture
-import Foundation
 import SupatermCLIShared
-import SupatermSupport
 import SupatermTerminalCore
 
 public struct SocketRequestExecutor: Sendable {
@@ -188,184 +186,21 @@ public struct SocketRequestExecutor: Sendable {
 }
 
 extension SocketRequestExecutor: DependencyKey {
-  public static let liveValue = Self(
-    executeApp: { request in
-      switch request {
-      case .onboardingSnapshot:
-        return .onboardingSnapshot(nil)
-      case .debugSnapshot:
-        return .debugSnapshot(Self.emptyDebugSnapshot)
-      case .settingsGet(let request):
-        return .settingsGet(
-          try SupatermSettingsRegistry.get(
-            key: request.key,
-            settings: .default,
-            path: SupatermStateRoot.settingsFileURL().path
-          )
-        )
-      case .settingsList(let request):
-        return .settingsList(
-          SupatermSettingsRegistry.list(
-            settings: .default,
-            path: SupatermStateRoot.settingsFileURL().path,
-            changedOnly: request.changedOnly
-          )
-        )
-      case .settingsReset(let request):
-        return .settingsReset(
-          try SupatermSettingsRegistry.reset(
-            request,
-            settings: .default,
-            path: SupatermStateRoot.settingsFileURL().path
-          ).result
-        )
-      case .settingsSet(let request):
-        return .settingsSet(
-          try SupatermSettingsRegistry.set(
-            request,
-            settings: .default,
-            path: SupatermStateRoot.settingsFileURL().path
-          ).result
-        )
-      case .settingsValidate(let request):
-        return .settingsValidate(
-          SupatermSettingsValidator().validate(
-            path: request.path.map { URL(fileURLWithPath: $0, isDirectory: false) }
-          )
-        )
-      case .treeSnapshot:
-        return .treeSnapshot(SupatermTreeSnapshot(windows: []))
-      case .notify:
-        throw TerminalCreatePaneError.creationFailed
-      case .agentHook:
-        return .agentHook(TerminalAgentHookResult(desktopNotification: nil))
-      case .quit:
-        return .quit
-      }
-    },
-    executeAgentIntegration: { request in
-      switch request {
-      case .hooksInstall(let request):
-        return .hooksInstall(SupatermAgentHookHealth(agent: request.agent, health: .unavailable))
-      case .hooksRemove(let request):
-        return .hooksRemove(SupatermAgentHookHealth(agent: request.agent, health: .unavailable))
-      case .skillsGet, .skillsInstall, .skillsList, .skillsPath:
-        throw SupatermSkillsError.bundledSkillsUnavailable(nil)
-      }
-    },
-    executeTerminalCreation: { request in
-      switch request {
-      case .createTab:
-        throw TerminalCreateTabError.creationFailed
-      case .createPane:
-        throw TerminalCreatePaneError.creationFailed
-      }
-    },
-    executeTerminalPane: { request in
-      switch request {
-      case .focusPane:
-        throw TerminalControlError.contextPaneNotFound
-      case .lastPane:
-        throw TerminalControlError.lastPaneNotFound
-      case .closePane:
-        throw TerminalControlError.contextPaneNotFound
-      case .sendText:
-        throw TerminalControlError.contextPaneNotFound
-      case .sendKey:
-        throw TerminalControlError.contextPaneNotFound
-      case .capturePane:
-        throw TerminalControlError.captureFailed
-      case .screenshotPane:
-        throw TerminalControlError.screenshotFailed
-      case .paneHealth:
-        throw TerminalControlError.contextPaneNotFound
-      case .resizePane:
-        throw TerminalControlError.resizeFailed
-      case .setPaneSize:
-        throw TerminalControlError.resizeFailed
-      }
-    },
-    executeTerminalTab: { request in
-      switch request {
-      case .tilePanes:
-        throw TerminalControlError.contextPaneNotFound
-      case .equalizePanes:
-        throw TerminalControlError.contextPaneNotFound
-      case .mainVerticalPanes:
-        throw TerminalControlError.contextPaneNotFound
-      case .selectTab:
-        throw TerminalControlError.contextPaneNotFound
-      case .pinTab:
-        throw TerminalControlError.contextPaneNotFound
-      case .unpinTab:
-        throw TerminalControlError.contextPaneNotFound
-      case .closeTab:
-        throw TerminalControlError.contextPaneNotFound
-      case .renameTab:
-        throw TerminalControlError.contextPaneNotFound
-      case .nextTab:
-        throw TerminalControlError.lastTabNotFound
-      case .previousTab:
-        throw TerminalControlError.lastTabNotFound
-      case .lastTab:
-        throw TerminalControlError.lastTabNotFound
-      }
-    },
-    executeTerminalSpace: { request in
-      switch request {
-      case .createSpace:
-        throw TerminalControlError.contextPaneNotFound
-      case .selectSpace:
-        throw TerminalControlError.contextPaneNotFound
-      case .closeSpace:
-        throw TerminalControlError.contextPaneNotFound
-      case .renameSpace:
-        throw TerminalControlError.contextPaneNotFound
-      case .setSpaceColor:
-        throw TerminalControlError.contextPaneNotFound
-      case .nextSpace:
-        throw TerminalControlError.lastSpaceNotFound
-      case .previousSpace:
-        throw TerminalControlError.lastSpaceNotFound
-      case .lastSpace:
-        throw TerminalControlError.lastSpaceNotFound
-      }
-    }
-  )
+  public static let liveValue = unimplementedValue()
 
-  public static let testValue = Self(
-    executeApp: unimplemented("SocketRequestExecutor.executeApp"),
-    executeAgentIntegration: unimplemented("SocketRequestExecutor.executeAgentIntegration"),
-    executeTerminalCreation: unimplemented("SocketRequestExecutor.executeTerminalCreation"),
-    executeTerminalPane: unimplemented("SocketRequestExecutor.executeTerminalPane"),
-    executeTerminalTab: unimplemented("SocketRequestExecutor.executeTerminalTab"),
-    executeTerminalTabGroup: unimplemented("SocketRequestExecutor.executeTerminalTabGroup"),
-    executeTerminalSpace: unimplemented("SocketRequestExecutor.executeTerminalSpace")
-  )
+  public static let testValue = unimplementedValue()
 
-  private static let emptyDebugSnapshot = SupatermAppDebugSnapshot(
-    build: SupatermAppDebugSnapshot.Build(
-      version: "",
-      buildNumber: "",
-      isDevelopmentBuild: false,
-      usesStubUpdateChecks: false
-    ),
-    update: SupatermAppDebugSnapshot.Update(
-      canCheckForUpdates: false,
-      phase: "idle",
-      detail: ""
-    ),
-    summary: SupatermAppDebugSnapshot.Summary(
-      windowCount: 0,
-      spaceCount: 0,
-      tabCount: 0,
-      paneCount: 0,
-      keyWindowIndex: nil
-    ),
-    currentTarget: nil,
-    windows: [],
-    problems: ["No active windows."]
-  )
+  private static func unimplementedValue() -> Self {
+    Self(
+      executeApp: unimplemented("SocketRequestExecutor.executeApp"),
+      executeAgentIntegration: unimplemented("SocketRequestExecutor.executeAgentIntegration"),
+      executeTerminalCreation: unimplemented("SocketRequestExecutor.executeTerminalCreation"),
+      executeTerminalPane: unimplemented("SocketRequestExecutor.executeTerminalPane"),
+      executeTerminalTab: unimplemented("SocketRequestExecutor.executeTerminalTab"),
+      executeTerminalTabGroup: unimplemented("SocketRequestExecutor.executeTerminalTabGroup"),
+      executeTerminalSpace: unimplemented("SocketRequestExecutor.executeTerminalSpace")
+    )
+  }
 }
 
 extension DependencyValues {

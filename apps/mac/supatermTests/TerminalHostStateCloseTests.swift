@@ -155,8 +155,8 @@ struct TerminalHostStateCloseTests {
       )
     )
     if hasSurvivingTab {
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
-      host.handleCommand(.selectTab(tabID))
+      _ = host.createTab(inheritingFromSurfaceID: nil)
+      host.selectTab(tabID)
     }
     return CloseTabTestSetup(
       host: host,

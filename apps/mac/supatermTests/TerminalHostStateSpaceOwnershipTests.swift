@@ -126,13 +126,13 @@ struct TerminalHostStateSpaceOwnershipTests {
       var actions: [TerminalHostState.SpaceAction] = []
       host.onSpaceAction = { actions.append($0) }
 
-      host.handleCommand(.createSpace(name: "Build", color: .blue))
-      host.handleCommand(.selectSpace(otherSpaceID))
-      host.handleCommand(.renameSpace(otherSpaceID, "Shell"))
-      host.handleCommand(.nextSpace)
-      host.handleCommand(.previousSpace)
-      host.handleCommand(.setSpaceColor(otherSpaceID, .purple))
-      host.handleCommand(.deleteSpace(otherSpaceID))
+      host.onSpaceAction(.create("Build", .blue))
+      host.onSpaceAction(.select(otherSpaceID))
+      host.onSpaceAction(.rename(otherSpaceID, "Shell"))
+      host.onSpaceAction(.next)
+      host.onSpaceAction(.previous)
+      host.onSpaceAction(.setColor(otherSpaceID, .purple))
+      host.onSpaceAction(.delete(otherSpaceID))
 
       #expect(
         actions == [

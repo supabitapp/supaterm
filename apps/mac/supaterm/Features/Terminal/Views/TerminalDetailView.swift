@@ -23,20 +23,20 @@ struct TerminalDetailView: View {
         palette: palette,
         backgroundColor: terminal.terminalBackgroundColor,
         equalizePanes: {
-          _ = store.send(.bindingMenuItemSelected(.equalizeSplits))
+          _ = terminal.performBindingActionOnFocusedSurface(.equalizeSplits)
         },
         toggleSidebar: {
           _ = store.send(.toggleSidebarButtonTapped)
         },
         title: terminal.selectedPaneDisplayTitle,
         splitDown: {
-          _ = store.send(.bindingMenuItemSelected(.newSplit(.down)))
+          _ = terminal.performBindingActionOnFocusedSurface(.newSplit(.down))
         },
         splitRight: {
-          _ = store.send(.bindingMenuItemSelected(.newSplit(.right)))
+          _ = terminal.performBindingActionOnFocusedSurface(.newSplit(.right))
         },
         togglePaneZoom: {
-          _ = store.send(.bindingMenuItemSelected(.toggleSplitZoom))
+          _ = terminal.performBindingActionOnFocusedSurface(.toggleSplitZoom)
         }
       )
       TerminalDetailSurface(
@@ -279,18 +279,23 @@ private struct TerminalSurfacePaneView: View {
         let direction,
         let session
       ):
-        _ = store.send(
-          .agentPanelForkSessionRequested(
-            surfaceID: surfaceID,
+        _ = try? terminal.createPane(
+          TerminalCreatePaneRequest(
+            startupCommand: session.forkStartupCommand,
+            cwd: session.workingDirectoryPath,
             direction: direction,
-            session: session
-          ))
+            focus: true,
+            equalize: false,
+            target: .pane(surfaceID)
+          )
+        )
       case .agentPanelVisibilityToggled(let surfaceID):
         _ = store.send(.agentPanelVisibilityToggled(surfaceID))
       case .agentPanelURLTapped(let url):
         _ = store.send(.agentPanelURLTapped(url))
       case .resize, .drop, .equalize:
-        _ = store.send(.splitOperationRequested(tabID: tabID, operation: operation))
+        AppPostHog.capture("terminal_pane_created")
+        terminal.performSplitOperation(operation, in: tabID)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -66,9 +66,6 @@ struct TerminalSidebarLayoutTests {
       .newTab: .newTab(.inline),
     ]
     let terminal = TerminalHostState(managesTerminalSurfaces: false)
-    let store = Store(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    }
     let controller = TerminalSidebarListController(
       windowControllerID: UUID(),
       tabDragRegistry: TerminalTabDragRegistry(),
@@ -78,7 +75,6 @@ struct TerminalSidebarLayoutTests {
 
     func context(for outline: TerminalSidebarOutline) -> TerminalSidebarRowContext {
       TerminalSidebarRowContext(
-        store: store,
         terminal: terminal,
         palette: Palette(colorScheme: .dark),
         renameState: controller.renameState,

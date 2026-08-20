@@ -433,11 +433,8 @@ final class TerminalWindowRegistry {
 
   func requestNewTabInKeyWindow() {
     guard let entry = preferredActiveEntry() else { return }
-    entry.store.send(
-      .terminal(
-        .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
-      )
-    )
+    AppPostHog.capture("terminal_tab_created")
+    _ = entry.terminal.createTab(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
   }
 
   func requestNewTabInSelectedGroupInKeyWindow() {
@@ -447,13 +444,10 @@ final class TerminalWindowRegistry {
     else {
       return
     }
-    entry.store.send(
-      .terminal(
-        .newTabInGroupRequested(
-          groupID,
-          inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id
-        )
-      )
+    AppPostHog.capture("terminal_tab_created")
+    _ = entry.terminal.createTab(
+      in: groupID,
+      inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id
     )
   }
 
@@ -474,19 +468,19 @@ final class TerminalWindowRegistry {
   }
 
   func requestNextTabInKeyWindow() {
-    preferredActiveEntry()?.store.send(.terminal(.nextTabMenuItemSelected))
+    preferredActiveEntry()?.terminal.nextTab()
   }
 
   func requestPreviousTabInKeyWindow() {
-    preferredActiveEntry()?.store.send(.terminal(.previousTabMenuItemSelected))
+    preferredActiveEntry()?.terminal.previousTab()
   }
 
   func requestSelectTabInKeyWindow(_ slot: Int) {
-    preferredActiveEntry()?.store.send(.terminal(.selectTabMenuItemSelected(slot)))
+    preferredActiveEntry()?.terminal.selectTab(slot: slot)
   }
 
   func requestSelectLastTabInKeyWindow() {
-    preferredActiveEntry()?.store.send(.terminal(.selectLastTabMenuItemSelected))
+    preferredActiveEntry()?.terminal.selectLastTab()
   }
 
   func requestSelectSpaceInKeyWindow(_ slot: Int) {
@@ -527,11 +521,11 @@ final class TerminalWindowRegistry {
   }
 
   func requestBindingActionInKeyWindow(_ command: SupatermCommand) {
-    preferredActiveEntry()?.store.send(.terminal(.bindingMenuItemSelected(command)))
+    _ = preferredActiveEntry()?.terminal.performBindingActionOnFocusedSurface(command)
   }
 
   func requestNavigateSearchInKeyWindow(_ direction: GhosttySearchDirection) {
-    preferredActiveEntry()?.store.send(.terminal(.navigateSearchMenuItemSelected(direction)))
+    _ = preferredActiveEntry()?.terminal.navigateSearchOnFocusedSurface(direction)
   }
 
   @discardableResult
@@ -569,7 +563,7 @@ final class TerminalWindowRegistry {
         "tabID=\(SupatermLog.uuid(entry.terminal.selectedTabID?.rawValue))",
       ]
     )
-    entry.store.send(.terminal(.closeSurfaceRequested(surfaceID)))
+    entry.terminal.requestCloseSurface(surfaceID)
   }
 
   func ownsWindow(_ window: NSWindow) -> Bool {
@@ -589,7 +583,7 @@ final class TerminalWindowRegistry {
     else {
       return
     }
-    entry.store.send(.terminal(.closeTabRequested(tabID)))
+    entry.terminal.requestCloseTab(tabID)
   }
 
   @discardableResult
@@ -839,13 +833,14 @@ final class TerminalWindowRegistry {
       let panel = selectedAgentPanel(in: entry),
       let session = panel.session
     else { return }
-    entry.store.send(
-      .terminal(
-        .agentPanelForkSessionRequested(
-          surfaceID: panel.surfaceID,
-          direction: direction,
-          session: session
-        )
+    _ = try? entry.terminal.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: session.forkStartupCommand,
+        cwd: session.workingDirectoryPath,
+        direction: direction,
+        focus: true,
+        equalize: false,
+        target: .pane(panel.surfaceID)
       )
     )
   }

@@ -144,21 +144,6 @@ nonisolated enum AppPostHog {
     #endif
   }
 
-  nonisolated static func addExceptionStep(
-    _ message: String,
-    category: AppLogCategory
-  ) {
-    #if DEBUG
-      return
-    #else
-      guard state.isErrorReportingEnabled else { return }
-      PostHogSDK.shared.addExceptionStep(
-        message,
-        properties: ["category": category.rawValue]
-      )
-    #endif
-  }
-
   nonisolated static func captureException(
     _ error: Error,
     properties: [String: Any]

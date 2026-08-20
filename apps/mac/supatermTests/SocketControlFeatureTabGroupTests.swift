@@ -305,7 +305,6 @@ private func makeTabGroupStore(
       await replyRecorder.record(handle: handle, response: response)
     }
     $0.socketRequestExecutor = .testing(
-      terminalWindowsClient: $0.terminalWindowsClient,
       executeTerminalTabGroup: execute
     )
   }

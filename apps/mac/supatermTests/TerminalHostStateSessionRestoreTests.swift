@@ -173,14 +173,14 @@ struct TerminalHostStateSessionRestoreTests {
       let tabs = host.spaceManager.tabs(in: spaceID)
       let firstTabID = try #require(tabs.first?.id)
       let groupedTabID = try #require(tabs.last?.id)
-      host.handleCommand(.selectTab(groupedTabID))
+      host.selectTab(groupedTabID)
       host.spaceManager.tabCollection(for: spaceID)?.setLockedTitle(
         groupedTabID, title: "Grouped Tab")
       host.selectedSurfaceView?.setTitleOverride("Pane Title")
       let groupID = try #require(
         host.createGroup(title: "Workspace", color: .purple, containing: [groupedTabID])
       ).groupID
-      host.handleCommand(.selectTab(firstTabID))
+      host.selectTab(firstTabID)
       #expect(host.setGroupCollapsed(groupID, isCollapsed: true))
 
       let snapshot = host.restorationSnapshot()
@@ -205,7 +205,7 @@ struct TerminalHostStateSessionRestoreTests {
       )
       #expect(restored.spaceManager.tabs(in: spaceID).last?.title == "Grouped Tab")
       #expect(restored.spaceManager.tabs(in: spaceID).last?.isTitleLocked == true)
-      restored.handleCommand(.selectTab(groupedTabID))
+      restored.selectTab(groupedTabID)
       #expect(restored.selectedSurfaceState?.pwd == restoredPathString)
       #expect(restored.selectedSurfaceState?.titleOverride == "Pane Title")
 

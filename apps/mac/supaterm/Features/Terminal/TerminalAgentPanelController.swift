@@ -1,6 +1,7 @@
 import Darwin
 import Dispatch
 import Foundation
+import Synchronization
 
 nonisolated struct TerminalAgentPanelWorkspaceContext: Equatable, Sendable {
   let workingDirectoryPath: String?
@@ -41,6 +42,11 @@ nonisolated enum TerminalAgentPanelCommandError: Error, Equatable, Sendable {
   case launchFailed(String)
 }
 
+nonisolated private struct TerminalAgentPanelProcessState {
+  var isCancelled = false
+  var process: Process?
+}
+
 nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
   var run: @Sendable (URL, [String], URL?) async throws -> TerminalAgentPanelCommandResult
   var runLoginCommand: @Sendable (String, URL?) async throws -> TerminalAgentPanelCommandResult
@@ -67,7 +73,8 @@ nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
     arguments: [String],
     currentDirectoryURL: URL?
   ) async throws -> TerminalAgentPanelCommandResult {
-    try await Task.detached(priority: .utility) {
+    let state = Mutex(TerminalAgentPanelProcessState())
+    return try await withTaskCancellationHandler {
       let process = Process()
       process.executableURL = executableURL
       process.arguments = arguments
@@ -79,28 +86,69 @@ nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
       process.standardOutput = stdoutPipe
       process.standardError = stderrPipe
 
-      do {
-        try process.run()
-      } catch {
-        throw TerminalAgentPanelCommandError.launchFailed(error.localizedDescription)
+      let exitStatuses = AsyncStream<Int32> { continuation in
+        process.terminationHandler = { process in
+          continuation.yield(process.terminationStatus)
+          continuation.finish()
+        }
       }
 
-      let stdoutTask = Task.detached(priority: .utility) {
-        stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+      try state.withLock { state in
+        guard !state.isCancelled else { throw CancellationError() }
+        do {
+          try process.run()
+        } catch {
+          throw TerminalAgentPanelCommandError.launchFailed(error.localizedDescription)
+        }
+        state.process = process
       }
-      let stderrTask = Task.detached(priority: .utility) {
-        stderrPipe.fileHandleForReading.readDataToEndOfFile()
+      defer {
+        state.withLock { $0.process = nil }
       }
-      process.waitUntilExit()
-      let stdoutData = await stdoutTask.value
-      let stderrData = await stderrTask.value
+
+      async let stdoutData = readData(from: stdoutPipe.fileHandleForReading)
+      async let stderrData = readData(from: stderrPipe.fileHandleForReading)
+      var exitIterator = exitStatuses.makeAsyncIterator()
+      guard let status = await exitIterator.next() else {
+        throw CancellationError()
+      }
+      let (stdout, stderr) = await (stdoutData, stderrData)
+      try Task.checkCancellation()
 
       return TerminalAgentPanelCommandResult(
-        status: process.terminationStatus,
-        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-        stderr: String(data: stderrData, encoding: .utf8) ?? ""
+        status: status,
+        stdout: String(data: stdout, encoding: .utf8) ?? "",
+        stderr: String(data: stderr, encoding: .utf8) ?? ""
       )
-    }.value
+    } onCancel: {
+      state.withLock { state in
+        state.isCancelled = true
+        guard let process = state.process, process.isRunning else { return }
+        process.terminate()
+      }
+    }
+  }
+
+  private static func readData(from handle: FileHandle) async -> Data {
+    let chunks = AsyncStream<Data> { continuation in
+      handle.readabilityHandler = { handle in
+        let chunk = handle.availableData
+        if chunk.isEmpty {
+          handle.readabilityHandler = nil
+          continuation.finish()
+        } else {
+          continuation.yield(chunk)
+        }
+      }
+      continuation.onTermination = { _ in
+        handle.readabilityHandler = nil
+      }
+    }
+    var data = Data()
+    for await chunk in chunks {
+      data.append(chunk)
+    }
+    return data
   }
 
   private static func loginShellURL(

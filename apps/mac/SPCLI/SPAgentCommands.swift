@@ -243,7 +243,8 @@ private func sendAgentHookRequests(
 ) throws {
   let client = try socketClient(
     path: connection.explicitSocketPath,
-    instance: connection.instance
+    instance: connection.instance,
+    responseTimeout: SupatermAgentHookManagementTiming.clientResponseTimeout
   )
   for agent in agents {
     let response = try client.send(try request(SupatermAgentHookTargetRequest(agent: agent)))

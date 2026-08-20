@@ -97,7 +97,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let appProcess = Shared(value: AppFeature.ProcessState())
     let appStore = Store(initialState: AppFeature.State(process: appProcess)) {
       AppFeature()
-        .logActions()
     } withDependencies: {
       $0.analyticsClient.capture = { event in
         Task { @MainActor in

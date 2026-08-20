@@ -466,12 +466,12 @@ struct TerminalHostStateNotificationTests {
     #expect(host.selectedSurfaceView?.id == firstSurface.id)
     #expect(host.unreadNotifiedSurfaceIDs(in: firstTabID) == Set([secondSurface.paneID]))
 
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
 
     let secondTabID = try #require(host.selectedTabID)
     #expect(secondTabID != firstTabID)
 
-    host.handleCommand(.selectTab(firstTabID))
+    host.selectTab(firstTabID)
 
     #expect(window.firstResponder === secondSurfaceView)
     host.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))

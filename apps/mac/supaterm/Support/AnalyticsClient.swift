@@ -11,13 +11,13 @@ public struct AnalyticsClient: Sendable {
 }
 
 extension AnalyticsClient: DependencyKey {
-  public static let liveValue = Self(
-    capture: { _ in }
-  )
+  public static let liveValue = unimplementedValue()
 
-  public static let testValue = Self(
-    capture: { _ in }
-  )
+  public static let testValue = Self(capture: { _ in })
+
+  private static func unimplementedValue() -> Self {
+    Self(capture: unimplemented("AnalyticsClient.capture"))
+  }
 }
 
 extension DependencyValues {

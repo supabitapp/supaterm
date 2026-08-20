@@ -25,24 +25,34 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
   let agent: SupatermAgentKind
   let sessionID: String
   let workingDirectoryPath: String?
+  private let launchOptions: [String]
 
-  private init(agent: SupatermAgentKind, sessionID: String, workingDirectoryPath: String?) {
+  private init?(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    workingDirectoryPath: String?,
+    commandLineArguments: [String]
+  ) {
+    guard
+      let launchOptions = TerminalAgentLaunchOptions.inherited(
+        from: commandLineArguments,
+        agent: agent
+      )
+    else {
+      return nil
+    }
     self.agent = agent
     self.sessionID = sessionID
     self.workingDirectoryPath = workingDirectoryPath
+    self.launchOptions = launchOptions
   }
 
   static func supported(
     agent: SupatermAgentKind,
     sessionID: String,
-    workingDirectoryPath: String? = nil
+    workingDirectoryPath: String? = nil,
+    commandLineArguments: [String] = []
   ) -> Self? {
-    switch agent {
-    case .claude, .codex:
-      break
-    case .pi:
-      return nil
-    }
     let sessionID = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
     guard
       !sessionID.isEmpty,
@@ -53,7 +63,8 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
     return Self(
       agent: agent,
       sessionID: sessionID,
-      workingDirectoryPath: workingDirectoryPath
+      workingDirectoryPath: workingDirectoryPath,
+      commandLineArguments: commandLineArguments
     )
   }
 
@@ -64,11 +75,11 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
   private var forkArguments: [String] {
     switch agent {
     case .claude:
-      return ["claude", "--fork-session", "--resume", sessionID]
+      return ["claude"] + launchOptions + ["--fork-session", "--resume", sessionID]
     case .codex:
-      return ["codex", "fork", sessionID]
+      return ["codex"] + launchOptions + ["fork", sessionID]
     case .pi:
-      preconditionFailure("Unsupported agent")
+      return ["pi"] + launchOptions + ["--fork", sessionID]
     }
   }
 

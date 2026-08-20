@@ -677,23 +677,22 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func newTabInGroupShortcutRequiresSelectedGroup() async throws {
-    try await withDependencies {
+  func newTabInGroupShortcutRequiresSelectedGroup() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
       let registry = TerminalWindowRegistry()
-      let recorder = TerminalCommandRecorder()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      initializeGhosttyForTests()
+      let host = TerminalHostState(runtime: GhosttyRuntime())
+      defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
-      } withDependencies: {
-        $0.terminalClient.send = { recorder.record($0) }
       }
       let windowControllerID = UUID()
       let tabCollection = host.spaceManager.tabCollection
-      let tabID = tabCollection.createTab(title: "Terminal 1")
+      let tabID = try #require(host.createTab())
       tabCollection.selectTab(tabID)
       registry.register(
         keyboardShortcutForAction: { _ in nil },
@@ -730,10 +729,7 @@ struct SupatermMenuControllerTests {
         tabCollection.createGroup(title: "Group", containing: [tabID])
       ).groupID
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
-      let receivedCommand = await waitUntil {
-        recorder.commands == [.createTabInGroup(groupID, inheritingFromSurfaceID: nil)]
-      }
-      #expect(receivedCommand)
+      #expect(tabCollection.group(for: groupID)?.tabs.count == 2)
     }
   }
 

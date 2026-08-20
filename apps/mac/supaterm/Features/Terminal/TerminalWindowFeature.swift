@@ -64,6 +64,7 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
   }
 }
 
+@MainActor
 @Reducer
 struct TerminalWindowFeature {
   static let closeAllWindowsWarningMessage =
@@ -168,7 +169,6 @@ struct TerminalWindowFeature {
   }
 
   enum Action {
-    case bindingMenuItemSelected(SupatermCommand)
     case clientEvent(TerminalClient.Event)
     case commandPaletteActivateSelection
     case commandPaletteCloseRequested
@@ -180,42 +180,11 @@ struct TerminalWindowFeature {
     case closeConfirmationCancelButtonTapped
     case closeConfirmationConfirmButtonTapped
     case closeAllWindowsRequested([ObjectIdentifier])
-    case closeOtherTabsRequested([TerminalTabID])
-    case closeGroupRequested(TerminalTabGroupID)
-    case closeSurfaceRequested(UUID)
-    case closeTabRequested(TerminalTabID)
-    case closeTabsRequested([TerminalTabID])
-    case closeTabsBelowRequested(TerminalTabID)
     case hiddenAgentPanelsTransferred(remove: Set<UUID>, insert: Set<UUID>)
     case agentPanelCopyText(String)
-    case agentPanelForkSessionRequested(
-      surfaceID: UUID,
-      direction: SupatermPaneDirection,
-      session: PaneAgentPanelSession
-    )
     case agentPanelURLTapped(URL)
     case agentPanelVisibilityToggled(UUID)
-    case navigateSearchMenuItemSelected(GhosttySearchDirection)
-    case createGroupRequested(title: String, color: ThemeTint, tabIDs: [TerminalTabID])
-    case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
-    case newTabInGroupRequested(TerminalTabGroupID, inheritingFromSurfaceID: UUID?)
-    case newTabInSpaceRequested(TerminalSpaceID)
-    case nextSpaceRequested
-    case nextTabMenuItemSelected
-    case moveCommitted(TerminalTabMoveRequest)
-    case previousSpaceRequested
-    case previousTabMenuItemSelected
-    case removeTabFromGroupRequested(TerminalTabID)
-    case renameGroupRequested(TerminalTabGroupID, String)
-    case selectLastTabMenuItemSelected
-    case selectTabMenuItemSelected(Int)
-    case selectSpaceButtonTapped(TerminalSpaceID)
-    case selectSpaceMenuItemSelected(Int)
-    case sidebarTabSplitRequested(surfaceID: UUID, direction: SupatermPaneDirection)
-    case setGroupColorRequested(TerminalTabGroupID, ThemeTint)
     case sidebarResizeInput(TerminalSidebarResizeInput, totalWidth: CGFloat)
-    case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
-    case tabSelected(TerminalTabID)
     case task
     case spaceCreateButtonTapped
     case spaceDeleteCancelButtonTapped
@@ -226,14 +195,9 @@ struct TerminalWindowFeature {
     case spaceRenameRequested(TerminalSpaceItem)
     case spaceEditorSaveButtonTapped
     case spaceEditorTextChanged(String)
-    case togglePinned(TerminalTabID)
-    case toggleGroupCollapsedRequested(TerminalTabGroupID)
-    case togglePinnedRootItemRequested(TerminalTabRootItemID)
-    case ungroupRequested(TerminalTabGroupID)
     case toggleSidebarButtonTapped
     case confirmationCancelButtonTapped
     case confirmationConfirmButtonTapped
-    case windowActivityChanged(WindowActivityState)
     case windowIdentifierChanged(ObjectIdentifier)
     case windowCloseRequested(windowID: ObjectIdentifier)
   }
@@ -284,17 +248,18 @@ struct TerminalWindowFeature {
         case .gotoTabRequested(let target):
           switch target {
           case .index(let slot):
-            return .send(.selectTabMenuItemSelected(slot))
+            return perform { $0.selectTab(slot: slot) }
           case .last:
-            return .send(.selectLastTabMenuItemSelected)
+            return perform { $0.selectLastTab() }
           case .next:
-            return .send(.nextTabMenuItemSelected)
+            return perform { $0.nextTab() }
           case .previous:
-            return .send(.previousTabMenuItemSelected)
+            return perform { $0.previousTab() }
           }
 
         case .newTabRequested(let inheritingFromSurfaceID):
-          return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
+          analyticsClient.capture("terminal_tab_created")
+          return perform { _ = $0.createTab(inheritingFromSurfaceID: inheritingFromSurfaceID) }
 
         case .notificationReceived(let event):
           @Shared(.supatermSettings) var supatermSettings = .default
@@ -340,9 +305,6 @@ struct TerminalWindowFeature {
           )
           return .none
         }
-
-      case .bindingMenuItemSelected(let command):
-        return sendCommand(.performBindingActionOnFocusedSurface(command))
 
       case .commandPaletteActivateSelection:
         return executeSelectedCommandPaletteCommand(state: &state)
@@ -415,25 +377,7 @@ struct TerminalWindowFeature {
       case .spaceDeleteConfirmButtonTapped:
         guard let request = state.pendingSpaceDeleteRequest else { return .none }
         state.destination = nil
-        return sendCommand(.deleteSpace(request.space.id))
-
-      case .closeOtherTabsRequested(let tabIDs):
-        return sendCommand(.requestCloseOtherTabs(tabIDs))
-
-      case .closeGroupRequested(let groupID):
-        return sendCommand(.requestCloseGroup(groupID))
-
-      case .closeSurfaceRequested(let surfaceID):
-        return sendCommand(.requestCloseSurface(surfaceID))
-
-      case .closeTabRequested(let tabID):
-        return sendCommand(.requestCloseTab(tabID))
-
-      case .closeTabsRequested(let tabIDs):
-        return sendCommand(.requestCloseTabs(tabIDs))
-
-      case .closeTabsBelowRequested(let tabID):
-        return sendCommand(.requestCloseTabsBelow(tabID))
+        return perform { $0.onSpaceAction(.delete(request.space.id)) }
 
       case .closeAllWindowsRequested(let windowIDs):
         guard !windowIDs.isEmpty else { return .none }
@@ -452,24 +396,6 @@ struct TerminalWindowFeature {
           await clipboardClient.copyString(value)
         }
 
-      case .agentPanelForkSessionRequested(
-        let surfaceID,
-        let direction,
-        let session
-      ):
-        return .run { [terminalClient] _ in
-          _ = try? await terminalClient.createPane(
-            TerminalCreatePaneRequest(
-              startupCommand: session.forkStartupCommand,
-              cwd: session.workingDirectoryPath,
-              direction: direction,
-              focus: true,
-              equalize: false,
-              target: .pane(surfaceID)
-            )
-          )
-        }
-
       case .agentPanelURLTapped(let url):
         return .run { [externalNavigationClient] _ in
           _ = await externalNavigationClient.open(url)
@@ -482,76 +408,6 @@ struct TerminalWindowFeature {
           state.hiddenAgentPanelSurfaceIDs.insert(surfaceID)
         }
         return .none
-
-      case .navigateSearchMenuItemSelected(let direction):
-        return sendCommand(.navigateSearch(direction))
-
-      case .createGroupRequested(let title, let color, let tabIDs):
-        return sendCommand(.createGroup(title: title, color: color, tabIDs: tabIDs))
-
-      case .newTabButtonTapped(let inheritingFromSurfaceID):
-        analyticsClient.capture("terminal_tab_created")
-        return sendCommand(.createTab(inheritingFromSurfaceID: inheritingFromSurfaceID))
-
-      case .newTabInGroupRequested(let groupID, let inheritingFromSurfaceID):
-        analyticsClient.capture("terminal_tab_created")
-        return sendCommand(
-          .createTabInGroup(groupID, inheritingFromSurfaceID: inheritingFromSurfaceID)
-        )
-
-      case .newTabInSpaceRequested(let spaceID):
-        analyticsClient.capture("terminal_tab_created")
-        return sendCommand(.createTabInSpace(spaceID))
-
-      case .nextSpaceRequested:
-        return sendCommand(.nextSpace)
-
-      case .nextTabMenuItemSelected:
-        return sendCommand(.nextTab)
-
-      case .moveCommitted(let request):
-        return sendCommand(.move(request))
-
-      case .previousSpaceRequested:
-        return sendCommand(.previousSpace)
-
-      case .previousTabMenuItemSelected:
-        return sendCommand(.previousTab)
-
-      case .removeTabFromGroupRequested(let tabID):
-        return sendCommand(.removeTabFromGroup(tabID))
-
-      case .renameGroupRequested(let groupID, let title):
-        return sendCommand(.renameGroup(groupID, title))
-
-      case .selectLastTabMenuItemSelected:
-        return sendCommand(.selectLastTab)
-
-      case .selectTabMenuItemSelected(let slot):
-        return sendCommand(.selectTabSlot(slot))
-
-      case .selectSpaceButtonTapped(let spaceID):
-        return sendCommand(.selectSpace(spaceID))
-
-      case .selectSpaceMenuItemSelected(let slot):
-        return sendCommand(.selectSpaceSlot(slot))
-
-      case .sidebarTabSplitRequested(let surfaceID, let direction):
-        return .run { [terminalClient] _ in
-          _ = try? await terminalClient.createPane(
-            TerminalCreatePaneRequest(
-              startupCommand: nil,
-              cwd: nil,
-              direction: direction,
-              focus: false,
-              equalize: false,
-              target: .pane(surfaceID)
-            )
-          )
-        }
-
-      case .setGroupColorRequested(let groupID, let color):
-        return sendCommand(.setGroupColor(groupID, color))
 
       case .sidebarResizeInput(let input, let totalWidth):
         switch input {
@@ -575,19 +431,14 @@ struct TerminalWindowFeature {
               for: resizeState,
               totalWidth: totalWidth
             )
-            return sendCommand(.sessionDidChange)
+            return .run { [terminalClient] _ in
+              await terminalClient.host().sessionDidChange()
+            }
           }
         case .failed:
           state.sidebarResizeState = nil
         }
         return .none
-
-      case .splitOperationRequested(let tabID, let operation):
-        analyticsClient.capture("terminal_pane_created")
-        return sendCommand(.performSplitOperation(tabID: tabID, operation: operation))
-
-      case .tabSelected(let tabID):
-        return sendCommand(.selectTab(tabID))
 
       case .task:
         let windowControllerID = state.windowControllerID
@@ -645,11 +496,13 @@ struct TerminalWindowFeature {
         switch spaceEditor.mode {
         case .create:
           analyticsClient.capture("space_created")
-          return sendCommand(.createSpace(name: spaceEditor.draftName, color: spaceEditor.draftColor))
+          return perform { $0.onSpaceAction(.create(spaceEditor.draftName, spaceEditor.draftColor)) }
         case .rename(let space):
-          let rename = sendCommand(.renameSpace(space.id, spaceEditor.draftName))
-          guard spaceEditor.draftColor != space.color else { return rename }
-          return .merge(rename, sendCommand(.setSpaceColor(space.id, spaceEditor.draftColor)))
+          return perform {
+            $0.onSpaceAction(.rename(space.id, spaceEditor.draftName))
+            guard spaceEditor.draftColor != space.color else { return }
+            $0.onSpaceAction(.setColor(space.id, spaceEditor.draftColor))
+          }
         }
 
       case .spaceEditorTextChanged(let text):
@@ -657,18 +510,6 @@ struct TerminalWindowFeature {
         spaceEditor.draftName = text
         state.destination = .spaceEditor(spaceEditor)
         return .none
-
-      case .togglePinned(let tabID):
-        return sendCommand(.togglePinned(tabID))
-
-      case .toggleGroupCollapsedRequested(let groupID):
-        return sendCommand(.toggleGroupCollapsed(groupID))
-
-      case .togglePinnedRootItemRequested(let rootItemID):
-        return sendCommand(.togglePinnedRootItem(rootItemID))
-
-      case .ungroupRequested(let groupID):
-        return sendCommand(.ungroup(groupID))
 
       case .toggleSidebarButtonTapped:
         toggleSidebar(state: &state)
@@ -703,9 +544,6 @@ struct TerminalWindowFeature {
           }
         }
 
-      case .windowActivityChanged(let activity):
-        return sendCommand(.updateWindowActivity(activity))
-
       case .windowIdentifierChanged(let windowID):
         state.windowID = windowID
         return .none
@@ -722,10 +560,9 @@ struct TerminalWindowFeature {
     }
   }
 
-  private func sendCommand(_ command: TerminalClient.Command) -> Effect<Action> {
-    .run { [terminalClient] _ in
-      await terminalClient.send(command)
-    }
+  private func perform(_ operation: (TerminalHostState) -> Void) -> Effect<Action> {
+    operation(terminalClient.host())
+    return .none
   }
 
   private func openCommandPaletteState(windowID: ObjectIdentifier?) -> TerminalCommandPaletteState {
@@ -739,9 +576,7 @@ struct TerminalWindowFeature {
   }
 
   private func commandPaletteSnapshot(windowID: ObjectIdentifier?) -> TerminalCommandPaletteSnapshot {
-    MainActor.assumeIsolated {
-      terminalCommandPaletteClient.snapshot(windowID)
-    }
+    terminalCommandPaletteClient.snapshot(windowID)
   }
 
   private func resolvedCommandPalette(for state: State) -> ResolvedCommandPalette? {
@@ -834,13 +669,13 @@ struct TerminalWindowFeature {
         await terminalCommandPaletteClient.performAppAction(windowID, action)
       }
     case .closeOtherTabs(let tabIDs):
-      return sendCommand(.requestCloseOtherTabs(tabIDs))
+      return perform { $0.requestCloseOtherTabs(keeping: tabIDs) }
     case .closePane(let surfaceID):
-      return sendCommand(.requestCloseSurface(surfaceID))
+      return perform { $0.requestCloseSurface(surfaceID) }
     case .closeTab(let tabID):
-      return sendCommand(.requestCloseTab(tabID))
+      return perform { $0.requestCloseTab(tabID) }
     case .ghosttyBindingAction(let action):
-      return sendCommand(.performGhosttyBindingActionOnFocusedSurface(action))
+      return perform { _ = $0.performGhosttyBindingActionOnFocusedSurface(action) }
     case .focusPane(let target):
       return .run { [terminalCommandPaletteClient] _ in
         await terminalCommandPaletteClient.focusPane(target)
@@ -857,11 +692,11 @@ struct TerminalWindowFeature {
     case .renameSpace(let space):
       return .send(.spaceRenameRequested(space))
     case .togglePinned(let tabID):
-      return sendCommand(.togglePinned(tabID))
+      return perform { $0.togglePinned(tabID) }
     case .selectSpace(let spaceID):
-      return sendCommand(.selectSpace(spaceID))
+      return perform { $0.onSpaceAction(.select(spaceID)) }
     case .selectTab(let tabID):
-      return sendCommand(.selectTab(tabID))
+      return perform { $0.selectTab(tabID) }
     }
   }
 
@@ -873,13 +708,13 @@ struct TerminalWindowFeature {
   private func executeClose(for target: TerminalCloseTarget) -> Effect<Action> {
     switch target {
     case .surface(let surfaceID):
-      return sendCommand(.closeSurface(surfaceID))
+      return perform { $0.closeSurface(surfaceID) }
     case .tab(let tabID):
-      return sendCommand(.closeTab(tabID))
+      return perform { $0.closeTab(tabID) }
     case .tabs(let tabIDs):
-      return sendCommand(.closeTabs(tabIDs))
+      return perform { $0.closeTabs(tabIDs) }
     case .group(let groupID):
-      return sendCommand(.closeGroup(groupID))
+      return perform { $0.closeGroup(groupID) }
     }
   }
 

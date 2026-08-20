@@ -24,6 +24,54 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test
+  func signalMatchStopsBeforeLowerPriorityScreenRules() throws {
+    let matcher = try AgentDetectionMatcher(
+      agent: agent(
+        rules: [
+          rule(
+            id: "title",
+            priority: 30,
+            region: .oscTitle,
+            contains: ["working"]
+          ),
+          rule(id: "screen", priority: 20, contains: ["blocked"]),
+        ]
+      )
+    )
+
+    #expect(
+      matcher.matchSignals(AgentDetectionSignalInput(oscTitle: "Working"))
+        == .matched(AgentDetectionMatch(result: .running, ruleID: "title"))
+    )
+  }
+
+  @Test
+  func signalMatchDefersToHigherPriorityScreenRules() throws {
+    let matcher = try AgentDetectionMatcher(
+      agent: agent(
+        rules: [
+          rule(id: "screen", result: .needsInput, priority: 30, contains: ["blocked"]),
+          rule(
+            id: "title",
+            priority: 20,
+            region: .oscTitle,
+            contains: ["working"]
+          ),
+        ]
+      )
+    )
+
+    #expect(
+      matcher.matchSignals(AgentDetectionSignalInput(oscTitle: "Working")) == .needsScreen
+    )
+    #expect(
+      matcher.match(
+        AgentDetectionInput(screen: "Blocked", oscTitle: "Working")
+      ) == AgentDetectionMatch(result: .needsInput, ruleID: "screen")
+    )
+  }
+
+  @Test
   func noMatchingRuleUsesTheKnownAgentIdleFallback() throws {
     let matcher = try AgentDetectionMatcher(
       agent: agent(rules: [rule(contains: ["ready"])])
@@ -144,8 +192,9 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test(arguments: [
-    "claude-running", "codex-running", "codex-working-spinner", "codex-working-reasoning-header",
-    "codex-working-queued", "codex-working-steers-only", "codex-working-reconnecting",
+    "claude-running", "codex-running", "codex-working-spinner", "codex-working-clipped",
+    "codex-working-reasoning-header", "codex-working-queued", "codex-working-steers-only",
+    "codex-working-reconnecting", "codex-working-reconnecting-narrow",
     "codex-working-remapped-plain", "pi-running",
   ])
   func workingFixturesAreRunning(name: String) throws {
@@ -175,10 +224,12 @@ struct AgentDetectionMatcherTests {
     ("codex-transcript", "transcript_viewer"),
     ("codex-trust", "trust_directory"),
     ("codex-working-spinner", "osc_title_working"),
+    ("codex-working-clipped", "screen_working_fallback"),
     ("codex-working-reasoning-header", "screen_working_fallback"),
     ("codex-working-queued", "screen_working_fallback"),
     ("codex-working-steers-only", "queued_messages_working"),
     ("codex-working-reconnecting", "screen_working_fallback"),
+    ("codex-working-reconnecting-narrow", "screen_working_fallback"),
     ("codex-working-remapped-plain", "screen_working_fallback"),
     ("pi-idle", "default_known_agent_idle_fallback"),
     ("pi-running", "working_literal"),

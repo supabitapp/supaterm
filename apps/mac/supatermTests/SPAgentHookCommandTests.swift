@@ -52,6 +52,29 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
+  func hookCommandsWaitForLongRunningInstallers() async throws {
+    let cli = try SPCLIHarness()
+    defer { cli.remove() }
+
+    try await withSocketRuntime(
+      replying: { request, _ in
+        try await Task.sleep(for: .seconds(6))
+        return try .ok(
+          id: request.id,
+          encodableResult: SupatermAgentHookHealth(agent: .codex, health: .healthy)
+        )
+      },
+      run: { endpoint in
+        let result = try cli.run([
+          "agent", "install-hook", "codex", "--socket", endpoint.path,
+        ])
+
+        #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+      }
+    )
+  }
+
+  @Test
   func installHooksInstallsClaudeThenCodex() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }

@@ -1,10 +1,8 @@
 import AppKit
-import ComposableArchitecture
 import SupaTheme
 import SwiftUI
 
 struct SpaceSidebarPagerView: View {
-  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let palette: Palette
   let isActive: Bool
@@ -56,7 +54,6 @@ struct SpaceSidebarPagerView: View {
     let pagePalette = palette.tinted(page.space.color)
     if let instance = terminal.spaceManager.instance(for: page.space.id) {
       TerminalSidebarSpaceList(
-        store: store,
         terminal: terminal,
         instance: instance,
         palette: pagePalette,

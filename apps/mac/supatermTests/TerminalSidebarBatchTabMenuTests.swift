@@ -1,4 +1,3 @@
-import ComposableArchitecture
 import Foundation
 import Testing
 
@@ -64,9 +63,6 @@ struct TerminalSidebarBatchTabMenuTests {
 
     func pinAction(for tabIDs: [TerminalTabID]) -> TerminalSidebarBatchTabMenu.PinAction {
       TerminalSidebarBatchTabMenu(
-        store: Store(initialState: TerminalWindowFeature.State()) {
-          TerminalWindowFeature()
-        },
         terminal: terminal,
         tabIDs: tabIDs,
         contextualTabID: groupedTabID,

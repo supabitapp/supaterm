@@ -43,7 +43,11 @@ struct SocketControlCreationTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createTab = { request in
+      $0.socketRequestExecutor.executeTerminalCreation = { execution in
+        guard case .createTab(let request) = execution else {
+          Issue.record("Expected create tab request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalCreateTabRequest(
@@ -53,7 +57,7 @@ struct SocketControlCreationTests {
               target: .group(groupID)
             )
         )
-        return expectedResult
+        return .createTab(expectedResult)
       }
     }
 
@@ -97,7 +101,11 @@ struct SocketControlCreationTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createTab = { request in
+      $0.socketRequestExecutor.executeTerminalCreation = { execution in
+        guard case .createTab(let request) = execution else {
+          Issue.record("Expected create tab request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalCreateTabRequest(
@@ -107,7 +115,7 @@ struct SocketControlCreationTests {
               target: .pane(paneID)
             )
         )
-        return expectedResult
+        return .createTab(expectedResult)
       }
     }
 
@@ -138,7 +146,11 @@ struct SocketControlCreationTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createTab = { _ in
+      $0.socketRequestExecutor.executeTerminalCreation = { execution in
+        guard case .createTab = execution else {
+          Issue.record("Expected create tab request")
+          throw CancellationError()
+        }
         throw TerminalCreateTabError.spaceNotFound(windowIndex: 1, spaceIndex: 2)
       }
     }
@@ -192,7 +204,11 @@ struct SocketControlCreationTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createPane = { request in
+      $0.socketRequestExecutor.executeTerminalCreation = { execution in
+        guard case .createPane(let request) = execution else {
+          Issue.record("Expected create pane request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalCreatePaneRequest(
@@ -204,7 +220,7 @@ struct SocketControlCreationTests {
               target: .pane(UUID(uuidString: "5E6C5EA2-F5FC-4CF5-A31D-4B12785A8694")!)
             )
         )
-        return expectedResult
+        return .createPane(expectedResult)
       }
     }
 
@@ -237,7 +253,11 @@ struct SocketControlCreationTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createPane = { _ in
+      $0.socketRequestExecutor.executeTerminalCreation = { execution in
+        guard case .createPane = execution else {
+          Issue.record("Expected create pane request")
+          throw CancellationError()
+        }
         throw TerminalCreatePaneError.tabNotFound(windowIndex: 1, spaceIndex: 2, tabIndex: 3)
       }
     }
@@ -280,7 +300,11 @@ struct SocketControlCreationTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.createPane = { _ in
+      $0.socketRequestExecutor.executeTerminalCreation = { execution in
+        guard case .createPane = execution else {
+          Issue.record("Expected create pane request")
+          throw CancellationError()
+        }
         throw TerminalCreatePaneError.spaceNotFound(windowIndex: 1, spaceIndex: 4)
       }
     }
@@ -335,14 +359,6 @@ struct SocketControlCreationTests {
     let store = makeStore {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
-      }
-      $0.terminalWindowsClient.createTab = { _ in
-        Issue.record("Invalid startup created a tab.")
-        throw CancellationError()
-      }
-      $0.terminalWindowsClient.createPane = { _ in
-        Issue.record("Invalid startup created a pane.")
-        throw CancellationError()
       }
     }
 

@@ -6,7 +6,7 @@ private let piE2EBinaryURL = ProcessInfo.processInfo.environment["PI_E2E_BINARY"
   .flatMap { path in path.isEmpty ? nil : URL(fileURLWithPath: path) }
 private let piE2EPackageURL = ProcessInfo.processInfo.environment["PI_E2E_PACKAGE"]
   .flatMap { path in path.isEmpty ? nil : URL(fileURLWithPath: path, isDirectory: true) }
-private let piE2EEnabled =
+let piE2EEnabled =
   piE2EBinaryURL
   .map { FileManager.default.isExecutableFile(atPath: $0.path) } == true
   && piE2EPackageURL
@@ -130,32 +130,14 @@ private final class PiE2EFixture {
         mode: mode,
         package: environment.package
       )
-      var arguments = [
-        "/usr/bin/env",
-        "PI_CODING_AGENT_DIR=\(agentDirectory.path)",
-        "PI_OFFLINE=1",
-        "PI_SKIP_VERSION_CHECK=1",
-        "PI_TELEMETRY=0",
-        environment.executable.path,
-        "--offline",
-        "--provider",
-        "e2e",
-        "--model",
-        "pi-e2e",
-        "--thinking",
-        "off",
-        "--tools",
-        "bash",
-        "--no-context-files",
-        "--no-prompt-templates",
-        "--no-skills",
-        "--no-themes",
-        "--no-session",
-      ]
-      if !mode.usesNativeIntegration {
-        arguments.append("--no-extensions")
-      }
-      try app.type(SupatermShellCommand.escapedCommand(arguments) + "\n", into: space.pane)
+      try app.type(
+        makePiCommand(
+          agentDirectory: agentDirectory,
+          executable: environment.executable,
+          mode: mode
+        ) + "\n",
+        into: space.pane
+      )
       try await app.waitForCapture(space.pane, contains: "Pi can explain its own features", timeout: 60)
       let initial = try await waitForPiAgent(
         app,
@@ -451,6 +433,103 @@ private func writePiConfig(
   ]
   try writePiJSON(models, to: agentDirectory.appendingPathComponent("models.json"))
   try writePiJSON(settings, to: agentDirectory.appendingPathComponent("settings.json"))
+}
+
+func makePiNarrowTabFixture(
+  app: SupatermE2EApp,
+  space: TestSpace,
+  tab: SupatermNewTabResult
+) async throws -> NarrowAgentTabFixture {
+  let environment = try PiE2EEnvironment()
+  let marker = "np-\(space.token)"
+  let server = try FakeModelServer(script: [
+    FakeModelExchange(
+      request: .messagesInputText(marker),
+      response: .messagesText("PI_NARROW_DONE_\(space.token)"),
+      waitForRelease: true
+    )
+  ])
+  do {
+    let agentDirectory = app.cliHome.appendingPathComponent(".pi/agent", isDirectory: true)
+    try writePiConfig(
+      agentDirectory: agentDirectory,
+      baseURL: server.baseURL,
+      mode: .screenRules,
+      package: environment.package
+    )
+    let pane = SupatermPaneTargetRequest(paneID: tab.paneID)
+    try app.type(
+      makePiCommand(
+        agentDirectory: agentDirectory,
+        executable: environment.executable,
+        mode: .screenRules
+      ) + "\n",
+      into: pane
+    )
+    try await app.waitUntil("Pi renders its startup screen", timeout: 60) {
+      try app.capture(pane)
+        .split(whereSeparator: \.isWhitespace)
+        .joined(separator: " ")
+        .contains("Pi can explain its own features")
+    }
+    _ = try await waitForPiAgent(
+      app,
+      mode: .screenRules,
+      phase: .idle,
+      paneID: tab.paneID
+    )
+    return NarrowAgentTabFixture(
+      kind: .pi,
+      pane: pane,
+      prompt: "\(marker) Reply once with exactly PI_NARROW_DONE_\(space.token).",
+      promptMarker: marker,
+      runningRuleIDs: try requireValue(
+        piScreenRuleIDs(for: .running),
+        "Pi has no running screen rule."
+      ),
+      server: server
+    )
+  } catch {
+    server.stop()
+    throw error
+  }
+}
+
+func piE2EPathDirectories() throws -> [URL] {
+  try PiE2EEnvironment().pathDirectories
+}
+
+private func makePiCommand(
+  agentDirectory: URL,
+  executable: URL,
+  mode: PiE2EMode
+) -> String {
+  var arguments = [
+    "/usr/bin/env",
+    "PI_CODING_AGENT_DIR=\(agentDirectory.path)",
+    "PI_OFFLINE=1",
+    "PI_SKIP_VERSION_CHECK=1",
+    "PI_TELEMETRY=0",
+    executable.path,
+    "--offline",
+    "--provider",
+    "e2e",
+    "--model",
+    "pi-e2e",
+    "--thinking",
+    "off",
+    "--tools",
+    "bash",
+    "--no-context-files",
+    "--no-prompt-templates",
+    "--no-skills",
+    "--no-themes",
+    "--no-session",
+  ]
+  if !mode.usesNativeIntegration {
+    arguments.append("--no-extensions")
+  }
+  return SupatermShellCommand.escapedCommand(arguments)
 }
 
 private func writePiJSON(_ object: Any, to url: URL) throws {

@@ -1,9 +1,7 @@
-import ComposableArchitecture
 import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
-  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let palette: Palette
   let swipe: SpaceSwipeController
@@ -31,7 +29,6 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
       outline: outline,
       rows: rows,
       context: TerminalSidebarRowContext(
-        store: store,
         terminal: terminal,
         palette: palette,
         renameState: controller.renameState,

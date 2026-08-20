@@ -19,7 +19,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.
 - Foreground session routing prevents restored or background sessions from stealing the panel, fork, copy, and tab activity surface.
 - The foreground root agent's session-start `cwd` is the panel workspace source. The pane working directory is the fallback until the session starts.
-- Agent-panel forks start the account login shell in a new pane and enter the agent's native fork command visibly. Supaterm waits for shell readiness when the shell reports it. The pane returns to that same shell when the forked agent exits.
+- Agent-panel forks start the account login shell in a new pane and enter the agent's native fork command visibly. Claude, Codex, and Pi forks keep supported launch options from the source process. Supaterm waits for shell readiness when the shell reports it. The pane returns to that same shell when the forked agent exits.
 - Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
 - Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
 - The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.
@@ -73,13 +73,19 @@ Terminal detection proves the agent process before it reads terminal content:
 2. Match a declared executable, or a declared wrapper with one complete script argument whose
    suffix is declared.
 3. Record the process ID and process start time as one process identity.
-4. Read at most 64 KiB from the bottom of the active screen, 4 KiB from the start of the raw
-   terminal title, and the latest terminal progress signal.
-5. Apply the rules for the proved agent, then wait for weak state changes to settle.
+4. Wait until the process has run for three seconds.
+5. Read at most 4 KiB from the start of the raw terminal title and the latest terminal progress
+   signal for every due proved pane in one batch.
+6. Apply the leading title and progress rules. A decisive match finishes detection without reading
+   the screen.
+7. For every undecided pane, read at most 64 KiB from the bottom of the active screen and apply all
+   rules in one batch.
+8. Wait for weak state changes to settle.
 
 The process proof prevents terminal text from naming an agent on its own. Password entry, closed
-surfaces, unreadable screens, unknown processes, and ambiguous process matches produce no detected
-state.
+surfaces, and unreadable screens can publish only from a decisive terminal title or progress rule.
+Screen-dependent rules cannot read those panes. Unknown processes and ambiguous process matches
+produce no detected state.
 
 Detection-only state is temporary and read-only. It can supply agent identity and `idle`, `running`,
 or `needs input` activity to the panel and tab. It cannot create an action session, notification,

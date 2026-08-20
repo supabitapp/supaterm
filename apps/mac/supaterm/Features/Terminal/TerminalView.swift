@@ -94,12 +94,11 @@ struct TerminalView: View {
       }
       .background(
         WindowFocusObserverView { activity in
-          _ = store.send(.windowActivityChanged(activity))
+          terminal.updateWindowActivity(activity)
         }
       )
       .task(id: resolvedWindowActivity) {
-        let activity = resolvedWindowActivity
-        _ = store.send(.windowActivityChanged(activity))
+        terminal.updateWindowActivity(resolvedWindowActivity)
       }
       .onChange(of: shellPresentation, initial: true) { _, presentation in
         updateWindowShell(presentation)

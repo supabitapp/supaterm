@@ -204,6 +204,11 @@ extension TerminalHostState {
         workingDirectoryPath: agentPanelWorkingDirectoryPath(
           for: surfaceID,
           agentWorkingDirectoryPath: nativePresentation.workingDirectoryPath
+        ),
+        commandLineArguments: agentCommandLineArguments(
+          agent: nativePresentation.agent,
+          sessionID: nativePresentation.sessionID,
+          surfaceID: surfaceID
         )
       )
     }
@@ -796,6 +801,23 @@ extension TerminalHostState {
     TerminalAgentPanelWorkspaceKey(
       workingDirectoryPath: agentWorkingDirectoryPath ?? surfaces[surfaceID]?.bridge.state.pwd
     )?.workingDirectoryPath
+  }
+
+  private func agentCommandLineArguments(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    surfaceID: UUID
+  ) -> [String] {
+    guard
+      let snapshot = agentStateStore.snapshots(for: surfaceID).first(where: {
+        $0.agent == agent && $0.sessionID == sessionID
+      })
+    else {
+      return []
+    }
+    return snapshot.processes.sorted {
+      ($0.startTimeMicroseconds, $0.processID) < ($1.startTimeMicroseconds, $1.processID)
+    }.lazy.compactMap(TerminalAgentProcessInspector.commandLineArguments(for:)).first ?? []
   }
 
   private static func latestAgentResponse(

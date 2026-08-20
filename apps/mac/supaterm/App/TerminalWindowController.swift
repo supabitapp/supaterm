@@ -151,7 +151,6 @@ final class TerminalWindowController: NSWindowController {
       )
     ) {
       AppFeature()
-        .logActions()
     } withDependencies: {
       $0.analyticsClient.capture = { event in
         Task { @MainActor in
@@ -208,7 +207,7 @@ final class TerminalWindowController: NSWindowController {
       _ = store.send(.terminal(.commandPaletteSlotActivated(slot)))
       return true
     }
-    Self.configureSpaceSwipes(window, store: store)
+    Self.configureSpaceSwipes(window, terminal: terminal)
 
     super.init(window: window)
 
@@ -233,13 +232,13 @@ final class TerminalWindowController: NSWindowController {
 
   private static func configureSpaceSwipes(
     _ window: TerminalGestureWindow,
-    store: StoreOf<AppFeature>
+    terminal: TerminalHostState
   ) {
     window.onSwipeLeft = {
-      _ = store.send(.terminal(.nextSpaceRequested))
+      terminal.onSpaceAction(.next)
     }
     window.onSwipeRight = {
-      _ = store.send(.terminal(.previousSpaceRequested))
+      terminal.onSpaceAction(.previous)
     }
   }
 

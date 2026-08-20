@@ -60,6 +60,7 @@ struct TerminalWindowHeader: View {
 
         TerminalSpaceSwitcher(
           store: store,
+          terminal: terminal,
           palette: palette,
           spaces: terminal.spaces,
           selectedSpaceID: terminal.displayedSpaceID
@@ -90,6 +91,7 @@ struct TerminalWindowHeader: View {
 
 struct TerminalSpaceSwitcher: View {
   let store: StoreOf<TerminalWindowFeature>
+  let terminal: TerminalHostState
   let palette: Palette
   let spaces: [TerminalSpaceItem]
   let selectedSpaceID: TerminalSpaceID
@@ -108,7 +110,7 @@ struct TerminalSpaceSwitcher: View {
           Toggle(
             isOn: Binding(
               get: { space.id == selectedSpaceID },
-              set: { _ in _ = store.send(.selectSpaceButtonTapped(space.id)) }
+              set: { _ in terminal.onSpaceAction(.select(space.id)) }
             )
           ) {
             Label {

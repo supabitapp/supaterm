@@ -138,11 +138,15 @@ struct TerminalSidebarResizeTests {
 
   @Test
   func resizeEndCommitsWidthFromDefault() async {
-    let recorder = TerminalCommandRecorder()
+    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let sessionChangeCount = LockIsolated(0)
+    terminal.onSessionChange = {
+      sessionChangeCount.withValue { $0 += 1 }
+    }
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
+      $0.terminalClient.host = { terminal }
     }
 
     await store.send(.sidebarResizeInput(.began, totalWidth: 1_440)) {
@@ -155,7 +159,8 @@ struct TerminalSidebarResizeTests {
       $0.sidebarResizeState = nil
       $0.sidebarWidth = 360
     }
-    #expect(recorder.commands == [.sessionDidChange])
+    await store.finish()
+    #expect(sessionChangeCount.value == 1)
   }
 
   @Test

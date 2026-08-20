@@ -12,14 +12,13 @@ struct AppFeature {
 
   struct ProcessState: Equatable {
     var releaseAnnouncementStatus = ReleaseAnnouncementStatus.notLoaded
-    var socket = SocketControlFeature.State()
     var update = UpdateFeature.State()
   }
 
   @ObservableState
   struct State: Equatable {
     @Shared var releaseAnnouncementStatus: ReleaseAnnouncementStatus
-    @Shared var socket: SocketControlFeature.State
+    var socket = SocketControlFeature.State()
     var terminal: TerminalWindowFeature.State
     @Shared var update: UpdateFeature.State
 
@@ -28,7 +27,6 @@ struct AppFeature {
       terminal: TerminalWindowFeature.State = TerminalWindowFeature.State()
     ) {
       self._releaseAnnouncementStatus = process[dynamicMember: \.releaseAnnouncementStatus]
-      self._socket = process[dynamicMember: \.socket]
       self.terminal = terminal
       self._update = process[dynamicMember: \.update]
     }

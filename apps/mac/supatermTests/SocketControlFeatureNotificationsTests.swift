@@ -54,7 +54,11 @@ struct SocketControlFeatureNotificationsTests {
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
-        $0.terminalWindowsClient.notify = { request in
+        $0.socketRequestExecutor.executeApp = { execution in
+          guard case .notify(let request) = execution else {
+            Issue.record("Expected notification request")
+            throw CancellationError()
+          }
           #expect(
             request
               == TerminalNotifyRequest(
@@ -63,7 +67,7 @@ struct SocketControlFeatureNotificationsTests {
                 title: "Deploy complete"
               )
           )
-          return expectedResult
+          return .notify(expectedResult)
         }
       }
 
@@ -124,7 +128,11 @@ struct SocketControlFeatureNotificationsTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.notify = { request in
+      $0.socketRequestExecutor.executeApp = { execution in
+        guard case .notify(let request) = execution else {
+          Issue.record("Expected notification request")
+          throw CancellationError()
+        }
         #expect(
           request
             == TerminalNotifyRequest(
@@ -133,7 +141,7 @@ struct SocketControlFeatureNotificationsTests {
               title: "Deploy complete"
             )
         )
-        return expectedResult
+        return .notify(expectedResult)
       }
     }
 
@@ -183,8 +191,12 @@ struct SocketControlFeatureNotificationsTests {
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
-        $0.terminalWindowsClient.notify = { _ in
-          expectedResult
+        $0.socketRequestExecutor.executeApp = { execution in
+          guard case .notify = execution else {
+            Issue.record("Expected notification request")
+            throw CancellationError()
+          }
+          return .notify(expectedResult)
         }
       }
 
@@ -241,7 +253,11 @@ struct SocketControlFeatureNotificationsTests {
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
-        $0.terminalWindowsClient.notify = { request in
+        $0.socketRequestExecutor.executeApp = { execution in
+          guard case .notify(let request) = execution else {
+            Issue.record("Expected notification request")
+            throw CancellationError()
+          }
           #expect(
             request
               == TerminalNotifyRequest(
@@ -250,7 +266,7 @@ struct SocketControlFeatureNotificationsTests {
                 title: nil
               )
           )
-          return expectedResult
+          return .notify(expectedResult)
         }
       }
 
@@ -306,14 +322,20 @@ struct SocketControlFeatureNotificationsTests {
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
-        $0.terminalWindowsClient.agentHook = { payload in
+        $0.socketRequestExecutor.executeApp = { execution in
+          guard case .agentHook(let payload) = execution else {
+            Issue.record("Expected agent hook request")
+            throw CancellationError()
+          }
           #expect(payload == requestPayload)
-          return TerminalAgentHookResult(
-            desktopNotification: DesktopNotificationRequest(
-              body: "Claude needs your attention",
-              subtitle: "Needs input",
-              title: "Claude Code",
-              sourceSurfaceID: requestPayload.context?.surfaceID
+          return .agentHook(
+            TerminalAgentHookResult(
+              desktopNotification: DesktopNotificationRequest(
+                body: "Claude needs your attention",
+                subtitle: "Needs input",
+                title: "Claude Code",
+                sourceSurfaceID: requestPayload.context?.surfaceID
+              )
             )
           )
         }
@@ -361,13 +383,19 @@ struct SocketControlFeatureNotificationsTests {
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
-        $0.terminalWindowsClient.agentHook = { payload in
+        $0.socketRequestExecutor.executeApp = { execution in
+          guard case .agentHook(let payload) = execution else {
+            Issue.record("Expected agent hook request")
+            throw CancellationError()
+          }
           #expect(payload == requestPayload)
-          return TerminalAgentHookResult(
-            desktopNotification: DesktopNotificationRequest(
-              body: "Claude needs your attention",
-              subtitle: "Needs input",
-              title: "Claude Code"
+          return .agentHook(
+            TerminalAgentHookResult(
+              desktopNotification: DesktopNotificationRequest(
+                body: "Claude needs your attention",
+                subtitle: "Needs input",
+                title: "Claude Code"
+              )
             )
           )
         }

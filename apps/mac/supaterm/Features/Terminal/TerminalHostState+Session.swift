@@ -267,8 +267,6 @@ extension TerminalHostState {
   func finalizeRestoredSelection() {
     if let selectedTabID {
       focusSurface(in: selectedTabID)
-    } else {
-      lastEmittedFocusSurfaceID = nil
     }
     syncFocus(windowActivity)
   }
@@ -444,7 +442,6 @@ extension TerminalHostState {
     for tabID in focusHistoryByTab.keys {
       focusHistoryByTab[tabID]?.previous = nil
     }
-    lastEmittedFocusSurfaceID = nil
   }
 
   func restoreAgentState(

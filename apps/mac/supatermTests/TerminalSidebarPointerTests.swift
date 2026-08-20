@@ -18,7 +18,7 @@ struct TerminalSidebarPointerTests {
     let firstTabID: TerminalTabID
     let secondTabID: TerminalTabID
     let secondTab: TerminalTabItem
-    let recorder: TerminalCommandRecorder
+    let terminal: TerminalHostState
     let selectionState: TerminalSidebarTabSelectionState
     let outline: TerminalSidebarOutline
     let context: TerminalSidebarRowContext
@@ -64,9 +64,6 @@ struct TerminalSidebarPointerTests {
       let outline = TerminalSidebarOutline(
         snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot
       )
-      let store = Store(initialState: TerminalWindowFeature.State()) {
-        TerminalWindowFeature()
-      }
       let controller = TerminalSidebarListController(
         windowControllerID: UUID(),
         tabDragRegistry: TerminalTabDragRegistry(),
@@ -83,7 +80,6 @@ struct TerminalSidebarPointerTests {
       )
       rows[.newTab] = .newTab(.inline)
       let context = TerminalSidebarRowContext(
-        store: store,
         terminal: terminal,
         palette: Palette(colorScheme: .dark),
         renameState: controller.renameState,
@@ -148,7 +144,7 @@ struct TerminalSidebarPointerTests {
       modifiers: .command
     )
     for _ in 0..<5 { await Task.yield() }
-    #expect(fixture.recorder.commands.isEmpty)
+    #expect(fixture.terminal.selectedTabID == fixture.secondTabID)
     #expect(
       fixture.selectionState.orderedTabIDs(
         primaryTabID: fixture.secondTabID,
@@ -162,7 +158,7 @@ struct TerminalSidebarPointerTests {
       eventNumbers: (43, 44)
     )
     for _ in 0..<5 { await Task.yield() }
-    #expect(fixture.recorder.commands == [.selectTab(fixture.firstTabID)])
+    #expect(fixture.terminal.selectedTabID == fixture.firstTabID)
 
     let dragMouseDown = try #require(
       mouseEvent(.leftMouseDown, at: fixture.location, in: fixture.window, eventNumber: 45)
@@ -374,12 +370,6 @@ struct TerminalSidebarPointerTests {
     manager.selectTab(secondTabID)
     let firstTab = try #require(host.tabs.first { $0.id == firstTabID })
     let secondTab = try #require(host.tabs.first { $0.id == secondTabID })
-    let recorder = TerminalCommandRecorder()
-    let store = Store(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.terminalClient.send = { recorder.record($0) }
-    }
     let outline = TerminalSidebarOutline(
       roots: [
         TerminalSidebarOutline.Root(content: .tab(firstTabID), isPinned: false),
@@ -399,7 +389,7 @@ struct TerminalSidebarPointerTests {
         selectionState.toggle(firstTabID, primaryTabID: secondTabID)
       } else {
         selectionState.clear()
-        _ = store.send(.tabSelected(firstTabID))
+        host.selectTab(firstTabID)
       }
       return true
     }
@@ -413,7 +403,6 @@ struct TerminalSidebarPointerTests {
     }
     let item = TerminalSidebarCollectionItem()
     let rowContext = TerminalSidebarRowContext(
-      store: store,
       terminal: host,
       palette: Palette(colorScheme: .dark),
       renameState: TerminalSidebarRenameState(),
@@ -452,7 +441,7 @@ struct TerminalSidebarPointerTests {
       firstTabID: firstTabID,
       secondTabID: secondTabID,
       secondTab: secondTab,
-      recorder: recorder,
+      terminal: host,
       selectionState: selectionState,
       outline: outline,
       context: rowContext,

@@ -10,19 +10,18 @@ struct TerminalCommandPaletteClient: Sendable {
 }
 
 extension TerminalCommandPaletteClient: DependencyKey {
-  static let liveValue = Self(
-    snapshot: { _ in .empty },
-    focusPane: { _ in },
-    performAppAction: { _, _ in },
-    performUpdateAction: { _, _ in }
-  )
+  static let liveValue = unimplementedValue()
 
-  static let testValue = Self(
-    snapshot: unimplemented("TerminalCommandPaletteClient.snapshot", placeholder: .empty),
-    focusPane: unimplemented("TerminalCommandPaletteClient.focusPane"),
-    performAppAction: unimplemented("TerminalCommandPaletteClient.performAppAction"),
-    performUpdateAction: unimplemented("TerminalCommandPaletteClient.performUpdateAction")
-  )
+  static let testValue = unimplementedValue()
+
+  private static func unimplementedValue() -> Self {
+    Self(
+      snapshot: unimplemented("TerminalCommandPaletteClient.snapshot", placeholder: .empty),
+      focusPane: unimplemented("TerminalCommandPaletteClient.focusPane"),
+      performAppAction: unimplemented("TerminalCommandPaletteClient.performAppAction"),
+      performUpdateAction: unimplemented("TerminalCommandPaletteClient.performUpdateAction")
+    )
+  }
 }
 
 extension DependencyValues {

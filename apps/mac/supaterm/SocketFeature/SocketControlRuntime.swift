@@ -1,4 +1,5 @@
 import Darwin
+import Dispatch
 import Foundation
 import SupatermCLIShared
 
@@ -51,6 +52,7 @@ actor SocketControlRuntime {
   )
 
   private let clientReadTimeout: TimeInterval
+  private let clientWriteTimeout: TimeInterval
   private let endpointProvider: @Sendable () -> SupatermSocketEndpoint?
   private let replyTimeout: Duration
   private let sleep: @Sendable (Duration) async throws -> Void
@@ -66,10 +68,12 @@ actor SocketControlRuntime {
   init(
     endpointProvider: @escaping @Sendable () -> SupatermSocketEndpoint?,
     clientReadTimeout: TimeInterval = 10,
+    clientWriteTimeout: TimeInterval = 5,
     replyTimeout: Duration = .seconds(30),
     sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
   ) {
     self.clientReadTimeout = clientReadTimeout
+    self.clientWriteTimeout = clientWriteTimeout
     self.endpointProvider = endpointProvider
     self.replyTimeout = replyTimeout
     self.sleep = sleep
@@ -208,10 +212,14 @@ actor SocketControlRuntime {
     endpoint = nil
   }
 
-  func reply(_ response: SupatermSocketResponse, to handle: UUID) {
+  func reply(_ response: SupatermSocketResponse, to handle: UUID) async {
     guard let pendingReply = pendingReplies.removeValue(forKey: handle) else { return }
     pendingReply.timeoutTask.cancel()
-    Self.writeResponse(response, to: pendingReply.clientSocket)
+    await Self.writeResponse(
+      response,
+      to: pendingReply.clientSocket,
+      timeout: clientWriteTimeout
+    )
   }
 
   private func registerClientSocket(_ clientSocket: Int32, generation: UInt64) -> Bool {
@@ -224,7 +232,7 @@ actor SocketControlRuntime {
     _ requestLine: String?,
     clientSocket: Int32,
     generation: UInt64
-  ) {
+  ) async {
     guard self.generation == generation else { return }
     guard acceptedClientSockets.remove(clientSocket) != nil else { return }
     guard
@@ -236,25 +244,33 @@ actor SocketControlRuntime {
     }
 
     guard let requestData = requestLine.data(using: .utf8) else {
-      Self.writeResponse(
+      await Self.writeResponse(
         .error(code: "invalid_request", message: "Request must be valid UTF-8 JSON."),
-        to: clientSocket
+        to: clientSocket,
+        timeout: clientWriteTimeout
       )
       return
     }
 
     let decoder = JSONDecoder()
     guard let request = try? decoder.decode(SupatermSocketRequest.self, from: requestData) else {
-      Self.writeResponse(
+      await Self.writeResponse(
         .error(code: "invalid_request", message: "Request must be a valid Supaterm socket payload."),
-        to: clientSocket
+        to: clientSocket,
+        timeout: clientWriteTimeout
       )
       return
     }
 
     let handle = UUID()
     let sleep = self.sleep
-    let replyTimeout = self.replyTimeout
+    let replyTimeout =
+      switch request.method {
+      case SupatermSocketMethod.appHooksInstall, SupatermSocketMethod.appHooksRemove:
+        Duration.seconds(SupatermAgentHookManagementTiming.serverReplyTimeout)
+      default:
+        self.replyTimeout
+      }
     let timeoutTask = Task { [weak self] in
       do {
         try await sleep(replyTimeout)
@@ -494,13 +510,48 @@ actor SocketControlRuntime {
 
   private nonisolated static func writeResponse(
     _ response: SupatermSocketResponse,
-    to socket: Int32
-  ) {
-    let encoder = JSONEncoder()
-    guard let encoded = try? encoder.encode(response) else {
-      Darwin.close(socket)
-      return
+    to socket: Int32,
+    timeout: TimeInterval
+  ) async {
+    await withCheckedContinuation { continuation in
+      DispatchQueue.global(qos: .utility).async {
+        writeResponseSynchronously(response, to: socket, timeout: timeout)
+        continuation.resume()
+      }
     }
+  }
+
+  private nonisolated static func writeResponseSynchronously(
+    _ response: SupatermSocketResponse,
+    to socket: Int32,
+    timeout: TimeInterval
+  ) {
+    defer { Darwin.close(socket) }
+
+    var noSigPipe: Int32 = 1
+    guard
+      setsockopt(
+        socket,
+        SOL_SOCKET,
+        SO_NOSIGPIPE,
+        &noSigPipe,
+        socklen_t(MemoryLayout<Int32>.size)
+      ) == 0
+    else { return }
+
+    var sendTimeout = socketTimeout(timeout)
+    guard
+      setsockopt(
+        socket,
+        SOL_SOCKET,
+        SO_SNDTIMEO,
+        &sendTimeout,
+        socklen_t(MemoryLayout<timeval>.size)
+      ) == 0
+    else { return }
+
+    let encoder = JSONEncoder()
+    guard let encoded = try? encoder.encode(response) else { return }
     let data = encoded + Data([0x0A])
 
     data.withUnsafeBytes { buffer in
@@ -516,7 +567,5 @@ actor SocketControlRuntime {
         offset += bytesWritten
       }
     }
-
-    Darwin.close(socket)
   }
 }

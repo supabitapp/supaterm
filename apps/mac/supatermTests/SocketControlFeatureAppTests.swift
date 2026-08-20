@@ -52,7 +52,13 @@ struct SocketControlFeatureAppTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.treeSnapshot = { snapshot }
+      $0.socketRequestExecutor.executeApp = { execution in
+        guard case .treeSnapshot = execution else {
+          Issue.record("Expected tree snapshot request")
+          throw CancellationError()
+        }
+        return .treeSnapshot(snapshot)
+      }
     }
 
     await store.send(.requestReceived(request))
@@ -81,7 +87,13 @@ struct SocketControlFeatureAppTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.onboardingSnapshot = { snapshot }
+      $0.socketRequestExecutor.executeApp = { execution in
+        guard case .onboardingSnapshot = execution else {
+          Issue.record("Expected onboarding snapshot request")
+          throw CancellationError()
+        }
+        return .onboardingSnapshot(snapshot)
+      }
     }
 
     await store.send(.requestReceived(request))
@@ -131,9 +143,13 @@ struct SocketControlFeatureAppTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.debugSnapshot = { request in
+      $0.socketRequestExecutor.executeApp = { execution in
+        guard case .debugSnapshot(let request) = execution else {
+          Issue.record("Expected debug snapshot request")
+          throw CancellationError()
+        }
         #expect(request == SupatermDebugRequest(context: context))
-        return snapshot
+        return .debugSnapshot(snapshot)
       }
     }
 
@@ -264,7 +280,13 @@ struct SocketControlFeatureAppTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.onboardingSnapshot = { nil }
+      $0.socketRequestExecutor.executeApp = { execution in
+        guard case .onboardingSnapshot = execution else {
+          Issue.record("Expected onboarding snapshot request")
+          throw CancellationError()
+        }
+        return .onboardingSnapshot(nil)
+      }
     }
 
     await store.send(.requestReceived(request))
