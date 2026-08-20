@@ -26,7 +26,7 @@ struct CodexE2ETests {
   }
 
   @Test(.timeLimit(.minutes(5)))
-  func staticTitleTracksReconnectingAndQueuedSteers() async throws {
+  func narrowSplitTracksClippedReconnectingAndQueuedSteers() async throws {
     try await runCodexStaticTitleLifecycle()
   }
 }
@@ -378,6 +378,15 @@ private func runCodexStaticTitleLifecycle() async throws {
   )
   defer { fixture.close() }
 
+  var splitPaneIDs: [UUID] = []
+  for _ in 0..<3 {
+    let split = try makeSplit(fixture.app, in: fixture.space)
+    splitPaneIDs.append(split.paneID)
+    try await fixture.app.waitForShellPrompt(
+      SupatermPaneTargetRequest(paneID: split.paneID)
+    )
+  }
+
   let marker = staticTitleMarker(fixture.space)
   let command = staticTitleCommand(fixture.space)
   let prompt =
@@ -388,7 +397,21 @@ private func runCodexStaticTitleLifecycle() async throws {
     contains: "Reconnecting...",
     timeout: 60
   )
+  try await fixture.app.waitUntil("Codex clips the reconnecting status", timeout: 10) {
+    try fixture.app.capture(fixture.space.pane)
+      .split(separator: "\n", omittingEmptySubsequences: false)
+      .contains { line in
+        let text = line.trimmingCharacters(in: .whitespaces)
+        return text.contains("Reconnecting...") && text.contains("s •") && text.hasSuffix("…")
+      }
+  }
   try await fixture.expect(.running, ruleIDs: CodexRuleID.screenWorking)
+  for paneID in splitPaneIDs.reversed() {
+    _ = try fixture.app.send(
+      .closePane(SupatermPaneTargetRequest(paneID: paneID)),
+      as: SupatermClosePaneResult.self
+    )
+  }
   fixture.server.releaseNextResponse()
   try await waitForCommandApproval(fixture, marker: marker)
   try await fixture.expect(.needsInput, ruleIDs: CodexRuleID.blockers)
