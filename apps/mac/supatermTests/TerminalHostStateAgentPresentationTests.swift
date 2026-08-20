@@ -163,7 +163,7 @@ struct TerminalHostStateAgentPresentationTests {
       processID: 42,
       startTimeMicroseconds: 1
     )
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
 
     #expect(
       host.applyAgentDetection(
@@ -210,7 +210,7 @@ struct TerminalHostStateAgentPresentationTests {
     let surface = try #require(host.selectedSurfaceView)
 
     #expect(host.setTestAgentActivity(.pi(.running), for: surface.id))
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
 
     #expect(host.setTestAgentActivity(.pi(.idle), for: surface.id))
     #expect(host.tabAgentPresentation(for: tabID).status == .done)
@@ -491,7 +491,7 @@ struct TerminalHostStateAgentPresentationTests {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let surfaceID = try #require(host.selectedSurfaceView?.id)
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    _ = host.createTab(inheritingFromSurfaceID: nil)
     return BackgroundScreenFixture(
       host: host,
       processIdentity: TerminalAgentProcessIdentity(
