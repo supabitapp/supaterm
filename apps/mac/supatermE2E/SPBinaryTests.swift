@@ -901,6 +901,25 @@ private func exerciseTabCommands(
   #expect(renamed.isTitleLocked)
   #expect(renamed.target.title == "cli-tab-\(space.token)")
 
+  let title = try requireSuccessfulSPResult(
+    try runner.run(
+      ["tmux", "display-message", "-p", "#{window_name}"],
+      cwd: space.directory
+    )
+  )
+  #expect(title.stdout == "cli-tab-\(space.token)\n")
+
+  let cleared = try decodeSPJSON(
+    SupatermRenameTabResult.self,
+    from: try requireSuccessfulSPResult(
+      try runner.run(
+        ["tab", "rename", "--socket", app.socketPath, "--json", "", tabRef],
+        cwd: space.directory
+      )
+    )
+  )
+  #expect(!cleared.isTitleLocked)
+
   let pinned = try decodeSPJSON(
     SupatermPinTabResult.self,
     from: try requireSuccessfulSPResult(

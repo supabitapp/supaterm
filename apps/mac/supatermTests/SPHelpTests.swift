@@ -168,11 +168,11 @@ struct SPHelpTests {
   }
 
   @Test
-  func renameTabHelpShowsOnlyValidExamples() {
+  func renameTabHelpShowsClearExample() {
     let help = SP.helpMessage(for: SP.RenameTab.self, columns: 100)
 
     #expect(help.contains("sp tab rename Deploy <tab-uuid>"))
-    #expect(!help.contains("sp tab rename ''"))
+    #expect(help.contains("sp tab rename ''"))
   }
 
   @Test

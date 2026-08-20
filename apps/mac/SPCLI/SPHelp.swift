@@ -370,11 +370,13 @@ enum SPHelp {
 
   static let renameTabDiscussion = """
     If you omit the tab target inside Supaterm, this command renames the current tab.
+    Pass an empty title to clear the lock and restore the live terminal title.
 
     Tab targets accept a `space/tab` selector, t: ref, or UUID.
 
     Example:
       sp tab rename Build
+      sp tab rename ''
       sp tab rename Logs 1/2
       sp tab rename Deploy <tab-uuid>
     """

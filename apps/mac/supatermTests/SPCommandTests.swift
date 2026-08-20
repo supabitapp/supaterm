@@ -205,6 +205,15 @@ struct SPCommandTests {
   }
 
   @Test
+  func renameTabParserAcceptsEmptyTitle() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["tab", "rename", ""]) as? SP.RenameTab
+    )
+
+    #expect(command.title.isEmpty)
+  }
+
+  @Test
   func notifyParserAcceptsMissingBody() throws {
     let command = try #require(
       try SP.parseAsRoot(["pane", "notify", "--title", "Deploy complete"]) as? SP.Notify

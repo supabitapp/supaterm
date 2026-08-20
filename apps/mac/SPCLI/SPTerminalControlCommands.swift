@@ -813,11 +813,11 @@ extension SP {
   struct RenameTab: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "rename",
-      abstract: "Lock a Supaterm tab title.",
+      abstract: "Lock or clear a Supaterm tab title.",
       discussion: SPHelp.renameTabDiscussion
     )
 
-    @Argument(help: "Locked title to apply.")
+    @Argument(help: "Locked title to apply; empty clears the lock.")
     var title: String
 
     @Argument(help: "Optional tab target.")
@@ -827,7 +827,6 @@ extension SP {
     var options: SPCommandOptions
 
     mutating func run() throws {
-      try validate()
       try runControlCommand(
         options: options,
         request: { try .renameTab(try requestPayload(client: $0)) },
@@ -837,12 +836,6 @@ extension SP {
         },
         human: { render($0.target) }
       )
-    }
-
-    func validate() throws {
-      guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        throw ValidationError("Tab titles must not be empty.")
-      }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermRenameTabRequest {
