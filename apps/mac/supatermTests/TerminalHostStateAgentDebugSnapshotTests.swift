@@ -393,7 +393,14 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     return TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
         snapshot: { snapshot },
-        evaluate: { agentID, _ in agentID == "codex" ? evaluation : nil }
+        evaluateSignals: { requests in
+          requests.map {
+            $0.agentID == "codex" ? .needsScreen(generation: generation) : nil
+          }
+        },
+        evaluate: { requests in
+          requests.map { $0.agentID == "codex" ? evaluation : nil }
+        }
       ),
       sampler: TerminalAgentDetectionSampler(
         resolveForegroundProcessGroups: { $0 },
@@ -417,9 +424,8 @@ struct TerminalHostStateAgentDebugSnapshotTests {
             )
           ]
         },
-        capture: { _ in
-          TerminalAgentDetectionCapture(screen: "running", oscTitle: "")
-        },
+        signals: { _ in TerminalAgentDetectionSignals(oscTitle: "") },
+        screen: { _ in "running" },
         nativeAuthority: { [weak host] surfaceID in
           host?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {
             $0.formUnion($1.phaseAuthorityProcessIdentities)

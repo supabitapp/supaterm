@@ -122,7 +122,7 @@ public enum AgentDetectionRuleResult: Equatable, Sendable {
   case hold
 }
 
-enum AgentDetectionRegion: Equatable, Sendable {
+enum AgentDetectionRegion: Equatable, Hashable, Sendable {
   case wholeRecent
   case bottomNonEmptyLines(Int)
   case topNonEmptyLines(Int)

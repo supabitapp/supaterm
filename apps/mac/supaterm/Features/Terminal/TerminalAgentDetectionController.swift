@@ -42,13 +42,11 @@ nonisolated struct TerminalAgentDetectionSurfaceSnapshot: Equatable, Sendable {
   let key: TerminalAgentDetectionSurfaceKey
 }
 
-nonisolated struct TerminalAgentDetectionCapture: Equatable, Sendable {
-  let screen: String
+nonisolated struct TerminalAgentDetectionSignals: Equatable, Sendable {
   let oscTitle: String
   let oscProgress: String
 
-  init(screen: String, oscTitle: String, oscProgress: String = "") {
-    self.screen = screen
+  init(oscTitle: String, oscProgress: String = "") {
     self.oscTitle = oscTitle
     self.oscProgress = oscProgress
   }
@@ -56,20 +54,30 @@ nonisolated struct TerminalAgentDetectionCapture: Equatable, Sendable {
 
 nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
   let snapshot: @Sendable () async -> AgentDetectionRuleSnapshot
-  let evaluate: @Sendable (String, AgentDetectionInput) async -> AgentDetectionEvaluation?
+  let evaluateSignals: @Sendable ([AgentDetectionSignalRequest]) async -> [AgentDetectionSignalEvaluation?]
+  let evaluate: @Sendable ([AgentDetectionEvaluationRequest]) async -> [AgentDetectionEvaluation?]
 
   init(repository: AgentDetectionRuleRepository) {
     snapshot = { await repository.snapshot() }
-    evaluate = { agentID, input in
-      await repository.evaluate(agentID: agentID, input: input)
+    evaluateSignals = { requests in
+      await repository.evaluateSignals(requests)
+    }
+    evaluate = { requests in
+      await repository.evaluate(requests)
     }
   }
 
   init(
     snapshot: @escaping @Sendable () async -> AgentDetectionRuleSnapshot,
-    evaluate: @escaping @Sendable (String, AgentDetectionInput) async -> AgentDetectionEvaluation?
+    evaluateSignals:
+      @escaping @Sendable ([AgentDetectionSignalRequest]) async ->
+      [AgentDetectionSignalEvaluation?],
+    evaluate:
+      @escaping @Sendable ([AgentDetectionEvaluationRequest]) async ->
+      [AgentDetectionEvaluation?]
   ) {
     self.snapshot = snapshot
+    self.evaluateSignals = evaluateSignals
     self.evaluate = evaluate
   }
 }
@@ -85,7 +93,8 @@ nonisolated struct TerminalAgentDetectionSampler: Sendable {
 @MainActor
 struct TerminalAgentDetectionHostAccess {
   let surfaces: () -> [TerminalAgentDetectionSurfaceSnapshot]
-  let capture: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionCapture?
+  let signals: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionSignals?
+  let screen: (TerminalAgentDetectionSurfaceKey) -> String?
   let nativeAuthority: (UUID) -> Set<TerminalAgentProcessIdentity>
   let observation: (UUID) -> TerminalAgentDetectionObservation?
   let apply: (TerminalAgentDetectionObservation, UUID) -> Bool
@@ -174,7 +183,41 @@ final class TerminalAgentDetectionController {
     let surfaceID: UUID
     let state: SurfaceState
     let proof: Proof
-    let input: AgentDetectionInput
+    let signals: AgentDetectionSignalInput
+  }
+
+  private struct EvaluationBatch: Sendable {
+    let attempts: [EvaluationAttempt]
+    var evaluations: [UUID: AgentDetectionEvaluation] = [:]
+    var unknownSurfaceIDs: Set<UUID> = []
+
+    var activeAttempts: [EvaluationAttempt] {
+      attempts.filter {
+        evaluations[$0.surfaceID] != nil || unknownSurfaceIDs.contains($0.surfaceID)
+      }
+    }
+
+    mutating func record(
+      _ evaluation: AgentDetectionEvaluation?,
+      for attempt: EvaluationAttempt
+    ) {
+      if let evaluation {
+        evaluations[attempt.surfaceID] = evaluation
+      } else {
+        unknownSurfaceIDs.insert(attempt.surfaceID)
+      }
+    }
+  }
+
+  private struct ScreenEvaluationBatch: Sendable {
+    var attempts: [EvaluationAttempt] = []
+    var requests: [AgentDetectionEvaluationRequest] = []
+  }
+
+  private struct EvaluationValidation: Sendable {
+    let generation: UInt64
+    let currentIdentities: Set<TerminalAgentProcessIdentity>
+    let live: [UUID: TerminalAgentDetectionSurfaceKey]
   }
 
   private struct DueScan: Sendable {
@@ -482,7 +525,31 @@ final class TerminalAgentDetectionController {
     now: ContinuousClock.Instant
   ) async {
     let currentTimeMicroseconds = currentTimeMicroseconds()
-    let identities: Set<TerminalAgentProcessIdentity> = Set(
+    let identities = phaseDetectionIdentities(currentTimeMicroseconds: currentTimeMicroseconds)
+    guard !identities.isEmpty else { return }
+    let currentIdentities = await sampler.current(identities)
+    guard !Task.isCancelled else { return }
+    guard self.generation == generation else { return }
+    guard await rulesAreCurrent(generation: generation, now: now) else { return }
+
+    let attempts = states.keys.sorted(by: { $0.uuidString < $1.uuidString }).compactMap {
+      prepareEvaluation(
+        for: $0,
+        currentIdentities: currentIdentities,
+        currentTimeMicroseconds: currentTimeMicroseconds,
+        now: now
+      )
+    }
+    guard !attempts.isEmpty else { return }
+    guard let batch = await evaluate(attempts, generation: generation, now: now) else { return }
+    guard await rulesAreCurrent(generation: generation, now: now) else { return }
+    await apply(batch, generation: generation, now: now)
+  }
+
+  private func phaseDetectionIdentities(
+    currentTimeMicroseconds: UInt64
+  ) -> Set<TerminalAgentProcessIdentity> {
+    Set(
       states.values.compactMap { state in
         guard let identity = state.proof?.processIdentity,
           Self.canDetectPhase(
@@ -495,29 +562,159 @@ final class TerminalAgentDetectionController {
         return identity
       }
     )
-    guard !identities.isEmpty else { return }
-    let currentIdentities = await sampler.current(identities)
-    guard !Task.isCancelled else { return }
-    guard self.generation == generation else { return }
-    let currentSnapshot = await rules.snapshot()
-    guard !Task.isCancelled else { return }
-    guard currentSnapshot.generation == generation else {
-      activate(currentSnapshot)
-      reconcile(host.surfaces(), now: now)
-      return
+  }
+
+  private func evaluate(
+    _ attempts: [EvaluationAttempt],
+    generation: UInt64,
+    now: ContinuousClock.Instant
+  ) async -> EvaluationBatch? {
+    let signalEvaluations = await rules.evaluateSignals(
+      attempts.map {
+        AgentDetectionSignalRequest(
+          agentID: $0.proof.agentID,
+          input: $0.signals
+        )
+      }
+    )
+    guard !Task.isCancelled else { return nil }
+    guard self.generation == generation else { return nil }
+    precondition(signalEvaluations.count == attempts.count)
+    guard signalEvaluations.compactMap({ $0?.generation }).allSatisfy({ $0 == generation }) else {
+      _ = await rulesAreCurrent(generation: generation, now: now)
+      return nil
     }
 
-    for surfaceID in states.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
-      guard
-        let attempt = prepareEvaluation(
-          for: surfaceID,
-          currentIdentities: currentIdentities,
-          currentTimeMicroseconds: currentTimeMicroseconds,
-          now: now
-        )
-      else { continue }
-      guard await finishEvaluation(attempt, generation: generation, now: now) else { return }
+    var batch = EvaluationBatch(attempts: attempts)
+    var screenBatch = ScreenEvaluationBatch()
+    for (attempt, result) in zip(attempts, signalEvaluations) {
+      record(
+        result,
+        for: attempt,
+        evaluationBatch: &batch,
+        screenBatch: &screenBatch
+      )
     }
+    guard !screenBatch.requests.isEmpty else { return batch }
+
+    let screenEvaluations = await rules.evaluate(screenBatch.requests)
+    guard !Task.isCancelled else { return nil }
+    guard self.generation == generation else { return nil }
+    precondition(screenEvaluations.count == screenBatch.attempts.count)
+    guard screenEvaluations.compactMap({ $0?.generation }).allSatisfy({ $0 == generation }) else {
+      _ = await rulesAreCurrent(generation: generation, now: now)
+      return nil
+    }
+    for (attempt, evaluation) in zip(screenBatch.attempts, screenEvaluations) {
+      batch.record(evaluation, for: attempt)
+    }
+    return batch
+  }
+
+  private func record(
+    _ result: AgentDetectionSignalEvaluation?,
+    for attempt: EvaluationAttempt,
+    evaluationBatch: inout EvaluationBatch,
+    screenBatch: inout ScreenEvaluationBatch
+  ) {
+    guard states[attempt.surfaceID]?.nonce == attempt.state.nonce else { return }
+    guard let result else {
+      evaluationBatch.record(nil, for: attempt)
+      return
+    }
+    switch result {
+    case .matched(let evaluation):
+      evaluationBatch.record(evaluation, for: attempt)
+    case .needsScreen:
+      guard let request = screenRequest(for: attempt) else { return }
+      screenBatch.attempts.append(attempt)
+      screenBatch.requests.append(request)
+    }
+  }
+
+  private func screenRequest(
+    for attempt: EvaluationAttempt
+  ) -> AgentDetectionEvaluationRequest? {
+    guard let screen = host.screen(attempt.state.key) else {
+      if var state = states[attempt.surfaceID], state.nonce == attempt.state.nonce {
+        resetEvaluation(&state, status: .protectedOrUnreadableScreen)
+        states[attempt.surfaceID] = state
+      }
+      return nil
+    }
+    return AgentDetectionEvaluationRequest(
+      agentID: attempt.proof.agentID,
+      input: AgentDetectionInput(
+        screen: Self.utf8Suffix(screen, maximumBytes: Self.screenByteLimit),
+        oscTitle: attempt.signals.oscTitle,
+        oscProgress: attempt.signals.oscProgress
+      )
+    )
+  }
+
+  private func apply(
+    _ batch: EvaluationBatch,
+    generation: UInt64,
+    now: ContinuousClock.Instant
+  ) async {
+    let attempts = batch.activeAttempts
+    guard !attempts.isEmpty else { return }
+    let remainsCurrent = await sampler.current(
+      Set(attempts.map(\.proof.processIdentity))
+    )
+    guard !Task.isCancelled else { return }
+    guard self.generation == generation else { return }
+    let validation = EvaluationValidation(
+      generation: generation,
+      currentIdentities: remainsCurrent,
+      live: Dictionary(uniqueKeysWithValues: host.surfaces().map { ($0.key.id, $0.key) })
+    )
+
+    for attempt in attempts {
+      apply(
+        attempt,
+        from: batch,
+        validation: validation,
+        now: now
+      )
+    }
+  }
+
+  private func apply(
+    _ attempt: EvaluationAttempt,
+    from batch: EvaluationBatch,
+    validation: EvaluationValidation,
+    now: ContinuousClock.Instant
+  ) {
+    if batch.unknownSurfaceIDs.contains(attempt.surfaceID) {
+      guard
+        canPublish(attempt, validation: validation),
+        var state = states[attempt.surfaceID]
+      else {
+        return
+      }
+      markUnrecognized(&state, now: now)
+      states[attempt.surfaceID] = state
+      return
+    }
+    guard let evaluation = batch.evaluations[attempt.surfaceID],
+      evaluation.generation == validation.generation,
+      canPublish(attempt, validation: validation)
+    else {
+      if self.generation == validation.generation {
+        clearPublished(attempt.surfaceID)
+      }
+      return
+    }
+    guard var state = states[attempt.surfaceID] else { return }
+    settle(
+      evaluation,
+      proof: attempt.proof,
+      surfaceID: attempt.surfaceID,
+      state: &state,
+      now: now
+    )
+    states[attempt.surfaceID] = state
   }
 
   private func prepareEvaluation(
@@ -545,7 +742,7 @@ final class TerminalAgentDetectionController {
       states[surfaceID] = state
       return nil
     }
-    guard let captured = host.capture(state.key) else {
+    guard let signals = host.signals(state.key) else {
       resetEvaluation(&state, status: .protectedOrUnreadableScreen)
       states[surfaceID] = state
       return nil
@@ -554,74 +751,35 @@ final class TerminalAgentDetectionController {
       surfaceID: surfaceID,
       state: state,
       proof: proof,
-      input: AgentDetectionInput(
-        screen: Self.utf8Suffix(captured.screen, maximumBytes: Self.screenByteLimit),
-        oscTitle: Self.utf8Prefix(captured.oscTitle, maximumBytes: Self.titleByteLimit),
-        oscProgress: captured.oscProgress
+      signals: AgentDetectionSignalInput(
+        oscTitle: Self.utf8Prefix(signals.oscTitle, maximumBytes: Self.titleByteLimit),
+        oscProgress: signals.oscProgress
       )
     )
   }
 
-  private func finishEvaluation(
-    _ attempt: EvaluationAttempt,
+  private func rulesAreCurrent(
     generation: UInt64,
     now: ContinuousClock.Instant
   ) async -> Bool {
-    let surfaceID = attempt.surfaceID
-    let nonce = attempt.state.nonce
-    let proof = attempt.proof
-    let evaluation = await rules.evaluate(proof.agentID, attempt.input)
-    guard !Task.isCancelled else { return false }
-    guard states[surfaceID]?.nonce == nonce else { return true }
     let latestSnapshot = await rules.snapshot()
     guard !Task.isCancelled else { return false }
-    guard states[surfaceID]?.nonce == nonce else { return true }
     guard latestSnapshot.generation == generation else {
       activate(latestSnapshot)
       reconcile(host.surfaces(), now: now)
       return false
     }
-    guard let evaluation, evaluation.generation == generation else {
-      var state = attempt.state
-      markUnrecognized(&state, now: now)
-      states[surfaceID] = state
-      return true
-    }
-    let remainsCurrent = await sampler.current([proof.processIdentity])
-    guard !Task.isCancelled else { return false }
-    guard
-      canPublish(
-        attempt,
-        generation: generation,
-        currentIdentities: remainsCurrent
-      )
-    else {
-      if self.generation == generation {
-        clearPublished(surfaceID)
-      }
-      return true
-    }
-    var state = attempt.state
-    settle(
-      evaluation,
-      proof: proof,
-      surfaceID: surfaceID,
-      state: &state,
-      now: now
-    )
-    states[surfaceID] = state
-    return true
+    return self.generation == generation
   }
 
   private func canPublish(
     _ attempt: EvaluationAttempt,
-    generation: UInt64,
-    currentIdentities: Set<TerminalAgentProcessIdentity>
+    validation: EvaluationValidation
   ) -> Bool {
-    self.generation == generation
+    generation == validation.generation
       && states[attempt.surfaceID]?.nonce == attempt.state.nonce
-      && currentIdentities.contains(attempt.proof.processIdentity)
-      && host.surfaces().contains(where: { $0.key == attempt.state.key })
+      && validation.currentIdentities.contains(attempt.proof.processIdentity)
+      && validation.live[attempt.surfaceID] == attempt.state.key
       && host.nativeAuthority(attempt.surfaceID).contains(attempt.proof.processIdentity) == false
   }
 
@@ -856,22 +1014,29 @@ final class TerminalAgentDetectionController {
           )
         }
       },
-      capture: { [weak terminal] key in
+      signals: { [weak terminal] key in
         guard let surface = terminal?.surfaces[key.id],
           ObjectIdentifier(surface) == key.instance,
-          surface.foregroundProcessGroupID == key.foregroundProcessGroupID,
-          let screen = surface.activeScreenText(maximumUTF8Bytes: screenByteLimit)
+          surface.foregroundProcessGroupID == key.foregroundProcessGroupID
         else {
           return nil
         }
-        return TerminalAgentDetectionCapture(
-          screen: screen,
+        return TerminalAgentDetectionSignals(
           oscTitle: surface.rawTitle ?? "",
           oscProgress: surface.bridge.state.agentOSCProgressProcessGroupID
             == key.foregroundProcessGroupID
             ? surface.bridge.state.agentOSCProgress
             : ""
         )
+      },
+      screen: { [weak terminal] key in
+        guard let surface = terminal?.surfaces[key.id],
+          ObjectIdentifier(surface) == key.instance,
+          surface.foregroundProcessGroupID == key.foregroundProcessGroupID
+        else {
+          return nil
+        }
+        return surface.activeScreenText(maximumUTF8Bytes: screenByteLimit)
       },
       nativeAuthority: { [weak terminal] surfaceID in
         terminal?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {

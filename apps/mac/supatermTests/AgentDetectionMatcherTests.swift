@@ -24,6 +24,54 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test
+  func signalMatchStopsBeforeLowerPriorityScreenRules() throws {
+    let matcher = try AgentDetectionMatcher(
+      agent: agent(
+        rules: [
+          rule(
+            id: "title",
+            priority: 30,
+            region: .oscTitle,
+            contains: ["working"]
+          ),
+          rule(id: "screen", priority: 20, contains: ["blocked"]),
+        ]
+      )
+    )
+
+    #expect(
+      matcher.matchSignals(AgentDetectionSignalInput(oscTitle: "Working"))
+        == .matched(AgentDetectionMatch(result: .running, ruleID: "title"))
+    )
+  }
+
+  @Test
+  func signalMatchDefersToHigherPriorityScreenRules() throws {
+    let matcher = try AgentDetectionMatcher(
+      agent: agent(
+        rules: [
+          rule(id: "screen", result: .needsInput, priority: 30, contains: ["blocked"]),
+          rule(
+            id: "title",
+            priority: 20,
+            region: .oscTitle,
+            contains: ["working"]
+          ),
+        ]
+      )
+    )
+
+    #expect(
+      matcher.matchSignals(AgentDetectionSignalInput(oscTitle: "Working")) == .needsScreen
+    )
+    #expect(
+      matcher.match(
+        AgentDetectionInput(screen: "Blocked", oscTitle: "Working")
+      ) == AgentDetectionMatch(result: .needsInput, ruleID: "screen")
+    )
+  }
+
+  @Test
   func noMatchingRuleUsesTheKnownAgentIdleFallback() throws {
     let matcher = try AgentDetectionMatcher(
       agent: agent(rules: [rule(contains: ["ready"])])

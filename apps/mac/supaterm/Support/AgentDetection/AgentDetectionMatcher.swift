@@ -12,6 +12,16 @@ public struct AgentDetectionInput: Equatable, Sendable {
   }
 }
 
+public struct AgentDetectionSignalInput: Equatable, Sendable {
+  public let oscTitle: String
+  public let oscProgress: String
+
+  public init(oscTitle: String, oscProgress: String = "") {
+    self.oscTitle = oscTitle
+    self.oscProgress = oscProgress
+  }
+}
+
 public struct AgentDetectionMatch: Equatable, Sendable {
   public let result: AgentDetectionRuleResult
   public let ruleID: String
@@ -34,32 +44,52 @@ struct AgentDetectionMatcher {
   private let rules: [CompiledRule]
 
   init(agent: AgentDetectionAgentRule) throws {
-    rules = try agent.rules.map(CompiledRule.init)
+    var ordered: [(index: Int, rule: CompiledRule)] = []
+    for (index, rule) in agent.rules.enumerated() {
+      ordered.append((index, try CompiledRule(rule)))
+    }
+    ordered.sort {
+      $0.rule.priority == $1.rule.priority
+        ? $0.index < $1.index
+        : $0.rule.priority > $1.rule.priority
+    }
+    rules = ordered.map(\.rule)
+  }
+
+  func matchSignals(_ input: AgentDetectionSignalInput) -> AgentDetectionSignalResult {
+    let input = PreparedInput(
+      AgentDetectionInput(
+        screen: "",
+        oscTitle: input.oscTitle,
+        oscProgress: input.oscProgress
+      )
+    )
+    for rule in rules {
+      guard !rule.region.requiresScreen else { return .needsScreen }
+      if rule.matches(input) { return .matched(rule.match) }
+    }
+    return .matched(Self.fallbackMatch)
   }
 
   func match(_ input: AgentDetectionInput) -> AgentDetectionMatch {
-    var best: CompiledRule?
+    let input = PreparedInput(input)
     for rule in rules where rule.matches(input) {
-      if let currentBest = best {
-        if rule.priority > currentBest.priority {
-          best = rule
-        }
-      } else {
-        best = rule
-      }
+      return rule.match
     }
-    guard let best else {
-      return AgentDetectionMatch(
-        result: .idle,
-        ruleID: Self.fallbackRuleID
-      )
-    }
-    return AgentDetectionMatch(
-      result: best.result,
-      ruleID: best.id,
-      visibleIdle: best.visibleIdle
+    return Self.fallbackMatch
+  }
+
+  private static var fallbackMatch: AgentDetectionMatch {
+    AgentDetectionMatch(
+      result: .idle,
+      ruleID: fallbackRuleID
     )
   }
+}
+
+enum AgentDetectionSignalResult: Equatable, Sendable {
+  case matched(AgentDetectionMatch)
+  case needsScreen
 }
 
 private struct CompiledRule {
@@ -79,8 +109,16 @@ private struct CompiledRule {
     gate = try CompiledGate(rule.gate)
   }
 
-  func matches(_ input: AgentDetectionInput) -> Bool {
-    gate.matches(region.text(in: input))
+  var match: AgentDetectionMatch {
+    AgentDetectionMatch(
+      result: result,
+      ruleID: id,
+      visibleIdle: visibleIdle
+    )
+  }
+
+  func matches(_ input: PreparedInput) -> Bool {
+    gate.matches(input.text(in: region))
   }
 }
 
@@ -101,16 +139,25 @@ private struct CompiledGate {
     not = try gate.not.map(CompiledGate.init)
   }
 
-  func matches(_ text: String) -> Bool {
-    let lowercaseText = text.lowercased()
-    return contains.allSatisfy(lowercaseText.contains)
-      && regex.allSatisfy { $0.matches(text) }
-      && lineRegex.allSatisfy { expression in
-        text.agentDetectionLines.contains { expression.matches($0) }
-      }
-      && all.allSatisfy { $0.matches(text) }
-      && (any.isEmpty || any.contains { $0.matches(text) })
-      && !not.contains { $0.matches(text) }
+  func matches(_ text: PreparedText) -> Bool {
+    if !contains.isEmpty, !contains.allSatisfy(text.lowercase.contains) {
+      return false
+    }
+    if !regex.allSatisfy({ $0.matches(text.raw) }) {
+      return false
+    }
+    if !lineRegex.allSatisfy({ expression in
+      text.lines.contains { expression.matches($0) }
+    }) {
+      return false
+    }
+    if !all.allSatisfy({ $0.matches(text) }) {
+      return false
+    }
+    if !any.isEmpty, !any.contains(where: { $0.matches(text) }) {
+      return false
+    }
+    return !not.contains { $0.matches(text) }
   }
 }
 
@@ -129,25 +176,71 @@ private struct CompiledRegularExpression {
   }
 }
 
+private final class PreparedInput {
+  private let input: AgentDetectionInput
+  private let screen: PreparedScreen
+  private var regions: [AgentDetectionRegion: PreparedText] = [:]
+
+  init(_ input: AgentDetectionInput) {
+    self.input = input
+    screen = PreparedScreen(input.screen)
+  }
+
+  func text(in region: AgentDetectionRegion) -> PreparedText {
+    if let text = regions[region] { return text }
+    let text =
+      switch region {
+      case .wholeRecent:
+        PreparedText(screen.raw, lines: { [screen] in screen.lines })
+      case .bottomNonEmptyLines(let count):
+        PreparedText(screen.lines.agentDetectionBottomNonEmptyLines(count))
+      case .topNonEmptyLines(let count):
+        PreparedText(screen.lines.agentDetectionTopNonEmptyLines(count))
+      case .afterLastPromptMarker:
+        PreparedText(screen.lines.agentDetectionAfterLastPromptMarker)
+      case .promptBoxBody:
+        PreparedText(screen.lines.agentDetectionPromptBoxBody)
+      case .afterLastHorizontalRule:
+        PreparedText(screen.lines.agentDetectionAfterLastHorizontalRule)
+      case .oscTitle:
+        PreparedText(input.oscTitle)
+      case .oscProgress:
+        PreparedText(input.oscProgress)
+      }
+    regions[region] = text
+    return text
+  }
+}
+
+private final class PreparedScreen {
+  let raw: String
+  lazy var lines = raw.agentDetectionLines
+
+  init(_ raw: String) {
+    self.raw = raw
+  }
+}
+
+private final class PreparedText {
+  let raw: String
+  lazy var lowercase = raw.lowercased()
+  lazy var lines = makeLines?() ?? raw.agentDetectionLines
+  private let makeLines: (() -> [String])?
+
+  init(_ raw: String, lines: (() -> [String])? = nil) {
+    self.raw = raw
+    makeLines = lines
+  }
+}
+
 extension AgentDetectionRegion {
-  fileprivate func text(in input: AgentDetectionInput) -> String {
+  fileprivate var requiresScreen: Bool {
     switch self {
-    case .wholeRecent:
-      input.screen
-    case .bottomNonEmptyLines(let count):
-      input.screen.agentDetectionBottomNonEmptyLines(count)
-    case .topNonEmptyLines(let count):
-      input.screen.agentDetectionTopNonEmptyLines(count)
-    case .afterLastPromptMarker:
-      input.screen.agentDetectionAfterLastPromptMarker
-    case .promptBoxBody:
-      input.screen.agentDetectionPromptBoxBody
-    case .afterLastHorizontalRule:
-      input.screen.agentDetectionAfterLastHorizontalRule
-    case .oscTitle:
-      input.oscTitle
-    case .oscProgress:
-      input.oscProgress
+    case .oscTitle, .oscProgress:
+      false
+    case .wholeRecent, .bottomNonEmptyLines, .topNonEmptyLines, .afterLastPromptMarker,
+      .promptBoxBody, .afterLastHorizontalRule:
+      true
     }
   }
 }
@@ -158,54 +251,58 @@ extension String {
       value.last == "\r" ? String(value.dropLast()) : String(value)
     }
   }
+}
 
+extension Array where Element == String {
   fileprivate func agentDetectionBottomNonEmptyLines(_ count: Int) -> String {
-    let lines = agentDetectionLines
-    guard
-      let start = lines.indices.reversed().filter({ !lines[$0].agentDetectionTrimmed.isEmpty })
-        .prefix(count).last
-    else {
-      return ""
+    var start: Index?
+    var remaining = count
+    for index in indices.reversed() where !self[index].agentDetectionTrimmed.isEmpty {
+      start = index
+      remaining -= 1
+      if remaining == 0 { break }
     }
-    return lines[start...].joined(separator: "\n")
+    return start.map { self[$0...].joined(separator: "\n") } ?? ""
   }
 
   fileprivate func agentDetectionTopNonEmptyLines(_ count: Int) -> String {
-    let lines = agentDetectionLines
-    guard
-      let end = lines.indices.filter({ !lines[$0].agentDetectionTrimmed.isEmpty })
-        .prefix(count).last
-    else {
-      return ""
+    var end: Index?
+    var remaining = count
+    for index in indices where !self[index].agentDetectionTrimmed.isEmpty {
+      end = index
+      remaining -= 1
+      if remaining == 0 { break }
     }
-    return lines[...end].joined(separator: "\n")
+    return end.map { self[...$0].joined(separator: "\n") } ?? ""
   }
 
   fileprivate var agentDetectionAfterLastPromptMarker: String {
-    let lines = agentDetectionLines
-    guard let prompt = lines.lastIndex(where: { $0 == "›" || $0.hasPrefix("› ") }) else {
-      return self
+    guard let prompt = lastIndex(where: { $0 == "›" || $0.hasPrefix("› ") }) else {
+      return joined(separator: "\n")
     }
-    return lines.dropFirst(prompt + 1).joined(separator: "\n")
+    return dropFirst(prompt + 1).joined(separator: "\n")
   }
 
   fileprivate var agentDetectionPromptBoxBody: String {
-    let lines = agentDetectionLines
-    let borders = lines.indices.filter { lines[$0].agentDetectionIsHorizontalRule }
-    guard borders.count >= 2 else { return "" }
-    let top = borders[borders.count - 2]
-    let end = lines[(top + 1)...].firstIndex { $0.agentDetectionIsHorizontalRule } ?? lines.endIndex
-    return lines[(top + 1)..<end].joined(separator: "\n")
+    var previousBorder: Index?
+    var lastBorder: Index?
+    for index in indices where self[index].agentDetectionIsHorizontalRule {
+      previousBorder = lastBorder
+      lastBorder = index
+    }
+    guard let top = previousBorder, let bottom = lastBorder else { return "" }
+    return self[(top + 1)..<bottom].joined(separator: "\n")
   }
 
   fileprivate var agentDetectionAfterLastHorizontalRule: String {
-    let lines = agentDetectionLines
-    guard let border = lines.lastIndex(where: \.agentDetectionIsHorizontalRule) else {
-      return self
+    guard let border = lastIndex(where: \.agentDetectionIsHorizontalRule) else {
+      return joined(separator: "\n")
     }
-    return lines.dropFirst(border + 1).joined(separator: "\n")
+    return dropFirst(border + 1).joined(separator: "\n")
   }
+}
 
+extension String {
   fileprivate var agentDetectionTrimmed: String {
     trimmingCharacters(in: .whitespacesAndNewlines)
   }
