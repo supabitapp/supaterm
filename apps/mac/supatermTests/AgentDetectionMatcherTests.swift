@@ -126,6 +126,12 @@ struct AgentDetectionMatcherTests {
       rule(id: "top", priority: 20, region: .topNonEmptyLines(2), contains: ["a\n\nb"]),
       rule(id: "prompt", priority: 30, region: .afterLastPromptMarker, contains: ["after"]),
       rule(id: "box", priority: 40, region: .promptBoxBody, contains: ["inside"]),
+      rule(
+        id: "above-box",
+        priority: 45,
+        region: .lastNonEmptyAbovePromptBox,
+        contains: ["inside"]
+      ),
       rule(id: "rule", priority: 50, region: .afterLastHorizontalRule, contains: ["below"]),
       rule(id: "title", priority: 60, region: .oscTitle, contains: ["title"]),
       rule(id: "progress", priority: 70, region: .oscProgress, contains: ["4;0"]),
@@ -140,6 +146,50 @@ struct AgentDetectionMatcherTests {
           oscProgress: "4;0;"
         )
       ).ruleID == "progress"
+    )
+  }
+
+  @Test
+  func lastNonEmptyAbovePromptBoxExcludesThePromptBody() throws {
+    let matcher = try AgentDetectionMatcher(
+      agent: agent(
+        rules: [
+          rule(
+            region: .lastNonEmptyAbovePromptBox,
+            contains: ["Waiting for 2 background agents to finish"]
+          )
+        ]
+      )
+    )
+
+    #expect(
+      matcher.match(
+        AgentDetectionInput(
+          screen: """
+            Waiting for 2 background agents to finish
+
+            ───
+            ❯ prompt
+            ───
+            footer
+            """,
+          oscTitle: ""
+        )
+      ).ruleID == "rule"
+    )
+    #expect(
+      matcher.match(
+        AgentDetectionInput(
+          screen: """
+            idle
+            ───
+            Waiting for 2 background agents to finish
+            ───
+            footer
+            """,
+          oscTitle: ""
+        )
+      ).ruleID == AgentDetectionMatcher.fallbackRuleID
     )
   }
 
@@ -192,7 +242,8 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test(arguments: [
-    "claude-running", "codex-running", "codex-working-spinner", "codex-working-clipped",
+    "claude-background-agents", "claude-background-shell", "claude-live-turn", "claude-running",
+    "codex-running", "codex-working-spinner", "codex-working-clipped",
     "codex-working-reasoning-header", "codex-working-queued", "codex-working-steers-only",
     "codex-working-reconnecting", "codex-working-reconnecting-narrow",
     "codex-working-remapped-plain", "pi-running",
@@ -213,7 +264,10 @@ struct AgentDetectionMatcherTests {
 
   @Test(arguments: [
     ("claude-idle", "live_prompt_box"),
+    ("claude-background-agents", "background_agents_working"),
+    ("claude-background-shell", "background_shell_working"),
     ("claude-legacy-blocker", "legacy_no_prompt_blocker"),
+    ("claude-live-turn", "live_turn_working"),
     ("claude-model-picker", "model_picker_menu"),
     ("claude-needs-input", "live_blocked_form"),
     ("claude-running", "osc_title_working"),

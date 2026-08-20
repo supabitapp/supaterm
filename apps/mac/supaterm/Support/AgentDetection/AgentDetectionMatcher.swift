@@ -200,6 +200,8 @@ private final class PreparedInput {
         PreparedText(screen.lines.agentDetectionAfterLastPromptMarker)
       case .promptBoxBody:
         PreparedText(screen.lines.agentDetectionPromptBoxBody)
+      case .lastNonEmptyAbovePromptBox:
+        PreparedText(screen.lines.agentDetectionLastNonEmptyAbovePromptBox)
       case .afterLastHorizontalRule:
         PreparedText(screen.lines.agentDetectionAfterLastHorizontalRule)
       case .oscTitle:
@@ -239,7 +241,7 @@ extension AgentDetectionRegion {
     case .oscTitle, .oscProgress:
       false
     case .wholeRecent, .bottomNonEmptyLines, .topNonEmptyLines, .afterLastPromptMarker,
-      .promptBoxBody, .afterLastHorizontalRule:
+      .promptBoxBody, .lastNonEmptyAbovePromptBox, .afterLastHorizontalRule:
       true
     }
   }
@@ -284,14 +286,16 @@ extension Array where Element == String {
   }
 
   fileprivate var agentDetectionPromptBoxBody: String {
-    var previousBorder: Index?
-    var lastBorder: Index?
-    for index in indices where self[index].agentDetectionIsHorizontalRule {
-      previousBorder = lastBorder
-      lastBorder = index
-    }
-    guard let top = previousBorder, let bottom = lastBorder else { return "" }
+    guard
+      let top = agentDetectionPromptBoxTopBorder,
+      let bottom = self[(top + 1)...].lastIndex(where: \.agentDetectionIsHorizontalRule)
+    else { return "" }
     return self[(top + 1)..<bottom].joined(separator: "\n")
+  }
+
+  fileprivate var agentDetectionLastNonEmptyAbovePromptBox: String {
+    let lines = agentDetectionPromptBoxTopBorder.map { self[..<$0] } ?? self[...]
+    return lines.last(where: { !$0.agentDetectionTrimmed.isEmpty }) ?? ""
   }
 
   fileprivate var agentDetectionAfterLastHorizontalRule: String {
@@ -299,6 +303,11 @@ extension Array where Element == String {
       return joined(separator: "\n")
     }
     return dropFirst(border + 1).joined(separator: "\n")
+  }
+
+  private var agentDetectionPromptBoxTopBorder: Index? {
+    guard let bottom = lastIndex(where: \.agentDetectionIsHorizontalRule) else { return nil }
+    return self[..<bottom].lastIndex(where: \.agentDetectionIsHorizontalRule)
   }
 }
 

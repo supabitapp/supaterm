@@ -13,6 +13,9 @@ struct AgentDetectionRuleSetTests {
     #expect(
       agents[0].rules.map(\.id) == [
         "osc_title_working",
+        "live_turn_working",
+        "background_shell_working",
+        "background_agents_working",
         "btw_overlay_working",
         "transcript_viewer",
         "live_blocked_form",

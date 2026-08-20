@@ -128,6 +128,7 @@ enum AgentDetectionRegion: Equatable, Hashable, Sendable {
   case topNonEmptyLines(Int)
   case afterLastPromptMarker
   case promptBoxBody
+  case lastNonEmptyAbovePromptBox
   case afterLastHorizontalRule
   case oscTitle
   case oscProgress
@@ -144,6 +145,8 @@ extension AgentDetectionRegion: Decodable {
       self = .afterLastPromptMarker
     case "prompt_box_body":
       self = .promptBoxBody
+    case "last_non_empty_above_prompt_box":
+      self = .lastNonEmptyAbovePromptBox
     case "after_last_horizontal_rule":
       self = .afterLastHorizontalRule
     case "osc_title":
