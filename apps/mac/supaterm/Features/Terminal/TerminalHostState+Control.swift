@@ -509,19 +509,6 @@ extension TerminalHostState {
 
   func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {
     let resolvedTarget = try resolvePaneTarget(request.target)
-    TerminalControlTrace.write(
-      event: "send_text",
-      fields: [
-        "mode": request.mode.rawValue,
-        "space_id": resolvedTarget.spaceID.rawValue.uuidString.lowercased(),
-        "tab_id": resolvedTarget.tabID.rawValue.uuidString.lowercased(),
-        "surface_id": resolvedTarget.anchorSurface.id.uuidString.lowercased(),
-        "text_length": String(request.text.count),
-        "text_has_cr": request.text.contains("\r") ? "1" : "0",
-        "text_has_lf": request.text.contains("\n") ? "1" : "0",
-        "text_preview": TerminalControlTrace.preview(request.text),
-      ]
-    )
     switch request.mode {
     case .submit:
       resolvedTarget.anchorSurface.bridge.submitText(request.text)
@@ -538,15 +525,6 @@ extension TerminalHostState {
 
   func sendKey(_ request: TerminalSendKeyRequest) throws -> SupatermSendKeyResult {
     let resolvedTarget = try resolvePaneTarget(request.target)
-    TerminalControlTrace.write(
-      event: "send_key",
-      fields: [
-        "key": request.key.rawValue,
-        "space_id": resolvedTarget.spaceID.rawValue.uuidString.lowercased(),
-        "tab_id": resolvedTarget.tabID.rawValue.uuidString.lowercased(),
-        "surface_id": resolvedTarget.anchorSurface.id.uuidString.lowercased(),
-      ]
-    )
     resolvedTarget.anchorSurface.bridge.sendKey(request.key)
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,

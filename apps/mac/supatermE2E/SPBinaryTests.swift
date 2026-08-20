@@ -182,31 +182,6 @@ extension SupatermE2ESuite {
     }
 
     @Test(.timeLimit(.minutes(5)))
-    func runInjectsSupatermAndTmuxEnvironment() async throws {
-      try await withTestSpace { app, space in
-        try await app.waitForShellPrompt(space.pane)
-        let runner = SPBinaryRunner(app: app, tabID: space.tab.tabID, paneID: space.tab.paneID)
-        let result = try requireSuccessfulSPResult(
-          try runner.run(
-            ["run", "--socket", app.socketPath, "--", "/usr/bin/env"],
-            cwd: space.directory
-          )
-        )
-        let environment = parseEnvironment(result.stdout)
-
-        #expect(environment[SupatermCLIEnvironment.socketPathKey] == app.socketPath)
-        #expect(environment[SupatermCLIEnvironment.surfaceIDKey] == space.tab.paneID.uuidString)
-        #expect(environment[SupatermCLIEnvironment.tabIDKey] == space.tab.tabID.uuidString)
-        #expect(environment["TERM_PROGRAM"] == "ghostty")
-        #expect(environment["TMUX_PANE"] == "%\(space.tab.paneID.uuidString.lowercased())")
-        #expect(environment["TMUX"]?.contains(space.spaceID.uuidString.lowercased()) == true)
-        #expect(environment["PATH"]?.contains(app.cliHome.path) == true)
-
-        try await expectShellUsesEmbeddedCLIs(app: app, space: space)
-      }
-    }
-
-    @Test(.timeLimit(.minutes(5)))
     func spaceTabAndPaneCommandsMutateLiveAppState() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
@@ -222,66 +197,6 @@ extension SupatermE2ESuite {
       try await withTestSpace { app, space in
         let runner = SPBinaryRunner(app: app, tabID: space.tab.tabID, paneID: space.tab.paneID)
         try exerciseGroupCommands(app: app, space: space, runner: runner)
-      }
-    }
-
-    @Test(.timeLimit(.minutes(5)))
-    func tmuxCompatibilityCommandsUseTheLiveSocketTree() async throws {
-      try await withTestSpace { app, space in
-        try await app.waitForShellPrompt(space.pane)
-        let runner = SPBinaryRunner(app: app, tabID: space.tab.tabID, paneID: space.tab.paneID)
-        let split = try requireSuccessfulSPResult(
-          try runner.run(
-            [
-              "tmux", "--socket", app.socketPath, "--", "split-window", "-h", "-P", "-F",
-              "#{pane_id}",
-            ],
-            cwd: space.directory
-          )
-        )
-        let splitPaneID = try tmuxPaneID(split.stdout)
-        let splitPane = SupatermPaneTargetRequest(paneID: splitPaneID)
-        try await app.waitForShellOutput(splitPane)
-
-        let panes = try requireSuccessfulSPResult(
-          try runner.run(
-            ["tmux", "--socket", app.socketPath, "--", "list-panes", "-F", "#{pane_id}"],
-            cwd: space.directory
-          )
-        )
-        #expect(
-          Set(outputLines(panes.stdout)) == [
-            "%\(space.tab.paneID.uuidString.lowercased())",
-            "%\(splitPaneID.uuidString.lowercased())",
-          ])
-
-        let displayed = try requireSuccessfulSPResult(
-          try runner.run(
-            [
-              "tmux", "--socket", app.socketPath, "--", "display-message", "-p", "-t",
-              "%\(splitPaneID.uuidString.lowercased())", "#{pane_id}:#{pane_index}",
-            ],
-            cwd: space.directory
-          )
-        )
-        #expect(
-          displayed.stdout.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(
-            "%\(splitPaneID.uuidString.lowercased()):"))
-
-        let marker = "tmux-\(space.token)"
-        _ = try requireSuccessfulSPResult(
-          try runner.run(
-            [
-              "tmux", "--socket", app.socketPath, "--", "send-keys", "-t",
-              "%\(splitPaneID.uuidString.lowercased())", "echo \(marker) > tmux.txt", "Enter",
-            ],
-            cwd: space.directory
-          )
-        )
-        let file = space.directory.appendingPathComponent("tmux.txt", isDirectory: false)
-        try await app.waitUntil("tmux send-keys writes tmux.txt") {
-          (try? String(contentsOf: file, encoding: .utf8))?.contains(marker) == true
-        }
       }
     }
 
@@ -434,27 +349,7 @@ extension SupatermE2ESuite {
       }
     }
 
-    @Test(.timeLimit(.minutes(5)))
-    func tmuxCompatibilityCoversEveryDispatcherFamily() async throws {
-      try await withTestSpace { app, space in
-        try await app.waitForShellPrompt(space.pane)
-        let runner = SPBinaryRunner(app: app, tabID: space.tab.tabID, paneID: space.tab.paneID)
-        try await exerciseTmuxCompatibility(app: app, space: space, runner: runner)
-      }
-    }
   }
-}
-
-private func parseEnvironment(_ output: String) -> [String: String] {
-  output.split(whereSeparator: \.isNewline).reduce(into: [:]) { result, line in
-    let entry = String(line)
-    guard let separator = entry.firstIndex(of: "=") else { return }
-    result[String(entry[..<separator])] = String(entry[entry.index(after: separator)...])
-  }
-}
-
-private func outputLines(_ output: String) -> [String] {
-  output.split(whereSeparator: \.isNewline).map(String.init)
 }
 
 private struct CLISpaceE2E {
@@ -465,19 +360,6 @@ private struct CLISpaceE2E {
 private struct CLITabE2E {
   let result: SupatermNewTabResult
   let runner: SPBinaryRunner
-}
-
-private func expectShellUsesEmbeddedCLIs(app: SupatermE2EApp, space: TestSpace) async throws {
-  let spCheck = #"[ "$(command -v sp)" = "$SUPATERM_CLI_PATH" ]"#
-  let wtCheck = #"[ "$(command -v wt)" = "${SUPATERM_CLI_PATH%/*}/wt" ]"#
-  let command = [
-    spCheck,
-    wtCheck,
-    "wt --help >/dev/null",
-    #"printf 'CLI_PATHS_MATCHED\n'"#,
-  ].joined(separator: " && ")
-  try app.type(command + "\n", into: space.pane)
-  try await app.waitForCapture(space.pane, contains: "CLI_PATHS_MATCHED")
 }
 
 private func expectOnboardingCommands(
@@ -903,7 +785,7 @@ private func exerciseTabCommands(
 
   let title = try requireSuccessfulSPResult(
     try runner.run(
-      ["tmux", "display-message", "-p", "#{window_name}"],
+      ["tab", "title", "--socket", app.socketPath, "--plain"],
       cwd: space.directory
     )
   )
@@ -1166,185 +1048,6 @@ private func closeCLIResources(
   }
 }
 
-private struct TmuxE2E {
-  let app: SupatermE2EApp
-  let space: TestSpace
-  let runner: SPBinaryRunner
-
-  func run(_ arguments: [String], timeout: TimeInterval = 10) throws -> SPBinaryResult {
-    try requireSuccessfulSPResult(
-      try runner.run(
-        ["tmux", "--socket", app.socketPath, "--"] + arguments,
-        cwd: space.directory,
-        timeout: timeout
-      )
-    )
-  }
-}
-
-private struct TmuxFixture {
-  let newSession: UUID
-  let createdWindow: UUID
-  let splitPane: UUID
-}
-
-private func exerciseTmuxCompatibility(
-  app: SupatermE2EApp,
-  space: TestSpace,
-  runner: SPBinaryRunner
-) async throws {
-  let tmux = TmuxE2E(app: app, space: space, runner: runner)
-  _ = try tmux.run(["has-session", "-t", tmuxSpaceSelector(space.spaceID)])
-  let fixture = try await createTmuxFixture(tmux)
-  try await exerciseTmuxPaneIO(tmux, fixture: fixture)
-  try exerciseTmuxControls(tmux, fixture: fixture)
-  try exerciseTmuxCloseAndFailures(tmux, fixture: fixture)
-}
-
-private func createTmuxFixture(_ tmux: TmuxE2E) async throws -> TmuxFixture {
-  let newSession = try tmuxSpaceID(
-    tmux.run([
-      "new-session", "-d", "-n", "tmux-space-\(tmux.space.token)", "-P", "-F", "#{session_id}",
-    ]).stdout
-  )
-  let createdWindow = try tmuxTabID(
-    tmux.run(
-      [
-        "new-window", "-t", tmuxSpaceSelector(tmux.space.spaceID), "-n",
-        "tmux-window-\(tmux.space.token)", "-P", "-F", "#{window_id}",
-      ]
-    ).stdout
-  )
-  _ = try tmux.run(["select-window", "-t", tmuxTabSelector(createdWindow)])
-  _ = try tmux.run([
-    "rename-window", "-t", tmuxTabSelector(createdWindow), "tmux-renamed-\(tmux.space.token)",
-  ])
-
-  let originalPane = try tmuxPaneID(
-    tmux.run(["list-panes", "-t", tmuxTabSelector(createdWindow), "-F", "#{pane_id}"]).stdout
-  )
-  try await tmux.app.waitForShellOutput(SupatermPaneTargetRequest(paneID: originalPane))
-  let splitPane = try tmuxPaneID(
-    tmux.run(["split-window", "-h", "-P", "-F", "#{pane_id}", "-t", tmuxPaneSelector(originalPane)])
-      .stdout
-  )
-  try await tmux.app.waitForShellOutput(SupatermPaneTargetRequest(paneID: splitPane))
-  return TmuxFixture(
-    newSession: newSession,
-    createdWindow: createdWindow,
-    splitPane: splitPane
-  )
-}
-
-private func exerciseTmuxPaneIO(_ tmux: TmuxE2E, fixture: TmuxFixture) async throws {
-  _ = try tmux.run(["select-pane", "-t", tmuxPaneSelector(fixture.splitPane)])
-  _ = try tmux.run(["select-pane", "-P", "fg=green", "-t", tmuxPaneSelector(fixture.splitPane)])
-  let displayed = try tmux.run(
-    [
-      "display-message", "-p", "-t", tmuxPaneSelector(fixture.splitPane),
-      "#{pane_id}:#{window_name}",
-    ]
-  )
-  #expect(displayed.stdout.contains(tmuxPaneSelector(fixture.splitPane)))
-
-  let marker = "tmux-live-\(tmux.space.token)"
-  _ = try tmux.run(
-    [
-      "send-keys", "-t", tmuxPaneSelector(fixture.splitPane), "echo \(marker) > tmux-live.txt",
-      "Enter",
-    ]
-  )
-  try await tmux.app.waitUntil("tmux send-keys writes a file") {
-    fileContents(at: tmux.space.directory.appendingPathComponent("tmux-live.txt")).contains(marker)
-  }
-
-  _ = try tmux.run(["capture-pane", "-t", tmuxPaneSelector(fixture.splitPane), "-p", "-S", "-5"])
-  _ = try tmux.run(["capture-pane", "-t", tmuxPaneSelector(fixture.splitPane), "-S", "-5"])
-  let shownBuffer = try tmux.run(["show-buffer"])
-  #expect(shownBuffer.stdout.contains(marker) || shownBuffer.stdout.contains("echo \(marker)"))
-  _ = try tmux.run(["save-buffer", "saved-buffer.txt"])
-  #expect(
-    FileManager.default.fileExists(
-      atPath: tmux.space.directory.appendingPathComponent("saved-buffer.txt").path))
-  try await exerciseTmuxBuffers(tmux, splitPane: fixture.splitPane)
-}
-
-private func exerciseTmuxBuffers(_ tmux: TmuxE2E, splitPane: UUID) async throws {
-  let bufferText = "tmux-buffer-\(tmux.space.token)"
-  _ = try tmux.run(["set-buffer", "-b", "custom", bufferText])
-  #expect(try tmux.run(["list-buffers"]).stdout.contains("custom"))
-  #expect(try tmux.run(["show-buffer", "-b", "custom"]).stdout.contains(bufferText))
-  _ = try tmux.run(["paste-buffer", "-b", "custom", "-t", tmuxPaneSelector(splitPane)])
-  try await tmux.app.waitForCapture(
-    SupatermPaneTargetRequest(paneID: splitPane), contains: bufferText)
-}
-
-private func exerciseTmuxControls(_ tmux: TmuxE2E, fixture: TmuxFixture) throws {
-  let waitName = "wait-\(tmux.space.token)"
-  _ = try tmux.run(["wait-for", "-S", waitName])
-  #expect(try tmux.run(["wait-for", "--timeout", "0.5", waitName]).stdout.contains("OK"))
-  let timedOutWait = try requireFailedSPResult(
-    try tmux.runner.run(
-      [
-        "tmux", "--socket", tmux.app.socketPath, "--", "wait-for", "--timeout", "0.1",
-        "missing-\(tmux.space.token)",
-      ],
-      cwd: tmux.space.directory
-    )
-  )
-  #expect(timedOutWait.stderr.contains("wait-for timed out"))
-
-  _ = try tmux.run(["last-pane", "-t", tmuxTabSelector(fixture.createdWindow)])
-  _ = try tmux.run(["resize-pane", "-t", tmuxPaneSelector(fixture.splitPane), "-x", "40"])
-  _ = try tmux.run(["resize-pane", "-t", tmuxPaneSelector(fixture.splitPane), "-R"])
-  for layout in ["tiled", "main-vertical", "even-horizontal"] {
-    _ = try tmux.run(["select-layout", "-t", tmuxTabSelector(fixture.createdWindow), layout])
-  }
-  let windows = try tmux.run([
-    "list-windows", "-t", tmuxSpaceSelector(tmux.space.spaceID), "-F", "#{window_id}",
-  ])
-  #expect(windows.stdout.contains(tmuxTabSelector(fixture.createdWindow)))
-  let panes = try tmux.run([
-    "list-panes", "-t", tmuxTabSelector(fixture.createdWindow), "-F", "#{pane_id}",
-  ])
-  #expect(panes.stdout.contains(tmuxPaneSelector(fixture.splitPane)))
-}
-
-private func exerciseTmuxCloseAndFailures(_ tmux: TmuxE2E, fixture: TmuxFixture) throws {
-  _ = try tmux.run(["set-hook", "pane-focus-in", "display-message focused"])
-  #expect(try tmux.run(["set-hook", "--list"]).stdout.contains("pane-focus-in"))
-  _ = try tmux.run(["set-hook", "--unset", "pane-focus-in"])
-  for arguments in tmuxNoopCommands {
-    _ = try tmux.run(arguments)
-  }
-  _ = try tmux.run(["next-window", "-t", tmuxSpaceSelector(tmux.space.spaceID)])
-  _ = try tmux.run(["previous-window", "-t", tmuxSpaceSelector(tmux.space.spaceID)])
-  _ = try tmux.run(["last-window", "-t", tmuxSpaceSelector(tmux.space.spaceID)])
-  _ = try tmux.run(["select-window", "-t", "!"])
-  _ = try tmux.run(["kill-pane", "-t", tmuxPaneSelector(fixture.splitPane)])
-  _ = try tmux.run(["kill-window", "-t", tmuxTabSelector(fixture.createdWindow)])
-  _ = try requireSuccessfulSPResult(
-    try tmux.runner.run(
-      [
-        "space", "destroy", "--socket", tmux.app.socketPath, "--json", "-y",
-        fixture.newSession.uuidString,
-      ],
-      cwd: tmux.space.directory)
-  )
-  let unsupported = try requireFailedSPResult(
-    try tmux.runner.run(
-      ["tmux", "--socket", tmux.app.socketPath, "--", "unsupported-command"],
-      cwd: tmux.space.directory)
-  )
-  #expect(unsupported.stderr.contains("Unsupported tmux compatibility command"))
-  let unsupportedNewSessionFlag = try requireFailedSPResult(
-    try tmux.runner.run(
-      ["tmux", "--socket", tmux.app.socketPath, "--", "new-session", "-A", "-n", "bad"],
-      cwd: tmux.space.directory)
-  )
-  #expect(unsupportedNewSessionFlag.stderr.contains("new-session -A is not supported"))
-}
-
 private let parentHelpCommands = [
   ["space"],
   ["tab"],
@@ -1358,18 +1061,6 @@ private let parentHelpCommands = [
   ["internal", "agent-settings"],
   ["internal", "dev"],
   ["internal", "dev", "claude"],
-  ["tmux"],
-  ["run"],
-]
-
-private let tmuxNoopCommands = [
-  ["set-option", "-g", "status", "off"],
-  ["set", "-g", "mouse", "on"],
-  ["set-window-option", "-g", "automatic-rename", "off"],
-  ["source-file", ".tmux.conf"],
-  ["refresh-client"],
-  ["attach-session"],
-  ["detach-client"],
 ]
 
 private struct PingResult: Decodable {
@@ -1426,10 +1117,6 @@ private func jsonObject(from output: String) throws -> [String: Any] {
   return object
 }
 
-private func fileContents(at url: URL) -> String {
-  (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-}
-
 private func listedRef(
   _ kind: ListSnapshot.Kind,
   id: UUID,
@@ -1475,39 +1162,4 @@ private func listedRef(
     }
   }
   throw SupatermE2EError("Expected a listed ref for \(id.uuidString.lowercased()).")
-}
-
-private func tmuxSpaceSelector(_ id: UUID) -> String {
-  "$\(id.uuidString.lowercased())"
-}
-
-private func tmuxTabSelector(_ id: UUID) -> String {
-  "@\(id.uuidString.lowercased())"
-}
-
-private func tmuxPaneSelector(_ id: UUID) -> String {
-  "%\(id.uuidString.lowercased())"
-}
-
-private func tmuxSpaceID(_ output: String) throws -> UUID {
-  try tmuxIdentifier(output, prefix: "$", name: "space")
-}
-
-private func tmuxTabID(_ output: String) throws -> UUID {
-  try tmuxIdentifier(output, prefix: "@", name: "tab")
-}
-
-private func tmuxPaneID(_ output: String) throws -> UUID {
-  try tmuxIdentifier(output, prefix: "%", name: "pane")
-}
-
-private func tmuxIdentifier(_ output: String, prefix: Character, name: String) throws -> UUID {
-  let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-  guard trimmed.first == prefix else {
-    throw SupatermE2EError("Expected tmux \(name) id, got \(trimmed).")
-  }
-  guard let id = UUID(uuidString: String(trimmed.dropFirst())) else {
-    throw SupatermE2EError("Invalid tmux \(name) id: \(trimmed).")
-  }
-  return id
 }

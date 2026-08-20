@@ -2,6 +2,12 @@ import ArgumentParser
 import Foundation
 import SupatermCLIShared
 
+private func trimmedNonEmpty(_ value: String?) -> String? {
+  guard let value else { return nil }
+  let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+  return trimmed.isEmpty ? nil : trimmed
+}
+
 extension SP {
   struct SSH: ParsableCommand {
     static let configuration = CommandConfiguration(

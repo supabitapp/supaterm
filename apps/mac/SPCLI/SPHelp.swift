@@ -381,26 +381,15 @@ enum SPHelp {
       sp tab rename Deploy <tab-uuid>
     """
 
-  static let tmuxDiscussion = """
-    `sp tmux` passes the remaining arguments to Supaterm's tmux compatibility layer.
+  static let tabTitleDiscussion = """
+    If you omit the tab target inside Supaterm, this command prints the current tab title.
 
-    Connection options must come before the tmux command.
-
-    Example:
-      sp tmux list-panes
-      sp tmux split-window -h -P
-      sp tmux --instance work-mac display-message -p '#{session_name}:#{window_index}.#{pane_index}'
-    """
-
-  static let runDiscussion = """
-    `sp run` launches a child process with Supaterm's tmux compatibility layer enabled.
-
-    Connection options must come before the child command.
+    Tab targets accept a `space/tab` selector, t: ref, or UUID.
 
     Example:
-      sp run claude
-      sp run -- claude --resume
-      sp run --instance work-mac -- claude --resume
+      sp tab title
+      sp tab title 1/2
+      sp tab title <tab-uuid> --json
     """
 
   static let sshDiscussion = """
@@ -595,6 +584,7 @@ enum SPHelp {
       sp tab focus 1/2
       sp tab pin 1/2
       sp tab unpin 1/2
+      sp tab title
       sp tab rename Logs 1/2
       sp tab next 1
     """

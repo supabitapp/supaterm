@@ -88,12 +88,3 @@ else
   exit "$exit_code"
 fi
 ```
-
-## Run tmux-aware tools
-
-```bash
-sp run -- claude --resume
-sp tmux list-panes
-```
-
-`sp run` provides Supaterm's tmux compatibility environment to the child process. `sp tmux` implements the supported compatibility subset; it is not a separate tmux server.

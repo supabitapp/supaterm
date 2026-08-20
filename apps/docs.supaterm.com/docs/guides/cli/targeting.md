@@ -53,8 +53,6 @@ Indexes can change when objects move or close. Use UUIDs for durable automation.
 
 The prefix has 8 to 32 UUID hex characters. Input is case-insensitive; output is lowercase. Supaterm prints the shortest unique prefix for each kind. Longer prefixes work. Missing, malformed, wrong-kind, and ambiguous refs fail instead of selecting another item. Refs describe the live snapshot; use full UUIDs for durable automation.
 
-`sp tmux` keeps tmux's `session:window` grammar. It treats a typed-looking token as a short ref only when that ref resolves to a live matching object.
-
 Group commands accept a `g:` ref, group UUID, or exact untyped title in the resolved space. A duplicate title is an error. Typed tokens never fall back to titles. When run from a tab inside a group, commands that omit the group target use that group.
 
 ```bash

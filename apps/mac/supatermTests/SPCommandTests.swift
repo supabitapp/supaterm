@@ -214,6 +214,19 @@ struct SPCommandTests {
   }
 
   @Test
+  func tabTitleParserAcceptsOptionalTarget() throws {
+    let current = try #require(
+      try SP.parseAsRoot(["tab", "title"]) as? SP.TabTitle
+    )
+    let targeted = try #require(
+      try SP.parseAsRoot(["tab", "title", "1/2"]) as? SP.TabTitle
+    )
+
+    #expect(current.tab == nil)
+    #expect(targeted.tab == .path(spaceIndex: 1, tabIndex: 2))
+  }
+
+  @Test
   func notifyParserAcceptsMissingBody() throws {
     let command = try #require(
       try SP.parseAsRoot(["pane", "notify", "--title", "Deploy complete"]) as? SP.Notify
@@ -232,21 +245,13 @@ struct SPCommandTests {
   }
 
   @Test
-  func tmuxParserAcceptsPassThroughCommandName() throws {
-    let tmux = try #require(
-      try SP.Tmux.parseAsRoot(["display-message"]) as? SP.Tmux
-    )
-
-    #expect(tmux.arguments == ["display-message"])
-  }
-
-  @Test
-  func runParserAcceptsPassThroughCommandName() throws {
-    let run = try #require(
-      try SP.Run.parseAsRoot(["--", "claude", "--resume"]) as? SP.Run
-    )
-
-    #expect(run.arguments == ["claude", "--resume"])
+  func tmuxAndRunCommandsAreRemoved() {
+    #expect(throws: (any Error).self) {
+      _ = try SP.parseAsRoot(["tmux", "list-panes"])
+    }
+    #expect(throws: (any Error).self) {
+      _ = try SP.parseAsRoot(["run", "env"])
+    }
   }
 
   @Test

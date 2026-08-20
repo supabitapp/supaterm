@@ -73,10 +73,9 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.PaneWaitReady.self, columns: 100),
       SP.helpMessage(for: SP.ResizePane.self, columns: 100),
       SP.helpMessage(for: SP.PaneLayout.self, columns: 100),
+      SP.helpMessage(for: SP.TabTitle.self, columns: 100),
       SP.helpMessage(for: SP.RenameTab.self, columns: 100),
-      SP.helpMessage(for: SP.Run.self, columns: 100),
       SP.helpMessage(for: SP.SSH.self, columns: 100),
-      SP.helpMessage(for: SP.Tmux.self, columns: 100),
       SP.helpMessage(for: SP.Skills.self, columns: 100),
       SP.helpMessage(for: SP.ListSkills.self, columns: 100),
       SP.helpMessage(for: SP.GetSkill.self, columns: 100),
@@ -173,6 +172,15 @@ struct SPHelpTests {
 
     #expect(help.contains("sp tab rename Deploy <tab-uuid>"))
     #expect(help.contains("sp tab rename ''"))
+  }
+
+  @Test
+  func tabTitleHelpShowsCurrentAndTargetedExamples() {
+    let help = SP.helpMessage(for: SP.TabTitle.self, columns: 100)
+
+    #expect(help.contains("sp tab title"))
+    #expect(help.contains("sp tab title 1/2"))
+    #expect(help.contains("sp tab title <tab-uuid> --json"))
   }
 
   @Test
@@ -340,17 +348,6 @@ struct SPHelpTests {
     #expect(help.contains("sp config set appearance.mode system"))
     #expect(help.contains("sp config reset privacy.analytics_enabled"))
     #expect(validateHelp.contains("sp config validate --path ./settings.toml"))
-  }
-
-  @Test
-  func tmuxAndRunHelpShowPassThroughExamples() {
-    let tmuxHelp = SP.helpMessage(for: SP.Tmux.self, columns: 100)
-    let runHelp = SP.helpMessage(for: SP.Run.self, columns: 100)
-
-    #expect(tmuxHelp.contains("sp tmux split-window -h -P"))
-    #expect(tmuxHelp.contains("--instance work-mac"))
-    #expect(runHelp.contains("sp run -- claude --resume"))
-    #expect(runHelp.contains("Example:"))
   }
 
 }

@@ -188,13 +188,6 @@ Their JSON output includes typed IDs. Their plain output is the new pane UUID fo
 
 Agent-panel forks also start the account login shell and enter the agent's native fork command visibly. The pane returns to the same shell when the agent exits. Terminal configuration cannot replace the launch selected by Supaterm.
 
-Compatibility:
-
-```bash
-sp run -- zsh -lc 'echo hi'
-sp tmux list-panes
-```
-
 Config, hooks, and skills:
 
 ```bash

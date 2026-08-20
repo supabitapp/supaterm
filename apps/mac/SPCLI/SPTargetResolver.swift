@@ -117,6 +117,7 @@ private struct SPTreeIndex {
           let tabIndex = offset + 1
           let tabLocation = SPTabLocation(
             id: tab.id,
+            title: tab.title,
             windowIndex: window.index,
             spaceIndex: space.index,
             tabIndex: tabIndex
@@ -199,6 +200,7 @@ private struct SPTreeIndex {
     }
     return SPTabLocation(
       id: tabs[tabIndex - 1].id,
+      title: tabs[tabIndex - 1].title,
       windowIndex: windowIndex,
       spaceIndex: spaceIndex,
       tabIndex: tabIndex
@@ -655,6 +657,18 @@ func resolvePublicTabTarget(
   return SupatermTabTargetRequest(tabID: location.id)
 }
 
+func resolvePublicTabTitle(
+  _ reference: SPTabReference?,
+  context: SupatermCLIContext?,
+  snapshot: SupatermTreeSnapshot
+) throws -> String {
+  try resolveConcreteTabLocation(
+    reference,
+    context: context,
+    index: SPTreeIndex(snapshot: snapshot)
+  ).title
+}
+
 func resolvePublicGroupTargetRequest(
   _ reference: SPGroupReference?,
   context: SupatermCLIContext?,
@@ -934,6 +948,7 @@ private struct SPSpaceLocation {
 
 private struct SPTabLocation {
   let id: UUID
+  let title: String
   let windowIndex: Int
   let spaceIndex: Int
   let tabIndex: Int

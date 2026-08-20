@@ -7,6 +7,10 @@ private struct SPPaneScreenshotOutput: Encodable {
   let path: String
 }
 
+private struct SPTabTitleOutput: Encodable {
+  let title: String
+}
+
 extension SP {
   struct Space: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -42,6 +46,7 @@ extension SP {
         PinTab.self,
         UnpinTab.self,
         CloseTab.self,
+        TabTitle.self,
         RenameTab.self,
         MoveTab.self,
         NextTab.self,
@@ -517,6 +522,39 @@ extension SP {
         tab,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
+      )
+    }
+  }
+
+  struct TabTitle: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "title",
+      abstract: "Print a Supaterm tab title.",
+      discussion: SPHelp.tabTitleDiscussion
+    )
+
+    @Argument(help: "Optional tab target.")
+    var tab: SPTabReference?
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      applyOutputStyle(options.output)
+      let client = try socketClient(
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
+      )
+      let title = try resolvePublicTabTitle(
+        tab,
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      )
+      try emitCommandResult(
+        SPTabTitleOutput(title: title),
+        options: options.output,
+        plain: title,
+        human: title
       )
     }
   }

@@ -15,7 +15,6 @@ struct SP: ParsableCommand {
     Instance.self,
     Config.self,
     Project.self,
-    Run.self,
     SSH.self,
     Space.self,
     Group.self,
@@ -23,7 +22,6 @@ struct SP: ParsableCommand {
     Pane.self,
     Skills.self,
     Agent.self,
-    Tmux.self,
     Internal.self,
   ]
 
