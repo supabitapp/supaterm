@@ -93,6 +93,34 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func cellSizeConvertsBackingPixelsToViewPoints() {
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView?.addSubview(surfaceView)
+    defer { window.contentView = nil }
+    let expected = CGSize(width: 10, height: 20)
+    let backingSize = surfaceView.convertToBacking(expected)
+
+    surfaceView.updateCellSize(
+      width: UInt32(backingSize.width),
+      height: UInt32(backingSize.height)
+    )
+
+    #expect(surfaceView.currentCellSize() == expected)
+  }
+
+  @Test
+  @MainActor
   func surfaceConfigDrivesProgressAndScrollbarAppearance() throws {
     let runtime = try makeGhosttyRuntime(
       """
