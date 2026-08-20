@@ -790,52 +790,60 @@ private struct TerminalSidebarHoverCardCopyRow: View {
   @State private var isHovering = false
 
   var body: some View {
-    HStack(spacing: 8) {
-      iconView
-      Text(title)
-        .font(.system(size: 12))
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .truncationMode(truncationMode)
-      Spacer(minLength: 6)
-      Button {
-        clipboardClient.copyString(copyValue)
-      } label: {
+    Button {
+      clipboardClient.copyString(copyValue)
+    } label: {
+      HStack(spacing: 8) {
+        iconView
+        Text(title)
+          .font(.system(size: 12))
+          .lineLimit(1)
+          .truncationMode(truncationMode)
+        Spacer(minLength: 0)
+      }
+      .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
+      .contentShape(.rect)
+      .background {
+        RoundedRectangle(cornerRadius: 5)
+          .fill(isHovering ? Color.primary.opacity(0.08) : .clear)
+          .padding(.vertical, -4)
+          .padding(.horizontal, -5)
+      }
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(isHovering ? .primary : .secondary)
+    .onHover { isHovering = $0 }
+    .help("Copy \(accessibilityName)")
+    .accessibilityLabel("Copy \(accessibilityName)")
+    .accessibilityValue(copyValue)
+  }
+
+  private var iconView: some View {
+    Group {
+      if isHovering {
         Image("copy")
           .renderingMode(.template)
           .resizable()
           .aspectRatio(contentMode: .fit)
           .frame(width: 12, height: 12)
-      }
-      .buttonStyle(.plain)
-      .foregroundStyle(.secondary)
-      .opacity(isHovering ? 1 : 0)
-      .help("Copy \(accessibilityName)")
-      .accessibilityLabel("Copy \(accessibilityName)")
-      .accessibilityValue(copyValue)
-    }
-    .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
-    .contentShape(.rect)
-    .onHover { isHovering = $0 }
-  }
-
-  private var iconView: some View {
-    Group {
-      switch icon {
-      case .asset(let name):
-        Image(name)
-          .renderingMode(.template)
-          .resizable()
-          .aspectRatio(contentMode: .fit)
-          .frame(width: 13, height: 13)
-      case .system(let name):
-        Image(systemName: name)
-          .font(.system(size: 11, weight: .medium))
+          .accessibilityHidden(true)
+      } else {
+        switch icon {
+        case .asset(let name):
+          Image(name)
+            .renderingMode(.template)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 13, height: 13)
+            .accessibilityHidden(true)
+        case .system(let name):
+          Image(systemName: name)
+            .font(.system(size: 11, weight: .medium))
+            .accessibilityHidden(true)
+        }
       }
     }
-    .foregroundStyle(.secondary)
     .frame(width: 14)
-    .accessibilityHidden(true)
   }
 }
 
