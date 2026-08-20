@@ -242,7 +242,18 @@ struct TerminalAgentPanelTests {
       )
     )
     let claude = try #require(
-      PaneAgentPanelSession.supported(agent: .claude, sessionID: "session_1")
+      PaneAgentPanelSession.supported(
+        agent: .claude,
+        sessionID: "session_1",
+        commandLineArguments: ["claude", "--model", "opus"]
+      )
+    )
+    let pi = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .pi,
+        sessionID: "session-1",
+        commandLineArguments: ["pi", "--provider", "openai"]
+      )
     )
 
     #expect(
@@ -251,9 +262,9 @@ struct TerminalAgentPanelTests {
     )
     #expect(
       claude.forkStartupCommand
-        == .shell("claude --fork-session --resume session_1")
+        == .shell("claude --model opus --fork-session --resume session_1")
     )
-    #expect(PaneAgentPanelSession.supported(agent: .pi, sessionID: "session-1") == nil)
+    #expect(pi.forkStartupCommand == .shell("pi --provider openai --fork session-1"))
   }
 
   @Test
@@ -302,6 +313,58 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  func panelSessionKeepsClaudeOptionsAndDropsPriorSessionArguments() throws {
+    let session = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .claude,
+        sessionID: "new-session",
+        commandLineArguments: [
+          "node",
+          "/opt/node_modules/@anthropic-ai/claude-code/cli.js",
+          "--permission-mode",
+          "plan",
+          "--fork-session",
+          "--resume",
+          "old-session",
+          "old prompt",
+        ]
+      )
+    )
+
+    #expect(
+      session.forkStartupCommand
+        == .shell(
+          "claude --permission-mode plan --fork-session --resume new-session"
+        )
+    )
+  }
+
+  @Test
+  func panelSessionKeepsPiOptionsAndDropsPriorSessionArguments() throws {
+    let session = try #require(
+      PaneAgentPanelSession.supported(
+        agent: .pi,
+        sessionID: "new-session",
+        commandLineArguments: [
+          "node",
+          "/opt/node_modules/@earendil-works/pi-coding-agent/dist/cli.js",
+          "--model",
+          "openai/gpt-5.5",
+          "--offline",
+          "--fork",
+          "old-session",
+          "old prompt",
+        ]
+      )
+    )
+
+    #expect(
+      session.forkStartupCommand
+        == .shell("pi --model openai/gpt-5.5 --offline --fork new-session")
+    )
+  }
+
+  @Test
   func panelSessionTrimsSafeSessionIdentifiers() throws {
     let session = try #require(
       PaneAgentPanelSession.supported(
@@ -334,6 +397,7 @@ struct TerminalAgentPanelTests {
     ] {
       #expect(PaneAgentPanelSession.supported(agent: .codex, sessionID: sessionID) == nil)
       #expect(PaneAgentPanelSession.supported(agent: .claude, sessionID: sessionID) == nil)
+      #expect(PaneAgentPanelSession.supported(agent: .pi, sessionID: sessionID) == nil)
     }
   }
 
@@ -368,7 +432,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func nativeAuthorityHidesAnotherAgentsSessionActions() throws {
+  func nativeAuthoritySelectsCurrentAgentsSessionActions() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -396,7 +460,14 @@ struct TerminalAgentPanelTests {
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
     #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace/")
-    #expect(presentation.session == nil)
+    #expect(
+      presentation.session
+        == PaneAgentPanelSession.supported(
+          agent: .pi,
+          sessionID: "session-2",
+          workingDirectoryPath: "/tmp/pi-workspace/"
+        )
+    )
   }
 
   @Test
@@ -509,7 +580,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func unsupportedActionableStateDoesNotExposeSessionActions() throws {
+  func actionablePiStateExposesSessionActions() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -539,7 +610,14 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.session == nil)
+    #expect(
+      presentation.session
+        == PaneAgentPanelSession.supported(
+          agent: .pi,
+          sessionID: "session-1",
+          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        )
+    )
     #expect(presentation.progressRows.map(\.title) == ["Run tests"])
   }
 

@@ -683,7 +683,7 @@ extension TerminalHostState {
     sessionID: String,
     surfaceID: UUID
   ) -> [String] {
-    guard agent == .codex,
+    guard
       let snapshot = agentStateStore.snapshots(for: surfaceID).first(where: {
         $0.agent == agent && $0.sessionID == sessionID
       })
