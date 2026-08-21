@@ -258,8 +258,7 @@ public struct DialogOneTimeCodeField: View {
       }
 
       if state == .submitting {
-        ProgressView()
-          .controlSize(.small)
+        DotsSpinner(size: 12, color: colors.accent)
           .frame(maxWidth: .infinity, alignment: .center)
       }
     }
@@ -326,8 +325,7 @@ public struct DialogProgress: View {
         ProgressView(value: min(max(value, 0), 1))
           .tint(colors.accent)
       } else {
-        ProgressView()
-          .controlSize(.small)
+        DotsSpinner(size: 12, color: colors.accent)
       }
     }
   }

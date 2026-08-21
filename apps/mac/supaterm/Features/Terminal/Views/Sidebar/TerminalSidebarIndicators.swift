@@ -1,4 +1,5 @@
 import SupaTheme
+import SupatermUI
 import SwiftUI
 
 struct TerminalSidebarTerminalProgress: Equatable {
@@ -35,11 +36,16 @@ struct TerminalSidebarProgressIndicatorView: View {
     Group {
       switch progress.indicatorStyle {
       case .ring:
-        TerminalProgressRingIndicatorView(
-          fraction: progress.fraction,
-          color: color,
-          trackColor: trackColor
-        )
+        if let fraction = progress.fraction {
+          TerminalProgressRingIndicatorView(
+            fraction: fraction,
+            color: color,
+            trackColor: trackColor
+          )
+        } else {
+          DotsSpinner(size: 11, color: color)
+            .frame(width: 16, height: 16)
+        }
       case .pauseIcon:
         RoundedRectangle(cornerRadius: 5, style: .continuous)
           .fill(color.opacity(isSelected ? 0.24 : 0.16))
@@ -116,12 +122,9 @@ struct TerminalSidebarAgentStatusView: View {
         .accessibilityHidden(true)
 
     case .working:
-      TerminalProgressRingIndicatorView(
-        fraction: nil,
-        color: palette.working,
-        trackColor: palette.working.opacity(0.2),
-        diameter: 10
-      )
+      DotsSpinner(size: 10, color: palette.working)
+        .frame(width: 16, height: 16)
+        .accessibilityHidden(true)
 
     case .done:
       Image(systemName: "checkmark")

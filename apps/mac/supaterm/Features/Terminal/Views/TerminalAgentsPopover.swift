@@ -1,5 +1,6 @@
 import AppKit
 import SupaTheme
+import SupatermUI
 import SwiftUI
 
 enum TerminalAgentsPopoverMetrics {
@@ -273,7 +274,8 @@ private struct TerminalAgentsPopoverRow: View {
         .foregroundStyle(palette.warning)
         .accessibilityHidden(true)
     case .running:
-      TerminalAgentRunningSpinnerView(tone: .working, palette: palette, diameter: 11)
+      DotsSpinner(size: 11, color: palette.working)
+        .frame(width: 16, height: 16)
         .accessibilityHidden(true)
     }
   }

@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import SupatermCLIShared
 import SupatermSupport
+import SupatermUI
 import SwiftUI
 
 struct SettingsCodingAgentsView: View {
@@ -97,8 +98,7 @@ private struct SettingsAgentListRow: View {
         Spacer(minLength: 12)
 
         if isPending {
-          ProgressView()
-            .controlSize(.small)
+          DotsSpinner(size: 12, color: .secondary)
         } else {
           Toggle("", isOn: isOn)
             .labelsHidden()

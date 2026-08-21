@@ -4,6 +4,7 @@ import Foundation
 import Sharing
 import SupaTheme
 import SupatermSupport
+import SupatermUI
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -197,9 +198,7 @@ struct TerminalSidebarUpdateSection: View {
         }
       }
     } else {
-      ProgressView()
-        .controlSize(.small)
-        .tint(progressTint)
+      DotsSpinner(size: 12, color: progressTint)
     }
   }
 
