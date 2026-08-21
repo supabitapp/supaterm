@@ -743,6 +743,14 @@ struct TerminalSidebarHoverCardView: View {
                 copyValue: branch.name,
                 accessibilityName: "branch"
               )
+              if let pullRequest = branch.pullRequest {
+                TerminalSidebarHoverCardCopyRow(
+                  icon: pullRequest.icon,
+                  title: pullRequest.title,
+                  copyValue: pullRequest.title,
+                  accessibilityName: "pull request"
+                )
+              }
             }
             TerminalSidebarHoverCardCopyRow(
               icon: .system("folder"),

@@ -49,6 +49,45 @@ struct TerminalSidebarHoverCardTests {
   }
 
   @Test @MainActor
+  func metadataCardAddsPullRequestRowWhenAvailable() {
+    let withoutPullRequest = TerminalSidebarHoverCardContent(
+      tabTitle: "Agent tab",
+      workspace: TerminalTabAgentWorkspace(
+        workingDirectoryPath: "/Users/khoi/code/supaterm",
+        branch: TerminalTabAgentWorkspace.Branch(
+          repositoryRootPath: "/Users/khoi/code/supaterm",
+          name: "feature/sidebar-hover-card",
+          pullRequest: nil
+        )
+      ),
+      response: nil
+    )
+    let withPullRequest = TerminalSidebarHoverCardContent(
+      tabTitle: "Agent tab",
+      workspace: TerminalTabAgentWorkspace(
+        workingDirectoryPath: "/Users/khoi/code/supaterm",
+        branch: TerminalTabAgentWorkspace.Branch(
+          repositoryRootPath: "/Users/khoi/code/supaterm",
+          name: "feature/sidebar-hover-card",
+          pullRequest: TerminalTabAgentWorkspace.PullRequest(
+            kind: .open,
+            title: "#128"
+          )
+        )
+      ),
+      response: nil
+    )
+    let withoutPullRequestHeight = NSHostingController(
+      rootView: TerminalSidebarHoverCardView(content: withoutPullRequest)
+    ).sizeThatFits(in: CGSize(width: 320, height: 800)).height
+    let withPullRequestHeight = NSHostingController(
+      rootView: TerminalSidebarHoverCardView(content: withPullRequest)
+    ).sizeThatFits(in: CGSize(width: 320, height: 800)).height
+
+    #expect(withPullRequestHeight > withoutPullRequestHeight)
+  }
+
+  @Test @MainActor
   func fullTitleExpandsCardHeight() {
     let short = TerminalSidebarHoverCardContent(
       tabTitle: "Short title",
