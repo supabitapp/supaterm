@@ -11,22 +11,21 @@ struct LicenseEntitlementCodecTests {
   func compatibilityVectorVerifies() throws {
     let codec = try codec()
     let updatesThrough = try #require(LicenseDay("2027-08-17"))
-
-    #expect(
+    let entitlement = try #require(
       codec.decode(
         token: Self.compatibilityToken,
         expectedDeviceID: "device-vector",
         expectedLicenseID: "00112233445566778899aabbccddeeff"
       )
-        == LicenseEntitlement(
-          licenseID: "00112233445566778899aabbccddeeff",
-          deviceID: "device-vector",
-          status: .active,
-          updatesThrough: updatesThrough,
-          revision: 4,
-          issuedAt: 1_755_400_000
-        )
     )
+
+    #expect(entitlement.licenseID == "00112233445566778899aabbccddeeff")
+    #expect(entitlement.deviceID == "device-vector")
+    #expect(entitlement.status == .active)
+    #expect(entitlement.updatesThrough == updatesThrough)
+    #expect(entitlement.revision == 4)
+    #expect(entitlement.issuedAt == 1_755_400_000)
+    #expect(entitlement.revocationReason == nil)
   }
 
   @Test
@@ -41,7 +40,7 @@ struct LicenseEntitlementCodecTests {
       )
     )
 
-    #expect(try codec.encode(entitlement) == Data(token.utf8))
+    #expect(codec.encode(entitlement) == Data(token.utf8))
   }
 
   @Test
@@ -170,6 +169,28 @@ struct LicenseEntitlementCodecTests {
   }
 
   @Test
+  func oldLicenseResponseDoesNotReplaceNewLicense() throws {
+    let codec = try codec()
+    let newLicenseID = "ffeeddccbbaa99887766554433221100"
+    let current = try #require(
+      codec.decode(
+        token: try signedToken(activePayload(licenseID: newLicenseID, revision: 1)),
+        expectedDeviceID: Self.deviceID,
+        expectedLicenseID: newLicenseID
+      )
+    )
+
+    #expect(
+      codec.replacement(
+        for: current,
+        token: try signedToken(activePayload(revision: 9)),
+        expectedDeviceID: Self.deviceID,
+        expectedLicenseID: Self.licenseID
+      ) == current
+    )
+  }
+
+  @Test
   func signedTombstoneDecodesWithStatus() throws {
     let token = try signedToken(
       payload(status: .revoked, reason: "refund")
@@ -257,8 +278,12 @@ struct LicenseEntitlementCodecTests {
     return "\(base64URL(payloadData)).\(base64URL(signature))"
   }
 
-  private func activePayload(revision: Int) -> String {
+  private func activePayload(
+    licenseID: String = Self.licenseID,
+    revision: Int
+  ) -> String {
     payload(
+      licenseID: licenseID,
       status: .active,
       updatesThrough: "2027-08-17",
       revision: revision,
@@ -267,6 +292,7 @@ struct LicenseEntitlementCodecTests {
   }
 
   private func payload(
+    licenseID: String = Self.licenseID,
     deviceID: String = Self.deviceID,
     status: LicenseEntitlement.Status,
     updatesThrough: String? = nil,
@@ -275,7 +301,7 @@ struct LicenseEntitlementCodecTests {
     issuedAt: Int64 = 1_755_400_001
   ) -> String {
     var payload =
-      #"{"v":1,"lid":"\#(Self.licenseID)","did":"\#(deviceID)","#
+      #"{"v":1,"lid":"\#(licenseID)","did":"\#(deviceID)","#
       + #""status":"\#(status.rawValue)""#
     if let updatesThrough {
       payload += #","upd":"\#(updatesThrough)""#

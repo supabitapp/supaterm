@@ -1,6 +1,7 @@
 import Foundation
-import SupatermSupport
 import Testing
+
+@testable import SupatermSupport
 
 struct LicenseModeTests {
   @Test
@@ -37,7 +38,9 @@ struct LicenseModeTests {
       status: .revoked,
       updatesThrough: nil,
       revision: 2,
-      issuedAt: 1
+      issuedAt: 1,
+      revocationReason: nil,
+      signedToken: "signed-token"
     )
 
     #expect(
@@ -84,7 +87,9 @@ struct LicenseModeTests {
       status: .active,
       updatesThrough: updatesThrough,
       revision: 1,
-      issuedAt: 1
+      issuedAt: 1,
+      revocationReason: nil,
+      signedToken: "signed-token"
     )
   }
 }

@@ -68,26 +68,17 @@ public struct LicenseEntitlementCodec: Sendable {
       )
     else { return current }
 
+    guard let current else { return entitlement }
     guard
-      let current,
       current.licenseID == entitlement.licenseID,
       current.deviceID == entitlement.deviceID,
-      current.revision >= entitlement.revision
-    else { return entitlement }
-    return current
+      current.revision < entitlement.revision
+    else { return current }
+    return entitlement
   }
 
-  public func encode(_ entitlement: LicenseEntitlement) throws -> Data {
-    guard let token = entitlement.signedToken else {
-      throw EncodingError.invalidValue(
-        entitlement,
-        EncodingError.Context(
-          codingPath: [],
-          debugDescription: "Unsigned license entitlement"
-        )
-      )
-    }
-    return Data(token.utf8)
+  public func encode(_ entitlement: LicenseEntitlement) -> Data {
+    Data(entitlement.signedToken.utf8)
   }
 
   private func validClaims(_ claims: Claims) -> Bool {
@@ -138,7 +129,7 @@ extension SharedKey where Self == FileStorageKey<LicenseEntitlement?>.Default {
         },
         encode: { entitlement in
           guard let entitlement else { return Data() }
-          return try codec.encode(entitlement)
+          return codec.encode(entitlement)
         }
       ),
       default: nil
