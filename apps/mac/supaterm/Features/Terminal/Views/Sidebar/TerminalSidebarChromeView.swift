@@ -4,6 +4,11 @@ import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalSidebarChromeView: View {
+  enum AuxiliarySection: Equatable {
+    case tabLimit
+    case update
+  }
+
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
@@ -28,11 +33,22 @@ struct TerminalSidebarChromeView: View {
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       VStack(spacing: 10) {
-        if updateStore.phase.showsSidebarSection {
+        switch Self.auxiliarySection(
+          hasTabLimitRefusal: terminal.showsLicenseTabLimitRefusal,
+          showsUpdate: updateStore.phase.showsSidebarSection
+        ) {
+        case .tabLimit:
+          LicenseTabLimitCardView(
+            palette: palette,
+            action: terminal.onLicenseTabLimitAction
+          )
+        case .update:
           TerminalSidebarUpdateSection(
             store: updateStore,
             palette: palette
           )
+        case nil:
+          EmptyView()
         }
         if let releaseAnnouncement {
           ReleaseAnnouncementCardView(
@@ -53,5 +69,15 @@ struct TerminalSidebarChromeView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .padding(.trailing, -TerminalChromeMetrics.paneInset)
+  }
+
+  static func auxiliarySection(
+    hasTabLimitRefusal: Bool,
+    showsUpdate: Bool
+  ) -> AuxiliarySection? {
+    if hasTabLimitRefusal {
+      return .tabLimit
+    }
+    return showsUpdate ? .update : nil
   }
 }

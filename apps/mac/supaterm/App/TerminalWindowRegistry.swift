@@ -13,6 +13,7 @@ import SwiftUI
 @MainActor
 final class TerminalWindowRegistry {
   let tabDragRegistry: TerminalTabDragRegistry
+  lazy var licenseTabGate = LicenseTabGate(registry: self)
 
   struct CloseAllWindowsCandidate {
     let windowID: ObjectIdentifier
@@ -70,14 +71,29 @@ final class TerminalWindowRegistry {
   var applicationStore: StoreOf<AppFeature>?
 
   private var entries: [Entry] = []
+  private let performLicenseTabLimitAction: @MainActor (LicenseTabLimitAction) -> Void
   private let zmxClient: ZmxClient
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
   var onChange: @MainActor () -> Void = {}
 
-  init(zmxClient: ZmxClient = .live) {
+  init(
+    zmxClient: ZmxClient = .live,
+    performLicenseTabLimitAction: @escaping @MainActor (LicenseTabLimitAction) -> Void = {
+      action in
+      switch action {
+      case .activate:
+        (NSApp.delegate as? AppDelegate)?.performShowSettings(tab: .general)
+      case .buy:
+        if let url = URL(string: "https://license.supaterm.com/buy") {
+          NSWorkspace.shared.open(url)
+        }
+      }
+    }
+  ) {
     let tabDragRegistry = TerminalTabDragRegistry()
     self.tabDragRegistry = tabDragRegistry
+    self.performLicenseTabLimitAction = performLicenseTabLimitAction
     self.zmxClient = zmxClient
     tabDragRegistry.transfer = { [weak self] payload, destination in
       self?.transferTab(payload, to: destination)
@@ -113,6 +129,7 @@ final class TerminalWindowRegistry {
     terminal.onSpaceAction = { [weak self] action in
       self?.performSpaceAction(action, from: windowControllerID)
     }
+    terminal.onLicenseTabLimitAction = performLicenseTabLimitAction
     terminal.onTabDroppedOnSpace = { [weak self] payload, spaceID in
       self?.dropTab(payload, on: spaceID, in: windowControllerID) == true
     }
@@ -803,6 +820,10 @@ final class TerminalWindowRegistry {
     entries.filter { $0.windowReference.value != nil }
   }
 
+  var liveTerminalHosts: [TerminalHostState] {
+    activeEntries().map(\.terminal)
+  }
+
   func preferredActiveEntry() -> Entry? {
     if let keyWindow = NSApp.keyWindow, let entry = entry(for: keyWindow) {
       return entry
@@ -1266,6 +1287,8 @@ final class TerminalWindowRegistry {
       return .contextPaneNotFound
     case .creationFailed:
       return .creationFailed
+    case .tabLimitReached(let limit, let openTabs):
+      return .tabLimitReached(limit: limit, openTabs: openTabs)
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
     case .windowNotFound:

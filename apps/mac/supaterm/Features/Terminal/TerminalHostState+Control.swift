@@ -304,8 +304,9 @@ extension TerminalHostState {
 
     do {
       let tabID =
-        createTab(
+        try createTab(
           in: resolvedTarget.space.id,
+          reason: .user,
           focusing: false,
           startupCommand: request.startupCommand,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
