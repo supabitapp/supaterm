@@ -29,6 +29,24 @@ public enum AppBuild {
     infoString("CFBundleVersion")
   }
 
+  public nonisolated static var releaseDay: LicenseDay {
+    releaseDay(
+      infoValue: infoString("SupatermReleaseDate"),
+      fallback: .today()
+    )
+  }
+
+  public nonisolated static func releaseDay(
+    infoValue: String?,
+    fallback: LicenseDay
+  ) -> LicenseDay {
+    guard
+      let infoValue,
+      let day = LicenseDay(infoValue.trimmingCharacters(in: .whitespacesAndNewlines))
+    else { return fallback }
+    return day
+  }
+
   public nonisolated static func isDevelopmentFlag(_ value: Any?) -> Bool {
     switch value {
     case let boolValue as Bool:
