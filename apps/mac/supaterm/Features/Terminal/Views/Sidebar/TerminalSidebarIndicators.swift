@@ -86,7 +86,7 @@ struct TerminalSidebarAgentStatusView: View {
   @State private var isAnimating = false
 
   var body: some View {
-    HStack(spacing: status == .working ? 0 : 4) {
+    HStack(spacing: 4) {
       indicator
 
       if showsText {
@@ -110,28 +110,25 @@ struct TerminalSidebarAgentStatusView: View {
     .accessibilityLabel(accessibilityLabel)
   }
 
-  @ViewBuilder
   private var indicator: some View {
-    switch status {
-    case .needsInput:
-      Image(systemName: "bell.fill")
-        .font(.system(size: 8, weight: .semibold))
-        .frame(width: 16, height: 16)
-        .scaleEffect(scale)
-        .offset(y: verticalOffset)
-        .accessibilityHidden(true)
+    Group {
+      switch status {
+      case .needsInput:
+        Image(systemName: "bell.fill")
+          .font(.system(size: 8, weight: .semibold))
+          .scaleEffect(scale)
+          .offset(y: verticalOffset)
 
-    case .working:
-      DotsSpinner(size: 10, color: palette.working)
-        .frame(height: 16)
-        .accessibilityHidden(true)
+      case .working:
+        DotsSpinner(size: 10, color: palette.working)
 
-    case .done:
-      Image(systemName: "checkmark")
-        .font(.system(size: 9, weight: .bold))
-        .frame(width: 16, height: 16)
-        .accessibilityHidden(true)
+      case .done:
+        Image(systemName: "checkmark")
+          .font(.system(size: 9, weight: .bold))
+      }
     }
+    .frame(height: 16)
+    .accessibilityHidden(true)
   }
 
   private var label: String {
