@@ -272,6 +272,8 @@ final class TerminalHostState {
   @ObservationIgnored
   let zmxSessionsEnabled: Bool
   @ObservationIgnored
+  let licenseTabGate: LicenseTabGate
+  @ObservationIgnored
   @Shared(.supatermSettings)
   var supatermSettings = .default
   @ObservationIgnored
@@ -284,6 +286,8 @@ final class TerminalHostState {
   var runtimeConfigObserver: NSObjectProtocol?
   var onSessionChange: @MainActor () -> Void = {}
   var onSpaceAction: @MainActor (SpaceAction) -> Void = { _ in }
+  @ObservationIgnored
+  var onLicenseTabLimitAction: @MainActor (LicenseTabLimitAction) -> Void = { _ in }
   var onTabDroppedOnSpace: @MainActor (TerminalTabDragPayload, TerminalSpaceID) -> Bool = { _, _ in
     false
   }
@@ -307,6 +311,7 @@ final class TerminalHostState {
   var agentStateStore = TerminalAgentStateStore()
   var runtimeConfigGeneration = 0
   var suppressesSessionChanges = 0
+  var showsLicenseTabLimitRefusal = false
 
   var windowActivity = WindowActivityState.inactive
 
@@ -316,7 +321,8 @@ final class TerminalHostState {
     spaceID: TerminalSpaceID? = nil,
     zmxClient: ZmxClient = .live,
     zmxSessionsEnabled: Bool = true,
-    agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil
+    agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
+    licenseTabGate: LicenseTabGate = LicenseTabGate()
   ) {
     @Shared(.terminalSpaceCatalog) var launchSpaceCatalog = TerminalSpaceCatalog.default
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(launchSpaceCatalog)
@@ -328,6 +334,7 @@ final class TerminalHostState {
     )
     self.zmxClient = zmxClient
     self.zmxSessionsEnabled = zmxSessionsEnabled
+    self.licenseTabGate = licenseTabGate
 
     if initialSpaceCatalog != spaceCatalog {
       replaceSpaceCatalog(initialSpaceCatalog)

@@ -251,14 +251,7 @@ extension TerminalHostState {
       return false
     }
 
-    if spaceManager.tabs(in: session.spaceID).isEmpty {
-      _ = createTab(
-        in: session.spaceID,
-        focusing: false,
-        sessionChangesEnabled: false,
-        synchronizesFocus: false
-      )
-    }
+    ensureRestoredTab(in: session.spaceID)
     finalizeRestoredSelection()
     logRestoreFinished(session.spaceID)
     return true

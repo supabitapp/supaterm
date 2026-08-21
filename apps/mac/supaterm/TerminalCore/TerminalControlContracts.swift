@@ -433,8 +433,13 @@ public enum TerminalCreatePaneError: Error, Equatable {
 public enum TerminalCreateTabError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
+  case tabLimitReached(limit: Int, openTabs: Int)
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case windowNotFound(Int)
+
+  public static func tabLimitMessage(limit: Int) -> String {
+    "Free mode allows \(limit) open tabs."
+  }
 }
 
 public enum TerminalControlError: Error, Equatable {

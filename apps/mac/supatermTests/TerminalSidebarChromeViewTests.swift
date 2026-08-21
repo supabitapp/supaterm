@@ -9,6 +9,28 @@ import Testing
 
 struct TerminalSidebarChromeViewTests {
   @Test
+  func tabLimitRefusalTakesTheUpdateSectionSlot() {
+    #expect(
+      TerminalSidebarChromeView.auxiliarySection(
+        hasTabLimitRefusal: true,
+        showsUpdate: true
+      ) == .tabLimit
+    )
+    #expect(
+      TerminalSidebarChromeView.auxiliarySection(
+        hasTabLimitRefusal: false,
+        showsUpdate: true
+      ) == .update
+    )
+    #expect(
+      TerminalSidebarChromeView.auxiliarySection(
+        hasTabLimitRefusal: false,
+        showsUpdate: false
+      ) == nil
+    )
+  }
+
+  @Test
   func sidebarRowAppearanceResolvesEveryState() {
     for colorScheme in [ColorScheme.light, ColorScheme.dark] {
       let palette = Palette(colorScheme: colorScheme)

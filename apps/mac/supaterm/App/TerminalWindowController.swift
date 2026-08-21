@@ -136,7 +136,8 @@ final class TerminalWindowController: NSWindowController {
       spaceID: launch.spaceID,
       zmxClient: zmxClient,
       zmxSessionsEnabled: zmxSessionsEnabled,
-      agentDetectionRuleRepository: agentDetectionRuleRepository
+      agentDetectionRuleRepository: agentDetectionRuleRepository,
+      licenseTabGate: registry.licenseTabGate
     )
     terminal.onSessionChange = onSessionChange
     Self.prepareTerminal(terminal, launch: launch)
@@ -334,7 +335,11 @@ final class TerminalWindowController: NSWindowController {
       terminal.ensureInitialTab(focusing: false, startupCommand: startupCommand)
     case .restore(let session):
       if !terminal.restore(from: session), session.surfaceIDs.isEmpty {
-        terminal.ensureInitialTab(focusing: false, startupCommand: nil)
+        terminal.ensureInitialTab(
+          focusing: false,
+          startupCommand: nil,
+          reason: .restore
+        )
       }
     case .tabTransferDestination:
       break

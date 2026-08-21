@@ -439,6 +439,50 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
+  func socketTabCreationWarmsTheTargetThenGatesAsUserCreation() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let spaces = [TerminalSpaceItem(name: "Warm"), TerminalSpaceItem(name: "Cold")]
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let registry = TerminalWindowRegistry()
+      let gate = LicenseTabGate(
+        registry: registry,
+        licenseMode: { .free },
+        enforcementEnabled: true
+      )
+      let registered = registerSpaceCommandWindow(
+        in: registry,
+        spaceID: spaces[0].id,
+        licenseTabGate: gate
+      )
+      registered.terminal.spaceManager.registerColdInstance(
+        terminalSpaceSession(spaceID: spaces[1].id, tabCount: 4)
+      )
+
+      #expect(registered.terminal.spaceManager.instance(for: spaces[1].id)?.pendingSession != nil)
+      #expect(throws: TerminalCreateTabError.tabLimitReached(limit: 5, openTabs: 5)) {
+        _ = try makeCommandExecutor(registry: registry).createTab(
+          TerminalCreateTabRequest(
+            startupCommand: nil,
+            cwd: nil,
+            focus: false,
+            target: .space(spaces[1].id.rawValue)
+          )
+        )
+      }
+      #expect(registered.terminal.spaceManager.instance(for: spaces[1].id)?.pendingSession == nil)
+      #expect(registered.terminal.spaceManager.tabs(in: spaces[1].id).count == 4)
+      #expect(registered.terminal.spaceManager.allTabs.count == 5)
+      withExtendedLifetime(registered.window) {}
+    }
+  }
+
+  @Test
   func staleContextCannotRetargetTabCreation() throws {
     withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -738,9 +782,10 @@ private func registerSpaceCommandWindow(
   in registry: TerminalWindowRegistry,
   spaceID: TerminalSpaceID,
   isKey: Bool = false,
+  licenseTabGate: LicenseTabGate = LicenseTabGate(),
   onClose: @escaping @MainActor @Sendable () -> Void = {}
 ) -> SpaceCommandWindow {
-  let host = TerminalHostState(spaceID: spaceID)
+  let host = TerminalHostState(spaceID: spaceID, licenseTabGate: licenseTabGate)
   host.ensureInitialTab(focusing: false, startupCommand: nil)
   host.windowActivity = WindowActivityState(isKeyWindow: isKey, isVisible: true)
   let store = Store(initialState: AppFeature.State()) {

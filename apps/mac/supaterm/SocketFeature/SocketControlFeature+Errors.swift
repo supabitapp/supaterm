@@ -44,6 +44,13 @@ extension SocketControlFeature {
         message: "Failed to create a new tab."
       )
 
+    case .tabLimitReached(let limit, _):
+      return .error(
+        id: requestID,
+        code: "license_required",
+        message: TerminalCreateTabError.tabLimitMessage(limit: limit)
+      )
+
     case .spaceNotFound(let windowIndex, let spaceIndex):
       return .error(
         id: requestID,

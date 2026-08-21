@@ -171,6 +171,52 @@ struct SocketControlCreationTests {
         )
     )
   }
+
+  @Test
+  func newTabRequestMapsTabLimitToLicenseRequired() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID()
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .newTab(
+        SupatermNewTabRequest(
+          startupCommand: nil,
+          focus: true,
+          target: .space(UUID())
+        ),
+        id: "new-tab-limit"
+      )
+    )
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.socketRequestExecutor.executeTerminalCreation = { execution in
+        guard case .createTab = execution else {
+          Issue.record("Expected create tab request")
+          throw CancellationError()
+        }
+        throw TerminalCreateTabError.tabLimitReached(limit: 5, openTabs: 5)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(
+      records.first
+        == SocketReplyRecorder.Record(
+          handle: handle,
+          response: .error(
+            id: "new-tab-limit",
+            code: "license_required",
+            message: "Free mode allows 5 open tabs."
+          )
+        )
+    )
+  }
+
   @Test
   func newPaneRequestRepliesWithCreatedPane() async throws {
     let recorder = SocketReplyRecorder()

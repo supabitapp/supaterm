@@ -9,7 +9,6 @@ extension TerminalWindowRegistry {
       let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
       let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
     else { return nil }
-    destinationEntry.terminal.warmInstance(for: destination.spaceID)
     let request = TerminalTabTransferRequest(
       expectedSourceRevision: payload.sourceTopologyRevision,
       expectedDestinationRevision: destination.expectedTopologyRevision,
