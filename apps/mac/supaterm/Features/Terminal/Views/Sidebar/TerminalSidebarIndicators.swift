@@ -86,7 +86,7 @@ struct TerminalSidebarAgentStatusView: View {
   @State private var isAnimating = false
 
   var body: some View {
-    HStack(spacing: 4) {
+    HStack(spacing: status == .working ? 0 : 4) {
       indicator
 
       if showsText {
@@ -123,7 +123,7 @@ struct TerminalSidebarAgentStatusView: View {
 
     case .working:
       DotsSpinner(size: 10, color: palette.working)
-        .frame(width: 16, height: 16)
+        .frame(height: 16)
         .accessibilityHidden(true)
 
     case .done:
