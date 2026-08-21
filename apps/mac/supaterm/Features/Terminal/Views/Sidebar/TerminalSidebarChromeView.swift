@@ -1,15 +1,18 @@
 import ComposableArchitecture
 import SupaTheme
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalSidebarChromeView: View {
   enum AuxiliarySection: Equatable {
+    case licenseExpired
     case tabLimit
     case update
   }
 
   let store: StoreOf<TerminalWindowFeature>
+  let licenseStore: StoreOf<LicenseFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
@@ -34,9 +37,12 @@ struct TerminalSidebarChromeView: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       VStack(spacing: 10) {
         switch Self.auxiliarySection(
+          isLicenseExpired: licenseStore.mode == .expiredOnNewerRelease,
           hasTabLimitRefusal: terminal.showsLicenseTabLimitRefusal,
           showsUpdate: updateStore.phase.showsSidebarSection
         ) {
+        case .licenseExpired:
+          LicenseExpiredCardView(palette: palette, store: licenseStore)
         case .tabLimit:
           LicenseTabLimitCardView(
             palette: palette,
@@ -72,9 +78,13 @@ struct TerminalSidebarChromeView: View {
   }
 
   static func auxiliarySection(
+    isLicenseExpired: Bool,
     hasTabLimitRefusal: Bool,
     showsUpdate: Bool
   ) -> AuxiliarySection? {
+    if isLicenseExpired {
+      return .licenseExpired
+    }
     if hasTabLimitRefusal {
       return .tabLimit
     }

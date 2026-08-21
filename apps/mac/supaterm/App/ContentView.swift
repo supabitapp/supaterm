@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -58,6 +59,10 @@ struct TerminalSidebarContentView: View {
     store.scope(state: \.terminal, action: \.terminal)
   }
 
+  private var licenseStore: StoreOf<LicenseFeature> {
+    store.scope(state: \.license, action: \.license)
+  }
+
   private var updateStore: StoreOf<UpdateFeature> {
     store.scope(state: \.update, action: \.update)
   }
@@ -65,6 +70,7 @@ struct TerminalSidebarContentView: View {
   var body: some View {
     TerminalWindowSidebarRoot(
       store: terminalStore,
+      licenseStore: licenseStore,
       updateStore: updateStore,
       releaseAnnouncement: store.releaseAnnouncement,
       terminal: terminal,

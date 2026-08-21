@@ -142,6 +142,7 @@ private struct TerminalChromeSnapshotFixture: View {
     HStack(spacing: 0) {
       TerminalSidebarView(
         store: SidebarChromeSnapshotContext.windowStore(),
+        licenseStore: SidebarChromeSnapshotContext.licenseStore(),
         updateStore: SidebarChromeSnapshotContext.updateStore(),
         releaseAnnouncement: nil,
         palette: palette,
@@ -207,6 +208,7 @@ private struct FloatingSidebarSnapshotFixture: View {
       TerminalSidebarSurfaceShell(palette: palette, isFloating: true) {
         TerminalSidebarView(
           store: SidebarChromeSnapshotContext.windowStore(),
+          licenseStore: SidebarChromeSnapshotContext.licenseStore(),
           updateStore: SidebarChromeSnapshotContext.updateStore(),
           releaseAnnouncement: nil,
           palette: palette,

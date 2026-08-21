@@ -98,7 +98,7 @@ nonisolated enum AppPostHog {
         return
       }
 
-      let distinctID = supatermSettings.analyticsEnabled ? hardwareUUID() : nil
+      let distinctID = supatermSettings.analyticsEnabled ? HardwareInfo.uuid() : nil
       let config = makeConfig(
         configuration: configuration,
         supatermSettings: supatermSettings,
@@ -129,6 +129,17 @@ nonisolated enum AppPostHog {
       @Shared(.supatermSettings) var supatermSettings = .default
       guard isAnalyticsEnabled(supatermSettings: supatermSettings, isDebugBuild: false) else { return }
       PostHogSDK.shared.capture(event)
+    #endif
+  }
+
+  @MainActor
+  static func capture(_ event: String, properties: [String: String]) {
+    #if DEBUG
+      return
+    #else
+      @Shared(.supatermSettings) var supatermSettings = .default
+      guard isAnalyticsEnabled(supatermSettings: supatermSettings, isDebugBuild: false) else { return }
+      PostHogSDK.shared.capture(event, properties: properties)
     #endif
   }
 
