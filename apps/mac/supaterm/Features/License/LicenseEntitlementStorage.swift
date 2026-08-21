@@ -1,7 +1,5 @@
 import CryptoKit
 import Foundation
-import Sharing
-import SupatermCLIShared
 
 public struct LicenseEntitlementCodec: Sendable {
   private struct Claims: Decodable {
@@ -110,29 +108,23 @@ public struct LicenseEntitlementCodec: Sendable {
   }
 }
 
-extension SharedKey where Self == FileStorageKey<LicenseEntitlement?>.Default {
-  public static func licenseEntitlement(
-    codec: LicenseEntitlementCodec,
-    expectedDeviceID: String,
-    expectedLicenseID: String
-  ) -> Self {
-    Self[
-      .fileStorage(
-        SupatermStateRoot.fileURL("license.token"),
-        decode: { data in
-          guard let token = String(data: data, encoding: .utf8) else { return nil }
-          return codec.decode(
-            token: token,
-            expectedDeviceID: expectedDeviceID,
-            expectedLicenseID: expectedLicenseID
-          )
-        },
-        encode: { entitlement in
-          guard let entitlement else { return Data() }
-          return codec.encode(entitlement)
-        }
-      ),
-      default: nil
-    ]
+struct LicenseTokenFile: Sendable {
+  let url: URL
+
+  func delete() {
+    try? FileManager.default.removeItem(at: url)
+  }
+
+  func load() -> String? {
+    guard let data = try? Data(contentsOf: url) else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  func save(_ token: String) throws {
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data(token.utf8).write(to: url, options: .atomic)
   }
 }

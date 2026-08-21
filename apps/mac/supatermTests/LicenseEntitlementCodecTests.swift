@@ -1,10 +1,8 @@
 import CryptoKit
-import Dependencies
 import Foundation
-@_spi(Internals) import Sharing
-import SupatermCLIShared
-import SupatermSupport
 import Testing
+
+@testable import SupatermSupport
 
 struct LicenseEntitlementCodecTests {
   @Test
@@ -44,35 +42,17 @@ struct LicenseEntitlementCodecTests {
   }
 
   @Test
-  func storageWritesRawSignedToken() throws {
-    let codec = try codec()
+  func tokenFileWritesRawSignedToken() throws {
     let token = try signedToken(activePayload(revision: 4))
-    let entitlement = try #require(
-      codec.decode(
-        token: token,
-        expectedDeviceID: Self.deviceID,
-        expectedLicenseID: Self.licenseID
-      )
-    )
-    let fileSystem = LockIsolated<[URL: Data]>([:])
+    let directory = FileManager.default.temporaryDirectory
+      .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    let url = directory.appending(path: "license.token")
+    let file = LicenseTokenFile(url: url)
+    defer { try? FileManager.default.removeItem(at: directory) }
 
-    withDependencies {
-      $0.defaultFileStorage = .inMemory(fileSystem: fileSystem)
-    } operation: {
-      @Shared(
-        .licenseEntitlement(
-          codec: codec,
-          expectedDeviceID: Self.deviceID,
-          expectedLicenseID: Self.licenseID
-        )
-      ) var stored: LicenseEntitlement?
+    try file.save(token)
 
-      $stored.withLock { $0 = entitlement }
-
-      #expect(
-        fileSystem.value[SupatermStateRoot.fileURL("license.token")] == Data(token.utf8)
-      )
-    }
+    #expect(try Data(contentsOf: url) == Data(token.utf8))
   }
 
   @Test

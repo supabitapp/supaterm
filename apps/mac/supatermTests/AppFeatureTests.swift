@@ -56,8 +56,10 @@ struct AppFeatureTests {
     await store.send(.task) {
       $0.$releaseAnnouncementStatus.withLock { $0 = .loading }
     }
+    await store.receive(\.license.task)
     await store.receive(\.socket.task)
     await store.receive(\.update.task)
+    await store.receive(\.license.refreshRequested)
     continuation.yield(.agentForking)
     continuation.finish()
     await store.receive(\.releaseAnnouncementLoaded) {
@@ -85,8 +87,10 @@ struct AppFeatureTests {
     }
 
     await store.send(.task)
+    await store.receive(\.license.task)
     await store.receive(\.socket.task)
     await store.receive(\.update.task)
+    await store.receive(\.license.refreshRequested)
     await store.finish()
 
     #expect(synchronizeCount.value == 0)

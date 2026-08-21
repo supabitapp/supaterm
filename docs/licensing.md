@@ -16,7 +16,8 @@ The license never expires. Its update entitlement expires.
 - One owner may hold any number of device licenses.
 - Each device license has its own update entitlement.
 - A device license may activate one device at a time.
-- The owner may transfer a device license through self-service license management.
+- The owner may move a license by deactivating it on the old device, then activating it on the new device.
+- If the old device is unavailable, the owner must email license@supaterm.com to request a transfer.
 - Transferring one device license does not affect the owner's other device licenses.
 
 ## Free Mode

@@ -361,7 +361,7 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func aboutAndSettingsMenuItemsUseConfiguredSettingsAction() {
+  func appSettingsMenuItemsUseConfiguredSettingsAction() {
     let controller = SupatermMenuController(registry: TerminalWindowRegistry())
     var tabs: [SettingsFeature.Tab] = []
 
@@ -372,8 +372,9 @@ struct SupatermMenuControllerTests {
 
     controller.about(nil)
     controller.showSettings(nil)
+    controller.showLicense(nil)
 
-    #expect(tabs == [.about, .general])
+    #expect(tabs == [.about, .general, .license])
   }
 
   @Test
@@ -1070,15 +1071,17 @@ struct SupatermMenuControllerTests {
     #expect(appMenu.items[1].action == #selector(SupatermMenuController.showSettings(_:)))
     #expect(appMenu.items[1].keyEquivalent == ",")
     #expect(appMenu.items[1].keyEquivalentModifierMask == [.command])
-    #expect(appMenu.items[2].isSeparatorItem)
-    #expect(appMenu.items[3].title == "Check for Updates...")
-    #expect(appMenu.items[3].keyEquivalent == "u")
-    #expect(appMenu.items[3].keyEquivalentModifierMask == [.command, .shift])
-    #expect(appMenu.items[11].title.hasPrefix("Quit ") == true)
-    #expect(appMenu.items[11].title.hasSuffix(" and Close All Sessions") == true)
-    #expect(appMenu.items[11].action == #selector(SupatermMenuController.quitTerminatingSessions(_:)))
-    #expect(appMenu.items[11].keyEquivalent.isEmpty)
-    #expect(appMenu.items[11].keyEquivalentModifierMask.isEmpty)
+    #expect(appMenu.items[2].title == "License...")
+    #expect(appMenu.items[2].action == #selector(SupatermMenuController.showLicense(_:)))
+    #expect(appMenu.items[3].isSeparatorItem)
+    #expect(appMenu.items[4].title == "Check for Updates...")
+    #expect(appMenu.items[4].keyEquivalent == "u")
+    #expect(appMenu.items[4].keyEquivalentModifierMask == [.command, .shift])
+    #expect(appMenu.items[12].title.hasPrefix("Quit ") == true)
+    #expect(appMenu.items[12].title.hasSuffix(" and Close All Sessions") == true)
+    #expect(appMenu.items[12].action == #selector(SupatermMenuController.quitTerminatingSessions(_:)))
+    #expect(appMenu.items[12].keyEquivalent.isEmpty)
+    #expect(appMenu.items[12].keyEquivalentModifierMask.isEmpty)
     #expect(appMenu.items.last?.title.hasPrefix("Quit ") == true)
     #expect(appMenu.items.last?.action == #selector(SupatermMenuController.quit(_:)))
     #expect(appMenu.items.last?.keyEquivalent == "q")

@@ -288,6 +288,12 @@ let project = Project(
       deploymentTargets: .macOS("26.0"),
       infoPlist: .extendingDefault(with: [
         "CFBundleDisplayName": "Supaterm",
+        "CFBundleURLTypes": [
+          [
+            "CFBundleURLName": "app.supabit.supaterm.license",
+            "CFBundleURLSchemes": ["supaterm"],
+          ],
+        ],
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "LSApplicationCategoryType": "public.app-category.developer-tools",

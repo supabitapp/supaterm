@@ -13,7 +13,13 @@ import SwiftUI
 @MainActor
 final class TerminalWindowRegistry {
   let tabDragRegistry: TerminalTabDragRegistry
-  lazy var licenseTabGate = LicenseTabGate(registry: self)
+  lazy var licenseTabGate = LicenseTabGate(
+    registry: self,
+    entitlement: licenseEntitlement,
+    onRefusal: { [weak self] origin in
+      self?.applicationStore?.send(.license(.tabLimitHit(origin)))
+    }
+  )
 
   struct CloseAllWindowsCandidate {
     let windowID: ObjectIdentifier
@@ -71,6 +77,7 @@ final class TerminalWindowRegistry {
   var applicationStore: StoreOf<AppFeature>?
 
   private var entries: [Entry] = []
+  private let licenseEntitlement: Shared<LicenseEntitlement?>
   private let performLicenseTabLimitAction: @MainActor (LicenseTabLimitAction) -> Void
   private let zmxClient: ZmxClient
   @Shared(.terminalSpaceCatalog)
@@ -79,20 +86,20 @@ final class TerminalWindowRegistry {
 
   init(
     zmxClient: ZmxClient = .live,
+    licenseEntitlement: Shared<LicenseEntitlement?> = Shared(value: nil),
     performLicenseTabLimitAction: @escaping @MainActor (LicenseTabLimitAction) -> Void = {
       action in
       switch action {
       case .activate:
-        (NSApp.delegate as? AppDelegate)?.performShowSettings(tab: .general)
+        (NSApp.delegate as? AppDelegate)?.performShowSettings(tab: .license)
       case .buy:
-        if let url = URL(string: "https://license.supaterm.com/buy") {
-          NSWorkspace.shared.open(url)
-        }
+        (NSApp.delegate as? AppDelegate)?.performBuyLicense()
       }
     }
   ) {
     let tabDragRegistry = TerminalTabDragRegistry()
     self.tabDragRegistry = tabDragRegistry
+    self.licenseEntitlement = licenseEntitlement
     self.performLicenseTabLimitAction = performLicenseTabLimitAction
     self.zmxClient = zmxClient
     tabDragRegistry.transfer = { [weak self] payload, destination in

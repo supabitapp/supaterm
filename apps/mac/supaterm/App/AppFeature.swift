@@ -11,12 +11,14 @@ struct AppFeature {
   }
 
   struct ProcessState: Equatable {
+    var license = LicenseFeature.State()
     var releaseAnnouncementStatus = ReleaseAnnouncementStatus.notLoaded
     var update = UpdateFeature.State()
   }
 
   @ObservableState
   struct State: Equatable {
+    @Shared var license: LicenseFeature.State
     @Shared var releaseAnnouncementStatus: ReleaseAnnouncementStatus
     var socket = SocketControlFeature.State()
     var terminal: TerminalWindowFeature.State
@@ -26,6 +28,7 @@ struct AppFeature {
       process: Shared<ProcessState> = Shared(value: ProcessState()),
       terminal: TerminalWindowFeature.State = TerminalWindowFeature.State()
     ) {
+      self._license = process[dynamicMember: \.license]
       self._releaseAnnouncementStatus = process[dynamicMember: \.releaseAnnouncementStatus]
       self.terminal = terminal
       self._update = process[dynamicMember: \.update]
@@ -38,6 +41,7 @@ struct AppFeature {
   }
 
   enum Action {
+    case license(LicenseFeature.Action)
     case releaseAnnouncementDismissed
     case task
     case terminal(TerminalWindowFeature.Action)
@@ -62,6 +66,10 @@ struct AppFeature {
       UpdateFeature()
     }
 
+    Scope(state: \.license, action: \.license) {
+      LicenseFeature()
+    }
+
     Reduce { state, action in
       switch action {
       case .task:
@@ -75,6 +83,7 @@ struct AppFeature {
           releaseAnnouncementEffect = .none
         }
         return .concatenate(
+          .send(.license(.task)),
           .send(.socket(.task)),
           .send(.update(.task)),
           releaseAnnouncementEffect
@@ -83,8 +92,12 @@ struct AppFeature {
       case .terminal:
         return .none
 
+      case .license:
+        return .none
+
       case .shutdown:
         return .merge(
+          .send(.license(.shutdown)),
           .send(.socket(.shutdown)),
           .send(.update(.shutdown))
         )

@@ -9,7 +9,14 @@ final class SettingsWindowController: NSWindowController {
   let store: StoreOf<SettingsFeature>
   private let restoresSavedFrame: Bool
 
-  init(menuController: SupatermMenuController? = nil) {
+  init(
+    menuController: SupatermMenuController? = nil,
+    licenseStore: StoreOf<LicenseFeature> = Store(
+      initialState: LicenseFeature.State()
+    ) {
+      LicenseFeature()
+    }
+  ) {
     let store = Store(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
@@ -30,7 +37,7 @@ final class SettingsWindowController: NSWindowController {
     }
     self.store = store
     let rootView = AppAppearanceView {
-      SettingsView(store: store)
+      SettingsView(store: store, licenseStore: licenseStore)
     }
     let hostingController = NSHostingController(rootView: rootView)
     let window = NSWindow(contentViewController: hostingController)

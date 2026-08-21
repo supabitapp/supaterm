@@ -11,7 +11,19 @@ enum LicenseTabLimitAction: CaseIterable, Hashable {
 final class LicenseTabGate {
   enum CreationReason: Equatable {
     case restore
+    case socket
     case user
+
+    var origin: LicenseTabLimitOrigin? {
+      switch self {
+      case .restore:
+        nil
+      case .socket:
+        .socket
+      case .user:
+        .app
+      }
+    }
   }
 
   struct Refusal: Equatable {
@@ -20,33 +32,38 @@ final class LicenseTabGate {
   }
 
   static let tabLimit = 5
-  private static let productionEnforcementEnabled = false
+  private static let productionEnforcementEnabled = true
 
   private weak var registry: TerminalWindowRegistry?
   private let licenseMode: @MainActor () -> LicenseMode
   private let enforcementEnabled: Bool
+  private let onRefusal: @MainActor (LicenseTabLimitOrigin) -> Void
 
   init(
     registry: TerminalWindowRegistry? = nil,
     licenseMode: @escaping @MainActor () -> LicenseMode = { .paid },
-    enforcementEnabled: Bool = false
+    enforcementEnabled: Bool = false,
+    onRefusal: @escaping @MainActor (LicenseTabLimitOrigin) -> Void = { _ in }
   ) {
     self.registry = registry
     self.licenseMode = licenseMode
     self.enforcementEnabled = enforcementEnabled
+    self.onRefusal = onRefusal
   }
 
   convenience init(
     registry: TerminalWindowRegistry,
     entitlement: Shared<LicenseEntitlement?> = Shared(value: nil),
-    releaseDay: @escaping @MainActor () -> LicenseDay = { AppBuild.releaseDay }
+    releaseDay: @escaping @MainActor () -> LicenseDay = { AppBuild.releaseDay },
+    onRefusal: @escaping @MainActor (LicenseTabLimitOrigin) -> Void = { _ in }
   ) {
     #if DEBUG
       let mode = Self.debugLicenseMode(environment: ProcessInfo.processInfo.environment)
       self.init(
         registry: registry,
         licenseMode: { mode },
-        enforcementEnabled: mode == .free || Self.productionEnforcementEnabled
+        enforcementEnabled: mode == .free || Self.productionEnforcementEnabled,
+        onRefusal: onRefusal
       )
     #else
       self.init(
@@ -54,7 +71,8 @@ final class LicenseTabGate {
         licenseMode: {
           LicenseMode(entitlement: entitlement.wrappedValue, releaseDay: releaseDay())
         },
-        enforcementEnabled: Self.productionEnforcementEnabled
+        enforcementEnabled: Self.productionEnforcementEnabled,
+        onRefusal: onRefusal
       )
     #endif
   }
@@ -67,12 +85,13 @@ final class LicenseTabGate {
 
   func refusal(for reason: CreationReason) -> Refusal? {
     guard
-      reason == .user,
+      let origin = reason.origin,
       enforcementEnabled,
       licenseMode() != .paid
     else { return nil }
     let openTabs = registry?.licenseTabCount ?? 0
     guard openTabs >= Self.tabLimit else { return nil }
+    onRefusal(origin)
     return Refusal(limit: Self.tabLimit, openTabs: openTabs)
   }
 }
