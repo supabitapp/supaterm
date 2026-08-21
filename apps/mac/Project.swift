@@ -183,6 +183,7 @@ let project = Project(
       infoPlist: .default,
       buildableFolders: [
         "supaterm/Support",
+        "supaterm/Features/License",
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),

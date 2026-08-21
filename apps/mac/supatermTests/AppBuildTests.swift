@@ -35,6 +35,21 @@ struct AppBuildTests {
   }
 
   @Test
+  func releaseDayReadsStampedValue() throws {
+    let stamped = try #require(LicenseDay("2027-08-17"))
+    let fallback = try #require(LicenseDay("2027-08-18"))
+
+    #expect(AppBuild.releaseDay(infoValue: stamped.rawValue, fallback: fallback) == stamped)
+  }
+
+  @Test
+  func releaseDayFallsBackWhenStampIsAbsent() throws {
+    let fallback = try #require(LicenseDay("2027-08-18"))
+
+    #expect(AppBuild.releaseDay(infoValue: nil, fallback: fallback) == fallback)
+  }
+
+  @Test
   func developmentFlagParsesTrueValues() {
     #expect(AppBuild.isDevelopmentFlag(true))
     #expect(AppBuild.isDevelopmentFlag("YES"))
