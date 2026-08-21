@@ -439,8 +439,8 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
-  func socketTabCreationWarmsTheTargetThenGatesAsUserCreation() throws {
-    try withDependencies {
+  func socketTabCreationWarmsTheTargetThenGatesAsUserCreation() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()

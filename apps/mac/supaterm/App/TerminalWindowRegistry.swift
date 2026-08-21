@@ -820,8 +820,8 @@ final class TerminalWindowRegistry {
     entries.filter { $0.windowReference.value != nil }
   }
 
-  var liveTerminalHosts: [TerminalHostState] {
-    activeEntries().map(\.terminal)
+  var licenseTabCount: Int {
+    entries.reduce(0) { $0 + $1.terminal.licenseTabCount }
   }
 
   func preferredActiveEntry() -> Entry? {

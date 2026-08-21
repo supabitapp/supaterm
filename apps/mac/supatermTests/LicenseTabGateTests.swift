@@ -82,6 +82,35 @@ struct LicenseTabGateTests {
   }
 
   @Test
+  func countIncludesRegisteredHostsBeforeTheirWindowsConnect() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let space = TerminalSpaceItem(name: "Main")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let registry = TerminalWindowRegistry()
+      let gate = freeGate(registry: registry)
+      let registered = registerHost(
+        in: registry,
+        gate: gate,
+        spaceID: space.id,
+        managesTerminalSurfaces: false,
+        connectsWindow: false
+      )
+      for index in 0..<5 {
+        _ = registered.host.spaceManager.displayedInstance.tabCollection.createTab(
+          title: "Tab \(index)"
+        )
+      }
+
+      #expect(gate.refusal(for: .user) == LicenseTabGate.Refusal(limit: 5, openTabs: 5))
+    }
+  }
+
+  @Test
   func pinnedTabsCountAndPanesDoNot() throws {
     try withGateHarness { harness in
       var tabIDs: [TerminalTabID] = []
@@ -335,7 +364,8 @@ struct LicenseTabGateTests {
     in registry: TerminalWindowRegistry,
     gate: LicenseTabGate,
     spaceID: TerminalSpaceID,
-    managesTerminalSurfaces: Bool = true
+    managesTerminalSurfaces: Bool = true,
+    connectsWindow: Bool = true
   ) -> RegisteredHost {
     let host = TerminalHostState(
       managesTerminalSurfaces: managesTerminalSurfaces,
@@ -354,8 +384,10 @@ struct LicenseTabGateTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    let window = makeWindow()
-    registry.updateWindow(window, for: windowControllerID)
+    let window = connectsWindow ? makeWindow() : nil
+    if let window {
+      registry.updateWindow(window, for: windowControllerID)
+    }
     return RegisteredHost(host: host, window: window)
   }
 }
@@ -369,5 +401,5 @@ private struct GateHarness {
 @MainActor
 private struct RegisteredHost {
   let host: TerminalHostState
-  let window: NSWindow
+  let window: NSWindow?
 }

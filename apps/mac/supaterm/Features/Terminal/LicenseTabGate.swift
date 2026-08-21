@@ -71,14 +71,14 @@ final class LicenseTabGate {
       enforcementEnabled,
       licenseMode() != .paid
     else { return nil }
-    let openTabs = registry?.liveTerminalHosts.reduce(0) { $0 + $1.licenseTabCount } ?? 0
+    let openTabs = registry?.licenseTabCount ?? 0
     guard openTabs >= Self.tabLimit else { return nil }
     return Refusal(limit: Self.tabLimit, openTabs: openTabs)
   }
 }
 
 extension TerminalHostState {
-  fileprivate var licenseTabCount: Int {
+  var licenseTabCount: Int {
     spaceManager.instances.reduce(0) { count, instance in
       count + instance.tabs.count + (instance.pendingSession?.tabs.count ?? 0)
     }
