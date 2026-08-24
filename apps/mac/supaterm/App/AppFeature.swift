@@ -52,6 +52,8 @@ struct AppFeature {
   }
 
   @Dependency(ReleaseAnnouncementClient.self) private var releaseAnnouncementClient
+  @Dependency(\.externalNavigationClient) private var externalNavigationClient
+  @Dependency(UpdateClient.self) private var updateClient
 
   var body: some Reducer<State, Action> {
     Scope(state: \.terminal, action: \.terminal) {
@@ -91,6 +93,18 @@ struct AppFeature {
 
       case .terminal:
         return .none
+
+      case .license(.ownedReleaseButtonTapped):
+        guard
+          state.license.mode == .expiredOnNewerRelease,
+          let updatesThrough = state.license.entitlement?.updatesThrough
+        else { return .none }
+        return .run { @MainActor [externalNavigationClient, updateClient] _ in
+          guard let url = await updateClient.newestOwnedReleaseURL(updatesThrough) else {
+            return
+          }
+          _ = externalNavigationClient.open(url)
+        }
 
       case .license:
         return .none

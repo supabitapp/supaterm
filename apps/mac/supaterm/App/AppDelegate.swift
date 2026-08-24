@@ -5,6 +5,7 @@ import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
+import SupatermUpdateFeature
 import UserNotifications
 
 @MainActor
@@ -86,10 +87,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     )
     let zmxClient = zmxSessionsEnabledAtLaunch ? ZmxClient.live : .noop
     let licenseClient = LicenseClient.liveValue
+    let licenseSnapshot = licenseClient.load()
     let appProcess = Shared(
       value: AppFeature.ProcessState(
-        license: LicenseFeature.State(snapshot: licenseClient.load())
+        license: LicenseFeature.State(snapshot: licenseSnapshot)
       )
+    )
+    UpdateClient.bindLicenseEntitlement(
+      appProcess[dynamicMember: \.license.entitlement]
     )
     let terminalWindowRegistry = TerminalWindowRegistry(
       zmxClient: zmxClient,

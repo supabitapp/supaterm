@@ -196,14 +196,9 @@ public struct LicenseFeature {
         return .none
 
       case .ownedReleaseButtonTapped:
-        guard
-          state.mode == .expiredOnNewerRelease,
-          let licenseID = state.entitlement?.licenseID
-        else { return .none }
+        guard state.mode == .expiredOnNewerRelease else { return .none }
         analyticsClient.capture("license_owned_release_download_opened")
-        return .run { @MainActor [externalNavigationClient] _ in
-          _ = externalNavigationClient.open(LicensePortalURL.license(licenseID))
-        }
+        return .none
 
       case .prefillKey(let key):
         state.key = key

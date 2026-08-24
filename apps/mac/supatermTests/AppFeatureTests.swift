@@ -3,10 +3,58 @@ import Foundation
 import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermSupport
 @testable import supaterm
 
 @MainActor
 struct AppFeatureTests {
+  @Test
+  func ownedReleaseActionOpensTheFeedDownload() async throws {
+    let updatesThrough = try #require(LicenseDay("2026-08-21"))
+    let entitlement = LicenseEntitlement(
+      licenseID: "00112233445566778899aabbccddeeff",
+      deviceID: "device",
+      status: .active,
+      updatesThrough: updatesThrough,
+      revision: 1,
+      issuedAt: 1,
+      revocationReason: nil,
+      signedToken: "signed-token"
+    )
+    let process = Shared(
+      value: AppFeature.ProcessState(
+        license: LicenseFeature.State(
+          snapshot: LicenseClient.Snapshot(
+            entitlement: entitlement,
+            hasLicenseKey: true
+          )
+        )
+      )
+    )
+    let downloadURL = URL(string: "https://supaterm.com/download/v26.3.0/supaterm.dmg")!
+    let requestedDay = LockIsolated<LicenseDay?>(nil)
+    let openedURL = LockIsolated<URL?>(nil)
+    let store = TestStore(initialState: AppFeature.State(process: process)) {
+      AppFeature()
+    } withDependencies: {
+      $0.analyticsClient.capture = { _ in }
+      $0.externalNavigationClient.open = { url in
+        openedURL.withValue { $0 = url }
+        return true
+      }
+      $0.updateClient.newestOwnedReleaseURL = { day in
+        requestedDay.withValue { $0 = day }
+        return downloadURL
+      }
+    }
+
+    await store.send(.license(.ownedReleaseButtonTapped))
+    await store.finish()
+
+    #expect(requestedDay.value == updatesThrough)
+    #expect(openedURL.value == downloadURL)
+  }
+
   @Test
   func initialStateStartsIdle() {
     let state = AppFeature.State()

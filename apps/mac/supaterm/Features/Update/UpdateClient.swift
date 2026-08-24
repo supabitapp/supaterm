@@ -13,6 +13,7 @@ public enum UpdateUserAction: Equatable, Sendable {
   case dismiss
   case install
   case installAfterNextRestart
+  case renewUpdates
   case restartLater
   case restartNow
   case retry
@@ -108,6 +109,26 @@ public enum UpdatePhase: Equatable, Sendable {
     }
   }
 
+  public struct OwnershipEnded: Equatable, Sendable {
+    public let licenseID: String
+    public let updatesThrough: LicenseDay
+    public let version: String
+
+    public init(
+      licenseID: String,
+      updatesThrough: LicenseDay,
+      version: String
+    ) {
+      self.licenseID = licenseID
+      self.updatesThrough = updatesThrough
+      self.version = version
+    }
+
+    public var renewURL: URL {
+      LicensePortalURL.license(licenseID)
+    }
+  }
+
   case idle
   case permissionRequest
   case checking
@@ -116,6 +137,7 @@ public enum UpdatePhase: Equatable, Sendable {
   case extracting(Extracting)
   case installing(Installing)
   case notFound
+  case ownershipEnded(OwnershipEnded)
   case error(Failure)
 
   public var badgeText: String? {
@@ -170,6 +192,9 @@ public enum UpdatePhase: Equatable, Sendable {
       return "Supaterm is installing the update and preparing to restart."
     case .notFound:
       return "You're already running the latest version."
+    case .ownershipEnded(let ownership):
+      let updatesThrough = ownership.updatesThrough.rawValue
+      return "Supaterm \(ownership.version) is out. Your updates ended \(updatesThrough) — renew to update."
     case .error(let failure):
       return failure.message
     }
@@ -193,6 +218,8 @@ public enum UpdatePhase: Equatable, Sendable {
       return "installing"
     case .notFound:
       return "not_found"
+    case .ownershipEnded:
+      return "ownership_ended"
     case .error:
       return "error"
     }
@@ -216,6 +243,8 @@ public enum UpdatePhase: Equatable, Sendable {
       return "power.circle"
     case .notFound:
       return "checkmark.circle"
+    case .ownershipEnded:
+      return "lock.fill"
     case .error:
       return "exclamationmark.triangle.fill"
     }
@@ -289,6 +318,8 @@ public enum UpdatePhase: Equatable, Sendable {
       return installing.isAutoUpdate ? "Restart to Complete Update" : "Installing Update"
     case .notFound:
       return "No Updates Available"
+    case .ownershipEnded:
+      return "Renew to Update"
     case .error:
       return "Update Failed"
     }
@@ -349,6 +380,7 @@ public struct UpdateClient: Sendable {
   }
 
   public var observe: @Sendable () async -> AsyncStream<Snapshot>
+  public var newestOwnedReleaseURL: @Sendable (LicenseDay) async -> URL?
   public var perform: @Sendable (UpdateUserAction) async -> Void
   public var setAutomaticallyChecksForUpdates: @Sendable (Bool) async -> Void
   public var setAutomaticallyDownloadsUpdates: @Sendable (Bool) async -> Void
@@ -356,6 +388,7 @@ public struct UpdateClient: Sendable {
   public var start: @Sendable () async -> Void
 
   public init(
+    newestOwnedReleaseURL: @escaping @Sendable (LicenseDay) async -> URL?,
     observe: @escaping @Sendable () async -> AsyncStream<Snapshot>,
     perform: @escaping @Sendable (UpdateUserAction) async -> Void,
     setAutomaticallyChecksForUpdates: @escaping @Sendable (Bool) async -> Void,
@@ -363,6 +396,7 @@ public struct UpdateClient: Sendable {
     setUpdateChannel: @escaping @Sendable (UpdateChannel) async -> Void,
     start: @escaping @Sendable () async -> Void
   ) {
+    self.newestOwnedReleaseURL = newestOwnedReleaseURL
     self.observe = observe
     self.perform = perform
     self.setAutomaticallyChecksForUpdates = setAutomaticallyChecksForUpdates
@@ -370,12 +404,20 @@ public struct UpdateClient: Sendable {
     self.setUpdateChannel = setUpdateChannel
     self.start = start
   }
+
+  @MainActor
+  public static func bindLicenseEntitlement(_ entitlement: Shared<LicenseEntitlement?>) {
+    UpdateRuntime.shared.bindLicenseEntitlement(entitlement)
+  }
 }
 
 extension UpdateClient: DependencyKey {
   public static let liveValue: Self = {
     let runtime = UpdateRuntime.shared
     return Self(
+      newestOwnedReleaseURL: { updatesThrough in
+        await runtime.newestOwnedReleaseURL(through: updatesThrough)
+      },
       observe: {
         await runtime.observe()
       },
@@ -402,6 +444,10 @@ extension UpdateClient: DependencyKey {
   }()
 
   public static let testValue = Self(
+    newestOwnedReleaseURL: unimplemented(
+      "UpdateClient.newestOwnedReleaseURL",
+      placeholder: nil
+    ),
     observe: unimplemented(
       "UpdateClient.observe",
       placeholder: AsyncStream { $0.finish() }
@@ -436,6 +482,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     case error(retry: () -> Void)
     case downloading(() -> Void)
     case installing(() -> Void)
+    case ownershipEnded
   }
 
   private enum SessionOrigin {
@@ -530,6 +577,35 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     }
   }
 
+  func bindLicenseEntitlement(_ entitlement: Shared<LicenseEntitlement?>) {
+    userDriver?.bindLicenseEntitlement(entitlement)
+  }
+
+  func newestOwnedReleaseURL(through updatesThrough: LicenseDay) async -> URL? {
+    guard let userDriver else { return nil }
+    if userDriver.hasLoadedAppcast {
+      return userDriver.newestOwnedReleaseURL(through: updatesThrough)
+    }
+    guard let updater, started, updater.canCheckForUpdates, !updater.sessionInProgress else {
+      return nil
+    }
+    let appcast = userDriver.observeAppcast()
+    updater.checkForUpdateInformation()
+    await withTaskGroup(of: Void.self) { group in
+      group.addTask {
+        for await _ in appcast {
+          return
+        }
+      }
+      group.addTask {
+        try? await Task.sleep(for: .seconds(15))
+      }
+      await group.next()
+      group.cancelAll()
+    }
+    return userDriver.newestOwnedReleaseURL(through: updatesThrough)
+  }
+
   func perform(_ action: UpdateUserAction) {
     switch action {
     case .checkForUpdates:
@@ -552,6 +628,9 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
     case .installAfterNextRestart:
       installAfterNextRestart()
+
+    case .renewUpdates:
+      renewUpdates()
 
     case .restartLater:
       restartLater()
@@ -750,6 +829,18 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     fallback?()
   }
 
+  fileprivate func showOwnershipEnded(
+    _ ownership: UpdatePhase.OwnershipEnded,
+    acknowledgement: @escaping () -> Void
+  ) {
+    resetPreparedInstallChoice()
+    sessionOrigin = .interactive
+    interaction = .ownershipEnded
+    phase = .ownershipEnded(ownership)
+    publish()
+    acknowledgement()
+  }
+
   fileprivate func showPermissionRequest(
     reply: @escaping (SUUpdatePermissionResponse) -> Void,
     fallback: (() -> Void)?
@@ -899,7 +990,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       reply(.dismiss)
     case .notFound(let acknowledgement):
       acknowledgement()
-    case .error, .permissionRequest, .installing, .none:
+    case .error, .ownershipEnded, .permissionRequest, .installing, .none:
       break
     }
 
@@ -944,6 +1035,12 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       phase = .idle
       publish()
       acknowledgement()
+    case .ownershipEnded:
+      resetPreparedInstallChoice()
+      sessionOrigin = .idle
+      interaction = .none
+      phase = .idle
+      publish()
     case .error:
       resetPreparedInstallChoice()
       sessionOrigin = .idle
@@ -1004,6 +1101,11 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     }
   }
 
+  private func renewUpdates() {
+    guard case .ownershipEnded(let ownership) = phase else { return }
+    NSWorkspace.shared.open(ownership.renewURL)
+  }
+
   private func restartLater() {
     guard case .installing = interaction, case .installing(let installing) = phase else { return }
     phase = .installing(
@@ -1051,7 +1153,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       reply(.dismiss)
     case .notFound(let acknowledgement):
       acknowledgement()
-    case .error, .permissionRequest, .installing, .none:
+    case .error, .ownershipEnded, .permissionRequest, .installing, .none:
       break
     }
 
@@ -1082,17 +1184,152 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   }
 }
 
+struct UpdateRelease<Value> {
+  let value: Value
+  let version: String
+  let displayVersion: String
+  let releaseDay: LicenseDay?
+  let channel: String?
+
+  init(
+    value: Value,
+    version: String,
+    displayVersion: String? = nil,
+    releaseDay: LicenseDay?,
+    channel: String?
+  ) {
+    self.value = value
+    self.version = version
+    self.displayVersion = displayVersion ?? version
+    self.releaseDay = releaseDay
+    self.channel = channel
+  }
+}
+
+enum UpdateSelection<Value> {
+  case none
+  case release(Value)
+  case unfiltered
+}
+
+extension UpdateSelection: Equatable where Value: Equatable {}
+
 @MainActor
-private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
+final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   weak var runtime: UpdateRuntime?
   var updateChannel: UpdateChannel = .stable
   private var presentationMode: UpdatePresentationMode = .standard
 
+  @Shared private var licenseEntitlement: LicenseEntitlement?
+  private var appcastContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
+  private var appcastItems: [SUAppcastItem]?
+  private let currentVersion: String
   private let standard: SPUStandardUserDriver
 
-  init(hostBundle: Bundle) {
+  init(
+    hostBundle: Bundle,
+    licenseEntitlement: Shared<LicenseEntitlement?> = Shared(value: nil),
+    currentVersion: String? = nil
+  ) {
+    self._licenseEntitlement = licenseEntitlement
+    self.currentVersion =
+      currentVersion
+      ?? hostBundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+      ?? "0"
     standard = SPUStandardUserDriver(hostBundle: hostBundle, delegate: nil)
     super.init()
+  }
+
+  func bindLicenseEntitlement(_ entitlement: Shared<LicenseEntitlement?>) {
+    self._licenseEntitlement = entitlement
+  }
+
+  var hasLoadedAppcast: Bool {
+    appcastItems != nil
+  }
+
+  func observeAppcast() -> AsyncStream<Void> {
+    AsyncStream { continuation in
+      if hasLoadedAppcast {
+        continuation.yield()
+        continuation.finish()
+        return
+      }
+      let id = UUID()
+      appcastContinuations[id] = continuation
+      continuation.onTermination = { [weak self] _ in
+        Task { @MainActor in
+          self?.appcastContinuations.removeValue(forKey: id)
+        }
+      }
+    }
+  }
+
+  func bestValidUpdate<Value>(
+    in releases: [UpdateRelease<Value>]
+  ) -> UpdateSelection<Value> {
+    guard
+      let licenseEntitlement,
+      licenseEntitlement.status == .active,
+      let updatesThrough = licenseEntitlement.updatesThrough
+    else { return .unfiltered }
+    let releases = releases.filter { release in
+      isAllowed(channel: release.channel) && isNewerThanCurrent(release.version)
+    }
+    guard let release = newestOwnedRelease(in: releases, through: updatesThrough) else {
+      return .none
+    }
+    return .release(release.value)
+  }
+
+  func newestOwnedReleaseURL(
+    in releases: [UpdateRelease<URL>],
+    through updatesThrough: LicenseDay
+  ) -> URL? {
+    newestOwnedRelease(
+      in: releases.filter { $0.channel == nil },
+      through: updatesThrough
+    )?.value
+  }
+
+  func newestOwnedReleaseURL(through updatesThrough: LicenseDay) -> URL? {
+    guard let appcastItems else { return nil }
+    return newestOwnedReleaseURL(
+      in: appcastItems.compactMap { item in
+        guard let fileURL = item.fileURL else { return nil }
+        return UpdateRelease(
+          value: fileURL,
+          version: item.versionString,
+          displayVersion: item.displayVersionString,
+          releaseDay: item.date.map { LicenseDay.today(at: $0) },
+          channel: item.channel
+        )
+      },
+      through: updatesThrough
+    )
+  }
+
+  func updater(_: SPUUpdater, didFinishLoading appcast: SUAppcast) {
+    appcastItems = appcast.items
+    for continuation in appcastContinuations.values {
+      continuation.yield()
+      continuation.finish()
+    }
+    appcastContinuations.removeAll()
+  }
+
+  func bestValidUpdate(
+    in appcast: SUAppcast,
+    for _: SPUUpdater
+  ) -> SUAppcastItem? {
+    switch bestValidUpdate(in: appcast.items.map(Self.release)) {
+    case .none:
+      return SUAppcastItem.empty()
+    case .release(let item):
+      return item
+    case .unfiltered:
+      return nil
+    }
   }
 
   nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
@@ -1261,6 +1498,24 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   }
 
   func showUpdateNotFoundWithError(_ error: any Error, acknowledgement: @escaping () -> Void) {
+    if let currentOwnershipEnded {
+      presentationMode = UpdatePresentation.mode(
+        hasUnobtrusiveTarget: runtime?.hasUnobtrusiveTarget ?? false
+      )
+      switch presentationMode {
+      case .sidebar:
+        runtime?.showOwnershipEnded(
+          currentOwnershipEnded,
+          acknowledgement: acknowledgement
+        )
+      case .standard:
+        showStandardOwnershipEnded(
+          currentOwnershipEnded,
+          acknowledgement: acknowledgement
+        )
+      }
+      return
+    }
     switch presentationMode {
     case .sidebar:
       runtime?.showNotFound(acknowledgement: acknowledgement, fallback: nil)
@@ -1300,6 +1555,98 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
       runtime?.showChecking(cancel: cancellation, fallback: nil)
     case .standard:
       standard.showUserInitiatedUpdateCheck(cancellation: cancellation)
+    }
+  }
+
+  private static func release(_ item: SUAppcastItem) -> UpdateRelease<SUAppcastItem> {
+    UpdateRelease(
+      value: item,
+      version: item.versionString,
+      displayVersion: item.displayVersionString,
+      releaseDay: item.date.map { LicenseDay.today(at: $0) },
+      channel: item.channel
+    )
+  }
+
+  private var currentOwnershipEnded: UpdatePhase.OwnershipEnded? {
+    guard let appcastItems else { return nil }
+    return ownershipEnded(in: appcastItems.map(Self.release))
+  }
+
+  func ownershipEnded<Value>(
+    in releases: [UpdateRelease<Value>]
+  ) -> UpdatePhase.OwnershipEnded? {
+    guard
+      let licenseEntitlement,
+      licenseEntitlement.status == .active,
+      let updatesThrough = licenseEntitlement.updatesThrough
+    else { return nil }
+    let releases = releases.filter { release in
+      isAllowed(channel: release.channel) && isNewerThanCurrent(release.version)
+    }
+    guard
+      let newest = newestRelease(in: releases),
+      let releaseDay = newest.releaseDay,
+      releaseDay > updatesThrough
+    else { return nil }
+    return UpdatePhase.OwnershipEnded(
+      licenseID: licenseEntitlement.licenseID,
+      updatesThrough: updatesThrough,
+      version: newest.displayVersion
+    )
+  }
+
+  private func newestOwnedRelease<Value>(
+    in releases: [UpdateRelease<Value>],
+    through updatesThrough: LicenseDay
+  ) -> UpdateRelease<Value>? {
+    let comparator = SUStandardVersionComparator.default
+    return
+      releases
+      .filter { release in
+        guard let releaseDay = release.releaseDay else { return false }
+        return releaseDay <= updatesThrough
+      }
+      .max { lhs, rhs in
+        comparator.compareVersion(lhs.version, toVersion: rhs.version) == .orderedAscending
+      }
+  }
+
+  private func newestRelease<Value>(
+    in releases: [UpdateRelease<Value>]
+  ) -> UpdateRelease<Value>? {
+    let comparator = SUStandardVersionComparator.default
+    return releases.max { lhs, rhs in
+      comparator.compareVersion(lhs.version, toVersion: rhs.version) == .orderedAscending
+    }
+  }
+
+  private func isAllowed(channel: String?) -> Bool {
+    guard let channel else { return true }
+    return updateChannel.sparkleChannels.contains(channel)
+  }
+
+  private func isNewerThanCurrent(_ version: String) -> Bool {
+    SUStandardVersionComparator.default.compareVersion(
+      version,
+      toVersion: currentVersion
+    ) == .orderedDescending
+  }
+
+  private func showStandardOwnershipEnded(
+    _ ownership: UpdatePhase.OwnershipEnded,
+    acknowledgement: @escaping () -> Void
+  ) {
+    let alert = NSAlert()
+    let phase = UpdatePhase.ownershipEnded(ownership)
+    alert.messageText = phase.summaryText
+    alert.informativeText = phase.detailMessage
+    alert.addButton(withTitle: "Renew Updates")
+    alert.addButton(withTitle: "Not Now")
+    let response = alert.runModal()
+    acknowledgement()
+    if response == .alertFirstButtonReturn {
+      NSWorkspace.shared.open(ownership.renewURL)
     }
   }
 

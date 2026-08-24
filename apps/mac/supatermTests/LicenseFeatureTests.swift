@@ -50,10 +50,9 @@ struct LicenseFeatureTests {
   }
 
   @Test
-  func ownedReleaseActionOpensLicensePageAndCapturesEvent() async {
+  func ownedReleaseActionCapturesEvent() async {
     let expired = entitlement(updatesThrough: day("2000-01-01"))
     let events = LockIsolated<[String]>([])
-    let openedURL = LockIsolated<URL?>(nil)
     let store = TestStore(
       initialState: LicenseFeature.State(
         snapshot: LicenseClient.Snapshot(
@@ -67,17 +66,12 @@ struct LicenseFeatureTests {
       $0.analyticsClient.capture = { event in
         events.withValue { $0.append(event) }
       }
-      $0.externalNavigationClient.open = { url in
-        openedURL.withValue { $0 = url }
-        return true
-      }
     }
 
     await store.send(.ownedReleaseButtonTapped)
     await store.finish()
 
     #expect(events.value == ["license_owned_release_download_opened"])
-    #expect(openedURL.value == LicensePortalURL.license(expired.licenseID))
   }
 
   @Test

@@ -1,4 +1,5 @@
 import Foundation
+import SupatermSupport
 import SupatermUpdateFeature
 import Testing
 
@@ -132,5 +133,25 @@ struct UpdatePhaseTests {
     #expect(phase.detailMessage == "Network error")
     #expect(phase.badgeText == nil)
     #expect(phase.debugIdentifier == "error")
+  }
+
+  @Test
+  func ownershipEndedOffersRenewalWithoutInstallation() throws {
+    let phase = UpdatePhase.ownershipEnded(
+      UpdatePhase.OwnershipEnded(
+        licenseID: "00112233445566778899aabbccddeeff",
+        updatesThrough: try #require(LicenseDay("2026-08-21")),
+        version: "26.4.0"
+      )
+    )
+
+    #expect(phase.summaryText == "Renew to Update")
+    #expect(
+      phase.detailMessage
+        == "Supaterm 26.4.0 is out. Your updates ended 2026-08-21 — renew to update."
+    )
+    #expect(phase.actionPresentations.map(\.title) == ["Not Now", "Renew Updates"])
+    #expect(phase.actionPresentations.map(\.action) == [.dismiss, .renewUpdates])
+    #expect(phase.debugIdentifier == "ownership_ended")
   }
 }

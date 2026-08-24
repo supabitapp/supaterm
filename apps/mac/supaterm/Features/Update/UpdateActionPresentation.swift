@@ -79,6 +79,20 @@ extension UpdatePhase {
         ),
       ]
 
+    case .ownershipEnded:
+      return [
+        UpdateActionPresentation(
+          title: "Not Now",
+          action: .dismiss,
+          isProminent: false
+        ),
+        UpdateActionPresentation(
+          title: "Renew Updates",
+          action: .renewUpdates,
+          isProminent: true
+        ),
+      ]
+
     case .error:
       return [
         UpdateActionPresentation(

@@ -384,7 +384,8 @@ let project = Project(
           script: """
             "${SRCROOT}/scripts/validate-release-day.sh"
             """,
-          name: "Validate Release Day"
+          name: "Validate Release Day",
+          basedOnDependencyAnalysis: false
         ),
         .pre(
           script: """
