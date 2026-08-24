@@ -4,6 +4,8 @@
 
 Run setup from the repo root.
 
+The license service lives in the separate repository: https://github.com/supabitapp/supaterm-license
+
 Initialize submodules:
 
 ```bash
