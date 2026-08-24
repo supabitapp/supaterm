@@ -131,11 +131,12 @@ checkout path and a state home at `apps/mac/.build/run-state/dev`. Layout and se
 across runs. Different checkouts derive different names, so worktrees stay isolated, and the
 launch guard refuses a second concurrent run of the same checkout.
 
-Debug builds carry the same identity inside the bundle: a build phase stamps `LSEnvironment` in
-the product's Info.plist with the checkout's instance name and state home. Launching the built app
-directly — `open`, Finder, an agent — runs it as the checkout's development instance instead of
-`default`, so it can never share state with the installed app. Explicit environment variables and
-raw binary launches are unaffected, and release builds carry no stamp.
+Local Debug and Release builds carry an isolated identity inside the bundle: a build phase stamps
+`LSEnvironment` in the product's Info.plist with the checkout's instance name and state home.
+Launching a local build through `open`, Finder, or an agent never uses `default` or shares state
+with the installed app. Debug uses `dev-<checkout>` and `run-state/dev`; Release uses
+`release-<checkout>` and `run-state/release`. Production archives carry no stamp and alone use
+`default`. Explicit environment variables and raw binary launches are unaffected.
 
 Development launches and UI tests never start zmx. The zmx E2E suite opts in with an isolated zmx
 directory. For a clean slate, quit the app, then delete the state home:

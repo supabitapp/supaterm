@@ -543,17 +543,22 @@ let project = Project(
           script: """
             set -euo pipefail
 
-            if [ "${CONFIGURATION}" != "Debug" ]; then
-              exit 0
-            fi
+            case "${CONFIGURATION}:${ACTION}" in
+              Debug:*) identity="dev" ;;
+              Release:build) identity="release" ;;
+              *) exit 0 ;;
+            esac
 
             checkout_hash="$(printf '%s' "${SRCROOT}" | shasum -a 256 | awk '{print substr($1, 1, 12)}')"
             environment="$(printf \
-              '{"SUPATERM_INSTANCE_NAME": "dev-%s", "SUPATERM_STATE_HOME": "%s/.build/run-state/dev"}' \
-              "${checkout_hash}" "${SRCROOT}")"
+              '{"SUPATERM_INSTANCE_NAME": "%s-%s", "SUPATERM_STATE_HOME": "%s/.build/run-state/%s"}' \
+              "${identity}" "${checkout_hash}" "${SRCROOT}" "${identity}")"
             plutil -replace LSEnvironment -json "${environment}" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
-            """,
-          name: "Stamp Dev Instance Identity",
+          """,
+          name: "Stamp Local Instance Identity",
+          inputPaths: [
+            "$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+          ],
           basedOnDependencyAnalysis: false
         ),
       ],
