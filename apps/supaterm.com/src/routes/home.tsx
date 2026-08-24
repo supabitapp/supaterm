@@ -46,16 +46,30 @@ const licenseQuestions = [
   },
 ];
 
-function PurchaseButton({ className }: { className?: string }) {
+function PurchaseButton({
+  children = "Buy license for $99",
+  className,
+  appearance = "primary",
+}: {
+  children?: ReactNode;
+  className?: string;
+  appearance?: "primary" | "outline";
+}) {
   return (
     <form action={purchaseAction} method="post" className={className}>
       <Button
         type="submit"
         size="lg"
+        variant={appearance === "outline" ? "outline" : "default"}
         onClick={() => posthog.capture("purchase_clicked")}
-        className="h-14 w-full rounded-full bg-[#f1ede4] px-8 text-base text-[#12100b] hover:bg-white"
+        className={cn(
+          "w-full rounded-full text-base",
+          appearance === "outline"
+            ? "h-11 border-white/12 bg-white/6 px-6 text-white/88 hover:border-white/18 hover:bg-white/10"
+            : "h-14 bg-[#f1ede4] px-8 text-[#12100b] hover:bg-white",
+        )}
       >
-        Buy license for $99
+        {children}
       </Button>
     </form>
   );
@@ -252,16 +266,7 @@ function HomePage() {
             >
               Download for macOS
             </CtaLink>
-            <CtaLink
-              href="#pricing"
-              icon="github"
-              showIcon={false}
-              variant="outline"
-              onClick={() => posthog.capture("hero_pricing_clicked")}
-              className="rounded-full border-white/12 bg-white/6 px-6 text-base text-white/88 hover:border-white/18 hover:bg-white/10"
-            >
-              View pricing
-            </CtaLink>
+            <PurchaseButton appearance="outline">Buy now</PurchaseButton>
           </div>
           <div className="mt-7 flex w-full max-w-[32rem] flex-col items-center gap-4">
             <div className="text-sm font-medium text-white/42">or</div>

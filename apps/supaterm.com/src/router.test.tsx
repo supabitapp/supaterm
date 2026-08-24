@@ -148,9 +148,11 @@ describe("router", () => {
     expect(screen.getByRole("heading", { name: "Pay once, use Supaterm forever." })).toBeTruthy();
     expect(screen.getByText("No recurring charge. Seven-day refund period.")).toBeTruthy();
 
-    const purchaseButtons = screen.getAllByRole("button", { name: "Buy license for $99" });
+    const purchaseButtons = screen.getAllByRole("button", {
+      name: /^(Buy now|Buy license for \$99)$/,
+    });
 
-    expect(purchaseButtons).toHaveLength(2);
+    expect(purchaseButtons).toHaveLength(3);
     for (const button of purchaseButtons) {
       const form = button.closest("form");
 
