@@ -93,9 +93,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         license: LicenseFeature.State(snapshot: licenseSnapshot)
       )
     )
-    UpdateClient.bindLicenseEntitlement(
-      appProcess[dynamicMember: \.license.entitlement]
-    )
     let terminalWindowRegistry = TerminalWindowRegistry(
       zmxClient: zmxClient,
       licenseEntitlement: appProcess[dynamicMember: \.license.entitlement]
@@ -127,6 +124,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       $0.licenseClient = licenseClient
       $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
     }
+    UpdateClient.bindLicense(
+      entitlement: appProcess[dynamicMember: \.license.entitlement],
+      refresh: {
+        await Self.refreshLicenseBeforeUpdateCheck(
+          process: appProcess,
+          store: appStore
+        )
+      }
+    )
     terminalWindowRegistry.applicationStore = appStore
     self.appProcess = appProcess
     self.appStore = appStore
@@ -155,6 +161,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     menuController.setShowSettingsAction { [weak self] tab in
       self?.performShowSettings(tab: tab) ?? false
     }
+  }
+
+  private static func refreshLicenseBeforeUpdateCheck(
+    process: Shared<AppFeature.ProcessState>,
+    store: StoreOf<AppFeature>
+  ) async {
+    let refreshInFlight = process.wrappedValue.license.phase == .refreshing
+    while process.wrappedValue.license.phase != .idle {
+      try? await Task.sleep(for: .milliseconds(50))
+    }
+    guard !refreshInFlight, process.wrappedValue.license.hasLicenseKey else {
+      return
+    }
+    await store.send(.license(.refreshRequested(.automatic))).finish()
   }
 
   isolated deinit {

@@ -226,6 +226,61 @@ struct UpdateOwnershipTests {
 
     #expect(driver.responds(to: NSSelectorFromString("bestValidUpdateInAppcast:forUpdater:")))
     #expect(driver.responds(to: NSSelectorFromString("updater:didFinishLoadingAppcast:")))
+    #expect(driver.responds(to: NSSelectorFromString("updater:mayPerformUpdateCheck:error:")))
+    #expect(
+      driver.responds(
+        to: NSSelectorFromString("updater:didFinishUpdateCycleForUpdateCheck:error:")
+      )
+    )
+  }
+
+  @Test
+  func automaticCheckWaitsForRefreshAndSparkleCycle() {
+    var preflight = UpdateCheckPreflight<Int>()
+
+    #expect(preflight.request(1) == .startRefresh)
+    #expect(preflight.request(1) == .deny)
+    #expect(preflight.refreshDidFinish() == nil)
+    #expect(preflight.cycleDidFinish(1) == 1)
+    preflight.prepare(1)
+    #expect(preflight.request(1) == .allow)
+  }
+
+  @Test
+  func automaticCheckWaitsWhenTheSparkleCycleFinishesFirst() {
+    var preflight = UpdateCheckPreflight<Int>()
+
+    #expect(preflight.request(1) == .startRefresh)
+    #expect(preflight.cycleDidFinish(1) == nil)
+    #expect(preflight.refreshDidFinish() == 1)
+    preflight.prepare(1)
+    #expect(preflight.request(1) == .allow)
+  }
+
+  @Test
+  func manualCheckCanArrivePrepared() {
+    var preflight = UpdateCheckPreflight<Int>()
+
+    preflight.prepare(1)
+
+    #expect(preflight.request(1) == .allow)
+    #expect(preflight.request(1) == .startRefresh)
+  }
+
+  @Test
+  func preparingACheckRefreshesTheLicense() async {
+    let driver = UpdateDriver(hostBundle: .main)
+    let refreshes = Shared(value: 0)
+    driver.bindLicense(
+      entitlement: Shared(value: nil),
+      refresh: {
+        refreshes.withLock { $0 += 1 }
+      }
+    )
+
+    await driver.refreshLicenseBeforeUpdateCheck()
+
+    #expect(refreshes.wrappedValue == 1)
   }
 
   private func licenseEntitlement(

@@ -406,8 +406,14 @@ public struct UpdateClient: Sendable {
   }
 
   @MainActor
-  public static func bindLicenseEntitlement(_ entitlement: Shared<LicenseEntitlement?>) {
-    UpdateRuntime.shared.bindLicenseEntitlement(entitlement)
+  public static func bindLicense(
+    entitlement: Shared<LicenseEntitlement?>,
+    refresh: @escaping @MainActor @Sendable () async -> Void
+  ) {
+    UpdateRuntime.shared.bindLicense(
+      entitlement: entitlement,
+      refresh: refresh
+    )
   }
 }
 
@@ -577,8 +583,14 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     }
   }
 
-  func bindLicenseEntitlement(_ entitlement: Shared<LicenseEntitlement?>) {
-    userDriver?.bindLicenseEntitlement(entitlement)
+  func bindLicense(
+    entitlement: Shared<LicenseEntitlement?>,
+    refresh: @escaping @MainActor @Sendable () async -> Void
+  ) {
+    userDriver?.bindLicense(
+      entitlement: entitlement,
+      refresh: refresh
+    )
   }
 
   func newestOwnedReleaseURL(through updatesThrough: LicenseDay) async -> URL? {
@@ -589,6 +601,9 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     guard let updater, started, updater.canCheckForUpdates, !updater.sessionInProgress else {
       return nil
     }
+    await userDriver.refreshLicenseBeforeUpdateCheck()
+    guard updater.canCheckForUpdates, !updater.sessionInProgress else { return nil }
+    userDriver.allowUpdateCheck(.updateInformation)
     let appcast = userDriver.observeAppcast()
     updater.checkForUpdateInformation()
     await withTaskGroup(of: Void.self) { group in
@@ -979,6 +994,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   private func checkForUpdates() {
     guard let updater else { return }
     if phase.isIdle {
+      userDriver?.allowUpdateCheck(.updates)
       updater.checkForUpdates()
       return
     }
@@ -1001,6 +1017,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
     Task { @MainActor [weak self] in
       try? await Task.sleep(for: .milliseconds(100))
+      self?.userDriver?.allowUpdateCheck(.updates)
       self?.updater?.checkForUpdates()
     }
   }
@@ -1074,8 +1091,30 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   }
 
   private func performCheckForUpdates() {
-    guard updater?.canCheckForUpdates ?? false else { return }
-    checkForUpdates()
+    guard updater?.canCheckForUpdates ?? false, userDriver != nil else { return }
+    Task { @MainActor [weak self] in
+      guard let self, let userDriver else { return }
+      await userDriver.refreshLicenseBeforeUpdateCheck()
+      guard updater?.canCheckForUpdates ?? false else { return }
+      checkForUpdates()
+    }
+  }
+
+  fileprivate func retryUpdateCheck(_ updateCheck: SPUUpdateCheck) {
+    guard let updater, updater.canCheckForUpdates, !updater.sessionInProgress else {
+      return
+    }
+    userDriver?.allowUpdateCheck(updateCheck)
+    switch updateCheck {
+    case .updates:
+      updater.checkForUpdates()
+    case .updatesInBackground:
+      updater.checkForUpdatesInBackground()
+    case .updateInformation:
+      updater.checkForUpdateInformation()
+    @unknown default:
+      return
+    }
   }
 
   private func respondToPermissionRequest(automaticChecks: Bool) {
@@ -1214,6 +1253,58 @@ enum UpdateSelection<Value> {
 
 extension UpdateSelection: Equatable where Value: Equatable {}
 
+struct UpdateCheckPreflight<Check: Equatable> {
+  enum Decision: Equatable {
+    case allow
+    case deny
+    case startRefresh
+  }
+
+  private struct Pending {
+    let check: Check
+    var cycleFinished = false
+    var refreshFinished = false
+  }
+
+  private var pending: Pending?
+  private var prepared: Check?
+
+  mutating func prepare(_ check: Check) {
+    prepared = check
+  }
+
+  mutating func request(_ check: Check) -> Decision {
+    if prepared == check {
+      prepared = nil
+      return .allow
+    }
+    guard pending == nil else { return .deny }
+    pending = Pending(check: check)
+    return .startRefresh
+  }
+
+  mutating func cycleDidFinish(_ check: Check) -> Check? {
+    guard pending?.check == check else { return nil }
+    pending?.cycleFinished = true
+    return resumeIfReady()
+  }
+
+  mutating func refreshDidFinish() -> Check? {
+    pending?.refreshFinished = true
+    return resumeIfReady()
+  }
+
+  private mutating func resumeIfReady() -> Check? {
+    guard
+      let pending,
+      pending.cycleFinished,
+      pending.refreshFinished
+    else { return nil }
+    self.pending = nil
+    return pending.check
+  }
+}
+
 @MainActor
 final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   weak var runtime: UpdateRuntime?
@@ -1223,6 +1314,8 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   @Shared private var licenseEntitlement: LicenseEntitlement?
   private var appcastContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
   private var appcastItems: [SUAppcastItem]?
+  private var checkPreflight = UpdateCheckPreflight<SPUUpdateCheck>()
+  private var refreshLicense: (@MainActor @Sendable () async -> Void)?
   private let currentVersion: String
   private let standard: SPUStandardUserDriver
 
@@ -1240,8 +1333,20 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     super.init()
   }
 
-  func bindLicenseEntitlement(_ entitlement: Shared<LicenseEntitlement?>) {
+  func bindLicense(
+    entitlement: Shared<LicenseEntitlement?>,
+    refresh: @escaping @MainActor @Sendable () async -> Void
+  ) {
     self._licenseEntitlement = entitlement
+    refreshLicense = refresh
+  }
+
+  func allowUpdateCheck(_ updateCheck: SPUUpdateCheck) {
+    checkPreflight.prepare(updateCheck)
+  }
+
+  func refreshLicenseBeforeUpdateCheck() async {
+    await refreshLicense?()
   }
 
   var hasLoadedAppcast: Bool {
@@ -1316,6 +1421,43 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
       continuation.finish()
     }
     appcastContinuations.removeAll()
+  }
+
+  func updater(
+    _: SPUUpdater,
+    mayPerform updateCheck: SPUUpdateCheck
+  ) throws {
+    guard let refreshLicense else { return }
+    switch checkPreflight.request(updateCheck) {
+    case .allow:
+      return
+    case .deny:
+      break
+    case .startRefresh:
+      Task { @MainActor [weak self] in
+        await refreshLicense()
+        guard
+          let self,
+          let updateCheck = checkPreflight.refreshDidFinish()
+        else { return }
+        runtime?.retryUpdateCheck(updateCheck)
+      }
+    }
+    throw NSError(
+      domain: SUSparkleErrorDomain,
+      code: Int(SUError.installationCanceledError.rawValue)
+    )
+  }
+
+  func updater(
+    _: SPUUpdater,
+    didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
+    error _: (any Error)?
+  ) {
+    guard let updateCheck = checkPreflight.cycleDidFinish(updateCheck) else {
+      return
+    }
+    runtime?.retryUpdateCheck(updateCheck)
   }
 
   func bestValidUpdate(
