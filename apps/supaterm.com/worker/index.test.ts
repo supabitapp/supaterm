@@ -333,7 +333,11 @@ describe("worker", () => {
 
     expect(assetsFetch).toHaveBeenCalledTimes(1);
     expect(response.headers.get("cache-control")).toBeNull();
-    expect(response.headers.get("x-content-type-options")).toBeNull();
+    expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
+    expect(response.headers.get("strict-transport-security")).toBe(
+      "max-age=31536000; includeSubDomains",
+    );
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     await expect(response.text()).resolves.toBe("site");
   });
 

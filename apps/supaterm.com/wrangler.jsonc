@@ -3,7 +3,7 @@
   "name": "supaterm-com",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-03-21",
-  "workers_dev": true,
+  "workers_dev": false,
   "routes": [
     {
       "pattern": "supaterm.com",

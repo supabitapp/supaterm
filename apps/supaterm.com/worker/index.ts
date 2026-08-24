@@ -22,6 +22,27 @@ const routeMeta: Record<string, Record<string, string>> = {
     "twitter:title": "Supaterm - What's New",
     "twitter:description": "See what's new in Supaterm — latest features, improvements, and fixes.",
   },
+  "/terms": {
+    title: "Terms of service - Supaterm",
+    description: "Terms for buying and using Supaterm.",
+    "og:title": "Terms of service - Supaterm",
+    "og:description": "Terms for buying and using Supaterm.",
+    "og:url": "https://supaterm.com/terms",
+  },
+  "/privacy": {
+    title: "Privacy policy - Supaterm",
+    description: "How Supaterm handles personal data.",
+    "og:title": "Privacy policy - Supaterm",
+    "og:description": "How Supaterm handles personal data.",
+    "og:url": "https://supaterm.com/privacy",
+  },
+  "/refunds": {
+    title: "Refund and cancellation policy - Supaterm",
+    description: "Refund and cancellation terms for Supaterm licenses.",
+    "og:title": "Refund and cancellation policy - Supaterm",
+    "og:description": "Refund and cancellation terms for Supaterm licenses.",
+    "og:url": "https://supaterm.com/refunds",
+  },
 };
 
 const rewriteMeta = async (response: Response, meta: Record<string, string>): Promise<Response> => {
@@ -49,6 +70,15 @@ const rewriteMeta = async (response: Response, meta: Record<string, string>): Pr
 const cacheControl = "public, max-age=300";
 const noStoreCacheControl = "no-store";
 const downloadCacheHeader = "x-supaterm-cache";
+const siteHeaders = {
+  "content-security-policy":
+    "default-src 'self'; base-uri 'none'; connect-src 'self' https://p.supaterm.com wss://p.supaterm.com; font-src 'self'; form-action 'self' https://license.supaterm.com; frame-ancestors 'none'; img-src 'self' data:; media-src 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; upgrade-insecure-requests",
+  "permissions-policy": "camera=(), geolocation=(), microphone=()",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+};
 const byteRangePattern = /^bytes=(\d*)-(\d*)$/;
 const methodNotAllowed = () =>
   new Response("Method Not Allowed", {
@@ -343,7 +373,7 @@ export default {
     }
 
     if (isVideoAsset(pathname)) {
-      return serveVideoAsset(request, assets);
+      return withResponseHeaders(await serveVideoAsset(request, assets), siteHeaders);
     }
 
     const response = await assets.fetch(request);
@@ -351,9 +381,9 @@ export default {
     if (response.status === 404 && !pathname.includes(".")) {
       const shell = await assets.fetch(new Request(new URL("/index.html", request.url), request));
       const meta = routeMeta[pathname];
-      return meta ? rewriteMeta(shell, meta) : shell;
+      return withResponseHeaders(meta ? await rewriteMeta(shell, meta) : shell, siteHeaders);
     }
 
-    return response;
+    return withResponseHeaders(response, siteHeaders);
   },
 };
