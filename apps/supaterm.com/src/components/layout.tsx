@@ -72,7 +72,13 @@ function Layout() {
             <img src="/logo-mark.svg" alt="" className="h-5 w-auto" />
             <span>Supaterm</span>
           </Link>
-          <nav className="absolute left-1/2 flex -translate-x-1/2 gap-6">
+          <nav className="absolute left-1/2 hidden -translate-x-1/2 gap-6 sm:flex">
+            <a
+              href="/#pricing"
+              className="text-sm text-white/50 transition-colors hover:text-white/80"
+            >
+              Pricing
+            </a>
             <a
               href={docsHref}
               className="text-sm text-white/50 transition-colors hover:text-white/80"
@@ -117,6 +123,9 @@ function Layout() {
               className="transition-colors hover:text-white/78"
             >
               GitHub
+            </a>
+            <a href="/#pricing" className="transition-colors hover:text-white/78">
+              Pricing
             </a>
             <Link to="/changelog" className="transition-colors hover:text-white/78">
               Changelog

@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { docsHref } from "@/components/layout";
 import { downloadHref } from "@/lib/downloads";
-import { homebrewInstallCommand } from "@/routes/home";
+import { homebrewInstallCommand, purchaseAction } from "@/routes/home";
 import { routeTree } from "./router";
 
 const { capture } = vi.hoisted(() => ({
@@ -140,6 +140,23 @@ describe("router", () => {
     fireEvent.click(screen.getByRole("button", { name: `Copy ${homebrewInstallCommand}` }));
 
     expect(clipboardWriteText).toHaveBeenCalledWith(homebrewInstallCommand);
+  });
+
+  it("offers a perpetual license through the purchase checkout", async () => {
+    await renderRoute("/");
+
+    expect(screen.getByRole("heading", { name: "Pay once, use Supaterm forever." })).toBeTruthy();
+    expect(screen.getByText("No recurring charge. Seven-day refund period.")).toBeTruthy();
+
+    const purchaseButtons = screen.getAllByRole("button", { name: "Buy license for $99" });
+
+    expect(purchaseButtons).toHaveLength(2);
+    for (const button of purchaseButtons) {
+      const form = button.closest("form");
+
+      expect(form?.getAttribute("action")).toBe(purchaseAction);
+      expect(form?.getAttribute("method")).toBe("post");
+    }
   });
 
   it("renders the changelog page for direct navigation", async () => {

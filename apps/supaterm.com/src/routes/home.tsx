@@ -6,8 +6,9 @@ import heroUrl from "../assets/hero.png";
 import agentsUrl from "../assets/agents.mp4";
 import splitUrl from "../assets/split.mp4";
 import pinUrl from "../assets/pin.mp4";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CtaLink, downloadHref, githubHref } from "@/components/layout";
+import { CtaLink, downloadHref } from "@/components/layout";
 
 type FeatureSection = {
   eyebrow: string;
@@ -19,6 +20,64 @@ type FeatureSection = {
 
 const homebrewInstallCommand = "brew install supaterm";
 const skillsCommand = "npx skills add supabitapp/supaterm-skills";
+const purchaseAction = "https://license.supaterm.com/checkout/purchase";
+const freeFeatures = [
+  "Up to five open tabs",
+  "Panes do not count toward the limit",
+  "No account required",
+];
+const personalFeatures = [
+  "Unlimited open tabs",
+  "365 days of updates",
+  "Move your license to another Mac",
+];
+const licenseQuestions = [
+  {
+    question: "What happens after a year?",
+    answer: "Keep using every release published during your update period.",
+  },
+  {
+    question: "Do I need to renew?",
+    answer: "No. Pay $59 only when you want another year of updates.",
+  },
+  {
+    question: "Can I change Macs?",
+    answer: "Yes. Deactivate the old Mac, then activate the new one.",
+  },
+];
+
+function PurchaseButton({ className }: { className?: string }) {
+  return (
+    <form action={purchaseAction} method="post" className={className}>
+      <Button
+        type="submit"
+        size="lg"
+        onClick={() => posthog.capture("purchase_clicked")}
+        className="h-14 w-full rounded-full bg-[#f1ede4] px-8 text-base text-[#12100b] hover:bg-white"
+      >
+        Buy license for $99
+      </Button>
+    </form>
+  );
+}
+
+function PricingFeatures({ features }: { features: string[] }) {
+  return (
+    <ul className="mt-8 space-y-3 text-sm leading-6 text-white/72">
+      {features.map((feature) => (
+        <li key={feature} className="flex items-start gap-2.5">
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            size={16}
+            strokeWidth={1.8}
+            className="mt-1 shrink-0 text-[#f5bf6d]"
+          />
+          <span>{feature}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function CommandCopyBox({
   command,
@@ -194,13 +253,14 @@ function HomePage() {
               Download for macOS
             </CtaLink>
             <CtaLink
-              href={githubHref}
+              href="#pricing"
               icon="github"
+              showIcon={false}
               variant="outline"
-              onClick={() => posthog.capture("hero_github_clicked")}
+              onClick={() => posthog.capture("hero_pricing_clicked")}
               className="rounded-full border-white/12 bg-white/6 px-6 text-base text-white/88 hover:border-white/18 hover:bg-white/10"
             >
-              GitHub
+              View pricing
             </CtaLink>
           </div>
           <div className="mt-7 flex w-full max-w-[32rem] flex-col items-center gap-4">
@@ -301,6 +361,67 @@ function HomePage() {
         })}
       </section>
 
+      <section id="pricing" className="scroll-mt-16 px-6 pb-24 md:px-10 md:pb-32">
+        <div className="mx-auto max-w-[1440px] border-t border-white/8 pt-18 md:pt-24">
+          <div className="supaterm-reveal mx-auto max-w-[48rem] text-center">
+            <div className="text-sm font-medium tracking-[0.08em] text-white/45">Pricing</div>
+            <h2 className="mt-4 text-[clamp(2rem,4.5vw,3.8rem)] leading-[1] font-medium tracking-[-0.05em] text-balance text-[#f4f0e8]">
+              Pay once, use Supaterm forever.
+            </h2>
+            <p className="mx-auto mt-6 max-w-[38rem] text-base leading-7 text-white/62 md:text-lg">
+              Start free. Buy a personal license when you need more than five open tabs.
+            </p>
+          </div>
+
+          <div className="supaterm-reveal mx-auto mt-12 grid max-w-[900px] gap-5 md:grid-cols-2">
+            <article className="flex flex-col rounded-[18px] border border-white/10 bg-white/[0.025] p-7 md:p-9">
+              <div className="text-sm font-medium text-white/48">Free</div>
+              <div className="mt-4 text-5xl font-medium tracking-[-0.05em] text-[#f4f0e8]">$0</div>
+              <p className="mt-4 min-h-14 text-base leading-7 text-white/58">
+                Use Supaterm without an account or license.
+              </p>
+              <PricingFeatures features={freeFeatures} />
+              <CtaLink
+                href={downloadHref}
+                icon="download"
+                showIcon={false}
+                download
+                onClick={() => posthog.capture("pricing_download_clicked")}
+                className="mt-10 h-14 w-full rounded-full border-white/12 bg-white/6 px-8 text-base text-white/88 hover:border-white/18 hover:bg-white/10"
+                variant="outline"
+              >
+                Download for free
+              </CtaLink>
+            </article>
+
+            <article className="flex flex-col rounded-[18px] border border-[#f5bf6d]/30 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.14),transparent_42%),rgba(255,255,255,0.04)] p-7 shadow-[0_32px_100px_-54px_rgba(245,191,109,0.45)] md:p-9">
+              <div className="text-sm font-medium text-[#f5bf6d]">Personal</div>
+              <div className="mt-4 flex items-end gap-3">
+                <span className="text-5xl font-medium tracking-[-0.05em] text-[#f4f0e8]">$99</span>
+                <span className="pb-1 text-sm text-white/45">one-time purchase</span>
+              </div>
+              <p className="mt-4 min-h-14 text-base leading-7 text-white/62">
+                A perpetual license for one Mac at a time.
+              </p>
+              <PricingFeatures features={personalFeatures} />
+              <PurchaseButton className="mt-10" />
+              <p className="mt-4 text-center text-xs leading-5 text-white/42">
+                No recurring charge. Seven-day refund period.
+              </p>
+            </article>
+          </div>
+
+          <dl className="supaterm-reveal mx-auto mt-12 grid max-w-[900px] gap-8 border-t border-white/8 pt-10 md:grid-cols-3">
+            {licenseQuestions.map(({ question, answer }) => (
+              <div key={question}>
+                <dt className="font-medium text-[#f4f0e8]">{question}</dt>
+                <dd className="mt-3 text-sm leading-6 text-white/52">{answer}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
       <section className="px-6 pb-16 md:px-10 md:pb-24">
         <div className="mx-auto flex max-w-[1440px] flex-col items-center border-t border-white/8 px-0 pt-18 text-center md:pt-24">
           <div className="supaterm-reveal text-[clamp(1.7rem,3.5vw,2.8rem)] leading-[1] font-medium tracking-[-0.04em] text-balance text-[#f4f0e8]">
@@ -312,19 +433,11 @@ function HomePage() {
               icon="download"
               download
               onClick={() => posthog.capture("cta_download_clicked")}
-              className="min-w-0 rounded-full bg-[#f1ede4] px-8 py-7 text-[1.15rem] text-[#12100b] hover:bg-white md:min-w-[21rem]"
+              className="h-14 min-w-0 rounded-full bg-[#f1ede4] px-8 text-base text-[#12100b] hover:bg-white md:min-w-[21rem]"
             >
               Download for macOS
             </CtaLink>
-            <CtaLink
-              href={githubHref}
-              icon="github"
-              variant="outline"
-              onClick={() => posthog.capture("cta_github_clicked")}
-              className="min-w-0 rounded-full border-white/10 bg-white/6 px-8 py-7 text-[1.15rem] text-white/88 hover:border-white/18 hover:bg-white/10 md:min-w-[19rem]"
-            >
-              View on GitHub
-            </CtaLink>
+            <PurchaseButton className="min-w-0 md:min-w-[19rem]" />
           </div>
         </div>
       </section>
@@ -332,4 +445,4 @@ function HomePage() {
   );
 }
 
-export { HomePage, homebrewInstallCommand };
+export { HomePage, homebrewInstallCommand, purchaseAction };
