@@ -32,7 +32,7 @@ Run commands that need project secrets through fnox:
 mise exec -- fnox exec -- make mac-archive
 ```
 
-fnox reads the `Supaterm Environment` item from the `Supaterm` 1Password vault. Keep secrets out of the interactive shell and use `fnox exec` for commands that need them.
+fnox reads the `Supaterm Environment` item from the `Supaterm` 1Password vault. Keep secrets out of the interactive shell and use `fnox exec` for commands that need them. Never run `op signin`, export `OP_SERVICE_ACCOUNT_TOKEN`, or print secrets.
 
 Generate the macOS workspace:
 
