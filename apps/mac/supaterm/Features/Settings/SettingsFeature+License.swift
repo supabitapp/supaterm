@@ -11,7 +11,11 @@ extension LicenseFeature.State {
       case .deactivated, .transferred:
         "This license is not active on this Mac."
       case .active, nil:
-        "Use Supaterm free with up to five tabs, or activate a license."
+        if AppBuild.licenseSalesEnabled {
+          "Use Supaterm free with up to five tabs, or activate a license."
+        } else {
+          "Use Supaterm free, or activate an existing license."
+        }
       }
     case .paid:
       "Supaterm is activated on this Mac."

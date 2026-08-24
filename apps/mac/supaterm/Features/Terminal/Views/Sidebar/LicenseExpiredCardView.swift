@@ -17,8 +17,10 @@ struct LicenseExpiredCardView: View {
         .fixedSize(horizontal: false, vertical: true)
 
       HStack(spacing: 12) {
-        Button("Renew Updates") {
-          store.send(.renewButtonTapped)
+        if AppBuild.licenseSalesEnabled {
+          Button("Renew Updates") {
+            store.send(.renewButtonTapped)
+          }
         }
         Button("Get Your Owned Release") {
           store.send(.ownedReleaseButtonTapped)

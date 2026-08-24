@@ -2,8 +2,6 @@ import Clocks
 import ComposableArchitecture
 import Sharing
 import SupatermCLIShared
-import SupatermSocketFeature
-import SupatermTerminalCore
 import Testing
 
 @testable import SupatermLicenseFeature
@@ -40,13 +38,12 @@ struct TerminalCommandExecutorLicenseTests {
             mode: .paid,
             updatesThrough: "2099-01-01",
             deviceName: "Test Mac",
-            openTabCount: 0,
-            freeTabLimit: 5
+            openTabCount: 0
           )
         )
     )
-    #expect(fixture.store.license.entitlement == entitlement)
-    #expect(fixture.store.license.hasLicenseKey)
+    #expect(fixture.store.entitlement == entitlement)
+    #expect(fixture.store.hasLicenseKey)
     await fixture.store.send(.shutdown).finish()
     withExtendedLifetime(fixture) {}
   }
@@ -94,8 +91,22 @@ struct TerminalCommandExecutorLicenseTests {
     }
 
     #expect(error.code == "connection_required")
-    #expect(fixture.store.license.entitlement == entitlement)
-    #expect(fixture.store.license.hasLicenseKey)
+    #expect(fixture.store.entitlement == entitlement)
+    #expect(fixture.store.hasLicenseKey)
+    withExtendedLifetime(fixture) {}
+  }
+
+  @Test
+  func darkBuildRejectsPurchaseAndRenewalRoutes() async throws {
+    let fixture = licenseExecutor()
+
+    #expect(!AppBuild.licenseSalesEnabled)
+    for request in [LicenseControlRequest.buy, .renew] {
+      let error = try await #require(throws: LicenseControlError.self) {
+        try await fixture.executor.execute(request)
+      }
+      #expect(error.code == "license_sales_unavailable")
+    }
     withExtendedLifetime(fixture) {}
   }
 }
@@ -108,22 +119,16 @@ private func licenseExecutor(
   licenseClient: LicenseClient = .testValue,
   clock: TestClock<Duration> = TestClock()
 ) -> LicenseExecutorFixture {
-  let process = Shared(
-    value: AppFeature.ProcessState(
-      license: LicenseFeature.State(snapshot: snapshot)
-    )
-  )
-  let store = Store(initialState: AppFeature.State(process: process)) {
-    AppFeature()
+  var licenseClient = licenseClient
+  licenseClient.load = { snapshot }
+  let runtime = LicenseRuntime(client: licenseClient)
+  let store = Store(initialState: LicenseFeature.State(runtime: runtime)) {
+    LicenseFeature(runtime: runtime)
   } withDependencies: {
     $0.continuousClock = clock
-    $0.licenseClient = licenseClient
-    $0.socketControlClient.stop = {}
   }
-  let registry = TerminalWindowRegistry()
-  registry.applicationStore = store
+  let registry = TerminalWindowRegistry.test(licenseStore: store)
   return LicenseExecutorFixture(
-    executor: TerminalCommandExecutor(registry: registry, licenseDeviceName: { "Test Mac" }),
     store: store,
     registry: registry
   )
@@ -131,9 +136,12 @@ private func licenseExecutor(
 
 @MainActor
 private struct LicenseExecutorFixture {
-  let executor: TerminalCommandExecutor
-  let store: StoreOf<AppFeature>
+  let store: StoreOf<LicenseFeature>
   let registry: TerminalWindowRegistry
+
+  var executor: TerminalCommandExecutor {
+    TerminalCommandExecutor(registry: registry, licenseDeviceName: { "Test Mac" })
+  }
 }
 
 private func licenseMode(

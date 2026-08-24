@@ -565,7 +565,7 @@ struct TerminalHostStateAgentDetectionTests {
   @MainActor
   private func hostFixture() throws -> HostFixture {
     initializeGhosttyForTests()
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     return HostFixture(
       host: host,

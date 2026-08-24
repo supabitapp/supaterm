@@ -1,4 +1,5 @@
 import SupaTheme
+import SupatermSupport
 import SupatermTerminalCore
 import SwiftUI
 
@@ -25,7 +26,10 @@ struct LicenseTabLimitCardView: View {
         .fixedSize(horizontal: false, vertical: true)
 
       HStack(spacing: 12) {
-        ForEach(LicenseTabLimitAction.allCases, id: \.self) { action in
+        ForEach(
+          LicenseTabLimitAction.allCases.filter { $0 != .buy || AppBuild.licenseSalesEnabled },
+          id: \.self
+        ) { action in
           Button(action.title) {
             self.action(action)
           }

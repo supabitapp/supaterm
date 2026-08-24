@@ -1,5 +1,4 @@
 import SupatermCLIShared
-import SupatermTerminalCore
 
 extension SocketControlFeature {
   func licenseResponseResult(

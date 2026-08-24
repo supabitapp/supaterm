@@ -1,19 +1,12 @@
-import Combine
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermLicenseFeature
 import SupatermSupport
-import SupatermTerminalCore
 
 extension TerminalCommandExecutor {
   func execute(_ request: LicenseControlRequest) async throws -> LicenseControlResult {
-    guard let store = registry.applicationStore else {
-      throw LicenseControlError(
-        code: "unavailable",
-        message: "Supaterm license state is unavailable."
-      )
-    }
+    let store = registry.licenseStore
 
     switch request {
     case .activate(let key):
@@ -27,41 +20,43 @@ extension TerminalCommandExecutor {
         )
       }
       try requireIdle(store)
-      store.send(.license(.activationRequested(key)))
-      await waitForLicenseOperation(store)
-      try requireSuccessfulLicenseOperation(store)
+      try await performLicenseOperation(store, operation: .activation) {
+        .activationRequested(key, $0)
+      }
       return .status(licenseStatus(store))
 
     case .buy:
+      try requireLicenseSales()
       try requireIdle(store)
-      await store.send(.license(.buyButtonTapped)).finish()
+      await store.send(.buyButtonTapped).finish()
       return .url(SupatermLicenseURLResult(url: LicensePortalURL.buy.absoluteString))
 
     case .deactivate:
       try requireLicenseKey(store)
       try requireIdle(store)
-      store.send(.license(.deactivationButtonTapped))
-      await waitForLicenseOperation(store)
-      try requireSuccessfulLicenseOperation(store)
+      try await performLicenseOperation(store, operation: .deactivation) {
+        .deactivationRequested($0)
+      }
       return .status(licenseStatus(store))
 
     case .refresh:
       try requireLicenseKey(store)
       try requireIdle(store)
-      store.send(.license(.refreshRequested(.command)))
-      await waitForLicenseOperation(store)
-      try requireSuccessfulLicenseOperation(store)
+      try await performLicenseOperation(store, operation: .refresh) {
+        .refreshCommandRequested($0)
+      }
       return .status(licenseStatus(store))
 
     case .renew:
+      try requireLicenseSales()
       try requireIdle(store)
-      guard let licenseID = store.license.access.ownership?.licenseID else {
+      guard let licenseID = store.access.ownership?.licenseID else {
         throw LicenseControlError(
           code: "missing_license_key",
           message: "Activate a license before renewing updates."
         )
       }
-      await store.send(.license(.renewButtonTapped)).finish()
+      await store.send(.renewButtonTapped).finish()
       return .url(
         SupatermLicenseURLResult(url: LicensePortalURL.license(licenseID).absoluteString)
       )
@@ -72,9 +67,9 @@ extension TerminalCommandExecutor {
   }
 
   private func licenseStatus(
-    _ store: StoreOf<AppFeature>
+    _ store: StoreOf<LicenseFeature>
   ) -> SupatermLicenseStatusResult {
-    let access = store.license.access
+    let access = store.access
     let mode =
       switch access {
       case .free:
@@ -88,13 +83,12 @@ extension TerminalCommandExecutor {
       mode: mode,
       updatesThrough: access.ownership?.updatesThrough.rawValue,
       deviceName: licenseDeviceName(),
-      openTabCount: registry.licenseTabCount,
-      freeTabLimit: LicenseTabGate.tabLimit
+      openTabCount: registry.licenseTabCount
     )
   }
 
-  private func requireIdle(_ store: StoreOf<AppFeature>) throws {
-    guard store.license.phase == .idle else {
+  private func requireIdle(_ store: StoreOf<LicenseFeature>) throws {
+    guard store.phase == .idle else {
       throw LicenseControlError(
         code: "license_busy",
         message: "Another license action is in progress."
@@ -102,8 +96,17 @@ extension TerminalCommandExecutor {
     }
   }
 
-  private func requireLicenseKey(_ store: StoreOf<AppFeature>) throws {
-    guard store.license.hasLicenseKey else {
+  private func requireLicenseSales() throws {
+    guard AppBuild.licenseSalesEnabled else {
+      throw LicenseControlError(
+        code: "license_sales_unavailable",
+        message: "License sales are not open yet."
+      )
+    }
+  }
+
+  private func requireLicenseKey(_ store: StoreOf<LicenseFeature>) throws {
+    guard store.hasLicenseKey else {
       throw LicenseControlError(
         code: "missing_license_key",
         message: "Activate a license first."
@@ -111,15 +114,25 @@ extension TerminalCommandExecutor {
     }
   }
 
-  private func requireSuccessfulLicenseOperation(_ store: StoreOf<AppFeature>) throws {
-    if let error = store.license.error {
-      throw LicenseControlError(code: error.code, message: error.message)
+  private func performLicenseOperation(
+    _ store: StoreOf<LicenseFeature>,
+    operation: LicenseFeatureError.Operation,
+    action: (LicenseOperationCompletion) -> LicenseFeature.Action
+  ) async throws {
+    let result = LockIsolated<Result<Void, LicenseClientError>?>(nil)
+    let completion = LicenseOperationCompletion { value in
+      result.withValue { $0 = value }
     }
-  }
-
-  private func waitForLicenseOperation(_ store: StoreOf<AppFeature>) async {
-    for await phase in store.publisher.license.phase.values where phase == .idle {
-      return
+    await store.send(action(completion)).finish()
+    guard let result = result.value else {
+      throw LicenseControlError(
+        code: "license_cancelled",
+        message: "The license action was cancelled."
+      )
+    }
+    if case .failure(let cause) = result {
+      let error = LicenseFeatureError(operation: operation, cause: cause)
+      throw LicenseControlError(code: error.code, message: error.message)
     }
   }
 }

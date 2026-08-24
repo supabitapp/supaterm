@@ -138,7 +138,7 @@ struct TerminalSidebarResizeTests {
 
   @Test
   func resizeEndCommitsWidthFromDefault() async {
-    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let sessionChangeCount = LockIsolated(0)
     terminal.onSessionChange = {
       sessionChangeCount.withValue { $0 += 1 }

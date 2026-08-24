@@ -40,7 +40,7 @@ struct TerminalSidebarPointerTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let terminal = TerminalHostState(
+      let terminal = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
@@ -363,7 +363,7 @@ struct TerminalSidebarPointerTests {
   }
 
   private func fixture() async throws -> Fixture {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let manager = host.spaceManager.tabCollection
     let firstTabID = manager.createTab(title: "First")
     let secondTabID = manager.createTab(title: "Second")

@@ -703,15 +703,9 @@ private struct SettingsSnapshotFixture: View {
       .terminalLoaded, .terminalWarning:
       entitlement = nil
     }
-    return Store(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(
-          entitlement: entitlement,
-          hasLicenseKey: entitlement != nil
-        )
-      )
-    ) {
-      LicenseFeature()
+    let runtime = LicenseRuntime.preview(entitlement: entitlement)
+    return Store(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     }
   }
 

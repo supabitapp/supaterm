@@ -463,27 +463,3 @@ public enum TerminalControlError: Error, Equatable {
   case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   case windowNotFound(Int)
 }
-
-public enum LicenseControlRequest: Equatable, Sendable {
-  case activate(String)
-  case buy
-  case deactivate
-  case refresh
-  case renew
-  case status
-}
-
-public enum LicenseControlResult: Equatable, Sendable {
-  case status(SupatermLicenseStatusResult)
-  case url(SupatermLicenseURLResult)
-}
-
-public struct LicenseControlError: Error, Equatable, Sendable {
-  public let code: String
-  public let message: String
-
-  public init(code: String, message: String) {
-    self.code = code
-    self.message = message
-  }
-}

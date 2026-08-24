@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import SupatermSupport
 
-public struct LicenseEntitlementCodec: Sendable {
+struct LicenseEntitlementCodec: Sendable {
   private struct Claims: Decodable {
     let v: Int
     let lid: String
@@ -16,11 +16,11 @@ public struct LicenseEntitlementCodec: Sendable {
 
   private let publicKey: Curve25519.Signing.PublicKey
 
-  public init(publicKeyRawRepresentation: Data) throws {
+  init(publicKeyRawRepresentation: Data) throws {
     publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: publicKeyRawRepresentation)
   }
 
-  public func decode(
+  func decode(
     token: String,
     expectedDeviceID: String,
     expectedLicenseID: String
@@ -79,6 +79,27 @@ public struct LicenseEntitlementCodec: Sendable {
       .replacingOccurrences(of: "/", with: "_")
       .replacingOccurrences(of: "=", with: "")
     return canonical == segment ? data : nil
+  }
+}
+
+struct LicenseNoticeAcknowledgementFile: Sendable {
+  let url: URL
+
+  func delete() {
+    try? FileManager.default.removeItem(at: url)
+  }
+
+  func load() -> LicenseNoticeAcknowledgement? {
+    guard let data = try? Data(contentsOf: url) else { return nil }
+    return try? JSONDecoder().decode(LicenseNoticeAcknowledgement.self, from: data)
+  }
+
+  func save(_ acknowledgement: LicenseNoticeAcknowledgement) throws {
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try JSONEncoder().encode(acknowledgement).write(to: url, options: .atomic)
   }
 }
 

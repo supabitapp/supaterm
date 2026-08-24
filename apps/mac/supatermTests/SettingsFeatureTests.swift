@@ -6,6 +6,7 @@ import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermLicenseFeature
 @testable import SupatermSettingsFeature
 
 @MainActor
@@ -15,6 +16,13 @@ struct SettingsFeatureTests {
     let state = SettingsFeature.State()
 
     #expect(state.selectedTab == .general)
+  }
+
+  @Test
+  func freeLicenseStatusDoesNotClaimADisabledLimit() {
+    let state = LicenseFeature.State(runtime: .preview())
+
+    #expect(state.settingsStatus == "Use Supaterm free, or activate an existing license.")
   }
 
   @Test

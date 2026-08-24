@@ -65,7 +65,7 @@ struct TerminalSidebarLayoutTests {
       .tab(secondTab.id): .tab(tabPresentation(secondTab)),
       .newTab: .newTab(.inline),
     ]
-    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let controller = TerminalSidebarListController(
       windowControllerID: UUID(),
       tabDragRegistry: TerminalTabDragRegistry(),

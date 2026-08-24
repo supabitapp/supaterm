@@ -334,8 +334,8 @@ final class TerminalHostState {
     zmxClient: ZmxClient = .live,
     zmxSessionsEnabled: Bool = true,
     agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
-    licenseTabGate: LicenseTabGate = .unrestricted,
-    licenseOpenTabCount: @escaping @MainActor () -> Int = { 0 }
+    licenseTabGate: LicenseTabGate,
+    licenseOpenTabCount: @escaping @MainActor () -> Int
   ) {
     @Shared(.terminalSpaceCatalog) var launchSpaceCatalog = TerminalSpaceCatalog.default
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(launchSpaceCatalog)
@@ -365,6 +365,30 @@ final class TerminalHostState {
       controller.start()
     }
   }
+
+  #if DEBUG || SUPATERM_SNAPSHOT_CATALOG
+    static func test(
+      runtime: GhosttyRuntime? = nil,
+      managesTerminalSurfaces: Bool = true,
+      spaceID: TerminalSpaceID? = nil,
+      zmxClient: ZmxClient = .live,
+      zmxSessionsEnabled: Bool = true,
+      agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
+      licenseTabGate: LicenseTabGate = .unrestricted,
+      licenseOpenTabCount: @escaping @MainActor () -> Int = { 0 }
+    ) -> TerminalHostState {
+      TerminalHostState(
+        runtime: runtime,
+        managesTerminalSurfaces: managesTerminalSurfaces,
+        spaceID: spaceID,
+        zmxClient: zmxClient,
+        zmxSessionsEnabled: zmxSessionsEnabled,
+        agentDetectionRuleRepository: agentDetectionRuleRepository,
+        licenseTabGate: licenseTabGate,
+        licenseOpenTabCount: licenseOpenTabCount
+      )
+    }
+  #endif
 
   isolated deinit {
     spaceCatalogObservationTask?.cancel()

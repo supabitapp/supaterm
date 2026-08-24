@@ -42,6 +42,26 @@ struct LicenseEntitlementCodecTests {
   }
 
   @Test
+  func noticeAcknowledgementFileRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    let file = LicenseNoticeAcknowledgementFile(
+      url: directory.appending(path: "license-notice.json")
+    )
+    let acknowledgement = LicenseNoticeAcknowledgement(
+      licenseID: Self.licenseID,
+      revision: 4
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    try file.save(acknowledgement)
+
+    #expect(file.load() == acknowledgement)
+    file.delete()
+    #expect(file.load() == nil)
+  }
+
+  @Test
   func badSignatureIsRejected() throws {
     let parts = Self.compatibilityToken.split(separator: ".")
     let signature = try #require(parts.last)

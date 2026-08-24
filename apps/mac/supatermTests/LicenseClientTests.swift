@@ -117,6 +117,7 @@ struct LicenseClientTests {
       PersistedLicense(key: oldCredential.rawValue, token: oldEntitlement.signedToken)
     )
     let requests = LockIsolated<[String]>([])
+    let cleanupFinished = AsyncStream.makeStream(of: Void.self)
     let client = LicenseClient.live(
       device: Self.device,
       service: LicenseServiceClient(
@@ -126,6 +127,7 @@ struct LicenseClientTests {
         },
         deactivate: { key, _ in
           requests.withValue { $0.append("deactivate:\(key)") }
+          cleanupFinished.continuation.yield()
           return oldTombstone.signedToken
         },
         refresh: unimplemented("refresh")
@@ -139,6 +141,7 @@ struct LicenseClientTests {
     )
 
     let activated = try await client.activate(newCredential.rawValue)
+    for await _ in cleanupFinished.stream { break }
 
     #expect(activated == newEntitlement)
     #expect(persisted.value.key == newCredential.rawValue)
@@ -148,6 +151,7 @@ struct LicenseClientTests {
         "activate:\(newCredential.rawValue)",
         "deactivate:\(oldCredential.rawValue)",
       ])
+    cleanupFinished.continuation.finish()
   }
 
   @Test
@@ -164,12 +168,14 @@ struct LicenseClientTests {
       PersistedLicense(key: oldCredential.rawValue, token: nil)
     )
     let deactivatedKeys = LockIsolated<[String]>([])
+    let cleanupFinished = AsyncStream.makeStream(of: Void.self)
     let client = LicenseClient.live(
       device: Self.device,
       service: LicenseServiceClient(
         activate: { _, _ in newEntitlement.signedToken },
         deactivate: { key, _ in
           deactivatedKeys.withValue { $0.append(key) }
+          cleanupFinished.continuation.yield()
           return ""
         },
         refresh: unimplemented("refresh")
@@ -179,9 +185,226 @@ struct LicenseClientTests {
     )
 
     _ = try await client.activate(newCredential.rawValue)
+    for await _ in cleanupFinished.stream { break }
 
     #expect(deactivatedKeys.value == [oldCredential.rawValue])
+    cleanupFinished.continuation.finish()
   }
+
+  @Test
+  func inactiveKeySwitchKeepsOldLicense() async throws {
+    let oldCredential = try #require(LicenseCredential(Self.oldKey))
+    let newCredential = try #require(LicenseCredential(Self.newKey))
+    let oldEntitlement = entitlement(
+      licenseID: oldCredential.licenseID,
+      status: .active,
+      revision: 1,
+      token: "old-token"
+    )
+    let newTombstone = entitlement(
+      licenseID: newCredential.licenseID,
+      status: .revoked,
+      revision: 2,
+      token: "new-tombstone"
+    )
+    let persisted = LockIsolated(
+      PersistedLicense(key: oldCredential.rawValue, token: oldEntitlement.signedToken)
+    )
+    let deactivationCount = LockIsolated(0)
+    let client = LicenseClient.live(
+      device: Self.device,
+      service: LicenseServiceClient(
+        activate: { _, _ in newTombstone.signedToken },
+        deactivate: { _, _ in
+          deactivationCount.withValue { $0 += 1 }
+          return ""
+        },
+        refresh: unimplemented("refresh")
+      ),
+      storage: storage(persisted),
+      verifier: verifier([
+        oldEntitlement.signedToken: oldEntitlement,
+        newTombstone.signedToken: newTombstone,
+      ])
+    )
+
+    await #expect(throws: LicenseClientError.inactiveLicense) {
+      try await client.activate(newCredential.rawValue)
+    }
+    #expect(
+      persisted.value
+        == PersistedLicense(
+          key: oldCredential.rawValue,
+          token: oldEntitlement.signedToken
+        ))
+    #expect(deactivationCount.value == 0)
+  }
+
+  @Test
+  func keySwitchDoesNotWaitForOldLicenseCleanup() async throws {
+    let oldCredential = try #require(LicenseCredential(Self.oldKey))
+    let newCredential = try #require(LicenseCredential(Self.newKey))
+    let oldEntitlement = entitlement(
+      licenseID: oldCredential.licenseID,
+      status: .active,
+      revision: 1,
+      token: "old-token"
+    )
+    let newEntitlement = entitlement(
+      licenseID: newCredential.licenseID,
+      status: .active,
+      revision: 1,
+      token: "new-token"
+    )
+    let persisted = LockIsolated(
+      PersistedLicense(key: oldCredential.rawValue, token: oldEntitlement.signedToken)
+    )
+    let cleanupStarted = AsyncStream.makeStream(of: Void.self)
+    let allowCleanup = AsyncStream.makeStream(of: Void.self)
+    let cleanupFinished = AsyncStream.makeStream(of: Void.self)
+    let client = LicenseClient.live(
+      device: Self.device,
+      service: LicenseServiceClient(
+        activate: { _, _ in newEntitlement.signedToken },
+        deactivate: { _, _ in
+          cleanupStarted.continuation.yield()
+          for await _ in allowCleanup.stream { break }
+          cleanupFinished.continuation.yield()
+          return ""
+        },
+        refresh: unimplemented("refresh")
+      ),
+      storage: storage(persisted),
+      verifier: verifier([
+        oldEntitlement.signedToken: oldEntitlement,
+        newEntitlement.signedToken: newEntitlement,
+      ])
+    )
+
+    let activated = try await client.activate(newCredential.rawValue)
+    for await _ in cleanupStarted.stream { break }
+
+    #expect(activated == newEntitlement)
+    #expect(
+      persisted.value
+        == PersistedLicense(
+          key: newCredential.rawValue,
+          token: newEntitlement.signedToken
+        ))
+
+    allowCleanup.continuation.yield()
+    for await _ in cleanupFinished.stream { break }
+    cleanupStarted.continuation.finish()
+    allowCleanup.continuation.finish()
+    cleanupFinished.continuation.finish()
+  }
+
+  @Test
+  func laterKeySwitchWaitsForPendingCleanup() async throws {
+    let oldCredential = try #require(LicenseCredential(Self.oldKey))
+    let newCredential = try #require(LicenseCredential(Self.newKey))
+    let oldEntitlement = entitlement(
+      licenseID: oldCredential.licenseID,
+      status: .active,
+      revision: 1,
+      token: "old-token"
+    )
+    let newEntitlement = entitlement(
+      licenseID: newCredential.licenseID,
+      status: .active,
+      revision: 1,
+      token: "new-token"
+    )
+    let reactivatedOldEntitlement = entitlement(
+      licenseID: oldCredential.licenseID,
+      status: .active,
+      revision: 3,
+      token: "reactivated-old-token"
+    )
+    let persisted = LockIsolated(
+      PersistedLicense(key: oldCredential.rawValue, token: oldEntitlement.signedToken)
+    )
+    let sequence = LockIsolated<[String]>([])
+    let cleanupStarted = AsyncStream.makeStream(of: Void.self)
+    let cleanupRelease = AsyncStream.makeStream(of: Void.self)
+    let secondAttempted = AsyncStream.makeStream(of: Void.self)
+    let client = LicenseClient.live(
+      device: Self.device,
+      service: LicenseServiceClient(
+        activate: { key, _ in
+          sequence.withValue { $0.append("activate:\(key)") }
+          return key == newCredential.rawValue
+            ? newEntitlement.signedToken : reactivatedOldEntitlement.signedToken
+        },
+        deactivate: { _, _ in
+          sequence.withValue { $0.append("cleanup-started") }
+          cleanupStarted.continuation.yield()
+          for await _ in cleanupRelease.stream { break }
+          sequence.withValue { $0.append("cleanup-finished") }
+          return ""
+        },
+        refresh: unimplemented("refresh")
+      ),
+      storage: storage(persisted),
+      verifier: verifier([
+        oldEntitlement.signedToken: oldEntitlement,
+        newEntitlement.signedToken: newEntitlement,
+        reactivatedOldEntitlement.signedToken: reactivatedOldEntitlement,
+      ])
+    )
+
+    _ = try await client.activate(newCredential.rawValue)
+    for await _ in cleanupStarted.stream { break }
+    let second = Task {
+      secondAttempted.continuation.yield()
+      return try await client.activate(oldCredential.rawValue)
+    }
+    for await _ in secondAttempted.stream { break }
+    await Task.yield()
+    cleanupRelease.continuation.yield()
+    _ = try await second.value
+
+    #expect(
+      Array(sequence.value.prefix(4)) == [
+        "activate:\(newCredential.rawValue)",
+        "cleanup-started",
+        "cleanup-finished",
+        "activate:\(oldCredential.rawValue)",
+      ]
+    )
+    cleanupRelease.continuation.yield()
+    cleanupStarted.continuation.finish()
+    cleanupRelease.continuation.finish()
+    secondAttempted.continuation.finish()
+  }
+
+  @Test
+  func localInstancesUseDistinctKeychainServices() {
+    let production = LicenseKeychain.identifier(instanceName: nil)
+
+    #expect(LicenseKeychain.identifier(instanceName: "default") == production)
+    #expect(LicenseKeychain.identifier(instanceName: "development") != production)
+    #expect(
+      LicenseKeychain.identifier(instanceName: "development")
+        == "app.supabit.supaterm.license.875b9380866e9d56"
+    )
+    #expect(
+      LicenseKeychain.identifier(instanceName: "development")
+        != LicenseKeychain.identifier(instanceName: "release-test")
+    )
+  }
+
+  #if DEBUG
+    @Test
+    func debugClientActivatesWithoutTheLicenseService() async throws {
+      let client = LicenseClient.debugValue
+
+      let entitlement = try await client.activate(Self.oldKey)
+
+      #expect(entitlement.status == .active)
+      #expect(entitlement.signedToken == "debug")
+    }
+  #endif
 
   @Test
   func failedKeySwitchKeepsOldLicense() async throws {

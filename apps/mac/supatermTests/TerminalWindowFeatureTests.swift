@@ -29,7 +29,7 @@ struct TerminalWindowFeatureTests {
   func taskRoutesClientEventsToTheWindowHost() async {
     let (events, continuation) = makeEventStream()
     initializeGhosttyForTests()
-    let host = TerminalHostState(runtime: GhosttyRuntime())
+    let host = TerminalHostState.test(runtime: GhosttyRuntime())
     defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
     let analyticsRecorder = AnalyticsEventRecorder()
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -123,7 +123,7 @@ struct TerminalWindowFeatureTests {
 
   @Test
   func closeConfirmationClosesPendingTab() async throws {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let tabCollection = host.spaceManager.tabCollection
     let tabID = tabCollection.createTab(title: "Close")
     _ = tabCollection.createTab(title: "Keep")
@@ -150,7 +150,7 @@ struct TerminalWindowFeatureTests {
 
   @Test
   func closeConfirmationCancelKeepsPendingTab() async {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let tabID = host.spaceManager.tabCollection.createTab(title: "Keep")
     var initialState = TerminalWindowFeature.State()
     initialState.destination = .closeConfirmation(
@@ -346,7 +346,7 @@ struct TerminalWindowFeatureTests {
   @Test
   func spaceCreateFlowPerformsHostAction() async {
     let analyticsRecorder = AnalyticsEventRecorder()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     var actions: [TerminalHostState.SpaceAction] = []
     host.onSpaceAction = { actions.append($0) }
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -382,7 +382,7 @@ struct TerminalWindowFeatureTests {
 
   @Test
   func spaceRenameAppliesNameBeforeColor() async {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     var actions: [TerminalHostState.SpaceAction] = []
     host.onSpaceAction = { actions.append($0) }
     let space = TerminalSpaceItem(name: "Before", color: .neutral)
@@ -405,7 +405,7 @@ struct TerminalWindowFeatureTests {
 
   @Test
   func spaceDeleteFlowPerformsHostAction() async {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     var actions: [TerminalHostState.SpaceAction] = []
     host.onSpaceAction = { actions.append($0) }
     let space = TerminalSpaceItem(name: "Delete")

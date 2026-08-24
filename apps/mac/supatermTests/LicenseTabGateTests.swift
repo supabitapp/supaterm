@@ -12,6 +12,13 @@ import Testing
 @MainActor
 struct LicenseTabGateTests {
   @Test
+  func enforcementFollowsSalesWithAnExplicitDebugOverride() {
+    #expect(!LicenseTabGate.enforcementEnabled(salesEnabled: false, debugFreeMode: false))
+    #expect(LicenseTabGate.enforcementEnabled(salesEnabled: true, debugFreeMode: false))
+    #expect(LicenseTabGate.enforcementEnabled(salesEnabled: false, debugFreeMode: true))
+  }
+
+  @Test
   func freeModeWithFourOpenTabsAllowsAnotherTab() throws {
     try withGateHarness { harness in
       for _ in 0..<4 {
@@ -54,7 +61,7 @@ struct LicenseTabGateTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let gate = freeGate()
       let first = registerHost(
         in: registry,
@@ -95,7 +102,7 @@ struct LicenseTabGateTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let gate = freeGate()
       let registered = registerHost(
         in: registry,
@@ -160,7 +167,7 @@ struct LicenseTabGateTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: space.id)
       let session = TerminalWindowSession(
@@ -195,7 +202,7 @@ struct LicenseTabGateTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: spaces[0].id)
       let emptyDisplayedSpace = TerminalSpaceSession(
@@ -232,7 +239,7 @@ struct LicenseTabGateTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: spaces[0].id)
       for _ in 0..<5 {
@@ -258,10 +265,10 @@ struct LicenseTabGateTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = registerHost(
         in: registry,
-        gate: LicenseTabGate(),
+        gate: .unrestricted,
         spaceID: space.id,
         managesTerminalSurfaces: false
       )
@@ -315,12 +322,12 @@ struct LicenseTabGateTests {
   @Test
   func registryWiresBothRefusalActions() {
     var actions: [LicenseTabLimitAction] = []
-    let registry = TerminalWindowRegistry {
+    let registry = TerminalWindowRegistry.test {
       actions.append($0)
     }
     let host = registerHost(
       in: registry,
-      gate: LicenseTabGate(),
+      gate: .unrestricted,
       spaceID: TerminalSpaceItem(name: "Main").id,
       managesTerminalSurfaces: false
     )
@@ -344,7 +351,7 @@ struct LicenseTabGateTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: space.id)
       try operation(
@@ -371,7 +378,7 @@ struct LicenseTabGateTests {
     managesTerminalSurfaces: Bool = true,
     connectsWindow: Bool = true
   ) -> RegisteredHost {
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       managesTerminalSurfaces: managesTerminalSurfaces,
       spaceID: spaceID,
       zmxSessionsEnabled: false,

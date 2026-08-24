@@ -33,7 +33,7 @@ struct TerminalCommandExecutorHookTests {
   func installWritesManagedClaudeHooksAndReportsHealth() async throws {
     let homeDirectoryURL = try temporaryHookHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     let result = try await commandExecutor.hooksInstall(
@@ -54,7 +54,7 @@ struct TerminalCommandExecutorHookTests {
   func installReportsUnavailableInstalledWithoutClaude() async throws {
     let homeDirectoryURL = try temporaryHookHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     let result = try await commandExecutor.hooksInstall(
@@ -71,7 +71,7 @@ struct TerminalCommandExecutorHookTests {
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let invalidJSON = #"{ "hooks":"#
     try writeClaudeSettings(invalidJSON, homeDirectoryURL: homeDirectoryURL)
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     await #expect(throws: ClaudeSettingsInstallerError.invalidJSON) {
@@ -105,7 +105,7 @@ struct TerminalCommandExecutorHookTests {
       """,
       homeDirectoryURL: homeDirectoryURL
     )
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
     let installer = claudeHookInstaller(homeDirectoryURL: homeDirectoryURL)
     _ = try await commandExecutor.hooksInstall(
@@ -124,7 +124,7 @@ struct TerminalCommandExecutorHookTests {
 
   @Test
   func installAndRemoveForwardTheRequestedAgent() async throws {
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
     let recorder = AgentHookInstallRecorder()
     let installer = CodingAgentHookInstaller(

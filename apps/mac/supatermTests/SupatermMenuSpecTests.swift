@@ -7,7 +7,7 @@ import Testing
 struct SupatermMenuSpecTests {
   @Test
   func menuItemSpecsHaveUniqueIdentifiers() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
 
     let identifiers = controller.menuItemSpecs().compactMap(\.id?.rawValue)
 
@@ -17,14 +17,14 @@ struct SupatermMenuSpecTests {
 
   @Test
   func everySpecCarriesAnIdentifier() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
 
     #expect(controller.menuItemSpecs().allSatisfy { $0.id != nil })
   }
 
   @Test
   func slotSpecsCoverTabsAndSpaces() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     let specs = controller.menuItemSpecs()
 
     let tabSlots = specs.filter {
@@ -40,7 +40,7 @@ struct SupatermMenuSpecTests {
 
   @Test
   func layoutCoversEverySpecExactlyOnce() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     let specIdentifiers = controller.menuItemSpecs().compactMap(\.id?.rawValue)
     let layoutIdentifiers = identifiers(
       in: controller.menuLayout().flatMap(\.entries),
@@ -52,7 +52,7 @@ struct SupatermMenuSpecTests {
 
   @Test
   func layoutBuildsExpectedTopLevelMenus() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     let mainMenu = controller.builtMainMenu()
 
     #expect(mainMenu.items.map(\.title).count == 8)
@@ -63,7 +63,7 @@ struct SupatermMenuSpecTests {
 
   @Test
   func layoutBuildsExpectedNestedMenus() throws {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     let mainMenu = controller.builtMainMenu()
     let editMenu = try #require(mainMenu.items.first(where: { $0.title == "Edit" })?.submenu)
     let findMenu = try #require(editMenu.items.last?.submenu)

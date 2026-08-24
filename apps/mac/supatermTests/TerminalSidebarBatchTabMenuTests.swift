@@ -31,7 +31,7 @@ struct TerminalSidebarBatchTabMenuTests {
   }
 
   private func makeFixture() throws -> Fixture {
-    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let manager = terminal.spaceManager.tabCollection
     let regularRootTabID = manager.createTab(title: "Regular")
     let pinnedRootTabID = manager.createTab(title: "Pinned")

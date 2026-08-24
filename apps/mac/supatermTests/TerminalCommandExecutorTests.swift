@@ -27,7 +27,7 @@ struct TerminalCommandExecutorTests {
           spaces: [initialSpace]
         )
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
       let keyWindow = registerSpaceCommandWindow(
         in: registry,
@@ -66,7 +66,7 @@ struct TerminalCommandExecutorTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
       let first = registerSpaceCommandWindow(in: registry, spaceID: spaces[0].id)
       var closedSecondWindow = false
@@ -138,7 +138,7 @@ struct TerminalCommandExecutorTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
       let first = registerSpaceCommandWindow(in: registry, spaceID: spaces[0].id)
       let second = registerSpaceCommandWindow(in: registry, spaceID: spaces[1].id)
@@ -159,16 +159,11 @@ struct TerminalCommandExecutorTests {
 
   @Test
   func debugSnapshotUsesUpdatePhaseIdentifierAndDetail() {
-    let registry = TerminalWindowRegistry()
+    let registry = updateRegistry(canCheckForUpdates: true, phase: .checking)
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.canCheckForUpdates = true
-      $0.phase = .checking
-    }
-    let store = Store(initialState: state) {
+    let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
     let windowControllerID = UUID()
@@ -193,10 +188,10 @@ struct TerminalCommandExecutorTests {
   func paneHealthContextTargetSkipsMissingWindowsAndRewritesWindowIndex() throws {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let firstHost = TerminalHostState()
-    let secondHost = TerminalHostState()
+    let firstHost = TerminalHostState.test()
+    let secondHost = TerminalHostState.test()
     let firstStore = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
@@ -239,9 +234,9 @@ struct TerminalCommandExecutorTests {
   func closeTabClosesWindowWhenTargetIsTheLastTab() throws {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let tabID = try #require(host.selectedTabID)
     let store = Store(initialState: AppFeature.State()) {
@@ -268,9 +263,9 @@ struct TerminalCommandExecutorTests {
   func closeTabClosesWindowWhenPinnedTargetIsTheLastTab() throws {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let tabID = try #require(host.selectedTabID)
     host.togglePinned(tabID)
@@ -299,9 +294,9 @@ struct TerminalCommandExecutorTests {
   func closePaneClosesWindowWhenTargetIsTheLastPane() throws {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let paneID = try #require(host.selectedSurfaceView?.id)
     let store = Store(initialState: AppFeature.State()) {
@@ -328,7 +323,7 @@ struct TerminalCommandExecutorTests {
   func lastPaneRefocusesPreviouslyFocusedPane() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
@@ -354,9 +349,9 @@ struct TerminalCommandExecutorTests {
   func createTabAppendsAtEndForExplicitSpaceTarget() throws {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let firstTabID = try #require(host.selectedTabID)
     _ = host.createTab(inheritingFromSurfaceID: nil)
@@ -398,9 +393,9 @@ struct TerminalCommandExecutorTests {
   func createTabAppendsAtEndForContextPaneTarget() throws {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let firstTabID = try #require(host.selectedTabID)
     let firstPaneID = try #require(host.selectedSurfaceView?.id)
@@ -450,7 +445,7 @@ struct TerminalCommandExecutorTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let gate = LicenseTabGate(
         licenseAccess: { .free },
         enforcementEnabled: true
@@ -493,7 +488,7 @@ struct TerminalCommandExecutorTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
       let first = registerSpaceCommandWindow(in: registry, spaceID: space.id)
       let second = registerSpaceCommandWindow(in: registry, spaceID: space.id, isKey: true)
@@ -528,9 +523,9 @@ struct TerminalCommandExecutorTests {
   func tabTargetSurvivesTopologyReordering() throws {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     _ = host.createTab(inheritingFromSurfaceID: nil)
     let targetTabID = try #require(host.selectedTabID)
@@ -690,9 +685,9 @@ struct TerminalCommandExecutorTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let firstTabID = try #require(host.selectedTabID)
       _ = host.createTab(inheritingFromSurfaceID: nil)
@@ -737,9 +732,9 @@ struct TerminalCommandExecutorTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let firstTabID = try #require(host.selectedTabID)
       _ = host.createTab(inheritingFromSurfaceID: nil)
@@ -782,10 +777,10 @@ private func registerSpaceCommandWindow(
   in registry: TerminalWindowRegistry,
   spaceID: TerminalSpaceID,
   isKey: Bool = false,
-  licenseTabGate: LicenseTabGate = LicenseTabGate(),
+  licenseTabGate: LicenseTabGate = .unrestricted,
   onClose: @escaping @MainActor @Sendable () -> Void = {}
 ) -> SpaceCommandWindow {
-  let host = TerminalHostState(
+  let host = TerminalHostState.test(
     spaceID: spaceID,
     licenseTabGate: licenseTabGate,
     licenseOpenTabCount: { [weak registry] in

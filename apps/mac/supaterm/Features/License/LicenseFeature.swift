@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Sharing
 import SupatermSupport
 
 private nonisolated enum LicenseFeatureCancelID: Hashable, Sendable {
@@ -21,6 +22,20 @@ public enum LicenseRefreshSource: Equatable, Sendable {
   case command
 }
 
+public struct LicenseOperationCompletion: Sendable {
+  private let complete: @Sendable (Result<Void, LicenseClientError>) -> Void
+
+  public init(
+    _ complete: @escaping @Sendable (Result<Void, LicenseClientError>) -> Void
+  ) {
+    self.complete = complete
+  }
+
+  func callAsFunction(_ result: Result<Void, LicenseClientError>) {
+    complete(result)
+  }
+}
+
 public struct LicenseFeatureError: Equatable, Sendable {
   public enum Operation: Equatable, Sendable {
     case activation
@@ -40,6 +55,8 @@ public struct LicenseFeatureError: Equatable, Sendable {
     switch cause {
     case .connectionRequired:
       "connection_required"
+    case .inactiveLicense:
+      "license_inactive"
     case .invalidEntitlement:
       "invalid_entitlement"
     case .invalidLicenseKey:
@@ -57,6 +74,8 @@ public struct LicenseFeatureError: Equatable, Sendable {
       "Deactivation needs a connection. If you cannot reconnect, email license@supaterm.com."
     case .connectionRequired:
       "Check your connection and try again."
+    case .inactiveLicense:
+      "This license is not active."
     case .invalidEntitlement:
       "The license server returned an invalid response."
     case .invalidLicenseKey:
@@ -80,11 +99,6 @@ public struct LicenseNotice: Equatable, Sendable {
 
   public let kind: Kind
   public let day: LicenseDay
-
-  public init(kind: Kind, day: LicenseDay) {
-    self.kind = kind
-    self.day = day
-  }
 
   public init?(entitlement: LicenseEntitlement) {
     guard entitlement.status != .active else { return nil }
@@ -122,28 +136,45 @@ public struct LicenseNotice: Equatable, Sendable {
       "This license moved to another Mac on \(day.rawValue)."
     }
   }
+
+  init?(entitlement: LicenseEntitlement, acknowledgement: LicenseNoticeAcknowledgement?) {
+    let current = LicenseNoticeAcknowledgement(
+      licenseID: entitlement.licenseID,
+      revision: entitlement.revision
+    )
+    guard acknowledgement != current else { return nil }
+    self.init(entitlement: entitlement)
+  }
 }
 
 @Reducer
 public struct LicenseFeature {
   @ObservableState
   public struct State: Equatable {
-    public var entitlement: LicenseEntitlement?
     public var error: LicenseFeatureError?
-    public var hasLicenseKey: Bool
     public var key = ""
-    public var notice: LicenseNotice?
-    public var phase = LicenseFeaturePhase.idle
+    @Shared var session: LicenseSession
 
-    public init(
-      snapshot: LicenseClient.Snapshot = LicenseClient.Snapshot(
-        entitlement: nil,
-        hasLicenseKey: false
-      )
-    ) {
-      entitlement = snapshot.entitlement
-      hasLicenseKey = snapshot.hasLicenseKey
-      notice = snapshot.entitlement.flatMap(LicenseNotice.init)
+    public init(runtime: LicenseRuntime) {
+      _session = runtime.session
+    }
+
+    public var entitlement: LicenseEntitlement? {
+      session.entitlement
+    }
+
+    public var hasLicenseKey: Bool {
+      session.hasLicenseKey
+    }
+
+    public var notice: LicenseNotice? {
+      entitlement.flatMap {
+        LicenseNotice(entitlement: $0, acknowledgement: session.noticeAcknowledgement)
+      }
+    }
+
+    public var phase: LicenseFeaturePhase {
+      session.phase
     }
 
     public var access: LicenseAccess {
@@ -153,15 +184,17 @@ public struct LicenseFeature {
     public var errorMessage: String? {
       error?.message
     }
+
   }
 
   public enum Action {
     case activationButtonTapped
-    case activationRequested(String)
-    case activationResponse(Result<LicenseEntitlement, LicenseClientError>)
+    case activationRequested(String, LicenseOperationCompletion)
+    case activationResponse(Result<Void, LicenseClientError>)
     case applicationBecameActive
     case buyButtonTapped
     case deactivationButtonTapped
+    case deactivationRequested(LicenseOperationCompletion)
     case deactivationResponse(Result<Void, LicenseClientError>)
     case keyChanged(String)
     case noticeBuyButtonTapped
@@ -169,7 +202,8 @@ public struct LicenseFeature {
     case ownedReleaseButtonTapped
     case prefillKey(String)
     case refreshRequested(LicenseRefreshSource)
-    case refreshResponse(LicenseRefreshSource, Result<LicenseEntitlement, LicenseClientError>)
+    case refreshCommandRequested(LicenseOperationCompletion)
+    case refreshResponse(LicenseRefreshSource, Result<Void, LicenseClientError>)
     case renewButtonTapped
     case shutdown
     case tabLimitHit(LicenseTabLimitOrigin)
@@ -179,77 +213,54 @@ public struct LicenseFeature {
   @Dependency(\.continuousClock) private var clock
   @Dependency(\.analyticsClient) private var analyticsClient
   @Dependency(\.externalNavigationClient) private var externalNavigationClient
-  @Dependency(\.licenseClient) private var licenseClient
+  private let runtime: LicenseRuntime
 
-  public init() {}
+  public init(runtime: LicenseRuntime) {
+    self.runtime = runtime
+  }
 
   public var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .activationButtonTapped:
-        return activate(&state, key: state.key)
+        return activate(&state, key: state.key, completion: nil)
 
-      case .activationRequested(let key):
-        return activate(&state, key: key)
+      case .activationRequested(let key, let completion):
+        return activate(&state, key: key, completion: completion)
 
-      case .activationResponse(.success(let entitlement)):
-        guard state.phase == .activating else { return .none }
-        state.entitlement = entitlement
-        state.hasLicenseKey = true
+      case .activationResponse(.success):
         state.key = ""
-        state.notice = LicenseNotice(entitlement: entitlement)
-        state.phase = .idle
-        if entitlement.status == .active {
-          analyticsClient.capture("license_activated")
-          return periodicRefreshEffect()
-        }
-        analyticsClient.capture("license_activation_failed")
+        analyticsClient.capture("license_activated")
         return .none
 
       case .activationResponse(.failure(let error)):
-        guard state.phase == .activating else { return .none }
         state.error = LicenseFeatureError(operation: .activation, cause: error)
-        state.phase = .idle
         analyticsClient.capture("license_activation_failed")
         return .none
 
       case .applicationBecameActive:
         guard case .expired = state.access else { return .none }
-        return .send(.refreshRequested(.automatic))
+        return refresh(&state, source: .automatic, completion: nil)
 
       case .buyButtonTapped:
+        guard AppBuild.licenseSalesEnabled else { return .none }
         analyticsClient.capture("license_buy_opened")
         return .run { @MainActor [externalNavigationClient] _ in
           _ = externalNavigationClient.open(LicensePortalURL.buy)
         }
 
       case .deactivationButtonTapped:
-        guard state.phase == .idle, state.hasLicenseKey else { return .none }
-        state.error = nil
-        state.phase = .deactivating
-        return .run { [licenseClient] send in
-          do {
-            try await licenseClient.deactivate()
-            await send(.deactivationResponse(.success(())))
-          } catch {
-            await send(.deactivationResponse(.failure(LicenseClientError(error))))
-          }
-        }
-        .cancellable(id: LicenseFeatureCancelID.deactivation, cancelInFlight: true)
+        return deactivate(&state, completion: nil)
+
+      case .deactivationRequested(let completion):
+        return deactivate(&state, completion: completion)
 
       case .deactivationResponse(.success):
-        guard state.phase == .deactivating else { return .none }
-        state.entitlement = nil
-        state.hasLicenseKey = false
-        state.notice = nil
-        state.phase = .idle
         analyticsClient.capture("license_deactivated")
         return .none
 
       case .deactivationResponse(.failure(let error)):
-        guard state.phase == .deactivating else { return .none }
         state.error = LicenseFeatureError(operation: .deactivation, cause: error)
-        state.phase = .idle
         return .none
 
       case .keyChanged(let key):
@@ -258,11 +269,11 @@ public struct LicenseFeature {
         return .none
 
       case .noticeBuyButtonTapped:
-        state.notice = nil
+        runtime.acknowledgeNotice()
         return .send(.buyButtonTapped)
 
       case .noticeDifferentKeyButtonTapped:
-        state.notice = nil
+        runtime.acknowledgeNotice()
         return .none
 
       case .ownedReleaseButtonTapped:
@@ -276,42 +287,22 @@ public struct LicenseFeature {
         return .none
 
       case .refreshRequested(let source):
-        guard state.hasLicenseKey, state.phase == .idle else { return .none }
-        if source == .command {
-          state.error = nil
-        }
-        state.phase = .refreshing
-        return .run { [licenseClient] send in
-          do {
-            await send(.refreshResponse(source, .success(try await licenseClient.refresh())))
-          } catch {
-            await send(
-              .refreshResponse(source, .failure(LicenseClientError(error)))
-            )
-          }
-        }
-        .cancellable(id: LicenseFeatureCancelID.refresh, cancelInFlight: true)
+        return refresh(&state, source: source, completion: nil)
 
-      case .refreshResponse(_, .success(let entitlement)):
-        guard state.phase == .refreshing else { return .none }
-        let wasActive = state.entitlement?.status == .active
-        state.entitlement = entitlement
-        state.notice = LicenseNotice(entitlement: entitlement)
-        state.phase = .idle
-        if wasActive && entitlement.status != .active {
-          analyticsClient.capture("license_refresh_revoked")
-        }
+      case .refreshCommandRequested(let completion):
+        return refresh(&state, source: .command, completion: completion)
+
+      case .refreshResponse(_, .success):
         return .none
 
       case .refreshResponse(let source, .failure(let error)):
-        guard state.phase == .refreshing else { return .none }
         if source == .command {
           state.error = LicenseFeatureError(operation: .refresh, cause: error)
         }
-        state.phase = .idle
         return .none
 
       case .renewButtonTapped:
+        guard AppBuild.licenseSalesEnabled else { return .none }
         guard let licenseID = state.access.ownership?.licenseID else { return .none }
         analyticsClient.capture("license_renew_opened")
         return .run { @MainActor [externalNavigationClient] _ in
@@ -319,7 +310,7 @@ public struct LicenseFeature {
         }
 
       case .shutdown:
-        state.phase = .idle
+        runtime.cancelOperations()
         return .merge(
           .cancel(id: LicenseFeatureCancelID.activation),
           .cancel(id: LicenseFeatureCancelID.deactivation),
@@ -336,31 +327,94 @@ public struct LicenseFeature {
 
       case .task:
         return .merge(
-          .send(.refreshRequested(.automatic)),
-          state.hasLicenseKey ? periodicRefreshEffect() : .none
+          refresh(&state, source: .automatic, completion: nil),
+          periodicRefreshEffect()
         )
+
       }
     }
   }
 
-  private func activate(_ state: inout State, key: String) -> Effect<Action> {
-    guard state.phase == .idle, !key.isEmpty else { return .none }
+  private func activate(
+    _ state: inout State,
+    key: String,
+    completion: LicenseOperationCompletion?
+  ) -> Effect<Action> {
+    guard !key.isEmpty, runtime.beginActivation() else { return .none }
     state.error = nil
-    state.phase = .activating
-    return .run { [key, licenseClient] send in
+    return .run { [key, runtime] send in
+      defer { runtime.finishActivation() }
       do {
-        await send(.activationResponse(.success(try await licenseClient.activate(key))))
+        try await runtime.activateAndApply(key)
+        let result = Result<Void, LicenseClientError>.success(())
+        await send(.activationResponse(result))
+        completion?(result)
+      } catch is CancellationError {
+        return
       } catch {
-        await send(.activationResponse(.failure(LicenseClientError(error))))
+        let result = Result<Void, LicenseClientError>.failure(LicenseClientError(error))
+        await send(.activationResponse(result))
+        completion?(result)
       }
     }
     .cancellable(id: LicenseFeatureCancelID.activation, cancelInFlight: true)
   }
 
+  private func deactivate(
+    _ state: inout State,
+    completion: LicenseOperationCompletion?
+  ) -> Effect<Action> {
+    guard state.hasLicenseKey, runtime.beginDeactivation() else { return .none }
+    state.error = nil
+    return .run { [runtime] send in
+      defer { runtime.finishDeactivation() }
+      do {
+        try await runtime.deactivateAndApply()
+        let result = Result<Void, LicenseClientError>.success(())
+        await send(.deactivationResponse(result))
+        completion?(result)
+      } catch is CancellationError {
+        return
+      } catch {
+        let result = Result<Void, LicenseClientError>.failure(LicenseClientError(error))
+        await send(.deactivationResponse(result))
+        completion?(result)
+      }
+    }
+    .cancellable(id: LicenseFeatureCancelID.deactivation, cancelInFlight: true)
+  }
+
+  private func refresh(
+    _ state: inout State,
+    source: LicenseRefreshSource,
+    completion: LicenseOperationCompletion?
+  ) -> Effect<Action> {
+    guard runtime.beginRefresh() else { return .none }
+    if source == .command {
+      state.error = nil
+    }
+    return .run { [runtime] send in
+      defer { runtime.finishRefresh() }
+      do {
+        try await runtime.refreshStartedAndApply()
+        let result = Result<Void, LicenseClientError>.success(())
+        await send(.refreshResponse(source, result))
+        completion?(result)
+      } catch is CancellationError {
+        return
+      } catch {
+        let result = Result<Void, LicenseClientError>.failure(LicenseClientError(error))
+        await send(.refreshResponse(source, result))
+        completion?(result)
+      }
+    }
+    .cancellable(id: LicenseFeatureCancelID.refresh, cancelInFlight: true)
+  }
+
   private func periodicRefreshEffect() -> Effect<Action> {
-    .run { [clock, licenseClient] send in
+    .run { [clock, runtime] send in
       while true {
-        try await clock.sleep(for: licenseClient.refreshInterval())
+        try await clock.sleep(for: runtime.refreshInterval())
         await send(.refreshRequested(.automatic))
       }
     }

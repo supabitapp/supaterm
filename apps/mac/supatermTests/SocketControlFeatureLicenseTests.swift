@@ -2,7 +2,6 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermSocketFeature
-import SupatermTerminalCore
 import Testing
 
 @MainActor
@@ -15,8 +14,7 @@ struct SocketControlFeatureLicenseTests {
       mode: .paid,
       updatesThrough: "2027-08-21",
       deviceName: "Test Mac",
-      openTabCount: 3,
-      freeTabLimit: 5
+      openTabCount: 3
     )
     let request = SocketControlClient.Request(
       handle: handle,

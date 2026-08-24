@@ -3,7 +3,6 @@ import ComposableArchitecture
 import GhosttyKit
 import Sharing
 import SupaTheme
-import SupatermLicenseFeature
 import Testing
 
 @testable import supaterm
@@ -299,7 +298,7 @@ struct TerminalTabTransferTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false, spaceID: spaces[0].id)
       let source = host.spaceManager.displayedInstance
       let destination = host.spaceManager.instance(warming: spaces[1].id)
       let tabID = source.tabCollection.createTab(title: "Moved")
@@ -339,13 +338,13 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let source = TerminalHostState(
+      let source = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
         zmxSessionsEnabled: false
       )
-      let destination = TerminalHostState(
+      let destination = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
@@ -417,15 +416,15 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry.test(zmxClient: .noop)
       let sourceWindowID = UUID()
       let destinationWindowID = UUID()
-      let source = TerminalHostState(
+      let source = TerminalHostState.test(
         runtime: runtime,
         managesTerminalSurfaces: false,
         spaceID: space.id
       )
-      let destination = TerminalHostState(
+      let destination = TerminalHostState.test(
         runtime: runtime,
         managesTerminalSurfaces: false,
         spaceID: space.id
@@ -484,81 +483,6 @@ struct TerminalTabTransferTests {
     }
   }
 
-  @Test
-  func transferAtTheFreeLimitRemainsAllowed() throws {
-    try withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      initializeGhosttyForTests()
-      let spaces = [TerminalSpaceItem(name: "Source"), TerminalSpaceItem(name: "Cold")]
-      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
-      $catalog.withLock {
-        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
-      }
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
-      let gate = LicenseTabGate(
-        licenseAccess: { .free },
-        enforcementEnabled: true
-      )
-      let runtime = GhosttyRuntime()
-      let source = TerminalHostState(
-        runtime: runtime,
-        spaceID: spaces[0].id,
-        zmxClient: .noop,
-        zmxSessionsEnabled: false,
-        licenseTabGate: gate
-      )
-      let destination = TerminalHostState(
-        runtime: runtime,
-        spaceID: spaces[0].id,
-        zmxClient: .noop,
-        zmxSessionsEnabled: false,
-        licenseTabGate: gate
-      )
-      let tabIDs = (0..<5).map { index in
-        liveTab(title: "Tab \(index)", runtime: runtime, host: source).id
-      }
-      destination.spaceManager.registerColdInstance(
-        terminalSpaceSession(spaceID: spaces[1].id, tabCount: 0)
-      )
-      let sourceWindowID = UUID()
-      let destinationWindowID = UUID()
-      let sourceWindow = register(source, id: sourceWindowID, in: registry)
-      let destinationWindow = register(destination, id: destinationWindowID, in: registry)
-      let payload = try #require(
-        TerminalTabDragPayload(
-          operationID: TerminalTabMoveOperationID(),
-          sourceWindowID: sourceWindowID,
-          sourceSpaceID: spaces[0].id,
-          sourceTopologyRevision: source.spaceManager.tabCollection.topologyRevision,
-          itemIDs: [.tab(tabIDs[0])]
-        )
-      )
-
-      let result = registry.transferTab(
-        payload,
-        to: TerminalTabDragRegistry.Destination(
-          windowControllerID: destinationWindowID,
-          spaceID: spaces[1].id,
-          expectedTopologyRevision: try #require(
-            destination.spaceManager.tabCollection(for: spaces[1].id)?.topologyRevision
-          ),
-          placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
-        )
-      )
-
-      #expect(result?.tabIDs == [tabIDs[0]])
-      #expect(source.spaceManager.allTabs.count == 4)
-      #expect(destination.spaceManager.tabs(in: spaces[1].id).map(\.id) == [tabIDs[0]])
-      #expect(destination.spaceManager.instance(for: spaces[1].id)?.pendingSession == nil)
-      #expect(
-        gate.refusal(for: .user, openTabs: 5)
-          == LicenseTabGate.Refusal(limit: 5, openTabs: 5)
-      )
-      withExtendedLifetime([sourceWindow, destinationWindow]) {}
-    }
-  }
-
   @Test(arguments: TerminalSplitDropZone.allCases)
   func splitTransferMovesTheSourceTabIntoTheExactDestinationZone(
     zone: TerminalSplitDropZone
@@ -573,7 +497,7 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let host = TerminalHostState(
+      let host = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
@@ -653,16 +577,16 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry.test(zmxClient: .noop)
       let sourceWindowID = UUID()
       let destinationWindowID = UUID()
-      let source = TerminalHostState(
+      let source = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
         zmxSessionsEnabled: false
       )
-      let destination = TerminalHostState(
+      let destination = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
@@ -727,7 +651,7 @@ struct TerminalTabTransferTests {
 
   @Test
   func splitTargetAcceptsTheSelectedSourceTab() {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
     host.applySelectedTab(sourceTabID, in: host.displayedSpaceID)
 
@@ -741,7 +665,7 @@ struct TerminalTabTransferTests {
 
   @Test
   func splitTargetUsesTheExactRequestedLiveTab() {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
 
     #expect(
@@ -765,7 +689,7 @@ struct TerminalTabTransferTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
-      let host = TerminalHostState(
+      let host = TerminalHostState.test(
         runtime: GhosttyRuntime(),
         spaceID: space.id,
         zmxClient: .noop,
@@ -789,7 +713,7 @@ struct TerminalTabTransferTests {
       let unsplitLeaves = try #require(host.trees[tabID]?.leaves())
       #expect(unsplitLeaves.count == 1)
       #expect(unsplitLeaves.first === originalSurface)
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry.test(zmxClient: .noop)
       let windowControllerID = UUID()
       var didCloseWindow = false
       let window = register(
@@ -865,16 +789,16 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry.test(zmxClient: .noop)
       let sourceID = UUID()
       let destinationID = UUID()
-      let source = TerminalHostState(
+      let source = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
         zmxSessionsEnabled: false
       )
-      let destination = TerminalHostState(
+      let destination = TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
@@ -961,7 +885,7 @@ struct TerminalTabTransferTests {
     }
   }
 
-  private func register(
+  func register(
     _ terminal: TerminalHostState,
     id: UUID,
     in registry: TerminalWindowRegistry,
@@ -991,7 +915,7 @@ struct TerminalTabTransferTests {
     }
     let runtime = GhosttyRuntime()
     return LiveHostFixture(
-      host: TerminalHostState(
+      host: TerminalHostState.test(
         runtime: runtime,
         spaceID: space.id,
         zmxClient: .noop,
@@ -1002,7 +926,7 @@ struct TerminalTabTransferTests {
     )
   }
 
-  private func liveTab(
+  func liveTab(
     title: String,
     runtime: GhosttyRuntime,
     host: TerminalHostState

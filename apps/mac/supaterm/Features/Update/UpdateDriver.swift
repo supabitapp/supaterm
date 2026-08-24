@@ -21,7 +21,7 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
 
   init(
     hostBundle: Bundle,
-    license: UpdateLicenseClient = .unlicensed,
+    license: UpdateLicenseClient,
     currentVersion: String? = nil
   ) {
     self.license = license
@@ -64,27 +64,16 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
 
   func bestValidUpdate<Value>(
     in releases: [UpdateRelease<Value>]
-  ) -> UpdateSelection<Value> {
-    guard let ownership = licenseAccess.ownership else { return .unfiltered }
-    let releases = releases.filter { release in
-      isAllowed(channel: release.channel) && isNewerThanCurrent(release.version)
-    }
-    guard
-      let newest = newestRelease(in: releases),
-      let releaseDay = newest.releaseDay,
-      releaseDay <= ownership.updatesThrough
-    else {
-      return .none
-    }
-    return .release(newest.value)
+  ) -> UpdateOwnershipDecision<Value> {
+    ownershipPolicy.decision(in: releases)
   }
 
   func newestOwnedReleaseURL(
     in releases: [UpdateRelease<URL>],
     through updatesThrough: LicenseDay
   ) -> URL? {
-    newestOwnedRelease(
-      in: releases.filter { $0.channel == nil },
+    ownershipPolicy.newestOwnedRelease(
+      in: releases,
       through: updatesThrough
     )?.value
   }
@@ -157,10 +146,12 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     for _: SPUUpdater
   ) -> SUAppcastItem? {
     switch bestValidUpdate(in: appcast.items.map(Self.release)) {
+    case .install(let item):
+      return item
     case .none:
       return SUAppcastItem.empty()
-    case .release(let item):
-      return item
+    case .renew:
+      return SUAppcastItem.empty()
     case .unfiltered:
       return nil
     }
@@ -410,61 +401,22 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   func ownershipEnded<Value>(
     in releases: [UpdateRelease<Value>]
   ) -> UpdatePhase.OwnershipEnded? {
-    guard let ownership = licenseAccess.ownership else { return nil }
-    let releases = releases.filter { release in
-      isAllowed(channel: release.channel) && isNewerThanCurrent(release.version)
+    guard case .renew(let ownershipEnded) = ownershipPolicy.decision(in: releases) else {
+      return nil
     }
-    guard
-      let newest = newestRelease(in: releases),
-      let releaseDay = newest.releaseDay,
-      releaseDay > ownership.updatesThrough
-    else { return nil }
-    return UpdatePhase.OwnershipEnded(
-      licenseID: ownership.licenseID,
-      updatesThrough: ownership.updatesThrough,
-      version: newest.displayVersion
-    )
+    return ownershipEnded
   }
 
   private var licenseAccess: LicenseAccess {
     license.access()
   }
 
-  private func newestOwnedRelease<Value>(
-    in releases: [UpdateRelease<Value>],
-    through updatesThrough: LicenseDay
-  ) -> UpdateRelease<Value>? {
-    let comparator = SUStandardVersionComparator.default
-    return
-      releases
-      .filter { release in
-        guard let releaseDay = release.releaseDay else { return false }
-        return releaseDay <= updatesThrough
-      }
-      .max { lhs, rhs in
-        comparator.compareVersion(lhs.version, toVersion: rhs.version) == .orderedAscending
-      }
-  }
-
-  private func newestRelease<Value>(
-    in releases: [UpdateRelease<Value>]
-  ) -> UpdateRelease<Value>? {
-    let comparator = SUStandardVersionComparator.default
-    return releases.max { lhs, rhs in
-      comparator.compareVersion(lhs.version, toVersion: rhs.version) == .orderedAscending
-    }
-  }
-
-  private func isAllowed(channel: String?) -> Bool {
-    guard let channel else { return true }
-    return updateChannel.sparkleChannels.contains(channel)
-  }
-
-  private func isNewerThanCurrent(_ version: String) -> Bool {
-    SUStandardVersionComparator.default.compareVersion(
-      version,
-      toVersion: currentVersion
-    ) == .orderedDescending
+  private var ownershipPolicy: UpdateOwnershipPolicy {
+    UpdateOwnershipPolicy(
+      currentVersion: currentVersion,
+      licenseAccess: licenseAccess,
+      updateChannel: updateChannel
+    )
   }
 
   private func showStandardOwnershipEnded(
@@ -475,11 +427,13 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     let phase = UpdatePhase.ownershipEnded(ownership)
     alert.messageText = phase.summaryText
     alert.informativeText = phase.detailMessage
-    alert.addButton(withTitle: "Renew Updates")
+    if AppBuild.licenseSalesEnabled {
+      alert.addButton(withTitle: "Renew Updates")
+    }
     alert.addButton(withTitle: "Not Now")
     let response = alert.runModal()
     acknowledgement()
-    if response == .alertFirstButtonReturn {
+    if AppBuild.licenseSalesEnabled, response == .alertFirstButtonReturn {
       NSWorkspace.shared.open(ownership.renewURL)
     }
   }

@@ -3,6 +3,7 @@ import ComposableArchitecture
 import SupatermLicenseFeature
 import SupatermSettingsFeature
 import SupatermSupport
+import SupatermUpdateFeature
 import SwiftUI
 
 @MainActor
@@ -11,12 +12,9 @@ final class SettingsWindowController: NSWindowController {
   private let restoresSavedFrame: Bool
 
   init(
+    updateClient: UpdateClient,
     menuController: SupatermMenuController? = nil,
-    licenseStore: StoreOf<LicenseFeature> = Store(
-      initialState: LicenseFeature.State()
-    ) {
-      LicenseFeature()
-    }
+    licenseStore: StoreOf<LicenseFeature>
   ) {
     let store = Store(initialState: SettingsFeature.State()) {
       SettingsFeature()
@@ -35,6 +33,7 @@ final class SettingsWindowController: NSWindowController {
           menuController?.refresh()
         }
       )
+      $0.updateClient = updateClient
     }
     self.store = store
     let rootView = AppAppearanceView {

@@ -21,13 +21,13 @@ public enum UpdateUserAction: Equatable, Sendable {
   case skipVersion
 }
 
-public enum UpdatePresentationMode: Equatable, Sendable {
+enum UpdatePresentationMode: Equatable, Sendable {
   case sidebar
   case standard
 }
 
-public enum UpdatePresentation {
-  public static func mode(
+enum UpdatePresentation {
+  static func mode(
     hasUnobtrusiveTarget: Bool
   ) -> UpdatePresentationMode {
     return hasUnobtrusiveTarget ? .sidebar : .standard
@@ -167,6 +167,10 @@ public enum UpdatePhase: Equatable, Sendable {
   }
 
   public var detailMessage: String {
+    detailMessage(salesEnabled: AppBuild.licenseSalesEnabled)
+  }
+
+  func detailMessage(salesEnabled: Bool) -> String {
     switch self {
     case .idle:
       return ""
@@ -195,7 +199,11 @@ public enum UpdatePhase: Equatable, Sendable {
       return "You're already running the latest version."
     case .ownershipEnded(let ownership):
       let updatesThrough = ownership.updatesThrough.rawValue
-      return "Supaterm \(ownership.version) is out. Your updates ended \(updatesThrough) — renew to update."
+      if salesEnabled {
+        return "Supaterm \(ownership.version) is out. Your updates ended \(updatesThrough) — renew to update."
+      }
+      let updateNotice = "Supaterm \(ownership.version) is out. Your updates ended \(updatesThrough)."
+      return "\(updateNotice) You can keep using your current version."
     case .error(let failure):
       return failure.message
     }
@@ -302,6 +310,10 @@ public enum UpdatePhase: Equatable, Sendable {
   }
 
   public var summaryText: String {
+    summaryText(salesEnabled: AppBuild.licenseSalesEnabled)
+  }
+
+  func summaryText(salesEnabled: Bool) -> String {
     switch self {
     case .idle:
       return ""
@@ -320,7 +332,7 @@ public enum UpdatePhase: Equatable, Sendable {
     case .notFound:
       return "No Updates Available"
     case .ownershipEnded:
-      return "Renew to Update"
+      return salesEnabled ? "Renew to Update" : "Update Not Included"
     case .error:
       return "Update Failed"
     }
@@ -437,6 +449,16 @@ public struct UpdateClient: Sendable {
       }
     )
   }
+
+  public static let inert = Self(
+    newestOwnedReleaseURL: { _ in nil },
+    observe: { AsyncStream { $0.finish() } },
+    perform: { _ in },
+    setAutomaticallyChecksForUpdates: { _ in },
+    setAutomaticallyDownloadsUpdates: { _ in },
+    setUpdateChannel: { _ in },
+    start: {}
+  )
 }
 
 public struct UpdateLicenseClient: Sendable {
@@ -449,19 +471,6 @@ public struct UpdateLicenseClient: Sendable {
     refresh: @escaping @MainActor @Sendable () async -> Void
   ) {
     self.init(access: access, refresh: refresh, refreshesBeforeChecks: true)
-  }
-
-  public init(
-    entitlement: Shared<LicenseEntitlement?>,
-    releaseDay: @escaping @MainActor @Sendable () -> LicenseDay = { AppBuild.releaseDay },
-    refresh: @escaping @MainActor @Sendable () async -> Void = {}
-  ) {
-    self.init(
-      access: {
-        LicenseAccess(entitlement: entitlement.wrappedValue, releaseDay: releaseDay())
-      },
-      refresh: refresh
-    )
   }
 
   private init(
@@ -482,7 +491,9 @@ public struct UpdateLicenseClient: Sendable {
 }
 
 extension UpdateClient: DependencyKey {
-  public static let liveValue = Self.live(license: .unlicensed)
+  public static var liveValue: Self {
+    preconditionFailure("UpdateClient must be injected")
+  }
 
   public static let testValue = Self(
     newestOwnedReleaseURL: unimplemented(

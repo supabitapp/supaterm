@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import SupatermSettingsFeature
 import SupatermUpdateFeature
 import Testing
 
@@ -23,21 +22,16 @@ struct AppFeatureTests {
       revocationReason: nil,
       signedToken: "signed-token"
     )
-    let process = Shared(
-      value: AppFeature.ProcessState(
-        license: LicenseFeature.State(
-          snapshot: LicenseClient.Snapshot(
-            entitlement: entitlement,
-            hasLicenseKey: true
-          )
-        )
-      )
-    )
+    var client = LicenseClient.testValue
+    client.load = {
+      LicenseClient.Snapshot(entitlement: entitlement, hasLicenseKey: true)
+    }
+    let runtime = LicenseRuntime(client: client)
     let downloadURL = URL(string: "https://supaterm.com/download/v26.3.0/supaterm.dmg")!
     let requestedDay = LockIsolated<LicenseDay?>(nil)
     let openedURL = LockIsolated<URL?>(nil)
-    let store = TestStore(initialState: AppFeature.State(process: process)) {
-      AppFeature()
+    let store = TestStore(initialState: AppLicenseFeature.State(runtime: runtime)) {
+      AppLicenseFeature(runtime: runtime)
     } withDependencies: {
       $0.analyticsClient.capture = { _ in }
       $0.externalNavigationClient.open = { url in
@@ -55,76 +49,6 @@ struct AppFeatureTests {
 
     #expect(requestedDay.value == updatesThrough)
     #expect(openedURL.value == downloadURL)
-  }
-
-  @Test
-  func initialStateStartsIdle() {
-    let state = AppFeature.State()
-
-    #expect(state.update.canCheckForUpdates == false)
-    #expect(state.update.phase == .idle)
-  }
-
-  @Test
-  func signedTombstoneOpensLicenseSettings() async {
-    let openedTabs = LockIsolated<[SettingsFeature.Tab]>([])
-    let tombstone = LicenseEntitlement(
-      licenseID: "00112233445566778899aabbccddeeff",
-      deviceID: "device",
-      status: .transferred,
-      updatesThrough: nil,
-      revision: 2,
-      issuedAt: 1_787_270_400,
-      revocationReason: nil,
-      signedToken: "transfer-token"
-    )
-    var processState = AppFeature.ProcessState()
-    processState.license.hasLicenseKey = true
-    processState.license.phase = .refreshing
-    let store = TestStore(
-      initialState: AppFeature.State(process: Shared(value: processState))
-    ) {
-      AppFeature()
-    } withDependencies: {
-      $0.appSettingsNavigationClient.open = { tab in
-        openedTabs.withValue { $0.append(tab) }
-      }
-    }
-
-    await store.send(.license(.refreshResponse(.automatic, .success(tombstone)))) {
-      $0.$license.withLock {
-        $0.entitlement = tombstone
-        $0.notice = LicenseNotice(
-          kind: .transferred,
-          day: LicenseDay("2026-08-21")!
-        )
-        $0.phase = .idle
-      }
-    }
-    await store.finish()
-
-    #expect(openedTabs.value == [.license])
-  }
-
-  @Test
-  func updateActionsRouteToChildFeature() async {
-    let snapshot = UpdateClient.Snapshot(
-      automaticallyChecksForUpdates: true,
-      automaticallyDownloadsUpdates: true,
-      canCheckForUpdates: true,
-      phase: .checking
-    )
-
-    let store = TestStore(initialState: AppFeature.State()) {
-      AppFeature()
-    }
-
-    await store.send(.update(.updateClientSnapshotReceived(snapshot))) {
-      $0.$update.withLock {
-        $0.canCheckForUpdates = true
-        $0.phase = .checking
-      }
-    }
   }
 
   @Test
@@ -147,10 +71,7 @@ struct AppFeatureTests {
     await store.send(.task) {
       $0.$releaseAnnouncementStatus.withLock { $0 = .loading }
     }
-    await store.receive(\.license.task)
     await store.receive(\.socket.task)
-    await store.receive(\.update.task)
-    await store.receive(\.license.refreshRequested)
     continuation.yield(.agentForking)
     continuation.finish()
     await store.receive(\.releaseAnnouncementLoaded) {
@@ -178,10 +99,7 @@ struct AppFeatureTests {
     }
 
     await store.send(.task)
-    await store.receive(\.license.task)
     await store.receive(\.socket.task)
-    await store.receive(\.update.task)
-    await store.receive(\.license.refreshRequested)
     await store.finish()
 
     #expect(synchronizeCount.value == 0)
@@ -236,6 +154,4 @@ struct AppFeatureTests {
 
 private func configureLifecycleDependencies(_ dependencies: inout DependencyValues) {
   dependencies.socketControlClient.start = { throw CancellationError() }
-  dependencies.updateClient.observe = { AsyncStream { $0.finish() } }
-  dependencies.updateClient.start = {}
 }

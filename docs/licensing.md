@@ -50,7 +50,17 @@ This means revocation cannot be strict. After a transfer, refund, or chargeback,
 
 The owner may request a refund within seven days of purchase. A refund revokes the affected device license without changing the owner's other device licenses.
 
+A full renewal refund voids that renewal period. The entitlement fold recomputes the update end date, and releases after the new end date become unowned. If a later kept renewal spans the same dates, those dates remain owned because the entitlement stores one end date rather than separate ranges.
+
 ## Systems
 
 - Cloudflare hosts the licensing service, its data, and its user-facing management surfaces.
 - Stripe handles purchases, renewals, and refunds.
+
+## Sales Launch
+
+Purchase, renewal, and the free-mode tab limit stay off by default in the app. Purchase and renewal also stay off by default on the website, owner portal, and licensing service.
+The app and website release workflows read the `LICENSE_SALES_ENABLED` repository variable. The
+licensing service has its own `LICENSE_SALES_ENABLED` Worker binding. Enable all three only after
+the live payment, webhook, refund, email, and tax checks pass. Activation and entitlement refresh
+remain available while sales are off.

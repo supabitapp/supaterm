@@ -709,8 +709,9 @@ enum SidebarChromeSnapshotContext {
   }
 
   static func licenseStore() -> StoreOf<LicenseFeature> {
-    Store(initialState: LicenseFeature.State()) {
-      LicenseFeature()
+    let runtime = LicenseRuntime.preview()
+    return Store(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     }
   }
 
@@ -725,7 +726,7 @@ enum SidebarChromeSnapshotContext {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: spaces)
       }
-      return TerminalHostState(managesTerminalSurfaces: false, spaceID: space.id)
+      return TerminalHostState.test(managesTerminalSurfaces: false, spaceID: space.id)
     }
   }
 

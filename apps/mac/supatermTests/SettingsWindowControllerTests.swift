@@ -1,5 +1,7 @@
 import AppKit
 import ComposableArchitecture
+import SupatermLicenseFeature
+import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermSettingsFeature
@@ -72,20 +74,41 @@ struct SettingsWindowControllerTests {
 
     #expect(controller.store.selectedTab == .terminal)
   }
+
+  @Test
+  func showStartsInjectedUpdater() async {
+    let startCount = LockIsolated(0)
+    var updateClient = UpdateClient.inert
+    updateClient.start = {
+      startCount.withValue { $0 += 1 }
+    }
+    let controller = makeSettingsWindowController(updateClient: updateClient)
+
+    controller.show(tab: .about)
+    defer { controller.window?.orderOut(nil) }
+
+    #expect(await waitUntil { startCount.value == 1 })
+  }
 }
 
 @MainActor
-private func makeSettingsWindowController() -> SettingsWindowController {
-  withDependencies {
+private func makeSettingsWindowController(
+  updateClient: UpdateClient = .inert
+) -> SettingsWindowController {
+  return withDependencies {
     $0.claudeSettingsClient.integrationHealth = { .absent }
     $0.codexSettingsClient.integrationHealth = { .absent }
     $0.defaultFileStorage = .inMemory
     $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
     $0.piSettingsClient.integrationHealth = { .absent }
     $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
-    $0.updateClient.observe = { AsyncStream { $0.finish() } }
-    $0.updateClient.start = {}
   } operation: {
-    SettingsWindowController()
+    let runtime = LicenseRuntime.preview()
+    return SettingsWindowController(
+      updateClient: updateClient,
+      licenseStore: Store(initialState: LicenseFeature.State(runtime: runtime)) {
+        LicenseFeature(runtime: runtime)
+      }
+    )
   }
 }

@@ -5,11 +5,11 @@ import Security
 import SupatermCLIShared
 import SupatermSupport
 
-public struct LicenseCredential: Equatable, Sendable {
-  public let rawValue: String
-  public let licenseID: String
+struct LicenseCredential: Equatable, Sendable {
+  let rawValue: String
+  let licenseID: String
 
-  public init?(_ value: String) {
+  init?(_ value: String) {
     let value = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
     let parts = value.split(separator: "-", omittingEmptySubsequences: false)
     guard
@@ -47,18 +47,18 @@ public struct LicenseCredential: Equatable, Sendable {
   }
 }
 
-public struct LicenseDevice: Equatable, Sendable {
-  public let id: String
-  public let name: String
-  public let appVersion: String
+struct LicenseDevice: Equatable, Sendable {
+  let id: String
+  let name: String
+  let appVersion: String
 
-  public init(id: String, name: String, appVersion: String) {
+  init(id: String, name: String, appVersion: String) {
     self.id = id
     self.name = name
     self.appVersion = appVersion
   }
 
-  public static func current(
+  static func current(
     hardwareUUID: String? = HardwareInfo.uuid(),
     name: String = Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
     appVersion: String = AppBuild.version
@@ -71,18 +71,18 @@ public struct LicenseDevice: Equatable, Sendable {
     return Self(id: id, name: name, appVersion: appVersion)
   }
 
-  public var refreshInterval: Duration {
+  var refreshInterval: Duration {
     let value = Int(id.prefix(4), radix: 16) ?? 0
     return .seconds(86_400 + value % 3_601 - 1_800)
   }
 }
 
-public struct LicenseServiceClient: Sendable {
-  public var activate: @Sendable (_ key: String, _ device: LicenseDevice) async throws -> String
-  public var deactivate: @Sendable (_ key: String, _ deviceID: String) async throws -> String
-  public var refresh: @Sendable (_ key: String, _ deviceID: String) async throws -> String
+struct LicenseServiceClient: Sendable {
+  var activate: @Sendable (_ key: String, _ device: LicenseDevice) async throws -> String
+  var deactivate: @Sendable (_ key: String, _ deviceID: String) async throws -> String
+  var refresh: @Sendable (_ key: String, _ deviceID: String) async throws -> String
 
-  public init(
+  init(
     activate: @escaping @Sendable (_ key: String, _ device: LicenseDevice) async throws -> String,
     deactivate: @escaping @Sendable (_ key: String, _ deviceID: String) async throws -> String,
     refresh: @escaping @Sendable (_ key: String, _ deviceID: String) async throws -> String
@@ -92,7 +92,7 @@ public struct LicenseServiceClient: Sendable {
     self.refresh = refresh
   }
 
-  public static func live(
+  static func live(
     baseURL: URL = URL(string: "https://license.supaterm.com")!,
     session: URLSession = .shared
   ) -> Self {
@@ -130,37 +130,48 @@ public struct LicenseServiceClient: Sendable {
   }
 }
 
-public struct LicenseStorageClient: Sendable {
-  public var delete: @Sendable () throws -> Void
-  public var loadKey: @Sendable () throws -> String?
-  public var loadToken: @Sendable () throws -> String?
-  public var save: @Sendable (_ key: String, _ token: String) throws -> Void
+struct LicenseStorageClient: Sendable {
+  var acknowledgeNotice: @Sendable (LicenseNoticeAcknowledgement) throws -> Void
+  var delete: @Sendable () throws -> Void
+  var loadKey: @Sendable () throws -> String?
+  var loadNoticeAcknowledgement: @Sendable () -> LicenseNoticeAcknowledgement?
+  var loadToken: @Sendable () throws -> String?
+  var save: @Sendable (_ key: String, _ token: String) throws -> Void
 
-  public init(
+  init(
+    acknowledgeNotice: @escaping @Sendable (LicenseNoticeAcknowledgement) throws -> Void = { _ in },
     delete: @escaping @Sendable () throws -> Void,
     loadKey: @escaping @Sendable () throws -> String?,
+    loadNoticeAcknowledgement: @escaping @Sendable () -> LicenseNoticeAcknowledgement? = { nil },
     loadToken: @escaping @Sendable () throws -> String?,
     save: @escaping @Sendable (_ key: String, _ token: String) throws -> Void
   ) {
+    self.acknowledgeNotice = acknowledgeNotice
     self.delete = delete
     self.loadKey = loadKey
+    self.loadNoticeAcknowledgement = loadNoticeAcknowledgement
     self.loadToken = loadToken
     self.save = save
   }
 
-  public static func live(
-    tokenURL: URL = SupatermStateRoot.fileURL("license.token")
+  static func live(
+    tokenURL: URL = SupatermStateRoot.fileURL("license.token"),
+    noticeURL: URL = SupatermStateRoot.fileURL("license-notice.json")
   ) -> Self {
     let keychain = LicenseKeychain()
     let tokenFile = LicenseTokenFile(url: tokenURL)
+    let noticeFile = LicenseNoticeAcknowledgementFile(url: noticeURL)
     return Self(
+      acknowledgeNotice: noticeFile.save,
       delete: {
         try keychain.delete()
         tokenFile.delete()
+        noticeFile.delete()
       },
       loadKey: {
         try keychain.load()
       },
+      loadNoticeAcknowledgement: noticeFile.load,
       loadToken: {
         tokenFile.load()
       },
@@ -182,16 +193,16 @@ public struct LicenseStorageClient: Sendable {
   }
 }
 
-public struct LicenseEntitlementVerifier: Sendable {
-  public var decode: @Sendable (_ token: String, _ deviceID: String, _ licenseID: String) -> LicenseEntitlement?
+struct LicenseEntitlementVerifier: Sendable {
+  var decode: @Sendable (_ token: String, _ deviceID: String, _ licenseID: String) -> LicenseEntitlement?
 
-  public init(
+  init(
     decode: @escaping @Sendable (_ token: String, _ deviceID: String, _ licenseID: String) -> LicenseEntitlement?
   ) {
     self.decode = decode
   }
 
-  public static func live(publicKeyRawRepresentation: Data) throws -> Self {
+  static func live(publicKeyRawRepresentation: Data) throws -> Self {
     let codec = try LicenseEntitlementCodec(
       publicKeyRawRepresentation: publicKeyRawRepresentation
     )
@@ -206,7 +217,7 @@ public struct LicenseEntitlementVerifier: Sendable {
     )
   }
 
-  public static var production: Self {
+  static var production: Self {
     do {
       return try live(
         publicKeyRawRepresentation: Data([
@@ -222,8 +233,25 @@ public struct LicenseEntitlementVerifier: Sendable {
   }
 }
 
+private actor LicenseSwitchCoordinator {
+  private var cleanup: Task<Void, Never>?
+
+  func waitForCleanup() async {
+    await cleanup?.value
+  }
+
+  func scheduleCleanup(_ operation: @escaping @Sendable () async -> Void) {
+    let previous = cleanup
+    cleanup = Task {
+      await previous?.value
+      await operation()
+    }
+  }
+}
+
 public enum LicenseClientError: Error, Equatable, Sendable {
   case connectionRequired
+  case inactiveLicense
   case invalidEntitlement
   case invalidLicenseKey
   case missingLicenseKey
@@ -234,33 +262,56 @@ public enum LicenseClientError: Error, Equatable, Sendable {
   }
 }
 
-public struct LicenseClient: Sendable {
-  public struct Snapshot: Equatable, Sendable {
-    public let entitlement: LicenseEntitlement?
-    public let hasLicenseKey: Bool
+struct LicenseClient: Sendable {
+  struct Snapshot: Equatable, Sendable {
+    let entitlement: LicenseEntitlement?
+    let hasLicenseKey: Bool
+    let noticeAcknowledgement: LicenseNoticeAcknowledgement?
 
-    public init(
+    init(
       entitlement: LicenseEntitlement?,
-      hasLicenseKey: Bool
+      hasLicenseKey: Bool,
+      noticeAcknowledgement: LicenseNoticeAcknowledgement? = nil
     ) {
       self.entitlement = entitlement
       self.hasLicenseKey = hasLicenseKey
+      self.noticeAcknowledgement = noticeAcknowledgement
     }
   }
 
-  public var activate: @Sendable (_ key: String) async throws -> LicenseEntitlement
-  public var deactivate: @Sendable () async throws -> Void
-  public var load: @Sendable () -> Snapshot
-  public var refresh: @Sendable () async throws -> LicenseEntitlement
-  public var refreshInterval: @Sendable () -> Duration
+  var acknowledgeNotice: @Sendable (LicenseNoticeAcknowledgement) throws -> Void
+  var activate: @Sendable (_ key: String) async throws -> LicenseEntitlement
+  var deactivate: @Sendable () async throws -> Void
+  var load: @Sendable () -> Snapshot
+  var refresh: @Sendable () async throws -> LicenseEntitlement
+  var refreshInterval: @Sendable () -> Duration
 
-  public init(
+  init(
     activate: @escaping @Sendable (_ key: String) async throws -> LicenseEntitlement,
     deactivate: @escaping @Sendable () async throws -> Void,
     load: @escaping @Sendable () -> Snapshot,
     refresh: @escaping @Sendable () async throws -> LicenseEntitlement,
     refreshInterval: @escaping @Sendable () -> Duration = { .seconds(86_400) }
   ) {
+    self.init(
+      acknowledgeNotice: { _ in },
+      activate: activate,
+      deactivate: deactivate,
+      load: load,
+      refresh: refresh,
+      refreshInterval: refreshInterval
+    )
+  }
+
+  init(
+    acknowledgeNotice: @escaping @Sendable (LicenseNoticeAcknowledgement) throws -> Void,
+    activate: @escaping @Sendable (_ key: String) async throws -> LicenseEntitlement,
+    deactivate: @escaping @Sendable () async throws -> Void,
+    load: @escaping @Sendable () -> Snapshot,
+    refresh: @escaping @Sendable () async throws -> LicenseEntitlement,
+    refreshInterval: @escaping @Sendable () -> Duration
+  ) {
+    self.acknowledgeNotice = acknowledgeNotice
     self.activate = activate
     self.deactivate = deactivate
     self.load = load
@@ -268,17 +319,20 @@ public struct LicenseClient: Sendable {
     self.refreshInterval = refreshInterval
   }
 
-  public static func live(
+  static func live(
     device: LicenseDevice,
     service: LicenseServiceClient,
     storage: LicenseStorageClient,
     verifier: LicenseEntitlementVerifier
   ) -> Self {
-    Self(
+    let switchCoordinator = LicenseSwitchCoordinator()
+    return Self(
+      acknowledgeNotice: storage.acknowledgeNotice,
       activate: { value in
         guard let credential = LicenseCredential(value) else {
           throw LicenseClientError.invalidLicenseKey
         }
+        await switchCoordinator.waitForCleanup()
         let oldCredential = try storage.loadKey().flatMap(LicenseCredential.init)
         let oldEntitlement = try oldCredential.flatMap { oldCredential in
           try storage.loadToken().flatMap {
@@ -286,11 +340,10 @@ public struct LicenseClient: Sendable {
           }
         }
         let token = try await service.activate(credential.rawValue, device)
-        guard
-          let entitlement = verifier.decode(token, device.id, credential.licenseID)
-        else {
+        guard let entitlement = verifier.decode(token, device.id, credential.licenseID) else {
           throw LicenseClientError.invalidEntitlement
         }
+        guard entitlement.status == .active else { throw LicenseClientError.inactiveLicense }
 
         try storage.save(credential.rawValue, token)
 
@@ -298,7 +351,9 @@ public struct LicenseClient: Sendable {
           oldCredential != credential,
           oldEntitlement == nil || oldEntitlement?.status == .active
         {
-          _ = try? await service.deactivate(oldCredential.rawValue, device.id)
+          await switchCoordinator.scheduleCleanup {
+            _ = try? await service.deactivate(oldCredential.rawValue, device.id)
+          }
         }
         return entitlement
       },
@@ -323,12 +378,20 @@ public struct LicenseClient: Sendable {
           let value = try? storage.loadKey(),
           let credential = LicenseCredential(value)
         else {
-          return Snapshot(entitlement: nil, hasLicenseKey: false)
+          return Snapshot(
+            entitlement: nil,
+            hasLicenseKey: false,
+            noticeAcknowledgement: storage.loadNoticeAcknowledgement()
+          )
         }
         let entitlement = try? storage.loadToken().flatMap {
           verifier.decode($0, device.id, credential.licenseID)
         }
-        return Snapshot(entitlement: entitlement, hasLicenseKey: true)
+        return Snapshot(
+          entitlement: entitlement,
+          hasLicenseKey: true,
+          noticeAcknowledgement: storage.loadNoticeAcknowledgement()
+        )
       },
       refresh: {
         guard
@@ -356,7 +419,7 @@ public struct LicenseClient: Sendable {
     )
   }
 
-  public static func live(device: LicenseDevice) -> Self {
+  static func live(device: LicenseDevice) -> Self {
     live(
       device: device,
       service: .live(),
@@ -366,8 +429,8 @@ public struct LicenseClient: Sendable {
   }
 }
 
-extension LicenseClient: DependencyKey {
-  public static var liveValue: Self {
+extension LicenseClient {
+  static var liveValue: Self {
     guard let device = LicenseDevice.current() else {
       return Self(
         activate: { _ in throw LicenseClientError.invalidEntitlement },
@@ -380,13 +443,82 @@ extension LicenseClient: DependencyKey {
     return .live(device: device)
   }
 
-  public static let testValue = Self(
+  static var debugValue: Self {
+    let device =
+      LicenseDevice.current()
+      ?? LicenseDevice(
+        id: "debug-device",
+        name: "Development Mac",
+        appVersion: AppBuild.version
+      )
+    let store = LicenseDebugStore(device: device)
+    return Self(
+      activate: store.activate,
+      deactivate: store.deactivate,
+      load: store.load,
+      refresh: store.refresh,
+      refreshInterval: { .seconds(86_400) }
+    )
+  }
+
+  static let testValue = Self(
     activate: unimplemented("LicenseClient.activate"),
     deactivate: unimplemented("LicenseClient.deactivate"),
     load: { Snapshot(entitlement: nil, hasLicenseKey: false) },
     refresh: unimplemented("LicenseClient.refresh"),
     refreshInterval: { .seconds(86_400) }
   )
+}
+
+private final class LicenseDebugStore: @unchecked Sendable {
+  private let device: LicenseDevice
+  private let lock = NSLock()
+  private var entitlement: LicenseEntitlement?
+
+  init(device: LicenseDevice) {
+    self.device = device
+  }
+
+  func activate(_ value: String) throws -> LicenseEntitlement {
+    guard let credential = LicenseCredential(value) else {
+      throw LicenseClientError.invalidLicenseKey
+    }
+    let entitlement = LicenseEntitlement(
+      licenseID: credential.licenseID,
+      deviceID: device.id,
+      status: .active,
+      updatesThrough: LicenseDay("9999-12-31"),
+      revision: 1,
+      issuedAt: Int64(Date().timeIntervalSince1970),
+      revocationReason: nil,
+      signedToken: "debug"
+    )
+    lock.withLock { self.entitlement = entitlement }
+    return entitlement
+  }
+
+  func deactivate() throws {
+    try lock.withLock {
+      guard entitlement != nil else { throw LicenseClientError.missingLicenseKey }
+      entitlement = nil
+    }
+  }
+
+  func load() -> LicenseClient.Snapshot {
+    lock.withLock {
+      LicenseClient.Snapshot(
+        entitlement: entitlement,
+        hasLicenseKey: entitlement != nil
+      )
+    }
+  }
+
+  func refresh() throws -> LicenseEntitlement {
+    try lock.withLock {
+      guard let entitlement else { throw LicenseClientError.missingLicenseKey }
+      return entitlement
+    }
+  }
 }
 
 private struct ActivateRequest: Encodable {
@@ -477,8 +609,23 @@ private func request<Body: Encodable & Sendable>(
   return token
 }
 
-private struct LicenseKeychain: Sendable {
-  private let identifier = "app.supabit.supaterm.license"
+struct LicenseKeychain: Sendable {
+  private let identifier: String
+
+  init(
+    instanceName: String? = ProcessInfo.processInfo.environment["SUPATERM_INSTANCE_NAME"]
+  ) {
+    identifier = Self.identifier(instanceName: instanceName)
+  }
+
+  static func identifier(instanceName: String?) -> String {
+    let base = "app.supabit.supaterm.license"
+    guard let instanceName, instanceName != "default" else { return base }
+    let suffix = SHA256.hash(data: Data(instanceName.utf8)).prefix(8)
+      .map { String(format: "%02x", $0) }
+      .joined()
+    return "\(base).\(suffix)"
+  }
 
   func load() throws -> String? {
     var result: CFTypeRef?
@@ -493,7 +640,7 @@ private struct LicenseKeychain: Sendable {
       let data = result as? Data,
       let value = String(data: data, encoding: .utf8)
     else {
-      throw LicenseKeychainError(status: status)
+      throw LicenseKeychainError()
     }
     return value
   }
@@ -506,19 +653,19 @@ private struct LicenseKeychain: Sendable {
     )
     if status == errSecSuccess { return }
     if status != errSecItemNotFound {
-      throw LicenseKeychainError(status: status)
+      throw LicenseKeychainError()
     }
     let add = baseQuery.merging([kSecValueData as String: data]) { _, new in new }
     let addStatus = SecItemAdd(add as CFDictionary, nil)
     guard addStatus == errSecSuccess else {
-      throw LicenseKeychainError(status: addStatus)
+      throw LicenseKeychainError()
     }
   }
 
   func delete() throws {
     let status = SecItemDelete(baseQuery as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else {
-      throw LicenseKeychainError(status: status)
+      throw LicenseKeychainError()
     }
   }
 
@@ -532,13 +679,4 @@ private struct LicenseKeychain: Sendable {
   }
 }
 
-private struct LicenseKeychainError: Error {
-  let status: OSStatus
-}
-
-extension DependencyValues {
-  public var licenseClient: LicenseClient {
-    get { self[LicenseClient.self] }
-    set { self[LicenseClient.self] = newValue }
-  }
-}
+private struct LicenseKeychainError: Error {}

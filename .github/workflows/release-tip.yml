@@ -18,8 +18,8 @@ on:
       - "!**/*.md"
 
 concurrency:
-  group: release-feed
-  cancel-in-progress: false
+  group: release-tip
+  cancel-in-progress: true
 
 jobs:
   ci:
@@ -31,7 +31,8 @@ jobs:
   build:
     runs-on: macos-26
     permissions:
-      contents: read
+      actions: read
+      contents: write
     outputs:
       build-number: ${{ steps.build-number.outputs.build-number }}
       stable-tag: ${{ steps.tip-appcast.outputs.stable-tag }}
@@ -88,7 +89,7 @@ jobs:
       - run: make mac-build-ghostty
       - run: make mac-build-zmx
       - run: make mac-build-ap
-      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_RELEASE_DATE=${{ env.RELEASE_DAY }}'
+      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_RELEASE_DATE=${{ env.RELEASE_DAY }} SUPATERM_LICENSE_SALES_ENABLED=${{ vars.LICENSE_SALES_ENABLED == 'true' && 'YES' || 'NO' }}'
       - name: Write export options
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -185,6 +186,10 @@ jobs:
           name: dsyms
           if-no-files-found: error
           path: apps/mac/build/supaterm.xcarchive/dSYMs/**
+      - name: Wait for release feed turn
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: /usr/bin/python3 .github/scripts/wait_for_release_feed_turn.py
       - name: Generate tip appcast
         id: tip-appcast
         env:
@@ -239,6 +244,24 @@ jobs:
             apps/mac/build/appcast.xml
             apps/mac/build/latest/appcast.xml
             apps/mac/build/checksums.json
+      - name: Force-move tip tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa tip -m "Latest Continuous Release" "${{ github.sha }}"
+          git push --force origin tip
+      - name: Update tip release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" --notes "" -R "${{ github.repository }}" 2>/dev/null || \
+          gh release edit tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" -R "${{ github.repository }}"
+          gh release upload tip apps/mac/build/supaterm.dmg apps/mac/build/supaterm.app.zip apps/mac/build/appcast.xml apps/mac/build/checksums.json --clobber -R "${{ github.repository }}"
+      - name: Publish latest appcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tip-appcast.outputs.stable-tag }}" apps/mac/build/latest/appcast.xml --clobber -R "${{ github.repository }}"
 
   posthog-dsym:
     runs-on: ubuntu-latest
@@ -285,40 +308,3 @@ jobs:
             --project app.supabit.supaterm \
             --version "$MARKETING_VERSION" \
             --build "${{ needs.build.outputs.build-number }}"
-
-  publish:
-    runs-on: ubuntu-latest
-    needs: [build, ci]
-    permissions:
-      contents: write
-    env:
-      RELEASE_SHA: ${{ github.sha }}
-      STABLE_TAG: ${{ needs.build.outputs.stable-tag }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: build-artifacts
-          path: apps/mac/build
-      - name: Force-move tip tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -fa tip -m "Latest Continuous Release" "$RELEASE_SHA"
-          git push --force origin tip
-      - name: Update tip release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create tip --prerelease --title "Supaterm Tip" --target "$RELEASE_SHA" --notes "" -R "${{ github.repository }}" 2>/dev/null || \
-          gh release edit tip --prerelease --title "Supaterm Tip" --target "$RELEASE_SHA" -R "${{ github.repository }}"
-          gh release upload tip apps/mac/build/supaterm.dmg apps/mac/build/supaterm.app.zip apps/mac/build/appcast.xml apps/mac/build/checksums.json --clobber -R "${{ github.repository }}"
-      - name: Publish latest appcast
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "$STABLE_TAG" apps/mac/build/latest/appcast.xml --clobber -R "${{ github.repository }}"

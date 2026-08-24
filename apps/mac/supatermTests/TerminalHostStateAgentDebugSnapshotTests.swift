@@ -542,7 +542,7 @@ struct TerminalHostStateAgentDebugSnapshotTests {
 
   private func hostFixture() throws -> HostFixture {
     initializeGhosttyForTests()
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let surfaceID = try #require(host.selectedSurfaceView?.id)
     return HostFixture(host: host, surfaceID: surfaceID)

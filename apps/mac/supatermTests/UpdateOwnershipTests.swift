@@ -13,7 +13,7 @@ struct UpdateOwnershipTests {
     let entitlement = Shared<LicenseEntitlement?>(value: nil)
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
 
@@ -30,7 +30,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
 
@@ -44,7 +44,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
 
@@ -52,17 +52,17 @@ struct UpdateOwnershipTests {
       in: [try release(version: "2", day: "2026-08-21")]
     )
 
-    #expect(result == .release(URL(string: "https://supaterm.com/download/2.zip")!))
+    #expect(result == .install(URL(string: "https://supaterm.com/download/2.zip")!))
   }
 
   @Test
-  func unownedHeadIsNotReplacedByAnOlderOwnedRelease() throws {
+  func unownedHeadRequestsRenewalInsteadOfSelectingAnOlderOwnedRelease() throws {
     let entitlement = Shared<LicenseEntitlement?>(
       value: licenseEntitlement(updatesThrough: "2026-08-21")
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
 
@@ -73,7 +73,16 @@ struct UpdateOwnershipTests {
       ]
     )
 
-    #expect(result == .none)
+    #expect(
+      result
+        == .renew(
+          UpdatePhase.OwnershipEnded(
+            licenseID: "00112233445566778899aabbccddeeff",
+            updatesThrough: try #require(LicenseDay("2026-08-21")),
+            version: "3"
+          )
+        )
+    )
   }
 
   @Test
@@ -83,7 +92,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
 
@@ -101,7 +110,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
     let releases = [
@@ -111,7 +120,13 @@ struct UpdateOwnershipTests {
 
     #expect(
       driver.bestValidUpdate(in: releases)
-        == .none
+        == .renew(
+          UpdatePhase.OwnershipEnded(
+            licenseID: "00112233445566778899aabbccddeeff",
+            updatesThrough: try #require(LicenseDay("2026-08-21")),
+            version: "3"
+          )
+        )
     )
 
     entitlement.withLock {
@@ -120,7 +135,7 @@ struct UpdateOwnershipTests {
 
     #expect(
       driver.bestValidUpdate(in: releases)
-        == .release(URL(string: "https://supaterm.com/download/3.zip")!)
+        == .install(URL(string: "https://supaterm.com/download/3.zip")!)
     )
   }
 
@@ -129,7 +144,7 @@ struct UpdateOwnershipTests {
     let entitlement = Shared<LicenseEntitlement?>(value: nil)
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement)
+      license: updateLicense(entitlement)
     )
     let releases = [
       try release(version: "3000001", day: "2026-08-21", channel: "tip"),
@@ -152,7 +167,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "3"
     )
 
@@ -169,7 +184,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
 
@@ -187,7 +202,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
+      license: updateLicense(entitlement),
       currentVersion: "1"
     )
     driver.updateChannel = .tip
@@ -195,38 +210,41 @@ struct UpdateOwnershipTests {
     #expect(
       driver.bestValidUpdate(
         in: [try release(version: "3000001", day: "2026-08-21", channel: "tip")]
-      ) == .release(URL(string: "https://supaterm.com/download/3000001.zip")!)
+      ) == .install(URL(string: "https://supaterm.com/download/3000001.zip")!)
     )
   }
 
   @Test
   func unownedHeadCreatesRenewalNotice() throws {
-    let entitlement = Shared<LicenseEntitlement?>(
-      value: licenseEntitlement(updatesThrough: "2026-08-21")
-    )
-    let driver = UpdateDriver(
-      hostBundle: .main,
-      license: UpdateLicenseClient(entitlement: entitlement),
-      currentVersion: "1"
+    let entitlement = licenseEntitlement(updatesThrough: "2026-08-21")
+    let policy = UpdateOwnershipPolicy(
+      currentVersion: "1",
+      licenseAccess: LicenseAccess(
+        entitlement: entitlement,
+        releaseDay: try #require(LicenseDay("2026-08-22"))
+      ),
+      updateChannel: .stable
     )
 
-    let result = driver.ownershipEnded(
+    let result = policy.decision(
       in: [try release(version: "26.4.0", day: "2026-08-22")]
     )
 
     #expect(
       result
-        == UpdatePhase.OwnershipEnded(
-          licenseID: "00112233445566778899aabbccddeeff",
-          updatesThrough: try #require(LicenseDay("2026-08-21")),
-          version: "26.4.0"
+        == UpdateOwnershipDecision.renew(
+          UpdatePhase.OwnershipEnded(
+            licenseID: "00112233445566778899aabbccddeeff",
+            updatesThrough: try #require(LicenseDay("2026-08-21")),
+            version: "26.4.0"
+          )
         )
     )
   }
 
   @Test
   func sparkleCallsTheAppcastDelegateSeams() {
-    let driver = UpdateDriver(hostBundle: .main)
+    let driver = UpdateDriver(hostBundle: .main, license: .unlicensed)
 
     #expect(driver.responds(to: NSSelectorFromString("bestValidUpdateInAppcast:forUpdater:")))
     #expect(driver.responds(to: NSSelectorFromString("updater:didFinishLoadingAppcast:")))
@@ -277,7 +295,7 @@ struct UpdateOwnershipTests {
     let driver = UpdateDriver(
       hostBundle: .main,
       license: UpdateLicenseClient(
-        entitlement: Shared(value: nil),
+        access: { .free },
         refresh: {
           refreshes.withLock { $0 += 1 }
         }
@@ -287,6 +305,20 @@ struct UpdateOwnershipTests {
     await driver.refreshLicenseBeforeUpdateCheck()
 
     #expect(refreshes.wrappedValue == 1)
+  }
+
+  private func updateLicense(
+    _ entitlement: Shared<LicenseEntitlement?>
+  ) -> UpdateLicenseClient {
+    UpdateLicenseClient(
+      access: {
+        LicenseAccess(
+          entitlement: entitlement.wrappedValue,
+          releaseDay: AppBuild.releaseDay
+        )
+      },
+      refresh: {}
+    )
   }
 
   private func licenseEntitlement(

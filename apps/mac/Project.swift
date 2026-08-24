@@ -24,6 +24,9 @@ let project = Project(
       "CODE_SIGN_STYLE": "Automatic",
       "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
       "SUPATERM_DEVELOPMENT_BUILD": "NO",
+      "SUPATERM_LICENSE_SALES_ENABLED": "NO",
+      "SWIFT_ACTIVE_COMPILATION_CONDITIONS":
+        "$(inherited) SUPATERM_LICENSE_SALES_$(SUPATERM_LICENSE_SALES_ENABLED)",
       "SWIFT_APPROACHABLE_CONCURRENCY": "YES",
       "SWIFT_DEFAULT_ACTOR_ISOLATION": "MainActor",
       "SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY": "YES",
@@ -211,6 +214,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
       ],
       settings: .settings(
         base: [

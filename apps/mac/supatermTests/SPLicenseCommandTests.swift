@@ -33,11 +33,11 @@ struct SPLicenseCommandTests {
 
             """
         )
-        #expect(plain.stdout == "paid\t2027-08-21\tTest Mac\t3/5\n")
+        #expect(plain.stdout == "paid\t2027-08-21\tTest Mac\t3/-\n")
         #expect(
           json.stdout == """
-            {"deviceName":"Test Mac","freeTabLimit":5,"mode":"paid",\
-            "openTabCount":3,"updatesThrough":"2027-08-21"}
+            {"deviceName":"Test Mac","mode":"paid","openTabCount":3,\
+            "updatesThrough":"2027-08-21"}
 
             """
         )
@@ -45,6 +45,33 @@ struct SPLicenseCommandTests {
     )
 
     #expect(log.requests.map(\.method) == Array(repeating: SupatermSocketMethod.licenseStatus, count: 4))
+  }
+
+  @Test
+  func freeStatusMatchesTheSalesPolicy() {
+    let status = SupatermLicenseStatusResult(
+      mode: .free,
+      updatesThrough: nil,
+      deviceName: "Test Mac",
+      openTabCount: 3
+    )
+
+    #expect(
+      renderLicenseStatus(status, salesEnabled: false) == """
+        Mode: Free
+        Device: Test Mac
+        Open tabs: 3
+        Run `sp license activate` to activate an existing license.
+        """
+    )
+    #expect(
+      renderLicenseStatus(status, salesEnabled: true) == """
+        Mode: Free
+        Device: Test Mac
+        Open tabs: 3 of 5
+        Run `sp license buy` or `sp license activate` to unlock more tabs.
+        """
+    )
   }
 
   @Test
@@ -187,6 +214,5 @@ private let paidStatus = SupatermLicenseStatusResult(
   mode: .paid,
   updatesThrough: "2027-08-21",
   deviceName: "Test Mac",
-  openTabCount: 3,
-  freeTabLimit: 5
+  openTabCount: 3
 )

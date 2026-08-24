@@ -1,5 +1,5 @@
 import Foundation
-import Sharing
+import SupatermCLIShared
 import SupatermLicenseFeature
 import SupatermSupport
 
@@ -32,13 +32,13 @@ final class LicenseTabGate {
     let openTabs: Int
   }
 
-  static let tabLimit = 5
-  static let unrestricted = LicenseTabGate(
-    licenseAccess: { .free },
-    enforcementEnabled: false
-  )
-  private static let productionEnforcementEnabled = true
-
+  static let tabLimit = SupatermLicensePolicy.freeTabLimit
+  #if DEBUG || SUPATERM_SNAPSHOT_CATALOG
+    static let unrestricted = LicenseTabGate(
+      licenseAccess: { .free },
+      enforcementEnabled: false
+    )
+  #endif
   private let licenseAccess: @MainActor () -> LicenseAccess
   private let enforcementEnabled: Bool
   private let onRefusal: @MainActor (LicenseTabLimitOrigin) -> Void
@@ -54,26 +54,33 @@ final class LicenseTabGate {
   }
 
   convenience init(
-    entitlement: Shared<LicenseEntitlement?> = Shared(value: nil),
-    releaseDay: @escaping @MainActor () -> LicenseDay = { AppBuild.releaseDay },
+    licenseAccess: @escaping @MainActor () -> LicenseAccess,
     onRefusal: @escaping @MainActor (LicenseTabLimitOrigin) -> Void = { _ in }
   ) {
     #if DEBUG
       let freeMode = Self.debugFreeMode(environment: ProcessInfo.processInfo.environment)
-      self.init(
-        licenseAccess: { .free },
-        enforcementEnabled: freeMode,
-        onRefusal: onRefusal
-      )
+      let resolvedLicenseAccess: @MainActor () -> LicenseAccess
+      if freeMode {
+        resolvedLicenseAccess = { .free }
+      } else {
+        resolvedLicenseAccess = licenseAccess
+      }
     #else
-      self.init(
-        licenseAccess: {
-          LicenseAccess(entitlement: entitlement.wrappedValue, releaseDay: releaseDay())
-        },
-        enforcementEnabled: Self.productionEnforcementEnabled,
-        onRefusal: onRefusal
-      )
+      let freeMode = false
+      let resolvedLicenseAccess = licenseAccess
     #endif
+    self.init(
+      licenseAccess: resolvedLicenseAccess,
+      enforcementEnabled: Self.enforcementEnabled(
+        salesEnabled: AppBuild.licenseSalesEnabled,
+        debugFreeMode: freeMode
+      ),
+      onRefusal: onRefusal
+    )
+  }
+
+  static func enforcementEnabled(salesEnabled: Bool, debugFreeMode: Bool) -> Bool {
+    salesEnabled || debugFreeMode
   }
 
   #if DEBUG

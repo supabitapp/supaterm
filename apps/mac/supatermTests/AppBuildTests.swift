@@ -1,6 +1,7 @@
 import Foundation
-import SupatermSupport
 import Testing
+
+@testable import SupatermSupport
 
 struct AppBuildTests {
   @Test
@@ -10,7 +11,7 @@ struct AppBuildTests {
     #else
       #expect(
         AppBuild.isDevelopmentBuild
-          == AppBuild.isDevelopmentFlag(
+          == AppBuild.isEnabledFlag(
             Bundle.main.object(forInfoDictionaryKey: "SupatermDevelopmentBuild")
           )
       )
@@ -20,8 +21,10 @@ struct AppBuildTests {
   @Test
   func stubUpdateChecksMatchBuildConfiguration() {
     #if DEBUG
+      #expect(AppBuild.usesStubServices)
       #expect(AppBuild.usesStubUpdateChecks)
     #else
+      #expect(!AppBuild.usesStubServices)
       #expect(!AppBuild.usesStubUpdateChecks)
     #endif
   }
@@ -37,33 +40,30 @@ struct AppBuildTests {
   @Test
   func releaseDayReadsStampedValue() throws {
     let stamped = try #require(LicenseDay("2027-08-17"))
-    let fallback = try #require(LicenseDay("2027-08-18"))
 
-    #expect(AppBuild.releaseDay(infoValue: stamped.rawValue, fallback: fallback) == stamped)
+    #expect(AppBuild.parsedReleaseDay(stamped.rawValue) == stamped)
   }
 
   @Test
-  func releaseDayFallsBackWhenStampIsAbsent() throws {
-    let fallback = try #require(LicenseDay("2027-08-18"))
-
-    #expect(AppBuild.releaseDay(infoValue: nil, fallback: fallback) == fallback)
+  func releaseDayRejectsAnAbsentStamp() {
+    #expect(AppBuild.parsedReleaseDay(nil) == nil)
   }
 
   @Test
-  func developmentFlagParsesTrueValues() {
-    #expect(AppBuild.isDevelopmentFlag(true))
-    #expect(AppBuild.isDevelopmentFlag("YES"))
-    #expect(AppBuild.isDevelopmentFlag("true"))
-    #expect(AppBuild.isDevelopmentFlag(" 1 "))
-    #expect(AppBuild.isDevelopmentFlag(NSNumber(value: true)))
+  func enabledFlagParsesTrueValues() {
+    #expect(AppBuild.isEnabledFlag(true))
+    #expect(AppBuild.isEnabledFlag("YES"))
+    #expect(AppBuild.isEnabledFlag("true"))
+    #expect(AppBuild.isEnabledFlag(" 1 "))
+    #expect(AppBuild.isEnabledFlag(NSNumber(value: true)))
   }
 
   @Test
-  func developmentFlagParsesFalseValues() {
-    #expect(!AppBuild.isDevelopmentFlag(nil))
-    #expect(!AppBuild.isDevelopmentFlag(false))
-    #expect(!AppBuild.isDevelopmentFlag("NO"))
-    #expect(!AppBuild.isDevelopmentFlag("0"))
-    #expect(!AppBuild.isDevelopmentFlag(NSNumber(value: false)))
+  func enabledFlagParsesFalseValues() {
+    #expect(!AppBuild.isEnabledFlag(nil))
+    #expect(!AppBuild.isEnabledFlag(false))
+    #expect(!AppBuild.isEnabledFlag("NO"))
+    #expect(!AppBuild.isEnabledFlag("0"))
+    #expect(!AppBuild.isEnabledFlag(NSNumber(value: false)))
   }
 }

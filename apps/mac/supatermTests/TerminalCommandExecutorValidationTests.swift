@@ -11,7 +11,7 @@ struct TerminalCommandExecutorValidationTests {
   func validateReportsTheDefaultPathAsMissingWithoutASettingsFile() throws {
     let homeDirectoryURL = try temporarySettingsHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     let result = commandExecutor.settingsValidate(
@@ -47,7 +47,7 @@ struct TerminalCommandExecutorValidationTests {
       """,
       homeDirectoryURL: homeDirectoryURL
     )
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     let result = commandExecutor.settingsValidate(
@@ -71,7 +71,7 @@ struct TerminalCommandExecutorValidationTests {
     let homeDirectoryURL = try temporarySettingsHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let missingURL = homeDirectoryURL.appendingPathComponent("missing.toml", isDirectory: false)
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     let result = commandExecutor.settingsValidate(
@@ -95,7 +95,7 @@ struct TerminalCommandExecutorValidationTests {
     let homeDirectoryURL = try temporarySettingsHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let settingsURL = try writeSettings("appearance = [", homeDirectoryURL: homeDirectoryURL)
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     let result = commandExecutor.settingsValidate(

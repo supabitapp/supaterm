@@ -10,8 +10,9 @@ import Testing
 struct LicenseFeatureTests {
   @Test
   func activationLinkOnlyPrefillsKey() async {
-    let store = TestStore(initialState: LicenseFeature.State()) {
-      LicenseFeature()
+    let runtime = runtime()
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     }
 
     await store.send(.prefillKey("license-key")) {
@@ -27,26 +28,23 @@ struct LicenseFeatureTests {
   func expiredLicenseRefreshesWhenAppBecomesActive() async {
     let expired = entitlement(updatesThrough: day("2000-01-01"))
     let renewed = paidEntitlement()
-    let store = TestStore(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(
-          entitlement: expired,
-          hasLicenseKey: true
-        )
-      )
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: expired, hasLicenseKey: true)
     ) {
-      LicenseFeature()
-    } withDependencies: {
-      $0.licenseClient.refresh = { renewed }
+      $0.refresh = { renewed }
+    }
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     }
 
-    await store.send(.applicationBecameActive)
-    await store.receive(\.refreshRequested) {
-      $0.phase = .refreshing
+    await store.send(.applicationBecameActive) {
+      $0.$session.withLock { $0.phase = .refreshing }
     }
     await store.receive(\.refreshResponse) {
-      $0.entitlement = renewed
-      $0.phase = .idle
+      $0.$session.withLock {
+        $0.entitlement = renewed
+        $0.phase = .idle
+      }
     }
   }
 
@@ -54,15 +52,11 @@ struct LicenseFeatureTests {
   func ownedReleaseActionCapturesEvent() async {
     let expired = entitlement(updatesThrough: day("2000-01-01"))
     let events = LockIsolated<[String]>([])
-    let store = TestStore(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(
-          entitlement: expired,
-          hasLicenseKey: true
-        )
-      )
-    ) {
-      LicenseFeature()
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: expired, hasLicenseKey: true)
+    )
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     } withDependencies: {
       $0.analyticsClient.capture = { event in
         events.withValue { $0.append(event) }
@@ -78,8 +72,9 @@ struct LicenseFeatureTests {
   @Test
   func tabLimitAnalyticsCarriesOnlyOrigin() async {
     let captures = LockIsolated<[(String, [String: String])]>([])
-    let store = TestStore(initialState: LicenseFeature.State()) {
-      LicenseFeature()
+    let runtime = runtime()
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     } withDependencies: {
       $0.analyticsClient.captureProperties = { event, properties in
         captures.withValue { $0.append((event, properties)) }
@@ -117,21 +112,21 @@ struct LicenseFeatureTests {
     let clock = TestClock()
     let entitlement = paidEntitlement()
     let events = LockIsolated<[String]>([])
+    let responsePhase = LockIsolated<LicenseFeaturePhase?>(nil)
     let activatedKey = LockIsolated<String?>(nil)
-    let store = TestStore(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(entitlement: nil, hasLicenseKey: false)
-      )
-    ) {
-      LicenseFeature()
+    let runtime = runtime {
+      $0.activate = { key in
+        activatedKey.withValue { $0 = key }
+        return entitlement
+      }
+    }
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     } withDependencies: {
       $0.continuousClock = clock
       $0.analyticsClient.capture = { event in
         events.withValue { $0.append(event) }
-      }
-      $0.licenseClient.activate = { key in
-        activatedKey.withValue { $0 = key }
-        return entitlement
+        responsePhase.withValue { $0 = runtime.session.wrappedValue.phase }
       }
     }
 
@@ -140,17 +135,21 @@ struct LicenseFeatureTests {
       $0.error = nil
     }
     await store.send(.activationButtonTapped) {
-      $0.phase = .activating
+      $0.$session.withLock { $0.phase = .activating }
     }
     await store.receive(\.activationResponse) {
-      $0.entitlement = entitlement
-      $0.hasLicenseKey = true
       $0.key = ""
-      $0.phase = .idle
+      $0.$session.withLock {
+        $0.entitlement = entitlement
+        $0.hasLicenseKey = true
+        $0.phase = .idle
+      }
     }
 
     #expect(activatedKey.value == "license-key")
     #expect(events.value == ["license_activated"])
+    #expect(responsePhase.value == .activating)
+    #expect(store.state.phase == .idle)
     await store.send(.shutdown)
     await store.finish()
   }
@@ -158,31 +157,27 @@ struct LicenseFeatureTests {
   @Test
   func offlineDeactivationKeepsEntitlement() async {
     let entitlement = paidEntitlement()
-    let store = TestStore(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(
-          entitlement: entitlement,
-          hasLicenseKey: true
-        )
-      )
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: entitlement, hasLicenseKey: true)
     ) {
-      LicenseFeature()
-    } withDependencies: {
-      $0.licenseClient.deactivate = {
+      $0.deactivate = {
         throw LicenseClientError.connectionRequired
       }
+    }
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     }
 
     await store.send(.deactivationButtonTapped) {
       $0.error = nil
-      $0.phase = .deactivating
+      $0.$session.withLock { $0.phase = .deactivating }
     }
     await store.receive(\.deactivationResponse) {
       $0.error = LicenseFeatureError(
         operation: .deactivation,
         cause: .connectionRequired
       )
-      $0.phase = .idle
+      $0.$session.withLock { $0.phase = .idle }
     }
 
     #expect(store.state.entitlement == entitlement)
@@ -195,18 +190,10 @@ struct LicenseFeatureTests {
     let refreshResponse = AsyncStream.makeStream(of: LicenseEntitlement.self)
     let clock = TestClock()
     let entitlement = paidEntitlement()
-    let store = TestStore(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(
-          entitlement: entitlement,
-          hasLicenseKey: true
-        )
-      )
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: entitlement, hasLicenseKey: true)
     ) {
-      LicenseFeature()
-    } withDependencies: {
-      $0.continuousClock = clock
-      $0.licenseClient.refresh = {
+      $0.refresh = {
         refreshStarted.continuation.yield()
         for await entitlement in refreshResponse.stream {
           return entitlement
@@ -214,10 +201,14 @@ struct LicenseFeatureTests {
         throw CancellationError()
       }
     }
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
+    } withDependencies: {
+      $0.continuousClock = clock
+    }
 
-    await store.send(.task)
-    await store.receive(\.refreshRequested) {
-      $0.phase = .refreshing
+    await store.send(.task) {
+      $0.$session.withLock { $0.phase = .refreshing }
     }
     for await _ in refreshStarted.stream {
       break
@@ -227,7 +218,7 @@ struct LicenseFeatureTests {
     #expect(store.state.entitlement == entitlement)
 
     await store.send(.shutdown) {
-      $0.phase = .idle
+      $0.$session.withLock { $0.phase = .idle }
     }
     refreshStarted.continuation.finish()
     refreshResponse.continuation.finish()
@@ -237,26 +228,22 @@ struct LicenseFeatureTests {
   @Test
   func refreshFailureKeepsCachedEntitlement() async {
     let entitlement = paidEntitlement()
-    let store = TestStore(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(
-          entitlement: entitlement,
-          hasLicenseKey: true
-        )
-      )
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: entitlement, hasLicenseKey: true)
     ) {
-      LicenseFeature()
-    } withDependencies: {
-      $0.licenseClient.refresh = {
+      $0.refresh = {
         throw LicenseClientError.connectionRequired
       }
     }
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
+    }
 
     await store.send(.refreshRequested(.automatic)) {
-      $0.phase = .refreshing
+      $0.$session.withLock { $0.phase = .refreshing }
     }
     await store.receive(\.refreshResponse) {
-      $0.phase = .idle
+      $0.$session.withLock { $0.phase = .idle }
     }
 
     #expect(store.state.access.permitsPaidUse)
@@ -276,33 +263,154 @@ struct LicenseFeatureTests {
       revocationReason: nil,
       signedToken: "transfer-token"
     )
-    let store = TestStore(
-      initialState: LicenseFeature.State(
-        snapshot: LicenseClient.Snapshot(entitlement: active, hasLicenseKey: true)
-      )
-    ) {
-      LicenseFeature()
-    } withDependencies: {
-      $0.analyticsClient.capture = { _ in }
-      $0.licenseClient.refresh = { transfer }
+    let tombstoneCount = LockIsolated(0)
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: active, hasLicenseKey: true),
+      onTombstone: { tombstoneCount.withValue { $0 += 1 } },
+      configure: { $0.refresh = { transfer } }
+    )
+    try await runtime.refreshAndApply()
+    let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
     }
 
-    await store.send(.refreshRequested(.automatic)) {
-      $0.phase = .refreshing
-    }
-    await store.receive(\.refreshResponse) {
-      $0.entitlement = transfer
-      $0.notice = LicenseNotice(
-        kind: .transferred,
-        day: try #require(LicenseDay("2026-08-21"))
-      )
-      $0.phase = .idle
-    }
     #expect(store.state.notice?.message == "This license moved to another Mac on 2026-08-21.")
+    #expect(tombstoneCount.value == 1)
 
     await store.send(.noticeDifferentKeyButtonTapped) {
-      $0.notice = nil
+      $0.$session.withLock {
+        $0.noticeAcknowledgement = LicenseNoticeAcknowledgement(
+          licenseID: transfer.licenseID,
+          revision: transfer.revision
+        )
+      }
     }
+  }
+
+  @Test
+  func acknowledgedNoticeStaysHiddenAcrossRuntimeRestart() {
+    let transfer = tombstone(revision: 2)
+    let acknowledgement = LicenseNoticeAcknowledgement(
+      licenseID: transfer.licenseID,
+      revision: transfer.revision
+    )
+    let snapshot = LicenseClient.Snapshot(
+      entitlement: transfer,
+      hasLicenseKey: true,
+      noticeAcknowledgement: acknowledgement
+    )
+
+    let first = LicenseFeature.State(runtime: runtime(snapshot: snapshot))
+    let second = LicenseFeature.State(runtime: runtime(snapshot: snapshot))
+
+    #expect(first.notice == nil)
+    #expect(second.notice == nil)
+  }
+
+  @Test
+  func newerTombstoneRevisionShowsNotice() {
+    let transfer = tombstone(revision: 3)
+    let snapshot = LicenseClient.Snapshot(
+      entitlement: transfer,
+      hasLicenseKey: true,
+      noticeAcknowledgement: LicenseNoticeAcknowledgement(
+        licenseID: transfer.licenseID,
+        revision: 2
+      )
+    )
+
+    let state = LicenseFeature.State(runtime: runtime(snapshot: snapshot))
+
+    #expect(state.notice?.kind == .transferred)
+  }
+
+  @Test
+  func updateRefreshReportsOnlyNewTombstoneTransition() async throws {
+    let active = paidEntitlement()
+    let transfer = tombstone(revision: 2)
+    let tombstoneCount = LockIsolated(0)
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: active, hasLicenseKey: true),
+      onTombstone: { tombstoneCount.withValue { $0 += 1 } },
+      configure: { $0.refresh = { transfer } }
+    )
+
+    try await runtime.refreshAndApply()
+    try await runtime.refreshAndApply()
+
+    #expect(runtime.session.wrappedValue.entitlement == transfer)
+    #expect(tombstoneCount.value == 1)
+  }
+
+  @Test
+  func concurrentRefreshesShareOneRequest() async throws {
+    let entitlement = paidEntitlement()
+    let refreshStarted = AsyncStream.makeStream(of: Void.self)
+    let refreshResponse = AsyncStream.makeStream(of: LicenseEntitlement.self)
+    let refreshCount = LockIsolated(0)
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: entitlement, hasLicenseKey: true)
+    ) {
+      $0.refresh = {
+        refreshCount.withValue { $0 += 1 }
+        refreshStarted.continuation.yield()
+        for await entitlement in refreshResponse.stream {
+          return entitlement
+        }
+        throw CancellationError()
+      }
+    }
+
+    let first = Task { try await runtime.refreshAndApply() }
+    for await _ in refreshStarted.stream { break }
+    let second = Task { try await runtime.refreshAndApply() }
+    await Task.yield()
+    refreshResponse.continuation.yield(entitlement)
+
+    try await first.value
+    try await second.value
+    #expect(refreshCount.value == 1)
+    refreshStarted.continuation.finish()
+    refreshResponse.continuation.finish()
+  }
+
+  @Test
+  func runtimeRejectsInactiveActivationWithoutReplacingTheSession() async {
+    let active = paidEntitlement()
+    let inactive = tombstone(revision: 2)
+    let runtime = runtime(
+      snapshot: LicenseClient.Snapshot(entitlement: active, hasLicenseKey: true)
+    ) {
+      $0.activate = { _ in inactive }
+    }
+
+    await #expect(throws: LicenseClientError.inactiveLicense) {
+      try await runtime.activateAndApply("inactive-key")
+    }
+    #expect(runtime.session.wrappedValue.entitlement == active)
+    #expect(runtime.session.wrappedValue.hasLicenseKey)
+    #expect(runtime.session.wrappedValue.phase == .idle)
+  }
+
+  private func runtime(
+    snapshot: LicenseClient.Snapshot = LicenseClient.Snapshot(
+      entitlement: nil,
+      hasLicenseKey: false
+    ),
+    configure: (inout LicenseClient) -> Void = { _ in }
+  ) -> LicenseRuntime {
+    runtime(snapshot: snapshot, onTombstone: {}, configure: configure)
+  }
+
+  private func runtime(
+    snapshot: LicenseClient.Snapshot,
+    onTombstone: @escaping @MainActor @Sendable () -> Void,
+    configure: (inout LicenseClient) -> Void
+  ) -> LicenseRuntime {
+    var client = LicenseClient.testValue
+    client.load = { snapshot }
+    configure(&client)
+    return LicenseRuntime(client: client, onTombstone: onTombstone)
   }
 
   private func paidEntitlement() -> LicenseEntitlement {
@@ -319,6 +427,19 @@ struct LicenseFeatureTests {
       issuedAt: 1,
       revocationReason: nil,
       signedToken: "signed-token"
+    )
+  }
+
+  private func tombstone(revision: Int) -> LicenseEntitlement {
+    LicenseEntitlement(
+      licenseID: "00112233445566778899aabbccddeeff",
+      deviceID: "device",
+      status: .transferred,
+      updatesThrough: nil,
+      revision: revision,
+      issuedAt: 1_787_270_400,
+      revocationReason: nil,
+      signedToken: "transfer-token-\(revision)"
     )
   }
 

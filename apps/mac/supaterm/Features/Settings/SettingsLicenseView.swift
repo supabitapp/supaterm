@@ -31,10 +31,12 @@ struct SettingsLicenseView: View {
                   .font(.callout.weight(.medium))
 
                 HStack(spacing: 10) {
-                  Button("Buy Supaterm") {
-                    _ = store.send(.noticeBuyButtonTapped)
+                  if AppBuild.licenseSalesEnabled {
+                    Button("Buy Supaterm") {
+                      _ = store.send(.noticeBuyButtonTapped)
+                    }
+                    .buttonStyle(.borderedProminent)
                   }
-                  .buttonStyle(.borderedProminent)
 
                   Button("Enter a Different Key") {
                     _ = store.send(.noticeDifferentKeyButtonTapped)
@@ -96,12 +98,14 @@ struct SettingsLicenseView: View {
           .disabled(store.key.isEmpty || store.phase != .idle)
           .accessibilityIdentifier("settings.license.activate")
 
-          Button("Buy Supaterm") {
-            _ = store.send(.buyButtonTapped)
+          if AppBuild.licenseSalesEnabled {
+            Button("Buy Supaterm") {
+              _ = store.send(.buyButtonTapped)
+            }
+            .buttonStyle(.bordered)
+            .disabled(store.phase != .idle)
+            .accessibilityIdentifier("settings.license.buy")
           }
-          .buttonStyle(.bordered)
-          .disabled(store.phase != .idle)
-          .accessibilityIdentifier("settings.license.buy")
 
           if store.hasLicenseKey {
             Button("Remove License") {
@@ -119,11 +123,13 @@ struct SettingsLicenseView: View {
           .font(.callout)
           .foregroundStyle(.secondary)
         HStack(spacing: 10) {
-          Button("Renew Updates") {
-            _ = store.send(.renewButtonTapped)
+          if AppBuild.licenseSalesEnabled {
+            Button("Renew Updates") {
+              _ = store.send(.renewButtonTapped)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(store.phase != .idle)
           }
-          .buttonStyle(.borderedProminent)
-          .disabled(store.phase != .idle)
 
           Button("Deactivate This Mac") {
             _ = store.send(.deactivationButtonTapped)
@@ -136,11 +142,13 @@ struct SettingsLicenseView: View {
 
     case .expired:
       HStack(spacing: 10) {
-        Button("Renew Updates") {
-          _ = store.send(.renewButtonTapped)
+        if AppBuild.licenseSalesEnabled {
+          Button("Renew Updates") {
+            _ = store.send(.renewButtonTapped)
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(store.phase != .idle)
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(store.phase != .idle)
 
         Button("Get Your Owned Release") {
           _ = store.send(.ownedReleaseButtonTapped)

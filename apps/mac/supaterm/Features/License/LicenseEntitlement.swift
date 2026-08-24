@@ -17,6 +17,26 @@ public struct LicenseEntitlement: Equatable, Sendable {
   public let revocationReason: String?
   let signedToken: String
 
+  public init(
+    licenseID: String,
+    deviceID: String,
+    status: Status,
+    updatesThrough: LicenseDay?,
+    revision: Int,
+    issuedAt: Int64,
+    revocationReason: String?,
+    signedToken: String
+  ) {
+    self.licenseID = licenseID
+    self.deviceID = deviceID
+    self.status = status
+    self.updatesThrough = updatesThrough
+    self.revision = revision
+    self.issuedAt = issuedAt
+    self.revocationReason = revocationReason
+    self.signedToken = signedToken
+  }
+
   public static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.licenseID == rhs.licenseID
       && lhs.deviceID == rhs.deviceID

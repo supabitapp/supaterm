@@ -1,8 +1,5 @@
 import ComposableArchitecture
-import SupatermLicenseFeature
-import SupatermSettingsFeature
 import SupatermSocketFeature
-import SupatermUpdateFeature
 
 @Reducer
 struct AppFeature {
@@ -13,27 +10,21 @@ struct AppFeature {
   }
 
   struct ProcessState: Equatable {
-    var license = LicenseFeature.State()
     var releaseAnnouncementStatus = ReleaseAnnouncementStatus.notLoaded
-    var update = UpdateFeature.State()
   }
 
   @ObservableState
   struct State: Equatable {
-    @Shared var license: LicenseFeature.State
     @Shared var releaseAnnouncementStatus: ReleaseAnnouncementStatus
     var socket = SocketControlFeature.State()
     var terminal: TerminalWindowFeature.State
-    @Shared var update: UpdateFeature.State
 
     init(
       process: Shared<ProcessState> = Shared(value: ProcessState()),
       terminal: TerminalWindowFeature.State = TerminalWindowFeature.State()
     ) {
-      self._license = process[dynamicMember: \.license]
       self._releaseAnnouncementStatus = process[dynamicMember: \.releaseAnnouncementStatus]
       self.terminal = terminal
-      self._update = process[dynamicMember: \.update]
     }
 
     var releaseAnnouncement: ReleaseAnnouncement? {
@@ -43,20 +34,15 @@ struct AppFeature {
   }
 
   enum Action {
-    case license(LicenseFeature.Action)
     case releaseAnnouncementDismissed
     case task
     case terminal(TerminalWindowFeature.Action)
     case shutdown
     case socket(SocketControlFeature.Action)
-    case update(UpdateFeature.Action)
     case releaseAnnouncementLoaded(ReleaseAnnouncement?)
   }
 
   @Dependency(ReleaseAnnouncementClient.self) private var releaseAnnouncementClient
-  @Dependency(AppSettingsNavigationClient.self) private var appSettingsNavigationClient
-  @Dependency(\.externalNavigationClient) private var externalNavigationClient
-  @Dependency(UpdateClient.self) private var updateClient
 
   var body: some Reducer<State, Action> {
     Scope(state: \.terminal, action: \.terminal) {
@@ -65,14 +51,6 @@ struct AppFeature {
 
     Scope(state: \.socket, action: \.socket) {
       SocketControlFeature()
-    }
-
-    Scope(state: \.update, action: \.update) {
-      UpdateFeature()
-    }
-
-    Scope(state: \.license, action: \.license) {
-      LicenseFeature()
     }
 
     Reduce { state, action in
@@ -88,46 +66,17 @@ struct AppFeature {
           releaseAnnouncementEffect = .none
         }
         return .concatenate(
-          .send(.license(.task)),
           .send(.socket(.task)),
-          .send(.update(.task)),
           releaseAnnouncementEffect
         )
 
       case .terminal:
         return .none
 
-      case .license(.ownedReleaseButtonTapped):
-        guard case .expired(let ownership) = state.license.access else { return .none }
-        return .run { @MainActor [externalNavigationClient, updateClient] _ in
-          guard
-            let url = await updateClient.newestOwnedReleaseURL(ownership.updatesThrough)
-          else {
-            return
-          }
-          _ = externalNavigationClient.open(url)
-        }
-
-      case .license(.refreshResponse(_, .success(let entitlement))):
-        guard entitlement.status != .active else { return .none }
-        return .run { @MainActor [appSettingsNavigationClient] _ in
-          appSettingsNavigationClient.open(.license)
-        }
-
-      case .license:
-        return .none
-
       case .shutdown:
-        return .merge(
-          .send(.license(.shutdown)),
-          .send(.socket(.shutdown)),
-          .send(.update(.shutdown))
-        )
+        return .send(.socket(.shutdown))
 
       case .socket:
-        return .none
-
-      case .update:
         return .none
 
       case .releaseAnnouncementLoaded(let announcement):

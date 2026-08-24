@@ -1,8 +1,8 @@
 import Foundation
 import SupatermSupport
-import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermUpdateFeature
 @testable import supaterm
 
 struct UpdatePhaseTests {
@@ -145,13 +145,20 @@ struct UpdatePhaseTests {
       )
     )
 
-    #expect(phase.summaryText == "Renew to Update")
+    #expect(phase.summaryText(salesEnabled: true) == "Renew to Update")
     #expect(
-      phase.detailMessage
+      phase.detailMessage(salesEnabled: true)
         == "Supaterm 26.4.0 is out. Your updates ended 2026-08-21 — renew to update."
     )
-    #expect(phase.actionPresentations.map(\.title) == ["Not Now", "Renew Updates"])
-    #expect(phase.actionPresentations.map(\.action) == [.dismiss, .renewUpdates])
+    #expect(phase.summaryText(salesEnabled: false) == "Update Not Included")
+    #expect(
+      phase.detailMessage(salesEnabled: false)
+        == "Supaterm 26.4.0 is out. Your updates ended 2026-08-21. You can keep using your current version."
+    )
+    #expect(phase.presentations(salesEnabled: false).map(\.action) == [.dismiss])
+    #expect(
+      phase.presentations(salesEnabled: true).map(\.action) == [.dismiss, .renewUpdates]
+    )
     #expect(phase.debugIdentifier == "ownership_ended")
   }
 }

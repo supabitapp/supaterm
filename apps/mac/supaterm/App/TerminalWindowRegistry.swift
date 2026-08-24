@@ -20,9 +20,11 @@ final class TerminalWindowRegistry {
     }
   }
   lazy var licenseTabGate = LicenseTabGate(
-    entitlement: licenseEntitlement,
+    licenseAccess: { [weak self] in
+      self?.licenseStore.access ?? .free
+    },
     onRefusal: { [weak self] origin in
-      self?.applicationStore?.send(.license(.tabLimitHit(origin)))
+      self?.licenseStore.send(.tabLimitHit(origin))
     }
   )
 
@@ -79,12 +81,10 @@ final class TerminalWindowRegistry {
     let session: PaneAgentPanelSession?
   }
 
-  var applicationStore: StoreOf<AppFeature>?
-
   private var entries: [Entry] = []
-  private let licenseEntitlement: Shared<LicenseEntitlement?>
+  let licenseStore: StoreOf<LicenseFeature>
   private let performLicenseTabLimitAction: @MainActor (LicenseTabLimitAction) -> Void
-  let updateClient: UpdateClient
+  let updateStore: StoreOf<UpdateFeature>
   private let zmxClient: ZmxClient
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
@@ -92,8 +92,8 @@ final class TerminalWindowRegistry {
 
   init(
     zmxClient: ZmxClient = .live,
-    licenseEntitlement: Shared<LicenseEntitlement?> = Shared(value: nil),
-    updateClient: UpdateClient = .liveValue,
+    licenseStore: StoreOf<LicenseFeature>,
+    updateStore: StoreOf<UpdateFeature>,
     performLicenseTabLimitAction: @escaping @MainActor (LicenseTabLimitAction) -> Void = {
       action in
       switch action {
@@ -106,9 +106,9 @@ final class TerminalWindowRegistry {
   ) {
     let tabDragRegistry = TerminalTabDragRegistry()
     self.tabDragRegistry = tabDragRegistry
-    self.licenseEntitlement = licenseEntitlement
+    self.licenseStore = licenseStore
     self.performLicenseTabLimitAction = performLicenseTabLimitAction
-    self.updateClient = updateClient
+    self.updateStore = updateStore
     self.zmxClient = zmxClient
     tabDragRegistry.transfer = { [weak self] payload, destination in
       self?.transferTab(payload, to: destination)
@@ -117,6 +117,38 @@ final class TerminalWindowRegistry {
       self?.splitTab(payload, to: destination) == true
     }
   }
+
+  #if DEBUG
+    static func test(
+      zmxClient: ZmxClient = .live,
+      licenseStore: StoreOf<LicenseFeature>? = nil,
+      updateClient: UpdateClient = .inert,
+      updateStore: StoreOf<UpdateFeature>? = nil,
+      performLicenseTabLimitAction: @escaping @MainActor (LicenseTabLimitAction) -> Void = { _ in }
+    ) -> TerminalWindowRegistry {
+      let licenseStore =
+        licenseStore
+        ?? {
+          let runtime = LicenseRuntime.preview()
+          return Store(initialState: LicenseFeature.State(runtime: runtime)) {
+            LicenseFeature(runtime: runtime)
+          }
+        }()
+      let updateStore =
+        updateStore
+        ?? Store(initialState: UpdateFeature.State()) {
+          UpdateFeature()
+        } withDependencies: {
+          $0.updateClient = updateClient
+        }
+      return TerminalWindowRegistry(
+        zmxClient: zmxClient,
+        licenseStore: licenseStore,
+        updateStore: updateStore,
+        performLicenseTabLimitAction: performLicenseTabLimitAction
+      )
+    }
+  #endif
 
   var hasShortcutSource: Bool {
     !entries.isEmpty
@@ -127,9 +159,10 @@ final class TerminalWindowRegistry {
   }
 
   private var processUpdateState: UpdateFeature.State {
-    applicationStore?.update
-      ?? preferredActiveEntry()?.store.update
-      ?? UpdateFeature.State()
+    UpdateFeature.State(
+      canCheckForUpdates: updateStore.canCheckForUpdates,
+      phase: updateStore.phase
+    )
   }
 
   func register(
@@ -562,17 +595,15 @@ final class TerminalWindowRegistry {
 
   @discardableResult
   func requestUpdateMenuActionInKeyWindow() -> Bool {
-    guard let store = applicationStore ?? preferredActiveEntry()?.store else { return false }
-    guard let action = Self.updateMenuItemAction(for: store.update) else {
+    guard let action = Self.updateMenuItemAction(for: processUpdateState) else {
       return false
     }
-    store.send(.update(.perform(action)))
+    updateStore.send(.perform(action))
     return true
   }
 
   func setUpdateChannel(_ updateChannel: UpdateChannel) {
-    (applicationStore ?? preferredActiveEntry()?.store)?
-      .send(.update(.setUpdateChannel(updateChannel)))
+    updateStore.send(.setUpdateChannel(updateChannel))
   }
 
   func requestCloseSurfaceInKeyWindow() {
@@ -794,8 +825,8 @@ final class TerminalWindowRegistry {
     _ action: UpdateUserAction,
     windowID: ObjectIdentifier?
   ) {
-    guard let entry = commandPaletteEntry(for: windowID) else { return }
-    (applicationStore ?? entry.store).send(.update(.perform(action)))
+    guard commandPaletteEntry(for: windowID) != nil else { return }
+    updateStore.send(.perform(action))
   }
 
   func performCommandPaletteAppAction(

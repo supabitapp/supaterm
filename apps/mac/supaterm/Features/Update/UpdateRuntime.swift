@@ -3,7 +3,6 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import Sparkle
-import SupatermLicenseFeature
 import SupatermSupport
 
 @MainActor
@@ -660,6 +659,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   }
 
   private func renewUpdates() {
+    guard AppBuild.licenseSalesEnabled else { return }
     guard case .ownershipEnded(let ownership) = phase else { return }
     NSWorkspace.shared.open(ownership.renewURL)
   }

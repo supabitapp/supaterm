@@ -892,8 +892,7 @@ struct SupatermSocketProtocolTests {
       mode: .paid,
       updatesThrough: "2027-08-21",
       deviceName: "Test Mac",
-      openTabCount: 3,
-      freeTabLimit: 5
+      openTabCount: 3
     )
     let response = try SupatermSocketResponse.ok(
       id: "license-activate-1",

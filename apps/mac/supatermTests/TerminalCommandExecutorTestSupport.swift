@@ -162,8 +162,8 @@ func makeClaudeHookHarness(
 ) throws -> ClaudeHookHarness {
   initializeGhosttyForTests()
 
-  let registry = TerminalWindowRegistry()
-  let host = TerminalHostState()
+  let registry = TerminalWindowRegistry.test()
+  let host = TerminalHostState.test()
   host.windowActivity = windowActivity
   let store = Store(initialState: AppFeature.State()) {
     AppFeature()

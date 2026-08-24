@@ -481,7 +481,7 @@ struct TerminalHostStateAgentPresentationTests {
     )
   ) -> TerminalHostState {
     initializeGhosttyForTests()
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = windowActivity
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     return host
