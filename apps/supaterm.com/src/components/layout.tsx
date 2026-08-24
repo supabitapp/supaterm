@@ -127,8 +127,23 @@ function Layout() {
             <a href="/#pricing" className="transition-colors hover:text-white/78">
               Pricing
             </a>
+            <a
+              href="https://license.supaterm.com/login"
+              className="transition-colors hover:text-white/78"
+            >
+              Manage licenses
+            </a>
             <Link to="/changelog" className="transition-colors hover:text-white/78">
               Changelog
+            </Link>
+            <Link to="/terms" className="transition-colors hover:text-white/78">
+              Terms
+            </Link>
+            <Link to="/privacy" className="transition-colors hover:text-white/78">
+              Privacy
+            </Link>
+            <Link to="/refunds" className="transition-colors hover:text-white/78">
+              Refunds
             </Link>
             <a
               href={releasesHref}

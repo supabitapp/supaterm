@@ -146,7 +146,9 @@ describe("router", () => {
     await renderRoute("/");
 
     expect(screen.getByRole("heading", { name: "Pay once, use Supaterm forever." })).toBeTruthy();
-    expect(screen.getByText("No recurring charge. Seven-day refund period.")).toBeTruthy();
+    expect(
+      screen.getByText("No recurring charge. Tax may apply. Seven-day refund period."),
+    ).toBeTruthy();
 
     const purchaseButtons = screen.getAllByRole("button", {
       name: /^(Buy now|Buy license for \$99)$/,
@@ -159,6 +161,30 @@ describe("router", () => {
       expect(form?.getAttribute("action")).toBe(purchaseAction);
       expect(form?.getAttribute("method")).toBe("post");
     }
+  });
+
+  it("links to license management and the legal policies", async () => {
+    await renderRoute("/");
+
+    expect(screen.getByRole("link", { name: "Manage licenses" }).getAttribute("href")).toBe(
+      "https://license.supaterm.com/login",
+    );
+    expect(screen.getByRole("link", { name: "Terms" }).getAttribute("href")).toBe("/terms");
+    expect(screen.getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe("/privacy");
+    expect(screen.getByRole("link", { name: "Refunds" }).getAttribute("href")).toBe("/refunds");
+  });
+
+  it.each([
+    ["/terms", "Terms of service"],
+    ["/privacy", "Privacy policy"],
+    ["/refunds", "Refund and cancellation policy"],
+  ])("renders %s", async (path, heading) => {
+    await renderRoute(path);
+
+    expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+    expect(
+      screen.getAllByText(/Supaterm Limited|seven days|personal data/i).length,
+    ).toBeGreaterThan(0);
   });
 
   it("renders the changelog page for direct navigation", async () => {

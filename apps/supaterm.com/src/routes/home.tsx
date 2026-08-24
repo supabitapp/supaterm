@@ -38,7 +38,7 @@ const licenseQuestions = [
   },
   {
     question: "Do I need to renew?",
-    answer: "No. Pay $59 only when you want another year of updates.",
+    answer: "No. Pay $59 USD only when you want another year of updates.",
   },
   {
     question: "Can I change Macs?",
@@ -402,7 +402,9 @@ function HomePage() {
             <article className="flex flex-col rounded-[18px] border border-[#f5bf6d]/30 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.14),transparent_42%),rgba(255,255,255,0.04)] p-7 shadow-[0_32px_100px_-54px_rgba(245,191,109,0.45)] md:p-9">
               <div className="text-sm font-medium text-[#f5bf6d]">Personal</div>
               <div className="mt-4 flex items-end gap-3">
-                <span className="text-5xl font-medium tracking-[-0.05em] text-[#f4f0e8]">$99</span>
+                <span className="text-5xl font-medium tracking-[-0.05em] text-[#f4f0e8]">
+                  $99 USD
+                </span>
                 <span className="pb-1 text-sm text-white/45">one-time purchase</span>
               </div>
               <p className="mt-4 min-h-14 text-base leading-7 text-white/62">
@@ -411,7 +413,7 @@ function HomePage() {
               <PricingFeatures features={personalFeatures} />
               <PurchaseButton className="mt-10" />
               <p className="mt-4 text-center text-xs leading-5 text-white/42">
-                No recurring charge. Seven-day refund period.
+                No recurring charge. Tax may apply. Seven-day refund period.
               </p>
             </article>
           </div>
