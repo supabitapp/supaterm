@@ -32,6 +32,22 @@ class ReleaseBuildTest(unittest.TestCase):
 
     self.assertEqual(result.returncode, 0)
 
+  def test_release_build_rejects_an_invalid_release_day(self) -> None:
+    environment = os.environ | {
+      "CONFIGURATION": "Release",
+      "SUPATERM_RELEASE_DATE": "not-a-day",
+    }
+
+    result = subprocess.run(
+      [str(SCRIPT_PATH)],
+      capture_output=True,
+      env=environment,
+      text=True,
+    )
+
+    self.assertNotEqual(result.returncode, 0)
+    self.assertEqual(result.stderr, "error: SUPATERM_RELEASE_DATE must use YYYY-MM-DD\n")
+
   def test_debug_build_does_not_require_a_release_day(self) -> None:
     environment = os.environ | {"CONFIGURATION": "Debug", "SUPATERM_RELEASE_DATE": ""}
 

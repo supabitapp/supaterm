@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import SupaTheme
+import SupatermLicenseFeature
 import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
@@ -37,12 +38,21 @@ struct TerminalSidebarChromeView: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       VStack(spacing: 10) {
         switch Self.auxiliarySection(
-          isLicenseExpired: licenseStore.mode == .expiredOnNewerRelease,
+          isLicenseExpired: {
+            if case .expired = licenseStore.access { return true }
+            return false
+          }(),
           hasTabLimitRefusal: terminal.showsLicenseTabLimitRefusal,
           showsUpdate: updateStore.phase.showsSidebarSection
         ) {
         case .licenseExpired:
-          LicenseExpiredCardView(palette: palette, store: licenseStore)
+          if case .expired(let ownership) = licenseStore.access {
+            LicenseExpiredCardView(
+              palette: palette,
+              store: licenseStore,
+              ownership: ownership
+            )
+          }
         case .tabLimit:
           LicenseTabLimitCardView(
             palette: palette,

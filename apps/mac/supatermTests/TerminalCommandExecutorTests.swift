@@ -2,6 +2,7 @@ import AppKit
 import Clocks
 import ComposableArchitecture
 import Sharing
+import SupatermLicenseFeature
 import SupatermSupport
 import SupatermTerminalCore
 import SupatermUpdateFeature
@@ -451,8 +452,7 @@ struct TerminalCommandExecutorTests {
       }
       let registry = TerminalWindowRegistry()
       let gate = LicenseTabGate(
-        registry: registry,
-        licenseMode: { .free },
+        licenseAccess: { .free },
         enforcementEnabled: true
       )
       let registered = registerSpaceCommandWindow(
@@ -785,7 +785,13 @@ private func registerSpaceCommandWindow(
   licenseTabGate: LicenseTabGate = LicenseTabGate(),
   onClose: @escaping @MainActor @Sendable () -> Void = {}
 ) -> SpaceCommandWindow {
-  let host = TerminalHostState(spaceID: spaceID, licenseTabGate: licenseTabGate)
+  let host = TerminalHostState(
+    spaceID: spaceID,
+    licenseTabGate: licenseTabGate,
+    licenseOpenTabCount: { [weak registry] in
+      registry?.licenseTabCount ?? LicenseTabGate.tabLimit
+    }
+  )
   host.ensureInitialTab(focusing: false, startupCommand: nil)
   host.windowActivity = WindowActivityState(isKeyWindow: isKey, isVisible: true)
   let store = Store(initialState: AppFeature.State()) {

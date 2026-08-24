@@ -4,6 +4,7 @@ import Foundation
 import Sharing
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 @testable import SupatermTerminalCore
 @testable import supaterm
@@ -54,7 +55,7 @@ struct LicenseTabGateTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
       let registry = TerminalWindowRegistry()
-      let gate = freeGate(registry: registry)
+      let gate = freeGate()
       let first = registerHost(
         in: registry,
         gate: gate,
@@ -76,7 +77,10 @@ struct LicenseTabGateTests {
       )
       _ = second.host.spaceManager.displayedInstance.tabCollection.createTab(title: "Other window")
 
-      #expect(gate.refusal(for: .user) == LicenseTabGate.Refusal(limit: 5, openTabs: 5))
+      #expect(
+        gate.refusal(for: .user, openTabs: registry.licenseTabCount)
+          == LicenseTabGate.Refusal(limit: 5, openTabs: 5)
+      )
       withExtendedLifetime([first.window, second.window]) {}
     }
   }
@@ -92,7 +96,7 @@ struct LicenseTabGateTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let registry = TerminalWindowRegistry()
-      let gate = freeGate(registry: registry)
+      let gate = freeGate()
       let registered = registerHost(
         in: registry,
         gate: gate,
@@ -106,7 +110,10 @@ struct LicenseTabGateTests {
         )
       }
 
-      #expect(gate.refusal(for: .user) == LicenseTabGate.Refusal(limit: 5, openTabs: 5))
+      #expect(
+        gate.refusal(for: .user, openTabs: registry.licenseTabCount)
+          == LicenseTabGate.Refusal(limit: 5, openTabs: 5)
+      )
     }
   }
 
@@ -154,7 +161,7 @@ struct LicenseTabGateTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let registry = TerminalWindowRegistry()
-      let gate = freeGate(registry: registry)
+      let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: space.id)
       let session = TerminalWindowSession(
         displayedSpaceID: space.id,
@@ -189,7 +196,7 @@ struct LicenseTabGateTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
       let registry = TerminalWindowRegistry()
-      let gate = freeGate(registry: registry)
+      let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: spaces[0].id)
       let emptyDisplayedSpace = TerminalSpaceSession(
         spaceID: spaces[0].id,
@@ -226,7 +233,7 @@ struct LicenseTabGateTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
       let registry = TerminalWindowRegistry()
-      let gate = freeGate(registry: registry)
+      let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: spaces[0].id)
       for _ in 0..<5 {
         _ = try registered.host.createTab(in: spaces[0].id, reason: .restore)
@@ -261,12 +268,13 @@ struct LicenseTabGateTests {
       for index in 0..<5 {
         _ = host.host.spaceManager.displayedInstance.tabCollection.createTab(title: "Tab \(index)")
       }
+      let updatesThrough = try #require(LicenseDay("2025-01-01"))
       let paid = LicenseTabGate(
-        registry: registry,
-        licenseMode: { .paid },
+        licenseAccess: {
+          .paid(LicenseOwnership(licenseID: "license", updatesThrough: updatesThrough))
+        },
         enforcementEnabled: true
       )
-      let updatesThrough = try #require(LicenseDay("2025-01-01"))
       let releaseDay = try #require(LicenseDay("2024-12-31"))
       let entitlement = LicenseEntitlement(
         licenseID: "license",
@@ -278,16 +286,15 @@ struct LicenseTabGateTests {
         revocationReason: nil,
         signedToken: "signed-token"
       )
-      let ownedRelease = LicenseMode(entitlement: entitlement, releaseDay: releaseDay)
+      let ownedRelease = LicenseAccess(entitlement: entitlement, releaseDay: releaseDay)
       let owned = LicenseTabGate(
-        registry: registry,
-        licenseMode: { ownedRelease },
+        licenseAccess: { ownedRelease },
         enforcementEnabled: true
       )
 
-      #expect(paid.refusal(for: .user) == nil)
-      #expect(ownedRelease == .paid)
-      #expect(owned.refusal(for: .user) == nil)
+      #expect(paid.refusal(for: .user, openTabs: registry.licenseTabCount) == nil)
+      #expect(ownedRelease.permitsPaidUse)
+      #expect(owned.refusal(for: .user, openTabs: registry.licenseTabCount) == nil)
       withExtendedLifetime(host.window) {}
     }
   }
@@ -295,14 +302,12 @@ struct LicenseTabGateTests {
   #if DEBUG
     @Test
     func debugDefaultsToPaidAndOnlyLicenseModeFreeOptsIn() {
-      #expect(LicenseTabGate.debugLicenseMode(environment: [:]) == .paid)
+      #expect(!LicenseTabGate.debugFreeMode(environment: [:]))
       #expect(
-        LicenseTabGate.debugLicenseMode(environment: ["SUPATERM_LICENSE_MODE": "free"])
-          == .free
+        LicenseTabGate.debugFreeMode(environment: ["SUPATERM_LICENSE_MODE": "free"])
       )
       #expect(
-        LicenseTabGate.debugLicenseMode(environment: ["SUPATERM_TEST_MODE": "1"])
-          == .paid
+        !LicenseTabGate.debugFreeMode(environment: ["SUPATERM_TEST_MODE": "1"])
       )
     }
   #endif
@@ -340,7 +345,7 @@ struct LicenseTabGateTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let registry = TerminalWindowRegistry()
-      let gate = freeGate(registry: registry)
+      let gate = freeGate()
       let registered = registerHost(in: registry, gate: gate, spaceID: space.id)
       try operation(
         GateHarness(
@@ -352,10 +357,9 @@ struct LicenseTabGateTests {
     }
   }
 
-  private func freeGate(registry: TerminalWindowRegistry) -> LicenseTabGate {
+  private func freeGate() -> LicenseTabGate {
     LicenseTabGate(
-      registry: registry,
-      licenseMode: { .free },
+      licenseAccess: { .free },
       enforcementEnabled: true
     )
   }
@@ -371,7 +375,10 @@ struct LicenseTabGateTests {
       managesTerminalSurfaces: managesTerminalSurfaces,
       spaceID: spaceID,
       zmxSessionsEnabled: false,
-      licenseTabGate: gate
+      licenseTabGate: gate,
+      licenseOpenTabCount: { [weak registry] in
+        registry?.licenseTabCount ?? LicenseTabGate.tabLimit
+      }
     )
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()

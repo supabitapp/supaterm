@@ -71,7 +71,10 @@ extension TerminalHostState {
     synchronizesFocus: Bool = true
   ) throws -> TerminalTabID? {
     warmInstance(for: spaceID)
-    if let refusal = licenseTabGate.refusal(for: reason) {
+    if let refusal = licenseTabGate.refusal(
+      for: reason,
+      openTabs: licenseOpenTabCount()
+    ) {
       showsLicenseTabLimitRefusal = true
       throw TerminalCreateTabError.tabLimitReached(
         limit: refusal.limit,

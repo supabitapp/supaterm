@@ -1,9 +1,10 @@
 import Foundation
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 
-struct LicenseModeTests {
+struct LicenseAccessTests {
   @Test
   func earlierDaySortsBeforeLaterDay() throws {
     let earlier = try #require(LicenseDay("2026-12-31"))
@@ -26,12 +27,12 @@ struct LicenseModeTests {
   }
 
   @Test
-  func noEntitlementUsesFreeMode() throws {
-    #expect(LicenseMode(entitlement: nil, releaseDay: try day("2027-01-01")) == .free)
+  func noEntitlementUsesFreeAccess() throws {
+    #expect(LicenseAccess(entitlement: nil, releaseDay: try day("2027-01-01")) == .free)
   }
 
   @Test
-  func tombstoneUsesFreeMode() throws {
+  func tombstoneUsesFreeAccess() throws {
     let entitlement = LicenseEntitlement(
       licenseID: "license",
       deviceID: "device",
@@ -44,35 +45,40 @@ struct LicenseModeTests {
     )
 
     #expect(
-      LicenseMode(entitlement: entitlement, releaseDay: try day("2027-01-01")) == .free
+      LicenseAccess(entitlement: entitlement, releaseDay: try day("2027-01-01")) == .free
     )
   }
 
   @Test
-  func releaseBeforeUpdateEndUsesPaidMode() throws {
+  func releaseBeforeUpdateEndUsesPaidAccess() throws {
     let entitlement = activeEntitlement(updatesThrough: try day("2027-01-02"))
+    let ownership = LicenseOwnership(licenseID: "license", updatesThrough: try day("2027-01-02"))
 
     #expect(
-      LicenseMode(entitlement: entitlement, releaseDay: try day("2027-01-01")) == .paid
+      LicenseAccess(entitlement: entitlement, releaseDay: try day("2027-01-01"))
+        == .paid(ownership)
     )
   }
 
   @Test
-  func releaseOnUpdateEndUsesPaidMode() throws {
+  func releaseOnUpdateEndUsesPaidAccess() throws {
     let entitlement = activeEntitlement(updatesThrough: try day("2027-01-01"))
+    let ownership = LicenseOwnership(licenseID: "license", updatesThrough: try day("2027-01-01"))
 
     #expect(
-      LicenseMode(entitlement: entitlement, releaseDay: try day("2027-01-01")) == .paid
+      LicenseAccess(entitlement: entitlement, releaseDay: try day("2027-01-01"))
+        == .paid(ownership)
     )
   }
 
   @Test
-  func releaseAfterUpdateEndUsesExpiredMode() throws {
+  func releaseAfterUpdateEndUsesExpiredAccess() throws {
     let entitlement = activeEntitlement(updatesThrough: try day("2026-12-31"))
+    let ownership = LicenseOwnership(licenseID: "license", updatesThrough: try day("2026-12-31"))
 
     #expect(
-      LicenseMode(entitlement: entitlement, releaseDay: try day("2027-01-01"))
-        == .expiredOnNewerRelease
+      LicenseAccess(entitlement: entitlement, releaseDay: try day("2027-01-01"))
+        == .expired(ownership)
     )
   }
 

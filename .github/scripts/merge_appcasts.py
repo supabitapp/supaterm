@@ -101,7 +101,7 @@ def merge_stable(
   if previous_path is not None:
     previous_tree = parse_tree(previous_path)
     for item in channel(previous_tree.getroot()).findall("item"):
-      if not is_tip_item(item) and version(item) not in current_versions:
+      if is_tip_item(item) or version(item) not in current_versions:
         current_channel.append(copy.deepcopy(item))
 
   current_tree.write(output_path, xml_declaration=True, encoding="utf-8")

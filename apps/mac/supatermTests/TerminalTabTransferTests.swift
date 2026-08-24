@@ -3,6 +3,7 @@ import ComposableArchitecture
 import GhosttyKit
 import Sharing
 import SupaTheme
+import SupatermLicenseFeature
 import Testing
 
 @testable import supaterm
@@ -496,8 +497,7 @@ struct TerminalTabTransferTests {
       }
       let registry = TerminalWindowRegistry(zmxClient: .noop)
       let gate = LicenseTabGate(
-        registry: registry,
-        licenseMode: { .free },
+        licenseAccess: { .free },
         enforcementEnabled: true
       )
       let runtime = GhosttyRuntime()
@@ -551,7 +551,10 @@ struct TerminalTabTransferTests {
       #expect(source.spaceManager.allTabs.count == 4)
       #expect(destination.spaceManager.tabs(in: spaces[1].id).map(\.id) == [tabIDs[0]])
       #expect(destination.spaceManager.instance(for: spaces[1].id)?.pendingSession == nil)
-      #expect(gate.refusal(for: .user) == LicenseTabGate.Refusal(limit: 5, openTabs: 5))
+      #expect(
+        gate.refusal(for: .user, openTabs: 5)
+          == LicenseTabGate.Refusal(limit: 5, openTabs: 5)
+      )
       withExtendedLifetime([sourceWindow, destinationWindow]) {}
     }
   }

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import SupatermSupport
 
 public struct LicenseEntitlementCodec: Sendable {
   private struct Claims: Decodable {
@@ -50,33 +51,6 @@ public struct LicenseEntitlementCodec: Sendable {
       revocationReason: claims.reason,
       signedToken: token
     )
-  }
-
-  public func replacement(
-    for current: LicenseEntitlement?,
-    token: String,
-    expectedDeviceID: String,
-    expectedLicenseID: String
-  ) -> LicenseEntitlement? {
-    guard
-      let entitlement = decode(
-        token: token,
-        expectedDeviceID: expectedDeviceID,
-        expectedLicenseID: expectedLicenseID
-      )
-    else { return current }
-
-    guard let current else { return entitlement }
-    guard
-      current.licenseID == entitlement.licenseID,
-      current.deviceID == entitlement.deviceID,
-      current.revision < entitlement.revision
-    else { return current }
-    return entitlement
-  }
-
-  public func encode(_ entitlement: LicenseEntitlement) -> Data {
-    Data(entitlement.signedToken.utf8)
   }
 
   private func validClaims(_ claims: Claims) -> Bool {

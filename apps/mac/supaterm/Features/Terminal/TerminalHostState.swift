@@ -284,6 +284,7 @@ final class TerminalHostState {
   let zmxSessionsEnabled: Bool
   @ObservationIgnored
   let licenseTabGate: LicenseTabGate
+  let licenseOpenTabCount: @MainActor () -> Int
   @ObservationIgnored
   @Shared(.supatermSettings)
   var supatermSettings = .default
@@ -333,7 +334,8 @@ final class TerminalHostState {
     zmxClient: ZmxClient = .live,
     zmxSessionsEnabled: Bool = true,
     agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
-    licenseTabGate: LicenseTabGate = LicenseTabGate()
+    licenseTabGate: LicenseTabGate = .unrestricted,
+    licenseOpenTabCount: @escaping @MainActor () -> Int = { 0 }
   ) {
     @Shared(.terminalSpaceCatalog) var launchSpaceCatalog = TerminalSpaceCatalog.default
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(launchSpaceCatalog)
@@ -346,6 +348,7 @@ final class TerminalHostState {
     self.zmxClient = zmxClient
     self.zmxSessionsEnabled = zmxSessionsEnabled
     self.licenseTabGate = licenseTabGate
+    self.licenseOpenTabCount = licenseOpenTabCount
 
     if initialSpaceCatalog != spaceCatalog {
       replaceSpaceCatalog(initialSpaceCatalog)

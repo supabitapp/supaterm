@@ -3,6 +3,7 @@ import CryptoKit
 import Foundation
 import Security
 import SupatermCLIShared
+import SupatermSupport
 
 public struct LicenseCredential: Equatable, Sendable {
   public let rawValue: String
@@ -295,7 +296,7 @@ public struct LicenseClient: Sendable {
 
         if let oldCredential,
           oldCredential != credential,
-          oldEntitlement?.status == .active
+          oldEntitlement == nil || oldEntitlement?.status == .active
         {
           _ = try? await service.deactivate(oldCredential.rawValue, device.id)
         }
@@ -439,6 +440,7 @@ private func request<Body: Encodable & Sendable>(
   session: URLSession
 ) async throws -> String {
   var request = URLRequest(url: baseURL.appending(path: path))
+  request.timeoutInterval = SupatermLicenseTiming.networkRequestTimeout
   request.httpMethod = "POST"
   request.setValue("application/json", forHTTPHeaderField: "content-type")
   request.httpBody = try JSONEncoder().encode(body)

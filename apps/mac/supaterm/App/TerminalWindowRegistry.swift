@@ -4,6 +4,7 @@ import Foundation
 import Sharing
 import SupaTheme
 import SupatermCLIShared
+import SupatermLicenseFeature
 import SupatermSettingsFeature
 import SupatermSupport
 import SupatermTerminalCore
@@ -13,8 +14,12 @@ import SwiftUI
 @MainActor
 final class TerminalWindowRegistry {
   let tabDragRegistry: TerminalTabDragRegistry
+  var licenseOpenTabCount: @MainActor () -> Int {
+    { [weak self] in
+      self?.licenseTabCount ?? LicenseTabGate.tabLimit
+    }
+  }
   lazy var licenseTabGate = LicenseTabGate(
-    registry: self,
     entitlement: licenseEntitlement,
     onRefusal: { [weak self] origin in
       self?.applicationStore?.send(.license(.tabLimitHit(origin)))
@@ -79,6 +84,7 @@ final class TerminalWindowRegistry {
   private var entries: [Entry] = []
   private let licenseEntitlement: Shared<LicenseEntitlement?>
   private let performLicenseTabLimitAction: @MainActor (LicenseTabLimitAction) -> Void
+  let updateClient: UpdateClient
   private let zmxClient: ZmxClient
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
@@ -87,6 +93,7 @@ final class TerminalWindowRegistry {
   init(
     zmxClient: ZmxClient = .live,
     licenseEntitlement: Shared<LicenseEntitlement?> = Shared(value: nil),
+    updateClient: UpdateClient = .liveValue,
     performLicenseTabLimitAction: @escaping @MainActor (LicenseTabLimitAction) -> Void = {
       action in
       switch action {
@@ -101,6 +108,7 @@ final class TerminalWindowRegistry {
     self.tabDragRegistry = tabDragRegistry
     self.licenseEntitlement = licenseEntitlement
     self.performLicenseTabLimitAction = performLicenseTabLimitAction
+    self.updateClient = updateClient
     self.zmxClient = zmxClient
     tabDragRegistry.transfer = { [weak self] payload, destination in
       self?.transferTab(payload, to: destination)

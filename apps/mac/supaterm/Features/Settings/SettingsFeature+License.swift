@@ -1,8 +1,9 @@
+import SupatermLicenseFeature
 import SupatermSupport
 
 extension LicenseFeature.State {
   var settingsStatus: String {
-    switch mode {
+    switch access {
     case .free:
       switch entitlement?.status {
       case .revoked:
@@ -14,8 +15,8 @@ extension LicenseFeature.State {
       }
     case .paid:
       "Supaterm is activated on this Mac."
-    case .expiredOnNewerRelease:
-      "Your update entitlement ended \(entitlement?.updatesThrough?.rawValue ?? "")."
+    case .expired(let ownership):
+      "Your update entitlement ended \(ownership.updatesThrough.rawValue)."
     }
   }
 }

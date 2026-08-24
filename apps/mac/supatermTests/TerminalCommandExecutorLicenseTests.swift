@@ -6,6 +6,7 @@ import SupatermSocketFeature
 import SupatermTerminalCore
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 @testable import supaterm
 

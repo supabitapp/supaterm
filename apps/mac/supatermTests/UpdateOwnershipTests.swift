@@ -2,6 +2,7 @@ import Foundation
 import Sharing
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 @testable import SupatermUpdateFeature
 
@@ -12,7 +13,7 @@ struct UpdateOwnershipTests {
     let entitlement = Shared<LicenseEntitlement?>(value: nil)
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
 
@@ -29,7 +30,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
 
@@ -43,7 +44,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
 
@@ -55,13 +56,13 @@ struct UpdateOwnershipTests {
   }
 
   @Test
-  func newestOwnedReleaseWinsWhenTheHeadIsUnowned() throws {
+  func unownedHeadIsNotReplacedByAnOlderOwnedRelease() throws {
     let entitlement = Shared<LicenseEntitlement?>(
       value: licenseEntitlement(updatesThrough: "2026-08-21")
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
 
@@ -72,7 +73,7 @@ struct UpdateOwnershipTests {
       ]
     )
 
-    #expect(result == .release(URL(string: "https://supaterm.com/download/2.zip")!))
+    #expect(result == .none)
   }
 
   @Test
@@ -82,7 +83,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
 
@@ -100,7 +101,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
     let releases = [
@@ -110,7 +111,7 @@ struct UpdateOwnershipTests {
 
     #expect(
       driver.bestValidUpdate(in: releases)
-        == .release(URL(string: "https://supaterm.com/download/2.zip")!)
+        == .none
     )
 
     entitlement.withLock {
@@ -126,7 +127,10 @@ struct UpdateOwnershipTests {
   @Test
   func ownedDownloadUsesTheNewestStableRelease() throws {
     let entitlement = Shared<LicenseEntitlement?>(value: nil)
-    let driver = UpdateDriver(hostBundle: .main, licenseEntitlement: entitlement)
+    let driver = UpdateDriver(
+      hostBundle: .main,
+      license: UpdateLicenseClient(entitlement: entitlement)
+    )
     let releases = [
       try release(version: "3000001", day: "2026-08-21", channel: "tip"),
       try release(version: "3", day: "2026-08-22"),
@@ -148,7 +152,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "3"
     )
 
@@ -165,7 +169,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
 
@@ -183,7 +187,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
     driver.updateChannel = .tip
@@ -202,7 +206,7 @@ struct UpdateOwnershipTests {
     )
     let driver = UpdateDriver(
       hostBundle: .main,
-      licenseEntitlement: entitlement,
+      license: UpdateLicenseClient(entitlement: entitlement),
       currentVersion: "1"
     )
 
@@ -269,13 +273,15 @@ struct UpdateOwnershipTests {
 
   @Test
   func preparingACheckRefreshesTheLicense() async {
-    let driver = UpdateDriver(hostBundle: .main)
     let refreshes = Shared(value: 0)
-    driver.bindLicense(
-      entitlement: Shared(value: nil),
-      refresh: {
-        refreshes.withLock { $0 += 1 }
-      }
+    let driver = UpdateDriver(
+      hostBundle: .main,
+      license: UpdateLicenseClient(
+        entitlement: Shared(value: nil),
+        refresh: {
+          refreshes.withLock { $0 += 1 }
+        }
+      )
     )
 
     await driver.refreshLicenseBeforeUpdateCheck()

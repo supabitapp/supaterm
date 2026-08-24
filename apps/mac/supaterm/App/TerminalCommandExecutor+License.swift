@@ -2,6 +2,7 @@ import Combine
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
+import SupatermLicenseFeature
 import SupatermSupport
 import SupatermTerminalCore
 
@@ -54,7 +55,7 @@ extension TerminalCommandExecutor {
 
     case .renew:
       try requireIdle(store)
-      guard let licenseID = store.license.entitlement?.licenseID else {
+      guard let licenseID = store.license.access.ownership?.licenseID else {
         throw LicenseControlError(
           code: "missing_license_key",
           message: "Activate a license before renewing updates."
@@ -73,18 +74,19 @@ extension TerminalCommandExecutor {
   private func licenseStatus(
     _ store: StoreOf<AppFeature>
   ) -> SupatermLicenseStatusResult {
+    let access = store.license.access
     let mode =
-      switch store.license.mode {
+      switch access {
       case .free:
         SupatermLicenseMode.free
       case .paid:
         SupatermLicenseMode.paid
-      case .expiredOnNewerRelease:
+      case .expired:
         SupatermLicenseMode.expired
       }
     return SupatermLicenseStatusResult(
       mode: mode,
-      updatesThrough: store.license.entitlement?.updatesThrough?.rawValue,
+      updatesThrough: access.ownership?.updatesThrough.rawValue,
       deviceName: licenseDeviceName(),
       openTabCount: registry.licenseTabCount,
       freeTabLimit: LicenseTabGate.tabLimit

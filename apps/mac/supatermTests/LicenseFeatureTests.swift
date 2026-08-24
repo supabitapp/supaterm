@@ -3,6 +3,7 @@ import ComposableArchitecture
 import Foundation
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 
 @MainActor
@@ -222,7 +223,7 @@ struct LicenseFeatureTests {
       break
     }
 
-    #expect(store.state.mode == .paid)
+    #expect(store.state.access.permitsPaidUse)
     #expect(store.state.entitlement == entitlement)
 
     await store.send(.shutdown) {
@@ -258,8 +259,50 @@ struct LicenseFeatureTests {
       $0.phase = .idle
     }
 
-    #expect(store.state.mode == .paid)
+    #expect(store.state.access.permitsPaidUse)
     #expect(store.state.entitlement == entitlement)
+  }
+
+  @Test
+  func signedTransferCreatesDatedNoticeAndActionsClearIt() async throws {
+    let active = paidEntitlement()
+    let transfer = LicenseEntitlement(
+      licenseID: active.licenseID,
+      deviceID: active.deviceID,
+      status: .transferred,
+      updatesThrough: nil,
+      revision: 2,
+      issuedAt: 1_787_270_400,
+      revocationReason: nil,
+      signedToken: "transfer-token"
+    )
+    let store = TestStore(
+      initialState: LicenseFeature.State(
+        snapshot: LicenseClient.Snapshot(entitlement: active, hasLicenseKey: true)
+      )
+    ) {
+      LicenseFeature()
+    } withDependencies: {
+      $0.analyticsClient.capture = { _ in }
+      $0.licenseClient.refresh = { transfer }
+    }
+
+    await store.send(.refreshRequested(.automatic)) {
+      $0.phase = .refreshing
+    }
+    await store.receive(\.refreshResponse) {
+      $0.entitlement = transfer
+      $0.notice = LicenseNotice(
+        kind: .transferred,
+        day: try #require(LicenseDay("2026-08-21"))
+      )
+      $0.phase = .idle
+    }
+    #expect(store.state.notice?.message == "This license moved to another Mac on 2026-08-21.")
+
+    await store.send(.noticeDifferentKeyButtonTapped) {
+      $0.notice = nil
+    }
   }
 
   private func paidEntitlement() -> LicenseEntitlement {

@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import SupaTheme
+import SupatermLicenseFeature
 import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI

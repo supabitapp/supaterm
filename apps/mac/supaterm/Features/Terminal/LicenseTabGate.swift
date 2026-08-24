@@ -1,5 +1,6 @@
 import Foundation
 import Sharing
+import SupatermLicenseFeature
 import SupatermSupport
 
 enum LicenseTabLimitAction: CaseIterable, Hashable {
@@ -32,44 +33,42 @@ final class LicenseTabGate {
   }
 
   static let tabLimit = 5
+  static let unrestricted = LicenseTabGate(
+    licenseAccess: { .free },
+    enforcementEnabled: false
+  )
   private static let productionEnforcementEnabled = true
 
-  private weak var registry: TerminalWindowRegistry?
-  private let licenseMode: @MainActor () -> LicenseMode
+  private let licenseAccess: @MainActor () -> LicenseAccess
   private let enforcementEnabled: Bool
   private let onRefusal: @MainActor (LicenseTabLimitOrigin) -> Void
 
   init(
-    registry: TerminalWindowRegistry? = nil,
-    licenseMode: @escaping @MainActor () -> LicenseMode = { .paid },
-    enforcementEnabled: Bool = false,
+    licenseAccess: @escaping @MainActor () -> LicenseAccess,
+    enforcementEnabled: Bool,
     onRefusal: @escaping @MainActor (LicenseTabLimitOrigin) -> Void = { _ in }
   ) {
-    self.registry = registry
-    self.licenseMode = licenseMode
+    self.licenseAccess = licenseAccess
     self.enforcementEnabled = enforcementEnabled
     self.onRefusal = onRefusal
   }
 
   convenience init(
-    registry: TerminalWindowRegistry,
     entitlement: Shared<LicenseEntitlement?> = Shared(value: nil),
     releaseDay: @escaping @MainActor () -> LicenseDay = { AppBuild.releaseDay },
     onRefusal: @escaping @MainActor (LicenseTabLimitOrigin) -> Void = { _ in }
   ) {
     #if DEBUG
-      let mode = Self.debugLicenseMode(environment: ProcessInfo.processInfo.environment)
+      let freeMode = Self.debugFreeMode(environment: ProcessInfo.processInfo.environment)
       self.init(
-        registry: registry,
-        licenseMode: { mode },
-        enforcementEnabled: mode == .free || Self.productionEnforcementEnabled,
+        licenseAccess: { .free },
+        enforcementEnabled: freeMode,
         onRefusal: onRefusal
       )
     #else
       self.init(
-        registry: registry,
-        licenseMode: {
-          LicenseMode(entitlement: entitlement.wrappedValue, releaseDay: releaseDay())
+        licenseAccess: {
+          LicenseAccess(entitlement: entitlement.wrappedValue, releaseDay: releaseDay())
         },
         enforcementEnabled: Self.productionEnforcementEnabled,
         onRefusal: onRefusal
@@ -78,18 +77,17 @@ final class LicenseTabGate {
   }
 
   #if DEBUG
-    static func debugLicenseMode(environment: [String: String]) -> LicenseMode {
-      environment["SUPATERM_LICENSE_MODE"] == "free" ? .free : .paid
+    static func debugFreeMode(environment: [String: String]) -> Bool {
+      environment["SUPATERM_LICENSE_MODE"] == "free"
     }
   #endif
 
-  func refusal(for reason: CreationReason) -> Refusal? {
+  func refusal(for reason: CreationReason, openTabs: Int) -> Refusal? {
     guard
       let origin = reason.origin,
       enforcementEnabled,
-      licenseMode() != .paid
+      !licenseAccess().permitsPaidUse
     else { return nil }
-    let openTabs = registry?.licenseTabCount ?? 0
     guard openTabs >= Self.tabLimit else { return nil }
     onRefusal(origin)
     return Refusal(limit: Self.tabLimit, openTabs: openTabs)

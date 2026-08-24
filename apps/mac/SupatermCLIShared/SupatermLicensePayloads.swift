@@ -1,3 +1,11 @@
+import Foundation
+
+public enum SupatermLicenseTiming {
+  public static let networkRequestTimeout: TimeInterval = 55
+  public static let serverReplyTimeout: TimeInterval = 60
+  public static let clientResponseTimeout = serverReplyTimeout + 5
+}
+
 public struct SupatermLicenseActivationRequest: Codable, Equatable, Sendable {
   public let key: String
 

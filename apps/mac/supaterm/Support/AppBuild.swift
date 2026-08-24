@@ -30,10 +30,13 @@ public enum AppBuild {
   }
 
   public nonisolated static var releaseDay: LicenseDay {
-    releaseDay(
-      infoValue: infoString("SupatermReleaseDate"),
-      fallback: .today()
-    )
+    let value = infoString("SupatermReleaseDate")
+    if let day = LicenseDay(value) { return day }
+    #if DEBUG
+      return .today()
+    #else
+      preconditionFailure("Release build has no valid SupatermReleaseDate")
+    #endif
   }
 
   public nonisolated static func releaseDay(

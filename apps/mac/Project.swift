@@ -183,13 +183,34 @@ let project = Project(
       infoPlist: .default,
       buildableFolders: [
         "supaterm/Support",
-        "supaterm/Features/License",
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
         .external(name: "TOML"),
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermLicenseFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.license-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/Features/License",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .external(name: "ComposableArchitecture"),
       ],
       settings: .settings(
         base: [
@@ -209,6 +230,7 @@ let project = Project(
         "supaterm/Features/Update",
       ],
       dependencies: [
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
@@ -270,6 +292,7 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermUpdateFeature"),
@@ -575,6 +598,7 @@ let project = Project(
       dependencies: [
         .target(name: "sp"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),
@@ -624,6 +648,7 @@ let project = Project(
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),
@@ -723,6 +748,7 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),

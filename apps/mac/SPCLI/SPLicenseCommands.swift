@@ -128,7 +128,7 @@ private func runLicenseStatus(
 ) throws {
   try runControlCommand(
     options: options,
-    responseTimeout: 60,
+    responseTimeout: SupatermLicenseTiming.clientResponseTimeout,
     request: request,
     as: SupatermLicenseStatusResult.self,
     plain: renderLicenseStatusPlain,
@@ -142,7 +142,7 @@ private func runLicenseURL(
 ) throws {
   try runControlCommand(
     options: options,
-    responseTimeout: 60,
+    responseTimeout: SupatermLicenseTiming.clientResponseTimeout,
     request: request,
     as: SupatermLicenseURLResult.self,
     plain: { $0.url },

@@ -18,8 +18,8 @@ on:
       - "!**/*.md"
 
 concurrency:
-  group: release-tip
-  cancel-in-progress: true
+  group: release-feed
+  cancel-in-progress: false
 
 jobs:
   ci:
@@ -34,6 +34,7 @@ jobs:
       contents: read
     outputs:
       build-number: ${{ steps.build-number.outputs.build-number }}
+      stable-tag: ${{ steps.tip-appcast.outputs.stable-tag }}
     env:
       MISE_HTTP_TIMEOUT: 120
     steps:
@@ -185,6 +186,7 @@ jobs:
           if-no-files-found: error
           path: apps/mac/build/supaterm.xcarchive/dSYMs/**
       - name: Generate tip appcast
+        id: tip-appcast
         env:
           GH_TOKEN: ${{ github.token }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
@@ -211,6 +213,7 @@ jobs:
             echo "::error::No stable release found"
             exit 1
           fi
+          echo "stable-tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
           gh release download "$LATEST_TAG" -p "appcast.xml" -O "$STAGING/stable.xml" -R "${{ github.repository }}"
           mkdir -p apps/mac/build/latest
           /usr/bin/python3 .github/scripts/merge_appcasts.py tip \
@@ -290,6 +293,7 @@ jobs:
       contents: write
     env:
       RELEASE_SHA: ${{ github.sha }}
+      STABLE_TAG: ${{ needs.build.outputs.stable-tag }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -317,9 +321,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
-          if [ -z "$LATEST_TAG" ]; then
-            echo "::error::No stable release found"
-            exit 1
-          fi
-          gh release upload "$LATEST_TAG" apps/mac/build/latest/appcast.xml --clobber -R "${{ github.repository }}"
+          gh release upload "$STABLE_TAG" apps/mac/build/latest/appcast.xml --clobber -R "${{ github.repository }}"

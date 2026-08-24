@@ -1,15 +1,17 @@
 import ComposableArchitecture
 import SupaTheme
+import SupatermLicenseFeature
 import SupatermSupport
 import SwiftUI
 
 struct LicenseExpiredCardView: View {
   let palette: Palette
   let store: StoreOf<LicenseFeature>
+  let ownership: LicenseOwnership
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("Your update entitlement ended \(store.entitlement?.updatesThrough?.rawValue ?? "").")
+      Text("Your update entitlement ended \(ownership.updatesThrough.rawValue).")
         .font(.system(size: 12, weight: .medium))
         .foregroundStyle(palette.secondaryText)
         .fixedSize(horizontal: false, vertical: true)
@@ -27,4 +29,5 @@ struct LicenseExpiredCardView: View {
     }
     .terminalSidebarAnnouncementCard(palette: palette)
   }
+
 }

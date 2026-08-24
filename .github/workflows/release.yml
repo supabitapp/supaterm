@@ -6,7 +6,7 @@ on:
       - "v*"
 
 concurrency:
-  group: stable-release-${{ github.ref_name }}
+  group: release-feed
   cancel-in-progress: false
 
 jobs:
@@ -219,7 +219,7 @@ jobs:
             apps/mac/build/appcast.xml
             --release-day "$RELEASE_DAY"
           )
-          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --limit 100 --json tagName 2>/dev/null | jq -r --arg current "$RELEASE_TAG" '[.[] | select(.tagName != $current)][0].tagName // empty')
           if [ -n "$LATEST_TAG" ]; then
             gh release download "$LATEST_TAG" -p "appcast.xml" -O "$STAGING/previous.xml" -R "${{ github.repository }}"
             MERGE_ARGS+=(--previous "$STAGING/previous.xml")

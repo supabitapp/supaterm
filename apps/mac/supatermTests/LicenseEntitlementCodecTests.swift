@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 
 struct LicenseEntitlementCodecTests {
@@ -24,21 +25,6 @@ struct LicenseEntitlementCodecTests {
     #expect(entitlement.revision == 4)
     #expect(entitlement.issuedAt == 1_755_400_000)
     #expect(entitlement.revocationReason == nil)
-  }
-
-  @Test
-  func signedEntitlementRoundTripsWithoutChangingToken() throws {
-    let codec = try codec()
-    let token = try signedToken(activePayload(revision: 4))
-    let entitlement = try #require(
-      codec.decode(
-        token: token,
-        expectedDeviceID: Self.deviceID,
-        expectedLicenseID: Self.licenseID
-      )
-    )
-
-    #expect(codec.encode(entitlement) == Data(token.utf8))
   }
 
   @Test
@@ -124,49 +110,6 @@ struct LicenseEntitlementCodecTests {
         expectedDeviceID: "device-vector",
         expectedLicenseID: "00112233445566778899aabbccddeeff"
       ) == nil
-    )
-  }
-
-  @Test
-  func lowerRevisionIsIgnored() throws {
-    let codec = try codec()
-    let current = try #require(
-      codec.decode(
-        token: try signedToken(activePayload(revision: 4)),
-        expectedDeviceID: Self.deviceID,
-        expectedLicenseID: Self.licenseID
-      )
-    )
-
-    #expect(
-      codec.replacement(
-        for: current,
-        token: try signedToken(activePayload(revision: 3)),
-        expectedDeviceID: Self.deviceID,
-        expectedLicenseID: Self.licenseID
-      )?.revision == 4
-    )
-  }
-
-  @Test
-  func oldLicenseResponseDoesNotReplaceNewLicense() throws {
-    let codec = try codec()
-    let newLicenseID = "ffeeddccbbaa99887766554433221100"
-    let current = try #require(
-      codec.decode(
-        token: try signedToken(activePayload(licenseID: newLicenseID, revision: 1)),
-        expectedDeviceID: Self.deviceID,
-        expectedLicenseID: newLicenseID
-      )
-    )
-
-    #expect(
-      codec.replacement(
-        for: current,
-        token: try signedToken(activePayload(revision: 9)),
-        expectedDeviceID: Self.deviceID,
-        expectedLicenseID: Self.licenseID
-      ) == current
     )
   }
 

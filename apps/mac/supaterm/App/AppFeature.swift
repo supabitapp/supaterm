@@ -1,4 +1,6 @@
 import ComposableArchitecture
+import SupatermLicenseFeature
+import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermUpdateFeature
 
@@ -52,6 +54,7 @@ struct AppFeature {
   }
 
   @Dependency(ReleaseAnnouncementClient.self) private var releaseAnnouncementClient
+  @Dependency(AppSettingsNavigationClient.self) private var appSettingsNavigationClient
   @Dependency(\.externalNavigationClient) private var externalNavigationClient
   @Dependency(UpdateClient.self) private var updateClient
 
@@ -95,15 +98,20 @@ struct AppFeature {
         return .none
 
       case .license(.ownedReleaseButtonTapped):
-        guard
-          state.license.mode == .expiredOnNewerRelease,
-          let updatesThrough = state.license.entitlement?.updatesThrough
-        else { return .none }
+        guard case .expired(let ownership) = state.license.access else { return .none }
         return .run { @MainActor [externalNavigationClient, updateClient] _ in
-          guard let url = await updateClient.newestOwnedReleaseURL(updatesThrough) else {
+          guard
+            let url = await updateClient.newestOwnedReleaseURL(ownership.updatesThrough)
+          else {
             return
           }
           _ = externalNavigationClient.open(url)
+        }
+
+      case .license(.refreshResponse(_, .success(let entitlement))):
+        guard entitlement.status != .active else { return .none }
+        return .run { @MainActor [appSettingsNavigationClient] _ in
+          appSettingsNavigationClient.open(.license)
         }
 
       case .license:

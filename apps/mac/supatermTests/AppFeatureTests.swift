@@ -1,8 +1,10 @@
 import ComposableArchitecture
 import Foundation
+import SupatermSettingsFeature
 import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 @testable import supaterm
 
@@ -61,6 +63,47 @@ struct AppFeatureTests {
 
     #expect(state.update.canCheckForUpdates == false)
     #expect(state.update.phase == .idle)
+  }
+
+  @Test
+  func signedTombstoneOpensLicenseSettings() async {
+    let openedTabs = LockIsolated<[SettingsFeature.Tab]>([])
+    let tombstone = LicenseEntitlement(
+      licenseID: "00112233445566778899aabbccddeeff",
+      deviceID: "device",
+      status: .transferred,
+      updatesThrough: nil,
+      revision: 2,
+      issuedAt: 1_787_270_400,
+      revocationReason: nil,
+      signedToken: "transfer-token"
+    )
+    var processState = AppFeature.ProcessState()
+    processState.license.hasLicenseKey = true
+    processState.license.phase = .refreshing
+    let store = TestStore(
+      initialState: AppFeature.State(process: Shared(value: processState))
+    ) {
+      AppFeature()
+    } withDependencies: {
+      $0.appSettingsNavigationClient.open = { tab in
+        openedTabs.withValue { $0.append(tab) }
+      }
+    }
+
+    await store.send(.license(.refreshResponse(.automatic, .success(tombstone)))) {
+      $0.$license.withLock {
+        $0.entitlement = tombstone
+        $0.notice = LicenseNotice(
+          kind: .transferred,
+          day: LicenseDay("2026-08-21")!
+        )
+        $0.phase = .idle
+      }
+    }
+    await store.finish()
+
+    #expect(openedTabs.value == [.license])
   }
 
   @Test

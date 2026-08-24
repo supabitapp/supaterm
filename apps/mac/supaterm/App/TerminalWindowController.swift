@@ -137,7 +137,8 @@ final class TerminalWindowController: NSWindowController {
       zmxClient: zmxClient,
       zmxSessionsEnabled: zmxSessionsEnabled,
       agentDetectionRuleRepository: agentDetectionRuleRepository,
-      licenseTabGate: registry.licenseTabGate
+      licenseTabGate: registry.licenseTabGate,
+      licenseOpenTabCount: registry.licenseOpenTabCount
     )
     terminal.onSessionChange = onSessionChange
     Self.prepareTerminal(terminal, launch: launch)
@@ -160,6 +161,7 @@ final class TerminalWindowController: NSWindowController {
       }
       $0.terminalCommandPaletteClient = commandPaletteClient
       $0.terminalClient = .live(host: terminal)
+      $0.updateClient = registry.updateClient
       $0.windowCloseClient = .live(registry: registry)
     }
     let ghosttyShortcuts = GhosttyShortcutManager(runtime: runtime)

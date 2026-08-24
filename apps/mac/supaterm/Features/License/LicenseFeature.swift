@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupatermSupport
 
 private nonisolated enum LicenseFeatureCancelID: Hashable, Sendable {
   case activation
@@ -68,6 +69,61 @@ public struct LicenseFeatureError: Equatable, Sendable {
   }
 }
 
+public struct LicenseNotice: Equatable, Sendable {
+  public enum Kind: Equatable, Sendable {
+    case chargeback
+    case deactivated
+    case refunded
+    case revoked
+    case transferred
+  }
+
+  public let kind: Kind
+  public let day: LicenseDay
+
+  public init(kind: Kind, day: LicenseDay) {
+    self.kind = kind
+    self.day = day
+  }
+
+  public init?(entitlement: LicenseEntitlement) {
+    guard entitlement.status != .active else { return nil }
+    day = LicenseDay.today(at: Date(timeIntervalSince1970: TimeInterval(entitlement.issuedAt)))
+    switch entitlement.status {
+    case .active:
+      return nil
+    case .deactivated:
+      kind = .deactivated
+    case .transferred:
+      kind = .transferred
+    case .revoked:
+      switch entitlement.revocationReason {
+      case "chargeback":
+        kind = .chargeback
+      case "refund":
+        kind = .refunded
+      default:
+        kind = .revoked
+      }
+    }
+  }
+
+  public var message: String {
+    switch kind {
+    case .chargeback:
+      "This license was revoked after a payment dispute on \(day.rawValue)."
+    case .deactivated:
+      "This license was deactivated on \(day.rawValue)."
+    case .refunded:
+      "This license was refunded on \(day.rawValue)."
+    case .revoked:
+      "This license was revoked on \(day.rawValue)."
+    case .transferred:
+      "This license moved to another Mac on \(day.rawValue)."
+    }
+  }
+}
+
 @Reducer
 public struct LicenseFeature {
   @ObservableState
@@ -76,6 +132,7 @@ public struct LicenseFeature {
     public var error: LicenseFeatureError?
     public var hasLicenseKey: Bool
     public var key = ""
+    public var notice: LicenseNotice?
     public var phase = LicenseFeaturePhase.idle
 
     public init(
@@ -86,10 +143,11 @@ public struct LicenseFeature {
     ) {
       entitlement = snapshot.entitlement
       hasLicenseKey = snapshot.hasLicenseKey
+      notice = snapshot.entitlement.flatMap(LicenseNotice.init)
     }
 
-    public var mode: LicenseMode {
-      LicenseMode(entitlement: entitlement, releaseDay: AppBuild.releaseDay)
+    public var access: LicenseAccess {
+      LicenseAccess(entitlement: entitlement, releaseDay: AppBuild.releaseDay)
     }
 
     public var errorMessage: String? {
@@ -106,6 +164,8 @@ public struct LicenseFeature {
     case deactivationButtonTapped
     case deactivationResponse(Result<Void, LicenseClientError>)
     case keyChanged(String)
+    case noticeBuyButtonTapped
+    case noticeDifferentKeyButtonTapped
     case ownedReleaseButtonTapped
     case prefillKey(String)
     case refreshRequested(LicenseRefreshSource)
@@ -137,6 +197,7 @@ public struct LicenseFeature {
         state.entitlement = entitlement
         state.hasLicenseKey = true
         state.key = ""
+        state.notice = LicenseNotice(entitlement: entitlement)
         state.phase = .idle
         if entitlement.status == .active {
           analyticsClient.capture("license_activated")
@@ -153,7 +214,7 @@ public struct LicenseFeature {
         return .none
 
       case .applicationBecameActive:
-        guard state.mode == .expiredOnNewerRelease else { return .none }
+        guard case .expired = state.access else { return .none }
         return .send(.refreshRequested(.automatic))
 
       case .buyButtonTapped:
@@ -180,6 +241,7 @@ public struct LicenseFeature {
         guard state.phase == .deactivating else { return .none }
         state.entitlement = nil
         state.hasLicenseKey = false
+        state.notice = nil
         state.phase = .idle
         analyticsClient.capture("license_deactivated")
         return .none
@@ -195,8 +257,16 @@ public struct LicenseFeature {
         state.error = nil
         return .none
 
+      case .noticeBuyButtonTapped:
+        state.notice = nil
+        return .send(.buyButtonTapped)
+
+      case .noticeDifferentKeyButtonTapped:
+        state.notice = nil
+        return .none
+
       case .ownedReleaseButtonTapped:
-        guard state.mode == .expiredOnNewerRelease else { return .none }
+        guard case .expired = state.access else { return .none }
         analyticsClient.capture("license_owned_release_download_opened")
         return .none
 
@@ -226,6 +296,7 @@ public struct LicenseFeature {
         guard state.phase == .refreshing else { return .none }
         let wasActive = state.entitlement?.status == .active
         state.entitlement = entitlement
+        state.notice = LicenseNotice(entitlement: entitlement)
         state.phase = .idle
         if wasActive && entitlement.status != .active {
           analyticsClient.capture("license_refresh_revoked")
@@ -241,7 +312,7 @@ public struct LicenseFeature {
         return .none
 
       case .renewButtonTapped:
-        guard let licenseID = state.entitlement?.licenseID else { return .none }
+        guard let licenseID = state.access.ownership?.licenseID else { return .none }
         analyticsClient.capture("license_renew_opened")
         return .run { @MainActor [externalNavigationClient] _ in
           _ = externalNavigationClient.open(LicensePortalURL.license(licenseID))
@@ -258,7 +329,7 @@ public struct LicenseFeature {
 
       case .tabLimitHit(let origin):
         analyticsClient.captureProperties("tab_limit_hit", ["origin": origin.rawValue])
-        if state.mode == .expiredOnNewerRelease {
+        if case .expired = state.access {
           analyticsClient.capture("license_expired_release_blocked")
         }
         return .none

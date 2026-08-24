@@ -26,6 +26,8 @@ concurrency:
 jobs:
   web:
     runs-on: ubuntu-latest
+    env:
+      VITE_LICENSE_SALES_ENABLED: ${{ vars.LICENSE_SALES_ENABLED }}
     permissions:
       contents: read
     steps:

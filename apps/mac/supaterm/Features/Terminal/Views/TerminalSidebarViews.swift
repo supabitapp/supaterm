@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import Sharing
 import SupaTheme
+import SupatermLicenseFeature
 import SupatermSettingsFeature
 import SupatermSupport
 import SupatermUpdateFeature

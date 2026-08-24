@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermLicenseFeature
 import SupatermSupport
 import SwiftUI
 
@@ -24,6 +25,27 @@ struct SettingsLicenseView: View {
               .foregroundStyle(.secondary)
               .textSelection(.enabled)
 
+            if let notice = store.notice {
+              VStack(alignment: .leading, spacing: 12) {
+                Text(notice.message)
+                  .font(.callout.weight(.medium))
+
+                HStack(spacing: 10) {
+                  Button("Buy Supaterm") {
+                    _ = store.send(.noticeBuyButtonTapped)
+                  }
+                  .buttonStyle(.borderedProminent)
+
+                  Button("Enter a Different Key") {
+                    _ = store.send(.noticeDifferentKeyButtonTapped)
+                  }
+                  .buttonStyle(.bordered)
+                }
+              }
+              .padding(14)
+              .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+            }
+
             content
 
             if let errorMessage = store.errorMessage {
@@ -44,19 +66,19 @@ struct SettingsLicenseView: View {
   }
 
   private var title: String {
-    switch store.mode {
+    switch store.access {
     case .free:
       "Activate Supaterm"
     case .paid:
       "Licensed"
-    case .expiredOnNewerRelease:
+    case .expired:
       "Updates Ended"
     }
   }
 
   @ViewBuilder
   private var content: some View {
-    switch store.mode {
+    switch store.access {
     case .free:
       VStack(alignment: .leading, spacing: 12) {
         TextField("SUPATERM-…", text: key)
@@ -91,13 +113,11 @@ struct SettingsLicenseView: View {
         }
       }
 
-    case .paid:
+    case .paid(let ownership):
       VStack(alignment: .leading, spacing: 12) {
-        if let updatesThrough = store.entitlement?.updatesThrough {
-          Text("Updates through \(updatesThrough.rawValue)")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-        }
+        Text("Updates through \(ownership.updatesThrough.rawValue)")
+          .font(.callout)
+          .foregroundStyle(.secondary)
         HStack(spacing: 10) {
           Button("Renew Updates") {
             _ = store.send(.renewButtonTapped)
@@ -114,7 +134,7 @@ struct SettingsLicenseView: View {
         }
       }
 
-    case .expiredOnNewerRelease:
+    case .expired:
       HStack(spacing: 10) {
         Button("Renew Updates") {
           _ = store.send(.renewButtonTapped)

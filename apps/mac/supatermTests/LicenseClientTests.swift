@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Testing
 
+@testable import SupatermLicenseFeature
 @testable import SupatermSupport
 
 struct LicenseClientTests {
@@ -147,6 +148,39 @@ struct LicenseClientTests {
         "activate:\(newCredential.rawValue)",
         "deactivate:\(oldCredential.rawValue)",
       ])
+  }
+
+  @Test
+  func switchingKeysDeactivatesOldLicenseWhenItsTokenIsMissing() async throws {
+    let oldCredential = try #require(LicenseCredential(Self.oldKey))
+    let newCredential = try #require(LicenseCredential(Self.newKey))
+    let newEntitlement = entitlement(
+      licenseID: newCredential.licenseID,
+      status: .active,
+      revision: 1,
+      token: "new-token"
+    )
+    let persisted = LockIsolated(
+      PersistedLicense(key: oldCredential.rawValue, token: nil)
+    )
+    let deactivatedKeys = LockIsolated<[String]>([])
+    let client = LicenseClient.live(
+      device: Self.device,
+      service: LicenseServiceClient(
+        activate: { _, _ in newEntitlement.signedToken },
+        deactivate: { key, _ in
+          deactivatedKeys.withValue { $0.append(key) }
+          return ""
+        },
+        refresh: unimplemented("refresh")
+      ),
+      storage: storage(persisted),
+      verifier: verifier([newEntitlement.signedToken: newEntitlement])
+    )
+
+    _ = try await client.activate(newCredential.rawValue)
+
+    #expect(deactivatedKeys.value == [oldCredential.rawValue])
   }
 
   @Test

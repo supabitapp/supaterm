@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import Sharing
 import SupatermCLIShared
+import SupatermLicenseFeature
 import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
@@ -23,6 +24,19 @@ private final class WeakToggleVisibilityWindow {
 
   init(_ value: NSWindow) {
     self.value = value
+  }
+}
+
+@MainActor
+private final class AppStoreReference {
+  var value: StoreOf<AppFeature>?
+
+  func refreshLicense() async {
+    guard let value else {
+      preconditionFailure("App store must exist before update checks start")
+    }
+    guard value.license.phase == .idle, value.license.hasLicenseKey else { return }
+    await value.send(.license(.refreshRequested(.automatic))).finish()
   }
 }
 
@@ -93,9 +107,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         license: LicenseFeature.State(snapshot: licenseSnapshot)
       )
     )
+    let appStoreReference = AppStoreReference()
+    let updateClient = UpdateClient.live(
+      license: UpdateLicenseClient(
+        entitlement: appProcess[dynamicMember: \.license.entitlement],
+        refresh: appStoreReference.refreshLicense
+      )
+    )
     let terminalWindowRegistry = TerminalWindowRegistry(
       zmxClient: zmxClient,
-      licenseEntitlement: appProcess[dynamicMember: \.license.entitlement]
+      licenseEntitlement: appProcess[dynamicMember: \.license.entitlement],
+      updateClient: updateClient
     )
     let tabNewWindowDropController = TerminalTabNewWindowDropController(
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
@@ -123,16 +145,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       }
       $0.licenseClient = licenseClient
       $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
+      $0.updateClient = updateClient
     }
-    UpdateClient.bindLicense(
-      entitlement: appProcess[dynamicMember: \.license.entitlement],
-      refresh: {
-        await Self.refreshLicenseBeforeUpdateCheck(
-          process: appProcess,
-          store: appStore
-        )
-      }
-    )
+    appStoreReference.value = appStore
     terminalWindowRegistry.applicationStore = appStore
     self.appProcess = appProcess
     self.appStore = appStore
@@ -161,20 +176,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     menuController.setShowSettingsAction { [weak self] tab in
       self?.performShowSettings(tab: tab) ?? false
     }
-  }
-
-  private static func refreshLicenseBeforeUpdateCheck(
-    process: Shared<AppFeature.ProcessState>,
-    store: StoreOf<AppFeature>
-  ) async {
-    let refreshInFlight = process.wrappedValue.license.phase == .refreshing
-    while process.wrappedValue.license.phase != .idle {
-      try? await Task.sleep(for: .milliseconds(50))
-    }
-    guard !refreshInFlight, process.wrappedValue.license.hasLicenseKey else {
-      return
-    }
-    await store.send(.license(.refreshRequested(.automatic))).finish()
   }
 
   isolated deinit {

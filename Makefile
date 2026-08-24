@@ -103,7 +103,8 @@ mac-install-tip:  # Install the latest tip release for the macOS app.
 	@$(MAKE) -C "$(MAC_APP_DIR)" install-tip
 
 mac-archive:  # Archive the macOS app for distribution.
-	@$(MAKE) -C "$(MAC_APP_DIR)" archive
+	@release_day="$$(/usr/bin/python3 .github/scripts/bump_and_release.py release-day HEAD)"; \
+	$(MAKE) -C "$(MAC_APP_DIR)" archive XCODEBUILD_FLAGS="SUPATERM_RELEASE_DATE=$$release_day"
 
 mac-archive-xcodebuild:
 	@$(MAKE) -C "$(MAC_APP_DIR)" archive-xcodebuild XCODEBUILD_FLAGS='$(XCODEBUILD_FLAGS)'

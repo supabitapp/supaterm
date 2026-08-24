@@ -51,7 +51,7 @@ class MergeAppcastsTest(unittest.TestCase):
       self.assertEqual(item.findtext("pubDate"), "Fri, 21 Aug 2026 00:00:00 +0000")
       self.assertEqual(item.findtext(f"{{{SPARKLE_NAMESPACE}}}channel"), "tip")
 
-  def test_stable_feed_accumulates_prior_releases_and_stamps_release_day(self) -> None:
+  def test_stable_feed_accumulates_prior_releases_tip_and_release_day(self) -> None:
     previous = f"""<?xml version="1.0" encoding="utf-8"?>
 <rss xmlns:sparkle="{SPARKLE_NAMESPACE}" version="2.0">
   <channel>
@@ -108,7 +108,7 @@ class MergeAppcastsTest(unittest.TestCase):
 
       self.assertEqual(
         [item.findtext("title") for item in items],
-        ["Supaterm 26.4.0", "Supaterm 26.3.0"],
+        ["Supaterm 26.4.0", "Supaterm 26.3.0", "Supaterm Tip"],
       )
       self.assertEqual(items[0].findtext("pubDate"), "Fri, 21 Aug 2026 00:00:00 +0000")
       self.assertEqual(items[1].findtext("pubDate"), "Mon, 17 Aug 2026 12:30:00 +0000")

@@ -1,3 +1,5 @@
+import SupatermSupport
+
 public struct LicenseEntitlement: Equatable, Sendable {
   public enum Status: String, Codable, Sendable {
     case active
