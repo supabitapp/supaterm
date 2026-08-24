@@ -50,6 +50,10 @@ jobs:
           BUILD_NUMBER=$(/usr/bin/python3 .github/scripts/bump_and_release.py tip-build-number "${{ github.run_number }}")
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "build-number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+      - name: Compute release day
+        run: |
+          RELEASE_DAY=$(/usr/bin/python3 .github/scripts/bump_and_release.py release-day HEAD)
+          echo "RELEASE_DAY=$RELEASE_DAY" >> "$GITHUB_ENV"
       - name: Setup keychain
         env:
           DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
@@ -83,7 +87,7 @@ jobs:
       - run: make mac-build-ghostty
       - run: make mac-build-zmx
       - run: make mac-build-ap
-      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
+      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_RELEASE_DATE=${{ env.RELEASE_DAY }}'
       - name: Write export options
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -107,6 +111,10 @@ jobs:
           </plist>
           EOF
       - run: make mac-export-archive
+      - name: Verify release day
+        run: |
+          APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          test "$(plutil -extract SupatermReleaseDate raw "$APP_PATH/Contents/Info.plist")" = "$RELEASE_DAY"
       - name: Re-sign embedded code
         run: bash ./.github/scripts/resign_exported_app.sh apps/mac/build/export
       - name: Store notarization credentials
@@ -178,17 +186,41 @@ jobs:
           path: apps/mac/build/supaterm.xcarchive/dSYMs/**
       - name: Generate tip appcast
         env:
+          GH_TOKEN: ${{ github.token }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           STAGING=$(mktemp -d)
+          trap 'rm -rf "$STAGING"' EXIT
           cp apps/mac/build/supaterm.app.zip "$STAGING/"
           printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
             --download-url-prefix "https://supaterm.com/download/tip/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
-          sed -i '' 's|<enclosure |<sparkle:channel>tip</sparkle:channel>\n            <enclosure |' "$STAGING/appcast.xml"
-          cp "$STAGING/appcast.xml" apps/mac/build/appcast.xml
+          /usr/bin/python3 .github/scripts/merge_appcasts.py stamp \
+            "$STAGING/appcast.xml" \
+            apps/mac/build/appcast.xml \
+            --release-day "$RELEASE_DAY" \
+            --channel tip
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+            --ed-key-file - apps/mac/build/appcast.xml
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+            --verify --ed-key-file - apps/mac/build/appcast.xml
+          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "::error::No stable release found"
+            exit 1
+          fi
+          gh release download "$LATEST_TAG" -p "appcast.xml" -O "$STAGING/stable.xml" -R "${{ github.repository }}"
+          mkdir -p apps/mac/build/latest
+          /usr/bin/python3 .github/scripts/merge_appcasts.py tip \
+            "$STAGING/stable.xml" \
+            apps/mac/build/appcast.xml \
+            apps/mac/build/latest/appcast.xml
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+            --ed-key-file - apps/mac/build/latest/appcast.xml
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+            --verify --ed-key-file - apps/mac/build/latest/appcast.xml
       - name: Generate checksums
         run: |
           /usr/bin/python3 .github/scripts/generate_release_checksums.py tip apps/mac/build/checksums.json \
@@ -202,6 +234,7 @@ jobs:
             apps/mac/build/supaterm.dmg
             apps/mac/build/supaterm.app.zip
             apps/mac/build/appcast.xml
+            apps/mac/build/latest/appcast.xml
             apps/mac/build/checksums.json
 
   posthog-dsym:
@@ -280,7 +313,7 @@ jobs:
           gh release create tip --prerelease --title "Supaterm Tip" --target "$RELEASE_SHA" --notes "" -R "${{ github.repository }}" 2>/dev/null || \
           gh release edit tip --prerelease --title "Supaterm Tip" --target "$RELEASE_SHA" -R "${{ github.repository }}"
           gh release upload tip apps/mac/build/supaterm.dmg apps/mac/build/supaterm.app.zip apps/mac/build/appcast.xml apps/mac/build/checksums.json --clobber -R "${{ github.repository }}"
-      - name: Merge tip item into stable appcast
+      - name: Publish latest appcast
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -289,10 +322,4 @@ jobs:
             echo "::error::No stable release found"
             exit 1
           fi
-          if ! gh release download "$LATEST_TAG" -p "appcast.xml" -O stable_appcast.xml -R "${{ github.repository }}"; then
-            echo "::error::Stable release $LATEST_TAG is missing appcast.xml"
-            exit 1
-          fi
-          python3 .github/scripts/merge_appcasts.py stable_appcast.xml apps/mac/build/appcast.xml merged_appcast.xml
-          mv merged_appcast.xml appcast.xml
-          gh release upload "$LATEST_TAG" appcast.xml --clobber -R "${{ github.repository }}"
+          gh release upload "$LATEST_TAG" apps/mac/build/latest/appcast.xml --clobber -R "${{ github.repository }}"

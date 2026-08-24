@@ -95,6 +95,11 @@ def current_date() -> date:
   return datetime.now(timezone.utc).date()
 
 
+def release_day(revision: str) -> str:
+  timestamp = int(run(["git", "show", "-s", "--format=%ct", revision]))
+  return datetime.fromtimestamp(timestamp, timezone.utc).date().isoformat()
+
+
 def release_year(today: date) -> int:
   return today.year % 100
 
@@ -451,6 +456,8 @@ def main() -> int:
   validate_release_tag_parser.add_argument("--ref")
   tip_build_number_parser = subparsers.add_parser("tip-build-number")
   tip_build_number_parser.add_argument("offset", type=int)
+  release_day_parser = subparsers.add_parser("release-day")
+  release_day_parser.add_argument("revision", nargs="?", default="HEAD")
   subparsers.add_parser("stable-build-number")
   subparsers.add_parser("validate-pre-push")
   args = parser.parse_args()
@@ -461,6 +468,8 @@ def main() -> int:
       print(stable_build_number(read_version_state().build_number))
     elif args.command == "tip-build-number":
       print(tip_build_number(read_version_state().build_number, args.offset))
+    elif args.command == "release-day":
+      print(release_day(args.revision))
     elif args.command == "validate-pre-push":
       validate_pre_push(sys.stdin)
     else:

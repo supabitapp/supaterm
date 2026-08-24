@@ -20,6 +20,13 @@ env:
   MISE_HTTP_TIMEOUT: 120
 
 jobs:
+  release_scripts:
+    name: release-scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - run: python3 -m unittest discover -s .github/scripts -p '*_test.py'
+
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -266,6 +273,7 @@ jobs:
       - mac_test_agent_e2e
       - mac_test_ui_build
       - mac_test_ui
+      - release_scripts
     runs-on: ubuntu-latest
     env:
       MAC: ${{ needs.changes.outputs.mac }}
@@ -275,8 +283,10 @@ jobs:
       AGENT_E2E: ${{ needs.mac_test_agent_e2e.result }}
       UI_BUILD: ${{ needs.mac_test_ui_build.result }}
       UI: ${{ needs.mac_test_ui.result }}
+      RELEASE_SCRIPTS: ${{ needs.release_scripts.result }}
     steps:
       - run: |
+          test "$RELEASE_SCRIPTS" = success
           if [ "$MAC" = false ]; then
             exit 0
           fi

@@ -15,6 +15,7 @@ from bump_and_release import (
   parse_release_kind,
   parse_version_state,
   parse_push_update,
+  release_day,
   release_state,
   recover_pending_release,
   stable_build_number,
@@ -29,6 +30,13 @@ from bump_and_release import (
 
 
 class BumpAndReleaseTest(unittest.TestCase):
+  @patch("bump_and_release.run")
+  def test_release_day_uses_the_commit_timestamp_in_utc(self, run_mock) -> None:
+    run_mock.return_value = "1787356799"
+
+    self.assertEqual(release_day("release-commit"), "2026-08-21")
+    run_mock.assert_called_once_with(["git", "show", "-s", "--format=%ct", "release-commit"])
+
   def test_parse_version_state(self) -> None:
     state = parse_version_state(
       "MARKETING_VERSION = 26.0.0\nCURRENT_PROJECT_VERSION = 35\nSPARKLE_PUBLIC_ED_KEY = key\n"

@@ -346,10 +346,13 @@ let project = Project(
         "PostHogHost": "$(POSTHOG_HOST)",
         "PostHogPersonProfiles": "$(POSTHOG_PERSON_PROFILES)",
         "SupatermDevelopmentBuild": "$(SUPATERM_DEVELOPMENT_BUILD)",
+        "SupatermReleaseDate": "$(SUPATERM_RELEASE_DATE)",
         "SUFeedURL": "https://supaterm.com/download/latest/appcast.xml",
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
         "SUEnableAutomaticChecks": true,
         "SUAutomaticallyUpdate": true,
+        "SURequireSignedFeed": true,
+        "SUVerifyUpdateBeforeExtraction": true,
       ]),
       resources: [
         "supaterm/Assets.xcassets",
@@ -377,6 +380,12 @@ let project = Project(
         ),
       ],
       scripts: [
+        .pre(
+          script: """
+            "${SRCROOT}/scripts/validate-release-day.sh"
+            """,
+          name: "Validate Release Day"
+        ),
         .pre(
           script: """
             "${SRCROOT}/\(zmxBuildScriptPath.pathString)"

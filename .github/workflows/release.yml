@@ -66,6 +66,10 @@ jobs:
           BUILD_NUMBER=$(/usr/bin/python3 .github/scripts/bump_and_release.py stable-build-number)
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "build-number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+      - name: Compute release day
+        run: |
+          RELEASE_DAY=$(/usr/bin/python3 .github/scripts/bump_and_release.py release-day "$RELEASE_TAG^{commit}")
+          echo "RELEASE_DAY=$RELEASE_DAY" >> "$GITHUB_ENV"
       - name: Setup keychain
         env:
           DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
@@ -99,7 +103,7 @@ jobs:
       - run: make mac-build-ghostty
       - run: make mac-build-zmx
       - run: make mac-build-ap
-      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
+      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_RELEASE_DATE=${{ env.RELEASE_DAY }}'
       - name: Write export options
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -123,6 +127,10 @@ jobs:
           </plist>
           EOF
       - run: make mac-export-archive
+      - name: Verify release day
+        run: |
+          APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          test "$(plutil -extract SupatermReleaseDate raw "$APP_PATH/Contents/Info.plist")" = "$RELEASE_DAY"
       - name: Re-sign embedded code
         run: bash ./.github/scripts/resign_exported_app.sh apps/mac/build/export
       - name: Store notarization credentials
@@ -194,16 +202,33 @@ jobs:
           path: apps/mac/build/supaterm.xcarchive/dSYMs/**
       - name: Generate stable appcast
         env:
+          GH_TOKEN: ${{ github.token }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           STAGING=$(mktemp -d)
+          trap 'rm -rf "$STAGING"' EXIT
           cp apps/mac/build/supaterm.app.zip "$STAGING/"
           printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
             --download-url-prefix "https://supaterm.com/download/$RELEASE_TAG/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
-          cp "$STAGING/appcast.xml" apps/mac/build/appcast.xml
+          MERGE_ARGS=(
+            stable
+            "$STAGING/appcast.xml"
+            apps/mac/build/appcast.xml
+            --release-day "$RELEASE_DAY"
+          )
+          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          if [ -n "$LATEST_TAG" ]; then
+            gh release download "$LATEST_TAG" -p "appcast.xml" -O "$STAGING/previous.xml" -R "${{ github.repository }}"
+            MERGE_ARGS+=(--previous "$STAGING/previous.xml")
+          fi
+          /usr/bin/python3 .github/scripts/merge_appcasts.py "${MERGE_ARGS[@]}"
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+            --ed-key-file - apps/mac/build/appcast.xml
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+            --verify --ed-key-file - apps/mac/build/appcast.xml
       - name: Generate checksums
         run: |
           /usr/bin/python3 .github/scripts/generate_release_checksums.py "$RELEASE_TAG" apps/mac/build/checksums.json \
