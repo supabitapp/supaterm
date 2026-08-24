@@ -811,6 +811,42 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func agentDetectionRequestsRoundTripThroughTypedHelpers() throws {
+    let paneID = UUID(uuidString: "20D1A721-EA1E-44FB-B46D-29FBF240D4CB")!
+    let explainPayload = SupatermAgentDetectionExplainRequest(
+      target: SupatermPaneTargetRequest(paneID: paneID)
+    )
+    let explainRequest = try SupatermSocketRequest.agentDetectionExplain(
+      explainPayload,
+      id: "agent-explain-1"
+    )
+    let reloadRequest = SupatermSocketRequest.agentDetectionReload(id: "agent-reload-1")
+    let reloadResult = SupatermAgentDetectionReloadResult(
+      generation: 42,
+      overrideDirectory: "/tmp/agent-detection",
+      manifests: [
+        SupatermAgentDetectionManifestInfo(
+          agentID: "codex",
+          displayName: "Codex",
+          version: "local.1",
+          origin: .local,
+          path: "/tmp/agent-detection/codex.toml"
+        )
+      ]
+    )
+    let response = try SupatermSocketResponse.ok(
+      id: "agent-reload-1",
+      encodableResult: reloadResult
+    )
+
+    #expect(explainRequest.method == SupatermSocketMethod.terminalAgentExplain)
+    #expect(try explainRequest.decodeParams(SupatermAgentDetectionExplainRequest.self) == explainPayload)
+    #expect(reloadRequest.method == SupatermSocketMethod.appAgentDetectionReload)
+    #expect(reloadRequest.params.isEmpty)
+    #expect(try response.decodeResult(SupatermAgentDetectionReloadResult.self) == reloadResult)
+  }
+
+  @Test
   func settingsRequestsRoundTripThroughTypedHelpers() throws {
     let listRequest = try SupatermSocketRequest.settingsList(
       SupatermSettingsListRequest(changedOnly: true),

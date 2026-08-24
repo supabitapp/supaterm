@@ -39,6 +39,8 @@ struct TerminalAgentsPopoverItem: Identifiable {
 
   var phaseTitle: String {
     switch phase {
+    case .unknown:
+      "Unknown"
     case .idle:
       "Done"
     case .needsInput:
@@ -263,6 +265,11 @@ private struct TerminalAgentsPopoverRow: View {
   @ViewBuilder
   private var statusIcon: some View {
     switch item.phase {
+    case .unknown:
+      Image(systemName: "questionmark.circle")
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
     case .idle:
       Image(systemName: "checkmark.circle.fill")
         .font(.system(size: 13, weight: .medium))

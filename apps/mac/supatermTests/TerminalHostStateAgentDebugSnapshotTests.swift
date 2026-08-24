@@ -204,6 +204,57 @@ struct TerminalHostStateAgentDebugSnapshotTests {
   }
 
   @Test
+  func detailedExplanationReportsTheActiveManifestAndRuleEvidence() async throws {
+    let fixture = try hostFixture()
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let controller = try detectionController(
+      host: fixture.host,
+      surfaceID: fixture.surfaceID,
+      processIdentity: identity
+    )
+    fixture.host.agentDetectionController = controller
+
+    await controller.tick(now: .now)
+    let detail = await fixture.host.detailedAgentDetectionExplanation(for: fixture.surfaceID)
+    let result = fixture.host.debugAgentDetectionExplainResult(
+      target: SupatermPaneTarget(
+        windowIndex: 1,
+        spaceIndex: 1,
+        spaceID: UUID(),
+        tabIndex: 1,
+        tabID: UUID(),
+        paneIndex: 1,
+        paneID: fixture.surfaceID
+      ),
+      explanation: detail
+    )
+
+    #expect(result.manifest?.agentID == "codex")
+    #expect(result.manifest?.origin == .bundled)
+    #expect(result.matchedRuleID == "running")
+    #expect(result.rules.first?.ruleID == "running")
+    #expect(result.rules.first?.matched == true)
+  }
+
+  @Test
+  func detailedExplanationRejectsEvidenceFromAnotherRuleGeneration() async throws {
+    let fixture = try hostFixture()
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let controller = try detectionController(
+      host: fixture.host,
+      surfaceID: fixture.surfaceID,
+      processIdentity: identity,
+      explanationGeneration: 8
+    )
+
+    await controller.tick(now: .now)
+    let detail = await controller.detailedExplanation(for: fixture.surfaceID)
+
+    #expect(detail.summary.generation == 7)
+    #expect(detail.evaluation == nil)
+  }
+
+  @Test
   func screenObservationReportsItsRuleProcessAndSource() throws {
     let fixture = try hostFixture()
     let host = fixture.host
@@ -366,14 +417,21 @@ struct TerminalHostStateAgentDebugSnapshotTests {
   private func detectionController(
     host: TerminalHostState,
     surfaceID: UUID,
-    processIdentity: TerminalAgentProcessIdentity
+    processIdentity: TerminalAgentProcessIdentity,
+    explanationGeneration: UInt64? = nil
   ) throws -> TerminalAgentDetectionController {
     let surface = try #require(host.surfaces[surfaceID])
     let processGroupID: Int32 = 11
     let generation: UInt64 = 7
     let snapshot = AgentDetectionRuleSnapshot(
-      origin: .embedded,
       generation: generation,
+      manifests: [
+        AgentDetectionManifestSnapshot(
+          agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
+          version: "test.1",
+          source: AgentDetectionManifestSource(origin: .bundled, path: "codex.toml")
+        )
+      ],
       processManifests: [
         AgentDetectionProcessManifest(
           agentID: "codex",
@@ -390,6 +448,11 @@ struct TerminalHostStateAgentDebugSnapshotTests {
       generation: generation,
       match: AgentDetectionMatch(result: .running, ruleID: "running")
     )
+    let detailedEvaluation = detailedEvaluation(
+      snapshot: snapshot,
+      evaluation: evaluation,
+      generation: explanationGeneration ?? generation
+    )
     return TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
         snapshot: { snapshot },
@@ -400,6 +463,9 @@ struct TerminalHostStateAgentDebugSnapshotTests {
         },
         evaluate: { requests in
           requests.map { $0.agentID == "codex" ? evaluation : nil }
+        },
+        explain: { request in
+          request.agentID == "codex" ? detailedEvaluation : nil
         }
       ),
       sampler: TerminalAgentDetectionSampler(
@@ -440,6 +506,36 @@ struct TerminalHostStateAgentDebugSnapshotTests {
         clear: { [weak host] surfaceID in
           _ = host?.clearAgentDetection(for: surfaceID)
         }
+      )
+    )
+  }
+
+  private func detailedEvaluation(
+    snapshot: AgentDetectionRuleSnapshot,
+    evaluation: AgentDetectionEvaluation,
+    generation: UInt64
+  ) -> AgentDetectionDetailedEvaluation {
+    AgentDetectionDetailedEvaluation(
+      identity: evaluation.identity,
+      generation: generation,
+      manifest: snapshot.manifests[0],
+      explanation: AgentDetectionMatcherExplanation(
+        match: evaluation.match,
+        rules: [
+          AgentDetectionRuleEvidence(
+            ruleID: "running",
+            result: .running,
+            priority: 10,
+            region: "whole_recent",
+            matched: true,
+            condition: AgentDetectionConditionEvidence(
+              kind: "contains",
+              value: "running",
+              matched: true,
+              children: []
+            )
+          )
+        ]
       )
     )
   }

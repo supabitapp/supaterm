@@ -38,8 +38,29 @@ public struct AgentDetectionMatch: Equatable, Sendable {
   }
 }
 
+public struct AgentDetectionConditionEvidence: Equatable, Sendable {
+  public let kind: String
+  public let value: String?
+  public let matched: Bool
+  public let children: [AgentDetectionConditionEvidence]
+}
+
+public struct AgentDetectionRuleEvidence: Equatable, Sendable {
+  public let ruleID: String
+  public let result: AgentDetectionRuleResult
+  public let priority: Int
+  public let region: String
+  public let matched: Bool
+  public let condition: AgentDetectionConditionEvidence
+}
+
+public struct AgentDetectionMatcherExplanation: Equatable, Sendable {
+  public let match: AgentDetectionMatch
+  public let rules: [AgentDetectionRuleEvidence]
+}
+
 struct AgentDetectionMatcher {
-  static let fallbackRuleID = "default_known_agent_idle_fallback"
+  static let fallbackRuleID = "default_known_agent_unknown_fallback"
 
   private let rules: [CompiledRule]
 
@@ -79,9 +100,20 @@ struct AgentDetectionMatcher {
     return Self.fallbackMatch
   }
 
+  func explain(_ input: AgentDetectionInput) -> AgentDetectionMatcherExplanation {
+    let input = PreparedInput(input)
+    let evaluations = rules.map { rule in
+      (match: rule.match, evidence: rule.evidence(input))
+    }
+    return AgentDetectionMatcherExplanation(
+      match: evaluations.first(where: { $0.evidence.matched })?.match ?? Self.fallbackMatch,
+      rules: evaluations.map(\.evidence)
+    )
+  }
+
   private static var fallbackMatch: AgentDetectionMatch {
     AgentDetectionMatch(
-      result: .idle,
+      result: .unknown,
       ruleID: fallbackRuleID
     )
   }
@@ -120,10 +152,32 @@ private struct CompiledRule {
   func matches(_ input: PreparedInput) -> Bool {
     gate.matches(input.text(in: region))
   }
+
+  func evidence(_ input: PreparedInput) -> AgentDetectionRuleEvidence {
+    let condition = gate.evidence(input.text(in: region))
+    return AgentDetectionRuleEvidence(
+      ruleID: id,
+      result: result,
+      priority: priority,
+      region: region.description,
+      matched: condition.matched,
+      condition: condition
+    )
+  }
 }
 
 private struct CompiledGate {
-  let contains: [String]
+  private struct Evaluation {
+    let matched: Bool
+    let evidence: AgentDetectionConditionEvidence?
+  }
+
+  private struct SegmentEvaluation {
+    let matched: Bool
+    let children: [AgentDetectionConditionEvidence]
+  }
+
+  let contains: [CompiledContains]
   let regex: [CompiledRegularExpression]
   let lineRegex: [CompiledRegularExpression]
   let all: [CompiledGate]
@@ -131,7 +185,7 @@ private struct CompiledGate {
   let not: [CompiledGate]
 
   init(_ gate: AgentDetectionGate) throws {
-    contains = gate.contains.map { $0.lowercased() }
+    contains = gate.contains.map(CompiledContains.init)
     regex = try gate.regex.map(CompiledRegularExpression.init)
     lineRegex = try gate.lineRegex.map(CompiledRegularExpression.init)
     all = try gate.all.map(CompiledGate.init)
@@ -140,31 +194,162 @@ private struct CompiledGate {
   }
 
   func matches(_ text: PreparedText) -> Bool {
-    if !contains.isEmpty, !contains.allSatisfy(text.lowercase.contains) {
-      return false
+    evaluate(text, collectingEvidence: false).matched
+  }
+
+  func evidence(_ text: PreparedText) -> AgentDetectionConditionEvidence {
+    evaluate(text, collectingEvidence: true).evidence!
+  }
+
+  private func evaluate(
+    _ text: PreparedText,
+    collectingEvidence: Bool
+  ) -> Evaluation {
+    let segments = [
+      evaluateLeaves(
+        contains,
+        kind: "contains",
+        value: \.pattern,
+        collectingEvidence: collectingEvidence
+      ) { text.lowercase.contains($0.lowercase) },
+      evaluateLeaves(
+        regex,
+        kind: "regex",
+        value: \.pattern,
+        collectingEvidence: collectingEvidence
+      ) { $0.matches(text.raw) },
+      evaluateLeaves(
+        lineRegex,
+        kind: "line_regex",
+        value: \.pattern,
+        collectingEvidence: collectingEvidence
+      ) { expression in text.lines.contains { expression.matches($0) } },
+      evaluateAll(text, collectingEvidence: collectingEvidence),
+      evaluateAny(text, collectingEvidence: collectingEvidence),
+      evaluateNot(text, collectingEvidence: collectingEvidence),
+    ]
+    let matched = segments.allSatisfy(\.matched)
+    let evidence =
+      collectingEvidence
+      ? AgentDetectionConditionEvidence(
+        kind: "all",
+        value: nil,
+        matched: matched,
+        children: segments.flatMap(\.children)
+      )
+      : nil
+    return Evaluation(matched: matched, evidence: evidence)
+  }
+
+  private func evaluateLeaves<Value>(
+    _ values: [Value],
+    kind: String,
+    value: KeyPath<Value, String>,
+    collectingEvidence: Bool,
+    matches: (Value) -> Bool
+  ) -> SegmentEvaluation {
+    let results = values.map { item in
+      (item: item, matched: matches(item))
     }
-    if !regex.allSatisfy({ $0.matches(text.raw) }) {
-      return false
+    let children =
+      collectingEvidence
+      ? results.map { result in
+        AgentDetectionConditionEvidence(
+          kind: kind,
+          value: result.item[keyPath: value],
+          matched: result.matched,
+          children: []
+        )
+      }
+      : []
+    return SegmentEvaluation(
+      matched: results.allSatisfy(\.matched),
+      children: children
+    )
+  }
+
+  private func evaluateAll(
+    _ text: PreparedText,
+    collectingEvidence: Bool
+  ) -> SegmentEvaluation {
+    let evaluations = all.map { $0.evaluate(text, collectingEvidence: collectingEvidence) }
+    let children = evaluations.compactMap { evaluation in
+      evaluation.evidence.map {
+        AgentDetectionConditionEvidence(
+          kind: "all",
+          value: nil,
+          matched: evaluation.matched,
+          children: $0.children
+        )
+      }
     }
-    if !lineRegex.allSatisfy({ expression in
-      text.lines.contains { expression.matches($0) }
-    }) {
-      return false
-    }
-    if !all.allSatisfy({ $0.matches(text) }) {
-      return false
-    }
-    if !any.isEmpty, !any.contains(where: { $0.matches(text) }) {
-      return false
-    }
-    return !not.contains { $0.matches(text) }
+    return SegmentEvaluation(
+      matched: evaluations.allSatisfy(\.matched),
+      children: children
+    )
+  }
+
+  private func evaluateAny(
+    _ text: PreparedText,
+    collectingEvidence: Bool
+  ) -> SegmentEvaluation {
+    guard !any.isEmpty else { return SegmentEvaluation(matched: true, children: []) }
+    let evaluations = any.map { $0.evaluate(text, collectingEvidence: collectingEvidence) }
+    let matched = evaluations.contains(where: \.matched)
+    return SegmentEvaluation(
+      matched: matched,
+      children: collectingEvidence
+        ? [
+          AgentDetectionConditionEvidence(
+            kind: "any",
+            value: nil,
+            matched: matched,
+            children: evaluations.compactMap(\.evidence)
+          )
+        ]
+        : []
+    )
+  }
+
+  private func evaluateNot(
+    _ text: PreparedText,
+    collectingEvidence: Bool
+  ) -> SegmentEvaluation {
+    guard !not.isEmpty else { return SegmentEvaluation(matched: true, children: []) }
+    let evaluations = not.map { $0.evaluate(text, collectingEvidence: collectingEvidence) }
+    let matched = !evaluations.contains(where: \.matched)
+    return SegmentEvaluation(
+      matched: matched,
+      children: collectingEvidence
+        ? [
+          AgentDetectionConditionEvidence(
+            kind: "not",
+            value: nil,
+            matched: matched,
+            children: evaluations.compactMap(\.evidence)
+          )
+        ]
+        : []
+    )
+  }
+}
+
+private struct CompiledContains {
+  let pattern: String
+  let lowercase: String
+
+  init(_ pattern: String) {
+    self.pattern = pattern
+    lowercase = pattern.lowercased()
   }
 }
 
 private struct CompiledRegularExpression {
+  let pattern: String
   private let value: NSRegularExpression
 
   init(_ pattern: String) throws {
+    self.pattern = pattern
     value = try NSRegularExpression(pattern: pattern)
   }
 

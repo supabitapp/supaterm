@@ -16,6 +16,7 @@ struct AgentDetectionRuleSetTests {
         "live_turn_working",
         "background_shell_working",
         "background_agents_working",
+        "background_mcp_task_working",
         "btw_overlay_working",
         "transcript_viewer",
         "live_blocked_form",
@@ -95,5 +96,23 @@ struct AgentDetectionRuleSetTests {
     #expect(throws: AgentDetectionRuleSetError.self) {
       try AgentDetectionRuleSetParser.parse(Data("id = 'pi'\nunknown = true\n".utf8))
     }
+  }
+
+  @Test
+  func parserPublishesExplicitUnknownRules() throws {
+    let manifest = try AgentDetectionRuleSetParser.parse(
+      Data(
+        """
+        id = "pi"
+
+        [[rules]]
+        id = "ambiguous"
+        state = "unknown"
+        contains = ["ambiguous"]
+        """.utf8
+      )
+    )
+
+    #expect(manifest.rules.first?.result == .unknown)
   }
 }

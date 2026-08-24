@@ -5,7 +5,6 @@ import Sharing
 import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
-import SupatermTerminalCore
 
 private nonisolated enum TerminalWindowCancelID: Hashable, Sendable {
   case events(UUID)

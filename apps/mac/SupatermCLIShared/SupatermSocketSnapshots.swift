@@ -123,6 +123,7 @@ public enum SupatermSnapshotRootItem<Tab: Equatable & Sendable & Codable>:
 
 public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
   public enum AgentPhase: String, Equatable, Sendable, Codable {
+    case unknown
     case idle
     case running
     case needsInput = "needs_input"

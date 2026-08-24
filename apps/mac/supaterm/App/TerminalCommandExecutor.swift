@@ -9,14 +9,17 @@ import SupatermTerminalCore
 @MainActor
 final class TerminalCommandExecutor {
   unowned let registry: TerminalWindowRegistry
+  let agentDetectionRuleRepository: AgentDetectionRuleRepository?
   let paneCaptureClient: TerminalPaneCaptureClient
   var onQuitRequested: (() -> Void)?
 
   init(
     registry: TerminalWindowRegistry,
+    agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
     paneCaptureClient: TerminalPaneCaptureClient = .live
   ) {
     self.registry = registry
+    self.agentDetectionRuleRepository = agentDetectionRuleRepository
     self.paneCaptureClient = paneCaptureClient
   }
 
@@ -67,6 +70,8 @@ final class TerminalCommandExecutor {
     _ request: SocketRequestExecutor.AgentIntegrationRequest
   ) async throws -> SocketRequestExecutor.AgentIntegrationResult {
     switch request {
+    case .detectionReload:
+      return .detectionReload(try await agentDetectionReload())
     case .hooksInstall(let request):
       return .hooksInstall(try await hooksInstall(request))
     case .hooksRemove(let request):
@@ -95,8 +100,10 @@ final class TerminalCommandExecutor {
 
   func execute(
     _ request: SocketRequestExecutor.TerminalPaneRequest
-  ) throws -> SocketRequestExecutor.TerminalPaneResult {
+  ) async throws -> SocketRequestExecutor.TerminalPaneResult {
     switch request {
+    case .agentExplain(let target):
+      return .agentExplain(try await agentDetectionExplain(target))
     case .focusPane(let target):
       return .focusPane(try focusPane(target))
     case .lastPane(let target):

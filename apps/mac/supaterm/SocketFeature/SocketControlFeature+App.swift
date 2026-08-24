@@ -26,6 +26,13 @@ extension SocketControlFeature {
     }
 
     switch request.method {
+    case SupatermSocketMethod.appAgentDetectionReload:
+      let result = try await socketRequestExecutor.executeAgentIntegration(.detectionReload)
+      guard case .detectionReload(let reload) = result else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: reload)
+
     case SupatermSocketMethod.appOnboarding:
       let result = try await socketRequestExecutor.executeApp(.onboardingSnapshot)
       guard case .onboardingSnapshot(let snapshot) = result else {

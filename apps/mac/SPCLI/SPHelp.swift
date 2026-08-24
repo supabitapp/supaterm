@@ -481,6 +481,8 @@ enum SPHelp {
     Install Supaterm's hook bridge into every supported agent user configuration.
 
     Example:
+      sp agent explain
+      sp agent reload-rules
       sp agent install-hooks
     """
 

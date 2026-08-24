@@ -1,9 +1,5 @@
 import Foundation
 
-public enum AgentDetectionRuleOrigin: Equatable, Sendable {
-  case embedded
-}
-
 public struct AgentDetectionAgentIdentity: Equatable, Hashable, Sendable {
   public let id: String
   public let displayName: String
@@ -15,18 +11,34 @@ public struct AgentDetectionAgentIdentity: Equatable, Hashable, Sendable {
 }
 
 public struct AgentDetectionRuleSnapshot: Equatable, Sendable {
-  public let origin: AgentDetectionRuleOrigin
   public let generation: UInt64
+  public let manifests: [AgentDetectionManifestSnapshot]
   public let processManifests: [AgentDetectionProcessManifest]
 
   public init(
-    origin: AgentDetectionRuleOrigin,
     generation: UInt64,
+    manifests: [AgentDetectionManifestSnapshot],
     processManifests: [AgentDetectionProcessManifest]
   ) {
-    self.origin = origin
     self.generation = generation
+    self.manifests = manifests
     self.processManifests = processManifests
+  }
+}
+
+public struct AgentDetectionManifestSnapshot: Equatable, Sendable {
+  public let agent: AgentDetectionAgentIdentity
+  public let version: String?
+  public let source: AgentDetectionManifestSource
+
+  public init(
+    agent: AgentDetectionAgentIdentity,
+    version: String?,
+    source: AgentDetectionManifestSource
+  ) {
+    self.agent = agent
+    self.version = version
+    self.source = source
   }
 }
 
@@ -44,6 +56,13 @@ public struct AgentDetectionEvaluation: Equatable, Sendable {
     self.generation = generation
     self.match = match
   }
+}
+
+public struct AgentDetectionDetailedEvaluation: Equatable, Sendable {
+  public let identity: AgentDetectionAgentIdentity
+  public let generation: UInt64
+  public let manifest: AgentDetectionManifestSnapshot
+  public let explanation: AgentDetectionMatcherExplanation
 }
 
 public struct AgentDetectionSignalRequest: Equatable, Sendable {
@@ -83,57 +102,116 @@ public struct AgentDetectionEvaluationRequest: Equatable, Sendable {
 public actor AgentDetectionRuleRepository {
   private struct CompiledAgent {
     let identity: AgentDetectionAgentIdentity
+    let manifest: AgentDetectionManifestSnapshot
+    let processManifest: AgentDetectionProcessManifest
     let matcher: AgentDetectionMatcher
   }
 
-  private let snapshotValue: AgentDetectionRuleSnapshot
-  private let agentsByID: [String: CompiledAgent]
+  private struct ActiveRules {
+    let generation: UInt64
+    let agents: [CompiledAgent]
 
-  public init(bundle: Bundle) throws {
-    let ruleSet = try AgentDetectionRuleSetParser.load(from: bundle)
-    snapshotValue = AgentDetectionRuleSnapshot(
-      origin: .embedded,
-      generation: ruleSet.generation,
-      processManifests: ruleSet.agents.map {
-        AgentDetectionProcessManifest(agentID: $0.id, processes: $0.processes)
-      }
-    )
-    agentsByID = try Dictionary(
-      uniqueKeysWithValues: ruleSet.agents.map { agent in
-        (
-          agent.id,
-          CompiledAgent(
-            identity: AgentDetectionAgentIdentity(
-              id: agent.id,
-              displayName: agent.displayName
-            ),
-            matcher: try AgentDetectionMatcher(agent: agent)
-          )
+    var snapshot: AgentDetectionRuleSnapshot {
+      AgentDetectionRuleSnapshot(
+        generation: generation,
+        manifests: agents.map(\.manifest),
+        processManifests: agents.map(\.processManifest)
+      )
+    }
+
+    func agent(id: String) -> CompiledAgent? {
+      agents.first { $0.identity.id == id }
+    }
+  }
+
+  private let bundle: Bundle
+  private let overrideDirectoryURL: URL?
+  public nonisolated let startupFallbackErrorDescription: String?
+  private var active: ActiveRules
+
+  public init(
+    bundle: Bundle,
+    overrideDirectoryURL: URL? = nil,
+    fallsBackToBundledRules: Bool = false
+  ) throws {
+    self.bundle = bundle
+    self.overrideDirectoryURL = overrideDirectoryURL
+    do {
+      active = try Self.compile(
+        AgentDetectionRuleSetParser.load(
+          from: bundle,
+          overrideDirectoryURL: overrideDirectoryURL
         )
-      }
+      )
+      startupFallbackErrorDescription = nil
+    } catch {
+      guard fallsBackToBundledRules else { throw error }
+      active = try Self.compile(AgentDetectionRuleSetParser.load(from: bundle))
+      startupFallbackErrorDescription = error.localizedDescription
+    }
+  }
+
+  private static func compile(_ ruleSet: AgentDetectionRuleSet) throws -> ActiveRules {
+    let agents = try ruleSet.agents.map { agent in
+      let identity = AgentDetectionAgentIdentity(
+        id: agent.id,
+        displayName: agent.displayName
+      )
+      return CompiledAgent(
+        identity: identity,
+        manifest: AgentDetectionManifestSnapshot(
+          agent: identity,
+          version: agent.version,
+          source: agent.source
+        ),
+        processManifest: AgentDetectionProcessManifest(
+          agentID: agent.id,
+          processes: agent.processes
+        ),
+        matcher: try AgentDetectionMatcher(agent: agent)
+      )
+    }
+    return ActiveRules(
+      generation: ruleSet.generation,
+      agents: agents
     )
   }
 
   public func snapshot() -> AgentDetectionRuleSnapshot {
-    snapshotValue
+    active.snapshot
+  }
+
+  public func reload() throws -> AgentDetectionRuleSnapshot {
+    let replacement = try Self.compile(
+      AgentDetectionRuleSetParser.load(
+        from: bundle,
+        overrideDirectoryURL: overrideDirectoryURL
+      )
+    )
+    active = replacement
+    return replacement.snapshot
+  }
+
+  public func overrideDirectoryPath() -> String? {
+    overrideDirectoryURL?.path
   }
 
   public func evaluateSignals(
     _ requests: [AgentDetectionSignalRequest]
   ) -> [AgentDetectionSignalEvaluation?] {
     requests.map { request in
-      guard let agent = agentsByID[request.agentID] else { return nil }
+      guard let agent = active.agent(id: request.agentID) else { return nil }
       switch agent.matcher.matchSignals(request.input) {
       case .matched(let match):
         return .matched(
           AgentDetectionEvaluation(
             identity: agent.identity,
-            generation: snapshotValue.generation,
+            generation: active.generation,
             match: match
           )
         )
       case .needsScreen:
-        return .needsScreen(generation: snapshotValue.generation)
+        return .needsScreen(generation: active.generation)
       }
     }
   }
@@ -142,12 +220,24 @@ public actor AgentDetectionRuleRepository {
     _ requests: [AgentDetectionEvaluationRequest]
   ) -> [AgentDetectionEvaluation?] {
     requests.map { request in
-      guard let agent = agentsByID[request.agentID] else { return nil }
+      guard let agent = active.agent(id: request.agentID) else { return nil }
       return AgentDetectionEvaluation(
         identity: agent.identity,
-        generation: snapshotValue.generation,
+        generation: active.generation,
         match: agent.matcher.match(request.input)
       )
     }
+  }
+
+  public func explain(
+    _ request: AgentDetectionEvaluationRequest
+  ) -> AgentDetectionDetailedEvaluation? {
+    guard let agent = active.agent(id: request.agentID) else { return nil }
+    return AgentDetectionDetailedEvaluation(
+      identity: agent.identity,
+      generation: active.generation,
+      manifest: agent.manifest,
+      explanation: agent.matcher.explain(request.input)
+    )
   }
 }

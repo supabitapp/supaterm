@@ -100,6 +100,8 @@
       )
       let action: TerminalAgentEvent.Action =
         switch phase {
+        case .unknown:
+          return
         case .idle: .turnCompleted(message: nil)
         case .needsInput: .attentionRequested(requestID: nil, message: detail)
         case .running: .turnRunning(detail: detail)

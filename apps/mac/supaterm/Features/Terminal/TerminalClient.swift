@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
-import SupatermTerminalCore
 
 struct TerminalNotificationEvent: Equatable, Sendable {
   let attentionState: SupatermNotificationAttentionState

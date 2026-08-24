@@ -139,10 +139,12 @@ private final class PiE2EFixture {
         into: space.pane
       )
       try await app.waitForCapture(space.pane, contains: "Pi can explain its own features", timeout: 60)
+      let initialPhase: SupatermAppDebugSnapshot.AgentPhase =
+        mode.usesNativeIntegration ? .idle : .unknown
       let initial = try await waitForPiAgent(
         app,
         mode: mode,
-        phase: .idle,
+        phase: initialPhase,
         paneID: space.tab.paneID
       )
       let initialProcess = try requireValue(
@@ -153,7 +155,7 @@ private final class PiE2EFixture {
         app,
         mode: mode,
         paneID: space.tab.paneID,
-        phase: .idle
+        phase: initialPhase
       )
       return PiE2EFixture(
         app: app,
@@ -228,7 +230,7 @@ private func runPiCompletedTurn(_ fixture: PiE2EFixture) async throws {
     try fixture.app.capture(fixture.space.pane)
       .components(separatedBy: completion).count > echoedCompletionCount
   }
-  try await fixture.expect(.idle)
+  try await fixture.expect(fixture.mode.usesNativeIntegration ? .idle : .unknown)
 
   if fixture.mode.usesNativeIntegration {
     try await fixture.app.waitUntil("Pi publishes its exact completion", timeout: 30) {
@@ -301,7 +303,7 @@ private func expectPiInterruptedTurn(_ fixture: PiE2EFixture) async throws {
         == "Operation aborted"
     }
   } else {
-    try await fixture.expect(.idle, timeout: 15)
+    try await fixture.expect(.unknown, timeout: 15)
   }
 }
 
@@ -334,8 +336,9 @@ private func waitForPiAgent(
 
 private func piScreenRuleIDs(for phase: SupatermAppDebugSnapshot.AgentPhase) -> Set<String>? {
   switch phase {
+  case .unknown: ["default_known_agent_unknown_fallback"]
   case .running: ["working_literal"]
-  case .idle: ["default_known_agent_idle_fallback"]
+  case .idle: nil
   case .needsInput: nil
   }
 }
@@ -475,7 +478,7 @@ func makePiNarrowTabFixture(
     _ = try await waitForPiAgent(
       app,
       mode: .screenRules,
-      phase: .idle,
+      phase: .unknown,
       paneID: tab.paneID
     )
     return NarrowAgentTabFixture(

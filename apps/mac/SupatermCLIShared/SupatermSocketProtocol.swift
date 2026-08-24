@@ -3,6 +3,7 @@ import Foundation
 public enum SupatermSocketMethod {
   public static let appOnboarding = "app.onboarding"
   public static let appDebug = "app.debug"
+  public static let appAgentDetectionReload = "app.agent_detection.reload"
   public static let appHooksInstall = "app.hooks.install"
   public static let appHooksRemove = "app.hooks.remove"
   public static let appQuit = "app.quit"
@@ -19,6 +20,7 @@ public enum SupatermSocketMethod {
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
   public static let terminalAgentHook = "terminal.agent_hook"
+  public static let terminalAgentExplain = "terminal.agent_explain"
   public static let terminalCapturePane = "terminal.capture_pane"
   public static let terminalClosePane = "terminal.close_pane"
   public static let terminalCloseSpace = "terminal.close_space"
@@ -165,6 +167,10 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     try make(SupatermSocketMethod.appDebug, payload, id: id)
   }
 
+  public static func agentDetectionReload(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.appAgentDetectionReload)
+  }
+
   public static func settingsList(
     _ payload: SupatermSettingsListRequest = SupatermSettingsListRequest(),
     id: String = UUID().uuidString
@@ -262,6 +268,13 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.terminalAgentHook, payload, id: id)
+  }
+
+  public static func agentDetectionExplain(
+    _ payload: SupatermAgentDetectionExplainRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalAgentExplain, payload, id: id)
   }
 
   public static func capturePane(
@@ -381,13 +394,6 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.terminalLastSpace, payload, id: id)
-  }
-
-  public static func lastPane(
-    _ payload: SupatermPaneTargetRequest,
-    id: String = UUID().uuidString
-  ) throws -> Self {
-    try make(SupatermSocketMethod.terminalLastPane, payload, id: id)
   }
 
   public static func lastTab(

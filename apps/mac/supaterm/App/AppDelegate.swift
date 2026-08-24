@@ -89,8 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let tabNewWindowDropController = TerminalTabNewWindowDropController(
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
     )
-    let terminalCommandExecutor = TerminalCommandExecutor(registry: terminalWindowRegistry)
     let agentDetectionRuleRepository = Self.makeAgentDetectionRuleRepository()
+    let terminalCommandExecutor = TerminalCommandExecutor(
+      registry: terminalWindowRegistry,
+      agentDetectionRuleRepository: agentDetectionRuleRepository
+    )
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
     let globalKeybindManager = GhosttyGlobalKeybindManager(runtime: ghosttyRuntime)
     let quitConfirmationPresenter = QuitConfirmationPresenter()
@@ -607,7 +610,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   private static func makeAgentDetectionRuleRepository() -> AgentDetectionRuleRepository? {
     do {
-      return try AgentDetectionRuleRepository(bundle: .module)
+      let repository = try AgentDetectionRuleRepository(
+        bundle: .module,
+        overrideDirectoryURL: SupatermStateRoot.directoryURL()
+          .appendingPathComponent("agent-detection", isDirectory: true),
+        fallsBackToBundledRules: true
+      )
+      if let error = repository.startupFallbackErrorDescription {
+        SupatermLog.error(
+          SupatermLog.terminal,
+          "agent_detection.rules.bootstrap",
+          fields: [
+            "origin=local",
+            "result=fallback",
+            "error=\(error)",
+          ]
+        )
+      }
+      return repository
     } catch {
       SupatermLog.error(
         SupatermLog.terminal,

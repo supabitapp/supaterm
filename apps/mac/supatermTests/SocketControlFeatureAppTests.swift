@@ -3,7 +3,6 @@ import Foundation
 import Sharing
 import SupatermSocketFeature
 import SupatermSupport
-import SupatermTerminalCore
 import Testing
 
 @testable import SupatermCLIShared
@@ -11,6 +10,39 @@ import Testing
 
 @MainActor
 struct SocketControlFeatureAppTests {
+  @Test
+  func agentDetectionReloadRequestRepliesWithActiveSources() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "92B503AB-CC76-4D91-A024-FD4D400F0446")!
+    let reload = SupatermAgentDetectionReloadResult(
+      generation: 42,
+      overrideDirectory: "/tmp/agent-detection",
+      manifests: []
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: .agentDetectionReload(id: "agent-reload-1")
+    )
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.socketRequestExecutor.executeAgentIntegration = { execution in
+        guard case .detectionReload = execution else {
+          Issue.record("Expected agent detection reload request")
+          throw CancellationError()
+        }
+        return .detectionReload(reload)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(try records.first?.response.decodeResult(SupatermAgentDetectionReloadResult.self) == reload)
+  }
+
   @Test
   func treeRequestRepliesWithSnapshot() async throws {
     let recorder = SocketReplyRecorder()

@@ -298,6 +298,7 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(host.tabAgentPresentation(for: tabID).status == .working)
 
     let phases: [(AgentActivityPhase, SupatermAppDebugSnapshot.AgentPhase)] = [
+      (.unknown, .unknown),
       (.idle, .idle),
       (.running, .running),
       (.needsInput, .needsInput),
@@ -364,7 +365,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func commandAndSurfaceCleanupRemoveTerminalStateWithoutPersistingIt() throws {
+  func cleanCommandExitPersistsCompletionUntilSurfaceCleanup() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
@@ -372,16 +373,126 @@ struct TerminalHostStateAgentDetectionTests {
       processIdentity: TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 1)
     )
     _ = host.applyAgentDetection(detection, for: surfaceID)
+    host.surfaces[surfaceID]?.bridge.state.commandExitCode = 0
 
     host.handleCommandFinished(for: surfaceID)
 
     #expect(terminalObservation(in: host, for: surfaceID) == nil)
     #expect(host.agentStateRecords(for: surfaceID).isEmpty)
+    #expect(host.agentActivity(for: fixture.tabID) == .codex(.idle))
+    #expect(host.tabAgentPresentation(for: fixture.tabID).status == .done)
 
-    _ = host.applyAgentDetection(detection, for: surfaceID)
     host.performCloseSurface(surfaceID)
 
     #expect(terminalObservation(in: host, for: surfaceID) == nil)
+    #expect(host.agentActivity(for: fixture.tabID) == nil)
+  }
+
+  @Test
+  @MainActor
+  func failedCommandExitPersistsUnknownWithoutClaimingCompletion() throws {
+    let fixture = try hostFixture()
+    let host = fixture.host
+    let surfaceID = fixture.surfaceID
+    _ = host.applyAgentDetection(
+      observation(
+        processIdentity: TerminalAgentProcessIdentity(
+          processID: 42,
+          startTimeMicroseconds: 1
+        )
+      ),
+      for: surfaceID
+    )
+    host.surfaces[surfaceID]?.bridge.state.commandExitCode = 1
+
+    host.handleCommandFinished(for: surfaceID)
+
+    #expect(host.agentActivity(for: fixture.tabID) == .codex(.unknown))
+    #expect(host.tabAgentPresentation(for: fixture.tabID).status == nil)
+
+    host.surfaces[surfaceID]?.bridge.state.commandExitCode = 0
+    host.handleCommandFinished(for: surfaceID)
+
+    #expect(host.agentActivity(for: fixture.tabID) == nil)
+    #expect(host.tabAgentPresentation(for: fixture.tabID).status == nil)
+  }
+
+  @Test
+  @MainActor
+  func nativeAgentExitRetainsIdentityWithoutItsLiveSessionState() throws {
+    let fixture = try hostFixture()
+    let host = fixture.host
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    _ = host.applyTestAgentActivity(
+      .pi(.running),
+      for: fixture.surfaceID,
+      sessionID: "native-session",
+      processID: identity.processID
+    )
+    host.surfaces[fixture.surfaceID]?.bridge.state.commandExitCode = nil
+
+    host.handleCommandFinished(for: fixture.surfaceID)
+
+    #expect(host.agentStateRecords(for: fixture.surfaceID).isEmpty)
+    #expect(host.agentActivity(for: fixture.tabID) == .pi(.unknown))
+    #expect(host.tabAgentPresentation(for: fixture.tabID).status == nil)
+  }
+
+  @Test
+  @MainActor
+  func piSessionShutdownPreservesIdentityUntilCommandExit() throws {
+    let fixture = try hostFixture()
+    let host = fixture.host
+    let sessionID = "native-session"
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    _ = host.applyTestAgentActivity(
+      .pi(.running),
+      for: fixture.surfaceID,
+      sessionID: sessionID,
+      processID: identity.processID
+    )
+
+    let ended = host.applyAgentEvent(
+      TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(agent: .pi, sessionID: sessionID),
+        context: SupatermCLIContext(
+          surfaceID: fixture.surfaceID,
+          tabID: fixture.tabID.rawValue
+        ),
+        action: .sessionEnded
+      )
+    )
+    host.surfaces[fixture.surfaceID]?.bridge.state.commandExitCode = 0
+    host.handleCommandFinished(for: fixture.surfaceID)
+
+    #expect(ended.accepted)
+    #expect(host.agentStateRecords(for: fixture.surfaceID).isEmpty)
+    #expect(host.agentActivity(for: fixture.tabID) == .pi(.idle))
+    #expect(host.tabAgentPresentation(for: fixture.tabID).status == .done)
+  }
+
+  @Test
+  @MainActor
+  func focusingPaneClearsRetainedExitState() throws {
+    let fixture = try hostFixture()
+    let host = fixture.host
+    _ = host.applyAgentDetection(
+      observation(
+        processIdentity: TerminalAgentProcessIdentity(
+          processID: 42,
+          startTimeMicroseconds: 1
+        )
+      ),
+      for: fixture.surfaceID
+    )
+    host.surfaces[fixture.surfaceID]?.bridge.state.commandExitCode = 0
+    host.handleCommandFinished(for: fixture.surfaceID)
+    #expect(host.agentActivity(for: fixture.tabID) == .codex(.idle))
+
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+    host.applyFocusedSurface(fixture.surfaceID, in: fixture.tabID)
+
+    #expect(host.agentActivity(for: fixture.tabID) == nil)
   }
 
   private func observation(

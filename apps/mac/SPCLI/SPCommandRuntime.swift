@@ -119,40 +119,18 @@ func resolvedSocketTarget(
   return resolvedTarget
 }
 
-struct SPSocketConnection {
-  let target: SupatermResolvedSocketTarget
-  let client: SPSocketClient
-}
-
-func resolvedSocketConnection(
-  explicitPath: String?,
-  instance: String?,
-  discoveryPolicy: SPSocketDiscoveryPolicy = .whenNeeded,
-  responseTimeout: TimeInterval = 5
-) throws -> SPSocketConnection {
-  let target = try resolvedSocketTarget(
-    explicitPath: explicitPath,
-    instance: instance,
-    discoveryPolicy: discoveryPolicy
-  )
-  return try SPSocketConnection(
-    target: target,
-    client: SPSocketClient(path: target.path, responseTimeout: responseTimeout)
-  )
-}
-
 func socketClient(
   path: String?,
   instance: String?,
   discoveryPolicy: SPSocketDiscoveryPolicy = .whenNeeded,
   responseTimeout: TimeInterval = 5
 ) throws -> SPSocketClient {
-  try resolvedSocketConnection(
+  let target = try resolvedSocketTarget(
     explicitPath: path,
     instance: instance,
-    discoveryPolicy: discoveryPolicy,
-    responseTimeout: responseTimeout
-  ).client
+    discoveryPolicy: discoveryPolicy
+  )
+  return try SPSocketClient(path: target.path, responseTimeout: responseTimeout)
 }
 
 func treeSnapshot(_ client: SPSocketClient) throws -> SupatermTreeSnapshot {

@@ -297,6 +297,30 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func detailedExplanationKeepsSignalsWhenScreenIsUnreadable() async throws {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(
+      processGroupID: 11,
+      screen: nil,
+      signals: TerminalAgentDetectionSignals(oscTitle: "working")
+    )
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.rules.setSignalMatch(
+      AgentDetectionMatch(result: .running, ruleID: "title-working")
+    )
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+    await fixture.controller.tick(now: ContinuousClock.now)
+
+    let detail = await fixture.controller.detailedExplanation(for: surfaceID)
+    let input = try #require(await fixture.rules.inputs().last)
+
+    #expect(detail.evaluation?.manifest.agent.id == "agent")
+    #expect(input.screen.isEmpty)
+    #expect(input.oscTitle == "working")
+  }
+
+  @Test
   func matcherInputKeepsBoundedUTF8ScreenTailAndTitlePrefix() async throws {
     let fixture = makeFixture()
     let screenPrefix = "discard-me-"
@@ -627,6 +651,9 @@ struct TerminalAgentDetectionControllerTests {
         },
         evaluate: { requests in
           await rules.evaluate(requests)
+        },
+        explain: { request in
+          await rules.explain(request)
         }
       ),
       sampler: TerminalAgentDetectionSampler(
@@ -880,8 +907,14 @@ private actor DetectionRulesFixture {
 
   func snapshot() -> AgentDetectionRuleSnapshot {
     AgentDetectionRuleSnapshot(
-      origin: .embedded,
       generation: generation,
+      manifests: [
+        AgentDetectionManifestSnapshot(
+          agent: identity,
+          version: "test.1",
+          source: AgentDetectionManifestSource(origin: .bundled, path: "agent.toml")
+        )
+      ],
       processManifests: [
         AgentDetectionProcessManifest(
           agentID: identity.id,
@@ -925,6 +958,23 @@ private actor DetectionRulesFixture {
         match: match
       )
     }
+  }
+
+  func explain(
+    _ request: AgentDetectionEvaluationRequest
+  ) -> AgentDetectionDetailedEvaluation? {
+    capturedInputBatches.append([request.input])
+    guard request.agentID == identity.id else { return nil }
+    return AgentDetectionDetailedEvaluation(
+      identity: identity,
+      generation: generation,
+      manifest: AgentDetectionManifestSnapshot(
+        agent: identity,
+        version: "test.1",
+        source: AgentDetectionManifestSource(origin: .bundled, path: "agent.toml")
+      ),
+      explanation: AgentDetectionMatcherExplanation(match: match, rules: [])
+    )
   }
 
   func setGeneration(_ generation: UInt64) {

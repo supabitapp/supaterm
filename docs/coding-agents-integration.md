@@ -50,7 +50,7 @@ The integration is split into three layers.
 - reduce every adapter into one canonical agent state store
 - update tab-level activity
 - emit in-app or desktop notifications when needed
-- clear pane-bound agent state when the shell reports the foreground command has finished
+- reduce a finished agent command to `idle` after exit 0 or `unknown` after any other exit, then clear its live process state
 - use the pane foreground process group with hook-reported processes as port-scan roots
 
 Port discovery expands hook process trees and every live member of the pane's foreground process
@@ -85,18 +85,36 @@ Terminal detection proves the agent process before it reads terminal content:
 The process proof prevents terminal text from naming an agent on its own. Password entry, closed
 surfaces, and unreadable screens can publish only from a decisive terminal title or progress rule.
 Screen-dependent rules cannot read those panes. Unknown processes and ambiguous process matches
-produce no detected state.
+produce no detected state. A proved known agent with no matching rule publishes `unknown`; it never
+falls back to `idle`.
 
-Detection-only state is temporary and read-only. It can supply agent identity and `idle`, `running`,
-or `needs input` activity to the panel and tab. It cannot create an action session, notification,
-child-agent state, or saved state. A matching native session can add those fields without replacing
-the detected phase. Detected state clears when the command ends, the surface closes, the process
+Detection-only state is temporary and read-only. It can supply agent identity and `unknown`, `idle`,
+`running`, or `needs input` activity to the panel and tab. It cannot create an action session,
+notification, child-agent state, or saved state. A matching native session can add those fields
+without replacing the detected phase. When the command ends, exit 0 retains a temporary `idle`
+completion and any other exit retains `unknown`. The last exit state clears on later pane activity,
+focus cleanup, or surface cleanup. Live detected state clears when the surface closes, the process
 identity changes, or detection can no longer prove the state.
 
 ### Rules
 
-Supaterm bundles the Claude Code, Codex, and Pi activity manifests with the app. It parses them once
-at startup and does not update them over the network.
+Supaterm bundles the Claude Code, Codex, and Pi activity manifests with the app. It does not update
+them over the network. At startup and on reload, a file at
+`$SUPATERM_STATE_HOME/agent-detection/<agent>.toml` replaces that agent's bundled manifest. The
+default directory is `~/.config/supaterm/agent-detection`. A failed reload keeps the current complete
+rule set.
+
+Inspect a pane's process proof, manifest source, chosen rule, and every rule condition with:
+
+```bash
+sp agent explain [pane]
+```
+
+Reload local manifests after an edit with:
+
+```bash
+sp agent reload-rules
+```
 
 ## Supaterm Skill
 
@@ -167,7 +185,7 @@ The app uses Claude hooks only for root session identity.
 
 - `SessionStart` binds the session ID, process, workspace, and pane surface.
 - Every other Claude hook event is ignored by the app.
-- The terminal reader alone sets Claude's root `idle`, `running`, or `needs input` phase.
+- The terminal reader alone sets Claude's root `unknown`, `idle`, `running`, or `needs input` phase.
 - A command-finished signal from the shell clears the pane-bound session identity.
 
 ## Codex
@@ -189,7 +207,7 @@ The app uses Codex hooks only for root session identity.
 
 - `SessionStart` binds the session ID, process, workspace, and pane surface.
 - Every other Codex hook event is ignored by the app.
-- The terminal reader alone sets Codex's root `idle`, `running`, or `needs input` phase.
+- The terminal reader alone sets Codex's root `unknown`, `idle`, `running`, or `needs input` phase.
 
 ## Pi
 

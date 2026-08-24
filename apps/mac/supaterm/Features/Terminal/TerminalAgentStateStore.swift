@@ -3,6 +3,7 @@ import SupatermCLIShared
 import SupatermSupport
 
 nonisolated enum AgentActivityPhase: Codable, Comparable, Sendable {
+  case unknown
   case idle
   case running
   case needsInput

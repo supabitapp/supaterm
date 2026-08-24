@@ -28,6 +28,8 @@ public struct AgentDetectionSettler<ProcessToken: Hashable & Sendable>: Sendable
     }
 
     switch match.result {
+    case .unknown:
+      return publish(.unknown)
     case .running:
       return publish(.running)
     case .needsInput:

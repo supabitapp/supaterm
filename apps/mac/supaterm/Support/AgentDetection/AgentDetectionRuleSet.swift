@@ -5,20 +5,39 @@ struct AgentDetectionRuleSet: Equatable, Sendable {
   let agents: [AgentDetectionAgentRule]
 }
 
+public enum AgentDetectionManifestOrigin: String, Equatable, Sendable {
+  case bundled
+  case local
+}
+
+public struct AgentDetectionManifestSource: Equatable, Sendable {
+  public let origin: AgentDetectionManifestOrigin
+  public let path: String
+
+  public init(origin: AgentDetectionManifestOrigin, path: String) {
+    self.origin = origin
+    self.path = path
+  }
+}
+
 struct AgentDetectionAgentRule: Equatable, Sendable {
   let id: String
   let displayName: String
+  let version: String?
+  let source: AgentDetectionManifestSource
   let processes: [AgentDetectionProcessRule]
   let rules: [AgentDetectionStateRule]
 }
 
 struct AgentDetectionManifest: Decodable, Equatable, Sendable {
   let id: String
+  let version: String?
   let rules: [AgentDetectionStateRule]
 
   init(from decoder: any Decoder) throws {
     let container = try decoder.agentDetectionContainer(keyedBy: CodingKeys.self)
     id = try container.decode(String.self, forKey: .id)
+    version = try container.decodeIfPresent(String.self, forKey: .version)
     rules = try container.decodeIfPresent([AgentDetectionStateRule].self, forKey: .rules) ?? []
   }
 
@@ -61,7 +80,7 @@ struct AgentDetectionStateRule: Decodable, Equatable, Sendable {
     id = try container.decode(String.self, forKey: .id)
     let state = try container.decode(State.self, forKey: .state)
     let skipStateUpdate = try container.decodeIfPresent(Bool.self, forKey: .skipStateUpdate) ?? false
-    result = try state.result(skipStateUpdate: skipStateUpdate, codingPath: decoder.codingPath)
+    result = state.result(skipStateUpdate: skipStateUpdate)
     priority = try container.decodeIfPresent(Int.self, forKey: .priority) ?? 0
     region = try container.decodeIfPresent(AgentDetectionRegion.self, forKey: .region) ?? .wholeRecent
     visibleIdle = try container.decodeIfPresent(Bool.self, forKey: .visibleIdle) ?? false
@@ -74,10 +93,7 @@ struct AgentDetectionStateRule: Decodable, Equatable, Sendable {
     case blocked
     case unknown
 
-    func result(
-      skipStateUpdate: Bool,
-      codingPath: [any CodingKey]
-    ) throws -> AgentDetectionRuleResult {
+    func result(skipStateUpdate: Bool) -> AgentDetectionRuleResult {
       if skipStateUpdate { return .hold }
       switch self {
       case .idle:
@@ -87,12 +103,7 @@ struct AgentDetectionStateRule: Decodable, Equatable, Sendable {
       case .blocked:
         return .needsInput
       case .unknown:
-        throw DecodingError.dataCorrupted(
-          DecodingError.Context(
-            codingPath: codingPath,
-            debugDescription: "Unknown state requires skip_state_update."
-          )
-        )
+        return .unknown
       }
     }
   }
@@ -119,6 +130,7 @@ public enum AgentDetectionRuleResult: Equatable, Sendable {
   case running
   case needsInput
   case idle
+  case unknown
   case hold
 }
 
@@ -132,6 +144,22 @@ enum AgentDetectionRegion: Equatable, Hashable, Sendable {
   case afterLastHorizontalRule
   case oscTitle
   case oscProgress
+}
+
+extension AgentDetectionRegion {
+  var description: String {
+    switch self {
+    case .wholeRecent: "whole_recent"
+    case .bottomNonEmptyLines(let count): "bottom_non_empty_lines(\(count))"
+    case .topNonEmptyLines(let count): "top_non_empty_lines(\(count))"
+    case .afterLastPromptMarker: "after_last_prompt_marker"
+    case .promptBoxBody: "prompt_box_body"
+    case .lastNonEmptyAbovePromptBox: "last_non_empty_above_prompt_box"
+    case .afterLastHorizontalRule: "after_last_horizontal_rule"
+    case .oscTitle: "osc_title"
+    case .oscProgress: "osc_progress"
+    }
+  }
 }
 
 extension AgentDetectionRegion: Decodable {

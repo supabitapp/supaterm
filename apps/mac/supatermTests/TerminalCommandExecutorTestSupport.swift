@@ -270,6 +270,7 @@ extension TerminalHostState {
     }
     let action: TerminalAgentEvent.Action =
       switch activity.phase {
+      case .unknown: .sessionResumed
       case .idle: .turnCompleted(message: nil)
       case .needsInput: .attentionRequested(requestID: nil, message: activity.detail)
       case .running: .turnRunning(detail: activity.detail)

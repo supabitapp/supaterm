@@ -235,16 +235,27 @@ final class TerminalHostState {
     case terminal
   }
 
+  enum AgentLifecycle: Equatable, Sendable {
+    case live
+    case ceased(exitCode: Int?)
+  }
+
   struct AgentStateInstance: Equatable, Sendable {
     let activity: AgentActivity
     let completionIdentity: TerminalAgentCompletionIdentity
+    let lifecycle: AgentLifecycle
     let nativePresentation: TerminalAgentStatePresentation?
     let phaseSource: AgentPhaseSource
     let revision: UInt64
     let surfaceID: UUID
 
     var hasActivity: Bool {
-      phaseSource == .terminal || nativePresentation?.hasActivity == true
+      switch lifecycle {
+      case .live:
+        phaseSource == .terminal || nativePresentation?.hasActivity == true
+      case .ceased:
+        true
+      }
     }
   }
 
@@ -776,8 +787,17 @@ final class TerminalHostState {
     #if SUPATERM_DEMO
       guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
     #endif
+    let exitingAgent =
+      agentCompletionStore.cessation(for: surfaceID) == nil
+      ? resolvedAgentState(for: surfaceID).currentInstance.map(TerminalAgentExitContext.init)
+        ?? agentCompletionStore.pendingExit(for: surfaceID)
+      : nil
+    let exitCode = surfaces[surfaceID]?.bridge.state.commandExitCode
     agentDetectionController?.surfaceCommandDidFinish(surfaceID)
     let removedAgentState = clearAgentState(for: surfaceID)
+    if let exitingAgent {
+      recordAgentCessation(exitingAgent, exitCode: exitCode, surfaceID: surfaceID)
+    }
     _ = clearAgentPanelMetadata(for: surfaceID)
     agentPanelController?.surfaceCommandFinished(surfaceID)
     if removedAgentState {
@@ -935,13 +955,13 @@ final class TerminalHostState {
     in tabID: TerminalTabID
   ) {
     focusHistoryByTab[tabID, default: FocusHistory(current: surfaceID)].updateCurrent(surfaceID)
+    clearAgentCompletionAttention(in: tabID)
   }
 
   func focusSurface(_ surface: GhosttySurfaceView, in tabID: TerminalTabID) {
     let previousSurface = focusHistoryByTab[tabID].flatMap { surfaces[$0.current] }
     applyFocusedSurface(surface.id, in: tabID)
     updateTabTitle(for: tabID)
-    clearAgentCompletionAttention(in: tabID)
     clearNotificationAttention(for: surface.id)
     guard tabID == spaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface

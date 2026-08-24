@@ -23,6 +23,15 @@ struct AgentDetectionSettlerTests {
   }
 
   @Test
+  func unknownPublishesImmediately() {
+    let now = ContinuousClock().now
+    var settler = AgentDetectionSettler<String>()
+
+    _ = settler.settle(match: match(.running), processToken: "one", now: now)
+    #expect(settler.settle(match: match(.unknown), processToken: "one", now: now) == .unknown)
+  }
+
+  @Test
   func plainIdleNeedsThreeConfirmationsAfterRunning() {
     let now = ContinuousClock().now
     var settler = AgentDetectionSettler<String>()
@@ -117,7 +126,7 @@ struct AgentDetectionSettlerTests {
       .running
     case .needsInput:
       .needsInput
-    case .idle, .hold:
+    case .unknown, .idle, .hold:
       fatalError("Strong evidence requires a running or needs-input result")
     }
   }

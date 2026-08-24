@@ -374,7 +374,7 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
-  func commandFinishedClearsAgentActivityAndLatestResponse() throws {
+  func commandFinishedKeepsUnknownExitStateAndClearsLatestResponse() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -383,7 +383,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     surface.bridge.onCommandFinished?()
 
-    #expect(host.agentActivity(for: tabID) == nil)
+    #expect(host.agentActivity(for: tabID) == .pi(.unknown))
     #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == nil)
   }
 

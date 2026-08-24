@@ -1,0 +1,8 @@
+project
+---
+✽ Running task in the background
+  Collecting data · 2 MCP tasks still running
+
+────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────

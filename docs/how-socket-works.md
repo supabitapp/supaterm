@@ -234,6 +234,7 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `app.*` — onboarding, debug, tree, settings, hooks, skills
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
+- `terminal.agent_explain` — explicit rule evidence for one pane
 - `terminal.*` — space, tab, and pane control, one method per CLI verb
 
 `terminal.capture_pane` returns terminal text. `terminal.screenshot_pane` returns PNG data for a
@@ -249,18 +250,21 @@ Hook methods own the agent settings files:
 - `app.hooks.install` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
 - The app writes `~/.claude/settings.json` and `~/.codex/hooks.json`, and talks to Codex app-server. The CLI never touches those files.
 
+`app.agent_detection.reload` atomically reloads local manifests from the app's state root and
+returns the active generation and source of each manifest.
+
 Debug snapshot panes carry coding agent detection. Each pane has `agentStatus` and, when an agent
 resolves, an `agent` object.
 
 - `agentStatus` is `detection_disabled`, `waiting`, `no_foreground_process`,
   `unrecognized_process`, `native_authority`, `screen_unavailable`,
   `no_rule_match_or_settling`, or `resolved`.
-- `agent` contains `kind`, `phase` (`idle`, `running`, or `needs_input`), and `phaseSource`
+- `agent` contains `kind`, `phase` (`unknown`, `idle`, `running`, or `needs_input`), and `phaseSource`
   (`native` or `screen`), plus `sessionID`, `ruleID`, and `process` when those values exist.
 - `process` contains `processID` and `startTimeMicroseconds`.
 
 `sp ls --json` mirrors `agent` and `agentStatus` on pane items. The snapshot omits terminal text,
-rule patterns, and internal match weights.
+rule patterns, and internal match weights. `sp agent explain` is the explicit rule-evidence surface.
 
 Skill methods serve the app bundle:
 

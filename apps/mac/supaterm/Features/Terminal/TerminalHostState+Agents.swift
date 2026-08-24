@@ -225,6 +225,17 @@ extension TerminalHostState {
       return presentation.isEmpty ? nil : presentation
     }
     switch current.activity.phase {
+    case .unknown:
+      return PaneAgentPanelPresentation(
+        progressRows: [
+          PaneAgentProgressRow(
+            id: "agent-session-unknown",
+            title: current.activity.detail ?? "State unknown",
+            status: .pending
+          )
+        ],
+        workingDirectoryPath: workingDirectoryPath
+      )
     case .running:
       return PaneAgentPanelPresentation(
         progressRows: [
@@ -311,6 +322,7 @@ extension TerminalHostState {
     }
     return !agentStateStore.snapshots(for: surfaceID).isEmpty
       || agentDetectionStore.observation(for: surfaceID) != nil
+      || agentCompletionStore.cessation(for: surfaceID) != nil
       || paneAgentMetadataBySurfaceID[surfaceID]?.isEmpty == false
   }
 
@@ -356,6 +368,9 @@ extension TerminalHostState {
   ) -> Bool {
     guard surfaces[surfaceID] != nil, let tabID = tabID(containing: surfaceID) else {
       return false
+    }
+    if agentCompletionStore.cessation(for: surfaceID) != nil {
+      agentCompletionStore.clear(for: surfaceID)
     }
     let previousObservation = agentDetectionStore.observation(for: surfaceID)
     guard agentDetectionStore.apply(observation, for: surfaceID) else { return false }
@@ -483,10 +498,12 @@ extension TerminalHostState {
   static func agentActivityPriority(_ phase: AgentActivityPhase) -> Int {
     switch phase {
     case .needsInput:
-      return 2
+      return 3
     case .running:
-      return 1
+      return 2
     case .idle:
+      return 1
+    case .unknown:
       return 0
     }
   }
@@ -551,6 +568,8 @@ extension TerminalHostState {
     isFocused: Bool
   ) -> TabAgentStatus? {
     switch instance.activity.phase {
+    case .unknown:
+      return nil
     case .needsInput:
       return .needsInput
     case .running:
@@ -578,6 +597,18 @@ extension TerminalHostState {
       return TerminalAgentEventApplication(accepted: false, changed: false)
     }
     let surfaceID = event.context?.surfaceID ?? previousSurfaceID
+    let exitContext = surfaceID.flatMap { surfaceID -> TerminalAgentExitContext? in
+      guard event.scope.subagentID == nil, case .sessionEnded = event.action else {
+        return nil
+      }
+      let completionIdentity = TerminalAgentCompletionIdentity.native(
+        agent: event.scope.agent,
+        sessionID: event.scope.sessionID
+      )
+      return resolvedAgentState(for: surfaceID).instances
+        .first { $0.completionIdentity == completionIdentity }
+        .map(TerminalAgentExitContext.init)
+    }
     let before = surfaceID.map(agentStateStore.snapshots(for:)) ?? []
     let accepted = agentStateStore.apply(event)
     let resolvedSurfaceID =
@@ -591,7 +622,11 @@ extension TerminalHostState {
     }
     let changed = before != agentStateStore.snapshots(for: resolvedSurfaceID)
     if accepted {
-      updateNativeAgentCompletion(event, surfaceID: resolvedSurfaceID)
+      if let exitContext {
+        agentCompletionStore.recordPendingExit(exitContext, for: resolvedSurfaceID)
+      } else {
+        updateNativeAgentCompletion(event, surfaceID: resolvedSurfaceID)
+      }
     }
     if changed {
       agentPanelController?.surfaceAgentStateChanged(resolvedSurfaceID)
@@ -677,15 +712,18 @@ extension TerminalHostState {
           < AgentDetectionAgentIdentity($1.presentation.agent).id
       }
       let currentCandidate = sortedCandidates.max { $0.revision < $1.revision }
-      let instances = sortedCandidates.map { candidate in
+      var instances = sortedCandidates.map { candidate in
         agentStateInstance(candidate, surfaceID: surfaceID)
+      }
+      if instances.isEmpty, let cessation = agentCompletionStore.cessation(for: surfaceID) {
+        instances = [cessation.instance(for: surfaceID)]
       }
       return ResolvedAgentState(
         resolution: resolution,
         instances: instances,
         currentInstance: currentCandidate.map {
           agentStateInstance($0, surfaceID: surfaceID)
-        },
+        } ?? instances.first,
         currentNativeCandidate: currentCandidate
       )
     case .terminal(let observation, let nativeDetails):
@@ -700,6 +738,7 @@ extension TerminalHostState {
           agent: observation.agent,
           processIdentity: observation.processIdentity
         ),
+        lifecycle: .live,
         nativePresentation: nativePresentation,
         phaseSource: .terminal,
         revision: observation.sequence,
@@ -712,6 +751,31 @@ extension TerminalHostState {
         currentNativeCandidate: nil
       )
     }
+  }
+
+  func recordAgentCessation(
+    _ context: TerminalAgentExitContext,
+    exitCode: Int?,
+    surfaceID: UUID
+  ) {
+    guard let tabID = tabID(containing: surfaceID) else { return }
+    let cessation = TerminalAgentCessation(
+      context: context,
+      exitCode: exitCode
+    )
+    let isCompletion =
+      exitCode == 0
+      && !agentSurfaceIsFocused(
+        surfaceID,
+        in: tabID,
+        focusedSurfaceID: focusHistoryByTab[tabID]?.current
+      )
+    agentCompletionStore.recordCessation(
+      cessation,
+      isCompletion: isCompletion,
+      for: surfaceID
+    )
+    agentPanelController?.surfaceAgentStateChanged(surfaceID)
   }
 
   func nativeAgentDetectionCandidates(
@@ -770,6 +834,7 @@ extension TerminalHostState {
         agent: presentation.agent,
         sessionID: presentation.sessionID
       ),
+      lifecycle: .live,
       nativePresentation: presentation,
       phaseSource: .native,
       revision: UInt64(max(0, candidate.revision)),
@@ -785,6 +850,8 @@ extension TerminalHostState {
     _ phase: AgentActivityPhase
   ) -> SupatermAppDebugSnapshot.AgentPhase {
     switch phase {
+    case .unknown:
+      return .unknown
     case .idle:
       return .idle
     case .running:

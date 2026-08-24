@@ -566,7 +566,15 @@ struct SPCommandTests {
   }
 
   @Test
-  func agentParserAcceptsInstallRemoveHookAndReceiveAgentHookSubcommands() throws {
+  func agentParserAcceptsDetectionAndHookSubcommands() throws {
+    let explainCommand = try #require(
+      try SP.parseAsRoot(["agent", "explain", "1/2/3", "--json"])
+        as? SP.ExplainAgentDetection
+    )
+    let reloadCommand = try #require(
+      try SP.parseAsRoot(["agent", "reload-rules", "--plain"])
+        as? SP.ReloadAgentDetectionRules
+    )
     let installAllCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hooks"]) as? SP.InstallAgentHooks
     )
@@ -591,6 +599,8 @@ struct SPCommandTests {
         as? SP.ReceiveAgentHook
     )
 
+    #expect(explainCommand.options.output.json)
+    #expect(reloadCommand.options.output.plain)
     #expect(type(of: installAllCommand) == SP.InstallAgentHooks.self)
     #expect(type(of: claudeCommand) == SP.InstallAgentHook.Claude.self)
     #expect(type(of: codexCommand) == SP.InstallAgentHook.Codex.self)

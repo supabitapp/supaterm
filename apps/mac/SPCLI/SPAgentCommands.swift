@@ -9,8 +9,10 @@ extension SP {
       abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
       subcommands: [
+        ExplainAgentDetection.self,
         InstallAgentHooks.self,
         InstallAgentHook.self,
+        ReloadAgentDetectionRules.self,
         RemoveAgentHook.self,
         ReceiveAgentHook.self,
       ]
@@ -18,6 +20,65 @@ extension SP {
 
     mutating func run() throws {
       print(Self.helpMessage())
+    }
+  }
+
+  struct ExplainAgentDetection: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "explain",
+      abstract: "Explain agent detection for a pane."
+    )
+
+    @Argument(help: "Optional pane target.")
+    var pane: SPPaneReference?
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      applyOutputStyle(options.output)
+      let client = try socketClient(
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
+      )
+      let target = try resolvePublicPaneTarget(
+        pane,
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      )
+      let response = try client.send(
+        .agentDetectionExplain(SupatermAgentDetectionExplainRequest(target: target))
+      )
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+      let result = try response.decodeResult(SupatermAgentDetectionExplainResult.self)
+      try emitCommandResult(
+        result,
+        options: options.output,
+        plain: renderAgentDetectionExplanation(result),
+        human: renderAgentDetectionExplanation(result)
+      )
+    }
+  }
+
+  struct ReloadAgentDetectionRules: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "reload-rules",
+      abstract: "Reload local agent detection manifests."
+    )
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      try runControlCommand(
+        options: options,
+        request: { _ in .agentDetectionReload() },
+        as: SupatermAgentDetectionReloadResult.self,
+        plain: renderAgentDetectionReload,
+        human: renderAgentDetectionReload
+      )
     }
   }
 
@@ -234,6 +295,75 @@ private func agentHookEvent(from data: Data) throws -> SupatermAgentHookEvent {
   } catch {
     throw ValidationError("Agent hook input must be valid hook JSON.")
   }
+}
+
+private func renderAgentDetectionReload(
+  _ result: SupatermAgentDetectionReloadResult
+) -> String {
+  ([
+    "generation\t\(result.generation)",
+    "override-directory\t\(result.overrideDirectory)",
+  ]
+    + result.manifests.map { manifest in
+      "manifest\t\(manifest.agentID)\t\(manifest.version ?? "unknown")\t\(manifest.origin.rawValue)\t\(manifest.path)"
+    }).joined(separator: "\n")
+}
+
+private func renderAgentDetectionExplanation(
+  _ result: SupatermAgentDetectionExplainResult
+) -> String {
+  var lines = [
+    "pane\t\(result.target.paneID.uuidString.lowercased())",
+    "status\t\(result.status.rawValue)",
+    "generation\t\(result.generation.map(String.init) ?? "unknown")",
+    "agent\t\(result.agentID ?? "unknown")",
+    "agent-name\t\(result.displayName ?? "unknown")",
+    "phase\t\(result.phase?.rawValue ?? "unknown")",
+    "matched-rule\t\(result.matchedRuleID ?? "none")",
+    "published-rule\t\(result.publishedRuleID ?? "none")",
+  ]
+  if let process = result.process {
+    lines.append("process\t\(process.processID)\t\(process.startTimeMicroseconds)")
+  } else {
+    lines.append("process\tnone")
+  }
+  if let manifest = result.manifest {
+    lines.append(
+      "manifest\t\(manifest.version ?? "unknown")\t\(manifest.origin.rawValue)\t\(manifest.path)"
+    )
+  }
+  for rule in result.rules {
+    lines.append(
+      [
+        "rule",
+        rule.matched ? "match" : "miss",
+        String(rule.priority),
+        rule.state.rawValue,
+        rule.region,
+        rule.ruleID,
+      ].joined(separator: "\t")
+    )
+    lines += renderAgentDetectionCondition(rule.condition, depth: 1)
+  }
+  return lines.joined(separator: "\n")
+}
+
+private func renderAgentDetectionCondition(
+  _ condition: SupatermAgentDetectionConditionEvidence,
+  depth: Int
+) -> [String] {
+  let prefix = String(repeating: "  ", count: depth)
+  let value = condition.value.map { "\t\(renderAgentDetectionValue($0))" } ?? ""
+  return ["\(prefix)\(condition.kind)\t\(condition.matched ? "match" : "miss")\(value)"]
+    + condition.children.flatMap { renderAgentDetectionCondition($0, depth: depth + 1) }
+}
+
+private func renderAgentDetectionValue(_ value: String) -> String {
+  value
+    .replacingOccurrences(of: "\\", with: "\\\\")
+    .replacingOccurrences(of: "\t", with: "\\t")
+    .replacingOccurrences(of: "\r", with: "\\r")
+    .replacingOccurrences(of: "\n", with: "\\n")
 }
 
 private func sendAgentHookRequests(

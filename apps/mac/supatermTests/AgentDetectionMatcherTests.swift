@@ -72,7 +72,7 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test
-  func noMatchingRuleUsesTheKnownAgentIdleFallback() throws {
+  func noMatchingRuleUsesTheKnownAgentUnknownFallback() throws {
     let matcher = try AgentDetectionMatcher(
       agent: agent(rules: [rule(contains: ["ready"])])
     )
@@ -80,7 +80,7 @@ struct AgentDetectionMatcherTests {
     #expect(
       matcher.match(AgentDetectionInput(screen: "working", oscTitle: ""))
         == AgentDetectionMatch(
-          result: .idle,
+          result: .unknown,
           ruleID: AgentDetectionMatcher.fallbackRuleID
         )
     )
@@ -117,6 +117,28 @@ struct AgentDetectionMatcherTests {
         AgentDetectionInput(screen: "READY\nPress Enter\nDenied", oscTitle: "")
       ).ruleID == AgentDetectionMatcher.fallbackRuleID
     )
+  }
+
+  @Test
+  func explanationIncludesEveryRuleAndConditionResult() throws {
+    let matcher = try AgentDetectionMatcher(
+      agent: agent(
+        rules: [
+          rule(id: "miss", priority: 20, contains: ["blocked"]),
+          rule(id: "winner", result: .idle, priority: 10, contains: ["ready"]),
+        ]
+      )
+    )
+
+    let explanation = matcher.explain(
+      AgentDetectionInput(screen: "Ready", oscTitle: "")
+    )
+
+    #expect(explanation.match == AgentDetectionMatch(result: .idle, ruleID: "winner"))
+    #expect(explanation.rules.map(\.ruleID) == ["miss", "winner"])
+    #expect(explanation.rules.map(\.matched) == [false, true])
+    #expect(explanation.rules[1].condition.children.first?.kind == "contains")
+    #expect(explanation.rules[1].condition.children.first?.matched == true)
   }
 
   @Test
@@ -242,7 +264,8 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test(arguments: [
-    "claude-background-agents", "claude-background-shell", "claude-live-turn", "claude-running",
+    "claude-background-agents", "claude-background-mcp-task", "claude-background-shell",
+    "claude-live-turn", "claude-running",
     "codex-running", "codex-working-spinner", "codex-working-clipped",
     "codex-working-reasoning-header", "codex-working-queued", "codex-working-steers-only",
     "codex-working-reconnecting", "codex-working-reconnecting-narrow",
@@ -252,9 +275,14 @@ struct AgentDetectionMatcherTests {
     #expect(try matchFixture(name).result == .running)
   }
 
-  @Test(arguments: ["claude-idle", "codex-idle", "pi-idle"])
+  @Test(arguments: ["claude-idle", "codex-idle"])
   func idleFixturesAreIdle(name: String) throws {
     #expect(try matchFixture(name).result == .idle)
+  }
+
+  @Test(arguments: ["pi-idle"])
+  func unmatchedFixturesAreUnknown(name: String) throws {
+    #expect(try matchFixture(name).result == .unknown)
   }
 
   @Test(arguments: ["claude-model-picker", "claude-transcript", "codex-transcript"])
@@ -265,6 +293,7 @@ struct AgentDetectionMatcherTests {
   @Test(arguments: [
     ("claude-idle", "live_prompt_box"),
     ("claude-background-agents", "background_agents_working"),
+    ("claude-background-mcp-task", "background_mcp_task_working"),
     ("claude-background-shell", "background_shell_working"),
     ("claude-legacy-blocker", "legacy_no_prompt_blocker"),
     ("claude-live-turn", "live_turn_working"),
@@ -285,7 +314,7 @@ struct AgentDetectionMatcherTests {
     ("codex-working-reconnecting", "screen_working_fallback"),
     ("codex-working-reconnecting-narrow", "screen_working_fallback"),
     ("codex-working-remapped-plain", "screen_working_fallback"),
-    ("pi-idle", "default_known_agent_idle_fallback"),
+    ("pi-idle", "default_known_agent_unknown_fallback"),
     ("pi-running", "working_literal"),
   ])
   func fixturesMatchTheirOwningRule(name: String, ruleID: String) throws {
@@ -296,6 +325,8 @@ struct AgentDetectionMatcherTests {
     AgentDetectionAgentRule(
       id: "agent",
       displayName: "Agent",
+      version: nil,
+      source: AgentDetectionManifestSource(origin: .bundled, path: "agent.toml"),
       processes: [AgentDetectionProcessRule(executable: "agent")],
       rules: rules
     )

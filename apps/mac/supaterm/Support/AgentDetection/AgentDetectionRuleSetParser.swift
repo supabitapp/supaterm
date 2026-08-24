@@ -43,7 +43,10 @@ enum AgentDetectionRuleSetParser {
     ),
   ]
 
-  static func load(from bundle: Bundle) throws -> AgentDetectionRuleSet {
+  static func load(
+    from bundle: Bundle,
+    overrideDirectoryURL: URL? = nil
+  ) throws -> AgentDetectionRuleSet {
     var documents: [Data] = []
     var loadedAgents: [AgentDetectionAgentRule] = []
     for definition in agents {
@@ -56,12 +59,23 @@ enum AgentDetectionRuleSetParser {
       else {
         throw AgentDetectionRuleSetError.missingBundledManifest(definition.id)
       }
-      let data = try Data(contentsOf: url)
-      let manifest = try parse(data)
+      let overrideURL = overrideDirectoryURL?.appendingPathComponent(
+        "\(definition.id).toml",
+        isDirectory: false
+      )
+      let selectedURL =
+        if let overrideURL, FileManager.default.fileExists(atPath: overrideURL.path) {
+          overrideURL
+        } else {
+          url
+        }
+      let data = try Data(contentsOf: selectedURL)
+      let manifest = try parse(data, path: selectedURL.path)
       guard manifest.id == definition.id else {
         throw AgentDetectionRuleSetError.unexpectedManifestID(
           expected: definition.id,
-          actual: manifest.id
+          actual: manifest.id,
+          path: selectedURL.path
         )
       }
       documents.append(data)
@@ -69,6 +83,11 @@ enum AgentDetectionRuleSetParser {
         AgentDetectionAgentRule(
           id: manifest.id,
           displayName: definition.displayName,
+          version: manifest.version,
+          source: AgentDetectionManifestSource(
+            origin: selectedURL == url ? .bundled : .local,
+            path: selectedURL.path
+          ),
           processes: definition.processes,
           rules: manifest.rules
         )
@@ -80,13 +99,13 @@ enum AgentDetectionRuleSetParser {
     )
   }
 
-  static func parse(_ data: Data) throws -> AgentDetectionManifest {
+  static func parse(_ data: Data, path: String? = nil) throws -> AgentDetectionManifest {
     do {
       return try TOMLDecoder().decode(AgentDetectionManifest.self, from: data)
     } catch let error as AgentDetectionRuleSetError {
       throw error
     } catch {
-      throw AgentDetectionRuleSetError.invalidDocument(error.localizedDescription)
+      throw AgentDetectionRuleSetError.invalidDocument(path: path, detail: error.localizedDescription)
     }
   }
 
@@ -107,17 +126,21 @@ enum AgentDetectionRuleSetParser {
 
 enum AgentDetectionRuleSetError: Error, Equatable, LocalizedError, Sendable {
   case missingBundledManifest(String)
-  case unexpectedManifestID(expected: String, actual: String)
-  case invalidDocument(String)
+  case unexpectedManifestID(expected: String, actual: String, path: String)
+  case invalidDocument(path: String?, detail: String)
 
   var errorDescription: String? {
     switch self {
     case .missingBundledManifest(let id):
       "Bundled agent detection manifest '\(id)' is missing."
-    case .unexpectedManifestID(let expected, let actual):
-      "Bundled agent detection manifest '\(expected)' declares id '\(actual)'."
-    case .invalidDocument(let detail):
-      "Bundled agent detection manifest is invalid: \(detail)"
+    case .unexpectedManifestID(let expected, let actual, let path):
+      "Agent detection manifest at '\(path)' must declare id '\(expected)', not '\(actual)'."
+    case .invalidDocument(let path, let detail):
+      if let path {
+        "Agent detection manifest at '\(path)' is invalid: \(detail)"
+      } else {
+        "Agent detection manifest is invalid: \(detail)"
+      }
     }
   }
 }
