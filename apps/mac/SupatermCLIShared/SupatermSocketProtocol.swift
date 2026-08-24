@@ -17,6 +17,12 @@ public enum SupatermSocketMethod {
   public static let appSkillsList = "app.skills.list"
   public static let appSkillsPath = "app.skills.path"
   public static let appTree = "app.tree"
+  public static let licenseActivate = "license.activate"
+  public static let licenseBuy = "license.buy"
+  public static let licenseDeactivate = "license.deactivate"
+  public static let licenseRefresh = "license.refresh"
+  public static let licenseRenew = "license.renew"
+  public static let licenseStatus = "license.status"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
   public static let terminalAgentHook = "terminal.agent_hook"
@@ -240,6 +246,33 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
 
   public static func skillsInstall(id: String = UUID().uuidString) -> Self {
     Self(id: id, method: SupatermSocketMethod.appSkillsInstall)
+  }
+
+  public static func licenseActivate(
+    _ payload: SupatermLicenseActivationRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.licenseActivate, payload, id: id)
+  }
+
+  public static func licenseBuy(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.licenseBuy)
+  }
+
+  public static func licenseDeactivate(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.licenseDeactivate)
+  }
+
+  public static func licenseRefresh(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.licenseRefresh)
+  }
+
+  public static func licenseRenew(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.licenseRenew)
+  }
+
+  public static func licenseStatus(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.licenseStatus)
   }
 
   public static func newPane(

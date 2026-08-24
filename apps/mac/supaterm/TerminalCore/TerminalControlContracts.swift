@@ -438,7 +438,7 @@ public enum TerminalCreateTabError: Error, Equatable {
   case windowNotFound(Int)
 
   public static func tabLimitMessage(limit: Int) -> String {
-    "Free mode allows \(limit) open tabs."
+    "Free mode allows \(limit) open tabs. Run `sp license activate` to unlock more."
   }
 }
 
@@ -462,4 +462,28 @@ public enum TerminalControlError: Error, Equatable {
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   case windowNotFound(Int)
+}
+
+public enum LicenseControlRequest: Equatable, Sendable {
+  case activate(String)
+  case buy
+  case deactivate
+  case refresh
+  case renew
+  case status
+}
+
+public enum LicenseControlResult: Equatable, Sendable {
+  case status(SupatermLicenseStatusResult)
+  case url(SupatermLicenseURLResult)
+}
+
+public struct LicenseControlError: Error, Equatable, Sendable {
+  public let code: String
+  public let message: String
+
+  public init(code: String, message: String) {
+    self.code = code
+    self.message = message
+  }
 }

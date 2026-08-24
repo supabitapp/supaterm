@@ -11,16 +11,21 @@ final class TerminalCommandExecutor {
   unowned let registry: TerminalWindowRegistry
   let agentDetectionRuleRepository: AgentDetectionRuleRepository?
   let paneCaptureClient: TerminalPaneCaptureClient
+  let licenseDeviceName: @MainActor () -> String
   var onQuitRequested: (() -> Void)?
 
   init(
     registry: TerminalWindowRegistry,
     agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
-    paneCaptureClient: TerminalPaneCaptureClient = .live
+    paneCaptureClient: TerminalPaneCaptureClient = .live,
+    licenseDeviceName: @escaping @MainActor () -> String = {
+      Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+    }
   ) {
     self.registry = registry
     self.agentDetectionRuleRepository = agentDetectionRuleRepository
     self.paneCaptureClient = paneCaptureClient
+    self.licenseDeviceName = licenseDeviceName
   }
 
   func executeTargeted<Result>(

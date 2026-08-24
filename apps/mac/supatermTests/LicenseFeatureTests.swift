@@ -15,7 +15,7 @@ struct LicenseFeatureTests {
 
     await store.send(.prefillKey("license-key")) {
       $0.key = "license-key"
-      $0.errorMessage = nil
+      $0.error = nil
     }
 
     #expect(store.state.phase == .idle)
@@ -142,7 +142,7 @@ struct LicenseFeatureTests {
 
     await store.send(.keyChanged("license-key")) {
       $0.key = "license-key"
-      $0.errorMessage = nil
+      $0.error = nil
     }
     await store.send(.activationButtonTapped) {
       $0.phase = .activating
@@ -179,12 +179,14 @@ struct LicenseFeatureTests {
     }
 
     await store.send(.deactivationButtonTapped) {
-      $0.errorMessage = nil
+      $0.error = nil
       $0.phase = .deactivating
     }
     await store.receive(\.deactivationResponse) {
-      $0.errorMessage =
-        "Deactivation needs a connection. If you cannot reconnect, email license@supaterm.com."
+      $0.error = LicenseFeatureError(
+        operation: .deactivation,
+        cause: .connectionRequired
+      )
       $0.phase = .idle
     }
 
@@ -255,7 +257,7 @@ struct LicenseFeatureTests {
       }
     }
 
-    await store.send(.refreshRequested) {
+    await store.send(.refreshRequested(.automatic)) {
       $0.phase = .refreshing
     }
     await store.receive(\.refreshResponse) {

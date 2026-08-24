@@ -61,6 +61,8 @@ public struct SocketRequestExecutor: Sendable {
     case createPane(SupatermNewPaneResult)
   }
 
+  public var executeLicense: @MainActor @Sendable (LicenseControlRequest) async throws -> LicenseControlResult
+
   public enum TerminalPaneRequest: Sendable {
     case agentExplain(TerminalPaneTarget)
     case focusPane(TerminalPaneTarget)
@@ -152,6 +154,10 @@ public struct SocketRequestExecutor: Sendable {
 
   public init(
     executeApp: @escaping @MainActor @Sendable (AppRequest) async throws -> AppResult,
+    executeLicense:
+      @escaping @MainActor @Sendable (
+        LicenseControlRequest
+      ) async throws -> LicenseControlResult,
     executeAgentIntegration:
       @escaping @MainActor @Sendable (
         AgentIntegrationRequest
@@ -180,6 +186,7 @@ public struct SocketRequestExecutor: Sendable {
       ) async throws -> TerminalSpaceResult
   ) {
     self.executeApp = executeApp
+    self.executeLicense = executeLicense
     self.executeAgentIntegration = executeAgentIntegration
     self.executeTerminalCreation = executeTerminalCreation
     self.executeTerminalPane = executeTerminalPane
@@ -197,6 +204,7 @@ extension SocketRequestExecutor: DependencyKey {
   private static func unimplementedValue() -> Self {
     Self(
       executeApp: unimplemented("SocketRequestExecutor.executeApp"),
+      executeLicense: unimplemented("SocketRequestExecutor.executeLicense"),
       executeAgentIntegration: unimplemented("SocketRequestExecutor.executeAgentIntegration"),
       executeTerminalCreation: unimplemented("SocketRequestExecutor.executeTerminalCreation"),
       executeTerminalPane: unimplemented("SocketRequestExecutor.executeTerminalPane"),
