@@ -156,6 +156,9 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     case .dismiss:
       dismissInteraction()
 
+    case .downloadLatestIncludedRelease:
+      performOwnershipEndedAction(.downloadLatestIncludedRelease)
+
     case .install:
       installUpdate()
 
@@ -163,7 +166,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       installAfterNextRestart()
 
     case .renewUpdates:
-      renewUpdates()
+      performOwnershipEndedAction(.renewUpdates)
 
     case .restartLater:
       restartLater()
@@ -405,22 +408,14 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     _ acknowledgement: @escaping () -> Void,
     fallback: (() -> Void)?
   ) {
-    resetPreparedInstallChoice()
-    sessionOrigin = .idle
-    interaction = .none
-    phase = .idle
-    publish()
+    enterIdle()
     fallback?()
     acknowledgement()
   }
 
   func dismissUpdateInstallation() {
     guard case .installing = interaction, case .installing(let installing) = phase else {
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
+      enterIdle()
       return
     }
     phase = .installing(
@@ -451,11 +446,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
     switch preparedInstallChoice {
     case .nextRestart:
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
+      enterIdle()
       reply(.dismiss)
     case .relaunch:
       preparedInstallChoice = .relaunch
@@ -528,10 +519,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       break
     }
 
-    resetPreparedInstallChoice()
-    interaction = .none
-    phase = .idle
-    publish()
+    enterIdle()
 
     Task { @MainActor [weak self] in
       try? await Task.sleep(for: .milliseconds(100))
@@ -543,11 +531,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   private func cancelInteraction() {
     switch interaction {
     case .checking(let cancel), .downloading(let cancel):
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
+      enterIdle()
       cancel()
     default:
       return
@@ -557,31 +541,13 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   private func dismissInteraction() {
     switch interaction {
     case .updateAvailable(let reply):
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
+      enterIdle()
       reply(.dismiss)
     case .notFound(let acknowledgement):
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
+      enterIdle()
       acknowledgement()
-    case .ownershipEnded:
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
-    case .error:
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
+    case .ownershipEnded, .error:
+      enterIdle()
     default:
       return
     }
@@ -597,11 +563,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     guard case .updateAvailable(let reply) = interaction else { return }
     preparedInstallChoice = .nextRestart
     if updateAvailableStage == .installing {
-      resetPreparedInstallChoice()
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
+      enterIdle()
       reply(.dismiss)
       return
     }
@@ -637,10 +599,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   private func respondToPermissionRequest(automaticChecks: Bool) {
     guard case .permissionRequest(let reply) = interaction else { return }
-    sessionOrigin = .idle
-    interaction = .none
-    phase = .idle
-    publish()
+    enterIdle()
     reply(
       SUUpdatePermissionResponse(
         automaticUpdateChecks: automaticChecks,
@@ -658,10 +617,9 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     }
   }
 
-  private func renewUpdates() {
-    guard AppBuild.licenseSalesEnabled else { return }
+  private func performOwnershipEndedAction(_ action: UpdateUserAction) {
     guard case .ownershipEnded(let ownership) = phase else { return }
-    NSWorkspace.shared.open(ownership.renewURL)
+    userDriver?.performOwnershipEndedAction(action, ownership: ownership)
   }
 
   private func restartLater() {
@@ -684,20 +642,13 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   private func retryUpdate() {
     guard case .error(let retry) = interaction else { return }
-    sessionOrigin = .idle
-    interaction = .none
-    phase = .idle
-    publish()
+    enterIdle()
     retry()
   }
 
   private func skipVersion() {
     guard case .updateAvailable(let reply) = interaction else { return }
-    resetPreparedInstallChoice()
-    sessionOrigin = .idle
-    interaction = .none
-    phase = .idle
-    publish()
+    enterIdle()
     reply(.skip)
   }
 
@@ -715,11 +666,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       break
     }
 
-    resetPreparedInstallChoice()
-    sessionOrigin = .idle
-    interaction = .none
-    phase = .idle
-    publish()
+    enterIdle()
   }
 
   private func publish() {
@@ -727,6 +674,14 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     for continuation in continuations.values {
       continuation.yield(snapshot)
     }
+  }
+
+  private func enterIdle() {
+    resetPreparedInstallChoice()
+    sessionOrigin = .idle
+    interaction = .none
+    phase = .idle
+    publish()
   }
 
   private func resetPreparedInstallChoice() {

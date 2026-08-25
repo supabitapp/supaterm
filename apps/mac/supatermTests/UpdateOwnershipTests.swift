@@ -161,6 +161,70 @@ struct UpdateOwnershipTests {
   }
 
   @Test
+  func ownershipEndedOffersTheLatestIncludedReleaseEvenWhenItIsOlder() throws {
+    let entitlement = Shared<LicenseEntitlement?>(
+      value: licenseEntitlement(updatesThrough: "2026-08-21")
+    )
+    let releases = [
+      try release(version: "6", day: "2026-08-22"),
+      try release(version: "2", day: "2026-08-21"),
+    ]
+    let driver = UpdateDriver(
+      hostBundle: .main,
+      license: updateLicense(entitlement),
+      currentVersion: "3"
+    )
+
+    #expect(
+      driver.ownershipEnded(in: releases, releaseURL: { $0 })
+        == UpdatePhase.OwnershipEnded(
+          licenseID: "00112233445566778899aabbccddeeff",
+          latestIncludedReleaseURL: URL(string: "https://supaterm.com/download/2.zip"),
+          updatesThrough: try #require(LicenseDay("2026-08-21")),
+          version: "6"
+        )
+    )
+  }
+
+  @Test
+  func windowlessOwnershipEndedUsesSharedActionsAndOpensLatestIncludedRelease() throws {
+    let downloadURL = try #require(URL(string: "https://supaterm.com/download/2.zip"))
+    var presentedPhase: UpdatePhase?
+    var presentedActions: [UpdateActionPresentation] = []
+    var openedURL: URL?
+    var acknowledgementCount = 0
+    let driver = UpdateDriver(
+      hostBundle: .main,
+      license: .unlicensed,
+      currentVersion: "1",
+      openURL: { openedURL = $0 },
+      presentOwnershipEnded: { phase, actions in
+        presentedPhase = phase
+        presentedActions = actions
+        return .downloadLatestIncludedRelease
+      }
+    )
+    let ownership = UpdatePhase.OwnershipEnded(
+      licenseID: "00112233445566778899aabbccddeeff",
+      latestIncludedReleaseURL: downloadURL,
+      updatesThrough: try #require(LicenseDay("2026-08-21")),
+      version: "6"
+    )
+
+    driver.showStandardOwnershipEnded(ownership) {
+      acknowledgementCount += 1
+    }
+
+    #expect(presentedPhase == .ownershipEnded(ownership))
+    #expect(
+      presentedActions.map(\.title)
+        == ["Download Your Latest Release", "Not Now"]
+    )
+    #expect(openedURL == downloadURL)
+    #expect(acknowledgementCount == 1)
+  }
+
+  @Test
   func ownedReleaseOlderThanTheInstalledBuildIsNotSelected() throws {
     let entitlement = Shared<LicenseEntitlement?>(
       value: licenseEntitlement(updatesThrough: "2026-08-21")

@@ -150,7 +150,7 @@ struct SettingsLicenseView: View {
           .disabled(store.phase != .idle)
         }
 
-        Button("Get Your Owned Release") {
+        Button("Download Your Latest Release") {
           _ = store.send(.ownedReleaseButtonTapped)
         }
         .buttonStyle(.bordered)

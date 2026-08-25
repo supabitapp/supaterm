@@ -84,7 +84,7 @@ extension UpdatePhase {
         ),
       ]
 
-    case .ownershipEnded:
+    case .ownershipEnded(let ownership):
       var actions = [
         UpdateActionPresentation(
           title: "Not Now",
@@ -92,6 +92,15 @@ extension UpdatePhase {
           isProminent: false
         )
       ]
+      if ownership.latestIncludedReleaseURL != nil {
+        actions.append(
+          UpdateActionPresentation(
+            title: "Download Your Latest Release",
+            action: .downloadLatestIncludedRelease,
+            isProminent: !salesEnabled
+          )
+        )
+      }
       if salesEnabled {
         actions.append(
           UpdateActionPresentation(

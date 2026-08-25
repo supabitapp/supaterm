@@ -161,4 +161,41 @@ struct UpdatePhaseTests {
     )
     #expect(phase.debugIdentifier == "ownership_ended")
   }
+
+  @Test
+  func ownershipEndedSidebarOffersLatestIncludedReleaseWhenUseful() throws {
+    let phase = UpdatePhase.ownershipEnded(
+      UpdatePhase.OwnershipEnded(
+        licenseID: "00112233445566778899aabbccddeeff",
+        latestIncludedReleaseURL: URL(string: "https://supaterm.com/download/2.zip"),
+        updatesThrough: try #require(LicenseDay("2026-08-21")),
+        version: "6"
+      )
+    )
+
+    #expect(
+      phase.presentations(salesEnabled: false).map(\.title)
+        == ["Not Now", "Download Your Latest Release"]
+    )
+    #expect(
+      phase.presentations(salesEnabled: false).map(\.action)
+        == [.dismiss, .downloadLatestIncludedRelease]
+    )
+    #expect(
+      phase.presentations(salesEnabled: true).map(\.action)
+        == [.dismiss, .downloadLatestIncludedRelease, .renewUpdates]
+    )
+    let renewalDetail =
+      "Supaterm 6 is out. Your updates ended 2026-08-21. "
+      + "Renew to update, or download the newest release included with your license."
+    #expect(
+      phase.detailMessage(salesEnabled: true) == renewalDetail
+    )
+    let downloadDetail =
+      "Supaterm 6 is out. Your updates ended 2026-08-21. "
+      + "Download the newest release included with your license."
+    #expect(
+      phase.detailMessage(salesEnabled: false) == downloadDetail
+    )
+  }
 }

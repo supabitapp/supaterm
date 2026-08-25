@@ -22,7 +22,7 @@ struct LicenseExpiredCardView: View {
             store.send(.renewButtonTapped)
           }
         }
-        Button("Get Your Owned Release") {
+        Button("Download Your Latest Release") {
           store.send(.ownedReleaseButtonTapped)
         }
       }

@@ -6,6 +6,12 @@ import Sparkle
 import SupatermLicenseFeature
 import SupatermSupport
 
+typealias UpdateOwnershipEndedPresenter =
+  @MainActor (
+    UpdatePhase,
+    [UpdateActionPresentation]
+  ) -> UpdateUserAction?
+
 @MainActor
 final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   weak var runtime: UpdateRuntime?
@@ -17,18 +23,24 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   private var checkPreflight = UpdateCheckPreflight<SPUUpdateCheck>()
   private let currentVersion: String
   private let license: UpdateLicenseClient
+  private let openURL: (URL) -> Void
+  private let presentOwnershipEnded: UpdateOwnershipEndedPresenter
   private let standard: SPUStandardUserDriver
 
   init(
     hostBundle: Bundle,
     license: UpdateLicenseClient,
-    currentVersion: String? = nil
+    currentVersion: String? = nil,
+    openURL: @escaping (URL) -> Void = { _ = NSWorkspace.shared.open($0) },
+    presentOwnershipEnded: UpdateOwnershipEndedPresenter? = nil
   ) {
     self.license = license
     self.currentVersion =
       currentVersion
       ?? hostBundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
       ?? "0"
+    self.openURL = openURL
+    self.presentOwnershipEnded = presentOwnershipEnded ?? Self.presentOwnershipEndedAlert
     standard = SPUStandardUserDriver(hostBundle: hostBundle, delegate: nil)
     super.init()
   }
@@ -395,16 +407,29 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
 
   private var currentOwnershipEnded: UpdatePhase.OwnershipEnded? {
     guard let appcastItems else { return nil }
-    return ownershipEnded(in: appcastItems.map(Self.release))
+    return ownershipEnded(
+      in: appcastItems.map(Self.release),
+      releaseURL: \.fileURL
+    )
   }
 
   func ownershipEnded<Value>(
-    in releases: [UpdateRelease<Value>]
+    in releases: [UpdateRelease<Value>],
+    releaseURL: (Value) -> URL?
   ) -> UpdatePhase.OwnershipEnded? {
-    guard case .renew(let ownershipEnded) = ownershipPolicy.decision(in: releases) else {
+    guard case .renew(let ownership) = ownershipPolicy.decision(in: releases) else {
       return nil
     }
-    return ownershipEnded
+    let releaseURL = ownershipPolicy.newestOwnedRelease(
+      in: releases,
+      through: ownership.updatesThrough
+    ).flatMap { releaseURL($0.value) }
+    return UpdatePhase.OwnershipEnded(
+      licenseID: ownership.licenseID,
+      latestIncludedReleaseURL: releaseURL,
+      updatesThrough: ownership.updatesThrough,
+      version: ownership.version
+    )
   }
 
   private var licenseAccess: LicenseAccess {
@@ -419,23 +444,62 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     )
   }
 
-  private func showStandardOwnershipEnded(
+  func showStandardOwnershipEnded(
     _ ownership: UpdatePhase.OwnershipEnded,
     acknowledgement: @escaping () -> Void
   ) {
-    let alert = NSAlert()
     let phase = UpdatePhase.ownershipEnded(ownership)
+    let action = presentOwnershipEnded(
+      phase,
+      Self.standardPresentations(phase.actionPresentations)
+    )
+    acknowledgement()
+    guard let action else { return }
+    performOwnershipEndedAction(action, ownership: ownership)
+  }
+
+  func performOwnershipEndedAction(
+    _ action: UpdateUserAction,
+    ownership: UpdatePhase.OwnershipEnded
+  ) {
+    switch action {
+    case .dismiss:
+      return
+    case .downloadLatestIncludedRelease:
+      guard let url = ownership.latestIncludedReleaseURL else { return }
+      openURL(url)
+    case .renewUpdates:
+      guard AppBuild.licenseSalesEnabled else { return }
+      openURL(ownership.renewURL)
+    case .allowAutomaticChecks, .cancel, .checkForUpdates, .declineAutomaticChecks,
+      .install, .installAfterNextRestart, .restartLater, .restartNow, .retry,
+      .skipVersion:
+      return
+    }
+  }
+
+  private static func standardPresentations(
+    _ presentations: [UpdateActionPresentation]
+  ) -> [UpdateActionPresentation] {
+    let prominent = presentations.filter(\.isProminent)
+    let dismiss = presentations.filter { $0.action == .dismiss }
+    let others = presentations.filter { !$0.isProminent && $0.action != .dismiss }
+    return prominent + others + dismiss
+  }
+
+  private static func presentOwnershipEndedAlert(
+    _ phase: UpdatePhase,
+    presentations: [UpdateActionPresentation]
+  ) -> UpdateUserAction? {
+    let alert = NSAlert()
     alert.messageText = phase.summaryText
     alert.informativeText = phase.detailMessage
-    if AppBuild.licenseSalesEnabled {
-      alert.addButton(withTitle: "Renew Updates")
+    for presentation in presentations {
+      alert.addButton(withTitle: presentation.title)
     }
-    alert.addButton(withTitle: "Not Now")
-    let response = alert.runModal()
-    acknowledgement()
-    if AppBuild.licenseSalesEnabled, response == .alertFirstButtonReturn {
-      NSWorkspace.shared.open(ownership.renewURL)
-    }
+    let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+    guard presentations.indices.contains(index) else { return nil }
+    return presentations[index].action
   }
 
   private func fallbackAction(_ action: @escaping () -> Void) -> (() -> Void)? {

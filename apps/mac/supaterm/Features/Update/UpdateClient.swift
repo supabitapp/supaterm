@@ -12,6 +12,7 @@ public enum UpdateUserAction: Equatable, Sendable {
   case checkForUpdates
   case declineAutomaticChecks
   case dismiss
+  case downloadLatestIncludedRelease
   case install
   case installAfterNextRestart
   case renewUpdates
@@ -112,21 +113,38 @@ public enum UpdatePhase: Equatable, Sendable {
 
   public struct OwnershipEnded: Equatable, Sendable {
     public let licenseID: String
+    public let latestIncludedReleaseURL: URL?
     public let updatesThrough: LicenseDay
     public let version: String
 
     public init(
       licenseID: String,
+      latestIncludedReleaseURL: URL? = nil,
       updatesThrough: LicenseDay,
       version: String
     ) {
       self.licenseID = licenseID
+      self.latestIncludedReleaseURL = latestIncludedReleaseURL
       self.updatesThrough = updatesThrough
       self.version = version
     }
 
     public var renewURL: URL {
       LicensePortalURL.license(licenseID)
+    }
+
+    func detailMessage(salesEnabled: Bool) -> String {
+      let updateNotice = "Supaterm \(version) is out. Your updates ended \(updatesThrough.rawValue)"
+      switch (salesEnabled, latestIncludedReleaseURL != nil) {
+      case (true, true):
+        return "\(updateNotice). Renew to update, or download the newest release included with your license."
+      case (true, false):
+        return "\(updateNotice) — renew to update."
+      case (false, true):
+        return "\(updateNotice). Download the newest release included with your license."
+      case (false, false):
+        return "\(updateNotice). You can keep using your current version."
+      }
     }
   }
 
@@ -198,12 +216,7 @@ public enum UpdatePhase: Equatable, Sendable {
     case .notFound:
       return "You're already running the latest version."
     case .ownershipEnded(let ownership):
-      let updatesThrough = ownership.updatesThrough.rawValue
-      if salesEnabled {
-        return "Supaterm \(ownership.version) is out. Your updates ended \(updatesThrough) — renew to update."
-      }
-      let updateNotice = "Supaterm \(ownership.version) is out. Your updates ended \(updatesThrough)."
-      return "\(updateNotice) You can keep using your current version."
+      return ownership.detailMessage(salesEnabled: salesEnabled)
     case .error(let failure):
       return failure.message
     }
