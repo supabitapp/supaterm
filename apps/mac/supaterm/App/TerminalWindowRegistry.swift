@@ -155,10 +155,10 @@ final class TerminalWindowRegistry {
   }
 
   var bypassesQuitConfirmation: Bool {
-    processUpdateState.phase.bypassesQuitConfirmation
+    updateFeatureState.phase.bypassesQuitConfirmation
   }
 
-  private var processUpdateState: UpdateFeature.State {
+  var updateFeatureState: UpdateFeature.State {
     UpdateFeature.State(
       canCheckForUpdates: updateStore.canCheckForUpdates,
       phase: updateStore.phase
@@ -462,7 +462,7 @@ final class TerminalWindowRegistry {
 
   func menuContext(keyWindow: NSWindow? = NSApp.keyWindow) -> MenuContext {
     let closesKeyWindowDirectly = closesWindowDirectly(keyWindow)
-    let updateState = processUpdateState
+    let updateState = updateFeatureState
     let updateMenuItemAction = Self.updateMenuItemAction(for: updateState)
     guard let entry = preferredActiveEntry() else {
       return MenuContext(
@@ -595,7 +595,7 @@ final class TerminalWindowRegistry {
 
   @discardableResult
   func requestUpdateMenuActionInKeyWindow() -> Bool {
-    guard let action = Self.updateMenuItemAction(for: processUpdateState) else {
+    guard let action = Self.updateMenuItemAction(for: updateFeatureState) else {
       return false
     }
     updateStore.send(.perform(action))
@@ -749,7 +749,7 @@ final class TerminalWindowRegistry {
     }
 
     let terminal = entry.terminal
-    let updateState = processUpdateState
+    let updateState = updateFeatureState
     let availability = commandAvailability(for: entry)
     let focusTargets = activeEntries().flatMap { activeEntry in
       activeEntry.terminal.commandPaletteFocusTargets(

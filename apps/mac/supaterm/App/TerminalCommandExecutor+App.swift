@@ -45,12 +45,7 @@ extension TerminalCommandExecutor {
         isDevelopmentBuild: AppBuild.isDevelopmentBuild,
         usesStubUpdateChecks: AppBuild.usesStubUpdateChecks
       ),
-      update: updateSnapshot(
-        UpdateFeature.State(
-          canCheckForUpdates: registry.updateStore.canCheckForUpdates,
-          phase: registry.updateStore.phase
-        )
-      ),
+      update: updateSnapshot(registry.updateFeatureState),
       summary: SupatermAppDebugSnapshot.Summary(
         windowCount: windows.count,
         spaceCount: registry.spaceCount,
