@@ -12,8 +12,7 @@ struct TerminalDetailView: View {
   let selectedTabID: TerminalTabID
 
   var body: some View {
-    TerminalDetailSurface(
-      store: store,
+    TerminalSurfacePaneView(
       dimmingColor: terminal.unfocusedSplitDimmingColor,
       dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
       focusedSurfaceID: terminal.currentFocusedSurfaceID(),
@@ -21,38 +20,10 @@ struct TerminalDetailView: View {
       palette: palette,
       showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
       splitDividerColor: terminal.splitDividerColor,
-      terminal: terminal,
-      selectedTabID: selectedTabID
-    )
-  }
-}
-
-private struct TerminalDetailSurface: View {
-  let store: StoreOf<TerminalWindowFeature>
-  let dimmingColor: Color
-  let dimmingOpacity: Double
-  let focusedSurfaceID: UUID?
-  let notificationColor: Color
-  let palette: Palette
-  let showsGlowingPaneRing: Bool
-  let splitDividerColor: Color
-  let terminal: TerminalHostState
-  let selectedTabID: TerminalTabID
-
-  var body: some View {
-    TerminalSurfacePaneView(
-      dimmingColor: dimmingColor,
-      dimmingOpacity: dimmingOpacity,
-      focusedSurfaceID: focusedSurfaceID,
-      notificationColor: notificationColor,
-      palette: palette,
-      showsGlowingPaneRing: showsGlowingPaneRing,
-      splitDividerColor: splitDividerColor,
       store: store,
       terminal: terminal,
       tabID: selectedTabID
     )
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 
@@ -72,6 +43,7 @@ private struct TerminalSurfacePaneView: View {
   let tabID: TerminalTabID
 
   var body: some View {
+    let tree = terminal.splitTree(for: tabID)
     TerminalSplitTreeAXContainer(
       agentPanelPresentations: agentPanelPresentations,
       dimmingColor: dimmingColor,
@@ -87,7 +59,7 @@ private struct TerminalSurfacePaneView: View {
       showsSidebarAttentionIndicator: store.isSidebarCollapsed
         && terminal.hasUnreadSidebarNotifications,
       splitDividerColor: splitDividerColor,
-      tree: terminal.splitTree(for: tabID),
+      tree: tree,
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
     ) { operation in
       switch operation {
@@ -131,7 +103,7 @@ private struct TerminalSurfacePaneView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(terminal.splitTree(for: tabID).isSplit ? Color.clear : palette.detailBackground)
+    .background(tree.isSplit ? Color.clear : palette.detailBackground)
   }
 
   private var agentPanelPresentations: [UUID: PaneAgentPanelPresentation] {

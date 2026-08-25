@@ -98,7 +98,7 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  struct PaneChromeConfiguration: Equatable {
+  struct PaneChromeConfiguration {
     let canEqualize: Bool
     let defaultTitles: [UUID: String]
     let isSidebarCollapsed: Bool

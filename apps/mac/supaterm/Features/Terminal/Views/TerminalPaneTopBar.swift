@@ -96,6 +96,18 @@ private struct TerminalPaneToolbarControls: View {
   let splitRight: () -> Void
   let togglePaneZoom: () -> Void
 
+  private var zoomSymbol: String {
+    isPaneZoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+  }
+
+  private var zoomTitle: String {
+    isPaneZoomed ? "Reset Split Zoom" : "Zoom Split"
+  }
+
+  private var zoomAccessibilityLabel: String {
+    isPaneZoomed ? "Reset split zoom" : "Zoom split"
+  }
+
   var body: some View {
     ViewThatFits(in: .horizontal) {
       HStack(spacing: 4) {
@@ -129,11 +141,15 @@ private struct TerminalPaneToolbarControls: View {
         .accessibilityIdentifier("\(accessibilityNamespace).equalize")
 
         if canEqualize {
-          SplitZoomButton(
-            isPaneZoomed: isPaneZoomed,
+          ToolbarIconButton(
+            symbol: zoomSymbol,
             palette: palette,
+            accessibilityLabel: zoomAccessibilityLabel,
+            isSelected: isPaneZoomed,
+            fontSize: 13,
             action: togglePaneZoom
           )
+          .help(zoomTitle)
           .accessibilityIdentifier("\(accessibilityNamespace).zoom")
         }
       }
@@ -146,10 +162,8 @@ private struct TerminalPaneToolbarControls: View {
           .disabled(!canEqualize)
         if canEqualize {
           Button(
-            isPaneZoomed ? "Reset Split Zoom" : "Zoom Split",
-            systemImage: isPaneZoomed
-              ? "arrow.down.right.and.arrow.up.left"
-              : "arrow.up.left.and.arrow.down.right",
+            zoomTitle,
+            systemImage: zoomSymbol,
             action: togglePaneZoom
           )
         }
@@ -167,57 +181,5 @@ private struct TerminalPaneToolbarControls: View {
       .accessibilityLabel("Pane actions")
       .accessibilityIdentifier("\(accessibilityNamespace).actions")
     }
-  }
-}
-
-private struct SplitZoomButton: View {
-  let isPaneZoomed: Bool
-  let palette: Palette
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  private var symbol: String {
-    isPaneZoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
-  }
-
-  private var helpText: String {
-    isPaneZoomed ? "Reset Split Zoom" : "Zoom Split"
-  }
-
-  private var accessibilityLabel: String {
-    isPaneZoomed ? "Reset split zoom" : "Zoom split"
-  }
-
-  var body: some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(
-          isPaneZoomed
-            ? palette.accent
-            : isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
-        )
-        .frame(width: 30, height: 30)
-        .background(
-          isPaneZoomed
-            ? palette.accent.opacity(isHovering ? 0.18 : 0.12)
-            : isHovering ? palette.secondaryText.opacity(0.2) : .clear,
-          in: TerminalChromeMetrics.detailToolbarControlShape
-        )
-        .overlay {
-          if isPaneZoomed {
-            TerminalChromeMetrics.detailToolbarControlShape.stroke(
-              palette.accent.opacity(isHovering ? 0.32 : 0.22),
-              lineWidth: 1
-            )
-          }
-        }
-        .accessibilityHidden(true)
-    }
-    .buttonStyle(.plain)
-    .help(helpText)
-    .accessibilityLabel(accessibilityLabel)
-    .onHover { isHovering = $0 }
   }
 }

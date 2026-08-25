@@ -92,6 +92,8 @@ struct ToolbarIconButton: View {
   let palette: Palette
   let accessibilityLabel: String?
   let showsAttentionIndicator: Bool
+  let isSelected: Bool
+  let fontSize: CGFloat
   let action: () -> Void
 
   @State private var isHovering = false
@@ -101,12 +103,16 @@ struct ToolbarIconButton: View {
     palette: Palette,
     accessibilityLabel: String? = nil,
     showsAttentionIndicator: Bool = false,
+    isSelected: Bool = false,
+    fontSize: CGFloat = 14,
     action: @escaping () -> Void = {}
   ) {
     self.symbol = symbol
     self.palette = palette
     self.accessibilityLabel = accessibilityLabel
     self.showsAttentionIndicator = showsAttentionIndicator
+    self.isSelected = isSelected
+    self.fontSize = fontSize
     self.action = action
   }
 
@@ -114,8 +120,8 @@ struct ToolbarIconButton: View {
     Button(action: action) {
       ZStack(alignment: .topTrailing) {
         Image(systemName: symbol)
-          .font(.system(size: 14, weight: .medium))
-          .foregroundStyle(isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText)
+          .font(.system(size: fontSize, weight: .medium))
+          .foregroundStyle(foregroundColor)
 
         if showsAttentionIndicator {
           Image(systemName: "circle.fill")
@@ -132,14 +138,36 @@ struct ToolbarIconButton: View {
       }
       .frame(width: 30, height: 30)
       .background(
-        isHovering ? palette.secondaryText.opacity(0.2) : .clear,
+        backgroundColor,
         in: TerminalChromeMetrics.detailToolbarControlShape
       )
+      .overlay {
+        if isSelected {
+          TerminalChromeMetrics.detailToolbarControlShape.stroke(
+            palette.accent.opacity(isHovering ? 0.32 : 0.22),
+            lineWidth: 1
+          )
+        }
+      }
       .accessibilityHidden(true)
     }
     .buttonStyle(.plain)
     .accessibilityLabel(accessibilityLabel ?? "Action")
     .onHover { isHovering = $0 }
+  }
+
+  private var foregroundColor: Color {
+    if isSelected {
+      return palette.accent
+    }
+    return isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
+  }
+
+  private var backgroundColor: Color {
+    if isSelected {
+      return palette.accent.opacity(isHovering ? 0.18 : 0.12)
+    }
+    return isHovering ? palette.secondaryText.opacity(0.2) : .clear
   }
 }
 

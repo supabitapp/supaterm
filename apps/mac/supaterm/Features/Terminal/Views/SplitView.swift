@@ -68,24 +68,18 @@ struct SplitView<L: View, R: View>: View {
   private func dragGesture(_ size: CGSize) -> some Gesture {
     DragGesture()
       .onChanged { gesture in
-        switch direction {
-        case .horizontal:
-          guard size.width > 0 else { return }
-          let minimumPaneSize = min(preferredMinimumPaneSize, size.width / 2)
-          let new = min(
-            max(minimumPaneSize, gesture.location.x),
-            size.width - minimumPaneSize
-          )
-          split = new / size.width
-        case .vertical:
-          guard size.height > 0 else { return }
-          let minimumPaneSize = min(preferredMinimumPaneSize, size.height / 2)
-          let new = min(
-            max(minimumPaneSize, gesture.location.y),
-            size.height - minimumPaneSize
-          )
-          split = new / size.height
-        }
+        let (splitDimension, location) =
+          switch direction {
+          case .horizontal: (size.width, gesture.location.x)
+          case .vertical: (size.height, gesture.location.y)
+          }
+        guard splitDimension > 0 else { return }
+        let minimumPaneSize = min(preferredMinimumPaneSize, splitDimension / 2)
+        let clampedLocation = min(
+          max(minimumPaneSize, location),
+          splitDimension - minimumPaneSize
+        )
+        split = clampedLocation / splitDimension
       }
   }
 
