@@ -59,18 +59,11 @@ final class LicenseTabGate {
   ) {
     #if DEBUG
       let freeMode = Self.debugFreeMode(environment: ProcessInfo.processInfo.environment)
-      let resolvedLicenseAccess: @MainActor () -> LicenseAccess
-      if freeMode {
-        resolvedLicenseAccess = { .free }
-      } else {
-        resolvedLicenseAccess = licenseAccess
-      }
     #else
       let freeMode = false
-      let resolvedLicenseAccess = licenseAccess
     #endif
     self.init(
-      licenseAccess: resolvedLicenseAccess,
+      licenseAccess: licenseAccess,
       enforcementEnabled: Self.enforcementEnabled(
         salesEnabled: AppBuild.licenseSalesEnabled,
         debugFreeMode: freeMode
