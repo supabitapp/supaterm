@@ -6,7 +6,6 @@ const util = @import("util.zig");
 const cross = @import("cross.zig");
 const socket = @import("socket.zig");
 const terminal_replay = @import("terminal_replay.zig");
-const label = @import("label.zig");
 const lib_posix = @import("posix.zig");
 const Cfg = @import("cfg.zig");
 const signal = @import("signal.zig");
@@ -18,7 +17,7 @@ const terminal_continuation_max_bytes = 1024 * 1024;
 
 /// clientLoop sends ipc commands to its corresponding daemon.  It uses poll() as its non-blocking
 /// mechanism. It will send stdin to the daemon and receive stdout from the daemon.
-pub fn clientLoop(client_sock_fd: i32) !ClientResult {
+pub fn clientLoop(client_sock_fd: i32) !void {
     std.log.info("client loop fd={d}", .{client_sock_fd});
     const gpa: std.mem.Allocator = blk: {
         if (builtin.mode == .Debug) {
@@ -127,7 +126,7 @@ pub fn clientLoop(client_sock_fd: i32) !ClientResult {
                 } else {
                     std.log.info("eof stdin", .{});
                     // EOF on stdin
-                    return ClientResult{ .kind = .detach, .session_name = null };
+                    return;
                 }
             }
         }
@@ -137,7 +136,7 @@ pub fn clientLoop(client_sock_fd: i32) !ClientResult {
             const n = read_buf.read(client_sock_fd) catch |err| {
                 if (err == error.WouldBlock) continue;
                 if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
-                    return ClientResult{ .kind = .detach, .session_name = null };
+                    return;
                 }
                 std.log.err("daemon read err={s}", .{@errorName(err)});
                 return err;
@@ -145,7 +144,7 @@ pub fn clientLoop(client_sock_fd: i32) !ClientResult {
             if (n == 0) {
                 std.log.info("server closed connection", .{});
                 // Server closed connection
-                return ClientResult{ .kind = .detach, .session_name = null };
+                return;
             }
 
             while (read_buf.next()) |msg| {
@@ -166,19 +165,6 @@ pub fn clientLoop(client_sock_fd: i32) !ClientResult {
                             std.mem.asBytes(&next_size),
                         );
                     },
-                    .Switch => {
-                        std.log.info("switch session", .{});
-                        // Payload format: "session_name\ncwd" from the daemon
-                        const newline_idx = std.mem.indexOfScalar(u8, msg.payload, '\n') orelse {
-                            // No cwd provided (backward compat or old daemon)
-                            return ClientResult{ .kind = .switch_session, .session_name = try gpa.dupe(u8, msg.payload) };
-                        };
-                        return ClientResult{
-                            .kind = .switch_session,
-                            .session_name = try gpa.dupe(u8, msg.payload[0..newline_idx]),
-                            .cwd = if (newline_idx + 1 < msg.payload.len) try gpa.dupe(u8, msg.payload[newline_idx + 1 ..]) else null,
-                        };
-                    },
                     else => {},
                 }
             }
@@ -191,7 +177,7 @@ pub fn clientLoop(client_sock_fd: i32) !ClientResult {
                     if (err == error.WouldBlock) break :blk 0;
                     if (err == error.ConnectionResetByPeer or err == error.BrokenPipe) {
                         std.log.info("connection reset or broken pipe", .{});
-                        return ClientResult{ .kind = .detach, .session_name = null };
+                        return;
                     }
                     return err;
                 };
@@ -213,7 +199,7 @@ pub fn clientLoop(client_sock_fd: i32) !ClientResult {
 
         if (poll_fds.items[1].revents & (lib_posix.POLL.HUP | lib_posix.POLL.ERR | lib_posix.POLL.NVAL) != 0) {
             std.log.info("poll hup|err|nval", .{});
-            return ClientResult{ .kind = .detach, .session_name = null };
+            return;
         }
     }
 }
@@ -232,7 +218,7 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
     var term = try ghostty_vt.Terminal.init(io, gpa, .{
         .cols = init_size.cols,
         .rows = init_size.rows,
-        .max_scrollback_lines = daemon.cfg.max_scrollback_lines,
+        .max_scrollback_lines = 2_000,
     });
     defer term.deinit(gpa);
     var vt_stream = ghostty_vt.TerminalStream.init(.{
@@ -241,12 +227,6 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
         .continuation_max_bytes = terminal_continuation_max_bytes,
     });
     defer vt_stream.deinit();
-
-    // Carries the tail of the previous PTY read so the task-exit marker
-    // search below can see across a read() boundary. Sized to comfortably
-    // hold "SUPATERM_HOST_TASK_COMPLETED:" (19 bytes) plus a u8 exit code and CRLF.
-    var marker_carry: [32]u8 = undefined;
-    var marker_carry_len: usize = 0;
 
     daemon_loop: while (daemon.running) {
         poll_fds.clearRetainingCapacity();
@@ -350,31 +330,17 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                 while (client.read_buf.next()) |msg| {
                     switch (msg.header.tag) {
                         .Input => try daemon.handleInput(gpa, client, msg.payload),
-                        .Send => daemon.handleSend(gpa, msg.payload),
-                        .Output => try daemon.handleOutput(msg.payload, &term, &vt_stream),
                         .Init => try daemon.handleInit(gpa, client, pty_fd, &term, &vt_stream, msg.payload),
-                        .Switch => try daemon.handleSwitch(gpa, msg.payload),
                         .Resize => try daemon.handleResize(gpa, client, pty_fd, &term, msg.payload),
                         .Detach => {
                             daemon.handleDetach(gpa, client, i);
                             break :clients_loop;
                         },
-                        .DetachAll => {
-                            daemon.handleDetachAll(gpa);
-                            break :clients_loop;
-                        },
                         .Kill => {
                             break :daemon_loop;
                         },
-                        .Info => try daemon.handleInfo(gpa, client, &term),
-                        .LabelGet => try daemon.handleLabelGet(gpa, client),
-                        .LabelSet => try daemon.handleLabelSet(gpa, client, msg.payload),
-                        .LabelClear => try daemon.handleLabelClear(gpa, client),
-                        .History => try daemon.handleHistory(gpa, client, &term, msg.payload),
-                        .Run => try daemon.handleRun(gpa, io, client, msg.payload),
-                        .Tail => try daemon.handleTail(client),
-                        .Ack, .TaskComplete, .LabelData => {},
-                        .Write => try daemon.handleWrite(gpa, client, msg.payload),
+                        .Info => try daemon.handleInfo(gpa, client),
+                        .Output => {},
                         _ => std.log.warn(
                             "ignoring unknown IPC tag={d}",
                             .{@intFromEnum(msg.header.tag)},
@@ -431,49 +397,15 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
                 } else {
                     // Feed PTY output to terminal emulator for state tracking
                     vt_stream.nextSlice(buf[0..n]);
-                    daemon.setPwd(&term);
                     daemon.has_pty_output = true;
 
                     // When no real terminal client has attached yet, respond to
                     // terminal queries (e.g. DA1/DA2) on behalf of the terminal.
                     // This prevents fish from waiting 10s for unanswered queries.
-                    // `has_terminal_client` is only set when a client sends .Init
-                    // (a real supaterm-host attach), not when a `supaterm-host run` tail-only client
-                    // connects.
                     if (!daemon.has_terminal_client and
                         daemon.pty_write_buf.items.len < Daemon.PTY_WRITE_BUF_MAX)
                     {
                         util.respondToDeviceAttributes(gpa, &daemon.pty_write_buf, buf[0..n]);
-                    }
-
-                    // In run mode, scan output for exit code marker. The marker
-                    // can straddle two PTY reads (more likely under a throttled
-                    // scheduler, e.g. containers), so prepend the tail carried
-                    // over from the previous read before searching.
-                    if (daemon.is_task_mode and daemon.task_exit_code == null) {
-                        var scan_buf: [marker_carry.len + buf.len]u8 = undefined;
-                        @memcpy(scan_buf[0..marker_carry_len], marker_carry[0..marker_carry_len]);
-                        @memcpy(scan_buf[marker_carry_len..][0..n], buf[0..n]);
-                        const scan_len = marker_carry_len + n;
-
-                        if (try util.findTaskExitMarker(scan_buf[0..scan_len], daemon.task_id)) |exit_code| {
-                            daemon.task_exit_code = exit_code;
-                            daemon.task_ended_at = @intCast(std.Io.Timestamp.now(io, .real).toSeconds());
-
-                            std.log.info("task completed exit_code={d}", .{exit_code});
-
-                            // Notify connected clients
-                            for (daemon.clients.items) |c| {
-                                ipc.appendMessage(gpa, &c.write_buf, .TaskComplete, &[_]u8{exit_code}) catch {};
-                                c.has_pending_output = true;
-                            }
-                        }
-
-                        marker_carry_len = @min(marker_carry.len, scan_len);
-                        @memcpy(
-                            marker_carry[0..marker_carry_len],
-                            scan_buf[scan_len - marker_carry_len .. scan_len],
-                        );
                     }
 
                     // Broadcast data to all clients.
@@ -509,15 +441,6 @@ fn daemonLoop(daemon: *Daemon, gpa: std.mem.Allocator, io: std.Io, server_sock_f
         }
     }
 }
-
-const ClientResult = struct {
-    kind: enum {
-        detach,
-        switch_session,
-    },
-    session_name: ?[]const u8,
-    cwd: ?[]const u8 = null,
-};
 
 /// Client represents each terminal that has connected to a session.
 ///
@@ -555,58 +478,37 @@ pub const Daemon = struct {
     cfg: *Cfg,
     session_name: []const u8,
     socket_path: []const u8,
-    // === opt ===
     pty_write_buf: std.ArrayList(u8) = .empty,
     clients: std.ArrayList(*Client) = .empty,
-    labels: std.StringHashMapUnmanaged([]u8) = .empty,
     // This control which client is the leader.  The leader controls terminal state and
     // cols/rows of session.
     leader_client_fd: ?i32 = null,
     running: bool = true,
     pid: i32 = undefined,
     command: ?[]const []const u8 = null,
-    /// The session's working directory in OSC 7 form, `file://<host><path>`.
-    /// Kept as a URI rather than a path so `supaterm-host list` shows the host, which is
-    /// what tells you a session is inside SSH. Points into `cwd_buf` once set,
-    /// so a Daemon must not be copied by value after that.
-    cwd: []const u8 = "",
-    /// The same directory as a path that can be opened: percent-decoding
-    /// applied, scheme and host stripped. Empty when the cwd is on another
-    /// host, since then it names no directory here and nothing should chdir
-    /// into it. Points into `cwd_path_buf`.
-    cwd_path: []const u8 = "",
-    cwd_buf: [std.fs.max_path_bytes]u8 = undefined,
-    cwd_path_buf: [std.fs.max_path_bytes]u8 = undefined,
+    working_directory: []const u8 = "",
+    working_directory_buf: [std.fs.max_path_bytes]u8 = undefined,
     has_pty_output: bool = false,
     has_had_client: bool = false,
-    has_terminal_client: bool = false, // true only after a real attach (.Init received)
-    created_at: u64, // unix timestamp (ns)
-    is_task_mode: bool = false, // flag for when session is run as a task
-    task_id: [4]u8 = undefined,
-    task_exit_code: ?u8 = null, // null = running or n/a, set when task completes
-    task_ended_at: ?u64 = null, // timestamp when task exited
-    pty_fd: i32 = -1, // set by daemonLoop so handleRun can probe the foreground process
+    has_terminal_client: bool = false,
     shell: []const u8 = "/bin/sh",
 
-    /// Create a Daemon. Caller is responsible for freeing all variables passed
-    /// into the init fn.
-    pub fn init(io: std.Io, cfg: *Cfg, sesh_name: []const u8, socket_path: []const u8) Daemon {
+    pub fn init(cfg: *Cfg, sesh_name: []const u8, socket_path: []const u8) Daemon {
         return .{
             .cfg = cfg,
             .session_name = sesh_name,
             .socket_path = socket_path,
-            .created_at = @intCast(std.Io.Timestamp.now(io, .real).toSeconds()),
         };
+    }
+
+    pub fn setWorkingDirectory(self: *Daemon, path: []const u8) void {
+        if (!std.fs.path.isAbsolute(path) or path.len > self.working_directory_buf.len) return;
+        @memcpy(self.working_directory_buf[0..path.len], path);
+        self.working_directory = self.working_directory_buf[0..path.len];
     }
 
     pub fn deinit(self: *Daemon, gpa: std.mem.Allocator) void {
         self.clients.deinit(gpa);
-        var it = self.labels.iterator();
-        while (it.next()) |entry| {
-            gpa.free(entry.key_ptr.*);
-            gpa.free(entry.value_ptr.*);
-        }
-        self.labels.deinit(gpa);
         self.pty_write_buf.deinit(gpa);
         gpa.free(self.socket_path);
     }
@@ -706,20 +608,15 @@ pub const Daemon = struct {
         const log_fd = log.log_system.file.?.handle;
 
         var keep_fds_open = [_]i32{ server_sock_fd, dir.handle, log_fd };
-        const cmd = try daemonize.createCmdZ(self.shell, self.is_task_mode, self.command);
+        const cmd = try daemonize.createCmdZ(self.shell, self.command);
 
-        // `cwd_path` is the decoded path, and is empty when the cwd is on
-        // another host: OSC 7 crosses SSH boundaries, so a session that ssh'd
-        // elsewhere reports a directory that does not exist on this machine.
-        std.log.info("checking pwd={s} path={s}", .{ self.cwd, self.cwd_path });
-        if (self.cwd_path.len > 0) {
-            const pwd_dir = std.Io.Dir.openDirAbsolute(io, self.cwd_path, .{}) catch |err| blk: {
-                std.log.warn("failed to open dir={s} err={s}", .{ self.cwd_path, @errorName(err) });
+        if (self.working_directory.len > 0) {
+            const pwd_dir = std.Io.Dir.openDirAbsolute(io, self.working_directory, .{}) catch |err| blk: {
+                std.log.warn("failed to open dir={s} err={s}", .{ self.working_directory, @errorName(err) });
                 break :blk null;
             };
             if (pwd_dir) |pdir| {
                 defer std.Io.Dir.close(pdir, io);
-                std.log.info("set directory dir={s}", .{self.cwd_path});
                 try std.process.setCurrentDir(io, pdir);
             }
         }
@@ -773,7 +670,7 @@ pub const Daemon = struct {
                 fba.allocator(),
                 &.{ self.cfg.log_dir, session_log_name },
             );
-            const log_mode = std.Io.File.Permissions.fromMode(@intCast(self.cfg.log_mode));
+            const log_mode = std.Io.File.Permissions.fromMode(Cfg.log_mode);
             log.log_system.init(new_io, session_log_path, log_mode) catch {};
         }
 
@@ -802,9 +699,6 @@ pub const Daemon = struct {
     /// reaped, and a shutdown that stalls stays visible and killable instead of
     /// leaving an orphan nobody can name.
     ///
-    /// Closing the listen fd first is what keeps a concurrent `supaterm-host run <name>`
-    /// from hanging: connecting to a bound socket with no listener is refused
-    /// at once, and ensureSession takes ConnectionRefused as a dead daemon.
     fn shutdownSession(
         self: *Daemon,
         gpa: std.mem.Allocator,
@@ -869,51 +763,6 @@ pub const Daemon = struct {
             try self.setLeader(gpa, client);
             self.queuePtyInput(gpa, payload);
         }
-    }
-
-    /// Queue input from `supaterm-host send` without changing interactive client leadership.
-    pub fn handleSend(self: *Daemon, gpa: std.mem.Allocator, payload: []const u8) void {
-        self.queuePtyInput(gpa, payload);
-    }
-
-    pub fn handleTail(_: *Daemon, client: *Client) !void {
-        client.receives_pty_output = true;
-        try ipc.appendMessage(client.alloc, &client.write_buf, .Ack, "");
-        client.has_pending_output = true;
-    }
-
-    pub fn handleSwitch(self: *Daemon, gpa: std.mem.Allocator, session_name: []const u8) !void {
-        for (self.clients.items) |client| {
-            if (self.leader_client_fd == client.socket_fd) {
-                // Include the daemon's current cwd so the new session can start
-                // in the right directory. A remote cwd is left out: it names no
-                // directory here, so the new session is better off with the
-                // attaching client's own cwd than with a path it cannot enter.
-                if (self.cwd.len > 0 and self.cwd_path.len > 0) {
-                    var payload = gpa.alloc(u8, session_name.len + 1 + self.cwd.len) catch return;
-                    defer gpa.free(payload);
-                    @memcpy(payload[0..session_name.len], session_name);
-                    payload[session_name.len] = '\n';
-                    @memcpy(payload[session_name.len + 1 ..], self.cwd);
-                    ipc.appendMessage(gpa, &client.write_buf, .Switch, payload) catch |err| {
-                        std.log.warn(
-                            "failed to buffer terminal state for client err={s}",
-                            .{@errorName(err)},
-                        );
-                    };
-                } else {
-                    ipc.appendMessage(gpa, &client.write_buf, .Switch, session_name) catch |err| {
-                        std.log.warn(
-                            "failed to buffer terminal state for client err={s}",
-                            .{@errorName(err)},
-                        );
-                    };
-                }
-                client.has_pending_output = true;
-                return;
-            }
-        }
-        return error.NoLeaderFound;
     }
 
     pub fn handleInit(
@@ -1019,15 +868,6 @@ pub const Daemon = struct {
         _ = self.closeClient(gpa, client, i, false);
     }
 
-    pub fn handleDetachAll(self: *Daemon, gpa: std.mem.Allocator) void {
-        std.log.info("detach all clients={d}", .{self.clients.items.len});
-        for (self.clients.items) |client_to_close| {
-            client_to_close.deinit();
-            gpa.destroy(client_to_close);
-        }
-        self.clients.clearRetainingCapacity();
-    }
-
     pub fn handleKill(self: *Daemon, gpa: std.mem.Allocator, io: std.Io) void {
         std.log.info("kill received session={s}", .{self.session_name});
         self.shutdown(gpa);
@@ -1045,271 +885,9 @@ pub const Daemon = struct {
         };
     }
 
-    pub fn handleInfo(self: *Daemon, gpa: std.mem.Allocator, client: *Client, term: *ghostty_vt.Terminal) !void {
-        self.setPwd(term);
-
-        // zeroes() so asBytes() doesn't ship struct padding + unused cmd/cwd
-        // tail bytes (daemon stack contents) to clients.
-        var info = std.mem.zeroes(ipc.Info);
-        info.clients_len = self.clients.items.len - 1;
-        info.pid = self.pid;
-        info.created_at = self.created_at;
-        info.task_ended_at = self.task_ended_at orelse 0;
-        info.task_exit_code = self.task_exit_code orelse 0;
-
-        // Build command string from args, re-quoting args that contain
-        // shell-special characters so the displayed command is copy-pasteable.
-        const cur_cmd = self.command;
-        if (cur_cmd) |args| {
-            for (args, 0..) |arg, i| {
-                const quoted = if (util.shellNeedsQuoting(arg))
-                    util.shellQuote(gpa, arg) catch null
-                else
-                    null;
-                defer if (quoted) |q| gpa.free(q);
-                const src = quoted orelse arg;
-
-                const need = src.len + @as(usize, if (i > 0) 1 else 0);
-                if (info.cmd_len + need > ipc.MAX_CMD_LEN) {
-                    const ellipsis = "...";
-                    if (info.cmd_len + ellipsis.len <= ipc.MAX_CMD_LEN) {
-                        @memcpy(info.cmd[info.cmd_len..][0..ellipsis.len], ellipsis);
-                        info.cmd_len += ellipsis.len;
-                    }
-                    break;
-                }
-
-                if (i > 0) {
-                    info.cmd[info.cmd_len] = ' ';
-                    info.cmd_len += 1;
-                }
-                @memcpy(info.cmd[info.cmd_len..][0..src.len], src);
-                info.cmd_len += @intCast(src.len);
-            }
-        }
-
-        info.cwd_len = @intCast(@min(self.cwd.len, ipc.MAX_CWD_LEN));
-        @memcpy(info.cwd[0..info.cwd_len], self.cwd[0..info.cwd_len]);
-
+    pub fn handleInfo(self: *Daemon, gpa: std.mem.Allocator, client: *Client) !void {
+        const info = ipc.Info{ .pid = self.pid };
         try ipc.appendMessage(gpa, &client.write_buf, .Info, std.mem.asBytes(&info));
-        client.has_pending_output = true;
-    }
-
-    pub fn handleHistory(
-        self: *Daemon,
-        gpa: std.mem.Allocator,
-        client: *Client,
-        term: *ghostty_vt.Terminal,
-        payload: []const u8,
-    ) !void {
-        self.setPwd(term);
-        const format: util.HistoryFormat = if (payload.len > 0)
-            @enumFromInt(payload[0])
-        else
-            .plain;
-        if (util.serializeTerminal(gpa, term, format)) |output| {
-            defer gpa.free(output);
-            try ipc.appendMessage(gpa, &client.write_buf, .History, output);
-            client.has_pending_output = true;
-        } else {
-            try ipc.appendMessage(gpa, &client.write_buf, .History, "");
-            client.has_pending_output = true;
-        }
-    }
-
-    pub fn handleRun(self: *Daemon, gpa: std.mem.Allocator, io: std.Io, client: *Client, payload: []const u8) !void {
-        // Reset task tracking so the new command's exit marker is detected.
-        // Without this, a second `supaterm-host run` on the same session is ignored
-        // because task_exit_code is still set from the first run.
-        self.task_exit_code = null;
-        self.task_ended_at = null;
-        self.is_task_mode = true;
-        self.task_id = util.generateTaskId(io);
-
-        if (payload.len == 0) return;
-
-        client.receives_pty_output = true;
-
-        const cmd = payload;
-
-        // Chain the exit marker with `;` on the same line. `$?` captures the
-        // exit code of the command (not the `;`). The sole exception is when
-        // the command contains a heredoc (`<<`), the delimiter must be alone
-        // on its line, so the marker goes on the next line instead.
-        var buf: [1024]u8 = undefined;
-        const marker = try util.getTaskExitMarker(&buf, self.task_id);
-        var single_buf: [1024]u8 = undefined;
-        const single_line_marker = try std.fmt.bufPrint(&single_buf, "; echo {s}$?\r", .{marker});
-        var here_buf: [1024]u8 = undefined;
-        const heredoc_marker = try std.fmt.bufPrint(&here_buf, "\r\necho {s}$?\r", .{marker});
-        const uses_heredoc = std.mem.indexOf(u8, cmd, "<<") != null;
-
-        if (cmd.len > 0 and cmd[cmd.len - 1] == '\r') {
-            self.queuePtyInput(gpa, cmd[0 .. cmd.len - 1]);
-        } else {
-            self.queuePtyInput(gpa, cmd);
-        }
-        self.queuePtyInput(gpa, if (uses_heredoc) heredoc_marker else single_line_marker);
-
-        try ipc.appendMessage(gpa, &client.write_buf, .Ack, "");
-        client.has_pending_output = true;
-        self.has_had_client = true;
-        std.log.debug("run command len={d}", .{payload.len});
-    }
-
-    /// Store the session's working directory as a plain path.
-    ///
-    /// Accepts either an OSC 7 value (`file://<host><path>`, percent-encoded)
-    /// or a path. Decoding here rather than at each use keeps `supaterm-host list`
-    /// printing a path and lets the chdir on session create find directories
-    /// whose names needed escaping.
-    ///
-    /// The value is copied, so callers may pass a temporary.
-    pub fn setCwd(self: *Daemon, value: []const u8) void {
-        var buf: [std.fs.max_path_bytes]u8 = undefined;
-        var host_buf: [std.posix.HOST_NAME_MAX]u8 = undefined;
-        const hostname = std.posix.gethostname(&host_buf) catch "";
-        const cwd = util.parseOsc7Cwd(&buf, value, hostname) orelse {
-            std.log.warn("ignoring unusable cwd={s}", .{value});
-            return;
-        };
-
-        // Store the URI form. A caller that handed us a plain path gets one
-        // built here, so `cwd` has the same shape no matter the source. A value
-        // that already was a URI is kept verbatim, so `list` shows what the
-        // shell actually reported.
-        self.cwd = if (std.fs.path.isAbsolute(value))
-            util.toOsc7Cwd(&self.cwd_buf, value, hostname) orelse return
-        else blk: {
-            if (value.len > self.cwd_buf.len) return;
-            @memcpy(self.cwd_buf[0..value.len], value);
-            break :blk self.cwd_buf[0..value.len];
-        };
-
-        // Only keep an openable path when it names a directory on this host.
-        if (cwd.is_local and cwd.path.len <= self.cwd_path_buf.len) {
-            @memcpy(self.cwd_path_buf[0..cwd.path.len], cwd.path);
-            self.cwd_path = self.cwd_path_buf[0..cwd.path.len];
-        } else {
-            self.cwd_path = "";
-        }
-        std.log.info("set cwd={s} path={s}", .{ self.cwd, self.cwd_path });
-    }
-
-    fn setPwd(self: *Daemon, term: *ghostty_vt.Terminal) void {
-        const pwd = term.getPwd() orelse return;
-        self.setCwd(pwd);
-    }
-
-    pub fn handleOutput(self: *Daemon, payload: []const u8, term: *ghostty_vt.Terminal, vt_stream: anytype) !void {
-        vt_stream.nextSlice(payload);
-        self.setPwd(term);
-        self.has_pty_output = true;
-        for (self.clients.items) |client| {
-            try client.appendOutput(payload);
-        }
-        if (self.clients.items.len > 0) {
-            lib_posix.kill(self.pid, lib_posix.SIG.WINCH) catch |err| {
-                std.log.warn("failed to send SIGWINCH err={s}", .{@errorName(err)});
-            };
-        }
-    }
-
-    pub fn handleWrite(self: *Daemon, gpa: std.mem.Allocator, client: *Client, payload: []const u8) !void {
-        // Wire format: [u32 path len][path bytes][file content]
-        if (payload.len < @sizeOf(u32)) return error.InvalidPayload;
-        const path_len = std.mem.bytesToValue(u32, payload[0..@sizeOf(u32)]);
-        if (payload.len < @sizeOf(u32) + path_len) return error.InvalidPayload;
-        const file_path = payload[@sizeOf(u32)..][0..path_len];
-        const file_content = payload[@sizeOf(u32) + path_len ..];
-
-        // Inject file creation through the PTY so it works over SSH.
-        // Base64-encode content and pipe through printf | base64 -d > file.
-        // Chunk large files to stay under command-line length limits.
-        // 48000 is divisible by 3 (clean base64 boundaries) and encodes
-        // to ~64KB, well under typical ARG_MAX.
-        const chunk_size = 48000;
-        var offset: usize = 0;
-        var is_first = true;
-
-        while (offset < file_content.len or is_first) {
-            const end = @min(offset + chunk_size, file_content.len);
-            const chunk = file_content[offset..end];
-
-            const encoded_len = std.base64.standard.Encoder.calcSize(chunk.len);
-            const encoded = try gpa.alloc(u8, encoded_len);
-            defer gpa.free(encoded);
-            _ = std.base64.standard.Encoder.encode(encoded, chunk);
-
-            self.queuePtyInput(gpa, "printf '%s' '");
-            self.queuePtyInput(gpa, encoded);
-            if (is_first) {
-                self.queuePtyInput(gpa, "' | base64 -d > '");
-            } else {
-                self.queuePtyInput(gpa, "' | base64 -d >> '");
-            }
-            self.queuePtyInput(gpa, file_path);
-            self.queuePtyInput(gpa, "'");
-            self.queuePtyInput(gpa, "\r");
-
-            offset = end;
-            is_first = false;
-        }
-
-        try ipc.appendMessage(gpa, &client.write_buf, .Ack, "");
-        client.has_pending_output = true;
-        self.has_had_client = true;
-        std.log.debug(
-            "write command len={d} file_path={s}",
-            .{ file_content.len, file_path },
-        );
-    }
-
-    fn handleLabelGet(self: *Daemon, gpa: std.mem.Allocator, client: *Client) !void {
-        const out = try label.labelsToU8(gpa, self.labels);
-        defer gpa.free(out);
-        try ipc.appendMessage(gpa, &client.write_buf, .LabelData, out);
-        client.has_pending_output = true;
-    }
-
-    fn handleLabelSet(self: *Daemon, gpa: std.mem.Allocator, client: *Client, labels: []const u8) !void {
-        std.log.info("handle label set payload={s}", .{labels});
-
-        var kvs = label.LabelIterator.init(labels);
-        while (kvs.next()) |kv| {
-            if (kv.value.len == 0) {
-                if (self.labels.fetchRemove(kv.key)) |existing| {
-                    gpa.free(existing.key);
-                    gpa.free(existing.value);
-                }
-                continue;
-            }
-
-            const owned_key = try gpa.dupe(u8, kv.key);
-            errdefer gpa.free(owned_key);
-            const owned_value = try gpa.dupe(u8, kv.value);
-            errdefer gpa.free(owned_value);
-            if (try self.labels.fetchPut(gpa, owned_key, owned_value)) |existing| {
-                // fetchPut does NOT replace the key in the map, the old
-                // key pointer stays. So free the new (unused) key and the
-                // old value.
-                gpa.free(owned_key);
-                gpa.free(existing.value);
-            }
-        }
-
-        try ipc.appendMessage(gpa, &client.write_buf, .Ack, "");
-        client.has_pending_output = true;
-    }
-
-    fn handleLabelClear(self: *Daemon, gpa: std.mem.Allocator, client: *Client) !void {
-        var it = self.labels.iterator();
-        while (it.next()) |entry| {
-            gpa.free(entry.key_ptr.*);
-            gpa.free(entry.value_ptr.*);
-        }
-        self.labels.clearRetainingCapacity();
-        try ipc.appendMessage(gpa, &client.write_buf, .Ack, "");
         client.has_pending_output = true;
     }
 };
@@ -1342,26 +920,6 @@ pub const testing = if (builtin.is_test) struct {
     }
 } else struct {};
 
-test "send queues PTY input without changing leader" {
-    const alloc = std.testing.allocator;
-    var daemon = Daemon{
-        .cfg = undefined,
-        .clients = .empty,
-        .leader_client_fd = 42,
-        .session_name = "test",
-        .socket_path = "",
-        .running = true,
-        .pid = 0,
-        .created_at = 0,
-    };
-    defer daemon.pty_write_buf.deinit(alloc);
-
-    daemon.handleSend(alloc, "hello");
-
-    try std.testing.expectEqual(@as(?i32, 42), daemon.leader_client_fd);
-    try std.testing.expectEqualStrings("hello", daemon.pty_write_buf.items);
-}
-
 test "first attach replays explicit command output" {
     const alloc = std.testing.allocator;
     const command = [_][]const u8{"/bin/zsh"};
@@ -1371,7 +929,6 @@ test "first attach replays explicit command output" {
         .socket_path = "",
         .command = &command,
         .has_pty_output = true,
-        .created_at = 0,
     };
     var client = Client{
         .alloc = alloc,

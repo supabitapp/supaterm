@@ -164,7 +164,7 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_STATE_HOME` when an app state root is configured
 - `SUPATERM_SURFACE_ID`
 - `SUPATERM_TAB_ID`
-- `SUPATERM_HOST_DIR`, `SUPATERM_HOST_SESSION`, and `SUPATERM_HOST_SESSION_PREFIX` when sessions are enabled
+- `SUPATERM_HOST_DIR` when sessions are enabled
 
 For login-shell panes, the app prepends its `Contents/MacOS` directory to `PATH`. The directory includes `sp`, `ap`, and `wt`. Direct launches keep the caller's `PATH` unchanged.
 

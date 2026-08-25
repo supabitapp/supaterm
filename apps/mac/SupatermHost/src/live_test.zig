@@ -26,19 +26,16 @@ fn liveDaemonMain(server_sock_fd: i32, pty_fd: i32) u8 {
     var cfg = Cfg{
         .socket_dir = "",
         .log_dir = "",
-        .max_scrollback_lines = 100,
     };
     var daemon = loop.Daemon{
         .cfg = &cfg,
         .session_name = "continuation-live",
         .socket_path = "",
-        .created_at = 0,
     };
     const alloc = std.heap.c_allocator;
     defer {
         daemon.shutdown(alloc);
         daemon.clients.deinit(alloc);
-        daemon.labels.deinit(alloc);
         daemon.pty_write_buf.deinit(alloc);
     }
     var threaded: std.Io.Threaded = .init_single_threaded;
@@ -207,25 +204,18 @@ test "live attach preserves split sequence across PTY and socket boundaries" {
     var daemon = try LiveDaemon.init(alloc);
     defer daemon.deinit();
 
-    const tail_fd = try daemon.connect();
-    defer lib_posix.close(tail_fd);
-    var tail = try ipc.SocketBuffer.init(alloc);
-    defer tail.deinit();
-    try ipc.send(tail_fd, .Tail, "");
-    try daemon.write("first");
-    try daemon.start();
-    try std.testing.expectEqualStrings("first", try readTag(&tail, tail_fd, .Output));
-
     const first_fd = try daemon.connect();
     defer lib_posix.close(first_fd);
     var first = try ipc.SocketBuffer.init(alloc);
     defer first.deinit();
     const resize = ipc.Resize{ .rows = 10, .cols = 40 };
     try ipc.send(first_fd, .Init, std.mem.asBytes(&resize));
+    try daemon.write("first");
+    try daemon.start();
     _ = try readTag(&first, first_fd, .Resize);
+    try std.testing.expectEqualStrings("first", try readTag(&first, first_fd, .Output));
 
     try daemon.write(prefix);
-    try std.testing.expectEqualStrings(prefix, try readTag(&tail, tail_fd, .Output));
     try std.testing.expectEqualStrings(prefix, try readTag(&first, first_fd, .Output));
 
     const second_fd = try daemon.connect();
@@ -237,7 +227,7 @@ test "live attach preserves split sequence across PTY and socket boundaries" {
     try std.testing.expectEqualStrings(prefix, try readTag(&second, second_fd, .Output));
 
     try daemon.write(suffix);
-    try std.testing.expectEqualStrings(suffix, try readTag(&tail, tail_fd, .Output));
+    try std.testing.expectEqualStrings(suffix, try readTag(&first, first_fd, .Output));
     try std.testing.expectEqualStrings(suffix, try readTag(&second, second_fd, .Output));
     try daemon.stop(second_fd);
 }

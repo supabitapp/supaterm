@@ -272,8 +272,6 @@ struct GhosttySurfaceViewEnvironmentTests {
           key: SessionHostEnvironment.directoryKey,
           value: "/tmp/supaterm-host-\(getuid())"
         ),
-        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionKey, value: ""),
-        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionPrefixKey, value: ""),
         SupatermCLIEnvironmentVariable(key: "PATH", value: path),
       ]
     )
@@ -332,31 +330,6 @@ struct GhosttySurfaceViewEnvironmentTests {
   }
 
   @Test
-  func supatermEnvironmentVariablesClearInheritedSessionHostSessionContext() {
-    let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
-      surfaceID: UUID(),
-      tabID: UUID(),
-      socketPath: nil,
-      cliPath: nil,
-      processEnvironment: [
-        SessionHostEnvironment.sessionKey: "parent-session",
-        SessionHostEnvironment.sessionPrefixKey: "parent-prefix-",
-      ]
-    )
-
-    #expect(
-      environmentVariables.contains(
-        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionKey, value: "")
-      )
-    )
-    #expect(
-      environmentVariables.contains(
-        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionPrefixKey, value: "")
-      )
-    )
-  }
-
-  @Test
   func supatermEnvironmentVariablesOmitSessionHostDirectoryWhenSessionHostSessionsAreDisabled() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
       surfaceID: UUID(),
@@ -367,8 +340,6 @@ struct GhosttySurfaceViewEnvironmentTests {
     )
 
     #expect(!environmentVariables.contains { $0.key == SessionHostEnvironment.directoryKey })
-    #expect(!environmentVariables.contains { $0.key == SessionHostEnvironment.sessionKey })
-    #expect(!environmentVariables.contains { $0.key == SessionHostEnvironment.sessionPrefixKey })
   }
 
   @Test

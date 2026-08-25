@@ -1,69 +1,23 @@
 const std = @import("std");
 const lib_posix = @import("posix.zig");
 
-pub fn getSeshPrefix() []const u8 {
-    return lib_posix.getenv("SUPATERM_HOST_SESSION_PREFIX") orelse "";
-}
-
-pub fn getSeshNameFromEnv() []const u8 {
-    return lib_posix.getenv("SUPATERM_HOST_SESSION") orelse "";
-}
-
-pub fn getSeshName(alloc: std.mem.Allocator, sesh: []const u8) ![]const u8 {
-    const prefix = getSeshPrefix();
-    if (prefix.len == 0 and sesh.len == 0) {
-        return error.SessionNameRequired;
-    }
-    const full = try std.fmt.allocPrint(alloc, "{s}{s}", .{ prefix, sesh });
-    // Session names become filenames under socket_dir. Rejecting path
-    // separators and dot-dot prevents socket creation and stale-socket
-    // deletion from operating outside that directory.
-    if (std.mem.indexOfScalar(u8, full, '/') != null or
-        std.mem.indexOfScalar(u8, full, 0) != null or
-        std.mem.eql(u8, full, ".") or std.mem.eql(u8, full, ".."))
+pub fn validateSessionName(name: []const u8) !void {
+    if (name.len == 0) return error.SessionNameRequired;
+    if (std.mem.indexOfScalar(u8, name, '/') != null or
+        std.mem.indexOfScalar(u8, name, 0) != null or
+        std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, ".."))
     {
-        alloc.free(full);
         return error.InvalidSessionName;
     }
-    return full;
 }
 
-pub fn resolveSessionOrEnv(alloc: std.mem.Allocator, io: std.Io, session_name: ?[]const u8) ![]const u8 {
-    const sesh_env = getSeshNameFromEnv();
-    const raw = if (session_name) |name|
-        if (std.mem.eql(u8, name, ".")) blk: {
-            if (sesh_env.len > 0) break :blk sesh_env;
-            var buf: [4096]u8 = undefined;
-            var w = std.Io.File.stderr().writer(io, &buf);
-            w.interface.print("error: \".\" requires SUPATERM_HOST_SESSION (are you inside a supaterm-host session?)\n", .{}) catch {};
-            w.interface.flush() catch {};
-            return error.SessionNameRequired;
-        } else name
-    else if (sesh_env.len > 0)
-        sesh_env
-    else {
-        return error.SessionNameRequired;
-    };
-    return getSeshName(alloc, raw);
-}
-
-pub const SessionMatch = struct {
-    name: []const u8,
-    is_prefix: bool,
-
-    pub fn matches(self: SessionMatch, session_name: []const u8) bool {
-        if (self.is_prefix) return std.mem.startsWith(u8, session_name, self.name);
-        return std.mem.eql(u8, session_name, self.name);
-    }
-};
-
-pub fn parseSessionArg(alloc: std.mem.Allocator, raw: []const u8) !SessionMatch {
-    if (raw.len > 0 and raw[raw.len - 1] == '*') {
-        const name = try getSeshName(alloc, raw[0 .. raw.len - 1]);
-        return .{ .name = name, .is_prefix = true };
-    }
-    const name = try getSeshName(alloc, raw);
-    return .{ .name = name, .is_prefix = false };
+test "validateSessionName" {
+    try validateSessionName("session");
+    try std.testing.expectError(error.SessionNameRequired, validateSessionName(""));
+    try std.testing.expectError(error.InvalidSessionName, validateSessionName("."));
+    try std.testing.expectError(error.InvalidSessionName, validateSessionName(".."));
+    try std.testing.expectError(error.InvalidSessionName, validateSessionName("a/b"));
+    try std.testing.expectError(error.InvalidSessionName, validateSessionName("a\x00b"));
 }
 
 pub fn sessionConnect(sesh: []const u8) !i32 {

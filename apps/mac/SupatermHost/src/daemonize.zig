@@ -12,7 +12,7 @@ const Cmd = struct {
     argv_ptr: [*:null]const ?[*:0]const u8,
 };
 
-pub fn createCmdZ(def_shell: []const u8, is_task_mode: bool, command: ?[]const []const u8) !Cmd {
+pub fn createCmdZ(def_shell: []const u8, command: ?[]const []const u8) !Cmd {
     const gpa = std.heap.c_allocator;
 
     if (command) |cmd_args| {
@@ -26,8 +26,7 @@ pub fn createCmdZ(def_shell: []const u8, is_task_mode: bool, command: ?[]const [
         };
     }
 
-    const z = try std.fmt.allocPrintSentinel(gpa, "{s}", .{def_shell}, 0);
-    const shell: [:0]const u8 = if (is_task_mode) "bash" else z;
+    const shell = try std.fmt.allocPrintSentinel(gpa, "{s}", .{def_shell}, 0);
 
     // Use "-shellname" as argv[0] to signal login shell (traditional method)
     const login_shell = try std.fmt.allocPrintSentinel(gpa, "-{s}", .{std.fs.path.basename(shell)}, 0);
@@ -42,9 +41,7 @@ pub fn createCmdZ(def_shell: []const u8, is_task_mode: bool, command: ?[]const [
 
 /// Runs in the forked child. Either execs or returns an error (caller
 /// must exit on error -- returning would fall through to parent code).
-fn exec(sesh_name: []const u8, cmd: Cmd) !noreturn {
-    const gpa = std.heap.c_allocator;
-
+fn exec(cmd: Cmd) !noreturn {
     // main() set SIGPIPE to SIG_IGN, which (unlike handlers) survives
     // exec. Restore the default so the shell and its children behave
     // normally (e.g. `yes | head` should exit 141 via SIGPIPE).
@@ -54,14 +51,6 @@ fn exec(sesh_name: []const u8, cmd: Cmd) !noreturn {
         .flags = 0,
     };
     lib_posix.sigaction(lib_posix.SIG.PIPE, &dfl, null);
-
-    const session_env = try std.fmt.allocPrintSentinel(
-        gpa,
-        "SUPATERM_HOST_SESSION={s}",
-        .{sesh_name},
-        0,
-    );
-    _ = cross.c.putenv(session_env.ptr);
 
     if (cross.c.getenv("TERM")) |term_env| {
         if (std.mem.eql(u8, std.mem.span(term_env), "dumb")) {
@@ -105,7 +94,7 @@ pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
         // a returned error falls through to the parent code path below,
         // running a second daemon on the same socket (or worse, hitting
         // errdefers that delete the parent's socket file).
-        exec(sesh_name, cmd) catch |err| {
+        exec(cmd) catch |err| {
             std.log.err("child setup failed: {s}", .{@errorName(err)});
             lib_posix.exit(1);
         };

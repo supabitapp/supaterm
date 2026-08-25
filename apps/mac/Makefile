@@ -113,7 +113,7 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	instance_name="$${SUPATERM_RUN_INSTANCE_NAME:-dev-$$(printf '%s' "$(CURRENT_MAKEFILE_DIR)" | shasum -a 256 | awk '{print substr($$1, 1, 12)}')}"; \
 	state_home="$${SUPATERM_RUN_STATE_HOME:-$(RUN_STATE_ROOT)/dev}"; \
 	mkdir -p "$$state_home"; \
-	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u SUPATERM_HOST_DIR -u SUPATERM_HOST_SESSION -u SUPATERM_HOST_SESSION_PREFIX \
+	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u SUPATERM_HOST_DIR \
 		$(APP_RUN_ENV) \
 		SUPATERM_PRINT_SOCKET=1 \
 		SUPATERM_INSTANCE_NAME="$$instance_name" \
@@ -142,7 +142,7 @@ run-app-demo: build-app-demo # Build then launch seeded demo mode (Debug)
 	instance_name="demo-$$(printf '%s' "$(CURRENT_MAKEFILE_DIR)" | shasum -a 256 | awk '{print substr($$1, 1, 12)}')"; \
 	state_home="$(RUN_STATE_ROOT)/demo"; \
 	mkdir -p "$$state_home"; \
-	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u SUPATERM_HOST_DIR -u SUPATERM_HOST_SESSION -u SUPATERM_HOST_SESSION_PREFIX \
+	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u SUPATERM_HOST_DIR \
 		$(APP_RUN_ENV) \
 		SUPATERM_PRINT_SOCKET=1 \
 		SUPATERM_INSTANCE_NAME="$$instance_name" \

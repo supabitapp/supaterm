@@ -59,8 +59,6 @@ public nonisolated enum SessionHostEnvironment {
   public static let disabledKey = "SUPATERM_DISABLE_SUPATERM_HOST"
   public static let enabledKey = "SUPATERM_ENABLE_SUPATERM_HOST"
   public static let directoryKey = "SUPATERM_HOST_DIR"
-  public static let sessionKey = "SUPATERM_HOST_SESSION"
-  public static let sessionPrefixKey = "SUPATERM_HOST_SESSION_PREFIX"
 
   public static func sessionsEnabled(
     setting: Bool,
@@ -259,8 +257,6 @@ private nonisolated enum SessionHostSubprocess {
     process.arguments = arguments
     var environment = ProcessInfo.processInfo.environment
     environment[SessionHostEnvironment.directoryKey] = SessionHostSocketBudget.socketDir()
-    environment[SessionHostEnvironment.sessionKey] = ""
-    environment[SessionHostEnvironment.sessionPrefixKey] = ""
     process.environment = environment
 
     let stdoutPipe: Pipe?

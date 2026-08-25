@@ -306,13 +306,12 @@ struct SessionHostTestSessionCleanerTests {
   private func runSessionHostSession(in directory: URL, command: [String] = ["/bin/sleep", "60"]) throws {
     var environment = ProcessInfo.processInfo.environment
     environment[SessionHostEnvironment.directoryKey] = directory.path
-    environment[SessionHostEnvironment.sessionKey] = ""
-    environment[SessionHostEnvironment.sessionPrefixKey] = ""
 
     let process = Process()
     process.executableURL = sessionHostExecutableURL
-    process.arguments = ["run", "spt-unit-\(UUID().uuidString)", "-d"] + command
+    process.arguments = ["attach", "spt-unit-\(UUID().uuidString)"] + command
     process.environment = environment
+    process.standardInput = FileHandle.nullDevice
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     try process.run()

@@ -101,13 +101,11 @@ test "shutdown keeps the session visible and connectable until the pty child is 
     var cfg = Cfg{
         .socket_dir = "/tmp",
         .log_dir = "",
-        .max_scrollback_lines = 100,
     };
     var daemon = loop.Daemon{
         .cfg = &cfg,
         .session_name = session_name,
         .socket_path = daemon_socket_path,
-        .created_at = 0,
         .pid = child_pid,
     };
 
@@ -136,8 +134,6 @@ test "shutdown keeps the session visible and connectable until the pty child is 
             if (socket.sessionConnect(socket_path)) |client_fd| {
                 lib_posix.close(client_fd);
             } else |err| switch (err) {
-                // What `supaterm-host run <name>` sees mid-shutdown: refused at once,
-                // which ensureSession turns into a fresh session.
                 error.ConnectionRefused => refused_while_listed = true,
                 // The unlink landed between the stat above and this connect.
                 error.FileNotFound => {},

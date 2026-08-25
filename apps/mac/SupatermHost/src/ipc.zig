@@ -8,33 +8,11 @@ pub const Tag = enum(u8) {
     Output = 1,
     Resize = 2,
     Detach = 3,
-    DetachAll = 4,
-    Kill = 5,
-    Info = 6,
-    Init = 7,
-    History = 8,
-    Run = 9,
-    Ack = 10,
-    Switch = 11,
-    Write = 12,
-    TaskComplete = 13,
-    LabelGet = 14,
-    LabelSet = 15,
-    LabelClear = 16,
-    LabelData = 17,
-    Send = 18,
-    Tail = 19,
-    // Non-exhaustive: this enum comes off the wire via bytesToValue and
-    // @enumFromInt, so out-of-range values are representable
-    // rather than UB. Switches must handle `_` (unknown tag).
+    Kill = 4,
+    Info = 5,
+    Init = 6,
     _,
 };
-
-comptime {
-    if (@typeInfo(Tag).@"enum".is_exhaustive) @compileError(
-        "ipc.Tag must stay non-exhaustive -- old daemons rely on `_` to ignore unknown tags",
-    );
-}
 
 pub const Header = packed struct {
     tag: Tag,
@@ -69,22 +47,8 @@ pub fn getTerminalSize(fd: i32) Resize {
     return .{ .rows = 24, .cols = 120 };
 }
 
-pub const MAX_CMD_LEN = 256;
-pub const MAX_CWD_LEN = 256;
-
-/// Frozen wire shape. Do NOT add fields! New stats go in new `Tag` values
-/// so old daemons (whose `_` arm ignores unknown tags) stay reachable.
-/// Changing `@sizeOf(Info)` breaks `supaterm-host list` against running daemons.
 pub const Info = extern struct {
-    clients_len: u64,
     pid: i32,
-    cmd_len: u16,
-    cwd_len: u16,
-    cmd: [MAX_CMD_LEN]u8,
-    cwd: [MAX_CWD_LEN]u8,
-    created_at: u64,
-    task_ended_at: u64,
-    task_exit_code: u8,
 };
 
 pub fn expectedLength(data: []const u8) ?usize {
@@ -134,17 +98,6 @@ fn writeAll(fd: i32, data: []const u8) !void {
         index += n;
     }
 }
-
-pub const Message = struct {
-    tag: Tag,
-    data: []u8,
-
-    pub fn deinit(self: Message, alloc: std.mem.Allocator) void {
-        if (self.data.len > 0) {
-            alloc.free(self.data);
-        }
-    }
-};
 
 pub const SocketMsg = struct {
     header: Header,
@@ -213,8 +166,6 @@ const ConnectError = error{
     Unexpected,
 };
 
-/// Connect-only liveness check. Callers that don't read `Info` should use
-/// this (not `probeSession`) so they survive `Info` shape changes.
 pub fn connectSession(socket_path: []const u8) ConnectError!i32 {
     return socket.sessionConnect(socket_path) catch |err| switch (err) {
         error.ConnectionRefused => return error.ConnectionRefused,
@@ -232,11 +183,8 @@ const SessionProbeError = error{
 const SessionProbeResult = struct {
     fd: i32,
     info: Info,
-    labels: ?[]const u8,
-    alloc: std.mem.Allocator,
 
     pub fn deinit(self: *const SessionProbeResult) void {
-        if (self.labels) |lbl| self.alloc.free(lbl);
         lib_posix.close(self.fd);
     }
 };
@@ -250,7 +198,6 @@ pub fn probeSession(
     errdefer lib_posix.close(fd);
 
     send(fd, .Info, "") catch return error.Unexpected;
-    send(fd, .LabelGet, "") catch {};
 
     var poll_fds = [_]lib_posix.pollfd{.{ .fd = fd, .events = lib_posix.POLL.IN, .revents = 0 }};
     const poll_result = lib_posix.poll(&poll_fds, timeout_ms) catch return error.Unexpected;
@@ -264,21 +211,15 @@ pub fn probeSession(
     const n = sb.read(fd) catch return error.Unexpected;
     if (n == 0) return error.Unexpected;
 
-    var info_result: ?Info = null;
-    var labels: ?[]const u8 = null;
-    errdefer if (labels) |lbl| alloc.free(lbl);
-
     while (true) {
         if (sb.next()) |msg| {
             if (msg.header.tag == .Info) {
                 if (msg.payload.len != @sizeOf(Info)) return error.InfoSizeMismatch;
-                info_result = std.mem.bytesToValue(Info, msg.payload[0..@sizeOf(Info)]);
+                return .{
+                    .fd = fd,
+                    .info = std.mem.bytesToValue(Info, msg.payload[0..@sizeOf(Info)]),
+                };
             }
-            if (msg.header.tag == .LabelData) {
-                labels = alloc.dupe(u8, msg.payload) catch null;
-            }
-
-            if (info_result != null and labels != null) break;
             continue;
         }
 
@@ -288,81 +229,18 @@ pub fn probeSession(
         const n_read = sb.read(fd) catch break;
         if (n_read == 0) break;
     }
-
-    if (info_result) |info| {
-        return .{
-            .fd = fd,
-            .info = info,
-            .labels = labels,
-            .alloc = alloc,
-        };
-    }
     return error.Unexpected;
 }
 
-//  WIRE PROTOCOL FREEZE: read before "fixing" any test below.
-//
-//  Changing these constants does not fix the test; it breaks every
-//  running daemon for every user until they `pkill -f supaterm-host`.
-//
-//  Need a new field?   → add a new `Tag` value (next free integer).
-//  Need to remove one? → don't. Reserve the integer, stop sending it.
-test "Info wire size is frozen" {
-    try std.testing.expectEqual(@as(usize, 552), @sizeOf(Info));
-    // packed struct{u8,u32} backs to u40 → @sizeOf rounds to 8, not 5.
+test "wire sizes" {
+    try std.testing.expectEqual(@as(usize, 4), @sizeOf(Info));
     try std.testing.expectEqual(@as(usize, 8), @sizeOf(Header));
 }
 
-test "Tag wire values are frozen" {
+test "Tag wire values" {
     inline for (.{
-        .{ Tag.Input, 0 },     .{ Tag.Output, 1 },        .{ Tag.Resize, 2 },
-        .{ Tag.Detach, 3 },    .{ Tag.DetachAll, 4 },     .{ Tag.Kill, 5 },
-        .{ Tag.Info, 6 },      .{ Tag.Init, 7 },          .{ Tag.History, 8 },
-        .{ Tag.Run, 9 },       .{ Tag.Ack, 10 },          .{ Tag.Switch, 11 },
-        .{ Tag.Write, 12 },    .{ Tag.TaskComplete, 13 }, .{ Tag.LabelGet, 14 },
-        .{ Tag.LabelSet, 15 }, .{ Tag.LabelClear, 16 },   .{ Tag.LabelData, 17 },
-        .{ Tag.Send, 18 },     .{ Tag.Tail, 19 },
+        .{ Tag.Input, 0 },  .{ Tag.Output, 1 }, .{ Tag.Resize, 2 },
+        .{ Tag.Detach, 3 }, .{ Tag.Kill, 4 },   .{ Tag.Info, 5 },
+        .{ Tag.Init, 6 },
     }) |p| try std.testing.expectEqual(@as(u8, p[1]), @intFromEnum(p[0]));
-}
-
-pub fn roundTripForTag(
-    alloc: std.mem.Allocator,
-    socket_path: []const u8,
-    request_tag: Tag,
-    payload: []const u8,
-    expected_tag: Tag,
-) SessionProbeError![]u8 {
-    const timeout_ms = 1000;
-    const fd = try connectSession(socket_path);
-    defer lib_posix.close(fd);
-
-    send(fd, request_tag, payload) catch return error.Unexpected;
-
-    var poll_fds = [_]lib_posix.pollfd{.{ .fd = fd, .events = lib_posix.POLL.IN, .revents = 0 }};
-    const poll_result = lib_posix.poll(&poll_fds, timeout_ms) catch return error.Unexpected;
-    if (poll_result == 0) return error.Timeout;
-
-    var sb = SocketBuffer.init(alloc) catch return error.Unexpected;
-    defer sb.deinit();
-
-    const n = sb.read(fd) catch return error.Unexpected;
-    if (n == 0) return error.Unexpected;
-
-    while (sb.next()) |msg| {
-        if (msg.header.tag == expected_tag) {
-            return alloc.dupe(u8, msg.payload) catch return error.Unexpected;
-        }
-    }
-    return error.Unexpected;
-}
-
-test "zeroed Info has no stack garbage in wire bytes" {
-    var info = std.mem.zeroes(Info);
-    info.clients_len = 3;
-    info.pid = 999;
-    info.task_exit_code = 7;
-    const bytes = std.mem.asBytes(&info);
-    // Tail padding after task_exit_code must be zero (asBytes ships it).
-    const last_field_end = @offsetOf(Info, "task_exit_code") + @sizeOf(u8);
-    for (bytes[last_field_end..]) |b| try std.testing.expectEqual(@as(u8, 0), b);
 }

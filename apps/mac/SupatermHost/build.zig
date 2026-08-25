@@ -20,14 +20,13 @@ pub fn build(b: *std.Build) void {
 
     const options = b.addOptions();
     options.addOption([]const u8, "version", version);
-    const ghostty_ver = build_zig_zon.dependencies.ghostty.hash;
-    options.addOption([]const u8, "ghostty_version", ghostty_ver);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .strip = true,
     });
     exe_mod.addOptions("build_options", options);
 
@@ -40,6 +39,7 @@ pub fn build(b: *std.Build) void {
         // configure time and breaks builds without full Xcode.
         .@"emit-xcframework" = false,
         .@"emit-macos-app" = false,
+        .simd = false,
     });
     exe_mod.addImport(
         "ghostty-vt",
@@ -78,6 +78,7 @@ pub fn build(b: *std.Build) void {
             .@"emit-lib-vt" = true,
             .@"emit-xcframework" = false,
             .@"emit-macos-app" = false,
+            .simd = false,
         });
         test_module.addImport(
             "ghostty-vt",
@@ -123,6 +124,7 @@ pub fn build(b: *std.Build) void {
                 .target = resolved,
                 .optimize = .ReleaseSafe,
                 .link_libc = true,
+                .strip = true,
             });
             release_mod.addOptions("build_options", options);
 
@@ -132,6 +134,7 @@ pub fn build(b: *std.Build) void {
                 .@"emit-lib-vt" = true,
                 .@"emit-xcframework" = false,
                 .@"emit-macos-app" = false,
+                .simd = false,
             })) |release_dep| {
                 release_mod.addImport("ghostty-vt", release_dep.module("ghostty-vt"));
             }

@@ -246,18 +246,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
           value: SessionHostSocketBudget.socketDir()
         )
       )
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: SessionHostEnvironment.sessionKey,
-          value: ""
-        )
-      )
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: SessionHostEnvironment.sessionPrefixKey,
-          value: ""
-        )
-      )
     }
     let path: String?
     switch startup {
