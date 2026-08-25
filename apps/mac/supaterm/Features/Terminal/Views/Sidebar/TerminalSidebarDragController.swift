@@ -640,8 +640,7 @@ final class TerminalSidebarDragController {
       logDrag(
         "sidebar.drag.receiptSuccess",
         fields: TerminalSidebarDragLog.activeFields(activeDrag.payload) + [
-          "receiptRevision=\(receipt.topologyRevision)",
-          "deletedProjectCount=\(receipt.deletedEmptyProjectIDs.count)",
+          "receiptRevision=\(receipt.topologyRevision)"
         ]
       )
     } else {

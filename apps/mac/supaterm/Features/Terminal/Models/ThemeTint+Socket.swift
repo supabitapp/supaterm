@@ -23,3 +23,15 @@ extension ThemeTint {
     return destination
   }
 }
+
+extension TerminalProject {
+  var socketSnapshot: SupatermSnapshotProject {
+    SupatermSnapshotProject(
+      color: color.socketColor,
+      id: id.rawValue,
+      isPinned: isPinned,
+      name: name,
+      rootPath: rootPath
+    )
+  }
+}

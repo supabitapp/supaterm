@@ -528,11 +528,11 @@ struct TerminalSidebarContentHeightState: Equatable {
     guard let root = context.outline.roots[safe: rootIndex] else { return 0 }
     guard
       let nextRoot = context.outline.roots.dropFirst(rootIndex + 1).first(where: {
-        !context.draggedIDs.contains($0.entryID)
+        !context.draggedIDs.contains($0.id)
       })
     else { return 0 }
     guard root.isPinned == nextRoot.isPinned,
-      let nextItem = context.itemByID[nextRoot.entryID]
+      let nextItem = context.itemByID[nextRoot.id]
     else { return 0 }
     return max(0, nextItem.frame.minY - containerMaxY)
   }

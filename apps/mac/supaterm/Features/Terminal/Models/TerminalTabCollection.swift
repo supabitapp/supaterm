@@ -131,11 +131,11 @@ final class TerminalTabCollection {
     guard tabIDSet.count == tabIDs.count, tabIDs.allSatisfy({ topology.tabsByID[$0] != nil })
     else { return false }
     var next = topology
+    let knownProjectIDs = Set(orderedProjectIDs)
     for isPinned in [true, false] {
       let lane = isPinned ? next.pinnedTabIDs : next.regularTabIDs
       let movingIDs = lane.filter(tabIDSet.contains)
       guard !movingIDs.isEmpty else { continue }
-      let knownProjectIDs = Set(orderedProjectIDs)
       let destinationCount = lane.count { tabID in
         guard !tabIDSet.contains(tabID), let tab = next.tabsByID[tabID] else { return false }
         if let projectID { return tab.projectID == projectID }
@@ -203,7 +203,11 @@ final class TerminalTabCollection {
     topology.revision += 1
     if wasSelected {
       let remainingTabs = tabs(orderedProjectIDs: orderedProjectIDs)
-      selectedTabID = remainingTabs.indices.contains(index) ? remainingTabs[index].id : remainingTabs.last?.id
+      if remainingTabs.indices.contains(index) {
+        selectedTabID = remainingTabs[index].id
+      } else {
+        selectedTabID = remainingTabs.last?.id
+      }
     }
     return true
   }
@@ -212,7 +216,8 @@ final class TerminalTabCollection {
     let tabs = tabs(orderedProjectIDs: orderedProjectIDs)
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return [] }
     let nextIndex = tabs.index(after: index)
-    return nextIndex < tabs.endIndex ? Array(tabs[nextIndex...].map(\.id)) : []
+    guard nextIndex < tabs.endIndex else { return [] }
+    return Array(tabs[nextIndex...].map(\.id))
   }
 
   func tab(for id: TerminalTabID) -> TerminalTabItem? { topology.tabsByID[id] }
