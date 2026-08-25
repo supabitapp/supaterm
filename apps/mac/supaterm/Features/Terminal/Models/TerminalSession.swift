@@ -694,7 +694,7 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
   ) -> TerminalPaneNodeSession? {
     switch self {
     case .leaf(let leaf)
-    where (allowsExistingSessions || leaf.restoreMode == .shell)
+    where (allowsExistingSessions || leaf.hostID != nil || leaf.restoreMode == .shell)
       && seenSurfaceIDs.insert(leaf.id).inserted:
       return .leaf(leaf.pruned())
     case .leaf:
@@ -716,6 +716,7 @@ nonisolated enum TerminalPaneRestoreMode: String, Equatable, Codable, Sendable {
 
 nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
   var id: UUID
+  var hostID: String?
   var workingDirectoryPath: String?
   var titleOverride: String?
   var agents: [TerminalPaneAgentRecord]
@@ -723,12 +724,14 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
 
   init(
     id: UUID = UUID(),
+    hostID: String? = nil,
     workingDirectoryPath: String?,
     titleOverride: String? = nil,
     agents: [TerminalPaneAgentRecord] = [],
     restoreMode: TerminalPaneRestoreMode = .shell
   ) {
     self.id = id
+    self.hostID = hostID
     self.workingDirectoryPath = workingDirectoryPath
     self.titleOverride = titleOverride
     self.agents = agents
@@ -741,6 +744,7 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return TerminalPaneLeafSession(
       id: id,
+      hostID: hostID,
       workingDirectoryPath: workingDirectoryPath?.isEmpty == true ? nil : workingDirectoryPath,
       titleOverride: titleOverride?.isEmpty == true ? nil : titleOverride,
       agents: agents.compactMap { $0.pruned() },

@@ -44,6 +44,13 @@ extension SocketControlFeature {
         message: "Failed to create a new tab."
       )
 
+    case .hostNotFound(let hostID):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Host '\(hostID)' is not configured."
+      )
+
     case .spaceNotFound(let windowIndex, let spaceIndex):
       return .error(
         id: requestID,
@@ -77,6 +84,13 @@ extension SocketControlFeature {
         id: requestID,
         code: "internal_error",
         message: "Failed to create a new pane."
+      )
+
+    case .hostNotFound(let hostID):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Host '\(hostID)' is not configured."
       )
 
     case .paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):

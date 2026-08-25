@@ -8,8 +8,8 @@ public nonisolated enum SupatermBundleLayout {
     fileManager: FileManager = .default
   ) -> URL? {
     regularExecutableURL(
-      executableURL
-        .deletingLastPathComponent()
+      contentsDirectoryURL(nextTo: executableURL)
+        .appendingPathComponent("MacOS", isDirectory: true)
         .appendingPathComponent("sp", isDirectory: false),
       fileManager: fileManager
     )
@@ -22,6 +22,20 @@ public nonisolated enum SupatermBundleLayout {
     regularExecutableURL(
       contentsDirectoryURL(nextTo: executableURL)
         .appendingPathComponent("Helpers", isDirectory: true)
+        .appendingPathComponent(sessionHostExecutableName, isDirectory: false),
+      fileManager: fileManager
+    )
+  }
+
+  public static func remoteSessionHostExecutableURL(
+    nextTo executableURL: URL,
+    platform: SupatermSessionHostPlatform,
+    fileManager: FileManager = .default
+  ) -> URL? {
+    regularExecutableURL(
+      resourcesDirectoryURL(nextTo: executableURL)
+        .appendingPathComponent("supaterm-host", isDirectory: true)
+        .appendingPathComponent(platform.rawValue, isDirectory: true)
         .appendingPathComponent(sessionHostExecutableName, isDirectory: false),
       fileManager: fileManager
     )
@@ -47,8 +61,40 @@ public nonisolated enum SupatermBundleLayout {
   }
 
   private static func contentsDirectoryURL(nextTo executableURL: URL) -> URL {
-    executableURL
+    var directoryURL = executableURL.deletingLastPathComponent()
+    while directoryURL.path != "/" {
+      if directoryURL.lastPathComponent == "Contents",
+        directoryURL.deletingLastPathComponent().pathExtension == "app"
+      {
+        return directoryURL
+      }
+      directoryURL.deleteLastPathComponent()
+    }
+    return
+      executableURL
       .deletingLastPathComponent()
       .deletingLastPathComponent()
+  }
+}
+
+public nonisolated enum SupatermSessionHostPlatform: String, CaseIterable, Sendable {
+  case linuxAArch64 = "linux-aarch64"
+  case linuxX86_64 = "linux-x86_64"
+  case macOSAArch64 = "macos-aarch64"
+  case macOSX86_64 = "macos-x86_64"
+
+  public init?(operatingSystem: String, architecture: String) {
+    switch (operatingSystem.lowercased(), architecture.lowercased()) {
+    case ("linux", "aarch64"), ("linux", "arm64"):
+      self = .linuxAArch64
+    case ("linux", "amd64"), ("linux", "x86_64"):
+      self = .linuxX86_64
+    case ("darwin", "aarch64"), ("darwin", "arm64"):
+      self = .macOSAArch64
+    case ("darwin", "amd64"), ("darwin", "x86_64"):
+      self = .macOSX86_64
+    default:
+      return nil
+    }
   }
 }

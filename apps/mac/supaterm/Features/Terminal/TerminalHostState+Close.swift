@@ -200,13 +200,27 @@ extension TerminalHostState {
       return
     }
 
+    let hostID = surfaces[surfaceID]?.hostID
+    let remoteHost = hostID.flatMap { id in
+      supatermSettings.remoteHosts.first(where: { $0.id == id })
+    }
+    if hostID != nil, remoteHost == nil {
+      requestCloseSurface(
+        surfaceID,
+        needsConfirmation: false,
+        source: source
+      )
+      return
+    }
+
     let sessionHostClient = sessionHostClient
     Task { @MainActor [weak self, sessionHostClient] in
-      let sessions = await sessionHostClient.listSessions()
+      let sessions = await sessionHostClient.listSessions(remoteHost)
       guard let self else { return }
       self.finishCloseSurfaceAfterProcessExit(
         surfaceID,
         sessions: sessions,
+        remoteHost: remoteHost,
         source: source,
         didRetry: false
       )
@@ -216,10 +230,13 @@ extension TerminalHostState {
   func finishCloseSurfaceAfterProcessExit(
     _ surfaceID: UUID,
     sessions: [TerminalSessionHostSession]?,
+    remoteHost: SupatermRemoteHost?,
     source: TerminalSurfaceCloseSource,
     didRetry: Bool
   ) {
-    let sessionPresent = sessions?.contains { $0.surfaceID == surfaceID } == true
+    let sessionPresent =
+      sessions?.contains { $0.surfaceID == surfaceID }
+      ?? (remoteHost != nil)
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.close.afterExit.sessions",
@@ -235,12 +252,13 @@ extension TerminalHostState {
     if !didRetry, sessions == nil || sessionPresent {
       let sessionHostClient = sessionHostClient
       Task { @MainActor [weak self, sessionHostClient] in
-        try? await Task.sleep(for: .milliseconds(150))
-        let retrySessions = await sessionHostClient.listSessions()
+        try? await Task.sleep(for: remoteHost == nil ? .milliseconds(150) : .seconds(1))
+        let retrySessions = await sessionHostClient.listSessions(remoteHost)
         guard let self else { return }
         self.finishCloseSurfaceAfterProcessExit(
           surfaceID,
           sessions: retrySessions,
+          remoteHost: remoteHost,
           source: source,
           didRetry: true
         )

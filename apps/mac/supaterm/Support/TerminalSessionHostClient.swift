@@ -72,7 +72,7 @@ public nonisolated enum SessionHostEnvironment {
   }
 }
 
-public nonisolated enum TerminalSessionHostAttachMode: Sendable {
+public nonisolated enum TerminalSessionHostAttachMode: Equatable, Sendable {
   case createIfNeeded
   case existing
 }
@@ -112,13 +112,102 @@ nonisolated enum SessionHostSessionList {
   }
 }
 
+private nonisolated enum RemoteSessionHostCommand {
+  static func attachArguments(
+    remoteHost: SupatermRemoteHost,
+    sessionID: String,
+    mode: TerminalSessionHostAttachMode,
+    workingDirectoryPath: String?,
+    command: [String]
+  ) -> [String]? {
+    guard let connectionArguments = connectionArguments(remoteHost),
+      let commandData = try? JSONEncoder().encode(command),
+      let commandJSON = String(data: commandData, encoding: .utf8)
+    else {
+      return nil
+    }
+    var arguments = ["host", "attach"]
+    arguments.append(contentsOf: connectionArguments)
+    arguments.append(contentsOf: ["--session", sessionID, "--command", commandJSON])
+    if let workingDirectoryPath, !workingDirectoryPath.isEmpty {
+      arguments.append(contentsOf: ["--working-directory", workingDirectoryPath])
+    }
+    if mode == .existing {
+      arguments.append("--existing")
+    }
+    arguments.append("--")
+    return arguments
+  }
+
+  static func killArguments(
+    remoteHost: SupatermRemoteHost,
+    sessionID: String
+  ) -> [String]? {
+    connectionArguments(remoteHost).map {
+      ["host", "kill"] + $0 + ["--session", sessionID]
+    }
+  }
+
+  static func sessionsArguments(remoteHost: SupatermRemoteHost) -> [String]? {
+    connectionArguments(remoteHost).map { ["host", "sessions"] + $0 }
+  }
+
+  private static func connectionArguments(_ remoteHost: SupatermRemoteHost) -> [String]? {
+    guard let data = try? JSONEncoder().encode(remoteHost.sshArguments),
+      let sshArgumentsJSON = String(data: data, encoding: .utf8)
+    else {
+      return nil
+    }
+    return [
+      "--destination",
+      remoteHost.destination,
+      "--ssh-arguments",
+      sshArgumentsJSON,
+    ]
+  }
+}
+
+private nonisolated struct SessionHostExecutableResolver: Sendable {
+  let executableURL: URL?
+  let probed = LockIsolated<Bool?>(nil)
+
+  func resolve() -> URL? {
+    guard let executableURL else {
+      sessionHostLogError("sessionHost.executable.missing")
+      return nil
+    }
+    let canUseSessionHost = probed.withValue { current -> Bool in
+      if let current { return current }
+      let probeResult = SessionHostSocketBudget.probe()
+      current = probeResult == nil
+      if let probeResult {
+        sessionHostLogError(
+          "sessionHost.socketDir.unavailable",
+          fields: ["reason=\(probeResult)"]
+        )
+      } else {
+        sessionHostLogDebug("sessionHost.executable.available")
+      }
+      return current ?? false
+    }
+    return canUseSessionHost ? executableURL : nil
+  }
+}
+
 public nonisolated struct TerminalSessionHostClient: Sendable {
   public var isAvailable: @Sendable () -> Bool
   public var canManageSessions: @Sendable () -> Bool
   public var sessionID: @Sendable (_ surfaceID: UUID) -> String
-  public var commandWrapper: @Sendable (_ surfaceID: UUID, _ mode: TerminalSessionHostAttachMode) -> [String]?
-  public var killSession: @Sendable (_ surfaceID: UUID) async -> Void
-  public var listSessions: @Sendable () async -> [TerminalSessionHostSession]?
+  public var commandWrapper:
+    @Sendable (
+      _ surfaceID: UUID,
+      _ mode: TerminalSessionHostAttachMode,
+      _ remoteHost: SupatermRemoteHost?,
+      _ workingDirectoryPath: String?,
+      _ remoteCommand: [String]
+    ) -> [String]?
+  public var killSession: @Sendable (_ surfaceID: UUID, _ remoteHost: SupatermRemoteHost?) async -> Void
+  public var listSessions: @Sendable (_ remoteHost: SupatermRemoteHost?) async -> [TerminalSessionHostSession]?
 
   public nonisolated init(
     isAvailable: @escaping @Sendable () -> Bool,
@@ -127,10 +216,18 @@ public nonisolated struct TerminalSessionHostClient: Sendable {
     commandWrapper:
       @escaping @Sendable (
         _ surfaceID: UUID,
-        _ mode: TerminalSessionHostAttachMode
+        _ mode: TerminalSessionHostAttachMode,
+        _ remoteHost: SupatermRemoteHost?,
+        _ workingDirectoryPath: String?,
+        _ remoteCommand: [String]
       ) -> [String]?,
-    killSession: @escaping @Sendable (_ surfaceID: UUID) async -> Void,
-    listSessions: @escaping @Sendable () async -> [TerminalSessionHostSession]?
+    killSession:
+      @escaping @Sendable (
+        _ surfaceID: UUID,
+        _ remoteHost: SupatermRemoteHost?
+      ) async -> Void,
+    listSessions:
+      @escaping @Sendable (_ remoteHost: SupatermRemoteHost?) async -> [TerminalSessionHostSession]?
   ) {
     self.isAvailable = isAvailable
     self.canManageSessions = canManageSessions
@@ -254,54 +351,47 @@ extension TerminalSessionHostClient {
   public nonisolated static let live = makeSessionHost(
     executableURL: Bundle.main.executableURL.flatMap {
       SupatermBundleLayout.sessionHostExecutableURL(nextTo: $0)
+    },
+    spExecutableURL: Bundle.main.executableURL.flatMap {
+      SupatermBundleLayout.spExecutableURL(nextTo: $0)
     }
   )
 
   nonisolated static func makeSessionHost(
     executableURL: URL?,
+    spExecutableURL: URL? = nil,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> TerminalSessionHostClient {
-    let probed = LockIsolated<Bool?>(nil)
     let cachedBundledURL = executableURL
-
-    @Sendable func resolveExecutable() -> URL? {
-      guard let url = cachedBundledURL else {
-        sessionHostLogError("sessionHost.executable.missing")
-        return nil
-      }
-      let canUseSessionHost = probed.withValue { current -> Bool in
-        if let current { return current }
-        let probeResult = SessionHostSocketBudget.probe()
-        let computed = probeResult == nil
-        current = computed
-        if let probeResult {
-          sessionHostLogError(
-            "sessionHost.socketDir.unavailable",
-            fields: ["reason=\(probeResult)"]
-          )
-        } else {
-          sessionHostLogDebug("sessionHost.executable.available")
-        }
-        return computed
-      }
-      return canUseSessionHost ? url : nil
-    }
+    let resolver = SessionHostExecutableResolver(executableURL: executableURL)
 
     return TerminalSessionHostClient(
-      isAvailable: { resolveExecutable() != nil },
-      canManageSessions: { cachedBundledURL != nil },
+      isAvailable: { resolver.resolve() != nil },
+      canManageSessions: { cachedBundledURL != nil || spExecutableURL != nil },
       sessionID: { surfaceID in
         SessionHostSessionID.make(surfaceID: surfaceID, environment: environment)
       },
-      commandWrapper: { surfaceID, mode in
-        guard let executableURL = resolveExecutable() else { return nil }
+      commandWrapper: { surfaceID, mode, remoteHost, workingDirectoryPath, remoteCommand in
+        if let remoteHost {
+          guard let spExecutableURL,
+            let remoteArguments = RemoteSessionHostCommand.attachArguments(
+              remoteHost: remoteHost,
+              sessionID: SessionHostSessionID.make(surfaceID: surfaceID, environment: environment),
+              mode: mode,
+              workingDirectoryPath: workingDirectoryPath,
+              command: remoteCommand
+            )
+          else { return nil }
+          return [spExecutableURL.path(percentEncoded: false)] + remoteArguments
+        }
+        guard let executableURL = resolver.resolve() else { return nil }
         return SessionHostAttach.buildWrapperArgv(
           executablePath: executableURL.path(percentEncoded: false),
           sessionID: SessionHostSessionID.make(surfaceID: surfaceID, environment: environment),
           mode: mode
         )
       },
-      killSession: { surfaceID in
+      killSession: { surfaceID, remoteHost in
         sessionHostLogDebug(
           "sessionHost.kill.requested",
           fields: [
@@ -309,20 +399,56 @@ extension TerminalSessionHostClient {
             "sessionID=\(SessionHostSessionID.make(surfaceID: surfaceID, environment: environment))",
           ]
         )
+        let sessionID = SessionHostSessionID.make(surfaceID: surfaceID, environment: environment)
+        let executableURL: URL?
+        let arguments: [String]
+        let timeout: Duration
+        if let remoteHost {
+          guard
+            let remoteArguments = RemoteSessionHostCommand.killArguments(
+              remoteHost: remoteHost,
+              sessionID: sessionID
+            )
+          else { return }
+          executableURL = spExecutableURL
+          arguments = remoteArguments
+          timeout = .seconds(30)
+        } else {
+          executableURL = cachedBundledURL
+          arguments = ["kill", sessionID]
+          timeout = subprocessTimeout
+        }
         _ = await SessionHostSubprocess.run(
-          executableURL: cachedBundledURL,
-          arguments: ["kill", SessionHostSessionID.make(surfaceID: surfaceID, environment: environment)],
+          executableURL: executableURL,
+          arguments: arguments,
           captureStdout: false,
-          timeout: subprocessTimeout
+          timeout: timeout
         )
       },
-      listSessions: {
+      listSessions: { remoteHost in
+        let executableURL: URL?
+        let arguments: [String]
+        let timeout: Duration
+        if let remoteHost {
+          guard
+            let remoteArguments = RemoteSessionHostCommand.sessionsArguments(
+              remoteHost: remoteHost
+            )
+          else { return nil }
+          executableURL = spExecutableURL
+          arguments = remoteArguments
+          timeout = .seconds(30)
+        } else {
+          executableURL = cachedBundledURL
+          arguments = ["ls"]
+          timeout = subprocessTimeout
+        }
         guard
           let stdout = await SessionHostSubprocess.run(
-            executableURL: cachedBundledURL,
-            arguments: ["ls"],
+            executableURL: executableURL,
+            arguments: arguments,
             captureStdout: true,
-            timeout: subprocessTimeout
+            timeout: timeout
           )
         else {
           sessionHostLogError("sessionHost.list.failed")
@@ -342,9 +468,9 @@ extension TerminalSessionHostClient {
     isAvailable: { false },
     canManageSessions: { false },
     sessionID: { $0.uuidString.lowercased() },
-    commandWrapper: { _, _ in nil },
-    killSession: { _ in },
-    listSessions: { nil }
+    commandWrapper: { _, _, _, _, _ in nil },
+    killSession: { _, _ in },
+    listSessions: { _ in nil }
   )
 }
 

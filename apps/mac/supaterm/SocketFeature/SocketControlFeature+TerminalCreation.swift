@@ -44,6 +44,7 @@ extension SocketControlFeature {
       startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       focus: payload.focus,
+      hostID: payload.hostID,
       target: createTabTarget(from: payload.target),
       context: payload.context
     )
@@ -73,6 +74,7 @@ extension SocketControlFeature {
       direction: payload.direction,
       focus: payload.focus,
       equalize: payload.equalize,
+      hostID: payload.hostID,
       target: createPaneTarget(from: payload.target)
     )
   }

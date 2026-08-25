@@ -20,6 +20,7 @@ struct SocketControlCreationTests {
       startupCommand: .exec(["pwd"], searchPath: "/usr/bin:/bin"),
       cwd: "/tmp/example",
       focus: false,
+      hostID: "build",
       target: .group(groupID)
     )
     let request = SocketControlClient.Request(
@@ -54,6 +55,7 @@ struct SocketControlCreationTests {
               startupCommand: .exec(["pwd"], searchPath: "/usr/bin:/bin"),
               cwd: "/tmp/example",
               focus: false,
+              hostID: "build",
               target: .group(groupID)
             )
         )

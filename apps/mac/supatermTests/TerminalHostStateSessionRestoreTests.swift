@@ -10,6 +10,57 @@ import Testing
 @MainActor
 struct TerminalHostStateSessionRestoreTests {
   @Test
+  func remoteStartupCommandsUseRemoteExecutables() {
+    #expect(TerminalHostState.remoteCommand(for: nil).isEmpty)
+    #expect(
+      TerminalHostState.remoteCommand(
+        for: .exec(["make", "test"], searchPath: "/usr/bin:/bin")
+      ) == ["make", "test"]
+    )
+    #expect(
+      TerminalHostState.remoteCommand(for: .shell("printf ready"))
+        == ["/bin/sh", "-lc", "printf ready"]
+    )
+  }
+
+  @Test
+  func remoteWorkingDirectoriesDoNotNeedToExistLocally() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let remoteHost = SupatermRemoteHost(id: "build", destination: "build.example.com")
+      let remotePath = "/srv/\(UUID().uuidString.lowercased())"
+      let normalizedRemotePath = URL(fileURLWithPath: remotePath, isDirectory: true)
+        .path(percentEncoded: false)
+      let capturedPath = LockIsolated<String?>(nil)
+      let client = TerminalSessionHostClient(
+        isAvailable: { false },
+        canManageSessions: { true },
+        sessionID: { $0.uuidString.lowercased() },
+        commandWrapper: { _, _, _, workingDirectoryPath, _ in
+          capturedPath.setValue(workingDirectoryPath)
+          return ["/bin/sh", "-c", "sleep 60", "supaterm-host"]
+        },
+        killSession: { _, _ in },
+        listSessions: { _ in [] }
+      )
+      let host = TerminalHostState(sessionHostClient: client)
+      host.$supatermSettings.withLock { $0.remoteHosts = [remoteHost] }
+
+      _ = host.createTab(
+        focusing: false,
+        hostID: remoteHost.id,
+        workingDirectoryPath: remotePath
+      )
+
+      #expect(!FileManager.default.fileExists(atPath: remotePath))
+      #expect(capturedPath.value == normalizedRemotePath)
+      #expect(host.selectedSurfaceView?.bridge.state.pwd == normalizedRemotePath)
+    }
+  }
+
+  @Test
   func disabledSessionHostSessionsDoNotWrapTheShell() {
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
@@ -64,7 +115,7 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func unavailableSessionHostDoesNotWrapTheShell() {
+  func unavailableSessionHostShowsAnError() {
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
       sessionHostClient: wrappingSessionHostClient(executablePath: nil)
@@ -72,7 +123,10 @@ struct TerminalHostStateSessionRestoreTests {
 
     let commandWrapper = host.resolvedCommandWrapper(surfaceID: UUID(), mode: .createIfNeeded)
 
-    #expect(commandWrapper.isEmpty)
+    #expect(
+      commandWrapper
+        == TerminalHostState.sessionHostFailureCommand("The session host is unavailable.")
+    )
   }
 
   @Test
@@ -90,6 +144,42 @@ struct TerminalHostStateSessionRestoreTests {
     await host.killHostedSessionsAndWait(for: [surfaceID])
 
     #expect(killedSurfaceIDs.value.isEmpty)
+  }
+
+  @Test
+  func disabledLocalPersistenceStillCleansUpRemoteSessions() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let remoteHost = SupatermRemoteHost(id: "build", destination: "build.example.com")
+      let killedSessions = LockIsolated<[(UUID, SupatermRemoteHost?)]>([])
+      let client = TerminalSessionHostClient(
+        isAvailable: { false },
+        canManageSessions: { true },
+        sessionID: { $0.uuidString.lowercased() },
+        commandWrapper: { _, _, _, _, _ in
+          ["/bin/sh", "-c", "sleep 60", "supaterm-host"]
+        },
+        killSession: { surfaceID, remoteHost in
+          killedSessions.withValue { $0.append((surfaceID, remoteHost)) }
+        },
+        listSessions: { _ in [] }
+      )
+      let host = TerminalHostState(
+        sessionHostClient: client,
+        sessionPersistenceEnabled: false
+      )
+      host.$supatermSettings.withLock { $0.remoteHosts = [remoteHost] }
+      _ = host.createTab(focusing: false, hostID: remoteHost.id)
+      let surfaceID = try #require(host.selectedSurfaceView?.id)
+
+      await host.killHostedSessionsAndWait(for: [surfaceID])
+
+      #expect(killedSessions.value.count == 1)
+      #expect(killedSessions.value.first?.0 == surfaceID)
+      #expect(killedSessions.value.first?.1 == remoteHost)
+    }
   }
 
   @Test
@@ -620,7 +710,7 @@ struct TerminalHostStateSessionRestoreTests {
       isAvailable: { executablePath != nil },
       canManageSessions: { true },
       sessionID: { "test-\($0.uuidString.lowercased())" },
-      commandWrapper: { surfaceID, mode in
+      commandWrapper: { surfaceID, mode, _, _, _ in
         guard let executablePath else { return nil }
         switch mode {
         case .createIfNeeded:
@@ -629,8 +719,10 @@ struct TerminalHostStateSessionRestoreTests {
           return [executablePath, "attach", "--existing", "test-\(surfaceID.uuidString.lowercased())"]
         }
       },
-      killSession: killSession,
-      listSessions: { [] }
+      killSession: { surfaceID, _ in
+        await killSession(surfaceID)
+      },
+      listSessions: { _ in [] }
     )
   }
 

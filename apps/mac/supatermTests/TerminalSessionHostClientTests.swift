@@ -116,9 +116,37 @@ struct TerminalSessionHostClientTests {
       ofItemAtPath: executableURL.path
     )
 
-    let sessions = await client.listSessions()
+    let sessions = await client.listSessions(nil)
 
     #expect(sessions == [TerminalSessionHostSession(surfaceID: surfaceID, processID: 101)])
+  }
+
+  @Test
+  func listSessionsUsesTheRemoteHostTransport() async throws {
+    let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
+    let environment = [SupatermCLIEnvironment.instanceNameKey: "dev/main"]
+    let directoryURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let spURL = directoryURL.appendingPathComponent("sp", isDirectory: false)
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+    let sessionID = SessionHostSessionID.make(surfaceID: surfaceID, environment: environment)
+    try """
+    #!/bin/sh
+    printf 'name=\(sessionID)\\tpid=707\\tclients=0\\n'
+    """.write(to: spURL, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: spURL.path)
+    let client = TerminalSessionHostClient.makeSessionHost(
+      executableURL: nil,
+      spExecutableURL: spURL,
+      environment: environment
+    )
+
+    let sessions = await client.listSessions(
+      SupatermRemoteHost(id: "build", destination: "build.example.com")
+    )
+
+    #expect(sessions == [TerminalSessionHostSession(surfaceID: surfaceID, processID: 707)])
   }
 
   @Test
@@ -128,7 +156,7 @@ struct TerminalSessionHostClientTests {
       fileURLWithPath: "/Applications/Supaterm Runtime.app/Contents/Helpers/supaterm-host"
     )
     let client = TerminalSessionHostClient.makeSessionHost(executableURL: executableURL)
-    let argv = try #require(client.commandWrapper(surfaceID, .createIfNeeded))
+    let argv = try #require(client.commandWrapper(surfaceID, .createIfNeeded, nil, nil, []))
 
     #expect(argv == [executableURL.path, "attach", client.sessionID(surfaceID)])
   }
@@ -140,7 +168,7 @@ struct TerminalSessionHostClientTests {
       fileURLWithPath: "/Applications/Supaterm Runtime.app/Contents/Helpers/supaterm-host"
     )
     let client = TerminalSessionHostClient.makeSessionHost(executableURL: executableURL)
-    let argv = try #require(client.commandWrapper(surfaceID, .existing))
+    let argv = try #require(client.commandWrapper(surfaceID, .existing, nil, nil, []))
 
     #expect(
       argv == [
@@ -148,6 +176,51 @@ struct TerminalSessionHostClientTests {
         "attach",
         "--existing",
         client.sessionID(surfaceID),
+      ]
+    )
+  }
+
+  @Test
+  func remoteWrapperUsesBundledCLIAndExactHostArguments() throws {
+    let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
+    let spURL = URL(fileURLWithPath: "/Applications/Supaterm.app/Contents/MacOS/sp")
+    let host = SupatermRemoteHost(
+      id: "build",
+      destination: "khoi@example.com",
+      sshArguments: ["-p", "2222"]
+    )
+    let client = TerminalSessionHostClient.makeSessionHost(
+      executableURL: nil,
+      spExecutableURL: spURL,
+      environment: [:]
+    )
+    let argv = try #require(
+      client.commandWrapper(
+        surfaceID,
+        .existing,
+        host,
+        "/srv/project with spaces",
+        ["/bin/sh", "-lc", "printf ready"]
+      )
+    )
+
+    #expect(
+      argv == [
+        spURL.path,
+        "host",
+        "attach",
+        "--destination",
+        "khoi@example.com",
+        "--ssh-arguments",
+        #"["-p","2222"]"#,
+        "--session",
+        client.sessionID(surfaceID),
+        "--command",
+        #"["\/bin\/sh","-lc","printf ready"]"#,
+        "--working-directory",
+        "/srv/project with spaces",
+        "--existing",
+        "--",
       ]
     )
   }

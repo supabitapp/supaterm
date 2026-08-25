@@ -55,6 +55,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   private let runtime: GhosttyRuntime
   let id: UUID
+  let hostID: String?
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
@@ -286,6 +287,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     id: UUID = UUID(),
     runtime: GhosttyRuntime,
     tabID: UUID,
+    hostID: String? = nil,
     workingDirectory: URL?,
     shellPath: String = SupatermShellCommand.loginShellPath(),
     cliPath: String? = GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL),
@@ -313,6 +315,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   ) {
     self.runtime = runtime
     self.id = id
+    self.hostID = hostID
     self.bridge = GhosttySurfaceBridge(findPasteboard: findPasteboard)
     self.environmentVariables =
       Self.supatermEnvironmentVariables(

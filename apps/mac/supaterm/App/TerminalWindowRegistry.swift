@@ -1071,7 +1071,7 @@ final class TerminalWindowRegistry {
   }
 
   nonisolated private static func terminateAllHostedSessions(using sessionHostClient: TerminalSessionHostClient) async {
-    guard let sessions = await sessionHostClient.listSessions() else {
+    guard let sessions = await sessionHostClient.listSessions(nil) else {
       SupatermLog.error(SupatermLog.sessionHost, "sessionHost.terminateAll.skipped", fields: ["reason=listFailed"])
       return
     }
@@ -1087,7 +1087,7 @@ final class TerminalWindowRegistry {
     await withTaskGroup(of: Void.self) { group in
       for surfaceID in surfaceIDs {
         group.addTask {
-          await sessionHostClient.killSession(surfaceID)
+          await sessionHostClient.killSession(surfaceID, nil)
         }
       }
     }
@@ -1266,6 +1266,8 @@ final class TerminalWindowRegistry {
       return .contextPaneNotFound
     case .creationFailed:
       return .creationFailed
+    case .hostNotFound(let hostID):
+      return .hostNotFound(hostID)
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
     case .windowNotFound:
@@ -1300,6 +1302,8 @@ final class TerminalWindowRegistry {
       return .contextPaneNotFound
     case .creationFailed:
       return .creationFailed
+    case .hostNotFound(let hostID):
+      return .hostNotFound(hostID)
     case .paneNotFound(_, let spaceIndex, let tabIndex, let paneIndex):
       return .paneNotFound(
         windowIndex: windowIndex,

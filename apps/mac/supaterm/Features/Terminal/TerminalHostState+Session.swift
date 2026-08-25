@@ -317,6 +317,7 @@ extension TerminalHostState {
       return .leaf(
         TerminalPaneLeafSession(
           id: surface.id,
+          hostID: surface.hostID,
           workingDirectoryPath: workingDirectoryPath(for: surface),
           titleOverride: surface.bridge.state.titleOverride,
           agents: agentStateRecords(for: surface.id),
@@ -396,9 +397,13 @@ extension TerminalHostState {
         leaf.restoreMode == .existingSession ? .existing : .createIfNeeded
       let surface = createSurface(
         tabID: tabID,
+        hostID: leaf.hostID,
         startupCommand: nil,
         inheritingFromSurfaceID: nil,
-        workingDirectory: existingWorkingDirectoryURL(for: leaf.workingDirectoryPath),
+        workingDirectory: restoredWorkingDirectoryURL(
+          for: leaf.workingDirectoryPath,
+          hostID: leaf.hostID
+        ),
         context: context,
         surfaceID: leaf.id,
         restoreMode: leaf.restoreMode,
@@ -506,5 +511,14 @@ extension TerminalHostState {
     }
     guard isDirectory.boolValue else { return nil }
     return URL(fileURLWithPath: normalizedPath, isDirectory: true)
+  }
+
+  func restoredWorkingDirectoryURL(for path: String?, hostID: String?) -> URL? {
+    guard hostID != nil else { return existingWorkingDirectoryURL(for: path) }
+    guard let path = Self.trimmedNonEmpty(path) else { return nil }
+    return URL(
+      fileURLWithPath: GhosttySurfaceView.normalizedWorkingDirectoryPath(path),
+      isDirectory: true
+    )
   }
 }

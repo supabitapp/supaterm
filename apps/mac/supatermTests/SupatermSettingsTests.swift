@@ -50,12 +50,77 @@ struct SupatermSettingsTests {
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.restoreTerminalLayoutEnabled)
+    #expect(prefs.remoteHosts.isEmpty)
     #expect(prefs.shortcutOverrides.isEmpty)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
     #expect(!prefs.verboseLoggingEnabled)
     #expect(prefs.sessionPersistenceEnabled)
     #expect(!prefs.terminatesSessionsOnQuit)
+  }
+
+  @Test
+  func remoteHostsRoundTripThroughToml() throws {
+    var settings = SupatermSettings.default
+    settings.remoteHosts = [
+      SupatermRemoteHost(
+        id: "build-server",
+        destination: "khoi@example.com",
+        sshArguments: ["-p", "2222", "-J", "jump@example.com"]
+      )
+    ]
+
+    let data = try SupatermSettingsCodec.encode(settings)
+    let decoded = try SupatermSettingsCodec.decode(data)
+    let string = try #require(String(data: data, encoding: .utf8))
+
+    #expect(decoded == settings)
+    #expect(string.contains("[[hosts]]"))
+    #expect(string.contains("ssh_arguments"))
+  }
+
+  @Test
+  func remoteHostDefaultsToNoSSHArguments() throws {
+    let data = Data(
+      """
+      [[hosts]]
+      id = "build"
+      destination = "build.example.com"
+      """.utf8
+    )
+
+    let settings = try SupatermSettingsCodec.decode(data)
+
+    #expect(settings.remoteHosts == [SupatermRemoteHost(id: "build", destination: "build.example.com")])
+  }
+
+  @Test
+  func remoteHostIDsNormalizeAndValidate() {
+    #expect(SupatermRemoteHost.normalizedID(" Build Server 01 ") == "build-server-01")
+    #expect(
+      SupatermRemoteHost(id: "build-server", destination: "khoi@example.com").validationError == nil
+    )
+    #expect(SupatermRemoteHost(id: "Build Server", destination: "khoi@example.com").validationError != nil)
+    #expect(SupatermRemoteHost(id: "build", destination: "-oProxyCommand=bad").validationError != nil)
+  }
+
+  @Test
+  func remoteHostDecoderRejectsDuplicateIDs() {
+    let data = Data(
+      """
+      [[hosts]]
+      id = "build"
+      destination = "one.example.com"
+
+      [[hosts]]
+      id = "build"
+      destination = "two.example.com"
+      """.utf8
+    )
+
+    #expect(throws: DecodingError.self) {
+      try SupatermSettingsCodec.decode(data)
+    }
   }
 
   @Test

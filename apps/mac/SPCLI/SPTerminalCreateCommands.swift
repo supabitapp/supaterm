@@ -38,6 +38,9 @@ extension SP {
     @Option(name: .long, help: "Start the new tab in the specified working directory.")
     var cwd: String?
 
+    @Option(name: .long, help: "Run the new tab on a configured host.")
+    var host: String?
+
     @Option(
       name: .customLong("in"),
       help: "Create the new tab in the specified space of this window.",
@@ -96,6 +99,7 @@ extension SP {
         startupCommand: startup,
         cwd: cwd,
         focus: focus,
+        hostID: host,
         target: try resolvePublicNewTabPlacement(
           space: space,
           group: destination,
@@ -126,6 +130,9 @@ extension SP {
 
     @Option(name: .long, help: "Start the new pane in the specified working directory.")
     var cwd: String?
+
+    @Option(name: .long, help: "Run the new pane on a configured host.")
+    var host: String?
 
     @Flag(inversion: .prefixedNo, help: "Focus the new pane after creating it.")
     var focus = false
@@ -168,6 +175,7 @@ extension SP {
         direction: direction.direction,
         focus: focus,
         equalize: layout == .equalize,
+        hostID: host,
         target: try resolvePublicSplitTarget(
           container,
           context: SupatermCLIContext.current,

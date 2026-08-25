@@ -13,6 +13,7 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
   public let startupCommand: SupatermTerminalStartup?
   public let cwd: String?
   public let focus: Bool
+  public let hostID: String?
   public let target: Target
   public let context: SupatermCLIContext?
 
@@ -20,12 +21,14 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
     startupCommand: SupatermTerminalStartup?,
     cwd: String?,
     focus: Bool,
+    hostID: String? = nil,
     target: Target,
     context: SupatermCLIContext? = nil
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
+    self.hostID = hostID
     self.target = target
     self.context = context
   }
@@ -42,6 +45,7 @@ public struct TerminalCreatePaneRequest: Equatable, Sendable {
   public let direction: SupatermPaneDirection
   public let focus: Bool
   public let equalize: Bool
+  public let hostID: String?
   public let target: Target
 
   public init(
@@ -50,6 +54,7 @@ public struct TerminalCreatePaneRequest: Equatable, Sendable {
     direction: SupatermPaneDirection,
     focus: Bool,
     equalize: Bool,
+    hostID: String? = nil,
     target: Target
   ) {
     self.startupCommand = startupCommand
@@ -57,6 +62,7 @@ public struct TerminalCreatePaneRequest: Equatable, Sendable {
     self.direction = direction
     self.focus = focus
     self.equalize = equalize
+    self.hostID = hostID
     self.target = target
   }
 }
@@ -424,6 +430,7 @@ public struct TerminalAgentHookResult: Equatable, Sendable {
 public enum TerminalCreatePaneError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
+  case hostNotFound(String)
   case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
@@ -433,6 +440,7 @@ public enum TerminalCreatePaneError: Error, Equatable {
 public enum TerminalCreateTabError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
+  case hostNotFound(String)
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case windowNotFound(Int)
 }

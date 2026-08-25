@@ -84,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let sessionPersistenceEnabledAtLaunch = SessionHostEnvironment.sessionsEnabled(
       setting: launchSupatermSettings.sessionPersistenceEnabled
     )
-    let sessionHostClient = sessionPersistenceEnabledAtLaunch ? TerminalSessionHostClient.live : .noop
+    let sessionHostClient = TerminalSessionHostClient.live
     let terminalWindowRegistry = TerminalWindowRegistry(sessionHostClient: sessionHostClient)
     let tabNewWindowDropController = TerminalTabNewWindowDropController(
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
@@ -146,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   private var launchSessionHostClient: TerminalSessionHostClient {
-    sessionPersistenceEnabledAtLaunch ? .live : .noop
+    .live
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -433,7 +433,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let sessionHostClient = launchSessionHostClient
     Task.detached(priority: .utility) {
       SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.reap.start")
-      guard let sessions = await sessionHostClient.listSessions() else {
+      guard let sessions = await sessionHostClient.listSessions(nil) else {
         SupatermLog.error(SupatermLog.sessionHost, "sessionHost.reap.skipped", fields: ["reason=listFailed"])
         return
       }
@@ -465,7 +465,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       await withTaskGroup(of: Void.self) { group in
         for surfaceID in orphanSurfaceIDs {
           group.addTask {
-            await sessionHostClient.killSession(surfaceID)
+            await sessionHostClient.killSession(surfaceID, nil)
           }
         }
       }

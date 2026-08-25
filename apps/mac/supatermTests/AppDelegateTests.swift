@@ -219,6 +219,27 @@ struct AppDelegateTests {
   }
 
   @Test
+  func initialWindowRequestsKeepRemoteSessionsWithoutLocalPersistence() {
+    let spaceID = TerminalSpaceID()
+    let session = windowSession(
+      spaceID: spaceID,
+      restoreMode: .existingSession,
+      hostID: "build"
+    )
+
+    let requests = AppDelegate.initialWindowRequests(
+      from: TerminalSessionCatalog(windows: [session]),
+      validSpaceIDs: [spaceID],
+      restoreTerminalLayoutEnabled: true,
+      allowsExistingSessions: false,
+      lastAppLaunchedDate: nil,
+      cliPath: nil
+    )
+
+    #expect(requests == [.restore(session)])
+  }
+
+  @Test
   func initialWindowRequestsIgnoreUnavailableSessionsInInvalidSpaces() {
     let invalidSpaceID = TerminalSpaceID()
 
@@ -415,7 +436,8 @@ struct AppDelegateTests {
 
   private func windowSession(
     spaceID: TerminalSpaceID,
-    restoreMode: TerminalPaneRestoreMode
+    restoreMode: TerminalPaneRestoreMode,
+    hostID: String? = nil
   ) -> TerminalWindowSession {
     let tabID = TerminalTabID()
     return TerminalWindowSession(
@@ -440,6 +462,7 @@ struct AppDelegateTests {
               focusedPaneIndex: 0,
               root: .leaf(
                 TerminalPaneLeafSession(
+                  hostID: hostID,
                   workingDirectoryPath: nil,
                   restoreMode: restoreMode
                 )

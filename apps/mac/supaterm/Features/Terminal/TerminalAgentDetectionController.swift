@@ -131,7 +131,7 @@ private actor TerminalAgentDetectionLiveSampler {
   }
 
   func resolveForegroundProcessGroups(_ direct: [UUID: Int32]) async -> [UUID: Int32] {
-    guard sessionPersistenceEnabled, let sessions = await sessionHostClient.listSessions() else {
+    guard sessionPersistenceEnabled, let sessions = await sessionHostClient.listSessions(nil) else {
       return direct
     }
     var resolved = direct

@@ -21,8 +21,32 @@ struct SettingsFeatureTests {
   func tabOrderEndsWithAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .terminal, .notifications, .shortcuts, .codingAgents, .advanced, .about]
+        == [.general, .terminal, .hosts, .notifications, .shortcuts, .codingAgents, .advanced, .about]
     )
+  }
+
+  @Test
+  func hostsCanBeAddedAndRemoved() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let host = SupatermRemoteHost(id: "build", destination: "khoi@example.com")
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.remoteHostAdded(host)) {
+        $0.$supatermSettings.withLock {
+          $0.remoteHosts = [host]
+        }
+      }
+      await store.send(.remoteHostAdded(host))
+      await store.send(.remoteHostRemoved(host.id)) {
+        $0.$supatermSettings.withLock {
+          $0.remoteHosts = []
+        }
+      }
+    }
   }
 
   @Test

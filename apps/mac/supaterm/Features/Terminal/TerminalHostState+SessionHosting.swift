@@ -39,13 +39,17 @@ extension TerminalHostState {
     }
 
     let context = reattachSurfaceContext(for: tabID, tree: tree)
-    let workingDirectory = existingWorkingDirectoryURL(for: workingDirectoryPath(for: previousSurface))
+    let workingDirectory = restoredWorkingDirectoryURL(
+      for: workingDirectoryPath(for: previousSurface),
+      hostID: previousSurface.hostID
+    )
     let titleOverride = previousSurface.bridge.state.titleOverride
     previousSurface.bridge.onChildExited = nil
     previousSurface.bridge.onCloseRequest = nil
 
     let replacementSurface = createSurface(
       tabID: tabID,
+      hostID: previousSurface.hostID,
       startupCommand: nil,
       inheritingFromSurfaceID: nil,
       workingDirectory: workingDirectory,
@@ -132,28 +136,30 @@ extension TerminalHostState {
       SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.kill.skipped", fields: ["reason=empty"])
       return
     }
-    guard sessionPersistenceEnabled else {
-      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.kill.skipped", fields: ["reason=disabled"])
+    guard sessionHostClient.canManageSessions() else {
       return
     }
-    guard sessionHostClient.canManageSessions() else {
-      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.kill.skipped", fields: ["reason=cannotManageSessions"])
+    let sessions = hostedSessions(for: surfaceIDs).filter {
+      sessionPersistenceEnabled || $0.remoteHost != nil
+    }
+    guard !sessions.isEmpty else {
+      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.kill.skipped", fields: ["reason=disabled"])
       return
     }
     SupatermLog.debug(
       SupatermLog.sessionHost,
       "sessionHost.kill.enqueue",
       fields: [
-        "count=\(surfaceIDs.count)",
-        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+        "count=\(sessions.count)",
+        "surfaceIDs=\(Self.logSurfaceIDs(sessions.map(\.surfaceID)))",
       ]
     )
     let sessionHostClient = sessionHostClient
     Task.detached(priority: .utility) {
       await withTaskGroup(of: Void.self) { group in
-        for surfaceID in surfaceIDs {
+        for (surfaceID, remoteHost) in sessions {
           group.addTask {
-            await sessionHostClient.killSession(surfaceID)
+            await sessionHostClient.killSession(surfaceID, remoteHost)
           }
         }
       }
@@ -166,10 +172,6 @@ extension TerminalHostState {
       SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.killAndWait.skipped", fields: ["reason=empty"])
       return
     }
-    guard sessionPersistenceEnabled else {
-      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.killAndWait.skipped", fields: ["reason=disabled"])
-      return
-    }
     guard sessionHostClient.canManageSessions() else {
       SupatermLog.debug(
         SupatermLog.sessionHost,
@@ -178,19 +180,30 @@ extension TerminalHostState {
       )
       return
     }
+    let sessions = hostedSessions(for: surfaceIDs).filter {
+      sessionPersistenceEnabled || $0.remoteHost != nil
+    }
+    guard !sessions.isEmpty else {
+      SupatermLog.debug(
+        SupatermLog.sessionHost,
+        "sessionHost.killAndWait.skipped",
+        fields: ["reason=disabled"]
+      )
+      return
+    }
     SupatermLog.debug(
       SupatermLog.sessionHost,
       "sessionHost.killAndWait.start",
       fields: [
-        "count=\(surfaceIDs.count)",
-        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+        "count=\(sessions.count)",
+        "surfaceIDs=\(Self.logSurfaceIDs(sessions.map(\.surfaceID)))",
       ]
     )
     let sessionHostClient = sessionHostClient
     await withTaskGroup(of: Void.self) { group in
-      for surfaceID in surfaceIDs {
+      for (surfaceID, remoteHost) in sessions {
         group.addTask {
-          await sessionHostClient.killSession(surfaceID)
+          await sessionHostClient.killSession(surfaceID, remoteHost)
         }
       }
     }
@@ -198,8 +211,8 @@ extension TerminalHostState {
       SupatermLog.sessionHost,
       "sessionHost.killAndWait.finished",
       fields: [
-        "count=\(surfaceIDs.count)",
-        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+        "count=\(sessions.count)",
+        "surfaceIDs=\(Self.logSurfaceIDs(sessions.map(\.surfaceID)))",
       ]
     )
   }
@@ -210,5 +223,38 @@ extension TerminalHostState {
 
   func terminateTerminalSessionsAndWait() async {
     await killHostedSessionsAndWait(for: sessionSurfaceIDs())
+  }
+
+  private func hostedSessions(
+    for surfaceIDs: [UUID]
+  ) -> [(surfaceID: UUID, remoteHost: SupatermRemoteHost?)] {
+    surfaceIDs.compactMap { surfaceID in
+      guard let hostID = surfaces[surfaceID]?.hostID ?? pendingHostID(for: surfaceID) else {
+        return (surfaceID, nil)
+      }
+      guard let remoteHost = supatermSettings.remoteHosts.first(where: { $0.id == hostID }) else {
+        SupatermLog.error(
+          SupatermLog.sessionHost,
+          "sessionHost.kill.missingHost",
+          fields: [
+            "hostID=\(hostID)",
+            "surfaceID=\(surfaceID.uuidString.lowercased())",
+          ]
+        )
+        return nil
+      }
+      return (surfaceID, remoteHost)
+    }
+  }
+
+  private func pendingHostID(for surfaceID: UUID) -> String? {
+    for instance in spaceManager.instances {
+      for tab in instance.pendingSession?.tabs ?? [] {
+        if let hostID = tab.root.leaf(id: surfaceID)?.hostID {
+          return hostID
+        }
+      }
+    }
+    return nil
   }
 }

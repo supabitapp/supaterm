@@ -7,6 +7,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var crashReportsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
   public var restoreTerminalLayoutEnabled: Bool
+  public var remoteHosts: [SupatermRemoteHost]
   public var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride]
   public var systemNotificationsEnabled: Bool
   public var updateChannel: UpdateChannel
@@ -20,6 +21,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     crashReportsEnabled: Bool,
     glowingPaneRingEnabled: Bool = true,
     restoreTerminalLayoutEnabled: Bool = true,
+    remoteHosts: [SupatermRemoteHost] = [],
     shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] = [:],
     systemNotificationsEnabled: Bool = false,
     updateChannel: UpdateChannel,
@@ -32,6 +34,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.crashReportsEnabled = crashReportsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
+    self.remoteHosts = remoteHosts
     self.shortcutOverrides = shortcutOverrides
     self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
@@ -67,6 +70,21 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       )
     let terminal = try container.decodeIfPresent(PersistedTerminal.self, forKey: .terminal)
     let updates = try container.decodeIfPresent(PersistedUpdates.self, forKey: .updates)
+    let remoteHosts = try container.decodeIfPresent([SupatermRemoteHost].self, forKey: .hosts) ?? []
+    if let invalidHost = remoteHosts.first(where: { $0.validationError != nil }) {
+      throw DecodingError.dataCorruptedError(
+        forKey: .hosts,
+        in: container,
+        debugDescription: invalidHost.validationError ?? "Invalid host."
+      )
+    }
+    if Set(remoteHosts.map(\.id)).count != remoteHosts.count {
+      throw DecodingError.dataCorruptedError(
+        forKey: .hosts,
+        in: container,
+        debugDescription: "Host IDs must be unique."
+      )
+    }
 
     self.init(
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
@@ -75,6 +93,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
       glowingPaneRingEnabled: notifications?.glowingPaneRing ?? defaults.glowingPaneRingEnabled,
       restoreTerminalLayoutEnabled: terminal?.restoreLayout ?? defaults.restoreTerminalLayoutEnabled,
+      remoteHosts: remoteHosts,
       shortcutOverrides: shortcuts ?? defaults.shortcutOverrides,
       systemNotificationsEnabled: notifications?.systemNotifications ?? defaults.systemNotificationsEnabled,
       updateChannel: updates?.channel ?? defaults.updateChannel,
@@ -133,6 +152,9 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         forKey: .terminal
       )
     }
+    if !remoteHosts.isEmpty {
+      try container.encode(remoteHosts, forKey: .hosts)
+    }
     if shortcutOverrides != defaults.shortcutOverrides {
       try container.encode(shortcutOverrides, forKey: .shortcuts)
     }
@@ -147,6 +169,7 @@ extension SupatermSettings {
     case appearance
     case codingAgents = "coding_agents"
     case logging
+    case hosts
     case privacy
     case notifications
     case shortcuts
@@ -375,6 +398,74 @@ extension SupatermSettings {
     }
   }
 
+}
+
+public struct SupatermRemoteHost: Codable, Equatable, Identifiable, Sendable {
+  public let id: String
+  public let destination: String
+  public let sshArguments: [String]
+
+  public init(
+    id: String,
+    destination: String,
+    sshArguments: [String] = []
+  ) {
+    self.id = id
+    self.destination = destination
+    self.sshArguments = sshArguments
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    destination = try container.decode(String.self, forKey: .destination)
+    sshArguments = try container.decodeIfPresent([String].self, forKey: .sshArguments) ?? []
+  }
+
+  public var validationError: String? {
+    let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-")
+    if id.isEmpty || id.rangeOfCharacter(from: allowed.inverted) != nil || id.first == "-" || id.last == "-" {
+      return "Host IDs may contain lowercase letters, numbers, and single hyphens."
+    }
+    if id.contains("--") {
+      return "Host IDs may not contain adjacent hyphens."
+    }
+    if destination.isEmpty
+      || destination.first == "-"
+      || destination.rangeOfCharacter(from: .whitespacesAndNewlines) != nil
+      || destination.contains("\0")
+    {
+      return "Host destinations must be one SSH destination without spaces."
+    }
+    if sshArguments.contains(where: { $0.contains("\0") || $0.contains("\n") || $0.contains("\r") }) {
+      return "SSH arguments may not contain newlines."
+    }
+    return nil
+  }
+
+  public static func normalizedID(_ value: String) -> String {
+    let scalars = value.lowercased().unicodeScalars
+    var result = ""
+    var pendingHyphen = false
+    for scalar in scalars {
+      if CharacterSet.alphanumerics.contains(scalar), scalar.isASCII {
+        if pendingHyphen, !result.isEmpty {
+          result.append("-")
+        }
+        result.unicodeScalars.append(scalar)
+        pendingHyphen = false
+      } else {
+        pendingHyphen = !result.isEmpty
+      }
+    }
+    return result
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case destination
+    case id
+    case sshArguments = "ssh_arguments"
+  }
 }
 
 struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {

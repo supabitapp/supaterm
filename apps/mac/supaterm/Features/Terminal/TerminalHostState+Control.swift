@@ -221,9 +221,15 @@ extension TerminalHostState {
   }
 
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
+    if let hostID = request.hostID,
+      !supatermSettings.remoteHosts.contains(where: { $0.id == hostID })
+    {
+      throw TerminalCreatePaneError.hostNotFound(hostID)
+    }
     let resolvedTarget = try resolveCreatePaneTarget(request.target)
     let newSurface = createSurface(
       tabID: resolvedTarget.tabID,
+      hostID: request.hostID,
       startupCommand: request.startupCommand,
       inheritingFromSurfaceID: resolvedTarget.anchorSurface.id,
       workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
@@ -297,6 +303,11 @@ extension TerminalHostState {
   }
 
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
+    if let hostID = request.hostID,
+      !supatermSettings.remoteHosts.contains(where: { $0.id == hostID })
+    {
+      throw TerminalCreateTabError.hostNotFound(hostID)
+    }
     let resolvedTarget = try resolveCreateTabTarget(request.target)
     let currentSelectedTabID = spaceManager.selectedTabID(in: resolvedTarget.space.id)
     let placement = resolvedTarget.placement
@@ -307,6 +318,7 @@ extension TerminalHostState {
         createTab(
           in: resolvedTarget.space.id,
           focusing: false,
+          hostID: request.hostID,
           startupCommand: request.startupCommand,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
           inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,

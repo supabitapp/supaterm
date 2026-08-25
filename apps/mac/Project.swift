@@ -6,6 +6,7 @@ let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
 let sessionHostBinaryPath: Path = ".build/supaterm-host/bin/supaterm-host"
+let sessionHostRemotePath: Path = ".build/supaterm-host/remote"
 let sessionHostBuildScriptPath: Path = "scripts/build-supaterm-host.sh"
 let sessionHostFingerprintPath: Path = ".build/supaterm-host/fingerprint"
 let apBinaryPath: Path = ".build/ap/bin/ap"
@@ -417,7 +418,9 @@ let project = Project(
 
             destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
             destination_path="${destination_dir}/supaterm-host"
+            remote_destination="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/supaterm-host"
             source_path="${SRCROOT}/\(sessionHostBinaryPath.pathString)"
+            remote_source="${SRCROOT}/\(sessionHostRemotePath.pathString)"
 
             if [ ! -x "${source_path}" ]; then
               echo "error: missing built supaterm-host executable" >&2
@@ -427,18 +430,31 @@ let project = Project(
             mkdir -p "${destination_dir}"
             rm -f "${destination_path}"
             /usr/bin/install -m 755 "${source_path}" "${destination_path}"
+            rm -rf "${remote_destination}"
+            mkdir -p "${remote_destination}"
+            /usr/bin/rsync -a "${remote_source}/" "${remote_destination}/"
             if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
               identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
               /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
+              for platform in macos-aarch64 macos-x86_64; do
+                /usr/bin/codesign \
+                  --force \
+                  --sign "${identity}" \
+                  --options runtime \
+                  --timestamp=none \
+                  "${remote_destination}/${platform}/supaterm-host"
+              done
             fi
             """,
           name: "Embed Supaterm Host",
           inputPaths: [
             "$(SRCROOT)/\(sessionHostBinaryPath.pathString)",
             "$(SRCROOT)/\(sessionHostFingerprintPath.pathString)",
+            "$(SRCROOT)/\(sessionHostRemotePath.pathString)",
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/supaterm-host",
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/supaterm-host",
           ]
         ),
         .post(

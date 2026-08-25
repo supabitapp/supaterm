@@ -25,6 +25,7 @@ extension TerminalHostState {
   @discardableResult
   func createTab(
     focusing: Bool = true,
+    hostID: String? = nil,
     startupCommand: SupatermTerminalStartup? = nil,
     workingDirectoryPath: String? = nil,
     inheritingFromSurfaceID: UUID? = nil,
@@ -35,6 +36,7 @@ extension TerminalHostState {
     return createTab(
       in: target.spaceID,
       focusing: focusing,
+      hostID: hostID,
       startupCommand: startupCommand,
       workingDirectory: workingDirectoryPath.map { URL(fileURLWithPath: $0, isDirectory: true) },
       inheritingFromSurfaceID: target.inheritedSurfaceID,
@@ -47,6 +49,7 @@ extension TerminalHostState {
   func createTab(
     in spaceID: TerminalSpaceID,
     focusing: Bool = true,
+    hostID: String? = nil,
     startupCommand: SupatermTerminalStartup? = nil,
     workingDirectory: URL? = nil,
     inheritingFromSurfaceID: UUID? = nil,
@@ -79,6 +82,7 @@ extension TerminalHostState {
     }
     let tree = splitTree(
       for: tabID,
+      hostID: hostID,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
       startupCommand: startupCommand,
       workingDirectory: workingDirectory,
@@ -146,6 +150,7 @@ extension TerminalHostState {
 
   func createSurface(
     tabID: TerminalTabID,
+    hostID: String? = nil,
     startupCommand: SupatermTerminalStartup?,
     inheritingFromSurfaceID: UUID?,
     workingDirectory: URL? = nil,
@@ -158,8 +163,17 @@ extension TerminalHostState {
       preconditionFailure("TerminalHostState cannot create surfaces without a GhosttyRuntime")
     }
     let inherited = inheritedSurfaceConfig(fromSurfaceID: inheritingFromSurfaceID, context: context)
-    let commandWrapper = resolvedCommandWrapper(surfaceID: surfaceID, mode: sessionHostAttachMode)
-    let usesSessionHost = !commandWrapper.isEmpty
+    let resolvedHostID = hostID ?? inherited.hostID
+    let resolvedWorkingDirectory = workingDirectory ?? inherited.workingDirectory
+    let resolvedWorkingDirectoryPath = resolvedWorkingDirectory?.path(percentEncoded: false)
+    let commandWrapper = resolvedCommandWrapper(
+      surfaceID: surfaceID,
+      mode: sessionHostAttachMode,
+      hostID: resolvedHostID,
+      workingDirectoryPath: resolvedWorkingDirectoryPath,
+      startupCommand: startupCommand
+    )
+    let usesSessionHost = !commandWrapper.isEmpty && commandWrapper.first != "/bin/sh"
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.surface.create",
@@ -170,6 +184,7 @@ extension TerminalHostState {
         "sessionPersistenceEnabled=\(sessionPersistenceEnabled)",
         "hasStartupCommand=\(startupCommand != nil)",
         "hasCommandWrapper=\(!commandWrapper.isEmpty)",
+        "hostID=\(resolvedHostID ?? "local")",
         "usesSessionHost=\(usesSessionHost)",
       ]
     )
@@ -177,15 +192,19 @@ extension TerminalHostState {
       id: surfaceID,
       runtime: runtime,
       tabID: tabID.rawValue,
-      workingDirectory: workingDirectory ?? inherited.workingDirectory,
-      startupCommand: startupCommand,
-      restoreMode: restoreMode,
+      hostID: resolvedHostID,
+      workingDirectory: resolvedHostID == nil ? resolvedWorkingDirectory : nil,
+      startupCommand: resolvedHostID == nil ? startupCommand : nil,
+      restoreMode: restoreMode ?? Self.restoreMode(for: startupCommand),
       commandWrapper: commandWrapper,
       fontSize: inherited.fontSize,
       context: context,
       managesWindowAppearance: false,
       sessionPersistenceEnabled: usesSessionHost
     )
+    if resolvedHostID != nil {
+      view.bridge.state.pwd = resolvedWorkingDirectoryPath
+    }
     configureBridgeCallbacks(for: view, tabID: tabID)
     configureSurfaceCallbacks(for: view, tabID: tabID)
     surfaces[view.id] = view
@@ -195,10 +214,27 @@ extension TerminalHostState {
 
   func resolvedCommandWrapper(
     surfaceID: UUID,
-    mode: TerminalSessionHostAttachMode
+    mode: TerminalSessionHostAttachMode,
+    hostID: String? = nil,
+    workingDirectoryPath: String? = nil,
+    startupCommand: SupatermTerminalStartup? = nil
   ) -> [String] {
     let sessionID = sessionHostClient.sessionID(surfaceID)
-    guard sessionPersistenceEnabled else {
+    let remoteHost = hostID.flatMap { id in
+      supatermSettings.remoteHosts.first(where: { $0.id == id })
+    }
+    if let hostID, remoteHost == nil {
+      SupatermLog.error(
+        SupatermLog.sessionHost,
+        "sessionHost.attach.missingHost",
+        fields: [
+          "hostID=\(hostID)",
+          "surfaceID=\(surfaceID.uuidString.lowercased())",
+        ]
+      )
+      return Self.sessionHostFailureCommand("Host '\(hostID)' is not configured.")
+    }
+    guard sessionPersistenceEnabled || remoteHost != nil else {
       SupatermLog.debug(
         SupatermLog.sessionHost,
         "sessionHost.attach.skipped",
@@ -210,7 +246,15 @@ extension TerminalHostState {
       )
       return []
     }
-    guard let commandWrapper = sessionHostClient.commandWrapper(surfaceID, mode) else {
+    guard
+      let commandWrapper = sessionHostClient.commandWrapper(
+        surfaceID,
+        mode,
+        remoteHost,
+        workingDirectoryPath,
+        Self.remoteCommand(for: startupCommand)
+      )
+    else {
       SupatermLog.error(
         SupatermLog.sessionHost,
         "sessionHost.attach.fallback",
@@ -219,7 +263,7 @@ extension TerminalHostState {
           "sessionID=\(sessionID)",
         ]
       )
-      return []
+      return Self.sessionHostFailureCommand("The session host is unavailable.")
     }
     SupatermLog.debug(
       SupatermLog.sessionHost,
@@ -232,12 +276,40 @@ extension TerminalHostState {
     return commandWrapper
   }
 
+  static func sessionHostFailureCommand(_ message: String) -> [String] {
+    [
+      "/bin/sh",
+      "-c",
+      "printf '%s\\n' \"$1\" >&2; exit 127",
+      "supaterm-host",
+      message,
+    ]
+  }
+
+  static func remoteCommand(for startupCommand: SupatermTerminalStartup?) -> [String] {
+    switch startupCommand {
+    case .exec(let arguments, _):
+      arguments
+    case .shell(let script):
+      ["/bin/sh", "-lc", script]
+    case nil:
+      []
+    }
+  }
+
+  static func restoreMode(for startupCommand: SupatermTerminalStartup?) -> TerminalPaneRestoreMode {
+    if case .exec = startupCommand {
+      return .existingSession
+    }
+    return .shell
+  }
+
   func inheritedSurfaceConfig(
     fromSurfaceID surfaceID: UUID?,
     context: ghostty_surface_context_e
   ) -> InheritedSurfaceConfig {
     guard let surfaceID, let view = surfaces[surfaceID], let sourceSurface = view.surface else {
-      return InheritedSurfaceConfig(workingDirectory: nil, fontSize: nil)
+      return InheritedSurfaceConfig(hostID: nil, workingDirectory: nil, fontSize: nil)
     }
 
     var inherited = ghostty_surface_inherited_config(sourceSurface, context)
@@ -248,12 +320,18 @@ extension TerminalHostState {
       guard !path.isEmpty else { return nil }
       return URL(fileURLWithPath: path, isDirectory: true)
     }
+    let reportedWorkingDirectory = workingDirectoryPath(for: view).map {
+      URL(fileURLWithPath: $0, isDirectory: true)
+    }
     let workingDirectory =
-      agentPanelPresentation(for: surfaceID)?.workingDirectoryPath.map {
+      view.hostID == nil
+      ? agentPanelPresentation(for: surfaceID)?.workingDirectoryPath.map {
         URL(fileURLWithPath: $0, isDirectory: true)
       } ?? inheritedWorkingDirectory
+      : reportedWorkingDirectory ?? inheritedWorkingDirectory
 
     return InheritedSurfaceConfig(
+      hostID: view.hostID,
       workingDirectory: workingDirectory,
       fontSize: fontSize
     )

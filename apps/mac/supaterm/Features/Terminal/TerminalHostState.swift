@@ -500,6 +500,7 @@ final class TerminalHostState {
 
   func splitTree(
     for tabID: TerminalTabID,
+    hostID: String? = nil,
     inheritingFromSurfaceID: UUID? = nil,
     startupCommand: SupatermTerminalStartup? = nil,
     workingDirectory: URL? = nil,
@@ -510,6 +511,7 @@ final class TerminalHostState {
     }
     let surface = createSurface(
       tabID: tabID,
+      hostID: hostID,
       startupCommand: startupCommand,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
       workingDirectory: workingDirectory,
@@ -860,6 +862,7 @@ final class TerminalHostState {
   }
 
   struct InheritedSurfaceConfig: Equatable {
+    let hostID: String?
     let workingDirectory: URL?
     let fontSize: Float32?
   }

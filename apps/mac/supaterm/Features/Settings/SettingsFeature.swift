@@ -140,6 +140,7 @@ public struct SettingsFeature {
     var crashReportsEnabled: Bool { supatermSettings.crashReportsEnabled }
     var glowingPaneRingEnabled: Bool { supatermSettings.glowingPaneRingEnabled }
     var restoreTerminalLayoutEnabled: Bool { supatermSettings.restoreTerminalLayoutEnabled }
+    var remoteHosts: [SupatermRemoteHost] { supatermSettings.remoteHosts }
     var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] {
       supatermSettings.shortcutOverrides
     }
@@ -167,6 +168,8 @@ public struct SettingsFeature {
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
+    case remoteHostAdded(SupatermRemoteHost)
+    case remoteHostRemoved(String)
     case restoreShortcutDefaultsButtonTapped
     case shortcutEnabledChanged(SupatermShortcutID, Bool)
     case shortcutRecorded(SupatermShortcutID, SupatermShortcutOverride)
@@ -201,6 +204,7 @@ public struct SettingsFeature {
   public enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
     case terminal
+    case hosts
     case notifications
     case shortcuts
     case codingAgents
@@ -221,6 +225,8 @@ public struct SettingsFeature {
         "gearshape"
       case .terminal:
         "terminal"
+      case .hosts:
+        "server.rack"
       case .notifications:
         "bell"
       case .shortcuts:
@@ -240,6 +246,8 @@ public struct SettingsFeature {
         "General"
       case .terminal:
         "Terminal"
+      case .hosts:
+        "Hosts"
       case .notifications:
         "Notifications"
       case .shortcuts:
@@ -331,6 +339,22 @@ public struct SettingsFeature {
       case .codingAgentsShowPanelChanged(let isEnabled):
         updateSettings(&state) {
           $0.codingAgentsShowPanel = isEnabled
+        }
+        return .none
+
+      case .remoteHostAdded(let host):
+        guard host.validationError == nil,
+          !state.remoteHosts.contains(where: { $0.id == host.id })
+        else { return .none }
+        updateSettings(&state) {
+          $0.remoteHosts.append(host)
+          $0.remoteHosts.sort { $0.id < $1.id }
+        }
+        return .none
+
+      case .remoteHostRemoved(let hostID):
+        updateSettings(&state) {
+          $0.remoteHosts.removeAll(where: { $0.id == hostID })
         }
         return .none
 

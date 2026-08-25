@@ -70,6 +70,8 @@ struct SettingsTabContentView: View {
       SettingsCodingAgentsView(store: store)
     case .general:
       SettingsGeneralView(store: store)
+    case .hosts:
+      SettingsHostsView(store: store)
     case .terminal:
       SettingsTerminalView(store: store)
     case .notifications:

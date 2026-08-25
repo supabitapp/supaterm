@@ -177,6 +177,7 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
         allowedKeys: [
           "appearance",
           "coding_agents",
+          "hosts",
           "logging",
           "notifications",
           "privacy",
@@ -190,6 +191,9 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
 
     warnings.append(
       contentsOf: try Self.unknownShortcutKeys(in: container)
+    )
+    warnings.append(
+      contentsOf: try Self.unknownHostKeys(in: container)
     )
     warnings.append(
       contentsOf: try Self.unknownNestedKeys(
@@ -272,6 +276,31 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
         allowedKeys: ["enabled", "key_code", "modifiers"],
         prefix: "shortcuts.\(shortcutKey.stringValue)"
       )
+    }
+  }
+
+  private static func unknownHostKeys(
+    in container: KeyedDecodingContainer<AnyCodingKey>
+  ) throws -> [String] {
+    guard let hostsKey = AnyCodingKey(stringValue: "hosts"), container.contains(hostsKey) else {
+      return []
+    }
+    let allowedKeys: Set<String> = ["destination", "id", "ssh_arguments"]
+    return try container.decode([HostUnknownKeyAudit].self, forKey: hostsKey)
+      .enumerated()
+      .flatMap { index, host in
+        host.keys
+          .filter { !allowedKeys.contains($0) }
+          .map { "Unknown config key `hosts[\(index)].\($0)`." }
+      }
+  }
+
+  private struct HostUnknownKeyAudit: Decodable {
+    let keys: [String]
+
+    init(from decoder: any Decoder) throws {
+      let container = try decoder.container(keyedBy: AnyCodingKey.self)
+      keys = container.allKeys.map(\.stringValue).sorted()
     }
   }
 

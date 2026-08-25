@@ -63,6 +63,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let startupCommand: SupatermTerminalStartup?
   public let cwd: String?
   public let focus: Bool
+  public let hostID: String?
   public let target: SupatermNewTabTarget
   public let context: SupatermCLIContext?
 
@@ -70,12 +71,14 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
     startupCommand: SupatermTerminalStartup? = nil,
     cwd: String? = nil,
     focus: Bool,
+    hostID: String? = nil,
     target: SupatermNewTabTarget,
     context: SupatermCLIContext? = nil
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
+    self.hostID = hostID
     self.target = target
     self.context = context
   }
@@ -162,6 +165,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let direction: SupatermPaneDirection
   public let focus: Bool
   public let equalize: Bool
+  public let hostID: String?
   public let target: SupatermNewPaneTarget
 
   public init(
@@ -170,6 +174,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     direction: SupatermPaneDirection,
     focus: Bool,
     equalize: Bool,
+    hostID: String? = nil,
     target: SupatermNewPaneTarget
   ) {
     self.startupCommand = startupCommand
@@ -177,6 +182,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     self.direction = direction
     self.focus = focus
     self.equalize = equalize
+    self.hostID = hostID
     self.target = target
   }
 }

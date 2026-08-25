@@ -531,6 +531,7 @@ struct TerminalAgentDetectionControllerTests {
     let runtime = try makeGhosttyRuntime("")
     let host = TerminalHostState(
       runtime: runtime,
+      sessionHostClient: liveSessionHostClient(),
       sessionPersistenceEnabled: sessionPersistenceEnabled,
       agentDetectionRuleRepository: repository
     )
@@ -750,7 +751,16 @@ struct TerminalAgentDetectionControllerTests {
     }
     throw DetectionTestError.detectionTimedOut(read())
   }
+
+  private func liveSessionHostClient() -> TerminalSessionHostClient {
+    let executableURL = Bundle(for: DetectionTestBundleToken.self).bundleURL
+      .deletingLastPathComponent()
+      .appendingPathComponent("supaterm.app/Contents/Helpers/supaterm-host")
+    return TerminalSessionHostClient.makeSessionHost(executableURL: executableURL)
+  }
 }
+
+private final class DetectionTestBundleToken {}
 
 @MainActor
 private struct DetectionControllerFixture {
