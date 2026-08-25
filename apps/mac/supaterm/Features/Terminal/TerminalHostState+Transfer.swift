@@ -30,7 +30,6 @@ extension TerminalHostState {
     fileprivate let collectionPlan: TerminalTabCollection.TransferPlan
     fileprivate let destinationInstance: TerminalSpaceInstance
     fileprivate let didMoveSelectedTab: Bool
-    fileprivate let movedGroupIDs: Set<TerminalTabGroupID>
     fileprivate let sourceInstance: TerminalSpaceInstance
     let surfaceIDs: Set<UUID>
     let tabIDs: [TerminalTabID]
@@ -137,12 +136,6 @@ extension TerminalHostState {
       collectionPlan: collectionPlan,
       destinationInstance: instances.destination,
       didMoveSelectedTab: instances.source.selectedTabID.map(tabIDs.contains) == true,
-      movedGroupIDs: Set(
-        request.itemIDs.compactMap { itemID in
-          guard case .group(let groupID) = itemID else { return nil }
-          return groupID
-        }
-      ),
       sourceInstance: instances.source,
       surfaceIDs: surfaceIDs,
       tabIDs: tabIDs
@@ -184,7 +177,7 @@ extension TerminalHostState {
     let extractionPlan = try TerminalTabCollection.prepareExtraction(
       TerminalTabExtractionRequest(
         expectedTopologyRevision: request.expectedSourceRevision,
-        itemIDs: [.tab(request.sourceTabID)]
+        tabIDs: [request.sourceTabID]
       ),
       from: instances.source.tabCollection
     )
@@ -215,7 +208,9 @@ extension TerminalHostState {
       from: plan.sourceInstance.tabCollection,
       to: plan.destinationInstance.tabCollection
     )
-    updateGroupState(plan, result: result)
+    if plan.sourceInstance.previousSelectedTabID.map(plan.tabIDs.contains) == true {
+      plan.sourceInstance.previousSelectedTabID = nil
+    }
     if source !== destination {
       moveOwnership(plan, from: source, to: destination)
     }
@@ -229,7 +224,7 @@ extension TerminalHostState {
     from source: TerminalHostState,
     to destination: TerminalHostState
   ) throws {
-    let deletedEmptyGroupIDs = try TerminalTabCollection.commitExtraction(
+    try TerminalTabCollection.commitExtraction(
       plan.extractionPlan,
       from: plan.sourceInstance.tabCollection
     )
@@ -251,7 +246,6 @@ extension TerminalHostState {
         default: FocusHistory(current: incomingFocusedSurfaceID)
       ].updateCurrent(incomingFocusedSurfaceID)
     }
-    plan.sourceInstance.collapsedTabGroupIDs.subtract(deletedEmptyGroupIDs)
     if plan.sourceInstance.previousSelectedTabID == plan.sourceTabID {
       plan.sourceInstance.previousSelectedTabID = nil
     }
@@ -376,19 +370,6 @@ extension TerminalHostState {
       destination.focusHistoryByTab.merge(ownership.focusHistories) { _, _ in
         preconditionFailure()
       }
-    }
-  }
-
-  private static func updateGroupState(
-    _ plan: LiveTabTransferPlan,
-    result: TerminalTabTransferResult
-  ) {
-    let movedCollapsedGroupIDs = plan.sourceInstance.collapsedTabGroupIDs.intersection(plan.movedGroupIDs)
-    plan.sourceInstance.collapsedTabGroupIDs.subtract(result.deletedEmptyGroupIDs)
-    plan.sourceInstance.collapsedTabGroupIDs.subtract(plan.movedGroupIDs)
-    plan.destinationInstance.collapsedTabGroupIDs.formUnion(movedCollapsedGroupIDs)
-    if plan.sourceInstance.previousSelectedTabID.map(plan.tabIDs.contains) == true {
-      plan.sourceInstance.previousSelectedTabID = nil
     }
   }
 

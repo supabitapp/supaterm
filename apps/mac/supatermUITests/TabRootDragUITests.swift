@@ -14,50 +14,50 @@ final class TabRootDragUITests: SupatermUITestCase {
       .tab("Mover"),
       .tab("First"),
     ])
-    XCTAssertEqual(sidebarGroupHeaders.count, 0)
+    XCTAssertEqual(sidebarProjectHeaders.count, 0)
   }
 
   @MainActor
-  func testRootTabDropsBeforeFirstGroupAtLeadingEdge() async throws {
-    try await createNamedTabs(["Group Seed", "Mover"])
-    try await createGroup(named: "First", containing: "Group Seed")
+  func testUnassignedTabStaysAfterProjectsAtProjectLeadingEdge() async throws {
+    try await createNamedTabs(["Project Seed", "Mover"])
+    try await createProject(named: "First", containing: "Project Seed")
     await requireSidebarStructure([
-      .group("First", children: ["Group Seed"]),
+      .project("First", children: ["Project Seed"]),
       .tab("Mover"),
     ])
 
-    let header = try require(sidebarGroupHeader(named: "First"))
-    let beforeGroup = header.coordinate(
+    let header = try require(sidebarProjectHeader(named: "First"))
+    let beforeProject = header.coordinate(
       withNormalizedOffset: CGVector(dx: 0.5, dy: 0)
     ).withOffset(CGVector(dx: 0, dy: 3))
     try drag(
       sidebarStructuralTabRow(named: "Mover"),
-      to: beforeGroup
+      to: beforeProject
     )
 
     await requireSidebarStructure([
+      .project("First", children: ["Project Seed"]),
       .tab("Mover"),
-      .group("First", children: ["Group Seed"]),
     ])
   }
 
   @MainActor
-  func testRootTabDropsIntoExpandedGroup() async throws {
-    try await createNamedTabs(["Group Seed", "Root A", "Root B"])
-    try await createGroup(named: "Alpha", containing: "Group Seed")
+  func testRootTabDropsIntoExpandedProject() async throws {
+    try await createNamedTabs(["Project Seed", "Root A", "Root B"])
+    try await createProject(named: "Alpha", containing: "Project Seed")
     await requireSidebarStructure([
-      .group("Alpha", children: ["Group Seed"]),
+      .project("Alpha", children: ["Project Seed"]),
       .tab("Root A"),
       .tab("Root B"),
     ])
 
     try drag(
       sidebarStructuralTabRow(named: "Root A"),
-      to: sidebarGroupHeader(named: "Alpha")
+      to: sidebarProjectHeader(named: "Alpha")
     )
 
     await requireSidebarStructure([
-      .group("Alpha", children: ["Group Seed", "Root A"]),
+      .project("Alpha", children: ["Project Seed", "Root A"]),
       .tab("Root B"),
     ])
   }
@@ -76,6 +76,6 @@ final class TabRootDragUITests: SupatermUITestCase {
       .tab("Third"),
       .tab("First"),
     ])
-    XCTAssertEqual(sidebarGroupHeaders.count, 0)
+    XCTAssertEqual(sidebarProjectHeaders.count, 0)
   }
 }

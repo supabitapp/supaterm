@@ -497,19 +497,9 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
       TerminalSpaceItem(id: otherSpaceID, name: "Workspace Beta"),
     ],
     selectedTabID: selectedTabID,
-    rootItems: [
-      .tab(
-        TerminalUngroupedTabItem(
-          tab: TerminalTabItem(id: selectedTabID, title: "Main"),
-          isPinned: false
-        )
-      ),
-      .tab(
-        TerminalUngroupedTabItem(
-          tab: TerminalTabItem(id: otherTabID, title: "Logs"),
-          isPinned: false
-        )
-      ),
+    tabs: [
+      TerminalTabItem(id: selectedTabID, title: "Main"),
+      TerminalTabItem(id: otherTabID, title: "Logs"),
     ]
   )
 }

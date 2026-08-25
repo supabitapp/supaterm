@@ -112,7 +112,7 @@ private struct SpaceSwitcherHoverSnapshotFixture: View {
   var body: some View {
     TerminalSpaceSwitcherLabel(
       palette: palette,
-      name: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpace.name,
+      name: SidebarChromeSnapshotContext.selectedProjectTerminal.displayedSpace.name,
       isHovered: true
     )
     .padding(10)
@@ -134,7 +134,7 @@ private struct TerminalChromeSnapshotFixture: View {
   private var palette: Palette {
     Palette(
       colorScheme: appearance.colorScheme,
-      tint: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpace.color
+      tint: SidebarChromeSnapshotContext.selectedProjectTerminal.displayedSpace.color
     )
   }
 
@@ -145,7 +145,7 @@ private struct TerminalChromeSnapshotFixture: View {
         updateStore: SidebarChromeSnapshotContext.updateStore(),
         releaseAnnouncement: nil,
         palette: palette,
-        terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+        terminal: SidebarChromeSnapshotContext.selectedProjectTerminal,
         isPagingActive: true,
         sidebarControllerCache: sidebarControllerCache,
         dismissReleaseAnnouncement: {}
@@ -162,11 +162,11 @@ private struct TerminalChromeSnapshotFixture: View {
 
   @ViewBuilder
   private var detail: some View {
-    if let selectedTabID = SidebarChromeSnapshotContext.selectedGroupTerminal.selectedTabID {
+    if let selectedTabID = SidebarChromeSnapshotContext.selectedProjectTerminal.selectedTabID {
       TerminalDetailView(
         store: SidebarChromeSnapshotContext.windowStore(),
         palette: palette,
-        terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+        terminal: SidebarChromeSnapshotContext.selectedProjectTerminal,
         selectedTabID: selectedTabID
       )
     } else {
@@ -187,17 +187,17 @@ private struct FloatingSidebarSnapshotFixture: View {
   private var palette: Palette {
     Palette(
       colorScheme: appearance.colorScheme,
-      tint: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpace.color
+      tint: SidebarChromeSnapshotContext.selectedProjectTerminal.displayedSpace.color
     )
   }
 
   var body: some View {
     ZStack(alignment: .leading) {
-      if let selectedTabID = SidebarChromeSnapshotContext.selectedGroupTerminal.selectedTabID {
+      if let selectedTabID = SidebarChromeSnapshotContext.selectedProjectTerminal.selectedTabID {
         TerminalDetailView(
           store: SidebarChromeSnapshotContext.windowStore(),
           palette: palette,
-          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+          terminal: SidebarChromeSnapshotContext.selectedProjectTerminal,
           selectedTabID: selectedTabID
         )
       } else {
@@ -210,7 +210,7 @@ private struct FloatingSidebarSnapshotFixture: View {
           updateStore: SidebarChromeSnapshotContext.updateStore(),
           releaseAnnouncement: nil,
           palette: palette,
-          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+          terminal: SidebarChromeSnapshotContext.selectedProjectTerminal,
           isPagingActive: true,
           sidebarControllerCache: sidebarControllerCache,
           dismissReleaseAnnouncement: {}

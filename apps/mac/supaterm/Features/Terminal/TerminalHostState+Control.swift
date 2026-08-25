@@ -40,13 +40,13 @@ extension TerminalHostState {
           name: space.name,
           color: space.color.socketColor,
           isWarm: isSpaceWarm(space.id),
-          rootItems: rootItemSnapshot(in: space.id).map {
-            treeRootItemSnapshot($0, spaceID: space.id)
-          }
+          collapsedProjectIDs: collapsedProjectSnapshotIDs(in: space.id),
+          isUnassignedCollapsed: unassignedCollapsedSnapshot(in: space.id),
+          tabs: tabItemSnapshot(in: space.id).map { treeTabSnapshot($0, spaceID: space.id) }
         )
       }
     )
-    return SupatermTreeSnapshot(windows: [window])
+    return SupatermTreeSnapshot(projects: projectSnapshots, windows: [window])
   }
 
   func debugWindowSnapshot(index: Int) -> SupatermAppDebugSnapshot.Window {
@@ -62,9 +62,9 @@ extension TerminalHostState {
           name: space.name,
           color: space.color.socketColor,
           isWarm: isSpaceWarm(space.id),
-          rootItems: rootItemSnapshot(in: space.id).map {
-            debugRootItemSnapshot($0, spaceID: space.id)
-          }
+          collapsedProjectIDs: collapsedProjectSnapshotIDs(in: space.id),
+          isUnassignedCollapsed: unassignedCollapsedSnapshot(in: space.id),
+          tabs: tabItemSnapshot(in: space.id).map { debugTabSnapshot($0, spaceID: space.id) }
         )
       }
     )
@@ -75,11 +75,43 @@ extension TerminalHostState {
     return instance.pendingSession == nil
   }
 
-  private func rootItemSnapshot(in spaceID: TerminalSpaceID) -> [TerminalTabRootItem] {
-    guard let pendingSession = spaceManager.instance(for: spaceID)?.pendingSession else {
-      return spaceManager.rootItems(in: spaceID)
+  private var projectSnapshots: [SupatermSnapshotProject] {
+    projectCatalog.projects.map {
+      SupatermSnapshotProject(
+        color: $0.color.socketColor,
+        id: $0.id.rawValue,
+        isPinned: $0.isPinned,
+        name: $0.name,
+        rootPath: $0.rootPath
+      )
     }
-    return restoredSpace(for: pendingSession).rootItems
+  }
+
+  private func tabItemSnapshot(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {
+    guard let instance = spaceManager.instance(for: spaceID) else { return [] }
+    if let session = instance.pendingSession {
+      return session.tabs.map {
+        TerminalTabItem(
+          id: $0.id,
+          title: $0.lockedTitle ?? "Terminal",
+          projectID: $0.projectID,
+          isPinned: $0.isPinned,
+          isTitleLocked: $0.lockedTitle != nil
+        )
+      }
+    }
+    return instance.tabCollection.tabs(orderedProjectIDs: projectCatalog.projects.map(\.id))
+  }
+
+  private func collapsedProjectSnapshotIDs(in spaceID: TerminalSpaceID) -> [UUID] {
+    guard let instance = spaceManager.instance(for: spaceID) else { return [] }
+    return (instance.pendingSession?.collapsedProjectIDs ?? Array(instance.collapsedProjectIDs))
+      .map(\.rawValue)
+  }
+
+  private func unassignedCollapsedSnapshot(in spaceID: TerminalSpaceID) -> Bool {
+    guard let instance = spaceManager.instance(for: spaceID) else { return false }
+    return instance.pendingSession?.isUnassignedCollapsed ?? instance.isUnassignedCollapsed
   }
 
   private func paneSnapshotIDs(in tabID: TerminalTabID) -> [UUID] {
@@ -108,23 +140,6 @@ extension TerminalHostState {
     return nil
   }
 
-  private func treeRootItemSnapshot(
-    _ item: TerminalTabRootItem,
-    spaceID: TerminalSpaceID
-  ) -> SupatermTreeSnapshot.RootItem {
-    switch item {
-    case .tab(let item):
-      return .tab(
-        SupatermTreeSnapshot.RootTab(
-          isPinned: item.isPinned,
-          tab: treeTabSnapshot(item.tab, spaceID: spaceID)
-        )
-      )
-    case .group(let group):
-      return .group(treeGroupSnapshot(group, spaceID: spaceID))
-    }
-  }
-
   private func treeTabSnapshot(
     _ tab: TerminalTabItem,
     spaceID: TerminalSpaceID
@@ -133,6 +148,8 @@ extension TerminalHostState {
     return SupatermTreeSnapshot.Tab(
       id: tab.id.rawValue,
       title: tab.title,
+      projectID: tab.projectID?.rawValue,
+      isPinned: tab.isPinned,
       isSelected: tab.id == selectedTabSnapshotID(in: spaceID),
       panes: paneSnapshotIDs(in: tab.id).enumerated().map { paneOffset, paneID in
         SupatermTreeSnapshot.Pane(
@@ -147,46 +164,6 @@ extension TerminalHostState {
   private func selectedTabSnapshotID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
     guard let instance = spaceManager.instance(for: spaceID) else { return nil }
     return instance.pendingSession?.selectedTabID ?? instance.selectedTabID
-  }
-
-  func treeGroupSnapshot(
-    _ group: TerminalTabGroupItem,
-    spaceID: TerminalSpaceID
-  ) -> SupatermTreeSnapshot.Group {
-    SupatermTreeSnapshot.Group(
-      color: group.color.socketColor,
-      id: group.id.rawValue,
-      isCollapsed: isGroupCollapsed(group.id, in: spaceID),
-      isPinned: group.isPinned,
-      title: group.title,
-      tabs: group.tabs.map { treeTabSnapshot($0, spaceID: spaceID) }
-    )
-  }
-
-  private func debugRootItemSnapshot(
-    _ item: TerminalTabRootItem,
-    spaceID: TerminalSpaceID
-  ) -> SupatermAppDebugSnapshot.RootItem {
-    switch item {
-    case .tab(let item):
-      return .tab(
-        SupatermAppDebugSnapshot.RootTab(
-          isPinned: item.isPinned,
-          tab: debugTabSnapshot(item.tab, spaceID: spaceID)
-        )
-      )
-    case .group(let group):
-      return .group(
-        SupatermAppDebugSnapshot.Group(
-          color: group.color.socketColor,
-          id: group.id.rawValue,
-          isCollapsed: isGroupCollapsed(group.id, in: spaceID),
-          isPinned: group.isPinned,
-          title: group.title,
-          tabs: group.tabs.map { debugTabSnapshot($0, spaceID: spaceID) }
-        )
-      )
-    }
   }
 
   private func debugTabSnapshot(
@@ -207,6 +184,8 @@ extension TerminalHostState {
     return SupatermAppDebugSnapshot.Tab(
       id: tab.id.rawValue,
       title: tab.title,
+      projectID: tab.projectID?.rawValue,
+      isPinned: tab.isPinned,
       isSelected: tab.id == selectedTabSnapshotID(in: spaceID),
       isDirty: tab.isDirty,
       isTitleLocked: tab.isTitleLocked,
@@ -299,7 +278,10 @@ extension TerminalHostState {
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
     let resolvedTarget = try resolveCreateTabTarget(request.target)
     let currentSelectedTabID = spaceManager.selectedTabID(in: resolvedTarget.space.id)
-    let placement = resolvedTarget.placement
+    let projectID = request.projectID.map(TerminalProjectID.init(rawValue:))
+    if let projectID, !projectCatalog.projects.contains(where: { $0.id == projectID }) {
+      throw TerminalCreateTabError.contextPaneNotFound
+    }
     var createdTabID: TerminalTabID?
 
     do {
@@ -310,7 +292,7 @@ extension TerminalHostState {
           startupCommand: request.startupCommand,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
           inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
-          at: placement,
+          projectID: projectID,
           sessionChangesEnabled: false,
           synchronizesFocus: request.focus
         )
@@ -372,13 +354,19 @@ extension TerminalHostState {
     } catch let error as TerminalCreateTabError {
       if let createdTabID {
         removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(
+          createdTabID,
+          orderedProjectIDs: projectCatalog.projects.map(\.id)
+        )
       }
       throw error
     } catch {
       if let createdTabID {
         removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(
+          createdTabID,
+          orderedProjectIDs: projectCatalog.projects.map(\.id)
+        )
       }
       throw TerminalCreateTabError.creationFailed
     }
@@ -644,11 +632,7 @@ extension TerminalHostState {
 
   func unpinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
     let resolvedTarget = try resolveTabItemTarget(target)
-    if let manager = spaceManager.tabCollection(for: resolvedTarget.spaceID),
-      manager.rootItemID(containing: resolvedTarget.tabID) == .tab(resolvedTarget.tabID)
-    {
-      _ = setTabPinned(resolvedTarget.tabID, isPinned: false)
-    }
+    _ = setTabPinned(resolvedTarget.tabID, isPinned: false)
     return try pinTabResult(for: resolvedTarget.tabID)
   }
 
@@ -728,18 +712,6 @@ extension TerminalHostState {
   @discardableResult
   func clearRecentStructuredNotification(for surfaceID: UUID) -> Bool {
     notificationStore.clearRecentStructured(for: surfaceID)
-  }
-
-  func resolveSpaceTarget(_ target: TerminalSpaceTarget) throws -> ResolvedCreateTabTarget {
-    let spaceID = TerminalSpaceID(rawValue: target.spaceID)
-    guard let space = space(warming: spaceID) else {
-      throw TerminalControlError.contextPaneNotFound
-    }
-    return ResolvedCreateTabTarget(
-      inheritedSurfaceID: inheritedSurfaceID(in: spaceID),
-      placement: nil,
-      space: space
-    )
   }
 
   func resolveTabTarget(_ target: TerminalTabTarget) throws -> ResolvedCreatePaneTarget {
@@ -909,15 +881,7 @@ extension TerminalHostState {
   }
 
   func pinTabResult(for tabID: TerminalTabID) throws -> SupatermPinTabResult {
-    let isPinned: Bool
-    if let space = spaceManager.space(for: tabID),
-      let manager = spaceManager.tabCollection(for: space.id),
-      manager.rootItemID(containing: tabID) == .tab(tabID)
-    {
-      isPinned = manager.isPinned(tabID) == true
-    } else {
-      isPinned = false
-    }
+    let isPinned = spaceManager.instance(for: tabID)?.tabCollection.isPinned(tabID) == true
     return SupatermPinTabResult(
       isPinned: isPinned,
       target: try tabTarget(for: tabID)

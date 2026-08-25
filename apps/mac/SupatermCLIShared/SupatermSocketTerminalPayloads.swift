@@ -8,9 +8,7 @@ public enum SupatermPaneDirection: String, CaseIterable, Sendable, Codable {
 }
 
 public enum SupatermNewTabTarget: Equatable, Sendable, Codable {
-  case group(UUID)
   case pane(UUID)
-  case root(UUID)
   case space(UUID)
 
   private enum CodingKeys: String, CodingKey {
@@ -19,9 +17,7 @@ public enum SupatermNewTabTarget: Equatable, Sendable, Codable {
   }
 
   private enum Kind: String, Codable {
-    case group
     case pane
-    case root
     case space
   }
 
@@ -29,12 +25,8 @@ public enum SupatermNewTabTarget: Equatable, Sendable, Codable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let id = try container.decode(UUID.self, forKey: .id)
     switch try container.decode(Kind.self, forKey: .kind) {
-    case .group:
-      self = .group(id)
     case .pane:
       self = .pane(id)
-    case .root:
-      self = .root(id)
     case .space:
       self = .space(id)
     }
@@ -43,14 +35,8 @@ public enum SupatermNewTabTarget: Equatable, Sendable, Codable {
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     switch self {
-    case .group(let id):
-      try container.encode(Kind.group, forKey: .kind)
-      try container.encode(id, forKey: .id)
     case .pane(let id):
       try container.encode(Kind.pane, forKey: .kind)
-      try container.encode(id, forKey: .id)
-    case .root(let id):
-      try container.encode(Kind.root, forKey: .kind)
       try container.encode(id, forKey: .id)
     case .space(let id):
       try container.encode(Kind.space, forKey: .kind)
@@ -63,6 +49,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let startupCommand: SupatermTerminalStartup?
   public let cwd: String?
   public let focus: Bool
+  public let projectID: UUID?
   public let target: SupatermNewTabTarget
   public let context: SupatermCLIContext?
 
@@ -70,12 +57,14 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
     startupCommand: SupatermTerminalStartup? = nil,
     cwd: String? = nil,
     focus: Bool,
+    projectID: UUID? = nil,
     target: SupatermNewTabTarget,
     context: SupatermCLIContext? = nil
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
+    self.projectID = projectID
     self.target = target
     self.context = context
   }

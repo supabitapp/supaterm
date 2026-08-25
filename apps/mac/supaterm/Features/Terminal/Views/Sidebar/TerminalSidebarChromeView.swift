@@ -11,7 +11,7 @@ struct TerminalSidebarChromeView: View {
   let terminal: TerminalHostState
   let isPagingActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
-  let fixedHoveredGroupID: TerminalTabGroupID?
+  let fixedHoveredProjectID: TerminalProjectID?
   let dismissReleaseAnnouncement: () -> Void
 
   @State private var pagingPosition: Double?
@@ -23,7 +23,7 @@ struct TerminalSidebarChromeView: View {
         palette: palette,
         isActive: isPagingActive,
         sidebarControllerCache: sidebarControllerCache,
-        fixedHoveredGroupID: fixedHoveredGroupID,
+        fixedHoveredProjectID: fixedHoveredProjectID,
         position: $pagingPosition
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)

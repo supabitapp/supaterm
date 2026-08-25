@@ -1,6 +1,6 @@
 ---
 title: Create your first space
-description: Organize a project with a space, tab groups, pinned work, and split panes.
+description: Organize a Project with a Space, pinned Tabs, and split panes.
 ---
 
 A space is the top-level container for one area of work. Use separate spaces for projects or contexts that should not share a tab list.
@@ -19,18 +19,17 @@ Creating the space displays it in this window, but the shell that ran the comman
 
 Right-click a space to rename or delete it. Supaterm always keeps at least one space.
 
-## Add a project group and tab
+## Add a Project and Tab
 
-Create a group, then create a tab in the new space and move it into that group:
+Create an app-wide Project, then create its Tab in the new Space. A Project root becomes the default cwd when you omit `--cwd`:
 
 ```bash
-sp group new Project --in "$space_id" --color blue
-tab="$(sp tab new --json --in "$space_id" --focus --cwd ~/code/supaterm)"
+sp project add Supaterm --root ~/code/supaterm --color blue
+tab="$(sp tab new --json --in "$space_id" --project Supaterm --focus)"
 pane_id="$(printf '%s' "$tab" | jq -r '.paneID')"
-sp tab move "$(printf '%s' "$tab" | jq -r '.tabID')" --group Project
 ```
 
-You can also create groups from the sidebar, drag tabs into them, or drop one root tab onto another to create a group. Right-click a group to rename, color, collapse, pin, ungroup, or close it. Pinning a tab inside a group extracts it as a pinned root tab.
+You can also create Projects from selected Tabs in the sidebar. Drag a Tab onto a Project header to assign it, or onto the Unassigned header to clear membership. Right-click a Project to rename, color, collapse, pin, create a Tab, or remove it. Removing a non-empty Project asks for confirmation and closes all its Tabs across the app.
 
 ## Split the tab
 

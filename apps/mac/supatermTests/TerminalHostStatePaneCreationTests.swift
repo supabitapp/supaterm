@@ -86,15 +86,6 @@ struct TerminalHostStatePaneCreationTests {
         TerminalSpaceSession(
           spaceID: spaceID,
           selectedTabID: tabID,
-          nodes: [
-            TerminalTabNodeSession(
-              item: .tab(tabID),
-              parent: .root(isPinned: false),
-              order: 0
-            )
-          ],
-          groups: [],
-          collapsedGroupIDs: [],
           tabs: [tabSession]
         )
       ]

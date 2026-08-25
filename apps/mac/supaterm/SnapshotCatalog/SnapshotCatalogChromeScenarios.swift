@@ -21,12 +21,12 @@ extension SnapshotCatalog {
       AnyView(PaletteTokenSheetSnapshotFixture(appearance: appearance))
     },
     scenario(
-      "group-surfaces",
+      "project-surfaces",
       group: "Chrome",
-      title: "Group surfaces",
+      title: "Project surfaces",
       size: CGSize(width: 680, height: 230)
     ) { appearance in
-      AnyView(GroupSurfaceSnapshotFixture(appearance: appearance))
+      AnyView(ProjectSurfaceSnapshotFixture(appearance: appearance))
     },
     scenario(
       "tinted-backgrounds",
@@ -167,10 +167,10 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "dangerFill", color: palette.dangerFill),
       TokenSwatch(name: "dangerHoverFill", color: palette.dangerHoverFill),
       TokenSwatch(
-        name: "sidebarGroupNeutralHoverFill",
-        color: palette.sidebarGroupNeutralHoverFillValue.color
+        name: "sidebarProjectNeutralHoverFill",
+        color: palette.sidebarProjectNeutralHoverFillValue.color
       ),
-      TokenSwatch(name: "sidebarGroupStroke", color: palette.sidebarGroupStrokeValue.color),
+      TokenSwatch(name: "sidebarProjectStroke", color: palette.sidebarProjectStrokeValue.color),
       TokenSwatch(name: "onAccent", color: palette.onAccent),
       TokenSwatch(name: "onWarning", color: palette.onWarning),
       TokenSwatch(name: "onSuccess", color: palette.onSuccess),
@@ -186,7 +186,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
   }
 }
 
-private struct GroupSurfaceSnapshotFixture: View {
+private struct ProjectSurfaceSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
   var body: some View {
@@ -198,14 +198,14 @@ private struct GroupSurfaceSnapshotFixture: View {
           HStack(spacing: 12) {
             ForEach(
               [
-                TerminalSidebarGroupSurfaceState.resting,
+                TerminalSidebarProjectSurfaceState.resting,
                 .hovered,
                 .dropTarget,
               ],
               id: \.self
             ) { state in
               VStack(spacing: 5) {
-                GroupSurfaceRepresentable(color: color, palette: palette, state: state)
+                ProjectSurfaceRepresentable(color: color, palette: palette, state: state)
                   .frame(width: 190, height: 58)
                 Text("\(color.displayName) · \(name(state))")
                   .font(.system(size: 10, weight: .medium))
@@ -219,7 +219,7 @@ private struct GroupSurfaceSnapshotFixture: View {
     }
   }
 
-  private func name(_ state: TerminalSidebarGroupSurfaceState) -> String {
+  private func name(_ state: TerminalSidebarProjectSurfaceState) -> String {
     switch state {
     case .resting: "Resting"
     case .hovered: "Hovered"
@@ -228,16 +228,16 @@ private struct GroupSurfaceSnapshotFixture: View {
   }
 }
 
-private struct GroupSurfaceRepresentable: NSViewRepresentable {
+private struct ProjectSurfaceRepresentable: NSViewRepresentable {
   let color: ThemeTint
   let palette: Palette
-  let state: TerminalSidebarGroupSurfaceState
+  let state: TerminalSidebarProjectSurfaceState
 
-  func makeNSView(context: Context) -> TerminalSidebarGroupBackgroundView {
-    TerminalSidebarGroupBackgroundView(frame: .zero)
+  func makeNSView(context: Context) -> TerminalSidebarProjectBackgroundView {
+    TerminalSidebarProjectBackgroundView(frame: .zero)
   }
 
-  func updateNSView(_ view: TerminalSidebarGroupBackgroundView, context: Context) {
+  func updateNSView(_ view: TerminalSidebarProjectBackgroundView, context: Context) {
     view.update(
       color: color,
       palette: palette,

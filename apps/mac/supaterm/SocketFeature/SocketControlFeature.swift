@@ -239,7 +239,7 @@ public struct SocketControlFeature {
     ) {
       return response
     }
-    if let response = try await terminalTabGroupResponseResult(
+    if let response = try await terminalProjectResponseResult(
       for: request,
       socketRequestExecutor: socketRequestExecutor
     ) {

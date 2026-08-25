@@ -32,14 +32,14 @@ enum TerminalSidebarDragLog {
   private static func dragName(_ value: TerminalSidebarDragSource) -> String {
     switch value {
     case .tabs: "tabs"
-    case .group: "group"
+    case .project: "project"
     }
   }
 
-  private static func rootID(_ id: TerminalTabRootItemID) -> String {
+  private static func rootID(_ id: TerminalTabDragItemID) -> String {
     switch id {
     case .tab(let id): "tab:\(SupatermLog.uuid(id.rawValue))"
-    case .group(let id): "group:\(SupatermLog.uuid(id.rawValue))"
+    case .project(let id): "project:\(SupatermLog.uuid(id.rawValue))"
     }
   }
 
@@ -47,7 +47,9 @@ enum TerminalSidebarDragLog {
     switch path {
     case .rootItem(let index): "rootItem:\(index)"
     case .rootBoundary(let index, let affinity): "rootBoundary:\(index):\(affinity)"
-    case .group(let id, let index): "group:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .project(let id, let index): "project:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .unassigned(let index): "unassigned:\(index)"
+    case .unassignedHeader: "unassignedHeader"
     case .pinnedEnd: "pinnedEnd"
     case .trailingRoot: "trailingRoot"
     }
@@ -56,7 +58,8 @@ enum TerminalSidebarDragLog {
   private static func destination(_ destination: TerminalSidebarDropDestination) -> String {
     switch destination {
     case .root(let isPinned, let index): "root:\(isPinned):\(index)"
-    case .group(let id, let index): "group:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .project(let id, let index): "project:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .unassigned(let index): "unassigned:\(index)"
     }
   }
 }

@@ -2221,15 +2221,6 @@ func restoreSplitHost(
       TerminalSpaceSession(
         spaceID: spaceID,
         selectedTabID: sessionTabID,
-        nodes: [
-          TerminalTabNodeSession(
-            item: .tab(sessionTabID),
-            parent: .root(isPinned: false),
-            order: 0
-          )
-        ],
-        groups: [],
-        collapsedGroupIDs: [],
         tabs: [tabSession]
       )
     ]

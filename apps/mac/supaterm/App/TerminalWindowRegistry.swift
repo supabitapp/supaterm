@@ -39,7 +39,7 @@ final class TerminalWindowRegistry {
     let availability: CommandAvailability
     let closesKeyWindowDirectly: Bool
     let hasSearch: Bool
-    let hasSelectedGroup: Bool
+    let hasSelectedProject: Bool
     let hasUnreadNotifications: Bool
     let updateMenuItemText: String
     let visibleTabCount: Int
@@ -73,6 +73,8 @@ final class TerminalWindowRegistry {
   private let zmxClient: ZmxClient
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
+  @Shared(.terminalProjectCatalog)
+  var projectCatalog = TerminalProjectCatalog.default
   var onChange: @MainActor () -> Void = {}
 
   init(zmxClient: ZmxClient = .live) {
@@ -112,6 +114,38 @@ final class TerminalWindowRegistry {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
     terminal.onSpaceAction = { [weak self] action in
       self?.performSpaceAction(action, from: windowControllerID)
+    }
+    terminal.onProjectRemovalRequested = { [weak self] projectID in
+      self?.requestRemoveProject(projectID, from: windowControllerID) == true
+    }
+    terminal.onProjectRemovalConfirmed = { [weak self] projectID in
+      guard let self else { return false }
+      return (try? self.removeProject(projectID, confirmed: true)) != nil
+    }
+    terminal.onProjectCreate = { [weak self] name, rootPath, color, isPinned, tabIDs in
+      self?.createProject(
+        name: name,
+        rootPath: rootPath,
+        color: color,
+        isPinned: isPinned,
+        containing: tabIDs,
+        in: windowControllerID
+      )
+    }
+    terminal.onProjectRename = { [weak self] projectID, name in
+      self?.renameProject(projectID, name: name) == true
+    }
+    terminal.onProjectColorChange = { [weak self] projectID, color in
+      self?.setProjectColor(projectID, color: color) == true
+    }
+    terminal.onProjectPinChange = { [weak self] projectID, isPinned in
+      self?.setProjectPinned(projectID, isPinned: isPinned) == true
+    }
+    terminal.onProjectReorder = { [weak self] projectID, index in
+      self?.reorderProject(projectID, toLaneIndex: index) == true
+    }
+    terminal.onProjectAssignment = { [weak self] tabIDs, projectID in
+      self?.assignTabs(tabIDs, to: projectID, in: windowControllerID) == true
     }
     terminal.onTabDroppedOnSpace = { [weak self] payload, spaceID in
       self?.dropTab(payload, on: spaceID, in: windowControllerID) == true
@@ -279,12 +313,15 @@ final class TerminalWindowRegistry {
       let entry = entry(forWindowControllerID: windowControllerID),
       let collection = entry.terminal.spaceManager.tabCollection(for: spaceID)
     else { return false }
-    let regularIndex = collection.rootItems.filter { !$0.isPinned }.count
+    let orderedProjectIDs = projectCatalog.projects.map(\.id)
+    let regularIndex =
+      collection.unassignedSection(orderedProjectIDs: orderedProjectIDs)?
+      .tabs.count { !$0.isPinned } ?? 0
     let destination = TerminalTabDragRegistry.Destination(
       windowControllerID: windowControllerID,
       spaceID: spaceID,
       expectedTopologyRevision: collection.topologyRevision,
-      placement: .root(TerminalRootPlacement(isPinned: false, index: regularIndex))
+      placement: TerminalTabPlacement(projectID: nil, isPinned: false, index: regularIndex)
     )
     guard tabDragRegistry.performTransfer(payload, to: destination) != nil else { return false }
     return selectSpace(spaceID, in: windowControllerID)
@@ -405,7 +442,7 @@ final class TerminalWindowRegistry {
           hasWindow: false, hasTab: false, hasSurface: false, hasAnySurface: hasAnySurface),
         closesKeyWindowDirectly: closesKeyWindowDirectly,
         hasSearch: false,
-        hasSelectedGroup: false,
+        hasSelectedProject: false,
         hasUnreadNotifications: false,
         updateMenuItemText: updateState.phase.menuItemTitle,
         visibleTabCount: 0,
@@ -418,7 +455,7 @@ final class TerminalWindowRegistry {
       availability: commandAvailability(for: entry),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
-      hasSelectedGroup: selectedGroupID(in: entry) != nil,
+      hasSelectedProject: selectedProjectID(in: entry) != nil,
       hasUnreadNotifications: hasUnreadNotifications,
       updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
@@ -437,16 +474,16 @@ final class TerminalWindowRegistry {
     _ = entry.terminal.createTab(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
   }
 
-  func requestNewTabInSelectedGroupInKeyWindow() {
+  func requestNewTabInSelectedProjectInKeyWindow() {
     guard
       let entry = preferredActiveEntry(),
-      let groupID = selectedGroupID(in: entry)
+      let projectID = selectedProjectID(in: entry)
     else {
       return
     }
     AppPostHog.capture("terminal_tab_created")
     _ = entry.terminal.createTab(
-      in: groupID,
+      in: projectID,
       inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id
     )
   }
@@ -708,7 +745,7 @@ final class TerminalWindowRegistry {
       selectedSpaceID: terminal.displayedSpaceID,
       spaces: terminal.spaces,
       selectedTabID: terminal.selectedTabID,
-      rootItems: terminal.rootItems
+      tabs: terminal.tabs
     )
   }
 
@@ -845,9 +882,9 @@ final class TerminalWindowRegistry {
     )
   }
 
-  private func selectedGroupID(in entry: Entry) -> TerminalTabGroupID? {
+  private func selectedProjectID(in entry: Entry) -> TerminalProjectID? {
     guard let tabID = entry.terminal.selectedTabID else { return nil }
-    return entry.terminal.spaceManager.displayedInstance.tabCollection.groupID(containing: tabID)
+    return entry.terminal.spaceManager.displayedInstance.tabCollection.projectID(containing: tabID)
   }
 
   private func commandAvailability(for entry: Entry) -> CommandAvailability {

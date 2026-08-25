@@ -1,284 +1,161 @@
-struct TerminalTabTopology: Equatable {
-  struct AppliedMove {
-    let deletedEmptyGroupIDs: [TerminalTabGroupID]
-  }
+import SupatermCLIShared
 
-  struct ExtractedItems {
-    let childIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]]
-    let deletedEmptyGroupIDs: [TerminalTabGroupID]
-    let groupsByID: [TerminalTabGroupID: TerminalTabGroup]
+struct TerminalTabTopology: Equatable {
+  struct ExtractedTabs {
     let tabIDs: [TerminalTabID]
     let tabsByID: [TerminalTabID: TerminalTabItem]
   }
 
-  struct MoveSource {
-    let groupIDs: [TerminalTabGroupID]
-  }
-
   var tabsByID: [TerminalTabID: TerminalTabItem] = [:]
-  var groupsByID: [TerminalTabGroupID: TerminalTabGroup] = [:]
-  var pinnedRootIDs: [TerminalTabRootItemID] = []
-  var regularRootIDs: [TerminalTabRootItemID] = []
-  var childIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]] = [:]
+  var pinnedTabIDs: [TerminalTabID] = []
+  var regularTabIDs: [TerminalTabID] = []
   var revision: UInt64 = 0
 
-  mutating func extract(_ itemIDs: [TerminalTabRootItemID]) throws -> ExtractedItems {
-    let source = try moveSource(for: itemIDs)
-    var extractedChildIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]] = [:]
-    var extractedGroupsByID: [TerminalTabGroupID: TerminalTabGroup] = [:]
-    var extractedTabIDs: [TerminalTabID] = []
-    var extractedTabsByID: [TerminalTabID: TerminalTabItem] = [:]
-
-    for itemID in itemIDs {
-      switch itemID {
-      case .tab(let tabID):
-        guard let tab = tabsByID[tabID] else {
-          throw TerminalTabMoveError.itemNotFound(itemID)
-        }
-        extractedTabIDs.append(tabID)
-        extractedTabsByID[tabID] = tab
-        remove(itemID)
-        tabsByID[tabID] = nil
-
-      case .group(let groupID):
-        guard let group = groupsByID[groupID] else {
-          throw TerminalTabMoveError.itemNotFound(itemID)
-        }
-        let childIDs = childIDsByGroupID[groupID] ?? []
-        extractedGroupsByID[groupID] = group
-        extractedChildIDsByGroupID[groupID] = childIDs
-        for tabID in childIDs {
-          guard let tab = tabsByID[tabID] else {
-            throw TerminalTabMoveError.itemNotFound(.tab(tabID))
-          }
-          extractedTabIDs.append(tabID)
-          extractedTabsByID[tabID] = tab
-          tabsByID[tabID] = nil
-        }
-        remove(itemID)
-        groupsByID[groupID] = nil
-        childIDsByGroupID[groupID] = nil
-      }
-    }
-
-    let deletedEmptyGroupIDs = source.groupIDs.filter {
-      deleteAutomaticGroupIfEmpty($0)
-    }
-    return ExtractedItems(
-      childIDsByGroupID: extractedChildIDsByGroupID,
-      deletedEmptyGroupIDs: deletedEmptyGroupIDs,
-      groupsByID: extractedGroupsByID,
-      tabIDs: extractedTabIDs,
-      tabsByID: extractedTabsByID
+  func layout(orderedProjectIDs: [TerminalProjectID]) -> SupatermProjectLayoutResult<
+    TerminalTabID, TerminalProjectID
+  > {
+    SupatermProjectLayout.make(
+      orderedProjectIDs: orderedProjectIDs,
+      pinnedTabs: records(for: pinnedTabIDs),
+      regularTabs: records(for: regularTabIDs)
     )
   }
 
-  mutating func insert(
-    _ itemIDs: [TerminalTabRootItemID],
-    extracted: ExtractedItems,
-    at destination: TerminalTabPlacement
-  ) throws {
-    try validateDestination(destination, for: itemIDs)
-    for tabID in extracted.tabIDs {
-      guard tabsByID[tabID] == nil else {
-        throw TerminalTabTransferError.destinationContainsTab(tabID)
+  func placement(
+    of tabID: TerminalTabID,
+    orderedProjectIDs: [TerminalProjectID]
+  ) -> TerminalTabPlacement? {
+    let isPinned: Bool
+    if pinnedTabIDs.contains(tabID) {
+      isPinned = true
+    } else if regularTabIDs.contains(tabID) {
+      isPinned = false
+    } else {
+      return nil
+    }
+    guard let tab = tabsByID[tabID] else { return nil }
+    let knownProjectIDs = Set(orderedProjectIDs)
+    let projectID = tab.projectID.flatMap { knownProjectIDs.contains($0) ? $0 : nil }
+    let lane = isPinned ? pinnedTabIDs : regularTabIDs
+    let sectionIDs = lane.filter {
+      guard let item = tabsByID[$0] else { return false }
+      if let projectID {
+        return item.projectID == projectID
       }
+      return item.projectID.map(knownProjectIDs.contains) != true
     }
-    for groupID in extracted.groupsByID.keys {
-      guard groupsByID[groupID] == nil else {
-        throw TerminalTabTransferError.destinationContainsGroup(groupID)
-      }
-    }
-
-    for (tabID, tab) in extracted.tabsByID {
-      tabsByID[tabID] = tab
-    }
-    for (groupID, group) in extracted.groupsByID {
-      groupsByID[groupID] = group
-      childIDsByGroupID[groupID] = extracted.childIDsByGroupID[groupID] ?? []
-    }
-    try insertMovedItems(itemIDs, at: destination)
+    guard let index = sectionIDs.firstIndex(of: tabID) else { return nil }
+    return TerminalTabPlacement(projectID: projectID, isPinned: isPinned, index: index)
   }
 
-  mutating func apply(_ request: TerminalTabMoveRequest) throws -> AppliedMove {
+  mutating func apply(_ request: TerminalTabMoveRequest) throws {
     guard request.expectedTopologyRevision == revision else {
       throw TerminalTabMoveError.staleTopology(
         expected: request.expectedTopologyRevision,
         actual: revision
       )
     }
-    let source = try moveSource(for: request.itemIDs)
-    try validateDestination(request.destination, for: request.itemIDs)
-    for itemID in request.itemIDs {
-      remove(itemID)
+    guard !request.tabIDs.isEmpty else { throw TerminalTabMoveError.emptyTabs }
+    var seenTabIDs: Set<TerminalTabID> = []
+    for tabID in request.tabIDs {
+      guard seenTabIDs.insert(tabID).inserted else {
+        throw TerminalTabMoveError.duplicateTab(tabID)
+      }
+      guard tabsByID[tabID] != nil else { throw TerminalTabMoveError.tabNotFound(tabID) }
     }
-    var deletedEmptyGroupIDs: [TerminalTabGroupID] = []
-    let destinationGroupID: TerminalTabGroupID? =
-      switch request.destination {
-      case .group(let groupID, _): groupID
-      case .root: nil
+    do {
+      let result = try SupatermProjectLayout.move(
+        orderedProjectIDs: request.orderedProjectIDs,
+        pinnedTabs: records(for: pinnedTabIDs),
+        regularTabs: records(for: regularTabIDs),
+        movingTabIDs: request.tabIDs,
+        destination: SupatermProjectTabPlacement(
+          projectID: request.destination.projectID,
+          isPinned: request.destination.isPinned,
+          index: request.destination.index
+        )
+      )
+      pinnedTabIDs = result.pinnedTabs.map(\.id)
+      regularTabIDs = result.regularTabs.map(\.id)
+      for record in result.pinnedTabs + result.regularTabs {
+        tabsByID[record.id]?.projectID = record.projectID
+        tabsByID[record.id]?.isPinned = result.pinnedTabs.contains { $0.id == record.id }
       }
-    for groupID in source.groupIDs
-    where groupID != destinationGroupID && deleteAutomaticGroupIfEmpty(groupID) {
-      deletedEmptyGroupIDs.append(groupID)
-    }
-    try insertMovedItems(request.itemIDs, at: request.destination)
-    return AppliedMove(deletedEmptyGroupIDs: deletedEmptyGroupIDs)
-  }
-
-  func moveSource(for itemIDs: [TerminalTabRootItemID]) throws -> MoveSource {
-    guard !itemIDs.isEmpty else { throw TerminalTabMoveError.emptyItems }
-    let requestedGroupIDs = Set(
-      itemIDs.compactMap { itemID -> TerminalTabGroupID? in
-        guard case .group(let groupID) = itemID else { return nil }
-        return groupID
-      })
-    for itemID in itemIDs {
-      guard case .tab(let tabID) = itemID else { continue }
-      guard
-        case .group(let groupID, _) = location(of: itemID),
-        requestedGroupIDs.contains(groupID)
-      else { continue }
-      throw TerminalTabMoveError.ancestorAndDescendant(groupID, tabID)
-    }
-    var seenIDs: Set<TerminalTabRootItemID> = []
-    var sourceGroupIDs: [TerminalTabGroupID] = []
-    for itemID in itemIDs {
-      guard seenIDs.insert(itemID).inserted else {
-        throw TerminalTabMoveError.duplicateItem(itemID)
-      }
-      guard let location = location(of: itemID) else {
-        throw TerminalTabMoveError.itemNotFound(itemID)
-      }
-      if case .tab = itemID, case .group(let groupID, _) = location,
-        !sourceGroupIDs.contains(groupID)
-      {
-        sourceGroupIDs.append(groupID)
-      }
-    }
-    return MoveSource(groupIDs: sourceGroupIDs)
-  }
-
-  func validateDestination(
-    _ destination: TerminalTabPlacement,
-    for itemIDs: [TerminalTabRootItemID]
-  ) throws {
-    if case .group(let groupID, _) = destination {
-      guard groupsByID[groupID] != nil else {
-        throw TerminalTabMoveError.invalidDestination(destination)
-      }
-      guard itemIDs.allSatisfy({ if case .tab = $0 { true } else { false } }) else {
-        throw TerminalTabMoveError.invalidDestination(destination)
-      }
+    } catch SupatermProjectTabMoveError.unknownProject {
+      throw TerminalTabMoveError.staleProjects
+    } catch {
+      throw TerminalTabMoveError.invalidDestination(request.destination)
     }
   }
 
-  mutating func insertMovedItems(
-    _ itemIDs: [TerminalTabRootItemID],
+  mutating func extract(_ tabIDs: [TerminalTabID]) throws -> ExtractedTabs {
+    guard !tabIDs.isEmpty else { throw TerminalTabMoveError.emptyTabs }
+    var seenTabIDs: Set<TerminalTabID> = []
+    var extractedTabsByID: [TerminalTabID: TerminalTabItem] = [:]
+    let canonicalIDs = pinnedTabIDs + regularTabIDs
+    let requestedIDs = Set(tabIDs)
+    for tabID in tabIDs {
+      guard seenTabIDs.insert(tabID).inserted else {
+        throw TerminalTabMoveError.duplicateTab(tabID)
+      }
+      guard let tab = tabsByID[tabID] else { throw TerminalTabMoveError.tabNotFound(tabID) }
+      extractedTabsByID[tabID] = tab
+    }
+    let orderedTabIDs = canonicalIDs.filter(requestedIDs.contains)
+    pinnedTabIDs.removeAll(where: requestedIDs.contains)
+    regularTabIDs.removeAll(where: requestedIDs.contains)
+    for tabID in requestedIDs {
+      tabsByID[tabID] = nil
+    }
+    return ExtractedTabs(tabIDs: orderedTabIDs, tabsByID: extractedTabsByID)
+  }
+
+  mutating func insert(
+    _ extracted: ExtractedTabs,
+    orderedProjectIDs: [TerminalProjectID],
     at destination: TerminalTabPlacement
   ) throws {
-    switch destination {
-    case .root(let placement):
-      guard insertRootIDs(itemIDs, at: placement) else {
-        throw TerminalTabMoveError.invalidDestination(destination)
+    for tabID in extracted.tabIDs {
+      guard tabsByID[tabID] == nil else {
+        throw TerminalTabTransferError.destinationContainsTab(tabID)
       }
-    case .group(let groupID, let index):
-      guard var childIDs = childIDsByGroupID[groupID], (0...childIDs.count).contains(index)
-      else {
-        throw TerminalTabMoveError.invalidDestination(destination)
-      }
-      let tabIDs = itemIDs.compactMap { itemID -> TerminalTabID? in
-        guard case .tab(let tabID) = itemID else { return nil }
-        return tabID
-      }
-      childIDs.insert(contentsOf: tabIDs, at: index)
-      childIDsByGroupID[groupID] = childIDs
+      tabsByID[tabID] = extracted.tabsByID[tabID]
+      regularTabIDs.append(tabID)
     }
+    try apply(
+      TerminalTabMoveRequest(
+        expectedTopologyRevision: revision,
+        orderedProjectIDs: orderedProjectIDs,
+        tabIDs: extracted.tabIDs,
+        destination: destination
+      )
+    )
   }
 
-  func location(of id: TerminalTabRootItemID) -> TerminalTabPlacement? {
-    if let index = pinnedRootIDs.firstIndex(of: id) {
-      return .root(TerminalRootPlacement(isPinned: true, index: index))
-    }
-    if let index = regularRootIDs.firstIndex(of: id) {
-      return .root(TerminalRootPlacement(isPinned: false, index: index))
-    }
-    guard case .tab(let tabID) = id else { return nil }
-    for (groupID, childIDs) in childIDsByGroupID {
-      if let index = childIDs.firstIndex(of: tabID) {
-        return .group(groupID, index: index)
-      }
-    }
-    return nil
-  }
-
-  mutating func remove(_ id: TerminalTabRootItemID) {
-    pinnedRootIDs.removeAll { $0 == id }
-    regularRootIDs.removeAll { $0 == id }
-    guard case .tab(let tabID) = id else { return }
-    for groupID in childIDsByGroupID.keys {
-      childIDsByGroupID[groupID]?.removeAll { $0 == tabID }
-    }
-  }
-
-  mutating func insertTabID(_ id: TerminalTabID, at placement: TerminalTabPlacement) -> Bool {
-    switch placement {
-    case .root(let placement):
-      return insertRootIDs([.tab(id)], at: placement)
-    case .group(let groupID, let index):
-      guard var childIDs = childIDsByGroupID[groupID], (0...childIDs.count).contains(index)
-      else {
-        return false
-      }
-      childIDs.insert(id, at: index)
-      childIDsByGroupID[groupID] = childIDs
-      return true
-    }
-  }
-
-  mutating func insertRootID(
-    _ id: TerminalTabRootItemID,
-    at placement: TerminalRootPlacement
-  ) -> Bool {
-    insertRootIDs([id], at: placement)
-  }
-
-  mutating func insertRootIDs(
-    _ ids: [TerminalTabRootItemID],
-    at placement: TerminalRootPlacement
-  ) -> Bool {
-    if placement.isPinned {
-      guard (0...pinnedRootIDs.count).contains(placement.index) else { return false }
-      pinnedRootIDs.insert(contentsOf: ids, at: placement.index)
-    } else {
-      guard (0...regularRootIDs.count).contains(placement.index) else { return false }
-      regularRootIDs.insert(contentsOf: ids, at: placement.index)
-    }
-    return true
-  }
-
-  mutating func appendRootID(_ id: TerminalTabRootItemID, isPinned: Bool) {
+  mutating func append(_ tab: TerminalTabItem, isPinned: Bool) {
+    var tab = tab
+    tab.isPinned = isPinned
+    tabsByID[tab.id] = tab
     if isPinned {
-      pinnedRootIDs.append(id)
+      pinnedTabIDs.append(tab.id)
     } else {
-      regularRootIDs.append(id)
+      regularTabIDs.append(tab.id)
     }
   }
 
-  func rootIDs(isPinned: Bool) -> [TerminalTabRootItemID] {
-    isPinned ? pinnedRootIDs : regularRootIDs
+  mutating func remove(_ tabID: TerminalTabID) {
+    tabsByID[tabID] = nil
+    pinnedTabIDs.removeAll { $0 == tabID }
+    regularTabIDs.removeAll { $0 == tabID }
   }
 
-  mutating func deleteAutomaticGroupIfEmpty(_ id: TerminalTabGroupID) -> Bool {
-    guard groupsByID[id]?.lifetime == .automatic else { return false }
-    guard childIDsByGroupID[id]?.isEmpty == true else { return false }
-    deleteGroup(id)
-    return true
-  }
-
-  mutating func deleteGroup(_ id: TerminalTabGroupID) {
-    remove(.group(id))
-    groupsByID[id] = nil
-    childIDsByGroupID[id] = nil
+  private func records(
+    for tabIDs: [TerminalTabID]
+  ) -> [SupatermProjectTabRecord<TerminalTabID, TerminalProjectID>] {
+    tabIDs.compactMap { tabID in
+      tabsByID[tabID].map {
+        SupatermProjectTabRecord(id: tabID, projectID: $0.projectID)
+      }
+    }
   }
 }

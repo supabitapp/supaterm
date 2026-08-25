@@ -16,8 +16,10 @@ extension TerminalHostState {
       instance.previousSelectedTabID = currentSelectedTabID
     }
     instance.tabCollection.selectTab(tabID)
-    if let groupID = instance.tabCollection.groupID(containing: tabID) {
-      instance.collapsedTabGroupIDs.remove(groupID)
+    if let projectID = instance.tabCollection.projectID(containing: tabID) {
+      instance.collapsedProjectIDs.remove(projectID)
+    } else {
+      instance.isUnassignedCollapsed = false
     }
   }
 

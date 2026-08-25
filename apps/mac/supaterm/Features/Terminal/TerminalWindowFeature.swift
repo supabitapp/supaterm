@@ -100,8 +100,8 @@ struct TerminalWindowFeature {
         return "tab:\(tabID.rawValue.uuidString)"
       case .tabs(let tabIDs):
         return "tabs:\(tabIDs.map { $0.rawValue.uuidString }.joined(separator: ","))"
-      case .group(let groupID):
-        return "group:\(groupID.rawValue.uuidString)"
+      case .project(let projectID):
+        return "project:\(projectID.rawValue.uuidString)"
       }
     }
   }
@@ -110,7 +110,7 @@ struct TerminalWindowFeature {
     case surface(UUID)
     case tab(TerminalTabID)
     case tabs([TerminalTabID])
-    case group(TerminalTabGroupID)
+    case project(TerminalProjectID)
   }
 
   enum Destination: Equatable {
@@ -712,8 +712,8 @@ struct TerminalWindowFeature {
       return perform { $0.closeTab(tabID) }
     case .tabs(let tabIDs):
       return perform { $0.closeTabs(tabIDs) }
-    case .group(let groupID):
-      return perform { $0.closeGroup(groupID) }
+    case .project(let projectID):
+      return perform { $0.closeProject(projectID) }
     }
   }
 
@@ -736,8 +736,8 @@ struct TerminalWindowFeature {
       return .tab(tabID)
     case .tabs(let tabIDs):
       return .tabs(tabIDs)
-    case .group(let groupID):
-      return .group(groupID)
+    case .project(let projectID):
+      return .project(projectID)
     }
   }
 
@@ -761,11 +761,11 @@ struct TerminalWindowFeature {
         title: "Close Tabs?",
         message: "A process is still running in one or more of these tabs. Close them anyway?"
       )
-    case .group(let groupID):
+    case .project(let projectID):
       return PendingCloseRequest(
-        target: .group(groupID),
-        title: "Close Group?",
-        message: "Closing this group closes all its tabs and terminates any running processes. Close it anyway?"
+        target: .project(projectID),
+        title: "Remove Project?",
+        message: "Removing this Project closes all its tabs and terminates any running processes. Remove it anyway?"
       )
     }
   }

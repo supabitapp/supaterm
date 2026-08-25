@@ -151,7 +151,7 @@ struct TerminalSidebarMotionTests {
     )
     #expect(
       TerminalSidebarTabDragSelectionHandoff.resolve(
-        entryID: .group(TerminalTabGroupID()),
+        entryID: .project(TerminalProjectID()),
         primaryTabID: prior,
         modifiers: [],
         selectedTabIDs: [dragged]
@@ -160,18 +160,18 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func collapsedGroupSelectionUpdateQueuesDuringDrag() throws {
-    let groupID = TerminalTabGroupID()
+  func collapsedProjectSelectionUpdateQueuesDuringDrag() throws {
+    let projectID = TerminalProjectID()
     let roots = [
       TerminalSidebarOutline.Root(
-        content: .group(groupID, .red, .automatic, [TerminalTabID()]),
+        content: .project(projectID, .red, [TerminalTabID()]),
         isPinned: false
       )
     ]
     let applied = TerminalSidebarTestFixture.outline(
       roots: roots,
       revision: 4,
-      collapsedGroupIDs: [groupID]
+      collapsedProjectIDs: [projectID]
     )
     let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 4)
     let sourceTopologyStamp = try #require(applied.topologyStamp)
@@ -262,22 +262,22 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func failedGroupDragTogglesOnlyWhenReleaseReturnsInsideTheLiveHeader() {
+  func failedProjectDragTogglesOnlyWhenReleaseReturnsInsideTheLiveHeader() {
     let frame = CGRect(x: 12, y: 40, width: 216, height: 37)
 
     #expect(
-      TerminalSidebarGroupClick.acceptsRelease(
+      TerminalSidebarProjectClick.acceptsRelease(
         CGPoint(x: frame.midX, y: frame.midY),
         frame: frame
       )
     )
     #expect(
-      !TerminalSidebarGroupClick.acceptsRelease(
+      !TerminalSidebarProjectClick.acceptsRelease(
         CGPoint(x: frame.midX, y: frame.maxY + 1),
         frame: frame
       )
     )
-    #expect(!TerminalSidebarGroupClick.acceptsRelease(.zero, frame: nil))
+    #expect(!TerminalSidebarProjectClick.acceptsRelease(.zero, frame: nil))
   }
 
   @Test
@@ -294,18 +294,18 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func groupExpansionUsesTheCollapseRowDuration() {
-    let groupID = TerminalTabGroupID()
+  func projectExpansionUsesTheCollapseRowDuration() {
+    let projectID = TerminalProjectID()
     let roots = [
       TerminalSidebarOutline.Root(
-        content: .group(groupID, .red, .automatic, [TerminalTabID()]),
+        content: .project(projectID, .red, [TerminalTabID()]),
         isPinned: false
       )
     ]
     let collapsed = TerminalSidebarTestFixture.outline(
       roots: roots,
       revision: 1,
-      collapsedGroupIDs: [groupID]
+      collapsedProjectIDs: [projectID]
     )
     let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 1)
     let removed = TerminalSidebarTestFixture.outline(roots: [], revision: 2)
@@ -478,7 +478,7 @@ struct TerminalSidebarMotionTests {
             restore: {}
           )
         ],
-        groupBackground: nil,
+        projectBackground: nil,
         fanAnchorIndex: nil,
         sourceFrame: sourceFrame,
         hotspot: .zero,
@@ -513,7 +513,7 @@ struct TerminalSidebarMotionTests {
     presentation.begin(
       TerminalSidebarDragPresentation.Lift(
         rows: [row],
-        groupBackground: nil,
+        projectBackground: nil,
         fanAnchorIndex: nil,
         sourceFrame: source.frame,
         hotspot: .zero,
@@ -546,7 +546,7 @@ struct TerminalSidebarMotionTests {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
     let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
     let hostedView = NSView(frame: source.bounds)
-    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
+    let background = TerminalSidebarProjectBackgroundView(frame: source.frame)
     source.addSubview(hostedView)
     collectionView.addSubview(background)
     var restoreCount = 0
@@ -563,8 +563,8 @@ struct TerminalSidebarMotionTests {
             }
           )
         ],
-        groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
+        projectBackground: TerminalSidebarLiftedProjectBackground(
+          id: TerminalProjectID(),
           view: background,
           sourceFrame: background.frame
         ),
@@ -589,7 +589,7 @@ struct TerminalSidebarMotionTests {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
     let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
     let hostedView = NSView(frame: source.bounds)
-    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
+    let background = TerminalSidebarProjectBackgroundView(frame: source.frame)
     source.addSubview(hostedView)
     collectionView.addSubview(background)
     var restoreCount = 0
@@ -603,8 +603,8 @@ struct TerminalSidebarMotionTests {
             restore: { restoreCount += 1 }
           )
         ],
-        groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
+        projectBackground: TerminalSidebarLiftedProjectBackground(
+          id: TerminalProjectID(),
           view: background,
           sourceFrame: background.frame
         ),
@@ -644,7 +644,7 @@ struct TerminalSidebarMotionTests {
             }
           )
         ],
-        groupBackground: nil,
+        projectBackground: nil,
         fanAnchorIndex: nil,
         sourceFrame: source.frame,
         hotspot: .zero,

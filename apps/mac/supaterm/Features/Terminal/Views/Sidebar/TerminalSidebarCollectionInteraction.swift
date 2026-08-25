@@ -17,7 +17,7 @@ enum TerminalSidebarDragOutlineDisposition: Equatable {
     guard incoming.topologyStamp == applied.topologyStamp, incoming.roots == applied.roots else {
       return .replaceAndCancel(reason: "sourceSnapshotMismatch")
     }
-    guard incoming.collapsedGroupIDs == applied.collapsedGroupIDs else { return .queue }
+    guard incoming.collapsedProjectIDs == applied.collapsedProjectIDs else { return .queue }
     return .unchanged
   }
 }
@@ -63,7 +63,7 @@ struct TerminalSidebarDragSourceGeometry {
           anchorIndex: anchorIndex
         )
       )
-    case .group:
+    case .project:
       guard
         let frame = sourceItems.map(\.frame).reduce(
           Optional<CGRect>.none,
@@ -99,10 +99,6 @@ struct TerminalSidebarActiveDrag {
     guard payload.operationID == operationID else { return false }
     externalCompletion = .moved(sourceDisposition)
     return true
-  }
-
-  func registryOutcome(receipt: TerminalSidebarDropReceipt?) -> TerminalTabDragRegistry.Outcome {
-    receipt != nil || externalCompletion.sourceDisposition != nil ? .moved : .cancelled
   }
 }
 
@@ -242,7 +238,11 @@ struct TerminalSidebarDragCoordinator: Equatable {
       guard receipt.operationID == command.operationID else { return false }
       guard receipt.topologyStamp.spaceID == command.topologyStamp.spaceID else { return false }
       guard receipt.topologyStamp.revision >= command.topologyStamp.revision else { return false }
-      guard receipt.result.itemIDs == command.itemIDs else { return false }
+      let expectedTabIDs = command.itemIDs.compactMap { itemID -> TerminalTabID? in
+        guard case .tab(let tabID) = itemID else { return nil }
+        return tabID
+      }
+      guard receipt.result.tabIDs == expectedTabIDs else { return false }
       guard receipt.result.location == command.destination else { return false }
     }
     phase = .awaitingNativeEnd(command, receipt)
@@ -323,7 +323,7 @@ struct TerminalSidebarDropHandoff: Equatable {
   }
 }
 
-enum TerminalSidebarGroupClick {
+enum TerminalSidebarProjectClick {
   static func acceptsRelease(_ location: CGPoint, frame: CGRect?) -> Bool {
     frame?.contains(location) == true
   }

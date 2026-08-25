@@ -30,7 +30,7 @@ struct SPListCommandTests {
 
         #expect(human == SPCLIResult(exitCode: 0, stdout: "\n", stderr: ""))
         #expect(plain == SPCLIResult(exitCode: 0, stdout: "\n", stderr: ""))
-        #expect(Set(object.keys) == ["revision", "items"])
+        #expect(Set(object.keys) == ["revision", "projects", "items"])
         #expect((object["items"] as? [Any])?.isEmpty == true)
         #expect(quiet == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
       }
@@ -129,18 +129,17 @@ struct SPListCommandTests {
         == """
         window 1 [current]
         └─ s:a6e57b1b space 1 "A" [selected]
-           └─ g:5a52445e group "Work"
-              └─ t:6bfc889d tab 1/1 "fish" [selected]
+           └─ j:5a52445e project "Work" [blue]
+              └─ t:6bfc889d tab 1/1 "fish" [selected, regular]
                  └─ p:2b8b3a57 pane 1/1/1 "build" [selected, codex:running native, cwd="/tmp/build"]
         """
     )
     #expect(
       SPTreeRenderer.renderPlain(SPListSnapshot(snapshot))
         == """
-        s:a6e57b1b\tspace\t1\t1\t-\tselected\tA\t-\t-
-        g:5a52445e\tgroup\t-\t1\ts:a6e57b1b\t-\tWork\t-\t-
-        t:6bfc889d\ttab\t1/1\t1\tg:5a52445e\tselected\tfish\t-\t-
-        p:2b8b3a57\tpane\t1/1/1\t1\tt:6bfc889d\tselected\tbuild\t/tmp/build\tcodex:running:native:session-1
+        s:a6e57b1b\tspace\t1\t1\t-\t-\t-\tselected\tA\t-\t-
+        t:6bfc889d\ttab\t1/1\t1\ts:a6e57b1b\tj:5a52445e\tregular\tselected\tfish\t-\t-
+        p:2b8b3a57\tpane\t1/1/1\t1\tt:6bfc889d\t-\t-\tselected\tbuild\t/tmp/build\tcodex:running:native:session-1
         """
     )
   }
@@ -218,7 +217,7 @@ struct SPListCommandTests {
         == """
         window 1 [key]
         └─ space 1 "A" [neutral, displayed]
-           └─ group 5a52445e-e42a-48b7-a5dd-c6c7c978b139 "Work" [blue]
+           └─ project 5a52445e-e42a-48b7-a5dd-c6c7c978b139 "Work" [blue]
               └─ tab 1 "fish" [selected]
                  └─ pane 1 "build" [focused, codex:running native, session=session-1, status=resolved]
         """
@@ -228,46 +227,50 @@ struct SPListCommandTests {
   @Test
   func listSnapshotEncodesExactCanonicalSchema() throws {
     let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
-    let groupID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
+    let projectID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
     let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
     let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     let snapshot = SPListSnapshot(spCommandTestListSnapshot())
     let data = try JSONEncoder().encode(snapshot)
     let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     let current = try #require(object["current"] as? [String: Any])
+    let projects = try #require(object["projects"] as? [[String: Any]])
     let items = try #require(object["items"] as? [[String: Any]])
-    let agent = try #require(items[3]["agent"] as? [String: Any])
+    let agent = try #require(items[2]["agent"] as? [String: Any])
 
-    #expect(Set(object.keys) == ["revision", "current", "items"])
+    #expect(Set(object.keys) == ["revision", "current", "projects", "items"])
     #expect((object["revision"] as? String)?.count == 16)
     #expect(Set(current.keys) == ["windowIndex", "spaceID", "tabID", "paneID"])
     #expect(current["spaceID"] as? String == spaceID.uuidString)
     #expect(current["tabID"] as? String == tabID.uuidString)
     #expect(current["paneID"] as? String == paneID.uuidString)
-    #expect(items.map { $0["kind"] as? String } == ["space", "group", "tab", "pane"])
+    #expect(projects.first?["id"] as? String == projectID.uuidString)
+    #expect(items.map { $0["kind"] as? String } == ["space", "tab", "pane"])
     #expect(
       items.map { $0["id"] as? String }
-        == [spaceID.uuidString, groupID.uuidString, tabID.uuidString, paneID.uuidString]
+        == [spaceID.uuidString, tabID.uuidString, paneID.uuidString]
     )
     #expect(Set(items[0].keys) == ["kind", "id", "windowIndex", "title", "selected", "isWarm"])
-    #expect(Set(items[1].keys) == ["kind", "id", "parentID", "windowIndex", "title", "selected"])
-    #expect(Set(items[2].keys) == ["kind", "id", "parentID", "windowIndex", "title", "selected"])
     #expect(
-      Set(items[3].keys)
+      Set(items[1].keys)
+        == ["kind", "id", "parentID", "windowIndex", "title", "selected", "projectID", "isPinned"]
+    )
+    #expect(
+      Set(items[2].keys)
         == [
           "kind", "id", "parentID", "windowIndex", "title", "cwd", "selected", "agent",
           "agentStatus",
         ]
     )
     #expect(items[1]["parentID"] as? String == spaceID.uuidString)
-    #expect(items[2]["parentID"] as? String == groupID.uuidString)
-    #expect(items[3]["parentID"] as? String == tabID.uuidString)
+    #expect(items[1]["projectID"] as? String == projectID.uuidString)
+    #expect(items[2]["parentID"] as? String == tabID.uuidString)
     #expect(Set(agent.keys) == ["kind", "phase", "phaseSource", "sessionID"])
     #expect(agent["kind"] as? String == "codex")
     #expect(agent["sessionID"] as? String == "session-1")
     #expect(agent["phase"] as? String == "running")
     #expect(agent["phaseSource"] as? String == "native")
-    #expect(items[3]["agentStatus"] as? String == "resolved")
+    #expect(items[2]["agentStatus"] as? String == "resolved")
   }
 
   @Test
@@ -372,7 +375,7 @@ struct SPListCommandTests {
     let paneLine = String(lines.last ?? "")
 
     #expect(lines.count == 3)
-    #expect(paneLine.split(separator: "\t", omittingEmptySubsequences: false).count == 9)
+    #expect(paneLine.split(separator: "\t", omittingEmptySubsequences: false).count == 11)
     #expect(!plain.contains("\u{1B}"))
     #expect(!plain.contains("\u{202E}"))
     #expect(paneLine.contains("bad\\tline\\n\\u{1b}[31m\\u{202e}"))
@@ -406,6 +409,15 @@ struct SPListCommandTests {
         keyWindowIndex: 1
       ),
       currentTarget: currentTarget,
+      projects: [
+        SupatermSnapshotProject(
+          color: .blue,
+          id: UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!,
+          isPinned: false,
+          name: "Work",
+          rootPath: nil
+        )
+      ],
       windows: [
         SupatermAppDebugSnapshot.Window(
           index: 1,
@@ -419,57 +431,50 @@ struct SPListCommandTests {
               name: "A",
               color: .neutral,
               isWarm: true,
-              rootItems: [
-                .group(
-                  SupatermAppDebugSnapshot.Group(
-                    color: .blue,
-                    id: UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!,
-                    isCollapsed: false,
-                    isPinned: false,
-                    title: "Work",
-                    tabs: [
-                      SupatermAppDebugSnapshot.Tab(
-                        id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
-                        title: "fish",
-                        isSelected: true,
-                        isDirty: false,
-                        isTitleLocked: false,
-                        hasRunningActivity: false,
-                        hasBell: false,
-                        hasReadOnly: false,
-                        hasSecureInput: false,
-                        panes: [
-                          SupatermAppDebugSnapshot.Pane(
-                            index: 1,
-                            id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
-                            isFocused: true,
-                            displayTitle: "build",
-                            pwd: "/tmp/build",
-                            isReadOnly: false,
-                            hasSecureInput: false,
-                            bellCount: 0,
-                            isRunning: false,
-                            progressState: nil,
-                            progressValue: nil,
-                            needsCloseConfirmation: false,
-                            lastCommandExitCode: nil,
-                            lastCommandDurationMs: nil,
-                            lastChildExitCode: nil,
-                            lastChildExitTimeMs: nil,
-                            foregroundProcessGroupID: nil,
-                            ttyName: nil,
-                            agent: SupatermAppDebugSnapshot.Agent(
-                              kind: .codex,
-                              phase: .running,
-                              phaseSource: .native,
-                              sessionID: "session-1"
-                            ),
-                            agentStatus: .resolved
-                          )
-                        ]
-                      )
-                    ]
-                  )
+              collapsedProjectIDs: [],
+              isUnassignedCollapsed: false,
+              tabs: [
+                SupatermAppDebugSnapshot.Tab(
+                  id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+                  title: "fish",
+                  projectID: UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!,
+                  isPinned: false,
+                  isSelected: true,
+                  isDirty: false,
+                  isTitleLocked: false,
+                  hasRunningActivity: false,
+                  hasBell: false,
+                  hasReadOnly: false,
+                  hasSecureInput: false,
+                  panes: [
+                    SupatermAppDebugSnapshot.Pane(
+                      index: 1,
+                      id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+                      isFocused: true,
+                      displayTitle: "build",
+                      pwd: "/tmp/build",
+                      isReadOnly: false,
+                      hasSecureInput: false,
+                      bellCount: 0,
+                      isRunning: false,
+                      progressState: nil,
+                      progressValue: nil,
+                      needsCloseConfirmation: false,
+                      lastCommandExitCode: nil,
+                      lastCommandDurationMs: nil,
+                      lastChildExitCode: nil,
+                      lastChildExitTimeMs: nil,
+                      foregroundProcessGroupID: nil,
+                      ttyName: nil,
+                      agent: SupatermAppDebugSnapshot.Agent(
+                        kind: .codex,
+                        phase: .running,
+                        phaseSource: .native,
+                        sessionID: "session-1"
+                      ),
+                      agentStatus: .resolved
+                    )
+                  ]
                 )
               ]
             )
@@ -483,6 +488,7 @@ struct SPListCommandTests {
   private func spCommandTestTreeSnapshot() -> SupatermTreeSnapshot {
     let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
     return SupatermTreeSnapshot(
+      projects: [],
       windows: [
         SupatermTreeSnapshot.Window(
           index: 1,
@@ -495,23 +501,22 @@ struct SPListCommandTests {
               name: "Work",
               color: .neutral,
               isWarm: true,
-              rootItems: [
-                .tab(
-                  SupatermTreeSnapshot.RootTab(
-                    isPinned: false,
-                    tab: SupatermTreeSnapshot.Tab(
-                      id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
-                      title: "shell",
-                      isSelected: true,
-                      panes: [
-                        SupatermTreeSnapshot.Pane(
-                          index: 1,
-                          id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
-                          isFocused: true
-                        )
-                      ]
+              collapsedProjectIDs: [],
+              isUnassignedCollapsed: false,
+              tabs: [
+                SupatermTreeSnapshot.Tab(
+                  id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+                  title: "shell",
+                  projectID: nil,
+                  isPinned: false,
+                  isSelected: true,
+                  panes: [
+                    SupatermTreeSnapshot.Pane(
+                      index: 1,
+                      id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+                      isFocused: true
                     )
-                  )
+                  ]
                 )
               ]
             )

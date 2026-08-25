@@ -25,9 +25,9 @@ public enum SupatermSocketMethod {
   public static let terminalClosePane = "terminal.close_pane"
   public static let terminalCloseSpace = "terminal.close_space"
   public static let terminalCloseTab = "terminal.close_tab"
-  public static let terminalCloseTabGroup = "terminal.close_tab_group"
+  public static let terminalRemoveProject = "terminal.remove_project"
   public static let terminalCreateSpace = "terminal.create_space"
-  public static let terminalCreateTabGroup = "terminal.create_tab_group"
+  public static let terminalAddProject = "terminal.add_project"
   public static let terminalEqualizePanes = "terminal.equalize_panes"
   public static let terminalFocusPane = "terminal.focus_pane"
   public static let terminalLastPane = "terminal.last_pane"
@@ -35,7 +35,7 @@ public enum SupatermSocketMethod {
   public static let terminalLastTab = "terminal.last_tab"
   public static let terminalMainVerticalPanes = "terminal.main_vertical_panes"
   public static let terminalMoveTab = "terminal.move_tab"
-  public static let terminalMoveTabGroup = "terminal.move_tab_group"
+  public static let terminalReorderProject = "terminal.reorder_project"
   public static let terminalNewTab = "terminal.new_tab"
   public static let terminalNewPane = "terminal.new_pane"
   public static let terminalPaneHealth = "terminal.pane_health"
@@ -43,27 +43,25 @@ public enum SupatermSocketMethod {
   public static let terminalNextTab = "terminal.next_tab"
   public static let terminalNotify = "terminal.notify"
   public static let terminalPinTab = "terminal.pin_tab"
-  public static let terminalPinTabGroup = "terminal.pin_tab_group"
+  public static let terminalPinProject = "terminal.pin_project"
   public static let terminalPreviousSpace = "terminal.previous_space"
   public static let terminalPreviousTab = "terminal.previous_tab"
   public static let terminalRenameSpace = "terminal.rename_space"
   public static let terminalRenameTab = "terminal.rename_tab"
-  public static let terminalRenameTabGroup = "terminal.rename_tab_group"
+  public static let terminalRenameProject = "terminal.rename_project"
   public static let terminalResizePane = "terminal.resize_pane"
   public static let terminalScreenshotPane = "terminal.screenshot_pane"
   public static let terminalSelectSpace = "terminal.select_space"
   public static let terminalSelectTab = "terminal.select_tab"
   public static let terminalSetPaneSize = "terminal.set_pane_size"
   public static let terminalSetSpaceColor = "terminal.set_space_color"
-  public static let terminalSetTabGroupColor = "terminal.set_tab_group_color"
-  public static let terminalCollapseTabGroup = "terminal.collapse_tab_group"
-  public static let terminalExpandTabGroup = "terminal.expand_tab_group"
+  public static let terminalSetProjectColor = "terminal.set_project_color"
+  public static let terminalSetProjectCollapsed = "terminal.set_project_collapsed"
   public static let terminalSendKey = "terminal.send_key"
   public static let terminalSendText = "terminal.send_text"
   public static let terminalTilePanes = "terminal.tile_panes"
   public static let terminalUnpinTab = "terminal.unpin_tab"
-  public static let terminalUnpinTabGroup = "terminal.unpin_tab_group"
-  public static let terminalUngroupTabGroup = "terminal.ungroup_tab_group"
+  public static let terminalUnpinProject = "terminal.unpin_project"
 }
 
 public enum SupatermSocketProtocolError: Error, Equatable, Sendable {
@@ -319,18 +317,18 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     try make(SupatermSocketMethod.terminalCloseTab, payload, id: id)
   }
 
-  public static func closeTabGroup(
-    _ payload: SupatermTabGroupTargetRequest,
+  public static func removeProject(
+    _ payload: SupatermRemoveProjectRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalCloseTabGroup, payload, id: id)
+    try make(SupatermSocketMethod.terminalRemoveProject, payload, id: id)
   }
 
-  public static func createTabGroup(
-    _ payload: SupatermCreateTabGroupRequest,
+  public static func addProject(
+    _ payload: SupatermAddProjectRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalCreateTabGroup, payload, id: id)
+    try make(SupatermSocketMethod.terminalAddProject, payload, id: id)
   }
 
   public static func createSpace(
@@ -375,18 +373,18 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     try make(SupatermSocketMethod.terminalMoveTab, payload, id: id)
   }
 
-  public static func moveTabGroup(
-    _ payload: SupatermMoveTabGroupRequest,
+  public static func reorderProject(
+    _ payload: SupatermReorderProjectRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalMoveTabGroup, payload, id: id)
+    try make(SupatermSocketMethod.terminalReorderProject, payload, id: id)
   }
 
-  public static func pinTabGroup(
-    _ payload: SupatermTabGroupTargetRequest,
+  public static func pinProject(
+    _ payload: SupatermProjectTargetRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalPinTabGroup, payload, id: id)
+    try make(SupatermSocketMethod.terminalPinProject, payload, id: id)
   }
 
   public static func lastSpace(
@@ -452,11 +450,11 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     try make(SupatermSocketMethod.terminalRenameTab, payload, id: id)
   }
 
-  public static func renameTabGroup(
-    _ payload: SupatermRenameTabGroupRequest,
+  public static func renameProject(
+    _ payload: SupatermRenameProjectRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalRenameTabGroup, payload, id: id)
+    try make(SupatermSocketMethod.terminalRenameProject, payload, id: id)
   }
 
   public static func setSpaceColor(
@@ -466,25 +464,18 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     try make(SupatermSocketMethod.terminalSetSpaceColor, payload, id: id)
   }
 
-  public static func setTabGroupColor(
-    _ payload: SupatermSetTabGroupColorRequest,
+  public static func setProjectColor(
+    _ payload: SupatermSetProjectColorRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalSetTabGroupColor, payload, id: id)
+    try make(SupatermSocketMethod.terminalSetProjectColor, payload, id: id)
   }
 
-  public static func collapseTabGroup(
-    _ payload: SupatermTabGroupTargetRequest,
+  public static func setProjectCollapsed(
+    _ payload: SupatermSetProjectCollapsedRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalCollapseTabGroup, payload, id: id)
-  }
-
-  public static func expandTabGroup(
-    _ payload: SupatermTabGroupTargetRequest,
-    id: String = UUID().uuidString
-  ) throws -> Self {
-    try make(SupatermSocketMethod.terminalExpandTabGroup, payload, id: id)
+    try make(SupatermSocketMethod.terminalSetProjectCollapsed, payload, id: id)
   }
 
   public static func resizePane(
@@ -536,18 +527,11 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     try make(SupatermSocketMethod.terminalUnpinTab, payload, id: id)
   }
 
-  public static func ungroupTabGroup(
-    _ payload: SupatermTabGroupTargetRequest,
+  public static func unpinProject(
+    _ payload: SupatermProjectTargetRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.terminalUngroupTabGroup, payload, id: id)
-  }
-
-  public static func unpinTabGroup(
-    _ payload: SupatermTabGroupTargetRequest,
-    id: String = UUID().uuidString
-  ) throws -> Self {
-    try make(SupatermSocketMethod.terminalUnpinTabGroup, payload, id: id)
+    try make(SupatermSocketMethod.terminalUnpinProject, payload, id: id)
   }
 
   public func decodeParams<T: Decodable>(_ type: T.Type = T.self) throws -> T {

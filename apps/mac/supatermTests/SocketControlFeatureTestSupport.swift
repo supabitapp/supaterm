@@ -54,10 +54,10 @@ extension SocketRequestExecutor {
     executeTerminalTab: (
       @MainActor @Sendable (TerminalTabRequest) async throws -> TerminalTabResult
     )? = nil,
-    executeTerminalTabGroup:
+    executeTerminalProject:
       @escaping @MainActor @Sendable (
-        TerminalTabGroupRequest
-      ) async throws -> TerminalTabGroupResult = { _ in
+        TerminalProjectRequest
+      ) async throws -> TerminalProjectResult = { _ in
         throw TerminalControlError.contextPaneNotFound
       },
     executeTerminalSpace: (
@@ -99,7 +99,7 @@ extension SocketRequestExecutor {
         }
         return try await executeTerminalTab($0)
       },
-      executeTerminalTabGroup: executeTerminalTabGroup,
+      executeTerminalProject: executeTerminalProject,
       executeTerminalSpace: {
         guard let executeTerminalSpace else {
           Issue.record("Unexpected terminal space request: \($0)")

@@ -447,13 +447,13 @@ private struct TerminalSidebarTabPreviewComparison: View {
   }
 }
 
-private struct TerminalSidebarTabGroupPreviewModel {
+private struct TerminalSidebarProjectPreviewModel {
   let title: String
-  let tone: TerminalSidebarTabGroupPreviewTone
+  let tone: TerminalSidebarProjectPreviewTone
   let items: [TerminalSidebarTabPreviewItem]
 }
 
-private enum TerminalSidebarTabGroupPreviewTone {
+private enum TerminalSidebarProjectPreviewTone {
   case warning
   case danger
   case success
@@ -462,7 +462,7 @@ private enum TerminalSidebarTabGroupPreviewTone {
   case merged
 }
 
-private enum TerminalSidebarGroupedTabPreviewFixtures {
+private enum ProjectedTabPreviewFixtures {
   static let leadingItems: [TerminalSidebarTabPreviewItem] = [
     item(
       title: "Socket routing",
@@ -482,7 +482,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
     ),
   ]
 
-  static let group = TerminalSidebarTabGroupPreviewModel(
+  static let project = TerminalSidebarProjectPreviewModel(
     title: "Launch Prep",
     tone: .warning,
     items: [
@@ -540,8 +540,8 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
   }
 }
 
-private struct TerminalSidebarGroupedTabPreview: View {
-  let group: TerminalSidebarTabGroupPreviewModel
+private struct TerminalSidebarProjectedTabPreview: View {
+  let project: TerminalSidebarProjectPreviewModel
   let palette: Palette
 
   @Environment(\.colorScheme) private var colorScheme
@@ -551,7 +551,7 @@ private struct TerminalSidebarGroupedTabPreview: View {
       header
 
       VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
-        ForEach(group.items) { item in
+        ForEach(project.items) { item in
           TerminalSidebarTabPreviewRow(
             item: item,
             palette: palette
@@ -567,11 +567,11 @@ private struct TerminalSidebarGroupedTabPreview: View {
       RoundedRectangle(cornerRadius: 16, style: .continuous)
         .fill(palette.unselectedFill)
       RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .fill(accent.opacity(groupFillOpacity))
+        .fill(accent.opacity(projectFillOpacity))
     }
     .overlay {
       RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .stroke(accent.opacity(groupStrokeOpacity), lineWidth: 1)
+        .stroke(accent.opacity(projectStrokeOpacity), lineWidth: 1)
     }
   }
 
@@ -583,7 +583,7 @@ private struct TerminalSidebarGroupedTabPreview: View {
         .frame(width: 12)
         .accessibilityHidden(true)
 
-      Text(group.title)
+      Text(project.title)
         .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(palette.primaryText)
         .lineLimit(1)
@@ -595,7 +595,7 @@ private struct TerminalSidebarGroupedTabPreview: View {
   }
 
   private var accent: Color {
-    switch group.tone {
+    switch project.tone {
     case .warning:
       palette.warning.opacity(0.85)
     case .danger:
@@ -615,20 +615,20 @@ private struct TerminalSidebarGroupedTabPreview: View {
     palette.unselectedFill
   }
 
-  private var groupFillOpacity: Double {
+  private var projectFillOpacity: Double {
     hasSelectedItem
       ? (colorScheme == .dark ? 0.16 : 0.12)
       : (colorScheme == .dark ? 0.1 : 0.07)
   }
 
-  private var groupStrokeOpacity: Double {
+  private var projectStrokeOpacity: Double {
     hasSelectedItem
       ? (colorScheme == .dark ? 0.34 : 0.22)
       : (colorScheme == .dark ? 0.24 : 0.16)
   }
 
   private var hasSelectedItem: Bool {
-    group.items.contains(where: \.isSelected)
+    project.items.contains(where: \.isSelected)
   }
 }
 
@@ -655,7 +655,7 @@ private struct TerminalSidebarPreviewWindowHeader: View {
   }
 }
 
-private struct TerminalSidebarGroupedTabNewRowPreview: View {
+private struct TerminalSidebarProjectedTabNewRowPreview: View {
   let palette: Palette
 
   var body: some View {
@@ -677,7 +677,7 @@ private struct TerminalSidebarGroupedTabNewRowPreview: View {
   }
 }
 
-private struct TerminalSidebarGroupedTabPreviewGallery: View {
+private struct ProjectedTabPreviewGallery: View {
   let colorScheme: ColorScheme
 
   private var palette: Palette {
@@ -693,19 +693,19 @@ private struct TerminalSidebarGroupedTabPreviewGallery: View {
 
       ScrollView {
         VStack(alignment: .leading, spacing: 8) {
-          ForEach(TerminalSidebarGroupedTabPreviewFixtures.leadingItems) { item in
+          ForEach(ProjectedTabPreviewFixtures.leadingItems) { item in
             TerminalSidebarTabPreviewRow(
               item: item,
               palette: palette
             )
           }
 
-          TerminalSidebarGroupedTabPreview(
-            group: TerminalSidebarGroupedTabPreviewFixtures.group,
+          TerminalSidebarProjectedTabPreview(
+            project: ProjectedTabPreviewFixtures.project,
             palette: palette
           )
 
-          TerminalSidebarGroupedTabNewRowPreview(palette: palette)
+          TerminalSidebarProjectedTabNewRowPreview(palette: palette)
         }
         .padding(8)
         .padding(.bottom, 8)
@@ -718,7 +718,7 @@ private struct TerminalSidebarGroupedTabPreviewGallery: View {
   }
 }
 
-private struct TerminalSidebarGroupedTabPreviewColumn: View {
+private struct TerminalSidebarProjectedTabPreviewColumn: View {
   let title: String
   let colorScheme: ColorScheme
 
@@ -728,23 +728,23 @@ private struct TerminalSidebarGroupedTabPreviewColumn: View {
         .font(.system(size: 13, weight: .semibold))
         .foregroundStyle(.secondary)
 
-      TerminalSidebarGroupedTabPreviewGallery(colorScheme: colorScheme)
+      ProjectedTabPreviewGallery(colorScheme: colorScheme)
         .environment(\.colorScheme, colorScheme)
     }
     .frame(width: 320, alignment: .leading)
   }
 }
 
-private struct TerminalSidebarGroupPreviewComparison: View {
+private struct TerminalSidebarProjectPreviewComparison: View {
   var body: some View {
     ScrollView(.horizontal) {
       HStack(alignment: .top, spacing: 16) {
-        TerminalSidebarGroupedTabPreviewColumn(
+        TerminalSidebarProjectedTabPreviewColumn(
           title: "Light",
           colorScheme: .light
         )
 
-        TerminalSidebarGroupedTabPreviewColumn(
+        TerminalSidebarProjectedTabPreviewColumn(
           title: "Dark",
           colorScheme: .dark
         )
@@ -768,11 +768,11 @@ private struct TerminalSidebarPreviewShowcase: View {
         }
 
         VStack(alignment: .leading, spacing: 10) {
-          Text("Grouped Tabs")
+          Text("Projected Tabs")
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(.secondary)
 
-          TerminalSidebarGroupPreviewComparison()
+          TerminalSidebarProjectPreviewComparison()
         }
       }
       .padding(16)

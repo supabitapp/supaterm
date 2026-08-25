@@ -138,37 +138,17 @@ struct TerminalWindowControllerTests {
       }
       let spaceID = spaces[0].id
       let hiddenSpaceID = spaces[1].id
-      let groupID = TerminalTabGroupID()
       let session = TerminalWindowSession(
         displayedSpaceID: spaceID,
         spaces: [
           TerminalSpaceSession(
             spaceID: spaceID,
             selectedTabID: nil,
-            nodes: [
-              TerminalTabNodeSession(
-                item: .group(groupID),
-                parent: .root(isPinned: false),
-                order: 0
-              )
-            ],
-            groups: [
-              TerminalTabGroupSession(
-                id: groupID,
-                title: "Saved",
-                color: .blue,
-                lifetime: .durable
-              )
-            ],
-            collapsedGroupIDs: [groupID],
             tabs: []
           ),
           TerminalSpaceSession(
             spaceID: hiddenSpaceID,
             selectedTabID: nil,
-            nodes: [],
-            groups: [],
-            collapsedGroupIDs: [],
             tabs: []
           ),
         ],
@@ -191,7 +171,7 @@ struct TerminalWindowControllerTests {
 
       #expect(controller.window?.frame == frame.constrained(to: visibleFrame))
       #expect(controller.terminal.visibleTabs.count == 1)
-      #expect(controller.terminal.spaceManager.rootItems(in: spaceID).first?.id == .group(groupID))
+      #expect(controller.terminal.spaceManager.tabs(in: spaceID).count == 1)
       #expect(controller.terminal.spaceManager.instance(for: hiddenSpaceID) != nil)
       #expect(controller.store.terminal.sidebarWidth == 336)
     }

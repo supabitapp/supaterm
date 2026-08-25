@@ -4,15 +4,14 @@ import SupatermSupport
 
 public struct TerminalCreateTabRequest: Equatable, Sendable {
   public enum Target: Equatable, Sendable {
-    case group(UUID)
     case pane(UUID)
-    case root(UUID)
     case space(UUID)
   }
 
   public let startupCommand: SupatermTerminalStartup?
   public let cwd: String?
   public let focus: Bool
+  public let projectID: UUID?
   public let target: Target
   public let context: SupatermCLIContext?
 
@@ -20,12 +19,14 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
     startupCommand: SupatermTerminalStartup?,
     cwd: String?,
     focus: Bool,
+    projectID: UUID?,
     target: Target,
     context: SupatermCLIContext? = nil
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
+    self.projectID = projectID
     self.target = target
     self.context = context
   }
@@ -111,112 +112,22 @@ public struct TerminalPaneTarget: Equatable, Sendable {
   }
 }
 
-public struct TerminalCreateTabGroupRequest: Equatable, Sendable {
-  public let color: SupatermThemeColor
-  public let isPinned: Bool
-  public let target: TerminalSpaceTarget
-  public let title: String
-
-  public init(
-    color: SupatermThemeColor,
-    isPinned: Bool,
-    target: TerminalSpaceTarget,
-    title: String
-  ) {
-    self.color = color
-    self.isPinned = isPinned
-    self.target = target
-    self.title = title
-  }
+public enum TerminalProjectRequest: Equatable, Sendable {
+  case add(SupatermAddProjectRequest)
+  case moveTab(SupatermMoveTabRequest)
+  case pin(SupatermProjectTargetRequest)
+  case remove(SupatermRemoveProjectRequest)
+  case rename(SupatermRenameProjectRequest)
+  case reorder(SupatermReorderProjectRequest)
+  case setCollapsed(SupatermSetProjectCollapsedRequest)
+  case setColor(SupatermSetProjectColorRequest)
+  case unpin(SupatermProjectTargetRequest)
 }
 
-public struct TerminalRenameTabGroupRequest: Equatable, Sendable {
-  public let groupID: UUID
-  public let title: String
-
-  public init(
-    groupID: UUID,
-    title: String
-  ) {
-    self.groupID = groupID
-    self.title = title
-  }
-}
-
-public struct TerminalSetTabGroupColorRequest: Equatable, Sendable {
-  public let color: SupatermThemeColor
-  public let groupID: UUID
-
-  public init(
-    color: SupatermThemeColor,
-    groupID: UUID
-  ) {
-    self.color = color
-    self.groupID = groupID
-  }
-}
-
-public struct TerminalSetTabGroupCollapsedRequest: Equatable, Sendable {
-  public let groupID: UUID
-  public let isCollapsed: Bool
-
-  public init(
-    groupID: UUID,
-    isCollapsed: Bool
-  ) {
-    self.groupID = groupID
-    self.isCollapsed = isCollapsed
-  }
-}
-
-public struct TerminalMoveTabGroupRequest: Equatable, Sendable {
-  public let groupID: UUID
-  public let index: Int
-
-  public init(
-    groupID: UUID,
-    index: Int
-  ) {
-    self.groupID = groupID
-    self.index = index
-  }
-}
-
-public enum TerminalMoveTabDestination: Equatable, Sendable {
-  case group(id: UUID, index: Int?)
-  case root(isPinned: Bool, index: Int?)
-}
-
-public struct TerminalMoveTabRequest: Equatable, Sendable {
-  public let destination: TerminalMoveTabDestination
-  public let target: TerminalTabTarget
-
-  public init(
-    destination: TerminalMoveTabDestination,
-    target: TerminalTabTarget
-  ) {
-    self.destination = destination
-    self.target = target
-  }
-}
-
-public enum TerminalTabGroupRequest: Equatable, Sendable {
-  case close(UUID)
-  case create(TerminalCreateTabGroupRequest)
-  case move(TerminalMoveTabGroupRequest)
-  case moveTab(TerminalMoveTabRequest)
-  case pin(UUID)
-  case rename(TerminalRenameTabGroupRequest)
-  case setCollapsed(TerminalSetTabGroupCollapsedRequest)
-  case setColor(TerminalSetTabGroupColorRequest)
-  case ungroup(UUID)
-  case unpin(UUID)
-}
-
-public enum TerminalTabGroupResult: Equatable, Sendable {
-  case group(SupatermTabGroupMutationResult)
+public enum TerminalProjectResult: Equatable, Sendable {
   case movedTab(SupatermMoveTabResult)
-  case removedGroup(SupatermRemoveTabGroupResult)
+  case project(SupatermProjectMutationResult)
+  case removedProject(SupatermRemoveProjectResult)
 }
 
 public struct TerminalEqualizePanesRequest: Equatable, Sendable {
@@ -440,17 +351,17 @@ public enum TerminalCreateTabError: Error, Equatable {
 public enum TerminalControlError: Error, Equatable {
   case captureFailed
   case contextPaneNotFound
-  case groupNotFound(UUID)
-  case groupSpaceMismatch
   case invalidCaptureLines(Int)
-  case invalidGroupTitle
-  case invalidGroupIndex(Int)
+  case invalidProjectIndex(Int)
+  case invalidProjectName
   case invalidSpaceName
   case lastPaneNotFound
   case lastSpaceNotFound
   case lastTabNotFound
   case onlyRemainingSpace
   case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+  case projectCloseConfirmationRequired
+  case projectNotFound(UUID)
   case resizeFailed
   case screenshotFailed
   case spaceNameUnavailable

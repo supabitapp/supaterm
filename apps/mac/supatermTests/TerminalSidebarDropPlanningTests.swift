@@ -5,14 +5,14 @@ import Testing
 
 struct TerminalSidebarDropPlanningTests {
   @Test
-  func payloadStoresOrderedTabsOrOneGroupAndDerivesLiftedRows() throws {
+  func payloadStoresOrderedTabsOrOneProjectAndDerivesLiftedRows() throws {
     let first = TerminalTabID()
     let second = TerminalTabID()
-    let groupID = TerminalTabGroupID()
+    let projectID = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .red, .automatic, [first, second]),
+          content: .project(projectID, .red, [first, second]),
           isPinned: false
         )
       ],
@@ -22,15 +22,15 @@ struct TerminalSidebarDropPlanningTests {
     let tabs = try #require(
       outline.dragPayload(for: .tab(second), selectedTabIDs: [first, second])
     )
-    let group = try #require(outline.dragPayload(for: .group(groupID)))
+    let project = try #require(outline.dragPayload(for: .project(projectID)))
 
     #expect(tabs.source == .tabs([first, second]))
     #expect(tabs.source.itemIDs == [.tab(first), .tab(second)])
     #expect(outline.liftedEntryIDs(for: tabs.source) == [.tab(first), .tab(second)])
-    #expect(group.source == .group(groupID))
-    #expect(group.source.itemIDs == [.group(groupID)])
-    #expect(outline.liftedEntryIDs(for: group.source) == [.group(groupID), .tab(first), .tab(second)])
-    #expect(group.topologyRevision == 9)
+    #expect(project.source == .project(projectID))
+    #expect(project.source.itemIDs == [.project(projectID)])
+    #expect(outline.liftedEntryIDs(for: project.source) == [.project(projectID), .tab(first), .tab(second)])
+    #expect(project.topologyRevision == 9)
   }
 
   @Test
@@ -59,16 +59,16 @@ struct TerminalSidebarDropPlanningTests {
   }
 
   @Test
-  func rootTabTargetReordersAndGroupHeaderAppends() throws {
+  func rootTabTargetReordersAndProjectHeaderAppends() throws {
     let source = TerminalTabID()
     let target = TerminalTabID()
     let child = TerminalTabID()
-    let groupID = TerminalTabGroupID()
+    let projectID = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(content: .tab(target), isPinned: false),
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .blue, .automatic, [child]),
+          content: .project(projectID, .blue, [child]),
           isPinned: false
         ),
         TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
@@ -89,28 +89,28 @@ struct TerminalSidebarDropPlanningTests {
     )
     let end = TerminalSidebarDropPlanner.plan(
       payload: payload,
-      path: .group(groupID, index: 1),
+      path: .project(projectID, index: 1),
       outline: outline
     )
 
     #expect(reorder?.destination == .root(isPinned: false, index: 0))
     #expect(reorder?.placeholder == .before(.tab(target)))
-    #expect(append?.destination == .group(groupID, index: 1))
-    #expect(append?.placeholder == .groupEnd(groupID))
-    #expect(append?.highlightedGroupID == groupID)
-    #expect(end?.destination == .group(groupID, index: 1))
-    #expect(end?.placeholder == .groupEnd(groupID))
+    #expect(append?.destination == .project(projectID, index: 1))
+    #expect(append?.placeholder == .projectEnd(projectID))
+    #expect(append?.highlightedProjectID == projectID)
+    #expect(end?.destination == .project(projectID, index: 1))
+    #expect(end?.placeholder == .projectEnd(projectID))
   }
 
   @Test
   func noOpDropResolutionKeepsItsSemanticPathForFeedback() throws {
     let child = TerminalTabID()
     let source = TerminalTabID()
-    let groupID = TerminalTabGroupID()
+    let projectID = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .blue, .automatic, [child]),
+          content: .project(projectID, .blue, [child]),
           isPinned: false
         ),
         TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
@@ -235,16 +235,16 @@ struct TerminalSidebarDropPlanningTests {
     let first = TerminalTabID()
     let second = TerminalTabID()
     let tail = TerminalTabID()
-    let firstGroup = TerminalTabGroupID()
-    let secondGroup = TerminalTabGroupID()
+    let firstProject = TerminalProjectID()
+    let secondProject = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(firstGroup, .green, .automatic, [first]),
+          content: .project(firstProject, .green, [first]),
           isPinned: false
         ),
         TerminalSidebarOutline.Root(
-          content: .group(secondGroup, .blue, .automatic, [second]),
+          content: .project(secondProject, .blue, [second]),
           isPinned: false
         ),
         TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
@@ -265,15 +265,15 @@ struct TerminalSidebarDropPlanningTests {
   }
 
   @Test
-  func durableEmptyGroupAndPinnedLanesRemainAddressable() throws {
+  func durableEmptyProjectAndPinnedLanesRemainAddressable() throws {
     let pinned = TerminalTabID()
     let source = TerminalTabID()
-    let emptyGroup = TerminalTabGroupID()
+    let emptyProject = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(content: .tab(pinned), isPinned: true),
         TerminalSidebarOutline.Root(
-          content: .group(emptyGroup, .neutral, .durable, []),
+          content: .project(emptyProject, .neutral, []),
           isPinned: false
         ),
         TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
@@ -285,9 +285,9 @@ struct TerminalSidebarDropPlanningTests {
     #expect(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .group(emptyGroup, index: 0),
+        path: .project(emptyProject, index: 0),
         outline: outline
-      )?.destination == .group(emptyGroup, index: 0)
+      )?.destination == .project(emptyProject, index: 0)
     )
     #expect(
       TerminalSidebarDropPlanner.plan(
@@ -306,15 +306,15 @@ struct TerminalSidebarDropPlanningTests {
   }
 
   @Test
-  func sameGroupBatchRejectsAnExactNoOp() throws {
+  func sameProjectBatchRejectsAnExactNoOp() throws {
     let first = TerminalTabID()
     let second = TerminalTabID()
     let third = TerminalTabID()
-    let groupID = TerminalTabGroupID()
+    let projectID = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .purple, .automatic, [first, second, third]),
+          content: .project(projectID, .purple, [first, second, third]),
           isPinned: false
         )
       ],
@@ -327,16 +327,16 @@ struct TerminalSidebarDropPlanningTests {
     #expect(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .group(groupID, index: 0),
+        path: .project(projectID, index: 0),
         outline: outline
       ) == nil
     )
     #expect(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .group(groupID, index: 3),
+        path: .project(projectID, index: 3),
         outline: outline
-      )?.destination == .group(groupID, index: 1)
+      )?.destination == .project(projectID, index: 1)
     )
   }
 }

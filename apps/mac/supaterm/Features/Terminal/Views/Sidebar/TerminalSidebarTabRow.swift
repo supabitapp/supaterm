@@ -7,9 +7,9 @@ struct TerminalSidebarTabRow: View {
     case newTab
     case divider
     case togglePinned(Bool)
-    case moveToNewGroup
-    case moveToGroup
-    case removeFromGroup
+    case moveToNewProject
+    case moveToProject
+    case removeFromProject
     case changeTabTitle
     case closeTabsBelow(Bool)
     case closeOtherTabs(Bool)
@@ -23,12 +23,12 @@ struct TerminalSidebarTabRow: View {
         nil
       case .togglePinned(let isPinned):
         isPinned ? "Unpin Tab" : "Pin Tab"
-      case .moveToNewGroup:
-        "Move to New Group"
-      case .moveToGroup:
-        "Move to Group..."
-      case .removeFromGroup:
-        "Remove from Group"
+      case .moveToNewProject:
+        "Move to New Project"
+      case .moveToProject:
+        "Move to Project..."
+      case .removeFromProject:
+        "Remove from Project"
       case .changeTabTitle:
         "Change Tab Title..."
       case .closeTabsBelow:
@@ -64,7 +64,7 @@ struct TerminalSidebarTabRow: View {
 
   let terminal: TerminalHostState
   let tab: TerminalTabItem
-  let groupID: TerminalTabGroupID?
+  let projectID: TerminalProjectID?
   let rootIsPinned: Bool
   let renameState: TerminalSidebarRenameState?
   let selectionState: TerminalSidebarTabSelectionState
@@ -82,7 +82,7 @@ struct TerminalSidebarTabRow: View {
     isPinned: Bool,
     hasTabsBelow: Bool,
     hasOtherTabs: Bool,
-    isGrouped: Bool = false
+    isProjected: Bool = false
   ) -> [ContextMenuItem] {
     var items: [ContextMenuItem] = [
       .newTab,
@@ -90,11 +90,11 @@ struct TerminalSidebarTabRow: View {
     ]
     items.append(contentsOf: [
       .togglePinned(isPinned),
-      .moveToNewGroup,
-      .moveToGroup,
+      .moveToNewProject,
+      .moveToProject,
     ])
-    if isGrouped {
-      items.append(.removeFromGroup)
+    if isProjected {
+      items.append(.removeFromProject)
     }
     items.append(.changeTabTitle)
     items.append(contentsOf: [
@@ -151,14 +151,14 @@ struct TerminalSidebarTabRow: View {
   }
 
   var body: some View {
-    let isGrouped = groupID != nil
-    let contentInsets = TerminalSidebarLayout.tabContentHorizontalInsets(isGrouped: isGrouped)
-    let surfaceInsets = TerminalSidebarLayout.tabSurfaceHorizontalInsets(isGrouped: isGrouped)
+    let isProjected = projectID != nil
+    let contentInsets = TerminalSidebarLayout.tabContentHorizontalInsets(isProjected: isProjected)
+    let surfaceInsets = TerminalSidebarLayout.tabSurfaceHorizontalInsets(isProjected: isProjected)
     let summary = TerminalSidebarTabSummaryView(
       tab: tab,
       palette: palette,
       isSelected: isSelected,
-      isPinned: groupID == nil && rootIsPinned,
+      isPinned: projectID == nil && rootIsPinned,
       details: details,
       unreadCount: unreadCount,
       agentStatus: agentStatus,
@@ -262,10 +262,10 @@ struct TerminalSidebarTabRow: View {
         ForEach(
           Array(
             Self.contextMenuItems(
-              isPinned: groupID == nil && rootIsPinned,
+              isPinned: projectID == nil && rootIsPinned,
               hasTabsBelow: hasTabsBelow,
               hasOtherTabs: hasOtherTabs,
-              isGrouped: groupID != nil
+              isProjected: projectID != nil
             ).enumerated()
           ),
           id: \.offset
@@ -289,40 +289,34 @@ struct TerminalSidebarTabRow: View {
               Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
             }
 
-          case .moveToNewGroup:
+          case .moveToNewProject:
             Button {
-              createSidebarGroup(
+              createSidebarProject(
                 terminal: terminal,
                 tabIDs: [tab.id],
                 renameState: renameState
               )
             } label: {
-              Label("Move to New Group", systemImage: "rectangle.3.group")
+              Label("Move to New Project", systemImage: "rectangle.3.project")
             }
 
-          case .moveToGroup:
+          case .moveToProject:
             Menu {
-              ForEach(availableGroups) { group in
-                Button(group.title) {
-                  _ = try? terminal.move(
-                    TerminalTabMoveRequest(
-                      expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
-                      itemIDs: [.tab(tab.id)],
-                      destination: .group(group.id, index: group.tabs.count)
-                    )
-                  )
+              ForEach(availableProjects) { section in
+                Button(section.project.name) {
+                  _ = terminal.assignTabs([tab.id], to: section.id)
                 }
               }
             } label: {
-              Label("Move to Group...", systemImage: "arrow.right")
+              Label("Move to Project...", systemImage: "arrow.right")
             }
-            .disabled(availableGroups.isEmpty)
+            .disabled(availableProjects.isEmpty)
 
-          case .removeFromGroup:
+          case .removeFromProject:
             Button {
-              terminal.removeTabFromGroup(tab.id)
+              terminal.removeTabFromProject(tab.id)
             } label: {
-              Label("Remove from Group", systemImage: "arrow.up.backward")
+              Label("Remove from Project", systemImage: "arrow.up.backward")
             }
 
           case .changeTabTitle:
@@ -380,15 +374,12 @@ struct TerminalSidebarTabRow: View {
     )
   }
 
-  private var availableGroups: [TerminalTabGroupItem] {
-    terminal.rootItems.compactMap { root in
-      guard case .group(let group) = root, group.id != groupID else { return nil }
-      return group
-    }
+  private var availableProjects: [TerminalProjectSectionItem] {
+    terminal.projectSections().filter { $0.id != projectID }
   }
 
   private var accessibilityIdentifier: String {
-    TerminalSidebarAccessibilityIdentifier.tab(tab.id, groupID: groupID)
+    TerminalSidebarAccessibilityIdentifier.tab(tab.id, projectID: projectID)
   }
 
   private func select() {
@@ -403,19 +394,20 @@ struct TerminalSidebarTabRow: View {
   }
 }
 
-private func createSidebarGroup(
+private func createSidebarProject(
   terminal: TerminalHostState,
   tabIDs: [TerminalTabID],
   renameState: TerminalSidebarRenameState?
 ) {
-  guard let title = terminal.suggestedGroupTitle(containing: tabIDs) else { return }
-  let result = terminal.createGroup(
-    title: title,
+  guard let title = terminal.suggestedProjectName(containing: tabIDs) else { return }
+  let result = terminal.createProject(
+    name: title,
+    rootPath: terminal.suggestedProjectRoot(containing: tabIDs),
     color: .neutral,
     containing: tabIDs
   )
   if let result {
-    renameState?.begin(groupID: result.groupID, title: title)
+    renameState?.begin(projectID: result.projectID, title: title)
   }
 }
 
@@ -437,23 +429,23 @@ struct TerminalSidebarBatchTabMenu: View {
     }
     .disabled(pinAction == .disabled)
 
-    Button("New Group with \(tabIDs.count) Tabs", systemImage: "rectangle.3.group") {
-      createGroup()
+    Button("New Project with \(tabIDs.count) Tabs", systemImage: "rectangle.3.project") {
+      createProject()
     }
 
-    Menu("Move to Group", systemImage: "arrow.right") {
-      ForEach(groups) { group in
-        Button(group.title) {
-          moveToGroup(group)
+    Menu("Move to Project", systemImage: "arrow.right") {
+      ForEach(projects) { section in
+        Button(section.project.name) {
+          moveToProject(section)
         }
-        .disabled(moveToGroupIsNoOp(group))
+        .disabled(moveToProjectIsNoOp(section))
       }
     }
-    .disabled(groups.isEmpty)
+    .disabled(projects.isEmpty)
 
-    if let sharedGroup {
-      Button("Remove from Group", systemImage: "arrow.up.backward") {
-        removeFromGroup(sharedGroup)
+    if sharedProject != nil {
+      Button("Remove from Project", systemImage: "arrow.up.backward") {
+        removeFromProject()
       }
     }
 
@@ -486,17 +478,14 @@ struct TerminalSidebarBatchTabMenu: View {
     "\(pinAction == .unpin ? "Unpin" : "Pin") \(tabIDs.count) Tabs"
   }
 
-  private var groups: [TerminalTabGroupItem] {
-    terminal.rootItems.compactMap { root in
-      guard case .group(let group) = root else { return nil }
-      return group
-    }
+  private var projects: [TerminalProjectSectionItem] {
+    terminal.projectSections()
   }
 
-  private var sharedGroup: TerminalTabGroupItem? {
+  private var sharedProject: TerminalProjectSectionItem? {
     let selected = Set(tabIDs)
-    return groups.first { group in
-      selected.isSubset(of: Set(group.tabs.map(\.id))) && selected.count == tabIDs.count
+    return projects.first { section in
+      selected.isSubset(of: Set(section.tabs.map(\.id))) && selected.count == tabIDs.count
     }
   }
 
@@ -515,57 +504,31 @@ struct TerminalSidebarBatchTabMenu: View {
   private func togglePinned() {
     guard pinAction != .disabled else { return }
     let isPinned = pinAction == .pin
-    let destinationIndex = terminal.rootItems.count { $0.isPinned == isPinned }
-    move(
-      tabIDs,
-      to: .root(TerminalRootPlacement(isPinned: isPinned, index: destinationIndex))
-    )
+    for tabID in tabIDs {
+      _ = terminal.setTabPinned(tabID, isPinned: isPinned)
+    }
   }
 
-  private func createGroup() {
-    createSidebarGroup(
+  private func createProject() {
+    createSidebarProject(
       terminal: terminal,
       tabIDs: tabIDs,
       renameState: renameState
     )
   }
 
-  private func moveToGroup(_ group: TerminalTabGroupItem) {
+  private func moveToProject(_ section: TerminalProjectSectionItem) {
+    _ = terminal.assignTabs(tabIDs, to: section.id)
+  }
+
+  private func moveToProjectIsNoOp(_ section: TerminalProjectSectionItem) -> Bool {
     let selected = Set(tabIDs)
-    let destinationIndex = group.tabs.count { !selected.contains($0.id) }
-    move(tabIDs, to: .group(group.id, index: destinationIndex))
+    return section.tabs.map(\.id).filter { !selected.contains($0) } + tabIDs
+      == section.tabs.map(\.id)
   }
 
-  private func moveToGroupIsNoOp(_ group: TerminalTabGroupItem) -> Bool {
-    let selected = Set(tabIDs)
-    return group.tabs.map(\.id).filter { !selected.contains($0) } + tabIDs
-      == group.tabs.map(\.id)
-  }
-
-  private func removeFromGroup(_ group: TerminalTabGroupItem) {
-    let lane = terminal.rootItems.filter { $0.isPinned == group.isPinned }
-    guard let index = lane.firstIndex(where: { $0.id == .group(group.id) }) else { return }
-    let groupIsDeleted =
-      group.lifetime == .automatic && Set(group.tabs.map(\.id)).isSubset(of: Set(tabIDs))
-    move(
-      tabIDs,
-      to: .root(
-        TerminalRootPlacement(
-          isPinned: group.isPinned,
-          index: index + (groupIsDeleted ? 0 : 1)
-        )
-      )
-    )
-  }
-
-  private func move(_ tabIDs: [TerminalTabID], to destination: TerminalTabPlacement) {
-    _ = try? terminal.move(
-      TerminalTabMoveRequest(
-        expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
-        itemIDs: tabIDs.map(TerminalTabRootItemID.tab),
-        destination: destination
-      )
-    )
+  private func removeFromProject() {
+    _ = terminal.assignTabs(tabIDs, to: nil)
   }
 }
 

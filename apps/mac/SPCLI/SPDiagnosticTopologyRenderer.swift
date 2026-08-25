@@ -7,14 +7,19 @@ enum SPDiagnosticTopologyRenderer {
       let suffix = window.isKey ? " [key]" : ""
       return
         (["window \(window.index)\(suffix)"]
-        + renderSpaces(window.spaces, displayedSpaceID: window.displayedSpaceID))
+        + renderSpaces(
+          window.spaces,
+          displayedSpaceID: window.displayedSpaceID,
+          projects: snapshot.projects
+        ))
         .joined(separator: "\n")
     }.joined(separator: "\n\n")
   }
 
   private static func renderSpaces(
     _ spaces: [SupatermAppDebugSnapshot.Space],
-    displayedSpaceID: UUID
+    displayedSpaceID: UUID,
+    projects: [SupatermSnapshotProject]
   ) -> [String] {
     spaces.enumerated().flatMap { offset, space in
       let isLast = offset == spaces.count - 1
@@ -28,54 +33,41 @@ enum SPDiagnosticTopologyRenderer {
         labels.append("cold")
       }
       return ["\(branch)space \(space.index) \"\(space.name)\" [\(labels.joined(separator: ", "))]"]
-        + renderRootItems(space.rootItems, prefix: prefix)
+        + renderSections(space.tabs, projects: projects, prefix: prefix)
     }
   }
 
-  private static func renderRootItems(
-    _ items: [SupatermAppDebugSnapshot.RootItem],
+  private static func renderSections(
+    _ tabs: [SupatermAppDebugSnapshot.Tab],
+    projects: [SupatermSnapshotProject],
     prefix: String
   ) -> [String] {
-    var tabIndex = 0
-    var lines: [String] = []
-    for (offset, item) in items.enumerated() {
-      let isLast = offset == items.count - 1
-      let branch = isLast ? "└─ " : "├─ "
-      let childPrefix = prefix + (isLast ? "   " : "│  ")
-      switch item {
-      case .group(let group):
-        var labels = [group.color.rawValue]
-        if group.isPinned {
-          labels.append("pinned")
-        }
-        if group.isCollapsed {
-          labels.append("collapsed")
-        }
-        let id = group.id.uuidString.lowercased()
-        let label = labels.joined(separator: ", ")
-        lines.append("\(prefix)\(branch)group \(id) \"\(group.title)\" [\(label)]")
-        for (tabOffset, tab) in group.tabs.enumerated() {
-          tabIndex += 1
-          lines += renderTab(
+    let knownProjectIDs = Set(projects.map(\.id))
+    let sections = projects.compactMap { project -> (String, [SupatermAppDebugSnapshot.Tab])? in
+      let projectTabs = tabs.filter { $0.projectID == project.id }
+      guard !projectTabs.isEmpty else { return nil }
+      let labels = ([project.isPinned ? "pinned" : nil, project.color.rawValue] as [String?])
+        .compactMap(\.self)
+        .joined(separator: ", ")
+      return ("project \(project.id.uuidString.lowercased()) \"\(project.name)\" [\(labels)]", projectTabs)
+    }
+    let unassignedTabs = tabs.filter { $0.projectID.map(knownProjectIDs.contains) != true }
+    let visibleSections = sections + (unassignedTabs.isEmpty ? [] : [("Unassigned", unassignedTabs)])
+    return visibleSections.enumerated().flatMap { sectionOffset, section in
+      let sectionIsLast = sectionOffset == visibleSections.count - 1
+      let sectionBranch = sectionIsLast ? "└─ " : "├─ "
+      let tabPrefix = prefix + (sectionIsLast ? "   " : "│  ")
+      return ["\(prefix)\(sectionBranch)\(section.0)"]
+        + section.1.enumerated().flatMap { tabOffset, tab in
+          renderTab(
             tab,
-            tabIndex: tabIndex,
-            isPinned: false,
-            isLast: tabOffset == group.tabs.count - 1,
-            prefix: childPrefix
+            tabIndex: tabs.firstIndex(where: { $0.id == tab.id })! + 1,
+            isPinned: tab.isPinned,
+            isLast: tabOffset == section.1.count - 1,
+            prefix: tabPrefix
           )
         }
-      case .tab(let rootTab):
-        tabIndex += 1
-        lines += renderTab(
-          rootTab.tab,
-          tabIndex: tabIndex,
-          isPinned: rootTab.isPinned,
-          isLast: isLast,
-          prefix: prefix
-        )
-      }
     }
-    return lines
   }
 
   private static func renderTab(

@@ -15,12 +15,14 @@ struct SocketControlCreationTests {
   func newTabRequestRepliesWithCreatedTab() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "52A01791-C69B-423B-B58E-021239595B1D")!
-    let groupID = UUID(uuidString: "BEA0180D-C5AF-4A85-96DD-5B6356C87CD8")!
+    let projectID = UUID(uuidString: "BEA0180D-C5AF-4A85-96DD-5B6356C87CD8")!
+    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
     let requestPayload = SupatermNewTabRequest(
       startupCommand: .exec(["pwd"], searchPath: "/usr/bin:/bin"),
       cwd: "/tmp/example",
       focus: false,
-      target: .group(groupID)
+      projectID: projectID,
+      target: .space(spaceID)
     )
     let request = SocketControlClient.Request(
       handle: handle,
@@ -32,7 +34,7 @@ struct SocketControlCreationTests {
       isSelectedTab: false,
       windowIndex: 1,
       spaceIndex: 2,
-      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      spaceID: spaceID,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 1,
@@ -54,7 +56,8 @@ struct SocketControlCreationTests {
               startupCommand: .exec(["pwd"], searchPath: "/usr/bin:/bin"),
               cwd: "/tmp/example",
               focus: false,
-              target: .group(groupID)
+              projectID: projectID,
+              target: .space(spaceID)
             )
         )
         return .createTab(expectedResult)
@@ -112,6 +115,7 @@ struct SocketControlCreationTests {
               startupCommand: nil,
               cwd: nil,
               focus: false,
+              projectID: nil,
               target: .pane(paneID)
             )
         )

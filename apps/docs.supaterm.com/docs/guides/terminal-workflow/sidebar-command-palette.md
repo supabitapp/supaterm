@@ -15,9 +15,9 @@ Each tab row can show:
 - a coding-agent running or attention state
 - a shortcut hint for the first ten tabs
 
-Root tabs and groups share one outline. Pinned root items remain before regular root items, while tabs within a group follow the group's order. Group cards show their name and color and can be collapsed without changing tab selection order. Spaces sit at the bottom. Update and release cards appear above the space bar when relevant.
+Non-empty Project sections appear in pinned-first catalog order, followed by Unassigned. Pinned Tabs precede regular Tabs inside each section. Project headers show the stored name, a root-derived icon or color marker, and can collapse without changing semantic Tab order. Spaces sit at the bottom. Update and release cards appear above the Space bar when relevant.
 
-Click a row to focus it, middle-click a tab to close it, or right-click for tab and group actions. Drag a root tab onto another root tab to create a group, onto a group to append it, or out of a group to promote it to the root. Drag a group to reorder it as one item. Pinning a grouped tab extracts it as a pinned root tab.
+Click a row to focus it, middle-click a Tab to close it, or right-click for Tab and Project actions. Drag a Tab onto a Project header to assign it without changing its pin lane. Drop at a row gap to adopt that lane and position. Drag onto Unassigned to clear membership. Drag a Project header to pin, unpin, or reorder the app-wide catalog.
 
 Toggle the sidebar with `Command-S`.
 

@@ -5,7 +5,8 @@ import SupatermUpdateFeature
 
 extension TerminalCommandExecutor {
   func treeSnapshot() -> SupatermTreeSnapshot {
-    let windows: [SupatermTreeSnapshot.Window] = registry.activeEntries().enumerated()
+    let activeEntries = registry.activeEntries()
+    let windows: [SupatermTreeSnapshot.Window] = activeEntries.enumerated()
       .map { offset, entry in
         SupatermTreeSnapshot.Window(
           index: offset + 1,
@@ -14,7 +15,10 @@ extension TerminalCommandExecutor {
           spaces: entry.terminal.treeSnapshot().windows.first?.spaces ?? []
         )
       }
-    return SupatermTreeSnapshot(windows: windows)
+    return SupatermTreeSnapshot(
+      projects: activeEntries.first?.terminal.treeSnapshot().projects ?? [],
+      windows: windows
+    )
   }
 
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
@@ -67,6 +71,7 @@ extension TerminalCommandExecutor {
         keyWindowIndex: windows.first(where: \.isKey)?.index
       ),
       currentTarget: resolution.currentTarget,
+      projects: activeEntries.first?.terminal.treeSnapshot().projects ?? [],
       windows: windows,
       problems: problems
     )

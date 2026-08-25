@@ -13,12 +13,12 @@ sp onboard
 
 Supaterm has four organizational levels:
 
-- **Spaces** separate areas of work.
-- **Groups** optionally collect related tabs inside a space.
-- **Tabs** live at a space root or inside a group.
+- **Projects** collect related Tabs across Spaces and windows.
+- **Spaces** keep each window's Tab list separate.
+- **Tabs** belong to a Space and may belong to a Project.
 - **Panes** are split terminal regions inside a tab.
 
-The sidebar shows spaces, root tabs, colored groups, pinned work, unread activity, working directories, and coding-agent status. Toggle it with `Command-S`.
+The sidebar shows Project sections, Unassigned Tabs, Spaces, pinned work, unread activity, working directories, and coding-agent status. Toggle it with `Command-S`.
 
 ![Supaterm sidebar with tabs and spaces.](/images/sidebar-full-dark.png)
 

@@ -22,7 +22,7 @@ struct TerminalSidebarDragCoordinatorTests {
     }
 
     let duplicateEnd = coordinator.nativeEnded()
-    #expect(receipt.result.itemIDs == [.tab(tabID)])
+    #expect(receipt.result.tabIDs == [tabID])
     #expect(receipt.result.location == destination)
     #expect(duplicateEnd == nil)
     coordinator.finish()
@@ -97,9 +97,8 @@ struct TerminalSidebarDragCoordinatorTests {
       spaceID: payload.topologyStamp.spaceID,
       result: TerminalTabMoveResult(
         operationID: TerminalTabMoveOperationID(),
-        itemIDs: payload.source.itemIDs,
+        tabIDs: [tabID],
         location: destination,
-        deletedEmptyGroupIDs: [],
         topologyRevision: 5
       )
     )
@@ -120,16 +119,11 @@ struct TerminalSidebarDragCoordinatorTests {
   }
 
   @Test
-  func completionOutcomeComesFromTheReceiptOrExternalTransfer() {
+  func externalCompletionMatchesTheDragOperation() {
     let tabID = TerminalTabID()
     let payload = TerminalSidebarTestFixture.payload(
       source: .tabs([tabID]),
       revision: 4
-    )
-    let receipt = TerminalSidebarTestFixture.moveReceipt(
-      payload: payload,
-      destination: .root(TerminalRootPlacement(isPinned: false, index: 0)),
-      revision: 5
     )
     var drag = TerminalSidebarActiveDrag(
       payload: payload,
@@ -138,20 +132,16 @@ struct TerminalSidebarDragCoordinatorTests {
       target: nil
     )
 
-    #expect(drag.registryOutcome(receipt: nil) == .cancelled)
-    #expect(drag.registryOutcome(receipt: receipt) == .moved)
     let rejected = drag.completeExternal(
       operationID: TerminalTabMoveOperationID(),
       sourceDisposition: .removed
     )
     #expect(!rejected)
-    #expect(drag.registryOutcome(receipt: nil) == .cancelled)
     let completed = drag.completeExternal(
       operationID: payload.operationID,
       sourceDisposition: .retained
     )
     #expect(completed)
     #expect(drag.externalCompletion == .moved(.retained))
-    #expect(drag.registryOutcome(receipt: nil) == .moved)
   }
 }

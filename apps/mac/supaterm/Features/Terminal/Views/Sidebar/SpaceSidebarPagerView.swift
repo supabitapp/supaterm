@@ -7,7 +7,7 @@ struct SpaceSidebarPagerView: View {
   let palette: Palette
   let isActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
-  let fixedHoveredGroupID: TerminalTabGroupID?
+  let fixedHoveredProjectID: TerminalProjectID?
   @Binding var position: Double?
 
   private struct Page: Identifiable {
@@ -59,7 +59,7 @@ struct SpaceSidebarPagerView: View {
         palette: pagePalette,
         swipe: swipe,
         controllerCache: sidebarControllerCache,
-        fixedHoveredGroupID: fixedHoveredGroupID
+        fixedHoveredProjectID: fixedHoveredProjectID
       )
     } else {
       SpaceSidebarPlaceholderView(space: page.space, palette: pagePalette)

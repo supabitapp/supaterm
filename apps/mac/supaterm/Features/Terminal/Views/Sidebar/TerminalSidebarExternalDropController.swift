@@ -25,8 +25,8 @@ extension TerminalTabDragPayload {
     }
     if tabIDs.count == itemIDs.count {
       source = .tabs(tabIDs)
-    } else if itemIDs.count == 1, case .group(let groupID) = itemIDs[0] {
-      source = .group(groupID)
+    } else if itemIDs.count == 1, case .project(let projectID) = itemIDs[0] {
+      source = .project(projectID)
     } else {
       return nil
     }
@@ -201,8 +201,8 @@ final class TerminalSidebarExternalDropController {
     switch source {
     case .tabs(let tabIDs):
       tabIDs.map(TerminalSidebarEntryID.tab)
-    case .group(let groupID):
-      [.group(groupID)]
+    case .project(let projectID):
+      [.project(projectID)]
     }
   }
 }

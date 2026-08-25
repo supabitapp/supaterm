@@ -75,7 +75,7 @@ struct SupatermMenuControllerTests {
       matching: [
         "app.supabit.supaterm.file.newWindow",
         "app.supabit.supaterm.file.newTab",
-        "app.supabit.supaterm.file.newTabInGroup",
+        "app.supabit.supaterm.file.newTabInProject",
         "app.supabit.supaterm.file.splitRight",
         "app.supabit.supaterm.file.splitLeft",
         "app.supabit.supaterm.file.splitDown",
@@ -677,7 +677,7 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func newTabInGroupShortcutRequiresSelectedGroup() throws {
+  func newTabInProjectShortcutRequiresSelectedProject() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -725,11 +725,11 @@ struct SupatermMenuControllerTests {
       )
 
       #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: event))
-      let groupID = try #require(
-        tabCollection.createGroup(title: "Group", containing: [tabID])
-      ).groupID
+      let projectID = try #require(
+        host.createProject(name: "Project", containing: [tabID])
+      ).projectID
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
-      #expect(tabCollection.group(for: groupID)?.tabs.count == 2)
+      #expect(host.projectSections().first { $0.id == projectID }?.tabs.count == 2)
     }
   }
 
@@ -1091,7 +1091,7 @@ struct SupatermMenuControllerTests {
       fileMenu.items.map(\.title) == [
         "New Window",
         "New Tab",
-        "New Tab in Group",
+        "New Tab in Project",
         "Open Command Palette",
         "",
         "Split Right",

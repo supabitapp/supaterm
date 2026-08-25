@@ -135,10 +135,10 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
   let selectedSpaceID: TerminalSpaceID?
   let spaces: [TerminalSpaceItem]
   let selectedTabID: TerminalTabID?
-  let rootItems: [TerminalTabRootItem]
+  let tabs: [TerminalTabItem]
 
   var visibleTabs: [TerminalTabItem] {
-    rootItems.flatMap(\.tabs)
+    tabs
   }
 
   var selectedSpace: TerminalSpaceItem? {
@@ -153,10 +153,7 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
 
   var selectedTabIsPinned: Bool {
     guard let selectedTabID else { return false }
-    return rootItems.contains { item in
-      guard case .tab(let tab) = item else { return false }
-      return tab.tab.id == selectedTabID && tab.isPinned
-    }
+    return tabs.first(where: { $0.id == selectedTabID })?.isPinned == true
   }
 
   var hasFocusedSurface: Bool {
@@ -178,7 +175,7 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
     selectedSpaceID: nil,
     spaces: [],
     selectedTabID: nil,
-    rootItems: []
+    tabs: []
   )
 }
 

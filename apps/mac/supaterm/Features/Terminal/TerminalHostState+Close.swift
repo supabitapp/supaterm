@@ -15,8 +15,10 @@ extension TerminalHostState {
     performCloseTab(tabID)
   }
 
-  func closeGroup(_ groupID: TerminalTabGroupID) {
-    performCloseGroup(groupID)
+  func closeProject(_ projectID: TerminalProjectID) {
+    if onProjectRemovalConfirmed(projectID) { return }
+    performCloseProject(projectID)
+    $projectCatalog.withLock { $0.projects.removeAll { $0.id == projectID } }
   }
 
   func closeTabs(_ tabIDs: [TerminalTabID]) {
@@ -71,19 +73,34 @@ extension TerminalHostState {
     emit(resolvedCloseRequest)
   }
 
-  func requestCloseGroup(_ groupID: TerminalTabGroupID) {
-    guard let manager = spaceManager.instance(for: groupID)?.tabCollection else { return }
-    guard !manager.tabIDs(in: groupID).isEmpty else {
-      _ = deleteEmptyGroup(groupID)
+  func requestCloseProject(_ projectID: TerminalProjectID) {
+    if onProjectRemovalRequested(projectID) { return }
+    let tabIDs = spaceManager.instances.flatMap { instance in
+      let warmIDs = instance.tabCollection.canonicalTabs.compactMap {
+        $0.projectID == projectID ? $0.id : nil
+      }
+      let coldIDs =
+        instance.pendingSession?.tabs.compactMap {
+          $0.projectID == projectID ? $0.id : nil
+        } ?? []
+      return warmIDs + coldIDs
+    }
+    guard !tabIDs.isEmpty else {
+      $projectCatalog.withLock { $0.projects.removeAll { $0.id == projectID } }
       return
     }
-    guard let resolvedCloseRequest = resolvedCloseRequest(for: .group(groupID)) else { return }
+    guard let resolvedCloseRequest = resolvedCloseRequest(for: .project(projectID)) else { return }
     emit(resolvedCloseRequest)
   }
 
   func requestCloseTabsBelow(_ tabID: TerminalTabID) {
     guard let tabCollection = spaceManager.instance(for: tabID)?.tabCollection else { return }
-    requestCloseTabs(tabCollection.tabIDsBelow(tabID))
+    requestCloseTabs(
+      tabCollection.tabIDsBelow(
+        tabID,
+        orderedProjectIDs: projectCatalog.projects.map(\.id)
+      )
+    )
   }
 
   func requestCloseOtherTabs(keeping tabIDs: [TerminalTabID]) {
@@ -94,7 +111,10 @@ extension TerminalHostState {
       return
     }
     let retained = Set(tabIDs)
-    requestCloseTabs(tabCollection.tabs.map(\.id).filter { !retained.contains($0) })
+    requestCloseTabs(
+      tabCollection.tabs(orderedProjectIDs: projectCatalog.projects.map(\.id))
+        .map(\.id).filter { !retained.contains($0) }
+    )
   }
 
   func requestCloseTabs(_ tabIDs: [TerminalTabID]) {
@@ -149,7 +169,10 @@ extension TerminalHostState {
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusHistoryByTab.removeValue(forKey: tabID)
-      instance?.tabCollection.closeTab(tabID)
+      _ = instance?.tabCollection.closeTab(
+        tabID,
+        orderedProjectIDs: projectCatalog.projects.map(\.id)
+      )
       if let instance {
         updateSelectionAfterClosingTab(
           in: instance.spaceID,
@@ -394,27 +417,22 @@ extension TerminalHostState {
         )
       )
 
-    case .group(let groupID):
-      guard let manager = spaceManager.instance(for: groupID)?.tabCollection else { return nil }
-      let tabIDs = manager.tabIDs(in: groupID)
-      guard !tabIDs.isEmpty else { return nil }
-      let groupNeedsCloseConfirmation =
-        tabIDs.count > 1
-        || Self.anyTabNeedsCloseConfirmation(
-          tabIDs,
-          tabNeedsCloseConfirmation: tabNeedsCloseConfirmation
-        )
-      if shouldCloseWindow(afterClosing: tabIDs) {
-        return .window(
-          needsConfirmation: needsConfirmationOverride
-            ?? groupNeedsCloseConfirmation
-        )
+    case .project(let projectID):
+      let tabIDs = spaceManager.instances.flatMap { instance in
+        let warmIDs = instance.tabCollection.canonicalTabs.compactMap {
+          $0.projectID == projectID ? $0.id : nil
+        }
+        let coldIDs =
+          instance.pendingSession?.tabs.compactMap {
+            $0.projectID == projectID ? $0.id : nil
+          } ?? []
+        return warmIDs + coldIDs
       }
+      guard !tabIDs.isEmpty else { return nil }
       return .request(
         TerminalCloseRequest(
-          target: .group(groupID),
-          needsConfirmation: needsConfirmationOverride
-            ?? groupNeedsCloseConfirmation
+          target: .project(projectID),
+          needsConfirmation: true
         )
       )
     }

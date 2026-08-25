@@ -14,7 +14,7 @@ final class TerminalSidebarDragController {
     let motionPolicy: TerminalSidebarMotionPolicy
     let canBeginDrag: Bool
     let swipe: SpaceSwipeController?
-    let groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView]
+    let projectBackgroundViews: [TerminalProjectID: TerminalSidebarProjectBackgroundView]
   }
 
   struct Host {
@@ -29,7 +29,7 @@ final class TerminalSidebarDragController {
         TerminalSidebarDropHandoff,
         @escaping DropHandoffCompletion
       ) -> Void
-    let setHoveredGroupID: (TerminalTabGroupID?) -> Void
+    let setHoveredProjectID: (TerminalProjectID?) -> Void
   }
 
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)?
@@ -142,7 +142,7 @@ final class TerminalSidebarDragController {
   }
 
   var isActive: Bool { activeDrag != nil }
-  var liftedGroupID: TerminalTabGroupID? { dragPresentation.groupID }
+  var liftedProjectID: TerminalProjectID? { dragPresentation.projectID }
 
   func disposition(
     for incoming: TerminalSidebarOutline,
@@ -210,7 +210,7 @@ final class TerminalSidebarDragController {
       selectPressedTab(entryID, modifiers: event.modifierFlags, content: content)
       return consumesClick
     }
-    if case .group(let groupID) = payload.source, content.context.renameState.groupID == groupID {
+    if case .project(let projectID) = payload.source, content.context.renameState.projectID == projectID {
       return consumesClick
     }
     guard
@@ -244,11 +244,11 @@ final class TerminalSidebarDragController {
     )
     nativeDragSession.prepareSourceCapture()
     switch entryID {
-    case .group:
+    case .project:
       return true
     case .tab:
       return true
-    case .pinDivider, .newTab:
+    case .unassigned, .pinDivider, .newTab:
       return false
     }
   }
@@ -304,16 +304,19 @@ final class TerminalSidebarDragController {
     self.pendingDrag = nil
     guard let content = host.content() else { return consumes }
     switch entryID {
-    case .group(let groupID):
+    case .project(let projectID):
       let location = collectionView.convert(event.locationInWindow, from: nil)
       let frame = host.indexPath(entryID).flatMap {
         collectionLayout.layoutAttributesForItem(at: $0)?.frame
       }
-      guard TerminalSidebarGroupClick.acceptsRelease(location, frame: frame) else { return true }
-      content.context.actions.toggleGroupCollapsed(groupID)
+      guard TerminalSidebarProjectClick.acceptsRelease(location, frame: frame) else { return true }
+      content.context.actions.toggleProjectCollapsed(projectID)
       return true
     case .tab:
       resolveDeferredSelection(pendingDrag, content: content)
+      return true
+    case .unassigned:
+      content.context.actions.toggleUnassignedCollapsed()
       return true
     case .pinDivider, .newTab:
       return consumes
@@ -410,7 +413,7 @@ final class TerminalSidebarDragController {
   ) -> Bool {
     guard content.canBeginDrag, content.swipe?.isTracking != true else { return false }
     let pointer = collectionView.convert(event.locationInWindow, from: nil)
-    if case .group = pendingDrag.entryID {
+    if case .project = pendingDrag.entryID {
       content.context.tabSelectionState.clear()
     }
     guard
@@ -420,8 +423,8 @@ final class TerminalSidebarDragController {
       )
     else { return false }
     let liftedEntryIDs = content.outline.liftedEntryIDs(for: payload.source)
-    host.setHoveredGroupID(nil)
-    content.context.groupHeaderHoverState.set(nil)
+    host.setHoveredProjectID(nil)
+    content.context.projectHeaderHoverState.set(nil)
     guard
       let geometry = TerminalSidebarDragSourceGeometry.resolve(
         payload: payload,
@@ -437,6 +440,7 @@ final class TerminalSidebarDragController {
         sourceWindowID: sourceWindowID,
         sourceSpaceID: payload.topologyStamp.spaceID,
         sourceTopologyRevision: payload.topologyStamp.revision,
+        orderedProjectIDs: content.context.terminal.projects.map(\.id),
         itemIDs: payload.source.itemIDs
       ),
       nativeDragSession.register(
@@ -473,7 +477,7 @@ final class TerminalSidebarDragController {
     dragPresentation.begin(
       TerminalSidebarDragPresentation.Lift(
         rows: liftedRows,
-        groupBackground: liftedGroupBackground(for: payload.source, content: content),
+        projectBackground: liftedProjectBackground(for: payload.source, content: content),
         fanAnchorIndex: geometry.fanAnchorIndex,
         sourceFrame: geometry.frame,
         hotspot: CGPoint(x: pointer.x - geometry.frame.minX, y: pointer.y - geometry.frame.minY),
@@ -563,7 +567,7 @@ final class TerminalSidebarDragController {
     view.update(
       surfaceFrame: TerminalSidebarLayout.tabSurfaceFrame(
         in: sourceFrame,
-        isGrouped: presentation.groupID != nil
+        isProjected: presentation.projectID != nil
       ),
       style: .resolve(palette: content.context.palette),
       alpha: 1,
@@ -572,17 +576,17 @@ final class TerminalSidebarDragController {
     return TerminalSidebarLiftedSelectionSurface(view: view)
   }
 
-  private func liftedGroupBackground(
+  private func liftedProjectBackground(
     for source: TerminalSidebarDragSource,
     content: Content
-  ) -> TerminalSidebarLiftedGroupBackground? {
+  ) -> TerminalSidebarLiftedProjectBackground? {
     guard
-      case .group(let groupID) = source,
-      let view = content.groupBackgroundViews[groupID]
+      case .project(let projectID) = source,
+      let view = content.projectBackgroundViews[projectID]
     else {
       return nil
     }
-    return TerminalSidebarLiftedGroupBackground(id: groupID, view: view, sourceFrame: view.frame)
+    return TerminalSidebarLiftedProjectBackground(id: projectID, view: view, sourceFrame: view.frame)
   }
 
   private func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
@@ -716,7 +720,7 @@ final class TerminalSidebarDragController {
         "sidebar.drag.receiptSuccess",
         fields: TerminalSidebarDragLog.activeFields(activeDrag.payload) + [
           "receiptRevision=\(receipt.topologyRevision)",
-          "deletedGroupCount=\(receipt.deletedEmptyGroupIDs.count)",
+          "deletedProjectCount=\(receipt.deletedEmptyProjectIDs.count)",
         ]
       )
     } else {
@@ -924,8 +928,8 @@ final class TerminalSidebarDragController {
         height: sourceFrame.height
       )
     }
-    if let groupID = collectionLayout.plan.highlightedGroupID,
-      let frame = collectionLayout.plan.groups.first(where: { $0.id == groupID })?.frame
+    if let projectID = collectionLayout.plan.highlightedProjectID,
+      let frame = collectionLayout.plan.projects.first(where: { $0.id == projectID })?.frame
     {
       return frame
     }
@@ -950,7 +954,7 @@ final class TerminalSidebarDragController {
         let presentation = content.rows[id]
       else { return nil }
       switch presentation {
-      case .tab, .group: break
+      case .tab, .project, .unassigned: break
       case .pinDivider, .newTab: return nil
       }
       item.view.wantsLayer = true
@@ -966,10 +970,7 @@ final class TerminalSidebarDragController {
 
   private func finishDragging(receipt: TerminalSidebarDropReceipt? = nil) {
     guard var activeDrag else { return }
-    nativeDragSession.finish(
-      operationID: activeDrag.payload.operationID,
-      outcome: activeDrag.registryOutcome(receipt: receipt)
-    )
+    nativeDragSession.finish(operationID: activeDrag.payload.operationID)
     activeDrag.coordinator.finish()
     let liftedEntryIDs = activeDrag.liftedEntryIDs
     let externalSourceDisposition = activeDrag.externalCompletion.sourceDisposition

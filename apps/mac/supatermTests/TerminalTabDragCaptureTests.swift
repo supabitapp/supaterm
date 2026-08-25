@@ -154,14 +154,14 @@ struct TerminalTabDragCaptureTests {
     #expect(fixture.prepareSourceCapture())
     #expect(fixture.session.register(firstPayload, didTransfer: { _, _ in }))
     try await capture.waitForStarts(1)
-    fixture.session.finish(operationID: firstPayload.moveOperationID, outcome: .cancelled)
+    fixture.session.finish(operationID: firstPayload.moveOperationID)
 
     #expect(fixture.prepareSourceCapture())
     #expect(fixture.session.register(currentPayload, didTransfer: { _, _ in }))
     _ = fixture.session.move(to: CGPoint(x: 5_000, y: 5_000))
     try await capture.waitForStarts(2)
 
-    fixture.session.finish(operationID: firstPayload.moveOperationID, outcome: .cancelled)
+    fixture.session.finish(operationID: firstPayload.moveOperationID)
     capture.complete(at: 1, with: currentImage)
     try await fixture.waitForCaptureResolutions(1)
     #expect(imagesMatch(fixture.presenter.shownImage, currentImage))
@@ -202,6 +202,7 @@ struct TerminalTabDragCaptureTests {
       sourceWindowID: UUID(),
       sourceSpaceID: TerminalSpaceID(),
       sourceTopologyRevision: 0,
+      orderedProjectIDs: [],
       itemIDs: [.tab(TerminalTabID())]
     )
   }

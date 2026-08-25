@@ -27,13 +27,7 @@ extension TerminalCommandExecutor {
         $0.terminal.tabID(containing: paneID) != nil
           || $0.terminal.spaceManager.pendingInstance(containingSurface: paneID) != nil
       }
-    case .group(let groupID):
-      let groupID = TerminalTabGroupID(rawValue: groupID)
-      return registry.activeEntries().filter {
-        $0.terminal.spaceManager.instance(for: groupID) != nil
-          || $0.terminal.spaceManager.pendingInstance(containingGroup: groupID) != nil
-      }
-    case .root, .space:
+    case .space:
       return registry.ambientEntries(for: request.context)
     }
   }

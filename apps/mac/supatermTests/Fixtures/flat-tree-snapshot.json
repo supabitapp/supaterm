@@ -1,0 +1,68 @@
+{
+  "projects": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "name": "Work",
+      "rootPath": "/tmp/work",
+      "color": "purple",
+      "isPinned": true
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "name": "Notes",
+      "color": "neutral",
+      "isPinned": false
+    }
+  ],
+  "windows": [{
+    "index": 1,
+    "isKey": true,
+    "displayedSpaceID": "20000000-0000-4000-8000-000000000001",
+    "spaces": [{
+      "index": 1,
+      "id": "20000000-0000-4000-8000-000000000001",
+      "name": "Main",
+      "color": "blue",
+      "isWarm": true,
+      "collapsedProjectIDs": ["10000000-0000-4000-8000-000000000002"],
+      "isUnassignedCollapsed": false,
+      "tabs": [
+        {
+          "id": "30000000-0000-4000-8000-000000000001",
+          "title": "Pinned Work",
+          "projectID": "10000000-0000-4000-8000-000000000001",
+          "isPinned": true,
+          "isSelected": true,
+          "panes": [{
+            "index": 1,
+            "id": "40000000-0000-4000-8000-000000000001",
+            "isFocused": true
+          }]
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000002",
+          "title": "Regular Work",
+          "projectID": "10000000-0000-4000-8000-000000000001",
+          "isPinned": false,
+          "isSelected": false,
+          "panes": [{
+            "index": 1,
+            "id": "40000000-0000-4000-8000-000000000002",
+            "isFocused": true
+          }]
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000003",
+          "title": "Unassigned",
+          "isPinned": false,
+          "isSelected": false,
+          "panes": [{
+            "index": 1,
+            "id": "40000000-0000-4000-8000-000000000003",
+            "isFocused": true
+          }]
+        }
+      ]
+    }]
+  }]
+}

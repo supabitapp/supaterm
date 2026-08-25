@@ -42,7 +42,7 @@ final class SupatermMenuController: NSObject {
     static let settings = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.settings")
     static let newWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newWindow")
     static let newTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTab")
-    static let newTabInGroup = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTabInGroup")
+    static let newTabInProject = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTabInProject")
     static let splitRight = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.splitRight")
     static let splitLeft = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.splitLeft")
     static let splitDown = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.splitDown")
@@ -268,7 +268,7 @@ final class SupatermMenuController: NSObject {
       entries: [
         .item(MenuItemIdentifier.newWindow),
         .item(MenuItemIdentifier.newTab),
-        .item(MenuItemIdentifier.newTabInGroup),
+        .item(MenuItemIdentifier.newTabInProject),
         .item(MenuItemIdentifier.openCommandPalette),
         .separator,
         .item(MenuItemIdentifier.splitRight),
@@ -477,11 +477,11 @@ final class SupatermMenuController: NSObject {
         shortcut: .command(.newTab)
       ),
       SupatermMenuItemSpec(
-        id: MenuItemIdentifier.newTabInGroup,
-        title: "New Tab in Group",
-        action: #selector(newTabInGroup(_:)),
+        id: MenuItemIdentifier.newTabInProject,
+        title: "New Tab in Project",
+        action: #selector(newTabInProject(_:)),
         symbol: "rectangle.3.group",
-        shortcut: .appRouted(.newTabInGroup)
+        shortcut: .appRouted(.newTabInProject)
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.openCommandPalette,
@@ -1015,8 +1015,8 @@ final class SupatermMenuController: NSObject {
     registry.requestNewTabInKeyWindow()
   }
 
-  @objc func newTabInGroup(_ sender: Any?) {
-    registry.requestNewTabInSelectedGroupInKeyWindow()
+  @objc func newTabInProject(_ sender: Any?) {
+    registry.requestNewTabInSelectedProjectInKeyWindow()
   }
 
   @objc func splitRight(_ sender: Any?) {
@@ -1427,8 +1427,8 @@ extension SupatermMenuController: NSMenuItemValidation {
       MenuItemIdentifier.closeAllWindows,
       MenuItemIdentifier.toggleSidebar:
       return context.availability.hasWindow
-    case MenuItemIdentifier.newTabInGroup:
-      return context.hasSelectedGroup
+    case MenuItemIdentifier.newTabInProject:
+      return context.hasSelectedProject
     case MenuItemIdentifier.splitRight,
       MenuItemIdentifier.splitLeft,
       MenuItemIdentifier.splitDown,

@@ -2,14 +2,14 @@ import XCTest
 
 enum SidebarRootExpectation: Equatable, CustomStringConvertible {
   case tab(String)
-  case group(String, children: [String])
+  case project(String, children: [String])
 
   var description: String {
     switch self {
     case .tab(let title):
       "tab(\(title))"
-    case .group(let title, let children):
-      "group(\(title): \(children.joined(separator: ", ")))"
+    case .project(let title, let children):
+      "project(\(title): \(children.joined(separator: ", ")))"
     }
   }
 }
@@ -21,8 +21,8 @@ extension SupatermUITestCase {
       NSPredicate(
         format: "identifier BEGINSWITH %@ OR (identifier BEGINSWITH %@ AND identifier CONTAINS %@)",
         SupatermUITestIdentifier.Accessibility.sidebarRootTabRowPrefix,
-        SupatermUITestIdentifier.Accessibility.sidebarGroupPrefix,
-        SupatermUITestIdentifier.Accessibility.sidebarGroupedTabMarker
+        SupatermUITestIdentifier.Accessibility.sidebarProjectPrefix,
+        SupatermUITestIdentifier.Accessibility.sidebarProjectTabMarker
       )
     )
   }
@@ -43,11 +43,11 @@ extension SupatermUITestCase {
   }
 
   @MainActor
-  var sidebarGroupHeaders: XCUIElementQuery {
+  var sidebarProjectHeaders: XCUIElementQuery {
     sidebarStructuralRows.matching(
       NSPredicate(
         format: "identifier BEGINSWITH %@",
-        SupatermUITestIdentifier.Accessibility.sidebarGroupHeaderPrefix
+        SupatermUITestIdentifier.Accessibility.sidebarProjectHeaderPrefix
       )
     )
   }
@@ -88,14 +88,19 @@ extension SupatermUITestCase {
   }
 
   @MainActor
-  func sidebarGroupHeader(named title: String) -> XCUIElement {
+  func sidebarProjectHeader(named title: String) -> XCUIElement {
     app.buttons.matching(
       NSPredicate(
         format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
-        SupatermUITestIdentifier.Accessibility.sidebarGroupHeaderPrefix,
+        SupatermUITestIdentifier.Accessibility.sidebarProjectHeaderPrefix,
         title
       )
     ).firstMatch
+  }
+
+  @MainActor
+  var sidebarUnassignedHeader: XCUIElement {
+    app.buttons[SupatermUITestIdentifier.Accessibility.sidebarUnassignedHeader]
   }
 
   @MainActor
@@ -135,19 +140,19 @@ extension SupatermUITestCase {
   }
 
   @MainActor
-  func createGroup(named title: String, containing tabTitle: String) async throws {
-    try clickSidebarContextMenuItem("Move to New Group", on: sidebarTabRow(named: tabTitle))
+  func createProject(named title: String, containing tabTitle: String) async throws {
+    try clickSidebarContextMenuItem("Move to New Project", on: sidebarTabRow(named: tabTitle))
 
-    let titleField = try require(app.textFields["Group name"])
+    let titleField = try require(app.textFields["Project name"])
     titleField.click()
     titleField.typeKey("a", modifierFlags: .command)
     titleField.typeText(title)
     titleField.typeKey(.return, modifierFlags: [])
 
-    let didCreateGroup = await wait {
-      self.sidebarGroupHeader(named: title).exists
+    let didCreateProject = await wait {
+      self.sidebarProjectHeader(named: title).exists
     }
-    XCTAssertTrue(didCreateGroup)
+    XCTAssertTrue(didCreateProject)
   }
 
   @MainActor
@@ -312,7 +317,7 @@ extension SupatermUITestCase {
         SupatermUITestIdentifier.Accessibility.sidebarRootTabRowPrefix
       )
         || row.identifier.hasPrefix(
-          SupatermUITestIdentifier.Accessibility.sidebarGroupHeaderPrefix
+          SupatermUITestIdentifier.Accessibility.sidebarProjectHeaderPrefix
         )
     }
     guard roots.count == expected.count else { return false }
@@ -328,16 +333,16 @@ extension SupatermUITestCase {
           control.exists,
           control.label.contains(title)
         else { return false }
-      case .group(let title, let expectedChildren):
-        let prefix = SupatermUITestIdentifier.Accessibility.sidebarGroupHeaderPrefix
+      case .project(let title, let expectedChildren):
+        let prefix = SupatermUITestIdentifier.Accessibility.sidebarProjectHeaderPrefix
         guard row.identifier.hasPrefix(prefix) else { return false }
         let header = sidebarSemanticControl(for: row)
         guard header.exists, header.label.contains(title) else { return false }
-        let groupID = String(row.identifier.dropFirst(prefix.count))
+        let projectID = String(row.identifier.dropFirst(prefix.count))
         let childPrefix =
-          SupatermUITestIdentifier.Accessibility.sidebarGroupPrefix
-          + groupID
-          + SupatermUITestIdentifier.Accessibility.sidebarGroupedTabMarker
+          SupatermUITestIdentifier.Accessibility.sidebarProjectPrefix
+          + projectID
+          + SupatermUITestIdentifier.Accessibility.sidebarProjectTabMarker
         let children = rows.filter { $0.identifier.hasPrefix(childPrefix) }
         guard children.count == expectedChildren.count else { return false }
         guard

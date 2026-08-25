@@ -16,20 +16,20 @@ extension SnapshotCatalog {
       AnyView(
         SidebarChromeSnapshotFixture(
           appearance: appearance,
-          fixedHoveredGroupID: nil
+          fixedHoveredProjectID: nil
         )
       )
     },
     scenario(
-      "full-group-hover",
+      "full-project-hover",
       group: "Sidebar",
-      title: "Full sidebar group hover",
+      title: "Full sidebar Project hover",
       size: CGSize(width: 280, height: 560)
     ) { appearance in
       AnyView(
         SidebarChromeSnapshotFixture(
           appearance: appearance,
-          fixedHoveredGroupID: SidebarChromeSnapshotContext.groupID
+          fixedHoveredProjectID: SidebarChromeSnapshotContext.projectID
         )
       )
     },
@@ -42,7 +42,7 @@ extension SnapshotCatalog {
       AnyView(
         SidebarChromeSnapshotFixture(
           appearance: appearance,
-          fixedHoveredGroupID: nil
+          fixedHoveredProjectID: nil
         )
       )
     },
@@ -55,7 +55,7 @@ extension SnapshotCatalog {
       AnyView(
         SidebarChromeSnapshotFixture(
           appearance: appearance,
-          fixedHoveredGroupID: nil,
+          fixedHoveredProjectID: nil,
           terminal: SidebarChromeSnapshotContext.selectedBeforeNewTabTerminal
         )
       )
@@ -87,15 +87,15 @@ extension SnapshotCatalog {
       )
     },
     scenario(
-      "window-controls-group",
+      "window-controls-project",
       group: "Sidebar",
-      title: "Window controls above selected group",
+      title: "Window controls above selected Project",
       size: CGSize(width: 560, height: 220)
     ) { appearance in
       AnyView(
         SidebarWindowControlsSnapshotFixture(
           appearance: appearance,
-          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal
+          terminal: SidebarChromeSnapshotContext.selectedProjectTerminal
         )
       )
     },
@@ -580,10 +580,10 @@ private struct SidebarRowSnapshotFixture: View {
 enum SidebarChromeSnapshotContext {
   static let commandHold = CommandHoldObserver()
   static let ghosttyShortcuts = GhosttyShortcutManager(runtime: nil)
-  static let groupID = TerminalTabGroupID(
+  static let projectID = TerminalProjectID(
     rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000001")
   )
-  static let regularGroupID = TerminalTabGroupID(
+  static let regularProjectID = TerminalProjectID(
     rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000002")
   )
 
@@ -596,37 +596,32 @@ enum SidebarChromeSnapshotContext {
         name: name
       )
     }
-    let terminal = makeTerminal(space: spaces[0], spaces: spaces)
-    let regularGroupTab = tab("43", title: "supaterm - fish")
-    let selectedGroupTab = tab("44", title: "release-check")
-    let rootItems = [
-      rootTab("41", title: "dotfiles", isPinned: true),
-      rootTab("42", title: "notes", isPinned: true),
-      TerminalTabRootItem.group(
-        TerminalTabGroupItem(
-          id: groupID,
-          title: "Release",
-          color: .neutral,
-          isPinned: true,
-          tabs: [
-            selectedGroupTab,
-            tab("45", title: "agent playground"),
-          ]
-        )
+    let projects = [
+      TerminalProject(
+        id: projectID,
+        name: "Release",
+        color: .neutral,
+        isPinned: true
       ),
-      TerminalTabRootItem.group(
-        TerminalTabGroupItem(
-          id: regularGroupID,
-          title: "Product",
-          color: .red,
-          isPinned: false,
-          tabs: [regularGroupTab]
-        )
+      TerminalProject(
+        id: regularProjectID,
+        name: "Product",
+        color: .red
       ),
     ]
-    terminal.spaceManager.restoreRootItems(
-      rootItems,
-      selectedTabID: selectedGroupTab.id,
+    let terminal = makeTerminal(space: spaces[0], spaces: spaces, projects: projects)
+    let regularProjectTab = tab("43", title: "supaterm - fish", projectID: regularProjectID)
+    let selectedProjectTab = tab("44", title: "release-check", projectID: projectID)
+    let tabs = [
+      rootTab("41", title: "dotfiles", isPinned: true),
+      rootTab("42", title: "notes", isPinned: true),
+      selectedProjectTab,
+      tab("45", title: "agent playground", projectID: projectID),
+      regularProjectTab,
+    ]
+    terminal.spaceManager.restoreTabs(
+      tabs,
+      selectedTabID: selectedProjectTab.id,
       in: spaces[0].id
     )
     return terminal
@@ -641,22 +636,15 @@ enum SidebarChromeSnapshotContext {
     )
     let terminal = makeTerminal(space: space, spaces: [space])
     let selectedTab = tab("46", title: "Home / X")
-    terminal.spaceManager.restoreRootItems(
-      [
-        .tab(
-          TerminalUngroupedTabItem(
-            tab: selectedTab,
-            isPinned: false
-          )
-        )
-      ],
+    terminal.spaceManager.restoreTabs(
+      [selectedTab],
       selectedTabID: selectedTab.id,
       in: space.id
     )
     return terminal
   }()
 
-  static let selectedGroupTerminal: TerminalHostState = {
+  static let selectedProjectTerminal: TerminalHostState = {
     let space = TerminalSpaceItem(
       id: TerminalSpaceID(
         rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-000000000005")
@@ -664,22 +652,21 @@ enum SidebarChromeSnapshotContext {
       name: "supaterm",
       color: .green
     )
-    let terminal = makeTerminal(space: space, spaces: [space])
-    let selectedTab = tab("47", title: "/Users/Developer/code/github.com/supabitapp/supaterm")
-    terminal.spaceManager.restoreRootItems(
-      [
-        .group(
-          TerminalTabGroupItem(
-            id: TerminalTabGroupID(
-              rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000003")
-            ),
-            title: "🎨 Supaterm",
-            color: .yellow,
-            isPinned: false,
-            tabs: [selectedTab]
-          )
-        )
-      ],
+    let projectID = TerminalProjectID(
+      rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000003")
+    )
+    let terminal = makeTerminal(
+      space: space,
+      spaces: [space],
+      projects: [TerminalProject(id: projectID, name: "🎨 Supaterm", color: .yellow)]
+    )
+    let selectedTab = tab(
+      "47",
+      title: "/Users/Developer/code/github.com/supabitapp/supaterm",
+      projectID: projectID
+    )
+    terminal.spaceManager.restoreTabs(
+      [selectedTab],
       selectedTabID: selectedTab.id,
       in: space.id
     )
@@ -708,15 +695,18 @@ enum SidebarChromeSnapshotContext {
 
   private static func makeTerminal(
     space: TerminalSpaceItem,
-    spaces: [TerminalSpaceItem]
+    spaces: [TerminalSpaceItem],
+    projects: [TerminalProject] = []
   ) -> TerminalHostState {
     withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      @Shared(.terminalProjectCatalog) var projectCatalog = TerminalProjectCatalog.default
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: spaces)
       }
+      $projectCatalog.withLock { $0 = TerminalProjectCatalog(projects: projects) }
       return TerminalHostState(managesTerminalSurfaces: false, spaceID: space.id)
     }
   }
@@ -735,24 +725,23 @@ enum SidebarChromeSnapshotContext {
     _ id: String,
     title: String,
     isPinned: Bool = false
-  ) -> TerminalTabRootItem {
-    .tab(
-      TerminalUngroupedTabItem(
-        tab: tab(id, title: title),
-        isPinned: isPinned
-      )
-    )
+  ) -> TerminalTabItem {
+    tab(id, title: title, isPinned: isPinned)
   }
 
   private static func tab(
     _ id: String,
-    title: String
+    title: String,
+    projectID: TerminalProjectID? = nil,
+    isPinned: Bool = false
   ) -> TerminalTabItem {
     TerminalTabItem(
       id: TerminalTabID(
         rawValue: SnapshotFixtureValues.uuid("40000000-0000-0000-0000-0000000000\(id)")
       ),
-      title: title
+      title: title,
+      projectID: projectID,
+      isPinned: isPinned
     )
   }
 }
@@ -791,7 +780,7 @@ private struct SpacePageDotsSnapshotFixture: View {
 
 private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
-  let fixedHoveredGroupID: TerminalTabGroupID?
+  let fixedHoveredProjectID: TerminalProjectID?
   var terminal = SidebarChromeSnapshotContext.terminal
   @State private var sidebarControllerCache = TerminalSidebarControllerCache(
     windowControllerID: UUID(),
@@ -812,7 +801,7 @@ private struct SidebarChromeSnapshotFixture: View {
       terminal: terminal,
       isPagingActive: false,
       sidebarControllerCache: sidebarControllerCache,
-      fixedHoveredGroupID: fixedHoveredGroupID,
+      fixedHoveredProjectID: fixedHoveredProjectID,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)

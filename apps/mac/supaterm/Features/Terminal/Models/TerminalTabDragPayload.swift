@@ -1,8 +1,13 @@
 import Foundation
 
 nonisolated enum TerminalTabDragItemKind: String, Codable, Sendable {
-  case group
+  case project
   case tab
+}
+
+nonisolated enum TerminalTabDragItemID: Hashable, Sendable {
+  case project(TerminalProjectID)
+  case tab(TerminalTabID)
 }
 
 nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
@@ -10,34 +15,35 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     let id: UUID
     let kind: TerminalTabDragItemKind
 
-    init(_ itemID: TerminalTabRootItemID) {
+    init(_ itemID: TerminalTabDragItemID) {
       switch itemID {
-      case .group(let groupID):
-        id = groupID.rawValue
-        kind = .group
+      case .project(let projectID):
+        id = projectID.rawValue
+        kind = .project
       case .tab(let tabID):
         id = tabID.rawValue
         kind = .tab
       }
     }
 
-    var rootItemID: TerminalTabRootItemID {
+    var itemID: TerminalTabDragItemID {
       switch kind {
-      case .group:
-        .group(TerminalTabGroupID(rawValue: id))
+      case .project:
+        .project(TerminalProjectID(rawValue: id))
       case .tab:
         .tab(TerminalTabID(rawValue: id))
       }
     }
   }
 
-  static let schemaVersion = 1
+  static let schemaVersion = 2
 
   let version: Int
   let operationID: UUID
   let sourceWindowID: UUID
   let sourceSpaceID: TerminalSpaceID
   let sourceTopologyRevision: UInt64
+  let orderedProjectIDs: [TerminalProjectID]
   let items: [Item]
 
   init?(
@@ -45,7 +51,8 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     sourceWindowID: UUID,
     sourceSpaceID: TerminalSpaceID,
     sourceTopologyRevision: UInt64,
-    itemIDs: [TerminalTabRootItemID]
+    orderedProjectIDs: [TerminalProjectID],
+    itemIDs: [TerminalTabDragItemID]
   ) {
     guard !itemIDs.isEmpty, Set(itemIDs).count == itemIDs.count else { return nil }
     version = Self.schemaVersion
@@ -53,6 +60,7 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     self.sourceWindowID = sourceWindowID
     self.sourceSpaceID = sourceSpaceID
     self.sourceTopologyRevision = sourceTopologyRevision
+    self.orderedProjectIDs = orderedProjectIDs
     items = itemIDs.map(Item.init)
   }
 
@@ -60,18 +68,26 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     TerminalTabMoveOperationID(rawValue: operationID)
   }
 
-  var itemIDs: [TerminalTabRootItemID] {
-    items.map(\.rootItemID)
+  var itemIDs: [TerminalTabDragItemID] {
+    items.map(\.itemID)
+  }
+
+  var tabIDs: [TerminalTabID] {
+    itemIDs.compactMap {
+      guard case .tab(let tabID) = $0 else { return nil }
+      return tabID
+    }
   }
 
   var singleTabID: TerminalTabID? {
-    guard items.count == 1, items[0].kind == .tab else { return nil }
-    return TerminalTabID(rawValue: items[0].id)
+    guard itemIDs.count == 1, case .tab(let tabID) = itemIDs[0] else { return nil }
+    return tabID
   }
 
   var isValid: Bool {
     version == Self.schemaVersion
       && !items.isEmpty
       && Set(items).count == items.count
+      && Set(orderedProjectIDs).count == orderedProjectIDs.count
   }
 }

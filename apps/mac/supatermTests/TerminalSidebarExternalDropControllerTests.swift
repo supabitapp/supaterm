@@ -26,6 +26,7 @@ struct SidebarExternalDropControllerTests {
         sourceWindowID: UUID(),
         sourceSpaceID: TerminalSidebarTestFixture.secondarySpaceID,
         sourceTopologyRevision: 2,
+        orderedProjectIDs: [],
         itemIDs: [.tab(draggedTabID)]
       )
     )

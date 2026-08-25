@@ -43,81 +43,53 @@ struct SPCommandTests {
   }
 
   @Test
-  func groupParsersAcceptPublicCommandShapes() throws {
-    let groupID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
-    let create = try #require(
+  func projectParsersAcceptPublicCommandShapes() throws {
+    let projectID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
+    let add = try #require(
       try SP.parseAsRoot([
-        "group", "new", "Work", "--color", "blue", "--pin", "--in", "2",
-      ]) as? SP.GroupNew
+        "project", "add", "Work", "--root", "/tmp/work", "--color", "blue", "--pin",
+      ]) as? SP.ProjectAdd
     )
-    let rename = try #require(
-      try SP.parseAsRoot(["group", "rename", "Build", groupID.uuidString]) as? SP.GroupRename
+    let pin = try #require(
+      try SP.parseAsRoot(["project", "pin", projectID.uuidString]) as? SP.ProjectPin
     )
-    let move = try #require(
-      try SP.parseAsRoot(["group", "move", "Work", "--index", "2"]) as? SP.GroupMove
+    let reorder = try #require(
+      try SP.parseAsRoot(["project", "reorder", "Work", "--index", "2"])
+        as? SP.ProjectReorder
     )
-    let close = try #require(
-      try SP.parseAsRoot(["group", "close", "Work", "-y"]) as? SP.GroupClose
-    )
-    let collapse = try #require(
-      try SP.parseAsRoot(["group", "collapse"]) as? SP.GroupCollapse
+    let remove = try #require(
+      try SP.parseAsRoot(["project", "remove", "Work", "-y"]) as? SP.ProjectRemove
     )
 
-    #expect(create.title == "Work")
-    #expect(create.color == .blue)
-    #expect(create.pin)
-    #expect(create.space == .index(2))
-    #expect(rename.title == "Build")
-    #expect(rename.group == .id(groupID))
-    #expect(move.group == .title("Work"))
-    #expect(move.index == 2)
-    #expect(close.group == .title("Work"))
-    #expect(close.yes)
-    #expect(collapse.group == nil)
+    #expect(add.name == "Work")
+    #expect(add.root == "/tmp/work")
+    #expect(add.color == .blue)
+    #expect(add.pin)
+    #expect(pin.project == .id(projectID))
+    #expect(reorder.project == .name("Work"))
+    #expect(reorder.index == 2)
+    #expect(remove.project == .name("Work"))
+    #expect(remove.yes)
   }
 
   @Test
-  func moveTabParsesExclusiveGroupAndRootDestinations() throws {
-    let grouped = try #require(
-      try SP.parseAsRoot(["tab", "move", "1/2", "--group", "Work", "--index", "1"])
+  func moveTabParsesProjectAndUnassignedDestinations() throws {
+    let assigned = try #require(
+      try SP.parseAsRoot(["tab", "move", "1/2", "--project", "Work", "--index", "1"])
         as? SP.MoveTab
     )
-    let rooted = try #require(
-      try SP.parseAsRoot(["tab", "move", "1/2", "--root", "--index", "2", "--pin"])
-        as? SP.MoveTab
-    )
-
-    #expect(try grouped.destinationReference() == .group(.title("Work")))
-    #expect(grouped.index == 1)
-    #expect(try rooted.destinationReference() == .root)
-    #expect(rooted.index == 2)
-    #expect(rooted.pin)
-  }
-
-  @Test
-  func moveTabRejectsMissingConflictingAndPinnedGroupDestinations() throws {
-    let missing = try #require(
-      try SP.parseAsRoot(["tab", "move", "1/2"]) as? SP.MoveTab
-    )
-    let conflicting = try #require(
-      try SP.parseAsRoot(["tab", "move", "1/2", "--group", "Work", "--root"])
-        as? SP.MoveTab
-    )
-    let pinnedGroup = try #require(
-      try SP.parseAsRoot(["tab", "move", "1/2", "--group", "Work", "--pin"])
+    let unassigned = try #require(
+      try SP.parseAsRoot(["tab", "move", "1/2", "--unassigned", "--index", "2", "--pin"])
         as? SP.MoveTab
     )
 
-    #expect(throws: ValidationError.self) { try missing.destinationReference() }
-    #expect(throws: ValidationError.self) { try conflicting.destinationReference() }
-    #expect(throws: ValidationError.self) { try pinnedGroup.destinationReference() }
-  }
-
-  @Test
-  func newTabRejectsGroupAndRootTogether() throws {
-    #expect(throws: (any Error).self) {
-      try SP.parseAsRoot(["tab", "new", "--group", "Work", "--root"])
-    }
+    #expect(assigned.project == .name("Work"))
+    #expect(!assigned.unassigned)
+    #expect(assigned.index == 1)
+    #expect(unassigned.project == nil)
+    #expect(unassigned.unassigned)
+    #expect(unassigned.index == 2)
+    #expect(unassigned.pin)
   }
 
   @Test
@@ -771,6 +743,7 @@ struct SPCommandTests {
       let message = String(describing: error)
       #expect(
         message.contains("1 or greater")
+          || message.contains("1-based")
           || message.contains("space selector")
           || message.contains("tab selector")
           || message.contains("tab target")

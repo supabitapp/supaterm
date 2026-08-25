@@ -13,9 +13,6 @@ struct SessionPersistenceStateTests {
           TerminalSpaceSession(
             spaceID: Self.spaceID,
             selectedTabID: nil,
-            nodes: [],
-            groups: [],
-            collapsedGroupIDs: [],
             tabs: []
           )
         ]
