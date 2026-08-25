@@ -122,12 +122,7 @@ nonisolated enum TerminalTabSplitDropLayout {
       dx: TerminalChromeMetrics.paneInset,
       dy: TerminalChromeMetrics.paneInset
     )
-    return CGRect(
-      x: paneFrame.minX,
-      y: paneFrame.minY,
-      width: max(0, paneFrame.width),
-      height: max(0, paneFrame.height - TerminalChromeMetrics.detailToolbarHeight)
-    )
+    return paneFrame
   }
 }
 

@@ -600,12 +600,12 @@ final class TerminalHostState {
     }
   }
 
-  func performSplitOperation(
-    _ operation: TerminalSplitTreeView.Operation, in tabID: TerminalTabID
+  func performSplitMutation(
+    _ mutation: TerminalSplitTreeView.TreeMutation, in tabID: TerminalTabID
   ) {
     guard var tree = trees[tabID] else { return }
 
-    switch operation {
+    switch mutation {
     case .resize(let node, let ratio):
       let resizedNode = node.resizing(to: ratio)
       do {
@@ -640,15 +640,6 @@ final class TerminalHostState {
       trees[tabID] = tree.equalized()
       sessionDidChange()
 
-    case .agentPanelCopyText,
-      .agentPanelForkSessionRequested,
-      .agentPanelVisibilityToggled,
-      .agentPanelURLTapped,
-      .equalizePanes,
-      .splitPane,
-      .togglePaneZoom,
-      .toggleSidebar:
-      break
     }
   }
 

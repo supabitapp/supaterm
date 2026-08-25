@@ -2,42 +2,6 @@ import AppKit
 import SupaTheme
 import SupatermCLIShared
 import SwiftUI
-import UniformTypeIdentifiers
-
-struct TerminalNotificationPulseSegment: Equatable {
-  let delay: TimeInterval
-  let duration: TimeInterval
-  let targetOpacity: Double
-}
-
-enum TerminalNotificationPulsePattern {
-  static let initialOpacity = 1.0
-  static let lowOpacity = 0.32
-  static let totalDuration: TimeInterval = 1.0
-  static let targetOpacities: [Double] = [
-    lowOpacity,
-    initialOpacity,
-    lowOpacity,
-    initialOpacity,
-    lowOpacity,
-    initialOpacity,
-    0,
-  ]
-
-  static var stepDuration: TimeInterval {
-    totalDuration / Double(targetOpacities.count)
-  }
-
-  static var segments: [TerminalNotificationPulseSegment] {
-    targetOpacities.enumerated().map { index, targetOpacity in
-      TerminalNotificationPulseSegment(
-        delay: Double(index) * stepDuration,
-        duration: stepDuration,
-        targetOpacity: targetOpacity
-      )
-    }
-  }
-}
 
 struct TerminalSplitTreeView: View {
   let agentPanelPresentations: [UUID: PaneAgentPanelPresentation]
@@ -57,83 +21,12 @@ struct TerminalSplitTreeView: View {
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
 
-  enum OuterEdgeBranch {
-    case left
-    case right
-  }
-
-  struct OuterEdges: OptionSet, Equatable {
-    let rawValue: Int
-
-    static let top = Self(rawValue: 1 << 0)
-    static let bottom = Self(rawValue: 1 << 1)
-    static let leading = Self(rawValue: 1 << 2)
-    static let trailing = Self(rawValue: 1 << 3)
-    static let all: Self = [.top, .bottom, .leading, .trailing]
-
-    func child(_ branch: OuterEdgeBranch, in direction: SplitTree<GhosttySurfaceView>.Direction) -> Self {
-      switch (direction, branch) {
-      case (.horizontal, .left):
-        removing(.trailing)
-      case (.horizontal, .right):
-        removing(.leading)
-      case (.vertical, .left):
-        removing(.bottom)
-      case (.vertical, .right):
-        removing(.top)
-      }
-    }
-
-    func paneInsets(outer: CGFloat, inner: CGFloat) -> EdgeInsets {
-      EdgeInsets(
-        top: contains(.top) ? outer : inner,
-        leading: contains(.leading) ? outer : inner,
-        bottom: contains(.bottom) ? outer : inner,
-        trailing: contains(.trailing) ? outer : inner
-      )
-    }
-
-    private func removing(_ edges: Self) -> Self {
-      TerminalSplitTreeView.OuterEdges(rawValue: rawValue & ~edges.rawValue)
-    }
-  }
-
-  struct PaneChromeConfiguration {
-    let canEqualize: Bool
-    let defaultTitles: [UUID: String]
-    let isSidebarCollapsed: Bool
-    let showsSidebarAttentionIndicator: Bool
-    let sidebarPaneID: UUID
-    let zoomedPaneID: UUID?
-  }
-
-  private static let dragType = UTType(exportedAs: "sh.supacode.ghosttySurfaceId")
-  private static func dragProvider(for surfaceView: GhosttySurfaceView) -> NSItemProvider {
-    let provider = NSItemProvider()
-    let data = surfaceView.id.uuidString.data(using: .utf8) ?? Data()
-    provider.registerDataRepresentation(
-      forTypeIdentifier: dragType.identifier,
-      visibility: .all
-    ) { completion in
-      completion(data, nil)
-      return nil
-    }
-    return provider
-  }
-
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
       let paneChrome = PaneChromeConfiguration(
-        canEqualize: tree.isSplit,
-        defaultTitles: Dictionary(
-          uniqueKeysWithValues: tree.leaves().enumerated().map { index, surfaceView in
-            (surfaceView.id, "Pane \(index + 1)")
-          }
-        ),
         isSidebarCollapsed: isSidebarCollapsed,
         showsSidebarAttentionIndicator: showsSidebarAttentionIndicator,
-        sidebarPaneID: node.leftmostLeaf().id,
-        zoomedPaneID: tree.zoomed?.leftmostLeaf().id
+        tree: tree
       )
       SubtreeView(
         agentPanelPresentations: agentPanelPresentations,
@@ -159,9 +52,7 @@ struct TerminalSplitTreeView: View {
   }
 
   enum Operation: Equatable {
-    case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
-    case drop(payloadId: UUID, destinationId: UUID, zone: TerminalSplitDropZone)
-    case equalize
+    case mutateTree(TreeMutation)
     case equalizePanes(UUID)
     case splitPane(UUID, TerminalPaneSplitDirection)
     case togglePaneZoom(UUID)
@@ -174,6 +65,12 @@ struct TerminalSplitTreeView: View {
     )
     case agentPanelVisibilityToggled(UUID)
     case agentPanelURLTapped(URL)
+  }
+
+  enum TreeMutation: Equatable {
+    case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
+    case drop(payloadId: UUID, destinationId: UUID, zone: TerminalSplitDropZone)
+    case equalize
   }
 
   enum AgentPanelOverlayState: Equatable {
@@ -235,9 +132,11 @@ struct TerminalSplitTreeView: View {
               CGFloat(split.ratio)
             },
             set: {
-              action(.resize(node: node, ratio: Double($0)))
+              action(.mutateTree(.resize(node: node, ratio: Double($0))))
             }),
           dividerColor: splitDividerColor,
+          minimumLeftSize: TerminalSplitLayout.minimumSize(for: split.left),
+          minimumRightSize: TerminalSplitLayout.minimumSize(for: split.right),
           resizeIncrements: CGSize(width: 1, height: 1),
           left: {
             SubtreeView(
@@ -280,7 +179,7 @@ struct TerminalSplitTreeView: View {
             )
           },
           onEqualize: {
-            action(.equalize)
+            action(.mutateTree(.equalize))
           }
         )
       }
@@ -333,12 +232,22 @@ struct TerminalSplitTreeView: View {
 
     private var title: String {
       surfaceView.resolvedDisplayTitle(
-        defaultValue: paneChrome.defaultTitles[surfaceView.id] ?? "Pane"
+        defaultValue: TerminalHostState.paneFallbackTitle(
+          for: surfaceView.id,
+          in: paneChrome.tree
+        )
       )
     }
 
     private var backgroundColor: Color {
       Color(nsColor: surfaceView.bridge.state.effectiveBackgroundColorWithOpacity)
+    }
+
+    private var panePalette: Palette {
+      Self.palette(
+        for: surfaceView.bridge.state.effectiveBackgroundColor,
+        inheriting: palette
+      )
     }
 
     var body: some View {
@@ -349,7 +258,7 @@ struct TerminalSplitTreeView: View {
           isSidebarCollapsed: paneChrome.isSidebarCollapsed,
           showsSidebarAttentionIndicator: paneChrome.showsSidebarAttentionIndicator,
           showsSidebarButton: paneChrome.sidebarPaneID == surfaceView.id,
-          palette: palette,
+          palette: panePalette,
           backgroundColor: backgroundColor,
           paneID: surfaceView.id,
           equalizePanes: {
@@ -369,11 +278,13 @@ struct TerminalSplitTreeView: View {
             action(.togglePaneZoom(surfaceView.id))
           }
         )
+        .accessibilityHidden(true)
 
         GeometryReader { geometry in
           terminalContent(in: geometry)
         }
       }
+      .background(backgroundColor)
       .compositingGroup()
       .clipShape(paneShape)
       .shadow(
@@ -640,6 +551,14 @@ struct TerminalSplitTreeView: View {
 
     static func hasVisibleAttention(isUnread: Bool, showsGlowingPaneRing: Bool) -> Bool {
       isUnread && showsGlowingPaneRing
+    }
+
+    static func palette(for backgroundColor: NSColor, inheriting palette: Palette) -> Palette {
+      Palette(
+        colorScheme: GhosttySurfaceConfig.colorScheme(for: backgroundColor),
+        referencePalette: palette.referencePalette,
+        tint: palette.tint
+      )
     }
 
     static func shouldDimSplit(
@@ -1071,528 +990,6 @@ struct TerminalSplitTreeView: View {
         .onDrag {
           TerminalSplitTreeView.dragProvider(for: surfaceView)
         }
-    }
-  }
-
-  enum DropState: Equatable {
-    case idle
-    case dropping(TerminalSplitDropZone)
-  }
-
-  struct SplitDropDelegate: DropDelegate {
-    @Binding var dropState: DropState
-    let viewSize: CGSize
-    let destinationId: UUID
-    let action: (Operation) -> Void
-
-    func validateDrop(info: DropInfo) -> Bool {
-      info.hasItemsConforming(to: [TerminalSplitTreeView.dragType])
-    }
-
-    func dropEntered(info: DropInfo) {
-      dropState = .dropping(.calculate(at: info.location, in: viewSize))
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-      guard case .dropping = dropState else { return DropProposal(operation: .forbidden) }
-      dropState = .dropping(.calculate(at: info.location, in: viewSize))
-      return DropProposal(operation: .move)
-    }
-
-    func dropExited(info: DropInfo) {
-      dropState = .idle
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-      let zone = TerminalSplitDropZone.calculate(at: info.location, in: viewSize)
-      dropState = .idle
-
-      let providers = info.itemProviders(for: [TerminalSplitTreeView.dragType])
-      guard let provider = providers.first else { return false }
-      provider.loadDataRepresentation(
-        forTypeIdentifier: TerminalSplitTreeView.dragType.identifier
-      ) { data, _ in
-        guard let data,
-          let raw = String(data: data, encoding: .utf8),
-          let payloadId = UUID(uuidString: raw)
-        else { return }
-        Task { @MainActor in
-          action(.drop(payloadId: payloadId, destinationId: destinationId, zone: zone))
-        }
-      }
-      return true
-    }
-  }
-
-}
-
-extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
-
-enum TerminalSplitAXPathComponent: Hashable {
-  case left
-  case right
-}
-
-struct TerminalSplitAXPath: Hashable {
-  let components: [TerminalSplitAXPathComponent]
-
-  static let root = Self(components: [])
-
-  func appending(_ component: TerminalSplitAXPathComponent) -> Self {
-    TerminalSplitAXPath(components: components + [component])
-  }
-}
-
-enum TerminalSplitAXDirection: Equatable {
-  case horizontal
-  case vertical
-}
-
-struct TerminalSplitDividerAXDescriptor: Equatable {
-  let path: TerminalSplitAXPath
-  let direction: TerminalSplitAXDirection
-  let ratio: Double
-  let splitBounds: CGRect
-  let frameInParentSpace: CGRect
-
-  nonisolated var accessibilityLabel: String {
-    switch direction {
-    case .horizontal:
-      "Horizontal split divider"
-    case .vertical:
-      "Vertical split divider"
-    }
-  }
-
-  nonisolated var accessibilityHelp: String {
-    switch direction {
-    case .horizontal:
-      "Drag to resize the left and right panes"
-    case .vertical:
-      "Drag to resize the top and bottom panes"
-    }
-  }
-
-  nonisolated var accessibilityValue: String {
-    "\(Int(ratio * 100))%"
-  }
-
-  nonisolated func adjustedRatio(
-    step: CGFloat = TerminalSplitMetrics.dividerAdjustmentStep,
-    incrementing: Bool
-  ) -> Double {
-    let splitDimension =
-      switch direction {
-      case .horizontal: splitBounds.width
-      case .vertical: splitBounds.height
-      }
-    guard splitDimension > 0 else { return ratio }
-    let delta = Double(step / splitDimension) * (incrementing ? 1 : -1)
-    let minimumPaneSize =
-      switch direction {
-      case .horizontal: TerminalSplitMetrics.minimumPaneWidth
-      case .vertical: TerminalSplitMetrics.minimumPaneHeight
-      }
-    let minimumRatio = min(0.5, Double(minimumPaneSize / splitDimension))
-    let maximumRatio = 1 - minimumRatio
-    return max(minimumRatio, min(maximumRatio, ratio + delta))
-  }
-}
-
-enum TerminalSplitAccessibility {
-  static func dividerDescriptors<ViewType: NSView & Identifiable>(
-    for node: SplitTree<ViewType>.Node?,
-    in bounds: CGRect
-  ) -> [TerminalSplitDividerAXDescriptor] {
-    guard let node else { return [] }
-    return dividerDescriptors(
-      for: node,
-      path: .root,
-      in: bounds
-    )
-  }
-
-  private static func dividerDescriptors<ViewType: NSView & Identifiable>(
-    for node: SplitTree<ViewType>.Node,
-    path: TerminalSplitAXPath,
-    in bounds: CGRect
-  ) -> [TerminalSplitDividerAXDescriptor] {
-    switch node {
-    case .leaf:
-      return []
-
-    case .split(let split):
-      let thickness = TerminalSplitMetrics.dividerHitboxSize
-      let midpoint = thickness / 2
-      let leftBounds: CGRect
-      let rightBounds: CGRect
-      let frameInParentSpace: CGRect
-
-      switch split.direction {
-      case .horizontal:
-        let splitX = bounds.minX + bounds.width * split.ratio
-        leftBounds = CGRect(
-          x: bounds.minX,
-          y: bounds.minY,
-          width: bounds.width * split.ratio,
-          height: bounds.height
-        )
-        rightBounds = CGRect(
-          x: splitX,
-          y: bounds.minY,
-          width: bounds.width * (1 - split.ratio),
-          height: bounds.height
-        )
-        frameInParentSpace = CGRect(
-          x: splitX - midpoint,
-          y: bounds.minY,
-          width: thickness,
-          height: bounds.height
-        )
-
-      case .vertical:
-        let splitY = bounds.minY + bounds.height * split.ratio
-        leftBounds = CGRect(
-          x: bounds.minX,
-          y: bounds.minY,
-          width: bounds.width,
-          height: bounds.height * split.ratio
-        )
-        rightBounds = CGRect(
-          x: bounds.minX,
-          y: splitY,
-          width: bounds.width,
-          height: bounds.height * (1 - split.ratio)
-        )
-        frameInParentSpace = CGRect(
-          x: bounds.minX,
-          y: splitY - midpoint,
-          width: bounds.width,
-          height: thickness
-        )
-      }
-
-      let direction: TerminalSplitAXDirection =
-        switch split.direction {
-        case .horizontal:
-          .horizontal
-        case .vertical:
-          .vertical
-        }
-
-      let descriptor = TerminalSplitDividerAXDescriptor(
-        path: path,
-        direction: direction,
-        ratio: split.ratio,
-        splitBounds: bounds,
-        frameInParentSpace: frameInParentSpace
-      )
-
-      let leftPath = path.appending(.left)
-      let rightPath = path.appending(.right)
-
-      return [descriptor]
-        + dividerDescriptors(for: split.left, path: leftPath, in: leftBounds)
-        + dividerDescriptors(for: split.right, path: rightPath, in: rightBounds)
-    }
-  }
-}
-
-// MARK: - Accessibility Container
-
-/// Wraps the SwiftUI split tree in an AppKit view so we can expose an ordered
-/// list of terminal panes to assistive technologies.
-struct TerminalSplitTreeAXContainer: NSViewRepresentable {
-  let agentPanelPresentations: [UUID: PaneAgentPanelPresentation]
-  let dimmingColor: Color
-  let dimmingOpacity: Double
-  let focusedSurfaceID: UUID?
-  let hiddenAgentPanelSurfaceIDs: Set<UUID>
-  let isSidebarCollapsed: Bool
-  let notificationColor: Color
-  let palette: Palette
-  let agentPanelForksDown: Bool
-  let agentPanelShortcutHint: String?
-  let showsGlowingPaneRing: Bool
-  let showsSidebarAttentionIndicator: Bool
-  let splitDividerColor: Color
-  let tree: SplitTree<GhosttySurfaceView>
-  let unreadSurfaceIDs: Set<UUID>
-  let action: (TerminalSplitTreeView.Operation) -> Void
-
-  func makeNSView(context: Context) -> TerminalSplitAXContainerView {
-    TerminalSplitAXContainerView(backgroundColor: backgroundColor)
-  }
-
-  func updateNSView(_ nsView: TerminalSplitAXContainerView, context: Context) {
-    let visibleNode = tree.zoomed ?? tree.root
-    let visiblePanes = visibleNode?.leaves() ?? []
-    nsView.update(
-      backgroundColor: backgroundColor,
-      rootView: TerminalSplitTreeView(
-        agentPanelPresentations: agentPanelPresentations,
-        dimmingColor: dimmingColor,
-        dimmingOpacity: dimmingOpacity,
-        focusedSurfaceID: focusedSurfaceID,
-        hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
-        isSidebarCollapsed: isSidebarCollapsed,
-        notificationColor: notificationColor,
-        palette: palette,
-        agentPanelForksDown: agentPanelForksDown,
-        agentPanelShortcutHint: agentPanelShortcutHint,
-        showsGlowingPaneRing: showsGlowingPaneRing,
-        showsSidebarAttentionIndicator: showsSidebarAttentionIndicator,
-        splitDividerColor: splitDividerColor,
-        tree: tree,
-        unreadSurfaceIDs: unreadSurfaceIDs,
-        action: action
-      ),
-      visibleNode: visibleNode,
-      action: action,
-      panes: visiblePanes
-    )
-  }
-
-  private var backgroundColor: NSColor {
-    tree.isSplit ? .clear : NSColor(palette.detailBackground)
-  }
-}
-
-private final class TerminalSplitHostingView: NSHostingView<TerminalSplitTreeView> {
-  nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
-
-  override var mouseDownCanMoveWindow: Bool { false }
-}
-
-final class TerminalSplitAXContainerView: NSView {
-  private let backgroundView = NSView()
-  private(set) var backgroundColor: NSColor
-  private var hostingView: TerminalSplitHostingView?
-  private var visibleNode: SplitTree<GhosttySurfaceView>.Node?
-  private var panes: [GhosttySurfaceView] = []
-  private var dividerElements: [TerminalSplitAXDividerElement] = []
-  private var dividerElementsByPath: [TerminalSplitAXPath: TerminalSplitAXDividerElement] = [:]
-  private var panesLabel: String = "Terminal split: 0 panes"
-  private var lastPaneIDs: [UUID] = []
-  private var lastDividerPaths: [TerminalSplitAXPath] = []
-  private var action: ((TerminalSplitTreeView.Operation) -> Void)?
-
-  nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
-
-  init(backgroundColor: NSColor) {
-    self.backgroundColor = backgroundColor
-    super.init(frame: .zero)
-    backgroundView.wantsLayer = true
-    backgroundView.layer?.backgroundColor = backgroundColor.cgColor
-    backgroundView.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(backgroundView)
-    NSLayoutConstraint.activate([
-      backgroundView.leadingAnchor.constraint(equalTo: leadingAnchor),
-      backgroundView.trailingAnchor.constraint(equalTo: trailingAnchor),
-      backgroundView.topAnchor.constraint(equalTo: topAnchor),
-      backgroundView.bottomAnchor.constraint(equalTo: bottomAnchor),
-    ])
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) is unavailable")
-  }
-
-  func update(
-    backgroundColor: NSColor,
-    rootView: TerminalSplitTreeView,
-    visibleNode: SplitTree<GhosttySurfaceView>.Node?,
-    action: @escaping (TerminalSplitTreeView.Operation) -> Void,
-    panes: [GhosttySurfaceView]
-  ) {
-    if self.backgroundColor != backgroundColor {
-      self.backgroundColor = backgroundColor
-      backgroundView.layer?.backgroundColor = backgroundColor.cgColor
-    }
-    if let hostingView {
-      hostingView.rootView = rootView
-    } else {
-      let hostingView = TerminalSplitHostingView(rootView: rootView)
-      hostingView.wantsLayer = true
-      hostingView.layer?.zPosition = 1
-      hostingView.translatesAutoresizingMaskIntoConstraints = false
-      addSubview(hostingView)
-      NSLayoutConstraint.activate([
-        hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
-        hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
-        hostingView.topAnchor.constraint(equalTo: topAnchor),
-        hostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
-      ])
-      self.hostingView = hostingView
-    }
-
-    self.visibleNode = visibleNode
-    self.action = action
-    let newPaneIDs = panes.map(\.id)
-    self.panes = panes
-    panesLabel = "Terminal split: \(panes.count) pane" + (panes.count == 1 ? "" : "s")
-
-    for (index, pane) in panes.enumerated() {
-      pane.setAccessibilityIdentifier("terminal.pane.\(pane.id.uuidString)")
-      pane.setAccessibilityPaneIndex(index: index + 1, total: panes.count)
-      pane.setAccessibilityParent(self)
-    }
-
-    refreshAccessibilityDividers(postLayoutChanged: newPaneIDs != lastPaneIDs)
-    lastPaneIDs = newPaneIDs
-  }
-
-  override func layout() {
-    super.layout()
-    refreshAccessibilityDividers(postLayoutChanged: false)
-  }
-
-  func adjustDivider(
-    at path: TerminalSplitAXPath,
-    incrementing: Bool
-  ) -> Bool {
-    guard
-      let visibleNode,
-      let descriptor = dividerElementsByPath[path]?.descriptor,
-      let node = visibleNode.node(at: splitTreePath(for: path)),
-      let action,
-      case .split = node
-    else {
-      return false
-    }
-
-    let nextRatio = descriptor.adjustedRatio(incrementing: incrementing)
-    guard nextRatio != descriptor.ratio else { return true }
-    action(.resize(node: node, ratio: nextRatio))
-    return true
-  }
-
-  private func refreshAccessibilityDividers(postLayoutChanged: Bool) {
-    let descriptors = TerminalSplitAccessibility.dividerDescriptors(
-      for: visibleNode,
-      in: bounds
-    )
-    let previousElementsByPath = dividerElementsByPath
-    let previousDividerPaths = lastDividerPaths
-    let dividerPaths = descriptors.map(\.path)
-    var nextElements: [TerminalSplitAXDividerElement] = []
-    var nextElementsByPath: [TerminalSplitAXPath: TerminalSplitAXDividerElement] = [:]
-    var valueChangedElements: [TerminalSplitAXDividerElement] = []
-
-    for descriptor in descriptors {
-      let element =
-        previousElementsByPath[descriptor.path]
-        ?? TerminalSplitAXDividerElement(container: self, descriptor: descriptor)
-      if let previousDescriptor = previousElementsByPath[descriptor.path]?.descriptor,
-        previousDescriptor.ratio != descriptor.ratio
-      {
-        valueChangedElements.append(element)
-      }
-      element.descriptor = descriptor
-      nextElements.append(element)
-      nextElementsByPath[descriptor.path] = element
-    }
-
-    dividerElements = nextElements
-    dividerElementsByPath = nextElementsByPath
-    lastDividerPaths = dividerPaths
-
-    if postLayoutChanged || dividerPaths != previousDividerPaths {
-      NSAccessibility.post(element: self, notification: .layoutChanged)
-      return
-    }
-
-    for element in valueChangedElements {
-      NSAccessibility.post(element: element, notification: .valueChanged)
-    }
-  }
-
-  override func isAccessibilityElement() -> Bool {
-    true
-  }
-
-  override func accessibilityRole() -> NSAccessibility.Role? {
-    NSAccessibility.Role(rawValue: "AXSplitGroup")
-  }
-
-  override func accessibilityLabel() -> String? {
-    panesLabel
-  }
-
-  override func accessibilityChildren() -> [Any]? {
-    var children: [Any] = panes
-    if let hostingView {
-      children.append(hostingView)
-    }
-    children.append(contentsOf: dividerElements)
-    return children
-  }
-
-  private func splitTreePath(for path: TerminalSplitAXPath) -> SplitTree<GhosttySurfaceView>.Path {
-    SplitTree<GhosttySurfaceView>.Path(
-      path: path.components.map { component in
-        switch component {
-        case .left:
-          .left
-        case .right:
-          .right
-        }
-      }
-    )
-  }
-}
-
-nonisolated final class TerminalSplitAXDividerElement: NSAccessibilityElement {
-  weak var container: TerminalSplitAXContainerView?
-  var descriptor: TerminalSplitDividerAXDescriptor
-
-  init(
-    container: TerminalSplitAXContainerView,
-    descriptor: TerminalSplitDividerAXDescriptor
-  ) {
-    self.container = container
-    self.descriptor = descriptor
-    super.init()
-  }
-
-  override func accessibilityParent() -> Any? {
-    container
-  }
-
-  override func accessibilityFrameInParentSpace() -> NSRect {
-    descriptor.frameInParentSpace
-  }
-
-  override func accessibilityRole() -> NSAccessibility.Role? {
-    .splitter
-  }
-
-  override func accessibilityLabel() -> String? {
-    descriptor.accessibilityLabel
-  }
-
-  override func accessibilityHelp() -> String? {
-    descriptor.accessibilityHelp
-  }
-
-  override func accessibilityValue() -> Any? {
-    descriptor.accessibilityValue
-  }
-
-  override func accessibilityPerformIncrement() -> Bool {
-    guard let container else { return false }
-    let path = descriptor.path
-    return MainActor.assumeIsolated {
-      container.adjustDivider(at: path, incrementing: true)
-    }
-  }
-
-  override func accessibilityPerformDecrement() -> Bool {
-    guard let container else { return false }
-    let path = descriptor.path
-    return MainActor.assumeIsolated {
-      container.adjustDivider(at: path, incrementing: false)
     }
   }
 }

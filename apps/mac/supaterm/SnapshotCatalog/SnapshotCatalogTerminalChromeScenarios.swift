@@ -36,8 +36,7 @@ extension SnapshotCatalog {
       AnyView(
         TerminalChromeSnapshotFixture(
           appearance: appearance,
-          paneTitles: ["supaterm"],
-          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal
+          paneTitles: ["supaterm"]
         )
       )
     },
@@ -55,8 +54,7 @@ extension SnapshotCatalog {
             "tests — supaterm",
             "server — supaterm",
             "docs — supaterm",
-          ],
-          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal
+          ]
         )
       )
     },
@@ -150,7 +148,6 @@ private struct SpaceSwitcherHoverSnapshotFixture: View {
 @MainActor
 private struct TerminalChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
-  let paneTitles: [String]
   let terminal: TerminalHostState
   @State private var sidebarControllerCache = TerminalSidebarControllerCache(
     windowControllerID: UUID(),
@@ -162,6 +159,14 @@ private struct TerminalChromeSnapshotFixture: View {
     Palette(
       colorScheme: appearance.colorScheme,
       tint: terminal.displayedSpace.color
+    )
+  }
+
+  init(appearance: SnapshotAppearance, paneTitles: [String]) {
+    self.appearance = appearance
+    self.terminal = SidebarChromeSnapshotContext.terminalChromeTerminal(
+      appearance: appearance,
+      paneTitles: paneTitles
     )
   }
 
@@ -179,7 +184,14 @@ private struct TerminalChromeSnapshotFixture: View {
       )
       .frame(width: 228)
 
-      TerminalPaneChromeSnapshotFixture(palette: palette, titles: paneTitles)
+      if let selectedTabID = terminal.selectedTabID {
+        TerminalDetailView(
+          store: SidebarChromeSnapshotContext.windowStore(),
+          palette: palette,
+          terminal: terminal,
+          selectedTabID: selectedTabID
+        )
+      }
     }
     .coordinateSpace(name: TerminalCoordinateSpace.split)
     .environment(SidebarChromeSnapshotContext.commandHold)
@@ -192,6 +204,7 @@ private struct TerminalChromeSnapshotFixture: View {
 @MainActor
 private struct FloatingSidebarSnapshotFixture: View {
   let appearance: SnapshotAppearance
+  let terminal: TerminalHostState
   @State private var sidebarControllerCache = TerminalSidebarControllerCache(
     windowControllerID: UUID(),
     tabDragRegistry: TerminalTabDragRegistry(),
@@ -201,13 +214,28 @@ private struct FloatingSidebarSnapshotFixture: View {
   private var palette: Palette {
     Palette(
       colorScheme: appearance.colorScheme,
-      tint: SidebarChromeSnapshotContext.selectedGroupTerminal.displayedSpace.color
+      tint: terminal.displayedSpace.color
+    )
+  }
+
+  init(appearance: SnapshotAppearance) {
+    self.appearance = appearance
+    self.terminal = SidebarChromeSnapshotContext.terminalChromeTerminal(
+      appearance: appearance,
+      paneTitles: ["supaterm"]
     )
   }
 
   var body: some View {
     ZStack(alignment: .leading) {
-      TerminalPaneChromeSnapshotFixture(palette: palette, titles: ["supaterm"])
+      if let selectedTabID = terminal.selectedTabID {
+        TerminalDetailView(
+          store: SidebarChromeSnapshotContext.windowStore(),
+          palette: palette,
+          terminal: terminal,
+          selectedTabID: selectedTabID
+        )
+      }
 
       TerminalSidebarSurfaceShell(palette: palette, isFloating: true) {
         TerminalSidebarView(
@@ -215,7 +243,7 @@ private struct FloatingSidebarSnapshotFixture: View {
           updateStore: SidebarChromeSnapshotContext.updateStore(),
           releaseAnnouncement: nil,
           palette: palette,
-          terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
+          terminal: terminal,
           isPagingActive: true,
           sidebarControllerCache: sidebarControllerCache,
           dismissReleaseAnnouncement: {}
@@ -227,97 +255,6 @@ private struct FloatingSidebarSnapshotFixture: View {
     .environment(SidebarChromeSnapshotContext.ghosttyShortcuts)
     .background(ChromeBackgroundView(palette: palette))
     .environment(\.colorScheme, appearance.colorScheme)
-  }
-}
-
-private struct TerminalPaneChromeSnapshotFixture: View {
-  let palette: Palette
-  let titles: [String]
-
-  private var isSplit: Bool {
-    titles.count > 1
-  }
-
-  var body: some View {
-    Group {
-      if titles.count == 4 {
-        HStack(spacing: 0) {
-          VStack(spacing: 0) {
-            pane(index: 0, title: titles[0])
-            pane(index: 2, title: titles[2])
-          }
-          VStack(spacing: 0) {
-            pane(index: 1, title: titles[1])
-            pane(index: 3, title: titles[3])
-          }
-        }
-      } else {
-        HStack(spacing: 0) {
-          ForEach(Array(titles.enumerated()), id: \.offset) { index, title in
-            pane(index: index, title: title)
-          }
-        }
-      }
-    }
-    .background(isSplit ? Color.clear : palette.detailBackground)
-  }
-
-  private func pane(index: Int, title: String) -> some View {
-    VStack(spacing: 0) {
-      TerminalPaneTopBar(
-        canEqualize: isSplit,
-        isPaneZoomed: false,
-        isSidebarCollapsed: false,
-        showsSidebarAttentionIndicator: false,
-        showsSidebarButton: index == 0,
-        palette: palette,
-        backgroundColor: palette.detailBackground,
-        paneID: SnapshotFixtureValues.uuid(
-          "60000000-0000-0000-0000-00000000000\(index)"
-        ),
-        equalizePanes: {},
-        toggleSidebar: {},
-        title: title,
-        splitDown: {},
-        splitRight: {},
-        togglePaneZoom: {}
-      )
-      palette.detailBackground
-    }
-    .compositingGroup()
-    .clipShape(
-      RoundedRectangle(
-        cornerRadius: isSplit ? TerminalChromeMetrics.paneCornerRadius : 0,
-        style: .continuous
-      )
-    )
-    .shadow(
-      color: palette.detailShadow.opacity(isSplit ? 1 : 0),
-      radius: 2,
-      x: 0,
-      y: 1
-    )
-    .padding(paneInsets(index: index))
-  }
-
-  private func paneInsets(index: Int) -> EdgeInsets {
-    guard isSplit else {
-      return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
-    }
-    var outerEdges = TerminalSplitTreeView.OuterEdges.all
-    let horizontalBranch: TerminalSplitTreeView.OuterEdgeBranch =
-      index.isMultiple(of: 2)
-      ? .left
-      : .right
-    outerEdges = outerEdges.child(horizontalBranch, in: .horizontal)
-    if titles.count == 4 {
-      let verticalBranch: TerminalSplitTreeView.OuterEdgeBranch = index < 2 ? .left : .right
-      outerEdges = outerEdges.child(verticalBranch, in: .vertical)
-    }
-    return outerEdges.paneInsets(
-      outer: TerminalChromeMetrics.paneInset,
-      inner: TerminalChromeMetrics.paneGap / 2
-    )
   }
 }
 

@@ -403,7 +403,7 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test
-  func tabSplitDropSurfaceStartsBelowTheDetailToolbar() {
+  func tabSplitDropSurfaceCoversTheFullPaneArea() {
     let detailFrame = CGRect(x: 240, y: 0, width: 760, height: 700)
 
     #expect(
@@ -412,9 +412,7 @@ struct TerminalWindowShellControllerTests {
           x: 240 + TerminalChromeMetrics.paneInset,
           y: TerminalChromeMetrics.paneInset,
           width: 760 - (TerminalChromeMetrics.paneInset * 2),
-          height: 700
-            - TerminalChromeMetrics.detailToolbarHeight
-            - (TerminalChromeMetrics.paneInset * 2)
+          height: 700 - (TerminalChromeMetrics.paneInset * 2)
         )
     )
   }

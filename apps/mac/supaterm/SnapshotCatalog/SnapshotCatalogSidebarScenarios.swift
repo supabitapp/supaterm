@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import GhosttyKit
 import Sharing
 import SupaTheme
 import SupatermUpdateFeature
@@ -656,7 +657,9 @@ enum SidebarChromeSnapshotContext {
     return terminal
   }()
 
-  static let selectedGroupTerminal: TerminalHostState = {
+  static let selectedGroupTerminal = makeSelectedGroupTerminal()
+
+  private static func makeSelectedGroupTerminal() -> TerminalHostState {
     let space = TerminalSpaceItem(
       id: TerminalSpaceID(
         rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-000000000005")
@@ -685,6 +688,108 @@ enum SidebarChromeSnapshotContext {
     )
     terminal.trees[selectedTab.id] = SplitTree(root: nil, zoomed: nil)
     return terminal
+  }
+
+  static func terminalChromeTerminal(
+    appearance: SnapshotAppearance,
+    paneTitles: [String]
+  ) -> TerminalHostState {
+    precondition(paneTitles.count == 1 || paneTitles.count == 4)
+    let terminal = makeSelectedGroupTerminal()
+    guard let selectedTabID = terminal.selectedTabID else {
+      preconditionFailure("Terminal chrome snapshot requires a selected tab")
+    }
+    let runtime = snapshotRuntime
+    let backgroundColor =
+      appearance == .light
+      ? NSColor(deviceWhite: 0.96, alpha: 1)
+      : NSColor(deviceWhite: 0.08, alpha: 1)
+    let surfaces = paneTitles.enumerated().map { index, title in
+      let surface = GhosttySurfaceView(
+        id: SnapshotFixtureValues.uuid("60000000-0000-0000-0000-00000000000\(index)"),
+        runtime: runtime,
+        tabID: selectedTabID.rawValue,
+        workingDirectory: nil,
+        context: paneTitles.count == 1
+          ? GHOSTTY_SURFACE_CONTEXT_TAB
+          : GHOSTTY_SURFACE_CONTEXT_SPLIT,
+        surfaceFactory: { _, _ in nil }
+      )
+      surface.bridge.state.failure = nil
+      surface.bridge.state.titleOverride = title
+      surface.bridge.state.oscBackgroundColor = backgroundColor
+      terminal.surfaces[surface.id] = surface
+      return surface
+    }
+    terminal.trees[selectedTabID] = splitTree(for: surfaces)
+    terminal.focusHistoryByTab[selectedTabID] = TerminalHostState.FocusHistory(
+      current: surfaces[0].id
+    )
+    return terminal
+  }
+
+  private static func splitTree(
+    for surfaces: [GhosttySurfaceView]
+  ) -> SplitTree<GhosttySurfaceView> {
+    guard surfaces.count == 4 else {
+      return SplitTree(view: surfaces[0])
+    }
+    let left = SplitTree<GhosttySurfaceView>.Node.split(
+      SplitTree<GhosttySurfaceView>.Split(
+        direction: .vertical,
+        ratio: 0.5,
+        left: .leaf(view: surfaces[0]),
+        right: .leaf(view: surfaces[2])
+      )
+    )
+    let right = SplitTree<GhosttySurfaceView>.Node.split(
+      SplitTree<GhosttySurfaceView>.Split(
+        direction: .vertical,
+        ratio: 0.5,
+        left: .leaf(view: surfaces[1]),
+        right: .leaf(view: surfaces[3])
+      )
+    )
+    return SplitTree(
+      root: .split(
+        SplitTree<GhosttySurfaceView>.Split(
+          direction: .horizontal,
+          ratio: 0.5,
+          left: left,
+          right: right
+        )
+      ),
+      zoomed: nil
+    )
+  }
+
+  private static let snapshotRuntime: GhosttyRuntime = {
+    _ = NSApplication.shared
+    let macRootURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    setenv(
+      "GHOSTTY_RESOURCES_DIR",
+      macRootURL.appendingPathComponent(".build/ghostty/share/ghostty").path,
+      1
+    )
+    setenv(
+      "TERMINFO_DIRS",
+      macRootURL.appendingPathComponent(".build/ghostty/share/terminfo").path,
+      1
+    )
+    let argv = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: 2)
+    argv.initialize(to: strdup("supaterm-snapshot-catalog"))
+    argv.advanced(by: 1).initialize(to: nil)
+    defer {
+      free(argv.pointee)
+      argv.advanced(by: 1).deinitialize(count: 1)
+      argv.deinitialize(count: 1)
+      argv.deallocate()
+    }
+    precondition(ghostty_init(1, argv) == GHOSTTY_SUCCESS)
+    return GhosttyRuntime()
   }()
 
   static let spacePageDotSpaces: [TerminalSpaceItem] = {

@@ -1,3 +1,4 @@
+import GhosttyKit
 import SupaTheme
 import SupatermCLIShared
 import SwiftUI
@@ -204,6 +205,24 @@ struct TerminalSplitTreeViewTests {
         dimmingOpacity: 0.3
       )
     )
+  }
+
+  @Test
+  func panePaletteMatchesEachTerminalBackground() {
+    let inherited = Palette(colorScheme: .light, tint: .green)
+    let dark = TerminalSplitTreeView.LeafView.palette(
+      for: NSColor(deviceWhite: 0.08, alpha: 1),
+      inheriting: inherited
+    )
+    let light = TerminalSplitTreeView.LeafView.palette(
+      for: NSColor(deviceWhite: 0.96, alpha: 1),
+      inheriting: inherited
+    )
+
+    #expect(dark.colorScheme == .dark)
+    #expect(light.colorScheme == .light)
+    #expect(dark.tint == inherited.tint)
+    #expect(light.tint == inherited.tint)
   }
 
   @Test
@@ -470,13 +489,173 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  func nestedSplitsComputeMinimumSizeFromEveryLeaf() {
+    let views = (0..<3).map { _ in MockSurfaceView() }
+    let horizontal = SplitTree<MockSurfaceView>.Node.split(
+      SplitTree<MockSurfaceView>.Split(
+        direction: .horizontal,
+        ratio: 0.5,
+        left: .leaf(view: views[0]),
+        right: .leaf(view: views[1])
+      )
+    )
+    let root = SplitTree<MockSurfaceView>.Node.split(
+      SplitTree<MockSurfaceView>.Split(
+        direction: .vertical,
+        ratio: 0.5,
+        left: horizontal,
+        right: .leaf(view: views[2])
+      )
+    )
+
+    #expect(
+      TerminalSplitLayout.minimumSize(for: root)
+        == CGSize(
+          width: TerminalSplitMetrics.minimumPaneWidth * 2,
+          height: TerminalSplitMetrics.minimumPaneHeight * 2
+        )
+    )
+  }
+
+  @Test
+  func nestedSplitMinimumsClampPointerAndAccessibilityAdjustment() {
+    let minimumLeadingSize = TerminalSplitMetrics.minimumPaneWidth * 2
+    let minimumTrailingSize = TerminalSplitMetrics.minimumPaneWidth
+
+    #expect(
+      TerminalSplitLayout.clampedLocation(
+        100,
+        dimension: 1_000,
+        minimumLeadingSize: minimumLeadingSize,
+        minimumTrailingSize: minimumTrailingSize
+      ) == minimumLeadingSize
+    )
+
+    let descriptor = TerminalSplitDividerAXDescriptor(
+      path: .root,
+      direction: .horizontal,
+      ratio: 0.44,
+      splitBounds: CGRect(x: 0, y: 0, width: 1_000, height: 100),
+      frameInParentSpace: .zero,
+      minimumLeadingSize: minimumLeadingSize,
+      minimumTrailingSize: minimumTrailingSize
+    )
+    #expect(descriptor.adjustedRatio(incrementing: false) == 0.44)
+    #expect(descriptor.adjustedRatio(incrementing: true) == 0.45)
+  }
+
+  @Test
+  func accessibilityChildrenPairEachToolbarWithItsPane() {
+    let panes = [MockSurfaceView(), MockSurfaceView()]
+    let toolbars = [NSView(), NSView()]
+    let ordered = TerminalSplitAccessibility.orderedPaneChildren(panes: panes) { pane in
+      panes.firstIndex { $0 === pane }.map { toolbars[$0] }
+    }
+
+    #expect(ordered[0] as? NSView === toolbars[0])
+    #expect(ordered[1] as? MockSurfaceView === panes[0])
+    #expect(ordered[2] as? NSView === toolbars[1])
+    #expect(ordered[3] as? MockSurfaceView === panes[1])
+  }
+
+  @Test
+  @MainActor
+  func splitContainerExposesEachToolbarBeforeItsTerminalPane() {
+    initializeGhosttyForTests()
+    let runtime = GhosttyRuntime()
+    let tabID = UUID()
+    let panes = (0..<2).map { index in
+      let pane = GhosttySurfaceView(
+        runtime: runtime,
+        tabID: tabID,
+        workingDirectory: nil,
+        context: GHOSTTY_SURFACE_CONTEXT_SPLIT,
+        surfaceFactory: { _, _ in nil }
+      )
+      pane.bridge.state.failure = nil
+      pane.bridge.state.titleOverride = "Pane \(index + 1)"
+      return pane
+    }
+    let tree = SplitTree(
+      root: .split(
+        SplitTree<GhosttySurfaceView>.Split(
+          direction: .horizontal,
+          ratio: 0.5,
+          left: .leaf(view: panes[0]),
+          right: .leaf(view: panes[1])
+        )
+      ),
+      zoomed: nil
+    )
+    var operations: [TerminalSplitTreeView.Operation] = []
+    let rootView = TerminalSplitTreeView(
+      agentPanelPresentations: [:],
+      dimmingColor: .clear,
+      dimmingOpacity: 0,
+      focusedSurfaceID: panes[0].id,
+      hiddenAgentPanelSurfaceIDs: [],
+      isSidebarCollapsed: false,
+      notificationColor: .clear,
+      palette: Palette(colorScheme: .dark),
+      agentPanelForksDown: false,
+      agentPanelShortcutHint: nil,
+      showsGlowingPaneRing: false,
+      showsSidebarAttentionIndicator: false,
+      splitDividerColor: .clear,
+      tree: tree,
+      unreadSurfaceIDs: [],
+      action: { operations.append($0) }
+    )
+    let container = TerminalSplitAXContainerView(backgroundColor: .clear)
+    container.frame = CGRect(x: 0, y: 0, width: 800, height: 600)
+    container.update(
+      backgroundColor: .clear,
+      rootView: rootView,
+      visibleNode: tree.root,
+      action: { operations.append($0) },
+      panes: panes
+    )
+    container.layoutSubtreeIfNeeded()
+
+    let identifiers: [String?] = (container.accessibilityChildren() ?? []).prefix(4).map {
+      switch $0 {
+      case let view as NSView:
+        return view.accessibilityIdentifier()
+      case let element as NSAccessibilityElement:
+        return element.accessibilityIdentifier()
+      default:
+        return nil
+      }
+    }
+    #expect(
+      identifiers == [
+        "terminal.pane-toolbar.\(panes[0].id.uuidString)",
+        "terminal.pane.\(panes[0].id.uuidString)",
+        "terminal.pane-toolbar.\(panes[1].id.uuidString)",
+        "terminal.pane.\(panes[1].id.uuidString)",
+      ]
+    )
+
+    let firstToolbar = container.accessibilityChildren()?.first as? TerminalPaneAXToolbarElement
+    let splitRightButton = firstToolbar?.accessibilityChildren()?.compactMap {
+      $0 as? TerminalPaneAXToolbarChildElement
+    }.first {
+      $0.accessibilityIdentifier()?.hasSuffix(".split-right") == true
+    }
+    #expect(splitRightButton?.accessibilityPerformPress() == true)
+    #expect(operations == [.splitPane(panes[0].id, .horizontal)])
+  }
+
+  @Test
   func dividerAdjustmentUsesTenPointStep() {
     let descriptor = TerminalSplitDividerAXDescriptor(
       path: .root,
       direction: .horizontal,
       ratio: 0.5,
       splitBounds: CGRect(x: 0, y: 0, width: 500, height: 100),
-      frameInParentSpace: .zero
+      frameInParentSpace: .zero,
+      minimumLeadingSize: TerminalSplitMetrics.minimumPaneWidth,
+      minimumTrailingSize: TerminalSplitMetrics.minimumPaneWidth
     )
 
     #expect(descriptor.adjustedRatio(incrementing: true) == 0.52)
@@ -490,7 +669,9 @@ struct TerminalSplitTreeViewTests {
       direction: .horizontal,
       ratio: 0.44,
       splitBounds: CGRect(x: 0, y: 0, width: 500, height: 100),
-      frameInParentSpace: .zero
+      frameInParentSpace: .zero,
+      minimumLeadingSize: TerminalSplitMetrics.minimumPaneWidth,
+      minimumTrailingSize: TerminalSplitMetrics.minimumPaneWidth
     )
 
     #expect(descriptor.adjustedRatio(incrementing: false) == 0.44)

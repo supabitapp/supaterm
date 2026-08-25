@@ -5,7 +5,6 @@ import SupatermSupport
 import SwiftUI
 
 struct TerminalDetailView: View {
-  @Shared(.supatermSettings) private var supatermSettings = .default
   let store: StoreOf<TerminalWindowFeature>
   let palette: Palette
   let terminal: TerminalHostState
@@ -13,13 +12,7 @@ struct TerminalDetailView: View {
 
   var body: some View {
     TerminalSurfacePaneView(
-      dimmingColor: terminal.unfocusedSplitDimmingColor,
-      dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
-      focusedSurfaceID: terminal.currentFocusedSurfaceID(),
-      notificationColor: terminal.notificationAttentionColor,
       palette: palette,
-      showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
-      splitDividerColor: terminal.splitDividerColor,
       store: store,
       terminal: terminal,
       tabID: selectedTabID
@@ -31,13 +24,7 @@ private struct TerminalSurfacePaneView: View {
   @Shared(.supatermSettings) private var supatermSettings = .default
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
 
-  let dimmingColor: Color
-  let dimmingOpacity: Double
-  let focusedSurfaceID: UUID?
-  let notificationColor: Color
   let palette: Palette
-  let showsGlowingPaneRing: Bool
-  let splitDividerColor: Color
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tabID: TerminalTabID
@@ -46,19 +33,19 @@ private struct TerminalSurfacePaneView: View {
     let tree = terminal.splitTree(for: tabID)
     TerminalSplitTreeAXContainer(
       agentPanelPresentations: agentPanelPresentations,
-      dimmingColor: dimmingColor,
-      dimmingOpacity: dimmingOpacity,
-      focusedSurfaceID: focusedSurfaceID,
+      dimmingColor: terminal.unfocusedSplitDimmingColor,
+      dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
+      focusedSurfaceID: terminal.currentFocusedSurfaceID(),
       hiddenAgentPanelSurfaceIDs: store.hiddenAgentPanelSurfaceIDs,
       isSidebarCollapsed: store.isSidebarCollapsed,
-      notificationColor: notificationColor,
+      notificationColor: terminal.notificationAttentionColor,
       palette: palette,
       agentPanelForksDown: agentPanelForksDown,
       agentPanelShortcutHint: agentPanelShortcutHint,
-      showsGlowingPaneRing: showsGlowingPaneRing,
+      showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
       showsSidebarAttentionIndicator: store.isSidebarCollapsed
         && terminal.hasUnreadSidebarNotifications,
-      splitDividerColor: splitDividerColor,
+      splitDividerColor: terminal.splitDividerColor,
       tree: tree,
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
     ) { operation in
@@ -97,9 +84,9 @@ private struct TerminalSurfacePaneView: View {
         _ = terminal.performSplitAction(.toggleSplitZoom, for: surfaceID)
       case .toggleSidebar:
         _ = store.send(.toggleSidebarButtonTapped)
-      case .resize, .drop, .equalize:
+      case .mutateTree(let mutation):
         AppPostHog.capture("terminal_pane_created")
-        terminal.performSplitOperation(operation, in: tabID)
+        terminal.performSplitMutation(mutation, in: tabID)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
