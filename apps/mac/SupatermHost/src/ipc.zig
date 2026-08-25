@@ -8,9 +8,9 @@ pub const Tag = enum(u8) {
     Output = 1,
     Resize = 2,
     Detach = 3,
-    Kill = 4,
-    Info = 5,
-    Init = 6,
+    Kill = 5,
+    Info = 6,
+    Init = 7,
     _,
 };
 
@@ -240,7 +240,7 @@ test "wire sizes" {
 test "Tag wire values" {
     inline for (.{
         .{ Tag.Input, 0 },  .{ Tag.Output, 1 }, .{ Tag.Resize, 2 },
-        .{ Tag.Detach, 3 }, .{ Tag.Kill, 4 },   .{ Tag.Info, 5 },
-        .{ Tag.Init, 6 },
+        .{ Tag.Detach, 3 }, .{ Tag.Kill, 5 },   .{ Tag.Info, 6 },
+        .{ Tag.Init, 7 },
     }) |p| try std.testing.expectEqual(@as(u8, p[1]), @intFromEnum(p[0]));
 }
