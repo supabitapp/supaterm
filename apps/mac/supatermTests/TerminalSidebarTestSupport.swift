@@ -17,11 +17,13 @@ enum TerminalSidebarTestFixture {
     roots: [TerminalSidebarOutline.Root],
     revision: UInt64,
     spaceID: TerminalSpaceID = primarySpaceID,
-    collapsedProjectIDs: Set<TerminalProjectID> = []
+    collapsedProjectIDs: Set<TerminalProjectID> = [],
+    pinnedTabIDs: Set<TerminalTabID> = []
   ) -> TerminalSidebarOutline {
     TerminalSidebarOutline(
       roots: roots,
       collapsedProjectIDs: collapsedProjectIDs,
+      pinnedTabIDs: pinnedTabIDs,
       topologyRevision: revision,
       spaceID: spaceID
     )

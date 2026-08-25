@@ -121,6 +121,66 @@ struct SPTargetResolverTests {
     )
   }
 
+  @Test
+  func staleAmbientContextDoesNotFallBackToTheKeyWindow() throws {
+    let snapshot = try fixture()
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicSpaceTarget(nil, context: context, snapshot: snapshot)
+    }
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicTabTarget(nil, context: context, snapshot: snapshot)
+    }
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicPaneTarget(nil, context: context, snapshot: snapshot)
+    }
+  }
+
+  @Test
+  func duplicateTabAndPaneIDsAreRejected() throws {
+    let snapshot = try fixture()
+    let tabID = id("30000000-0000-4000-8000-000000000001")
+    let paneID = id("40000000-0000-4000-8000-000000000001")
+    let duplicateSpace = SupatermTreeSnapshot.Space(
+      index: 1,
+      id: UUID(),
+      name: "Duplicate",
+      color: .neutral,
+      isWarm: true,
+      collapsedProjectIDs: [],
+      isUnassignedCollapsed: false,
+      tabs: [
+        SupatermTreeSnapshot.Tab(
+          id: tabID,
+          title: "Duplicate",
+          projectID: nil,
+          isPinned: false,
+          isSelected: true,
+          panes: [SupatermTreeSnapshot.Pane(index: 1, id: paneID, isFocused: true)]
+        )
+      ]
+    )
+    let duplicateSnapshot = SupatermTreeSnapshot(
+      projects: snapshot.projects,
+      windows: snapshot.windows + [
+        SupatermTreeSnapshot.Window(
+          index: 2,
+          isKey: false,
+          displayedSpaceID: duplicateSpace.id,
+          spaces: [duplicateSpace]
+        )
+      ]
+    )
+
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicTabTarget(.id(tabID), context: nil, snapshot: duplicateSnapshot)
+    }
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicPaneTarget(.id(paneID), context: nil, snapshot: duplicateSnapshot)
+    }
+  }
+
   private func fixture() throws -> SupatermTreeSnapshot {
     let url = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()

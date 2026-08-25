@@ -37,13 +37,22 @@ extension SocketControlFeature {
     }
 
     let result = try await socketRequestExecutor.executeTerminalProject(operation)
+    return try terminalProjectResponse(id: request.id, result: result)
+  }
+
+  private func terminalProjectResponse(
+    id: String,
+    result: TerminalProjectResult
+  ) throws -> SupatermSocketResponse {
     switch result {
+    case .collapsed(let collapsed):
+      return try .ok(id: id, encodableResult: collapsed)
     case .project(let project):
-      return try .ok(id: request.id, encodableResult: project)
+      return try .ok(id: id, encodableResult: project)
     case .movedTab(let movedTab):
-      return try .ok(id: request.id, encodableResult: movedTab)
+      return try .ok(id: id, encodableResult: movedTab)
     case .removedProject(let removedProject):
-      return try .ok(id: request.id, encodableResult: removedProject)
+      return try .ok(id: id, encodableResult: removedProject)
     }
   }
 }

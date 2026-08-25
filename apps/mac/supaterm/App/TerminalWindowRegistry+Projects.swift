@@ -26,7 +26,7 @@ extension TerminalWindowRegistry {
       return .project(try reorderProject(request))
 
     case .setCollapsed(let request):
-      return .project(try setProjectCollapsed(request))
+      return .collapsed(try setProjectCollapsed(request))
 
     case .moveTab(let request):
       return try moveProjectTab(request)
@@ -104,7 +104,7 @@ extension TerminalWindowRegistry {
 
   private func setProjectCollapsed(
     _ request: SupatermSetProjectCollapsedRequest
-  ) throws -> SupatermProjectMutationResult {
+  ) throws -> SupatermSetProjectCollapsedResult {
     let spaceID = TerminalSpaceID(rawValue: request.spaceID)
     guard
       let terminal = activeEntries().lazy.map(\.terminal).first(where: {
@@ -122,12 +122,11 @@ extension TerminalWindowRegistry {
         terminal.setUnassignedCollapsed(request.isCollapsed, in: spaceID)
       }
     guard changed else { throw TerminalControlError.contextPaneNotFound }
-    let project =
-      request.projectID.flatMap { id in
-        projectCatalog.projects.first { $0.id.rawValue == id }
-      } ?? projectCatalog.projects.first
-    guard let project else { throw TerminalControlError.contextPaneNotFound }
-    return try projectMutationResult(project.id)
+    return SupatermSetProjectCollapsedResult(
+      isCollapsed: request.isCollapsed,
+      projectID: request.projectID,
+      spaceID: request.spaceID
+    )
   }
 
   private func moveProjectTab(
@@ -135,7 +134,7 @@ extension TerminalWindowRegistry {
   ) throws -> TerminalProjectResult {
     guard let entry = activeEntries().first(where: { $0.terminal.containsTab(request.target.tabID) })
     else { throw TerminalControlError.contextPaneNotFound }
-    return try entry.terminal.execute(.moveTab(request))
+    return .movedTab(try entry.terminal.moveProjectTab(request))
   }
 
   @discardableResult

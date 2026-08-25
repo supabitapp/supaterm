@@ -60,8 +60,8 @@ private struct SPTreeIndex {
   let singleWindowIndex: Int?
   let spacesByPath: [SPSpacePathKey: SupatermTreeSnapshot.Space]
   let spacesByID: [UUID: [SPSpaceLocation]]
-  let tabsByID: [UUID: SPTabLocation]
-  let panesByID: [UUID: SPPaneLocation]
+  let tabsByID: [UUID: [SPTabLocation]]
+  let panesByID: [UUID: [SPPaneLocation]]
   let selectedSpaceByWindow: [Int: SPSpaceLocation]
   let firstSpaceByWindow: [Int: SPSpaceLocation]
   let selectedTabBySpace: [SPSpacePathKey: SPTabLocation]
@@ -73,8 +73,8 @@ private struct SPTreeIndex {
     let orderedProjectIDs = snapshot.projects.map(\.id)
     var spacesByPath: [SPSpacePathKey: SupatermTreeSnapshot.Space] = [:]
     var spacesByID: [UUID: [SPSpaceLocation]] = [:]
-    var tabsByID: [UUID: SPTabLocation] = [:]
-    var panesByID: [UUID: SPPaneLocation] = [:]
+    var tabsByID: [UUID: [SPTabLocation]] = [:]
+    var panesByID: [UUID: [SPPaneLocation]] = [:]
     var selectedSpaceByWindow: [Int: SPSpaceLocation] = [:]
     var firstSpaceByWindow: [Int: SPSpaceLocation] = [:]
     var selectedTabBySpace: [SPSpacePathKey: SPTabLocation] = [:]
@@ -115,7 +115,7 @@ private struct SPTreeIndex {
             spaceIndex: space.index,
             tabIndex: tabIndex
           )
-          selfInsert(tabLocation, into: &tabsByID)
+          tabsByID[tab.id, default: []].append(tabLocation)
           firstTabBySpace[spaceKey] = firstTabBySpace[spaceKey] ?? tabLocation
           if tab.isSelected { selectedTabBySpace[spaceKey] = tabLocation }
           let tabKey = SPTabPathKey(
@@ -130,7 +130,7 @@ private struct SPTreeIndex {
               spaceIndex: space.index,
               tabIndex: tabIndex
             )
-            panesByID[pane.id] = paneLocation
+            panesByID[pane.id, default: []].append(paneLocation)
             firstPaneByTab[tabKey] = firstPaneByTab[tabKey] ?? paneLocation
             if pane.isFocused { focusedPaneByTab[tabKey] = paneLocation }
           }
@@ -180,8 +180,11 @@ private struct SPTreeIndex {
   }
 
   func requireTabLocation(id: UUID) throws -> SPTabLocation {
-    guard let location = tabsByID[id] else {
+    guard let locations = tabsByID[id] else {
       throw ValidationError("No tab exists with UUID \(id.uuidString.lowercased()).")
+    }
+    guard locations.count == 1, let location = locations.first else {
+      throw ValidationError("More than one tab has UUID \(id.uuidString.lowercased()).")
     }
     return location
   }
@@ -192,7 +195,7 @@ private struct SPTreeIndex {
     tabIndex: Int
   ) throws -> SPTabLocation {
     guard
-      let location = tabsByID.values.first(where: {
+      let location = tabsByID.values.joined().first(where: {
         $0.windowIndex == windowIndex && $0.spaceIndex == spaceIndex && $0.tabIndex == tabIndex
       })
     else { throw ValidationError("No tab exists at \(spaceIndex)/\(tabIndex).") }
@@ -200,8 +203,11 @@ private struct SPTreeIndex {
   }
 
   func requirePaneLocation(id: UUID) throws -> SPPaneLocation {
-    guard let location = panesByID[id] else {
+    guard let locations = panesByID[id] else {
       throw ValidationError("No pane exists with UUID \(id.uuidString.lowercased()).")
+    }
+    guard locations.count == 1, let location = locations.first else {
+      throw ValidationError("More than one pane has UUID \(id.uuidString.lowercased()).")
     }
     return location
   }
@@ -247,18 +253,14 @@ private struct SPTreeIndex {
 
   func validatedContextLocation(_ context: SupatermCLIContext) throws -> SPPaneLocation {
     guard
-      let pane = panesByID[context.surfaceID],
-      let tab = tabsByID[context.tabID],
+      let pane = try? requirePaneLocation(id: context.surfaceID),
+      let tab = try? requireTabLocation(id: context.tabID),
       pane.windowIndex == tab.windowIndex,
       pane.spaceIndex == tab.spaceIndex,
       pane.tabIndex == tab.tabIndex
     else { throw ValidationError("The current Supaterm tab and pane no longer exist together.") }
     return pane
   }
-}
-
-private func selfInsert(_ location: SPTabLocation, into values: inout [UUID: SPTabLocation]) {
-  values[location.id] = location
 }
 
 enum SPSpaceReference: Equatable, Sendable {
@@ -476,8 +478,8 @@ func resolvePublicSplitTarget(
   case .pane(let pane):
     return .pane(try resolvePublicPaneTarget(pane, context: context, snapshot: snapshot).paneID)
   case .id(let id):
-    if index.panesByID[id] != nil { return .pane(id) }
-    if index.tabsByID[id] != nil { return .tab(id) }
+    if index.panesByID[id] != nil { return .pane(try index.requirePaneLocation(id: id).id) }
+    if index.tabsByID[id] != nil { return .tab(try index.requireTabLocation(id: id).id) }
     throw ValidationError("No tab or pane exists with UUID \(id.uuidString.lowercased()).")
   }
 }

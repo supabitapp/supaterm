@@ -158,7 +158,7 @@ struct TerminalSidebarTabRow: View {
       tab: tab,
       palette: palette,
       isSelected: isSelected,
-      isPinned: projectID == nil && rootIsPinned,
+      isPinned: rootIsPinned,
       details: details,
       unreadCount: unreadCount,
       agentStatus: agentStatus,
@@ -262,7 +262,7 @@ struct TerminalSidebarTabRow: View {
         ForEach(
           Array(
             Self.contextMenuItems(
-              isPinned: projectID == nil && rootIsPinned,
+              isPinned: rootIsPinned,
               hasTabsBelow: hasTabsBelow,
               hasOtherTabs: hasOtherTabs,
               isProjected: projectID != nil

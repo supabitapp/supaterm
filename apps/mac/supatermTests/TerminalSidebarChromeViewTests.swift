@@ -777,6 +777,19 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func projectedPinnedTabContextMenuOffersUnpin() {
+    let titles = TerminalSidebarTabRow.contextMenuItems(
+      isPinned: true,
+      hasTabsBelow: true,
+      hasOtherTabs: true,
+      isProjected: true
+    ).compactMap(\.title)
+
+    #expect(titles.contains("Unpin Tab"))
+    #expect(!titles.contains("Pin Tab"))
+  }
+
+  @Test
   func regularHoveredTabShowsEnabledCloseButton() {
     #expect(
       TerminalSidebarTabRow.closeButtonPresentation(

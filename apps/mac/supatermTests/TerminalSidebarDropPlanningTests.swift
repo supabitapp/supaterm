@@ -60,19 +60,21 @@ struct TerminalSidebarDropPlanningTests {
   }
 
   @Test
-  func rootTabTargetReordersAndProjectHeaderAppends() throws {
+  func unassignedTargetReordersAndProjectHeaderAppends() throws {
     let source = TerminalTabID()
     let target = TerminalTabID()
     let child = TerminalTabID()
     let projectID = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(target), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .project(projectID, .blue, [child]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([target, source]),
+          isPinned: false
+        ),
       ],
       revision: 3
     )
@@ -80,12 +82,12 @@ struct TerminalSidebarDropPlanningTests {
 
     let reorder = TerminalSidebarDropPlanner.plan(
       payload: payload,
-      path: .rootBoundary(lane: .regular, index: 0),
+      path: .unassigned(index: 0),
       outline: outline
     )
     let entry = TerminalSidebarDropPlanner.plan(
       payload: payload,
-      path: .groupEntry(groupID),
+      path: .rootItem(index: 0),
       outline: outline
     )
     let end = TerminalSidebarDropPlanner.plan(
@@ -94,7 +96,7 @@ struct TerminalSidebarDropPlanningTests {
       outline: outline
     )
 
-    #expect(reorder?.destination == .root(isPinned: false, index: 0))
+    #expect(reorder?.destination == .unassigned(index: 0))
     #expect(reorder?.placeholder == .before(.tab(target)))
     #expect(append?.destination == .project(projectID, index: 1))
     #expect(append?.placeholder == .projectEnd(projectID))
@@ -470,12 +472,12 @@ struct TerminalSidebarDropPlanningTests {
           content: .project(projectID, .blue, [child]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([source]), isPinned: false),
       ],
       revision: 3
     )
     let payload = try #require(outline.dragPayload(for: .tab(source)))
-    let path = TerminalSidebarSemanticPath.rootBoundary(lane: .regular, index: 1)
+    let path = TerminalSidebarSemanticPath.unassigned(index: 1)
     let resolution = TerminalSidebarDropResolution(
       payload: payload,
       path: path,
@@ -604,7 +606,7 @@ struct TerminalSidebarDropPlanningTests {
           content: .project(secondProject, .blue, [second]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([tail]), isPinned: false),
       ],
       revision: 5
     )
@@ -628,14 +630,17 @@ struct TerminalSidebarDropPlanningTests {
     let emptyProject = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(pinned), isPinned: true),
         TerminalSidebarOutline.Root(
           content: .project(emptyProject, .neutral, []),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([pinned, source]),
+          isPinned: false
+        ),
       ],
-      revision: 6
+      revision: 6,
+      pinnedTabIDs: [pinned]
     )
     let payload = try #require(outline.dragPayload(for: .tab(source)))
 
@@ -649,16 +654,9 @@ struct TerminalSidebarDropPlanningTests {
     #expect(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .rootBoundary(lane: .pinned, index: 1),
+        path: .unassigned(index: 0),
         outline: outline
-      )?.destination == .root(isPinned: true, index: 1)
-    )
-    #expect(
-      TerminalSidebarDropPlanner.plan(
-        payload: payload,
-        path: .rootBoundary(lane: .regular, index: 2),
-        outline: outline
-      ) == nil
+      )?.destination == .unassigned(index: 0)
     )
   }
 

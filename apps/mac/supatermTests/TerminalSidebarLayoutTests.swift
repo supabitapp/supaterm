@@ -193,18 +193,27 @@ struct TerminalSidebarLayoutTests {
     let firstTab = TerminalTabItem(title: "First")
     let secondTab = TerminalTabItem(title: "Second")
     let source = TerminalSidebarTestFixture.outline(
-      roots: [firstTab, secondTab].map {
-        TerminalSidebarOutline.Root(content: .tab($0.id), isPinned: false)
-      },
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .unassigned([firstTab.id, secondTab.id]),
+          isPinned: false
+        )
+      ],
       revision: 1
     )
     let target = TerminalSidebarTestFixture.outline(
-      roots: [secondTab, firstTab].map {
-        TerminalSidebarOutline.Root(content: .tab($0.id), isPinned: false)
-      },
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .unassigned([secondTab.id, firstTab.id]),
+          isPinned: false
+        )
+      ],
       revision: 2
     )
     let rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [
+      .unassigned: .unassigned(
+        TerminalSidebarUnassignedRowPresentation(isCollapsed: false, tabCount: 2)
+      ),
       .tab(firstTab.id): .tab(tabPresentation(firstTab)),
       .tab(secondTab.id): .tab(tabPresentation(secondTab)),
       .newTab: .newTab(.inline),
@@ -322,7 +331,9 @@ struct TerminalSidebarLayoutTests {
     let shortTab = TerminalTabID()
     let shortList = TerminalSidebarTestFixture.layoutPlan(
       outline: TerminalSidebarTestFixture.outline(
-        roots: [TerminalSidebarOutline.Root(content: .tab(shortTab), isPinned: false)],
+        roots: [
+          TerminalSidebarOutline.Root(content: .unassigned([shortTab]), isPinned: false)
+        ],
         revision: 1
       ),
       viewportHeight: initial.scrollViewportFrame.height
@@ -330,7 +341,9 @@ struct TerminalSidebarLayoutTests {
     let tabs = (0..<12).map { _ in TerminalTabID() }
     let longList = TerminalSidebarTestFixture.layoutPlan(
       outline: TerminalSidebarTestFixture.outline(
-        roots: tabs.map { TerminalSidebarOutline.Root(content: .tab($0), isPinned: false) },
+        roots: [
+          TerminalSidebarOutline.Root(content: .unassigned(tabs), isPinned: false)
+        ],
         revision: 1
       ),
       viewportHeight: initial.scrollViewportFrame.height
@@ -484,8 +497,10 @@ struct TerminalSidebarLayoutTests {
     let projectID = TerminalProjectID()
     let unprojected = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(firstTabID), isPinned: false),
-        TerminalSidebarOutline.Root(content: .tab(secondTabID), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([firstTabID, secondTabID]),
+          isPinned: false
+        )
       ],
       revision: 1
     )
@@ -496,7 +511,8 @@ struct TerminalSidebarLayoutTests {
           isPinned: false
         )
       ],
-      revision: 2
+      revision: 2,
+      collapsedProjectIDs: [projectID]
     )
     let sourceIdentifiers = unprojected.visibleEntries.map(\.id)
     let targetIdentifiers = projected.visibleEntries.map(\.id)
@@ -537,17 +553,13 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func topEntriesKeepAFixedGapBelowTheDocumentTop() throws {
+  func sectionHeadersKeepAFixedGapBelowTheDocumentTop() throws {
     let root = TerminalTabID()
     let child = TerminalTabID()
     let projectID = TerminalProjectID()
-    let rootFirst = TerminalSidebarTestFixture.outline(
+    let unassigned = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(root), isPinned: false),
-        TerminalSidebarOutline.Root(
-          content: .project(projectID, .yellow, [child]),
-          isPinned: false
-        ),
+        TerminalSidebarOutline.Root(content: .unassigned([root]), isPinned: false)
       ],
       revision: 1
     )
@@ -560,12 +572,14 @@ struct TerminalSidebarLayoutTests {
       ],
       revision: 1
     )
-    let rootFirstPlan = TerminalSidebarTestFixture.layoutPlan(outline: rootFirst)
+    let unassignedPlan = TerminalSidebarTestFixture.layoutPlan(outline: unassigned)
     let projectFirstPlan = TerminalSidebarTestFixture.layoutPlan(outline: projectFirst)
-    let rootFrame = try #require(rootFirstPlan.items.first { $0.id == .tab(root) }?.frame)
+    let unassignedFrame = try #require(
+      unassignedPlan.items.first { $0.id == .unassigned }?.frame
+    )
     let projectFrame = try #require(projectFirstPlan.projects.first?.frame)
 
-    #expect(rootFrame.minY == 12)
+    #expect(unassignedFrame.minY == 12)
     #expect(projectFrame.minY == 10)
   }
 

@@ -340,27 +340,6 @@ struct TerminalSidebarContentHeightState: Equatable {
     context: TargetGeometryContext
   ) -> RootTargetGeometry {
     switch root.content {
-    case .tab(let tabID):
-      guard let item = context.itemByID[.tab(tabID)] else {
-        return RootTargetGeometry(targets: [], tabsEndY: initialY)
-      }
-      guard !context.draggedIDs.contains(.tab(tabID)) else {
-        return RootTargetGeometry(targets: [], tabsEndY: item.frame.maxY)
-      }
-      return RootTargetGeometry(
-        targets: [
-          TerminalSidebarSemanticTarget(
-            path: .rootBoundary(index: rootIndex, affinity: .before),
-            frame: CGRect(
-              x: 0,
-              y: item.frame.minY,
-              width: context.width,
-              height: item.frame.height
-            )
-          )
-        ],
-        tabsEndY: item.frame.maxY
-      )
     case .project(let projectID, _, let tabIDs):
       return projectTargetGeometry(
         rootIndex: rootIndex,
@@ -409,7 +388,7 @@ struct TerminalSidebarContentHeightState: Equatable {
         )
       )
     ]
-    targets.append(contentsOf: unassignedChildTargets(tabIDs: tabIDs, context: context))
+    targets.append(contentsOf: childTargets(projectID: nil, tabIDs: tabIDs, context: context))
     return RootTargetGeometry(
       targets: targets,
       tabsEndY: childEndY + expandedProjectTrailingSpacing
@@ -495,7 +474,9 @@ struct TerminalSidebarContentHeightState: Equatable {
         )
       ),
     ]
-    targets.append(contentsOf: childTargets(projectID: projectID, tabIDs: tabIDs, context: context))
+    targets.append(
+      contentsOf: childTargets(projectID: projectID, tabIDs: tabIDs, context: context)
+    )
     let exitTargetHeight = expandedProjectExitTargetHeight(
       containerMaxY: containerMaxY,
       rootIndex: rootIndex,
@@ -538,7 +519,7 @@ struct TerminalSidebarContentHeightState: Equatable {
   }
 
   private static func childTargets(
-    projectID: TerminalProjectID,
+    projectID: TerminalProjectID?,
     tabIDs: [TerminalTabID],
     context: TargetGeometryContext
   ) -> [TerminalSidebarSemanticTarget] {
@@ -554,7 +535,7 @@ struct TerminalSidebarContentHeightState: Equatable {
 
     var targets = visibleChildren.dropLast().map { childIndex, item in
       TerminalSidebarSemanticTarget(
-        path: .project(projectID, index: childIndex),
+        path: childPath(projectID: projectID, index: childIndex),
         frame: CGRect(
           x: 0,
           y: item.frame.minY,
@@ -567,7 +548,7 @@ struct TerminalSidebarContentHeightState: Equatable {
     let splitY = lastItem.frame.midY
     targets.append(
       TerminalSidebarSemanticTarget(
-        path: .project(projectID, index: lastChildIndex),
+        path: childPath(projectID: projectID, index: lastChildIndex),
         frame: CGRect(
           x: 0,
           y: lastItem.frame.minY,
@@ -578,7 +559,7 @@ struct TerminalSidebarContentHeightState: Equatable {
     )
     targets.append(
       TerminalSidebarSemanticTarget(
-        path: .project(projectID, index: tabIDs.count),
+        path: childPath(projectID: projectID, index: tabIDs.count),
         frame: CGRect(
           x: 0,
           y: splitY,
@@ -590,55 +571,11 @@ struct TerminalSidebarContentHeightState: Equatable {
     return targets
   }
 
-  private static func unassignedChildTargets(
-    tabIDs: [TerminalTabID],
-    context: TargetGeometryContext
-  ) -> [TerminalSidebarSemanticTarget] {
-    let visibleChildren: [(index: Int, item: Item)] = tabIDs.enumerated().compactMap {
-      childIndex, tabID in
-      guard
-        let item = context.itemByID[.tab(tabID)],
-        !context.draggedIDs.contains(.tab(tabID))
-      else { return nil }
-      return (index: childIndex, item: item)
-    }
-    guard let lastChild = visibleChildren.last else { return [] }
-    var targets = visibleChildren.dropLast().map { childIndex, item in
-      TerminalSidebarSemanticTarget(
-        path: .unassigned(index: childIndex),
-        frame: CGRect(
-          x: 0,
-          y: item.frame.minY,
-          width: context.width,
-          height: item.frame.height
-        )
-      )
-    }
-    let (lastChildIndex, lastItem) = lastChild
-    let splitY = lastItem.frame.midY
-    targets.append(
-      TerminalSidebarSemanticTarget(
-        path: .unassigned(index: lastChildIndex),
-        frame: CGRect(
-          x: 0,
-          y: lastItem.frame.minY,
-          width: context.width,
-          height: splitY - lastItem.frame.minY
-        )
-      )
-    )
-    targets.append(
-      TerminalSidebarSemanticTarget(
-        path: .unassigned(index: tabIDs.count),
-        frame: CGRect(
-          x: 0,
-          y: splitY,
-          width: context.width,
-          height: lastItem.frame.maxY - splitY + expandedProjectTrailingSpacing
-        )
-      )
-    )
-    return targets
+  private static func childPath(
+    projectID: TerminalProjectID?,
+    index: Int
+  ) -> TerminalSidebarSemanticPath {
+    projectID.map { .project($0, index: index) } ?? .unassigned(index: index)
   }
 
   private static func insertionIndex(

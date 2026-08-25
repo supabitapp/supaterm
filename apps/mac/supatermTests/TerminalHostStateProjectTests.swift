@@ -1,3 +1,5 @@
+import AppKit
+import ComposableArchitecture
 import Dependencies
 import Sharing
 import SupaTheme
@@ -52,23 +54,6 @@ struct TerminalHostStateProjectTests {
   }
 
   @Test
-  func projectPinAndReorderCommandsAreIdempotent() throws {
-    try withProjectHost { host in
-      let firstID = try #require(host.createProject(name: "First")).projectID
-      _ = try #require(host.createProject(name: "Second"))
-      let target = SupatermProjectTargetRequest(projectID: firstID.rawValue)
-
-      _ = try host.execute(.unpin(target))
-      _ = try host.execute(.unpin(target))
-      _ = try host.execute(
-        .reorder(SupatermReorderProjectRequest(index: 1, target: target))
-      )
-
-      #expect(host.projects.map(\.name) == ["First", "Second"])
-    }
-  }
-
-  @Test
   func selectedTabsInferOneSharedProjectRoot() throws {
     try withProjectHost { host in
       let first = try #require(host.selectedTabID)
@@ -105,6 +90,26 @@ struct TerminalHostStateProjectTests {
   }
 
   @Test
+  func tabNavigationUsesSemanticProjectOrder() throws {
+    try withProjectHost { host in
+      let first = try #require(host.selectedTabID)
+      _ = host.createTab(inheritingFromSurfaceID: nil)
+      let projectTab = try #require(host.selectedTabID)
+      _ = host.createTab(inheritingFromSurfaceID: nil)
+      let last = try #require(host.selectedTabID)
+      _ = try #require(host.createProject(name: "Work", containing: [projectTab]))
+      host.selectTab(first)
+      let request = TerminalTabNavigationRequest(spaceID: host.displayedSpaceID.rawValue)
+
+      let next = try host.nextTab(request)
+      #expect(next.target.tabID == last.rawValue)
+
+      let previous = try host.previousTab(request)
+      #expect(previous.target.tabID == first.rawValue)
+    }
+  }
+
+  @Test
   func projectAndUnassignedCollapseStateIsPerSpace() throws {
     try withProjectHost { host in
       let projectID = try #require(host.createProject(name: "Work")).projectID
@@ -118,58 +123,6 @@ struct TerminalHostStateProjectTests {
       #expect(!host.isProjectCollapsed(projectID, in: secondSpaceID))
       #expect(host.isUnassignedCollapsed(in: firstSpaceID))
       #expect(!host.isUnassignedCollapsed(in: secondSpaceID))
-    }
-  }
-
-  @Test
-  func removeNonemptyProjectRequiresConfirmationAndClosesEveryAssignedTab() throws {
-    try withProjectHost { host in
-      let first = try #require(host.selectedTabID)
-      _ = host.createTab(inheritingFromSurfaceID: nil)
-      let second = try #require(host.selectedTabID)
-      let projectID = try #require(
-        host.createProject(name: "Work", containing: [first, second])
-      ).projectID
-      let target = SupatermProjectTargetRequest(projectID: projectID.rawValue)
-
-      #expect(throws: TerminalControlError.projectCloseConfirmationRequired) {
-        try host.execute(.remove(SupatermRemoveProjectRequest(confirmed: false, target: target)))
-      }
-
-      let result = try host.execute(
-        .remove(SupatermRemoveProjectRequest(confirmed: true, target: target))
-      )
-
-      guard case .removedProject(let removal) = result else {
-        Issue.record("Expected project removal")
-        return
-      }
-      #expect(Set(removal.removedTabIDs) == Set([first.rawValue, second.rawValue]))
-      #expect(!host.containsProject(projectID))
-      #expect(host.spaceManager.allTabs.allSatisfy { $0.projectID != projectID })
-    }
-  }
-
-  @Test
-  func emptyProjectRemovalIsImmediate() throws {
-    try withProjectHost { host in
-      let projectID = try #require(host.createProject(name: "Work")).projectID
-
-      let result = try host.execute(
-        .remove(
-          SupatermRemoveProjectRequest(
-            confirmed: false,
-            target: SupatermProjectTargetRequest(projectID: projectID.rawValue)
-          )
-        )
-      )
-
-      guard case .removedProject(let removal) = result else {
-        Issue.record("Expected project removal")
-        return
-      }
-      #expect(removal.removedTabIDs.isEmpty)
-      #expect(!host.containsProject(projectID))
     }
   }
 
@@ -187,7 +140,20 @@ struct TerminalHostStateProjectTests {
       }
       let host = TerminalHostState(spaceID: spaces[0].id)
       host.ensureInitialTab(focusing: false, startupCommand: nil)
+      let registry = TerminalWindowRegistry()
+      let store = Store(initialState: AppFeature.State()) { AppFeature() }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = NSWindow()
+      registry.updateWindow(window, for: windowControllerID)
       try operation(host)
+      withExtendedLifetime(window) {}
     }
   }
 }

@@ -172,19 +172,21 @@ struct TerminalSidebarProjectSurfaceTests {
     let projectID = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(primary), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .project(projectID, .blue, [firstChild, secondChild]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(trailing), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([primary, trailing]),
+          isPinned: false
+        ),
       ],
       revision: 1
     )
     let selection = TerminalSidebarTabSelectionState()
 
     selection.selectRange(
-      to: secondChild,
+      to: firstChild,
       primaryTabID: primary,
       outline: outline,
       additive: false
@@ -193,7 +195,7 @@ struct TerminalSidebarProjectSurfaceTests {
 
     #expect(
       selection.orderedTabIDs(primaryTabID: primary, outline: outline)
-        == [primary, firstChild, secondChild, trailing]
+        == [firstChild, secondChild, primary, trailing]
     )
     #expect(selection.style(for: primary, primaryTabID: primary) == .primary)
     #expect(selection.style(for: firstChild, primaryTabID: primary) == .secondary)
@@ -207,12 +209,14 @@ struct TerminalSidebarProjectSurfaceTests {
     let projectID = TerminalProjectID()
     let expanded = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(primary), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .project(projectID, .green, [child]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(unselected), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([primary, unselected]),
+          isPinned: false
+        ),
       ],
       revision: 1
     )
@@ -242,8 +246,10 @@ struct TerminalSidebarProjectSurfaceTests {
     let secondary = TerminalTabID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(primary), isPinned: false),
-        TerminalSidebarOutline.Root(content: .tab(secondary), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([primary, secondary]),
+          isPinned: false
+        )
       ],
       revision: 1
     )

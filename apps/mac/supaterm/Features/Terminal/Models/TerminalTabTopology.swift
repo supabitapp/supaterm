@@ -69,11 +69,7 @@ struct TerminalTabTopology: Equatable {
         pinnedTabs: records(for: pinnedTabIDs),
         regularTabs: records(for: regularTabIDs),
         movingTabIDs: request.tabIDs,
-        destination: SupatermProjectTabPlacement(
-          projectID: request.destination.projectID,
-          isPinned: request.destination.isPinned,
-          index: request.destination.index
-        )
+        destination: request.destination
       )
       pinnedTabIDs = result.pinnedTabs.map(\.id)
       regularTabIDs = result.regularTabs.map(\.id)

@@ -189,7 +189,9 @@ struct TerminalSidebarMotionTests {
   func activeDragOutlinePolicyCancelsTopologyAndStructureChanges() throws {
     let source = TerminalTabID()
     let applied = TerminalSidebarTestFixture.outline(
-      roots: [TerminalSidebarOutline.Root(content: .tab(source), isPinned: false)],
+      roots: [
+        TerminalSidebarOutline.Root(content: .unassigned([source]), isPinned: false)
+      ],
       revision: 4
     )
     let changedTopology = TerminalSidebarTestFixture.outline(
@@ -198,8 +200,10 @@ struct TerminalSidebarMotionTests {
     )
     let changedRoots = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
-        TerminalSidebarOutline.Root(content: .tab(TerminalTabID()), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([source, TerminalTabID()]),
+          isPinned: false
+        )
       ],
       revision: 4
     )
@@ -392,11 +396,14 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func collapseVisibilityUsesRecoveredHeightAndAlphaCurves() {
-    let before = TerminalSidebarCollapseMotion.visibility(elapsed: 0, delay: 0.1)
-    let quarter = TerminalSidebarCollapseMotion.visibility(
-      elapsed: TerminalSidebarCollapseMotion.rowDuration * 0.25,
-      delay: 0
+  func pinnedNewTabRoutesToBottomAutoscrollAndTrailingRootDrop() throws {
+    let source = TerminalTabID()
+    let target = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .unassigned([source, target]), isPinned: false)
+      ],
+      revision: 2
     )
     let middle = TerminalSidebarCollapseMotion.visibility(
       elapsed: TerminalSidebarCollapseMotion.rowDuration * 0.5,

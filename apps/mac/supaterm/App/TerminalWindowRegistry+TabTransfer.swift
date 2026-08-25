@@ -6,6 +6,7 @@ extension TerminalWindowRegistry {
     to destination: TerminalTabDragRegistry.Destination
   ) -> TerminalTabTransferResult? {
     guard
+      payload.orderedProjectIDs == projectCatalog.projects.map(\.id),
       let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
       let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
     else { return nil }
@@ -62,6 +63,7 @@ extension TerminalWindowRegistry {
     to destination: TerminalTabDragRegistry.SplitDestination
   ) -> Bool {
     guard
+      payload.orderedProjectIDs == projectCatalog.projects.map(\.id),
       let sourceTabID = payload.singleTabID,
       let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
       let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
@@ -79,6 +81,7 @@ extension TerminalWindowRegistry {
     guard
       let plan = try? TerminalHostState.prepareLiveTabMerge(
         TerminalHostState.LiveTabMergeRequest(
+          orderedProjectIDs: payload.orderedProjectIDs,
           expectedSourceRevision: payload.sourceTopologyRevision,
           sourceSpaceID: payload.sourceSpaceID,
           sourceTabID: sourceTabID

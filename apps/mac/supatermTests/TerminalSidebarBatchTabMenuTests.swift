@@ -1,4 +1,6 @@
+import Dependencies
 import Foundation
+import Sharing
 import Testing
 
 @testable import supaterm
@@ -6,15 +8,15 @@ import Testing
 @MainActor
 struct TerminalSidebarBatchTabMenuTests {
   @Test
-  func projectSelectionCanBePinned() throws {
-    let fixture = try makeFixture()
+  func projectSelectionCanBePinned() {
+    let fixture = makeFixture()
 
     #expect(fixture.pinAction(for: fixture.projectTabIDs) == .pin)
   }
 
   @Test
-  func unassignedAndProjectSelectionCanBePinned() throws {
-    let fixture = try makeFixture()
+  func unassignedAndProjectSelectionCanBePinned() {
+    let fixture = makeFixture()
 
     #expect(
       fixture.pinAction(for: [fixture.unassignedTabID, fixture.projectTabID]) == .pin
@@ -22,36 +24,43 @@ struct TerminalSidebarBatchTabMenuTests {
   }
 
   @Test
-  func mixedPinStateCannotToggleTogether() throws {
-    let fixture = try makeFixture()
+  func mixedPinStateCannotToggleTogether() {
+    let fixture = makeFixture()
 
     #expect(
       fixture.pinAction(for: [fixture.pinnedTabID, fixture.projectTabID]) == .disabled
     )
   }
 
-  private func makeFixture() throws -> Fixture {
-    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
-    let manager = terminal.spaceManager.tabCollection
-    let unassignedTabID = manager.createTab(title: "Regular")
-    let pinnedTabID = manager.createTab(title: "Pinned")
-    let firstProjectTabID = manager.createTab(title: "First Project")
-    let secondProjectTabID = manager.createTab(title: "Second Project")
-    _ = try #require(
-      terminal.createProject(
-        name: "Project",
-        containing: [firstProjectTabID, secondProjectTabID]
+  private func makeFixture() -> Fixture {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let terminal = TerminalHostState(managesTerminalSurfaces: false)
+      let manager = terminal.spaceManager.tabCollection
+      let unassignedTabID = manager.createTab(title: "Regular")
+      let pinnedTabID = manager.createTab(title: "Pinned")
+      let firstProjectTabID = manager.createTab(title: "First Project")
+      let secondProjectTabID = manager.createTab(title: "Second Project")
+      let project = TerminalProject(name: "Project")
+      terminal.$projectCatalog.withLock { $0 = TerminalProjectCatalog(projects: [project]) }
+      #expect(
+        manager.assign(
+          [firstProjectTabID, secondProjectTabID],
+          to: project.id,
+          orderedProjectIDs: [project.id]
+        )
       )
-    )
-    #expect(terminal.setTabPinned(pinnedTabID, isPinned: true) != nil)
+      #expect(terminal.setTabPinned(pinnedTabID, isPinned: true) != nil)
 
-    return Fixture(
-      terminal: terminal,
-      unassignedTabID: unassignedTabID,
-      pinnedTabID: pinnedTabID,
-      projectTabID: firstProjectTabID,
-      projectTabIDs: [firstProjectTabID, secondProjectTabID]
-    )
+      return Fixture(
+        terminal: terminal,
+        unassignedTabID: unassignedTabID,
+        pinnedTabID: pinnedTabID,
+        projectTabID: firstProjectTabID,
+        projectTabIDs: [firstProjectTabID, secondProjectTabID]
+      )
+    }
   }
 
   private struct Fixture {

@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 nonisolated struct TerminalProjectSectionItem: Identifiable, Equatable, Sendable {
   let project: TerminalProject
@@ -11,11 +12,7 @@ nonisolated struct TerminalUnassignedSectionItem: Equatable, Sendable {
   var tabs: [TerminalTabItem]
 }
 
-nonisolated struct TerminalTabPlacement: Equatable, Sendable {
-  let projectID: TerminalProjectID?
-  let isPinned: Bool
-  let index: Int
-}
+typealias TerminalTabPlacement = SupatermProjectTabPlacement<TerminalProjectID>
 
 nonisolated struct TerminalTabMoveOperationID: Hashable, Sendable {
   let rawValue: UUID
@@ -59,6 +56,7 @@ nonisolated struct TerminalProjectCreationResult: Equatable, Sendable {
 }
 
 nonisolated struct TerminalTabExtractionRequest: Equatable, Sendable {
+  let orderedProjectIDs: [TerminalProjectID]
   let expectedTopologyRevision: UInt64
   let tabIDs: [TerminalTabID]
 }
