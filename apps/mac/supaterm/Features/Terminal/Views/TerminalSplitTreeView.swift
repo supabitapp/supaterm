@@ -1321,14 +1321,14 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let action: (TerminalSplitTreeView.Operation) -> Void
 
   func makeNSView(context: Context) -> TerminalSplitAXContainerView {
-    TerminalSplitAXContainerView(backgroundColor: NSColor(palette.detailBackground))
+    TerminalSplitAXContainerView(backgroundColor: backgroundColor)
   }
 
   func updateNSView(_ nsView: TerminalSplitAXContainerView, context: Context) {
     let visibleNode = tree.zoomed ?? tree.root
     let visiblePanes = visibleNode?.leaves() ?? []
     nsView.update(
-      backgroundColor: NSColor(palette.detailBackground),
+      backgroundColor: backgroundColor,
       rootView: TerminalSplitTreeView(
         agentPanelPresentations: agentPanelPresentations,
         dimmingColor: dimmingColor,
@@ -1351,6 +1351,10 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
       action: action,
       panes: visiblePanes
     )
+  }
+
+  private var backgroundColor: NSColor {
+    tree.isSplit ? .clear : NSColor(palette.detailBackground)
   }
 }
 

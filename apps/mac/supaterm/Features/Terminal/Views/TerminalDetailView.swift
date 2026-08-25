@@ -131,7 +131,7 @@ private struct TerminalSurfacePaneView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(palette.detailBackground)
+    .background(terminal.splitTree(for: tabID).isSplit ? Color.clear : palette.detailBackground)
   }
 
   private var agentPanelPresentations: [UUID: PaneAgentPanelPresentation] {

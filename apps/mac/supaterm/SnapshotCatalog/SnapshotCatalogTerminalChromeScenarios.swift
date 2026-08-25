@@ -44,13 +44,18 @@ extension SnapshotCatalog {
     scenario(
       "split-panes",
       group: "Terminal Chrome",
-      title: "Side-by-side panes",
-      size: CGSize(width: 900, height: 420)
+      title: "Four-pane split grid",
+      size: CGSize(width: 1200, height: 700)
     ) { appearance in
       AnyView(
         TerminalChromeSnapshotFixture(
           appearance: appearance,
-          paneTitles: ["build — supaterm", "tests — supaterm"],
+          paneTitles: [
+            "build — supaterm",
+            "tests — supaterm",
+            "server — supaterm",
+            "docs — supaterm",
+          ],
           terminal: SidebarChromeSnapshotContext.selectedGroupTerminal
         )
       )
@@ -234,12 +239,27 @@ private struct TerminalPaneChromeSnapshotFixture: View {
   }
 
   var body: some View {
-    HStack(spacing: 0) {
-      ForEach(Array(titles.enumerated()), id: \.offset) { index, title in
-        pane(index: index, title: title)
+    Group {
+      if titles.count == 4 {
+        HStack(spacing: 0) {
+          VStack(spacing: 0) {
+            pane(index: 0, title: titles[0])
+            pane(index: 2, title: titles[2])
+          }
+          VStack(spacing: 0) {
+            pane(index: 1, title: titles[1])
+            pane(index: 3, title: titles[3])
+          }
+        }
+      } else {
+        HStack(spacing: 0) {
+          ForEach(Array(titles.enumerated()), id: \.offset) { index, title in
+            pane(index: index, title: title)
+          }
+        }
       }
     }
-    .background(palette.detailBackground)
+    .background(isSplit ? Color.clear : palette.detailBackground)
   }
 
   private func pane(index: Int, title: String) -> some View {
@@ -284,13 +304,20 @@ private struct TerminalPaneChromeSnapshotFixture: View {
     guard isSplit else {
       return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
     }
-    let branch: TerminalSplitTreeView.OuterEdgeBranch = index == 0 ? .left : .right
-    return TerminalSplitTreeView.OuterEdges.all
-      .child(branch, in: .horizontal)
-      .paneInsets(
-        outer: TerminalChromeMetrics.paneInset,
-        inner: TerminalChromeMetrics.paneGap / 2
-      )
+    var outerEdges = TerminalSplitTreeView.OuterEdges.all
+    let horizontalBranch: TerminalSplitTreeView.OuterEdgeBranch =
+      index.isMultiple(of: 2)
+      ? .left
+      : .right
+    outerEdges = outerEdges.child(horizontalBranch, in: .horizontal)
+    if titles.count == 4 {
+      let verticalBranch: TerminalSplitTreeView.OuterEdgeBranch = index < 2 ? .left : .right
+      outerEdges = outerEdges.child(verticalBranch, in: .vertical)
+    }
+    return outerEdges.paneInsets(
+      outer: TerminalChromeMetrics.paneInset,
+      inner: TerminalChromeMetrics.paneGap / 2
+    )
   }
 }
 
