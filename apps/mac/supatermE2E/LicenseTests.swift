@@ -18,48 +18,51 @@ extension SupatermE2ESuite {
       let tab = try #require(initial.flattenedTabs.first)
       let pane = try #require(tab.panes.first)
       let runner = SPBinaryRunner(app: app, tabID: tab.id, paneID: pane.id)
+      try await app.waitForReadyPane(SupatermPaneTargetRequest(paneID: pane.id))
 
       let free = try licenseStatus(runner, app: app)
       #expect(free.mode == .free)
 
       for _ in free.openTabCount..<5 {
-        _ = try requireSuccessfulSPResult(
-          try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
-        )
+        try await createReadyTab(runner, app: app, spaceID: initial.id)
       }
 
-      let blocked = try requireFailedSPResult(
-        try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
+      let blocked = try runFailedSP(
+        ["tab", "new", "--in", initial.id.uuidString],
+        runner: runner,
+        app: app
       )
       #expect(blocked.stderr.contains("sp license activate"))
 
       let activated = try decodeSPJSON(
         SupatermLicenseStatusResult.self,
-        from: try requireSuccessfulSPResult(
-          try runner.run(
-            targeting(["license", "activate"], app: app),
-            stdin: Data("\(testLicenseKey)\n".utf8)
-          )
+        from: try runSuccessfulSP(
+          ["license", "activate"],
+          runner: runner,
+          app: app,
+          stdin: Data("\(testLicenseKey)\n".utf8)
         )
       )
       #expect(activated.mode == .paid)
       #expect(activated.updatesThrough == "9999-12-31")
 
-      _ = try requireSuccessfulSPResult(
-        try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
-      )
+      try await createReadyTab(runner, app: app, spaceID: initial.id)
 
       let deactivated = try decodeSPJSON(
         SupatermLicenseStatusResult.self,
-        from: try requireSuccessfulSPResult(
-          try runner.run(targeting(["license", "deactivate"], app: app))
+        from: try runSuccessfulSP(
+          ["license", "deactivate"],
+          runner: runner,
+          app: app
         )
       )
       #expect(deactivated.mode == .free)
       #expect(deactivated.openTabCount == 6)
 
-      _ = try requireFailedSPResult(
-        try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
+      _ = try runFailedSP(
+        ["tab", "new", "--in", initial.id.uuidString],
+        runner: runner,
+        app: app
       )
     }
   }
@@ -74,12 +77,57 @@ private func licenseStatus(
 ) throws -> SupatermLicenseStatusResult {
   try decodeSPJSON(
     SupatermLicenseStatusResult.self,
-    from: try requireSuccessfulSPResult(
-      try runner.run(targeting(["license", "status"], app: app))
+    from: try runSuccessfulSP(
+      ["license", "status"],
+      runner: runner,
+      app: app
     )
   )
 }
 
+private func createReadyTab(
+  _ runner: SPBinaryRunner,
+  app: SupatermE2EApp,
+  spaceID: UUID
+) async throws {
+  let result = try decodeSPJSON(
+    SupatermNewTabResult.self,
+    from: try runSuccessfulSP(
+      ["tab", "new", "--in", spaceID.uuidString, "--"] + hermeticShellArguments,
+      runner: runner,
+      app: app
+    )
+  )
+  try await app.waitForShellPrompt(SupatermPaneTargetRequest(paneID: result.paneID))
+}
+
+private func runSuccessfulSP(
+  _ arguments: [String],
+  runner: SPBinaryRunner,
+  app: SupatermE2EApp,
+  stdin: Data? = nil
+) throws -> SPBinaryResult {
+  do {
+    return try requireSuccessfulSPResult(
+      try runner.run(targeting(arguments, app: app), stdin: stdin)
+    )
+  } catch {
+    throw SupatermE2EError("sp \(arguments.joined(separator: " ")) failed: \(error)")
+  }
+}
+
+private func runFailedSP(
+  _ arguments: [String],
+  runner: SPBinaryRunner,
+  app: SupatermE2EApp
+) throws -> SPBinaryResult {
+  try requireFailedSPResult(
+    try runner.run(targeting(arguments, app: app))
+  )
+}
+
 private func targeting(_ arguments: [String], app: SupatermE2EApp) -> [String] {
-  arguments + ["--socket", app.socketPath, "--json"]
+  Array(arguments.prefix(2))
+    + ["--socket", app.socketPath, "--json"]
+    + arguments.dropFirst(2)
 }
