@@ -89,4 +89,26 @@ struct TerminalTabTransferTests {
       #expect(destination.tabCollection.snapshot == destinationSnapshot)
     }
   }
+
+  @Test
+  func splitTargetAcceptsTheSelectedSourceTab() {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
+    host.applySelectedTab(sourceTabID, in: host.displayedSpaceID)
+
+    #expect(
+      host.liveTabSplitTargetTabID(sourceTabID, in: host.displayedSpaceID) == sourceTabID
+    )
+  }
+
+  @Test
+  func splitTargetUsesTheExactRequestedLiveTab() {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
+
+    #expect(
+      host.liveTabSplitTargetTabID(destinationTabID, in: host.displayedSpaceID)
+        == destinationTabID
+    )
+  }
 }

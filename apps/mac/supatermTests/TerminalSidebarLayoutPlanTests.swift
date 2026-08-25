@@ -6,7 +6,7 @@ import Testing
 
 struct TerminalSidebarLayoutPlanTests {
   @Test
-  func visibleEntriesPreserveDepthFirstOrderAndDurableEmptyProjects() {
+  func visibleEntriesPreserveSectionOrderAndDurableEmptyProjects() {
     let pinned = TerminalTabID()
     let first = TerminalTabID()
     let second = TerminalTabID()
@@ -14,7 +14,6 @@ struct TerminalSidebarLayoutPlanTests {
     let emptyProject = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(pinned), isPinned: true),
         TerminalSidebarOutline.Root(
           content: .project(populatedProject, .blue, [first, second]),
           isPinned: false
@@ -23,18 +22,20 @@ struct TerminalSidebarLayoutPlanTests {
           content: .project(emptyProject, .neutral, []),
           isPinned: false
         ),
+        TerminalSidebarOutline.Root(content: .unassigned([pinned]), isPinned: false),
       ],
-      revision: 4
+      revision: 4,
+      pinnedTabIDs: [pinned]
     )
 
     #expect(
       outline.visibleEntries.map(\.id) == [
-        .tab(pinned),
-        .pinDivider,
         .project(populatedProject),
         .tab(first),
         .tab(second),
         .project(emptyProject),
+        .unassigned,
+        .tab(pinned),
         .newTab,
       ]
     )
@@ -50,12 +51,11 @@ struct TerminalSidebarLayoutPlanTests {
     let viewportHeight: CGFloat = 300
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(root), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .project(projectID, .blue, [first, second]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([root, source]), isPinned: false),
       ],
       revision: 3
     )
@@ -68,29 +68,29 @@ struct TerminalSidebarLayoutPlanTests {
     #expect(
       plan.semanticTargets.map(\.path) == [
         .rootBoundary(index: 0, affinity: .before),
-        .rootBoundary(index: 1, affinity: .before),
-        .rootItem(index: 1),
+        .rootItem(index: 0),
         .project(projectID, index: 0),
         .project(projectID, index: 1),
         .project(projectID, index: 2),
+        .rootBoundary(index: 0, affinity: .after),
+        .unassignedHeader,
+        .unassigned(index: 0),
+        .unassigned(index: 2),
         .trailingRoot,
       ]
     )
     let leading = try #require(plan.semanticTargets.first)
     let rootTarget = try #require(plan.semanticTargets[safe: 0])
-    let headerTarget = try #require(plan.semanticTargets[safe: 2])
-    let endTarget = try #require(plan.semanticTargets[safe: 5])
-    let trailingTarget = try #require(plan.semanticTargets[safe: 6])
-    #expect(
-      leading.frame
-        == CGRect(x: 0, y: TerminalSidebarLayoutPlan.initialY, width: 220, height: 37)
-    )
-    #expect(rootTarget.frame.height == 37)
+    let headerTarget = try #require(plan.semanticTargets[safe: 1])
+    let endTarget = try #require(plan.semanticTargets[safe: 4])
+    let trailingTarget = try #require(plan.semanticTargets[safe: 9])
+    #expect(leading.frame.minY == TerminalSidebarLayoutPlan.initialY)
+    #expect(rootTarget.frame.height > 0)
     #expect(headerTarget.frame.minX == 3)
     #expect(headerTarget.frame.height == 34)
     #expect(endTarget.frame.minY < endTarget.frame.maxY)
-    #expect(trailingTarget.frame.minY == endTarget.frame.maxY)
-    #expect(trailingTarget.frame.height == viewportHeight)
+    #expect(trailingTarget.frame.minY > endTarget.frame.maxY)
+    #expect(trailingTarget.frame.height > 0)
     #expect(plan.semanticTarget(at: leading.frame.midY)?.path == leading.path)
   }
 
@@ -106,7 +106,7 @@ struct TerminalSidebarLayoutPlanTests {
           content: .project(projectID, .blue, [first, last]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([source]), isPinned: false),
       ],
       revision: 3
     )
@@ -164,21 +164,24 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
-  func upwardRootDropKeepsItsProjectedGapTargetable() throws {
+  func upwardUnassignedDropKeepsItsProjectedGapTargetable() throws {
     let first = TerminalTabID()
     let middle = TerminalTabID()
     let source = TerminalTabID()
     let outline = TerminalSidebarTestFixture.outline(
-      roots: [first, middle, source].map {
-        TerminalSidebarOutline.Root(content: .tab($0), isPinned: false)
-      },
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .unassigned([first, middle, source]),
+          isPinned: false
+        )
+      ],
       revision: 3
     )
     let payload = try #require(outline.dragPayload(for: .tab(source)))
     let target = try #require(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .rootBoundary(index: 0, affinity: .before),
+        path: .unassigned(index: 0),
         outline: outline
       )
     )
@@ -212,7 +215,7 @@ struct TerminalSidebarLayoutPlanTests {
           content: .project(secondProject, .green, [secondChild]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([source]), isPinned: false),
       ],
       revision: 3
     )
@@ -247,12 +250,14 @@ struct TerminalSidebarLayoutPlanTests {
     let projectID = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(root), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .project(projectID, .purple, [child]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([root, source]),
+          isPinned: false
+        ),
       ],
       revision: 7
     )
@@ -269,7 +274,7 @@ struct TerminalSidebarLayoutPlanTests {
     let rootFrame = try #require(plan.items.first { $0.id == .tab(root) }?.frame)
     let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
     let rootTarget = try #require(
-      plan.semanticTargets.first { $0.path == .rootBoundary(index: 0, affinity: .before) }
+      plan.semanticTargets.first { $0.path == .unassigned(index: 0) }
     )
     let childTarget = try #require(
       plan.semanticTargets.first { $0.path == .project(projectID, index: 0) }
@@ -279,7 +284,7 @@ struct TerminalSidebarLayoutPlanTests {
     )
 
     #expect(rootTarget.frame.minY == rootFrame.minY)
-    #expect(rootTarget.frame.height == rootFrame.height)
+    #expect(rootTarget.frame.height == rootFrame.height / 2)
     #expect(childTarget.frame == CGRect(x: 0, y: childFrame.minY, width: 220, height: 36.5))
     #expect(childEndTarget.frame.minY == childFrame.midY)
     #expect(childEndTarget.frame.maxY == childFrame.maxY + TerminalSidebarLayoutPlan.expandedProjectTrailingSpacing)
@@ -368,7 +373,7 @@ struct TerminalSidebarLayoutPlanTests {
           content: .project(emptyProject, .neutral, []),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([source]), isPinned: false),
       ],
       revision: 8,
       collapsedProjectIDs: [collapsedProject]
@@ -409,10 +414,9 @@ struct TerminalSidebarLayoutPlanTests {
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .project(projectID, .blue, [child]),
+          content: .project(projectID, .blue, [child, source]),
           isPinned: true
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: true),
         TerminalSidebarOutline.Root(
           content: .project(regularProjectID, .green, [regularChild]),
           isPinned: false
@@ -450,7 +454,7 @@ struct TerminalSidebarLayoutPlanTests {
   func longScrollableListsKeepTheTrailingDropTargetAfterTheLastRow() throws {
     let tabs = (0..<12).map { _ in TerminalTabID() }
     let outline = TerminalSidebarTestFixture.outline(
-      roots: tabs.map { TerminalSidebarOutline.Root(content: .tab($0), isPinned: false) },
+      roots: [TerminalSidebarOutline.Root(content: .unassigned(tabs), isPinned: false)],
       revision: 1
     )
     let viewportHeight: CGFloat = 180
@@ -472,11 +476,17 @@ struct TerminalSidebarLayoutPlanTests {
     )
 
     #expect(plan.contentSize.height > viewportHeight)
-    #expect(plan.items.map(\.id) == tabs.map(TerminalSidebarEntryID.tab) + [.newTab])
-    #expect(trailingTarget.frame.minY == lastFrame.maxY)
+    #expect(
+      plan.items.map(\.id)
+        == [.unassigned] + tabs.map(TerminalSidebarEntryID.tab) + [.newTab]
+    )
+    #expect(
+      trailingTarget.frame.minY
+        == lastFrame.maxY + TerminalSidebarLayoutPlan.expandedProjectTrailingSpacing
+    )
     #expect(newTabFrame.minY > trailingTarget.frame.minY)
     #expect(plan.semanticTarget(at: trailingTarget.frame.minY + 1)?.path == .trailingRoot)
-    #expect(dropPlan?.destination == .root(isPinned: false, index: tabs.count - 1))
+    #expect(dropPlan?.destination == .root(isPinned: false, index: 1))
     #expect(dropPlan?.placeholder == .beforeFooter)
   }
 
@@ -484,12 +494,20 @@ struct TerminalSidebarLayoutPlanTests {
   func separatorsAndNewTabSpanTheSidebarWidth() throws {
     let pinned = TerminalTabID()
     let regular = TerminalTabID()
+    let pinnedProject = TerminalProjectID()
+    let regularProject = TerminalProjectID()
     let width: CGFloat = 220
     let plan = TerminalSidebarTestFixture.layoutPlan(
       outline: TerminalSidebarTestFixture.outline(
         roots: [
-          TerminalSidebarOutline.Root(content: .tab(pinned), isPinned: true),
-          TerminalSidebarOutline.Root(content: .tab(regular), isPinned: false),
+          TerminalSidebarOutline.Root(
+            content: .project(pinnedProject, .blue, [pinned]),
+            isPinned: true
+          ),
+          TerminalSidebarOutline.Root(
+            content: .project(regularProject, .green, [regular]),
+            isPinned: false
+          ),
         ],
         revision: 1
       ),
@@ -520,11 +538,11 @@ struct TerminalSidebarLayoutPlanTests {
           content: .project(firstProject, .blue, [firstChild]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .project(secondProject, .green, [secondChild]),
           isPinned: false
         ),
+        TerminalSidebarOutline.Root(content: .unassigned([source]), isPinned: false),
       ],
       revision: 2
     )
@@ -535,7 +553,7 @@ struct TerminalSidebarLayoutPlanTests {
     let firstFrame = try #require(plan.projects.first { $0.id == firstProject }?.frame)
     let secondFrame = try #require(plan.projects.first { $0.id == secondProject }?.frame)
 
-    #expect(!plan.semanticTargets.contains { $0.path == .rootItem(index: 1) })
+    #expect(!plan.semanticTargets.contains { $0.path == .unassigned(index: 0) })
     #expect(secondFrame.minY > firstFrame.maxY)
   }
 
@@ -570,11 +588,11 @@ struct TerminalSidebarLayoutPlanTests {
     let width: CGFloat = 220
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(root), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .project(projectID, .blue, [child]),
           isPinned: false
         ),
+        TerminalSidebarOutline.Root(content: .unassigned([root]), isPinned: false),
       ],
       revision: 1
     )

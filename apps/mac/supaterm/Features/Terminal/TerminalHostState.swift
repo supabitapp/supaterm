@@ -47,6 +47,20 @@ nonisolated struct TerminalClosePerformLogContext: Sendable {
 @MainActor
 @Observable
 final class TerminalHostState {
+  struct ProjectActions {
+    var assign: @MainActor ([TerminalTabID], TerminalProjectID?) -> Bool = { _, _ in false }
+    var confirmRemoval: @MainActor (TerminalProjectID) -> Bool = { _ in false }
+    var create:
+      @MainActor (
+        String, String?, ThemeTint, Bool, [TerminalTabID]
+      ) -> TerminalProjectCreationResult? = { _, _, _, _, _ in nil }
+    var remove: @MainActor (TerminalProjectID) -> Bool = { _ in false }
+    var rename: @MainActor (TerminalProjectID, String) -> Bool = { _, _ in false }
+    var reorder: @MainActor (TerminalProjectID, Int) -> Bool = { _, _ in false }
+    var setColor: @MainActor (TerminalProjectID, ThemeTint) -> Bool = { _, _ in false }
+    var setPinned: @MainActor (TerminalProjectID, Bool) -> Bool = { _, _ in false }
+  }
+
   enum SpaceAction: Equatable {
     case create(String, ThemeTint)
     case delete(TerminalSpaceID)
@@ -297,19 +311,7 @@ final class TerminalHostState {
   var spaceCatalogObservationTask: Task<Void, Never>?
   var runtimeConfigObserver: NSObjectProtocol?
   var onSessionChange: @MainActor () -> Void = {}
-  var onProjectCreate:
-    (
-      @MainActor (
-        String, String?, ThemeTint, Bool, [TerminalTabID]
-      ) -> TerminalProjectCreationResult?
-    )?
-  var onProjectRename: (@MainActor (TerminalProjectID, String) -> Bool)?
-  var onProjectColorChange: (@MainActor (TerminalProjectID, ThemeTint) -> Bool)?
-  var onProjectPinChange: (@MainActor (TerminalProjectID, Bool) -> Bool)?
-  var onProjectReorder: (@MainActor (TerminalProjectID, Int) -> Bool)?
-  var onProjectAssignment: (@MainActor ([TerminalTabID], TerminalProjectID?) -> Bool)?
-  var onProjectRemovalRequested: @MainActor (TerminalProjectID) -> Bool = { _ in false }
-  var onProjectRemovalConfirmed: @MainActor (TerminalProjectID) -> Bool = { _ in false }
+  var projectActions = ProjectActions()
   var onSpaceAction: @MainActor (SpaceAction) -> Void = { _ in }
   var onTabDroppedOnSpace: @MainActor (TerminalTabDragPayload, TerminalSpaceID) -> Bool = { _, _ in
     false

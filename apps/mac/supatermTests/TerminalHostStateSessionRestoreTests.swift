@@ -142,9 +142,16 @@ struct TerminalHostStateSessionRestoreTests {
       host.selectTab(projectTabID)
       host.spaceManager.tabCollection(for: spaceID)?.setLockedTitle(projectTabID, title: "Project Tab")
       host.selectedSurfaceView?.setTitleOverride("Pane Title")
-      let projectID = try #require(
-        host.createProject(name: "Workspace", color: .purple, containing: [projectTabID])
-      ).projectID
+      let project = TerminalProject(name: "Workspace", color: .purple)
+      host.$projectCatalog.withLock { $0 = TerminalProjectCatalog(projects: [project]) }
+      #expect(
+        host.spaceManager.tabCollection.assign(
+          [projectTabID],
+          to: project.id,
+          orderedProjectIDs: [project.id]
+        )
+      )
+      let projectID = project.id
       #expect(host.setTabPinned(projectTabID, isPinned: true) != nil)
       host.selectTab(firstTabID)
       #expect(host.setProjectCollapsed(projectID, isCollapsed: true))
@@ -217,6 +224,48 @@ struct TerminalHostStateSessionRestoreTests {
       #expect(host.spaceManager.tabCollection(for: spaces[1].id)?.tab(for: hiddenTabID)?.projectID == projectID)
       #expect(host.spaceManager.tabCollection(for: spaces[1].id)?.tab(for: hiddenTabID)?.isPinned == true)
       #expect(host.isProjectCollapsed(projectID, in: spaces[1].id))
+    }
+  }
+
+  @Test
+  func hiddenSpaceSnapshotUsesSemanticProjectOrder() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let project = TerminalProject(name: "Work")
+      @Shared(.terminalProjectCatalog) var projectCatalog = TerminalProjectCatalog.default
+      $projectCatalog.withLock { $0 = TerminalProjectCatalog(projects: [project]) }
+      let first = spaceSession(spaceID: spaces[1].id, title: "First")
+      let projectTab = spaceSession(
+        spaceID: spaces[1].id,
+        title: "Project",
+        projectID: project.id
+      )
+      let last = spaceSession(spaceID: spaces[1].id, title: "Last")
+      let hidden = TerminalSpaceSession(
+        spaceID: spaces[1].id,
+        selectedTabID: first.selectedTabID,
+        tabs: first.tabs + projectTab.tabs + last.tabs
+      )
+      let host = TerminalHostState(spaceID: spaces[0].id)
+
+      #expect(
+        host.restore(
+          from: TerminalWindowSession(
+            displayedSpaceID: spaces[0].id,
+            spaces: [spaceSession(spaceID: spaces[0].id, title: "Displayed"), hidden]
+          )
+        )
+      )
+
+      let snapshot = host.debugWindowSnapshot(index: 1)
+      #expect(snapshot.spaces[1].flattenedTabs.map(\.title) == ["Project", "First", "Last"])
+      #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == hidden)
     }
   }
 

@@ -125,6 +125,7 @@ public enum TerminalProjectRequest: Equatable, Sendable {
 }
 
 public enum TerminalProjectResult: Equatable, Sendable {
+  case collapsed(SupatermSetProjectCollapsedResult)
   case movedTab(SupatermMoveTabResult)
   case project(SupatermProjectMutationResult)
   case removedProject(SupatermRemoveProjectResult)

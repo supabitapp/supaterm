@@ -257,7 +257,7 @@ private struct ProjectTopologyFixture {
           spaceID: space.target.spaceID
         )
       ),
-      as: SupatermProjectMutationResult.self
+      as: SupatermSetProjectCollapsedResult.self
     )
     return Self(
       token: token,

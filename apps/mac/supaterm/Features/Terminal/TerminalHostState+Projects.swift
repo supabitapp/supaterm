@@ -81,79 +81,58 @@ extension TerminalHostState {
     isPinned: Bool = false,
     containing tabIDs: [TerminalTabID] = []
   ) -> TerminalProjectCreationResult? {
-    if let onProjectCreate {
-      return onProjectCreate(name, rootPath, color, isPinned, tabIDs)
-    }
-    let project = TerminalProject(
-      name: name,
-      rootPath: rootPath,
-      color: color,
-      isPinned: isPinned
-    )
-    guard
-      let catalog = try? TerminalProjectCatalog(
-        projects: projectCatalog.projects + [project]
-      ).validated()
-    else { return nil }
-    if !tabIDs.isEmpty {
-      guard let instance = spaceManager.sharedInstance(containing: tabIDs) else { return nil }
-      guard
-        instance.tabCollection.assign(
-          tabIDs,
-          to: project.id,
-          orderedProjectIDs: catalog.projects.map(\.id)
-        )
-      else { return nil }
-      instance.collapsedProjectIDs.remove(project.id)
-    }
-    $projectCatalog.withLock { $0 = catalog }
-    sessionDidChange()
-    return TerminalProjectCreationResult(projectID: project.id)
+    projectActions.create(name, rootPath, color, isPinned, tabIDs)
   }
 
   @discardableResult
   func renameProject(_ id: TerminalProjectID, name: String) -> Bool {
-    if let onProjectRename { return onProjectRename(id, name) }
-    var catalog = projectCatalog
-    guard let index = catalog.projects.firstIndex(where: { $0.id == id }) else { return false }
-    catalog.projects[index].name = name
-    guard let validated = try? catalog.validated() else { return false }
-    $projectCatalog.withLock { $0 = validated }
-    return true
+    projectActions.rename(id, name)
   }
 
   @discardableResult
   func setProjectColor(_ id: TerminalProjectID, color: ThemeTint) -> Bool {
-    if let onProjectColorChange { return onProjectColorChange(id, color) }
-    guard let index = projectCatalog.projects.firstIndex(where: { $0.id == id }) else {
-      return false
-    }
-    $projectCatalog.withLock { $0.projects[index].color = color }
-    return true
+    projectActions.setColor(id, color)
   }
 
   @discardableResult
   func setProjectPinned(_ id: TerminalProjectID, isPinned: Bool) -> Bool {
-    if let onProjectPinChange { return onProjectPinChange(id, isPinned) }
-    var catalog = projectCatalog
-    guard let project = catalog.projects.first(where: { $0.id == id }) else { return false }
-    guard project.isPinned != isPinned else { return true }
-    guard catalog.setPinned(id, isPinned: isPinned) else { return false }
-    $projectCatalog.withLock { $0 = catalog }
-    return true
+    projectActions.setPinned(id, isPinned)
   }
 
   @discardableResult
   func reorderProject(_ id: TerminalProjectID, toLaneIndex index: Int) -> Bool {
-    if let onProjectReorder { return onProjectReorder(id, index) }
-    var catalog = projectCatalog
-    guard let project = catalog.projects.first(where: { $0.id == id }) else { return false }
-    let lane = catalog.projects.filter { $0.isPinned == project.isPinned }
-    guard lane.indices.contains(index) else { return false }
-    guard lane[index].id != id else { return true }
-    guard catalog.reorderProject(id, toLaneIndex: index) else { return false }
-    $projectCatalog.withLock { $0 = catalog }
-    return true
+    projectActions.reorder(id, index)
+  }
+
+  func moveProjectTab(_ request: SupatermMoveTabRequest) throws -> SupatermMoveTabResult {
+    let tabID = TerminalTabID(rawValue: request.target.tabID)
+    guard let instance = spaceManager.instance(for: tabID) else {
+      throw TerminalControlError.contextPaneNotFound
+    }
+    let projectID = request.projectID.map(TerminalProjectID.init(rawValue:))
+    let orderedProjectIDs = projectCatalog.projects.map(\.id)
+    let knownProjectIDs = Set(orderedProjectIDs)
+    let lane =
+      request.isPinned
+      ? instance.tabCollection.snapshot.pinnedTabs
+      : instance.tabCollection.snapshot.regularTabs
+    let destinationCount = lane.count { tab in
+      if let projectID { return tab.projectID == projectID }
+      return tab.projectID.map(knownProjectIDs.contains) != true
+    }
+    _ = try move(
+      TerminalTabMoveRequest(
+        expectedTopologyRevision: instance.tabCollection.topologyRevision,
+        orderedProjectIDs: orderedProjectIDs,
+        tabIDs: [tabID],
+        destination: TerminalTabPlacement(
+          projectID: projectID,
+          isPinned: request.isPinned,
+          index: request.index.map { $0 - 1 } ?? destinationCount
+        )
+      )
+    )
+    return SupatermMoveTabResult(target: try tabTarget(for: tabID))
   }
 
   func isProjectCollapsed(_ id: TerminalProjectID, in spaceID: TerminalSpaceID) -> Bool {
@@ -259,25 +238,7 @@ extension TerminalHostState {
 
   @discardableResult
   func assignTabs(_ ids: [TerminalTabID], to projectID: TerminalProjectID?) -> Bool {
-    if let onProjectAssignment { return onProjectAssignment(ids, projectID) }
-    if let projectID, !projectCatalog.projects.contains(where: { $0.id == projectID }) {
-      return false
-    }
-    guard let instance = spaceManager.sharedInstance(containing: ids) else { return false }
-    let changed = instance.tabCollection.assign(
-      ids,
-      to: projectID,
-      orderedProjectIDs: projectCatalog.projects.map(\.id)
-    )
-    if changed {
-      if let projectID {
-        instance.collapsedProjectIDs.remove(projectID)
-      } else {
-        instance.isUnassignedCollapsed = false
-      }
-      sessionDidChange()
-    }
-    return changed
+    projectActions.assign(ids, projectID)
   }
 
   @discardableResult

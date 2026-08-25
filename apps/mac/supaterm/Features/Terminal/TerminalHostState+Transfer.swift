@@ -2,6 +2,7 @@ import Foundation
 
 extension TerminalHostState {
   struct LiveTabMergeRequest {
+    let orderedProjectIDs: [TerminalProjectID]
     let expectedSourceRevision: UInt64
     let sourceSpaceID: TerminalSpaceID
     let sourceTabID: TerminalTabID
@@ -90,6 +91,7 @@ extension TerminalHostState {
       destinationTabID != sourceTabID,
       let plan = try? Self.prepareLiveTabMerge(
         LiveTabMergeRequest(
+          orderedProjectIDs: projectCatalog.projects.map(\.id),
           expectedSourceRevision: instance.tabCollection.topologyRevision,
           sourceSpaceID: instance.spaceID,
           sourceTabID: sourceTabID
@@ -176,6 +178,7 @@ extension TerminalHostState {
     }
     let extractionPlan = try TerminalTabCollection.prepareExtraction(
       TerminalTabExtractionRequest(
+        orderedProjectIDs: request.orderedProjectIDs,
         expectedTopologyRevision: request.expectedSourceRevision,
         tabIDs: [request.sourceTabID]
       ),

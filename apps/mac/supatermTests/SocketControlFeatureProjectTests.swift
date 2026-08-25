@@ -49,23 +49,6 @@ struct SocketControlFeatureProjectTests {
         .setColor(SupatermSetProjectColorRequest(color: .purple, target: target))
       ),
       (
-        try .setProjectCollapsed(
-          SupatermSetProjectCollapsedRequest(
-            isCollapsed: true,
-            projectID: projectTestID,
-            spaceID: projectTestSpaceID
-          ),
-          id: "collapse"
-        ),
-        .setCollapsed(
-          SupatermSetProjectCollapsedRequest(
-            isCollapsed: true,
-            projectID: projectTestID,
-            spaceID: projectTestSpaceID
-          )
-        )
-      ),
-      (
         try .reorderProject(
           SupatermReorderProjectRequest(index: 4, target: target),
           id: "reorder"
@@ -95,6 +78,39 @@ struct SocketControlFeatureProjectTests {
           == projectTestMutationResult
       )
     }
+  }
+
+  @Test
+  func collapseReturnsTheChangedSection() async throws {
+    let recorder = TerminalProjectRequestRecorder()
+    let replyRecorder = SocketReplyRecorder()
+    let request = SupatermSetProjectCollapsedRequest(
+      isCollapsed: true,
+      projectID: nil,
+      spaceID: projectTestSpaceID
+    )
+    let result = SupatermSetProjectCollapsedResult(
+      isCollapsed: request.isCollapsed,
+      projectID: request.projectID,
+      spaceID: request.spaceID
+    )
+    let store = makeProjectStore(replyRecorder: replyRecorder) { operation in
+      await recorder.record(operation)
+      return .collapsed(result)
+    }
+
+    await store.send(
+      .requestReceived(
+        SocketControlClient.Request(
+          handle: UUID(),
+          payload: try .setProjectCollapsed(request, id: "collapse")
+        )
+      )
+    )
+
+    #expect(await recorder.snapshot() == [.setCollapsed(request)])
+    let reply = try #require(await replyRecorder.snapshot().first)
+    #expect(try reply.response.decodeResult(SupatermSetProjectCollapsedResult.self) == result)
   }
 
   @Test

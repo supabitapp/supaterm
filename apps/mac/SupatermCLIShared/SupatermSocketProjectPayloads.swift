@@ -106,6 +106,18 @@ public struct SupatermProjectMutationResult: Equatable, Sendable, Codable {
   }
 }
 
+public struct SupatermSetProjectCollapsedResult: Equatable, Sendable, Codable {
+  public let isCollapsed: Bool
+  public let projectID: UUID?
+  public let spaceID: UUID
+
+  public init(isCollapsed: Bool, projectID: UUID?, spaceID: UUID) {
+    self.isCollapsed = isCollapsed
+    self.projectID = projectID
+    self.spaceID = spaceID
+  }
+}
+
 public struct SupatermRemoveProjectResult: Equatable, Sendable, Codable {
   public let removedProjectID: UUID
   public let removedTabIDs: [UUID]

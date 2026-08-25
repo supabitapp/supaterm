@@ -703,9 +703,6 @@ struct TerminalCommandExecutorTests {
       let firstTabID = try #require(host.selectedTabID)
       _ = host.createTab(inheritingFromSurfaceID: nil)
       let projectTabID = try #require(host.selectedTabID)
-      let projectID = try #require(
-        host.createProject(name: "Project", containing: [firstTabID, projectTabID])
-      ).projectID
 
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -719,6 +716,9 @@ struct TerminalCommandExecutorTests {
         requestConfirmedWindowClose: {}
       )
       registry.updateWindow(makeWindow(), for: windowControllerID)
+      let projectID = try #require(
+        host.createProject(name: "Project", containing: [firstTabID, projectTabID])
+      ).projectID
 
       let unpinned = try commandExecutor.unpinTab(TerminalTabTarget(tabID: projectTabID.rawValue))
 

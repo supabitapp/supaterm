@@ -5,6 +5,7 @@ import Observation
 final class TerminalTabCollection {
   struct ExtractionPlan {
     fileprivate let expectedTopologyRevision: UInt64
+    fileprivate let orderedProjectIDs: [TerminalProjectID]
     fileprivate let topology: TerminalTabTopology
   }
 
@@ -12,6 +13,7 @@ final class TerminalTabCollection {
     fileprivate let destinationTopology: TerminalTabTopology
     fileprivate let expectedDestinationRevision: UInt64
     fileprivate let expectedSourceRevision: UInt64
+    fileprivate let orderedProjectIDs: [TerminalProjectID]
     fileprivate let sourceTopology: TerminalTabTopology
     let result: TerminalTabTransferResult
   }
@@ -282,6 +284,7 @@ final class TerminalTabCollection {
       destinationTopology: destinationTopology,
       expectedDestinationRevision: request.expectedDestinationRevision,
       expectedSourceRevision: request.expectedSourceRevision,
+      orderedProjectIDs: request.orderedProjectIDs,
       sourceTopology: sourceTopology,
       result: TerminalTabTransferResult(tabIDs: request.tabIDs)
     )
@@ -306,6 +309,7 @@ final class TerminalTabCollection {
     topology.revision += 1
     return ExtractionPlan(
       expectedTopologyRevision: request.expectedTopologyRevision,
+      orderedProjectIDs: request.orderedProjectIDs,
       topology: topology
     )
   }
@@ -321,7 +325,7 @@ final class TerminalTabCollection {
       )
     }
     source.topology = plan.topology
-    source.repairSelection(orderedProjectIDs: [])
+    source.repairSelection(orderedProjectIDs: plan.orderedProjectIDs)
   }
 
   @discardableResult
@@ -345,7 +349,7 @@ final class TerminalTabCollection {
     }
     source.topology = plan.sourceTopology
     destination.topology = plan.destinationTopology
-    source.repairSelection(orderedProjectIDs: [])
+    source.repairSelection(orderedProjectIDs: plan.orderedProjectIDs)
     destination.selectedTabID = plan.result.tabIDs.first
     return plan.result
   }

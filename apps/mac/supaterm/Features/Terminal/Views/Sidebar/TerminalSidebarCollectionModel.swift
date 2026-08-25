@@ -33,7 +33,6 @@ enum TerminalSidebarEntryID: Hashable {
 }
 
 enum TerminalSidebarRootContent: Equatable {
-  case tab(TerminalTabID)
   case project(
     TerminalProjectID,
     ThemeTint,
@@ -65,7 +64,6 @@ struct TerminalSidebarOutline: Equatable {
 
     var id: TerminalSidebarEntryID {
       switch content {
-      case .tab(let id): .tab(id)
       case .project(let id, _, _): .project(id)
       case .unassigned: .unassigned
       }
@@ -91,14 +89,7 @@ struct TerminalSidebarOutline: Equatable {
     self.roots = roots
     self.collapsedProjectIDs = collapsedProjectIDs
     self.isUnassignedCollapsed = isUnassignedCollapsed
-    self.pinnedTabIDs =
-      pinnedTabIDs.isEmpty
-      ? Set(
-        roots.compactMap { root in
-          guard root.isPinned, case .tab(let id) = root.content else { return nil }
-          return id
-        })
-      : pinnedTabIDs
+    self.pinnedTabIDs = pinnedTabIDs
     topologyStamp = spaceID.map {
       TerminalSidebarTopologyStamp(
         spaceID: $0,
@@ -148,12 +139,6 @@ struct TerminalSidebarOutline: Equatable {
         entries.append(TerminalSidebarEntry(kind: .pinDivider))
       }
       switch root.content {
-      case .tab(let id):
-        entries.append(
-          TerminalSidebarEntry(
-            kind: .tab(id, parentProjectID: nil, rootIsPinned: pinnedTabIDs.contains(id))
-          )
-        )
       case .project(let id, let color, let tabIDs):
         let isCollapsed = collapsedProjectIDs.contains(id)
         entries.append(
@@ -221,8 +206,6 @@ struct TerminalSidebarOutline: Equatable {
   func location(of itemID: TerminalTabDragItemID) -> TerminalSidebarItemLocation? {
     for (rootIndex, root) in roots.enumerated() {
       switch (itemID, root.content) {
-      case (.tab(let itemID), .tab(let rootID)) where itemID == rootID:
-        return .root(rootPlacement(at: rootIndex))
       case (.project(let itemID), .project(let rootID, _, _)) where itemID == rootID:
         return .root(rootPlacement(at: rootIndex))
       case (.tab(let itemID), .project(let projectID, _, let tabIDs)):
@@ -518,9 +501,14 @@ enum TerminalSidebarDropPlanner {
         outline: outline
       )
     case .project(let projectID, let index):
-      return projectPlan(payload: payload, projectID: projectID, index: index, outline: outline)
+      return sectionPlan(
+        payload: payload,
+        projectID: projectID,
+        index: index,
+        outline: outline
+      )
     case .unassigned(let index):
-      return unassignedPlan(payload: payload, index: index, outline: outline)
+      return sectionPlan(payload: payload, projectID: nil, index: index, outline: outline)
     case .unassignedHeader:
       guard case .tabs = payload.source else { return nil }
       return rejectingNoOp(
@@ -654,14 +642,14 @@ enum TerminalSidebarDropPlanner {
     )
   }
 
-  private static func projectPlan(
+  private static func sectionPlan(
     payload: TerminalSidebarDragPayload,
-    projectID: TerminalProjectID,
+    projectID: TerminalProjectID?,
     index: Int,
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
     guard case .tabs(let sourceIDs) = payload.source else { return nil }
-    let original = outline.tabIDs(in: projectID)
+    let original = projectID.map(outline.tabIDs(in:)) ?? outline.unassignedTabIDs
     guard (0...original.count).contains(index) else { return nil }
     let selected = Set(sourceIDs)
     let reduced = original.filter { !selected.contains($0) }
@@ -677,52 +665,24 @@ enum TerminalSidebarDropPlanner {
     let placeholder =
       reduced.indices.contains(destinationIndex)
       ? TerminalSidebarDropPlaceholder.before(.tab(reduced[destinationIndex]))
-      : .projectEnd(projectID)
+      : projectID.map(TerminalSidebarDropPlaceholder.projectEnd) ?? .unassignedEnd
+    let path =
+      projectID.map { TerminalSidebarSemanticPath.project($0, index: index) }
+      ?? .unassigned(index: index)
+    let destination =
+      projectID.map {
+        TerminalSidebarDropDestination.project($0, index: destinationIndex)
+      } ?? .unassigned(index: destinationIndex)
     return rejectingNoOp(
       TerminalSidebarDropPlan(
-        path: .project(projectID, index: index),
-        destination: .project(projectID, index: destinationIndex),
+        path: path,
+        destination: destination,
         placeholder: placeholder,
         placement: TerminalTabPlacement(
           projectID: projectID,
           isPinned: isPinned,
           index: laneIndex
         )
-      ),
-      payload: payload,
-      outline: outline
-    )
-  }
-
-  private static func unassignedPlan(
-    payload: TerminalSidebarDragPayload,
-    index: Int,
-    outline: TerminalSidebarOutline
-  ) -> TerminalSidebarDropPlan? {
-    guard case .tabs(let sourceIDs) = payload.source else { return nil }
-    let original = outline.unassignedTabIDs
-    guard (0...original.count).contains(index) else { return nil }
-    let selected = Set(sourceIDs)
-    let reduced = original.filter { !selected.contains($0) }
-    let destinationIndex = original.prefix(index).count { !selected.contains($0) }
-    let isPinned = destinationPinState(
-      at: index,
-      in: original,
-      pinnedTabIDs: outline.pinnedTabIDs
-    )
-    let laneIndex = original.prefix(index).count {
-      !selected.contains($0) && outline.pinnedTabIDs.contains($0) == isPinned
-    }
-    let placeholder =
-      reduced.indices.contains(destinationIndex)
-      ? TerminalSidebarDropPlaceholder.before(.tab(reduced[destinationIndex]))
-      : .unassignedEnd
-    return rejectingNoOp(
-      TerminalSidebarDropPlan(
-        path: .unassigned(index: index),
-        destination: .unassigned(index: destinationIndex),
-        placeholder: placeholder,
-        placement: TerminalTabPlacement(projectID: nil, isPinned: isPinned, index: laneIndex)
       ),
       payload: payload,
       outline: outline
@@ -769,8 +729,6 @@ enum TerminalSidebarDropPlanner {
       let selected = Set(sourceIDs)
       return outline.roots.compactMap { root in
         switch root.content {
-        case .tab(let id):
-          return selected.contains(id) ? nil : root
         case .project(let id, let color, let tabIDs):
           guard tabIDs.contains(where: selected.contains) else { return root }
           let children = tabIDs.filter { !selected.contains($0) }

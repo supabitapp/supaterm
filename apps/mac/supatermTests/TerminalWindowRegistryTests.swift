@@ -1157,10 +1157,6 @@ struct TerminalWindowRegistryTests {
       }
       let windowControllerID = UUID()
       let tabID = try #require(host.createTab())
-      let projectID = try #require(
-        host.createProject(name: "Project", containing: [tabID])
-      ).projectID
-      host.spaceManager.tabCollection.selectTab(tabID)
 
       registry.register(
         keyboardShortcutForAction: { _ in nil },
@@ -1171,6 +1167,10 @@ struct TerminalWindowRegistryTests {
       )
       let window = makeWindow()
       registry.updateWindow(window, for: windowControllerID)
+      let projectID = try #require(
+        host.createProject(name: "Project", containing: [tabID])
+      ).projectID
+      host.spaceManager.tabCollection.selectTab(tabID)
 
       #expect(registry.menuContext().hasSelectedProject)
       registry.requestNewTabInSelectedProjectInKeyWindow()
@@ -1591,6 +1591,143 @@ struct TerminalWindowRegistryTests {
       #expect(saveCount == 1)
       #expect(closedWindowIDs.count == 2)
       withExtendedLifetime([first.window, second.window]) {}
+    }
+  }
+
+  @Test
+  func unassignedCollapseWorksWithoutProjects() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      let request = SupatermSetProjectCollapsedRequest(
+        isCollapsed: true,
+        projectID: nil,
+        spaceID: window.terminal.displayedSpaceID.rawValue
+      )
+
+      let result = try registry.execute(.setCollapsed(request))
+
+      #expect(
+        result
+          == .collapsed(
+            SupatermSetProjectCollapsedResult(
+              isCollapsed: true,
+              projectID: nil,
+              spaceID: request.spaceID
+            )))
+      #expect(window.terminal.isUnassignedCollapsed(in: window.terminal.displayedSpaceID))
+      withExtendedLifetime(window.window) {}
+    }
+  }
+
+  @Test
+  func projectCommandsUseOneRegistryAuthority() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      guard
+        case .project(let first) = try registry.execute(
+          .add(SupatermAddProjectRequest(name: "First"))
+        )
+      else {
+        Issue.record("Expected first Project")
+        return
+      }
+      _ = try registry.execute(.add(SupatermAddProjectRequest(name: "Second")))
+      let target = SupatermProjectTargetRequest(projectID: first.project.id)
+
+      _ = try registry.execute(.unpin(target))
+      _ = try registry.execute(.unpin(target))
+      _ = try registry.execute(
+        .reorder(SupatermReorderProjectRequest(index: 1, target: target))
+      )
+
+      #expect(registry.projectCatalog.projects.map(\.name) == ["First", "Second"])
+      withExtendedLifetime(window.window) {}
+    }
+  }
+
+  @Test
+  func emptyProjectRemovalIsImmediate() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      guard
+        case .project(let created) = try registry.execute(
+          .add(SupatermAddProjectRequest(name: "Work"))
+        )
+      else {
+        Issue.record("Expected Project")
+        return
+      }
+      let target = SupatermProjectTargetRequest(projectID: created.project.id)
+
+      let result = try registry.execute(
+        .remove(SupatermRemoveProjectRequest(confirmed: false, target: target))
+      )
+
+      #expect(
+        result
+          == .removedProject(
+            SupatermRemoveProjectResult(
+              removedProjectID: created.project.id,
+              removedTabIDs: []
+            )))
+      #expect(registry.projectCatalog.projects.isEmpty)
+      withExtendedLifetime(window.window) {}
+    }
+  }
+
+  @Test
+  func crossWindowTransferRejectsStaleProjectOrder() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let projects = [TerminalProject(name: "First"), TerminalProject(name: "Second")]
+      @Shared(.terminalProjectCatalog) var catalog = TerminalProjectCatalog.default
+      $catalog.withLock { $0 = TerminalProjectCatalog(projects: projects) }
+      let registry = TerminalWindowRegistry()
+      let source = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      let destination = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      let sourceTabID = source.terminal.spaceManager.tabCollection.createTab(title: "Source")
+      let sourceEntry = try #require(
+        registry.activeEntries().first { $0.terminal === source.terminal }
+      )
+      let destinationEntry = try #require(
+        registry.activeEntries().first { $0.terminal === destination.terminal }
+      )
+      let payload = try #require(
+        TerminalTabDragPayload(
+          operationID: TerminalTabMoveOperationID(),
+          sourceWindowID: sourceEntry.windowControllerID,
+          sourceSpaceID: source.terminal.displayedSpaceID,
+          sourceTopologyRevision: source.terminal.spaceManager.tabCollection.topologyRevision,
+          orderedProjectIDs: projects.map(\.id),
+          itemIDs: [.tab(sourceTabID)]
+        )
+      )
+      $catalog.withLock { $0.projects.reverse() }
+
+      let result = registry.transferTab(
+        payload,
+        to: TerminalTabDragRegistry.Destination(
+          windowControllerID: destinationEntry.windowControllerID,
+          spaceID: destination.terminal.displayedSpaceID,
+          expectedTopologyRevision: destination.terminal.spaceManager.tabCollection.topologyRevision,
+          placement: TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+        )
+      )
+
+      #expect(result == nil)
+      #expect(source.terminal.containsTab(sourceTabID.rawValue))
+      #expect(!destination.terminal.containsTab(sourceTabID.rawValue))
+      withExtendedLifetime([source.window, destination.window]) {}
     }
   }
 }

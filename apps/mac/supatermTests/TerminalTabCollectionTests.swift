@@ -198,4 +198,87 @@ struct TerminalTabCollectionTests {
     #expect(destination.tab(for: first)?.projectID == projectID)
     #expect(destination.tab(for: second)?.projectID == projectID)
   }
+
+  @Test
+  func transferRepairsSourceSelectionUsingProjectOrder() throws {
+    let source = TerminalTabCollection()
+    let destination = TerminalTabCollection()
+    let projectID = TerminalProjectID()
+    let unassigned = source.createTab(title: "Unassigned")
+    let selected = source.createTab(title: "Selected", projectID: projectID)
+    _ = source.createTab(title: "Last")
+    let remainingProjectTab = source.createTab(title: "Remaining", projectID: projectID)
+    source.selectTab(selected)
+    let request = TerminalTabTransferRequest(
+      expectedSourceRevision: source.topologyRevision,
+      expectedDestinationRevision: destination.topologyRevision,
+      orderedProjectIDs: [projectID],
+      tabIDs: [selected],
+      destination: TerminalTabPlacement(projectID: projectID, isPinned: false, index: 0)
+    )
+
+    let plan = try TerminalTabCollection.prepareTransfer(request, from: source, to: destination)
+    _ = try TerminalTabCollection.commitTransfer(plan, from: source, to: destination)
+
+    #expect(source.selectedTabID == remainingProjectTab)
+    #expect(source.selectedTabID != unassigned)
+  }
+
+  @Test
+  func transferCommitRejectsAChangedSourceWithoutApplyingThePlan() throws {
+    let source = TerminalTabCollection()
+    let destination = TerminalTabCollection()
+    let tabID = source.createTab(title: "Moved")
+    let request = TerminalTabTransferRequest(
+      expectedSourceRevision: source.topologyRevision,
+      expectedDestinationRevision: destination.topologyRevision,
+      orderedProjectIDs: [],
+      tabIDs: [tabID],
+      destination: TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+    )
+    let plan = try TerminalTabCollection.prepareTransfer(request, from: source, to: destination)
+    _ = source.createTab(title: "Changed")
+    let destinationSnapshot = destination.snapshot
+
+    #expect(
+      throws: TerminalTabTransferError.staleSource(
+        expected: request.expectedSourceRevision,
+        actual: source.topologyRevision
+      )
+    ) {
+      try TerminalTabCollection.commitTransfer(plan, from: source, to: destination)
+    }
+    #expect(source.tab(for: tabID) != nil)
+    #expect(destination.snapshot == destinationSnapshot)
+  }
+
+  @Test
+  func transferRejectsTabIdentityCollisionsBeforeMutation() {
+    let source = TerminalTabCollection()
+    let destination = TerminalTabCollection()
+    let tabID = TerminalTabID()
+    source.restoreTabs([TerminalTabItem(id: tabID, title: "Source")], selectedTabID: tabID)
+    destination.restoreTabs(
+      [TerminalTabItem(id: tabID, title: "Destination")],
+      selectedTabID: tabID
+    )
+    let sourceSnapshot = source.snapshot
+    let destinationSnapshot = destination.snapshot
+
+    #expect(throws: TerminalTabTransferError.destinationContainsTab(tabID)) {
+      try TerminalTabCollection.prepareTransfer(
+        TerminalTabTransferRequest(
+          expectedSourceRevision: source.topologyRevision,
+          expectedDestinationRevision: destination.topologyRevision,
+          orderedProjectIDs: [],
+          tabIDs: [tabID],
+          destination: TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+        ),
+        from: source,
+        to: destination
+      )
+    }
+    #expect(source.snapshot == sourceSnapshot)
+    #expect(destination.snapshot == destinationSnapshot)
+  }
 }

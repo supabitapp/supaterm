@@ -115,38 +115,40 @@ final class TerminalWindowRegistry {
     terminal.onSpaceAction = { [weak self] action in
       self?.performSpaceAction(action, from: windowControllerID)
     }
-    terminal.onProjectRemovalRequested = { [weak self] projectID in
-      self?.requestRemoveProject(projectID, from: windowControllerID) == true
-    }
-    terminal.onProjectRemovalConfirmed = { [weak self] projectID in
-      guard let self else { return false }
-      return (try? self.removeProject(projectID, confirmed: true)) != nil
-    }
-    terminal.onProjectCreate = { [weak self] name, rootPath, color, isPinned, tabIDs in
-      self?.createProject(
-        name: name,
-        rootPath: rootPath,
-        color: color,
-        isPinned: isPinned,
-        containing: tabIDs,
-        in: windowControllerID
-      )
-    }
-    terminal.onProjectRename = { [weak self] projectID, name in
-      self?.renameProject(projectID, name: name) == true
-    }
-    terminal.onProjectColorChange = { [weak self] projectID, color in
-      self?.setProjectColor(projectID, color: color) == true
-    }
-    terminal.onProjectPinChange = { [weak self] projectID, isPinned in
-      self?.setProjectPinned(projectID, isPinned: isPinned) == true
-    }
-    terminal.onProjectReorder = { [weak self] projectID, index in
-      self?.reorderProject(projectID, toLaneIndex: index) == true
-    }
-    terminal.onProjectAssignment = { [weak self] tabIDs, projectID in
-      self?.assignTabs(tabIDs, to: projectID, in: windowControllerID) == true
-    }
+    terminal.projectActions = TerminalHostState.ProjectActions(
+      assign: { [weak self] tabIDs, projectID in
+        self?.assignTabs(tabIDs, to: projectID, in: windowControllerID) == true
+      },
+      confirmRemoval: { [weak self] projectID in
+        guard let self else { return false }
+        return (try? self.removeProject(projectID, confirmed: true)) != nil
+      },
+      create: { [weak self] name, rootPath, color, isPinned, tabIDs in
+        self?.createProject(
+          name: name,
+          rootPath: rootPath,
+          color: color,
+          isPinned: isPinned,
+          containing: tabIDs,
+          in: windowControllerID
+        )
+      },
+      remove: { [weak self] projectID in
+        self?.requestRemoveProject(projectID, from: windowControllerID) == true
+      },
+      rename: { [weak self] projectID, name in
+        self?.renameProject(projectID, name: name) == true
+      },
+      reorder: { [weak self] projectID, index in
+        self?.reorderProject(projectID, toLaneIndex: index) == true
+      },
+      setColor: { [weak self] projectID, color in
+        self?.setProjectColor(projectID, color: color) == true
+      },
+      setPinned: { [weak self] projectID, isPinned in
+        self?.setProjectPinned(projectID, isPinned: isPinned) == true
+      }
+    )
     terminal.onTabDroppedOnSpace = { [weak self] payload, spaceID in
       self?.dropTab(payload, on: spaceID, in: windowControllerID) == true
     }

@@ -82,7 +82,7 @@ extension TerminalHostState {
   private func tabItemSnapshot(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {
     guard let instance = spaceManager.instance(for: spaceID) else { return [] }
     if let session = instance.pendingSession {
-      return session.tabs.map {
+      let tabs = session.tabs.map {
         TerminalTabItem(
           id: $0.id,
           title: $0.lockedTitle ?? "Terminal",
@@ -91,6 +91,16 @@ extension TerminalHostState {
           isTitleLocked: $0.lockedTitle != nil
         )
       }
+      let tabsByID = Dictionary(uniqueKeysWithValues: tabs.map { ($0.id, $0) })
+      return SupatermProjectLayout.make(
+        orderedProjectIDs: projectCatalog.projects.map(\.id),
+        pinnedTabs: tabs.filter(\.isPinned).map {
+          SupatermProjectTabRecord(id: $0.id, projectID: $0.projectID)
+        },
+        regularTabs: tabs.filter { !$0.isPinned }.map {
+          SupatermProjectTabRecord(id: $0.id, projectID: $0.projectID)
+        }
+      ).semanticTabIDs.compactMap { tabsByID[$0] }
     }
     return instance.tabCollection.tabs(orderedProjectIDs: projectCatalog.projects.map(\.id))
   }
@@ -655,7 +665,10 @@ extension TerminalHostState {
 
   func nextTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
     let spaceID = try resolvedNavigationSpaceID(request)
-    let tabs = spaceManager.tabs(in: spaceID)
+    let tabs =
+      spaceManager.tabCollection(for: spaceID)?.tabs(
+        orderedProjectIDs: projectCatalog.projects.map(\.id)
+      ) ?? []
     guard !tabs.isEmpty else {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
     }
@@ -673,7 +686,10 @@ extension TerminalHostState {
 
   func previousTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
     let spaceID = try resolvedNavigationSpaceID(request)
-    let tabs = spaceManager.tabs(in: spaceID)
+    let tabs =
+      spaceManager.tabCollection(for: spaceID)?.tabs(
+        orderedProjectIDs: projectCatalog.projects.map(\.id)
+      ) ?? []
     guard !tabs.isEmpty else {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
     }

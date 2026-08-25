@@ -11,7 +11,7 @@ struct SidebarExternalDropControllerTests {
     let operationID = TerminalTabMoveOperationID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(existingTabID), isPinned: false)
+        TerminalSidebarOutline.Root(content: .unassigned([existingTabID]), isPinned: false)
       ],
       revision: 4
     )

@@ -16,9 +16,7 @@ extension TerminalHostState {
   }
 
   func closeProject(_ projectID: TerminalProjectID) {
-    if onProjectRemovalConfirmed(projectID) { return }
-    performCloseProject(projectID)
-    $projectCatalog.withLock { $0.projects.removeAll { $0.id == projectID } }
+    _ = projectActions.confirmRemoval(projectID)
   }
 
   func closeTabs(_ tabIDs: [TerminalTabID]) {
@@ -74,23 +72,7 @@ extension TerminalHostState {
   }
 
   func requestCloseProject(_ projectID: TerminalProjectID) {
-    if onProjectRemovalRequested(projectID) { return }
-    let tabIDs = spaceManager.instances.flatMap { instance in
-      let warmIDs = instance.tabCollection.canonicalTabs.compactMap {
-        $0.projectID == projectID ? $0.id : nil
-      }
-      let coldIDs =
-        instance.pendingSession?.tabs.compactMap {
-          $0.projectID == projectID ? $0.id : nil
-        } ?? []
-      return warmIDs + coldIDs
-    }
-    guard !tabIDs.isEmpty else {
-      $projectCatalog.withLock { $0.projects.removeAll { $0.id == projectID } }
-      return
-    }
-    guard let resolvedCloseRequest = resolvedCloseRequest(for: .project(projectID)) else { return }
-    emit(resolvedCloseRequest)
+    _ = projectActions.remove(projectID)
   }
 
   func requestCloseTabsBelow(_ tabID: TerminalTabID) {

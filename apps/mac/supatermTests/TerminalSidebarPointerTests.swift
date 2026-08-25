@@ -373,8 +373,10 @@ struct TerminalSidebarPointerTests {
     let secondTab = try #require(host.tabs.first { $0.id == secondTabID })
     let outline = TerminalSidebarOutline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(firstTabID), isPinned: false),
-        TerminalSidebarOutline.Root(content: .tab(secondTabID), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([firstTabID, secondTabID]),
+          isPinned: false
+        )
       ],
       collapsedProjectIDs: [],
       topologyRevision: 1,
