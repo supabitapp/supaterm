@@ -85,7 +85,7 @@ struct TerminalSidebarView: View {
       terminal: terminal,
       isPagingActive: isPagingActive,
       sidebarControllerCache: sidebarControllerCache,
-      fixedHoveredGroupID: nil,
+      fixedHoveredProjectID: nil,
       dismissReleaseAnnouncement: dismissReleaseAnnouncement
     )
     .overlay(alignment: .topLeading) {

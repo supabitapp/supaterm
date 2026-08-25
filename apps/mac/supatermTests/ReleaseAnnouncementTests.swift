@@ -1,8 +1,27 @@
+import Foundation
+import SupatermCLIShared
 import Testing
 
 @testable import supaterm
 
 struct ReleaseAnnouncementTests {
+  @Test
+  func projectCatalogCountsAsExistingState() throws {
+    let stateHome = FileManager.default.temporaryDirectory.appending(
+      path: UUID().uuidString,
+      directoryHint: .isDirectory
+    )
+    try FileManager.default.createDirectory(at: stateHome, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: stateHome) }
+    try Data("{}".utf8).write(to: stateHome.appending(path: "projects.json"))
+
+    #expect(
+      ReleaseAnnouncementStorage.hasExistingSupatermState(
+        environment: [SupatermCLIEnvironment.stateHomeKey: stateHome.path]
+      )
+    )
+  }
+
   @Test
   func calendarVersionComparesNumericComponents() throws {
     let lower = try #require(ReleaseAnnouncementVersion("1.3.2"))

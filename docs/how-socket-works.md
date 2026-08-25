@@ -84,7 +84,7 @@ Discovery rules:
   - Pane: `1/2/3`
 - Space indexes follow catalog order, which is the order of the switcher dots, and mean the same thing in every window.
 - UUIDs are accepted anywhere the matching command accepts a space, tab, or pane.
-- Typed short refs use `s:`, `g:`, `t:`, or `p:` plus 8 to 32 UUID hex characters. The CLI resolves one fresh snapshot, rejects ambiguity, then sends the full UUID.
+- Typed short refs use `s:`, `j:`, `t:`, or `p:` plus 8 to 32 UUID hex characters. The CLI resolves one fresh snapshot, rejects ambiguity, then sends the full UUID.
 - Creation commands return typed IDs: `spaceID`, `tabID`, and `paneID`.
 
 ### The ambient window
@@ -98,7 +98,7 @@ Space commands, and tab creation aimed at a space, act on one window: the ambien
 
 ### Tree shape
 
-`app.tree` is the compact internal topology used to resolve mutation targets. `app.debug` reports every window with the space it displays and every space in catalog order. A space the window has not opened yet in this run reports `isWarm: false` along with the tabs from its saved layout; its panes exist on disk but have no live surface until the window displays that space or a command creates a tab there.
+`app.tree` is the compact internal topology used to resolve mutation targets. Both snapshots contain one app-wide, pinned-first Project catalog and flat Tabs under each Space. Tabs carry optional Project membership and their own pin state. `app.debug` reports every window with the Space it displays and every Space in catalog order. A Space the window has not opened yet in this run reports `isWarm: false` along with the Tabs from its saved layout; its panes exist on disk but have no live surface until the window displays that Space or a command creates a Tab there.
 
 `sp ls` requests one rich `app.debug` snapshot and projects it to an ordered flat item list. JSON returns canonical IDs only. Human and plain modes derive the shortest unique typed ref for each item kind. The same space ID can occur once per window, so `windowIndex` scopes space rows and parent joins. `revision` is an opaque live snapshot token. Compare it for equality; it is not a counter or schema version.
 
@@ -109,6 +109,15 @@ under the matching pane in `app.windows`.
 
 ```json
 {
+  "projects": [
+    {
+      "id": "7B4C...",
+      "name": "Supaterm",
+      "rootPath": "/Users/developer/code/supaterm",
+      "color": "blue",
+      "isPinned": true
+    }
+  ],
   "windows": [
     {
       "index": 1,
@@ -121,8 +130,10 @@ under the matching pane in `app.windows`.
           "name": "Work",
           "color": "green",
           "isWarm": true,
-          "rootItems": [
-            { "kind": "tab", "isPinned": false, "tab": { "id": "3F0A...", "title": "shell", "isSelected": true, "panes": [{ "index": 1, "id": "9C77...", "isFocused": true }] } }
+          "collapsedProjectIDs": [],
+          "isUnassignedCollapsed": false,
+          "tabs": [
+            { "id": "3F0A...", "title": "shell", "projectID": "7B4C...", "isPinned": false, "isSelected": true, "panes": [{ "index": 1, "id": "9C77...", "isFocused": true }] }
           ]
         },
         {
@@ -131,7 +142,9 @@ under the matching pane in `app.windows`.
           "name": "Logs",
           "color": "blue",
           "isWarm": false,
-          "rootItems": []
+          "collapsedProjectIDs": [],
+          "isUnassignedCollapsed": false,
+          "tabs": []
         }
       ]
     }
@@ -182,7 +195,16 @@ sp space focus 2
 sp space next
 sp space last
 sp space destroy -y 3
+sp project list
+sp project add Supaterm --root ~/code/supaterm --color blue --pin
+sp project pin Supaterm
+sp project unpin Supaterm
+sp project reorder Supaterm --index 1
+sp project remove Supaterm --yes
 sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
+sp tab new --project Supaterm --in 1
+sp tab move --project Supaterm --pin --index 1
+sp tab move --unassigned
 sp pane split --in 1/2 right
 sp pane send --newline 'echo hello'
 sp pane capture --scope scrollback --lines 200
@@ -217,7 +239,7 @@ sp skills get core
 sp skills install
 ```
 
-Local project metadata:
+Local Project icon lookup:
 
 ```bash
 sp project icon
@@ -250,7 +272,7 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
 - `terminal.agent_explain` — explicit rule evidence for one pane
-- `terminal.*` — space, tab, and pane control, one method per CLI verb
+- `terminal.*` — Project, Space, Tab, and pane control, one method per CLI verb
 
 `terminal.capture_pane` returns terminal text. `terminal.screenshot_pane` returns PNG data for a
 pane, including one hidden in another space or tab. The CLI writes that data to its requested path.

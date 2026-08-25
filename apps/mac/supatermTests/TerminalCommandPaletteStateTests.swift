@@ -425,14 +425,13 @@ struct TerminalCommandPaletteStateTests {
         TerminalSpaceItem(id: otherSpaceID, name: "Workspace Beta"),
       ],
       selectedTabID: visibleTabs[0].id,
-      rootItems: [
-        .tab(
-          TerminalUngroupedTabItem(
-            tab: visibleTabs[0],
-            isPinned: selectedTabIsPinned
-          )
+      tabs: [
+        TerminalTabItem(
+          id: visibleTabs[0].id,
+          title: visibleTabs[0].title,
+          isPinned: selectedTabIsPinned
         ),
-        .tab(TerminalUngroupedTabItem(tab: visibleTabs[1], isPinned: false)),
+        visibleTabs[1],
       ]
     )
   }

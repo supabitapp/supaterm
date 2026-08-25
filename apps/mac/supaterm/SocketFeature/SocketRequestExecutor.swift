@@ -148,8 +148,7 @@ public struct SocketRequestExecutor: Sendable {
     @MainActor @Sendable (TerminalCreationRequest) async throws -> TerminalCreationResult
   public var executeTerminalPane: @MainActor @Sendable (TerminalPaneRequest) async throws -> TerminalPaneResult
   public var executeTerminalTab: @MainActor @Sendable (TerminalTabRequest) async throws -> TerminalTabResult
-  public var executeTerminalTabGroup:
-    @MainActor @Sendable (TerminalTabGroupRequest) async throws -> TerminalTabGroupResult
+  public var executeTerminalProject: @MainActor @Sendable (TerminalProjectRequest) async throws -> TerminalProjectResult
   public var executeTerminalSpace: @MainActor @Sendable (TerminalSpaceRequest) async throws -> TerminalSpaceResult
 
   public init(
@@ -174,10 +173,10 @@ public struct SocketRequestExecutor: Sendable {
       @escaping @MainActor @Sendable (
         TerminalTabRequest
       ) async throws -> TerminalTabResult,
-    executeTerminalTabGroup:
+    executeTerminalProject:
       @escaping @MainActor @Sendable (
-        TerminalTabGroupRequest
-      ) async throws -> TerminalTabGroupResult = { _ in
+        TerminalProjectRequest
+      ) async throws -> TerminalProjectResult = { _ in
         throw TerminalControlError.contextPaneNotFound
       },
     executeTerminalSpace:
@@ -191,7 +190,7 @@ public struct SocketRequestExecutor: Sendable {
     self.executeTerminalCreation = executeTerminalCreation
     self.executeTerminalPane = executeTerminalPane
     self.executeTerminalTab = executeTerminalTab
-    self.executeTerminalTabGroup = executeTerminalTabGroup
+    self.executeTerminalProject = executeTerminalProject
     self.executeTerminalSpace = executeTerminalSpace
   }
 }
@@ -209,7 +208,7 @@ extension SocketRequestExecutor: DependencyKey {
       executeTerminalCreation: unimplemented("SocketRequestExecutor.executeTerminalCreation"),
       executeTerminalPane: unimplemented("SocketRequestExecutor.executeTerminalPane"),
       executeTerminalTab: unimplemented("SocketRequestExecutor.executeTerminalTab"),
-      executeTerminalTabGroup: unimplemented("SocketRequestExecutor.executeTerminalTabGroup"),
+      executeTerminalProject: unimplemented("SocketRequestExecutor.executeTerminalProject"),
       executeTerminalSpace: unimplemented("SocketRequestExecutor.executeTerminalSpace")
     )
   }

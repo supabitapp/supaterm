@@ -5,7 +5,6 @@ import SupatermCLIShared
 struct SPListSnapshot: Encodable {
   enum Kind: String, Encodable, Equatable {
     case space
-    case group
     case tab
     case pane
 
@@ -13,8 +12,6 @@ struct SPListSnapshot: Encodable {
       switch self {
       case .space:
         .space
-      case .group:
-        .group
       case .tab:
         .tab
       case .pane:
@@ -49,6 +46,36 @@ struct SPListSnapshot: Encodable {
     let isWarm: Bool?
     let agent: Agent?
     let agentStatus: SupatermAppDebugSnapshot.AgentDetectionStatus?
+    let projectID: UUID?
+    let isPinned: Bool?
+
+    init(
+      kind: Kind,
+      id: UUID,
+      parentID: UUID?,
+      windowIndex: Int,
+      title: String,
+      cwd: String?,
+      selected: Bool,
+      isWarm: Bool?,
+      agent: Agent?,
+      agentStatus: SupatermAppDebugSnapshot.AgentDetectionStatus?,
+      projectID: UUID? = nil,
+      isPinned: Bool? = nil
+    ) {
+      self.kind = kind
+      self.id = id
+      self.parentID = parentID
+      self.windowIndex = windowIndex
+      self.title = title
+      self.cwd = cwd
+      self.selected = selected
+      self.isWarm = isWarm
+      self.agent = agent
+      self.agentStatus = agentStatus
+      self.projectID = projectID
+      self.isPinned = isPinned
+    }
 
     var unresolvedAgentStatus: SupatermAppDebugSnapshot.AgentDetectionStatus? {
       guard agent == nil, let agentStatus, agentStatus.namesAnAgentTheListingCannot else {
@@ -59,10 +86,11 @@ struct SPListSnapshot: Encodable {
   }
 
   let current: Current?
+  let projects: [SupatermSnapshotProject]
   let items: [Item]
 
   var revision: String {
-    let payload = RevisionPayload(current: current, items: items)
+    let payload = RevisionPayload(current: current, projects: projects, items: items)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     let data = (try? encoder.encode(payload)) ?? Data()
@@ -72,11 +100,17 @@ struct SPListSnapshot: Encodable {
 
   init(_ snapshot: SupatermAppDebugSnapshot) {
     current = Self.currentTarget(in: snapshot)
+    projects = snapshot.projects
     items = snapshot.windows.flatMap(Self.items(in:))
   }
 
-  init(current: Current?, items: [Item]) {
+  init(
+    current: Current?,
+    projects: [SupatermSnapshotProject] = [],
+    items: [Item]
+  ) {
     self.current = current
+    self.projects = projects
     self.items = items
   }
 
@@ -84,17 +118,20 @@ struct SPListSnapshot: Encodable {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(revision, forKey: .revision)
     try container.encodeIfPresent(current, forKey: .current)
+    try container.encode(projects, forKey: .projects)
     try container.encode(items, forKey: .items)
   }
 
   private enum CodingKeys: String, CodingKey {
     case revision
     case current
+    case projects
     case items
   }
 
   private struct RevisionPayload: Encodable {
     let current: Current?
+    let projects: [SupatermSnapshotProject]
     let items: [Item]
   }
 
@@ -114,39 +151,13 @@ struct SPListSnapshot: Encodable {
           agentStatus: nil
         )
       ]
-      for rootItem in space.rootItems {
-        switch rootItem {
-        case .group(let group):
-          items.append(
-            Item(
-              kind: .group,
-              id: group.id,
-              parentID: space.id,
-              windowIndex: window.index,
-              title: group.title,
-              cwd: nil,
-              selected: false,
-              isWarm: nil,
-              agent: nil,
-              agentStatus: nil
-            )
-          )
-          for tab in group.tabs {
-            items.append(
-              contentsOf: tabItems(
-                tab,
-                parentID: group.id,
-                windowIndex: window.index
-              ))
-          }
-        case .tab(let rootTab):
-          items.append(
-            contentsOf: tabItems(
-              rootTab.tab,
-              parentID: space.id,
-              windowIndex: window.index
-            ))
-        }
+      for tab in space.tabs {
+        items.append(
+          contentsOf: tabItems(
+            tab,
+            parentID: space.id,
+            windowIndex: window.index
+          ))
       }
       return items
     }
@@ -168,7 +179,9 @@ struct SPListSnapshot: Encodable {
         selected: tab.isSelected,
         isWarm: nil,
         agent: nil,
-        agentStatus: nil
+        agentStatus: nil,
+        projectID: tab.projectID,
+        isPinned: tab.isPinned
       )
     ]
       + tab.panes.map { pane in

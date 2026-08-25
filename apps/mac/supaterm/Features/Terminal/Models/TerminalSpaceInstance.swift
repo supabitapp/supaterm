@@ -7,7 +7,8 @@ final class TerminalSpaceInstance {
   let spaceID: TerminalSpaceID
   let tabCollection = TerminalTabCollection()
   var previousSelectedTabID: TerminalTabID?
-  var collapsedTabGroupIDs: Set<TerminalTabGroupID> = []
+  var collapsedProjectIDs: Set<TerminalProjectID> = []
+  var isUnassignedCollapsed = false
   var pendingSession: TerminalSpaceSession?
 
   init(spaceID: TerminalSpaceID, pendingSession: TerminalSpaceSession? = nil) {
@@ -16,7 +17,7 @@ final class TerminalSpaceInstance {
   }
 
   var tabs: [TerminalTabItem] {
-    tabCollection.tabs
+    tabCollection.canonicalTabs
   }
 
   var selectedTabID: TerminalTabID? {
@@ -27,7 +28,8 @@ final class TerminalSpaceInstance {
     TerminalTabSurfaceSnapshot(
       spaceID: spaceID,
       collection: tabCollection.snapshot,
-      collapsedGroupIDs: collapsedTabGroupIDs
+      collapsedProjectIDs: collapsedProjectIDs,
+      isUnassignedCollapsed: isUnassignedCollapsed
     )
   }
 }

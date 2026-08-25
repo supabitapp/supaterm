@@ -11,7 +11,7 @@ private enum TerminalSidebarDragProjectionDisposition {
 final class TerminalSidebarDragPresentation {
   struct Lift {
     let rows: [TerminalSidebarLiftedRow]
-    let groupBackground: TerminalSidebarLiftedGroupBackground?
+    let projectBackground: TerminalSidebarLiftedProjectBackground?
     let fanAnchorIndex: Int?
     let sourceFrame: CGRect
     let hotspot: CGPoint
@@ -41,7 +41,7 @@ final class TerminalSidebarDragPresentation {
   private var hapticTracker = TerminalSidebarHapticTargetTracker()
 
   var sourceFrame: CGRect? { liveView?.sourceFrame }
-  var groupID: TerminalTabGroupID? { liveView?.groupID }
+  var projectID: TerminalProjectID? { liveView?.projectID }
 
   init(collectionView: NSCollectionView) {
     self.collectionView = collectionView
@@ -58,7 +58,7 @@ final class TerminalSidebarDragPresentation {
     hapticTracker.reset()
     let liveView = TerminalSidebarLiveDragView(
       rows: lift.rows,
-      groupBackground: lift.groupBackground,
+      projectBackground: lift.projectBackground,
       fanAnchorIndex: lift.fanAnchorIndex,
       frame: lift.sourceFrame
     )
@@ -259,9 +259,9 @@ final class TerminalSidebarDragPresentation {
 }
 
 @MainActor
-struct TerminalSidebarLiftedGroupBackground {
-  let id: TerminalTabGroupID
-  let view: TerminalSidebarGroupBackgroundView
+struct TerminalSidebarLiftedProjectBackground {
+  let id: TerminalProjectID
+  let view: TerminalSidebarProjectBackgroundView
   let sourceFrame: CGRect
 
   func install(in container: NSView, relativeTo containerFrame: CGRect) {
@@ -301,19 +301,19 @@ private final class TerminalSidebarLiveDragView: NSView {
   private static let restingShadowOffset = CGSize(width: 0, height: -2)
 
   private let rows: [TerminalSidebarLiftedRow]
-  private let groupBackground: TerminalSidebarLiftedGroupBackground?
+  private let projectBackground: TerminalSidebarLiftedProjectBackground?
   let sourceFrame: CGRect
 
-  var groupID: TerminalTabGroupID? { groupBackground?.id }
+  var projectID: TerminalProjectID? { projectBackground?.id }
 
   init(
     rows: [TerminalSidebarLiftedRow],
-    groupBackground: TerminalSidebarLiftedGroupBackground?,
+    projectBackground: TerminalSidebarLiftedProjectBackground?,
     fanAnchorIndex: Int?,
     frame: CGRect
   ) {
     self.rows = rows
-    self.groupBackground = groupBackground
+    self.projectBackground = projectBackground
     sourceFrame = frame
     super.init(frame: frame)
     wantsLayer = true
@@ -323,7 +323,7 @@ private final class TerminalSidebarLiveDragView: NSView {
     layer?.shadowRadius = Self.restingShadowRadius
     layer?.shadowOffset = Self.restingShadowOffset
     layer?.opacity = 0.96
-    groupBackground?.install(in: self, relativeTo: frame)
+    projectBackground?.install(in: self, relativeTo: frame)
     let fanSpacing = fanAnchorIndex.map { _ in
       TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: rows.count)
     }
@@ -348,7 +348,7 @@ private final class TerminalSidebarLiveDragView: NSView {
         in: self,
         sourceRowFrame: row.sourceFrame,
         rowFrame: rowFrame,
-        above: groupBackground?.view
+        above: projectBackground?.view
       )
       row.hostedView.frame = rowFrame
       addSubview(row.hostedView)
@@ -384,13 +384,13 @@ private final class TerminalSidebarLiveDragView: NSView {
     switch disposition {
     case .restoreSource:
       for row in rows { row.restore() }
-      groupBackground?.restore(in: collectionView)
+      projectBackground?.restore(in: collectionView)
     case .commitWithinSource:
       for row in rows { row.hostedView.removeFromSuperview() }
-      groupBackground?.restore(in: collectionView)
+      projectBackground?.restore(in: collectionView)
     case .commitOutsideSource:
       for row in rows { row.hostedView.removeFromSuperview() }
-      groupBackground?.view.removeFromSuperview()
+      projectBackground?.view.removeFromSuperview()
     }
   }
 }

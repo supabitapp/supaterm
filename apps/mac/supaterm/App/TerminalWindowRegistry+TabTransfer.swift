@@ -12,7 +12,8 @@ extension TerminalWindowRegistry {
     let request = TerminalTabTransferRequest(
       expectedSourceRevision: payload.sourceTopologyRevision,
       expectedDestinationRevision: destination.expectedTopologyRevision,
-      itemIDs: payload.itemIDs,
+      orderedProjectIDs: payload.orderedProjectIDs,
+      tabIDs: payload.tabIDs,
       destination: destination.placement
     )
     guard

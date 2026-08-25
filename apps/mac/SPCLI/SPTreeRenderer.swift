@@ -40,6 +40,8 @@ enum SPTreeRenderer {
         selector(for: item, snapshot: snapshot) ?? "-",
         String(item.windowIndex),
         parent,
+        projectReference(for: item, snapshot: snapshot) ?? "-",
+        item.isPinned.map { $0 ? "pinned" : "regular" } ?? "-",
         state,
         escaped(item.title),
         escaped(item.cwd ?? "-"),
@@ -60,8 +62,44 @@ enum SPTreeRenderer {
       let children = snapshot.items.filter {
         $0.windowIndex == item.windowIndex && $0.parentID == item.id
       }
+      let renderedChildren =
+        item.kind == .space
+        ? renderTabSections(children, snapshot: snapshot, prefix: childPrefix)
+        : renderChildren(children, snapshot: snapshot, prefix: childPrefix)
       return ["\(prefix)\(branch)\(itemLine(item, snapshot: snapshot))"]
-        + renderChildren(children, snapshot: snapshot, prefix: childPrefix)
+        + renderedChildren
+    }
+  }
+
+  private static func renderTabSections(
+    _ tabs: [SPListSnapshot.Item],
+    snapshot: SPListSnapshot,
+    prefix: String
+  ) -> [String] {
+    let projectIDs = Set(snapshot.projects.map(\.id))
+    let projectSections = snapshot.projects.compactMap { project -> (String, [SPListSnapshot.Item])? in
+      let tabs = tabs.filter { $0.projectID == project.id }
+      guard !tabs.isEmpty else { return nil }
+      let reference = SPShortReference.display(
+        kind: .project,
+        id: project.id,
+        among: snapshot.projects.map(\.id)
+      )
+      let labels = ([project.isPinned ? "pinned" : nil, project.color.rawValue] as [String?])
+        .compactMap(\.self)
+        .joined(separator: ", ")
+      return ("\(reference) project \"\(escaped(project.name, quoted: true))\" [\(labels)]", tabs)
+    }
+    let unassignedTabs = tabs.filter {
+      $0.projectID.map(projectIDs.contains) != true
+    }
+    let sections = projectSections + (unassignedTabs.isEmpty ? [] : [("Unassigned", unassignedTabs)])
+    return sections.enumerated().flatMap { offset, section in
+      let isLast = offset == sections.count - 1
+      let branch = isLast ? "└─ " : "├─ "
+      let childPrefix = prefix + (isLast ? "   " : "│  ")
+      return ["\(prefix)\(branch)\(section.0)"]
+        + renderChildren(section.1, snapshot: snapshot, prefix: childPrefix)
     }
   }
 
@@ -74,6 +112,9 @@ enum SPTreeRenderer {
     }
     if item.isWarm == false {
       labels.append("cold")
+    }
+    if let isPinned = item.isPinned {
+      labels.append(isPinned ? "pinned" : "regular")
     }
     if let agent = item.agent {
       labels.append("\(agent.kind.rawValue):\(agent.phase.rawValue) \(agent.phaseSource.rawValue)")
@@ -108,6 +149,19 @@ enum SPTreeRenderer {
     return reference(for: parent, snapshot: snapshot)
   }
 
+  private static func projectReference(
+    for item: SPListSnapshot.Item,
+    snapshot: SPListSnapshot
+  ) -> String? {
+    guard let projectID = item.projectID else { return nil }
+    guard snapshot.projects.contains(where: { $0.id == projectID }) else { return nil }
+    return SPShortReference.display(
+      kind: .project,
+      id: projectID,
+      among: snapshot.projects.map(\.id)
+    )
+  }
+
   private static func selector(
     for item: SPListSnapshot.Item,
     snapshot: SPListSnapshot
@@ -120,8 +174,6 @@ enum SPTreeRenderer {
         }).firstIndex(where: { $0.id == item.id })
       else { return nil }
       return String(index + 1)
-    case .group:
-      return nil
     case .tab:
       guard
         let targetSpaceID = spaceID(for: item, snapshot: snapshot),
@@ -156,14 +208,7 @@ enum SPTreeRenderer {
   ) -> UUID? {
     guard let parentID = tab.parentID else { return nil }
     guard let parent = parent(id: parentID, for: tab, snapshot: snapshot) else { return nil }
-    switch parent.kind {
-    case .space:
-      return parent.id
-    case .group:
-      return parent.parentID
-    case .tab, .pane:
-      return nil
-    }
+    return parent.kind == .space ? parent.id : nil
   }
 
   private static func parent(

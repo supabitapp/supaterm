@@ -506,11 +506,11 @@ struct ChromePaletteTests {
       "sidebarTabRowSelectedEdgeWeak"
     )
     expectSameThemeColor(
-      palette.sidebarGroupStrokeValue,
+      palette.sidebarProjectStrokeValue,
       isDark
         ? ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.10)
         : ThemeColor(red: 0, green: 0, blue: 0, alpha: 0.10),
-      "sidebarGroupStrokeValue"
+      "sidebarProjectStrokeValue"
     )
     expectSameColor(
       palette.sidebarSeparator,

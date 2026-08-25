@@ -107,15 +107,6 @@ struct TerminalHostStateCloseTests {
         TerminalSpaceSession(
           spaceID: spaces[1].id,
           selectedTabID: coldTabID,
-          nodes: [
-            TerminalTabNodeSession(
-              item: .tab(coldTabID),
-              parent: .root(isPinned: false),
-              order: 0
-            )
-          ],
-          groups: [],
-          collapsedGroupIDs: [],
           tabs: [
             TerminalTabSession(
               id: coldTabID,

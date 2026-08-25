@@ -7,7 +7,7 @@ Supaterm separates the saved layout from the processes running inside that layou
 
 ## Restore Terminal Layout
 
-With **Settings > General > Restore Terminal Layout** enabled, Supaterm reopens the previous windows, spaces, root ordering, groups, pinned state, collapsed groups, tabs, split trees, and working directories after relaunch. Empty groups are restored too.
+With **Settings > General > Restore Terminal Layout** enabled, Supaterm reopens the previous windows, Spaces, flat Tab lanes, Tab membership and pin state, per-Space Project and Unassigned collapse state, split trees, and working directories after relaunch. Project metadata and order persist app-wide.
 
 The saved layout does not by itself keep a shell or command alive.
 
@@ -23,7 +23,7 @@ Persistence protects an app restart, not an intentional close:
 
 - Closing a pane terminates that pane's terminal session.
 - Closing a tab terminates all panes in the tab.
-- Closing a group terminates all panes in every tab it contains.
+- Removing a non-empty Project confirms, then terminates every pane in each assigned Tab across the app.
 - Closing a window terminates the terminal sessions in that window.
 - Quitting and reopening Supaterm can restore zmx-backed sessions when both persistence settings are enabled.
 

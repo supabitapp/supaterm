@@ -21,6 +21,7 @@ func spCommandTestDebugSnapshot() -> SupatermAppDebugSnapshot {
       keyWindowIndex: nil
     ),
     currentTarget: nil,
+    projects: [],
     windows: [],
     problems: []
   )

@@ -89,10 +89,6 @@ extension TerminalHostState {
     warmPendingInstance(spaceManager.pendingInstance(containingTab: tabID))
   }
 
-  func warmInstance(containingGroup groupID: TerminalTabGroupID) {
-    warmPendingInstance(spaceManager.pendingInstance(containingGroup: groupID))
-  }
-
   private func warmPendingInstance(_ instance: TerminalSpaceInstance?) {
     guard let instance else { return }
     warmInstance(for: instance.spaceID)

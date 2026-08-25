@@ -163,15 +163,12 @@ final class TerminalSidebarNativeDragSession {
     return presentationState
   }
 
-  func finish(
-    operationID: TerminalTabMoveOperationID,
-    outcome: TerminalTabDragRegistry.Outcome
-  ) {
+  func finish(operationID: TerminalTabMoveOperationID) {
     if lifecycle.operationID == operationID {
       lifecycle.task?.cancel()
       lifecycle = .idle
     }
-    registry.finish(operationID: operationID, outcome: outcome)
+    registry.finish(operationID: operationID)
   }
 
   func beginDraggingSession(

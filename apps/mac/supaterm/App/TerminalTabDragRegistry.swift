@@ -56,11 +56,6 @@ final class TerminalTabDragRegistry {
     }
   }
 
-  enum Outcome: Equatable {
-    case cancelled
-    case moved
-  }
-
   enum SourceDisposition: Equatable {
     case retained
     case removed
@@ -89,8 +84,6 @@ final class TerminalTabDragRegistry {
 
   private var session: Session?
   private let previewPresenter: any TerminalTabDragPreviewPresenting
-  private(set) var lastOutcome: Outcome?
-
   init(
     previewPresenter: any TerminalTabDragPreviewPresenting = TerminalTabDragPreviewController()
   ) {
@@ -119,7 +112,6 @@ final class TerminalTabDragRegistry {
       splitDestinationEntryAction: splitDestinationEntryAction,
       presentationState: .sourceSurface
     )
-    lastOutcome = nil
     return true
   }
 
@@ -230,11 +222,10 @@ final class TerminalTabDragRegistry {
     return true
   }
 
-  func finish(operationID: TerminalTabMoveOperationID, outcome: Outcome) {
+  func finish(operationID: TerminalTabMoveOperationID) {
     guard session?.payload.operationID == operationID.rawValue else { return }
     session = nil
     previewPresenter.hide()
-    lastOutcome = outcome
     sessionFinished?()
   }
 }

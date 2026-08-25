@@ -2,22 +2,14 @@ import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 
-nonisolated struct TerminalSidebarGroupIconRequest: Hashable, Sendable {
-  let workingDirectoryPathsByTab: [[String]]
+nonisolated struct TerminalSidebarProjectIconRequest: Hashable, Sendable {
+  let rootPath: String?
 
   func resolve() -> URL? {
-    for path in workingDirectoryPathsByTab.joined() {
-      guard
-        let rootPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path),
-        let iconURL = SupatermProjectIconResolver.resolve(
-          in: URL(fileURLWithPath: rootPath, isDirectory: true)
-        )
-      else {
-        continue
-      }
-      return iconURL
-    }
-    return nil
+    guard let rootPath else { return nil }
+    return SupatermProjectIconResolver.resolve(
+      in: URL(fileURLWithPath: rootPath, isDirectory: true)
+    )
   }
 }
 
@@ -48,12 +40,12 @@ struct TerminalSidebarSpaceList: View {
   let palette: Palette
   let swipe: SpaceSwipeController
   let controllerCache: TerminalSidebarControllerCache
-  let fixedHoveredGroupID: TerminalTabGroupID?
+  let fixedHoveredProjectID: TerminalProjectID?
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
-  @State private var groupIconURLs: [TerminalTabGroupID: URL] = [:]
+  @State private var projectIconURLs: [TerminalProjectID: URL] = [:]
 
   var body: some View {
     TerminalSidebarOutlineList(
@@ -65,22 +57,22 @@ struct TerminalSidebarSpaceList: View {
       outline: outline,
       rows: rows,
       selectedTabID: snapshot.collection.selectedTabID,
-      fixedHoveredGroupID: fixedHoveredGroupID,
+      fixedHoveredProjectID: fixedHoveredProjectID,
       reduceMotion: reduceMotion,
       actions: rowActions,
       performDrop: performDrop
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .task(id: groupIconRequests) {
-      let requests = groupIconRequests
-      groupIconURLs = [:]
+    .task(id: projectIconRequests) {
+      let requests = projectIconRequests
+      projectIconURLs = [:]
       let icons = await Task.detached(priority: .utility) {
-        requests.reduce(into: [TerminalTabGroupID: URL]()) { icons, request in
+        requests.reduce(into: [TerminalProjectID: URL]()) { icons, request in
           icons[request.key] = request.value.resolve()
         }
       }.value
       guard !Task.isCancelled else { return }
-      groupIconURLs = icons
+      projectIconURLs = icons
     }
   }
 
@@ -89,67 +81,65 @@ struct TerminalSidebarSpaceList: View {
   }
 
   private var outline: TerminalSidebarOutline {
-    TerminalSidebarOutline(snapshot: snapshot)
+    TerminalSidebarOutline(snapshot: snapshot, projects: terminal.projects)
   }
 
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
     var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
     let shortcutHints = tabShortcutHintsByID
-    for root in snapshot.collection.rootItems {
-      switch root {
-      case .tab(let item):
-        rows[.tab(item.tab.id)] = .tab(
+    for section in terminal.projectSections(in: instance.spaceID) {
+      let project = section.project
+      rows[.project(project.id)] = .project(
+        TerminalSidebarProjectRowPresentation(
+          id: project.id,
+          title: project.name,
+          color: project.color,
+          iconURL: projectIconURLs[project.id],
+          isPinned: project.isPinned,
+          isCollapsed: snapshot.collapsedProjectIDs.contains(project.id),
+          tabCount: section.tabs.count,
+          showsNewTabShortcutHint: commandHoldObserver.isOptionPressed
+        )
+      )
+      for tab in section.tabs {
+        rows[.tab(tab.id)] = .tab(
           tabPresentation(
-            item.tab,
-            groupID: nil,
-            rootIsPinned: item.isPinned,
+            tab,
+            projectID: project.id,
+            rootIsPinned: tab.isPinned,
             shortcutHints: shortcutHints
           )
         )
-      case .group(let group):
-        rows[.group(group.id)] = .group(
-          TerminalSidebarGroupRowPresentation(
-            id: group.id,
-            title: group.title,
-            color: group.color,
-            iconURL: groupIconURLs[group.id],
-            isPinned: group.isPinned,
-            isCollapsed: snapshot.collapsedGroupIDs.contains(group.id),
-            tabCount: group.tabs.count,
-            showsNewTabShortcutHint: commandHoldObserver.isOptionPressed
-          )
-        )
-        for tab in group.tabs {
-          rows[.tab(tab.id)] = .tab(
-            tabPresentation(
-              tab,
-              groupID: group.id,
-              rootIsPinned: group.isPinned,
-              shortcutHints: shortcutHints
-            )
-          )
-        }
       }
     }
-    let rootItems = snapshot.collection.rootItems
-    if rootItems.contains(where: \.isPinned), rootItems.contains(where: { !$0.isPinned }) {
-      rows[.pinDivider] = .pinDivider
+    if let unassigned = terminal.unassignedSection(in: instance.spaceID) {
+      rows[.unassigned] = .unassigned(
+        TerminalSidebarUnassignedRowPresentation(
+          isCollapsed: snapshot.isUnassignedCollapsed,
+          tabCount: unassigned.tabs.count
+        )
+      )
+      for tab in unassigned.tabs {
+        rows[.tab(tab.id)] = .tab(
+          tabPresentation(
+            tab,
+            projectID: nil,
+            rootIsPinned: tab.isPinned,
+            shortcutHints: shortcutHints
+          )
+        )
+      }
     }
     rows[.newTab] = .newTab(.inline)
     return rows
   }
 
-  private var groupIconRequests: [TerminalTabGroupID: TerminalSidebarGroupIconRequest] {
+  private var projectIconRequests: [TerminalProjectID: TerminalSidebarProjectIconRequest] {
     Dictionary(
-      uniqueKeysWithValues: snapshot.collection.rootItems.compactMap { root in
-        guard case .group(let group) = root else { return nil }
+      uniqueKeysWithValues: terminal.projectSections(in: instance.spaceID).map { section in
         return (
-          group.id,
-          TerminalSidebarGroupIconRequest(
-            workingDirectoryPathsByTab: group.tabs.map {
-              terminal.paneWorkingDirectoryPaths(for: $0.id)
-            }
-          )
+          section.id,
+          TerminalSidebarProjectIconRequest(rootPath: section.project.rootPath)
         )
       }
     )
@@ -157,7 +147,7 @@ struct TerminalSidebarSpaceList: View {
 
   private func tabPresentation(
     _ tab: TerminalTabItem,
-    groupID: TerminalTabGroupID?,
+    projectID: TerminalProjectID?,
     rootIsPinned: Bool,
     shortcutHints: [TerminalTabID: String]
   ) -> TerminalSidebarTabRowPresentation {
@@ -168,7 +158,7 @@ struct TerminalSidebarSpaceList: View {
     )
     return TerminalSidebarTabRowPresentation(
       tab: tab,
-      groupID: groupID,
+      projectID: projectID,
       rootIsPinned: rootIsPinned,
       agentStatus: agentContext.presentation.status,
       details: details,
@@ -182,27 +172,44 @@ struct TerminalSidebarSpaceList: View {
 
   private var rowActions: TerminalSidebarRowActions {
     TerminalSidebarRowActions(
-      toggleGroupCollapsed: { terminal.toggleGroupCollapsed($0) },
-      createTabInGroup: createTab,
-      renameGroup: { terminal.renameGroup($0, title: $1) },
-      setGroupColor: { terminal.setGroupColor($0, color: $1) },
-      toggleGroupPinned: { terminal.togglePinned(.group($0)) },
-      ungroup: { terminal.ungroup($0) },
-      closeGroup: { terminal.requestCloseGroup($0) },
+      toggleProjectCollapsed: { projectID in
+        _ = terminal.setProjectCollapsed(
+          projectID,
+          isCollapsed: !terminal.isProjectCollapsed(projectID, in: instance.spaceID),
+          in: instance.spaceID
+        )
+      },
+      toggleUnassignedCollapsed: {
+        _ = terminal.setUnassignedCollapsed(
+          !terminal.isUnassignedCollapsed(in: instance.spaceID),
+          in: instance.spaceID
+        )
+      },
+      createTabInProject: createTab,
+      renameProject: { terminal.renameProject($0, name: $1) },
+      setProjectColor: { terminal.setProjectColor($0, color: $1) },
+      toggleProjectPinned: { projectID in
+        guard let project = terminal.projects.first(where: { $0.id == projectID }) else { return }
+        _ = terminal.setProjectPinned(projectID, isPinned: !project.isPinned)
+      },
+      unproject: { _ = terminal.clearProjectMembership($0) },
+      closeProject: { terminal.requestCloseProject($0) },
       newTab: newTab
     )
   }
 
   private var tabShortcutHintsByID: [TerminalTabID: String] {
-    TerminalSidebarTabShortcutHints.byTabID(for: snapshot.collection.tabs) { slot in
+    TerminalSidebarTabShortcutHints.byTabID(
+      for: snapshot.collection.tabs(orderedProjectIDs: terminal.projects.map(\.id))
+    ) { slot in
       ghosttyShortcuts.keyboardShortcut(for: .goToTab(slot))
     }
   }
 
-  private func createTab(in groupID: TerminalTabGroupID) {
+  private func createTab(in projectID: TerminalProjectID) {
     AppPostHog.capture("terminal_tab_created")
     _ = terminal.createTab(
-      in: groupID,
+      in: projectID,
       inheritingFromSurfaceID: terminal.selectedSurfaceView?.id
     )
   }
@@ -217,17 +224,64 @@ struct TerminalSidebarSpaceList: View {
   private func performDrop(
     _ command: TerminalSidebarDropCommand
   ) -> TerminalSidebarDropReceipt? {
-    guard command.topologyStamp.spaceID == terminal.displayedSpaceID else { return nil }
+    let orderedProjectIDs = terminal.projects.map(\.id)
+    guard
+      command.topologyStamp.spaceID == terminal.displayedSpaceID,
+      command.topologyStamp.revision
+        == terminal.spaceManager.displayedInstance.tabCollection.topologyRevision,
+      command.topologyStamp.orderedProjectIDs == orderedProjectIDs
+    else { return nil }
+    if command.itemIDs.count == 1, case .project(let projectID) = command.itemIDs[0] {
+      _ = terminal.setProjectPinned(projectID, isPinned: command.destination.isPinned)
+      _ = terminal.reorderProject(projectID, toLaneIndex: command.destination.index)
+      return TerminalSidebarDropReceipt(
+        spaceID: command.topologyStamp.spaceID,
+        result: TerminalTabMoveResult(
+          operationID: command.operationID,
+          tabIDs: [],
+          location: command.destination,
+          topologyRevision: command.topologyStamp.revision
+        ),
+        orderedProjectIDs: orderedProjectIDs
+      )
+    }
+    let tabIDs = command.itemIDs.compactMap { itemID -> TerminalTabID? in
+      guard case .tab(let tabID) = itemID else { return nil }
+      return tabID
+    }
+    guard tabIDs.count == command.itemIDs.count else { return nil }
+    if command.preservesPinLanes {
+      guard terminal.assignTabs(tabIDs, to: command.destination.projectID) else { return nil }
+      guard
+        let firstID = tabIDs.first,
+        let placement = terminal.spaceManager.displayedInstance.tabCollection.placement(
+          of: firstID,
+          orderedProjectIDs: terminal.projects.map(\.id)
+        )
+      else { return nil }
+      return TerminalSidebarDropReceipt(
+        spaceID: command.topologyStamp.spaceID,
+        result: TerminalTabMoveResult(
+          operationID: command.operationID,
+          tabIDs: tabIDs,
+          location: placement,
+          topologyRevision: terminal.spaceManager.displayedInstance.tabCollection.topologyRevision
+        ),
+        orderedProjectIDs: orderedProjectIDs
+      )
+    }
     return try? TerminalSidebarDropReceipt(
       spaceID: command.topologyStamp.spaceID,
       result: terminal.move(
         TerminalTabMoveRequest(
           operationID: command.operationID,
           expectedTopologyRevision: command.topologyStamp.revision,
-          itemIDs: command.itemIDs,
+          orderedProjectIDs: orderedProjectIDs,
+          tabIDs: tabIDs,
           destination: command.destination
         )
-      )
+      ),
+      orderedProjectIDs: orderedProjectIDs
     )
   }
 }

@@ -143,16 +143,16 @@ extension SupatermE2ESuite {
     }
 
     @Test(.timeLimit(.minutes(5)))
-    func groupedTopologyAndStableIdentitySurviveSocketQuitRelaunch() async throws {
+    func projectAssignmentsAndStableIdentitySurviveSocketQuitRelaunch() async throws {
       let app = try await SupatermE2EApp.launch()
       defer { app.terminate() }
 
       let token = token()
       let directory = try scratchDirectory(app, token: token)
-      let fixture = try GroupedTopologyFixture.create(app: app, token: token, directory: directory)
-      try await relaunchWithGroupedTopology(app, fixture: fixture)
-      try verifyRestoredGroupedTopology(app, fixture: fixture)
-      try verifyDurableGroupSurvivesEmptying(app, fixture: fixture)
+      let fixture = try ProjectTopologyFixture.create(app: app, token: token, directory: directory)
+      try await relaunchWithProjectTopology(app, fixture: fixture)
+      try verifyRestoredProjectTopology(app, fixture: fixture)
+      try verifyProjectSurvivesEmptying(app, fixture: fixture)
     }
 
     @Test(.timeLimit(.minutes(5)))
@@ -194,7 +194,7 @@ extension SupatermE2ESuite {
       let restored = try restoredSpace(named: "pin-\(token)", in: app)
       #expect(restored.id == space.target.spaceID)
       let restoredTab = try restoredTab(titled: title, in: restored)
-      #expect(e2eRootTab(withID: restoredTab.id, in: restored)?.isPinned == true)
+      #expect(restoredTab.isPinned)
       #expect(restoredTab.isSelected)
       #expect(restoredTab.isTitleLocked)
       #expect(restoredTab.panes.map(\.id) == [tab.paneID])
@@ -202,18 +202,18 @@ extension SupatermE2ESuite {
   }
 }
 
-private struct GroupedTopologyFixture {
+private struct ProjectTopologyFixture {
   let token: String
   let space: SupatermCreateSpaceResult
   let second: SupatermNewTabResult
-  let root: SupatermNewTabResult
-  let groupID: UUID
+  let unassigned: SupatermNewTabResult
+  let projectID: UUID
 
   var spaceName: String { Self.spaceName(token) }
   var firstTitle: String { Self.firstTitle(token) }
   var secondTitle: String { Self.secondTitle(token) }
-  var rootTitle: String { Self.rootTitle(token) }
-  var groupTitle: String { Self.groupTitle(token) }
+  var unassignedTitle: String { Self.unassignedTitle(token) }
+  var projectName: String { Self.projectName(token) }
 
   static func create(
     app: SupatermE2EApp,
@@ -224,24 +224,25 @@ private struct GroupedTopologyFixture {
     _ = try lockTabTitle(app, tabID: space.tabID, title: firstTitle(token))
     let second = try makeTab(app, in: space, cwd: directory)
     _ = try lockTabTitle(app, tabID: second.tabID, title: secondTitle(token))
-    let root = try makeTab(app, in: space, cwd: directory)
-    _ = try lockTabTitle(app, tabID: root.tabID, title: rootTitle(token))
-    let group = try app.send(
-      .createTabGroup(
-        SupatermCreateTabGroupRequest(
+    let unassigned = try makeTab(app, in: space, cwd: directory)
+    _ = try lockTabTitle(app, tabID: unassigned.tabID, title: unassignedTitle(token))
+    let project = try app.send(
+      .addProject(
+        SupatermAddProjectRequest(
           color: .purple,
           isPinned: false,
-          target: SupatermSpaceTargetRequest(spaceID: space.target.spaceID),
-          title: groupTitle(token)
+          name: projectName(token),
+          rootPath: directory.path
         )
       ),
-      as: SupatermTabGroupMutationResult.self
+      as: SupatermProjectMutationResult.self
     )
-    for tabID in [space.tabID, second.tabID] {
+    for (tabID, isPinned) in [(space.tabID, true), (second.tabID, false)] {
       _ = try app.send(
         .moveTab(
           SupatermMoveTabRequest(
-            destination: .group(group.group.id),
+            isPinned: isPinned,
+            projectID: project.project.id,
             target: SupatermTabTargetRequest(tabID: tabID)
           )
         ),
@@ -249,113 +250,114 @@ private struct GroupedTopologyFixture {
       )
     }
     _ = try app.send(
-      .moveTabGroup(
-        SupatermMoveTabGroupRequest(
-          index: 1,
-          target: SupatermTabGroupTargetRequest(groupID: group.group.id)
+      .setProjectCollapsed(
+        SupatermSetProjectCollapsedRequest(
+          isCollapsed: true,
+          projectID: project.project.id,
+          spaceID: space.target.spaceID
         )
       ),
-      as: SupatermTabGroupMutationResult.self
+      as: SupatermProjectMutationResult.self
     )
-    _ = try app.send(
-      .collapseTabGroup(SupatermTabGroupTargetRequest(groupID: group.group.id)),
-      as: SupatermTabGroupMutationResult.self
+    return Self(
+      token: token,
+      space: space,
+      second: second,
+      unassigned: unassigned,
+      projectID: project.project.id
     )
-    return Self(token: token, space: space, second: second, root: root, groupID: group.group.id)
   }
 
-  private static func spaceName(_ token: String) -> String { "groups-\(token)" }
-  private static func firstTitle(_ token: String) -> String { "group-first-\(token)" }
-  private static func secondTitle(_ token: String) -> String { "group-second-\(token)" }
-  private static func rootTitle(_ token: String) -> String { "group-root-\(token)" }
-  private static func groupTitle(_ token: String) -> String { "persisted-group-\(token)" }
+  private static func spaceName(_ token: String) -> String { "projects-\(token)" }
+  private static func firstTitle(_ token: String) -> String { "project-first-\(token)" }
+  private static func secondTitle(_ token: String) -> String { "project-second-\(token)" }
+  private static func unassignedTitle(_ token: String) -> String { "unassigned-\(token)" }
+  private static func projectName(_ token: String) -> String { "persisted-project-\(token)" }
 }
 
-private func relaunchWithGroupedTopology(
+private func relaunchWithProjectTopology(
   _ app: SupatermE2EApp,
-  fixture: GroupedTopologyFixture
+  fixture: ProjectTopologyFixture
 ) async throws {
   try await app.waitForPersistedStateQuiescence(
     containing: [
-      fixture.groupID.uuidString,
+      fixture.projectID.uuidString,
       fixture.space.tabID.uuidString,
       fixture.second.tabID.uuidString,
-      fixture.root.tabID.uuidString,
-      fixture.groupTitle,
+      fixture.unassigned.tabID.uuidString,
+      fixture.projectName,
       fixture.firstTitle,
       fixture.secondTitle,
-      fixture.rootTitle,
+      fixture.unassignedTitle,
     ]
   )
   try await app.quit()
   try await app.relaunch()
-  try await app.waitForDebugSnapshot("the grouped topology is restored") { snapshot in
+  try await app.waitForDebugSnapshot("the Project topology is restored") { snapshot in
     guard
+      snapshot.projects.contains(where: { $0.id == fixture.projectID }),
       let restored = snapshot.windows.flatMap(\.spaces).first(where: {
         $0.id == fixture.space.target.spaceID
       }),
       restored.flattenedTabs.map(\.id) == [
-        fixture.space.tabID, fixture.second.tabID, fixture.root.tabID,
+        fixture.space.tabID, fixture.second.tabID, fixture.unassigned.tabID,
       ]
     else { return false }
-    guard case .group(let group) = restored.rootItems.first else { return false }
-    return group.id == fixture.groupID && group.isCollapsed
+    return restored.collapsedProjectIDs.contains(fixture.projectID)
   }
 }
 
-private func verifyRestoredGroupedTopology(
+private func verifyRestoredProjectTopology(
   _ app: SupatermE2EApp,
-  fixture: GroupedTopologyFixture
+  fixture: ProjectTopologyFixture
 ) throws {
+  let snapshot = try app.debugSnapshot()
+  let project = try #require(snapshot.projects.first { $0.id == fixture.projectID })
   let restored = try restoredSpace(named: fixture.spaceName, in: app)
-  #expect(restored.rootItems.count == 2)
-  guard case .group(let group) = restored.rootItems[0] else {
-    Issue.record("Expected the restored group first")
-    return
-  }
-  guard case .tab(let restoredRoot) = restored.rootItems[1] else {
-    Issue.record("Expected the restored root tab second")
-    return
-  }
-  #expect(group.id == fixture.groupID)
-  #expect(group.title == fixture.groupTitle)
-  #expect(group.color == .purple)
-  #expect(group.isCollapsed)
-  #expect(!group.isPinned)
-  #expect(group.tabs.map(\.id) == [fixture.space.tabID, fixture.second.tabID])
-  #expect(group.tabs.map(\.title) == [fixture.firstTitle, fixture.secondTitle])
-  #expect(group.tabs.map(\.isTitleLocked) == [true, true])
-  #expect(restoredRoot.tab.id == fixture.root.tabID)
-  #expect(restoredRoot.tab.title == fixture.rootTitle)
-  #expect(restoredRoot.tab.isSelected)
-  #expect(restoredRoot.tab.isTitleLocked)
+  #expect(project.name == fixture.projectName)
+  #expect(project.color == .purple)
+  #expect(project.rootPath?.hasSuffix("scratch-\(fixture.token)") == true)
+  #expect(!project.isPinned)
+  #expect(restored.collapsedProjectIDs == [fixture.projectID])
+  #expect(
+    restored.flattenedTabs.map(\.id) == [
+      fixture.space.tabID, fixture.second.tabID, fixture.unassigned.tabID,
+    ])
+  #expect(
+    restored.flattenedTabs.map(\.projectID) == [
+      fixture.projectID, fixture.projectID, nil,
+    ])
+  #expect(restored.flattenedTabs.map(\.isPinned) == [true, false, false])
+  #expect(
+    restored.flattenedTabs.map(\.title) == [
+      fixture.firstTitle, fixture.secondTitle, fixture.unassignedTitle,
+    ])
+  #expect(restored.flattenedTabs.map(\.isTitleLocked) == [true, true, true])
+  #expect(restored.flattenedTabs.last?.isSelected == true)
 }
 
-private func verifyDurableGroupSurvivesEmptying(
+private func verifyProjectSurvivesEmptying(
   _ app: SupatermE2EApp,
-  fixture: GroupedTopologyFixture
+  fixture: ProjectTopologyFixture
 ) throws {
   for tabID in [fixture.space.tabID, fixture.second.tabID] {
     _ = try app.send(
       .moveTab(
         SupatermMoveTabRequest(
-          destination: .root(isPinned: false),
+          isPinned: false,
+          projectID: nil,
           target: SupatermTabTargetRequest(tabID: tabID)
         )
       ),
       as: SupatermMoveTabResult.self
     )
   }
-  let emptied = try restoredSpace(named: fixture.spaceName, in: app)
-  let durableItem = emptied.rootItems.first { item in
-    guard case .group(let group) = item else { return false }
-    return group.id == fixture.groupID
-  }
-  guard case .group(let durableGroup) = durableItem else {
-    Issue.record("Expected the durable group to remain")
-    return
-  }
-  #expect(durableGroup.tabs.isEmpty)
+  let snapshot = try app.debugSnapshot()
+  #expect(snapshot.projects.contains { $0.id == fixture.projectID })
+  let emptied = try #require(
+    snapshot.windows.flatMap(\.spaces).first { $0.id == fixture.space.target.spaceID }
+  )
+  #expect(emptied.flattenedTabs.allSatisfy { $0.projectID == nil })
 }
 
 private func makeSpace(_ app: SupatermE2EApp, name: String) throws -> SupatermCreateSpaceResult {

@@ -10,7 +10,7 @@ struct SupatermShortcutsTests {
     #expect(SupatermShortcuts.all.count == 19)
     #expect(Set(SupatermShortcuts.all.map(\.id)).count == SupatermShortcuts.all.count)
     #expect(SupatermShortcuts.jumpToLatestUnread.defaultBinding.display == "⌘⌃U")
-    #expect(SupatermShortcuts.newTabInGroup.defaultBinding.display == "⌘⌥T")
+    #expect(SupatermShortcuts.newTabInProject.defaultBinding.display == "⌘⌥T")
     #expect(SupatermShortcuts.nextSpace.defaultBinding.display == "⌘⌃→")
     #expect(SupatermShortcuts.openPullRequest.defaultBinding.display == "⌘⌥P")
     #expect(SupatermShortcuts.previousSpace.defaultBinding.display == "⌘⌃←")

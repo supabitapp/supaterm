@@ -62,7 +62,7 @@ enum TerminalSidebarLayout {
   static let tabTrailingAccessorySize: CGFloat = 24
   static let rowHorizontalPadding: CGFloat = 10
   static let visibleHorizontalInset: CGFloat = 6
-  static let groupedTabIndent: CGFloat = 6
+  static let projectedTabIndent: CGFloat = 6
   static var cardHorizontalInsets: HorizontalInsets {
     HorizontalInsets(
       leading: visibleHorizontalInset,
@@ -76,26 +76,26 @@ enum TerminalSidebarLayout {
   static let cardCornerRadius: CGFloat = 12
   static let cardMinHeight: CGFloat = 36
   static let cardVerticalPadding: CGFloat = 8
-  static let groupSurfaceOverflow: CGFloat = 2
+  static let projectSurfaceOverflow: CGFloat = 2
   static let trafficLightGap: CGFloat = 6
 
-  static func tabContentHorizontalInsets(isGrouped: Bool) -> HorizontalInsets {
+  static func tabContentHorizontalInsets(isProjected: Bool) -> HorizontalInsets {
     HorizontalInsets(
-      leading: rowHorizontalPadding + (isGrouped ? groupedTabIndent : 0),
+      leading: rowHorizontalPadding + (isProjected ? projectedTabIndent : 0),
       trailing: rowHorizontalPadding
     )
   }
 
-  static func tabSurfaceHorizontalInsets(isGrouped: Bool) -> HorizontalInsets {
-    guard isGrouped else { return HorizontalInsets(leading: 0, trailing: 0) }
+  static func tabSurfaceHorizontalInsets(isProjected: Bool) -> HorizontalInsets {
+    guard isProjected else { return HorizontalInsets(leading: 0, trailing: 0) }
     return HorizontalInsets(
-      leading: groupedTabIndent,
-      trailing: groupSurfaceOverflow
+      leading: projectedTabIndent,
+      trailing: projectSurfaceOverflow
     )
   }
 
-  static func tabSurfaceFrame(in bounds: CGRect, isGrouped: Bool) -> CGRect {
-    tabSurfaceHorizontalInsets(isGrouped: isGrouped).frame(in: bounds)
+  static func tabSurfaceFrame(in bounds: CGRect, isProjected: Bool) -> CGRect {
+    tabSurfaceHorizontalInsets(isProjected: isProjected).frame(in: bounds)
   }
 
   static var scrollViewportTopInset: CGFloat {

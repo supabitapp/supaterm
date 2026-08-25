@@ -720,8 +720,8 @@ struct TerminalSidebarChromeViewTests {
       titles == [
         "New Tab",
         "Pin Tab",
-        "Move to New Group",
-        "Move to Group...",
+        "Move to New Project",
+        "Move to Project...",
         "Change Tab Title...",
         "Close All Below",
         "Close Others",
@@ -742,8 +742,8 @@ struct TerminalSidebarChromeViewTests {
       titles == [
         "New Tab",
         "Unpin Tab",
-        "Move to New Group",
-        "Move to Group...",
+        "Move to New Project",
+        "Move to Project...",
         "Change Tab Title...",
         "Close All Below",
         "Close Others",
@@ -753,21 +753,21 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func groupedTabContextMenuSupportsExtractionAndRegrouping() {
+  func projectedTabContextMenuSupportsExtractionAndReprojecting() {
     let titles = TerminalSidebarTabRow.contextMenuItems(
       isPinned: false,
       hasTabsBelow: true,
       hasOtherTabs: true,
-      isGrouped: true
+      isProjected: true
     ).compactMap(\.title)
 
     #expect(
       titles == [
         "New Tab",
         "Pin Tab",
-        "Move to New Group",
-        "Move to Group...",
-        "Remove from Group",
+        "Move to New Project",
+        "Move to Project...",
+        "Remove from Project",
         "Change Tab Title...",
         "Close All Below",
         "Close Others",

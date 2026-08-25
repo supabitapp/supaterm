@@ -4,7 +4,7 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
   case copyAgentSessionID
   case forkAgentSession
   case jumpToLatestUnread
-  case newTabInGroup
+  case newTabInProject
   case nextSpace
   case openPullRequest
   case previousSpace
@@ -28,8 +28,8 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
       "Fork Agent Session"
     case .jumpToLatestUnread:
       "Jump to Latest Unread"
-    case .newTabInGroup:
-      "New Tab in Group"
+    case .newTabInProject:
+      "New Tab in Project"
     case .nextSpace:
       "Next Space"
     case .openPullRequest:
@@ -53,8 +53,8 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
       "fork_agent_session"
     case .jumpToLatestUnread:
       "jump_to_latest_unread"
-    case .newTabInGroup:
-      "new_tab_in_group"
+    case .newTabInProject:
+      "new_tab_in_project"
     case .nextSpace:
       "next_space"
     case .openPullRequest:
@@ -86,8 +86,8 @@ public enum SupatermShortcutID: Codable, Hashable, Sendable, CodingKeyRepresenta
       self = .forkAgentSession
     case "jump_to_latest_unread":
       self = .jumpToLatestUnread
-    case "new_tab_in_group":
-      self = .newTabInGroup
+    case "new_tab_in_project":
+      self = .newTabInProject
     case "next_space":
       self = .nextSpace
     case "open_pull_request":

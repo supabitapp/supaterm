@@ -55,6 +55,8 @@ struct SocketControlFeatureAppTests {
     let tab = SupatermTreeSnapshot.Tab(
       id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       title: "zsh",
+      projectID: nil,
+      isPinned: false,
       isSelected: true,
       panes: [pane]
     )
@@ -64,7 +66,9 @@ struct SocketControlFeatureAppTests {
       name: "A",
       color: .neutral,
       isWarm: true,
-      rootItems: [.tab(SupatermTreeSnapshot.RootTab(isPinned: false, tab: tab))]
+      collapsedProjectIDs: [],
+      isUnassignedCollapsed: false,
+      tabs: [tab]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
@@ -73,6 +77,7 @@ struct SocketControlFeatureAppTests {
       spaces: [space]
     )
     let snapshot = SupatermTreeSnapshot(
+      projects: [],
       windows: [window]
     )
     let request = SocketControlClient.Request(
@@ -163,6 +168,7 @@ struct SocketControlFeatureAppTests {
         keyWindowIndex: 1
       ),
       currentTarget: nil,
+      projects: [],
       windows: [],
       problems: ["No active windows."]
     )

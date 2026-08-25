@@ -107,16 +107,16 @@ enum TerminalSidebarLayoutMotion {
     from previous: TerminalSidebarOutline,
     to current: TerminalSidebarOutline
   ) -> TimeInterval {
-    let currentGroupIDs = Set(
-      current.roots.compactMap { root -> TerminalTabGroupID? in
-        guard case .group(let id, _, _, _) = root.content else { return nil }
+    let currentProjectIDs = Set(
+      current.roots.compactMap { root -> TerminalProjectID? in
+        guard case .project(let id, _, _) = root.content else { return nil }
         return id
       }
     )
-    let expandedGroupIDs = previous.collapsedGroupIDs
-      .subtracting(current.collapsedGroupIDs)
-      .intersection(currentGroupIDs)
-    return expandedGroupIDs.isEmpty ? defaultDuration : TerminalSidebarCollapseMotion.rowDuration
+    let expandedProjectIDs = previous.collapsedProjectIDs
+      .subtracting(current.collapsedProjectIDs)
+      .intersection(currentProjectIDs)
+    return expandedProjectIDs.isEmpty ? defaultDuration : TerminalSidebarCollapseMotion.rowDuration
   }
 }
 

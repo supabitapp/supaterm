@@ -27,7 +27,7 @@ enum SPHelp {
 
     Example:
       sp ls
-      sp group new Work --color blue
+      sp project add Work --color blue
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
       sp project icon
@@ -40,7 +40,7 @@ enum SPHelp {
   static let treeDiscussion = """
     `sp ls` is the compact live snapshot for agents and people.
 
-    Human and plain output show typed short refs: s: for spaces, g: for groups,
+    Human and plain output show typed short refs: s: for spaces, j: for projects,
     t: for tabs, and p: for panes. A short ref has 8 to 32 UUID hex characters.
     Use a longer ref if a prefix becomes ambiguous.
 
@@ -107,10 +107,7 @@ enum SPHelp {
     """
 
   static let newTabDiscussion = """
-    If you omit --in inside Supaterm, this command creates the tab in the current tab's group when it has one.
-    Otherwise it creates the tab in the current space.
-
-    Use --root to always create the tab at the space root.
+    The new tab starts in Unassigned unless --project assigns it to a Project.
 
     The ambient tab and pane come from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
@@ -126,88 +123,22 @@ enum SPHelp {
       sp tab new -- ping 1.1.1.1
       sp tab new --script 'echo hi; pwd'
       sp tab new --focus -- ping 1.1.1.1
-      sp tab new --group Build
-      sp tab new --root
+      sp tab new --project Build
       sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
       sp tab new --in <space-uuid> --cwd ~/tmp -- ping 1.1.1.1
-    """
-
-  static let groupDiscussion = """
-    Groups are addressed by g: ref, UUID, or exact title. A unique title is required.
-
-    Example:
-      sp group new Build
-      sp group rename Deploy Build
-      sp group color blue Deploy
-      sp group collapse Deploy
-      sp group move Deploy --index 1
-      sp group ungroup Deploy
-      sp group close Deploy --yes
-    """
-
-  static let groupNewDiscussion = """
-    Creates an empty group in the current space unless --in selects another space.
-
-    Example:
-      sp group new Build
-      sp group new Deploy --color blue
-      sp group new Pinned --pin
-      sp group new Logs --in 2
-    """
-
-  static let groupRenameDiscussion = """
-    If you omit the group target inside Supaterm, the current tab's group is used.
-
-    Example:
-      sp group rename Deploy
-      sp group rename Deploy Build
-      sp group rename Deploy <group-uuid>
-    """
-
-  static let groupColorDiscussion = """
-    If you omit the group target inside Supaterm, the current tab's group is used.
-
-    Example:
-      sp group color blue
-      sp group color green Deploy
-      sp group color neutral <group-uuid>
-    """
-
-  static let groupTargetDiscussion = """
-    If you omit the group target inside Supaterm, the current tab's group is used.
-
-    Group targets accept a g: ref, UUID, or unique title.
-
-    Example:
-      sp group pin Build
-      sp group unpin Build
-      sp group collapse Build
-      sp group expand Build
-      sp group ungroup Build
-      sp group close Build --yes
-    """
-
-  static let groupMoveDiscussion = """
-    Moves a group to a 1-based index within its pinned or regular root lane.
-
-    If you omit the group target inside Supaterm, the current tab's group is used.
-
-    Example:
-      sp group move --index 1
-      sp group move Deploy --index 2
-      sp group move <group-uuid> --index 1
     """
 
   static let moveTabDiscussion = """
     If you omit the tab target inside Supaterm, the current tab is used.
 
-    Move to a group by g: ref, UUID, or unique title, or use --root. --index is 1-based.
+    Move to a Project by j: ref, UUID, or exact name, or use --unassigned.
+    Pinning and the one-based index apply within the destination Project lane.
 
     Example:
-      sp tab move --group Build
-      sp tab move 1/2 --group <group-uuid> --index 1
-      sp tab move --root
-      sp tab move <tab-uuid> --root --pin --index 1
+      sp tab move --project Build
+      sp tab move 1/2 --project <project-uuid> --index 1
+      sp tab move --unassigned
+      sp tab move <tab-uuid> --unassigned --pin --index 1
     """
 
   static let notifyDiscussion = """
@@ -418,12 +349,18 @@ enum SPHelp {
     """
 
   static let projectDiscussion = """
-    Project commands read the local filesystem and do not need a running Supaterm app.
+    Projects are app-wide. Names are unique and each Project can have one root directory.
+    Project targets accept a j: ref, UUID, or exact name.
+
+    `project icon` reads the local filesystem and does not need a running app.
 
     Example:
+      sp project list
+      sp project add Build --root ~/code/build --color blue
+      sp project pin Build
+      sp project reorder Build --index 1
+      sp project remove Build
       sp project icon
-      sp project icon ~/code/project
-      sp project icon --json
     """
 
   static let licenseDiscussion = """

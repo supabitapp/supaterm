@@ -193,10 +193,10 @@ extension SupatermE2ESuite {
     }
 
     @Test(.timeLimit(.minutes(5)))
-    func groupCommandsMutateStructuralSocketTree() async throws {
+    func projectCommandsMutateCatalogAndFlatSocketTree() async throws {
       try await withTestSpace { app, space in
         let runner = SPBinaryRunner(app: app, tabID: space.tab.tabID, paneID: space.tab.paneID)
-        try exerciseGroupCommands(app: app, space: space, runner: runner)
+        try exerciseProjectCommands(app: app, space: space, runner: runner)
       }
     }
 
@@ -290,7 +290,7 @@ extension SupatermE2ESuite {
             ["skills", "get", "core", "--full"], cwd: space.directory)
         )
         #expect(fullCore.stdout.contains("--- references/pane.md ---"))
-        #expect(fullCore.stdout.contains("--- references/group.md ---"))
+        #expect(fullCore.stdout.contains("--- references/project.md ---"))
 
         let path = try requireSuccessfulSPResult(
           try runner.run(["skills", "path", "core"], cwd: space.directory)
@@ -362,6 +362,17 @@ private struct CLITabE2E {
   let runner: SPBinaryRunner
 }
 
+private struct CLIProjectsE2E {
+  let work: SupatermSnapshotProject
+  let later: SupatermSnapshotProject
+}
+
+private struct CLIProjectTabsE2E {
+  let created: SupatermNewTabResult
+  let untouchedTabIDs: [UUID]
+  let untouchedPinStates: [Bool]
+}
+
 private func expectOnboardingCommands(
   app: SupatermE2EApp,
   space: TestSpace,
@@ -378,151 +389,168 @@ private func expectOnboardingCommands(
   #expect(quietOnboard.stdout.isEmpty)
 }
 
-private func exerciseGroupCommands(
+private func exerciseProjectCommands(
   app: SupatermE2EApp,
   space: TestSpace,
   runner: SPBinaryRunner
 ) throws {
-  let groupID = try configureGroup(app: app, space: space, runner: runner)
-  try exerciseGroupedTabs(groupID: groupID, app: app, space: space, runner: runner)
+  let projects = try addAndOrderProjects(app: app, space: space, runner: runner)
+  try exerciseProjectPinning(projects.work, app: app, space: space, runner: runner)
+  try expectProjectCatalog(projects, app: app, space: space, runner: runner)
+  try expectProjectIcon(space: space, runner: runner)
+  let tabs = try exerciseProjectTabPlacement(
+    projects,
+    app: app,
+    space: space,
+    runner: runner
+  )
+  try exerciseProjectRemoval(projects, tabs: tabs, app: app, space: space, runner: runner)
 }
 
-private func configureGroup(
+private func addAndOrderProjects(
   app: SupatermE2EApp,
   space: TestSpace,
   runner: SPBinaryRunner
-) throws -> UUID {
-  let created: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "new", "Work", "--color", "blue", "--in", space.spaceID.uuidString],
+) throws -> CLIProjectsE2E {
+  let work: SupatermProjectMutationResult = try runSPJSON(
+    ["project", "add", "Work", "--root", space.directory.path, "--color", "blue"],
     app: app,
     runner: runner,
     cwd: space.directory
   )
-  let groupID = created.group.id
-  let groupRef = try listedRef(
-    .group,
-    id: groupID,
+  let later: SupatermProjectMutationResult = try runSPJSON(
+    ["project", "add", "Later", "--color", "purple"],
     app: app,
     runner: runner,
     cwd: space.directory
   )
-  #expect(created.group.color == .blue)
-  #expect(!created.group.isPinned)
-
-  let renamed: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "rename", "Build", groupRef],
+  #expect(work.project.name == "Work")
+  #expect(work.project.rootPath == space.directory.path)
+  #expect(work.project.color == .blue)
+  #expect(!work.project.isPinned)
+  #expect(later.project.name == "Later")
+  let reordered: SupatermProjectMutationResult = try runSPJSON(
+    ["project", "reorder", later.project.id.uuidString, "--index", "1"],
     app: app,
     runner: runner,
     cwd: space.directory
   )
-  #expect(renamed.group.title == "Build")
-
-  let colored: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "color", "purple", groupRef],
-    app: app,
-    runner: runner,
-    cwd: space.directory
-  )
-  #expect(colored.group.color == .purple)
-
-  let pinned: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "pin", groupID.uuidString],
-    app: app,
-    runner: runner,
-    cwd: space.directory
-  )
-  #expect(pinned.group.isPinned)
-
-  let unpinned: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "unpin", groupID.uuidString],
-    app: app,
-    runner: runner,
-    cwd: space.directory
-  )
-  #expect(!unpinned.group.isPinned)
-
-  _ =
-    try runSPJSON(
-      ["tab", "pin", space.tab.tabID.uuidString],
-      app: app,
-      runner: runner,
-      cwd: space.directory
-    ) as SupatermPinTabResult
-  _ =
-    try runSPJSON(
-      ["group", "pin", groupID.uuidString],
-      app: app,
-      runner: runner,
-      cwd: space.directory
-    ) as SupatermTabGroupMutationResult
-  _ =
-    try runSPJSON(
-      ["group", "move", groupID.uuidString, "--index", "1"],
-      app: app,
-      runner: runner,
-      cwd: space.directory
-    ) as SupatermTabGroupMutationResult
-  let reorderedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
-  let reorderedSpace = try #require(
-    reorderedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
-  )
-  #expect(reorderedSpace.rootItems.first.flatMap(groupValue)?.id == groupID)
-
-  let collapsed: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "collapse", groupID.uuidString],
-    app: app,
-    runner: runner,
-    cwd: space.directory
-  )
-  #expect(collapsed.group.isCollapsed)
-
-  let expanded: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "expand", groupID.uuidString],
-    app: app,
-    runner: runner,
-    cwd: space.directory
-  )
-  #expect(!expanded.group.isCollapsed)
-  return groupID
+  #expect(reordered.project.id == later.project.id)
+  return CLIProjectsE2E(work: work.project, later: later.project)
 }
 
-private func exerciseGroupedTabs(
-  groupID: UUID,
+private func exerciseProjectPinning(
+  _ work: SupatermSnapshotProject,
   app: SupatermE2EApp,
   space: TestSpace,
   runner: SPBinaryRunner
 ) throws {
+  let pinned: SupatermProjectMutationResult = try runSPJSON(
+    ["project", "pin", work.id.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(pinned.project.isPinned)
+  let pinnedAgain: SupatermProjectMutationResult = try runSPJSON(
+    ["project", "pin", work.id.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(pinnedAgain.project.isPinned)
+  let unpinned: SupatermProjectMutationResult = try runSPJSON(
+    ["project", "unpin", work.id.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(!unpinned.project.isPinned)
+  let unpinnedAgain: SupatermProjectMutationResult = try runSPJSON(
+    ["project", "unpin", work.id.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(!unpinnedAgain.project.isPinned)
+}
+
+private func expectProjectCatalog(
+  _ projects: CLIProjectsE2E,
+  app: SupatermE2EApp,
+  space: TestSpace,
+  runner: SPBinaryRunner
+) throws {
+  _ =
+    try runSPJSON(
+      ["project", "reorder", projects.work.id.uuidString, "--index", "1"],
+      app: app,
+      runner: runner,
+      cwd: space.directory
+    ) as SupatermProjectMutationResult
+  let listed: [SupatermSnapshotProject] = try runSPJSON(
+    ["project", "list"],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(listed.map(\.id) == [projects.work.id, projects.later.id])
+}
+
+private func expectProjectIcon(space: TestSpace, runner: SPBinaryRunner) throws {
+  let icon = try requireSuccessfulSPResult(
+    try runner.run(
+      ["project", "icon", space.directory.path, "--json"],
+      cwd: space.directory
+    )
+  )
+  #expect(icon.stdout.contains(#""path":null"#))
+}
+
+private func exerciseProjectTabPlacement(
+  _ projects: CLIProjectsE2E,
+  app: SupatermE2EApp,
+  space: TestSpace,
+  runner: SPBinaryRunner
+) throws -> CLIProjectTabsE2E {
+  let work = projects.work
+  let initialTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
+  let initialSpace = try #require(
+    initialTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
+  )
+  let untouchedTabs = initialSpace.tabs.filter { $0.id != space.tab.tabID }
   let tab: SupatermNewTabResult = try runSPJSON(
     [
-      "tab", "new", "--group", groupID.uuidString, "--in", space.spaceID.uuidString,
+      "tab", "new", "--project", work.id.uuidString,
+      "--in", space.spaceID.uuidString,
     ],
     app: app,
     runner: runner,
     cwd: space.directory
   )
-  let movedIntoGroup: SupatermMoveTabResult = try runSPJSON(
+  let movedIntoProject: SupatermMoveTabResult = try runSPJSON(
     [
-      "tab", "move", space.tab.tabID.uuidString, "--group", groupID.uuidString,
-      "--index", "1",
+      "tab", "move", space.tab.tabID.uuidString,
+      "--project", work.id.uuidString, "--pin", "--index", "1",
     ],
     app: app,
     runner: runner,
     cwd: space.directory
   )
-  #expect(movedIntoGroup.target.tabID == space.tab.tabID)
-  let groupedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
-  let groupedSpace = try #require(
-    groupedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
+  #expect(movedIntoProject.target.tabID == space.tab.tabID)
+  let assignedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
+  let assignedSpace = try #require(
+    assignedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
   )
-  let group = try #require(groupedSpace.rootItems.compactMap(groupValue).first { $0.id == groupID })
-  #expect(group.title == "Build")
-  #expect(group.color == .purple)
-  #expect(group.isPinned)
-  #expect(!group.isCollapsed)
-  #expect(group.tabs.map(\.id) == [space.tab.tabID, tab.tabID])
-
+  #expect(assignedTree.projects.map(\.id) == [work.id, projects.later.id])
+  #expect(assignedSpace.tabs.map(\.id) == [space.tab.tabID, tab.tabID] + untouchedTabs.map(\.id))
+  #expect(
+    assignedSpace.tabs.map(\.projectID)
+      == [work.id, work.id] + Array(repeating: nil, count: untouchedTabs.count)
+  )
+  #expect(assignedSpace.tabs.map(\.isPinned) == [true, false] + untouchedTabs.map(\.isPinned))
   let moved: SupatermMoveTabResult = try runSPJSON(
-    ["tab", "move", tab.tabID.uuidString, "--root", "--pin", "--index", "1"],
+    ["tab", "move", tab.tabID.uuidString, "--unassigned", "--unpin", "--index", "1"],
     app: app,
     runner: runner,
     cwd: space.directory
@@ -531,60 +559,50 @@ private func exerciseGroupedTabs(
   let movedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
   let movedSpace = try #require(
     movedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID })
+  #expect(movedSpace.tabs.map(\.id) == [space.tab.tabID, tab.tabID] + untouchedTabs.map(\.id))
   #expect(
-    movedSpace.rootItems.contains {
-      guard case .tab(let rootTab) = $0 else { return false }
-      return rootTab.tab.id == tab.tabID && rootTab.isPinned
-    }
+    movedSpace.tabs.map(\.projectID)
+      == [work.id, nil] + Array(repeating: nil, count: untouchedTabs.count)
   )
-  #expect(
-    movedSpace.rootItems.compactMap(groupValue).first { $0.id == groupID }?.tabs.map(\.id)
-      == [space.tab.tabID]
+  #expect(movedSpace.tabs.map(\.isPinned) == [true, false] + untouchedTabs.map(\.isPinned))
+  return CLIProjectTabsE2E(
+    created: tab,
+    untouchedTabIDs: untouchedTabs.map(\.id),
+    untouchedPinStates: untouchedTabs.map(\.isPinned)
   )
+}
 
-  let ungrouped: SupatermRemoveTabGroupResult = try runSPJSON(
-    ["group", "ungroup", groupID.uuidString],
+private func exerciseProjectRemoval(
+  _ projects: CLIProjectsE2E,
+  tabs: CLIProjectTabsE2E,
+  app: SupatermE2EApp,
+  space: TestSpace,
+  runner: SPBinaryRunner
+) throws {
+  let removedEmpty: SupatermRemoveProjectResult = try runSPJSON(
+    ["project", "remove", projects.later.id.uuidString],
     app: app,
     runner: runner,
     cwd: space.directory
   )
-  #expect(ungrouped.removedGroupID == groupID)
-  let ungroupedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
-  #expect(
-    ungroupedTree.windows.flatMap(\.spaces).flatMap(\.rootItems).compactMap(groupValue)
-      .contains { $0.id == groupID } == false
-  )
-
-  let closeGroup: SupatermTabGroupMutationResult = try runSPJSON(
-    ["group", "new", "Close Me", "--in", space.spaceID.uuidString],
+  #expect(removedEmpty.removedProjectID == projects.later.id)
+  #expect(removedEmpty.removedTabIDs.isEmpty)
+  let removed: SupatermRemoveProjectResult = try runSPJSON(
+    ["project", "remove", projects.work.id.uuidString, "--yes"],
     app: app,
     runner: runner,
     cwd: space.directory
   )
-  let closeTab: SupatermNewTabResult = try runSPJSON(
-    [
-      "tab", "new", "--group", closeGroup.group.id.uuidString,
-    ],
-    app: app,
-    runner: runner,
-    cwd: space.directory
-  )
-  let removed: SupatermRemoveTabGroupResult = try runSPJSON(
-    ["group", "close", closeGroup.group.id.uuidString, "--yes"],
-    app: app,
-    runner: runner,
-    cwd: space.directory
-  )
-  #expect(removed.removedGroupID == closeGroup.group.id)
+  #expect(removed.removedProjectID == projects.work.id)
+  #expect(removed.removedTabIDs == [space.tab.tabID])
   let finalTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
-  #expect(
-    finalTree.windows.flatMap(\.spaces).flatMap(\.rootItems).compactMap(groupValue)
-      .contains { $0.id == closeGroup.group.id } == false
+  let finalSpace = try #require(
+    finalTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
   )
-  #expect(
-    finalTree.windows.flatMap(\.spaces).flatMap(\.flattenedTabs)
-      .contains { $0.id == closeTab.tabID } == false
-  )
+  #expect(finalTree.projects.isEmpty)
+  #expect(finalSpace.tabs.map(\.id) == [tabs.created.tabID] + tabs.untouchedTabIDs)
+  #expect(finalSpace.tabs.allSatisfy { $0.projectID == nil })
+  #expect(finalSpace.tabs.map(\.isPinned) == [false] + tabs.untouchedPinStates)
 }
 
 private func runSPJSON<Result: Decodable>(
@@ -599,13 +617,6 @@ private func runSPJSON<Result: Decodable>(
       try runner.run(arguments + ["--socket", app.socketPath, "--json"], cwd: cwd)
     )
   )
-}
-
-private func groupValue(
-  _ item: SupatermTreeSnapshot.RootItem
-) -> SupatermTreeSnapshot.Group? {
-  guard case .group(let group) = item else { return nil }
-  return group
 }
 
 private func exerciseSpaceCommands(
@@ -1049,6 +1060,7 @@ private func closeCLIResources(
 }
 
 private let parentHelpCommands = [
+  ["project"],
   ["space"],
   ["tab"],
   ["pane"],
@@ -1085,7 +1097,6 @@ private struct DiagnosticReport: Decodable {
 private struct ListSnapshot: Decodable {
   enum Kind: String, Decodable {
     case space
-    case group
     case tab
     case pane
   }
@@ -1138,15 +1149,14 @@ private func listedRef(
   let canonicalID = id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
   for line in output.split(whereSeparator: \.isNewline) {
     let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
-    guard columns.count == 9 else {
-      throw SupatermE2EError("Expected nine plain list columns.")
+    guard columns.count == 11 else {
+      throw SupatermE2EError("Expected eleven plain list columns.")
     }
     guard columns[1] == Substring(kind.rawValue) else { continue }
     let reference = String(columns[0])
     let prefix =
       switch kind {
       case .space: "s:"
-      case .group: "g:"
       case .tab: "t:"
       case .pane: "p:"
       }

@@ -63,17 +63,17 @@ final class TabSplitDragUITests: SupatermUITestCase {
   }
 
   @MainActor
-  func testDraggingIntoACollapsedGroupedHostKeepsTheSplitActive() async throws {
-    try await createNamedTabs(["Grouped Host", "Dragged Source"])
-    try await createGroup(named: "Host Group", containing: "Grouped Host")
+  func testDraggingIntoACollapsedProjectHostKeepsTheSplitActive() async throws {
+    try await createNamedTabs(["Project Host", "Dragged Source"])
+    try await createProject(named: "Host Project", containing: "Project Host")
 
-    let host = sidebarTabRow(named: "Grouped Host")
+    let host = sidebarTabRow(named: "Project Host")
     host.click()
     let didSelectHost = await waitForSidebarSelection(host)
     XCTAssertTrue(didSelectHost)
 
-    let header = sidebarGroupHeader(named: "Host Group")
-    try clickSidebarContextMenuItem("Collapse Group", on: header)
+    let header = sidebarProjectHeader(named: "Host Project")
+    try clickSidebarContextMenuItem("Collapse Project", on: header)
     let didCollapse = await wait(for: header) {
       ($0.value as? String) == "Collapsed"
     }
@@ -90,13 +90,13 @@ final class TabSplitDragUITests: SupatermUITestCase {
     )
 
     _ = try await requireVisiblePanes(count: 2)
-    let didMergeIntoGroup = await wait {
+    let didMergeIntoProject = await wait {
       header.exists
         && (header.value as? String) == "Expanded"
         && host.exists
         && host.isSelected
         && !source.exists
     }
-    XCTAssertTrue(didMergeIntoGroup)
+    XCTAssertTrue(didMergeIntoProject)
   }
 }

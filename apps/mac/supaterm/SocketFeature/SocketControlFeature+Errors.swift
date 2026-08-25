@@ -124,7 +124,7 @@ extension SocketControlFeature {
     if let response = captureErrorResponse(error, requestID: requestID) {
       return response
     }
-    if let response = tabGroupErrorResponse(error, requestID: requestID) {
+    if let response = projectErrorResponse(error, requestID: requestID) {
       return response
     }
 
@@ -136,8 +136,8 @@ extension SocketControlFeature {
         message: "The current pane could not be resolved."
       )
 
-    case .captureFailed, .groupNotFound, .groupSpaceMismatch, .invalidCaptureLines,
-      .invalidGroupIndex, .invalidGroupTitle, .screenshotFailed:
+    case .captureFailed, .invalidCaptureLines, .invalidProjectIndex, .invalidProjectName,
+      .projectCloseConfirmationRequired, .projectNotFound, .screenshotFailed:
       preconditionFailure()
 
     case .invalidSpaceName:
@@ -248,34 +248,34 @@ extension SocketControlFeature {
     }
   }
 
-  private func tabGroupErrorResponse(
+  private func projectErrorResponse(
     _ error: TerminalControlError,
     requestID: String
   ) -> SupatermSocketResponse? {
     switch error {
-    case .groupNotFound(let groupID):
+    case .projectNotFound(let projectID):
       return .error(
         id: requestID,
         code: "not_found",
-        message: "Tab group \(groupID.uuidString.lowercased()) was not found."
+        message: "Project \(projectID.uuidString.lowercased()) was not found."
       )
-    case .groupSpaceMismatch:
+    case .projectCloseConfirmationRequired:
+      return .error(
+        id: requestID,
+        code: "confirmation_required",
+        message: "Removing this Project will close its tabs. Confirm the removal first."
+      )
+    case .invalidProjectIndex(let index):
       return .error(
         id: requestID,
         code: "invalid_request",
-        message: "The tab and destination group must belong to the same window and space."
+        message: "Project index \(index + 1) is outside the destination lane."
       )
-    case .invalidGroupIndex(let index):
+    case .invalidProjectName:
       return .error(
         id: requestID,
         code: "invalid_request",
-        message: "Tab group index \(index + 1) is outside the destination."
-      )
-    case .invalidGroupTitle:
-      return .error(
-        id: requestID,
-        code: "invalid_request",
-        message: "Tab group title must not be empty."
+        message: "Project name must not be empty or already used."
       )
     default:
       return nil

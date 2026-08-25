@@ -32,36 +32,34 @@ enum TerminalSidebarDragLog {
   private static func dragName(_ value: TerminalSidebarDragSource) -> String {
     switch value {
     case .tabs: "tabs"
-    case .group: "group"
+    case .project: "project"
     }
   }
 
-  private static func rootID(_ id: TerminalTabRootItemID) -> String {
+  private static func rootID(_ id: TerminalTabDragItemID) -> String {
     switch id {
     case .tab(let id): "tab:\(SupatermLog.uuid(id.rawValue))"
-    case .group(let id): "group:\(SupatermLog.uuid(id.rawValue))"
+    case .project(let id): "project:\(SupatermLog.uuid(id.rawValue))"
     }
   }
 
   private static func semanticPath(_ path: TerminalSidebarSemanticPath) -> String {
     switch path {
-    case .rootItem(let lane, let index, let id):
-      "rootItem:\(lane):\(index):\(rootID(id))"
-    case .rootBoundary(let lane, let index):
-      "rootBoundary:\(lane):\(index)"
-    case .groupEntry(let id):
-      "groupEntry:\(SupatermLog.uuid(id.rawValue))"
-    case .groupItem(let groupID, let index, let id):
-      "groupItem:\(SupatermLog.uuid(groupID.rawValue)):\(index):\(SupatermLog.uuid(id.rawValue))"
-    case .groupBoundary(let id, let index):
-      "groupBoundary:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .rootItem(let index): "rootItem:\(index)"
+    case .rootBoundary(let index, let affinity): "rootBoundary:\(index):\(affinity)"
+    case .project(let id, let index): "project:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .unassigned(let index): "unassigned:\(index)"
+    case .unassignedHeader: "unassignedHeader"
+    case .pinnedEnd: "pinnedEnd"
+    case .trailingRoot: "trailingRoot"
     }
   }
 
   private static func destination(_ destination: TerminalSidebarDropDestination) -> String {
     switch destination {
     case .root(let isPinned, let index): "root:\(isPinned):\(index)"
-    case .group(let id, let index): "group:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .project(let id, let index): "project:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .unassigned(let index): "unassigned:\(index)"
     }
   }
 }

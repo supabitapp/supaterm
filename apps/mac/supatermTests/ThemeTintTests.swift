@@ -20,14 +20,15 @@ struct ThemeTintTests {
   }
 
   @Test
-  func sessionGroupJSONDecodesUnchanged() throws {
+  func projectJSONDecodesColor() throws {
     let json = Data(
       """
-      {"id":"6F1C6E4D-1E4C-4C33-9E8A-2B7F14D0A6B1","title":"Build","color":"blue","lifetime":"durable"}
+      {"id":{"rawValue":"6F1C6E4D-1E4C-4C33-9E8A-2B7F14D0A6B1"},
+      "name":"Build","rootPath":null,"color":"blue","isPinned":false}
       """.utf8
     )
-    let group = try JSONDecoder().decode(TerminalTabGroupSession.self, from: json)
-    #expect(group.color == .blue)
+    let project = try JSONDecoder().decode(TerminalProject.self, from: json)
+    #expect(project.color == .blue)
   }
 
   @Test

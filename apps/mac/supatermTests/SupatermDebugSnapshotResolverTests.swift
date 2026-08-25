@@ -34,6 +34,8 @@ struct SupatermDebugSnapshotResolverTests {
     let tab = SupatermAppDebugSnapshot.Tab(
       id: tabID,
       title: "shell",
+      projectID: nil,
+      isPinned: false,
       isSelected: true,
       isDirty: true,
       isTitleLocked: false,
@@ -49,9 +51,9 @@ struct SupatermDebugSnapshotResolverTests {
       name: "A",
       color: .neutral,
       isWarm: true,
-      rootItems: [
-        .tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: tab))
-      ]
+      collapsedProjectIDs: [],
+      isUnassignedCollapsed: false,
+      tabs: [tab]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
@@ -95,6 +97,8 @@ struct SupatermDebugSnapshotResolverTests {
     let tab = SupatermAppDebugSnapshot.Tab(
       id: tabID,
       title: "shell",
+      projectID: UUID(uuidString: "58EB1323-9973-4D2C-991D-D621760AE842")!,
+      isPinned: false,
       isSelected: true,
       isDirty: false,
       isTitleLocked: false,
@@ -110,18 +114,9 @@ struct SupatermDebugSnapshotResolverTests {
       name: "A",
       color: .neutral,
       isWarm: true,
-      rootItems: [
-        .group(
-          SupatermAppDebugSnapshot.Group(
-            color: .green,
-            id: UUID(uuidString: "58EB1323-9973-4D2C-991D-D621760AE842")!,
-            isCollapsed: true,
-            isPinned: false,
-            title: "Work",
-            tabs: [tab]
-          )
-        )
-      ]
+      collapsedProjectIDs: [UUID(uuidString: "58EB1323-9973-4D2C-991D-D621760AE842")!],
+      isUnassignedCollapsed: false,
+      tabs: [tab]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,

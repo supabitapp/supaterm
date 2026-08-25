@@ -42,7 +42,7 @@ extension TerminalHostState {
     startupCommand: SupatermTerminalStartup? = nil,
     workingDirectoryPath: String? = nil,
     inheritingFromSurfaceID: UUID? = nil,
-    at placement: TerminalTabPlacement? = nil,
+    projectID: TerminalProjectID? = nil,
     sessionChangesEnabled: Bool = true
   ) -> TerminalTabID? {
     let target = resolveLocalCreateTabTarget(inheritingFromSurfaceID: inheritingFromSurfaceID)
@@ -53,7 +53,7 @@ extension TerminalHostState {
       startupCommand: startupCommand,
       workingDirectory: workingDirectoryPath.map { URL(fileURLWithPath: $0, isDirectory: true) },
       inheritingFromSurfaceID: target.inheritedSurfaceID,
-      at: placement,
+      projectID: projectID,
       sessionChangesEnabled: sessionChangesEnabled
     )
   }
@@ -66,7 +66,7 @@ extension TerminalHostState {
     startupCommand: SupatermTerminalStartup? = nil,
     workingDirectory: URL? = nil,
     inheritingFromSurfaceID: UUID? = nil,
-    at placement: TerminalTabPlacement? = nil,
+    projectID: TerminalProjectID? = nil,
     sessionChangesEnabled: Bool = true,
     synchronizesFocus: Bool = true
   ) throws -> TerminalTabID? {
@@ -86,31 +86,33 @@ extension TerminalHostState {
     }
     guard let tabCollection = spaceManager.tabCollection(for: spaceID) else { return nil }
     let context: ghostty_surface_context_e =
-      tabCollection.tabs.isEmpty
+      tabCollection.canonicalTabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
       : GHOSTTY_SURFACE_CONTEXT_TAB
-    let resolvedPlacement =
-      placement
-      ?? defaultTabPlacement(
-        in: tabCollection,
-        inheritingFromSurfaceID: inheritingFromSurfaceID
-      )
-    guard
-      let tabID = tabCollection.createTab(
-        title: "Terminal \(nextTabIndex(in: spaceID))",
-        at: resolvedPlacement
-      )
-    else {
-      return nil
+    let tabID = tabCollection.createTab(
+      title: "Terminal \(nextTabIndex(in: spaceID))",
+      projectID: projectID
+    )
+    if focusing {
+      if let projectID {
+        spaceManager.instance(for: spaceID)?.collapsedProjectIDs.remove(projectID)
+      } else {
+        spaceManager.instance(for: spaceID)?.isUnassignedCollapsed = false
+      }
     }
-    if focusing, case .group(let groupID, _) = resolvedPlacement {
-      spaceManager.instance(for: spaceID)?.collapsedTabGroupIDs.remove(groupID)
+    let projectRoot = projectID.flatMap { projectID in
+      projectCatalog.projects.first(where: { $0.id == projectID })?.rootPath
+    }.flatMap { path -> URL? in
+      var isDirectory = ObjCBool(false)
+      guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue
+      else { return nil }
+      return URL(fileURLWithPath: path, isDirectory: true)
     }
     let tree = splitTree(
       for: tabID,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
       startupCommand: startupCommand,
-      workingDirectory: workingDirectory,
+      workingDirectory: workingDirectory ?? projectRoot,
       context: context
     )
     updateRunningState(for: tabID)
@@ -134,43 +136,17 @@ extension TerminalHostState {
 
   @discardableResult
   func createTab(
-    in groupID: TerminalTabGroupID,
+    in projectID: TerminalProjectID,
+    spaceID: TerminalSpaceID? = nil,
     focusing: Bool = true,
     inheritingFromSurfaceID: UUID? = nil
   ) -> TerminalTabID? {
-    guard
-      let instance = spaceManager.instance(for: groupID),
-      let group = instance.tabCollection.group(for: groupID)
-    else {
-      return nil
-    }
-    return try? createTab(
-      in: instance.spaceID,
-      reason: .user,
+    guard projectCatalog.projects.contains(where: { $0.id == projectID }) else { return nil }
+    return createTab(
+      in: spaceID ?? displayedSpaceID,
       focusing: focusing,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
-      at: .group(groupID, index: group.tabs.count)
-    )
-  }
-
-  func defaultTabPlacement(
-    in tabCollection: TerminalTabCollection,
-    inheritingFromSurfaceID: UUID?
-  ) -> TerminalTabPlacement {
-    if let inheritingFromSurfaceID,
-      let anchorTabID = tabID(containing: inheritingFromSurfaceID)
-    {
-      if let isPinned = tabCollection.isPinned(anchorTabID) {
-        return .root(
-          TerminalRootPlacement(
-            isPinned: isPinned,
-            index: isPinned ? tabCollection.pinnedRootItems.count : tabCollection.regularRootItems.count
-          )
-        )
-      }
-    }
-    return .root(
-      TerminalRootPlacement(isPinned: false, index: tabCollection.regularRootItems.count)
+      projectID: projectID
     )
   }
 
@@ -338,7 +314,6 @@ extension TerminalHostState {
 
       return ResolvedCreateTabTarget(
         inheritedSurfaceID: paneID,
-        placement: nil,
         space: space
       )
 
@@ -349,39 +324,6 @@ extension TerminalHostState {
       }
       return ResolvedCreateTabTarget(
         inheritedSurfaceID: inheritedSurfaceID(in: space.id),
-        placement: nil,
-        space: space
-      )
-
-    case .root(let rawSpaceID):
-      let spaceID = TerminalSpaceID(rawValue: rawSpaceID)
-      guard
-        let space = space(warming: spaceID),
-        let manager = spaceManager.tabCollection(for: spaceID)
-      else {
-        throw TerminalCreateTabError.contextPaneNotFound
-      }
-      return ResolvedCreateTabTarget(
-        inheritedSurfaceID: inheritedSurfaceID(in: spaceID),
-        placement: .root(
-          TerminalRootPlacement(isPinned: false, index: manager.regularRootItems.count)
-        ),
-        space: space
-      )
-
-    case .group(let rawGroupID):
-      let groupID = TerminalTabGroupID(rawValue: rawGroupID)
-      warmInstance(containingGroup: groupID)
-      guard
-        let instance = spaceManager.instance(for: groupID),
-        let space = spaceManager.space(for: instance.spaceID),
-        let group = instance.tabCollection.group(for: groupID)
-      else {
-        throw TerminalCreateTabError.contextPaneNotFound
-      }
-      return ResolvedCreateTabTarget(
-        inheritedSurfaceID: inheritedSurfaceID(in: space.id),
-        placement: .group(groupID, index: group.tabs.count),
         space: space
       )
     }

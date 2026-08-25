@@ -159,7 +159,7 @@ rm -rf apps/mac/.build/run-state/dev
 All Makefile app launch targets set `SUPATERM_VERBOSE_LOGGING=1`, so development runs always emit verbose diagnostics.
 
 `make mac-run-demo` runs under its own `demo` identity and `run-state/demo` state home without zmx.
-Demo rewrites its spaces, tabs, panes, `restoreTerminalLayoutEnabled`, `codingAgentsShowPanel`,
+Demo rewrites its Projects, Spaces, Tabs, panes, `restoreTerminalLayoutEnabled`, `codingAgentsShowPanel`,
 `zmxSessionsEnabled`, and the acknowledged release version on every launch, so the demo you see is
 always freshly seeded; the state the seed never writes — the remaining settings, launch state, and
 coding-agent state — carries over between demo runs.
@@ -185,11 +185,11 @@ Typing `ssh` in a pane runs `sp ssh`. The bundled shell integrations define the 
 
 ## Session persistence
 
-State files under the Supaterm state root (`session.json`, `spaces.json`, `pinned-tabs.json`, `settings.toml`) hold user data. Breaking them destroys real user sessions.
+State files under the Supaterm state root (`session.json`, `spaces.json`, `projects.json`, `settings.toml`) hold user data. Breaking them destroys real user sessions.
 
-- Session persistence must never break. Every release must load every state file the previous release wrote.
+- Session persistence must never break. A format change must migrate the previous release's state.
 - Never bump a format version to discard old state. When the format changes, migrate the previous version to the current one. Purely additive optional fields need no version bump.
-- When persistence logic changes, add tests that decode a fixture of the previous shipped on-disk format and assert the migrated result. Keep one fixture per shipped version.
+- When persistence logic changes, add tests that decode a fixture of the previous shipped on-disk format and assert the migrated result.
 - Treat any decode rejection of user state as a bug. A rejected `session.json` empties the layout silently, and the next launch reaps every zmx session the new catalog no longer references. There is no recovery after that.
 
 ## Marketing website

@@ -152,7 +152,7 @@ struct TerminalCommandExecutorTests {
       }
       #expect(snapshot.windows[0].spaces[0].isWarm)
       #expect(!snapshot.windows[0].spaces[1].isWarm)
-      #expect(snapshot.windows[0].spaces[1].rootItems.isEmpty)
+      #expect(snapshot.windows[0].spaces[1].tabs.isEmpty)
       withExtendedLifetime([first.window, second.window]) {}
     }
   }
@@ -378,6 +378,7 @@ struct TerminalCommandExecutorTests {
         startupCommand: nil,
         cwd: nil,
         focus: false,
+        projectID: nil,
         target: .space(host.spaces[0].id.rawValue)
       )
     )
@@ -422,6 +423,7 @@ struct TerminalCommandExecutorTests {
         startupCommand: nil,
         cwd: nil,
         focus: false,
+        projectID: nil,
         target: .pane(firstPaneID)
       )
     )
@@ -503,6 +505,7 @@ struct TerminalCommandExecutorTests {
             startupCommand: nil,
             cwd: nil,
             focus: false,
+            projectID: nil,
             target: .space(space.id.rawValue),
             context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
           )
@@ -726,7 +729,7 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
-  func groupedChildUnpinIsNoOpAndPinExtractsToPinnedRoot() throws {
+  func projectMembershipSurvivesTabPinAndUnpin() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -738,10 +741,10 @@ struct TerminalCommandExecutorTests {
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let firstTabID = try #require(host.selectedTabID)
       _ = host.createTab(inheritingFromSurfaceID: nil)
-      let groupedTabID = try #require(host.selectedTabID)
-      let groupID = try #require(
-        host.createGroup(title: "Group", containing: [firstTabID, groupedTabID])
-      ).groupID
+      let projectTabID = try #require(host.selectedTabID)
+      let projectID = try #require(
+        host.createProject(name: "Project", containing: [firstTabID, projectTabID])
+      ).projectID
 
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -756,18 +759,16 @@ struct TerminalCommandExecutorTests {
       )
       registry.updateWindow(makeWindow(), for: windowControllerID)
 
-      let unpinned = try commandExecutor.unpinTab(TerminalTabTarget(tabID: groupedTabID.rawValue))
+      let unpinned = try commandExecutor.unpinTab(TerminalTabTarget(tabID: projectTabID.rawValue))
 
       #expect(!unpinned.isPinned)
-      #expect(host.spaceManager.tabCollection.rootItemID(containing: groupedTabID) == .group(groupID))
-      #expect(host.spaceManager.tabCollection.tabIDs(in: groupID) == [firstTabID, groupedTabID])
+      #expect(host.spaceManager.tabCollection.tab(for: projectTabID)?.projectID == projectID)
 
-      let pinned = try commandExecutor.pinTab(TerminalTabTarget(tabID: groupedTabID.rawValue))
+      let pinned = try commandExecutor.pinTab(TerminalTabTarget(tabID: projectTabID.rawValue))
 
       #expect(pinned.isPinned)
-      #expect(host.spaceManager.tabCollection.rootItemID(containing: groupedTabID) == .tab(groupedTabID))
-      #expect(host.spaceManager.tabCollection.pinnedRootItems.map(\.id) == [.tab(groupedTabID)])
-      #expect(host.spaceManager.tabCollection.tabIDs(in: groupID) == [firstTabID])
+      #expect(host.spaceManager.tabCollection.tab(for: projectTabID)?.projectID == projectID)
+      #expect(host.spaceManager.tabCollection.tab(for: projectTabID)?.isPinned == true)
     }
   }
 }

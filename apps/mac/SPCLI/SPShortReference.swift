@@ -4,7 +4,7 @@ import Foundation
 struct SPShortReference: Equatable, Sendable, CustomStringConvertible {
   enum Kind: String, Sendable {
     case space = "s"
-    case group = "g"
+    case project = "j"
     case tab = "t"
     case pane = "p"
 
@@ -12,8 +12,8 @@ struct SPShortReference: Equatable, Sendable, CustomStringConvertible {
       switch self {
       case .space:
         "space"
-      case .group:
-        "group"
+      case .project:
+        "project"
       case .tab:
         "tab"
       case .pane:
@@ -32,7 +32,10 @@ struct SPShortReference: Equatable, Sendable, CustomStringConvertible {
   static func parse(_ argument: String) throws -> Self? {
     let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
     let tag = trimmed.prefix(1).lowercased()
-    guard trimmed.dropFirst().first == ":", let kind = Kind(rawValue: tag) else { return nil }
+    guard trimmed.dropFirst().first == ":" else { return nil }
+    guard let kind = Kind(rawValue: tag) else {
+      throw ValidationError("Typed refs must start with s:, j:, t:, or p:.")
+    }
 
     let prefix = trimmed.dropFirst(2).lowercased()
     guard
@@ -40,7 +43,7 @@ struct SPShortReference: Equatable, Sendable, CustomStringConvertible {
       prefix.unicodeScalars.allSatisfy({ $0.isASCII && $0.properties.isHexDigit })
     else {
       throw ValidationError(
-        "Typed refs must use s:, g:, t:, or p: followed by 8 to 32 UUID hex characters."
+        "Typed refs must use s:, j:, t:, or p: followed by 8 to 32 UUID hex characters."
       )
     }
     return Self(kind: kind, prefix: prefix)

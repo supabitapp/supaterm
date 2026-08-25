@@ -88,6 +88,7 @@ private struct AgentDetectionCLIFixture {
 
   var tree: SupatermTreeSnapshot {
     SupatermTreeSnapshot(
+      projects: [],
       windows: [
         SupatermTreeSnapshot.Window(
           index: 1,
@@ -100,19 +101,18 @@ private struct AgentDetectionCLIFixture {
               name: "A",
               color: .neutral,
               isWarm: true,
-              rootItems: [
-                .tab(
-                  SupatermTreeSnapshot.RootTab(
-                    isPinned: false,
-                    tab: SupatermTreeSnapshot.Tab(
-                      id: tabID,
-                      title: "agent",
-                      isSelected: true,
-                      panes: [
-                        SupatermTreeSnapshot.Pane(index: 1, id: paneID, isFocused: true)
-                      ]
-                    )
-                  )
+              collapsedProjectIDs: [],
+              isUnassignedCollapsed: false,
+              tabs: [
+                SupatermTreeSnapshot.Tab(
+                  id: tabID,
+                  title: "agent",
+                  projectID: nil,
+                  isPinned: false,
+                  isSelected: true,
+                  panes: [
+                    SupatermTreeSnapshot.Pane(index: 1, id: paneID, isFocused: true)
+                  ]
                 )
               ]
             )

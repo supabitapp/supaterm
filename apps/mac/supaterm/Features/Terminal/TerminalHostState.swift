@@ -294,9 +294,25 @@ final class TerminalHostState {
   @Shared(.terminalSpaceCatalog)
   var spaceCatalog = TerminalSpaceCatalog.default
   @ObservationIgnored
+  @Shared(.terminalProjectCatalog)
+  var projectCatalog = TerminalProjectCatalog.default
+  @ObservationIgnored
   var spaceCatalogObservationTask: Task<Void, Never>?
   var runtimeConfigObserver: NSObjectProtocol?
   var onSessionChange: @MainActor () -> Void = {}
+  var onProjectCreate:
+    (
+      @MainActor (
+        String, String?, ThemeTint, Bool, [TerminalTabID]
+      ) -> TerminalProjectCreationResult?
+    )?
+  var onProjectRename: (@MainActor (TerminalProjectID, String) -> Bool)?
+  var onProjectColorChange: (@MainActor (TerminalProjectID, ThemeTint) -> Bool)?
+  var onProjectPinChange: (@MainActor (TerminalProjectID, Bool) -> Bool)?
+  var onProjectReorder: (@MainActor (TerminalProjectID, Int) -> Bool)?
+  var onProjectAssignment: (@MainActor ([TerminalTabID], TerminalProjectID?) -> Bool)?
+  var onProjectRemovalRequested: @MainActor (TerminalProjectID) -> Bool = { _ in false }
+  var onProjectRemovalConfirmed: @MainActor (TerminalProjectID) -> Bool = { _ in false }
   var onSpaceAction: @MainActor (SpaceAction) -> Void = { _ in }
   @ObservationIgnored
   var onLicenseTabLimitAction: @MainActor (LicenseTabLimitAction) -> Void = { _ in }
@@ -431,9 +447,8 @@ final class TerminalHostState {
 
   func togglePinned(_ tabID: TerminalTabID) {
     guard let instance = spaceManager.instance(for: tabID) else { return }
-    let previousRevision = instance.tabCollection.topologyRevision
-    guard let result = instance.tabCollection.togglePinned(tabID) else { return }
-    finishMove(result, previousRevision: previousRevision, spaceID: instance.spaceID)
+    guard let isPinned = instance.tabCollection.isPinned(tabID) else { return }
+    _ = setTabPinned(tabID, isPinned: !isPinned)
   }
 
   @discardableResult
@@ -702,8 +717,12 @@ final class TerminalHostState {
     let wasSelectedTab = tabCollection.selectedTabID == tabID
 
     removeTree(for: tabID, source: .closeTab)
-    guard let result = tabCollection.closeTab(tabID) else { return }
-    removeCollapsedGroups(result.deletedEmptyGroupIDs, in: instance.spaceID)
+    guard
+      tabCollection.closeTab(
+        tabID,
+        orderedProjectIDs: projectCatalog.projects.map(\.id)
+      )
+    else { return }
     updateSelectionAfterClosingTab(
       in: instance.spaceID,
       didCloseSelectedTab: wasSelectedTab
@@ -721,14 +740,25 @@ final class TerminalHostState {
     }
   }
 
-  func performCloseGroup(_ groupID: TerminalTabGroupID) {
-    guard let instance = spaceManager.instance(for: groupID) else { return }
+  func performCloseProject(_ projectID: TerminalProjectID) {
     withBatchedSessionChange {
-      for tabID in instance.tabCollection.tabIDs(in: groupID) {
-        performCloseTab(tabID)
+      for instance in spaceManager.instances {
+        if var session = instance.pendingSession {
+          let removedTabs = session.tabs.filter { $0.projectID == projectID }
+          killZmxSessions(for: removedTabs.flatMap(\.surfaceIDs))
+          session.tabs.removeAll { $0.projectID == projectID }
+          if session.selectedTabID.map(removedTabs.map(\.id).contains) == true {
+            session.selectedTabID = session.tabs.first?.id
+          }
+          session.collapsedProjectIDs.removeAll { $0 == projectID }
+          instance.pendingSession = session
+          continue
+        }
+        for tab in instance.tabCollection.canonicalTabs where tab.projectID == projectID {
+          performCloseTab(tab.id)
+        }
+        instance.collapsedProjectIDs.remove(projectID)
       }
-      _ = instance.tabCollection.deleteEmptyGroup(groupID)
-      instance.collapsedTabGroupIDs.remove(groupID)
     }
   }
 
@@ -900,7 +930,6 @@ final class TerminalHostState {
 
   struct ResolvedCreateTabTarget {
     let inheritedSurfaceID: UUID?
-    let placement: TerminalTabPlacement?
     let space: TerminalSpaceItem
   }
 

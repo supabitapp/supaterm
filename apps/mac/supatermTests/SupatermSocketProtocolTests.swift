@@ -7,6 +7,26 @@ import Testing
 
 struct SupatermSocketProtocolTests {
   @Test
+  func flatTreeSnapshotFixtureCarriesGlobalProjectsAndFlatTabs() throws {
+    let fixtureURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .appendingPathComponent("Fixtures/flat-tree-snapshot.json")
+    let snapshot = try JSONDecoder().decode(
+      SupatermTreeSnapshot.self,
+      from: Data(contentsOf: fixtureURL)
+    )
+    let space = try #require(snapshot.windows.first?.spaces.first)
+
+    #expect(snapshot.projects.map(\.name) == ["Work", "Notes"])
+    #expect(snapshot.projects.map(\.isPinned) == [true, false])
+    #expect(space.tabs.map(\.title) == ["Pinned Work", "Regular Work", "Unassigned"])
+    #expect(space.tabs.map(\.isPinned) == [true, false, false])
+    #expect(space.tabs.map(\.projectID) == [snapshot.projects[0].id, snapshot.projects[0].id, nil])
+    #expect(space.collapsedProjectIDs == [snapshot.projects[1].id])
+    #expect(!space.isUnassignedCollapsed)
+  }
+
+  @Test
   func managedDirectoryURLPrefersXDGThenTMPDIRThenTmp() {
     #expect(
       SupatermSocketPath.managedDirectoryURL(
@@ -618,9 +638,12 @@ struct SupatermSocketProtocolTests {
 
   @Test
   func treeRequestAndSnapshotRoundTripThroughTypedHelpers() throws {
+    let projectID = UUID(uuidString: "F08C721E-A7E9-4A7C-B350-944EDB986FA2")!
     let tab = SupatermTreeSnapshot.Tab(
       id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       title: "zsh",
+      projectID: projectID,
+      isPinned: true,
       isSelected: true,
       panes: [
         SupatermTreeSnapshot.Pane(
@@ -641,19 +664,9 @@ struct SupatermSocketProtocolTests {
       name: "A",
       color: .green,
       isWarm: true,
-      rootItems: [
-        .group(
-          SupatermTreeSnapshot.Group(
-            color: .blue,
-            id: UUID(uuidString: "F08C721E-A7E9-4A7C-B350-944EDB986FA2")!,
-            isCollapsed: true,
-            isPinned: false,
-            title: "Work",
-            tabs: [tab]
-          )
-        ),
-        .tab(SupatermTreeSnapshot.RootTab(isPinned: true, tab: tab)),
-      ]
+      collapsedProjectIDs: [projectID],
+      isUnassignedCollapsed: false,
+      tabs: [tab]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
@@ -662,6 +675,15 @@ struct SupatermSocketProtocolTests {
       spaces: [space]
     )
     let snapshot = SupatermTreeSnapshot(
+      projects: [
+        SupatermSnapshotProject(
+          color: .blue,
+          id: projectID,
+          isPinned: false,
+          name: "Work",
+          rootPath: "/tmp/work"
+        )
+      ],
       windows: [window]
     )
 
@@ -681,19 +703,13 @@ struct SupatermSocketProtocolTests {
     let spaces = try #require(windows.first?["spaces"] as? [[String: Any]])
     #expect(spaces.first?["color"] as? String == "green")
     #expect(spaces.first?["isWarm"] as? Bool == true)
-    let rootItems = try #require(spaces.first?["rootItems"] as? [[String: Any]])
-    let group = try #require(rootItems.first)
-    #expect(group["kind"] as? String == "group")
-    #expect(group["title"] as? String == "Work")
-    #expect(group["color"] as? String == "blue")
-    #expect(group["group"] == nil)
-    #expect((try #require(group["tabs"] as? [[String: Any]])).first?["index"] == nil)
-    let rootTab = try #require(rootItems.dropFirst().first)
-    #expect(rootTab["kind"] as? String == "tab")
-    #expect(rootTab["isPinned"] as? Bool == true)
-    #expect(rootTab["tab"] is [String: Any])
-    #expect(rootTab["tabs"] == nil)
-    #expect(rootTab["group"] == nil)
+    #expect(spaces.first?["collapsedProjectIDs"] as? [String] == [projectID.uuidString])
+    let tabs = try #require(spaces.first?["tabs"] as? [[String: Any]])
+    #expect(tabs.first?["projectID"] as? String == projectID.uuidString)
+    #expect(tabs.first?["isPinned"] as? Bool == true)
+    let projects = try #require(json["projects"] as? [[String: Any]])
+    #expect(projects.first?["name"] as? String == "Work")
+    #expect(projects.first?["rootPath"] as? String == "/tmp/work")
   }
 
   @Test
@@ -741,6 +757,8 @@ struct SupatermSocketProtocolTests {
     let tab = SupatermAppDebugSnapshot.Tab(
       id: context.tabID,
       title: "zsh",
+      projectID: nil,
+      isPinned: false,
       isSelected: true,
       isDirty: true,
       isTitleLocked: false,
@@ -756,7 +774,9 @@ struct SupatermSocketProtocolTests {
       name: "A",
       color: .neutral,
       isWarm: true,
-      rootItems: [.tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: tab))]
+      collapsedProjectIDs: [],
+      isUnassignedCollapsed: false,
+      tabs: [tab]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
@@ -795,6 +815,7 @@ struct SupatermSocketProtocolTests {
         paneIndex: 1,
         paneID: context.surfaceID
       ),
+      projects: [],
       windows: [window],
       problems: []
     )

@@ -340,7 +340,7 @@ struct TerminalWindowShellControllerTests {
 
     #expect(fixture.preview.currentType == .contentPane)
     #expect(fixture.preview.transitions == [.contentPane])
-    fixture.registry.finish(operationID: fixture.payload.moveOperationID, outcome: .moved)
+    fixture.registry.finish(operationID: fixture.payload.moveOperationID)
     #expect(fixture.preview.hideCount == 1)
   }
 
@@ -804,6 +804,7 @@ struct TerminalWindowShellControllerTests {
         sourceWindowID: UUID(),
         sourceSpaceID: TerminalSpaceID(),
         sourceTopologyRevision: 0,
+        orderedProjectIDs: [],
         itemIDs: [.tab(TerminalTabID())]
       )
     )

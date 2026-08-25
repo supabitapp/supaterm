@@ -98,8 +98,8 @@ final class TerminalSidebarListController: NSViewController {
   }
 
   let renameState = TerminalSidebarRenameState()
-  let groupHoverState = TerminalSidebarGroupHoverState()
-  let groupHeaderHoverState = TerminalSidebarGroupHoverState()
+  let projectHoverState = TerminalSidebarProjectHoverState()
+  let projectHeaderHoverState = TerminalSidebarProjectHoverState()
   let tabSelectionState = TerminalSidebarTabSelectionState()
   var hoverCardPresentationChanged: (() -> Void)?
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)? {
@@ -112,14 +112,14 @@ final class TerminalSidebarListController: NSViewController {
   private let collectionView = TerminalSidebarCollectionView()
   private let collectionLayout = TerminalSidebarCollectionLayout()
   private let selectionGlowView = TerminalSidebarSelectionGlowView()
-  private var groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView] = [:]
+  private var projectBackgroundViews: [TerminalProjectID: TerminalSidebarProjectBackgroundView] = [:]
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
   private var context: TerminalSidebarRowContext?
   private var measuredHeights: [TerminalSidebarEntryID: RowMeasurement] = [:]
   private var appliedOutline = TerminalSidebarOutline(
     roots: [],
-    collapsedGroupIDs: [],
+    collapsedProjectIDs: [],
     topologyRevision: 0
   )
   private var pendingUpdate: Update?
@@ -127,7 +127,7 @@ final class TerminalSidebarListController: NSViewController {
   private var updatePhase = UpdatePhase.idle
   private var hasAppliedSnapshot = false
   private var selectedTabID: TerminalTabID?
-  private var fixedHoveredGroupID: TerminalTabGroupID?
+  private var fixedHoveredProjectID: TerminalProjectID?
   private var pendingRevealTabID: TerminalTabID?
   private var motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: false)
   private var isLayingOut = false
@@ -187,7 +187,7 @@ final class TerminalSidebarListController: NSViewController {
           motionPolicy: motionPolicy,
           canBeginDrag: canBeginDrag,
           swipe: swipe,
-          groupBackgroundViews: groupBackgroundViews
+          projectBackgroundViews: projectBackgroundViews
         )
       },
       indexPath: { [weak self] in self?.dataSource?.indexPath(for: $0) },
@@ -198,7 +198,7 @@ final class TerminalSidebarListController: NSViewController {
       completeDropHandoff: { [weak self] requirement, completion in
         self?.completeDropHandoff(requirement, completion: completion)
       },
-      setHoveredGroupID: { [weak self] in self?.setHoveredGroupID($0) }
+      setHoveredProjectID: { [weak self] in self?.setHoveredProjectID($0) }
     )
   )
 
@@ -255,20 +255,20 @@ final class TerminalSidebarListController: NSViewController {
     self.context = context
     hoverCardController.refresh()
     dragController.pinnedControl.update(context: context)
-    fixedHoveredGroupID = context.fixedHoveredGroupID
+    fixedHoveredProjectID = context.fixedHoveredProjectID
     updateMotionPolicy(reduceMotion: reduceMotion)
-    let groupIDs = Set(
-      outline.roots.compactMap { root -> TerminalTabGroupID? in
-        guard case .group(let id, _, _, _) = root.content else { return nil }
+    let projectIDs = Set(
+      outline.roots.compactMap { root -> TerminalProjectID? in
+        guard case .project(let id, _, _) = root.content else { return nil }
         return id
       }
     )
-    groupHoverState.retain(groupIDs)
-    groupHeaderHoverState.retain(groupIDs)
-    if let fixedHoveredGroupID = context.fixedHoveredGroupID,
-      groupIDs.contains(fixedHoveredGroupID)
+    projectHoverState.retain(projectIDs)
+    projectHeaderHoverState.retain(projectIDs)
+    if let fixedHoveredProjectID = context.fixedHoveredProjectID,
+      projectIDs.contains(fixedHoveredProjectID)
     {
-      groupHoverState.set(fixedHoveredGroupID)
+      projectHoverState.set(fixedHoveredProjectID)
     }
     measuredHeights = measuredHeights.filter { id, measurement in
       guard let row = rows[id] else { return false }
@@ -337,11 +337,11 @@ final class TerminalSidebarListController: NSViewController {
     collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     collectionView.onPointerMoved = { [weak self] point in
-      self?.updateGroupHover(at: point)
+      self?.updateProjectHover(at: point)
       self?.hoverCardController.pointerMoved()
     }
     collectionView.onPointerExited = { [weak self] in
-      self?.updateGroupHover(at: nil)
+      self?.updateProjectHover(at: nil)
       self?.hoverCardController.pointerExited()
     }
     collectionView.onWindowChanged = { [weak self] window in
@@ -396,11 +396,11 @@ final class TerminalSidebarListController: NSViewController {
 
   private func process(_ update: Update) {
     updateMotionPolicy(reduceMotion: update.reduceMotion)
-    let newlyCollapsedGroupIDs = update.outline.collapsedGroupIDs.subtracting(
-      appliedOutline.collapsedGroupIDs
+    let newlyCollapsedProjectIDs = update.outline.collapsedProjectIDs.subtracting(
+      appliedOutline.collapsedProjectIDs
     )
     let collapsing = appliedOutline.visibleEntries.compactMap { entry -> TerminalSidebarEntryID? in
-      guard let groupID = entry.parentGroupID, newlyCollapsedGroupIDs.contains(groupID) else {
+      guard let projectID = entry.parentProjectID, newlyCollapsedProjectIDs.contains(projectID) else {
         return nil
       }
       return entry.id
@@ -568,7 +568,8 @@ final class TerminalSidebarListController: NSViewController {
     guard let presentation = rows[id], let context else {
       return TerminalSidebarLayout.tabRowMinHeight
     }
-    if case .group = presentation { return TerminalSidebarLayout.tabRowMinHeight }
+    if case .project = presentation { return TerminalSidebarLayout.tabRowMinHeight }
+    if case .unassigned = presentation { return TerminalSidebarLayout.tabRowMinHeight }
     if let measurement = measuredHeights[id], measurement.width == width,
       measurement.key == presentation.measurementKey
     {
@@ -625,7 +626,7 @@ final class TerminalSidebarListController: NSViewController {
     }
 
     updateDecorations()
-    updateGroupHover(at: collectionView.pointerLocation)
+    updateProjectHover(at: collectionView.pointerLocation)
   }
 
   private func updateNewTabPlacement() -> Bool {
@@ -671,30 +672,30 @@ final class TerminalSidebarListController: NSViewController {
   }
 
   private func updateDecorations() {
-    let groups = collectionLayout.plan.groups
-    let visibleIDs = Set(groups.map(\.id))
-    let liftedGroupID = dragController.liftedGroupID
-    for (id, view) in groupBackgroundViews
-    where !visibleIDs.contains(id) && id != liftedGroupID {
+    let projects = collectionLayout.plan.projects
+    let visibleIDs = Set(projects.map(\.id))
+    let liftedProjectID = dragController.liftedProjectID
+    for (id, view) in projectBackgroundViews
+    where !visibleIDs.contains(id) && id != liftedProjectID {
       view.removeFromSuperview()
-      groupBackgroundViews[id] = nil
+      projectBackgroundViews[id] = nil
     }
-    for group in groups {
+    for project in projects {
       let background =
-        groupBackgroundViews[group.id]
+        projectBackgroundViews[project.id]
         ?? {
-          let background = TerminalSidebarGroupBackgroundView(frame: .zero)
+          let background = TerminalSidebarProjectBackgroundView(frame: .zero)
           collectionView.addSubview(background, positioned: .below, relativeTo: nil)
-          groupBackgroundViews[group.id] = background
+          projectBackgroundViews[project.id] = background
           return background
         }()
-      background.frame = group.frame
-      updateGroupSurface(group: group, background: background)
+      background.frame = project.frame
+      updateProjectSurface(project: project, background: background)
       background.needsLayout = true
     }
     updateSelectionGlow()
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
-    for background in groupBackgroundViews.values where background.superview === collectionView {
+    for background in projectBackgroundViews.values where background.superview === collectionView {
       collectionView.addSubview(background, positioned: .below, relativeTo: nil)
     }
   }
@@ -714,7 +715,7 @@ final class TerminalSidebarListController: NSViewController {
     selectionGlowView.update(
       surfaceFrame: TerminalSidebarLayout.tabSurfaceFrame(
         in: item.frame,
-        isGrouped: presentation.groupID != nil
+        isProjected: presentation.projectID != nil
       ),
       style: .resolve(palette: context.palette),
       alpha: item.alpha,
@@ -722,21 +723,21 @@ final class TerminalSidebarListController: NSViewController {
     )
   }
 
-  private func refreshGroupSurfaces(ids: Set<TerminalTabGroupID>) {
+  private func refreshProjectSurfaces(ids: Set<TerminalProjectID>) {
     for id in ids {
       guard
-        let group = collectionLayout.plan.groups.first(where: { $0.id == id }),
-        let background = groupBackgroundViews[id]
+        let project = collectionLayout.plan.projects.first(where: { $0.id == id }),
+        let background = projectBackgroundViews[id]
       else { continue }
-      updateGroupSurface(group: group, background: background)
+      updateProjectSurface(project: project, background: background)
     }
   }
 
-  private func updateGroupHover(at point: CGPoint?) {
-    let groupID =
-      fixedHoveredGroupID
-      ?? (!dragController.isActive ? point.flatMap(collectionLayout.plan.groupID(at:)) : nil)
-    setHoveredGroupID(groupID)
+  private func updateProjectHover(at point: CGPoint?) {
+    let projectID =
+      fixedHoveredProjectID
+      ?? (!dragController.isActive ? point.flatMap(collectionLayout.plan.projectID(at:)) : nil)
+    setHoveredProjectID(projectID)
   }
 
   private var allowsHoverCardPresentation: Bool {
@@ -782,26 +783,26 @@ final class TerminalSidebarListController: NSViewController {
     )
   }
 
-  private func setHoveredGroupID(_ groupID: TerminalTabGroupID?) {
-    guard groupHoverState.groupID != groupID else { return }
-    let previous = groupHoverState.groupID
-    groupHoverState.set(groupID)
-    refreshGroupSurfaces(ids: Set([previous, groupID].compactMap { $0 }))
+  private func setHoveredProjectID(_ projectID: TerminalProjectID?) {
+    guard projectHoverState.projectID != projectID else { return }
+    let previous = projectHoverState.projectID
+    projectHoverState.set(projectID)
+    refreshProjectSurfaces(ids: Set([previous, projectID].compactMap { $0 }))
   }
 
-  private func updateGroupSurface(
-    group: TerminalSidebarLayoutPlan.Group,
-    background: TerminalSidebarGroupBackgroundView
+  private func updateProjectSurface(
+    project: TerminalSidebarLayoutPlan.Project,
+    background: TerminalSidebarProjectBackgroundView
   ) {
     guard let context else { return }
     background.update(
-      color: group.color,
+      color: project.color,
       palette: context.palette,
-      surfaceState: TerminalSidebarGroupSurfaceState.resolve(
-        isHovered: groupHoverState.groupID == group.id,
-        isDropTarget: collectionLayout.plan.highlightedGroupID == group.id
+      surfaceState: TerminalSidebarProjectSurfaceState.resolve(
+        isHovered: projectHoverState.projectID == project.id,
+        isDropTarget: collectionLayout.plan.highlightedProjectID == project.id
       ),
-      alpha: group.alpha,
+      alpha: project.alpha,
       reduceMotion: !motionPolicy.hoverFade
     )
   }

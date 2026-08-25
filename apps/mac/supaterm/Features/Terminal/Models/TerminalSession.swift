@@ -1,6 +1,5 @@
 import CoreGraphics
 import Foundation
-import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
 
@@ -70,14 +69,12 @@ nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
     allowsExistingSessions: Bool = true
   ) -> Self {
     var seenTabIDs: Set<TerminalTabID> = []
-    var seenGroupIDs: Set<TerminalTabGroupID> = []
     var seenSurfaceIDs: Set<UUID> = []
     return Self(
       windows: windows.compactMap {
         $0.pruned(
           validSpaceIDs: validSpaceIDs,
           seenTabIDs: &seenTabIDs,
-          seenGroupIDs: &seenGroupIDs,
           seenSurfaceIDs: &seenSurfaceIDs,
           allowsExistingSessions: allowsExistingSessions
         )
@@ -155,12 +152,10 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
     allowsExistingSessions: Bool = true
   ) -> TerminalWindowSession? {
     var seenTabIDs: Set<TerminalTabID> = []
-    var seenGroupIDs: Set<TerminalTabGroupID> = []
     var seenSurfaceIDs: Set<UUID> = []
     return pruned(
       validSpaceIDs: validSpaceIDs,
       seenTabIDs: &seenTabIDs,
-      seenGroupIDs: &seenGroupIDs,
       seenSurfaceIDs: &seenSurfaceIDs,
       allowsExistingSessions: allowsExistingSessions
     )
@@ -169,7 +164,6 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
   fileprivate func pruned(
     validSpaceIDs: Set<TerminalSpaceID>,
     seenTabIDs: inout Set<TerminalTabID>,
-    seenGroupIDs: inout Set<TerminalTabGroupID>,
     seenSurfaceIDs: inout Set<UUID>,
     allowsExistingSessions: Bool
   ) -> TerminalWindowSession? {
@@ -179,12 +173,10 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
     where validSpaceIDs.contains(space.spaceID) && seenSpaceIDs.insert(space.spaceID).inserted {
       let prunedSpace = space.pruned(
         excludingTabIDs: seenTabIDs,
-        excludingGroupIDs: seenGroupIDs,
         seenSurfaceIDs: &seenSurfaceIDs,
         allowsExistingSessions: allowsExistingSessions
       )
       seenTabIDs.formUnion(prunedSpace.tabs.map(\.id))
-      seenGroupIDs.formUnion(prunedSpace.groups.map(\.id))
       prunedSpaces.append(prunedSpace)
     }
     guard let firstSpaceID = prunedSpaces.first?.spaceID else { return nil }
@@ -205,16 +197,14 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
 nonisolated struct TerminalSpaceSession: Equatable, Codable, Sendable {
   var spaceID: TerminalSpaceID
   var selectedTabID: TerminalTabID?
-  var nodes: [TerminalTabNodeSession]
-  var groups: [TerminalTabGroupSession]
-  var collapsedGroupIDs: [TerminalTabGroupID]
+  var collapsedProjectIDs: [TerminalProjectID] = []
+  var isUnassignedCollapsed = false
   var tabs: [TerminalTabSession]
 
   func pruned() -> TerminalSpaceSession {
     var seenSurfaceIDs: Set<UUID> = []
     return pruned(
       excludingTabIDs: [],
-      excludingGroupIDs: [],
       seenSurfaceIDs: &seenSurfaceIDs,
       allowsExistingSessions: true
     )
@@ -222,190 +212,31 @@ nonisolated struct TerminalSpaceSession: Equatable, Codable, Sendable {
 
   fileprivate func pruned(
     excludingTabIDs: Set<TerminalTabID>,
-    excludingGroupIDs: Set<TerminalTabGroupID>,
     seenSurfaceIDs: inout Set<UUID>,
     allowsExistingSessions: Bool
   ) -> TerminalSpaceSession {
-    let tabSessionsByID = uniqueTabSessions(excluding: excludingTabIDs)
-    let groupSessionsByID = uniqueGroupSessions(excluding: excludingGroupIDs)
-    let indexedGroupNodes = indexedGroupNodes(groupSessionsByID: groupSessionsByID)
-    let groupNodeIDs = Set(indexedGroupNodes.compactMap { $0.node.item.groupID })
-    let indexedTabNodes = indexedTabNodes(
-      tabSessionsByID: tabSessionsByID,
-      groupNodeIDs: groupNodeIDs
-    )
-
-    var tabNodesByGroupID: [TerminalTabGroupID: [IndexedTerminalTabNode]] = [:]
-    for indexedNode in indexedTabNodes {
-      guard let groupID = indexedNode.node.parent.groupID else { continue }
-      tabNodesByGroupID[groupID, default: []].append(indexedNode)
+    var seenTabIDs = excludingTabIDs
+    let orderedTabs = tabs.filter(\.isPinned) + tabs.filter { !$0.isPinned }
+    let resolvedTabs = orderedTabs.compactMap { tab -> TerminalTabSession? in
+      guard seenTabIDs.insert(tab.id).inserted else { return nil }
+      return tab.pruned(
+        seenSurfaceIDs: &seenSurfaceIDs,
+        allowsExistingSessions: allowsExistingSessions
+      )
     }
-    let orderedTabNodesByGroupID = tabNodesByGroupID.mapValues(Self.ordered)
-    let candidateRootNodes = Self.orderedRootNodes(indexedGroupNodes + indexedTabNodes)
-      .filter { indexedNode in
-        guard case .group(let groupID) = indexedNode.node.item else { return true }
-        guard let group = groupSessionsByID[groupID] else { return false }
-        return group.lifetime == .durable || orderedTabNodesByGroupID[groupID]?.isEmpty == false
-      }
-
-    let candidateTabIDs = candidateRootNodes.flatMap { indexedNode -> [TerminalTabID] in
-      switch indexedNode.node.item {
-      case .tab(let tabID):
-        return [tabID]
-      case .group(let groupID):
-        return orderedTabNodesByGroupID[groupID]?.compactMap(\.node.item.tabID) ?? []
-      }
-    }
-    var resolvedTabSessionsByID: [TerminalTabID: TerminalTabSession] = [:]
-    for tabID in candidateTabIDs {
-      guard
-        let tab = tabSessionsByID[tabID]?.pruned(
-          seenSurfaceIDs: &seenSurfaceIDs,
-          allowsExistingSessions: allowsExistingSessions
-        )
-      else { continue }
-      resolvedTabSessionsByID[tabID] = tab
-    }
-
-    let resolvedTabNodesByGroupID = orderedTabNodesByGroupID.mapValues { nodes in
-      nodes.filter { indexedNode in
-        indexedNode.node.item.tabID.flatMap { resolvedTabSessionsByID[$0] } != nil
-      }
-    }
-    let resolvedRootNodes = candidateRootNodes.filter { indexedNode in
-      switch indexedNode.node.item {
-      case .tab(let tabID):
-        return resolvedTabSessionsByID[tabID] != nil
-      case .group(let groupID):
-        guard let group = groupSessionsByID[groupID] else { return false }
-        return group.lifetime == .durable || resolvedTabNodesByGroupID[groupID]?.isEmpty == false
-      }
-    }
-    let topology = Self.reindexedTopology(
-      pinnedRootNodes: resolvedRootNodes.filter { $0.node.parent.isPinned == true },
-      regularRootNodes: resolvedRootNodes.filter { $0.node.parent.isPinned == false },
-      tabNodesByGroupID: resolvedTabNodesByGroupID
-    )
-    let resolvedGroups = topology.rootGroupIDs.compactMap { groupSessionsByID[$0] }
-    let resolvedTabs = topology.tabIDs.compactMap { resolvedTabSessionsByID[$0] }
-    let resolvedTabIDs = Set(topology.tabIDs)
+    let resolvedTabIDs = Set(resolvedTabs.map(\.id))
+    var seenCollapsedProjectIDs: Set<TerminalProjectID> = []
     let selectedTabID =
       selectedTabID.flatMap { resolvedTabIDs.contains($0) ? $0 : nil }
-      ?? topology.tabIDs.first
-    let collapsedGroupIDSet = Set(collapsedGroupIDs)
+      ?? resolvedTabs.first?.id
     return TerminalSpaceSession(
       spaceID: spaceID,
       selectedTabID: selectedTabID,
-      nodes: topology.nodes,
-      groups: resolvedGroups,
-      collapsedGroupIDs: topology.rootGroupIDs.filter(collapsedGroupIDSet.contains),
+      collapsedProjectIDs: collapsedProjectIDs.filter {
+        seenCollapsedProjectIDs.insert($0).inserted
+      },
+      isUnassignedCollapsed: isUnassignedCollapsed,
       tabs: resolvedTabs
-    )
-  }
-
-  private func uniqueTabSessions(
-    excluding excludedIDs: Set<TerminalTabID>
-  ) -> [TerminalTabID: TerminalTabSession] {
-    var sessionsByID: [TerminalTabID: TerminalTabSession] = [:]
-    for session in tabs where !excludedIDs.contains(session.id) && sessionsByID[session.id] == nil {
-      sessionsByID[session.id] = session
-    }
-    return sessionsByID
-  }
-
-  private func uniqueGroupSessions(
-    excluding excludedIDs: Set<TerminalTabGroupID>
-  ) -> [TerminalTabGroupID: TerminalTabGroupSession] {
-    var sessionsByID: [TerminalTabGroupID: TerminalTabGroupSession] = [:]
-    for session in groups
-    where !excludedIDs.contains(session.id) && sessionsByID[session.id] == nil {
-      sessionsByID[session.id] = session.pruned()
-    }
-    return sessionsByID
-  }
-
-  private func indexedGroupNodes(
-    groupSessionsByID: [TerminalTabGroupID: TerminalTabGroupSession]
-  ) -> [IndexedTerminalTabNode] {
-    var seenIDs: Set<TerminalTabGroupID> = []
-    return nodes.enumerated().compactMap { sourceIndex, node in
-      guard
-        case .group(let groupID) = node.item,
-        case .root = node.parent,
-        groupSessionsByID[groupID] != nil,
-        seenIDs.insert(groupID).inserted
-      else { return nil }
-      return IndexedTerminalTabNode(sourceIndex: sourceIndex, node: node)
-    }
-  }
-
-  private func indexedTabNodes(
-    tabSessionsByID: [TerminalTabID: TerminalTabSession],
-    groupNodeIDs: Set<TerminalTabGroupID>
-  ) -> [IndexedTerminalTabNode] {
-    var seenIDs: Set<TerminalTabID> = []
-    return nodes.enumerated().compactMap { sourceIndex, node in
-      guard
-        case .tab(let tabID) = node.item,
-        tabSessionsByID[tabID] != nil
-      else { return nil }
-      if case .group(let groupID) = node.parent, !groupNodeIDs.contains(groupID) {
-        return nil
-      }
-      guard seenIDs.insert(tabID).inserted else { return nil }
-      return IndexedTerminalTabNode(sourceIndex: sourceIndex, node: node)
-    }
-  }
-
-  private static func ordered(
-    _ nodes: [IndexedTerminalTabNode]
-  ) -> [IndexedTerminalTabNode] {
-    nodes.sorted {
-      ($0.node.order, $0.sourceIndex) < ($1.node.order, $1.sourceIndex)
-    }
-  }
-
-  private static func orderedRootNodes(
-    _ nodes: [IndexedTerminalTabNode]
-  ) -> [IndexedTerminalTabNode] {
-    let rootNodes = nodes.filter { $0.node.parent.isPinned != nil }
-    return ordered(rootNodes.filter { $0.node.parent.isPinned == true })
-      + ordered(rootNodes.filter { $0.node.parent.isPinned == false })
-  }
-
-  private static func reindexedTopology(
-    pinnedRootNodes: [IndexedTerminalTabNode],
-    regularRootNodes: [IndexedTerminalTabNode],
-    tabNodesByGroupID: [TerminalTabGroupID: [IndexedTerminalTabNode]]
-  ) -> TerminalTabSessionTopology {
-    var nodes: [TerminalTabNodeSession] = []
-    var rootGroupIDs: [TerminalTabGroupID] = []
-    var tabIDs: [TerminalTabID] = []
-    for rootNodes in [pinnedRootNodes, regularRootNodes] {
-      for (rootOrder, indexedRootNode) in rootNodes.enumerated() {
-        var rootNode = indexedRootNode.node
-        rootNode.order = rootOrder
-        nodes.append(rootNode)
-        switch rootNode.item {
-        case .tab(let tabID):
-          tabIDs.append(tabID)
-        case .group(let groupID):
-          rootGroupIDs.append(groupID)
-          for (tabOrder, indexedTabNode) in (tabNodesByGroupID[groupID] ?? []).enumerated() {
-            var tabNode = indexedTabNode.node
-            tabNode.order = tabOrder
-            nodes.append(tabNode)
-            if let tabID = tabNode.item.tabID {
-              tabIDs.append(tabID)
-            }
-          }
-        }
-      }
-    }
-    return TerminalTabSessionTopology(
-      nodes: nodes,
-      rootGroupIDs: rootGroupIDs,
-      tabIDs: tabIDs
     )
   }
 
@@ -420,164 +251,10 @@ nonisolated struct TerminalSpaceSession: Equatable, Codable, Sendable {
   }
 }
 
-nonisolated private struct IndexedTerminalTabNode {
-  let sourceIndex: Int
-  let node: TerminalTabNodeSession
-}
-
-nonisolated private struct TerminalTabSessionTopology {
-  let nodes: [TerminalTabNodeSession]
-  let rootGroupIDs: [TerminalTabGroupID]
-  let tabIDs: [TerminalTabID]
-}
-
-nonisolated struct TerminalTabNodeSession: Equatable, Codable, Sendable {
-  var item: TerminalTabNodeSessionItem
-  var parent: TerminalTabNodeSessionParent
-  var order: Int
-}
-
-nonisolated enum TerminalTabNodeSessionItem: Equatable, Codable, Sendable {
-  case tab(TerminalTabID)
-  case group(TerminalTabGroupID)
-
-  private enum CodingKeys: String, CodingKey {
-    case kind
-    case id
-  }
-
-  private enum Kind: String, Codable {
-    case tab
-    case group
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    switch try container.decode(Kind.self, forKey: .kind) {
-    case .tab:
-      self = .tab(try container.decode(TerminalTabID.self, forKey: .id))
-    case .group:
-      self = .group(try container.decode(TerminalTabGroupID.self, forKey: .id))
-    }
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .tab(let id):
-      try container.encode(Kind.tab, forKey: .kind)
-      try container.encode(id, forKey: .id)
-    case .group(let id):
-      try container.encode(Kind.group, forKey: .kind)
-      try container.encode(id, forKey: .id)
-    }
-  }
-
-  var tabID: TerminalTabID? {
-    guard case .tab(let id) = self else { return nil }
-    return id
-  }
-
-  var groupID: TerminalTabGroupID? {
-    guard case .group(let id) = self else { return nil }
-    return id
-  }
-}
-
-nonisolated enum TerminalTabNodeSessionParent: Equatable, Codable, Sendable {
-  case root(isPinned: Bool)
-  case group(TerminalTabGroupID)
-
-  private enum CodingKeys: String, CodingKey {
-    case kind
-    case isPinned
-    case id
-  }
-
-  private enum Kind: String, Codable {
-    case root
-    case group
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    switch try container.decode(Kind.self, forKey: .kind) {
-    case .root:
-      self = .root(isPinned: try container.decode(Bool.self, forKey: .isPinned))
-    case .group:
-      self = .group(try container.decode(TerminalTabGroupID.self, forKey: .id))
-    }
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    switch self {
-    case .root(let isPinned):
-      try container.encode(Kind.root, forKey: .kind)
-      try container.encode(isPinned, forKey: .isPinned)
-    case .group(let id):
-      try container.encode(Kind.group, forKey: .kind)
-      try container.encode(id, forKey: .id)
-    }
-  }
-
-  var isPinned: Bool? {
-    guard case .root(let isPinned) = self else { return nil }
-    return isPinned
-  }
-
-  var groupID: TerminalTabGroupID? {
-    guard case .group(let id) = self else { return nil }
-    return id
-  }
-}
-
-nonisolated struct TerminalTabGroupSession: Equatable, Codable, Sendable {
-  var id: TerminalTabGroupID
-  var title: String
-  var color: ThemeTint
-  var lifetime: TerminalTabGroupLifetime
-
-  func pruned() -> TerminalTabGroupSession {
-    let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-    return TerminalTabGroupSession(
-      id: id,
-      title: title.isEmpty ? "Group" : title,
-      color: color,
-      lifetime: lifetime
-    )
-  }
-}
-
-extension TerminalTabGroupLifetime: Codable {
-  init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    switch try container.decode(String.self) {
-    case "durable":
-      self = .durable
-    case "automatic":
-      self = .automatic
-    default:
-      throw DecodingError.dataCorruptedError(
-        in: container,
-        debugDescription: "Unsupported tab group lifetime"
-      )
-    }
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    switch self {
-    case .durable:
-      try container.encode("durable")
-    case .automatic:
-      try container.encode("automatic")
-    }
-  }
-}
-
 nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
   var id: TerminalTabID
+  var projectID: TerminalProjectID?
+  var isPinned = false
   var lockedTitle: String?
   var focusedPaneIndex: Int
   var root: TerminalPaneNodeSession
@@ -602,6 +279,8 @@ nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
     else { return nil }
     return TerminalTabSession(
       id: id,
+      projectID: projectID,
+      isPinned: isPinned,
       lockedTitle: lockedTitle?.isEmpty == true ? nil : lockedTitle,
       focusedPaneIndex: focusedSurfaceID.flatMap {
         root.orderedSurfaceIDs.firstIndex(of: $0)

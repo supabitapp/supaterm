@@ -17,11 +17,11 @@ enum TerminalSidebarTestFixture {
     roots: [TerminalSidebarOutline.Root],
     revision: UInt64,
     spaceID: TerminalSpaceID = primarySpaceID,
-    collapsedGroupIDs: Set<TerminalTabGroupID> = []
+    collapsedProjectIDs: Set<TerminalProjectID> = []
   ) -> TerminalSidebarOutline {
     TerminalSidebarOutline(
       roots: roots,
-      collapsedGroupIDs: collapsedGroupIDs,
+      collapsedProjectIDs: collapsedProjectIDs,
       topologyRevision: revision,
       spaceID: spaceID
     )
@@ -88,16 +88,17 @@ enum TerminalSidebarTestFixture {
   static func moveReceipt(
     payload: TerminalSidebarDragPayload,
     destination: TerminalTabPlacement,
-    revision: UInt64,
-    deletedEmptyGroupIDs: [TerminalTabGroupID] = []
+    revision: UInt64
   ) -> TerminalSidebarDropReceipt {
     TerminalSidebarDropReceipt(
       spaceID: payload.topologyStamp.spaceID,
       result: TerminalTabMoveResult(
         operationID: payload.operationID,
-        itemIDs: payload.source.itemIDs,
+        tabIDs: payload.source.itemIDs.compactMap {
+          guard case .tab(let id) = $0 else { return nil }
+          return id
+        },
         location: destination,
-        deletedEmptyGroupIDs: deletedEmptyGroupIDs,
         topologyRevision: revision
       )
     )
@@ -111,18 +112,12 @@ enum TerminalSidebarTestFixture {
   ) -> TerminalSidebarDragCoordinator {
     let payload = payload(source: source, revision: sourceRevision)
     let dropDestination: TerminalSidebarDropDestination
-    let path: TerminalSidebarSemanticPath
-    switch destination {
-    case .root(let placement):
-      dropDestination = .root(isPinned: placement.isPinned, index: placement.index)
-      path = .rootBoundary(
-        lane: TerminalSidebarRootLane(isPinned: placement.isPinned),
-        index: placement.index
-      )
-    case .group(let groupID, let index):
-      dropDestination = .group(groupID, index: index)
-      path = .groupBoundary(groupID, index: index)
-    }
+    dropDestination =
+      if let projectID = destination.projectID {
+        .project(projectID, index: destination.index)
+      } else {
+        .root(isPinned: destination.isPinned, index: destination.index)
+      }
     var coordinator = TerminalSidebarDragCoordinator(payload: payload)
     let plan = TerminalSidebarDropPlan(
       path: path,

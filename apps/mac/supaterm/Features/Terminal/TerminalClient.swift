@@ -15,7 +15,7 @@ enum TerminalCloseTarget: Equatable, Sendable {
   case surface(UUID)
   case tab(TerminalTabID)
   case tabs([TerminalTabID])
-  case group(TerminalTabGroupID)
+  case project(TerminalProjectID)
 }
 
 struct TerminalCloseRequest: Equatable, Sendable {

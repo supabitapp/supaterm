@@ -47,13 +47,10 @@ extension SP {
 
     @Option(
       name: .long,
-      help: "Create the tab in the specified group.",
-      transform: parseGroupReference
+      help: "Assign the new tab to the specified project.",
+      transform: parseProjectReference
     )
-    var group: SPGroupReference?
-
-    @Flag(name: .long, help: "Create the tab at the space root.")
-    var root = false
+    var project: SPProjectReference?
 
     @Flag(inversion: .prefixedNo, help: "Focus the new tab after creating it.")
     var focus = false
@@ -82,26 +79,21 @@ extension SP {
 
     func validate() throws {
       _ = try terminalStartup(script: script, tokens: input)
-      if group != nil && root {
-        throw ValidationError("Provide either --group or --root, not both.")
-      }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
       let startup = try terminalStartup(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
-      let destination = group.map(SPGroupDestinationReference.group) ?? (root ? .root : nil)
       let context = SupatermCLIContext.current
+      let snapshot = try treeSnapshot(client)
       return SupatermNewTabRequest(
         startupCommand: startup,
         cwd: cwd,
         focus: focus,
-        target: try resolvePublicNewTabPlacement(
-          space: space,
-          group: destination,
-          context: context,
-          snapshot: try treeSnapshot(client)
-        ),
+        projectID: try project.map {
+          try resolvePublicProjectTargetRequest($0, snapshot: snapshot).projectID
+        },
+        target: try resolvePublicNewTabTarget(space, context: context, snapshot: snapshot),
         context: context
       )
     }

@@ -62,7 +62,8 @@ struct TerminalSidebarPointerTests {
       )
       terminal.applySelectedTab(destinationTabID, in: space.id)
       let outline = TerminalSidebarOutline(
-        snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot
+        snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot,
+        projects: terminal.projects
       )
       let controller = TerminalSidebarListController(
         windowControllerID: UUID(),
@@ -83,10 +84,10 @@ struct TerminalSidebarPointerTests {
         terminal: terminal,
         palette: Palette(colorScheme: .dark),
         renameState: controller.renameState,
-        groupHeaderHoverState: controller.groupHeaderHoverState,
+        projectHeaderHoverState: controller.projectHeaderHoverState,
         tabSelectionState: controller.tabSelectionState,
         outline: outline,
-        fixedHoveredGroupID: nil,
+        fixedHoveredProjectID: nil,
         actions: rowActions
       )
       controller.apply(
@@ -375,7 +376,7 @@ struct TerminalSidebarPointerTests {
         TerminalSidebarOutline.Root(content: .tab(firstTabID), isPinned: false),
         TerminalSidebarOutline.Root(content: .tab(secondTabID), isPinned: false),
       ],
-      collapsedGroupIDs: [],
+      collapsedProjectIDs: [],
       topologyRevision: 1,
       spaceID: TerminalSidebarTestFixture.primarySpaceID
     )
@@ -406,10 +407,10 @@ struct TerminalSidebarPointerTests {
       terminal: host,
       palette: Palette(colorScheme: .dark),
       renameState: TerminalSidebarRenameState(),
-      groupHeaderHoverState: TerminalSidebarGroupHoverState(),
+      projectHeaderHoverState: TerminalSidebarProjectHoverState(),
       tabSelectionState: selectionState,
       outline: outline,
-      fixedHoveredGroupID: nil,
+      fixedHoveredProjectID: nil,
       actions: rowActions
     )
     item.host(
@@ -455,7 +456,7 @@ struct TerminalSidebarPointerTests {
   private func presentation(_ tab: TerminalTabItem) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
-      groupID: nil,
+      projectID: nil,
       rootIsPinned: false,
       agentStatus: nil,
       details: [],
@@ -482,13 +483,14 @@ struct TerminalSidebarPointerTests {
 
   private var rowActions: TerminalSidebarRowActions {
     TerminalSidebarRowActions(
-      toggleGroupCollapsed: { _ in },
-      createTabInGroup: { _ in },
-      renameGroup: { _, _ in false },
-      setGroupColor: { _, _ in },
-      toggleGroupPinned: { _ in },
-      ungroup: { _ in },
-      closeGroup: { _ in },
+      toggleProjectCollapsed: { _ in },
+      toggleUnassignedCollapsed: {},
+      createTabInProject: { _ in },
+      renameProject: { _, _ in false },
+      setProjectColor: { _, _ in },
+      toggleProjectPinned: { _ in },
+      unproject: { _ in },
+      closeProject: { _ in },
       newTab: {}
     )
   }

@@ -6,66 +6,66 @@ import Testing
 @MainActor
 struct TerminalSidebarBatchTabMenuTests {
   @Test
-  func groupedSelectionCanBePinned() throws {
+  func projectSelectionCanBePinned() throws {
     let fixture = try makeFixture()
 
-    #expect(fixture.pinAction(for: fixture.groupedTabIDs) == .pin)
+    #expect(fixture.pinAction(for: fixture.projectTabIDs) == .pin)
   }
 
   @Test
-  func regularRootAndGroupedSelectionCanBePinned() throws {
+  func unassignedAndProjectSelectionCanBePinned() throws {
     let fixture = try makeFixture()
 
     #expect(
-      fixture.pinAction(for: [fixture.regularRootTabID, fixture.groupedTabID]) == .pin
+      fixture.pinAction(for: [fixture.unassignedTabID, fixture.projectTabID]) == .pin
     )
   }
 
   @Test
-  func pinnedRootAndGroupedSelectionCannotTogglePinStateTogether() throws {
+  func mixedPinStateCannotToggleTogether() throws {
     let fixture = try makeFixture()
 
     #expect(
-      fixture.pinAction(for: [fixture.pinnedRootTabID, fixture.groupedTabID]) == .disabled
+      fixture.pinAction(for: [fixture.pinnedTabID, fixture.projectTabID]) == .disabled
     )
   }
 
   private func makeFixture() throws -> Fixture {
     let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let manager = terminal.spaceManager.tabCollection
-    let regularRootTabID = manager.createTab(title: "Regular")
-    let pinnedRootTabID = manager.createTab(title: "Pinned")
-    let firstGroupedTabID = manager.createTab(title: "First Grouped")
-    let secondGroupedTabID = manager.createTab(title: "Second Grouped")
+    let unassignedTabID = manager.createTab(title: "Regular")
+    let pinnedTabID = manager.createTab(title: "Pinned")
+    let firstProjectTabID = manager.createTab(title: "First Project")
+    let secondProjectTabID = manager.createTab(title: "Second Project")
     _ = try #require(
-      manager.createGroup(
-        title: "Group",
-        containing: [firstGroupedTabID, secondGroupedTabID]
+      terminal.createProject(
+        name: "Project",
+        containing: [firstProjectTabID, secondProjectTabID]
       )
     )
-    #expect(terminal.setTabPinned(pinnedRootTabID, isPinned: true) != nil)
+    #expect(terminal.setTabPinned(pinnedTabID, isPinned: true) != nil)
 
     return Fixture(
       terminal: terminal,
-      regularRootTabID: regularRootTabID,
-      pinnedRootTabID: pinnedRootTabID,
-      groupedTabID: firstGroupedTabID,
-      groupedTabIDs: [firstGroupedTabID, secondGroupedTabID]
+      unassignedTabID: unassignedTabID,
+      pinnedTabID: pinnedTabID,
+      projectTabID: firstProjectTabID,
+      projectTabIDs: [firstProjectTabID, secondProjectTabID]
     )
   }
 
   private struct Fixture {
     let terminal: TerminalHostState
-    let regularRootTabID: TerminalTabID
-    let pinnedRootTabID: TerminalTabID
-    let groupedTabID: TerminalTabID
-    let groupedTabIDs: [TerminalTabID]
+    let unassignedTabID: TerminalTabID
+    let pinnedTabID: TerminalTabID
+    let projectTabID: TerminalTabID
+    let projectTabIDs: [TerminalTabID]
 
     func pinAction(for tabIDs: [TerminalTabID]) -> TerminalSidebarBatchTabMenu.PinAction {
       TerminalSidebarBatchTabMenu(
         terminal: terminal,
         tabIDs: tabIDs,
-        contextualTabID: groupedTabID,
+        contextualTabID: projectTabID,
         renameState: nil
       ).pinAction
     }

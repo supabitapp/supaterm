@@ -1,6 +1,6 @@
 ---
-title: Target instances, spaces, groups, tabs, and panes
-description: Use ambient context, selectors, UUIDs, titles, instances, and sockets safely.
+title: Target instances, Projects, Spaces, Tabs, and panes
+description: Use ambient context, selectors, UUIDs, Project names, instances, and sockets safely.
 ---
 
 Targeting has two independent steps: choose a running Supaterm instance, then choose an object inside its terminal hierarchy.
@@ -44,20 +44,21 @@ Indexes can change when objects move or close. Use UUIDs for durable automation.
 
 `sp ls` also prints typed live refs:
 
-| Object | Form         | Example      |
-| ------ | ------------ | ------------ |
-| Space  | `s:<prefix>` | `s:a6e57b1b` |
-| Group  | `g:<prefix>` | `g:5a52445e` |
-| Tab    | `t:<prefix>` | `t:6bfc889d` |
-| Pane   | `p:<prefix>` | `p:2b8b3a57` |
+| Object  | Form         | Example      |
+| ------- | ------------ | ------------ |
+| Space   | `s:<prefix>` | `s:a6e57b1b` |
+| Project | `j:<prefix>` | `j:5a52445e` |
+| Tab     | `t:<prefix>` | `t:6bfc889d` |
+| Pane    | `p:<prefix>` | `p:2b8b3a57` |
 
 The prefix has 8 to 32 UUID hex characters. Input is case-insensitive; output is lowercase. Supaterm prints the shortest unique prefix for each kind. Longer prefixes work. Missing, malformed, wrong-kind, and ambiguous refs fail instead of selecting another item. Refs describe the live snapshot; use full UUIDs for durable automation.
 
-Group commands accept a `g:` ref, group UUID, or exact untyped title in the resolved space. A duplicate title is an error. Typed tokens never fall back to titles. When run from a tab inside a group, commands that omit the group target use that group.
+Project commands accept a `j:` ref, Project UUID, or exact case-insensitive Project name. Names are unique app-wide. Typed tokens never fall back to names.
 
 ```bash
-sp group rename Development 9D99542C-82D1-4505-B879-68F42EC0927D
-sp group collapse Development
+sp project pin Development
+sp project reorder 9D99542C-82D1-4505-B879-68F42EC0927D --index 1
+sp tab move --project Development
 ```
 
 ## Inspect the compact snapshot
@@ -66,7 +67,7 @@ sp group collapse Development
 sp ls --json
 ```
 
-JSON returns `revision`, optional `current`, and ordered flat `items`. Each item has a canonical `id`, `kind`, `windowIndex`, `title`, and selection state. Child rows add `parentID`. Panes can add `cwd` and `agent`; spaces add `isWarm`. JSON contains no derived short-ref or numeric-selector fields.
+JSON returns `revision`, optional `current`, the pinned-first `projects` catalog, and ordered flat `items`. Each item has a canonical `id`, `kind`, `windowIndex`, `title`, and selection state. Tabs may add `projectID` and `isPinned`; child rows add `parentID`. Panes can add `cwd` and `agent`; Spaces add `isWarm`. JSON contains no derived short-ref or numeric-selector fields.
 
 The same space UUID may appear once per window because tabs belong to windows. `windowIndex` scopes each space occurrence. `revision` is an opaque live snapshot token. Compare it for equality; it is not a counter or schema version.
 
@@ -90,6 +91,8 @@ sp pane split --in 1/2/3 down
 ```
 
 `sp tab new --in` accepts a space target. `sp pane split --in` accepts a tab or pane target.
+
+Project membership and location are separate. `sp tab new --project <project> --in <space>` chooses both. `sp tab move --project <project>` assigns an existing Tab, while `--unassigned` clears membership.
 
 ## Choose an app instance
 

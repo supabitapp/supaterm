@@ -215,7 +215,20 @@ struct TerminalSidebarLayoutTests {
     )
     defer { harness.close() }
 
-    harness.apply(
+    func context(for outline: TerminalSidebarOutline) -> TerminalSidebarRowContext {
+      TerminalSidebarRowContext(
+        terminal: terminal,
+        palette: Palette(colorScheme: .dark),
+        renameState: controller.renameState,
+        projectHeaderHoverState: controller.projectHeaderHoverState,
+        tabSelectionState: controller.tabSelectionState,
+        outline: outline,
+        fixedHoveredProjectID: nil,
+        actions: rowActions
+      )
+    }
+
+    controller.apply(
       outline: source,
       rows: rows,
       terminal: terminal,
@@ -468,30 +481,30 @@ struct TerminalSidebarLayoutTests {
   func structuralUpdatesKeepIdentifiersAlignedWithTheCollectionCount() {
     let firstTabID = TerminalTabID()
     let secondTabID = TerminalTabID()
-    let groupID = TerminalTabGroupID()
-    let ungrouped = TerminalSidebarTestFixture.outline(
+    let projectID = TerminalProjectID()
+    let unprojected = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(content: .tab(firstTabID), isPinned: false),
         TerminalSidebarOutline.Root(content: .tab(secondTabID), isPinned: false),
       ],
       revision: 1
     )
-    let grouped = TerminalSidebarTestFixture.outline(
+    let projected = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .blue, .automatic, [firstTabID, secondTabID]),
+          content: .project(projectID, .blue, [firstTabID, secondTabID]),
           isPinned: false
         )
       ],
       revision: 2
     )
-    let sourceIdentifiers = ungrouped.visibleEntries.map(\.id)
-    let targetIdentifiers = grouped.visibleEntries.map(\.id)
+    let sourceIdentifiers = unprojected.visibleEntries.map(\.id)
+    let targetIdentifiers = projected.visibleEntries.map(\.id)
     let layout = TerminalSidebarCollectionLayout()
 
-    layout.setOutline(ungrouped)
+    layout.setOutline(unprojected)
     layout.finishStructuralUpdate()
-    layout.setOutline(grouped)
+    layout.setOutline(projected)
 
     #expect(
       layout.displayedIdentifiers(
@@ -507,7 +520,7 @@ struct TerminalSidebarLayoutTests {
     )
 
     layout.finishStructuralUpdate()
-    layout.setOutline(ungrouped)
+    layout.setOutline(unprojected)
 
     #expect(
       layout.displayedIdentifiers(
@@ -527,33 +540,33 @@ struct TerminalSidebarLayoutTests {
   func topEntriesKeepAFixedGapBelowTheDocumentTop() throws {
     let root = TerminalTabID()
     let child = TerminalTabID()
-    let groupID = TerminalTabGroupID()
+    let projectID = TerminalProjectID()
     let rootFirst = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(content: .tab(root), isPinned: false),
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .yellow, .automatic, [child]),
+          content: .project(projectID, .yellow, [child]),
           isPinned: false
         ),
       ],
       revision: 1
     )
-    let groupFirst = TerminalSidebarTestFixture.outline(
+    let projectFirst = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .yellow, .automatic, [child]),
+          content: .project(projectID, .yellow, [child]),
           isPinned: false
         )
       ],
       revision: 1
     )
     let rootFirstPlan = TerminalSidebarTestFixture.layoutPlan(outline: rootFirst)
-    let groupFirstPlan = TerminalSidebarTestFixture.layoutPlan(outline: groupFirst)
+    let projectFirstPlan = TerminalSidebarTestFixture.layoutPlan(outline: projectFirst)
     let rootFrame = try #require(rootFirstPlan.items.first { $0.id == .tab(root) }?.frame)
-    let groupFrame = try #require(groupFirstPlan.groups.first?.frame)
+    let projectFrame = try #require(projectFirstPlan.projects.first?.frame)
 
     #expect(rootFrame.minY == 12)
-    #expect(groupFrame.minY == 10)
+    #expect(projectFrame.minY == 10)
   }
 
   @Test
@@ -681,7 +694,7 @@ struct TerminalSidebarLayoutTests {
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
-      groupID: groupID,
+      projectID: nil,
       rootIsPinned: false,
       agentStatus: nil,
       details: [],
@@ -693,4 +706,17 @@ struct TerminalSidebarLayoutTests {
     )
   }
 
+  private var rowActions: TerminalSidebarRowActions {
+    TerminalSidebarRowActions(
+      toggleProjectCollapsed: { _ in },
+      toggleUnassignedCollapsed: {},
+      createTabInProject: { _ in },
+      renameProject: { _, _ in false },
+      setProjectColor: { _, _ in },
+      toggleProjectPinned: { _ in },
+      unproject: { _ in },
+      closeProject: { _ in },
+      newTab: {}
+    )
+  }
 }

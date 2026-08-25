@@ -24,23 +24,11 @@ extension TerminalHostState {
   }
 
   var tabs: [TerminalTabItem] {
-    spaceManager.tabs
-  }
-
-  var rootItems: [TerminalTabRootItem] {
-    spaceManager.rootItems
-  }
-
-  var selectedSpaceTopologyRevision: UInt64 {
-    spaceManager.tabCollection.topologyRevision
+    spaceManager.tabCollection.tabs(orderedProjectIDs: projectCatalog.projects.map(\.id))
   }
 
   var visibleTabs: [TerminalTabItem] {
-    spaceManager.visibleTabs
-  }
-
-  var collapsedTabGroupIDs: Set<TerminalTabGroupID> {
-    spaceManager.displayedInstance.collapsedTabGroupIDs
+    tabs
   }
 
   func isPinned(_ tabID: TerminalTabID) -> Bool {

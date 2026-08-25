@@ -1,9 +1,9 @@
 ---
-title: Spaces, groups, tabs, and panes
-description: Organize terminal work with spaces, optional tab groups, and split panes.
+title: Projects, Spaces, Tabs, and panes
+description: Organize terminal work with app-wide Projects, Spaces, Tabs, and split panes.
 ---
 
-Supaterm keeps terminal work in a simple hierarchy: spaces contain tabs and optional tab groups, groups contain tabs, and tabs contain panes.
+Projects organize related Tabs across the app. Spaces keep separate Tab lists in each window. A Tab may belong to one Project and contains one or more panes.
 
 ## Spaces
 
@@ -19,20 +19,21 @@ sp space prev
 sp space last
 ```
 
-## Groups and tabs
+## Projects and Tabs
 
-Tabs belong to the selected space. They can remain at the root or sit inside a named, colored group. Create a tab with `Command-T`, then drag it to reorder it, move it into a group, remove it from a group, or combine it with another root tab in a new group.
+Tabs belong to the selected Space. A Tab may belong to an app-wide, named Project or remain Unassigned. Create a Tab with `Command-T`, then drag it to reorder it, assign it to a Project, or clear its membership.
 
-Use **New Group** at the bottom of the outline to create an empty group and rename it immediately. A group keeps its identity when empty, can be renamed, colored, collapsed, pinned, ungrouped, or closed, and persists across relaunches. Ungrouping promotes its tabs to the space root. Closing it closes every contained tab.
+Create a Project from selected Tabs with the existing sidebar action. Project headers support inline rename, color, collapse, pin, Tab creation, and drag reorder. Empty Project sections stay hidden in a Space, but the Project remains available through `sp project list`. Removing a non-empty Project asks for confirmation and closes all assigned Tabs in every Space and window.
 
-Pinning applies to a whole root item. Pinning a tab inside a group first removes it from the group and then pins it at the root. Pinned and regular root items retain their relative order in one outline.
+Projects and Tabs have separate pin lanes. Project pinning changes section order. Tab pinning keeps that Tab before regular Tabs within its section and does not change membership.
 
-Right-click a tab to rename, move, pin, close, close other tabs, or close the tabs below it. The first ten tabs in flattened outline order are available through `Command-1` to `Command-0`; collapsed groups do not change that order.
+Right-click a Tab to rename, assign, unassign, pin, close, close other Tabs, or close the Tabs below it. The first ten Tabs in semantic section order are available through `Command-1` to `Command-0`; collapsed sections do not change that order.
 
 ```bash
 sp tab new --focus --cwd "$PWD"
-sp group new Development --color blue
-sp tab move --group Development
+sp project add Development --root "$PWD" --color blue
+sp tab move --project Development
+sp tab move --unassigned
 sp tab rename Build
 sp tab pin
 sp tab next
@@ -67,7 +68,7 @@ sp pane layout main-vertical
 
 ## Inspect the hierarchy
 
-Run `sp ls` for a readable tree with typed short refs. Use `sp ls --json` for a flat snapshot with canonical UUIDs, parent IDs, cwd, and coding-agent state. Items preserve the same root order shown in the sidebar:
+Run `sp ls` for a readable tree with typed short refs and derived Project headings. Use `sp ls --json` for the global Project catalog plus a flat item snapshot with canonical UUIDs, Project IDs, parent IDs, cwd, and coding-agent state:
 
 ```bash
 sp ls

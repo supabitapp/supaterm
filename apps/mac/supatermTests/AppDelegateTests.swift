@@ -334,18 +334,10 @@ struct AppDelegateTests {
             TerminalSpaceSession(
               spaceID: spaceID,
               selectedTabID: firstTabID,
-              nodes: [
-                TerminalTabNodeSession(
-                  item: .tab(firstTabID),
-                  parent: .root(isPinned: false),
-                  order: 0
-                )
-              ],
-              groups: [],
-              collapsedGroupIDs: [],
               tabs: [
                 TerminalTabSession(
                   id: firstTabID,
+                  isPinned: false,
                   lockedTitle: nil,
                   focusedPaneIndex: 0,
                   root: .leaf(
@@ -357,18 +349,10 @@ struct AppDelegateTests {
             TerminalSpaceSession(
               spaceID: hiddenSpaceID,
               selectedTabID: hiddenTabID,
-              nodes: [
-                TerminalTabNodeSession(
-                  item: .tab(hiddenTabID),
-                  parent: .root(isPinned: true),
-                  order: 0
-                )
-              ],
-              groups: [],
-              collapsedGroupIDs: [],
               tabs: [
                 TerminalTabSession(
                   id: hiddenTabID,
+                  isPinned: true,
                   lockedTitle: nil,
                   focusedPaneIndex: 0,
                   root: .leaf(
@@ -404,9 +388,6 @@ struct AppDelegateTests {
         TerminalSpaceSession(
           spaceID: spaceID,
           selectedTabID: nil,
-          nodes: [],
-          groups: [],
-          collapsedGroupIDs: [],
           tabs: []
         )
       ]
@@ -424,18 +405,10 @@ struct AppDelegateTests {
         TerminalSpaceSession(
           spaceID: spaceID,
           selectedTabID: tabID,
-          nodes: [
-            TerminalTabNodeSession(
-              item: .tab(tabID),
-              parent: .root(isPinned: false),
-              order: 0
-            )
-          ],
-          groups: [],
-          collapsedGroupIDs: [],
           tabs: [
             TerminalTabSession(
               id: tabID,
+              isPinned: false,
               lockedTitle: nil,
               focusedPaneIndex: 0,
               root: .leaf(

@@ -114,12 +114,12 @@ public struct Palette {
   }
   public var spaceTitle: Color { spaceTitleValue.color }
   public var secondaryText: Color { isDark ? Color.white.opacity(0.58) : Color.black.opacity(0.48) }
-  public var sidebarGroupNeutralHoverFillValue: ThemeColor {
+  public var sidebarProjectNeutralHoverFillValue: ThemeColor {
     isDark
       ? ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.10)
       : ThemeColor(red: 0, green: 0, blue: 0, alpha: 0.05)
   }
-  public var sidebarGroupStrokeValue: ThemeColor {
+  public var sidebarProjectStrokeValue: ThemeColor {
     isDark
       ? ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.10)
       : ThemeColor(red: 0, green: 0, blue: 0, alpha: 0.10)

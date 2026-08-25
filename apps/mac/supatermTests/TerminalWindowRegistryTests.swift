@@ -86,15 +86,6 @@ struct TerminalWindowRegistryTests {
         TerminalSpaceSession(
           spaceID: spaces[1].id,
           selectedTabID: tabID,
-          nodes: [
-            TerminalTabNodeSession(
-              item: .tab(tabID),
-              parent: .root(isPinned: false),
-              order: 0
-            )
-          ],
-          groups: [],
-          collapsedGroupIDs: [],
           tabs: [
             TerminalTabSession(
               id: tabID,
@@ -1119,7 +1110,7 @@ struct TerminalWindowRegistryTests {
     }
   }
   @Test
-  func requestNewTabInSelectedGroupCreatesGroupedTab() throws {
+  func requestNewTabInSelectedProjectCreatesAssignedTab() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -1131,12 +1122,11 @@ struct TerminalWindowRegistryTests {
         AppFeature()
       }
       let windowControllerID = UUID()
-      let tabCollection = host.spaceManager.tabCollection
       let tabID = try #require(host.createTab())
-      let groupID = try #require(
-        tabCollection.createGroup(title: "Group", containing: [tabID])
-      ).groupID
-      tabCollection.selectTab(tabID)
+      let projectID = try #require(
+        host.createProject(name: "Project", containing: [tabID])
+      ).projectID
+      host.spaceManager.tabCollection.selectTab(tabID)
 
       registry.register(
         keyboardShortcutForAction: { _ in nil },
@@ -1148,9 +1138,9 @@ struct TerminalWindowRegistryTests {
       let window = makeWindow()
       registry.updateWindow(window, for: windowControllerID)
 
-      #expect(registry.menuContext().hasSelectedGroup)
-      registry.requestNewTabInSelectedGroupInKeyWindow()
-      #expect(host.spaceManager.tabCollection.group(for: groupID)?.tabs.count == 2)
+      #expect(registry.menuContext().hasSelectedProject)
+      registry.requestNewTabInSelectedProjectInKeyWindow()
+      #expect(host.projectSections().first { $0.id == projectID }?.tabs.count == 2)
     }
   }
   @Test
@@ -1522,6 +1512,51 @@ struct TerminalWindowRegistryTests {
       break
     default:
       Issue.record("Expected no windows plan")
+    }
+  }
+
+  @Test
+  func projectRemovalConfirmsThenClosesTabsAcrossWindowsWithOneSave() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      var closedWindowIDs: Set<UUID> = []
+      let first = registerWindow(
+        in: registry,
+        spaceID: TerminalSpaceID(),
+        onClose: { closedWindowIDs.insert($0) }
+      )
+      let second = registerWindow(
+        in: registry,
+        spaceID: TerminalSpaceID(),
+        onClose: { closedWindowIDs.insert($0) }
+      )
+      let firstTabID = first.terminal.spaceManager.tabCollection.createTab(title: "First")
+      let secondTabID = second.terminal.spaceManager.tabCollection.createTab(title: "Second")
+      let projectID = try #require(
+        first.terminal.createProject(name: "Work", containing: [firstTabID])
+      ).projectID
+      #expect(second.terminal.assignTabs([secondTabID], to: projectID))
+      var saveCount = 0
+      first.terminal.onSessionChange = { saveCount += 1 }
+      second.terminal.onSessionChange = { saveCount += 1 }
+
+      #expect(throws: TerminalControlError.projectCloseConfirmationRequired) {
+        try registry.removeProject(projectID, confirmed: false)
+      }
+      #expect(first.terminal.containsTab(firstTabID.rawValue))
+      #expect(second.terminal.containsTab(secondTabID.rawValue))
+
+      let result = try registry.removeProject(projectID, confirmed: true)
+
+      #expect(Set(result.removedTabIDs) == Set([firstTabID.rawValue, secondTabID.rawValue]))
+      #expect(!first.terminal.containsProject(projectID))
+      #expect(!first.terminal.containsTab(firstTabID.rawValue))
+      #expect(!second.terminal.containsTab(secondTabID.rawValue))
+      #expect(saveCount == 1)
+      #expect(closedWindowIDs.count == 2)
+      withExtendedLifetime([first.window, second.window]) {}
     }
   }
 }

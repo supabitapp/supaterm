@@ -120,8 +120,8 @@ public struct SupatermShortcutGroup: Identifiable, Sendable {
 }
 
 public enum SupatermShortcuts {
-  public static let newTabInGroup = SupatermShortcut(
-    id: .newTabInGroup,
+  public static let newTabInProject = SupatermShortcut(
+    id: .newTabInProject,
     keyCode: UInt16(kVK_ANSI_T),
     modifiers: [.command, .option]
   )
@@ -182,7 +182,7 @@ public enum SupatermShortcuts {
     ),
     SupatermShortcutGroup(
       category: .tabs,
-      shortcuts: [newTabInGroup]
+      shortcuts: [newTabInProject]
     ),
     SupatermShortcutGroup(
       category: .codingAgents,

@@ -12,8 +12,8 @@ struct SPShortReferenceTests {
         == .short(SPShortReference(kind: .space, prefix: "a6e57b1b"))
     )
     #expect(
-      try parseGroupReference("g:5A52445E")
-        == .short(SPShortReference(kind: .group, prefix: "5a52445e"))
+      try parseProjectReference("j:5A52445E")
+        == .short(SPShortReference(kind: .project, prefix: "5a52445e"))
     )
     #expect(
       try parseTabReference("t:6BFC889D2")
@@ -43,19 +43,19 @@ struct SPShortReferenceTests {
       }
     }
     #expect(throws: ValidationError.self) {
-      _ = try parseSpaceReference("g:5a52445e")
+      _ = try parseSpaceReference("j:5a52445e")
     }
     #expect(throws: ValidationError.self) {
-      _ = try parseGroupReference("p:2b8b3a57")
+      _ = try parseProjectReference("p:2b8b3a57")
     }
     #expect(throws: ValidationError.self) {
-      _ = try parseGroupReference("g:not-a-ref")
+      _ = try parseProjectReference("j:not-a-ref")
     }
     #expect(throws: ValidationError.self) {
       _ = try parseContainerReference("s:a6e57b1b")
     }
     #expect(throws: (any Error).self) {
-      _ = try SP.parseAsRoot(["group", "collapse", "p:2b8b3a57"])
+      _ = try SP.parseAsRoot(["project", "pin", "p:2b8b3a57"])
     }
   }
 

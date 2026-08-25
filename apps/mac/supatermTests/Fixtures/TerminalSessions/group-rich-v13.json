@@ -1,0 +1,134 @@
+{
+  "version": 13,
+  "windows": [{
+    "displayedSpaceID": {"rawValue": "11111111-1111-1111-1111-111111111111"},
+    "spaces": [{
+      "spaceID": {"rawValue": "11111111-1111-1111-1111-111111111111"},
+      "selectedTabID": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0002"},
+      "nodes": [
+        {
+          "item": {"kind": "tab", "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0003"}},
+          "parent": {"kind": "root", "isPinned": false},
+          "order": 0
+        },
+        {
+          "item": {"kind": "tab", "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0002"}},
+          "parent": {"kind": "group", "id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBB0001"},
+          "order": 1
+        },
+        {
+          "item": {"kind": "group", "id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBB0001"},
+          "parent": {"kind": "root", "isPinned": true},
+          "order": 0
+        },
+        {
+          "item": {"kind": "tab", "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0001"}},
+          "parent": {"kind": "group", "id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBB0001"},
+          "order": 0
+        },
+        {
+          "item": {"kind": "tab", "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0004"}},
+          "parent": {"kind": "group", "id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBB0002"},
+          "order": 0
+        },
+        {
+          "item": {"kind": "tab", "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0005"}},
+          "parent": {"kind": "root", "isPinned": true},
+          "order": 0
+        }
+      ],
+      "groups": [{
+        "id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBB0001",
+        "title": "Build",
+        "color": "purple",
+        "lifetime": "automatic"
+      }],
+      "collapsedGroupIDs": ["BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBB0001"],
+      "tabs": [
+        {
+          "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0003"},
+          "lockedTitle": "Regular",
+          "focusedPaneIndex": 0,
+          "root": {
+            "kind": "leaf",
+            "leaf": {
+              "id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCC0003",
+              "workingDirectoryPath": "/tmp/regular",
+              "restoreMode": "shell",
+              "agents": []
+            }
+          }
+        },
+        {
+          "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0002"},
+          "lockedTitle": "Selected Child",
+          "focusedPaneIndex": 0,
+          "root": {
+            "kind": "leaf",
+            "leaf": {
+              "id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCC0002",
+              "workingDirectoryPath": "/tmp/selected",
+              "restoreMode": "existingSession",
+              "agents": []
+            }
+          }
+        },
+        {
+          "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0001"},
+          "lockedTitle": "Split Child",
+          "focusedPaneIndex": 1,
+          "root": {
+            "kind": "split",
+            "split": {
+              "direction": "horizontal",
+              "ratio": 0.4,
+              "left": {
+                "kind": "leaf",
+                "leaf": {
+                  "id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCC0001",
+                  "workingDirectoryPath": "/tmp/left",
+                  "restoreMode": "shell",
+                  "agents": [{
+                    "agent": "codex",
+                    "sessionID": "group-rich-session",
+                    "processes": [{"processID": 123, "startTimeMicroseconds": 456}],
+                    "turnLifecycle": {"unseen": {}},
+                    "phase": {"idle": {}},
+                    "progressRows": [],
+                    "activeChildren": [],
+                    "hasPendingBackgroundWork": false,
+                    "isForeground": true,
+                    "revision": 2
+                  }]
+                }
+              },
+              "right": {
+                "kind": "leaf",
+                "leaf": {
+                  "id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCC0011",
+                  "workingDirectoryPath": "/tmp/right",
+                  "restoreMode": "shell",
+                  "agents": []
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAA0004"},
+          "lockedTitle": "Orphan",
+          "focusedPaneIndex": 0,
+          "root": {
+            "kind": "leaf",
+            "leaf": {
+              "id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCC0004",
+              "workingDirectoryPath": "/tmp/orphan",
+              "restoreMode": "shell",
+              "agents": []
+            }
+          }
+        }
+      ]
+    }]
+  }]
+}

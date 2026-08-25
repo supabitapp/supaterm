@@ -44,6 +44,7 @@ extension SocketControlFeature {
       startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       focus: payload.focus,
+      projectID: payload.projectID,
       target: createTabTarget(from: payload.target),
       context: payload.context
     )
@@ -53,12 +54,8 @@ extension SocketControlFeature {
     from target: SupatermNewTabTarget
   ) -> TerminalCreateTabRequest.Target {
     switch target {
-    case .group(let id):
-      return .group(id)
     case .pane(let id):
       return .pane(id)
-    case .root(let id):
-      return .root(id)
     case .space(let id):
       return .space(id)
     }
