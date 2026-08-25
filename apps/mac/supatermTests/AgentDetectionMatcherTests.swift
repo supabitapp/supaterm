@@ -120,6 +120,40 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test
+  func shortCircuitMatchingAgreesWithFullEvidenceEvaluation() throws {
+    let matcher = try AgentDetectionMatcher(
+      agent: agent(
+        rules: [
+          rule(
+            gate: AgentDetectionGate(
+              contains: ["ready", "enter"],
+              regex: [#"Press\s+Enter"#],
+              lineRegex: [#"^Press Enter$"#],
+              all: [AgentDetectionGate(contains: ["press"])],
+              any: [
+                AgentDetectionGate(contains: ["return"]),
+                AgentDetectionGate(contains: ["ready"]),
+              ],
+              not: [AgentDetectionGate(contains: ["denied"])]
+            )
+          )
+        ]
+      )
+    )
+    let inputs = [
+      "READY\nPress Enter",
+      "missing every condition",
+      "READY\nPress Later",
+      "READY\nPress Enter\nDenied",
+    ]
+
+    for screen in inputs {
+      let input = AgentDetectionInput(screen: screen, oscTitle: "")
+      #expect(matcher.match(input) == matcher.explain(input).match)
+    }
+  }
+
+  @Test
   func explanationIncludesEveryRuleAndConditionResult() throws {
     let matcher = try AgentDetectionMatcher(
       agent: agent(

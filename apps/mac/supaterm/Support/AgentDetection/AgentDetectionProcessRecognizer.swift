@@ -40,21 +40,62 @@ public struct AgentDetectionProcessMatch: Equatable, Hashable, Sendable {
   }
 }
 
-public enum AgentDetectionProcessRecognizer {
-  typealias InvocationProvider = @Sendable (pid_t) -> ProcessInvocation?
-  typealias TableProvider = @Sendable () -> ProcessTable
+public actor AgentDetectionProcessSampler {
+  private struct Sample {
+    let table: ProcessTable
+    let time: ContinuousClock.Instant
+  }
 
-  public static func matches(
+  private static let cacheInterval: Duration = .milliseconds(500)
+
+  private let currentTime: @Sendable () -> ContinuousClock.Instant
+  private let processTable: AgentDetectionProcessRecognizer.TableProvider
+  private let invocation: AgentDetectionProcessRecognizer.InvocationProvider
+  private var sample: Sample?
+
+  public init() {
+    currentTime = { ContinuousClock().now }
+    processTable = { .snapshot() }
+    invocation = { ProcessTable.invocation(forProcessID: $0) }
+  }
+
+  init(
+    currentTime: @escaping @Sendable () -> ContinuousClock.Instant,
+    processTable: @escaping AgentDetectionProcessRecognizer.TableProvider,
+    invocation: @escaping AgentDetectionProcessRecognizer.InvocationProvider
+  ) {
+    self.currentTime = currentTime
+    self.processTable = processTable
+    self.invocation = invocation
+  }
+
+  public func matches(
     foregroundProcessGroupIDs: Set<Int32>,
     manifests: [AgentDetectionProcessManifest]
   ) -> [Int32: AgentDetectionProcessMatch] {
-    matches(
+    guard foregroundProcessGroupIDs.contains(where: { $0 > 0 }), !manifests.isEmpty else {
+      return [:]
+    }
+    let now = currentTime()
+    let table: ProcessTable
+    if let sample, sample.time.duration(to: now) < Self.cacheInterval {
+      table = sample.table
+    } else {
+      table = processTable()
+      sample = Sample(table: table, time: now)
+    }
+    return AgentDetectionProcessRecognizer.matches(
       foregroundProcessGroupIDs: foregroundProcessGroupIDs,
       manifests: manifests,
-      table: { .snapshot() },
-      invocation: { ProcessTable.invocation(forProcessID: $0) }
+      table: table,
+      invocation: invocation
     )
   }
+}
+
+enum AgentDetectionProcessRecognizer {
+  typealias InvocationProvider = @Sendable (pid_t) -> ProcessInvocation?
+  typealias TableProvider = @Sendable () -> ProcessTable
 
   static func matches(
     foregroundProcessGroupIDs: Set<pid_t>,

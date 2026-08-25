@@ -118,10 +118,16 @@ struct TerminalAgentDetectionHostAccess {
 private actor TerminalAgentDetectionLiveSampler {
   private let zmxClient: ZmxClient
   private let zmxSessionsEnabled: Bool
+  private let processSampler: AgentDetectionProcessSampler
 
-  init(zmxClient: ZmxClient, zmxSessionsEnabled: Bool) {
+  init(
+    zmxClient: ZmxClient,
+    zmxSessionsEnabled: Bool,
+    processSampler: AgentDetectionProcessSampler
+  ) {
     self.zmxClient = zmxClient
     self.zmxSessionsEnabled = zmxSessionsEnabled
+    self.processSampler = processSampler
   }
 
   func resolveForegroundProcessGroups(_ direct: [UUID: Int32]) async -> [UUID: Int32] {
@@ -146,8 +152,8 @@ private actor TerminalAgentDetectionLiveSampler {
   func matches(
     foregroundProcessGroupIDs: Set<Int32>,
     manifests: [AgentDetectionProcessManifest]
-  ) -> [Int32: AgentDetectionProcessMatch] {
-    AgentDetectionProcessRecognizer.matches(
+  ) async -> [Int32: AgentDetectionProcessMatch] {
+    await processSampler.matches(
       foregroundProcessGroupIDs: foregroundProcessGroupIDs,
       manifests: manifests
     )
@@ -172,6 +178,7 @@ final class TerminalAgentDetectionController {
   private static let processAcquisitionWindow: Duration = .milliseconds(1_500)
   private static let recognizedProcessInterval: Duration = .seconds(5)
   private static let unrecognizedProcessInterval: Duration = .seconds(2)
+  private static let processSampler = AgentDetectionProcessSampler()
 
   private typealias Proof = AgentDetectionProcessMatch
 
@@ -256,7 +263,8 @@ final class TerminalAgentDetectionController {
   ) {
     let liveSampler = TerminalAgentDetectionLiveSampler(
       zmxClient: terminal.zmxClient,
-      zmxSessionsEnabled: terminal.zmxSessionsEnabled
+      zmxSessionsEnabled: terminal.zmxSessionsEnabled,
+      processSampler: Self.processSampler
     )
     self.init(
       rules: TerminalAgentDetectionRuleAccess(repository: repository),

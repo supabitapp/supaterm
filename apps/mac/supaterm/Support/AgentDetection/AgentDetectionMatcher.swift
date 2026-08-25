@@ -167,11 +167,6 @@ private struct CompiledRule {
 }
 
 private struct CompiledGate {
-  private struct Evaluation {
-    let matched: Bool
-    let evidence: AgentDetectionConditionEvidence?
-  }
-
   private struct SegmentEvaluation {
     let matched: Bool
     let children: [AgentDetectionConditionEvidence]
@@ -194,66 +189,62 @@ private struct CompiledGate {
   }
 
   func matches(_ text: PreparedText) -> Bool {
-    evaluate(text, collectingEvidence: false).matched
+    guard contains.allSatisfy({ text.lowercase.contains($0.lowercase) }) else { return false }
+    guard regex.allSatisfy({ $0.matches(text.raw) }) else { return false }
+    guard
+      lineRegex.allSatisfy({ expression in
+        text.lines.contains { expression.matches($0) }
+      })
+    else {
+      return false
+    }
+    guard all.allSatisfy({ $0.matches(text) }) else { return false }
+    guard any.isEmpty || any.contains(where: { $0.matches(text) }) else { return false }
+    return !not.contains(where: { $0.matches(text) })
   }
 
   func evidence(_ text: PreparedText) -> AgentDetectionConditionEvidence {
-    evaluate(text, collectingEvidence: true).evidence!
-  }
-
-  private func evaluate(
-    _ text: PreparedText,
-    collectingEvidence: Bool
-  ) -> Evaluation {
     let segments = [
       evaluateLeaves(
         contains,
         kind: "contains",
-        value: \.pattern,
-        collectingEvidence: collectingEvidence
+        value: \.pattern
       ) { text.lowercase.contains($0.lowercase) },
       evaluateLeaves(
         regex,
         kind: "regex",
-        value: \.pattern,
-        collectingEvidence: collectingEvidence
+        value: \.pattern
       ) { $0.matches(text.raw) },
       evaluateLeaves(
         lineRegex,
         kind: "line_regex",
-        value: \.pattern,
-        collectingEvidence: collectingEvidence
+        value: \.pattern
       ) { expression in text.lines.contains { expression.matches($0) } },
-      evaluateAll(text, collectingEvidence: collectingEvidence),
-      evaluateAny(text, collectingEvidence: collectingEvidence),
-      evaluateNot(text, collectingEvidence: collectingEvidence),
+      evaluateAll(text),
+      evaluateAny(text),
+      evaluateNot(text),
     ]
     let matched = segments.allSatisfy(\.matched)
-    let evidence =
-      collectingEvidence
-      ? AgentDetectionConditionEvidence(
-        kind: "all",
-        value: nil,
-        matched: matched,
-        children: segments.flatMap(\.children)
-      )
-      : nil
-    return Evaluation(matched: matched, evidence: evidence)
+    return AgentDetectionConditionEvidence(
+      kind: "all",
+      value: nil,
+      matched: matched,
+      children: segments.flatMap(\.children)
+    )
   }
 
   private func evaluateLeaves<Value>(
     _ values: [Value],
     kind: String,
     value: KeyPath<Value, String>,
-    collectingEvidence: Bool,
     matches: (Value) -> Bool
   ) -> SegmentEvaluation {
     let results = values.map { item in
       (item: item, matched: matches(item))
     }
-    let children =
-      collectingEvidence
-      ? results.map { result in
+    return SegmentEvaluation(
+      matched: results.allSatisfy(\.matched),
+      children: results.map { result in
         AgentDetectionConditionEvidence(
           kind: kind,
           value: result.item[keyPath: value],
@@ -261,75 +252,55 @@ private struct CompiledGate {
           children: []
         )
       }
-      : []
-    return SegmentEvaluation(
-      matched: results.allSatisfy(\.matched),
-      children: children
     )
   }
 
-  private func evaluateAll(
-    _ text: PreparedText,
-    collectingEvidence: Bool
-  ) -> SegmentEvaluation {
-    let evaluations = all.map { $0.evaluate(text, collectingEvidence: collectingEvidence) }
-    let children = evaluations.compactMap { evaluation in
-      evaluation.evidence.map {
+  private func evaluateAll(_ text: PreparedText) -> SegmentEvaluation {
+    let evaluations = all.map { $0.evidence(text) }
+    return SegmentEvaluation(
+      matched: evaluations.allSatisfy(\.matched),
+      children: evaluations.map { evaluation in
         AgentDetectionConditionEvidence(
           kind: "all",
           value: nil,
           matched: evaluation.matched,
-          children: $0.children
+          children: evaluation.children
         )
       }
-    }
-    return SegmentEvaluation(
-      matched: evaluations.allSatisfy(\.matched),
-      children: children
     )
   }
 
-  private func evaluateAny(
-    _ text: PreparedText,
-    collectingEvidence: Bool
-  ) -> SegmentEvaluation {
+  private func evaluateAny(_ text: PreparedText) -> SegmentEvaluation {
     guard !any.isEmpty else { return SegmentEvaluation(matched: true, children: []) }
-    let evaluations = any.map { $0.evaluate(text, collectingEvidence: collectingEvidence) }
+    let evaluations = any.map { $0.evidence(text) }
     let matched = evaluations.contains(where: \.matched)
     return SegmentEvaluation(
       matched: matched,
-      children: collectingEvidence
-        ? [
-          AgentDetectionConditionEvidence(
-            kind: "any",
-            value: nil,
-            matched: matched,
-            children: evaluations.compactMap(\.evidence)
-          )
-        ]
-        : []
+      children: [
+        AgentDetectionConditionEvidence(
+          kind: "any",
+          value: nil,
+          matched: matched,
+          children: evaluations
+        )
+      ]
     )
   }
 
-  private func evaluateNot(
-    _ text: PreparedText,
-    collectingEvidence: Bool
-  ) -> SegmentEvaluation {
+  private func evaluateNot(_ text: PreparedText) -> SegmentEvaluation {
     guard !not.isEmpty else { return SegmentEvaluation(matched: true, children: []) }
-    let evaluations = not.map { $0.evaluate(text, collectingEvidence: collectingEvidence) }
+    let evaluations = not.map { $0.evidence(text) }
     let matched = !evaluations.contains(where: \.matched)
     return SegmentEvaluation(
       matched: matched,
-      children: collectingEvidence
-        ? [
-          AgentDetectionConditionEvidence(
-            kind: "not",
-            value: nil,
-            matched: matched,
-            children: evaluations.compactMap(\.evidence)
-          )
-        ]
-        : []
+      children: [
+        AgentDetectionConditionEvidence(
+          kind: "not",
+          value: nil,
+          matched: matched,
+          children: evaluations
+        )
+      ]
     )
   }
 }

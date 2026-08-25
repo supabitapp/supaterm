@@ -87,6 +87,51 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
+  func sharedSamplerReusesOneProcessTableWithinTheCacheInterval() async {
+    let clock = ContinuousClock()
+    let currentTime = Mutex(clock.now)
+    let snapshotCount = Mutex(0)
+    let secondProcessGroupID = Self.foregroundProcessGroupID + 1
+    let sampler = AgentDetectionProcessSampler(
+      currentTime: { currentTime.withLock { $0 } },
+      processTable: {
+        snapshotCount.withLock { $0 += 1 }
+        return ProcessTable(
+          entries: [
+            Self.process(100, name: "codex"),
+            Self.process(200, processGroupID: secondProcessGroupID, name: "codex"),
+          ]
+        )
+      },
+      invocation: { processID in
+        Self.invocation("/opt/homebrew/bin/codex", arguments: ["codex", "\(processID)"])
+      }
+    )
+
+    async let first = sampler.matches(
+      foregroundProcessGroupIDs: [Self.foregroundProcessGroupID],
+      manifests: [Self.codex]
+    )
+    async let second = sampler.matches(
+      foregroundProcessGroupIDs: [secondProcessGroupID],
+      manifests: [Self.codex]
+    )
+    let matches = await (first, second)
+
+    #expect(matches.0[Self.foregroundProcessGroupID]?.processIdentity.processID == 100)
+    #expect(matches.1[secondProcessGroupID]?.processIdentity.processID == 200)
+    #expect(snapshotCount.withLock { $0 } == 1)
+
+    currentTime.withLock { $0 = $0.advanced(by: .milliseconds(500)) }
+    _ = await sampler.matches(
+      foregroundProcessGroupIDs: [Self.foregroundProcessGroupID],
+      manifests: [Self.codex]
+    )
+
+    #expect(snapshotCount.withLock { $0 } == 2)
+  }
+
+  @Test
   func matchesEachRequestedForegroundGroupFromOneTable() {
     let secondProcessGroupID = Self.foregroundProcessGroupID + 1
     let unrequestedProcessGroupID = secondProcessGroupID + 1
