@@ -35,7 +35,7 @@ final class TerminalTabDragRegistry {
     let windowControllerID: UUID
     let spaceID: TerminalSpaceID
     let expectedTopologyRevision: UInt64
-    let placement: TerminalTabPlacement
+    let destination: TerminalTabTransferDestination
   }
 
   struct SplitDestination: Equatable {

@@ -134,7 +134,8 @@ final class TerminalSidebarExternalDropController {
     defer { clear() }
     guard
       let outline = configuration.content()?.outline,
-      let command = activeDrop.command(in: outline)
+      let command = activeDrop.command(in: outline),
+      let destination = command.operation.transferDestination
     else { return false }
     let result = configuration.tabDragRegistry.performTransfer(
       activeDrop.payload,
@@ -142,7 +143,7 @@ final class TerminalSidebarExternalDropController {
         windowControllerID: configuration.windowControllerID,
         spaceID: command.topologyStamp.spaceID,
         expectedTopologyRevision: command.topologyStamp.revision,
-        placement: command.destination
+        destination: destination
       )
     )
     return result != nil

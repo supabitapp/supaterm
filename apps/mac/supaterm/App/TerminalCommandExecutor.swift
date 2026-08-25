@@ -153,6 +153,12 @@ final class TerminalCommandExecutor {
       return .previousTab(try previousTab(navigationRequest))
     case .lastTab(let navigationRequest):
       return .lastTab(try lastTab(navigationRequest))
+    case .moveTab(let request):
+      do {
+        return .moveTab(try registry.moveTab(request))
+      } catch let error as TerminalTabMoveError {
+        throw TerminalTabCommandError.invalidRequest(error.commandMessage)
+      }
     }
   }
 
@@ -176,6 +182,25 @@ final class TerminalCommandExecutor {
       return .previousSpace(try previousSpace(navigationRequest))
     case .lastSpace(let navigationRequest):
       return .lastSpace(try lastSpace(navigationRequest))
+    }
+  }
+}
+
+extension TerminalTabMoveError {
+  fileprivate var commandMessage: String {
+    switch self {
+    case .duplicateTab:
+      "Each Tab can only be moved once."
+    case .emptyTabs:
+      "At least one Tab is required."
+    case .invalidDestination(let destination):
+      "Tab index \(destination.index + 1) is outside the destination section."
+    case .staleProjects:
+      "Project order changed. Retry the request."
+    case .staleTopology:
+      "Tab order changed. Retry the request."
+    case .tabNotFound:
+      "The Tab was not found."
     }
   }
 }

@@ -270,6 +270,64 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
+  func moveProjectTabUpdatesAColdSpaceWithoutWarmingIt() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Hidden")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let project = TerminalProject(name: "Work")
+      @Shared(.terminalProjectCatalog) var projectCatalog = TerminalProjectCatalog.default
+      $projectCatalog.withLock { $0 = TerminalProjectCatalog(projects: [project]) }
+      let existing = spaceSession(
+        spaceID: spaces[1].id,
+        title: "Existing",
+        projectID: project.id,
+        isPinned: true
+      )
+      let moved = spaceSession(spaceID: spaces[1].id, title: "Moved")
+      let tail = spaceSession(spaceID: spaces[1].id, title: "Tail")
+      let movedTabID = moved.tabs[0].id
+      let hidden = TerminalSpaceSession(
+        spaceID: spaces[1].id,
+        selectedTabID: movedTabID,
+        collapsedProjectIDs: [project.id],
+        tabs: existing.tabs + moved.tabs + tail.tabs
+      )
+      let host = TerminalHostState(spaceID: spaces[0].id)
+      #expect(
+        host.restore(
+          from: TerminalWindowSession(
+            displayedSpaceID: spaces[0].id,
+            spaces: [spaceSession(spaceID: spaces[0].id, title: "Displayed"), hidden]
+          )
+        )
+      )
+
+      let result = try host.moveProjectTab(
+        SupatermMoveTabRequest(
+          index: 2,
+          isPinned: true,
+          projectID: project.id.rawValue,
+          target: SupatermTabTargetRequest(tabID: movedTabID.rawValue)
+        )
+      )
+
+      let session = try #require(host.spaceManager.instance(for: spaces[1].id)?.pendingSession)
+      #expect(session.tabs.map(\.lockedTitle) == ["Existing", "Moved", "Tail"])
+      #expect(session.tabs[1].projectID == project.id)
+      #expect(session.tabs[1].isPinned)
+      #expect(!session.collapsedProjectIDs.contains(project.id))
+      #expect(result.target.spaceIndex == 2)
+      #expect(result.target.tabIndex == 2)
+      #expect(result.target.title == "Moved")
+    }
+  }
+
+  @Test
   func focusingHiddenPaneWarmsAndDisplaysItsSpace() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

@@ -125,6 +125,17 @@ extension SocketControlFeature {
       }
       return try .ok(id: request.id, encodableResult: result)
 
+    case SupatermSocketMethod.terminalMoveTab:
+      let payload = try request.decodeParams(SupatermMoveTabRequest.self)
+      if let index = payload.index, index < 1 {
+        throw SocketRequestError.invalidIndex("index")
+      }
+      let execution = try await socketRequestExecutor.executeTerminalTab(.moveTab(payload))
+      guard case .moveTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
     default:
       return nil
     }

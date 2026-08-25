@@ -88,6 +88,17 @@ struct TerminalProjectTitleSuggesterTests {
   }
 
   @Test
+  func generatedTitlesUseTheCatalogNameIdentity() {
+    let title = TerminalProjectTitleSuggester.title(
+      for: [input("STRASSE", isTitleLocked: true)],
+      sharedRepositoryName: nil,
+      existingTitles: ["straße"]
+    )
+
+    #expect(title == "STRASSE 2")
+  }
+
+  @Test
   func generatedTitlesStayWithinMaximumLengthWhenAddingSuffix() {
     let longTitle = String(repeating: "a", count: 60)
     let first = TerminalProjectTitleSuggester.title(

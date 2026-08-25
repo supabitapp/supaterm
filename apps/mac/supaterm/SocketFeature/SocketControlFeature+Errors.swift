@@ -213,6 +213,22 @@ extension SocketControlFeature {
     }
   }
 
+  func tabMoveErrorResponse(
+    _ error: TerminalTabCommandError,
+    requestID: String
+  ) -> SupatermSocketResponse {
+    let message =
+      switch error {
+      case .invalidRequest(let message):
+        message
+      }
+    return .error(
+      id: requestID,
+      code: "invalid_request",
+      message: message
+    )
+  }
+
   private func captureErrorResponse(
     _ error: TerminalControlError,
     requestID: String

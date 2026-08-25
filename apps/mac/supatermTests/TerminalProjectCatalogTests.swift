@@ -35,6 +35,11 @@ struct TerminalProjectCatalogTests {
         projects: [TerminalProject(name: "Work"), TerminalProject(name: " work ")]
       ).validated()
     }
+    #expect(throws: TerminalProjectCatalogError.duplicateName("strasse")) {
+      try TerminalProjectCatalog(
+        projects: [TerminalProject(name: "straße"), TerminalProject(name: "STRASSE")]
+      ).validated()
+    }
   }
 
   @Test

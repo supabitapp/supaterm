@@ -26,12 +26,6 @@ extension SocketControlFeature {
       operation = .pin(try request.decodeParams(SupatermProjectTargetRequest.self))
     case SupatermSocketMethod.terminalUnpinProject:
       operation = .unpin(try request.decodeParams(SupatermProjectTargetRequest.self))
-    case SupatermSocketMethod.terminalMoveTab:
-      let payload = try request.decodeParams(SupatermMoveTabRequest.self)
-      if let index = payload.index, index < 1 {
-        throw SocketRequestError.invalidIndex("index")
-      }
-      operation = .moveTab(payload)
     default:
       return nil
     }
@@ -49,8 +43,6 @@ extension SocketControlFeature {
       return try .ok(id: id, encodableResult: collapsed)
     case .project(let project):
       return try .ok(id: id, encodableResult: project)
-    case .movedTab(let movedTab):
-      return try .ok(id: id, encodableResult: movedTab)
     case .removedProject(let removedProject):
       return try .ok(id: id, encodableResult: removedProject)
     }

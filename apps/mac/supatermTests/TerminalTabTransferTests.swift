@@ -27,7 +27,9 @@ struct TerminalTabTransferTests {
         expectedDestinationRevision: destination.tabCollection.topologyRevision,
         orderedProjectIDs: [projectID],
         tabIDs: [tabID],
-        destination: TerminalTabPlacement(projectID: projectID, isPinned: true, index: 0)
+        destination: .move(
+          TerminalTabPlacement(projectID: projectID, isPinned: true, index: 0)
+        )
       )
 
       let plan = try TerminalHostState.prepareLiveTabTransfer(
@@ -77,7 +79,9 @@ struct TerminalTabTransferTests {
             expectedDestinationRevision: destination.tabCollection.topologyRevision + 1,
             orderedProjectIDs: [],
             tabIDs: [tabID],
-            destination: TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+            destination: .move(
+              TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+            )
           ),
           from: host,
           sourceSpaceID: spaces[0].id,

@@ -116,7 +116,6 @@ final class TerminalTabCollection {
       repairSelection(orderedProjectIDs: request.orderedProjectIDs)
     }
     return TerminalTabMoveResult(
-      operationID: request.operationID,
       tabIDs: request.tabIDs,
       location: request.destination,
       topologyRevision: topology.revision
@@ -229,13 +228,6 @@ final class TerminalTabCollection {
   }
 
   func isPinned(_ tabID: TerminalTabID) -> Bool? { topology.tabsByID[tabID]?.isPinned }
-
-  func placement(
-    of tabID: TerminalTabID,
-    orderedProjectIDs: [TerminalProjectID]
-  ) -> TerminalTabPlacement? {
-    topology.placement(of: tabID, orderedProjectIDs: orderedProjectIDs)
-  }
 
   func restoreTabs(_ tabs: [TerminalTabItem], selectedTabID: TerminalTabID?) {
     var next = TerminalTabTopology(revision: topology.revision + 1)

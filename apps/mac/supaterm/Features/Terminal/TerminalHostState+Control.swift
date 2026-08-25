@@ -774,12 +774,14 @@ extension TerminalHostState {
 
   func tabTarget(for tabID: TerminalTabID) throws -> SupatermTabTarget {
     guard
-      let space = spaceManager.space(for: tabID),
+      let instance = spaceManager.instance(for: tabID)
+        ?? spaceManager.pendingInstance(containingTab: tabID),
+      let space = spaceManager.space(for: instance.spaceID),
       let spaceIndex = spaceManager.spaceIndex(for: space.id)
     else {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
     }
-    let tabs = spaceManager.tabs(in: space.id)
+    let tabs = tabItemSnapshot(in: space.id)
     guard let tabIndex = tabs.firstIndex(where: { $0.id == tabID }) else {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: 1)
     }

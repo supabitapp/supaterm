@@ -400,16 +400,7 @@ extension TerminalHostState {
       )
 
     case .project(let projectID):
-      let tabIDs = spaceManager.instances.flatMap { instance in
-        let warmIDs = instance.tabCollection.canonicalTabs.compactMap {
-          $0.projectID == projectID ? $0.id : nil
-        }
-        let coldIDs =
-          instance.pendingSession?.tabs.compactMap {
-            $0.projectID == projectID ? $0.id : nil
-          } ?? []
-        return warmIDs + coldIDs
-      }
+      let tabIDs = tabIDs(in: projectID)
       guard !tabIDs.isEmpty else { return nil }
       return .request(
         TerminalCloseRequest(

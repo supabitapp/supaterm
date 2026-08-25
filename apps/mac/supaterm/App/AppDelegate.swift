@@ -569,7 +569,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       windowControllerID: controller.windowControllerID,
       spaceID: payload.sourceSpaceID,
       expectedTopologyRevision: expectedTopologyRevision,
-      placement: TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+      destination: .preserve
     )
     guard terminalWindowRegistry.transferTab(payload, to: destination) != nil else {
       controller.window?.close()

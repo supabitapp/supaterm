@@ -372,10 +372,7 @@ func resolvePublicProjectTargetRequest(
     let id = try short.resolve(in: snapshot.projects.map(\.id))
     project = snapshot.projects.first { $0.id == id }
   case .name(let name):
-    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    project = snapshot.projects.first {
-      $0.name.compare(trimmed, options: [.caseInsensitive]) == .orderedSame
-    }
+    project = snapshot.projects.first { SupatermProjectName.matches($0.name, name) }
   }
   guard let project else { throw ValidationError("No project matches the target.") }
   return SupatermProjectTargetRequest(projectID: project.id)

@@ -68,15 +68,10 @@ enum TerminalSidebarTestFixture {
   ) -> TerminalSidebarDropReceipt {
     TerminalSidebarDropReceipt(
       spaceID: payload.topologyStamp.spaceID,
-      result: TerminalTabMoveResult(
-        operationID: payload.operationID,
-        tabIDs: payload.source.itemIDs.compactMap {
-          guard case .tab(let id) = $0 else { return nil }
-          return id
-        },
-        location: destination,
-        topologyRevision: revision
-      )
+      operationID: payload.operationID,
+      itemIDs: payload.source.itemIDs,
+      operation: .move(destination),
+      topologyRevision: revision
     )
   }
 
@@ -98,7 +93,8 @@ enum TerminalSidebarTestFixture {
     let plan = TerminalSidebarDropPlan(
       path: .trailingRoot,
       destination: dropDestination,
-      placeholder: .beforeFooter
+      placeholder: .beforeFooter,
+      operation: .move(destination)
     )
     precondition(coordinator.freeze(plan) != nil)
     precondition(

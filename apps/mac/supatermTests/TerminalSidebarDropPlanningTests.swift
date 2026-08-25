@@ -44,7 +44,8 @@ struct TerminalSidebarDropPlanningTests {
     let plan = TerminalSidebarDropPlan(
       path: .trailingRoot,
       destination: .root(isPinned: false, index: 2),
-      placeholder: .beforeFooter
+      placeholder: .beforeFooter,
+      operation: .move(TerminalTabPlacement(projectID: nil, isPinned: false, index: 2))
     )
 
     #expect(
@@ -53,7 +54,9 @@ struct TerminalSidebarDropPlanningTests {
           operationID: payload.operationID,
           topologyStamp: payload.topologyStamp,
           itemIDs: [.tab(first), .tab(second)],
-          destination: .root(TerminalRootPlacement(isPinned: false, index: 2))
+          operation: .move(
+            TerminalTabPlacement(projectID: nil, isPinned: false, index: 2)
+          )
         )
     )
   }

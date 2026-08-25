@@ -124,7 +124,16 @@ final class TerminalWindowRegistry {
         return (try? self.removeProject(projectID, confirmed: true)) != nil
       },
       create: { [weak self] name, rootPath, color, isPinned, tabIDs in
-        self?.createProject(
+        guard let self else { return nil }
+        if tabIDs.isEmpty {
+          return self.createProject(
+            name: name,
+            rootPath: rootPath,
+            color: color,
+            isPinned: isPinned
+          )
+        }
+        return self.createProject(
           name: name,
           rootPath: rootPath,
           color: color,
@@ -315,15 +324,11 @@ final class TerminalWindowRegistry {
       let entry = entry(forWindowControllerID: windowControllerID),
       let collection = entry.terminal.spaceManager.tabCollection(for: spaceID)
     else { return false }
-    let orderedProjectIDs = projectCatalog.projects.map(\.id)
-    let regularIndex =
-      collection.unassignedSection(orderedProjectIDs: orderedProjectIDs)?
-      .tabs.count { !$0.isPinned } ?? 0
     let destination = TerminalTabDragRegistry.Destination(
       windowControllerID: windowControllerID,
       spaceID: spaceID,
       expectedTopologyRevision: collection.topologyRevision,
-      placement: TerminalTabPlacement(projectID: nil, isPinned: false, index: regularIndex)
+      destination: .preserve
     )
     guard tabDragRegistry.performTransfer(payload, to: destination) != nil else { return false }
     return selectSpace(spaceID, in: windowControllerID)
