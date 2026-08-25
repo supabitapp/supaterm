@@ -43,8 +43,10 @@ struct TerminalSidebarProjectRowPresentation: Equatable {
   let iconURL: URL?
   let isPinned: Bool
   let isCollapsed: Bool
-  let tabCount: Int
+  let tabIDs: [TerminalTabID]
   let showsNewTabShortcutHint: Bool
+
+  var tabCount: Int { tabIDs.count }
 }
 
 struct TerminalSidebarUnassignedRowPresentation: Equatable {
@@ -360,7 +362,7 @@ struct TerminalSidebarRowActions {
   let renameProject: (TerminalProjectID, String) -> Bool
   let setProjectColor: (TerminalProjectID, ThemeTint) -> Void
   let toggleProjectPinned: (TerminalProjectID) -> Void
-  let unproject: (TerminalProjectID) -> Void
+  let unproject: ([TerminalTabID]) -> Void
   let closeProject: (TerminalProjectID) -> Void
   let newTab: () -> Void
 }
@@ -722,7 +724,7 @@ private struct TerminalSidebarProjectHeader: View {
       }
       Divider()
       Button("Remove Tabs from Project", systemImage: "rectangle.3.project.bubble.left") {
-        actions.unproject(presentation.id)
+        actions.unproject(presentation.tabIDs)
       }
       Button(role: .destructive) {
         actions.closeProject(presentation.id)

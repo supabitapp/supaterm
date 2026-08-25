@@ -90,6 +90,28 @@ struct TerminalHostStateProjectTests {
   }
 
   @Test
+  func movingTabWithoutIndexWithinItsSectionIsIdempotent() throws {
+    try withProjectHost { host in
+      let tabID = try #require(host.selectedTabID)
+      let projectID = try #require(
+        host.createProject(name: "Work", containing: [tabID])
+      ).projectID
+
+      let result = try host.moveProjectTab(
+        SupatermMoveTabRequest(
+          index: nil,
+          isPinned: false,
+          projectID: projectID.rawValue,
+          target: SupatermTabTargetRequest(tabID: tabID.rawValue)
+        )
+      )
+
+      #expect(result.target.tabID == tabID.rawValue)
+      #expect(host.projectSections().first?.tabs.map(\.id) == [tabID])
+    }
+  }
+
+  @Test
   func tabNavigationUsesSemanticProjectOrder() throws {
     try withProjectHost { host in
       let first = try #require(host.selectedTabID)

@@ -176,6 +176,8 @@ public struct SocketControlFeature {
       return terminalErrorResponse(error, requestID: request.id)
     } catch let error as TerminalControlError {
       return controlErrorResponse(error, requestID: request.id)
+    } catch let error as TerminalTabCommandError {
+      return tabMoveErrorResponse(error, requestID: request.id)
     } catch {
       return .error(
         id: request.id,

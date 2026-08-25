@@ -6,9 +6,7 @@ struct TerminalSidebarDragCoordinatorTests {
   @Test
   func successfulDropSettlesWhenTheNativeSourceEnds() {
     let tabID = TerminalTabID()
-    let destination = TerminalTabPlacement.root(
-      TerminalRootPlacement(isPinned: false, index: 0)
-    )
+    let destination = TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
     var coordinator = TerminalSidebarTestFixture.completedCoordinator(
       source: .tabs([tabID]),
       sourceRevision: 1,
@@ -22,8 +20,8 @@ struct TerminalSidebarDragCoordinatorTests {
     }
 
     let duplicateEnd = coordinator.nativeEnded()
-    #expect(receipt.result.tabIDs == [tabID])
-    #expect(receipt.result.location == destination)
+    #expect(receipt.itemIDs == [.tab(tabID)])
+    #expect(receipt.operation == .move(destination))
     #expect(duplicateEnd == nil)
     coordinator.finish()
     #expect(coordinator.phase == .finished)
@@ -36,7 +34,8 @@ struct TerminalSidebarDragCoordinatorTests {
     let plan = TerminalSidebarDropPlan(
       path: .rootBoundary(lane: .regular, index: 0),
       destination: .root(isPinned: false, index: 0),
-      placeholder: .beforeFooter
+      placeholder: .beforeFooter,
+      operation: .move(TerminalTabPlacement(projectID: nil, isPinned: false, index: 0))
     )
     var coordinator = TerminalSidebarDragCoordinator(payload: payload)
 
@@ -73,13 +72,12 @@ struct TerminalSidebarDragCoordinatorTests {
   func receiptMustMatchTheFrozenOperationSpaceAndRevision() {
     let tabID = TerminalTabID()
     let payload = TerminalSidebarTestFixture.payload(source: .tabs([tabID]), revision: 4)
-    let destination = TerminalTabPlacement.root(
-      TerminalRootPlacement(isPinned: false, index: 0)
-    )
+    let destination = TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
     let plan = TerminalSidebarDropPlan(
       path: .rootBoundary(lane: .regular, index: 0),
       destination: .root(isPinned: false, index: 0),
-      placeholder: .beforeFooter
+      placeholder: .beforeFooter,
+      operation: .move(destination)
     )
 
     func accepts(_ receipt: TerminalSidebarDropReceipt) -> Bool {
@@ -95,16 +93,17 @@ struct TerminalSidebarDragCoordinatorTests {
     )
     let wrongOperation = TerminalSidebarDropReceipt(
       spaceID: payload.topologyStamp.spaceID,
-      result: TerminalTabMoveResult(
-        operationID: TerminalTabMoveOperationID(),
-        tabIDs: [tabID],
-        location: destination,
-        topologyRevision: 5
-      )
+      operationID: TerminalTabMoveOperationID(),
+      itemIDs: [.tab(tabID)],
+      operation: .move(destination),
+      topologyRevision: 5
     )
     let wrongSpace = TerminalSidebarDropReceipt(
       spaceID: TerminalSidebarTestFixture.secondarySpaceID,
-      result: valid.result
+      operationID: valid.operationID,
+      itemIDs: valid.itemIDs,
+      operation: valid.operation,
+      topologyRevision: valid.topologyRevision
     )
     let oldRevision = TerminalSidebarTestFixture.moveReceipt(
       payload: payload,

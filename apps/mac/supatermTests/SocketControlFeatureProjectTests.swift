@@ -145,46 +145,7 @@ struct SocketControlFeatureProjectTests {
   }
 
   @Test
-  func moveTabPreservesProjectAndPinLane() async throws {
-    let recorder = TerminalProjectRequestRecorder()
-    let replyRecorder = SocketReplyRecorder()
-    let request = SupatermMoveTabRequest(
-      index: 3,
-      isPinned: true,
-      projectID: projectTestID,
-      target: SupatermTabTargetRequest(tabID: projectTestTabID)
-    )
-    let result = SupatermMoveTabResult(
-      target: SupatermTabTarget(
-        windowIndex: 1,
-        spaceIndex: 2,
-        spaceID: projectTestSpaceID,
-        tabIndex: 1,
-        tabID: projectTestTabID,
-        title: "Build"
-      )
-    )
-    let store = makeProjectStore(replyRecorder: replyRecorder) { operation in
-      await recorder.record(operation)
-      return .movedTab(result)
-    }
-
-    await store.send(
-      .requestReceived(
-        SocketControlClient.Request(
-          handle: UUID(),
-          payload: try .moveTab(request, id: "move")
-        )
-      )
-    )
-
-    #expect(await recorder.snapshot() == [.moveTab(request)])
-    let reply = try #require(await replyRecorder.snapshot().first)
-    #expect(try reply.response.decodeResult(SupatermMoveTabResult.self) == result)
-  }
-
-  @Test
-  func reorderAndMoveRejectZeroBeforeExecution() async throws {
+  func reorderRejectsZeroBeforeExecution() async throws {
     let recorder = TerminalProjectRequestRecorder()
     let replyRecorder = SocketReplyRecorder()
     let target = SupatermProjectTargetRequest(projectID: projectTestID)
@@ -192,31 +153,18 @@ struct SocketControlFeatureProjectTests {
       await recorder.record(operation)
       return .project(projectTestMutationResult)
     }
-    let requests = [
-      try SupatermSocketRequest.reorderProject(
-        SupatermReorderProjectRequest(index: 0, target: target),
-        id: "reorder"
-      ),
-      try SupatermSocketRequest.moveTab(
-        SupatermMoveTabRequest(
-          index: 0,
-          isPinned: false,
-          projectID: nil,
-          target: SupatermTabTargetRequest(tabID: projectTestTabID)
-        ),
-        id: "move"
-      ),
-    ]
+    let request = try SupatermSocketRequest.reorderProject(
+      SupatermReorderProjectRequest(index: 0, target: target),
+      id: "reorder"
+    )
 
-    for request in requests {
-      await store.send(
-        .requestReceived(SocketControlClient.Request(handle: UUID(), payload: request))
-      )
-    }
+    await store.send(
+      .requestReceived(SocketControlClient.Request(handle: UUID(), payload: request))
+    )
 
     #expect(await recorder.snapshot().isEmpty)
     let replies = await replyRecorder.snapshot()
-    #expect(replies.count == 2)
+    #expect(replies.count == 1)
     #expect(replies.allSatisfy { $0.response.error?.code == "invalid_request" })
     #expect(replies.allSatisfy { $0.response.error?.message == "index must be 1 or greater." })
   }

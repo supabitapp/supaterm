@@ -2,7 +2,7 @@ import AppKit
 import Clocks
 import ComposableArchitecture
 import Sharing
-import SupatermLicenseFeature
+import SupatermSocketFeature
 import SupatermSupport
 import SupatermTerminalCore
 import SupatermUpdateFeature
@@ -154,6 +154,44 @@ struct TerminalCommandExecutorTests {
       #expect(!snapshot.windows[0].spaces[1].isWarm)
       #expect(snapshot.windows[0].spaces[1].tabs.isEmpty)
       withExtendedLifetime([first.window, second.window]) {}
+    }
+  }
+
+  @Test
+  func projectCommandsAndSnapshotsWorkWithoutWindows() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      let commandExecutor = makeCommandExecutor(registry: registry)
+
+      guard
+        case .project(let created) = try registry.execute(
+          .add(SupatermAddProjectRequest(name: "Work"))
+        )
+      else {
+        Issue.record("Expected created Project")
+        return
+      }
+      let target = SupatermProjectTargetRequest(projectID: created.project.id)
+
+      #expect(commandExecutor.treeSnapshot().projects == [created.project])
+      guard case .project(let pinned) = try registry.execute(.pin(target)) else {
+        Issue.record("Expected pinned Project")
+        return
+      }
+      #expect(pinned.project.isPinned)
+      guard
+        case .removedProject(let removed) = try registry.execute(
+          .remove(SupatermRemoveProjectRequest(confirmed: true, target: target))
+        )
+      else {
+        Issue.record("Expected removed Project")
+        return
+      }
+      #expect(removed.removedProjectID == created.project.id)
+      #expect(commandExecutor.treeSnapshot().projects.isEmpty)
+      #expect(commandExecutor.treeSnapshot().windows.isEmpty)
     }
   }
 
@@ -769,6 +807,36 @@ struct TerminalCommandExecutorTests {
       #expect(pinned.isPinned)
       #expect(host.spaceManager.tabCollection.tab(for: projectTabID)?.projectID == projectID)
       #expect(host.spaceManager.tabCollection.tab(for: projectTabID)?.isPinned == true)
+    }
+  }
+
+  @Test
+  func moveTabMapsOutOfRangeIndexToACommandError() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      let commandExecutor = makeCommandExecutor(registry: registry)
+      let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      let tabID = window.terminal.spaceManager.tabCollection.createTab(title: "Build")
+
+      #expect(
+        throws: TerminalTabCommandError.invalidRequest(
+          "Tab index 99 is outside the destination section."
+        )
+      ) {
+        try commandExecutor.execute(
+          .moveTab(
+            SupatermMoveTabRequest(
+              index: 99,
+              isPinned: false,
+              projectID: nil,
+              target: SupatermTabTargetRequest(tabID: tabID.rawValue)
+            )
+          )
+        )
+      }
+      withExtendedLifetime(window.window) {}
     }
   }
 }

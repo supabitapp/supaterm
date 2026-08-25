@@ -23,6 +23,29 @@ struct SPTargetResolverTests {
   }
 
   @Test
+  func resolvesProjectWithTheCatalogNameIdentity() throws {
+    let snapshot = try fixture()
+    let projectID = id("10000000-0000-4000-8000-000000000003")
+    let unicodeSnapshot = SupatermTreeSnapshot(
+      projects: [
+        SupatermSnapshotProject(
+          color: .neutral,
+          id: projectID,
+          isPinned: false,
+          name: "straße",
+          rootPath: nil
+        )
+      ],
+      windows: snapshot.windows
+    )
+
+    #expect(
+      try resolvePublicProjectTargetRequest(.name("STRASSE"), snapshot: unicodeSnapshot)
+        == SupatermProjectTargetRequest(projectID: projectID)
+    )
+  }
+
+  @Test
   func rejectsMissingProjectAndWrongShortReferenceKind() throws {
     let snapshot = try fixture()
 

@@ -81,7 +81,7 @@ nonisolated struct TerminalProjectCatalog: Equatable, Codable, Sendable {
       guard !project.name.isEmpty else {
         throw TerminalProjectCatalogError.emptyName
       }
-      let normalizedName = project.name.lowercased()
+      let normalizedName = SupatermProjectName.key(project.name)
       guard names.insert(normalizedName).inserted else {
         throw TerminalProjectCatalogError.duplicateName(normalizedName)
       }

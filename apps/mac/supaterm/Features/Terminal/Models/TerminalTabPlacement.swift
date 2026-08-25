@@ -23,29 +23,13 @@ nonisolated struct TerminalTabMoveOperationID: Hashable, Sendable {
 }
 
 nonisolated struct TerminalTabMoveRequest: Equatable, Sendable {
-  let operationID: TerminalTabMoveOperationID
   let expectedTopologyRevision: UInt64
   let orderedProjectIDs: [TerminalProjectID]
   let tabIDs: [TerminalTabID]
   let destination: TerminalTabPlacement
-
-  init(
-    operationID: TerminalTabMoveOperationID = TerminalTabMoveOperationID(),
-    expectedTopologyRevision: UInt64,
-    orderedProjectIDs: [TerminalProjectID],
-    tabIDs: [TerminalTabID],
-    destination: TerminalTabPlacement
-  ) {
-    self.operationID = operationID
-    self.expectedTopologyRevision = expectedTopologyRevision
-    self.orderedProjectIDs = orderedProjectIDs
-    self.tabIDs = tabIDs
-    self.destination = destination
-  }
 }
 
 nonisolated struct TerminalTabMoveResult: Equatable, Sendable {
-  let operationID: TerminalTabMoveOperationID
   let tabIDs: [TerminalTabID]
   let location: TerminalTabPlacement
   let topologyRevision: UInt64
@@ -61,12 +45,18 @@ nonisolated struct TerminalTabExtractionRequest: Equatable, Sendable {
   let tabIDs: [TerminalTabID]
 }
 
+nonisolated enum TerminalTabTransferDestination: Equatable, Sendable {
+  case assign(TerminalProjectID?)
+  case move(TerminalTabPlacement)
+  case preserve
+}
+
 nonisolated struct TerminalTabTransferRequest: Equatable, Sendable {
   let expectedSourceRevision: UInt64
   let expectedDestinationRevision: UInt64
   let orderedProjectIDs: [TerminalProjectID]
   let tabIDs: [TerminalTabID]
-  let destination: TerminalTabPlacement
+  let destination: TerminalTabTransferDestination
 }
 
 nonisolated struct TerminalTabTransferResult: Equatable, Sendable {

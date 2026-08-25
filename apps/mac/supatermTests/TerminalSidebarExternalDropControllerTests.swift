@@ -62,7 +62,9 @@ struct SidebarExternalDropControllerTests {
           operationID: plannedPayload.operationID,
           topologyStamp: plannedPayload.topologyStamp,
           itemIDs: [.tab(draggedTabID)],
-          destination: .root(TerminalRootPlacement(isPinned: false, index: 1))
+          operation: .move(
+            TerminalTabPlacement(projectID: nil, isPinned: false, index: 1)
+          )
         )
     )
     #expect(drop.command(in: changedOutline) == nil)

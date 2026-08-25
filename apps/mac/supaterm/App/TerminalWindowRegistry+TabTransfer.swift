@@ -15,7 +15,7 @@ extension TerminalWindowRegistry {
       expectedDestinationRevision: destination.expectedTopologyRevision,
       orderedProjectIDs: payload.orderedProjectIDs,
       tabIDs: payload.tabIDs,
-      destination: destination.placement
+      destination: destination.destination
     )
     guard
       let plan = try? TerminalHostState.prepareLiveTabTransfer(

@@ -110,7 +110,22 @@ struct TerminalTabTopology: Equatable {
   mutating func insert(
     _ extracted: ExtractedTabs,
     orderedProjectIDs: [TerminalProjectID],
-    at destination: TerminalTabPlacement
+    at destination: TerminalTabTransferDestination
+  ) throws {
+    switch destination {
+    case .assign(let projectID):
+      try insert(extracted, orderedProjectIDs: orderedProjectIDs, assigning: projectID)
+    case .move(let placement):
+      try insert(extracted, orderedProjectIDs: orderedProjectIDs, movingTo: placement)
+    case .preserve:
+      try insertPreserving(extracted, orderedProjectIDs: orderedProjectIDs)
+    }
+  }
+
+  private mutating func insert(
+    _ extracted: ExtractedTabs,
+    orderedProjectIDs: [TerminalProjectID],
+    movingTo destination: TerminalTabPlacement
   ) throws {
     for tabID in extracted.tabIDs {
       guard tabsByID[tabID] == nil else {
@@ -127,6 +142,113 @@ struct TerminalTabTopology: Equatable {
         destination: destination
       )
     )
+  }
+
+  private mutating func insert(
+    _ extracted: ExtractedTabs,
+    orderedProjectIDs: [TerminalProjectID],
+    assigning projectID: TerminalProjectID?
+  ) throws {
+    let knownProjectIDs = Set(orderedProjectIDs)
+    if let projectID, !knownProjectIDs.contains(projectID) {
+      throw TerminalTabMoveError.staleProjects
+    }
+    let orderedTabIDs = orderedTabIDs(in: extracted, orderedProjectIDs: orderedProjectIDs)
+    try validateInsertion(of: orderedTabIDs, from: extracted)
+    for tabID in orderedTabIDs {
+      guard var tab = extracted.tabsByID[tabID] else {
+        throw TerminalTabMoveError.tabNotFound(tabID)
+      }
+      tab.projectID = projectID
+      tabsByID[tabID] = tab
+    }
+    let pinnedTabIDs = orderedTabIDs.filter { tabsByID[$0]?.isPinned == true }
+    let regularTabIDs = orderedTabIDs.filter { tabsByID[$0]?.isPinned == false }
+    insertAtSectionEnd(
+      pinnedTabIDs,
+      isPinned: true,
+      projectID: projectID,
+      knownProjectIDs: knownProjectIDs
+    )
+    insertAtSectionEnd(
+      regularTabIDs,
+      isPinned: false,
+      projectID: projectID,
+      knownProjectIDs: knownProjectIDs
+    )
+  }
+
+  private mutating func insertPreserving(
+    _ extracted: ExtractedTabs,
+    orderedProjectIDs: [TerminalProjectID]
+  ) throws {
+    let knownProjectIDs = Set(orderedProjectIDs)
+    let orderedTabIDs = orderedTabIDs(in: extracted, orderedProjectIDs: orderedProjectIDs)
+    try validateInsertion(of: orderedTabIDs, from: extracted)
+    for tabID in orderedTabIDs {
+      guard let tab = extracted.tabsByID[tabID] else {
+        throw TerminalTabMoveError.tabNotFound(tabID)
+      }
+      tabsByID[tabID] = tab
+      insertAtSectionEnd(
+        [tabID],
+        isPinned: tab.isPinned,
+        projectID: tab.projectID.flatMap { knownProjectIDs.contains($0) ? $0 : nil },
+        knownProjectIDs: knownProjectIDs
+      )
+    }
+  }
+
+  private func orderedTabIDs(
+    in extracted: ExtractedTabs,
+    orderedProjectIDs: [TerminalProjectID]
+  ) -> [TerminalTabID] {
+    SupatermProjectLayout.make(
+      orderedProjectIDs: orderedProjectIDs,
+      pinnedTabs: extracted.tabIDs.compactMap { tabID in
+        guard let tab = extracted.tabsByID[tabID], tab.isPinned else { return nil }
+        return SupatermProjectTabRecord(id: tabID, projectID: tab.projectID)
+      },
+      regularTabs: extracted.tabIDs.compactMap { tabID in
+        guard let tab = extracted.tabsByID[tabID], !tab.isPinned else { return nil }
+        return SupatermProjectTabRecord(id: tabID, projectID: tab.projectID)
+      }
+    ).semanticTabIDs
+  }
+
+  private func validateInsertion(
+    of tabIDs: [TerminalTabID],
+    from extracted: ExtractedTabs
+  ) throws {
+    for tabID in tabIDs {
+      guard tabsByID[tabID] == nil else {
+        throw TerminalTabTransferError.destinationContainsTab(tabID)
+      }
+      guard extracted.tabsByID[tabID] != nil else {
+        throw TerminalTabMoveError.tabNotFound(tabID)
+      }
+    }
+  }
+
+  private mutating func insertAtSectionEnd(
+    _ tabIDs: [TerminalTabID],
+    isPinned: Bool,
+    projectID: TerminalProjectID?,
+    knownProjectIDs: Set<TerminalProjectID>
+  ) {
+    guard !tabIDs.isEmpty else { return }
+    var lane = isPinned ? pinnedTabIDs : regularTabIDs
+    let lastSectionIndex = lane.lastIndex { tabID in
+      guard let tab = tabsByID[tabID] else { return false }
+      if let projectID { return tab.projectID == projectID }
+      return tab.projectID.map(knownProjectIDs.contains) != true
+    }
+    lane.insert(contentsOf: tabIDs, at: lastSectionIndex.map { $0 + 1 } ?? lane.endIndex)
+    if isPinned {
+      pinnedTabIDs = lane
+    } else {
+      regularTabIDs = lane
+    }
   }
 
   mutating func append(_ tab: TerminalTabItem, isPinned: Bool) {

@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 nonisolated struct TerminalProjectTitleInput: Equatable, Sendable {
   let title: String
@@ -141,16 +142,16 @@ nonisolated enum TerminalProjectTitleSuggester {
   }
 
   private static func uniqueTitle(_ title: String, existingTitles: [String]) -> String {
-    let existing = Set(existingTitles.compactMap(normalized).map { $0.lowercased() })
+    let existing = Set(existingTitles.compactMap(normalized).map(SupatermProjectName.key))
     let base = truncated(title, maximumLength: maximumLength)
-    guard existing.contains(base.lowercased()) else { return base }
+    guard existing.contains(SupatermProjectName.key(base)) else { return base }
 
     var index = 2
     while true {
       let suffix = " \(index)"
       let prefix = truncated(base, maximumLength: maximumLength - suffix.count)
       let candidate = prefix + suffix
-      if !existing.contains(candidate.lowercased()) {
+      if !existing.contains(SupatermProjectName.key(candidate)) {
         return candidate
       }
       index += 1

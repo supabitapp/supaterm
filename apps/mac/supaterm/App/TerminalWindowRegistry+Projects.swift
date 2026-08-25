@@ -28,9 +28,6 @@ extension TerminalWindowRegistry {
     case .setCollapsed(let request):
       return .collapsed(try setProjectCollapsed(request))
 
-    case .moveTab(let request):
-      return .movedTab(try moveProjectTab(request))
-
     case .remove(let request):
       let id = TerminalProjectID(rawValue: request.target.projectID)
       return .removedProject(try removeProject(id, confirmed: request.confirmed))
@@ -40,16 +37,12 @@ extension TerminalWindowRegistry {
   private func addProject(
     _ request: SupatermAddProjectRequest
   ) throws -> SupatermProjectMutationResult {
-    guard let entry = preferredActiveEntry() ?? activeEntries().first else {
-      throw TerminalControlError.contextPaneNotFound
-    }
     guard
       let result = createProject(
         name: request.name,
         rootPath: request.rootPath,
         color: request.color.map(ThemeTint.init(socketColor:)) ?? .neutral,
-        isPinned: request.isPinned,
-        in: entry.windowControllerID
+        isPinned: request.isPinned
       )
     else { throw TerminalControlError.invalidProjectName }
     return try projectMutationResult(result.projectID)
@@ -129,7 +122,7 @@ extension TerminalWindowRegistry {
     )
   }
 
-  private func moveProjectTab(
+  func moveTab(
     _ request: SupatermMoveTabRequest
   ) throws -> SupatermMoveTabResult {
     guard let entry = activeEntries().first(where: { $0.terminal.containsTab(request.target.tabID) })
@@ -142,9 +135,53 @@ extension TerminalWindowRegistry {
     name: String,
     rootPath: String? = nil,
     color: ThemeTint = .neutral,
+    isPinned: Bool = false
+  ) -> TerminalProjectCreationResult? {
+    insertProject(
+      name: name,
+      rootPath: rootPath,
+      color: color,
+      isPinned: isPinned
+    ) { _, _ in true }
+  }
+
+  @discardableResult
+  func createProject(
+    name: String,
+    rootPath: String? = nil,
+    color: ThemeTint = .neutral,
     isPinned: Bool = false,
-    containing tabIDs: [TerminalTabID] = [],
+    containing tabIDs: [TerminalTabID],
     in windowControllerID: UUID
+  ) -> TerminalProjectCreationResult? {
+    guard !tabIDs.isEmpty else { return nil }
+    return insertProject(
+      name: name,
+      rootPath: rootPath,
+      color: color,
+      isPinned: isPinned
+    ) { project, catalog in
+      guard
+        let terminal = entry(forWindowControllerID: windowControllerID)?.terminal,
+        let instance = terminal.spaceManager.sharedInstance(containing: tabIDs),
+        instance.tabCollection.assign(
+          tabIDs,
+          to: project.id,
+          orderedProjectIDs: catalog.projects.map(\.id)
+        )
+      else { return false }
+      instance.collapsedProjectIDs.remove(project.id)
+      terminal.sessionDidChange()
+      return true
+    }
+  }
+
+  private func insertProject(
+    name: String,
+    rootPath: String?,
+    color: ThemeTint,
+    isPinned: Bool,
+    prepare: (TerminalProject, TerminalProjectCatalog) -> Bool
   ) -> TerminalProjectCreationResult? {
     let project = TerminalProject(
       name: name,
@@ -157,19 +194,7 @@ extension TerminalWindowRegistry {
         projects: projectCatalog.projects + [project]
       ).validated()
     else { return nil }
-    if !tabIDs.isEmpty {
-      guard
-        let terminal = entry(forWindowControllerID: windowControllerID)?.terminal,
-        let instance = terminal.spaceManager.sharedInstance(containing: tabIDs),
-        instance.tabCollection.assign(
-          tabIDs,
-          to: project.id,
-          orderedProjectIDs: catalog.projects.map(\.id)
-        )
-      else { return nil }
-      instance.collapsedProjectIDs.remove(project.id)
-      terminal.sessionDidChange()
-    }
+    guard prepare(project, catalog) else { return nil }
     $projectCatalog.withLock { $0 = catalog }
     return TerminalProjectCreationResult(projectID: project.id)
   }
@@ -249,8 +274,7 @@ extension TerminalWindowRegistry {
     guard projectCatalog.projects.contains(where: { $0.id == projectID }) else { return false }
     let tabIDs = projectTabIDs(projectID)
     if tabIDs.isEmpty {
-      $projectCatalog.withLock { $0.projects.removeAll { $0.id == projectID } }
-      return true
+      return (try? removeProject(projectID, confirmed: true)) != nil
     }
     guard let entry = entry(forWindowControllerID: windowControllerID) else { return false }
     entry.terminal.emit(
@@ -272,14 +296,17 @@ extension TerminalWindowRegistry {
       throw TerminalControlError.projectCloseConfirmationRequired
     }
     let affectedEntries = entries.filter { !$0.terminal.tabIDs(in: projectID).isEmpty }
-    for entry in affectedEntries {
+    for entry in entries {
       entry.terminal.withSessionChangesSuppressed {
         entry.terminal.performCloseProject(projectID)
       }
     }
-    affectedEntries.first?.terminal.sessionDidChange()
+    entries.first?.terminal.sessionDidChange()
     $projectCatalog.withLock { $0.projects.removeAll { $0.id == projectID } }
-    for entry in affectedEntries where entry.terminal.spaceManager.allTabs.isEmpty {
+    for entry in affectedEntries
+    where entry.terminal.spaceManager.allTabs.isEmpty
+      && entry.terminal.spaceManager.pendingSurfaceIDs.isEmpty
+    {
       entry.requestConfirmedWindowClose()
     }
     return SupatermRemoveProjectResult(
@@ -309,5 +336,9 @@ extension TerminalWindowRegistry {
       throw TerminalControlError.projectNotFound(projectID.rawValue)
     }
     return SupatermProjectMutationResult(project: project.socketSnapshot)
+  }
+
+  var projectSnapshots: [SupatermSnapshotProject] {
+    projectCatalog.projects.map(\.socketSnapshot)
   }
 }

@@ -186,7 +186,9 @@ struct TerminalTabCollectionTests {
       expectedDestinationRevision: destination.topologyRevision,
       orderedProjectIDs: [projectID],
       tabIDs: [second, first],
-      destination: TerminalTabPlacement(projectID: projectID, isPinned: true, index: 1)
+      destination: .move(
+        TerminalTabPlacement(projectID: projectID, isPinned: true, index: 1)
+      )
     )
 
     let plan = try TerminalTabCollection.prepareTransfer(request, from: source, to: destination)
@@ -197,6 +199,77 @@ struct TerminalTabCollectionTests {
     #expect(destination.snapshot.pinnedTabs.map(\.id) == [existing, second, first])
     #expect(destination.tab(for: first)?.projectID == projectID)
     #expect(destination.tab(for: second)?.projectID == projectID)
+  }
+
+  @Test
+  func transferAssignmentPreservesPinLanesAndAppendsWithinTheProject() throws {
+    let source = TerminalTabCollection()
+    let destination = TerminalTabCollection()
+    let sourceProjectID = TerminalProjectID()
+    let destinationProjectID = TerminalProjectID()
+    let pinned = source.createTab(
+      title: "Pinned",
+      projectID: sourceProjectID,
+      isPinned: true
+    )
+    let regular = source.createTab(title: "Regular", projectID: sourceProjectID)
+    let existingPinned = destination.createTab(
+      title: "Existing pinned",
+      projectID: destinationProjectID,
+      isPinned: true
+    )
+    let existingRegular = destination.createTab(
+      title: "Existing regular",
+      projectID: destinationProjectID
+    )
+    let orderedProjectIDs = [sourceProjectID, destinationProjectID]
+    let request = TerminalTabTransferRequest(
+      expectedSourceRevision: source.topologyRevision,
+      expectedDestinationRevision: destination.topologyRevision,
+      orderedProjectIDs: orderedProjectIDs,
+      tabIDs: [regular, pinned],
+      destination: .assign(destinationProjectID)
+    )
+
+    let plan = try TerminalTabCollection.prepareTransfer(request, from: source, to: destination)
+    _ = try TerminalTabCollection.commitTransfer(plan, from: source, to: destination)
+
+    #expect(destination.snapshot.pinnedTabs.map(\.id) == [existingPinned, pinned])
+    #expect(destination.snapshot.regularTabs.map(\.id) == [existingRegular, regular])
+    #expect(destination.tab(for: pinned)?.projectID == destinationProjectID)
+    #expect(destination.tab(for: regular)?.projectID == destinationProjectID)
+  }
+
+  @Test
+  func transferPreserveKeepsMembershipAndPinLanes() throws {
+    let source = TerminalTabCollection()
+    let destination = TerminalTabCollection()
+    let projectID = TerminalProjectID()
+    let pinned = source.createTab(title: "Pinned", projectID: projectID, isPinned: true)
+    let regular = source.createTab(title: "Regular")
+    let existingProject = destination.createTab(
+      title: "Existing project",
+      projectID: projectID,
+      isPinned: true
+    )
+    let existingUnassigned = destination.createTab(title: "Existing unassigned")
+    let request = TerminalTabTransferRequest(
+      expectedSourceRevision: source.topologyRevision,
+      expectedDestinationRevision: destination.topologyRevision,
+      orderedProjectIDs: [projectID],
+      tabIDs: [regular, pinned],
+      destination: .preserve
+    )
+
+    let plan = try TerminalTabCollection.prepareTransfer(request, from: source, to: destination)
+    _ = try TerminalTabCollection.commitTransfer(plan, from: source, to: destination)
+
+    #expect(destination.snapshot.pinnedTabs.map(\.id) == [existingProject, pinned])
+    #expect(destination.snapshot.regularTabs.map(\.id) == [existingUnassigned, regular])
+    #expect(destination.tab(for: pinned)?.projectID == projectID)
+    #expect(destination.tab(for: pinned)?.isPinned == true)
+    #expect(destination.tab(for: regular)?.projectID == nil)
+    #expect(destination.tab(for: regular)?.isPinned == false)
   }
 
   @Test
@@ -214,7 +287,9 @@ struct TerminalTabCollectionTests {
       expectedDestinationRevision: destination.topologyRevision,
       orderedProjectIDs: [projectID],
       tabIDs: [selected],
-      destination: TerminalTabPlacement(projectID: projectID, isPinned: false, index: 0)
+      destination: .move(
+        TerminalTabPlacement(projectID: projectID, isPinned: false, index: 0)
+      )
     )
 
     let plan = try TerminalTabCollection.prepareTransfer(request, from: source, to: destination)
@@ -234,7 +309,9 @@ struct TerminalTabCollectionTests {
       expectedDestinationRevision: destination.topologyRevision,
       orderedProjectIDs: [],
       tabIDs: [tabID],
-      destination: TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+      destination: .move(
+        TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+      )
     )
     let plan = try TerminalTabCollection.prepareTransfer(request, from: source, to: destination)
     _ = source.createTab(title: "Changed")
@@ -272,7 +349,9 @@ struct TerminalTabCollectionTests {
           expectedDestinationRevision: destination.topologyRevision,
           orderedProjectIDs: [],
           tabIDs: [tabID],
-          destination: TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+          destination: .move(
+            TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+          )
         ),
         from: source,
         to: destination

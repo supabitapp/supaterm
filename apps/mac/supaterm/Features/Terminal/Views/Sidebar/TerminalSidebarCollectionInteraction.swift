@@ -352,12 +352,8 @@ struct TerminalSidebarDragCoordinator: Equatable {
       guard receipt.operationID == command.operationID else { return false }
       guard receipt.topologyStamp.spaceID == command.topologyStamp.spaceID else { return false }
       guard receipt.topologyStamp.revision >= command.topologyStamp.revision else { return false }
-      let expectedTabIDs = command.itemIDs.compactMap { itemID -> TerminalTabID? in
-        guard case .tab(let tabID) = itemID else { return nil }
-        return tabID
-      }
-      guard receipt.result.tabIDs == expectedTabIDs else { return false }
-      guard receipt.result.location == command.destination else { return false }
+      guard receipt.itemIDs == command.itemIDs else { return false }
+      guard receipt.operation == command.operation else { return false }
     }
     phase = .awaitingNativeEnd(command, receipt)
     return true

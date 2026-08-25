@@ -2,6 +2,10 @@ import ComposableArchitecture
 import SupatermCLIShared
 import SupatermTerminalCore
 
+public enum TerminalTabCommandError: Error, Equatable, Sendable {
+  case invalidRequest(String)
+}
+
 public struct SocketRequestExecutor: Sendable {
   public enum AppRequest: Sendable {
     case onboardingSnapshot
@@ -103,6 +107,7 @@ public struct SocketRequestExecutor: Sendable {
     case nextTab(TerminalTabNavigationRequest)
     case previousTab(TerminalTabNavigationRequest)
     case lastTab(TerminalTabNavigationRequest)
+    case moveTab(SupatermMoveTabRequest)
   }
 
   public enum TerminalTabResult: Sendable {
@@ -117,6 +122,7 @@ public struct SocketRequestExecutor: Sendable {
     case nextTab(SupatermSelectTabResult)
     case previousTab(SupatermSelectTabResult)
     case lastTab(SupatermSelectTabResult)
+    case moveTab(SupatermMoveTabResult)
   }
 
   public enum TerminalSpaceRequest: Sendable {

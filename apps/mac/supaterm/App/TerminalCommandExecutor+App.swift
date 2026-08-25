@@ -16,7 +16,7 @@ extension TerminalCommandExecutor {
         )
       }
     return SupatermTreeSnapshot(
-      projects: activeEntries.first?.terminal.treeSnapshot().projects ?? [],
+      projects: registry.projectSnapshots,
       windows: windows
     )
   }
@@ -68,7 +68,7 @@ extension TerminalCommandExecutor {
         keyWindowIndex: windows.first(where: \.isKey)?.index
       ),
       currentTarget: resolution.currentTarget,
-      projects: activeEntries.first?.terminal.treeSnapshot().projects ?? [],
+      projects: registry.projectSnapshots,
       windows: windows,
       problems: problems
     )

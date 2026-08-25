@@ -97,7 +97,7 @@ struct TerminalSidebarSpaceList: View {
           iconURL: projectIconURLs[project.id],
           isPinned: project.isPinned,
           isCollapsed: snapshot.collapsedProjectIDs.contains(project.id),
-          tabCount: section.tabs.count,
+          tabIDs: section.tabs.map(\.id),
           showsNewTabShortcutHint: commandHoldObserver.isOptionPressed
         )
       )
@@ -192,7 +192,7 @@ struct TerminalSidebarSpaceList: View {
         guard let project = terminal.projects.first(where: { $0.id == projectID }) else { return }
         _ = terminal.setProjectPinned(projectID, isPinned: !project.isPinned)
       },
-      unproject: { _ = terminal.clearProjectMembership($0) },
+      unproject: { _ = terminal.assignTabs($0, to: nil) },
       closeProject: { terminal.requestCloseProject($0) },
       newTab: newTab
     )
@@ -231,57 +231,62 @@ struct TerminalSidebarSpaceList: View {
         == terminal.spaceManager.displayedInstance.tabCollection.topologyRevision,
       command.topologyStamp.orderedProjectIDs == orderedProjectIDs
     else { return nil }
-    if command.itemIDs.count == 1, case .project(let projectID) = command.itemIDs[0] {
-      _ = terminal.setProjectPinned(projectID, isPinned: command.destination.isPinned)
-      _ = terminal.reorderProject(projectID, toLaneIndex: command.destination.index)
+    switch command.operation {
+    case .reorderProject(let destination):
+      guard command.itemIDs.count == 1, case .project(let projectID) = command.itemIDs[0]
+      else { return nil }
+      _ = terminal.setProjectPinned(projectID, isPinned: destination.isPinned)
+      _ = terminal.reorderProject(projectID, toLaneIndex: destination.index)
       return TerminalSidebarDropReceipt(
         spaceID: command.topologyStamp.spaceID,
-        result: TerminalTabMoveResult(
-          operationID: command.operationID,
-          tabIDs: [],
-          location: command.destination,
-          topologyRevision: command.topologyStamp.revision
-        ),
+        operationID: command.operationID,
+        itemIDs: command.itemIDs,
+        operation: command.operation,
+        topologyRevision: command.topologyStamp.revision,
+        orderedProjectIDs: terminal.projects.map(\.id)
+      )
+
+    case .assign(let projectID):
+      let tabIDs = commandTabIDs(command)
+      guard tabIDs.count == command.itemIDs.count else { return nil }
+      guard terminal.assignTabs(tabIDs, to: projectID) else { return nil }
+      return TerminalSidebarDropReceipt(
+        spaceID: command.topologyStamp.spaceID,
+        operationID: command.operationID,
+        itemIDs: command.itemIDs,
+        operation: command.operation,
+        topologyRevision: terminal.spaceManager.displayedInstance.tabCollection.topologyRevision,
         orderedProjectIDs: orderedProjectIDs
       )
-    }
-    let tabIDs = command.itemIDs.compactMap { itemID -> TerminalTabID? in
-      guard case .tab(let tabID) = itemID else { return nil }
-      return tabID
-    }
-    guard tabIDs.count == command.itemIDs.count else { return nil }
-    if command.preservesPinLanes {
-      guard terminal.assignTabs(tabIDs, to: command.destination.projectID) else { return nil }
+
+    case .move(let destination):
+      let tabIDs = commandTabIDs(command)
+      guard tabIDs.count == command.itemIDs.count else { return nil }
       guard
-        let firstID = tabIDs.first,
-        let placement = terminal.spaceManager.displayedInstance.tabCollection.placement(
-          of: firstID,
-          orderedProjectIDs: terminal.projects.map(\.id)
+        let result = try? terminal.move(
+          TerminalTabMoveRequest(
+            expectedTopologyRevision: command.topologyStamp.revision,
+            orderedProjectIDs: orderedProjectIDs,
+            tabIDs: tabIDs,
+            destination: destination
+          )
         )
       else { return nil }
       return TerminalSidebarDropReceipt(
         spaceID: command.topologyStamp.spaceID,
-        result: TerminalTabMoveResult(
-          operationID: command.operationID,
-          tabIDs: tabIDs,
-          location: placement,
-          topologyRevision: terminal.spaceManager.displayedInstance.tabCollection.topologyRevision
-        ),
+        operationID: command.operationID,
+        itemIDs: command.itemIDs,
+        operation: .move(result.location),
+        topologyRevision: result.topologyRevision,
         orderedProjectIDs: orderedProjectIDs
       )
     }
-    return try? TerminalSidebarDropReceipt(
-      spaceID: command.topologyStamp.spaceID,
-      result: terminal.move(
-        TerminalTabMoveRequest(
-          operationID: command.operationID,
-          expectedTopologyRevision: command.topologyStamp.revision,
-          orderedProjectIDs: orderedProjectIDs,
-          tabIDs: tabIDs,
-          destination: command.destination
-        )
-      ),
-      orderedProjectIDs: orderedProjectIDs
-    )
+  }
+
+  private func commandTabIDs(_ command: TerminalSidebarDropCommand) -> [TerminalTabID] {
+    command.itemIDs.compactMap { itemID in
+      guard case .tab(let tabID) = itemID else { return nil }
+      return tabID
+    }
   }
 }

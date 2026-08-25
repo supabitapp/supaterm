@@ -108,9 +108,14 @@ struct TerminalSidebarProjectOutlineTests {
       )?.command(for: payload)
     )
 
-    #expect(pinnedGap.destination == TerminalTabPlacement(projectID: project.id, isPinned: true, index: 0))
-    #expect(regularGap.destination == TerminalTabPlacement(projectID: project.id, isPinned: false, index: 0))
-    #expect(header.preservesPinLanes)
-    #expect(header.destination.projectID == project.id)
+    #expect(
+      pinnedGap.operation
+        == .move(TerminalTabPlacement(projectID: project.id, isPinned: true, index: 0))
+    )
+    #expect(
+      regularGap.operation
+        == .move(TerminalTabPlacement(projectID: project.id, isPinned: false, index: 0))
+    )
+    #expect(header.operation == .assign(project.id))
   }
 }

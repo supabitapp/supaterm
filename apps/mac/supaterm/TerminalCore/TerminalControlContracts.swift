@@ -114,7 +114,6 @@ public struct TerminalPaneTarget: Equatable, Sendable {
 
 public enum TerminalProjectRequest: Equatable, Sendable {
   case add(SupatermAddProjectRequest)
-  case moveTab(SupatermMoveTabRequest)
   case pin(SupatermProjectTargetRequest)
   case remove(SupatermRemoveProjectRequest)
   case rename(SupatermRenameProjectRequest)
@@ -126,7 +125,6 @@ public enum TerminalProjectRequest: Equatable, Sendable {
 
 public enum TerminalProjectResult: Equatable, Sendable {
   case collapsed(SupatermSetProjectCollapsedResult)
-  case movedTab(SupatermMoveTabResult)
   case project(SupatermProjectMutationResult)
   case removedProject(SupatermRemoveProjectResult)
 }
