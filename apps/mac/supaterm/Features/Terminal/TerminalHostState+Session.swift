@@ -74,7 +74,7 @@ extension TerminalHostState {
       return false
     }
     let validSpaceIDs = Set(spaces.map(\.id))
-    let allowsExistingSessions = zmxSessionsEnabled && zmxClient.executableURL() != nil
+    let allowsExistingSessions = zmxSessionsEnabled && sessionHostClient.isAvailable()
     guard
       let session = session.pruned(
         validSpaceIDs: validSpaceIDs,
@@ -392,7 +392,7 @@ extension TerminalHostState {
   ) -> SplitTree<GhosttySurfaceView>.Node {
     switch node {
     case .leaf(let leaf):
-      let zmxAttachMode: ZmxAttach.Mode =
+      let sessionHostAttachMode: TerminalSessionHostAttachMode =
         leaf.restoreMode == .existingSession ? .existing : .createIfNeeded
       let surface = createSurface(
         tabID: tabID,
@@ -402,7 +402,7 @@ extension TerminalHostState {
         context: context,
         surfaceID: leaf.id,
         restoreMode: leaf.restoreMode,
-        zmxAttachMode: zmxAttachMode
+        sessionHostAttachMode: sessionHostAttachMode
       )
       surface.bridge.state.titleOverride = leaf.titleOverride
       restoreAgentState(leaf.agents, for: surface.id)

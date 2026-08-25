@@ -84,7 +84,7 @@ struct TerminalCommandExecutorScreenshotTests {
     let host = TerminalHostState(
       runtime: runtime,
       managesTerminalSurfaces: false,
-      zmxClient: .noop,
+      sessionHostClient: .noop,
       zmxSessionsEnabled: false
     )
     let tabID = host.spaceManager.tabCollection.createTab(title: "Screenshot")

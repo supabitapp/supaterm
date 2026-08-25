@@ -72,7 +72,12 @@ public nonisolated enum ZmxEnvironment {
   }
 }
 
-public nonisolated struct ZmxSession: Equatable, Sendable {
+public nonisolated enum TerminalSessionHostAttachMode: Sendable {
+  case createIfNeeded
+  case existing
+}
+
+public nonisolated struct TerminalSessionHostSession: Equatable, Sendable {
   public let surfaceID: UUID
   public let processID: Int32
 
@@ -80,11 +85,13 @@ public nonisolated struct ZmxSession: Equatable, Sendable {
     self.surfaceID = surfaceID
     self.processID = processID
   }
+}
 
-  static func parseList(
+nonisolated enum ZmxSessionList {
+  static func parse(
     _ output: String,
     environment: [String: String] = ProcessInfo.processInfo.environment
-  ) -> [ZmxSession] {
+  ) -> [TerminalSessionHostSession] {
     output.split(whereSeparator: \.isNewline).compactMap { line in
       let fields = line.split(separator: "\t")
       guard
@@ -100,25 +107,35 @@ public nonisolated struct ZmxSession: Equatable, Sendable {
       else {
         return nil
       }
-      return ZmxSession(surfaceID: surfaceID, processID: processID)
+      return TerminalSessionHostSession(surfaceID: surfaceID, processID: processID)
     }
   }
 }
 
-public nonisolated struct ZmxClient: Sendable {
-  public var executableURL: @Sendable () -> URL?
-  public var isBundled: @Sendable () -> Bool
+public nonisolated struct TerminalSessionHostClient: Sendable {
+  public var isAvailable: @Sendable () -> Bool
+  public var canManageSessions: @Sendable () -> Bool
+  public var sessionID: @Sendable (_ surfaceID: UUID) -> String
+  public var commandWrapper: @Sendable (_ surfaceID: UUID, _ mode: TerminalSessionHostAttachMode) -> [String]?
   public var killSession: @Sendable (_ surfaceID: UUID) async -> Void
-  public var listSessions: @Sendable () async -> [ZmxSession]?
+  public var listSessions: @Sendable () async -> [TerminalSessionHostSession]?
 
   public nonisolated init(
-    executableURL: @escaping @Sendable () -> URL?,
-    isBundled: @escaping @Sendable () -> Bool,
+    isAvailable: @escaping @Sendable () -> Bool,
+    canManageSessions: @escaping @Sendable () -> Bool,
+    sessionID: @escaping @Sendable (_ surfaceID: UUID) -> String,
+    commandWrapper:
+      @escaping @Sendable (
+        _ surfaceID: UUID,
+        _ mode: TerminalSessionHostAttachMode
+      ) -> [String]?,
     killSession: @escaping @Sendable (_ surfaceID: UUID) async -> Void,
-    listSessions: @escaping @Sendable () async -> [ZmxSession]?
+    listSessions: @escaping @Sendable () async -> [TerminalSessionHostSession]?
   ) {
-    self.executableURL = executableURL
-    self.isBundled = isBundled
+    self.isAvailable = isAvailable
+    self.canManageSessions = canManageSessions
+    self.sessionID = sessionID
+    self.commandWrapper = commandWrapper
     self.killSession = killSession
     self.listSessions = listSessions
   }
@@ -231,16 +248,19 @@ private nonisolated enum ZmxSubprocess {
   }
 }
 
-extension ZmxClient {
-  public nonisolated static let subprocessTimeout: Duration = .seconds(5)
+extension TerminalSessionHostClient {
+  private nonisolated static let subprocessTimeout: Duration = .seconds(5)
 
-  public nonisolated static let live = makeLive(
+  public nonisolated static let live = makeZmx(
     executableURL: Bundle.main.executableURL.flatMap {
       SupatermBundleLayout.zmxExecutableURL(nextTo: $0)
     }
   )
 
-  nonisolated static func makeLive(executableURL: URL?) -> ZmxClient {
+  nonisolated static func makeZmx(
+    executableURL: URL?,
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> TerminalSessionHostClient {
     let probed = LockIsolated<Bool?>(nil)
     let cachedBundledURL = executableURL
 
@@ -267,20 +287,31 @@ extension ZmxClient {
       return canUseZmx ? url : nil
     }
 
-    return ZmxClient(
-      executableURL: resolveExecutable,
-      isBundled: { cachedBundledURL != nil },
+    return TerminalSessionHostClient(
+      isAvailable: { resolveExecutable() != nil },
+      canManageSessions: { cachedBundledURL != nil },
+      sessionID: { surfaceID in
+        ZmxSessionID.make(surfaceID: surfaceID, environment: environment)
+      },
+      commandWrapper: { surfaceID, mode in
+        guard let executableURL = resolveExecutable() else { return nil }
+        return ZmxAttach.buildWrapperArgv(
+          executablePath: executableURL.path(percentEncoded: false),
+          sessionID: ZmxSessionID.make(surfaceID: surfaceID, environment: environment),
+          mode: mode
+        )
+      },
       killSession: { surfaceID in
         zmxLogDebug(
           "zmx.kill.requested",
           fields: [
             "surfaceID=\(surfaceID.uuidString.lowercased())",
-            "sessionID=\(ZmxSessionID.make(surfaceID: surfaceID))",
+            "sessionID=\(ZmxSessionID.make(surfaceID: surfaceID, environment: environment))",
           ]
         )
         _ = await ZmxSubprocess.run(
           executableURL: cachedBundledURL,
-          arguments: ["kill", ZmxSessionID.make(surfaceID: surfaceID)],
+          arguments: ["kill", ZmxSessionID.make(surfaceID: surfaceID, environment: environment)],
           captureStdout: false,
           timeout: subprocessTimeout
         )
@@ -297,7 +328,7 @@ extension ZmxClient {
           zmxLogError("zmx.list.failed")
           return nil
         }
-        let sessions = ZmxSession.parseList(stdout)
+        let sessions = ZmxSessionList.parse(stdout, environment: environment)
         zmxLogDebug(
           "zmx.list.parsed",
           fields: ["count=\(sessions.count)"]
@@ -307,9 +338,11 @@ extension ZmxClient {
     )
   }
 
-  public nonisolated static let noop = ZmxClient(
-    executableURL: { nil },
-    isBundled: { false },
+  public nonisolated static let noop = TerminalSessionHostClient(
+    isAvailable: { false },
+    canManageSessions: { false },
+    sessionID: { $0.uuidString.lowercased() },
+    commandWrapper: { _, _ in nil },
     killSession: { _ in },
     listSessions: { nil }
   )
@@ -384,16 +417,11 @@ public nonisolated enum ZmxSocketBudget {
   }
 }
 
-public nonisolated enum ZmxAttach {
-  public nonisolated enum Mode {
-    case createIfNeeded
-    case existing
-  }
-
-  public nonisolated static func buildWrapperArgv(
+private nonisolated enum ZmxAttach {
+  static func buildWrapperArgv(
     executablePath: String,
     sessionID: String,
-    mode: Mode
+    mode: TerminalSessionHostAttachMode
   ) -> [String] {
     switch mode {
     case .createIfNeeded:

@@ -8,7 +8,7 @@ import SwiftUI
 
 extension TerminalHostState {
   @discardableResult
-  func reattachZmxSurface(
+  func reattachHostedSurface(
     _ surfaceID: UUID,
     source: TerminalSurfaceCloseSource
   ) -> Bool {
@@ -52,7 +52,7 @@ extension TerminalHostState {
       context: context,
       surfaceID: surfaceID,
       restoreMode: previousSurface.restoreMode,
-      zmxAttachMode: .existing
+      sessionHostAttachMode: .existing
     )
     replacementSurface.bridge.state.titleOverride = titleOverride
 
@@ -122,11 +122,11 @@ extension TerminalHostState {
       .sorted { $0.uuidString < $1.uuidString }
   }
 
-  func killZmxSession(for surfaceID: UUID) {
-    killZmxSessions(for: [surfaceID])
+  func killHostedSession(for surfaceID: UUID) {
+    killHostedSessions(for: [surfaceID])
   }
 
-  func killZmxSessions(for surfaceIDs: [UUID]) {
+  func killHostedSessions(for surfaceIDs: [UUID]) {
     let surfaceIDs = Array(Set(surfaceIDs))
     guard !surfaceIDs.isEmpty else {
       SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=empty"])
@@ -136,8 +136,8 @@ extension TerminalHostState {
       SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=disabled"])
       return
     }
-    guard zmxClient.isBundled() else {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=unbundled"])
+    guard sessionHostClient.canManageSessions() else {
+      SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=cannotManageSessions"])
       return
     }
     SupatermLog.debug(
@@ -148,19 +148,19 @@ extension TerminalHostState {
         "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
       ]
     )
-    let zmxClient = zmxClient
+    let sessionHostClient = sessionHostClient
     Task.detached(priority: .utility) {
       await withTaskGroup(of: Void.self) { group in
         for surfaceID in surfaceIDs {
           group.addTask {
-            await zmxClient.killSession(surfaceID)
+            await sessionHostClient.killSession(surfaceID)
           }
         }
       }
     }
   }
 
-  func killZmxSessionsAndWait(for surfaceIDs: [UUID]) async {
+  func killHostedSessionsAndWait(for surfaceIDs: [UUID]) async {
     let surfaceIDs = Array(Set(surfaceIDs))
     guard !surfaceIDs.isEmpty else {
       SupatermLog.debug(SupatermLog.zmx, "zmx.killAndWait.skipped", fields: ["reason=empty"])
@@ -170,8 +170,12 @@ extension TerminalHostState {
       SupatermLog.debug(SupatermLog.zmx, "zmx.killAndWait.skipped", fields: ["reason=disabled"])
       return
     }
-    guard zmxClient.isBundled() else {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.killAndWait.skipped", fields: ["reason=unbundled"])
+    guard sessionHostClient.canManageSessions() else {
+      SupatermLog.debug(
+        SupatermLog.zmx,
+        "zmx.killAndWait.skipped",
+        fields: ["reason=cannotManageSessions"]
+      )
       return
     }
     SupatermLog.debug(
@@ -182,11 +186,11 @@ extension TerminalHostState {
         "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
       ]
     )
-    let zmxClient = zmxClient
+    let sessionHostClient = sessionHostClient
     await withTaskGroup(of: Void.self) { group in
       for surfaceID in surfaceIDs {
         group.addTask {
-          await zmxClient.killSession(surfaceID)
+          await sessionHostClient.killSession(surfaceID)
         }
       }
     }
@@ -201,10 +205,10 @@ extension TerminalHostState {
   }
 
   func terminateTerminalSessions() {
-    killZmxSessions(for: sessionSurfaceIDs())
+    killHostedSessions(for: sessionSurfaceIDs())
   }
 
   func terminateTerminalSessionsAndWait() async {
-    await killZmxSessionsAndWait(for: sessionSurfaceIDs())
+    await killHostedSessionsAndWait(for: sessionSurfaceIDs())
   }
 }

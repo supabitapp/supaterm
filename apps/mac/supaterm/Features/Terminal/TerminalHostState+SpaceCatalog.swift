@@ -153,7 +153,7 @@ extension TerminalHostState {
       for: discardedInstances.flatMap { $0.tabs.map(\.id) },
       source: .deleteSpace
     )
-    killZmxSessions(
+    killHostedSessions(
       for: discardedInstances.flatMap { $0.pendingSession?.surfaceIDs ?? [] }
     )
     settleDisplayedSpace()

@@ -34,16 +34,18 @@ struct TerminalHostStateChildExitTests {
     let listedSessions = Mutex(0)
     let listedSurfaceID = Mutex<UUID?>(nil)
     let host = TerminalHostState(
-      zmxClient: ZmxClient(
-        executableURL: { nil },
-        isBundled: { true },
+      sessionHostClient: TerminalSessionHostClient(
+        isAvailable: { false },
+        canManageSessions: { true },
+        sessionID: { $0.uuidString.lowercased() },
+        commandWrapper: { _, _ in nil },
         killSession: { _ in },
         listSessions: {
           listedSessions.withLock { count in
             count += 1
             return count == 1
               ? listedSurfaceID.withLock {
-                $0.map { [ZmxSession(surfaceID: $0, processID: 1)] } ?? []
+                $0.map { [TerminalSessionHostSession(surfaceID: $0, processID: 1)] } ?? []
               }
               : []
           }
@@ -56,7 +58,7 @@ struct TerminalHostStateChildExitTests {
 
     host.requestCloseSurfaceAfterProcessExit(
       surfaceID,
-      usesZmx: true,
+      usesSessionHost: true,
       source: .ghosttyChildExit
     )
 
@@ -77,14 +79,16 @@ struct TerminalHostStateChildExitTests {
     let listedSessions = Mutex(0)
     let listedSurfaceID = Mutex<UUID?>(nil)
     let host = TerminalHostState(
-      zmxClient: ZmxClient(
-        executableURL: { nil },
-        isBundled: { true },
+      sessionHostClient: TerminalSessionHostClient(
+        isAvailable: { false },
+        canManageSessions: { true },
+        sessionID: { $0.uuidString.lowercased() },
+        commandWrapper: { _, _ in nil },
         killSession: { _ in },
         listSessions: {
           listedSessions.withLock { $0 += 1 }
           return listedSurfaceID.withLock {
-            $0.map { [ZmxSession(surfaceID: $0, processID: 1)] } ?? []
+            $0.map { [TerminalSessionHostSession(surfaceID: $0, processID: 1)] } ?? []
           }
         }
       )
@@ -95,7 +99,7 @@ struct TerminalHostStateChildExitTests {
 
     host.requestCloseSurfaceAfterProcessExit(
       originalSurface.id,
-      usesZmx: true,
+      usesSessionHost: true,
       source: .ghosttyChildExit
     )
 

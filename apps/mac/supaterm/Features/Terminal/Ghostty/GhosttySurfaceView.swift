@@ -69,7 +69,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let selectionReader: @MainActor (ghostty_surface_t) -> String?
   private let accessibilitySelectionNotifier: @MainActor (GhosttySurfaceView) -> Void
   private let accessibilitySelectionSleep: @Sendable (Duration) async throws -> Void
-  var usesZmx: Bool { !commandWrapper.isEmpty }
+  var usesSessionHost: Bool { !commandWrapper.isEmpty }
   let restoreMode: TerminalPaneRestoreMode
   private var trackingArea: NSTrackingArea?
   private var lastPerformKeyEvent: TimeInterval?

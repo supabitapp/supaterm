@@ -4,7 +4,7 @@ import Testing
 
 @testable import SupatermSupport
 
-struct ZmxClientTests {
+struct TerminalSessionHostClientTests {
   @Test
   func developmentBuildAndEnvironmentDisableSessions() {
     #expect(
@@ -59,7 +59,8 @@ struct ZmxClientTests {
     let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
     let environment = [SupatermCLIEnvironment.instanceNameKey: "dev/main"]
     let otherEnvironment = [SupatermCLIEnvironment.instanceNameKey: "dev-main"]
-    let sessionID = ZmxSessionID.make(surfaceID: surfaceID, environment: environment)
+    let client = TerminalSessionHostClient.makeZmx(executableURL: nil, environment: environment)
+    let sessionID = client.sessionID(surfaceID)
 
     #expect(
       sessionID == "\(ZmxSessionID.namespacePrefix(environment: environment))01234567-89ab-cdef-0123-456789abcdef")
@@ -84,9 +85,9 @@ struct ZmxClientTests {
       """
 
     #expect(
-      ZmxSession.parseList(output, environment: environment) == [
-        ZmxSession(surfaceID: firstSurfaceID, processID: 101),
-        ZmxSession(surfaceID: secondSurfaceID, processID: 202),
+      ZmxSessionList.parse(output, environment: environment) == [
+        TerminalSessionHostSession(surfaceID: firstSurfaceID, processID: 101),
+        TerminalSessionHostSession(surfaceID: secondSurfaceID, processID: 202),
       ]
     )
   }
@@ -94,10 +95,11 @@ struct ZmxClientTests {
   @Test
   func listSessionsDrainsLargeOutputWhileProcessRuns() async throws {
     let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
-    let sessionID = ZmxSessionID.make(surfaceID: surfaceID)
     let directoryURL = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let executableURL = directoryURL.appendingPathComponent("zmx", isDirectory: false)
+    let client = TerminalSessionHostClient.makeZmx(executableURL: executableURL)
+    let sessionID = client.sessionID(surfaceID)
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directoryURL) }
     let noise = String(repeating: "x", count: 128 * 1_024)
@@ -112,36 +114,38 @@ struct ZmxClientTests {
       ofItemAtPath: executableURL.path
     )
 
-    let sessions = await ZmxClient.makeLive(executableURL: executableURL).listSessions()
+    let sessions = await client.listSessions()
 
-    #expect(sessions == [ZmxSession(surfaceID: surfaceID, processID: 101)])
+    #expect(sessions == [TerminalSessionHostSession(surfaceID: surfaceID, processID: 101)])
   }
 
   @Test
-  func buildWrapperArgvKeepsExecutableAsOneArgument() {
-    let argv = ZmxAttach.buildWrapperArgv(
-      executablePath: "/Applications/Supaterm Runtime.app/Contents/Helpers/zmx",
-      sessionID: "spt-session",
-      mode: .createIfNeeded
+  func commandWrapperKeepsExecutableAsOneArgument() throws {
+    let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
+    let executableURL = URL(
+      fileURLWithPath: "/Applications/Supaterm Runtime.app/Contents/Helpers/zmx"
     )
+    let client = TerminalSessionHostClient.makeZmx(executableURL: executableURL)
+    let argv = try #require(client.commandWrapper(surfaceID, .createIfNeeded))
 
-    #expect(argv == ["/Applications/Supaterm Runtime.app/Contents/Helpers/zmx", "attach", "spt-session"])
+    #expect(argv == [executableURL.path, "attach", client.sessionID(surfaceID)])
   }
 
   @Test
-  func existingSessionWrapperCannotCreateASession() {
-    let argv = ZmxAttach.buildWrapperArgv(
-      executablePath: "/Applications/Supaterm Runtime.app/Contents/Helpers/zmx",
-      sessionID: "spt-session",
-      mode: .existing
+  func existingSessionWrapperCannotCreateASession() throws {
+    let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
+    let executableURL = URL(
+      fileURLWithPath: "/Applications/Supaterm Runtime.app/Contents/Helpers/zmx"
     )
+    let client = TerminalSessionHostClient.makeZmx(executableURL: executableURL)
+    let argv = try #require(client.commandWrapper(surfaceID, .existing))
 
     #expect(
       argv == [
-        "/Applications/Supaterm Runtime.app/Contents/Helpers/zmx",
+        executableURL.path,
         "attach",
         "--existing",
-        "spt-session",
+        client.sessionID(surfaceID),
       ]
     )
   }

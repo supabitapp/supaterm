@@ -152,14 +152,14 @@ extension TerminalHostState {
     context: ghostty_surface_context_e,
     surfaceID: UUID = UUID(),
     restoreMode: TerminalPaneRestoreMode? = nil,
-    zmxAttachMode: ZmxAttach.Mode = .createIfNeeded
+    sessionHostAttachMode: TerminalSessionHostAttachMode = .createIfNeeded
   ) -> GhosttySurfaceView {
     guard let runtime else {
       preconditionFailure("TerminalHostState cannot create surfaces without a GhosttyRuntime")
     }
     let inherited = inheritedSurfaceConfig(fromSurfaceID: inheritingFromSurfaceID, context: context)
-    let commandWrapper = resolvedCommandWrapper(surfaceID: surfaceID, mode: zmxAttachMode)
-    let usesZmx = !commandWrapper.isEmpty
+    let commandWrapper = resolvedCommandWrapper(surfaceID: surfaceID, mode: sessionHostAttachMode)
+    let usesSessionHost = !commandWrapper.isEmpty
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.surface.create",
@@ -170,7 +170,7 @@ extension TerminalHostState {
         "zmxSessionsEnabled=\(zmxSessionsEnabled)",
         "hasStartupCommand=\(startupCommand != nil)",
         "hasCommandWrapper=\(!commandWrapper.isEmpty)",
-        "usesZmx=\(usesZmx)",
+        "usesSessionHost=\(usesSessionHost)",
       ]
     )
     let view = GhosttySurfaceView(
@@ -184,7 +184,7 @@ extension TerminalHostState {
       fontSize: inherited.fontSize,
       context: context,
       managesWindowAppearance: false,
-      zmxSessionsEnabled: usesZmx
+      zmxSessionsEnabled: usesSessionHost
     )
     configureBridgeCallbacks(for: view, tabID: tabID)
     configureSurfaceCallbacks(for: view, tabID: tabID)
@@ -195,9 +195,9 @@ extension TerminalHostState {
 
   func resolvedCommandWrapper(
     surfaceID: UUID,
-    mode: ZmxAttach.Mode
+    mode: TerminalSessionHostAttachMode
   ) -> [String] {
-    let sessionID = ZmxSessionID.make(surfaceID: surfaceID)
+    let sessionID = sessionHostClient.sessionID(surfaceID)
     guard zmxSessionsEnabled else {
       SupatermLog.debug(
         SupatermLog.zmx,
@@ -210,7 +210,7 @@ extension TerminalHostState {
       )
       return []
     }
-    guard let executable = zmxClient.executableURL() else {
+    guard let commandWrapper = sessionHostClient.commandWrapper(surfaceID, mode) else {
       SupatermLog.error(
         SupatermLog.zmx,
         "zmx.attach.fallback",
@@ -221,11 +221,6 @@ extension TerminalHostState {
       )
       return []
     }
-    let commandWrapper = ZmxAttach.buildWrapperArgv(
-      executablePath: executable.path(percentEncoded: false),
-      sessionID: sessionID,
-      mode: mode
-    )
     SupatermLog.debug(
       SupatermLog.zmx,
       "zmx.attach.resolved",

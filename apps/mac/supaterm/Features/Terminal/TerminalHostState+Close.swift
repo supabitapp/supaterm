@@ -143,7 +143,7 @@ extension TerminalHostState {
     )
 
     logCloseKillSurface(surfaceID: surfaceID, tabID: tabID, source: source)
-    killZmxSession(for: surfaceID)
+    killHostedSession(for: surfaceID)
     cleanupSurface(surface)
 
     if newTree.isEmpty {
@@ -177,21 +177,21 @@ extension TerminalHostState {
 
   func requestCloseSurfaceAfterProcessExit(
     _ surfaceID: UUID,
-    usesZmx: Bool,
+    usesSessionHost: Bool,
     source: TerminalSurfaceCloseSource
   ) {
-    let zmxBundled = zmxClient.isBundled()
+    let sessionHostCanManageSessions = sessionHostClient.canManageSessions()
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.close.afterExit.start",
       fields: [
         "source=\(source.rawValue)",
         "surfaceID=\(SupatermLog.uuid(surfaceID))",
-        "usesZmx=\(usesZmx)",
-        "zmxBundled=\(zmxBundled)",
+        "usesSessionHost=\(usesSessionHost)",
+        "sessionHostCanManageSessions=\(sessionHostCanManageSessions)",
       ]
     )
-    guard usesZmx, zmxBundled else {
+    guard usesSessionHost, sessionHostCanManageSessions else {
       requestCloseSurface(
         surfaceID,
         needsConfirmation: false,
@@ -200,9 +200,9 @@ extension TerminalHostState {
       return
     }
 
-    let zmxClient = zmxClient
-    Task { @MainActor [weak self, zmxClient] in
-      let sessions = await zmxClient.listSessions()
+    let sessionHostClient = sessionHostClient
+    Task { @MainActor [weak self, sessionHostClient] in
+      let sessions = await sessionHostClient.listSessions()
       guard let self else { return }
       self.finishCloseSurfaceAfterProcessExit(
         surfaceID,
@@ -215,7 +215,7 @@ extension TerminalHostState {
 
   func finishCloseSurfaceAfterProcessExit(
     _ surfaceID: UUID,
-    sessions: [ZmxSession]?,
+    sessions: [TerminalSessionHostSession]?,
     source: TerminalSurfaceCloseSource,
     didRetry: Bool
   ) {
@@ -233,10 +233,10 @@ extension TerminalHostState {
       ]
     )
     if !didRetry, sessions == nil || sessionPresent {
-      let zmxClient = zmxClient
-      Task { @MainActor [weak self, zmxClient] in
+      let sessionHostClient = sessionHostClient
+      Task { @MainActor [weak self, sessionHostClient] in
         try? await Task.sleep(for: .milliseconds(150))
-        let retrySessions = await zmxClient.listSessions()
+        let retrySessions = await sessionHostClient.listSessions()
         guard let self else { return }
         self.finishCloseSurfaceAfterProcessExit(
           surfaceID,
@@ -249,7 +249,7 @@ extension TerminalHostState {
     }
     guard
       sessionPresent,
-      reattachZmxSurface(surfaceID, source: source)
+      reattachHostedSurface(surfaceID, source: source)
     else {
       requestCloseSurface(
         surfaceID,
@@ -291,7 +291,7 @@ extension TerminalHostState {
       ]
     )
     if terminateSessions {
-      killZmxSessions(for: surfaceIDs)
+      killHostedSessions(for: surfaceIDs)
     }
     for surface in tree.leaves() {
       cleanupSurface(surface)

@@ -116,22 +116,22 @@ struct TerminalAgentDetectionHostAccess {
 }
 
 private actor TerminalAgentDetectionLiveSampler {
-  private let zmxClient: ZmxClient
+  private let sessionHostClient: TerminalSessionHostClient
   private let zmxSessionsEnabled: Bool
   private let processSampler: AgentDetectionProcessSampler
 
   init(
-    zmxClient: ZmxClient,
+    sessionHostClient: TerminalSessionHostClient,
     zmxSessionsEnabled: Bool,
     processSampler: AgentDetectionProcessSampler
   ) {
-    self.zmxClient = zmxClient
+    self.sessionHostClient = sessionHostClient
     self.zmxSessionsEnabled = zmxSessionsEnabled
     self.processSampler = processSampler
   }
 
   func resolveForegroundProcessGroups(_ direct: [UUID: Int32]) async -> [UUID: Int32] {
-    guard zmxSessionsEnabled, let sessions = await zmxClient.listSessions() else {
+    guard zmxSessionsEnabled, let sessions = await sessionHostClient.listSessions() else {
       return direct
     }
     var resolved = direct
@@ -262,7 +262,7 @@ final class TerminalAgentDetectionController {
     repository: AgentDetectionRuleRepository
   ) {
     let liveSampler = TerminalAgentDetectionLiveSampler(
-      zmxClient: terminal.zmxClient,
+      sessionHostClient: terminal.sessionHostClient,
       zmxSessionsEnabled: terminal.zmxSessionsEnabled,
       processSampler: Self.processSampler
     )

@@ -284,12 +284,12 @@ extension TerminalHostState {
         paneID: newSurface.id
       )
     } catch let error as TerminalCreatePaneError {
-      killZmxSession(for: newSurface.id)
+      killHostedSession(for: newSurface.id)
       newSurface.closeSurface()
       surfaces.removeValue(forKey: newSurface.id)
       throw error
     } catch {
-      killZmxSession(for: newSurface.id)
+      killHostedSession(for: newSurface.id)
       newSurface.closeSurface()
       surfaces.removeValue(forKey: newSurface.id)
       throw TerminalCreatePaneError.creationFailed

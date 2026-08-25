@@ -19,8 +19,8 @@ struct TerminalWindowControllerTests {
 
       let controller = TerminalWindowController(
         runtime: GhosttyRuntime(applicationIsActive: { false }),
-        registry: TerminalWindowRegistry(zmxClient: .noop),
-        zmxClient: .noop,
+        registry: TerminalWindowRegistry(sessionHostClient: .noop),
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       defer {
@@ -42,8 +42,8 @@ struct TerminalWindowControllerTests {
 
       let controller = TerminalWindowController(
         runtime: GhosttyRuntime(applicationIsActive: { false }),
-        registry: TerminalWindowRegistry(zmxClient: .noop),
-        zmxClient: .noop,
+        registry: TerminalWindowRegistry(sessionHostClient: .noop),
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       defer {
@@ -70,17 +70,17 @@ struct TerminalWindowControllerTests {
       defer {
         fixture.cleanup()
       }
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry(sessionHostClient: .noop)
       let firstController = TerminalWindowController(
         runtime: fixture.runtime,
         registry: registry,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let secondController = TerminalWindowController(
         runtime: fixture.runtime,
         registry: registry,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       defer {
@@ -177,9 +177,9 @@ struct TerminalWindowControllerTests {
       )
       let controller = TerminalWindowController(
         runtime: GhosttyRuntime(applicationIsActive: { false }),
-        registry: TerminalWindowRegistry(zmxClient: .noop),
+        registry: TerminalWindowRegistry(sessionHostClient: .noop),
         launch: .restore(session),
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       defer {
@@ -204,12 +204,12 @@ struct TerminalWindowControllerTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry(sessionHostClient: .noop)
       let savedCatalog = Mutex<TerminalSessionCatalog?>(nil)
       let controller = TerminalWindowController(
         runtime: GhosttyRuntime(applicationIsActive: { false }),
         registry: registry,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false,
         onSessionChange: {
           savedCatalog.withLock { $0 = registry.restorationSnapshot() }
@@ -246,8 +246,8 @@ struct TerminalWindowControllerTests {
 
       let controller = TerminalWindowController(
         runtime: GhosttyRuntime(applicationIsActive: { false }),
-        registry: TerminalWindowRegistry(zmxClient: .noop),
-        zmxClient: .noop,
+        registry: TerminalWindowRegistry(sessionHostClient: .noop),
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       defer {

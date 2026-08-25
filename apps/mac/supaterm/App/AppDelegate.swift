@@ -84,8 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let zmxSessionsEnabledAtLaunch = ZmxEnvironment.sessionsEnabled(
       setting: launchSupatermSettings.zmxSessionsEnabled
     )
-    let zmxClient = zmxSessionsEnabledAtLaunch ? ZmxClient.live : .noop
-    let terminalWindowRegistry = TerminalWindowRegistry(zmxClient: zmxClient)
+    let sessionHostClient = zmxSessionsEnabledAtLaunch ? TerminalSessionHostClient.live : .noop
+    let terminalWindowRegistry = TerminalWindowRegistry(sessionHostClient: sessionHostClient)
     let tabNewWindowDropController = TerminalTabNewWindowDropController(
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
     )
@@ -145,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  private var launchZmxClient: ZmxClient {
+  private var launchSessionHostClient: TerminalSessionHostClient {
     zmxSessionsEnabledAtLaunch ? .live : .noop
   }
 
@@ -162,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       DemoSeed.decorate(windowControllers.values.map(\.terminal))
     #endif
     if zmxSessionsEnabledAtLaunch {
-      reapOrphanZmxSessions()
+      reapOrphanHostedSessions()
     }
     $lastAppLaunchedDate.withLock {
       $0 = Date()
@@ -289,7 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     if reply == .terminateNow && terminationPlan.terminatesSessions {
       Task { @MainActor in
         await terminalWindowRegistry.terminateTerminalSessionsAndWait()
-        await terminalWindowRegistry.terminateAllZmxSessionsAndWait()
+        await terminalWindowRegistry.terminateAllHostedSessionsAndWait()
         NSApp.reply(toApplicationShouldTerminate: true)
       }
       return .terminateLater
@@ -399,7 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       validSpaceIDs: Set(spaceCatalog.spaces.map(\.id)),
       restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
       allowsExistingSessions:
-        zmxSessionsEnabledAtLaunch && launchZmxClient.executableURL() != nil,
+        zmxSessionsEnabledAtLaunch && launchSessionHostClient.isAvailable(),
       lastAppLaunchedDate: lastAppLaunchedDate,
       cliPath: GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL)
     )
@@ -421,7 +421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  private func reapOrphanZmxSessions() {
+  private func reapOrphanHostedSessions() {
     guard !sessionCatalogWasRejectedAtLaunch else {
       SupatermLog.notice(
         SupatermLog.zmx,
@@ -430,16 +430,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       )
       return
     }
-    let zmxClient = launchZmxClient
+    let sessionHostClient = launchSessionHostClient
     Task.detached(priority: .utility) {
       SupatermLog.debug(SupatermLog.zmx, "zmx.reap.start")
-      guard let sessions = await zmxClient.listSessions() else {
+      guard let sessions = await sessionHostClient.listSessions() else {
         SupatermLog.error(SupatermLog.zmx, "zmx.reap.skipped", fields: ["reason=listFailed"])
         return
       }
       let knownSurfaceIDs = await MainActor.run { [weak self] in
         guard let self else { return Set<UUID>() }
-        return Self.knownZmxSurfaceIDsForLaunchReaping(
+        return Self.knownHostedSurfaceIDsForLaunchReaping(
           restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
           sessionCatalog: sessionCatalog,
           liveSurfaceIDs: terminalWindowRegistry.liveSurfaceIDs()
@@ -449,7 +449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         !knownSurfaceIDs.contains($0.surfaceID)
       }
       let orphanSessionIDs = orphanSessions.map {
-        ZmxSessionID.make(surfaceID: $0.surfaceID)
+        sessionHostClient.sessionID($0.surfaceID)
       }
       let orphanSurfaceIDs = orphanSessions.map(\.surfaceID)
       SupatermLog.debug(
@@ -465,7 +465,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       await withTaskGroup(of: Void.self) { group in
         for surfaceID in orphanSurfaceIDs {
           group.addTask {
-            await zmxClient.killSession(surfaceID)
+            await sessionHostClient.killSession(surfaceID)
           }
         }
       }
@@ -477,7 +477,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  static func knownZmxSurfaceIDsForLaunchReaping(
+  static func knownHostedSurfaceIDsForLaunchReaping(
     restoreTerminalLayoutEnabled: Bool,
     sessionCatalog: TerminalSessionCatalog,
     liveSurfaceIDs: Set<UUID>
@@ -528,7 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       registry: terminalWindowRegistry,
       process: appProcess,
       launch: launch,
-      zmxClient: launchZmxClient,
+      sessionHostClient: launchSessionHostClient,
       zmxSessionsEnabled: zmxSessionsEnabledAtLaunch,
       agentDetectionRuleRepository: agentDetectionRuleRepository
     ) { [weak self] in

@@ -121,7 +121,7 @@ final class TerminalWindowController: NSWindowController {
     registry: TerminalWindowRegistry,
     process: Shared<AppFeature.ProcessState> = Shared(value: AppFeature.ProcessState()),
     launch: TerminalWindowLaunch = .newShell(spaceID: nil, startupCommand: nil),
-    zmxClient: ZmxClient = .live,
+    sessionHostClient: TerminalSessionHostClient = .live,
     zmxSessionsEnabled: Bool = true,
     agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
     onSessionChange: @escaping @MainActor () -> Void = {}
@@ -134,7 +134,7 @@ final class TerminalWindowController: NSWindowController {
     let terminal = TerminalHostState(
       runtime: runtime,
       spaceID: launch.spaceID,
-      zmxClient: zmxClient,
+      sessionHostClient: sessionHostClient,
       zmxSessionsEnabled: zmxSessionsEnabled,
       agentDetectionRuleRepository: agentDetectionRuleRepository
     )

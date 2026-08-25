@@ -13,7 +13,7 @@ struct TerminalHostStateSessionRestoreTests {
   func disabledZmxSessionsDoNotWrapTheShell() {
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
-      zmxClient: wrappingZmxClient(),
+      sessionHostClient: wrappingSessionHostClient(),
       zmxSessionsEnabled: false
     )
     let commandWrapper = host.resolvedCommandWrapper(surfaceID: UUID(), mode: .createIfNeeded)
@@ -26,12 +26,7 @@ struct TerminalHostStateSessionRestoreTests {
     let surfaceID = UUID()
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
-      zmxClient: ZmxClient(
-        executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
-        isBundled: { true },
-        killSession: { _ in },
-        listSessions: { [] }
-      )
+      sessionHostClient: wrappingSessionHostClient()
     )
 
     let commandWrapper = host.resolvedCommandWrapper(
@@ -40,7 +35,11 @@ struct TerminalHostStateSessionRestoreTests {
     )
 
     #expect(
-      commandWrapper == ["/tmp/zmx", "attach", ZmxSessionID.make(surfaceID: surfaceID)]
+      commandWrapper == [
+        "/tmp/zmx",
+        "attach",
+        host.sessionHostClient.sessionID(surfaceID),
+      ]
     )
   }
 
@@ -49,7 +48,7 @@ struct TerminalHostStateSessionRestoreTests {
     let surfaceID = UUID()
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
-      zmxClient: wrappingZmxClient()
+      sessionHostClient: wrappingSessionHostClient()
     )
 
     let commandWrapper = host.resolvedCommandWrapper(surfaceID: surfaceID, mode: .existing)
@@ -59,7 +58,7 @@ struct TerminalHostStateSessionRestoreTests {
         "/tmp/zmx",
         "attach",
         "--existing",
-        ZmxSessionID.make(surfaceID: surfaceID),
+        host.sessionHostClient.sessionID(surfaceID),
       ]
     )
   }
@@ -68,12 +67,7 @@ struct TerminalHostStateSessionRestoreTests {
   func unavailableZmxDoesNotWrapTheShell() {
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
-      zmxClient: ZmxClient(
-        executableURL: { nil },
-        isBundled: { true },
-        killSession: { _ in },
-        listSessions: { [] }
-      )
+      sessionHostClient: wrappingSessionHostClient(executablePath: nil)
     )
 
     let commandWrapper = host.resolvedCommandWrapper(surfaceID: UUID(), mode: .createIfNeeded)
@@ -86,14 +80,14 @@ struct TerminalHostStateSessionRestoreTests {
     let killedSurfaceIDs = LockIsolated<[UUID]>([])
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
-      zmxClient: wrappingZmxClient(killSession: { surfaceID in
+      sessionHostClient: wrappingSessionHostClient(killSession: { surfaceID in
         killedSurfaceIDs.withValue { $0.append(surfaceID) }
       }),
       zmxSessionsEnabled: false
     )
     let surfaceID = UUID()
 
-    await host.killZmxSessionsAndWait(for: [surfaceID])
+    await host.killHostedSessionsAndWait(for: [surfaceID])
 
     #expect(killedSurfaceIDs.value.isEmpty)
   }
@@ -413,7 +407,7 @@ struct TerminalHostStateSessionRestoreTests {
       let hiddenTabID = try #require(hiddenSpace.selectedTabID)
       let host = TerminalHostState(
         spaceID: spaces[0].id,
-        zmxClient: wrappingZmxClient()
+        sessionHostClient: wrappingSessionHostClient()
       )
 
       #expect(
@@ -616,10 +610,25 @@ struct TerminalHostStateSessionRestoreTests {
     }
   }
 
-  private func wrappingZmxClient(killSession: @escaping @Sendable (UUID) async -> Void = { _ in }) -> ZmxClient {
-    ZmxClient(
-      executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
-      isBundled: { true },
+  private func wrappingSessionHostClient(
+    executablePath: String? = "/tmp/zmx",
+    killSession: @escaping @Sendable (UUID) async -> Void = { _ in }
+  )
+    -> TerminalSessionHostClient
+  {
+    TerminalSessionHostClient(
+      isAvailable: { executablePath != nil },
+      canManageSessions: { true },
+      sessionID: { "test-\($0.uuidString.lowercased())" },
+      commandWrapper: { surfaceID, mode in
+        guard let executablePath else { return nil }
+        switch mode {
+        case .createIfNeeded:
+          return [executablePath, "attach", "test-\(surfaceID.uuidString.lowercased())"]
+        case .existing:
+          return [executablePath, "attach", "--existing", "test-\(surfaceID.uuidString.lowercased())"]
+        }
+      },
       killSession: killSession,
       listSessions: { [] }
     )

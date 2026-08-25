@@ -70,15 +70,15 @@ final class TerminalWindowRegistry {
   var applicationStore: StoreOf<AppFeature>?
 
   private var entries: [Entry] = []
-  private let zmxClient: ZmxClient
+  private let sessionHostClient: TerminalSessionHostClient
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
   var onChange: @MainActor () -> Void = {}
 
-  init(zmxClient: ZmxClient = .live) {
+  init(sessionHostClient: TerminalSessionHostClient = .live) {
     let tabDragRegistry = TerminalTabDragRegistry()
     self.tabDragRegistry = tabDragRegistry
-    self.zmxClient = zmxClient
+    self.sessionHostClient = sessionHostClient
     tabDragRegistry.transfer = { [weak self] payload, destination in
       self?.transferTab(payload, to: destination)
     }
@@ -644,14 +644,14 @@ final class TerminalWindowRegistry {
     }
     Task { @MainActor in
       await terminateTerminalSessionsAndWait()
-      await terminateAllZmxSessionsAndWait()
+      await terminateAllHostedSessionsAndWait()
       closeWindows(windowIDs)
     }
   }
 
-  func terminateAllZmxSessionsAndWait() async {
+  func terminateAllHostedSessionsAndWait() async {
     SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.start")
-    await Self.terminateAllZmxSessions(using: zmxClient)
+    await Self.terminateAllHostedSessions(using: sessionHostClient)
     SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.finished")
   }
 
@@ -1070,8 +1070,8 @@ final class TerminalWindowRegistry {
     entries.first { $0.windowReference.value === window }
   }
 
-  nonisolated private static func terminateAllZmxSessions(using zmxClient: ZmxClient) async {
-    guard let sessions = await zmxClient.listSessions() else {
+  nonisolated private static func terminateAllHostedSessions(using sessionHostClient: TerminalSessionHostClient) async {
+    guard let sessions = await sessionHostClient.listSessions() else {
       SupatermLog.error(SupatermLog.zmx, "zmx.terminateAll.skipped", fields: ["reason=listFailed"])
       return
     }
@@ -1087,7 +1087,7 @@ final class TerminalWindowRegistry {
     await withTaskGroup(of: Void.self) { group in
       for surfaceID in surfaceIDs {
         group.addTask {
-          await zmxClient.killSession(surfaceID)
+          await sessionHostClient.killSession(surfaceID)
         }
       }
     }

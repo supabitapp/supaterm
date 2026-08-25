@@ -279,7 +279,7 @@ final class TerminalHostState {
   @ObservationIgnored
   let managesTerminalSurfaces: Bool
   @ObservationIgnored
-  let zmxClient: ZmxClient
+  let sessionHostClient: TerminalSessionHostClient
   @ObservationIgnored
   let zmxSessionsEnabled: Bool
   @ObservationIgnored
@@ -325,7 +325,7 @@ final class TerminalHostState {
     runtime: GhosttyRuntime? = nil,
     managesTerminalSurfaces: Bool = true,
     spaceID: TerminalSpaceID? = nil,
-    zmxClient: ZmxClient = .live,
+    sessionHostClient: TerminalSessionHostClient = .live,
     zmxSessionsEnabled: Bool = true,
     agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil
   ) {
@@ -337,7 +337,7 @@ final class TerminalHostState {
       catalog: initialSpaceCatalog,
       displayedSpaceID: spaceID ?? initialSpaceCatalog.defaultSelectedSpaceID
     )
-    self.zmxClient = zmxClient
+    self.sessionHostClient = sessionHostClient
     self.zmxSessionsEnabled = zmxSessionsEnabled
 
     if initialSpaceCatalog != spaceCatalog {
@@ -547,7 +547,7 @@ final class TerminalHostState {
         sessionDidChange()
         return true
       } catch {
-        killZmxSession(for: newSurface.id)
+        killHostedSession(for: newSurface.id)
         newSurface.closeSurface()
         surfaces.removeValue(forKey: newSurface.id)
         return false
@@ -810,7 +810,7 @@ final class TerminalHostState {
       guard let self, let view else { return false }
       self.requestCloseSurfaceAfterProcessExit(
         view.id,
-        usesZmx: view.usesZmx,
+        usesSessionHost: view.usesSessionHost,
         source: .ghosttyChildExit
       )
       return true

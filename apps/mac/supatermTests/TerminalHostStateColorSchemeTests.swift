@@ -39,7 +39,7 @@ struct TerminalHostStateColorSchemeTests {
     )
     let host = TerminalHostState(
       runtime: runtime,
-      zmxClient: .noop,
+      sessionHostClient: .noop,
       zmxSessionsEnabled: false
     )
     host.ensureInitialTab(focusing: false)

@@ -382,14 +382,14 @@ struct AppDelegateTests {
       ]
     )
     #expect(
-      AppDelegate.knownZmxSurfaceIDsForLaunchReaping(
+      AppDelegate.knownHostedSurfaceIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: true,
         sessionCatalog: sessionCatalog,
         liveSurfaceIDs: [liveSurfaceID]
       ) == Set([persistedSurfaceID, hiddenSurfaceID, liveSurfaceID])
     )
     #expect(
-      AppDelegate.knownZmxSurfaceIDsForLaunchReaping(
+      AppDelegate.knownHostedSurfaceIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: false,
         sessionCatalog: sessionCatalog,
         liveSurfaceIDs: [liveSurfaceID]

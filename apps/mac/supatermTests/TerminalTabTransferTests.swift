@@ -341,13 +341,13 @@ struct TerminalTabTransferTests {
       let source = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let destination = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let tabID = source.spaceManager.tabCollection.createTab(title: "Source")
@@ -416,7 +416,7 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry(sessionHostClient: .noop)
       let sourceWindowID = UUID()
       let destinationWindowID = UUID()
       let source = TerminalHostState(
@@ -500,7 +500,7 @@ struct TerminalTabTransferTests {
       let host = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
@@ -577,19 +577,19 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry(sessionHostClient: .noop)
       let sourceWindowID = UUID()
       let destinationWindowID = UUID()
       let source = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let destination = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let sourceTabID = source.spaceManager.tabCollection.createTab(title: "Source")
@@ -692,7 +692,7 @@ struct TerminalTabTransferTests {
       let host = TerminalHostState(
         runtime: GhosttyRuntime(),
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       host.ensureInitialTab(focusing: false)
@@ -713,7 +713,7 @@ struct TerminalTabTransferTests {
       let unsplitLeaves = try #require(host.trees[tabID]?.leaves())
       #expect(unsplitLeaves.count == 1)
       #expect(unsplitLeaves.first === originalSurface)
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry(sessionHostClient: .noop)
       let windowControllerID = UUID()
       var didCloseWindow = false
       let window = register(
@@ -789,19 +789,19 @@ struct TerminalTabTransferTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
       let runtime = GhosttyRuntime()
-      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let registry = TerminalWindowRegistry(sessionHostClient: .noop)
       let sourceID = UUID()
       let destinationID = UUID()
       let source = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let destination = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       )
       let tabID = source.spaceManager.tabCollection.createTab(title: "Moved")
@@ -918,7 +918,7 @@ struct TerminalTabTransferTests {
       host: TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
-        zmxClient: .noop,
+        sessionHostClient: .noop,
         zmxSessionsEnabled: false
       ),
       runtime: runtime,
