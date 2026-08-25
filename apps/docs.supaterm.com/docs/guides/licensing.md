@@ -3,9 +3,7 @@ title: Licensing
 description: Activate Supaterm, move a device license, and understand free mode and update ownership.
 ---
 
-Supaterm works without a license. License sales and the five-tab free-mode limit are not active yet.
-
-After sales open, free mode will allow five open tabs across all spaces and windows. Panes will not count toward the limit. Supaterm will not close restored tabs above the limit, but it will require you to close tabs before creating another.
+Supaterm works without a license. Free mode allows five open tabs across all spaces and windows. Panes do not count toward the limit. Supaterm does not close restored tabs above the limit, but it requires you to close tabs before creating another.
 
 ## Activate a license
 
@@ -41,7 +39,7 @@ When a newer release falls outside that period, you can keep using your current 
 sp license refresh
 ```
 
-**Get Your Owned Release** downloads the newest stable release included in the license.
+**Download Your Latest Release** downloads the newest stable release included with your license.
 
 ## Offline use and refunds
 
