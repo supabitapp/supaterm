@@ -10,10 +10,7 @@ extension TerminalCommandExecutor {
 
     switch request {
     case .activate(let key):
-      guard
-        !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-        key.count <= 128
-      else {
+      guard case .valid(let key) = SupatermLicensePolicy.validateLicenseKey(key) else {
         throw LicenseControlError(
           code: "invalid_license_key",
           message: "Enter a valid Supaterm license key."

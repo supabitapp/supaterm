@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import Sharing
+import SupatermCLIShared
 import SupatermSupport
 
 private nonisolated enum LicenseFeatureCancelID: Hashable, Sendable {
@@ -101,8 +102,6 @@ public struct LicenseNotice: Equatable, Sendable {
   public let day: LicenseDay
 
   public init?(entitlement: LicenseEntitlement) {
-    guard entitlement.status != .active else { return nil }
-    day = LicenseDay.today(at: Date(timeIntervalSince1970: TimeInterval(entitlement.issuedAt)))
     switch entitlement.status {
     case .active:
       return nil
@@ -120,6 +119,7 @@ public struct LicenseNotice: Equatable, Sendable {
         kind = .revoked
       }
     }
+    day = LicenseDay.today(at: Date(timeIntervalSince1970: TimeInterval(entitlement.issuedAt)))
   }
 
   public var message: String {
@@ -445,7 +445,10 @@ public enum LicenseActivationURL {
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
     else { return nil }
     let values = components.queryItems?.filter { $0.name == "key" }.compactMap(\.value) ?? []
-    guard values.count == 1, !values[0].isEmpty, values[0].count <= 128 else { return nil }
-    return values[0]
+    guard
+      values.count == 1,
+      case .valid(let key) = SupatermLicensePolicy.validateLicenseKey(values[0])
+    else { return nil }
+    return key
   }
 }

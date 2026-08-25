@@ -28,7 +28,7 @@ struct TerminalCommandExecutorLicenseTests {
       clock: clock
     )
 
-    let result = try await fixture.executor.execute(.activate("license-key"))
+    let result = try await fixture.executor.execute(.activate("  license-key\n"))
 
     #expect(activatedKey.value == "license-key")
     #expect(

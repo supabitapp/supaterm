@@ -208,6 +208,20 @@ struct SPLicenseCommandTests {
     #expect(interactive == "interactive-key")
     #expect(piped == "piped-key")
   }
+
+  @Test
+  func licenseKeyValidationNormalizesAndCapsInput() {
+    #expect(SupatermLicensePolicy.validateLicenseKey(" \n ") == .empty)
+    #expect(
+      SupatermLicensePolicy.validateLicenseKey("  license-key\n")
+        == .valid("license-key")
+    )
+    #expect(
+      SupatermLicensePolicy.validateLicenseKey(
+        String(repeating: "A", count: SupatermLicensePolicy.maximumLicenseKeyLength + 1)
+      ) == .tooLong
+    )
+  }
 }
 
 private let paidStatus = SupatermLicenseStatusResult(

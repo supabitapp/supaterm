@@ -220,14 +220,14 @@ func readLicenseKey(
     rawValue = value
   }
 
-  let key = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-  guard !key.isEmpty else {
+  switch SupatermLicensePolicy.validateLicenseKey(rawValue) {
+  case .empty:
     throw ValidationError("Enter your Supaterm license key.")
-  }
-  guard key.count <= 128 else {
+  case .tooLong:
     throw ValidationError("License key is too long.")
+  case .valid(let key):
+    return key
   }
-  return key
 }
 
 private func readHiddenLine(_ prompt: String) throws -> String {
