@@ -45,11 +45,13 @@ struct TerminalSplitTreeView: View {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
+  let isSidebarCollapsed: Bool
   let notificationColor: Color
   let palette: Palette
   let agentPanelForksDown: Bool
   let agentPanelShortcutHint: String?
   let showsGlowingPaneRing: Bool
+  let showsSidebarAttentionIndicator: Bool
   let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
@@ -82,18 +84,27 @@ struct TerminalSplitTreeView: View {
       }
     }
 
-    func cornerRadii(cornerRadius: CGFloat) -> RectangleCornerRadii {
-      RectangleCornerRadii(
-        topLeading: 0,
-        bottomLeading: contains(.bottom) && contains(.leading) ? cornerRadius : 0,
-        bottomTrailing: contains(.bottom) && contains(.trailing) ? cornerRadius : 0,
-        topTrailing: 0
+    func paneInsets(outer: CGFloat, inner: CGFloat) -> EdgeInsets {
+      EdgeInsets(
+        top: contains(.top) ? outer : inner,
+        leading: contains(.leading) ? outer : inner,
+        bottom: contains(.bottom) ? outer : inner,
+        trailing: contains(.trailing) ? outer : inner
       )
     }
 
     private func removing(_ edges: Self) -> Self {
       TerminalSplitTreeView.OuterEdges(rawValue: rawValue & ~edges.rawValue)
     }
+  }
+
+  struct PaneChromeConfiguration: Equatable {
+    let canEqualize: Bool
+    let defaultTitles: [UUID: String]
+    let isSidebarCollapsed: Bool
+    let showsSidebarAttentionIndicator: Bool
+    let sidebarPaneID: UUID
+    let zoomedPaneID: UUID?
   }
 
   private static let dragType = UTType(exportedAs: "sh.supacode.ghosttySurfaceId")
@@ -112,6 +123,18 @@ struct TerminalSplitTreeView: View {
 
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
+      let paneChrome = PaneChromeConfiguration(
+        canEqualize: tree.isSplit,
+        defaultTitles: Dictionary(
+          uniqueKeysWithValues: tree.leaves().enumerated().map { index, surfaceView in
+            (surfaceView.id, "Pane \(index + 1)")
+          }
+        ),
+        isSidebarCollapsed: isSidebarCollapsed,
+        showsSidebarAttentionIndicator: showsSidebarAttentionIndicator,
+        sidebarPaneID: node.leftmostLeaf().id,
+        zoomedPaneID: tree.zoomed?.leftmostLeaf().id
+      )
       SubtreeView(
         agentPanelPresentations: agentPanelPresentations,
         node: node,
@@ -121,6 +144,7 @@ struct TerminalSplitTreeView: View {
         hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
         notificationColor: notificationColor,
         palette: palette,
+        paneChrome: paneChrome,
         agentPanelForksDown: agentPanelForksDown,
         agentPanelShortcutHint: agentPanelShortcutHint,
         showsGlowingPaneRing: showsGlowingPaneRing,
@@ -138,6 +162,10 @@ struct TerminalSplitTreeView: View {
     case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
     case drop(payloadId: UUID, destinationId: UUID, zone: TerminalSplitDropZone)
     case equalize
+    case equalizePanes(UUID)
+    case splitPane(UUID, TerminalPaneSplitDirection)
+    case togglePaneZoom(UUID)
+    case toggleSidebar
     case agentPanelCopyText(String)
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
@@ -163,6 +191,7 @@ struct TerminalSplitTreeView: View {
     let hiddenAgentPanelSurfaceIDs: Set<UUID>
     let notificationColor: Color
     let palette: Palette
+    let paneChrome: PaneChromeConfiguration
     let agentPanelForksDown: Bool
     let agentPanelShortcutHint: String?
     let showsGlowingPaneRing: Bool
@@ -183,6 +212,7 @@ struct TerminalSplitTreeView: View {
           isAgentPanelCollapsed: hiddenAgentPanelSurfaceIDs.contains(leafView.id),
           notificationColor: notificationColor,
           palette: palette,
+          paneChrome: paneChrome,
           agentPanelForksDown: agentPanelForksDown,
           agentPanelShortcutHint: agentPanelShortcutHint,
           showsGlowingPaneRing: showsGlowingPaneRing,
@@ -219,6 +249,7 @@ struct TerminalSplitTreeView: View {
               hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
               notificationColor: notificationColor,
               palette: palette,
+              paneChrome: paneChrome,
               agentPanelForksDown: agentPanelForksDown,
               agentPanelShortcutHint: agentPanelShortcutHint,
               showsGlowingPaneRing: showsGlowingPaneRing,
@@ -238,6 +269,7 @@ struct TerminalSplitTreeView: View {
               hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
               notificationColor: notificationColor,
               palette: palette,
+              paneChrome: paneChrome,
               agentPanelForksDown: agentPanelForksDown,
               agentPanelShortcutHint: agentPanelShortcutHint,
               showsGlowingPaneRing: showsGlowingPaneRing,
@@ -263,6 +295,7 @@ struct TerminalSplitTreeView: View {
     let isAgentPanelCollapsed: Bool
     let notificationColor: Color
     let palette: Palette
+    let paneChrome: PaneChromeConfiguration
     let agentPanelForksDown: Bool
     let agentPanelShortcutHint: String?
     let showsGlowingPaneRing: Bool
@@ -281,36 +314,100 @@ struct TerminalSplitTreeView: View {
     private static let agentPanelEdgePadding: CGFloat = 12
     private static let agentPanelCursorClearance: CGFloat = 12
 
-    private var unreadGlowShape: UnevenRoundedRectangle {
-      UnevenRoundedRectangle(
-        cornerRadii: outerEdges.cornerRadii(cornerRadius: TerminalChromeMetrics.paneCornerRadius),
+    private var paneShape: RoundedRectangle {
+      RoundedRectangle(
+        cornerRadius: isSplit ? TerminalChromeMetrics.paneCornerRadius : 0,
         style: .continuous
       )
     }
 
+    private var paneInsets: EdgeInsets {
+      guard isSplit else {
+        return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+      }
+      return outerEdges.paneInsets(
+        outer: TerminalChromeMetrics.paneInset,
+        inner: TerminalChromeMetrics.paneGap / 2
+      )
+    }
+
+    private var title: String {
+      surfaceView.resolvedDisplayTitle(
+        defaultValue: paneChrome.defaultTitles[surfaceView.id] ?? "Pane"
+      )
+    }
+
+    private var backgroundColor: Color {
+      Color(nsColor: surfaceView.bridge.state.effectiveBackgroundColorWithOpacity)
+    }
+
     var body: some View {
-      GeometryReader { geometry in
-        terminalContent(in: geometry)
-          .onChange(of: isUnread) { oldValue, newValue in
-            guard oldValue != newValue else { return }
-            updateNotificationPulse(
-              oldAttention: oldValue,
-              newAttention: newValue,
-              reduceMotion: reduceMotion
-            )
+      VStack(spacing: 0) {
+        TerminalPaneTopBar(
+          canEqualize: paneChrome.canEqualize,
+          isPaneZoomed: paneChrome.zoomedPaneID == surfaceView.id,
+          isSidebarCollapsed: paneChrome.isSidebarCollapsed,
+          showsSidebarAttentionIndicator: paneChrome.showsSidebarAttentionIndicator,
+          showsSidebarButton: paneChrome.sidebarPaneID == surfaceView.id,
+          palette: palette,
+          backgroundColor: backgroundColor,
+          paneID: surfaceView.id,
+          equalizePanes: {
+            action(.equalizePanes(surfaceView.id))
+          },
+          toggleSidebar: {
+            action(.toggleSidebar)
+          },
+          title: title,
+          splitDown: {
+            action(.splitPane(surfaceView.id, .vertical))
+          },
+          splitRight: {
+            action(.splitPane(surfaceView.id, .horizontal))
+          },
+          togglePaneZoom: {
+            action(.togglePaneZoom(surfaceView.id))
           }
-          .onChange(of: showsGlowingPaneRing) { _, isEnabled in
-            guard !isEnabled else { return }
-            cancelNotificationPulse()
-          }
-          .onChange(of: reduceMotion) { _, newValue in
-            guard newValue else { return }
-            cancelNotificationPulse()
-          }
-          .onDisappear {
-            surfaceView.bridge.clearMouseOverLink()
-            cancelNotificationPulse()
-          }
+        )
+
+        GeometryReader { geometry in
+          terminalContent(in: geometry)
+        }
+      }
+      .compositingGroup()
+      .clipShape(paneShape)
+      .shadow(
+        color: palette.detailShadow.opacity(isSplit ? 1 : 0),
+        radius: 2,
+        x: 0,
+        y: 1
+      )
+      .overlay {
+        unreadRingOverlay
+      }
+      .overlay {
+        notificationPulseOverlay
+      }
+      .padding(paneInsets)
+      .onChange(of: isUnread) { oldValue, newValue in
+        guard oldValue != newValue else { return }
+        updateNotificationPulse(
+          oldAttention: oldValue,
+          newAttention: newValue,
+          reduceMotion: reduceMotion
+        )
+      }
+      .onChange(of: showsGlowingPaneRing) { _, isEnabled in
+        guard !isEnabled else { return }
+        cancelNotificationPulse()
+      }
+      .onChange(of: reduceMotion) { _, newValue in
+        guard newValue else { return }
+        cancelNotificationPulse()
+      }
+      .onDisappear {
+        surfaceView.bridge.clearMouseOverLink()
+        cancelNotificationPulse()
       }
     }
 
@@ -321,12 +418,6 @@ struct TerminalSplitTreeView: View {
         }
         .background {
           unreadBackground
-        }
-        .overlay {
-          unreadRingOverlay
-        }
-        .overlay {
-          notificationPulseOverlay
         }
         .overlay {
           dropOverlay
@@ -468,14 +559,14 @@ struct TerminalSplitTreeView: View {
     }
 
     private var unreadBackground: some View {
-      unreadGlowShape
+      Rectangle()
         .fill(notificationColor.opacity(backgroundOpacity))
         .opacity(hasVisibleAttention ? 1 : 0)
         .allowsHitTesting(false)
     }
 
     private var unreadRingOverlay: some View {
-      unreadGlowShape
+      paneShape
         .strokeBorder(notificationColor.opacity(strokeOpacity), lineWidth: lineWidth)
         .shadow(color: notificationColor.opacity(shadowOpacity), radius: shadowRadius)
         .compositingGroup()
@@ -484,7 +575,7 @@ struct TerminalSplitTreeView: View {
     }
 
     private var notificationPulseOverlay: some View {
-      unreadGlowShape
+      paneShape
         .strokeBorder(
           notificationColor.opacity(notificationPulseOpacity),
           lineWidth: notificationPulseLineWidth
@@ -1087,7 +1178,7 @@ struct TerminalSplitDividerAXDescriptor: Equatable {
   }
 
   nonisolated func adjustedRatio(
-    step: CGFloat = TerminalSplitMetrics.minimumPaneSize,
+    step: CGFloat = TerminalSplitMetrics.dividerAdjustmentStep,
     incrementing: Bool
   ) -> Double {
     let splitDimension =
@@ -1097,7 +1188,12 @@ struct TerminalSplitDividerAXDescriptor: Equatable {
       }
     guard splitDimension > 0 else { return ratio }
     let delta = Double(step / splitDimension) * (incrementing ? 1 : -1)
-    let minimumRatio = min(0.5, Double(TerminalSplitMetrics.minimumPaneSize / splitDimension))
+    let minimumPaneSize =
+      switch direction {
+      case .horizontal: TerminalSplitMetrics.minimumPaneWidth
+      case .vertical: TerminalSplitMetrics.minimumPaneHeight
+      }
+    let minimumRatio = min(0.5, Double(minimumPaneSize / splitDimension))
     let maximumRatio = 1 - minimumRatio
     return max(minimumRatio, min(maximumRatio, ratio + delta))
   }
@@ -1212,11 +1308,13 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
+  let isSidebarCollapsed: Bool
   let notificationColor: Color
   let palette: Palette
   let agentPanelForksDown: Bool
   let agentPanelShortcutHint: String?
   let showsGlowingPaneRing: Bool
+  let showsSidebarAttentionIndicator: Bool
   let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
@@ -1237,11 +1335,13 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
         dimmingOpacity: dimmingOpacity,
         focusedSurfaceID: focusedSurfaceID,
         hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
+        isSidebarCollapsed: isSidebarCollapsed,
         notificationColor: notificationColor,
         palette: palette,
         agentPanelForksDown: agentPanelForksDown,
         agentPanelShortcutHint: agentPanelShortcutHint,
         showsGlowingPaneRing: showsGlowingPaneRing,
+        showsSidebarAttentionIndicator: showsSidebarAttentionIndicator,
         splitDividerColor: splitDividerColor,
         tree: tree,
         unreadSurfaceIDs: unreadSurfaceIDs,

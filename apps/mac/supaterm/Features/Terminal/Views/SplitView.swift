@@ -8,9 +8,15 @@ struct SplitView<L: View, R: View>: View {
   let right: R
   let onEqualize: () -> Void
   @Binding var split: CGFloat
-  private var minSize: CGFloat { TerminalSplitMetrics.minimumPaneSize }
-  private var splitterVisibleSize: CGFloat { TerminalSplitMetrics.dividerVisibleSize }
-  private var splitterInvisibleSize: CGFloat { TerminalSplitMetrics.dividerInvisibleSize }
+
+  private var preferredMinimumPaneSize: CGFloat {
+    switch direction {
+    case .horizontal:
+      TerminalSplitMetrics.minimumPaneWidth
+    case .vertical:
+      TerminalSplitMetrics.minimumPaneHeight
+    }
+  }
 
   var body: some View {
     GeometryReader { geo in
@@ -27,8 +33,9 @@ struct SplitView<L: View, R: View>: View {
           .offset(x: rightRect.origin.x, y: rightRect.origin.y)
         SplitDivider(
           direction: direction,
-          visibleSize: splitterVisibleSize,
-          invisibleSize: splitterInvisibleSize,
+          hitboxSize: TerminalSplitMetrics.dividerHitboxSize,
+          handleThickness: TerminalSplitMetrics.dividerHandleThickness,
+          handleLength: TerminalSplitMetrics.dividerHandleLength,
           color: dividerColor
         )
         .position(splitterPoint)
@@ -63,10 +70,20 @@ struct SplitView<L: View, R: View>: View {
       .onChanged { gesture in
         switch direction {
         case .horizontal:
-          let new = min(max(minSize, gesture.location.x), size.width - minSize)
+          guard size.width > 0 else { return }
+          let minimumPaneSize = min(preferredMinimumPaneSize, size.width / 2)
+          let new = min(
+            max(minimumPaneSize, gesture.location.x),
+            size.width - minimumPaneSize
+          )
           split = new / size.width
         case .vertical:
-          let new = min(max(minSize, gesture.location.y), size.height - minSize)
+          guard size.height > 0 else { return }
+          let minimumPaneSize = min(preferredMinimumPaneSize, size.height / 2)
+          let new = min(
+            max(minimumPaneSize, gesture.location.y),
+            size.height - minimumPaneSize
+          )
           split = new / size.height
         }
       }
@@ -77,11 +94,9 @@ struct SplitView<L: View, R: View>: View {
     switch direction {
     case .horizontal:
       result.size.width *= split
-      result.size.width -= splitterVisibleSize / 2
       result.size.width -= result.size.width.truncatingRemainder(dividingBy: resizeIncrements.width)
     case .vertical:
       result.size.height *= split
-      result.size.height -= splitterVisibleSize / 2
       result.size.height -= result.size.height.truncatingRemainder(
         dividingBy: resizeIncrements.height)
     }
@@ -93,11 +108,9 @@ struct SplitView<L: View, R: View>: View {
     switch direction {
     case .horizontal:
       result.origin.x += leftRect.size.width
-      result.origin.x += splitterVisibleSize / 2
       result.size.width -= result.origin.x
     case .vertical:
       result.origin.y += leftRect.size.height
-      result.origin.y += splitterVisibleSize / 2
       result.size.height -= result.origin.y
     }
     return result
@@ -119,20 +132,25 @@ struct SplitView<L: View, R: View>: View {
 
   private struct SplitDivider: View {
     let direction: Direction
-    let visibleSize: CGFloat
-    let invisibleSize: CGFloat
+    let hitboxSize: CGFloat
+    let handleThickness: CGFloat
+    let handleLength: CGFloat
     let color: Color
+
+    @State private var isHovering = false
 
     var body: some View {
       ZStack {
         Color.clear
           .frame(width: hitboxWidth, height: hitboxHeight)
           .contentShape(.rect)
-        Rectangle()
+        RoundedRectangle(cornerRadius: handleThickness / 2, style: .continuous)
           .fill(color)
-          .frame(width: visibleWidth, height: visibleHeight)
+          .frame(width: handleWidth, height: handleHeight)
+          .opacity(isHovering ? 1 : 0)
       }
       .pointerStyle(pointerStyle)
+      .onHover { isHovering = $0 }
     }
 
     private var pointerStyle: PointerStyle {
@@ -144,28 +162,28 @@ struct SplitView<L: View, R: View>: View {
       }
     }
 
-    private var visibleWidth: CGFloat? {
+    private var handleWidth: CGFloat? {
       switch direction {
       case .horizontal:
-        return visibleSize
+        return handleThickness
       case .vertical:
-        return nil
+        return handleLength
       }
     }
 
-    private var visibleHeight: CGFloat? {
+    private var handleHeight: CGFloat? {
       switch direction {
       case .horizontal:
-        return nil
+        return handleLength
       case .vertical:
-        return visibleSize
+        return handleThickness
       }
     }
 
     private var hitboxWidth: CGFloat? {
       switch direction {
       case .horizontal:
-        return visibleSize + invisibleSize
+        return hitboxSize
       case .vertical:
         return nil
       }
@@ -176,7 +194,7 @@ struct SplitView<L: View, R: View>: View {
       case .horizontal:
         return nil
       case .vertical:
-        return visibleSize + invisibleSize
+        return hitboxSize
       }
     }
   }

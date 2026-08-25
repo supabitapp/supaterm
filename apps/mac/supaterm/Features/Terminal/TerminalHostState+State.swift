@@ -95,16 +95,6 @@ extension TerminalHostState {
     )
   }
 
-  var selectedPaneDisplayTitle: String {
-    Self.selectedPaneDisplayTitle(
-      focusedSurfaceID: currentFocusedSurfaceID(),
-      in: selectedTree,
-      titleOverride: { $0.bridge.state.titleOverride },
-      title: { $0.bridge.state.title },
-      pwd: { $0.bridge.state.pwd }
-    )
-  }
-
   func contextSurfaceID(for tabID: TerminalTabID) -> UUID? {
     if let focusedSurfaceID = focusHistoryByTab[tabID]?.current, surfaces[focusedSurfaceID] != nil {
       return focusedSurfaceID
@@ -125,11 +115,7 @@ extension TerminalHostState {
 
   var terminalBackgroundColor: Color {
     if let selectedSurfaceState {
-      return Color(
-        nsColor: selectedSurfaceState.effectiveBackgroundColor.withAlphaComponent(
-          selectedSurfaceState.derivedConfig.backgroundOpacity
-        )
-      )
+      return Color(nsColor: selectedSurfaceState.effectiveBackgroundColorWithOpacity)
     }
     _ = runtimeConfigGeneration
     let config = runtime?.surfaceConfig() ?? GhosttySurfaceConfig()
@@ -199,28 +185,6 @@ extension TerminalHostState {
         .compactMap { surfaceID, notifications in
           Self.surfaceAttentionState(in: notifications) == .unread ? surfaceID : nil
         }
-    )
-  }
-
-  static func selectedPaneDisplayTitle<Surface: NSView & Identifiable>(
-    focusedSurfaceID: UUID?,
-    in tree: SplitTree<Surface>?,
-    titleOverride: (Surface) -> String?,
-    title: (Surface) -> String?,
-    pwd: (Surface) -> String?
-  ) -> String where Surface.ID == UUID {
-    let leaves = tree?.leaves() ?? []
-    guard
-      let surface = focusedSurfaceID.flatMap({ id in leaves.first(where: { $0.id == id }) })
-        ?? leaves.first
-    else {
-      return "Pane"
-    }
-    return resolvedPaneDisplayTitle(
-      titleOverride: titleOverride(surface),
-      title: title(surface),
-      pwd: pwd(surface),
-      defaultValue: paneFallbackTitle(for: surface.id, in: tree)
     )
   }
 

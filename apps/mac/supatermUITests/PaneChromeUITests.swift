@@ -4,8 +4,9 @@ import XCTest
 
 final class PaneChromeUITests: SupatermUITestCase {
   @MainActor
-  func testTopBarTitleFollowsFocusedPane() async throws {
+  func testEachPaneKeepsDedicatedTopBarTitle() async throws {
     let leftPane = try await requireVisiblePanes(count: 1)[0]
+    let leftToolbar = try paneToolbar(for: leftPane)
     leftPane.click()
     try await requireFocus(on: leftPane)
 
@@ -22,14 +23,24 @@ final class PaneChromeUITests: SupatermUITestCase {
     let didCollapseSidebar = await waitForSidebarCollapsed()
     XCTAssertTrue(didCollapseSidebar)
 
-    let didShowLeftTitle = await wait { self.app.staticTexts[leftTitle].exists }
+    let didShowLeftTitle = await wait { leftToolbar.staticTexts[leftTitle].exists }
     XCTAssertTrue(didShowLeftTitle)
 
-    let splitRightButton = try require(app.buttons["Split right"])
+    let splitRightButton = element("\(leftToolbar.identifier).split-right")
+    try require(splitRightButton)
     splitRightButton.click()
     let panes = try await requireVisiblePanes(count: 2)
+    let updatedLeftPane = try XCTUnwrap(panes.min { $0.frame.midX < $1.frame.midX })
     let rightPane = try XCTUnwrap(panes.max { $0.frame.midX < $1.frame.midX })
+    let updatedLeftToolbar = try paneToolbar(for: updatedLeftPane)
+    let rightToolbar = try paneToolbar(for: rightPane)
     try await requireFocus(on: rightPane)
+
+    XCTAssertEqual(
+      rightPane.frame.minX - updatedLeftPane.frame.maxX,
+      6,
+      accuracy: 1
+    )
 
     let rightTitle = "pane-title-R-\(UUID().uuidString.prefix(8))"
     rightPane.typeText("printf '\\033]0;\(rightTitle)\\007'; sleep 600\n")
@@ -38,26 +49,21 @@ final class PaneChromeUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didSetRightTitle)
 
-    let didShowRightTitle = await wait { self.app.staticTexts[rightTitle].exists }
+    let didShowRightTitle = await wait { rightToolbar.staticTexts[rightTitle].exists }
     XCTAssertTrue(didShowRightTitle)
-    let didHideLeftTitle = await wait { !self.app.staticTexts[leftTitle].exists }
-    XCTAssertTrue(didHideLeftTitle)
+    XCTAssertTrue(updatedLeftToolbar.staticTexts[leftTitle].exists)
 
-    leftPane.click()
-    try await requireFocus(on: leftPane)
-    let didRestoreLeftTitle = await wait { self.app.staticTexts[leftTitle].exists }
-    XCTAssertTrue(didRestoreLeftTitle)
-    let didHideRightTitle = await wait { !self.app.staticTexts[rightTitle].exists }
-    XCTAssertTrue(didHideRightTitle)
+    updatedLeftPane.click()
+    try await requireFocus(on: updatedLeftPane)
+    XCTAssertTrue(updatedLeftToolbar.staticTexts[leftTitle].exists)
+    XCTAssertTrue(rightToolbar.staticTexts[rightTitle].exists)
 
     rightPane.click()
     try await requireFocus(on: rightPane)
-    let didRestoreRightTitle = await wait { self.app.staticTexts[rightTitle].exists }
-    XCTAssertTrue(didRestoreRightTitle)
-    let didRemoveLeftTitle = await wait { !self.app.staticTexts[leftTitle].exists }
-    XCTAssertTrue(didRemoveLeftTitle)
+    XCTAssertTrue(updatedLeftToolbar.staticTexts[leftTitle].exists)
+    XCTAssertTrue(rightToolbar.staticTexts[rightTitle].exists)
 
-    leftPane.click()
+    updatedLeftPane.click()
     app.typeKey("c", modifierFlags: .control)
     rightPane.click()
     app.typeKey("c", modifierFlags: .control)
@@ -66,8 +72,9 @@ final class PaneChromeUITests: SupatermUITestCase {
   @MainActor
   func testTopBarRendersSplitButtonOverTerminalBackground() async throws {
     let pane = try await requireVisiblePanes(count: 1)[0]
+    let toolbar = try paneToolbar(for: pane)
 
-    let splitRightButton = app.buttons["Split right"]
+    let splitRightButton = element("\(toolbar.identifier).split-right")
     let didShowSplitRightButton = await wait(for: splitRightButton) {
       $0.exists && $0.isHittable
     }
@@ -97,6 +104,17 @@ final class PaneChromeUITests: SupatermUITestCase {
         && !spaceSwitcher.isHittable
     }
     XCTAssertTrue(didHideSidebarHeader)
+  }
+
+  @MainActor
+  private func paneToolbar(for pane: XCUIElement) throws -> XCUIElement {
+    let panePrefix = SupatermUITestIdentifier.Accessibility.terminalPanePrefix
+    let paneID = try XCTUnwrap(
+      pane.identifier.hasPrefix(panePrefix)
+        ? String(pane.identifier.dropFirst(panePrefix.count))
+        : nil
+    )
+    return element("\(SupatermUITestIdentifier.Accessibility.terminalPaneToolbarPrefix)\(paneID)")
   }
 
   private func imageMetrics(in image: NSImage) throws -> ImageMetrics {

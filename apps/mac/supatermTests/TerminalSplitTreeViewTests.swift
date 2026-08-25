@@ -35,11 +35,13 @@ struct TerminalSplitTreeViewTests {
       dimmingOpacity: 0,
       focusedSurfaceID: nil,
       hiddenAgentPanelSurfaceIDs: [],
+      isSidebarCollapsed: false,
       notificationColor: .clear,
       palette: Palette(colorScheme: .dark),
       agentPanelForksDown: false,
       agentPanelShortcutHint: nil,
       showsGlowingPaneRing: false,
+      showsSidebarAttentionIndicator: false,
       splitDividerColor: .clear,
       tree: SplitTree(),
       unreadSurfaceIDs: [],
@@ -405,14 +407,20 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func cornerRadiiKeepTopEdgeSquare() {
-    let radii = TerminalSplitTreeView.OuterEdges([.top, .bottom, .leading])
-      .cornerRadii(cornerRadius: 16)
+  func paneInsetsCreateSixPointHorizontalGap() {
+    let outerEdges: TerminalSplitTreeView.OuterEdges = .all
+    let leftInsets = outerEdges.child(.left, in: .horizontal).paneInsets(outer: 6, inner: 3)
+    let rightInsets = outerEdges.child(.right, in: .horizontal).paneInsets(outer: 6, inner: 3)
 
-    #expect(radii.topLeading == 0)
-    #expect(radii.bottomLeading == 16)
-    #expect(radii.topTrailing == 0)
-    #expect(radii.bottomTrailing == 0)
+    #expect(leftInsets.top == 6)
+    #expect(leftInsets.leading == 6)
+    #expect(leftInsets.bottom == 6)
+    #expect(leftInsets.trailing == 3)
+    #expect(rightInsets.top == 6)
+    #expect(rightInsets.leading == 3)
+    #expect(rightInsets.bottom == 6)
+    #expect(rightInsets.trailing == 6)
+    #expect(leftInsets.trailing + rightInsets.leading == 6)
   }
 
   @Test
@@ -457,8 +465,8 @@ struct TerminalSplitTreeViewTests {
         "Drag to resize the left and right panes",
         "Drag to resize the top and bottom panes",
       ])
-    #expect(descriptors[0].frameInParentSpace == CGRect(x: 96.5, y: 0, width: 7, height: 100))
-    #expect(descriptors[1].frameInParentSpace == CGRect(x: 100, y: 21.5, width: 100, height: 7))
+    #expect(descriptors[0].frameInParentSpace == CGRect(x: 95, y: 0, width: 10, height: 100))
+    #expect(descriptors[1].frameInParentSpace == CGRect(x: 100, y: 20, width: 100, height: 10))
   }
 
   @Test
@@ -467,12 +475,12 @@ struct TerminalSplitTreeViewTests {
       path: .root,
       direction: .horizontal,
       ratio: 0.5,
-      splitBounds: CGRect(x: 0, y: 0, width: 200, height: 100),
+      splitBounds: CGRect(x: 0, y: 0, width: 500, height: 100),
       frameInParentSpace: .zero
     )
 
-    #expect(descriptor.adjustedRatio(incrementing: true) == 0.55)
-    #expect(descriptor.adjustedRatio(incrementing: false) == 0.45)
+    #expect(descriptor.adjustedRatio(incrementing: true) == 0.52)
+    #expect(descriptor.adjustedRatio(incrementing: false) == 0.48)
   }
 
   @Test
@@ -480,12 +488,12 @@ struct TerminalSplitTreeViewTests {
     let descriptor = TerminalSplitDividerAXDescriptor(
       path: .root,
       direction: .horizontal,
-      ratio: 0.12,
-      splitBounds: CGRect(x: 0, y: 0, width: 80, height: 100),
+      ratio: 0.44,
+      splitBounds: CGRect(x: 0, y: 0, width: 500, height: 100),
       frameInParentSpace: .zero
     )
 
-    #expect(descriptor.adjustedRatio(incrementing: false) == 0.125)
-    #expect(descriptor.adjustedRatio(incrementing: true) == 0.245)
+    #expect(descriptor.adjustedRatio(incrementing: false) == 0.44)
+    #expect(descriptor.adjustedRatio(incrementing: true) == 0.46)
   }
 }

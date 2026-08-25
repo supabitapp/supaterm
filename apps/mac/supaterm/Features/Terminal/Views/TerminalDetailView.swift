@@ -12,202 +12,18 @@ struct TerminalDetailView: View {
   let selectedTabID: TerminalTabID
 
   var body: some View {
-    VStack(spacing: 0) {
-      TerminalDetailTopBar(
-        canEqualize: terminal.selectedTree?.isSplit ?? false,
-        canSplit: terminal.selectedSurfaceView != nil,
-        isPaneZoomed: terminal.selectedPaneIsZoomed,
-        isSidebarCollapsed: store.isSidebarCollapsed,
-        showsSidebarAttentionIndicator: store.isSidebarCollapsed
-          && terminal.hasUnreadSidebarNotifications,
-        palette: palette,
-        backgroundColor: terminal.terminalBackgroundColor,
-        equalizePanes: {
-          _ = terminal.performBindingActionOnFocusedSurface(.equalizeSplits)
-        },
-        toggleSidebar: {
-          _ = store.send(.toggleSidebarButtonTapped)
-        },
-        title: terminal.selectedPaneDisplayTitle,
-        splitDown: {
-          _ = terminal.performBindingActionOnFocusedSurface(.newSplit(.down))
-        },
-        splitRight: {
-          _ = terminal.performBindingActionOnFocusedSurface(.newSplit(.right))
-        },
-        togglePaneZoom: {
-          _ = terminal.performBindingActionOnFocusedSurface(.toggleSplitZoom)
-        }
-      )
-      TerminalDetailSurface(
-        store: store,
-        dimmingColor: terminal.unfocusedSplitDimmingColor,
-        dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
-        focusedSurfaceID: terminal.currentFocusedSurfaceID(),
-        notificationColor: terminal.notificationAttentionColor,
-        palette: palette,
-        showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
-        splitDividerColor: terminal.splitDividerColor,
-        terminal: terminal,
-        selectedTabID: selectedTabID
-      )
-    }
-    .compositingGroup()
-    .containerShape(TerminalChromeMetrics.paneShape)
-    .terminalDetailPaneChrome(palette: palette)
-  }
-}
-
-private struct TerminalDetailTopBar: View {
-  let canEqualize: Bool
-  let canSplit: Bool
-  let isPaneZoomed: Bool
-  let isSidebarCollapsed: Bool
-  let showsSidebarAttentionIndicator: Bool
-  let palette: Palette
-  let backgroundColor: Color
-  let equalizePanes: () -> Void
-  let toggleSidebar: () -> Void
-  let title: String
-  let splitDown: () -> Void
-  let splitRight: () -> Void
-  let togglePaneZoom: () -> Void
-
-  private var sidebarAccessibilityLabel: String {
-    if showsSidebarAttentionIndicator {
-      return "Show sidebar, unread notifications"
-    }
-    return isSidebarCollapsed ? "Show sidebar" : "Hide sidebar"
-  }
-
-  var body: some View {
-    HStack(spacing: 0) {
-      ToolbarIconButton(
-        symbol: "sidebar.left",
-        palette: palette,
-        accessibilityLabel: sidebarAccessibilityLabel,
-        showsAttentionIndicator: showsSidebarAttentionIndicator,
-        action: toggleSidebar
-      )
-      .help(isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar")
-
-      Text(title)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(palette.primaryText)
-        .lineLimit(1)
-        .truncationMode(.middle)
-        .padding(.leading, 8)
-
-      Spacer(minLength: 8)
-      HStack(spacing: 4) {
-        ToolbarIconButton(
-          symbol: "square.split.2x1",
-          palette: palette,
-          accessibilityLabel: "Split right",
-          action: splitRight
-        )
-        .help("Split Right")
-        .disabled(!canSplit)
-        .opacity(canSplit ? 1 : 0.45)
-
-        ToolbarIconButton(
-          symbol: "square.split.1x2",
-          palette: palette,
-          accessibilityLabel: "Split down",
-          action: splitDown
-        )
-        .help("Split Down")
-        .disabled(!canSplit)
-        .opacity(canSplit ? 1 : 0.45)
-
-        ToolbarIconButton(
-          symbol: "equal.square",
-          palette: palette,
-          accessibilityLabel: "Equalize panes",
-          action: equalizePanes
-        )
-        .help("Equalize Panes")
-        .disabled(!canEqualize)
-        .opacity(canEqualize ? 1 : 0.45)
-
-        if canEqualize {
-          SplitZoomButton(
-            isPaneZoomed: isPaneZoomed,
-            palette: palette,
-            action: togglePaneZoom
-          )
-        }
-      }
-    }
-    .padding(.leading, 8)
-    .padding(.trailing, 4)
-    .frame(
-      maxWidth: .infinity,
-      minHeight: TerminalChromeMetrics.detailToolbarHeight,
-      maxHeight: TerminalChromeMetrics.detailToolbarHeight,
-      alignment: .leading
+    TerminalDetailSurface(
+      store: store,
+      dimmingColor: terminal.unfocusedSplitDimmingColor,
+      dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
+      focusedSurfaceID: terminal.currentFocusedSurfaceID(),
+      notificationColor: terminal.notificationAttentionColor,
+      palette: palette,
+      showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
+      splitDividerColor: terminal.splitDividerColor,
+      terminal: terminal,
+      selectedTabID: selectedTabID
     )
-    .background {
-      Rectangle()
-        .fill(backgroundColor)
-    }
-    .overlay(alignment: .bottom) {
-      Rectangle()
-        .fill(palette.detailStroke)
-        .frame(height: 1)
-    }
-  }
-}
-
-private struct SplitZoomButton: View {
-  let isPaneZoomed: Bool
-  let palette: Palette
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  private var symbol: String {
-    isPaneZoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
-  }
-
-  private var helpText: String {
-    isPaneZoomed ? "Reset Split Zoom" : "Zoom Split"
-  }
-
-  private var accessibilityLabel: String {
-    isPaneZoomed ? "Reset split zoom" : "Zoom split"
-  }
-
-  var body: some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(
-          isPaneZoomed
-            ? palette.accent
-            : isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
-        )
-        .frame(width: 30, height: 30)
-        .background(
-          isPaneZoomed
-            ? palette.accent.opacity(isHovering ? 0.18 : 0.12)
-            : isHovering ? palette.secondaryText.opacity(0.2) : .clear,
-          in: TerminalChromeMetrics.detailToolbarControlShape
-        )
-        .overlay {
-          if isPaneZoomed {
-            TerminalChromeMetrics.detailToolbarControlShape.stroke(
-              palette.accent.opacity(isHovering ? 0.32 : 0.22),
-              lineWidth: 1
-            )
-          }
-        }
-        .accessibilityHidden(true)
-    }
-    .buttonStyle(.plain)
-    .help(helpText)
-    .accessibilityLabel(accessibilityLabel)
-    .onHover { isHovering = $0 }
   }
 }
 
@@ -262,11 +78,14 @@ private struct TerminalSurfacePaneView: View {
       dimmingOpacity: dimmingOpacity,
       focusedSurfaceID: focusedSurfaceID,
       hiddenAgentPanelSurfaceIDs: store.hiddenAgentPanelSurfaceIDs,
+      isSidebarCollapsed: store.isSidebarCollapsed,
       notificationColor: notificationColor,
       palette: palette,
       agentPanelForksDown: agentPanelForksDown,
       agentPanelShortcutHint: agentPanelShortcutHint,
       showsGlowingPaneRing: showsGlowingPaneRing,
+      showsSidebarAttentionIndicator: store.isSidebarCollapsed
+        && terminal.hasUnreadSidebarNotifications,
       splitDividerColor: splitDividerColor,
       tree: terminal.splitTree(for: tabID),
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
@@ -293,6 +112,19 @@ private struct TerminalSurfacePaneView: View {
         _ = store.send(.agentPanelVisibilityToggled(surfaceID))
       case .agentPanelURLTapped(let url):
         _ = store.send(.agentPanelURLTapped(url))
+      case .equalizePanes(let surfaceID):
+        _ = terminal.performSplitAction(.equalizeSplits, for: surfaceID)
+      case .splitPane(let surfaceID, let direction):
+        let splitDirection: GhosttySplitAction.NewDirection =
+          switch direction {
+          case .horizontal: .right
+          case .vertical: .down
+          }
+        _ = terminal.performSplitAction(.newSplit(direction: splitDirection), for: surfaceID)
+      case .togglePaneZoom(let surfaceID):
+        _ = terminal.performSplitAction(.toggleSplitZoom, for: surfaceID)
+      case .toggleSidebar:
+        _ = store.send(.toggleSidebarButtonTapped)
       case .resize, .drop, .equalize:
         AppPostHog.capture("terminal_pane_created")
         terminal.performSplitOperation(operation, in: tabID)

@@ -3,21 +3,21 @@ import SupaTheme
 import SwiftUI
 
 enum TerminalSplitMetrics {
-  nonisolated static let minimumPaneSize: CGFloat = 10
-  nonisolated static let dividerVisibleSize: CGFloat = 1
-  nonisolated static let dividerInvisibleSize: CGFloat = 6
-  nonisolated static let dividerHitboxSize: CGFloat = dividerVisibleSize + dividerInvisibleSize
+  nonisolated static let minimumPaneWidth: CGFloat = 220
+  nonisolated static let minimumPaneHeight: CGFloat = 80
+  nonisolated static let dividerHitboxSize: CGFloat = 10
+  nonisolated static let dividerHandleThickness: CGFloat = 2
+  nonisolated static let dividerHandleLength: CGFloat = 24
+  nonisolated static let dividerAdjustmentStep: CGFloat = 10
 }
 
 enum TerminalChromeMetrics {
   nonisolated static let paneInset: CGFloat = 6
+  nonisolated static let paneGap: CGFloat = 6
   static let paneCornerRadius: CGFloat = 12
   nonisolated static let detailToolbarHeight: CGFloat = 36
   static var detailToolbarControlShape: ConcentricRectangle {
     ConcentricRectangle(corners: .concentric(minimum: 6))
-  }
-  static var paneShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: paneCornerRadius, style: .continuous)
   }
 }
 
@@ -84,15 +84,6 @@ struct TerminalSidebarSurfaceShell<Content: View>: View {
       cornerRadius: isFloating ? TerminalFloatingSidebarShellMetrics.cornerRadius : 0,
       style: .continuous
     )
-  }
-}
-
-extension View {
-  func terminalDetailPaneChrome(palette: Palette) -> some View {
-    self
-      .clipShape(TerminalChromeMetrics.paneShape)
-      .shadow(color: palette.detailShadow, radius: 2, x: 0, y: 1)
-      .padding(TerminalChromeMetrics.paneInset)
   }
 }
 

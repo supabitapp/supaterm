@@ -116,60 +116,6 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
-  func selectedPaneDisplayTitleFallsBackToFocusedPaneOrdinal() throws {
-    let first = PaneTitleTestView()
-    let second = PaneTitleTestView()
-    let tree = try SplitTree(view: first)
-      .inserting(view: second, at: first, direction: .right)
-
-    let title = TerminalHostState.selectedPaneDisplayTitle(
-      focusedSurfaceID: second.id,
-      in: tree,
-      titleOverride: \.titleOverride,
-      title: \.paneTitle,
-      pwd: \.workingDirectory
-    )
-
-    #expect(title == "Pane 2")
-  }
-
-  @Test
-  func selectedPaneDisplayTitleUsesFocusedPaneWhenAvailable() throws {
-    let first = PaneTitleTestView(paneTitle: "shell")
-    let second = PaneTitleTestView(titleOverride: "logs", paneTitle: "shell")
-    let tree = try SplitTree(view: first)
-      .inserting(view: second, at: first, direction: .right)
-
-    let title = TerminalHostState.selectedPaneDisplayTitle(
-      focusedSurfaceID: second.id,
-      in: tree,
-      titleOverride: \.titleOverride,
-      title: \.paneTitle,
-      pwd: \.workingDirectory
-    )
-
-    #expect(title == "logs")
-  }
-
-  @Test
-  func selectedPaneDisplayTitleFallsBackToLeftmostPaneWhenFocusIsUnset() throws {
-    let first = PaneTitleTestView(paneTitle: "shell")
-    let second = PaneTitleTestView(paneTitle: "logs")
-    let tree = try SplitTree(view: first)
-      .inserting(view: second, at: first, direction: .right)
-
-    let title = TerminalHostState.selectedPaneDisplayTitle(
-      focusedSurfaceID: nil,
-      in: tree,
-      titleOverride: \.titleOverride,
-      title: \.paneTitle,
-      pwd: \.workingDirectory
-    )
-
-    #expect(title == "shell")
-  }
-
-  @Test
   func paneWorkingDirectoriesDedupeNormalizedPathsInPaneOrder() throws {
     let home = FileManager.default.homeDirectoryForCurrentUser.path
     let first = PaneTitleTestView(workingDirectory: "\(home)/Downloads/")
@@ -190,17 +136,9 @@ struct TerminalHostStateTitleTests {
 
 private final class PaneTitleTestView: NSView, Identifiable {
   let id = UUID()
-  let titleOverride: String?
-  let paneTitle: String?
   let workingDirectory: String?
 
-  init(
-    titleOverride: String? = nil,
-    paneTitle: String? = nil,
-    workingDirectory: String? = nil
-  ) {
-    self.titleOverride = titleOverride
-    self.paneTitle = paneTitle
+  init(workingDirectory: String? = nil) {
     self.workingDirectory = workingDirectory
     super.init(frame: .zero)
   }

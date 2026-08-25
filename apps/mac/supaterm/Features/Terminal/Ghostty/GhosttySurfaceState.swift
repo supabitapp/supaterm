@@ -49,6 +49,10 @@ final class GhosttySurfaceState {
     oscBackgroundColor ?? derivedConfig.backgroundColor
   }
 
+  var effectiveBackgroundColorWithOpacity: NSColor {
+    effectiveBackgroundColor.withAlphaComponent(derivedConfig.backgroundOpacity)
+  }
+
   var progressStyleEnabled: Bool {
     derivedConfig.progressStyleEnabled
   }

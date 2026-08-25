@@ -643,7 +643,11 @@ final class TerminalHostState {
     case .agentPanelCopyText,
       .agentPanelForkSessionRequested,
       .agentPanelVisibilityToggled,
-      .agentPanelURLTapped:
+      .agentPanelURLTapped,
+      .equalizePanes,
+      .splitPane,
+      .togglePaneZoom,
+      .toggleSidebar:
       break
     }
   }
