@@ -19,17 +19,17 @@ extension SupatermE2ESuite {
       let pane = try #require(tab.panes.first)
       let runner = SPBinaryRunner(app: app, tabID: tab.id, paneID: pane.id)
 
-      let free = try licenseStatus(runner)
+      let free = try licenseStatus(runner, app: app)
       #expect(free.mode == .free)
 
       for _ in free.openTabCount..<5 {
         _ = try requireSuccessfulSPResult(
-          try runner.run(["tab", "new", "--in", initial.id.uuidString, "--json"])
+          try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
         )
       }
 
       let blocked = try requireFailedSPResult(
-        try runner.run(["tab", "new", "--in", initial.id.uuidString, "--json"])
+        try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
       )
       #expect(blocked.stderr.contains("sp license activate"))
 
@@ -37,7 +37,7 @@ extension SupatermE2ESuite {
         SupatermLicenseStatusResult.self,
         from: try requireSuccessfulSPResult(
           try runner.run(
-            ["license", "activate", "--json"],
+            targeting(["license", "activate"], app: app),
             stdin: Data("\(testLicenseKey)\n".utf8)
           )
         )
@@ -46,20 +46,20 @@ extension SupatermE2ESuite {
       #expect(activated.updatesThrough == "9999-12-31")
 
       _ = try requireSuccessfulSPResult(
-        try runner.run(["tab", "new", "--in", initial.id.uuidString, "--json"])
+        try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
       )
 
       let deactivated = try decodeSPJSON(
         SupatermLicenseStatusResult.self,
         from: try requireSuccessfulSPResult(
-          try runner.run(["license", "deactivate", "--json"])
+          try runner.run(targeting(["license", "deactivate"], app: app))
         )
       )
       #expect(deactivated.mode == .free)
       #expect(deactivated.openTabCount == 6)
 
       _ = try requireFailedSPResult(
-        try runner.run(["tab", "new", "--in", initial.id.uuidString, "--json"])
+        try runner.run(targeting(["tab", "new", "--in", initial.id.uuidString], app: app))
       )
     }
   }
@@ -68,9 +68,18 @@ extension SupatermE2ESuite {
 private let testLicenseKey =
   "SUPATERM-AAAAAAAAAAAAAAAAAAAAAAAAAA-AAAAAAAAAAAAAAAAAAAAAAAAAA"
 
-private func licenseStatus(_ runner: SPBinaryRunner) throws -> SupatermLicenseStatusResult {
+private func licenseStatus(
+  _ runner: SPBinaryRunner,
+  app: SupatermE2EApp
+) throws -> SupatermLicenseStatusResult {
   try decodeSPJSON(
     SupatermLicenseStatusResult.self,
-    from: try requireSuccessfulSPResult(try runner.run(["license", "status", "--json"]))
+    from: try requireSuccessfulSPResult(
+      try runner.run(targeting(["license", "status"], app: app))
+    )
   )
+}
+
+private func targeting(_ arguments: [String], app: SupatermE2EApp) -> [String] {
+  arguments + ["--socket", app.socketPath, "--json"]
 }
