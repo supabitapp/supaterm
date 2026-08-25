@@ -39,7 +39,11 @@ final class TerminalSidebarPinnedControlHost {
   }
 
   func layout(in frame: CGRect) {
-    guard view.frame != frame else { return }
-    view.frame = frame
+    var resolvedFrame = frame
+    if view.isHidden {
+      resolvedFrame.size.height = view.frame.height
+    }
+    guard view.frame != resolvedFrame else { return }
+    view.frame = resolvedFrame
   }
 }

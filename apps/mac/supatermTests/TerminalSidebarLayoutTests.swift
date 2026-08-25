@@ -227,6 +227,26 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func hiddenPinnedControlKeepsItsLaidOutHeight() {
+    let host = TerminalSidebarPinnedControlHost(
+      draggingUpdated: { _ in [] },
+      draggingExited: {},
+      draggingEnded: {},
+      prepareForDragOperation: { _ in false },
+      performDragOperation: { _ in false }
+    )
+    let pinnedFrame = CGRect(x: 0, y: 0, width: 280, height: 40)
+    let hiddenFrame = CGRect(x: 0, y: 0, width: 280, height: 0)
+
+    #expect(host.setPinned(true))
+    host.layout(in: pinnedFrame)
+    #expect(host.setPinned(false))
+    host.layout(in: hiddenFrame)
+
+    #expect(host.view.frame == pinnedFrame)
+  }
+
+  @Test
   func newTabFlowsUntilItCrossesTheVisibleBottom() {
     let visibleRect = CGRect(x: 0, y: 0, width: 280, height: 180)
     let inlineFrame = CGRect(x: 0, y: 120, width: 280, height: 37)
