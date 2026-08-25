@@ -142,10 +142,13 @@ describe("router", () => {
     expect(clipboardWriteText).toHaveBeenCalledWith(homebrewInstallCommand);
   });
 
-  it("offers a perpetual license through the purchase checkout", async () => {
+  it("offers a trial and a perpetual license through the purchase checkout", async () => {
     await renderRoute("/");
 
     expect(screen.getByRole("heading", { name: "Pay once, use Supaterm forever." })).toBeTruthy();
+    expect(screen.getByText("Trial")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download trial" })).toBeTruthy();
+    expect(screen.queryByText("Free")).toBeNull();
     expect(
       screen.getByText("No recurring charge. Tax may apply. Seven-day refund period."),
     ).toBeTruthy();

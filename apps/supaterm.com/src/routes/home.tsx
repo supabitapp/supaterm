@@ -21,7 +21,7 @@ type FeatureSection = {
 const homebrewInstallCommand = "brew install supaterm";
 const skillsCommand = "npx skills add supabitapp/supaterm-skills";
 const purchaseAction = "https://license.supaterm.com/checkout/purchase";
-const freeFeatures = [
+const trialFeatures = [
   "Up to five open tabs",
   "Panes do not count toward the limit",
   "No account required",
@@ -374,18 +374,18 @@ function HomePage() {
               Pay once, use Supaterm forever.
             </h2>
             <p className="mx-auto mt-6 max-w-[38rem] text-base leading-7 text-white/62 md:text-lg">
-              Start free. Buy a personal license when you need more than five open tabs.
+              Start with the trial. Buy a personal license when you need more than five open tabs.
             </p>
           </div>
 
           <div className="supaterm-reveal mx-auto mt-12 grid max-w-[900px] gap-5 md:grid-cols-2">
             <article className="flex flex-col rounded-[18px] border border-white/10 bg-white/[0.025] p-7 md:p-9">
-              <div className="text-sm font-medium text-white/48">Free</div>
+              <div className="text-sm font-medium text-white/48">Trial</div>
               <div className="mt-4 text-5xl font-medium tracking-[-0.05em] text-[#f4f0e8]">$0</div>
               <p className="mt-4 min-h-14 text-base leading-7 text-white/58">
-                Use Supaterm without an account or license.
+                Try Supaterm without an account or license.
               </p>
-              <PricingFeatures features={freeFeatures} />
+              <PricingFeatures features={trialFeatures} />
               <CtaLink
                 href={downloadHref}
                 icon="download"
@@ -395,7 +395,7 @@ function HomePage() {
                 className="mt-10 h-14 w-full rounded-full border-white/12 bg-white/6 px-8 text-base text-white/88 hover:border-white/18 hover:bg-white/10"
                 variant="outline"
               >
-                Download for free
+                Download trial
               </CtaLink>
             </article>
 

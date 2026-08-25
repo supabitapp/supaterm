@@ -30,7 +30,7 @@ function TermsPage() {
       <section>
         <h2>The product</h2>
         <p>
-          Supaterm is macOS software. Free mode supports up to five open tabs. A paid personal
+          Supaterm is macOS software. The trial supports up to five open tabs. A paid personal
           license removes that limit on one Mac at a time. You may deactivate it and move it to
           another Mac.
         </p>
@@ -155,10 +155,8 @@ function RefundsPage() {
         <h2>Seven-day refund</h2>
         <p>
           You may request a full refund of the initial Supaterm license purchase within seven days
-          of payment. Sign in through{" "}
-          <a href="https://license.supaterm.com/login">Manage licenses</a>
-          to request it, or email <a href={contactHref}>license@supaterm.com</a> from the address
-          used at checkout.
+          of payment. Email <a href={contactHref}>license@supaterm.com</a> from the address used at
+          checkout.
         </p>
       </section>
       <section>
