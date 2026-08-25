@@ -40,7 +40,8 @@ extension SupatermE2ESuite {
           ["license", "activate"],
           runner: runner,
           app: app,
-          stdin: Data("\(testLicenseKey)\n".utf8)
+          stdin: Data("\(testLicenseKey)\n".utf8),
+          timeout: licenseCommandTimeout
         )
       )
       #expect(activated.mode == .paid)
@@ -53,7 +54,8 @@ extension SupatermE2ESuite {
         from: try runSuccessfulSP(
           ["license", "deactivate"],
           runner: runner,
-          app: app
+          app: app,
+          timeout: licenseCommandTimeout
         )
       )
       #expect(deactivated.mode == .free)
@@ -80,7 +82,8 @@ private func licenseStatus(
     from: try runSuccessfulSP(
       ["license", "status"],
       runner: runner,
-      app: app
+      app: app,
+      timeout: licenseCommandTimeout
     )
   )
 }
@@ -105,16 +108,23 @@ private func runSuccessfulSP(
   _ arguments: [String],
   runner: SPBinaryRunner,
   app: SupatermE2EApp,
-  stdin: Data? = nil
+  stdin: Data? = nil,
+  timeout: TimeInterval = 10
 ) throws -> SPBinaryResult {
   do {
     return try requireSuccessfulSPResult(
-      try runner.run(targeting(arguments, app: app), stdin: stdin)
+      try runner.run(
+        targeting(arguments, app: app),
+        stdin: stdin,
+        timeout: timeout
+      )
     )
   } catch {
     throw SupatermE2EError("sp \(arguments.joined(separator: " ")) failed: \(error)")
   }
 }
+
+private let licenseCommandTimeout = SupatermLicenseTiming.clientResponseTimeout + 5
 
 private func runFailedSP(
   _ arguments: [String],
