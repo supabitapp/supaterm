@@ -334,6 +334,9 @@ describe("worker", () => {
     expect(assetsFetch).toHaveBeenCalledTimes(1);
     expect(response.headers.get("cache-control")).toBeNull();
     expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
+    expect(response.headers.get("content-security-policy")).toContain(
+      "form-action 'self' https://license.supaterm.com https://checkout.stripe.com",
+    );
     expect(response.headers.get("strict-transport-security")).toBe(
       "max-age=31536000; includeSubDomains",
     );

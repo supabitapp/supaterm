@@ -72,7 +72,7 @@ const noStoreCacheControl = "no-store";
 const downloadCacheHeader = "x-supaterm-cache";
 const siteHeaders = {
   "content-security-policy":
-    "default-src 'self'; base-uri 'none'; connect-src 'self' https://p.supaterm.com wss://p.supaterm.com; font-src 'self'; form-action 'self' https://license.supaterm.com; frame-ancestors 'none'; img-src 'self' data:; media-src 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; upgrade-insecure-requests",
+    "default-src 'self'; base-uri 'none'; connect-src 'self' https://p.supaterm.com wss://p.supaterm.com; font-src 'self'; form-action 'self' https://license.supaterm.com https://checkout.stripe.com; frame-ancestors 'none'; img-src 'self' data:; media-src 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; upgrade-insecure-requests",
   "permissions-policy": "camera=(), geolocation=(), microphone=()",
   "referrer-policy": "strict-origin-when-cross-origin",
   "strict-transport-security": "max-age=31536000; includeSubDomains",
