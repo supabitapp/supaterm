@@ -151,7 +151,7 @@ extension TerminalHostState {
   ) throws -> SupatermRemoveProjectResult {
     let id = TerminalProjectID(rawValue: request.target.projectID)
     let tabIDs = spaceManager.instances.flatMap { instance in
-      instance.tabCollection.canonicalTabs.compactMap { $0.projectID == id ? $0.id : nil }
+      instance.tabCollection.canonicalTabs.filter { $0.projectID == id }.map(\.id)
     }
     guard tabIDs.isEmpty || request.confirmed else {
       throw TerminalControlError.projectCloseConfirmationRequired
@@ -168,14 +168,6 @@ extension TerminalHostState {
     guard let project = projectCatalog.projects.first(where: { $0.id == id }) else {
       throw TerminalControlError.projectNotFound(id.rawValue)
     }
-    return SupatermProjectMutationResult(
-      project: SupatermSnapshotProject(
-        color: project.color.socketColor,
-        id: project.id.rawValue,
-        isPinned: project.isPinned,
-        name: project.name,
-        rootPath: project.rootPath
-      )
-    )
+    return SupatermProjectMutationResult(project: project.socketSnapshot)
   }
 }

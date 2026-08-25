@@ -121,11 +121,8 @@ nonisolated struct TerminalProjectCatalog: Equatable, Codable, Sendable {
     guard lane.indices.contains(laneIndex), sourceLaneIndex != laneIndex else { return false }
     let project = projects.remove(at: sourceIndex)
     let pinnedCount = projects.prefix(while: \.isPinned).count
-    let destinationIndex =
-      isPinned
-      ? laneIndex
-      : pinnedCount + laneIndex
-    projects.insert(project, at: destinationIndex)
+    let laneStartIndex = isPinned ? 0 : pinnedCount
+    projects.insert(project, at: laneStartIndex + laneIndex)
     return true
   }
 

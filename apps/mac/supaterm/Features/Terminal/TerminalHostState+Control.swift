@@ -76,15 +76,7 @@ extension TerminalHostState {
   }
 
   private var projectSnapshots: [SupatermSnapshotProject] {
-    projectCatalog.projects.map {
-      SupatermSnapshotProject(
-        color: $0.color.socketColor,
-        id: $0.id.rawValue,
-        isPinned: $0.isPinned,
-        name: $0.name,
-        rootPath: $0.rootPath
-      )
-    }
+    projectCatalog.projects.map(\.socketSnapshot)
   }
 
   private func tabItemSnapshot(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {

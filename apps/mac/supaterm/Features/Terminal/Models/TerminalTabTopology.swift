@@ -77,9 +77,10 @@ struct TerminalTabTopology: Equatable {
       )
       pinnedTabIDs = result.pinnedTabs.map(\.id)
       regularTabIDs = result.regularTabs.map(\.id)
+      let pinnedTabIDSet = Set(pinnedTabIDs)
       for record in result.pinnedTabs + result.regularTabs {
         tabsByID[record.id]?.projectID = record.projectID
-        tabsByID[record.id]?.isPinned = result.pinnedTabs.contains { $0.id == record.id }
+        tabsByID[record.id]?.isPinned = pinnedTabIDSet.contains(record.id)
       }
     } catch SupatermProjectTabMoveError.unknownProject {
       throw TerminalTabMoveError.staleProjects

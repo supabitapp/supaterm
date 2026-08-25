@@ -185,11 +185,8 @@ extension SP {
       )
       let snapshot = try treeSnapshot(client)
       let target = try resolvePublicProjectTargetRequest(project, snapshot: snapshot)
-      let assignedTabCount = snapshot.windows.reduce(0) { count, window in
-        count
-          + window.spaces.reduce(0) { spaceCount, space in
-            spaceCount + space.tabs.count { $0.projectID == target.projectID }
-          }
+      let assignedTabCount = snapshot.windows.flatMap(\.spaces).flatMap(\.tabs).count {
+        $0.projectID == target.projectID
       }
       var confirmed = yes || assignedTabCount == 0
       if !confirmed {
@@ -264,10 +261,18 @@ extension SP {
           let projectID = try project.map {
             try resolvePublicProjectTargetRequest($0, snapshot: snapshot).projectID
           }
+          let isPinned: Bool
+          if pin {
+            isPinned = true
+          } else if unpin {
+            isPinned = false
+          } else {
+            isPinned = current.isPinned
+          }
           return try .moveTab(
             SupatermMoveTabRequest(
               index: index,
-              isPinned: pin ? true : (unpin ? false : current.isPinned),
+              isPinned: isPinned,
               projectID: projectID,
               target: target
             )

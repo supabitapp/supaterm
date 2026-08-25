@@ -309,14 +309,6 @@ extension TerminalWindowRegistry {
     guard let project = projectCatalog.projects.first(where: { $0.id == projectID }) else {
       throw TerminalControlError.projectNotFound(projectID.rawValue)
     }
-    return SupatermProjectMutationResult(
-      project: SupatermSnapshotProject(
-        color: project.color.socketColor,
-        id: project.id.rawValue,
-        isPinned: project.isPinned,
-        name: project.name,
-        rootPath: project.rootPath
-      )
-    )
+    return SupatermProjectMutationResult(project: project.socketSnapshot)
   }
 }

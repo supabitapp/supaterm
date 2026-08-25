@@ -70,10 +70,6 @@ struct TerminalSidebarOutline: Equatable {
       case .unassigned: .unassigned
       }
     }
-
-    var entryID: TerminalSidebarEntryID {
-      id
-    }
   }
 
   let roots: [Root]
@@ -166,19 +162,17 @@ struct TerminalSidebarOutline: Equatable {
           )
         )
         guard !isCollapsed else { continue }
-        if !tabIDs.isEmpty {
-          entries.append(
-            contentsOf: tabIDs.map {
-              TerminalSidebarEntry(
-                kind: .tab(
-                  $0,
-                  parentProjectID: id,
-                  rootIsPinned: pinnedTabIDs.contains($0)
-                )
+        entries.append(
+          contentsOf: tabIDs.map {
+            TerminalSidebarEntry(
+              kind: .tab(
+                $0,
+                parentProjectID: id,
+                rootIsPinned: pinnedTabIDs.contains($0)
               )
-            }
-          )
-        }
+            )
+          }
+        )
       case .unassigned(let tabIDs):
         entries.append(
           TerminalSidebarEntry(kind: .unassigned(isCollapsed: isUnassignedCollapsed))
@@ -289,9 +283,7 @@ struct TerminalSidebarOutline: Equatable {
     guard let root = project(id), case .project(_, _, let tabIDs) = root.content else { return [] }
     var ids: [TerminalSidebarEntryID] = [.project(id)]
     guard !collapsedProjectIDs.contains(id) else { return ids }
-    if !tabIDs.isEmpty {
-      ids.append(contentsOf: tabIDs.map(TerminalSidebarEntryID.tab))
-    }
+    ids.append(contentsOf: tabIDs.map(TerminalSidebarEntryID.tab))
     return ids
   }
 }
@@ -414,35 +406,26 @@ struct TerminalSidebarDropPlan: Equatable {
   }
 
   func command(for payload: TerminalSidebarDragPayload) -> TerminalSidebarDropCommand? {
+    let resolvedDestination: TerminalTabPlacement
     switch destination {
     case .root(let isPinned, let index):
-      return TerminalSidebarDropCommand(
-        operationID: payload.operationID,
-        topologyStamp: payload.topologyStamp,
-        itemIDs: payload.source.itemIDs,
-        destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index)),
-        preservesPinLanes: preservesPinLanes
-      )
+      resolvedDestination = .root(TerminalRootPlacement(isPinned: isPinned, index: index))
     case .project(let projectID, let index):
       guard case .tabs = payload.source else { return nil }
-      return TerminalSidebarDropCommand(
-        operationID: payload.operationID,
-        topologyStamp: payload.topologyStamp,
-        itemIDs: payload.source.itemIDs,
-        destination: placement ?? .project(projectID, index: index),
-        preservesPinLanes: preservesPinLanes
-      )
+      resolvedDestination = placement ?? .project(projectID, index: index)
     case .unassigned(let index):
       guard case .tabs = payload.source else { return nil }
-      return TerminalSidebarDropCommand(
-        operationID: payload.operationID,
-        topologyStamp: payload.topologyStamp,
-        itemIDs: payload.source.itemIDs,
-        destination: placement
-          ?? TerminalTabPlacement(projectID: nil, isPinned: false, index: index),
-        preservesPinLanes: preservesPinLanes
-      )
+      resolvedDestination =
+        placement
+        ?? TerminalTabPlacement(projectID: nil, isPinned: false, index: index)
     }
+    return TerminalSidebarDropCommand(
+      operationID: payload.operationID,
+      topologyStamp: payload.topologyStamp,
+      itemIDs: payload.source.itemIDs,
+      destination: resolvedDestination,
+      preservesPinLanes: preservesPinLanes
+    )
   }
 }
 
@@ -515,8 +498,6 @@ struct TerminalSidebarDropReceipt: Equatable {
   }
 
   var topologyRevision: UInt64 { topologyStamp.revision }
-
-  var deletedEmptyProjectIDs: [TerminalProjectID] { [] }
 }
 
 enum TerminalSidebarDropPlanner {
@@ -555,7 +536,7 @@ enum TerminalSidebarDropPlanner {
       )
     case .pinnedEnd:
       let roots = reducedRoots(payload: payload, outline: outline)
-      let firstRegular = roots.first(where: { !$0.isPinned })?.entryID
+      let firstRegular = roots.first(where: { !$0.isPinned })?.id
       return rejectingNoOp(
         TerminalSidebarDropPlan(
           path: path,
@@ -769,10 +750,10 @@ enum TerminalSidebarDropPlanner {
     if let next = outline.roots.dropFirst(boundary).first(where: {
       $0.isPinned == isPinned && survivingIDs.contains($0.id)
     }) {
-      return .before(next.entryID)
+      return .before(next.id)
     }
     if isPinned, let firstRegular = reducedRoots.first(where: { !$0.isPinned }) {
-      return .before(firstRegular.entryID)
+      return .before(firstRegular.id)
     }
     return .beforeFooter
   }
@@ -871,8 +852,8 @@ enum TerminalSidebarDropPlanner {
         return false
       })
     else { return false }
-    return moving(tabIDs, to: index, in: outline.tabIDs(in: projectID))
-      == outline.tabIDs(in: projectID)
+    let current = outline.tabIDs(in: projectID)
+    return moving(tabIDs, to: index, in: current) == current
   }
 
   private static func isNoOpUnassigned(
@@ -887,7 +868,8 @@ enum TerminalSidebarDropPlanner {
         return false
       })
     else { return false }
-    return moving(tabIDs, to: index, in: outline.unassignedTabIDs) == outline.unassignedTabIDs
+    let current = outline.unassignedTabIDs
+    return moving(tabIDs, to: index, in: current) == current
   }
 
   private static func tabIDs(_ itemIDs: [TerminalTabDragItemID]) -> [TerminalTabID]? {

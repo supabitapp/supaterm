@@ -145,9 +145,9 @@ nonisolated enum TerminalSessionCatalogMigration {
         projectIDs: projectIDs
       )
     }
-    return
-      orderedNodes(roots.filter { rootIsPinned($0.node) })
-      + orderedNodes(roots.filter { !rootIsPinned($0.node) })
+    let pinnedRoots = orderedNodes(roots.filter { rootIsPinned($0.node) })
+    let regularRoots = orderedNodes(roots.filter { !rootIsPinned($0.node) })
+    return pinnedRoots + regularRoots
   }
 
   private static func isKnownVersion13Root(

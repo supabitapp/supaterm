@@ -177,20 +177,21 @@ public enum SupatermProjectLayout {
     at destination: SupatermProjectTabPlacement<ProjectID>,
     knownProjectIDs: Set<ProjectID>
   ) throws {
-    let sectionTabs = lane.filter { tab in
+    let sectionIndices = lane.indices.filter { index in
+      let tab = lane[index]
       if let projectID = destination.projectID {
         return tab.projectID == projectID
       }
       return tab.projectID.map(knownProjectIDs.contains) != true
     }
-    guard (0...sectionTabs.count).contains(destination.index) else {
+    guard (0...sectionIndices.count).contains(destination.index) else {
       throw SupatermProjectTabMoveError.invalidIndex
     }
     let insertionIndex: Int
-    if destination.index < sectionTabs.count {
-      insertionIndex = lane.firstIndex { $0.id == sectionTabs[destination.index].id }!
-    } else if let lastTabID = sectionTabs.last?.id {
-      insertionIndex = lane.firstIndex { $0.id == lastTabID }! + 1
+    if sectionIndices.indices.contains(destination.index) {
+      insertionIndex = sectionIndices[destination.index]
+    } else if let lastIndex = sectionIndices.last {
+      insertionIndex = lane.index(after: lastIndex)
     } else {
       insertionIndex = lane.endIndex
     }

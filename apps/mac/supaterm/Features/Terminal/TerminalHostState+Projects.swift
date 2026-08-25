@@ -34,11 +34,9 @@ extension TerminalHostState {
   func tabIDs(in projectID: TerminalProjectID) -> [TerminalTabID] {
     spaceManager.instances.flatMap { instance in
       if let session = instance.pendingSession {
-        return session.tabs.compactMap { $0.projectID == projectID ? $0.id : nil }
+        return session.tabs.filter { $0.projectID == projectID }.map(\.id)
       }
-      return instance.tabCollection.canonicalTabs.compactMap {
-        $0.projectID == projectID ? $0.id : nil
-      }
+      return instance.tabCollection.canonicalTabs.filter { $0.projectID == projectID }.map(\.id)
     }
   }
 
@@ -175,14 +173,19 @@ extension TerminalHostState {
     let changed: Bool
     if var session = instance.pendingSession {
       var collapsed = Set(session.collapsedProjectIDs)
-      changed = isCollapsed ? collapsed.insert(id).inserted : collapsed.remove(id) != nil
+      if isCollapsed {
+        changed = collapsed.insert(id).inserted
+      } else {
+        changed = collapsed.remove(id) != nil
+      }
       session.collapsedProjectIDs = Array(collapsed)
       instance.pendingSession = session
     } else {
-      changed =
-        isCollapsed
-        ? instance.collapsedProjectIDs.insert(id).inserted
-        : instance.collapsedProjectIDs.remove(id) != nil
+      if isCollapsed {
+        changed = instance.collapsedProjectIDs.insert(id).inserted
+      } else {
+        changed = instance.collapsedProjectIDs.remove(id) != nil
+      }
     }
     if changed { sessionDidChange() }
     return true
@@ -222,23 +225,22 @@ extension TerminalHostState {
       throw TerminalTabMoveError.staleProjects
     }
     let previousRevision = instance.tabCollection.topologyRevision
-    let revealsSection = request.tabIDs.contains { instance.tabCollection.selectedTabID == $0 }
+    let movesSelectedTab = request.tabIDs.contains { instance.tabCollection.selectedTabID == $0 }
     let result = try instance.tabCollection.move(request)
-    if revealsSection {
+    if movesSelectedTab {
       if let projectID = request.destination.projectID {
         instance.collapsedProjectIDs.remove(projectID)
       } else {
         instance.isUnassignedCollapsed = false
       }
     }
-    if result.topologyRevision != previousRevision || revealsSection { sessionDidChange() }
+    if result.topologyRevision != previousRevision || movesSelectedTab { sessionDidChange() }
     return result
   }
 
   @discardableResult
   func setTabPinned(_ id: TerminalTabID, isPinned: Bool) -> TerminalTabMoveResult? {
     guard let instance = spaceManager.instance(for: id) else { return nil }
-    let previousRevision = instance.tabCollection.topologyRevision
     guard
       let result = instance.tabCollection.setTabPinned(
         id,
@@ -246,7 +248,7 @@ extension TerminalHostState {
         orderedProjectIDs: projectCatalog.projects.map(\.id)
       )
     else { return nil }
-    if result.topologyRevision != previousRevision { sessionDidChange() }
+    sessionDidChange()
     return result
   }
 
@@ -282,16 +284,15 @@ extension TerminalHostState {
   func clearProjectMembership(_ id: TerminalProjectID) -> Bool {
     var changed = false
     for instance in spaceManager.instances {
-      let tabIDs = instance.tabCollection.canonicalTabs.compactMap {
-        $0.projectID == id ? $0.id : nil
-      }
+      let tabIDs = instance.tabCollection.canonicalTabs.filter { $0.projectID == id }.map(\.id)
       guard !tabIDs.isEmpty else { continue }
-      changed =
-        instance.tabCollection.assign(
-          tabIDs,
-          to: nil,
-          orderedProjectIDs: projectCatalog.projects.map(\.id)
-        ) || changed
+      if instance.tabCollection.assign(
+        tabIDs,
+        to: nil,
+        orderedProjectIDs: projectCatalog.projects.map(\.id)
+      ) {
+        changed = true
+      }
       instance.collapsedProjectIDs.remove(id)
       instance.isUnassignedCollapsed = false
     }
