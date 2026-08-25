@@ -6,13 +6,11 @@ script_path="${script_dir}/$(basename "${BASH_SOURCE[0]}")"
 srcroot="${SRCROOT:-$(cd "${script_dir}/.." && pwd)}"
 host_dir="${srcroot}/SupatermHost"
 host_build_root="${srcroot}/.build/supaterm-host"
-host_local_cache_dir="${host_build_root}/.zig-cache"
+host_cache_dir="${host_build_root}/.zig-cache"
 host_global_cache_dir="${host_build_root}/.zig-global-cache"
 host_fingerprint_path="${host_build_root}/fingerprint"
-host_binary_path="${host_build_root}/bin/supaterm-host"
-host_target="aarch64-macos.26.0"
 host_remote_root="${host_build_root}/remote"
-host_macos_minimum="26.0"
+host_smoke_binary_path="${host_remote_root}/macos-aarch64/supaterm-host"
 remote_macos_minimum="13.0"
 host_version="1.0.0"
 remote_platforms=("linux-x86_64" "linux-aarch64" "macos-x86_64" "macos-aarch64")
@@ -24,19 +22,14 @@ validate_host_binary() {
   local minos
   local smoke_dir
   local valid=0
-  local version_output
 
   smoke_dir="$(mktemp -d /tmp/supaterm-host-smoke.XXXXXX)"
   architectures="$(lipo -archs "${binary_path}" 2>/dev/null || true)"
   minos="$(xcrun vtool -show-build "${binary_path}" 2>/dev/null | awk '$1 == "minos" { print $2 }' | sort -u)"
-  version_output="$(SUPATERM_HOST_DIR="${smoke_dir}" "${binary_path}" version 2>/dev/null || true)"
   if [ "${architectures}" = "arm64" ] &&
-    [ "${minos}" = "${host_macos_minimum}" ] &&
-    grep -Fq "${host_version}" <<<"${version_output}" &&
-    SUPATERM_HOST_DIR="${smoke_dir}" "${binary_path}" ls --short >/dev/null 2>&1 &&
-    [ "$(stat -f '%Lp' "${smoke_dir}")" = "700" ] &&
-    [ "$(stat -f '%Lp' "${smoke_dir}/logs")" = "700" ] &&
-    [ "$(stat -f '%Lp' "${smoke_dir}/logs/supaterm-host.log")" = "600" ]; then
+    [ "${minos}" = "${remote_macos_minimum}" ] &&
+    SUPATERM_HOST_DIR="${smoke_dir}" "${binary_path}" ls >/dev/null 2>&1 &&
+    [ "$(stat -f '%Lp' "${smoke_dir}")" = "700" ]; then
     valid=1
   fi
   find "${smoke_dir}" -depth -delete
@@ -85,7 +78,7 @@ print_fingerprint() {
         xargs -0 shasum -a 256
       shasum -a 256 "${script_path}" | awk '{print $1}'
       mise exec -- zig version
-      printf '%s\n' "${host_target}" "${remote_targets[@]}" "${host_version}"
+      printf '%s\n' "${remote_targets[@]}" "${host_version}"
     } | shasum -a 256 | awk '{print $1}'
   )
 }
@@ -100,9 +93,9 @@ fingerprint="$(print_fingerprint)"
 mkdir -p "${host_build_root}"
 
 if [ -f "${host_fingerprint_path}" ] &&
-  [ -x "${host_binary_path}" ] &&
+  [ -x "${host_smoke_binary_path}" ] &&
   [ "$(<"${host_fingerprint_path}")" = "${fingerprint}" ]; then
-  if validate_host_binary "${host_binary_path}" && validate_remote_binaries; then
+  if validate_host_binary "${host_smoke_binary_path}" && validate_remote_binaries; then
     printf '%s\n' "Using cached supaterm-host build"
     exit 0
   fi
@@ -110,18 +103,6 @@ if [ -f "${host_fingerprint_path}" ] &&
 fi
 
 cd "${host_dir}"
-mise exec -- zig build -Doptimize=ReleaseSafe -Dtarget="${host_target}" -Dversion="${host_version}" --prefix "${host_build_root}" --cache-dir "${host_local_cache_dir}" --global-cache-dir "${host_global_cache_dir}"
-
-if [ ! -x "${host_binary_path}" ]; then
-  echo "error: supaterm-host build produced no binary at ${host_binary_path}" >&2
-  exit 1
-fi
-
-if ! validate_host_binary "${host_binary_path}"; then
-  echo "error: supaterm-host build produced an unusable binary at ${host_binary_path}" >&2
-  exit 1
-fi
-
 for index in "${!remote_platforms[@]}"; do
   platform="${remote_platforms[$index]}"
   target="${remote_targets[$index]}"
@@ -130,11 +111,11 @@ for index in "${!remote_platforms[@]}"; do
   destination_dir="${host_remote_root}/${platform}"
 
   mise exec -- zig build \
-    -Doptimize=ReleaseSafe \
+    -Doptimize=ReleaseSmall \
     -Dtarget="${target}" \
     -Dversion="${host_version}" \
     --prefix "${prefix}" \
-    --cache-dir "${host_local_cache_dir}-${platform}" \
+    --cache-dir "${host_cache_dir}-${platform}" \
     --global-cache-dir "${host_global_cache_dir}"
   mkdir -p "${destination_dir}"
   /usr/bin/install -m 755 "${binary_path}" "${destination_dir}/supaterm-host"
@@ -142,6 +123,11 @@ done
 
 if ! validate_remote_binaries; then
   echo "error: supaterm-host remote builds are incomplete" >&2
+  exit 1
+fi
+
+if ! validate_host_binary "${host_smoke_binary_path}"; then
+  echo "error: supaterm-host build produced an unusable local binary" >&2
   exit 1
 fi
 

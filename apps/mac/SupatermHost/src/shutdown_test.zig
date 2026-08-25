@@ -100,7 +100,6 @@ test "shutdown keeps the session visible and connectable until the pty child is 
 
     var cfg = Cfg{
         .socket_dir = "/tmp",
-        .log_dir = "",
     };
     var daemon = loop.Daemon{
         .cfg = &cfg,

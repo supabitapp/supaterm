@@ -19,10 +19,9 @@ public nonisolated enum SupatermBundleLayout {
     nextTo executableURL: URL,
     fileManager: FileManager = .default
   ) -> URL? {
-    regularExecutableURL(
-      contentsDirectoryURL(nextTo: executableURL)
-        .appendingPathComponent("Helpers", isDirectory: true)
-        .appendingPathComponent(sessionHostExecutableName, isDirectory: false),
+    remoteSessionHostExecutableURL(
+      nextTo: executableURL,
+      platform: .macOSAArch64,
       fileManager: fileManager
     )
   }

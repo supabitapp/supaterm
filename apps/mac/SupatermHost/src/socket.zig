@@ -29,10 +29,7 @@ pub fn sessionConnect(sesh: []const u8) !i32 {
 }
 
 pub fn cleanupStaleSocket(io: std.Io, dir: std.Io.Dir, session_name: []const u8) void {
-    std.log.warn("stale socket found, cleaning up session={s}", .{session_name});
-    dir.deleteFile(io, session_name) catch |err| {
-        std.log.warn("failed to delete stale socket err={s}", .{@errorName(err)});
-    };
+    dir.deleteFile(io, session_name) catch {};
 }
 
 /// Unlink a session socket only while it is still the file `inode` names.
@@ -45,18 +42,9 @@ pub fn deleteOwnedSocket(
     session_name: []const u8,
     inode: std.Io.File.INode,
 ) void {
-    const stat = dir.statFile(io, session_name, .{}) catch |err| {
-        std.log.warn("failed to stat socket file err={s}", .{@errorName(err)});
-        return;
-    };
-    if (stat.inode != inode) {
-        std.log.info("socket file belongs to another session={s}", .{session_name});
-        return;
-    }
-    std.log.info("deleting socket file session={s}", .{session_name});
-    dir.deleteFile(io, session_name) catch |err| {
-        std.log.warn("failed to delete socket file err={s}", .{@errorName(err)});
-    };
+    const stat = dir.statFile(io, session_name, .{}) catch return;
+    if (stat.inode != inode) return;
+    dir.deleteFile(io, session_name) catch {};
 }
 
 pub fn socketInode(io: std.Io, dir: std.Io.Dir, name: []const u8) !std.Io.File.INode {

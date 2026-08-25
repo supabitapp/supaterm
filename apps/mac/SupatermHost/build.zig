@@ -13,13 +13,9 @@ const macos_targets: []const std.Target.Query = &.{
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    // const is_macos = target.result.os.tag == .macos;
     const optimize = b.standardOptimizeOption(.{});
     const version = b.option([]const u8, "version", "Version string for release") orelse
         @as([]const u8, build_zig_zon.version);
-
-    const options = b.addOptions();
-    options.addOption([]const u8, "version", version);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -28,7 +24,6 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .strip = true,
     });
-    exe_mod.addOptions("build_options", options);
 
     const dep = b.dependency("ghostty", .{
         .target = target,
@@ -51,8 +46,6 @@ pub fn build(b: *std.Build) void {
         const run_step = b.step("run", "Run the app");
         const exe = b.addExecutable(.{
             .name = "supaterm-host",
-            // .use_llvm = true,
-            // .use_lld = !is_macos,
             .root_module = exe_mod,
         });
 
@@ -86,8 +79,6 @@ pub fn build(b: *std.Build) void {
         );
         const exe_unit_tests = b.addTest(.{
             .root_module = test_module,
-            // .use_llvm = true,
-            // .use_lld = !is_macos,
         });
 
         const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
@@ -99,14 +90,9 @@ pub fn build(b: *std.Build) void {
         const check = b.step("check", "Check if supaterm-host compiles");
         const exe_check = b.addExecutable(.{
             .name = "supaterm-host",
-            // .use_llvm = true,
-            // .use_lld = !is_macos,
             .root_module = exe_mod,
         });
 
-        // Finally we add the "check" step which will be detected
-        // by ZLS and automatically enable Build-On-Save.
-        // If you copy this into your `build.zig`, make sure to rename 'foo'
         check.dependOn(&exe_check.step);
     }
 
@@ -122,15 +108,14 @@ pub fn build(b: *std.Build) void {
             const release_mod = b.createModule(.{
                 .root_source_file = b.path("src/main.zig"),
                 .target = resolved,
-                .optimize = .ReleaseSafe,
+                .optimize = .ReleaseSmall,
                 .link_libc = true,
                 .strip = true,
             });
-            release_mod.addOptions("build_options", options);
 
             if (b.lazyDependency("ghostty", .{
                 .target = resolved,
-                .optimize = .ReleaseSafe,
+                .optimize = .ReleaseSmall,
                 .@"emit-lib-vt" = true,
                 .@"emit-xcframework" = false,
                 .@"emit-macos-app" = false,
@@ -139,11 +124,8 @@ pub fn build(b: *std.Build) void {
                 release_mod.addImport("ghostty-vt", release_dep.module("ghostty-vt"));
             }
 
-            // const is_local_macos = resolved.result.os.tag == .macos;
             const release_exe = b.addExecutable(.{
                 .name = "supaterm-host",
-                // .use_llvm = true,
-                // .use_lld = !is_local_macos,
                 .root_module = release_mod,
             });
 

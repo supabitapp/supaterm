@@ -755,7 +755,9 @@ struct TerminalAgentDetectionControllerTests {
   private func liveSessionHostClient() -> TerminalSessionHostClient {
     let executableURL = Bundle(for: DetectionTestBundleToken.self).bundleURL
       .deletingLastPathComponent()
-      .appendingPathComponent("supaterm.app/Contents/Helpers/supaterm-host")
+      .appendingPathComponent(
+        "supaterm.app/Contents/Resources/supaterm-host/macos-aarch64/supaterm-host"
+      )
     return TerminalSessionHostClient.makeSessionHost(executableURL: executableURL)
   }
 }

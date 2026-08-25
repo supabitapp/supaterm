@@ -13,16 +13,21 @@ struct SupatermBundleLayoutTests {
       .appendingPathComponent("Supaterm.app", isDirectory: true)
       .appendingPathComponent("Contents", isDirectory: true)
     let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
-    let helpersURL = contentsURL.appendingPathComponent("Helpers", isDirectory: true)
     let executableURL = macOSURL.appendingPathComponent("supaterm", isDirectory: false)
     let spURL = macOSURL.appendingPathComponent("sp", isDirectory: false)
-    let sessionHostURL = helpersURL.appendingPathComponent("supaterm-host", isDirectory: false)
+    let sessionHostURL =
+      contentsURL
+      .appendingPathComponent("Resources/supaterm-host/macos-aarch64", isDirectory: true)
+      .appendingPathComponent("supaterm-host", isDirectory: false)
     let remoteHostURL =
       contentsURL
       .appendingPathComponent("Resources/supaterm-host/linux-aarch64", isDirectory: true)
       .appendingPathComponent("supaterm-host", isDirectory: false)
     try FileManager.default.createDirectory(at: macOSURL, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: helpersURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: sessionHostURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
     try Data().write(to: spURL)
     try Data().write(to: sessionHostURL)
     try FileManager.default.createDirectory(
@@ -64,14 +69,20 @@ struct SupatermBundleLayoutTests {
       rootURL
       .appendingPathComponent("Supaterm.app", isDirectory: true)
       .appendingPathComponent("Contents", isDirectory: true)
-    let helpersURL = contentsURL.appendingPathComponent("Helpers", isDirectory: true)
     let executableURL =
       contentsURL
       .appendingPathComponent("MacOS", isDirectory: true)
       .appendingPathComponent("supaterm", isDirectory: false)
-    let sessionHostURL = helpersURL.appendingPathComponent("supaterm-host", isDirectory: false)
-    let linkedSessionHostURL = helpersURL.appendingPathComponent("real-supaterm-host", isDirectory: false)
-    try FileManager.default.createDirectory(at: helpersURL, withIntermediateDirectories: true)
+    let hostDirectoryURL = contentsURL.appendingPathComponent(
+      "Resources/supaterm-host/macos-aarch64",
+      isDirectory: true
+    )
+    let sessionHostURL = hostDirectoryURL.appendingPathComponent("supaterm-host", isDirectory: false)
+    let linkedSessionHostURL = hostDirectoryURL.appendingPathComponent(
+      "real-supaterm-host",
+      isDirectory: false
+    )
+    try FileManager.default.createDirectory(at: hostDirectoryURL, withIntermediateDirectories: true)
 
     #expect(SupatermBundleLayout.sessionHostExecutableURL(nextTo: executableURL) == nil)
 

@@ -4,7 +4,6 @@ const Cfg = @import("cfg.zig");
 const socket = @import("socket.zig");
 const ipc = @import("ipc.zig");
 const assert = std.debug.assert;
-const log = @import("log.zig");
 const cross = @import("cross.zig");
 
 const Cmd = struct {
@@ -60,9 +59,9 @@ fn exec(cmd: Cmd) !noreturn {
         _ = cross.c.putenv(@constCast("TERM=xterm-256color"));
     }
 
-    const err = lib_posix.execvpeZ(cmd.file, cmd.argv_ptr, std.c.environ);
-    std.log.err("execvpe failed: cmd={s} err={s}", .{ cmd.file, @errorName(err) });
-    lib_posix.exit(1);
+    switch (lib_posix.execvpeZ(cmd.file, cmd.argv_ptr, std.c.environ)) {
+        else => lib_posix.exit(1),
+    }
 }
 
 pub const PtyInfo = struct {
@@ -75,7 +74,7 @@ pub const PtyInfo = struct {
 ///
 /// This is the second fork in the double-fork technique explained in the
 /// daemonize() comment.
-pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
+pub fn spawnPty(cmd: Cmd, size: ipc.Resize) !PtyInfo {
     var ws: cross.c.struct_winsize = .{
         .ws_row = size.rows,
         .ws_col = size.cols,
@@ -94,14 +93,10 @@ pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
         // a returned error falls through to the parent code path below,
         // running a second daemon on the same socket (or worse, hitting
         // errdefers that delete the parent's socket file).
-        exec(cmd) catch |err| {
-            std.log.err("child setup failed: {s}", .{@errorName(err)});
-            lib_posix.exit(1);
-        };
+        exec(cmd) catch lib_posix.exit(1);
         unreachable; // exec() either execs or exits, never returns ok
     }
     // master pid code path
-    std.log.info("pty spawned session={s} pid={d}", .{ sesh_name, pid });
 
     // make pty non-blocking
     const flags = try lib_posix.fcntl(master_fd, lib_posix.F.GETFL, 0);
@@ -156,7 +151,7 @@ pub fn spawnPty(sesh_name: []const u8, cmd: Cmd, size: ipc.Resize) !PtyInfo {
 ///                 ✝          │ PID≠SID → can't get a tty
 ///                            ▼
 ///                          DAEMON ✓
-pub fn daemonize(sesh_name: []const u8, cmd: Cmd, keep_fds_open: []i32) !PtyInfo {
+pub fn daemonize(cmd: Cmd, keep_fds_open: []i32) !PtyInfo {
     // creates the daemon
     const pid = try lib_posix.fork();
     assert(pid != -1);
@@ -188,15 +183,9 @@ pub fn daemonize(sesh_name: []const u8, cmd: Cmd, keep_fds_open: []i32) !PtyInfo
             "/dev/null",
             .{ .ACCMODE = .RDWR },
             0,
-        ) catch |err| {
-            std.log.warn("failed to open /dev/null: {s}", .{@errorName(err)});
-            return err;
-        };
+        ) catch |err| return err;
         inline for (.{ lib_posix.STDIN_FILENO, lib_posix.STDOUT_FILENO, lib_posix.STDERR_FILENO }) |fd| {
-            _ = lib_posix.dup2(devnull, fd) catch |err| {
-                std.log.warn("dup2 /dev/null -> {d}: {s}", .{ fd, @errorName(err) });
-                return err;
-            };
+            _ = lib_posix.dup2(devnull, fd) catch |err| return err;
         }
         var found = false;
         for (keep_fds_open) |fd| {
@@ -224,5 +213,5 @@ pub fn daemonize(sesh_name: []const u8, cmd: Cmd, keep_fds_open: []i32) !PtyInfo
         }
     }
 
-    return spawnPty(sesh_name, cmd, term_size);
+    return spawnPty(cmd, term_size);
 }

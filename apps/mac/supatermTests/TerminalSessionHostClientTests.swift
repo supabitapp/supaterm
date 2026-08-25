@@ -153,7 +153,8 @@ struct TerminalSessionHostClientTests {
   func commandWrapperKeepsExecutableAsOneArgument() throws {
     let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
     let executableURL = URL(
-      fileURLWithPath: "/Applications/Supaterm Runtime.app/Contents/Helpers/supaterm-host"
+      fileURLWithPath:
+        "/Applications/Supaterm Runtime.app/Contents/Resources/supaterm-host/macos-aarch64/supaterm-host"
     )
     let client = TerminalSessionHostClient.makeSessionHost(executableURL: executableURL)
     let argv = try #require(client.commandWrapper(surfaceID, .createIfNeeded, nil, nil, []))
@@ -165,7 +166,8 @@ struct TerminalSessionHostClientTests {
   func existingSessionWrapperCannotCreateASession() throws {
     let surfaceID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
     let executableURL = URL(
-      fileURLWithPath: "/Applications/Supaterm Runtime.app/Contents/Helpers/supaterm-host"
+      fileURLWithPath:
+        "/Applications/Supaterm Runtime.app/Contents/Resources/supaterm-host/macos-aarch64/supaterm-host"
     )
     let client = TerminalSessionHostClient.makeSessionHost(executableURL: executableURL)
     let argv = try #require(client.commandWrapper(surfaceID, .existing, nil, nil, []))

@@ -1,7 +1,5 @@
 const std = @import("std");
-const build_options = @import("build_options");
 const ipc = @import("ipc.zig");
-const log = @import("log.zig");
 const cross = @import("cross.zig");
 const socket = @import("socket.zig");
 const lib_posix = @import("posix.zig");
@@ -9,12 +7,6 @@ const signal = @import("signal.zig");
 const Cfg = @import("cfg.zig");
 const loop = @import("loop.zig");
 const Daemon = loop.Daemon;
-const version = build_options.version;
-
-pub const std_options: std.Options = .{
-    .logFn = log.sessionHostLogFn,
-    .log_level = .info,
-};
 
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
@@ -29,19 +21,8 @@ pub fn main(init: std.process.Init) !void {
     var cfg = try Cfg.init(gpa, io);
     defer cfg.deinit(gpa);
 
-    const log_path = try std.fs.path.join(gpa, &.{ cfg.log_dir, "supaterm-host.log" });
-    defer gpa.free(log_path);
-    const log_mode = std.Io.File.Permissions.fromMode(Cfg.log_mode);
-    try log.log_system.init(io, log_path, log_mode);
-    defer log.log_system.deinit();
-
-    const command = args.next() orelse return help(io);
-    if (std.mem.eql(u8, command, "version")) return printVersion(io);
-    if (std.mem.eql(u8, command, "help") or std.mem.eql(u8, command, "-h") or std.mem.eql(u8, command, "--help")) return help(io);
-    if (std.mem.eql(u8, command, "ls")) {
-        const short = if (args.next()) |arg| std.mem.eql(u8, arg, "--short") else false;
-        return list(gpa, io, &cfg, short);
-    }
+    const command = args.next() orelse return error.CommandRequired;
+    if (std.mem.eql(u8, command, "ls")) return list(gpa, io, &cfg);
     if (std.mem.eql(u8, command, "kill")) {
         const session_name = args.next() orelse return error.SessionNameRequired;
         return kill(gpa, io, &cfg, session_name);
@@ -64,36 +45,9 @@ pub fn main(init: std.process.Init) !void {
         var daemon = Daemon.init(&cfg, session_name, socket_path);
         daemon.command = if (command_args.items.len > 0) command_args.items else null;
         daemon.shell = init.environ_map.get("SHELL") orelse "/bin/sh";
-        var cwd: [std.fs.max_path_bytes]u8 = undefined;
-        if (std.process.currentPath(io, &cwd)) |cwd_len| daemon.setWorkingDirectory(cwd[0..cwd_len]) else |_| {}
         return attach(io, &daemon, existing_only);
     }
     return error.InvalidCommand;
-}
-
-fn help(io: std.Io) !void {
-    const text =
-        \\Usage: supaterm-host <command> [args...]
-        \\
-        \\Commands:
-        \\  attach [--existing] <name> [command...]
-        \\  ls [--short]
-        \\  kill <name>
-        \\  version
-        \\  help
-        \\
-    ;
-    var buffer: [512]u8 = undefined;
-    var stdout = std.Io.File.stdout().writer(io, &buffer);
-    try stdout.interface.writeAll(text);
-    try stdout.interface.flush();
-}
-
-fn printVersion(io: std.Io) !void {
-    var buffer: [128]u8 = undefined;
-    var stdout = std.Io.File.stdout().writer(io, &buffer);
-    try stdout.interface.print("supaterm-host {s}\n", .{version});
-    try stdout.interface.flush();
 }
 
 const Session = struct {
@@ -105,7 +59,7 @@ const Session = struct {
     }
 };
 
-fn list(gpa: std.mem.Allocator, io: std.Io, cfg: *Cfg, short: bool) !void {
+fn list(gpa: std.mem.Allocator, io: std.Io, cfg: *Cfg) !void {
     var dir = try std.Io.Dir.openDirAbsolute(io, cfg.socket_dir, .{ .iterate = true });
     defer dir.close(io);
     var iterator = dir.iterate();
@@ -135,11 +89,7 @@ fn list(gpa: std.mem.Allocator, io: std.Io, cfg: *Cfg, short: bool) !void {
     var buffer: [4096]u8 = undefined;
     var stdout = std.Io.File.stdout().writer(io, &buffer);
     for (sessions.items) |session| {
-        if (short) {
-            try stdout.interface.print("{s}\n", .{session.name});
-        } else {
-            try stdout.interface.print("name={s}\tpid={d}\n", .{ session.name, session.pid });
-        }
+        try stdout.interface.print("name={s}\tpid={d}\n", .{ session.name, session.pid });
     }
     try stdout.interface.flush();
 }

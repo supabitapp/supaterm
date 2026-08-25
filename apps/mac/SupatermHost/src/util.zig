@@ -394,9 +394,7 @@ pub fn isUserInput(payload: []const u8) bool {
 fn writePwd(writer: *std.Io.Writer, term: *const ghostty_vt.Terminal) void {
     const pwd = term.getPwd() orelse return;
     if (pwd.len == 0) return;
-    writer.print("\x1b]7;{s}\x1b\\", .{pwd}) catch |err| {
-        std.log.warn("failed to format pwd err={s}", .{@errorName(err)});
-    };
+    writer.print("\x1b]7;{s}\x1b\\", .{pwd}) catch {};
 }
 
 pub fn serializeTerminalState(alloc: std.mem.Allocator, term: *ghostty_vt.Terminal) ?[]const u8 {
@@ -445,9 +443,7 @@ pub fn serializeTerminalState(alloc: std.mem.Allocator, term: *ghostty_vt.Termin
                 ),
             };
             scroll_fmt.extra = .none; // no modes, cursor, keyboard — just content
-            scroll_fmt.format(&builder.writer) catch |err| {
-                std.log.warn("failed to format scrollback err={s}", .{@errorName(err)});
-            };
+            scroll_fmt.format(&builder.writer) catch {};
         }
 
         // Clear visible screen after scrollback. \x1b[2J clears only the visible
@@ -489,10 +485,7 @@ pub fn serializeTerminalState(alloc: std.mem.Allocator, term: *ghostty_vt.Termin
         .screen = .all,
     };
 
-    vis_fmt.format(&builder.writer) catch |err| {
-        std.log.warn("failed to format terminal state err={s}", .{@errorName(err)});
-        return null;
-    };
+    vis_fmt.format(&builder.writer) catch return null;
 
     writePwd(&builder.writer, term);
 
@@ -501,9 +494,7 @@ pub fn serializeTerminalState(alloc: std.mem.Allocator, term: *ghostty_vt.Termin
     // terminal defaults to, usually the client process name. OSC 2 does not
     // move the cursor, so this is safe to append after the content.
     if (term.getTitle()) |title| {
-        builder.writer.print("\x1b]2;{s}\x07", .{title}) catch |err| {
-            std.log.warn("failed to format title err={s}", .{@errorName(err)});
-        };
+        builder.writer.print("\x1b]2;{s}\x07", .{title}) catch {};
     }
 
     const output = builder.writer.buffered();
@@ -514,10 +505,7 @@ pub fn serializeTerminalState(alloc: std.mem.Allocator, term: *ghostty_vt.Termin
         term.modes.set(.synchronized_output, true);
     }
 
-    return alloc.dupe(u8, output) catch |err| {
-        std.log.warn("failed to allocate terminal state err={s}", .{@errorName(err)});
-        return null;
-    };
+    return alloc.dupe(u8, output) catch return null;
 }
 
 test "isCtrlBackslash" {

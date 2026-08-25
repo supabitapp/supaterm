@@ -286,7 +286,9 @@ struct SessionHostTestSessionCleanerTests {
   private var sessionHostExecutableURL: URL {
     Bundle(for: SessionHostTestBundleToken.self).bundleURL
       .deletingLastPathComponent()
-      .appendingPathComponent("supaterm.app/Contents/Helpers/supaterm-host")
+      .appendingPathComponent(
+        "supaterm.app/Contents/Resources/supaterm-host/macos-aarch64/supaterm-host"
+      )
   }
 
   private var deadProcess: SessionHostTestWorkspace.ProcessIdentity {

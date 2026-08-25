@@ -13,21 +13,13 @@ pub fn append(
     defer alloc.free(snapshot);
     const restore = util.rewritePromptRedraw(alloc, snapshot) orelse snapshot;
     defer if (restore.ptr != snapshot.ptr) alloc.free(restore);
-    ipc.appendMessage(alloc, output, .Output, restore) catch |err| {
-        std.log.warn("failed to buffer terminal state for client err={s}", .{@errorName(err)});
-        return;
-    };
+    ipc.appendMessage(alloc, output, .Output, restore) catch return;
 
     var continuation: std.Io.Writer.Allocating = .init(alloc);
     defer continuation.deinit();
-    stream.writeContinuation(&continuation.writer) catch |err| {
-        std.log.warn("failed to buffer terminal continuation err={s}", .{@errorName(err)});
-        return;
-    };
+    stream.writeContinuation(&continuation.writer) catch return;
     if (continuation.writer.buffered().len == 0) return;
-    ipc.appendMessage(alloc, output, .Output, continuation.writer.buffered()) catch |err| {
-        std.log.warn("failed to buffer terminal continuation err={s}", .{@errorName(err)});
-    };
+    ipc.appendMessage(alloc, output, .Output, continuation.writer.buffered()) catch {};
 }
 
 test "snapshot precedes continuation" {

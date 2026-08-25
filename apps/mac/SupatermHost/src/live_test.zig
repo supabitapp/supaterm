@@ -25,7 +25,6 @@ else
 fn liveDaemonMain(server_sock_fd: i32, pty_fd: i32) u8 {
     var cfg = Cfg{
         .socket_dir = "",
-        .log_dir = "",
     };
     var daemon = loop.Daemon{
         .cfg = &cfg,
