@@ -15,7 +15,7 @@ struct SupatermSettingsCommandTests {
       result.entries.map(\.key) == [
         "appearance.mode",
         "terminal.restore_layout",
-        "terminal.zmx_sessions_enabled",
+        "terminal.session_persistence",
         "notifications.system_notifications",
         "notifications.glowing_pane_ring",
         "coding_agents.show_panel",

@@ -4,13 +4,13 @@ import SupatermCLIShared
 import Testing
 
 extension SupatermE2ESuite {
-  @Suite struct ZmxLifecycleTests {
+  @Suite struct SessionHostLifecycleTests {
     @Test(.timeLimit(.minutes(5)))
     func directProcessSurvivesRelaunchAndItsPaneClosesOnExit() async throws {
-      let app = try await SupatermE2EApp.launch(zmxSessionsEnabled: true)
+      let app = try await SupatermE2EApp.launch(sessionPersistenceEnabled: true)
       defer { app.terminate() }
 
-      let process = try await createWaitingDirectProcess(app, name: "zmx-relaunch")
+      let process = try await createWaitingDirectProcess(app, name: "sessionHost-relaunch")
       #expect(kill(process.processID, 0) == 0)
       try await app.waitForPersistedStateQuiescence(containing: [process.paneID.uuidString])
 
@@ -35,12 +35,12 @@ extension SupatermE2ESuite {
 
     @Test(.timeLimit(.minutes(5)))
     func finishedDirectProcessDoesNotRestoreAsAShell() async throws {
-      let app = try await SupatermE2EApp.launch(zmxSessionsEnabled: true)
+      let app = try await SupatermE2EApp.launch(sessionPersistenceEnabled: true)
       defer { app.terminate() }
 
-      let process = try await createWaitingDirectProcess(app, name: "zmx-finished")
+      let process = try await createWaitingDirectProcess(app, name: "sessionHost-finished")
       let shellSpace = try app.send(
-        .createSpace(SupatermCreateSpaceRequest(color: nil, name: "zmx-finished-shell")),
+        .createSpace(SupatermCreateSpaceRequest(color: nil, name: "sessionHost-finished-shell")),
         as: SupatermCreateSpaceResult.self
       )
       #expect(shellSpace.isSelectedSpace)

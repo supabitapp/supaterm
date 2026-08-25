@@ -3,7 +3,7 @@ import Foundation
 import SupatermCLIShared
 import SupatermSupport
 
-nonisolated enum ZmxTestCleanupError: Error, CustomStringConvertible {
+nonisolated enum SessionHostTestCleanupError: Error, CustomStringConvertible {
   case processDidNotExit(Int32)
   case processIdentityUnavailable(Int32)
   case processSignalFailed(processID: Int32, signal: Int32, errorCode: Int32)
@@ -18,12 +18,12 @@ nonisolated enum ZmxTestCleanupError: Error, CustomStringConvertible {
     case .processSignalFailed(let processID, let signal, let errorCode):
       return "signal \(signal) failed for process \(processID) with error \(errorCode)"
     case .sessionsRemain(let processIDs):
-      return "zmx sessions remain: \(processIDs.map(String.init).joined(separator: ", "))"
+      return "host sessions remain: \(processIDs.map(String.init).joined(separator: ", "))"
     }
   }
 }
 
-nonisolated struct ZmxTestSessionCleaner: Sendable {
+nonisolated struct SessionHostTestSessionCleaner: Sendable {
   typealias ListSessions = @Sendable () -> [Int32]
   typealias TerminateSession = @Sendable (_ processID: Int32) throws -> Void
 
@@ -32,8 +32,8 @@ nonisolated struct ZmxTestSessionCleaner: Sendable {
 
   init(directory: String) {
     self.init(
-      listSessions: { ZmxTestProcessTable.sessionProcessIDs(directory: directory) },
-      terminateSession: ZmxTestWorkspace.terminateProcessGroup(processID:)
+      listSessions: { SessionHostTestProcessTable.sessionProcessIDs(directory: directory) },
+      terminateSession: SessionHostTestWorkspace.terminateProcessGroup(processID:)
     )
   }
 
@@ -49,16 +49,16 @@ nonisolated struct ZmxTestSessionCleaner: Sendable {
 
     let remaining = listSessions()
     guard remaining.isEmpty else {
-      throw ZmxTestCleanupError.sessionsRemain(remaining)
+      throw SessionHostTestCleanupError.sessionsRemain(remaining)
     }
   }
 }
 
-/// A zmx daemon outlives both its socket and the app that spawned it, so the
+/// A sessionHost daemon outlives both its socket and the app that spawned it, so the
 /// process table is the only authority on which sessions a test still owns.
-nonisolated enum ZmxTestProcessTable {
+nonisolated enum SessionHostTestProcessTable {
   static func sessionProcessIDs(directory: String) -> [Int32] {
-    let entry = "\(ZmxEnvironment.directoryKey)=\(directory)"
+    let entry = "\(SessionHostEnvironment.directoryKey)=\(directory)"
     let ownProcessGroupID = getpgrp()
     return processIDs().filter { processID in
       processID != ownProcessGroupID
@@ -105,7 +105,7 @@ nonisolated enum ZmxTestProcessTable {
   }
 }
 
-nonisolated struct ZmxTestWorkspace: Sendable {
+nonisolated struct SessionHostTestWorkspace: Sendable {
   static let ownerFilename = ".supaterm-test-owner"
   static let claimMarker = ".supaterm-test-reap-"
 
@@ -121,13 +121,13 @@ nonisolated struct ZmxTestWorkspace: Sendable {
   }
 
   private let stateHome: URL
-  private let cleaner: ZmxTestSessionCleaner
-  let zmxDirectory: URL
+  private let cleaner: SessionHostTestSessionCleaner
+  let sessionHostDirectory: URL
 
   init(stateHome: URL, instanceName: String) throws {
     self.stateHome = stateHome
-    zmxDirectory = Self.zmxDirectory(instanceName: instanceName)
-    cleaner = ZmxTestSessionCleaner(directory: zmxDirectory.path)
+    sessionHostDirectory = Self.sessionHostDirectory(instanceName: instanceName)
+    cleaner = SessionHostTestSessionCleaner(directory: sessionHostDirectory.path)
     let runnerProcess = try Self.requiredProcessIdentity(processID: getpid())
     try FileManager.default.createDirectory(at: stateHome, withIntermediateDirectories: true)
     try writeOwner(Owner(runnerProcess: runnerProcess, appProcess: nil))
@@ -145,7 +145,7 @@ nonisolated struct ZmxTestWorkspace: Sendable {
       try Self.terminateProcess(appProcess)
     }
     try cleaner.cleanup()
-    try Self.removeIfPresent(zmxDirectory)
+    try Self.removeIfPresent(sessionHostDirectory)
     try Self.removeIfPresent(stateHome)
   }
 
@@ -171,8 +171,8 @@ nonisolated struct ZmxTestWorkspace: Sendable {
       stateHomePrefix: stateHomePrefix,
       instanceNamePrefix: instanceNamePrefix,
       cleanupInstance: { instanceName in
-        let directory = zmxDirectory(instanceName: instanceName)
-        try ZmxTestSessionCleaner(directory: directory.path).cleanup()
+        let directory = sessionHostDirectory(instanceName: instanceName)
+        try SessionHostTestSessionCleaner(directory: directory.path).cleanup()
         try removeIfPresent(directory)
       }
     )
@@ -266,8 +266,8 @@ nonisolated struct ZmxTestWorkspace: Sendable {
     )
   }
 
-  static func zmxDirectory(instanceName: String) -> URL {
-    let instanceHash = ZmxSessionID.instanceHash(
+  static func sessionHostDirectory(instanceName: String) -> URL {
+    let instanceHash = SessionHostSessionID.instanceHash(
       environment: [SupatermCLIEnvironment.instanceNameKey: instanceName]
     )
     return URL(fileURLWithPath: "/tmp", isDirectory: true)
@@ -287,7 +287,7 @@ nonisolated struct ZmxTestWorkspace: Sendable {
     guard processMatches(process) else { return }
     try send(SIGKILL, to: process.processID)
     guard waitForExit(process, timeout: 2) else {
-      throw ZmxTestCleanupError.processDidNotExit(process.processID)
+      throw SessionHostTestCleanupError.processDidNotExit(process.processID)
     }
   }
 
@@ -297,7 +297,7 @@ nonisolated struct ZmxTestWorkspace: Sendable {
     if waitForExit(process, timeout: 0.5) { return }
     try send(SIGKILL, toProcessGroup: processID)
     guard waitForExit(process, timeout: 2) else {
-      throw ZmxTestCleanupError.processDidNotExit(processID)
+      throw SessionHostTestCleanupError.processDidNotExit(processID)
     }
   }
 
@@ -315,7 +315,7 @@ nonisolated struct ZmxTestWorkspace: Sendable {
 
   private static func requiredProcessIdentity(processID: Int32) throws -> ProcessIdentity {
     guard let process = processIdentity(processID: processID) else {
-      throw ZmxTestCleanupError.processIdentityUnavailable(processID)
+      throw SessionHostTestCleanupError.processIdentityUnavailable(processID)
     }
     return process
   }
@@ -336,7 +336,7 @@ nonisolated struct ZmxTestWorkspace: Sendable {
   private static func send(_ signal: Int32, to processID: Int32) throws {
     guard kill(processID, signal) != 0 else { return }
     guard errno != ESRCH else { return }
-    throw ZmxTestCleanupError.processSignalFailed(
+    throw SessionHostTestCleanupError.processSignalFailed(
       processID: processID,
       signal: signal,
       errorCode: errno
@@ -346,7 +346,7 @@ nonisolated struct ZmxTestWorkspace: Sendable {
   private static func send(_ signal: Int32, toProcessGroup processID: Int32) throws {
     guard kill(-processID, signal) != 0 else { return }
     guard errno != ESRCH, errno != EPERM else { return }
-    throw ZmxTestCleanupError.processSignalFailed(
+    throw SessionHostTestCleanupError.processSignalFailed(
       processID: processID,
       signal: signal,
       errorCode: errno

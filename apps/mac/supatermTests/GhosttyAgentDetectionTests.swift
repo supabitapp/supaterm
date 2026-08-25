@@ -173,7 +173,7 @@ struct GhosttyAgentDetectionTests {
       workingDirectory: nil,
       shellPath: "/bin/sh",
       context: GHOSTTY_SURFACE_CONTEXT_TAB,
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("supaterm-agent-detection-\(UUID().uuidString)", isDirectory: true)
@@ -237,7 +237,7 @@ private final class GhosttyAgentDetectionFixture {
       shellPath: "/bin/sh",
       startupCommand: .exec(["/bin/sh", "-c", command], searchPath: "/usr/bin:/bin"),
       context: GHOSTTY_SURFACE_CONTEXT_TAB,
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
     window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 640, height: 320),

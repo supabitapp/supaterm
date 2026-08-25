@@ -44,7 +44,7 @@ struct TerminalSidebarPointerTests {
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let sourceTabID = terminal.spaceManager.tabCollection.createTab(title: "Source")
       let destinationTabID = terminal.spaceManager.tabCollection.createTab(title: "Destination")

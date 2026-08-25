@@ -68,38 +68,6 @@ struct SupatermSettingsMigrationTests {
   }
 
   @Test
-  func migratesLegacyTerminalZmxKeyInToml() throws {
-    let homeDirectoryURL = try temporarySettingsHomeDirectory()
-    let settingsURL = SupatermStateRoot.settingsFileURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])
-    try FileManager.default.createDirectory(
-      at: settingsURL.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try Data(
-      #"""
-      [terminal]
-      terminate_sessions_on_quit = true
-      """#.utf8
-    )
-    .write(to: settingsURL)
-
-    try SupatermSettingsMigration(homeDirectoryURL: homeDirectoryURL, environment: [:]).migrateIfNeeded()
-
-    let settingsData = try Data(contentsOf: settingsURL)
-    let settings = try SupatermSettingsCodec.decode(settingsData)
-    let string = try #require(String(data: settingsData, encoding: .utf8)).trimmingCharacters(in: .newlines)
-    #expect(!settings.zmxSessionsEnabled)
-    #expect(settings.terminatesSessionsOnQuit)
-    #expect(
-      string
-        == """
-        [terminal]
-        zmx_sessions_enabled = false
-        """
-    )
-  }
-
-  @Test
   func invalidTomlPreservesLegacyJson() throws {
     let homeDirectoryURL = try temporarySettingsHomeDirectory()
     let settingsURL = SupatermStateRoot.settingsFileURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])

@@ -32,7 +32,7 @@ class SupatermUITestCase: XCTestCase {
     continueAfterFailure = false
 
     let temporaryDirectory = FileManager.default.temporaryDirectory
-    try ZmxTestWorkspace.reapAbandoned(
+    try SessionHostTestWorkspace.reapAbandoned(
       in: temporaryDirectory,
       stateHomePrefix: "supaterm-ui-",
       instanceNamePrefix: "ui-"
@@ -43,9 +43,9 @@ class SupatermUITestCase: XCTestCase {
     let stateHome =
       temporaryDirectory
       .appendingPathComponent("supaterm-ui-\(token)", isDirectory: true)
-    let workspace = try ZmxTestWorkspace(stateHome: stateHome, instanceName: instanceName)
+    let workspace = try SessionHostTestWorkspace(stateHome: stateHome, instanceName: instanceName)
     try FileManager.default.createDirectory(
-      at: workspace.zmxDirectory,
+      at: workspace.sessionHostDirectory,
       withIntermediateDirectories: true
     )
     let home = stateHome.appendingPathComponent("home", isDirectory: true)
@@ -63,8 +63,8 @@ class SupatermUITestCase: XCTestCase {
         "SUPATERM_INSTANCE_NAME": instanceName,
         "SUPATERM_STATE_HOME": stateHome.path,
         "SUPATERM_VERBOSE_LOGGING": "1",
-        ZmxEnvironment.disabledKey: "1",
-        ZmxEnvironment.directoryKey: workspace.zmxDirectory.path,
+        SessionHostEnvironment.disabledKey: "1",
+        SessionHostEnvironment.directoryKey: workspace.sessionHostDirectory.path,
       ]
       return app
     }

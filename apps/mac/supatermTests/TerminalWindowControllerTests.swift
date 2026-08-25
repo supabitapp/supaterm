@@ -21,7 +21,7 @@ struct TerminalWindowControllerTests {
         runtime: GhosttyRuntime(applicationIsActive: { false }),
         registry: TerminalWindowRegistry(sessionHostClient: .noop),
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       defer {
         controller.window?.delegate = nil
@@ -44,7 +44,7 @@ struct TerminalWindowControllerTests {
         runtime: GhosttyRuntime(applicationIsActive: { false }),
         registry: TerminalWindowRegistry(sessionHostClient: .noop),
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       defer {
         controller.window?.delegate = nil
@@ -75,13 +75,13 @@ struct TerminalWindowControllerTests {
         runtime: fixture.runtime,
         registry: registry,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let secondController = TerminalWindowController(
         runtime: fixture.runtime,
         registry: registry,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       defer {
         firstController.window?.delegate = nil
@@ -180,7 +180,7 @@ struct TerminalWindowControllerTests {
         registry: TerminalWindowRegistry(sessionHostClient: .noop),
         launch: .restore(session),
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       defer {
         for tab in controller.terminal.visibleTabs {
@@ -210,7 +210,7 @@ struct TerminalWindowControllerTests {
         runtime: GhosttyRuntime(applicationIsActive: { false }),
         registry: registry,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false,
+        sessionPersistenceEnabled: false,
         onSessionChange: {
           savedCatalog.withLock { $0 = registry.restorationSnapshot() }
         }
@@ -248,7 +248,7 @@ struct TerminalWindowControllerTests {
         runtime: GhosttyRuntime(applicationIsActive: { false }),
         registry: TerminalWindowRegistry(sessionHostClient: .noop),
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       defer {
         for tab in controller.terminal.visibleTabs {

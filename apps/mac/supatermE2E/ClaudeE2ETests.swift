@@ -27,10 +27,10 @@ struct ClaudeE2ETests {
 }
 
 @Suite(.enabled(if: claudeE2EEnabled, "Run through make mac-test-e2e."))
-struct ClaudeZmxE2ETests {
+struct ClaudeSessionHostE2ETests {
   @Test(.timeLimit(.minutes(5)))
   func screenRulesTrackEveryRootStateAndInterrupt() async throws {
-    try await runClaudeLifecycle(mode: .zmxScreenRules)
+    try await runClaudeLifecycle(mode: .sessionHostScreenRules)
   }
 
   @Test(.timeLimit(.minutes(5)))
@@ -42,14 +42,14 @@ struct ClaudeZmxE2ETests {
 private enum ClaudeE2EMode {
   case hooks
   case screenRules
-  case zmxScreenRules
+  case sessionHostScreenRules
 
   var hooksEnabled: Bool {
     self == .hooks
   }
 
-  var zmxSessionsEnabled: Bool {
-    self == .zmxScreenRules
+  var sessionPersistenceEnabled: Bool {
+    self == .sessionHostScreenRules
   }
 }
 
@@ -94,7 +94,7 @@ private final class ClaudeE2EFixture {
   static func launch(mode: ClaudeE2EMode) async throws -> ClaudeE2EFixture {
     let environment = try ClaudeE2EEnvironment()
     let app = try await SupatermE2EApp.launch(
-      zmxSessionsEnabled: mode.zmxSessionsEnabled,
+      sessionPersistenceEnabled: mode.sessionPersistenceEnabled,
       pathDirectories: [environment.executable.deletingLastPathComponent()]
     )
     var server: FakeModelServer?
@@ -450,7 +450,7 @@ private func runClaudeLifecycle(mode: ClaudeE2EMode) async throws {
 }
 
 private func runClaudeRelaunchLifecycle() async throws {
-  let fixture = try await ClaudeE2EFixture.launch(mode: .zmxScreenRules)
+  let fixture = try await ClaudeE2EFixture.launch(mode: .sessionHostScreenRules)
   defer { fixture.close() }
 
   try await fixture.app.waitForPersistedStateQuiescence(

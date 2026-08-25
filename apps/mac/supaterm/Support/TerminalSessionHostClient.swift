@@ -3,23 +3,23 @@ import Darwin
 import Foundation
 import SupatermCLIShared
 
-nonisolated private func zmxLogDebug(
+nonisolated private func sessionHostLogDebug(
   _ event: String,
   fields: [String] = []
 ) {
-  SupatermLog.debug(SupatermLog.zmx, event, fields: fields)
+  SupatermLog.debug(SupatermLog.sessionHost, event, fields: fields)
 }
 
-nonisolated private func zmxLogError(
+nonisolated private func sessionHostLogError(
   _ event: String,
   fields: [String] = []
 ) {
-  SupatermLog.error(SupatermLog.zmx, event, fields: fields)
+  SupatermLog.error(SupatermLog.sessionHost, event, fields: fields)
 }
 
-nonisolated private func zmxLogRunStart(_ argumentLabel: String, captureStdout: Bool) {
-  zmxLogDebug(
-    "zmx.run.start",
+nonisolated private func sessionHostLogRunStart(_ argumentLabel: String, captureStdout: Bool) {
+  sessionHostLogDebug(
+    "sessionHost.run.start",
     fields: [
       "arguments=\(argumentLabel)",
       "captureStdout=\(captureStdout)",
@@ -27,9 +27,9 @@ nonisolated private func zmxLogRunStart(_ argumentLabel: String, captureStdout: 
   )
 }
 
-nonisolated private func zmxLogRunLaunchFailed(_ argumentLabel: String, error: Error) {
-  zmxLogError(
-    "zmx.run.launchFailed",
+nonisolated private func sessionHostLogRunLaunchFailed(_ argumentLabel: String, error: Error) {
+  sessionHostLogError(
+    "sessionHost.run.launchFailed",
     fields: [
       "arguments=\(argumentLabel)",
       "error=\(String(describing: error))",
@@ -37,9 +37,9 @@ nonisolated private func zmxLogRunLaunchFailed(_ argumentLabel: String, error: E
   )
 }
 
-nonisolated private func zmxLogRunFailure(_ argumentLabel: String, exitStatus: Int32) {
-  zmxLogError(
-    "zmx.run.failed",
+nonisolated private func sessionHostLogRunFailure(_ argumentLabel: String, exitStatus: Int32) {
+  sessionHostLogError(
+    "sessionHost.run.failed",
     fields: [
       "arguments=\(argumentLabel)",
       "exitStatus=\(exitStatus)",
@@ -47,20 +47,20 @@ nonisolated private func zmxLogRunFailure(_ argumentLabel: String, exitStatus: I
   )
 }
 
-nonisolated private func zmxLogRunFinished(_ argumentLabel: String, stdoutLineCount: Int? = nil) {
+nonisolated private func sessionHostLogRunFinished(_ argumentLabel: String, stdoutLineCount: Int? = nil) {
   var fields = ["arguments=\(argumentLabel)", "exitStatus=0"]
   if let stdoutLineCount {
     fields.append("stdoutLines=\(stdoutLineCount)")
   }
-  zmxLogDebug("zmx.run.finished", fields: fields)
+  sessionHostLogDebug("sessionHost.run.finished", fields: fields)
 }
 
-public nonisolated enum ZmxEnvironment {
-  public static let disabledKey = "SUPATERM_DISABLE_ZMX"
-  public static let enabledKey = "SUPATERM_ENABLE_ZMX"
-  public static let directoryKey = "ZMX_DIR"
-  public static let sessionKey = "ZMX_SESSION"
-  public static let sessionPrefixKey = "ZMX_SESSION_PREFIX"
+public nonisolated enum SessionHostEnvironment {
+  public static let disabledKey = "SUPATERM_DISABLE_SUPATERM_HOST"
+  public static let enabledKey = "SUPATERM_ENABLE_SUPATERM_HOST"
+  public static let directoryKey = "SUPATERM_HOST_DIR"
+  public static let sessionKey = "SUPATERM_HOST_SESSION"
+  public static let sessionPrefixKey = "SUPATERM_HOST_SESSION_PREFIX"
 
   public static func sessionsEnabled(
     setting: Bool,
@@ -87,7 +87,7 @@ public nonisolated struct TerminalSessionHostSession: Equatable, Sendable {
   }
 }
 
-nonisolated enum ZmxSessionList {
+nonisolated enum SessionHostSessionList {
   static func parse(
     _ output: String,
     environment: [String: String] = ProcessInfo.processInfo.environment
@@ -100,7 +100,7 @@ nonisolated enum ZmxSessionList {
         let processField = fields.first(where: { $0.hasPrefix("pid=") }),
         let processID = Int32(processField.dropFirst(4)),
         processID > 0,
-        let surfaceID = ZmxSessionID.surfaceID(
+        let surfaceID = SessionHostSessionID.surfaceID(
           from: String(nameField[nameRange.upperBound...]),
           environment: environment
         )
@@ -141,7 +141,7 @@ public nonisolated struct TerminalSessionHostClient: Sendable {
   }
 }
 
-private nonisolated enum ZmxSubprocess {
+private nonisolated enum SessionHostSubprocess {
   static func run(
     executableURL: URL?,
     arguments: [String],
@@ -149,10 +149,10 @@ private nonisolated enum ZmxSubprocess {
     timeout: Duration
   ) async -> String? {
     let argumentLabel = arguments.joined(separator: " ")
-    zmxLogRunStart(argumentLabel, captureStdout: captureStdout)
+    sessionHostLogRunStart(argumentLabel, captureStdout: captureStdout)
     guard let executableURL else {
-      zmxLogError(
-        "zmx.run.missingExecutable",
+      sessionHostLogError(
+        "sessionHost.run.missingExecutable",
         fields: ["arguments=\(argumentLabel)"]
       )
       return nil
@@ -161,9 +161,9 @@ private nonisolated enum ZmxSubprocess {
     process.executableURL = executableURL
     process.arguments = arguments
     var environment = ProcessInfo.processInfo.environment
-    environment[ZmxEnvironment.directoryKey] = ZmxSocketBudget.socketDir()
-    environment[ZmxEnvironment.sessionKey] = ""
-    environment[ZmxEnvironment.sessionPrefixKey] = ""
+    environment[SessionHostEnvironment.directoryKey] = SessionHostSocketBudget.socketDir()
+    environment[SessionHostEnvironment.sessionKey] = ""
+    environment[SessionHostEnvironment.sessionPrefixKey] = ""
     process.environment = environment
 
     let stdoutPipe: Pipe?
@@ -187,7 +187,7 @@ private nonisolated enum ZmxSubprocess {
     do {
       try process.run()
     } catch {
-      zmxLogRunLaunchFailed(argumentLabel, error: error)
+      sessionHostLogRunLaunchFailed(argumentLabel, error: error)
       return nil
     }
 
@@ -226,24 +226,24 @@ private nonisolated enum ZmxSubprocess {
         defer { group.cancelAll() }
         await group.next()
       }
-      zmxLogError(
-        "zmx.run.timeout",
+      sessionHostLogError(
+        "sessionHost.run.timeout",
         fields: ["arguments=\(argumentLabel)"]
       )
       return nil
     }
 
     guard exitStatus == 0 else {
-      zmxLogRunFailure(argumentLabel, exitStatus: exitStatus)
+      sessionHostLogRunFailure(argumentLabel, exitStatus: exitStatus)
       return nil
     }
     guard captureStdout, let stdoutTask else {
-      zmxLogRunFinished(argumentLabel)
+      sessionHostLogRunFinished(argumentLabel)
       return nil
     }
     let stdout = await stdoutTask.value
     let output = String(data: stdout, encoding: .utf8) ?? ""
-    zmxLogRunFinished(argumentLabel, stdoutLineCount: output.split(whereSeparator: \.isNewline).count)
+    sessionHostLogRunFinished(argumentLabel, stdoutLineCount: output.split(whereSeparator: \.isNewline).count)
     return output
   }
 }
@@ -251,13 +251,13 @@ private nonisolated enum ZmxSubprocess {
 extension TerminalSessionHostClient {
   private nonisolated static let subprocessTimeout: Duration = .seconds(5)
 
-  public nonisolated static let live = makeZmx(
+  public nonisolated static let live = makeSessionHost(
     executableURL: Bundle.main.executableURL.flatMap {
-      SupatermBundleLayout.zmxExecutableURL(nextTo: $0)
+      SupatermBundleLayout.sessionHostExecutableURL(nextTo: $0)
     }
   )
 
-  nonisolated static func makeZmx(
+  nonisolated static func makeSessionHost(
     executableURL: URL?,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> TerminalSessionHostClient {
@@ -266,71 +266,71 @@ extension TerminalSessionHostClient {
 
     @Sendable func resolveExecutable() -> URL? {
       guard let url = cachedBundledURL else {
-        zmxLogError("zmx.executable.missing")
+        sessionHostLogError("sessionHost.executable.missing")
         return nil
       }
-      let canUseZmx = probed.withValue { current -> Bool in
+      let canUseSessionHost = probed.withValue { current -> Bool in
         if let current { return current }
-        let probeResult = ZmxSocketBudget.probe()
+        let probeResult = SessionHostSocketBudget.probe()
         let computed = probeResult == nil
         current = computed
         if let probeResult {
-          zmxLogError(
-            "zmx.socketDir.unavailable",
+          sessionHostLogError(
+            "sessionHost.socketDir.unavailable",
             fields: ["reason=\(probeResult)"]
           )
         } else {
-          zmxLogDebug("zmx.executable.available")
+          sessionHostLogDebug("sessionHost.executable.available")
         }
         return computed
       }
-      return canUseZmx ? url : nil
+      return canUseSessionHost ? url : nil
     }
 
     return TerminalSessionHostClient(
       isAvailable: { resolveExecutable() != nil },
       canManageSessions: { cachedBundledURL != nil },
       sessionID: { surfaceID in
-        ZmxSessionID.make(surfaceID: surfaceID, environment: environment)
+        SessionHostSessionID.make(surfaceID: surfaceID, environment: environment)
       },
       commandWrapper: { surfaceID, mode in
         guard let executableURL = resolveExecutable() else { return nil }
-        return ZmxAttach.buildWrapperArgv(
+        return SessionHostAttach.buildWrapperArgv(
           executablePath: executableURL.path(percentEncoded: false),
-          sessionID: ZmxSessionID.make(surfaceID: surfaceID, environment: environment),
+          sessionID: SessionHostSessionID.make(surfaceID: surfaceID, environment: environment),
           mode: mode
         )
       },
       killSession: { surfaceID in
-        zmxLogDebug(
-          "zmx.kill.requested",
+        sessionHostLogDebug(
+          "sessionHost.kill.requested",
           fields: [
             "surfaceID=\(surfaceID.uuidString.lowercased())",
-            "sessionID=\(ZmxSessionID.make(surfaceID: surfaceID, environment: environment))",
+            "sessionID=\(SessionHostSessionID.make(surfaceID: surfaceID, environment: environment))",
           ]
         )
-        _ = await ZmxSubprocess.run(
+        _ = await SessionHostSubprocess.run(
           executableURL: cachedBundledURL,
-          arguments: ["kill", ZmxSessionID.make(surfaceID: surfaceID, environment: environment)],
+          arguments: ["kill", SessionHostSessionID.make(surfaceID: surfaceID, environment: environment)],
           captureStdout: false,
           timeout: subprocessTimeout
         )
       },
       listSessions: {
         guard
-          let stdout = await ZmxSubprocess.run(
+          let stdout = await SessionHostSubprocess.run(
             executableURL: cachedBundledURL,
             arguments: ["ls"],
             captureStdout: true,
             timeout: subprocessTimeout
           )
         else {
-          zmxLogError("zmx.list.failed")
+          sessionHostLogError("sessionHost.list.failed")
           return nil
         }
-        let sessions = ZmxSessionList.parse(stdout, environment: environment)
-        zmxLogDebug(
-          "zmx.list.parsed",
+        let sessions = SessionHostSessionList.parse(stdout, environment: environment)
+        sessionHostLogDebug(
+          "sessionHost.list.parsed",
           fields: ["count=\(sessions.count)"]
         )
         return sessions
@@ -348,7 +348,7 @@ extension TerminalSessionHostClient {
   )
 }
 
-public nonisolated enum ZmxSessionID {
+public nonisolated enum SessionHostSessionID {
   public nonisolated static let prefix = "spt-"
   public nonisolated static let instanceHashHexDigitCount = 16
 
@@ -384,16 +384,16 @@ public nonisolated enum ZmxSessionID {
   }
 }
 
-public nonisolated enum ZmxSocketBudget {
+public nonisolated enum SessionHostSocketBudget {
   public nonisolated static let sunPathLimit = 104
   public nonisolated static let safetyMargin = 2
   public nonisolated static let sessionNameByteCount =
-    ZmxSessionID.prefix.utf8.count + ZmxSessionID.instanceHashHexDigitCount + 1 + 36
+    SessionHostSessionID.prefix.utf8.count + SessionHostSessionID.instanceHashHexDigitCount + 1 + 36
 
   public nonisolated static func socketDir(
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> String {
-    environment[ZmxEnvironment.directoryKey] ?? "/tmp/zmx-\(getuid())"
+    environment[SessionHostEnvironment.directoryKey] ?? "/tmp/supaterm-host-\(getuid())"
   }
 
   public nonisolated static func probe() -> String? {
@@ -417,7 +417,7 @@ public nonisolated enum ZmxSocketBudget {
   }
 }
 
-private nonisolated enum ZmxAttach {
+private nonisolated enum SessionHostAttach {
   static func buildWrapperArgv(
     executablePath: String,
     sessionID: String,

@@ -20,21 +20,21 @@ final class SupatermE2EApp: @unchecked Sendable {
   private(set) var socketPath: String
   private let environment: [String: String]
   private let executable: URL
-  private let workspace: ZmxTestWorkspace
+  private let workspace: SessionHostTestWorkspace
   private var process: Process
   private var client: SPSocketClient
   private let logURL: URL
 
   static func launch(
     shadowsBundledCLIAtShellStartup: Bool = false,
-    zmxSessionsEnabled: Bool = false,
+    sessionPersistenceEnabled: Bool = false,
     inheritedEnvironmentKeys: Set<String> = [],
     environment: [String: String] = [:],
     pathDirectories: [URL] = []
   ) async throws -> SupatermE2EApp {
     let app = try SupatermE2EApp(
       shadowsBundledCLIAtShellStartup: shadowsBundledCLIAtShellStartup,
-      zmxSessionsEnabled: zmxSessionsEnabled,
+      sessionPersistenceEnabled: sessionPersistenceEnabled,
       inheritedEnvironmentKeys: inheritedEnvironmentKeys,
       explicitEnvironment: environment,
       pathDirectories: pathDirectories
@@ -47,7 +47,7 @@ final class SupatermE2EApp: @unchecked Sendable {
 
   private init(
     shadowsBundledCLIAtShellStartup: Bool,
-    zmxSessionsEnabled: Bool,
+    sessionPersistenceEnabled: Bool,
     inheritedEnvironmentKeys: Set<String>,
     explicitEnvironment: [String: String],
     pathDirectories: [URL]
@@ -61,7 +61,7 @@ final class SupatermE2EApp: @unchecked Sendable {
     }
 
     let temporaryDirectory = FileManager.default.temporaryDirectory
-    try ZmxTestWorkspace.reapAbandoned(
+    try SessionHostTestWorkspace.reapAbandoned(
       in: temporaryDirectory,
       stateHomePrefix: "supaterm-e2e-",
       instanceNamePrefix: "e2e-"
@@ -72,7 +72,7 @@ final class SupatermE2EApp: @unchecked Sendable {
     stateHome =
       temporaryDirectory
       .appendingPathComponent("supaterm-\(instanceName)", isDirectory: true)
-    workspace = try ZmxTestWorkspace(stateHome: stateHome, instanceName: instanceName)
+    workspace = try SessionHostTestWorkspace(stateHome: stateHome, instanceName: instanceName)
     cliHome = stateHome.appendingPathComponent("home", isDirectory: true)
     let runtimeHome = URL(fileURLWithPath: "/tmp/\(instanceName)", isDirectory: true)
     logURL = stateHome.appendingPathComponent("app.log", isDirectory: false)
@@ -98,7 +98,7 @@ final class SupatermE2EApp: @unchecked Sendable {
       "USER": NSUserName(),
       "XDG_RUNTIME_DIR": runtimeHome.path,
       "ZDOTDIR": cliHome.path,
-      ZmxEnvironment.directoryKey: workspace.zmxDirectory.path,
+      SessionHostEnvironment.directoryKey: workspace.sessionHostDirectory.path,
       SupatermCLIEnvironment.instanceNameKey: instanceName,
       SupatermCLIEnvironment.stateHomeKey: stateHome.path,
       SupatermCLIEnvironment.testHomeKey: cliHome.path,
@@ -110,10 +110,10 @@ final class SupatermE2EApp: @unchecked Sendable {
       }
     }
     environment.merge(explicitEnvironment) { _, explicit in explicit }
-    if zmxSessionsEnabled {
-      environment[ZmxEnvironment.enabledKey] = "1"
+    if sessionPersistenceEnabled {
+      environment[SessionHostEnvironment.enabledKey] = "1"
     } else {
-      environment[ZmxEnvironment.disabledKey] = "1"
+      environment[SessionHostEnvironment.disabledKey] = "1"
     }
     self.environment = environment
 

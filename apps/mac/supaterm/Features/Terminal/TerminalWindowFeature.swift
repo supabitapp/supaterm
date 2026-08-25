@@ -68,12 +68,12 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
 struct TerminalWindowFeature {
   static let closeAllWindowsWarningMessage =
     "Closing all windows terminates their terminal sessions. Reopening Supaterm starts new sessions. "
-    + "zmx persistence is for Supaterm restarts."
+    + "sessionHost persistence is for Supaterm restarts."
   static let closeTabWarningMessage =
     "Closing this tab closes all its panes and terminates any running processes. Close it anyway?"
   static let closeWindowWarningMessage =
     "Closing this window terminates its terminal sessions. Reopening the window starts new sessions. "
-    + "zmx persistence is for Supaterm restarts."
+    + "sessionHost persistence is for Supaterm restarts."
 
   struct WindowCloseConfirmation: Equatable {
     let target: WindowCloseConfirmationTarget

@@ -14,7 +14,7 @@ struct TerminalHostStateTabGroupTests {
     } operation: {
       initializeGhosttyForTests()
       let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
-      let host = TerminalHostState(runtime: runtime, zmxSessionsEnabled: false)
+      let host = TerminalHostState(runtime: runtime, sessionPersistenceEnabled: false)
       host.ensureInitialTab(focusing: false)
       let anchorTabID = try #require(host.selectedTabID)
       let groupID = try #require(
@@ -162,7 +162,7 @@ struct TerminalHostStateTabGroupTests {
     } operation: {
       initializeGhosttyForTests()
       let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
-      let host = TerminalHostState(runtime: runtime, zmxSessionsEnabled: false)
+      let host = TerminalHostState(runtime: runtime, sessionPersistenceEnabled: false)
       host.ensureInitialTab(focusing: false)
       let first = try #require(host.selectedTabID)
       let second = try #require(host.createTab(focusing: false))
@@ -206,7 +206,7 @@ struct TerminalHostStateTabGroupTests {
     } operation: {
       initializeGhosttyForTests()
       let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
-      let host = TerminalHostState(runtime: runtime, zmxSessionsEnabled: false)
+      let host = TerminalHostState(runtime: runtime, sessionPersistenceEnabled: false)
       host.ensureInitialTab(focusing: false)
       let first = try #require(host.selectedTabID)
       let second = try #require(host.createTab(focusing: false))

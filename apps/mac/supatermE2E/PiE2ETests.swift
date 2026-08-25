@@ -28,24 +28,24 @@ struct PiE2ETests {
 }
 
 @Suite(.enabled(if: piE2EEnabled, "Run through make mac-test-e2e."))
-struct PiZmxE2ETests {
+struct PiSessionHostE2ETests {
   @Test(.timeLimit(.minutes(5)))
   func screenRulesTrackLifecycleAndInterruptKeys() async throws {
-    try await runPiLifecycle(mode: .zmxScreenRules)
+    try await runPiLifecycle(mode: .sessionHostScreenRules)
   }
 }
 
 private enum PiE2EMode {
   case nativeIntegration
   case screenRules
-  case zmxScreenRules
+  case sessionHostScreenRules
 
   var usesNativeIntegration: Bool {
     self == .nativeIntegration
   }
 
-  var zmxSessionsEnabled: Bool {
-    self == .zmxScreenRules
+  var sessionPersistenceEnabled: Bool {
+    self == .sessionHostScreenRules
   }
 }
 
@@ -115,7 +115,7 @@ private final class PiE2EFixture {
   static func launch(mode: PiE2EMode) async throws -> PiE2EFixture {
     let environment = try PiE2EEnvironment()
     let app = try await SupatermE2EApp.launch(
-      zmxSessionsEnabled: mode.zmxSessionsEnabled,
+      sessionPersistenceEnabled: mode.sessionPersistenceEnabled,
       pathDirectories: environment.pathDirectories
     )
     var server: FakeModelServer?

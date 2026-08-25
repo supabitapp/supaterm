@@ -148,7 +148,7 @@ public struct SettingsFeature {
     }
     var updateChannel: UpdateChannel { supatermSettings.updateChannel }
     var verboseLoggingEnabled: Bool { supatermSettings.verboseLoggingEnabled }
-    var zmxSessionsEnabled: Bool { supatermSettings.zmxSessionsEnabled }
+    var sessionPersistenceEnabled: Bool { supatermSettings.sessionPersistenceEnabled }
 
     public init() {}
   }
@@ -190,7 +190,7 @@ public struct SettingsFeature {
     case updatesAutomaticallyCheckForUpdatesChanged(Bool)
     case updatesAutomaticallyDownloadUpdatesChanged(Bool)
     case verboseLoggingEnabledChanged(Bool)
-    case zmxSessionsEnabledChanged(Bool)
+    case sessionPersistenceEnabledChanged(Bool)
   }
 
   public enum Alert: Equatable {
@@ -339,7 +339,7 @@ public struct SettingsFeature {
         .crashReportsEnabledChanged,
         .glowingPaneRingEnabledChanged,
         .restoreTerminalLayoutEnabledChanged,
-        .zmxSessionsEnabledChanged:
+        .sessionPersistenceEnabledChanged:
         return reduceGeneral(&state, action: action)
 
       case .verboseLoggingEnabledChanged:

@@ -342,13 +342,13 @@ struct TerminalTabTransferTests {
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let destination = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let tabID = source.spaceManager.tabCollection.createTab(title: "Source")
       let surface = unbackedSurface(runtime: runtime, tabID: tabID)
@@ -501,7 +501,7 @@ struct TerminalTabTransferTests {
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
       let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
@@ -584,13 +584,13 @@ struct TerminalTabTransferTests {
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let destination = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let sourceTabID = source.spaceManager.tabCollection.createTab(title: "Source")
       let destinationTabID = destination.spaceManager.tabCollection.createTab(
@@ -693,7 +693,7 @@ struct TerminalTabTransferTests {
         runtime: GhosttyRuntime(),
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       host.ensureInitialTab(focusing: false)
       let tabID = try #require(host.selectedTabID)
@@ -796,13 +796,13 @@ struct TerminalTabTransferTests {
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let destination = TerminalHostState(
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
       let tabID = source.spaceManager.tabCollection.createTab(title: "Moved")
       source.spaceManager.tabCollection.selectTab(tabID)
@@ -919,7 +919,7 @@ struct TerminalTabTransferTests {
         runtime: runtime,
         spaceID: space.id,
         sessionHostClient: .noop,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       ),
       runtime: runtime,
       space: space

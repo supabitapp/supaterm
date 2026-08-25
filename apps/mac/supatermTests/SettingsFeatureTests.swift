@@ -43,7 +43,7 @@ struct SettingsFeatureTests {
           systemNotificationsEnabled: true,
           updateChannel: .tip,
           verboseLoggingEnabled: true,
-          zmxSessionsEnabled: false
+          sessionPersistenceEnabled: false
         )
       }
       let terminalGate = SettingsTestGate<GhosttyTerminalSettingsSnapshot>()
@@ -72,7 +72,7 @@ struct SettingsFeatureTests {
       #expect(!store.state.restoreTerminalLayoutEnabled)
       #expect(store.state.systemNotificationsEnabled)
       #expect(store.state.verboseLoggingEnabled)
-      #expect(!store.state.zmxSessionsEnabled)
+      #expect(!store.state.sessionPersistenceEnabled)
 
       await store.send(.task)
       await store.receive(\.terminalSettingsLoadRequested, timeout: Duration.zero) {

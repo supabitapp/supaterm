@@ -54,7 +54,7 @@ struct SupatermSettingsTests {
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
     #expect(!prefs.verboseLoggingEnabled)
-    #expect(prefs.zmxSessionsEnabled)
+    #expect(prefs.sessionPersistenceEnabled)
     #expect(!prefs.terminatesSessionsOnQuit)
   }
 
@@ -135,14 +135,14 @@ struct SupatermSettingsTests {
   }
 
   @Test
-  func prefsEncodeDisabledZmxSessions() throws {
+  func prefsEncodeDisabledSessionHostSessions() throws {
     let data = try SupatermSettingsCodec.encode(
       SupatermSettings(
         appearanceMode: .dark,
         analyticsEnabled: true,
         crashReportsEnabled: true,
         updateChannel: .stable,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
     )
     let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
@@ -151,7 +151,7 @@ struct SupatermSettingsTests {
       string
         == """
         [terminal]
-        zmx_sessions_enabled = false
+        session_persistence = false
         """
     )
   }
@@ -202,46 +202,6 @@ struct SupatermSettingsTests {
   }
 
   @Test
-  func prefsDecodeMigratesTerminateSessionsOnQuitToZmxSessionsEnabled() throws {
-    let data = Data(
-      #"""
-      [terminal]
-      terminate_sessions_on_quit = true
-      """#.utf8
-    )
-
-    let prefs = try SupatermSettingsCodec.decode(data)
-    let encoded = try SupatermSettingsCodec.encode(prefs)
-    let string = try #require(String(data: encoded, encoding: .utf8)).trimmingCharacters(in: .newlines)
-
-    #expect(!prefs.zmxSessionsEnabled)
-    #expect(prefs.terminatesSessionsOnQuit)
-    #expect(
-      string
-        == """
-        [terminal]
-        zmx_sessions_enabled = false
-        """
-    )
-  }
-
-  @Test
-  func prefsDecodePrefersZmxSessionsEnabledOverTerminateSessionsOnQuit() throws {
-    let data = Data(
-      #"""
-      [terminal]
-      terminate_sessions_on_quit = true
-      zmx_sessions_enabled = true
-      """#.utf8
-    )
-
-    let prefs = try SupatermSettingsCodec.decode(data)
-
-    #expect(prefs.zmxSessionsEnabled)
-    #expect(!prefs.terminatesSessionsOnQuit)
-  }
-
-  @Test
   func prefsDecodeIgnoresRemovedNewTabPosition() throws {
     let data = Data(
       #"""
@@ -269,7 +229,7 @@ struct SupatermSettingsTests {
         systemNotificationsEnabled: true,
         updateChannel: .tip,
         verboseLoggingEnabled: true,
-        zmxSessionsEnabled: false
+        sessionPersistenceEnabled: false
       )
     )
     let prefs = try SupatermSettingsCodec.decode(data)
@@ -286,7 +246,7 @@ struct SupatermSettingsTests {
           systemNotificationsEnabled: true,
           updateChannel: .tip,
           verboseLoggingEnabled: true,
-          zmxSessionsEnabled: false
+          sessionPersistenceEnabled: false
         )
     )
   }
@@ -311,7 +271,7 @@ struct SupatermSettingsTests {
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
     #expect(!prefs.verboseLoggingEnabled)
-    #expect(prefs.zmxSessionsEnabled)
+    #expect(prefs.sessionPersistenceEnabled)
   }
 
   @Test

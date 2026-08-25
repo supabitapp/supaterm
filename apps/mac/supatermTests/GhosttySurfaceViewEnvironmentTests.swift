@@ -268,9 +268,12 @@ struct GhosttySurfaceViewEnvironmentTests {
           key: SupatermCLIEnvironment.cliPathKey,
           value: "/Applications/Supaterm.app/Contents/MacOS/sp"
         ),
-        SupatermCLIEnvironmentVariable(key: ZmxEnvironment.directoryKey, value: "/tmp/zmx-\(getuid())"),
-        SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionKey, value: ""),
-        SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionPrefixKey, value: ""),
+        SupatermCLIEnvironmentVariable(
+          key: SessionHostEnvironment.directoryKey,
+          value: "/tmp/supaterm-host-\(getuid())"
+        ),
+        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionKey, value: ""),
+        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionPrefixKey, value: ""),
         SupatermCLIEnvironmentVariable(key: "PATH", value: path),
       ]
     )
@@ -305,14 +308,14 @@ struct GhosttySurfaceViewEnvironmentTests {
   }
 
   @Test
-  func supatermEnvironmentVariablesUseShortZmxDirectory() {
+  func supatermEnvironmentVariablesUseShortSessionHostDirectory() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
       surfaceID: UUID(),
       tabID: UUID(),
       socketPath: nil,
       cliPath: nil,
       processEnvironment: [
-        "ZMX_DIR": "/var/folders/" + String(repeating: "a", count: 80),
+        "SUPATERM_HOST_DIR": "/var/folders/" + String(repeating: "a", count: 80),
         "XDG_RUNTIME_DIR": "/var/folders/" + String(repeating: "b", count: 80),
         "TMPDIR": "/var/folders/" + String(repeating: "c", count: 80),
       ]
@@ -320,43 +323,52 @@ struct GhosttySurfaceViewEnvironmentTests {
 
     #expect(
       environmentVariables.contains(
-        SupatermCLIEnvironmentVariable(key: ZmxEnvironment.directoryKey, value: "/tmp/zmx-\(getuid())")
+        SupatermCLIEnvironmentVariable(
+          key: SessionHostEnvironment.directoryKey,
+          value: "/tmp/supaterm-host-\(getuid())"
+        )
       )
     )
   }
 
   @Test
-  func supatermEnvironmentVariablesClearInheritedZmxSessionContext() {
+  func supatermEnvironmentVariablesClearInheritedSessionHostSessionContext() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
       surfaceID: UUID(),
       tabID: UUID(),
       socketPath: nil,
       cliPath: nil,
       processEnvironment: [
-        ZmxEnvironment.sessionKey: "parent-session",
-        ZmxEnvironment.sessionPrefixKey: "parent-prefix-",
+        SessionHostEnvironment.sessionKey: "parent-session",
+        SessionHostEnvironment.sessionPrefixKey: "parent-prefix-",
       ]
     )
 
-    #expect(environmentVariables.contains(SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionKey, value: "")))
     #expect(
-      environmentVariables.contains(SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionPrefixKey, value: ""))
+      environmentVariables.contains(
+        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionKey, value: "")
+      )
+    )
+    #expect(
+      environmentVariables.contains(
+        SupatermCLIEnvironmentVariable(key: SessionHostEnvironment.sessionPrefixKey, value: "")
+      )
     )
   }
 
   @Test
-  func supatermEnvironmentVariablesOmitZmxDirectoryWhenZmxSessionsAreDisabled() {
+  func supatermEnvironmentVariablesOmitSessionHostDirectoryWhenSessionHostSessionsAreDisabled() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
       surfaceID: UUID(),
       tabID: UUID(),
       socketPath: nil,
       cliPath: nil,
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
 
-    #expect(!environmentVariables.contains { $0.key == ZmxEnvironment.directoryKey })
-    #expect(!environmentVariables.contains { $0.key == ZmxEnvironment.sessionKey })
-    #expect(!environmentVariables.contains { $0.key == ZmxEnvironment.sessionPrefixKey })
+    #expect(!environmentVariables.contains { $0.key == SessionHostEnvironment.directoryKey })
+    #expect(!environmentVariables.contains { $0.key == SessionHostEnvironment.sessionKey })
+    #expect(!environmentVariables.contains { $0.key == SessionHostEnvironment.sessionPrefixKey })
   }
 
   @Test

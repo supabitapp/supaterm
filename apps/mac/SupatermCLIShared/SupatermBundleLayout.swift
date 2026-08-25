@@ -1,7 +1,7 @@
 import Foundation
 
 public nonisolated enum SupatermBundleLayout {
-  public static let zmxExecutableName = "zmx"
+  public static let sessionHostExecutableName = "supaterm-host"
 
   public static func spExecutableURL(
     nextTo executableURL: URL,
@@ -15,14 +15,14 @@ public nonisolated enum SupatermBundleLayout {
     )
   }
 
-  public static func zmxExecutableURL(
+  public static func sessionHostExecutableURL(
     nextTo executableURL: URL,
     fileManager: FileManager = .default
   ) -> URL? {
     regularExecutableURL(
       contentsDirectoryURL(nextTo: executableURL)
         .appendingPathComponent("Helpers", isDirectory: true)
-        .appendingPathComponent(zmxExecutableName, isDirectory: false),
+        .appendingPathComponent(sessionHostExecutableName, isDirectory: false),
       fileManager: fileManager
     )
   }

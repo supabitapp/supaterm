@@ -226,7 +226,7 @@ struct TerminalSidebarUpdateSection: View {
   private var summaryDetailText: String {
     TerminalSidebarUpdatePresentation.detailText(
       for: phase,
-      preservesSessionsOnRestart: supatermSettings.zmxSessionsEnabled
+      preservesSessionsOnRestart: supatermSettings.sessionPersistenceEnabled
     )
   }
 

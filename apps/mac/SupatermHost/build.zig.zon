@@ -1,0 +1,17 @@
+.{
+    .name = .supaterm_host,
+    .version = "0.7.0",
+    .fingerprint = 0xda5de8eaf4fe538f,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .ghostty = .{
+            .url = "git+https://github.com/ghostty-org/ghostty/#d2c70a8c7b9b6893c13640c02d7b6f9a1624f3f0",
+            .hash = "ghostty-1.3.2-dev-5UdBCw7jPwVxLP0icARwBEsQCLzeDZCU-lxzysL_-9gi",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

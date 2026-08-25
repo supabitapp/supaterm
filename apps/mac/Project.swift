@@ -5,9 +5,9 @@ let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
-let zmxBinaryPath: Path = ".build/zmx/bin/zmx"
-let zmxBuildScriptPath: Path = "scripts/build-zmx.sh"
-let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
+let sessionHostBinaryPath: Path = ".build/supaterm-host/bin/supaterm-host"
+let sessionHostBuildScriptPath: Path = "scripts/build-supaterm-host.sh"
+let sessionHostFingerprintPath: Path = ".build/supaterm-host/fingerprint"
 let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
@@ -372,9 +372,9 @@ let project = Project(
       scripts: [
         .pre(
           script: """
-            "${SRCROOT}/\(zmxBuildScriptPath.pathString)"
+            "${SRCROOT}/\(sessionHostBuildScriptPath.pathString)"
             """,
-          name: "Build zmx",
+          name: "Build Supaterm Host",
           basedOnDependencyAnalysis: false
         ),
         .pre(
@@ -416,11 +416,11 @@ let project = Project(
             set -euo pipefail
 
             destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
-            destination_path="${destination_dir}/zmx"
-            source_path="${SRCROOT}/\(zmxBinaryPath.pathString)"
+            destination_path="${destination_dir}/supaterm-host"
+            source_path="${SRCROOT}/\(sessionHostBinaryPath.pathString)"
 
             if [ ! -x "${source_path}" ]; then
-              echo "error: missing built zmx executable" >&2
+              echo "error: missing built supaterm-host executable" >&2
               exit 1
             fi
 
@@ -432,13 +432,13 @@ let project = Project(
               /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
             fi
             """,
-          name: "Embed zmx",
+          name: "Embed Supaterm Host",
           inputPaths: [
-            "$(SRCROOT)/\(zmxBinaryPath.pathString)",
-            "$(SRCROOT)/\(zmxFingerprintPath.pathString)",
+            "$(SRCROOT)/\(sessionHostBinaryPath.pathString)",
+            "$(SRCROOT)/\(sessionHostFingerprintPath.pathString)",
           ],
           outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/zmx",
+            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/supaterm-host",
           ]
         ),
         .post(

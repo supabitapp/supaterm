@@ -18,7 +18,7 @@ public enum SupatermSettingsCommandError: Error, Equatable, LocalizedError, Send
 public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Sendable {
   case appearanceMode = "appearance.mode"
   case terminalRestoreLayout = "terminal.restore_layout"
-  case terminalZmxSessionsEnabled = "terminal.zmx_sessions_enabled"
+  case terminalSessionPersistenceEnabled = "terminal.session_persistence"
   case notificationsSystemNotifications = "notifications.system_notifications"
   case notificationsGlowingPaneRing = "notifications.glowing_pane_ring"
   case codingAgentsShowPanel = "coding_agents.show_panel"
@@ -40,7 +40,7 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       .updatesChannel:
       return .string
     case .terminalRestoreLayout,
-      .terminalZmxSessionsEnabled,
+      .terminalSessionPersistenceEnabled,
       .notificationsSystemNotifications,
       .notificationsGlowingPaneRing,
       .codingAgentsShowPanel,
@@ -58,7 +58,7 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
     case .updatesChannel:
       return UpdateChannel.allCases.map(\.rawValue)
     case .terminalRestoreLayout,
-      .terminalZmxSessionsEnabled,
+      .terminalSessionPersistenceEnabled,
       .notificationsSystemNotifications,
       .notificationsGlowingPaneRing,
       .codingAgentsShowPanel,
@@ -75,8 +75,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       return settings.appearanceMode.rawValue
     case .terminalRestoreLayout:
       return string(settings.restoreTerminalLayoutEnabled)
-    case .terminalZmxSessionsEnabled:
-      return string(settings.zmxSessionsEnabled)
+    case .terminalSessionPersistenceEnabled:
+      return string(settings.sessionPersistenceEnabled)
     case .notificationsSystemNotifications:
       return string(settings.systemNotificationsEnabled)
     case .notificationsGlowingPaneRing:
@@ -104,8 +104,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       settings.appearanceMode = try parsedEnum(AppearanceMode.self, rawValue: rawValue)
     case .terminalRestoreLayout:
       settings.restoreTerminalLayoutEnabled = try parsedBool(rawValue)
-    case .terminalZmxSessionsEnabled:
-      settings.zmxSessionsEnabled = try parsedBool(rawValue)
+    case .terminalSessionPersistenceEnabled:
+      settings.sessionPersistenceEnabled = try parsedBool(rawValue)
     case .notificationsSystemNotifications:
       settings.systemNotificationsEnabled = try parsedBool(rawValue)
     case .notificationsGlowingPaneRing:
@@ -129,8 +129,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       settings.appearanceMode = SupatermSettings.default.appearanceMode
     case .terminalRestoreLayout:
       settings.restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
-    case .terminalZmxSessionsEnabled:
-      settings.zmxSessionsEnabled = SupatermSettings.default.zmxSessionsEnabled
+    case .terminalSessionPersistenceEnabled:
+      settings.sessionPersistenceEnabled = SupatermSettings.default.sessionPersistenceEnabled
     case .notificationsSystemNotifications:
       settings.systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
     case .notificationsGlowingPaneRing:
@@ -150,8 +150,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
 
   public func mutationWarnings() -> [String] {
     switch self {
-    case .terminalZmxSessionsEnabled:
-      return ["Restart Supaterm for zmx session changes to take effect."]
+    case .terminalSessionPersistenceEnabled:
+      return ["Restart Supaterm for session persistence changes to take effect."]
     case .notificationsSystemNotifications:
       return ["macOS notification permission may still be required."]
     default:

@@ -85,7 +85,7 @@ struct TerminalCommandExecutorScreenshotTests {
       runtime: runtime,
       managesTerminalSurfaces: false,
       sessionHostClient: .noop,
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
     let tabID = host.spaceManager.tabCollection.createTab(title: "Screenshot")
     let surface = GhosttySurfaceView(

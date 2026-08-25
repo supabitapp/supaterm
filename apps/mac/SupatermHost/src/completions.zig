@@ -1,0 +1,243 @@
+const std = @import("std");
+
+pub const Shell = enum {
+    bash,
+    zsh,
+    fish,
+    nu,
+
+    pub fn fromString(s: []const u8) ?Shell {
+        if (std.mem.eql(u8, s, "bash")) return .bash;
+        if (std.mem.eql(u8, s, "zsh")) return .zsh;
+        if (std.mem.eql(u8, s, "fish")) return .fish;
+        if (std.mem.eql(u8, s, "nu")) return .nu;
+
+        return null;
+    }
+
+    pub fn getCompletionScript(self: Shell) []const u8 {
+        return switch (self) {
+            .bash => bash_completions,
+            .zsh => zsh_completions,
+            .fish => fish_completions,
+            .nu => nu_completions,
+        };
+    }
+};
+
+const bash_completions =
+    \\_supaterm_host_completions() {
+    \\  local cur prev words cword
+    \\  COMPREPLY=()
+    \\  cur="${COMP_WORDS[COMP_CWORD]}"
+    \\  prev="${COMP_WORDS[COMP_CWORD-1]}"
+    \\
+    \\  local commands="attach run send print write detach list kill history get set clear wait tail completions version help"
+    \\
+    \\  if [[ $COMP_CWORD -eq 1 ]]; then
+    \\    COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+    \\    return 0
+    \\  fi
+    \\
+    \\  case "$prev" in
+    \\    attach)
+    \\      local sessions=$(supaterm-host list --short 2>/dev/null | tr '\n' ' ')
+    \\      COMPREPLY=($(compgen -W "--existing $sessions" -- "$cur"))
+    \\      ;;
+    \\    run|send|print|write|kill|history|get|set|clear|wait|tail)
+    \\      local sessions=$(supaterm-host list --short 2>/dev/null | tr '\n' ' ')
+    \\      COMPREPLY=($(compgen -W "$sessions" -- "$cur"))
+    \\      ;;
+    \\    completions)
+    \\      COMPREPLY=($(compgen -W "bash zsh fish nu" -- "$cur"))
+    \\      ;;
+    \\    list)
+    \\      COMPREPLY=($(compgen -W "--short" -- "$cur"))
+    \\      ;;
+    \\    *)
+    \\      ;;
+    \\  esac
+    \\}
+    \\
+    \\complete -o bashdefault -o default -F _supaterm_host_completions supaterm-host
+;
+
+const zsh_completions =
+    \\#compdef supaterm-host
+    \\_supaterm_host() {
+    \\  local context state state_descr line
+    \\  typeset -A opt_args
+    \\
+    \\  _arguments -C \
+    \\    '1: :->commands' \
+    \\    '2: :->args' \
+    \\    '*: :->trailing' \
+    \\    && return 0
+    \\
+    \\  case $state in
+    \\    commands)
+    \\      local -a commands
+    \\      commands=(
+    \\        'attach:Attach to session, creating if needed'
+    \\        'run:Send command without attaching'
+    \\        'send:Send raw input to session PTY'
+    \\        'print:Inject text into session display'
+    \\        'write:Write stdin to file_path through the session'
+    \\        'detach:Detach all clients from current session'
+    \\        'list:List active sessions'
+    \\        'kill:Kill a session'
+    \\        'history:Output session scrollback'
+    \\        'wait:Wait for session tasks to complete'
+    \\        'tail:Follow session output'
+    \\        'completions:Shell completion scripts'
+    \\        'get:Get session labels'
+    \\        'set:Set session labels'
+    \\        'clear:Clear all session labels'
+    \\        'version:Show version'
+    \\        'help:Show help message'
+    \\      )
+    \\      _describe 'command' commands
+    \\      ;;
+    \\    args)
+    \\      case $words[2] in
+    \\        attach|a)
+    \\          _alternative 'options:option:(--existing)' 'sessions:session:_host_sessions'
+    \\          ;;
+    \\        kill|k|run|r|send|s|print|p|write|wr|history|get|g|set|clear|hi|wait|w|tail|t)
+    \\          _host_sessions
+    \\          ;;
+    \\        completions|c)
+    \\          _values 'shell' 'bash' 'zsh' 'fish' 'nu'
+    \\          ;;
+    \\        list|l)
+    \\          _values 'options' '--short'
+    \\          ;;
+    \\      esac
+    \\      ;;
+    \\    trailing)
+    \\      # Additional args for commands like 'attach' or 'run'
+    \\      ;;
+    \\  esac
+    \\}
+    \\
+    \\_host_sessions() {
+    \\  local -a sessions
+    \\
+    \\  local local_sessions=$(supaterm-host list --short 2>/dev/null)
+    \\  if [[ -n "$local_sessions" ]]; then
+    \\    sessions+=(${(f)local_sessions})
+    \\  fi
+    \\
+    \\  _describe 'local session' sessions
+    \\}
+    \\
+    \\compdef _supaterm_host supaterm-host
+;
+
+const fish_completions =
+    \\complete -c supaterm-host -f
+    \\
+    \\# supaterm-host flags
+    \\complete -c supaterm-host -x -n '__fish_is_nth_token 1' -s v -l version -d 'Show version'
+    \\complete -c supaterm-host -x -n '__fish_is_nth_token 1' -s h -d 'Show help message'
+    \\
+    \\# supaterm-host subcommands
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a attach -d 'Attach to session, creating if needed'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a run -d 'Send command without attaching'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a send -d 'Send raw input to session PTY'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a print -d 'Inject text into session display'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a write -d 'Write stdin to file_path through the session'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a detach -d 'Detach all clients (ctrl+\ for current client)'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a list -d 'List active sessions'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a kill -d 'Kill session and all attached clients'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a history -d 'Output session scrollback'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a wait -d 'Wait for session tasks to complete'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a tail -d 'Follow session output'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a completions -d 'Shell completions (bash, zsh, fish, nu)'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a version -d 'Show version'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a get -d 'Get session labels'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a set -d 'Set session labels'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a clear -d 'Clear all session labels'
+    \\complete -c supaterm-host -n "__fish_is_nth_token 1" -a help -d 'Show help message'
+    \\
+    \\# Complete session names and shells
+    \\complete -c supaterm-host -n "__fish_is_nth_token 2; and __fish_seen_subcommand_from a attach r run s send p print wr write hi history g get se set cl clear" -a '(supaterm-host list --short 2>/dev/null)' -d 'Session name'
+    \\complete -c supaterm-host -n "not __fish_is_nth_token 1; and __fish_seen_subcommand_from k kill w wait t tail" -a '(supaterm-host list --short 2>/dev/null)' -d 'Session name'
+    \\
+    \\complete -c supaterm-host -n "__fish_is_nth_token 2; and __fish_seen_subcommand_from c completions" -a 'bash zsh fish nu' -d Shell
+    \\
+    \\# Subcommand flags
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from r run" -s d -d 'Detach from the calling terminal; use `wait` to track its status'
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from r run" -l fish -d 'Required when the session runs fish shell'
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from a attach" -l existing -d 'Attach only when the session exists'
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from l list" -l short -d 'Short output'
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from l list" -l where -d 'Filter by label (key=value)' -r
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from k kill" -l force -d 'Force kill'
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from hi history" -l vt -d 'History format for escape sequences'
+    \\complete -c supaterm-host -n "__fish_seen_subcommand_from hi history" -l html -d 'History format for escape sequences'
+;
+
+const nu_completions =
+    \\def "nu-complete supaterm-host sessions" [] {
+    \\    supaterm-host list --short | lines
+    \\}
+    \\
+    \\def "nu-complete supaterm-host complete" [] {
+    \\    [bash fish nu zsh]
+    \\}
+    \\
+    \\export extern "supaterm-host attach" [
+    \\    --existing
+    \\    name: string@"nu-complete supaterm-host sessions"
+    \\    ...rest: string
+    \\]
+    \\
+    \\export extern "supaterm-host run" [
+    \\    name: string@"nu-complete supaterm-host sessions"
+    \\    -d
+    \\    --fish
+    \\    ...rest: string
+    \\]
+    \\
+    \\export extern "supaterm-host send" [
+    \\    name: string@"nu-complete supaterm-host sessions"
+    \\    text: string
+    \\]
+    \\
+    \\export extern "supaterm-host print" [
+    \\    name: string@"nu-complete supaterm-host sessions"
+    \\    text: string
+    \\]
+    \\
+    \\export extern "supaterm-host write" [
+    \\    name: string@"nu-complete supaterm-host sessions"
+    \\    path: path
+    \\]
+    \\
+    \\export extern "supaterm-host kill" [
+    \\    --force
+    \\    name: string@"nu-complete supaterm-host sessions"
+    \\]
+    \\
+    \\export extern "supaterm-host detach" []
+    \\export extern "supaterm-host list" [--short]
+    \\export extern "supaterm-host history" [name: string@"nu-complete supaterm-host sessions", --vt, --html]
+    \\export extern "supaterm-host wait" [...sessions: string@"nu-complete supaterm-host sessions"]
+    \\export extern "supaterm-host tail" [...sessions: string@"nu-complete supaterm-host sessions"]
+    \\export extern "supaterm-host version" []
+    \\export extern "completions" [shell: string@"nu-complete supaterm-host complete"]
+    \\export extern "supaterm-host get" [
+    \\    name?: string@"nu-complete supaterm-host sessions"
+    \\]
+    \\
+    \\export extern "supaterm-host set" [
+    \\    name?: string@"nu-complete supaterm-host sessions"
+    \\    ...pairs: string
+    \\]
+    \\
+    \\export extern "supaterm-host clear" [
+    \\    name?: string@"nu-complete supaterm-host sessions"
+    \\]
+    \\
+    \\export extern "supaterm-host help" []
+;

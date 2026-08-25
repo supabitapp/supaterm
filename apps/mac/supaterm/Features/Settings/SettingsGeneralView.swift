@@ -23,11 +23,11 @@ struct SettingsGeneralView: View {
     )
   }
 
-  private var persistSessionsUsingZmx: Binding<Bool> {
+  private var persistSessions: Binding<Bool> {
     Binding(
-      get: { store.zmxSessionsEnabled },
+      get: { store.sessionPersistenceEnabled },
       set: { newValue in
-        _ = store.send(.zmxSessionsEnabledChanged(newValue))
+        _ = store.send(.sessionPersistenceEnabledChanged(newValue))
       }
     )
   }
@@ -60,12 +60,11 @@ struct SettingsGeneralView: View {
         .accessibilityIdentifier("settings.general.restore-terminal-layout")
 
         SettingsToggleRow(
-          title: "Persist Sessions Using zmx",
-          subtitle:
-            "Use zmx for terminal session persistence across Supaterm restarts.",
-          isOn: persistSessionsUsingZmx
+          title: "Persist Terminal Sessions",
+          subtitle: "Keep terminal processes running across Supaterm restarts.",
+          isOn: persistSessions
         )
-        .accessibilityIdentifier("settings.general.persist-sessions-using-zmx")
+        .accessibilityIdentifier("settings.general.persist-terminal-sessions")
       }
     }
     .navigationTitle("General")

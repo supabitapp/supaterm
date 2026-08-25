@@ -8,11 +8,6 @@
 	url = git@github.com:supabitapp/supaterm-skills.git
 	pushurl = git@github.com:supabitapp/supaterm-skills.git
 	branch = main
-[submodule "ThirdParty/zmx"]
-	path = apps/mac/ThirdParty/zmx
-	url = git@github.com:supabitapp/zmx.git
-	pushurl = git@github.com:supabitapp/zmx.git
-	branch = supaterm
 [submodule "ThirdParty/coding-agents-session-picker"]
 	path = apps/mac/ThirdParty/coding-agents-session-picker
 	url = git@github.com:khoi/coding-agents-session-picker.git

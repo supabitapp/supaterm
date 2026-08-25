@@ -40,7 +40,7 @@ struct TerminalHostStateColorSchemeTests {
     let host = TerminalHostState(
       runtime: runtime,
       sessionHostClient: .noop,
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
     host.ensureInitialTab(focusing: false)
     let surface = try #require(host.selectedSurfaceView)

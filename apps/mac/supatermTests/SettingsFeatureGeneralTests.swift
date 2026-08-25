@@ -77,7 +77,7 @@ struct SettingsFeatureGeneralTests {
   }
 
   @Test
-  func zmxSessionsSettingPersistsPrefsAndShowsRestartAlert() async throws {
+  func sessionHostSessionsSettingPersistsPrefsAndShowsRestartAlert() async throws {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -85,9 +85,9 @@ struct SettingsFeatureGeneralTests {
         SettingsFeature()
       }
 
-      await store.send(.zmxSessionsEnabledChanged(false)) {
+      await store.send(.sessionPersistenceEnabledChanged(false)) {
         $0.$supatermSettings.withLock {
-          $0.zmxSessionsEnabled = false
+          $0.sessionPersistenceEnabled = false
         }
         $0.alert = AlertState {
           TextState("Restart Required")
@@ -96,12 +96,12 @@ struct SettingsFeatureGeneralTests {
             TextState("OK")
           }
         } message: {
-          TextState("Restart Supaterm for zmx session changes to take effect.")
+          TextState("Restart Supaterm for session persistence changes to take effect.")
         }
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default
-      #expect(!supatermSettings.zmxSessionsEnabled)
+      #expect(!supatermSettings.sessionPersistenceEnabled)
       #expect(supatermSettings.terminatesSessionsOnQuit)
     }
   }

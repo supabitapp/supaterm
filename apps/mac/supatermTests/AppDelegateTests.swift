@@ -201,7 +201,7 @@ struct AppDelegateTests {
   }
 
   @Test
-  func initialWindowRequestsDropDirectOnlyWindowsWithoutZmx() {
+  func initialWindowRequestsDropDirectOnlyWindowsWithoutSessionHost() {
     let spaceID = TerminalSpaceID()
 
     let requests = AppDelegate.initialWindowRequests(

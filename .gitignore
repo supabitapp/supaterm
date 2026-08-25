@@ -41,6 +41,7 @@ Tuist/Dependencies/
 apps/mac/supaterm.xcodeproj/
 apps/mac/supaterm.xcworkspace/
 apps/mac/Tuist/Dependencies/
+apps/mac/SupatermHost/zig-pkg/
 
 # CocoaPods
 #

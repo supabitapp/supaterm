@@ -176,7 +176,7 @@
       $settings.withLock {
         $0.restoreTerminalLayoutEnabled = true
         $0.codingAgentsShowPanel = true
-        $0.zmxSessionsEnabled = false
+        $0.sessionPersistenceEnabled = false
       }
       ReleaseAnnouncementStorage.save(
         ReleaseAnnouncementStorageState(acknowledgedVersion: AppBuild.version)

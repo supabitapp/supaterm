@@ -35,10 +35,10 @@ extension SettingsFeature {
       }
       return .none
 
-    case .zmxSessionsEnabledChanged(let isEnabled):
-      state.alert = zmxRestartRequiredAlert()
+    case .sessionPersistenceEnabledChanged(let isEnabled):
+      state.alert = sessionPersistenceRestartRequiredAlert()
       updateSettings(&state) {
-        $0.zmxSessionsEnabled = isEnabled
+        $0.sessionPersistenceEnabled = isEnabled
       }
       return .none
 
@@ -47,7 +47,7 @@ extension SettingsFeature {
     }
   }
 
-  func zmxRestartRequiredAlert() -> AlertState<Alert> {
+  func sessionPersistenceRestartRequiredAlert() -> AlertState<Alert> {
     AlertState {
       TextState("Restart Required")
     } actions: {
@@ -55,7 +55,7 @@ extension SettingsFeature {
         TextState("OK")
       }
     } message: {
-      TextState("Restart Supaterm for zmx session changes to take effect.")
+      TextState("Restart Supaterm for session persistence changes to take effect.")
     }
   }
 }

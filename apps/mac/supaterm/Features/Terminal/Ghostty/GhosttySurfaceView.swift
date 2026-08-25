@@ -208,7 +208,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     cliPath: String?,
     startup: SupatermTerminalStartup? = nil,
     processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-    zmxSessionsEnabled: Bool = true
+    sessionPersistenceEnabled: Bool = true
   ) -> [SupatermCLIEnvironmentVariable] {
     var environmentVariables = SupatermCLIContext(
       surfaceID: surfaceID,
@@ -238,22 +238,22 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
-    if zmxSessionsEnabled {
+    if sessionPersistenceEnabled {
       environmentVariables.append(
         SupatermCLIEnvironmentVariable(
-          key: ZmxEnvironment.directoryKey,
-          value: ZmxSocketBudget.socketDir()
+          key: SessionHostEnvironment.directoryKey,
+          value: SessionHostSocketBudget.socketDir()
         )
       )
       environmentVariables.append(
         SupatermCLIEnvironmentVariable(
-          key: ZmxEnvironment.sessionKey,
+          key: SessionHostEnvironment.sessionKey,
           value: ""
         )
       )
       environmentVariables.append(
         SupatermCLIEnvironmentVariable(
-          key: ZmxEnvironment.sessionPrefixKey,
+          key: SessionHostEnvironment.sessionPrefixKey,
           value: ""
         )
       )
@@ -295,7 +295,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
     managesWindowAppearance: Bool = false,
-    zmxSessionsEnabled: Bool = true,
+    sessionPersistenceEnabled: Bool = true,
     applicationAndWindowAreActive: @escaping (NSWindow) -> Bool = {
       NSApp.isActive && $0.isKeyWindow
     },
@@ -321,7 +321,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         socketPath: SupatermProcessSocketEndpoint.current()?.path,
         cliPath: cliPath,
         startup: startupCommand,
-        zmxSessionsEnabled: zmxSessionsEnabled
+        sessionPersistenceEnabled: sessionPersistenceEnabled
       )
     self.commandWrapper = commandWrapper
     if let restoreMode {

@@ -11,7 +11,7 @@ struct TerminalHostStateChildExitTests {
   func childExitedRequestsImmediateCloseAndMarksActionHandled() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(zmxSessionsEnabled: false)
+    let host = TerminalHostState(sessionPersistenceEnabled: false)
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
     let surface = try #require(host.selectedSurfaceView)
@@ -29,7 +29,7 @@ struct TerminalHostStateChildExitTests {
   }
 
   @Test
-  func childExitRetriesAReportedZmxSessionBeforeClosing() async throws {
+  func childExitRetriesAReportedSessionHostSessionBeforeClosing() async throws {
     initializeGhosttyForTests()
     let listedSessions = Mutex(0)
     let listedSurfaceID = Mutex<UUID?>(nil)
@@ -74,7 +74,7 @@ struct TerminalHostStateChildExitTests {
   }
 
   @Test
-  func childExitReattachesWhenZmxSessionRemainsAfterRetry() async throws {
+  func childExitReattachesWhenSessionHostSessionRemainsAfterRetry() async throws {
     initializeGhosttyForTests()
     let listedSessions = Mutex(0)
     let listedSurfaceID = Mutex<UUID?>(nil)

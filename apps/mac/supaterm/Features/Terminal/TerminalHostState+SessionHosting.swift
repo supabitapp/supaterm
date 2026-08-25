@@ -15,7 +15,7 @@ extension TerminalHostState {
     guard let tabID = tabID(containing: surfaceID), var tree = trees[tabID] else {
       SupatermLog.debug(
         SupatermLog.terminal,
-        "terminal.close.zmxReattach.dropped",
+        "terminal.close.sessionHostReattach.dropped",
         fields: [
           "source=\(source.rawValue)",
           "surfaceID=\(SupatermLog.uuid(surfaceID))",
@@ -27,7 +27,7 @@ extension TerminalHostState {
     guard let node = tree.find(id: surfaceID), let previousSurface = surfaces[surfaceID] else {
       SupatermLog.debug(
         SupatermLog.terminal,
-        "terminal.close.zmxReattach.dropped",
+        "terminal.close.sessionHostReattach.dropped",
         fields: [
           "source=\(source.rawValue)",
           "surfaceID=\(SupatermLog.uuid(surfaceID))",
@@ -66,7 +66,7 @@ extension TerminalHostState {
       agentDetectionController?.surfaceDidAttach(surfaceID)
       SupatermLog.error(
         SupatermLog.terminal,
-        "terminal.close.zmxReattach.failed",
+        "terminal.close.sessionHostReattach.failed",
         fields: [
           "source=\(source.rawValue)",
           "surfaceID=\(SupatermLog.uuid(surfaceID))",
@@ -87,7 +87,7 @@ extension TerminalHostState {
     syncFocus(windowActivity)
     SupatermLog.debug(
       SupatermLog.terminal,
-      "terminal.close.zmxReattach.finished",
+      "terminal.close.sessionHostReattach.finished",
       fields: [
         "source=\(source.rawValue)",
         "surfaceID=\(SupatermLog.uuid(surfaceID))",
@@ -129,20 +129,20 @@ extension TerminalHostState {
   func killHostedSessions(for surfaceIDs: [UUID]) {
     let surfaceIDs = Array(Set(surfaceIDs))
     guard !surfaceIDs.isEmpty else {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=empty"])
+      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.kill.skipped", fields: ["reason=empty"])
       return
     }
-    guard zmxSessionsEnabled else {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=disabled"])
+    guard sessionPersistenceEnabled else {
+      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.kill.skipped", fields: ["reason=disabled"])
       return
     }
     guard sessionHostClient.canManageSessions() else {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=cannotManageSessions"])
+      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.kill.skipped", fields: ["reason=cannotManageSessions"])
       return
     }
     SupatermLog.debug(
-      SupatermLog.zmx,
-      "zmx.kill.enqueue",
+      SupatermLog.sessionHost,
+      "sessionHost.kill.enqueue",
       fields: [
         "count=\(surfaceIDs.count)",
         "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
@@ -163,24 +163,24 @@ extension TerminalHostState {
   func killHostedSessionsAndWait(for surfaceIDs: [UUID]) async {
     let surfaceIDs = Array(Set(surfaceIDs))
     guard !surfaceIDs.isEmpty else {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.killAndWait.skipped", fields: ["reason=empty"])
+      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.killAndWait.skipped", fields: ["reason=empty"])
       return
     }
-    guard zmxSessionsEnabled else {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.killAndWait.skipped", fields: ["reason=disabled"])
+    guard sessionPersistenceEnabled else {
+      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.killAndWait.skipped", fields: ["reason=disabled"])
       return
     }
     guard sessionHostClient.canManageSessions() else {
       SupatermLog.debug(
-        SupatermLog.zmx,
-        "zmx.killAndWait.skipped",
+        SupatermLog.sessionHost,
+        "sessionHost.killAndWait.skipped",
         fields: ["reason=cannotManageSessions"]
       )
       return
     }
     SupatermLog.debug(
-      SupatermLog.zmx,
-      "zmx.killAndWait.start",
+      SupatermLog.sessionHost,
+      "sessionHost.killAndWait.start",
       fields: [
         "count=\(surfaceIDs.count)",
         "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
@@ -195,8 +195,8 @@ extension TerminalHostState {
       }
     }
     SupatermLog.debug(
-      SupatermLog.zmx,
-      "zmx.killAndWait.finished",
+      SupatermLog.sessionHost,
+      "sessionHost.killAndWait.finished",
       fields: [
         "count=\(surfaceIDs.count)",
         "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",

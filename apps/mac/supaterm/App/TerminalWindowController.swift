@@ -122,7 +122,7 @@ final class TerminalWindowController: NSWindowController {
     process: Shared<AppFeature.ProcessState> = Shared(value: AppFeature.ProcessState()),
     launch: TerminalWindowLaunch = .newShell(spaceID: nil, startupCommand: nil),
     sessionHostClient: TerminalSessionHostClient = .live,
-    zmxSessionsEnabled: Bool = true,
+    sessionPersistenceEnabled: Bool = true,
     agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil,
     onSessionChange: @escaping @MainActor () -> Void = {}
   ) {
@@ -135,7 +135,7 @@ final class TerminalWindowController: NSWindowController {
       runtime: runtime,
       spaceID: launch.spaceID,
       sessionHostClient: sessionHostClient,
-      zmxSessionsEnabled: zmxSessionsEnabled,
+      sessionPersistenceEnabled: sessionPersistenceEnabled,
       agentDetectionRuleRepository: agentDetectionRuleRepository
     )
     terminal.onSessionChange = onSessionChange

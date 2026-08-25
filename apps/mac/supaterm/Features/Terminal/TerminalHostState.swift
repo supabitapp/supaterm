@@ -281,7 +281,7 @@ final class TerminalHostState {
   @ObservationIgnored
   let sessionHostClient: TerminalSessionHostClient
   @ObservationIgnored
-  let zmxSessionsEnabled: Bool
+  let sessionPersistenceEnabled: Bool
   @ObservationIgnored
   @Shared(.supatermSettings)
   var supatermSettings = .default
@@ -326,7 +326,7 @@ final class TerminalHostState {
     managesTerminalSurfaces: Bool = true,
     spaceID: TerminalSpaceID? = nil,
     sessionHostClient: TerminalSessionHostClient = .live,
-    zmxSessionsEnabled: Bool = true,
+    sessionPersistenceEnabled: Bool = true,
     agentDetectionRuleRepository: AgentDetectionRuleRepository? = nil
   ) {
     @Shared(.terminalSpaceCatalog) var launchSpaceCatalog = TerminalSpaceCatalog.default
@@ -338,7 +338,7 @@ final class TerminalHostState {
       displayedSpaceID: spaceID ?? initialSpaceCatalog.defaultSelectedSpaceID
     )
     self.sessionHostClient = sessionHostClient
-    self.zmxSessionsEnabled = zmxSessionsEnabled
+    self.sessionPersistenceEnabled = sessionPersistenceEnabled
 
     if initialSpaceCatalog != spaceCatalog {
       replaceSpaceCatalog(initialSpaceCatalog)
@@ -828,7 +828,7 @@ final class TerminalHostState {
           "focusedSurfaceID=\(SupatermLog.uuid(tabID.flatMap { self.focusHistoryByTab[$0]?.current }))",
           "needsConfirmation=\(needsConfirmation)",
           "surfaceRegistered=\(self.surfaces[view.id] === view)",
-          "zmxSessionsEnabled=\(self.zmxSessionsEnabled)",
+          "sessionPersistenceEnabled=\(self.sessionPersistenceEnabled)",
         ]
       )
       self.requestCloseSurface(

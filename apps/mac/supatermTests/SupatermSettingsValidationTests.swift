@@ -114,7 +114,7 @@ struct SupatermSettingsValidationTests {
   }
 
   @Test
-  func validTomlAcceptsLegacyTerminalZmxKey() throws {
+  func validTomlWarnsForRemovedTerminalKey() throws {
     let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
     let settingsURL = SupatermStateRoot.settingsFileURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])
     try FileManager.default.createDirectory(
@@ -132,7 +132,7 @@ struct SupatermSettingsValidationTests {
     let result = SupatermSettingsValidator(homeDirectoryURL: homeDirectoryURL, environment: [:]).validate()
 
     #expect(result.status == .valid)
-    #expect(result.warnings.isEmpty)
+    #expect(result.warnings == ["Unknown config key `terminal.terminate_sessions_on_quit`."])
     #expect(result.errors.isEmpty)
   }
 

@@ -74,7 +74,7 @@ extension TerminalHostState {
       return false
     }
     let validSpaceIDs = Set(spaces.map(\.id))
-    let allowsExistingSessions = zmxSessionsEnabled && sessionHostClient.isAvailable()
+    let allowsExistingSessions = sessionPersistenceEnabled && sessionHostClient.isAvailable()
     guard
       let session = session.pruned(
         validSpaceIDs: validSpaceIDs,

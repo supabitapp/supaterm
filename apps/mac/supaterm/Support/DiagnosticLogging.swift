@@ -7,7 +7,7 @@ public nonisolated enum SupatermLog {
   public static let sidebarDrag = Logger(subsystem: subsystem, category: "sidebar-drag")
   public static let socket = Logger(subsystem: subsystem, category: "socket")
   public static let terminal = Logger(subsystem: subsystem, category: "terminal")
-  public static let zmx = Logger(subsystem: subsystem, category: "zmx")
+  public static let sessionHost = Logger(subsystem: subsystem, category: "sessionHost")
 
   private static let verboseLoggingEnabled = LockIsolated(false)
   private static let verboseLoggingEnvironmentKey = "SUPATERM_VERBOSE_LOGGING"

@@ -650,9 +650,9 @@ final class TerminalWindowRegistry {
   }
 
   func terminateAllHostedSessionsAndWait() async {
-    SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.start")
+    SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.terminateAll.start")
     await Self.terminateAllHostedSessions(using: sessionHostClient)
-    SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.finished")
+    SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.terminateAll.finished")
   }
 
   func restorationSnapshot() -> TerminalSessionCatalog {
@@ -1072,13 +1072,13 @@ final class TerminalWindowRegistry {
 
   nonisolated private static func terminateAllHostedSessions(using sessionHostClient: TerminalSessionHostClient) async {
     guard let sessions = await sessionHostClient.listSessions() else {
-      SupatermLog.error(SupatermLog.zmx, "zmx.terminateAll.skipped", fields: ["reason=listFailed"])
+      SupatermLog.error(SupatermLog.sessionHost, "sessionHost.terminateAll.skipped", fields: ["reason=listFailed"])
       return
     }
     let surfaceIDs = sessions.map(\.surfaceID)
     SupatermLog.debug(
-      SupatermLog.zmx,
-      "zmx.terminateAll.plan",
+      SupatermLog.sessionHost,
+      "sessionHost.terminateAll.plan",
       fields: [
         "count=\(surfaceIDs.count)",
         "surfaceIDs=\(TerminalHostState.logSurfaceIDs(surfaceIDs))",

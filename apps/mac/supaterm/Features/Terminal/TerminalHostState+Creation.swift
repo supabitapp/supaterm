@@ -167,7 +167,7 @@ extension TerminalHostState {
         "surfaceID=\(surfaceID.uuidString.lowercased())",
         "tabID=\(tabID.rawValue.uuidString.lowercased())",
         "context=\(Self.surfaceContextLabel(context))",
-        "zmxSessionsEnabled=\(zmxSessionsEnabled)",
+        "sessionPersistenceEnabled=\(sessionPersistenceEnabled)",
         "hasStartupCommand=\(startupCommand != nil)",
         "hasCommandWrapper=\(!commandWrapper.isEmpty)",
         "usesSessionHost=\(usesSessionHost)",
@@ -184,7 +184,7 @@ extension TerminalHostState {
       fontSize: inherited.fontSize,
       context: context,
       managesWindowAppearance: false,
-      zmxSessionsEnabled: usesSessionHost
+      sessionPersistenceEnabled: usesSessionHost
     )
     configureBridgeCallbacks(for: view, tabID: tabID)
     configureSurfaceCallbacks(for: view, tabID: tabID)
@@ -198,10 +198,10 @@ extension TerminalHostState {
     mode: TerminalSessionHostAttachMode
   ) -> [String] {
     let sessionID = sessionHostClient.sessionID(surfaceID)
-    guard zmxSessionsEnabled else {
+    guard sessionPersistenceEnabled else {
       SupatermLog.debug(
-        SupatermLog.zmx,
-        "zmx.attach.skipped",
+        SupatermLog.sessionHost,
+        "sessionHost.attach.skipped",
         fields: [
           "surfaceID=\(surfaceID.uuidString.lowercased())",
           "sessionID=\(sessionID)",
@@ -212,8 +212,8 @@ extension TerminalHostState {
     }
     guard let commandWrapper = sessionHostClient.commandWrapper(surfaceID, mode) else {
       SupatermLog.error(
-        SupatermLog.zmx,
-        "zmx.attach.fallback",
+        SupatermLog.sessionHost,
+        "sessionHost.attach.fallback",
         fields: [
           "surfaceID=\(surfaceID.uuidString.lowercased())",
           "sessionID=\(sessionID)",
@@ -222,8 +222,8 @@ extension TerminalHostState {
       return []
     }
     SupatermLog.debug(
-      SupatermLog.zmx,
-      "zmx.attach.resolved",
+      SupatermLog.sessionHost,
+      "sessionHost.attach.resolved",
       fields: [
         "surfaceID=\(surfaceID.uuidString.lowercased())",
         "sessionID=\(sessionID)",

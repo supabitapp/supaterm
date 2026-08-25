@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private let quitConfirmationPresenter: QuitConfirmationPresenter
   private let terminalWindowRegistry: TerminalWindowRegistry
   private let tabNewWindowDropController: TerminalTabNewWindowDropController
-  private let zmxSessionsEnabledAtLaunch: Bool
+  private let sessionPersistenceEnabledAtLaunch: Bool
   private lazy var serviceProvider = SupatermServiceProvider(
     openTabs: { [weak self] paths in
       self?.openServiceTabs(workingDirectoryPaths: paths)
@@ -81,10 +81,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let ghosttyRuntime = GhosttyRuntime()
     @Shared(.supatermSettings) var launchSupatermSettings = .default
     SupatermLog.setVerboseLoggingEnabled(launchSupatermSettings.verboseLoggingEnabled)
-    let zmxSessionsEnabledAtLaunch = ZmxEnvironment.sessionsEnabled(
-      setting: launchSupatermSettings.zmxSessionsEnabled
+    let sessionPersistenceEnabledAtLaunch = SessionHostEnvironment.sessionsEnabled(
+      setting: launchSupatermSettings.sessionPersistenceEnabled
     )
-    let sessionHostClient = zmxSessionsEnabledAtLaunch ? TerminalSessionHostClient.live : .noop
+    let sessionHostClient = sessionPersistenceEnabledAtLaunch ? TerminalSessionHostClient.live : .noop
     let terminalWindowRegistry = TerminalWindowRegistry(sessionHostClient: sessionHostClient)
     let tabNewWindowDropController = TerminalTabNewWindowDropController(
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
@@ -118,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     self.quitConfirmationPresenter = quitConfirmationPresenter
     self.terminalWindowRegistry = terminalWindowRegistry
     self.tabNewWindowDropController = tabNewWindowDropController
-    self.zmxSessionsEnabledAtLaunch = zmxSessionsEnabledAtLaunch
+    self.sessionPersistenceEnabledAtLaunch = sessionPersistenceEnabledAtLaunch
     super.init()
     globalKeybindManager.refresh()
     terminalWindowRegistry.tabDragRegistry.detach = { [weak self] payload, frame in
@@ -146,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   private var launchSessionHostClient: TerminalSessionHostClient {
-    zmxSessionsEnabledAtLaunch ? .live : .noop
+    sessionPersistenceEnabledAtLaunch ? .live : .noop
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     #if SUPATERM_DEMO
       DemoSeed.decorate(windowControllers.values.map(\.terminal))
     #endif
-    if zmxSessionsEnabledAtLaunch {
+    if sessionPersistenceEnabledAtLaunch {
       reapOrphanHostedSessions()
     }
     $lastAppLaunchedDate.withLock {
@@ -399,7 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       validSpaceIDs: Set(spaceCatalog.spaces.map(\.id)),
       restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
       allowsExistingSessions:
-        zmxSessionsEnabledAtLaunch && launchSessionHostClient.isAvailable(),
+        sessionPersistenceEnabledAtLaunch && launchSessionHostClient.isAvailable(),
       lastAppLaunchedDate: lastAppLaunchedDate,
       cliPath: GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL)
     )
@@ -424,17 +424,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private func reapOrphanHostedSessions() {
     guard !sessionCatalogWasRejectedAtLaunch else {
       SupatermLog.notice(
-        SupatermLog.zmx,
-        "zmx.reap.skipped",
+        SupatermLog.sessionHost,
+        "sessionHost.reap.skipped",
         fields: ["reason=sessionCatalogRejected"]
       )
       return
     }
     let sessionHostClient = launchSessionHostClient
     Task.detached(priority: .utility) {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.reap.start")
+      SupatermLog.debug(SupatermLog.sessionHost, "sessionHost.reap.start")
       guard let sessions = await sessionHostClient.listSessions() else {
-        SupatermLog.error(SupatermLog.zmx, "zmx.reap.skipped", fields: ["reason=listFailed"])
+        SupatermLog.error(SupatermLog.sessionHost, "sessionHost.reap.skipped", fields: ["reason=listFailed"])
         return
       }
       let knownSurfaceIDs = await MainActor.run { [weak self] in
@@ -453,8 +453,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       }
       let orphanSurfaceIDs = orphanSessions.map(\.surfaceID)
       SupatermLog.debug(
-        SupatermLog.zmx,
-        "zmx.reap.plan",
+        SupatermLog.sessionHost,
+        "sessionHost.reap.plan",
         fields: [
           "sessions=\(sessions.count)",
           "known=\(knownSurfaceIDs.count)",
@@ -470,8 +470,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
       }
       SupatermLog.debug(
-        SupatermLog.zmx,
-        "zmx.reap.finished",
+        SupatermLog.sessionHost,
+        "sessionHost.reap.finished",
         fields: ["killed=\(orphanSurfaceIDs.count)"]
       )
     }
@@ -529,7 +529,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       process: appProcess,
       launch: launch,
       sessionHostClient: launchSessionHostClient,
-      zmxSessionsEnabled: zmxSessionsEnabledAtLaunch,
+      sessionPersistenceEnabled: sessionPersistenceEnabledAtLaunch,
       agentDetectionRuleRepository: agentDetectionRuleRepository
     ) { [weak self] in
       self?.saveSession()

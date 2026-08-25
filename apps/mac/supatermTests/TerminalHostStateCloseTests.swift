@@ -98,7 +98,7 @@ struct TerminalHostStateCloseTests {
       $spaceCatalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let host = TerminalHostState(spaceID: spaces[0].id, zmxSessionsEnabled: false)
+      let host = TerminalHostState(spaceID: spaces[0].id, sessionPersistenceEnabled: false)
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let tabID = try #require(host.selectedTabID)
       let coldTabID = TerminalTabID()
@@ -140,7 +140,7 @@ struct TerminalHostStateCloseTests {
     let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
     let host = TerminalHostState(
       runtime: runtime,
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let tabID = try #require(host.selectedTabID)

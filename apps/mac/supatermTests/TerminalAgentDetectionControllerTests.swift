@@ -510,7 +510,7 @@ struct TerminalAgentDetectionControllerTests {
 
   @Test(arguments: [false, true])
   func liveGhosttyProcessDetectionWorksAcrossSessionModes(
-    zmxSessionsEnabled: Bool
+    sessionPersistenceEnabled: Bool
   ) async throws {
     initializeGhosttyForTests()
     let temporaryDirectory = FileManager.default.temporaryDirectory.appending(
@@ -531,7 +531,7 @@ struct TerminalAgentDetectionControllerTests {
     let runtime = try makeGhosttyRuntime("")
     let host = TerminalHostState(
       runtime: runtime,
-      zmxSessionsEnabled: zmxSessionsEnabled,
+      sessionPersistenceEnabled: sessionPersistenceEnabled,
       agentDetectionRuleRepository: repository
     )
     var processID: Int32?
@@ -566,15 +566,15 @@ struct TerminalAgentDetectionControllerTests {
       "› do it in a new worktree\\n",
     ].joined(separator: "\\n")
     let command =
-      if zmxSessionsEnabled {
+      if sessionPersistenceEnabled {
         "printf '\(interruptedScreen)'; '\(executableURL.path)' 120"
       } else {
         "\(executableURL.path) 120"
       }
-    let expectedPhase: AgentActivityPhase = zmxSessionsEnabled ? .idle : .running
-    let expectedRuleID = zmxSessionsEnabled ? "osc_title_idle" : "osc_title_working"
+    let expectedPhase: AgentActivityPhase = sessionPersistenceEnabled ? .idle : .running
+    let expectedRuleID = sessionPersistenceEnabled ? "osc_title_idle" : "osc_title_working"
     surface.bridge.submitText(command)
-    if !zmxSessionsEnabled {
+    if !sessionPersistenceEnabled {
       _ = try await waitForForegroundProcess(
         on: surface,
         excluding: shellProcessGroupID
@@ -584,7 +584,7 @@ struct TerminalAgentDetectionControllerTests {
       host.agentDetectionExplanation(for: surface.id)
     }
     processID = proof.processID
-    surface.bridge.state.title = zmxSessionsEnabled ? "project" : "⠋ running"
+    surface.bridge.state.title = sessionPersistenceEnabled ? "project" : "⠋ running"
 
     let detected = try await waitForDetection(
       {

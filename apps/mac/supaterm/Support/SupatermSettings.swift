@@ -11,7 +11,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var systemNotificationsEnabled: Bool
   public var updateChannel: UpdateChannel
   public var verboseLoggingEnabled: Bool
-  public var zmxSessionsEnabled: Bool
+  public var sessionPersistenceEnabled: Bool
 
   public init(
     appearanceMode: AppearanceMode,
@@ -24,7 +24,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     systemNotificationsEnabled: Bool = false,
     updateChannel: UpdateChannel,
     verboseLoggingEnabled: Bool = false,
-    zmxSessionsEnabled: Bool = true
+    sessionPersistenceEnabled: Bool = true
   ) {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
@@ -36,7 +36,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
     self.verboseLoggingEnabled = verboseLoggingEnabled
-    self.zmxSessionsEnabled = zmxSessionsEnabled
+    self.sessionPersistenceEnabled = sessionPersistenceEnabled
   }
 
   public static let `default` = Self(
@@ -49,7 +49,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     systemNotificationsEnabled: false,
     updateChannel: .stable,
     verboseLoggingEnabled: false,
-    zmxSessionsEnabled: true
+    sessionPersistenceEnabled: true
   )
 
   public init(from decoder: any Decoder) throws {
@@ -79,7 +79,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       systemNotificationsEnabled: notifications?.systemNotifications ?? defaults.systemNotificationsEnabled,
       updateChannel: updates?.channel ?? defaults.updateChannel,
       verboseLoggingEnabled: logging?.verboseEnabled ?? defaults.verboseLoggingEnabled,
-      zmxSessionsEnabled: terminal?.zmxSessionsEnabled ?? defaults.zmxSessionsEnabled
+      sessionPersistenceEnabled: terminal?.sessionPersistenceEnabled ?? defaults.sessionPersistenceEnabled
     )
   }
 
@@ -123,12 +123,12 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       )
     }
     if restoreTerminalLayoutEnabled != defaults.restoreTerminalLayoutEnabled
-      || zmxSessionsEnabled != defaults.zmxSessionsEnabled
+      || sessionPersistenceEnabled != defaults.sessionPersistenceEnabled
     {
       try container.encode(
         PersistedTerminal(
           restoreLayout: restoreTerminalLayoutEnabled,
-          zmxSessionsEnabled: zmxSessionsEnabled
+          sessionPersistenceEnabled: sessionPersistenceEnabled
         ),
         forKey: .terminal
       )
@@ -178,8 +178,7 @@ extension SupatermSettings {
 
   enum TerminalKeys: String, CodingKey {
     case restoreLayout = "restore_layout"
-    case terminateSessionsOnQuit = "terminate_sessions_on_quit"
-    case zmxSessionsEnabled = "zmx_sessions_enabled"
+    case sessionPersistenceEnabled = "session_persistence"
   }
 
   enum UpdateKeys: String, CodingKey {
@@ -320,14 +319,14 @@ extension SupatermSettings {
 
   struct PersistedTerminal: Codable, Equatable, Sendable {
     let restoreLayout: Bool
-    let zmxSessionsEnabled: Bool
+    let sessionPersistenceEnabled: Bool
 
     init(
       restoreLayout: Bool,
-      zmxSessionsEnabled: Bool
+      sessionPersistenceEnabled: Bool
     ) {
       self.restoreLayout = restoreLayout
-      self.zmxSessionsEnabled = zmxSessionsEnabled
+      self.sessionPersistenceEnabled = sessionPersistenceEnabled
     }
 
     init(from decoder: any Decoder) throws {
@@ -336,11 +335,9 @@ extension SupatermSettings {
       restoreLayout =
         try container.decodeIfPresent(Bool.self, forKey: .restoreLayout)
         ?? defaults.restoreTerminalLayoutEnabled
-      let legacyTerminateSessionsOnQuit = try container.decodeIfPresent(Bool.self, forKey: .terminateSessionsOnQuit)
-      zmxSessionsEnabled =
-        try container.decodeIfPresent(Bool.self, forKey: .zmxSessionsEnabled)
-        ?? legacyTerminateSessionsOnQuit.map { !$0 }
-        ?? defaults.zmxSessionsEnabled
+      sessionPersistenceEnabled =
+        try container.decodeIfPresent(Bool.self, forKey: .sessionPersistenceEnabled)
+        ?? defaults.sessionPersistenceEnabled
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -350,8 +347,8 @@ extension SupatermSettings {
       if restoreLayout != defaults.restoreTerminalLayoutEnabled {
         try container.encode(restoreLayout, forKey: .restoreLayout)
       }
-      if zmxSessionsEnabled != defaults.zmxSessionsEnabled {
-        try container.encode(zmxSessionsEnabled, forKey: .zmxSessionsEnabled)
+      if sessionPersistenceEnabled != defaults.sessionPersistenceEnabled {
+        try container.encode(sessionPersistenceEnabled, forKey: .sessionPersistenceEnabled)
       }
     }
   }
@@ -422,7 +419,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
       restoreTerminalLayoutEnabled: restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: systemNotificationsEnabled,
       updateChannel: updateChannel,
-      zmxSessionsEnabled: SupatermSettings.default.zmxSessionsEnabled
+      sessionPersistenceEnabled: SupatermSettings.default.sessionPersistenceEnabled
     )
   }
 
@@ -441,6 +438,6 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
 
 extension SupatermSettings {
   public var terminatesSessionsOnQuit: Bool {
-    !zmxSessionsEnabled
+    !sessionPersistenceEnabled
   }
 }

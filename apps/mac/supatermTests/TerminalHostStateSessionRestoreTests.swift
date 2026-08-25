@@ -10,11 +10,11 @@ import Testing
 @MainActor
 struct TerminalHostStateSessionRestoreTests {
   @Test
-  func disabledZmxSessionsDoNotWrapTheShell() {
+  func disabledSessionHostSessionsDoNotWrapTheShell() {
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
       sessionHostClient: wrappingSessionHostClient(),
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
     let commandWrapper = host.resolvedCommandWrapper(surfaceID: UUID(), mode: .createIfNeeded)
 
@@ -22,7 +22,7 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func enabledZmxSessionsWrapTheShell() {
+  func enabledSessionHostSessionsWrapTheShell() {
     let surfaceID = UUID()
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
@@ -36,7 +36,7 @@ struct TerminalHostStateSessionRestoreTests {
 
     #expect(
       commandWrapper == [
-        "/tmp/zmx",
+        "/tmp/supaterm-host",
         "attach",
         host.sessionHostClient.sessionID(surfaceID),
       ]
@@ -44,7 +44,7 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func zmxReattachOnlyTargetsExistingSessions() {
+  func sessionHostReattachOnlyTargetsExistingSessions() {
     let surfaceID = UUID()
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
@@ -55,7 +55,7 @@ struct TerminalHostStateSessionRestoreTests {
 
     #expect(
       commandWrapper == [
-        "/tmp/zmx",
+        "/tmp/supaterm-host",
         "attach",
         "--existing",
         host.sessionHostClient.sessionID(surfaceID),
@@ -64,7 +64,7 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func unavailableZmxDoesNotWrapTheShell() {
+  func unavailableSessionHostDoesNotWrapTheShell() {
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
       sessionHostClient: wrappingSessionHostClient(executablePath: nil)
@@ -76,14 +76,14 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func disabledZmxSessionsSkipSessionCleanup() async {
+  func disabledSessionHostSessionsSkipSessionCleanup() async {
     let killedSurfaceIDs = LockIsolated<[UUID]>([])
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
       sessionHostClient: wrappingSessionHostClient(killSession: { surfaceID in
         killedSurfaceIDs.withValue { $0.append(surfaceID) }
       }),
-      zmxSessionsEnabled: false
+      sessionPersistenceEnabled: false
     )
     let surfaceID = UUID()
 
@@ -611,7 +611,7 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   private func wrappingSessionHostClient(
-    executablePath: String? = "/tmp/zmx",
+    executablePath: String? = "/tmp/supaterm-host",
     killSession: @escaping @Sendable (UUID) async -> Void = { _ in }
   )
     -> TerminalSessionHostClient
