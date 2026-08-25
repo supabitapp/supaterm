@@ -29,7 +29,7 @@ extension TerminalWindowRegistry {
       return .collapsed(try setProjectCollapsed(request))
 
     case .moveTab(let request):
-      return try moveProjectTab(request)
+      return .movedTab(try moveProjectTab(request))
 
     case .remove(let request):
       let id = TerminalProjectID(rawValue: request.target.projectID)
@@ -131,10 +131,10 @@ extension TerminalWindowRegistry {
 
   private func moveProjectTab(
     _ request: SupatermMoveTabRequest
-  ) throws -> TerminalProjectResult {
+  ) throws -> SupatermMoveTabResult {
     guard let entry = activeEntries().first(where: { $0.terminal.containsTab(request.target.tabID) })
     else { throw TerminalControlError.contextPaneNotFound }
-    return .movedTab(try entry.terminal.moveProjectTab(request))
+    return try entry.terminal.moveProjectTab(request)
   }
 
   @discardableResult
