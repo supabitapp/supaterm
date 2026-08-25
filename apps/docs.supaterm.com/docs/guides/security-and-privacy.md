@@ -27,7 +27,7 @@ The discovery skill installed by `sp skills install` lives at `~/.agents/skills/
 
 Application settings and session metadata live under `~/.config/supaterm` by default. Saved session state can include layout, working directories, tab state, and coding-agent panel state.
 
-When zmx persistence is enabled, shell and agent processes may continue after the app exits. Close the pane, tab, or window when you intend to terminate its processes.
+When session persistence is enabled, shell and agent processes may continue after the app exits. Close the pane, tab, or window when you intend to terminate its processes.
 
 ## Clipboard and notifications
 

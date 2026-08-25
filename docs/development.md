@@ -85,9 +85,9 @@ End-to-end commands:
 make mac-test-e2e       # Run socket-driven E2E tests against the real app
 ```
 
-E2E tests in `apps/mac/supatermE2E` spawn their own `supaterm.app` with a fresh instance name, state home, and `ZMX_DIR`, then control it through the `sp` socket protocol. They never attach to a running development or user instance.
+E2E tests in `apps/mac/supatermE2E` spawn their own `supaterm.app` with a fresh instance name, state home, and session-host directory, then control it through the `sp` socket protocol. They never attach to a running development or user instance.
 
-UI tests in `apps/mac/supatermUITests` control the shared macOS desktop, input focus, and pasteboards. They disable zmx. Never run them locally. They're meant for CI.
+UI tests in `apps/mac/supatermUITests` control the shared macOS desktop, input focus, and pasteboards. They disable session persistence. Never run them locally. They're meant for CI.
 
 Also prefer to write E2E tests over UI Tests if possible.
 
@@ -137,7 +137,7 @@ directly — `open`, Finder, an agent — runs it as the checkout's development 
 `default`, so it can never share state with the installed app. Explicit environment variables and
 raw binary launches are unaffected, and release builds carry no stamp.
 
-Development launches and UI tests never start zmx. The zmx E2E suite opts in with an isolated zmx
+Development launches and UI tests never start the session host. The session-host E2E suite opts in with an isolated
 directory. For a clean slate, quit the app, then delete the state home:
 
 ```bash
@@ -151,9 +151,9 @@ rm -rf apps/mac/.build/run-state/dev
 
 All Makefile app launch targets set `SUPATERM_VERBOSE_LOGGING=1`, so development runs always emit verbose diagnostics.
 
-`make mac-run-demo` runs under its own `demo` identity and `run-state/demo` state home without zmx.
+`make mac-run-demo` runs under its own `demo` identity and `run-state/demo` state home without the session host.
 Demo rewrites its spaces, tabs, panes, `restoreTerminalLayoutEnabled`, `codingAgentsShowPanel`,
-`zmxSessionsEnabled`, and the acknowledged release version on every launch, so the demo you see is
+session persistence, and the acknowledged release version on every launch, so the demo you see is
 always freshly seeded; the state the seed never writes — the remaining settings, launch state, and
 coding-agent state — carries over between demo runs.
 
@@ -164,7 +164,7 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_STATE_HOME` when an app state root is configured
 - `SUPATERM_SURFACE_ID`
 - `SUPATERM_TAB_ID`
-- `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled
+- `SUPATERM_HOST_DIR`, `SUPATERM_HOST_SESSION`, and `SUPATERM_HOST_SESSION_PREFIX` when sessions are enabled
 
 For login-shell panes, the app prepends its `Contents/MacOS` directory to `PATH`. The directory includes `sp`, `ap`, and `wt`. Direct launches keep the caller's `PATH` unchanged.
 
@@ -183,7 +183,7 @@ State files under the Supaterm state root (`session.json`, `spaces.json`, `pinne
 - Session persistence must never break. Every release must load every state file the previous release wrote.
 - Never bump a format version to discard old state. When the format changes, migrate the previous version to the current one. Purely additive optional fields need no version bump.
 - When persistence logic changes, add tests that decode a fixture of the previous shipped on-disk format and assert the migrated result. Keep one fixture per shipped version.
-- Treat any decode rejection of user state as a bug. A rejected `session.json` empties the layout silently, and the next launch reaps every zmx session the new catalog no longer references. There is no recovery after that.
+- Treat any decode rejection of user state as a bug. A rejected `session.json` empties the layout silently, and the next launch reaps every hosted session the new catalog no longer references. There is no recovery after that.
 
 ## Marketing website
 
@@ -252,7 +252,7 @@ make docs-deploy
 
 ## Submodules
 
-For ghostty and zmx, we use `supaterm` branch only, rebase our changes on top of upstream cleanly if we need to update.
+For Ghostty, we use the `supaterm` branch only and rebase our changes on top of upstream when we update it.
 
 ## Testing
 

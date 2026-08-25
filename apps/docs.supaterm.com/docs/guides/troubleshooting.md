@@ -67,7 +67,7 @@ Unread badges can still appear when macOS delivery is disabled. The glowing pane
 
 ## Sessions do not survive a relaunch
 
-Enable both **Restore Terminal Layout** and **Persist Sessions Using zmx** under **Settings > General**. Restart Supaterm after changing zmx persistence.
+Enable both **Restore Terminal Layout** and **Persist Terminal Sessions** under **Settings > General**. Restart Supaterm after changing session persistence.
 
 Closing a pane, tab, or window terminates its sessions by design. Persistence covers app relaunch, not intentional terminal closure.
 

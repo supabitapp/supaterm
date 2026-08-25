@@ -1,6 +1,6 @@
 ---
 title: Restore layouts and sessions
-description: Understand layout restoration, zmx process persistence, and close behavior.
+description: Understand layout restoration, process persistence, and close behavior.
 ---
 
 Supaterm separates the saved layout from the processes running inside that layout.
@@ -11,9 +11,9 @@ With **Settings > General > Restore Terminal Layout** enabled, Supaterm reopens 
 
 The saved layout does not by itself keep a shell or command alive.
 
-## Persist Sessions Using zmx
+## Persist Terminal Sessions
 
-With **Persist Sessions Using zmx** enabled, terminal processes can continue while Supaterm restarts. On relaunch, restored panes attach to their surviving sessions.
+With **Persist Terminal Sessions** enabled, terminal processes can continue while Supaterm restarts. On relaunch, restored panes attach to their surviving sessions.
 
 This setting is enabled by default and requires an app restart after it changes.
 
@@ -25,7 +25,7 @@ Persistence protects an app restart, not an intentional close:
 - Closing a tab terminates all panes in the tab.
 - Closing a group terminates all panes in every tab it contains.
 - Closing a window terminates the terminal sessions in that window.
-- Quitting and reopening Supaterm can restore zmx-backed sessions when both persistence settings are enabled.
+- Quitting and reopening Supaterm can restore hosted sessions when both persistence settings are enabled.
 
 Supaterm can ask for confirmation before closing a running surface. Configure this under **Settings > Terminal > Close Confirmation**.
 

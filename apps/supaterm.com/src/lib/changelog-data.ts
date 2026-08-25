@@ -256,7 +256,7 @@ const changelogData: ChangelogEntry[] = [
       {
         category: "fixes",
         items: [
-          "zmx startup now preserves shell integration and working-directory tracking",
+          "Session startup now preserves shell integration and working-directory tracking",
           "Splitting panes while search is open now keeps focus on the new pane",
         ],
       },
@@ -265,15 +265,15 @@ const changelogData: ChangelogEntry[] = [
   {
     version: "v1.3.3",
     date: "2026-05-26",
-    title: "🛠️ More zmx hotfixes",
+    title: "🛠️ More session hotfixes",
     description:
-      "Real fix this time, sorry. Persisted zmx panes now stay attached when wrapped processes exit.",
+      "Real fix this time, sorry. Persisted panes now stay attached when wrapped processes exit.",
     sections: [],
   },
   {
     version: "v1.3.2",
     date: "2026-05-26",
-    title: "🛠️ Some zmx hotfixes",
+    title: "🛠️ Some session hotfixes",
     sections: [],
   },
   {
@@ -296,7 +296,7 @@ const changelogData: ChangelogEntry[] = [
         category: "new",
         items: [
           "Added a per-pane agent panel with task progress, branch details, pull request status, checks, web-search sources, and localhost links",
-          "Added zmx-backed session persistence so tabs, splits, working directories, titles, and agent presence can reconnect after quit and relaunch",
+          "Added session persistence so tabs, splits, working directories, titles, and agent presence can reconnect after quit and relaunch",
           "Added Finder services for opening selected files or folders in a new Supaterm tab or window",
         ],
       },
@@ -313,7 +313,7 @@ const changelogData: ChangelogEntry[] = [
         category: "fixes",
         items: [
           "Older saved terminal layouts now restore instead of falling back to a blank layout",
-          "Managed socket and zmx session paths now fall back safely when paths are too long",
+          "Managed socket and session paths now fall back safely when paths are too long",
           "Session cleanup now only targets the current Supaterm instance",
           "New installs now default close confirmation to Always",
         ],

@@ -7,8 +7,9 @@ Open **Supaterm > Settings** to configure the app.
 
 ## Sections
 
-- **General** — app appearance, layout restoration, and zmx session persistence.
+- **General** — app appearance, layout restoration, and session persistence.
 - **Terminal** — Ghostty themes, font, font size, and close confirmation.
+- **Hosts** — remote machines reached through SSH.
 - **Notifications** — macOS delivery and the glowing pane attention ring.
 - **Coding Agents** — agent integrations, status icons, and panel visibility.
 - **Advanced** — verbose diagnostics in local OSLog.
@@ -41,3 +42,14 @@ sp config validate
 ```
 
 Run `sp config list` for the current keys and accepted values. The CLI validates names and values before writing.
+
+Hosts are stored as TOML arrays:
+
+```toml
+[[hosts]]
+id = "build"
+destination = "khoi@example.com"
+ssh_arguments = ["-p", "2222"]
+```
+
+Add and remove hosts under **Settings > Hosts**. Enter one SSH argument per line, or edit the TOML array directly.
