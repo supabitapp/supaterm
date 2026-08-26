@@ -128,6 +128,13 @@
       @Shared(.supatermSettings) var settings = SupatermSettings.default
 
       prepareWorkspaceDirectories()
+      guard
+        let seededProjectCatalog = try? TerminalProjectCatalog(
+          projects: spaces.flatMap(\.projects)
+        ).validated()
+      else {
+        preconditionFailure("Invalid demo Project catalog")
+      }
       $spaceCatalog.withLock {
         $0 = TerminalSpaceCatalog(
           defaultSelectedSpaceID: IDs.supatermSpace,
@@ -135,7 +142,7 @@
         )
       }
       $projectCatalog.withLock {
-        $0 = TerminalProjectCatalog(projects: spaces.flatMap(\.projects))
+        $0 = seededProjectCatalog
       }
       $sessionCatalog.withLock {
         $0 = TerminalSessionCatalog(

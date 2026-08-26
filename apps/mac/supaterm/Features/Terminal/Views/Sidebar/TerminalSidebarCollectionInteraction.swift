@@ -424,6 +424,7 @@ struct TerminalSidebarDropHandoff: Equatable {
   func accepts(_ candidate: TerminalSidebarTopologyStamp?) -> Bool {
     guard let candidate else { return false }
     guard candidate.spaceID == topologyStamp.spaceID else { return false }
+    guard candidate.orderedProjectIDs == topologyStamp.orderedProjectIDs else { return false }
     switch revisionRequirement {
     case .sameOrNewer:
       return candidate.revision >= topologyStamp.revision

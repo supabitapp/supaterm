@@ -1,3 +1,4 @@
+import CustomDump
 import Dependencies
 import Foundation
 import Sharing
@@ -170,6 +171,79 @@ struct TerminalWindowRegistryProjectTests {
       )
 
       #expect(registry.projectCatalog.projects.map(\.name) == ["First", "Second"])
+      withExtendedLifetime(window.window) {}
+    }
+  }
+
+  @Test
+  func sidebarProjectDropRejectsAnInvalidPlacementWithoutChangingPinState() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let pinned = TerminalProject(name: "Pinned", isPinned: true)
+      let source = TerminalProject(name: "Source")
+      let regular = TerminalProject(name: "Regular")
+      let projects = [pinned, source, regular]
+      @Shared(.terminalProjectCatalog) var catalog = TerminalProjectCatalog.default
+      $catalog.withLock { $0 = TerminalProjectCatalog(projects: projects) }
+      let registry = TerminalWindowRegistry()
+      let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      let terminal = window.terminal
+      let command = TerminalSidebarDropCommand(
+        operationID: TerminalTabMoveOperationID(),
+        topologyStamp: TerminalSidebarTopologyStamp(
+          spaceID: terminal.displayedSpaceID,
+          revision: terminal.spaceManager.displayedInstance.tabCollection.topologyRevision,
+          orderedProjectIDs: projects.map(\.id)
+        ),
+        itemIDs: [.project(source.id)],
+        operation: .reorderProject(TerminalRootPlacement(isPinned: true, index: 2))
+      )
+
+      let receipt = TerminalSidebarDropTransaction.perform(command, terminal: terminal)
+
+      #expect(receipt == nil)
+      expectNoDifference(registry.projectCatalog.projects, projects)
+      withExtendedLifetime(window.window) {}
+    }
+  }
+
+  @Test
+  func sidebarProjectDropCommitsOneAtomicCatalogMove() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let first = TerminalProject(name: "First")
+      let second = TerminalProject(name: "Second")
+      let projects = [first, second]
+      @Shared(.terminalProjectCatalog) var catalog = TerminalProjectCatalog.default
+      $catalog.withLock { $0 = TerminalProjectCatalog(projects: projects) }
+      let registry = TerminalWindowRegistry()
+      let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
+      let terminal = window.terminal
+      let operationID = TerminalTabMoveOperationID()
+      let operation = TerminalSidebarDropOperation.reorderProject(
+        TerminalRootPlacement(isPinned: false, index: 1)
+      )
+      let command = TerminalSidebarDropCommand(
+        operationID: operationID,
+        topologyStamp: TerminalSidebarTopologyStamp(
+          spaceID: terminal.displayedSpaceID,
+          revision: terminal.spaceManager.displayedInstance.tabCollection.topologyRevision,
+          orderedProjectIDs: projects.map(\.id)
+        ),
+        itemIDs: [.project(first.id)],
+        operation: operation
+      )
+
+      let receipt = try #require(
+        TerminalSidebarDropTransaction.perform(command, terminal: terminal)
+      )
+
+      expectNoDifference(registry.projectCatalog.projects, [second, first])
+      expectNoDifference(receipt.operationID, operationID)
+      expectNoDifference(receipt.operation, operation)
+      expectNoDifference(receipt.orderedProjectIDs, [second.id, first.id])
       withExtendedLifetime(window.window) {}
     }
   }

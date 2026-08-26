@@ -231,6 +231,20 @@ extension TerminalWindowRegistry {
   }
 
   @discardableResult
+  func moveProject(
+    _ projectID: TerminalProjectID,
+    isPinned: Bool,
+    toLaneIndex index: Int
+  ) -> Bool {
+    var catalog = projectCatalog
+    guard catalog.moveProject(projectID, isPinned: isPinned, toLaneIndex: index) else {
+      return false
+    }
+    $projectCatalog.withLock { $0 = catalog }
+    return true
+  }
+
+  @discardableResult
   func reorderProject(_ projectID: TerminalProjectID, toLaneIndex index: Int) -> Bool {
     var catalog = projectCatalog
     guard let project = catalog.projects.first(where: { $0.id == projectID }) else { return false }

@@ -54,6 +54,7 @@ final class TerminalHostState {
       @MainActor (
         String, String?, ThemeTint, Bool, [TerminalTabID]
       ) -> TerminalProjectCreationResult? = { _, _, _, _, _ in nil }
+    var move: @MainActor (TerminalProjectID, Bool, Int) -> Bool = { _, _, _ in false }
     var remove: @MainActor (TerminalProjectID) -> Bool = { _ in false }
     var rename: @MainActor (TerminalProjectID, String) -> Bool = { _, _ in false }
     var reorder: @MainActor (TerminalProjectID, Int) -> Bool = { _, _ in false }

@@ -1,4 +1,4 @@
-import CoreGraphics
+import CustomDump
 import SupaTheme
 import Testing
 
@@ -537,6 +537,39 @@ struct TerminalSidebarDropPlanningTests {
   }
 
   @Test
+  func projectDropHandoffRequiresTheCommittedCatalogOrder() {
+    let first = TerminalProjectID()
+    let second = TerminalProjectID()
+    let handoff = TerminalSidebarDropHandoff(
+      topologyStamp: TerminalSidebarTopologyStamp(
+        spaceID: TerminalSidebarTestFixture.primarySpaceID,
+        revision: 8,
+        orderedProjectIDs: [second, first]
+      ),
+      revisionRequirement: .sameOrNewer
+    )
+
+    #expect(
+      !handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 8,
+          orderedProjectIDs: [first, second]
+        )
+      )
+    )
+    #expect(
+      handoff.accepts(
+        TerminalSidebarTopologyStamp(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          revision: 8,
+          orderedProjectIDs: [second, first]
+        )
+      )
+    )
+  }
+
+  @Test
   func retainedSourceHandoffAcceptsTheSameTopologyRevision() {
     let handoff = TerminalSidebarDropHandoff(
       topologyStamp: TerminalSidebarTopologyStamp(
@@ -624,6 +657,53 @@ struct TerminalSidebarDropPlanningTests {
         outline: outline
       )?.destination == .root(isPinned: false, index: 1)
     )
+  }
+
+  @Test
+  func projectTrailingDropDoesNotCountUnassignedAsAProject() throws {
+    let firstProject = TerminalProjectID()
+    let secondProject = TerminalProjectID()
+    let thirdProject = TerminalProjectID()
+    let unassignedTab = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .project(firstProject, .red, []),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(
+          content: .project(secondProject, .blue, []),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(
+          content: .project(thirdProject, .green, []),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(
+          content: .unassigned([unassignedTab]),
+          isPinned: false
+        ),
+      ],
+      revision: 7
+    )
+    let payload = try #require(outline.dragPayload(for: .project(firstProject)))
+
+    let trailingPlan = TerminalSidebarDropPlanner.plan(
+      payload: payload,
+      path: .trailingRoot,
+      outline: outline
+    )
+    let afterUnassignedPlan = TerminalSidebarDropPlanner.plan(
+      payload: payload,
+      path: .rootBoundary(index: 3, affinity: .after),
+      outline: outline
+    )
+
+    expectNoDifference(
+      trailingPlan?.operation,
+      .reorderProject(TerminalRootPlacement(isPinned: false, index: 2))
+    )
+    expectNoDifference(afterUnassignedPlan?.operation, trailingPlan?.operation)
   }
 
   @Test
