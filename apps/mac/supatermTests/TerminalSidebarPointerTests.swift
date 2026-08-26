@@ -29,6 +29,92 @@ struct TerminalSidebarPointerTests {
   }
 
   @Test
+  func unassignedHeaderOwnsItsClickAndTogglesCollapse() async throws {
+    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let tabID = terminal.spaceManager.tabCollection.createTab(title: "Unassigned")
+    let outline = TerminalSidebarOutline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .unassigned([tabID]), isPinned: false)
+      ],
+      collapsedProjectIDs: [],
+      topologyRevision: 1,
+      spaceID: terminal.displayedSpaceID
+    )
+    let controller = TerminalSidebarListController(
+      windowControllerID: UUID(),
+      tabDragRegistry: TerminalTabDragRegistry(),
+      captureRequest: { nil }
+    )
+    controller.view.frame = NSRect(x: 0, y: 0, width: 240, height: 160)
+    let window = NSWindow(
+      contentRect: controller.view.frame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentViewController = controller
+    defer { window.contentViewController = nil }
+    var collapseCount = 0
+    let actions = TerminalSidebarRowActions(
+      toggleProjectCollapsed: { _ in },
+      toggleUnassignedCollapsed: { collapseCount += 1 },
+      createTabInProject: { _ in },
+      renameProject: { _, _ in false },
+      setProjectColor: { _, _ in },
+      toggleProjectPinned: { _ in },
+      unproject: { _ in },
+      closeProject: { _ in },
+      newTab: {}
+    )
+    controller.apply(
+      outline: outline,
+      rows: [
+        .unassigned: .unassigned(
+          TerminalSidebarUnassignedRowPresentation(isCollapsed: false, tabCount: 1)
+        ),
+        .newTab: .newTab(.inline),
+      ],
+      context: TerminalSidebarRowContext(
+        terminal: terminal,
+        palette: Palette(colorScheme: .dark),
+        renameState: controller.renameState,
+        projectHeaderHoverState: controller.projectHeaderHoverState,
+        tabSelectionState: controller.tabSelectionState,
+        outline: outline,
+        fixedHoveredProjectID: nil,
+        actions: actions
+      ),
+      selectedTabID: tabID,
+      reduceMotion: true
+    )
+    let scrollView = try #require(
+      controller.view.subviews.compactMap { $0 as? TerminalSidebarScrollView }.first
+    )
+    let collectionView = try #require(scrollView.documentView as? TerminalSidebarCollectionView)
+    for _ in 0..<5 { await Task.yield() }
+    collectionView.layoutSubtreeIfNeeded()
+    let attributes = try #require(
+      collectionView.collectionViewLayout?.layoutAttributesForItem(
+        at: IndexPath(item: 0, section: 0)
+      )
+    )
+    let location = collectionView.convert(
+      NSPoint(x: attributes.frame.midX, y: attributes.frame.midY),
+      to: nil
+    )
+    let mouseDown = try #require(
+      mouseEvent(.leftMouseDown, at: location, in: window, eventNumber: 1)
+    )
+    let mouseUp = try #require(
+      mouseEvent(.leftMouseUp, at: location, in: window, eventNumber: 2)
+    )
+
+    #expect(collectionView.rowMouseDown(entryID: .unassigned, event: mouseDown))
+    #expect(collectionView.rowMouseUp(entryID: .unassigned, event: mouseUp))
+    #expect(collapseCount == 1)
+  }
+
+  @Test
   func optionClickMergesIntoTheSelectedTabAndClearsBatchSelection() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -500,7 +586,7 @@ struct TerminalSidebarPointerTests {
   private func mouseEvent(
     _ type: NSEvent.EventType,
     at location: NSPoint,
-    in window: NSWindow,
+    in window: NSWindow?,
     eventNumber: Int,
     modifiers: NSEvent.ModifierFlags = []
   ) -> NSEvent? {
@@ -509,7 +595,7 @@ struct TerminalSidebarPointerTests {
       location: location,
       modifierFlags: modifiers,
       timestamp: ProcessInfo.processInfo.systemUptime,
-      windowNumber: window.windowNumber,
+      windowNumber: window?.windowNumber ?? 0,
       context: nil,
       eventNumber: eventNumber,
       clickCount: 1,
