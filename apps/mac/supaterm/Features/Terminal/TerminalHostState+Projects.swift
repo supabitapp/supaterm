@@ -100,6 +100,11 @@ extension TerminalHostState {
   }
 
   @discardableResult
+  func moveProject(_ id: TerminalProjectID, isPinned: Bool, toLaneIndex index: Int) -> Bool {
+    projectActions.move(id, isPinned, index)
+  }
+
+  @discardableResult
   func reorderProject(_ id: TerminalProjectID, toLaneIndex index: Int) -> Bool {
     projectActions.reorder(id, index)
   }

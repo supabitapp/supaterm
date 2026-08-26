@@ -114,15 +114,27 @@ nonisolated struct TerminalProjectCatalog: Equatable, Codable, Sendable {
 
   @discardableResult
   mutating func reorderProject(_ projectID: TerminalProjectID, toLaneIndex laneIndex: Int) -> Bool {
-    guard let sourceIndex = projects.firstIndex(where: { $0.id == projectID }) else { return false }
-    let isPinned = projects[sourceIndex].isPinned
+    guard let project = projects.first(where: { $0.id == projectID }) else { return false }
+    let isPinned = project.isPinned
     let lane = projects.filter { $0.isPinned == isPinned }
     guard let sourceLaneIndex = lane.firstIndex(where: { $0.id == projectID }) else { return false }
     guard lane.indices.contains(laneIndex), sourceLaneIndex != laneIndex else { return false }
-    let project = projects.remove(at: sourceIndex)
-    let pinnedCount = projects.prefix(while: \.isPinned).count
-    let laneStartIndex = isPinned ? 0 : pinnedCount
-    projects.insert(project, at: laneStartIndex + laneIndex)
+    return moveProject(projectID, isPinned: isPinned, toLaneIndex: laneIndex)
+  }
+
+  @discardableResult
+  mutating func moveProject(
+    _ projectID: TerminalProjectID,
+    isPinned: Bool,
+    toLaneIndex laneIndex: Int
+  ) -> Bool {
+    guard var project = projects.first(where: { $0.id == projectID }) else { return false }
+    var destinationLane = projects.filter { $0.isPinned == isPinned && $0.id != projectID }
+    guard (0...destinationLane.count).contains(laneIndex) else { return false }
+    project.isPinned = isPinned
+    destinationLane.insert(project, at: laneIndex)
+    let otherLane = projects.filter { $0.isPinned != isPinned && $0.id != projectID }
+    projects = isPinned ? destinationLane + otherLane : otherLane + destinationLane
     return true
   }
 

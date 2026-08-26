@@ -224,6 +224,16 @@ struct TerminalSidebarSpaceList: View {
   private func performDrop(
     _ command: TerminalSidebarDropCommand
   ) -> TerminalSidebarDropReceipt? {
+    TerminalSidebarDropTransaction.perform(command, terminal: terminal)
+  }
+}
+
+@MainActor
+enum TerminalSidebarDropTransaction {
+  static func perform(
+    _ command: TerminalSidebarDropCommand,
+    terminal: TerminalHostState
+  ) -> TerminalSidebarDropReceipt? {
     let orderedProjectIDs = terminal.projects.map(\.id)
     guard
       command.topologyStamp.spaceID == terminal.displayedSpaceID,
@@ -235,8 +245,13 @@ struct TerminalSidebarSpaceList: View {
     case .reorderProject(let destination):
       guard command.itemIDs.count == 1, case .project(let projectID) = command.itemIDs[0]
       else { return nil }
-      _ = terminal.setProjectPinned(projectID, isPinned: destination.isPinned)
-      _ = terminal.reorderProject(projectID, toLaneIndex: destination.index)
+      guard
+        terminal.moveProject(
+          projectID,
+          isPinned: destination.isPinned,
+          toLaneIndex: destination.index
+        )
+      else { return nil }
       return TerminalSidebarDropReceipt(
         spaceID: command.topologyStamp.spaceID,
         operationID: command.operationID,
@@ -283,7 +298,7 @@ struct TerminalSidebarSpaceList: View {
     }
   }
 
-  private func commandTabIDs(_ command: TerminalSidebarDropCommand) -> [TerminalTabID] {
+  private static func commandTabIDs(_ command: TerminalSidebarDropCommand) -> [TerminalTabID] {
     command.itemIDs.compactMap { itemID in
       guard case .tab(let tabID) = itemID else { return nil }
       return tabID

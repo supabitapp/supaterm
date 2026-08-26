@@ -528,7 +528,9 @@ enum TerminalSidebarDropPlanner {
       let roots = reducedRoots(payload: payload, outline: outline)
       let placement = TerminalRootPlacement(
         isPinned: false,
-        index: roots.count { !$0.isPinned }
+        index: roots.count {
+          !$0.isPinned && countsAsDestinationRoot($0, payload: payload)
+        }
       )
       return rejectingNoOp(
         TerminalSidebarDropPlan(
@@ -621,7 +623,9 @@ enum TerminalSidebarDropPlanner {
   ) -> TerminalSidebarDropPlan {
     let reduced = reducedRoots(payload: payload, outline: outline)
     let destinationIndex = outline.roots[..<boundary].count { root in
-      root.isPinned == target.isPinned && reduced.contains { $0.id == root.id }
+      root.isPinned == target.isPinned
+        && countsAsDestinationRoot(root, payload: payload)
+        && reduced.contains { $0.id == root.id }
     }
     return TerminalSidebarDropPlan(
       path: path,
@@ -657,6 +661,15 @@ enum TerminalSidebarDropPlanner {
         TerminalTabPlacement(projectID: nil, isPinned: placement.isPinned, index: index)
       )
     }
+  }
+
+  private static func countsAsDestinationRoot(
+    _ root: TerminalSidebarOutline.Root,
+    payload: TerminalSidebarDragPayload
+  ) -> Bool {
+    guard case .project = payload.source else { return true }
+    if case .project = root.content { return true }
+    return false
   }
 
   private static func sectionPlan(

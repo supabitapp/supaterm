@@ -142,6 +142,9 @@ final class TerminalWindowRegistry {
           in: windowControllerID
         )
       },
+      move: { [weak self] projectID, isPinned, index in
+        self?.moveProject(projectID, isPinned: isPinned, toLaneIndex: index) == true
+      },
       remove: { [weak self] projectID in
         self?.requestRemoveProject(projectID, from: windowControllerID) == true
       },
