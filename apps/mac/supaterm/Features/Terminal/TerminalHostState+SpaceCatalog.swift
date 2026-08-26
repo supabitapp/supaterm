@@ -67,7 +67,12 @@ extension TerminalHostState {
     guard managesTerminalSurfaces, spaceManager.space(for: spaceID) != nil else { return }
     warmInstance(for: spaceID)
     guard spaceManager.tabs(in: spaceID).isEmpty else { return }
-    createTab(in: spaceID, focusing: false, synchronizesFocus: false)
+    _ = try? createTab(
+      in: spaceID,
+      reason: .user,
+      focusing: false,
+      synchronizesFocus: false
+    )
   }
 
   func space(warming spaceID: TerminalSpaceID) -> TerminalSpaceItem? {
@@ -94,12 +99,22 @@ extension TerminalHostState {
   }
 
   func warmInstance(for spaceID: TerminalSpaceID) {
-    guard managesTerminalSurfaces else { return }
+    guard restorePendingInstance(for: spaceID) != nil else { return }
+    ensureRestoredTab(in: spaceID)
+  }
+
+  func warmInstanceForTabTransfer(for spaceID: TerminalSpaceID) {
+    restorePendingInstance(for: spaceID)
+  }
+
+  @discardableResult
+  private func restorePendingInstance(for spaceID: TerminalSpaceID) -> TerminalSpaceInstance? {
+    guard managesTerminalSurfaces else { return nil }
     guard
       let instance = spaceManager.instance(for: spaceID),
       let session = instance.pendingSession
     else {
-      return
+      return nil
     }
     instance.pendingSession = nil
     SupatermLog.debug(
@@ -111,6 +126,7 @@ extension TerminalHostState {
       ]
     )
     restoreSpaceSession(session)
+    return instance
   }
 
   func paneCount(inSpace spaceID: TerminalSpaceID) -> Int {

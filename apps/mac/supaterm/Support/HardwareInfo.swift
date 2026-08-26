@@ -1,7 +1,8 @@
-#if !DEBUG
-  import IOKit
+import Foundation
+import IOKit
 
-  nonisolated func hardwareUUID() -> String? {
+public enum HardwareInfo {
+  public nonisolated static func uuid() -> String? {
     let platformExpert = IOServiceGetMatchingService(
       kIOMainPortDefault,
       IOServiceMatching("IOPlatformExpertDevice")
@@ -19,4 +20,4 @@
 
     return uuid?.takeRetainedValue() as? String
   }
-#endif
+}

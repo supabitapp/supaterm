@@ -180,6 +180,9 @@ struct TerminalSidebarUpdateSection: View {
     case .notFound:
       EmptyView()
 
+    case .ownershipEnded:
+      actionRow
+
     case .error:
       actionRow
     }
@@ -370,7 +373,7 @@ private struct TerminalSidebarUpdateStyle {
     switch phase {
     case .notFound:
       success
-    case .error:
+    case .error, .ownershipEnded:
       warning
     default:
       primaryText
@@ -397,7 +400,7 @@ private struct TerminalSidebarUpdateStyle {
     switch phase {
     case .notFound:
       success
-    case .error:
+    case .error, .ownershipEnded:
       warning
     default:
       usesSelectedRowStyle ? primaryText : secondaryText

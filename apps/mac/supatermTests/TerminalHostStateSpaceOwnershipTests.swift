@@ -19,7 +19,7 @@ struct TerminalHostStateSpaceOwnershipTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[1].id, spaces: spaces)
       }
 
-      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false, spaceID: spaces[0].id)
 
       #expect(host.spaces == spaces)
       #expect(host.displayedSpaceID == spaces[0].id)
@@ -47,7 +47,7 @@ struct TerminalHostStateSpaceOwnershipTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
       }
 
-      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: space.id)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false, spaceID: space.id)
 
       #expect(host.spaceManager.displayedSpace.color == .green)
     }
@@ -64,7 +64,7 @@ struct TerminalHostStateSpaceOwnershipTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
 
-      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false, spaceID: spaces[0].id)
 
       #expect(host.displaySpace(spaces[1].id))
       #expect(host.displayedSpaceID == spaces[1].id)
@@ -88,7 +88,7 @@ struct TerminalHostStateSpaceOwnershipTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
 
-      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false, spaceID: spaces[0].id)
       let pager = SpaceSwipeController()
       var slides: [[Int]] = []
       var displayedSpaceIDsAtSlide: [TerminalSpaceID] = []
@@ -121,7 +121,7 @@ struct TerminalHostStateSpaceOwnershipTests {
     withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let otherSpaceID = TerminalSpaceID()
       var actions: [TerminalHostState.SpaceAction] = []
       host.onSpaceAction = { actions.append($0) }

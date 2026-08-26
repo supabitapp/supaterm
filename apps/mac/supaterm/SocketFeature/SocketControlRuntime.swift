@@ -268,6 +268,10 @@ actor SocketControlRuntime {
       switch request.method {
       case SupatermSocketMethod.appHooksInstall, SupatermSocketMethod.appHooksRemove:
         Duration.seconds(SupatermAgentHookManagementTiming.serverReplyTimeout)
+      case SupatermSocketMethod.licenseActivate,
+        SupatermSocketMethod.licenseDeactivate,
+        SupatermSocketMethod.licenseRefresh:
+        Duration.seconds(SupatermLicenseTiming.serverReplyTimeout)
       default:
         self.replyTimeout
       }

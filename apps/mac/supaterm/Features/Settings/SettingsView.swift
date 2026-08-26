@@ -1,11 +1,18 @@
 import ComposableArchitecture
+import SupatermLicenseFeature
+import SupatermSupport
 import SwiftUI
 
 public struct SettingsView: View {
+  let licenseStore: StoreOf<LicenseFeature>
   @Bindable var store: StoreOf<SettingsFeature>
 
-  public init(store: StoreOf<SettingsFeature>) {
+  public init(
+    store: StoreOf<SettingsFeature>,
+    licenseStore: StoreOf<LicenseFeature>
+  ) {
     self.store = store
+    self.licenseStore = licenseStore
   }
 
   private var selection: Binding<SettingsFeature.Tab?> {
@@ -33,7 +40,7 @@ public struct SettingsView: View {
       .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 220)
       .toolbar(removing: .sidebarToggle)
     } detail: {
-      SettingsTabContentView(store: store, tab: tab)
+      SettingsTabContentView(store: store, licenseStore: licenseStore, tab: tab)
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 750, minHeight: 500)
@@ -52,13 +59,16 @@ public struct SettingsView: View {
 
 struct SettingsTabContentView: View {
   let store: StoreOf<SettingsFeature>
+  let licenseStore: StoreOf<LicenseFeature>
   let tab: SettingsFeature.Tab
 
   init(
     store: StoreOf<SettingsFeature>,
+    licenseStore: StoreOf<LicenseFeature>,
     tab: SettingsFeature.Tab
   ) {
     self.store = store
+    self.licenseStore = licenseStore
     self.tab = tab
   }
 
@@ -70,6 +80,8 @@ struct SettingsTabContentView: View {
       SettingsCodingAgentsView(store: store)
     case .general:
       SettingsGeneralView(store: store)
+    case .license:
+      SettingsLicenseView(store: licenseStore)
     case .terminal:
       SettingsTerminalView(store: store)
     case .notifications:

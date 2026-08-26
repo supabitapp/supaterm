@@ -24,6 +24,9 @@ let project = Project(
       "CODE_SIGN_STYLE": "Automatic",
       "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
       "SUPATERM_DEVELOPMENT_BUILD": "NO",
+      "SUPATERM_LICENSE_SALES_ENABLED": "NO",
+      "SWIFT_ACTIVE_COMPILATION_CONDITIONS":
+        "$(inherited) SUPATERM_LICENSE_SALES_$(SUPATERM_LICENSE_SALES_ENABLED)",
       "SWIFT_APPROACHABLE_CONCURRENCY": "YES",
       "SWIFT_DEFAULT_ACTOR_ISOLATION": "MainActor",
       "SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY": "YES",
@@ -198,6 +201,29 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermLicenseFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.license-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/Features/License",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermUpdateFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -208,6 +234,7 @@ let project = Project(
         "supaterm/Features/Update",
       ],
       dependencies: [
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
@@ -269,6 +296,7 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermUpdateFeature"),
@@ -287,6 +315,12 @@ let project = Project(
       deploymentTargets: .macOS("26.0"),
       infoPlist: .extendingDefault(with: [
         "CFBundleDisplayName": "Supaterm",
+        "CFBundleURLTypes": [
+          [
+            "CFBundleURLName": "app.supabit.supaterm.license",
+            "CFBundleURLSchemes": ["supaterm"],
+          ],
+        ],
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "LSApplicationCategoryType": "public.app-category.developer-tools",
@@ -339,10 +373,13 @@ let project = Project(
         "PostHogHost": "$(POSTHOG_HOST)",
         "PostHogPersonProfiles": "$(POSTHOG_PERSON_PROFILES)",
         "SupatermDevelopmentBuild": "$(SUPATERM_DEVELOPMENT_BUILD)",
+        "SupatermReleaseDate": "$(SUPATERM_RELEASE_DATE)",
         "SUFeedURL": "https://supaterm.com/download/latest/appcast.xml",
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
         "SUEnableAutomaticChecks": true,
         "SUAutomaticallyUpdate": true,
+        "SURequireSignedFeed": true,
+        "SUVerifyUpdateBeforeExtraction": true,
       ]),
       resources: [
         "supaterm/Assets.xcassets",
@@ -370,6 +407,13 @@ let project = Project(
         ),
       ],
       scripts: [
+        .pre(
+          script: """
+            "${SRCROOT}/scripts/validate-release-day.sh"
+            """,
+          name: "Validate Release Day",
+          basedOnDependencyAnalysis: false
+        ),
         .pre(
           script: """
             "${SRCROOT}/\(zmxBuildScriptPath.pathString)"
@@ -536,23 +580,29 @@ let project = Project(
           script: """
             set -euo pipefail
 
-            if [ "${CONFIGURATION}" != "Debug" ]; then
-              exit 0
-            fi
+            case "${CONFIGURATION}:${ACTION}" in
+              Debug:*) identity="dev" ;;
+              Release:build) identity="release" ;;
+              *) exit 0 ;;
+            esac
 
             checkout_hash="$(printf '%s' "${SRCROOT}" | shasum -a 256 | awk '{print substr($1, 1, 12)}')"
             environment="$(printf \
-              '{"SUPATERM_INSTANCE_NAME": "dev-%s", "SUPATERM_STATE_HOME": "%s/.build/run-state/dev"}' \
-              "${checkout_hash}" "${SRCROOT}")"
+              '{"SUPATERM_INSTANCE_NAME": "%s-%s", "SUPATERM_STATE_HOME": "%s/.build/run-state/%s"}' \
+              "${identity}" "${checkout_hash}" "${SRCROOT}" "${identity}")"
             plutil -replace LSEnvironment -json "${environment}" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
-            """,
-          name: "Stamp Dev Instance Identity",
+          """,
+          name: "Stamp Local Instance Identity",
+          inputPaths: [
+            "$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+          ],
           basedOnDependencyAnalysis: false
         ),
       ],
       dependencies: [
         .target(name: "sp"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),
@@ -602,6 +652,7 @@ let project = Project(
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),
@@ -701,6 +752,7 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),

@@ -144,7 +144,7 @@ struct TerminalHostStateNotificationTests {
   func desktopNotificationCallbackStoresUnreadAttentionAndResolvesTabTitleOnBlankTitle() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     let stream = host.eventStream()
     var iterator = stream.makeAsyncIterator()
@@ -178,7 +178,7 @@ struct TerminalHostStateNotificationTests {
   func desktopNotificationCallbackRequestsDesktopDeliveryWhenWindowIsInactive() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = .inactive
     let stream = host.eventStream()
     var iterator = stream.makeAsyncIterator()
@@ -208,7 +208,7 @@ struct TerminalHostStateNotificationTests {
   func desktopNotificationCallbackKeepsDistinctNotificationAfterStructuredCompletion() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -235,7 +235,7 @@ struct TerminalHostStateNotificationTests {
   func structuredCompletionReplacesRecentTerminalCompletionFallback() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = .inactive
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -262,7 +262,7 @@ struct TerminalHostStateNotificationTests {
   func notifySuppressesDesktopDeliveryWhenAgentIsRunning() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = .inactive
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -290,7 +290,7 @@ struct TerminalHostStateNotificationTests {
   func fallbackActivityDoesNotSuppressDesktopDelivery() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = .inactive
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -327,7 +327,7 @@ struct TerminalHostStateNotificationTests {
   func notifyAggregatesMultipleNotificationsOnSameSurface() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = .inactive
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -358,7 +358,7 @@ struct TerminalHostStateNotificationTests {
   func notifyCountsUnreadAttentionPerSurface() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = .inactive
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -398,7 +398,7 @@ struct TerminalHostStateNotificationTests {
   func hasUnreadSidebarNotificationsTracksVisibleTabAttention() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
 
     #expect(!host.hasUnreadSidebarNotifications)
@@ -431,7 +431,7 @@ struct TerminalHostStateNotificationTests {
   func selectingTabPrefersUnreadPaneFromBackgroundSplit() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -487,7 +487,7 @@ struct TerminalHostStateNotificationTests {
   func directKeyboardInteractionClearsSidebarNotificationText() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -517,7 +517,7 @@ struct TerminalHostStateNotificationTests {
   func directMouseInteractionClearsUnreadAttentionOnFocusedPane() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
@@ -562,7 +562,7 @@ struct TerminalHostStateNotificationTests {
   func closingPaneClearsAllPerSurfaceState() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
     let surface = try #require(host.selectedSurfaceView)

@@ -88,6 +88,35 @@ final class SettingsUITests: SupatermUITestCase {
   }
 
   @MainActor
+  func testLicenseCanBeActivatedAndDeactivated() async throws {
+    let settingsWindow = try openSettings()
+    try await select(.license, in: settingsWindow)
+
+    let key = element(SupatermUITestIdentifier.Settings.licenseKey, in: settingsWindow)
+    key.click()
+    key.typeText(uiTestLicenseKey)
+
+    let activate = element(
+      SupatermUITestIdentifier.Settings.licenseActivate,
+      in: settingsWindow
+    )
+    let didEnableActivation = await wait(for: activate) { $0.exists && $0.isEnabled }
+    XCTAssertTrue(didEnableActivation)
+    activate.click()
+
+    let deactivate = element(
+      SupatermUITestIdentifier.Settings.licenseDeactivate,
+      in: settingsWindow
+    )
+    let didActivate = await wait(for: deactivate) { $0.exists && $0.isEnabled }
+    XCTAssertTrue(didActivate)
+    deactivate.click()
+
+    let didDeactivate = await wait(for: key) { $0.exists }
+    XCTAssertTrue(didDeactivate)
+  }
+
+  @MainActor
   func testAboutShowsVersionAndUpdateControls() async throws {
     let settingsWindow = try openSettings()
     try await select(.about, in: settingsWindow)
@@ -192,6 +221,7 @@ final class SettingsUITests: SupatermUITestCase {
 
 private enum SettingsTab: String, CaseIterable {
   case general
+  case license
   case terminal
   case notifications
   case codingAgents
@@ -206,6 +236,8 @@ private enum SettingsTab: String, CaseIterable {
     switch self {
     case .general:
       SupatermUITestIdentifier.Settings.restoreTerminalLayout
+    case .license:
+      SupatermUITestIdentifier.Settings.licenseKey
     case .terminal:
       SupatermUITestIdentifier.Settings.terminalFont
     case .notifications:
@@ -219,3 +251,6 @@ private enum SettingsTab: String, CaseIterable {
     }
   }
 }
+
+private let uiTestLicenseKey =
+  "SUPATERM-AAAAAAAAAAAAAAAAAAAAAAAAAA-AAAAAAAAAAAAAAAAAAAAAAAAAA"

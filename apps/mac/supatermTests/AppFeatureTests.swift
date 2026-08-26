@@ -3,37 +3,52 @@ import Foundation
 import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermLicenseFeature
+@testable import SupatermSupport
 @testable import supaterm
 
 @MainActor
 struct AppFeatureTests {
   @Test
-  func initialStateStartsIdle() {
-    let state = AppFeature.State()
-
-    #expect(state.update.canCheckForUpdates == false)
-    #expect(state.update.phase == .idle)
-  }
-
-  @Test
-  func updateActionsRouteToChildFeature() async {
-    let snapshot = UpdateClient.Snapshot(
-      automaticallyChecksForUpdates: true,
-      automaticallyDownloadsUpdates: true,
-      canCheckForUpdates: true,
-      phase: .checking
+  func ownedReleaseActionOpensTheFeedDownload() async throws {
+    let updatesThrough = try #require(LicenseDay("2026-08-21"))
+    let entitlement = LicenseEntitlement(
+      licenseID: "00112233445566778899aabbccddeeff",
+      deviceID: "device",
+      status: .active,
+      updatesThrough: updatesThrough,
+      revision: 1,
+      issuedAt: 1,
+      revocationReason: nil,
+      signedToken: "signed-token"
     )
-
-    let store = TestStore(initialState: AppFeature.State()) {
-      AppFeature()
+    var client = LicenseClient.testValue
+    client.load = {
+      LicenseClient.Snapshot(entitlement: entitlement, hasLicenseKey: true)
     }
-
-    await store.send(.update(.updateClientSnapshotReceived(snapshot))) {
-      $0.$update.withLock {
-        $0.canCheckForUpdates = true
-        $0.phase = .checking
+    let runtime = LicenseRuntime(client: client)
+    let downloadURL = URL(string: "https://supaterm.com/download/v26.3.0/supaterm.dmg")!
+    let requestedDay = LockIsolated<LicenseDay?>(nil)
+    let openedURL = LockIsolated<URL?>(nil)
+    let store = TestStore(initialState: AppLicenseFeature.State(runtime: runtime)) {
+      AppLicenseFeature(runtime: runtime)
+    } withDependencies: {
+      $0.analyticsClient.capture = { _ in }
+      $0.externalNavigationClient.open = { url in
+        openedURL.withValue { $0 = url }
+        return true
+      }
+      $0.updateClient.newestOwnedReleaseURL = { day in
+        requestedDay.withValue { $0 = day }
+        return downloadURL
       }
     }
+
+    await store.send(.license(.ownedReleaseButtonTapped))
+    await store.finish()
+
+    #expect(requestedDay.value == updatesThrough)
+    #expect(openedURL.value == downloadURL)
   }
 
   @Test
@@ -57,7 +72,6 @@ struct AppFeatureTests {
       $0.$releaseAnnouncementStatus.withLock { $0 = .loading }
     }
     await store.receive(\.socket.task)
-    await store.receive(\.update.task)
     continuation.yield(.agentForking)
     continuation.finish()
     await store.receive(\.releaseAnnouncementLoaded) {
@@ -86,7 +100,6 @@ struct AppFeatureTests {
 
     await store.send(.task)
     await store.receive(\.socket.task)
-    await store.receive(\.update.task)
     await store.finish()
 
     #expect(synchronizeCount.value == 0)
@@ -141,6 +154,4 @@ struct AppFeatureTests {
 
 private func configureLifecycleDependencies(_ dependencies: inout DependencyValues) {
   dependencies.socketControlClient.start = { throw CancellationError() }
-  dependencies.updateClient.observe = { AsyncStream { $0.finish() } }
-  dependencies.updateClient.start = {}
 }

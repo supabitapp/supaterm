@@ -14,7 +14,7 @@ struct TerminalHostStateTabGroupTests {
     } operation: {
       initializeGhosttyForTests()
       let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
-      let host = TerminalHostState(runtime: runtime, zmxSessionsEnabled: false)
+      let host = TerminalHostState.test(runtime: runtime, zmxSessionsEnabled: false)
       host.ensureInitialTab(focusing: false)
       let anchorTabID = try #require(host.selectedTabID)
       let groupID = try #require(
@@ -58,7 +58,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let first = manager.createTab(title: "First")
       let second = manager.createTab(title: "Second")
@@ -80,7 +80,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let first = manager.createTab(title: "First")
       let second = manager.createTab(title: "Second")
@@ -111,7 +111,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let first = manager.createTab(title: "First")
       let second = manager.createTab(title: "Second")
@@ -131,7 +131,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let source = manager.createTab(title: "Source")
       let grouped = manager.createTab(title: "Grouped")
@@ -162,7 +162,7 @@ struct TerminalHostStateTabGroupTests {
     } operation: {
       initializeGhosttyForTests()
       let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
-      let host = TerminalHostState(runtime: runtime, zmxSessionsEnabled: false)
+      let host = TerminalHostState.test(runtime: runtime, zmxSessionsEnabled: false)
       host.ensureInitialTab(focusing: false)
       let first = try #require(host.selectedTabID)
       let second = try #require(host.createTab(focusing: false))
@@ -185,7 +185,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let selected = manager.createTab(title: "Selected")
       let groupID = try #require(
@@ -206,7 +206,7 @@ struct TerminalHostStateTabGroupTests {
     } operation: {
       initializeGhosttyForTests()
       let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
-      let host = TerminalHostState(runtime: runtime, zmxSessionsEnabled: false)
+      let host = TerminalHostState.test(runtime: runtime, zmxSessionsEnabled: false)
       host.ensureInitialTab(focusing: false)
       let first = try #require(host.selectedTabID)
       let second = try #require(host.createTab(focusing: false))
@@ -248,7 +248,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let groupedTab = manager.createTab(title: "Grouped")
       _ = manager.createTab(title: "Survivor")
@@ -270,7 +270,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let groupID = try #require(host.createGroup(title: "Empty", containing: [])).groupID
 
       host.requestCloseGroup(groupID)
@@ -284,7 +284,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let survivor = manager.createTab(title: "Survivor")
       let child = manager.createTab(title: "Child")
@@ -304,7 +304,7 @@ struct TerminalHostStateTabGroupTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = host.spaceManager.tabCollection
       let survivor = manager.createTab(title: "Survivor")
       let child = manager.createTab(title: "Child")

@@ -114,12 +114,22 @@ extension TerminalHostState {
     to destination: TerminalHostState,
     destinationSpaceID: TerminalSpaceID
   ) throws -> LiveTabTransferPlan {
+    let restoresDestination = destination.spaceManager.instance(for: destinationSpaceID)?.pendingSession != nil
     let instances = try transferInstances(
       from: source,
       sourceSpaceID: sourceSpaceID,
       to: destination,
       destinationSpaceID: destinationSpaceID
     )
+    let request =
+      restoresDestination
+      ? TerminalTabTransferRequest(
+        expectedSourceRevision: request.expectedSourceRevision,
+        expectedDestinationRevision: instances.destination.tabCollection.topologyRevision,
+        itemIDs: request.itemIDs,
+        destination: request.destination
+      )
+      : request
     let collectionPlan = try TerminalTabCollection.prepareTransfer(
       request,
       from: instances.source.tabCollection,
@@ -274,8 +284,8 @@ extension TerminalHostState {
     to destination: TerminalHostState,
     destinationSpaceID: TerminalSpaceID
   ) throws -> (source: TerminalSpaceInstance, destination: TerminalSpaceInstance) {
-    source.warmInstance(for: sourceSpaceID)
-    destination.warmInstance(for: destinationSpaceID)
+    source.warmInstanceForTabTransfer(for: sourceSpaceID)
+    destination.warmInstanceForTabTransfer(for: destinationSpaceID)
     guard
       let sourceInstance = source.spaceManager.instance(for: sourceSpaceID),
       destination.spaceManager.space(for: destinationSpaceID) != nil

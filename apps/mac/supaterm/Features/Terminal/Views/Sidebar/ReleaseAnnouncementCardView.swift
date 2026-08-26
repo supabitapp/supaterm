@@ -47,22 +47,29 @@ struct ReleaseAnnouncementCardView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
-    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
-    .padding(.vertical, TerminalSidebarLayout.cardVerticalPadding)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.cardCornerRadius,
-        style: .continuous
+    .terminalSidebarAnnouncementCard(palette: palette)
+  }
+}
+
+extension View {
+  func terminalSidebarAnnouncementCard(palette: Palette) -> some View {
+    self
+      .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+      .padding(.vertical, TerminalSidebarLayout.cardVerticalPadding)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(
+        RoundedRectangle(
+          cornerRadius: TerminalSidebarLayout.cardCornerRadius,
+          style: .continuous
+        )
+        .fill(palette.unselectedFill)
       )
-      .fill(palette.unselectedFill)
-    )
-    .contentShape(
-      RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.cardCornerRadius,
-        style: .continuous
+      .contentShape(
+        RoundedRectangle(
+          cornerRadius: TerminalSidebarLayout.cardCornerRadius,
+          style: .continuous
+        )
       )
-    )
   }
 }
 

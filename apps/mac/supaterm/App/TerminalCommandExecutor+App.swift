@@ -33,9 +33,6 @@ extension TerminalCommandExecutor {
       windows: windows,
       context: request.context
     )
-    let updateEntry =
-      activeEntries.first(where: { $0.terminal.windowActivity.isKeyWindow })
-      ?? activeEntries.first
     var problems = resolution.problems
     if windows.isEmpty {
       problems.append("No active windows.")
@@ -48,7 +45,7 @@ extension TerminalCommandExecutor {
         isDevelopmentBuild: AppBuild.isDevelopmentBuild,
         usesStubUpdateChecks: AppBuild.usesStubUpdateChecks
       ),
-      update: updateSnapshot(updateEntry.map { $0.store.update }),
+      update: updateSnapshot(registry.updateFeatureState),
       summary: SupatermAppDebugSnapshot.Summary(
         windowCount: windows.count,
         spaceCount: registry.spaceCount,
@@ -105,14 +102,7 @@ extension TerminalCommandExecutor {
     throw TerminalCreatePaneError.contextPaneNotFound
   }
 
-  func updateSnapshot(_ state: UpdateFeature.State?) -> SupatermAppDebugSnapshot.Update {
-    guard let state else {
-      return SupatermAppDebugSnapshot.Update(
-        canCheckForUpdates: false,
-        phase: "idle",
-        detail: ""
-      )
-    }
+  func updateSnapshot(_ state: UpdateFeature.State) -> SupatermAppDebugSnapshot.Update {
     return SupatermAppDebugSnapshot.Update(
       canCheckForUpdates: state.canCheckForUpdates,
       phase: state.phase.debugIdentifier,

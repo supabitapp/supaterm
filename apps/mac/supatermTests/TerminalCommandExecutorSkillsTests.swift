@@ -124,7 +124,7 @@ private struct SkillsHarness {
     rootURL = try temporarySkillsRoot()
     homeDirectoryURL = rootURL.appendingPathComponent("home", isDirectory: true)
     bundledSkillsDirectoryURL = try bundledSkillsDirectory(in: rootURL)
-    registry = TerminalWindowRegistry()
+    registry = TerminalWindowRegistry.test()
     commandExecutor = makeCommandExecutor(registry: registry)
   }
 

@@ -23,7 +23,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
 
       #expect(!registry.selectSpace(spaces[1].id))
       #expect(catalog.defaultSelectedSpaceID == spaces[0].id)
@@ -32,7 +32,7 @@ struct TerminalWindowRegistryTests {
 
   @Test
   func preferredTerminalWindowExcludesUnregisteredWindows() {
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let unrelatedWindow = makeWindow()
 
     #expect(registry.preferredTerminalWindow == nil)
@@ -53,7 +53,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let first = registerWindow(in: registry, spaceID: spaces[0].id)
       let second = registerWindow(in: registry, spaceID: spaces[0].id)
 
@@ -77,7 +77,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let owner = registerWindow(in: registry, spaceID: spaces[0].id)
       let preferred = registerWindow(in: registry, spaceID: spaces[0].id)
       let tabID = TerminalTabID()
@@ -141,7 +141,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: spaces[0].id, createsInitialTab: true)
 
       #expect(registry.selectSpace(spaces[1].id))
@@ -167,7 +167,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: spaces[0].id, createsInitialTab: true)
       let pager = SpaceSwipeController()
       var slides: [[Int]] = []
@@ -195,7 +195,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: spaces[0].id, createsInitialTab: true)
       let pager = SpaceSwipeController()
       var slides: [[Int]] = []
@@ -224,7 +224,7 @@ struct TerminalWindowRegistryTests {
           spaces: [initialSpace]
         )
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: initialSpace.id)
 
       let spaceID = try registry.createSpace(named: "  Build  ")
@@ -253,7 +253,7 @@ struct TerminalWindowRegistryTests {
           spaces: [initialSpace]
         )
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
 
       let spaceID = try registry.createSpace(named: "Build", color: .green)
       #expect(catalog.spaces.map(\.color) == [.neutral, .green])
@@ -277,7 +277,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       var closedWindowIDs: [UUID] = []
       let first = registerWindow(
         in: registry,
@@ -316,7 +316,7 @@ struct TerminalWindowRegistryTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: spaces[0].id)
 
       #expect(registry.menuContext().spaceCount == 2)
@@ -329,8 +329,8 @@ struct TerminalWindowRegistryTests {
     withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -362,14 +362,12 @@ struct TerminalWindowRegistryTests {
   }
   @Test
   func bypassesQuitConfirmationReflectsInstallingUpdatePhase() {
-    let registry = TerminalWindowRegistry()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let registry = updateRegistry(
+      phase: .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    )
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
-    }
-    let store = Store(initialState: state) {
+    let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
     let windowControllerID = UUID()
@@ -389,14 +387,12 @@ struct TerminalWindowRegistryTests {
 
   @Test
   func menuContextShowsRestartToUpdateWhenInstallIsPending() {
-    let registry = TerminalWindowRegistry()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let registry = updateRegistry(
+      phase: .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    )
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
-    }
-    let store = Store(initialState: state) {
+    let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
     let windowControllerID = UUID()
@@ -417,14 +413,12 @@ struct TerminalWindowRegistryTests {
   }
   @Test
   func menuContextShowsRestartToUpdateWhenRestartIsDeferred() {
-    let registry = TerminalWindowRegistry()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let registry = updateRegistry(
+      phase: .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+    )
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
-    }
-    let store = Store(initialState: state) {
+    let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
     let windowControllerID = UUID()
@@ -445,17 +439,15 @@ struct TerminalWindowRegistryTests {
   }
   @Test
   func requestUpdateMenuActionInKeyWindowDispatchesCheckForUpdatesWhenEnabled() async {
-    let registry = TerminalWindowRegistry()
     let recorder = UpdateMenuActionRecorder()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
-    let state = AppFeature.State()
-    state.$update.withLock { $0.canCheckForUpdates = true }
-    let store = Store(initialState: state) {
-      AppFeature()
-    } withDependencies: {
-      $0.updateClient.perform = { action in
+    let registry = updateRegistry(canCheckForUpdates: true) {
+      $0.perform = { action in
         await recorder.record(action)
       }
+    }
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
     }
     let windowControllerID = UUID()
 
@@ -474,19 +466,13 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func applicationStoreKeepsUpdateCommandsAvailableWithoutWindows() async {
-    let registry = TerminalWindowRegistry()
+  func processUpdateStoreKeepsUpdateCommandsAvailableWithoutWindows() async {
     let recorder = UpdateMenuActionRecorder()
-    let state = AppFeature.State()
-    state.$update.withLock { $0.canCheckForUpdates = true }
-    let store = Store(initialState: state) {
-      AppFeature()
-    } withDependencies: {
-      $0.updateClient.perform = { action in
+    let registry = updateRegistry(canCheckForUpdates: true) {
+      $0.perform = { action in
         await recorder.record(action)
       }
     }
-    registry.applicationStore = store
 
     let context = registry.menuContext(keyWindow: nil)
 
@@ -498,16 +484,12 @@ struct TerminalWindowRegistryTests {
 
   @Test
   func updateChannelChangesRunOnceForTheProcess() async {
-    let registry = TerminalWindowRegistry()
     let channels = LockIsolated<[UpdateChannel]>([])
-    let store = Store(initialState: AppFeature.State()) {
-      AppFeature()
-    } withDependencies: {
-      $0.updateClient.setUpdateChannel = { channel in
+    let registry = updateRegistry {
+      $0.setUpdateChannel = { channel in
         channels.withValue { $0.append(channel) }
       }
     }
-    registry.applicationStore = store
     let firstWindow = registerWindow(in: registry, spaceID: TerminalSpaceID())
     let secondWindow = registerWindow(in: registry, spaceID: TerminalSpaceID())
 
@@ -519,19 +501,17 @@ struct TerminalWindowRegistryTests {
 
   @Test
   func requestUpdateMenuActionInKeyWindowDispatchesRestartNowWhenInstallIsPending() async {
-    let registry = TerminalWindowRegistry()
     let recorder = UpdateMenuActionRecorder()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
-    }
-    let store = Store(initialState: state) {
-      AppFeature()
-    } withDependencies: {
-      $0.updateClient.perform = { action in
+    let registry = updateRegistry(
+      phase: .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    ) {
+      $0.perform = { action in
         await recorder.record(action)
       }
+    }
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
     }
     let windowControllerID = UUID()
 
@@ -556,15 +536,13 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = updateRegistry(phase: .permissionRequest)
       let firstHost = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      let secondState = AppFeature.State()
-      secondState.$update.withLock { $0.phase = .permissionRequest }
       let secondHost = try makeCommandPaletteHost(title: "beta", workingDirectory: nil)
       let firstStore = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
-      let secondStore = Store(initialState: secondState) {
+      let secondStore = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
       let firstWindowControllerID = UUID()
@@ -605,7 +583,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let firstHost = try makeCommandPaletteHost(title: "ping 1.1.1.1", workingDirectory: "/tmp/one")
       let secondHost = try makeCommandPaletteHost(title: "tail -f app.log", workingDirectory: "/tmp/two")
       let firstStore = Store(initialState: AppFeature.State()) {
@@ -646,15 +624,13 @@ struct TerminalWindowRegistryTests {
 
   @Test
   func commandPaletteSnapshotBuildsUpdateEntriesFromPhaseActions() {
-    let registry = TerminalWindowRegistry()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.phase = .updateAvailable(
+    let registry = updateRegistry(
+      phase: .updateAvailable(
         UpdatePhase.Available(contentLength: 42, releaseDate: nil, version: "1.2.3")
       )
-    }
-    let store = Store(initialState: state) {
+    )
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
     let windowControllerID = UUID()
@@ -683,11 +659,9 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = updateRegistry(canCheckForUpdates: true)
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      let state = AppFeature.State()
-      state.$update.withLock { $0.canCheckForUpdates = true }
-      let store = Store(initialState: state) {
+      let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
       let windowControllerID = UUID()
@@ -715,13 +689,11 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = updateRegistry(
+        phase: .installing(UpdatePhase.Installing(isAutoUpdate: true))
+      )
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      let state = AppFeature.State()
-      state.$update.withLock {
-        $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
-      }
-      let store = Store(initialState: state) {
+      let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
       let windowControllerID = UUID()
@@ -750,13 +722,11 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = updateRegistry(
+        phase: .installing(UpdatePhase.Installing(isAutoUpdate: false))
+      )
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      let state = AppFeature.State()
-      state.$update.withLock {
-        $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: false))
-      }
-      let store = Store(initialState: state) {
+      let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
       let windowControllerID = UUID()
@@ -785,13 +755,11 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = updateRegistry(
+        phase: .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+      )
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
-      let state = AppFeature.State()
-      state.$update.withLock {
-        $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
-      }
-      let store = Store(initialState: state) {
+      let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
       let windowControllerID = UUID()
@@ -820,7 +788,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = try makeCommandPaletteHost(title: "ping 1.1.1.1", workingDirectory: "/tmp/network")
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -869,8 +837,8 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState()
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test()
       host.windowActivity = .inactive
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let firstTabID = try #require(host.selectedTabID)
@@ -909,7 +877,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let olderHost = try makeCommandPaletteHost(title: "older", workingDirectory: nil)
       let newerHost = try makeCommandPaletteHost(title: "newer", workingDirectory: nil)
       olderHost.windowActivity = .inactive
@@ -986,18 +954,16 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func performCommandPaletteUpdateActionDispatchesToRequestedStore() async {
-    let registry = TerminalWindowRegistry()
+  func performCommandPaletteUpdateActionDispatchesToProcessStore() async {
     let recorder = UpdateMenuActionRecorder()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
-    let state = AppFeature.State()
-    state.$update.withLock { $0.phase = .permissionRequest }
-    let store = Store(initialState: state) {
-      AppFeature()
-    } withDependencies: {
-      $0.updateClient.perform = { action in
+    let registry = updateRegistry(phase: .permissionRequest) {
+      $0.perform = { action in
         await recorder.record(action)
       }
+    }
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
     }
     let windowControllerID = UUID()
 
@@ -1028,11 +994,11 @@ struct TerminalWindowRegistryTests {
 
       let firstFrame = NSRect(x: 40, y: 80, width: 1_100, height: 740)
       let secondFrame = NSRect(x: 160, y: 220, width: 1_180, height: 760)
-      let registry = TerminalWindowRegistry()
-      let firstHost = TerminalHostState()
+      let registry = TerminalWindowRegistry.test()
+      let firstHost = TerminalHostState.test()
       firstHost.ensureInitialTab(focusing: false, startupCommand: nil)
 
-      let secondHost = TerminalHostState()
+      let secondHost = TerminalHostState.test()
       secondHost.ensureInitialTab(focusing: false, startupCommand: nil)
       _ = secondHost.createTab(inheritingFromSurfaceID: nil)
 
@@ -1089,9 +1055,9 @@ struct TerminalWindowRegistryTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       initializeGhosttyForTests()
-      let host = TerminalHostState(runtime: GhosttyRuntime())
+      let host = TerminalHostState.test(runtime: GhosttyRuntime())
       defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -1128,9 +1094,9 @@ struct TerminalWindowRegistryTests {
     withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       initializeGhosttyForTests()
-      let host = TerminalHostState(runtime: GhosttyRuntime())
+      let host = TerminalHostState.test(runtime: GhosttyRuntime())
       defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -1157,9 +1123,9 @@ struct TerminalWindowRegistryTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       initializeGhosttyForTests()
-      let host = TerminalHostState(runtime: GhosttyRuntime())
+      let host = TerminalHostState.test(runtime: GhosttyRuntime())
       defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -1193,8 +1159,8 @@ struct TerminalWindowRegistryTests {
       $0.defaultFileStorage = .inMemory
       $0.terminalCommandPaletteClient.snapshot = { _ in .empty }
     } operation: {
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -1223,7 +1189,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       #expect(
@@ -1272,7 +1238,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       let store = Store(initialState: AppFeature.State()) {
@@ -1303,7 +1269,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       #expect(
@@ -1372,7 +1338,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       #expect(
@@ -1416,7 +1382,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       #expect(
@@ -1456,7 +1422,7 @@ struct TerminalWindowRegistryTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let host = try makeCommandPaletteHost(title: "pi", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       #expect(
@@ -1561,6 +1527,30 @@ struct TerminalWindowRegistryTests {
 }
 
 @MainActor
+func updateRegistry(
+  canCheckForUpdates: Bool = false,
+  phase: UpdatePhase = .idle,
+  configure: (inout UpdateClient) -> Void = { _ in }
+) -> TerminalWindowRegistry {
+  var updateClient = UpdateClient.inert
+  configure(&updateClient)
+  let updateStore = Store(
+    initialState: UpdateFeature.State(
+      canCheckForUpdates: canCheckForUpdates,
+      phase: phase
+    )
+  ) {
+    UpdateFeature()
+  } withDependencies: {
+    $0.updateClient = updateClient
+  }
+  return TerminalWindowRegistry.test(
+    updateClient: updateClient,
+    updateStore: updateStore
+  )
+}
+
+@MainActor
 private func registerWindow(
   in registry: TerminalWindowRegistry,
   spaceID: TerminalSpaceID,
@@ -1568,7 +1558,7 @@ private func registerWindow(
   onClose: @escaping (UUID) -> Void = { _ in }
 ) -> RegisteredWindow {
   let id = UUID()
-  let host = TerminalHostState(managesTerminalSurfaces: createsInitialTab, spaceID: spaceID)
+  let host = TerminalHostState.test(managesTerminalSurfaces: createsInitialTab, spaceID: spaceID)
   if createsInitialTab {
     host.ensureInitialTab(focusing: false, startupCommand: nil)
   }
@@ -1597,7 +1587,7 @@ private func makeCommandPaletteHost(
   title: String,
   workingDirectory: String?
 ) throws -> TerminalHostState {
-  let host = TerminalHostState()
+  let host = TerminalHostState.test()
   host.ensureInitialTab(focusing: false, startupCommand: nil)
   host.selectedSurfaceView?.bridge.state.title = title
   host.selectedSurfaceView?.bridge.state.titleOverride = nil

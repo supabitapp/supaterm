@@ -529,7 +529,7 @@ struct TerminalAgentDetectionControllerTests {
     try adHocSign(executableURL)
     let repository = try AgentDetectionRuleRepository(bundle: SupatermResources.bundle)
     let runtime = try makeGhosttyRuntime("")
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       runtime: runtime,
       zmxSessionsEnabled: zmxSessionsEnabled,
       agentDetectionRuleRepository: repository

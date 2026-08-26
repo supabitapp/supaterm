@@ -2,12 +2,15 @@ import AppKit
 import ComposableArchitecture
 import Sharing
 import SupaTheme
+import SupatermLicenseFeature
 import SupatermSettingsFeature
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalWindowSidebarRoot: View {
   let store: StoreOf<TerminalWindowFeature>
+  let licenseStore: StoreOf<LicenseFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
   let terminal: TerminalHostState
@@ -49,6 +52,7 @@ struct TerminalWindowSidebarRoot: View {
   private var sidebar: some View {
     TerminalSidebarView(
       store: store,
+      licenseStore: licenseStore,
       updateStore: updateStore,
       releaseAnnouncement: releaseAnnouncement,
       palette: palette,
@@ -62,6 +66,7 @@ struct TerminalWindowSidebarRoot: View {
 
 struct TerminalSidebarView: View {
   let store: StoreOf<TerminalWindowFeature>
+  let licenseStore: StoreOf<LicenseFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
@@ -73,6 +78,7 @@ struct TerminalSidebarView: View {
   var body: some View {
     TerminalSidebarChromeView(
       store: store,
+      licenseStore: licenseStore,
       updateStore: updateStore,
       releaseAnnouncement: releaseAnnouncement,
       palette: palette,

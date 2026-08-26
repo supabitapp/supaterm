@@ -20,6 +20,9 @@ func makeStore(
       SocketRequestExecutor.AgentIntegrationRequest
     ) async throws -> SocketRequestExecutor.AgentIntegrationResult
   )? = nil,
+  executeLicense: (
+    @MainActor @Sendable (LicenseControlRequest) async throws -> LicenseControlResult
+  )? = nil,
   executeTerminalPane: (
     @MainActor @Sendable (
       SocketRequestExecutor.TerminalPaneRequest
@@ -33,6 +36,7 @@ func makeStore(
     $0.socketRequestExecutor = .testing(
       executeApp: executeApp,
       executeAgentIntegration: executeAgentIntegration,
+      executeLicense: executeLicense,
       executeTerminalPane: executeTerminalPane
     )
     updateDependencies(&$0)
@@ -44,6 +48,9 @@ extension SocketRequestExecutor {
     executeApp: (@MainActor @Sendable (AppRequest) async throws -> AppResult)? = nil,
     executeAgentIntegration: (
       @MainActor @Sendable (AgentIntegrationRequest) async throws -> AgentIntegrationResult
+    )? = nil,
+    executeLicense: (
+      @MainActor @Sendable (LicenseControlRequest) async throws -> LicenseControlResult
     )? = nil,
     executeTerminalCreation: (
       @MainActor @Sendable (TerminalCreationRequest) async throws -> TerminalCreationResult
@@ -70,6 +77,13 @@ extension SocketRequestExecutor {
           return try await executeApp($0)
         }
         return try testingApp($0)
+      },
+      executeLicense: {
+        guard let executeLicense else {
+          Issue.record("Unexpected license request: \($0)")
+          throw SocketControlTestError.unexpectedRequest
+        }
+        return try await executeLicense($0)
       },
       executeAgentIntegration: {
         if let executeAgentIntegration {

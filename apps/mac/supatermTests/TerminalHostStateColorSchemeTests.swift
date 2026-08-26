@@ -22,8 +22,8 @@ struct TerminalHostStateColorSchemeTests {
       """
     )
 
-    let darkHost = TerminalHostState(runtime: darkRuntime, managesTerminalSurfaces: false)
-    let lightHost = TerminalHostState(runtime: lightRuntime, managesTerminalSurfaces: false)
+    let darkHost = TerminalHostState.test(runtime: darkRuntime, managesTerminalSurfaces: false)
+    let lightHost = TerminalHostState.test(runtime: lightRuntime, managesTerminalSurfaces: false)
 
     #expect(darkHost.terminalChromeColorScheme == .dark)
     #expect(lightHost.terminalChromeColorScheme == .light)
@@ -37,7 +37,7 @@ struct TerminalHostStateColorSchemeTests {
       background-opacity = 0.4
       """
     )
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       runtime: runtime,
       zmxClient: .noop,
       zmxSessionsEnabled: false
@@ -82,7 +82,7 @@ struct TerminalHostStateColorSchemeTests {
       background = #101010
       """
     )
-    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(runtime: runtime, managesTerminalSurfaces: false)
     let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
@@ -109,7 +109,7 @@ struct TerminalHostStateColorSchemeTests {
       background = #202020
       """
     )
-    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(runtime: runtime, managesTerminalSurfaces: false)
     let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
@@ -131,7 +131,7 @@ struct TerminalHostStateColorSchemeTests {
       background = #101010
       """
     )
-    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(runtime: runtime, managesTerminalSurfaces: false)
     let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {

@@ -1,4 +1,6 @@
 import ComposableArchitecture
+import SupatermLicenseFeature
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -48,23 +50,22 @@ struct ContentView: View {
 struct TerminalSidebarContentView: View {
   let commandHoldObserver: CommandHoldObserver
   let ghosttyShortcuts: GhosttyShortcutManager
+  let licenseStore: StoreOf<LicenseFeature>
   let shellState: TerminalWindowShellState
   let store: StoreOf<AppFeature>
   let terminal: TerminalHostState
   let sidebarControllerCache: TerminalSidebarControllerCache
   let spacePagingDidEnd: () -> Void
+  let updateStore: StoreOf<UpdateFeature>
 
   private var terminalStore: StoreOf<TerminalWindowFeature> {
     store.scope(state: \.terminal, action: \.terminal)
   }
 
-  private var updateStore: StoreOf<UpdateFeature> {
-    store.scope(state: \.update, action: \.update)
-  }
-
   var body: some View {
     TerminalWindowSidebarRoot(
       store: terminalStore,
+      licenseStore: licenseStore,
       updateStore: updateStore,
       releaseAnnouncement: store.releaseAnnouncement,
       terminal: terminal,

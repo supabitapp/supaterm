@@ -4,10 +4,12 @@ import Foundation
 import Sharing
 import SupaTheme
 import SupatermCLIShared
+import SupatermLicenseFeature
 import SupatermUpdateFeature
 import SwiftUI
 
 @testable import SupatermSettingsFeature
+@testable import SupatermSupport
 
 extension SnapshotCatalog {
   static let agentPanelScenarios: [SnapshotScenario] = [
@@ -402,6 +404,24 @@ extension SnapshotCatalog {
     ),
     settingsScenario("notifications", title: "Notifications", tab: .notifications),
     settingsScenario(
+      "license-free",
+      title: "License free",
+      tab: .license,
+      variant: .licenseFree
+    ),
+    settingsScenario(
+      "license-paid",
+      title: "License paid",
+      tab: .license,
+      variant: .licensePaid
+    ),
+    settingsScenario(
+      "license-expired",
+      title: "License expired",
+      tab: .license,
+      variant: .licenseExpired
+    ),
+    settingsScenario(
       "coding-agents-enabled",
       title: "Coding agents enabled",
       tab: .codingAgents,
@@ -579,18 +599,27 @@ private enum SettingsSnapshotVariant {
   case codingAgentsUnavailable
   case codingAgentsInstallFailure
   case aboutUpdate
+  case licenseExpired
+  case licenseFree
+  case licensePaid
 }
 
 private struct SettingsSnapshotFixture: View {
+  let licenseStore: StoreOf<LicenseFeature>
   let store: StoreOf<SettingsFeature>
 
   init(tab: SettingsFeature.Tab, variant: SettingsSnapshotVariant) {
     store = Self.store(tab: tab, variant: variant)
+    licenseStore = Self.licenseStore(variant: variant)
   }
 
   var body: some View {
-    SettingsTabContentView(store: store, tab: store.selectedTab)
-      .background(Color(nsColor: .windowBackgroundColor))
+    SettingsTabContentView(
+      store: store,
+      licenseStore: licenseStore,
+      tab: store.selectedTab
+    )
+    .background(Color(nsColor: .windowBackgroundColor))
   }
 
   private static func store(
@@ -630,7 +659,7 @@ private struct SettingsSnapshotFixture: View {
       )
     case .aboutUpdate:
       state.about.updatesAutomaticallyDownloadUpdates = false
-    case .standard:
+    case .licenseExpired, .licenseFree, .licensePaid, .standard:
       break
     }
 
@@ -658,6 +687,48 @@ private struct SettingsSnapshotFixture: View {
     }
 
     return store
+  }
+
+  private static func licenseStore(
+    variant: SettingsSnapshotVariant
+  ) -> StoreOf<LicenseFeature> {
+    let entitlement: LicenseEntitlement?
+    switch variant {
+    case .licensePaid:
+      entitlement = licenseEntitlement(updatesThrough: licenseDay("2099-01-01"))
+    case .licenseExpired:
+      entitlement = licenseEntitlement(updatesThrough: licenseDay("2000-01-01"))
+    case .aboutUpdate, .codingAgentsEnabled, .codingAgentsInstallFailure,
+      .codingAgentsUnavailable, .licenseFree, .standard, .terminalError,
+      .terminalLoaded, .terminalWarning:
+      entitlement = nil
+    }
+    let runtime = LicenseRuntime.preview(entitlement: entitlement)
+    return Store(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
+    }
+  }
+
+  private static func licenseEntitlement(
+    updatesThrough: LicenseDay
+  ) -> LicenseEntitlement {
+    LicenseEntitlement(
+      licenseID: "00112233445566778899aabbccddeeff",
+      deviceID: "snapshot-device",
+      status: .active,
+      updatesThrough: updatesThrough,
+      revision: 1,
+      issuedAt: 1,
+      revocationReason: nil,
+      signedToken: "snapshot-token"
+    )
+  }
+
+  private static func licenseDay(_ value: String) -> LicenseDay {
+    guard let day = LicenseDay(value) else {
+      preconditionFailure("Invalid snapshot license day")
+    }
+    return day
   }
 
   private static func terminalSettingsSnapshot(

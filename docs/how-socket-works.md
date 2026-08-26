@@ -151,6 +151,20 @@ sp diagnostic
 sp instance ls
 ```
 
+Licensing:
+
+```bash
+sp license
+sp license activate
+sp license refresh
+sp license deactivate
+sp license buy
+sp license renew
+```
+
+The app owns the license key, signed entitlement, browser actions, and service requests. Activation
+reads the key from a hidden prompt or stdin and never accepts it as an argument.
+
 Connection flags:
 
 ```bash
@@ -232,6 +246,7 @@ sp project icon ~/code/project --json
 The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`):
 
 - `app.*` — onboarding, debug, tree, settings, hooks, skills
+- `license.*` — status, activation, refresh, deactivation, purchase, and renewal
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
 - `terminal.agent_explain` — explicit rule evidence for one pane

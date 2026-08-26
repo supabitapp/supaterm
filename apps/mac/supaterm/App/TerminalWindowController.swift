@@ -1,7 +1,9 @@
 import AppKit
 import ComposableArchitecture
 import SupaTheme
+import SupatermLicenseFeature
 import SupatermSupport
+import SupatermUpdateFeature
 import SwiftUI
 
 enum TerminalWindowLaunch: Equatable {
@@ -99,9 +101,20 @@ final class TerminalWindowController: NSWindowController {
     let commandHoldObserver: CommandHoldObserver
     let commandPaletteClient: TerminalCommandPaletteClient
     let ghosttyShortcuts: GhosttyShortcutManager
+    let licenseStore: StoreOf<LicenseFeature>
     let runtime: GhosttyRuntime
     let store: StoreOf<AppFeature>
     let tabDragRegistry: TerminalTabDragRegistry
+    let terminal: TerminalHostState
+    let updateStore: StoreOf<UpdateFeature>
+    let windowControllerID: UUID
+  }
+
+  private struct WindowInput {
+    let commandHoldObserver: CommandHoldObserver
+    let session: TerminalWindowSession?
+    let shellController: NSViewController
+    let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
     let windowControllerID: UUID
   }
@@ -136,7 +149,9 @@ final class TerminalWindowController: NSWindowController {
       spaceID: launch.spaceID,
       zmxClient: zmxClient,
       zmxSessionsEnabled: zmxSessionsEnabled,
-      agentDetectionRuleRepository: agentDetectionRuleRepository
+      agentDetectionRuleRepository: agentDetectionRuleRepository,
+      licenseTabGate: registry.licenseTabGate,
+      licenseOpenTabCount: registry.licenseOpenTabCount
     )
     terminal.onSessionChange = onSessionChange
     Self.prepareTerminal(terminal, launch: launch)
@@ -173,41 +188,26 @@ final class TerminalWindowController: NSWindowController {
         commandHoldObserver: commandHoldObserver,
         commandPaletteClient: commandPaletteClient,
         ghosttyShortcuts: ghosttyShortcuts,
+        licenseStore: registry.licenseStore,
         runtime: runtime,
         store: store,
         tabDragRegistry: registry.tabDragRegistry,
         terminal: terminal,
+        updateStore: registry.updateStore,
         windowControllerID: windowControllerID
       )
     )
 
-    let window = TerminalGestureWindow(
-      contentRect: .zero,
-      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-      backing: .buffered,
-      defer: false
+    let window = Self.makeWindow(
+      WindowInput(
+        commandHoldObserver: commandHoldObserver,
+        session: session,
+        shellController: shellController,
+        store: store,
+        terminal: terminal,
+        windowControllerID: windowControllerID
+      )
     )
-    window.contentViewController = shellController
-    window.contentMinSize = NSSize(width: 1_080, height: 720)
-    window.setContentSize(NSSize(width: 1_440, height: 900))
-    window.identifier = NSUserInterfaceItemIdentifier(
-      "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(windowControllerID.uuidString)")
-    window.isReleasedWhenClosed = false
-    window.tabbingMode = .disallowed
-    window.titleVisibility = .hidden
-    window.titlebarAppearsTransparent = true
-    window.isOpaque = false
-    window.backgroundColor = .clear
-    Self.applyRestoredFrame(session?.frame, to: window)
-    window.onModifierFlagsChanged = { [commandHoldObserver] modifierFlags in
-      commandHoldObserver.update(modifierFlags: modifierFlags)
-    }
-    window.onPaletteShortcut = { [store] slot in
-      guard store.terminal.commandPalette != nil else { return false }
-      _ = store.send(.terminal(.commandPaletteSlotActivated(slot)))
-      return true
-    }
-    Self.configureSpaceSwipes(window, terminal: terminal)
 
     super.init(window: window)
 
@@ -228,6 +228,39 @@ final class TerminalWindowController: NSWindowController {
     )
     registry.updateWindow(window, for: windowControllerID)
     _ = store.send(.terminal(.windowIdentifierChanged(ObjectIdentifier(window))))
+  }
+
+  private static func makeWindow(_ input: WindowInput) -> TerminalGestureWindow {
+    let window = TerminalGestureWindow(
+      contentRect: .zero,
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentViewController = input.shellController
+    window.contentMinSize = NSSize(width: 1_080, height: 720)
+    window.setContentSize(NSSize(width: 1_440, height: 900))
+    window.identifier = NSUserInterfaceItemIdentifier(
+      "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(input.windowControllerID.uuidString)")
+    window.isReleasedWhenClosed = false
+    window.tabbingMode = .disallowed
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    applyRestoredFrame(input.session?.frame, to: window)
+    window.onModifierFlagsChanged = {
+      [commandHoldObserver = input.commandHoldObserver]
+      modifierFlags in
+      commandHoldObserver.update(modifierFlags: modifierFlags)
+    }
+    window.onPaletteShortcut = { [store = input.store] slot in
+      guard store.terminal.commandPalette != nil else { return false }
+      _ = store.send(.terminal(.commandPaletteSlotActivated(slot)))
+      return true
+    }
+    configureSpaceSwipes(window, terminal: input.terminal)
+    return window
   }
 
   private static func configureSpaceSwipes(
@@ -284,13 +317,15 @@ final class TerminalWindowController: NSWindowController {
           TerminalSidebarContentView(
             commandHoldObserver: input.commandHoldObserver,
             ghosttyShortcuts: input.ghosttyShortcuts,
+            licenseStore: input.licenseStore,
             shellState: shellController.state,
             store: input.store,
             terminal: input.terminal,
             sidebarControllerCache: shellController.sidebarControllerCache,
             spacePagingDidEnd: { [weak shellController] in
               shellController?.spacePagingDidEnd()
-            }
+            },
+            updateStore: input.updateStore
           )
         }
       }
@@ -334,7 +369,11 @@ final class TerminalWindowController: NSWindowController {
       terminal.ensureInitialTab(focusing: false, startupCommand: startupCommand)
     case .restore(let session):
       if !terminal.restore(from: session), session.surfaceIDs.isEmpty {
-        terminal.ensureInitialTab(focusing: false, startupCommand: nil)
+        terminal.ensureInitialTab(
+          focusing: false,
+          startupCommand: nil,
+          reason: .restore
+        )
       }
     case .tabTransferDestination:
       break

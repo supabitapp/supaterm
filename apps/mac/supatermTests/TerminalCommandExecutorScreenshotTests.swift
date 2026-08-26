@@ -33,7 +33,7 @@ struct TerminalCommandExecutorScreenshotTests {
     initializeGhosttyForTests()
     let image = try #require(makeCaptureImage(width: 7, height: 5))
     let capture = ScreenshotCaptureRecorder(image: image)
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let commandExecutor = TerminalCommandExecutor(
       registry: registry,
       paneCaptureClient: capture.client
@@ -81,7 +81,7 @@ struct TerminalCommandExecutorScreenshotTests {
 
   private func makeScreenshotHost() -> (TerminalHostState, GhosttySurfaceView) {
     let runtime = GhosttyRuntime()
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       runtime: runtime,
       managesTerminalSurfaces: false,
       zmxClient: .noop,

@@ -20,6 +20,7 @@ struct SPHelpTests {
     #expect(help.contains("sp tab new --focus -- ping 1.1.1.1"))
     #expect(help.contains("sp pane split down -- tail -f /tmp/server.log"))
     #expect(help.contains("sp project icon"))
+    #expect(help.contains("sp license"))
     #expect(help.contains("sp skills"))
     #expect(help.contains("sp diagnostic"))
     #expect(help.contains("sp instance ls"))
@@ -37,6 +38,13 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Instance.self, columns: 100),
       SP.helpMessage(for: SP.Instances.self, columns: 100),
       SP.helpMessage(for: SP.Config.self, columns: 100),
+      SP.helpMessage(for: SP.License.self, columns: 100),
+      SP.helpMessage(for: SP.LicenseStatus.self, columns: 100),
+      SP.helpMessage(for: SP.LicenseActivate.self, columns: 100),
+      SP.helpMessage(for: SP.LicenseDeactivate.self, columns: 100),
+      SP.helpMessage(for: SP.LicenseRefresh.self, columns: 100),
+      SP.helpMessage(for: SP.LicenseBuy.self, columns: 100),
+      SP.helpMessage(for: SP.LicenseRenew.self, columns: 100),
       SP.helpMessage(for: SP.ValidateConfig.self, columns: 100),
       SP.helpMessage(for: SP.Project.self, columns: 100),
       SP.helpMessage(for: SP.ProjectIcon.self, columns: 100),

@@ -11,7 +11,7 @@ struct TerminalHostStateChildExitTests {
   func childExitedRequestsImmediateCloseAndMarksActionHandled() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(zmxSessionsEnabled: false)
+    let host = TerminalHostState.test(zmxSessionsEnabled: false)
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
     let surface = try #require(host.selectedSurfaceView)
@@ -33,7 +33,7 @@ struct TerminalHostStateChildExitTests {
     initializeGhosttyForTests()
     let listedSessions = Mutex(0)
     let listedSurfaceID = Mutex<UUID?>(nil)
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       zmxClient: ZmxClient(
         executableURL: { nil },
         isBundled: { true },
@@ -76,7 +76,7 @@ struct TerminalHostStateChildExitTests {
     initializeGhosttyForTests()
     let listedSessions = Mutex(0)
     let listedSurfaceID = Mutex<UUID?>(nil)
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       zmxClient: ZmxClient(
         executableURL: { nil },
         isBundled: { true },

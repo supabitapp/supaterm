@@ -683,7 +683,7 @@ struct GhosttySurfaceViewTests {
   func liveProcessIdentityTracksShellForegroundChildAndExit() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    let host = TerminalHostState.test(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
     host.ensureInitialTab(focusing: false)
     let surface = try #require(host.selectedSurfaceView)
     defer { surface.closeSurface() }
@@ -1079,7 +1079,7 @@ struct GhosttySurfaceViewTests {
   func searchOverlayUpdateDoesNotStealFocusAfterSplit() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(runtime: GhosttyRuntime())
+    let host = TerminalHostState.test(runtime: GhosttyRuntime())
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let sourceSurface = try #require(host.selectedSurfaceView)
     sourceSurface.bridge.state.searchNeedle = ""
@@ -1536,7 +1536,7 @@ struct GhosttySurfaceViewTests {
   func syncFocusRestoresSurfaceFirstResponderFromPassiveWindowView() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    let host = TerminalHostState.test(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
     host.ensureInitialTab(focusing: false)
     let surface = try #require(host.selectedSurfaceView)
     let window = NSWindow(
@@ -1563,7 +1563,7 @@ struct GhosttySurfaceViewTests {
   func syncFocusDoesNotRestoreSurfaceFirstResponderFromTextInput() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    let host = TerminalHostState.test(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
     host.ensureInitialTab(focusing: false)
     let surface = try #require(host.selectedSurfaceView)
     let window = NSWindow(
@@ -1590,7 +1590,7 @@ struct GhosttySurfaceViewTests {
   func newerFocusRequestSupersedesDeferredSurfaceFocus() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    let host = TerminalHostState.test(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
     host.ensureInitialTab(focusing: false)
     let tabID = try #require(host.selectedTabID)
     let source = try #require(host.selectedSurfaceView)
@@ -1625,7 +1625,7 @@ struct GhosttySurfaceViewTests {
   func nonKeyFirstResponderDoesNotOverrideDeferredSurfaceFocus() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    let host = TerminalHostState.test(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
     host.ensureInitialTab(focusing: false)
     let source = try #require(host.selectedSurfaceView)
     let window = NSWindow(

@@ -2,6 +2,8 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import SupaTheme
+import SupatermLicenseFeature
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -706,6 +708,13 @@ enum SidebarChromeSnapshotContext {
     }
   }
 
+  static func licenseStore() -> StoreOf<LicenseFeature> {
+    let runtime = LicenseRuntime.preview()
+    return Store(initialState: LicenseFeature.State(runtime: runtime)) {
+      LicenseFeature(runtime: runtime)
+    }
+  }
+
   private static func makeTerminal(
     space: TerminalSpaceItem,
     spaces: [TerminalSpaceItem]
@@ -717,7 +726,7 @@ enum SidebarChromeSnapshotContext {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: spaces)
       }
-      return TerminalHostState(managesTerminalSurfaces: false, spaceID: space.id)
+      return TerminalHostState.test(managesTerminalSurfaces: false, spaceID: space.id)
     }
   }
 
@@ -806,6 +815,7 @@ private struct SidebarChromeSnapshotFixture: View {
   var body: some View {
     TerminalSidebarChromeView(
       store: SidebarChromeSnapshotContext.windowStore(),
+      licenseStore: SidebarChromeSnapshotContext.licenseStore(),
       updateStore: SidebarChromeSnapshotContext.updateStore(),
       releaseAnnouncement: nil,
       palette: palette,
@@ -839,6 +849,7 @@ private struct SidebarWindowControlsSnapshotFixture: View {
   var body: some View {
     TerminalSidebarView(
       store: SidebarChromeSnapshotContext.windowStore(),
+      licenseStore: SidebarChromeSnapshotContext.licenseStore(),
       updateStore: SidebarChromeSnapshotContext.updateStore(),
       releaseAnnouncement: nil,
       palette: palette,

@@ -40,6 +40,7 @@ final class SupatermMenuController: NSObject {
     static let quitTerminatingSessions = NSUserInterfaceItemIdentifier(
       "app.supabit.supaterm.app.quitTerminatingSessions")
     static let settings = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.settings")
+    static let license = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.license")
     static let newWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newWindow")
     static let newTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTab")
     static let newTabInGroup = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTabInGroup")
@@ -232,6 +233,7 @@ final class SupatermMenuController: NSObject {
       entries: [
         .item(MenuItemIdentifier.about),
         .item(MenuItemIdentifier.settings),
+        .item(MenuItemIdentifier.license),
         .separator,
         .item(MenuItemIdentifier.checkForUpdates),
         .separator,
@@ -433,6 +435,11 @@ final class SupatermMenuController: NSObject {
           "open_config",
           defaultShortcut: KeyboardShortcut(",", modifiers: .command)
         )
+      ),
+      SupatermMenuItemSpec(
+        id: MenuItemIdentifier.license,
+        title: "License...",
+        action: #selector(showLicense(_:))
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.checkForUpdates,
@@ -1005,6 +1012,10 @@ final class SupatermMenuController: NSObject {
 
   @objc func showSettings(_ sender: Any?) {
     _ = performShowSettings(.general)
+  }
+
+  @objc func showLicense(_ sender: Any?) {
+    _ = performShowSettings(.license)
   }
 
   @objc func newWindow(_ sender: Any?) {

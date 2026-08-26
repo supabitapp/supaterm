@@ -15,7 +15,7 @@ struct TerminalHostStateCommandPaletteTests {
       command-palette-entry = title:Custom Command,description:Custom action.,action:open_config:os_open
       """
     )
-    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(runtime: runtime, managesTerminalSurfaces: false)
 
     let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
@@ -31,7 +31,7 @@ struct TerminalHostStateCommandPaletteTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let homeDirectoryPath = FileManager.default.homeDirectoryForCurrentUser.path
       host.ensureInitialTab(focusing: false, startupCommand: nil)
 

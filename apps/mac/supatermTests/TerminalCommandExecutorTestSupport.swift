@@ -91,6 +91,34 @@ func advanceClock(
   await flushEffects()
 }
 
+func terminalSpaceSession(
+  spaceID: TerminalSpaceID,
+  tabCount: Int
+) -> TerminalSpaceSession {
+  let tabIDs = (0..<tabCount).map { _ in TerminalTabID() }
+  return TerminalSpaceSession(
+    spaceID: spaceID,
+    selectedTabID: tabIDs.first,
+    nodes: tabIDs.enumerated().map { index, tabID in
+      TerminalTabNodeSession(
+        item: .tab(tabID),
+        parent: .root(isPinned: false),
+        order: index
+      )
+    },
+    groups: [],
+    collapsedGroupIDs: [],
+    tabs: tabIDs.map { tabID in
+      TerminalTabSession(
+        id: tabID,
+        lockedTitle: nil,
+        focusedPaneIndex: 0,
+        root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil))
+      )
+    }
+  )
+}
+
 func agentHookRequest(
   agent: SupatermAgentKind,
   sessionID: String,
@@ -134,8 +162,8 @@ func makeClaudeHookHarness(
 ) throws -> ClaudeHookHarness {
   initializeGhosttyForTests()
 
-  let registry = TerminalWindowRegistry()
-  let host = TerminalHostState()
+  let registry = TerminalWindowRegistry.test()
+  let host = TerminalHostState.test()
   host.windowActivity = windowActivity
   let store = Store(initialState: AppFeature.State()) {
     AppFeature()

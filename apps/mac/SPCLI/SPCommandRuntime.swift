@@ -78,6 +78,7 @@ func emitCommandResult<T: Encodable>(
 
 func runControlCommand<Result: Codable>(
   options: SPCommandOptions,
+  responseTimeout: TimeInterval = 5,
   request: (SPSocketClient) throws -> SupatermSocketRequest,
   as resultType: Result.Type,
   plain: (Result) -> String,
@@ -86,7 +87,8 @@ func runControlCommand<Result: Codable>(
   applyOutputStyle(options.output)
   let client = try socketClient(
     path: options.connection.explicitSocketPath,
-    instance: options.connection.instance
+    instance: options.connection.instance,
+    responseTimeout: responseTimeout
   )
   let response = try client.send(try request(client))
   guard response.ok else {

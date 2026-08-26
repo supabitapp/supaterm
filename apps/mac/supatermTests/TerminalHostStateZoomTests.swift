@@ -34,7 +34,7 @@ struct TerminalHostStateZoomTests {
         split-preserve-zoom = navigation
         """
       )
-      let host = TerminalHostState(runtime: runtime)
+      let host = TerminalHostState.test(runtime: runtime)
       let setup = try makeZoomNavigationSetup(host: host)
 
       #expect(host.performSplitAction(.gotoSplit(direction: .next), for: setup.middleSurfaceID))
@@ -51,7 +51,7 @@ struct TerminalHostStateZoomTests {
       initializeGhosttyForTests()
 
       let runtime = try makeGhosttyRuntime("")
-      let host = TerminalHostState(runtime: runtime)
+      let host = TerminalHostState.test(runtime: runtime)
       let setup = try makeZoomNavigationSetup(host: host)
 
       #expect(host.performSplitAction(.gotoSplit(direction: .next), for: setup.middleSurfaceID))
@@ -67,7 +67,7 @@ struct TerminalHostStateZoomTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let host = TerminalHostState(runtime: GhosttyRuntime())
+      let host = TerminalHostState.test(runtime: GhosttyRuntime())
       let setup = try makeZoomNavigationSetup(host: host)
       let surface = try #require(host.surfaces[setup.middleSurfaceID])
       let window = NSWindow(

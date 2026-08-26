@@ -66,7 +66,7 @@ struct WindowDragSurfaceTests {
 
   @Test
   func headerControlsRemainAboveTheDragSurface() throws {
-    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let store = Store(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     }

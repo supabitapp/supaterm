@@ -883,6 +883,36 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func licenseRequestsAndResultsRoundTripThroughTypedHelpers() throws {
+    let activation = try SupatermSocketRequest.licenseActivate(
+      SupatermLicenseActivationRequest(key: "license-key"),
+      id: "license-activate-1"
+    )
+    let status = SupatermLicenseStatusResult(
+      mode: .paid,
+      updatesThrough: "2027-08-21",
+      deviceName: "Test Mac",
+      openTabCount: 3
+    )
+    let response = try SupatermSocketResponse.ok(
+      id: "license-activate-1",
+      encodableResult: status
+    )
+
+    #expect(activation.method == SupatermSocketMethod.licenseActivate)
+    #expect(
+      try activation.decodeParams(SupatermLicenseActivationRequest.self)
+        == SupatermLicenseActivationRequest(key: "license-key")
+    )
+    #expect(SupatermSocketRequest.licenseStatus().method == SupatermSocketMethod.licenseStatus)
+    #expect(SupatermSocketRequest.licenseDeactivate().method == SupatermSocketMethod.licenseDeactivate)
+    #expect(SupatermSocketRequest.licenseRefresh().method == SupatermSocketMethod.licenseRefresh)
+    #expect(SupatermSocketRequest.licenseBuy().method == SupatermSocketMethod.licenseBuy)
+    #expect(SupatermSocketRequest.licenseRenew().method == SupatermSocketMethod.licenseRenew)
+    #expect(try response.decodeResult(SupatermLicenseStatusResult.self) == status)
+  }
+
+  @Test
   func newTabRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
     let requestPayload = SupatermNewTabRequest(

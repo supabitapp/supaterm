@@ -200,6 +200,7 @@ public struct SettingsFeature {
 
   public enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
+    case license
     case terminal
     case notifications
     case shortcuts
@@ -219,6 +220,8 @@ public struct SettingsFeature {
         "slider.horizontal.3"
       case .general:
         "gearshape"
+      case .license:
+        "key"
       case .terminal:
         "terminal"
       case .notifications:
@@ -238,6 +241,8 @@ public struct SettingsFeature {
         "Advanced"
       case .general:
         "General"
+      case .license:
+        "License"
       case .terminal:
         "Terminal"
       case .notifications:

@@ -29,7 +29,7 @@ struct SupatermMenuControllerTests {
 
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+      let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
       defer {
         app.mainMenu = previousMainMenu
       }
@@ -51,7 +51,7 @@ struct SupatermMenuControllerTests {
   func installBuildsOwnedAppKitMenus() throws {
     let app = NSApplication.shared
     let previousMainMenu = app.mainMenu
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     defer {
       app.mainMenu = previousMainMenu
     }
@@ -123,7 +123,7 @@ struct SupatermMenuControllerTests {
       backing: .buffered,
       defer: false
     )
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     defer {
       app.mainMenu = previousMainMenu
       surface.closeSurface()
@@ -158,8 +158,8 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -215,7 +215,7 @@ struct SupatermMenuControllerTests {
       @Shared(.supatermSettings) var settings = .default
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let controller = SupatermMenuController(registry: registry)
       defer {
         app.mainMenu = previousMainMenu
@@ -236,7 +236,7 @@ struct SupatermMenuControllerTests {
         store: Store(initialState: AppFeature.State()) {
           AppFeature()
         },
-        terminal: TerminalHostState(managesTerminalSurfaces: false),
+        terminal: TerminalHostState.test(managesTerminalSurfaces: false),
         requestConfirmedWindowClose: {}
       )
       controller.refresh()
@@ -317,7 +317,7 @@ struct SupatermMenuControllerTests {
 
   @Test
   func performNewWindowUsesConfiguredAction() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     var invocations = 0
 
     controller.setNewWindowAction {
@@ -331,7 +331,7 @@ struct SupatermMenuControllerTests {
 
   @Test
   func performSubmitGitHubIssueUsesConfiguredAction() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     var invocations = 0
 
     controller.setSubmitGitHubIssueAction {
@@ -349,7 +349,7 @@ struct SupatermMenuControllerTests {
     let previousDelegate = app.delegate
     let delegate = GhosttyAppActionPerformerSpy()
     app.delegate = delegate
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     defer {
       app.delegate = previousDelegate
     }
@@ -361,8 +361,8 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
-  func aboutAndSettingsMenuItemsUseConfiguredSettingsAction() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+  func appSettingsMenuItemsUseConfiguredSettingsAction() {
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     var tabs: [SettingsFeature.Tab] = []
 
     controller.setShowSettingsAction { tab in
@@ -372,13 +372,14 @@ struct SupatermMenuControllerTests {
 
     controller.about(nil)
     controller.showSettings(nil)
+    controller.showLicense(nil)
 
-    #expect(tabs == [.about, .general])
+    #expect(tabs == [.about, .general, .license])
   }
 
   @Test
   func closeSurfaceClosesKeyNonTerminalWindow() {
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     let window = CloseRecordingWindow()
 
     #expect(controller.performCloseSurface(for: window, sender: nil))
@@ -388,7 +389,7 @@ struct SupatermMenuControllerTests {
 
   @Test
   func menuContextTreatsClosableNonTerminalWindowAsDirectClose() {
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry.test()
     let window = CloseRecordingWindow()
 
     #expect(registry.menuContext(keyWindow: window).closesKeyWindowDirectly)
@@ -401,8 +402,8 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -463,7 +464,7 @@ struct SupatermMenuControllerTests {
   func performGhosttyBindingMenuKeyEquivalentIgnoresSystemMenuItems() throws {
     let app = NSApplication.shared
     let previousMainMenu = app.mainMenu
-    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry.test())
     defer {
       app.mainMenu = previousMainMenu
     }
@@ -495,8 +496,8 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -556,8 +557,8 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -614,8 +615,8 @@ struct SupatermMenuControllerTests {
 
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState()
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test()
       host.windowActivity = .inactive
       host.ensureInitialTab(focusing: false, startupCommand: nil)
       let tabID = try #require(host.selectedTabID)
@@ -683,9 +684,9 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       initializeGhosttyForTests()
-      let host = TerminalHostState(runtime: GhosttyRuntime())
+      let host = TerminalHostState.test(runtime: GhosttyRuntime())
       defer { Array(host.surfaces.values).forEach { $0.closeSurface() } }
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -740,8 +741,8 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -782,8 +783,8 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -824,8 +825,8 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -866,11 +867,9 @@ struct SupatermMenuControllerTests {
     } operation: {
       let app = NSApplication.shared
       let previousMainMenu = app.mainMenu
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
-      let state = AppFeature.State()
-      state.$update.withLock { $0.canCheckForUpdates = true }
-      let store = Store(initialState: state) {
+      let registry = updateRegistry(canCheckForUpdates: true)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
       let windowControllerID = UUID()
@@ -907,13 +906,11 @@ struct SupatermMenuControllerTests {
   func validateCheckForUpdatesMenuItemShowsRestartToUpdateWhenInstallIsPending() throws {
     let app = NSApplication.shared
     let previousMainMenu = app.mainMenu
-    let registry = TerminalWindowRegistry()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
-    }
-    let store = Store(initialState: state) {
+    let registry = updateRegistry(
+      phase: .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    )
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
     let windowControllerID = UUID()
@@ -946,13 +943,11 @@ struct SupatermMenuControllerTests {
   func validateCheckForUpdatesMenuItemShowsRestartToUpdateWhenRestartIsDeferred() throws {
     let app = NSApplication.shared
     let previousMainMenu = app.mainMenu
-    let registry = TerminalWindowRegistry()
-    let host = TerminalHostState(managesTerminalSurfaces: false)
-    let state = AppFeature.State()
-    state.$update.withLock {
-      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
-    }
-    let store = Store(initialState: state) {
+    let registry = updateRegistry(
+      phase: .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+    )
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
     let windowControllerID = UUID()
@@ -991,8 +986,8 @@ struct SupatermMenuControllerTests {
       let previousDelegate = app.delegate
       let delegate = GhosttyAppActionPerformerSpy()
       app.delegate = delegate
-      let registry = TerminalWindowRegistry()
-      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
@@ -1070,15 +1065,17 @@ struct SupatermMenuControllerTests {
     #expect(appMenu.items[1].action == #selector(SupatermMenuController.showSettings(_:)))
     #expect(appMenu.items[1].keyEquivalent == ",")
     #expect(appMenu.items[1].keyEquivalentModifierMask == [.command])
-    #expect(appMenu.items[2].isSeparatorItem)
-    #expect(appMenu.items[3].title == "Check for Updates...")
-    #expect(appMenu.items[3].keyEquivalent == "u")
-    #expect(appMenu.items[3].keyEquivalentModifierMask == [.command, .shift])
-    #expect(appMenu.items[11].title.hasPrefix("Quit ") == true)
-    #expect(appMenu.items[11].title.hasSuffix(" and Close All Sessions") == true)
-    #expect(appMenu.items[11].action == #selector(SupatermMenuController.quitTerminatingSessions(_:)))
-    #expect(appMenu.items[11].keyEquivalent.isEmpty)
-    #expect(appMenu.items[11].keyEquivalentModifierMask.isEmpty)
+    #expect(appMenu.items[2].title == "License...")
+    #expect(appMenu.items[2].action == #selector(SupatermMenuController.showLicense(_:)))
+    #expect(appMenu.items[3].isSeparatorItem)
+    #expect(appMenu.items[4].title == "Check for Updates...")
+    #expect(appMenu.items[4].keyEquivalent == "u")
+    #expect(appMenu.items[4].keyEquivalentModifierMask == [.command, .shift])
+    #expect(appMenu.items[12].title.hasPrefix("Quit ") == true)
+    #expect(appMenu.items[12].title.hasSuffix(" and Close All Sessions") == true)
+    #expect(appMenu.items[12].action == #selector(SupatermMenuController.quitTerminatingSessions(_:)))
+    #expect(appMenu.items[12].keyEquivalent.isEmpty)
+    #expect(appMenu.items[12].keyEquivalentModifierMask.isEmpty)
     #expect(appMenu.items.last?.title.hasPrefix("Quit ") == true)
     #expect(appMenu.items.last?.action == #selector(SupatermMenuController.quit(_:)))
     #expect(appMenu.items.last?.keyEquivalent == "q")

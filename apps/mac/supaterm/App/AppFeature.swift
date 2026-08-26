@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import SupatermSocketFeature
-import SupatermUpdateFeature
 
 @Reducer
 struct AppFeature {
@@ -12,7 +11,6 @@ struct AppFeature {
 
   struct ProcessState: Equatable {
     var releaseAnnouncementStatus = ReleaseAnnouncementStatus.notLoaded
-    var update = UpdateFeature.State()
   }
 
   @ObservableState
@@ -20,7 +18,6 @@ struct AppFeature {
     @Shared var releaseAnnouncementStatus: ReleaseAnnouncementStatus
     var socket = SocketControlFeature.State()
     var terminal: TerminalWindowFeature.State
-    @Shared var update: UpdateFeature.State
 
     init(
       process: Shared<ProcessState> = Shared(value: ProcessState()),
@@ -28,7 +25,6 @@ struct AppFeature {
     ) {
       self._releaseAnnouncementStatus = process[dynamicMember: \.releaseAnnouncementStatus]
       self.terminal = terminal
-      self._update = process[dynamicMember: \.update]
     }
 
     var releaseAnnouncement: ReleaseAnnouncement? {
@@ -43,7 +39,6 @@ struct AppFeature {
     case terminal(TerminalWindowFeature.Action)
     case shutdown
     case socket(SocketControlFeature.Action)
-    case update(UpdateFeature.Action)
     case releaseAnnouncementLoaded(ReleaseAnnouncement?)
   }
 
@@ -56,10 +51,6 @@ struct AppFeature {
 
     Scope(state: \.socket, action: \.socket) {
       SocketControlFeature()
-    }
-
-    Scope(state: \.update, action: \.update) {
-      UpdateFeature()
     }
 
     Reduce { state, action in
@@ -76,7 +67,6 @@ struct AppFeature {
         }
         return .concatenate(
           .send(.socket(.task)),
-          .send(.update(.task)),
           releaseAnnouncementEffect
         )
 
@@ -84,15 +74,9 @@ struct AppFeature {
         return .none
 
       case .shutdown:
-        return .merge(
-          .send(.socket(.shutdown)),
-          .send(.update(.shutdown))
-        )
+        return .send(.socket(.shutdown))
 
       case .socket:
-        return .none
-
-      case .update:
         return .none
 
       case .releaseAnnouncementLoaded(let announcement):

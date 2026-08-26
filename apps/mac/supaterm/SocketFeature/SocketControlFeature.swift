@@ -162,6 +162,12 @@ public struct SocketControlFeature {
         code: "invalid_request",
         message: error.localizedDescription
       )
+    } catch let error as LicenseControlError {
+      return .error(
+        id: request.id,
+        code: error.code,
+        message: error.message
+      )
     } catch let error as SupatermSkillsError {
       return skillsErrorResponse(error, requestID: request.id)
     } catch let error as TerminalCreateTabError {
@@ -185,6 +191,12 @@ public struct SocketControlFeature {
     socketControlClient: SocketControlClient,
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse {
+    if let response = try await licenseResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
     if let response = try await appResponseResult(
       for: request,
       socketRequestExecutor: socketRequestExecutor

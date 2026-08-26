@@ -525,7 +525,7 @@ struct PaneAgentPortScannerTests {
 
       initializeGhosttyForTests()
 
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let surfaceID = try #require(
         restoreSplitHost(
           host,

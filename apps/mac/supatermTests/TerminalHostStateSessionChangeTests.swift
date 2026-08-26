@@ -9,7 +9,7 @@ struct TerminalHostStateSessionChangeTests {
   func performCloseTabsFiresSingleSessionChange() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     let firstTabID = try #require(host.selectedTabID)
     let secondTabID = try #require(host.createTab(focusing: false))
@@ -27,7 +27,7 @@ struct TerminalHostStateSessionChangeTests {
   func performCloseTabsWithoutTabsFiresNoSessionChange() {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
     var sessionChangeCount = 0
@@ -42,7 +42,7 @@ struct TerminalHostStateSessionChangeTests {
   func batchedSessionChangeRespectsOuterSuppression() {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
 
     var sessionChangeCount = 0

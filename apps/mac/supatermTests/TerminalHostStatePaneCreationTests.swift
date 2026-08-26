@@ -64,7 +64,7 @@ struct TerminalHostStatePaneCreationTests {
   }
 
   private func restoredHost(rootRatio: Double) -> TerminalHostState {
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     let spaceID = host.spaces[0].id
     let tabID = TerminalTabID()
     let tabSession = TerminalTabSession(

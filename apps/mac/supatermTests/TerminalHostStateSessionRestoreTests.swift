@@ -11,7 +11,7 @@ import Testing
 struct TerminalHostStateSessionRestoreTests {
   @Test
   func disabledZmxSessionsDoNotWrapTheShell() {
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       managesTerminalSurfaces: false,
       zmxClient: wrappingZmxClient(),
       zmxSessionsEnabled: false
@@ -24,7 +24,7 @@ struct TerminalHostStateSessionRestoreTests {
   @Test
   func enabledZmxSessionsWrapTheShell() {
     let surfaceID = UUID()
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       managesTerminalSurfaces: false,
       zmxClient: ZmxClient(
         executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
@@ -47,7 +47,7 @@ struct TerminalHostStateSessionRestoreTests {
   @Test
   func zmxReattachOnlyTargetsExistingSessions() {
     let surfaceID = UUID()
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       managesTerminalSurfaces: false,
       zmxClient: wrappingZmxClient()
     )
@@ -66,7 +66,7 @@ struct TerminalHostStateSessionRestoreTests {
 
   @Test
   func unavailableZmxDoesNotWrapTheShell() {
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       managesTerminalSurfaces: false,
       zmxClient: ZmxClient(
         executableURL: { nil },
@@ -84,7 +84,7 @@ struct TerminalHostStateSessionRestoreTests {
   @Test
   func disabledZmxSessionsSkipSessionCleanup() async {
     let killedSurfaceIDs = LockIsolated<[UUID]>([])
-    let host = TerminalHostState(
+    let host = TerminalHostState.test(
       managesTerminalSurfaces: false,
       zmxClient: wrappingZmxClient(killSession: { surfaceID in
         killedSurfaceIDs.withValue { $0.append(surfaceID) }
@@ -114,7 +114,7 @@ struct TerminalHostStateSessionRestoreTests {
       let path = GhosttySurfaceView.normalizedWorkingDirectoryPath(
         directory.path(percentEncoded: false)
       )
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
 
       host.ensureInitialTab(
         focusing: false,
@@ -143,7 +143,7 @@ struct TerminalHostStateSessionRestoreTests {
         try? FileManager.default.removeItem(at: restoredPath)
       }
 
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       host.ensureInitialTab(focusing: false, startupCommand: nil)
 
       let spaceID = host.displayedSpaceID
@@ -190,7 +190,7 @@ struct TerminalHostStateSessionRestoreTests {
       #expect(snapshotSpace.groups.first?.lifetime == .automatic)
       #expect(snapshotSpace.collapsedGroupIDs == [groupID])
 
-      let restored = TerminalHostState()
+      let restored = TerminalHostState.test()
       #expect(restored.restore(from: snapshot))
       #expect(restored.displayedSpaceID == spaceID)
       #expect(restored.spaceManager.selectedTabID(in: spaceID) == firstTabID)
@@ -227,7 +227,7 @@ struct TerminalHostStateSessionRestoreTests {
     } operation: {
       initializeGhosttyForTests()
 
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let spaceID = try #require(host.spaces.first?.id)
       let automaticGroupID = TerminalTabGroupID()
       let durableGroupID = TerminalTabGroupID()
@@ -358,7 +358,7 @@ struct TerminalHostStateSessionRestoreTests {
       )
       let hiddenTabID = try #require(hiddenSpace.selectedTabID)
 
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       #expect(host.restore(from: session))
       #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == hiddenSpace)
       #expect(host.trees[hiddenTabID] == nil)
@@ -411,7 +411,7 @@ struct TerminalHostStateSessionRestoreTests {
         restoreMode: .existingSession
       )
       let hiddenTabID = try #require(hiddenSpace.selectedTabID)
-      let host = TerminalHostState(
+      let host = TerminalHostState.test(
         spaceID: spaces[0].id,
         zmxClient: wrappingZmxClient()
       )
@@ -463,7 +463,7 @@ struct TerminalHostStateSessionRestoreTests {
         ]
       )
 
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       #expect(host.restore(from: session))
 
       let result = try host.focusPane(TerminalPaneTarget(paneID: hiddenSurfaceID))
@@ -515,7 +515,7 @@ struct TerminalHostStateSessionRestoreTests {
         collapsedGroupIDs: [],
         tabs: [tabSession(id: tabID, title: "Hidden Tab")]
       )
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       #expect(
         host.restore(
           from: TerminalWindowSession(
@@ -565,7 +565,7 @@ struct TerminalHostStateSessionRestoreTests {
         ]
       )
 
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       #expect(host.restore(from: session))
       #expect(host.displaySpace(spaces[1].id))
       #expect(host.displaySpace(spaces[0].id))
@@ -608,7 +608,7 @@ struct TerminalHostStateSessionRestoreTests {
         ]
       )
 
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       #expect(host.restore(from: session))
       #expect(host.spaceManager.tabs(in: spaces[0].id).count == 1)
       #expect(host.spaceManager.instance(for: spaces[1].id)?.pendingSession == hiddenSpace)

@@ -1,7 +1,8 @@
 import Foundation
+import SupatermCLIShared
 
 public enum AppBuild {
-  public nonisolated static var usesStubUpdateChecks: Bool {
+  public nonisolated static var usesStubServices: Bool {
     #if DEBUG
       true
     #else
@@ -9,16 +10,24 @@ public enum AppBuild {
     #endif
   }
 
+  public nonisolated static var usesStubUpdateChecks: Bool {
+    usesStubServices
+  }
+
   public nonisolated static var isDevelopmentBuild: Bool {
     #if DEBUG
       true
     #else
-      isDevelopmentFlag(Bundle.main.object(forInfoDictionaryKey: "SupatermDevelopmentBuild"))
+      isEnabledFlag(Bundle.main.object(forInfoDictionaryKey: "SupatermDevelopmentBuild"))
     #endif
   }
 
   public nonisolated static var isTestMode: Bool {
     ProcessInfo.processInfo.environment["SUPATERM_TEST_MODE"] == "1"
+  }
+
+  public nonisolated static var licenseSalesEnabled: Bool {
+    SupatermLicensePolicy.salesEnabled
   }
 
   public nonisolated static var version: String {
@@ -29,7 +38,24 @@ public enum AppBuild {
     infoString("CFBundleVersion")
   }
 
-  public nonisolated static func isDevelopmentFlag(_ value: Any?) -> Bool {
+  public nonisolated static var releaseDay: LicenseDay {
+    if let day = parsedReleaseDay(infoString("SupatermReleaseDate")) { return day }
+    #if DEBUG
+      return .today()
+    #else
+      preconditionFailure("Release build has no valid SupatermReleaseDate")
+    #endif
+  }
+
+  nonisolated static func parsedReleaseDay(_ infoValue: String?) -> LicenseDay? {
+    guard
+      let infoValue,
+      let day = LicenseDay(infoValue.trimmingCharacters(in: .whitespacesAndNewlines))
+    else { return nil }
+    return day
+  }
+
+  nonisolated static func isEnabledFlag(_ value: Any?) -> Bool {
     switch value {
     case let boolValue as Bool:
       return boolValue

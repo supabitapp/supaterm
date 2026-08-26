@@ -65,7 +65,7 @@ struct TerminalSidebarLayoutTests {
       .tab(secondTab.id): .tab(tabPresentation(secondTab)),
       .newTab: .newTab(.inline),
     ]
-    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let controller = TerminalSidebarListController(
       windowControllerID: UUID(),
       tabDragRegistry: TerminalTabDragRegistry(),
@@ -224,6 +224,26 @@ struct TerminalSidebarLayoutTests {
     #expect(shortList.contentSize.height < initial.scrollViewportFrame.height)
     #expect(longList.contentSize.height > initial.scrollViewportFrame.height)
     #expect(lastRowViewport.contains(lastFrame))
+  }
+
+  @Test
+  func hiddenPinnedControlKeepsItsLaidOutHeight() {
+    let host = TerminalSidebarPinnedControlHost(
+      draggingUpdated: { _ in [] },
+      draggingExited: {},
+      draggingEnded: {},
+      prepareForDragOperation: { _ in false },
+      performDragOperation: { _ in false }
+    )
+    let pinnedFrame = CGRect(x: 0, y: 0, width: 280, height: 40)
+    let hiddenFrame = CGRect(x: 0, y: 0, width: 280, height: 0)
+
+    #expect(host.setPinned(true))
+    host.layout(in: pinnedFrame)
+    #expect(host.setPinned(false))
+    host.layout(in: hiddenFrame)
+
+    #expect(host.view.frame == pinnedFrame)
   }
 
   @Test

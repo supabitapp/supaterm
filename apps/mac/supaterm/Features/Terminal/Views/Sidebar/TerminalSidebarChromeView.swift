@@ -1,10 +1,19 @@
 import ComposableArchitecture
 import SupaTheme
+import SupatermLicenseFeature
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalSidebarChromeView: View {
+  enum AuxiliarySection: Equatable {
+    case licenseExpired
+    case tabLimit
+    case update
+  }
+
   let store: StoreOf<TerminalWindowFeature>
+  let licenseStore: StoreOf<LicenseFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
@@ -28,11 +37,34 @@ struct TerminalSidebarChromeView: View {
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       VStack(spacing: 10) {
-        if updateStore.phase.showsSidebarSection {
+        switch Self.auxiliarySection(
+          isLicenseExpired: {
+            if case .expired = licenseStore.access { return true }
+            return false
+          }(),
+          hasTabLimitRefusal: terminal.showsLicenseTabLimitRefusal,
+          showsUpdate: updateStore.phase.showsSidebarSection
+        ) {
+        case .licenseExpired:
+          if case .expired(let ownership) = licenseStore.access {
+            LicenseExpiredCardView(
+              palette: palette,
+              store: licenseStore,
+              ownership: ownership
+            )
+          }
+        case .tabLimit:
+          LicenseTabLimitCardView(
+            palette: palette,
+            action: terminal.onLicenseTabLimitAction
+          )
+        case .update:
           TerminalSidebarUpdateSection(
             store: updateStore,
             palette: palette
           )
+        case nil:
+          EmptyView()
         }
         if let releaseAnnouncement {
           ReleaseAnnouncementCardView(
@@ -53,5 +85,19 @@ struct TerminalSidebarChromeView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .padding(.trailing, -TerminalChromeMetrics.paneInset)
+  }
+
+  static func auxiliarySection(
+    isLicenseExpired: Bool,
+    hasTabLimitRefusal: Bool,
+    showsUpdate: Bool
+  ) -> AuxiliarySection? {
+    if isLicenseExpired {
+      return .licenseExpired
+    }
+    if hasTabLimitRefusal {
+      return .tabLimit
+    }
+    return showsUpdate ? .update : nil
   }
 }

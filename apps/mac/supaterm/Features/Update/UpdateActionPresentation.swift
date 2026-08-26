@@ -1,4 +1,5 @@
 import Foundation
+import SupatermSupport
 
 public struct UpdateActionPresentation: Equatable, Sendable {
   public let title: String
@@ -18,6 +19,10 @@ public struct UpdateActionPresentation: Equatable, Sendable {
 
 extension UpdatePhase {
   public var actionPresentations: [UpdateActionPresentation] {
+    presentations(salesEnabled: AppBuild.licenseSalesEnabled)
+  }
+
+  func presentations(salesEnabled: Bool) -> [UpdateActionPresentation] {
     switch self {
     case .idle, .checking, .extracting, .notFound:
       return []
@@ -78,6 +83,34 @@ extension UpdatePhase {
           isProminent: true
         ),
       ]
+
+    case .ownershipEnded(let ownership):
+      var actions = [
+        UpdateActionPresentation(
+          title: "Not Now",
+          action: .dismiss,
+          isProminent: false
+        )
+      ]
+      if ownership.latestIncludedReleaseURL != nil {
+        actions.append(
+          UpdateActionPresentation(
+            title: "Download Your Latest Release",
+            action: .downloadLatestIncludedRelease,
+            isProminent: !salesEnabled
+          )
+        )
+      }
+      if salesEnabled {
+        actions.append(
+          UpdateActionPresentation(
+            title: "Renew Updates",
+            action: .renewUpdates,
+            isProminent: true
+          )
+        )
+      }
+      return actions
 
     case .error:
       return [

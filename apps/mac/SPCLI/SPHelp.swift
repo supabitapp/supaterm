@@ -31,6 +31,7 @@ enum SPHelp {
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
       sp project icon
+      sp license
       sp skills
       sp diagnostic
       sp instance ls
@@ -423,6 +424,60 @@ enum SPHelp {
       sp project icon
       sp project icon ~/code/project
       sp project icon --json
+    """
+
+  static let licenseDiscussion = """
+    The running Supaterm app owns license storage and network access.
+
+    Example:
+      sp license
+      sp license activate
+      sp license refresh
+      sp license deactivate
+      sp license buy
+      sp license renew
+    """
+
+  static let licenseStatusDiscussion = """
+    Example:
+      sp license
+      sp license status
+      sp license status --json
+    """
+
+  static let licenseActivateDiscussion = """
+    Reads the license key from a hidden prompt when stdin is a terminal, or from stdin otherwise.
+    The command never accepts a license key as an argument.
+
+    Example:
+      sp license activate
+      pbpaste | sp license activate
+    """
+
+  static let licenseDeactivateDiscussion = """
+    Deactivation needs a network connection and frees the license for another Mac.
+
+    Example:
+      sp license deactivate
+    """
+
+  static let licenseRefreshDiscussion = """
+    Example:
+      sp license refresh
+    """
+
+  static let licenseBuyDiscussion = """
+    Opens the purchase page in the default browser and prints its URL.
+
+    Example:
+      sp license buy
+    """
+
+  static let licenseRenewDiscussion = """
+    Opens this license's renewal page in the default browser and prints its URL.
+
+    Example:
+      sp license renew
     """
 
   static let projectIconDiscussion = """

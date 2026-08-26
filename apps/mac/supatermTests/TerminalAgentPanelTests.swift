@@ -17,7 +17,7 @@ struct TerminalAgentPanelTests {
   @Test
   @MainActor
   func restoredAgentStateRequiresCurrentProcessIdentityAndPreservesForegroundPlan() throws {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let surfaceID = UUID()
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let plan = PaneAgentProgressRow(id: "plan-1", title: "Implement", status: .running)
@@ -61,7 +61,7 @@ struct TerminalAgentPanelTests {
   @Test
   @MainActor
   func restoredAgentStateRejectsReusedProcessID() throws {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let surfaceID = UUID()
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
     let staleIdentity = TerminalAgentProcessIdentity(
@@ -146,7 +146,7 @@ struct TerminalAgentPanelTests {
     }
     defer { try? FileManager.default.removeItem(at: root) }
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     host.ensureInitialTab(
       focusing: false,
       workingDirectoryPath: paneDirectory.path(percentEncoded: false)
@@ -538,7 +538,7 @@ struct TerminalAgentPanelTests {
   func registeredStateShowsWorkspaceWithoutActivity() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     let workingDirectoryPath = FileManager.default.temporaryDirectory.path(percentEncoded: false)
     let surfaceID = try #require(
       restoreSplitHost(
@@ -567,7 +567,7 @@ struct TerminalAgentPanelTests {
   func nativeAuthoritySelectsCurrentAgentsSessionActions() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     let surfaceID = try #require(
       restoreSplitHost(host, workingDirectoryPath: "/tmp/pane-workspace").first
     )
@@ -607,7 +607,7 @@ struct TerminalAgentPanelTests {
   func runningStateWithoutSessionIsRejected() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     let surfaceID = try #require(
       restoreSplitHost(
         host,
@@ -633,7 +633,7 @@ struct TerminalAgentPanelTests {
   func newerSessionIdentityBecomesForeground() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     let surfaceID = try #require(
       restoreSplitHost(
         host,
@@ -680,7 +680,7 @@ struct TerminalAgentPanelTests {
   func actionableStateExposesSessionPanelWithoutSnapshot() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     let surfaceID = try #require(
       restoreSplitHost(
         host,
@@ -715,7 +715,7 @@ struct TerminalAgentPanelTests {
   func actionablePiStateExposesSessionActions() throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState()
+    let host = TerminalHostState.test()
     let surfaceID = try #require(
       restoreSplitHost(
         host,
@@ -789,7 +789,7 @@ struct TerminalAgentPanelTests {
           checks: nil
         )
       }
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let controller = TerminalAgentPanelController(
         terminal: host,
         gitClient: gitClient,
@@ -848,7 +848,7 @@ struct TerminalAgentPanelTests {
         await recorder.recordPullRequest(branchName)
         return .unavailable
       }
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let surfaceID = try #require(
         restoreSplitHost(
           host,
@@ -909,7 +909,7 @@ struct TerminalAgentPanelTests {
           checks: nil
         )
       }
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let controller = TerminalAgentPanelController(
         terminal: host,
         gitClient: gitClient,
@@ -977,7 +977,7 @@ struct TerminalAgentPanelTests {
         )
       }
       let githubClient = TerminalAgentGithubClient { _, _ in .unavailable }
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let surfaceID = try #require(
         restoreSplitHost(
           host,
@@ -1088,7 +1088,7 @@ struct TerminalAgentPanelTests {
         await recorder.recordPullRequest(branchName)
         return await statuses.next()
       }
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       let surfaceID = try #require(
         restoreSplitHost(
           host,

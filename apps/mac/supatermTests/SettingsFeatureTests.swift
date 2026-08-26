@@ -6,6 +6,7 @@ import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermLicenseFeature
 @testable import SupatermSettingsFeature
 
 @MainActor
@@ -18,10 +19,17 @@ struct SettingsFeatureTests {
   }
 
   @Test
+  func freeLicenseStatusDoesNotClaimADisabledLimit() {
+    let state = LicenseFeature.State(runtime: .preview())
+
+    #expect(state.settingsStatus == "Use Supaterm free, or activate an existing license.")
+  }
+
+  @Test
   func tabOrderEndsWithAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .terminal, .notifications, .shortcuts, .codingAgents, .advanced, .about]
+        == [.general, .license, .terminal, .notifications, .shortcuts, .codingAgents, .advanced, .about]
     )
   }
 

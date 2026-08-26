@@ -2,9 +2,11 @@ import AppKit
 import ComposableArchitecture
 import Sharing
 import SupatermCLIShared
+import SupatermLicenseFeature
 import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
+import SupatermUpdateFeature
 import UserNotifications
 
 @MainActor
@@ -29,6 +31,12 @@ private final class WeakToggleVisibilityWindow {
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate,
   GhosttyAppActionPerforming
 {
+  private struct LicenseSystem {
+    let licenseStore: StoreOf<LicenseFeature>
+    let updateClient: UpdateClient
+    let updateStore: StoreOf<UpdateFeature>
+  }
+
   @Shared(.supatermSettings)
   private var supatermSettings = .default
   @Shared(.lastAppLaunchedDate)
@@ -45,9 +53,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private let configurationDiagnosticsWindowController = ConfigurationDiagnosticsWindowController()
   private let globalKeybindManager: GhosttyGlobalKeybindManager
   private let ghosttyRuntime: GhosttyRuntime
+  private let licenseStore: StoreOf<LicenseFeature>
   private let quitConfirmationPresenter: QuitConfirmationPresenter
   private let terminalWindowRegistry: TerminalWindowRegistry
   private let tabNewWindowDropController: TerminalTabNewWindowDropController
+  private let updateClient: UpdateClient
+  private let updateStore: StoreOf<UpdateFeature>
   private let zmxSessionsEnabledAtLaunch: Bool
   private lazy var serviceProvider = SupatermServiceProvider(
     openTabs: { [weak self] paths in
@@ -85,7 +96,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       setting: launchSupatermSettings.zmxSessionsEnabled
     )
     let zmxClient = zmxSessionsEnabledAtLaunch ? ZmxClient.live : .noop
-    let terminalWindowRegistry = TerminalWindowRegistry(zmxClient: zmxClient)
+    let licenseSystem = Self.makeLicenseSystem()
+    let appProcess = Shared(value: AppFeature.ProcessState())
+    let terminalWindowRegistry = TerminalWindowRegistry(
+      zmxClient: zmxClient,
+      licenseStore: licenseSystem.licenseStore,
+      updateStore: licenseSystem.updateStore
+    )
     let tabNewWindowDropController = TerminalTabNewWindowDropController(
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
     )
@@ -97,27 +114,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
     let globalKeybindManager = GhosttyGlobalKeybindManager(runtime: ghosttyRuntime)
     let quitConfirmationPresenter = QuitConfirmationPresenter()
-    let appProcess = Shared(value: AppFeature.ProcessState())
     let appStore = Store(initialState: AppFeature.State(process: appProcess)) {
       AppFeature()
     } withDependencies: {
-      $0.analyticsClient.capture = { event in
-        Task { @MainActor in
-          AppPostHog.capture(event)
-        }
-      }
+      Self.configureAnalytics(&$0)
       $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
     }
-    terminalWindowRegistry.applicationStore = appStore
     self.appProcess = appProcess
     self.appStore = appStore
     self.agentDetectionRuleRepository = agentDetectionRuleRepository
     self.menuController = menuController
     self.globalKeybindManager = globalKeybindManager
     self.ghosttyRuntime = ghosttyRuntime
+    self.licenseStore = licenseSystem.licenseStore
     self.quitConfirmationPresenter = quitConfirmationPresenter
     self.terminalWindowRegistry = terminalWindowRegistry
     self.tabNewWindowDropController = tabNewWindowDropController
+    self.updateClient = licenseSystem.updateClient
+    self.updateStore = licenseSystem.updateStore
     self.zmxSessionsEnabledAtLaunch = zmxSessionsEnabledAtLaunch
     super.init()
     globalKeybindManager.refresh()
@@ -138,6 +152,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
+  private static func makeLicenseSystem() -> LicenseSystem {
+    let runtime = LicenseRuntime.live {
+      AppPostHog.capture("license_refresh_revoked")
+      guard let appDelegate = NSApp.delegate as? AppDelegate else {
+        preconditionFailure("App delegate must exist before license refresh completes")
+      }
+      _ = appDelegate.performShowSettings(tab: .license)
+    }
+    let updateClient = UpdateClient.live(
+      license: UpdateLicenseClient(
+        access: {
+          runtime.access(releaseDay: AppBuild.releaseDay)
+        },
+        refresh: {
+          try? await runtime.refreshAndApply()
+        }
+      )
+    )
+    let appStore = Store(initialState: AppLicenseFeature.State(runtime: runtime)) {
+      AppLicenseFeature(runtime: runtime)
+    } withDependencies: {
+      configureAnalytics(&$0)
+      $0.updateClient = updateClient
+    }
+    let updateStore = Store(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      configureAnalytics(&$0)
+      $0.updateClient = updateClient
+    }
+    return LicenseSystem(
+      licenseStore: appStore.scope(state: \.license, action: \.license),
+      updateClient: updateClient,
+      updateStore: updateStore
+    )
+  }
+
+  private static func configureAnalytics(_ dependencies: inout DependencyValues) {
+    dependencies.analyticsClient.capture = { event in
+      Task { @MainActor in
+        AppPostHog.capture(event)
+      }
+    }
+    dependencies.analyticsClient.captureProperties = { event, properties in
+      Task { @MainActor in
+        AppPostHog.capture(event, properties: properties)
+      }
+    }
+  }
+
   isolated deinit {
     tabNewWindowDropController.stop()
     if let configurationDiagnosticsObserver {
@@ -155,6 +219,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     NSApp.servicesProvider = serviceProvider
     UNUserNotificationCenter.current().delegate = self
     menuController.install()
+    licenseStore.send(.task)
+    updateStore.send(.task)
     appStore.send(.task)
     refreshInstalledAgentHooks()
     restoreWindowsAtLaunch()
@@ -190,6 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   func applicationDidBecomeActive(_ notification: Notification) {
     AppPostHog.captureDebouncedLifecycleEvent(.activatedDebounced)
+    licenseStore.send(.applicationBecameActive)
     if shouldPresentLaunchConfigurationDiagnostics {
       shouldPresentLaunchConfigurationDiagnostics = false
       refreshConfigurationDiagnostics()
@@ -212,6 +279,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
+  func application(_ application: NSApplication, open urls: [URL]) {
+    guard let key = urls.lazy.compactMap(LicenseActivationURL.key(from:)).first else { return }
+    licenseStore.send(.prefillKey(key))
+    _ = performShowSettings(tab: .license)
+  }
+
   func applicationWillTerminate(_ notification: Notification) {
     AppPostHog.capture("app_quit")
     persistSession(
@@ -220,6 +293,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       )
     )
     globalKeybindManager.disable()
+    licenseStore.send(.shutdown)
+    updateStore.send(.shutdown)
     appStore.send(.shutdown)
   }
 
@@ -379,11 +454,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     if let settingsWindowController {
       controller = settingsWindowController
     } else {
-      let createdController = SettingsWindowController(menuController: menuController)
+      let createdController = SettingsWindowController(
+        updateClient: updateClient,
+        menuController: menuController,
+        licenseStore: licenseStore
+      )
       settingsWindowController = createdController
       controller = createdController
     }
     controller.show(tab: tab, relativeTo: sourceWindow)
+    return true
+  }
+
+  @discardableResult
+  func performBuyLicense() -> Bool {
+    licenseStore.send(.buyButtonTapped)
     return true
   }
 

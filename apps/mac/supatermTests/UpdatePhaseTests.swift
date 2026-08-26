@@ -1,7 +1,8 @@
 import Foundation
-import SupatermUpdateFeature
+import SupatermSupport
 import Testing
 
+@testable import SupatermUpdateFeature
 @testable import supaterm
 
 struct UpdatePhaseTests {
@@ -132,5 +133,69 @@ struct UpdatePhaseTests {
     #expect(phase.detailMessage == "Network error")
     #expect(phase.badgeText == nil)
     #expect(phase.debugIdentifier == "error")
+  }
+
+  @Test
+  func ownershipEndedOffersRenewalWithoutInstallation() throws {
+    let phase = UpdatePhase.ownershipEnded(
+      UpdatePhase.OwnershipEnded(
+        licenseID: "00112233445566778899aabbccddeeff",
+        updatesThrough: try #require(LicenseDay("2026-08-21")),
+        version: "26.4.0"
+      )
+    )
+
+    #expect(phase.summaryText(salesEnabled: true) == "Renew to Update")
+    #expect(
+      phase.detailMessage(salesEnabled: true)
+        == "Supaterm 26.4.0 is out. Your updates ended 2026-08-21 — renew to update."
+    )
+    #expect(phase.summaryText(salesEnabled: false) == "Update Not Included")
+    #expect(
+      phase.detailMessage(salesEnabled: false)
+        == "Supaterm 26.4.0 is out. Your updates ended 2026-08-21. You can keep using your current version."
+    )
+    #expect(phase.presentations(salesEnabled: false).map(\.action) == [.dismiss])
+    #expect(
+      phase.presentations(salesEnabled: true).map(\.action) == [.dismiss, .renewUpdates]
+    )
+    #expect(phase.debugIdentifier == "ownership_ended")
+  }
+
+  @Test
+  func ownershipEndedSidebarOffersLatestIncludedReleaseWhenUseful() throws {
+    let phase = UpdatePhase.ownershipEnded(
+      UpdatePhase.OwnershipEnded(
+        licenseID: "00112233445566778899aabbccddeeff",
+        latestIncludedReleaseURL: URL(string: "https://supaterm.com/download/2.zip"),
+        updatesThrough: try #require(LicenseDay("2026-08-21")),
+        version: "6"
+      )
+    )
+
+    #expect(
+      phase.presentations(salesEnabled: false).map(\.title)
+        == ["Not Now", "Download Your Latest Release"]
+    )
+    #expect(
+      phase.presentations(salesEnabled: false).map(\.action)
+        == [.dismiss, .downloadLatestIncludedRelease]
+    )
+    #expect(
+      phase.presentations(salesEnabled: true).map(\.action)
+        == [.dismiss, .downloadLatestIncludedRelease, .renewUpdates]
+    )
+    let renewalDetail =
+      "Supaterm 6 is out. Your updates ended 2026-08-21. "
+      + "Renew to update, or download the newest release included with your license."
+    #expect(
+      phase.detailMessage(salesEnabled: true) == renewalDetail
+    )
+    let downloadDetail =
+      "Supaterm 6 is out. Your updates ended 2026-08-21. "
+      + "Download the newest release included with your license."
+    #expect(
+      phase.detailMessage(salesEnabled: false) == downloadDetail
+    )
   }
 }

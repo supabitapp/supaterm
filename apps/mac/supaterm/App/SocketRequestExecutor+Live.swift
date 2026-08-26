@@ -4,6 +4,7 @@ extension SocketRequestExecutor {
   static func live(commandExecutor: TerminalCommandExecutor) -> Self {
     Self(
       executeApp: { try commandExecutor.execute($0) },
+      executeLicense: { try await commandExecutor.execute($0) },
       executeAgentIntegration: { try await commandExecutor.execute($0) },
       executeTerminalCreation: { try commandExecutor.execute($0) },
       executeTerminalPane: { try await commandExecutor.execute($0) },

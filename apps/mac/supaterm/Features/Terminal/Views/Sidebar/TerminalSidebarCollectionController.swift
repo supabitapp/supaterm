@@ -625,22 +625,30 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       pinnedControlHeight: dragController.pinnedControl.height
     )
     dragController.pinnedControl.layout(in: viewportLayout.pinnedControlFrame)
-    scrollView.frame = viewportLayout.scrollViewportFrame
+    if scrollView.frame != viewportLayout.scrollViewportFrame {
+      scrollView.frame = viewportLayout.scrollViewportFrame
+    }
     scrollView.tile()
     let documentWidth = max(1, scrollView.contentView.bounds.width)
     let viewportHeight = max(1, scrollView.contentView.bounds.height)
-    collectionView.frame.size = CGSize(
+    let initialCollectionSize = CGSize(
       width: documentWidth,
       height: max(viewportHeight, collectionView.frame.height)
     )
+    if collectionView.frame.size != initialCollectionSize {
+      collectionView.setFrameSize(initialCollectionSize)
+    }
     collectionLayout.invalidateLayout()
-    collectionView.layoutSubtreeIfNeeded()
-    collectionView.frame.size = CGSize(
+    collectionLayout.prepare()
+    let contentSize = CGSize(
       width: documentWidth,
       height: max(viewportHeight, collectionLayout.collectionViewContentSize.height)
     )
+    if collectionView.frame.size != contentSize {
+      collectionView.setFrameSize(contentSize)
+    }
     collectionLayout.invalidateLayout()
-    collectionView.layoutSubtreeIfNeeded()
+    collectionLayout.prepare()
   }
 
   private func updateDecorations() {

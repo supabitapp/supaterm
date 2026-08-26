@@ -53,7 +53,7 @@ struct SPCLIHarness {
     try? FileManager.default.removeItem(at: rootURL)
   }
 
-  func run(_ arguments: [String]) throws -> SPCLIResult {
+  func run(_ arguments: [String], standardInput: String? = nil) throws -> SPCLIResult {
     let outputURL = rootURL.appendingPathComponent("stdout", isDirectory: false)
     let errorURL = rootURL.appendingPathComponent("stderr", isDirectory: false)
     for url in [outputURL, errorURL] {
@@ -61,9 +61,18 @@ struct SPCLIHarness {
     }
     let outputHandle = try FileHandle(forWritingTo: outputURL)
     let errorHandle = try FileHandle(forWritingTo: errorURL)
+    let inputHandle: FileHandle?
+    if let standardInput {
+      let inputURL = rootURL.appendingPathComponent("stdin", isDirectory: false)
+      try Data(standardInput.utf8).write(to: inputURL)
+      inputHandle = try FileHandle(forReadingFrom: inputURL)
+    } else {
+      inputHandle = nil
+    }
     defer {
       try? outputHandle.close()
       try? errorHandle.close()
+      try? inputHandle?.close()
     }
 
     let process = Process()
@@ -71,7 +80,7 @@ struct SPCLIHarness {
     process.arguments = arguments
     process.environment = environment
     process.currentDirectoryURL = homeURL
-    process.standardInput = FileHandle.nullDevice
+    process.standardInput = inputHandle ?? FileHandle.nullDevice
     process.standardOutput = outputHandle
     process.standardError = errorHandle
     try process.run()
