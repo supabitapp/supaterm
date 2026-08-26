@@ -250,12 +250,12 @@ struct TerminalSidebarDragPayload: Equatable {
   }
 }
 
-enum TerminalSidebarRootTargetAffinity: Equatable {
+enum TerminalSidebarRootTargetAffinity: Hashable {
   case before
   case after
 }
 
-enum TerminalSidebarSemanticPath: Equatable {
+enum TerminalSidebarSemanticPath: Hashable {
   case rootItem(index: Int)
   case rootBoundary(index: Int, affinity: TerminalSidebarRootTargetAffinity)
   case group(TerminalTabGroupID, index: Int)

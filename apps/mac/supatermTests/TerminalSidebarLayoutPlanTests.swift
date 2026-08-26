@@ -197,6 +197,86 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func animatedDropTargetsFollowAnimatedRows() throws {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let source = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [first, second, source].map {
+        TerminalSidebarOutline.Root(content: .tab($0), isPinned: false)
+      },
+      revision: 1
+    )
+    let path = TerminalSidebarSemanticPath.rootBoundary(index: 0, affinity: .before)
+    let payload = try #require(outline.dragPayload(for: .tab(source)))
+    let target = try #require(
+      TerminalSidebarDropPlanner.plan(payload: payload, path: path, outline: outline)
+    )
+    let origin = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)]
+    )
+    let destination = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)],
+      target: target
+    )
+    let animated = destination.interpolated(from: origin, progress: 0.5)
+    let originTarget = try #require(origin.semanticTargets.first { $0.path == path })
+    let destinationTarget = try #require(destination.semanticTargets.first { $0.path == path })
+    let animatedTarget = try #require(animated.semanticTargets.first { $0.path == path })
+
+    #expect(originTarget.frame != destinationTarget.frame)
+    #expect(
+      animatedTarget.frame
+        == CGRect(
+          x: (originTarget.frame.minX + destinationTarget.frame.minX) / 2,
+          y: (originTarget.frame.minY + destinationTarget.frame.minY) / 2,
+          width: (originTarget.frame.width + destinationTarget.frame.width) / 2,
+          height: (originTarget.frame.height + destinationTarget.frame.height) / 2
+        )
+    )
+  }
+
+  @Test
+  func collapsedContentHeightStaysPinnedUntilItReentersTheScrollRange() {
+    var state = TerminalSidebarContentHeightState()
+    state.begin(at: 500)
+
+    #expect(state.resolve(actualHeight: 300) == 500)
+
+    state.finish()
+
+    #expect(state.resolve(actualHeight: 300) == 500)
+    let stayedPinned = !state.clearPin(
+      actualHeight: 300,
+      visibleRect: CGRect(x: 0, y: 200, width: 220, height: 200)
+    )
+    let clearedPin = state.clearPin(
+      actualHeight: 300,
+      visibleRect: CGRect(x: 0, y: 100, width: 220, height: 200)
+    )
+
+    #expect(stayedPinned)
+    #expect(clearedPin)
+    #expect(state.resolve(actualHeight: 300) == 300)
+
+    state.begin(at: 500)
+    state.finish()
+    let stayedPinnedPastTheRealRange = !state.clearPin(
+      actualHeight: 600,
+      visibleRect: CGRect(x: 0, y: 450, width: 220, height: 200)
+    )
+    let clearedAtTheRealRange = state.clearPin(
+      actualHeight: 600,
+      visibleRect: CGRect(x: 0, y: 400, width: 220, height: 200)
+    )
+
+    #expect(stayedPinnedPastTheRealRange)
+    #expect(clearedAtTheRealRange)
+  }
+
+  @Test
   func boundaryBetweenAdjacentGroupsOwnsItsProjectedGap() throws {
     let firstChild = TerminalTabID()
     let secondChild = TerminalTabID()

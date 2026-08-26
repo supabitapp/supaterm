@@ -74,7 +74,7 @@ final class TerminalSidebarScrollView: NSScrollView {
 }
 
 @MainActor
-final class TerminalSidebarListController: NSViewController, NSCollectionViewDelegate {
+final class TerminalSidebarListController: NSViewController {
   private struct Update {
     let outline: TerminalSidebarOutline
     let reduceMotion: Bool
@@ -234,9 +234,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     hoverCardController.dismiss()
   }
 
+  override func viewWillLayout() {
+    super.viewWillLayout()
+    layoutHierarchy()
+  }
+
   override func viewDidLayout() {
     super.viewDidLayout()
-    layoutHierarchy()
     revealSelectedTabIfNeeded()
   }
 
@@ -293,7 +297,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       consumeDropHandoffUpdate()
       return
     }
-    guard case .idle = updatePhase else {
+    switch updatePhase {
+    case .idle:
+      break
+    case .collapsing(let activeUpdate):
+      guard activeUpdate.outline != update.outline || update.reduceMotion else { return }
+      _ = endCollapse()
+      pendingUpdate = nil
+    case .applyingSnapshot:
       pendingUpdate = update
       return
     }
@@ -324,7 +335,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     )
     collectionView.registerForDraggedTypes([.terminalTabDrag])
     collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
-    collectionView.delegate = self
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     collectionView.onPointerMoved = { [weak self] point in
       self?.updateGroupHover(at: point)
@@ -399,6 +409,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       !dataSource.snapshot().itemIdentifiers.isEmpty
     {
       updatePhase = .collapsing(update)
+      collectionLayout.beginCollapse()
       collapseAnimator.start(rowIDs: collapsing)
       return
     }
@@ -417,10 +428,16 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private func completeCollapse() {
-    guard case .collapsing(let update) = updatePhase else { return }
-    updatePhase = .idle
-    collectionLayout.visibilityByEntryID = [:]
+    guard let update = endCollapse() else { return }
     applySnapshot(update, animated: false)
+  }
+
+  private func endCollapse() -> Update? {
+    guard case .collapsing(let update) = updatePhase else { return nil }
+    collapseAnimator.cancel()
+    collectionLayout.endCollapse()
+    updatePhase = .idle
+    return update
   }
 
   private func applySnapshot(
@@ -604,19 +621,23 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
     for _ in 0..<2 {
       layoutViewportAndCollection()
-      let shouldPin = TerminalSidebarNewTabPlacement.shouldPin(
-        itemFrame: collectionLayout.plan.items.first { $0.id == .newTab }?.frame,
-        visibleRect: scrollView.documentVisibleRect,
-        pinnedHeight: TerminalSidebarLayout.pinnedControlHeight,
-        isPinned: dragController.pinnedControl.isPinned
-      )
-      let placementChanged = dragController.pinnedControl.setPinned(shouldPin)
-      collectionLayout.isNewTabItemHidden = shouldPin
-      guard placementChanged else { break }
+      guard updateNewTabPlacement() else { break }
     }
 
     updateDecorations()
     updateGroupHover(at: collectionView.pointerLocation)
+  }
+
+  private func updateNewTabPlacement() -> Bool {
+    let shouldPin = TerminalSidebarNewTabPlacement.shouldPin(
+      itemFrame: collectionLayout.plan.items.first { $0.id == .newTab }?.frame,
+      visibleRect: scrollView.documentVisibleRect,
+      pinnedHeight: TerminalSidebarLayout.pinnedControlHeight,
+      isPinned: dragController.pinnedControl.isPinned
+    )
+    let placementChanged = dragController.pinnedControl.setPinned(shouldPin)
+    collectionLayout.isNewTabItemHidden = shouldPin
+    return placementChanged
   }
 
   private func layoutViewportAndCollection() {
@@ -647,8 +668,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     if collectionView.frame.size != contentSize {
       collectionView.setFrameSize(contentSize)
     }
-    collectionLayout.invalidateLayout()
-    collectionLayout.prepare()
   }
 
   private func updateDecorations() {
@@ -805,19 +824,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     pendingRevealTabID = nil
   }
 
-  func collectionView(
-    _ collectionView: NSCollectionView,
-    willDisplay item: NSCollectionViewItem,
-    forRepresentedObjectAt indexPath: IndexPath
-  ) {
-    guard
-      let item = item as? TerminalSidebarCollectionItem,
-      let id = item.entryID
-    else { return }
-    measuredHeights[id] = nil
-    invalidateLayout()
-  }
-
   private func accessibilityIdentifier(for presentation: TerminalSidebarRowPresentation) -> String {
     TerminalSidebarAccessibilityIdentifier.row(presentation)
   }
@@ -834,7 +840,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   @objc private func scrollViewDidScroll() {
     guard !isLayingOut else { return }
     hoverCardController.dismiss()
-    view.needsLayout = true
-    view.layoutSubtreeIfNeeded()
+    let clearedContentHeight = collectionLayout.clearPinnedContentHeight(
+      visibleRect: collectionView.visibleRect
+    )
+    let placementChanged = updateNewTabPlacement()
+    guard clearedContentHeight || placementChanged else {
+      updateGroupHover(at: collectionView.pointerLocation)
+      return
+    }
+    invalidateLayout()
   }
 }

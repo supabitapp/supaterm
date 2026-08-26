@@ -89,7 +89,7 @@ enum TerminalSidebarAutoscrollDirection: Equatable {
 
 enum TerminalSidebarAutoscrollBehavior {
   static let edgeSize: CGFloat = 60
-  static let minimumContentHeight: CGFloat = 240
+  static let minimumVisibleHeight: CGFloat = 240
   static let directionTolerance: CGFloat = 20
   static let activationDelay: TimeInterval = 0.25
 
@@ -102,6 +102,7 @@ enum TerminalSidebarAutoscrollBehavior {
     pointerY: CGFloat,
     visibleRect: CGRect
   ) -> TerminalSidebarAutoscrollDirection? {
+    guard visibleRect.height > minimumVisibleHeight else { return nil }
     guard visibleRect.minY...visibleRect.maxY ~= pointerY else { return nil }
     if pointerY <= visibleRect.minY + edgeSize { return .up }
     if pointerY >= visibleRect.maxY - edgeSize { return .down }
@@ -525,18 +526,20 @@ final class TerminalSidebarDragAutoscrollController {
   }
 
   func update(pointerY: CGFloat) {
-    guard
-      !isLiveScrolling,
-      let collectionView,
-      (collectionView.collectionViewLayout?.collectionViewContentSize.height
-        ?? collectionView.frame.height) > TerminalSidebarAutoscrollBehavior.minimumContentHeight
-    else {
+    guard !isLiveScrolling, let collectionView else {
+      stop()
+      return
+    }
+    let visibleRect = collectionView.visibleRect
+    let contentHeight =
+      collectionView.collectionViewLayout?.collectionViewContentSize.height
+      ?? collectionView.frame.height
+    guard contentHeight > visibleRect.height else {
       stop()
       return
     }
     let previousPointerY = self.pointerY
     self.pointerY = pointerY
-    let visibleRect = collectionView.visibleRect
     guard
       let nextDirection = TerminalSidebarAutoscrollBehavior.direction(
         pointerY: pointerY,

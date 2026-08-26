@@ -1,5 +1,4 @@
 import AppKit
-import ComposableArchitecture
 import CoreGraphics
 import SupaTheme
 import SwiftUI
@@ -13,6 +12,8 @@ struct TerminalSidebarLayoutTests {
     let source: CGRect
     let transition: CGRect
     let target: CGRect
+    let realizedIdentifiers: [TerminalSidebarEntryID]
+    let targetIdentifiers: [TerminalSidebarEntryID]
   }
 
   @Test
@@ -21,6 +22,7 @@ struct TerminalSidebarLayoutTests {
 
     #expect(frames.source != frames.target)
     #expect(frames.transition == frames.source)
+    #expect(frames.realizedIdentifiers == frames.targetIdentifiers)
   }
 
   @Test
@@ -29,6 +31,7 @@ struct TerminalSidebarLayoutTests {
 
     #expect(frames.source != frames.target)
     #expect(frames.transition == frames.target)
+    #expect(frames.realizedIdentifiers == frames.targetIdentifiers)
   }
 
   @Test
@@ -40,6 +43,147 @@ struct TerminalSidebarLayoutTests {
 
     #expect(frames.source != frames.target)
     #expect(frames.transition == frames.target)
+    #expect(frames.realizedIdentifiers == frames.targetIdentifiers)
+  }
+
+  @Test
+  func windowBackedResizeAppliesCurrentItemGeometryInOneLayoutPass() throws {
+    let (harness, _) = try tabHarness(
+      size: CGSize(width: 280, height: 640),
+      tabCount: 8
+    )
+    defer { harness.close() }
+    let indexPath = IndexPath(item: 0, section: 0)
+    let item = try #require(harness.collectionView.item(at: indexPath))
+    let newTabIndexPath = IndexPath(
+      item: harness.collectionView.numberOfItems(inSection: 0) - 1,
+      section: 0
+    )
+    let inlineNewTabItem = try #require(harness.collectionView.item(at: newTabIndexPath))
+    #expect(!inlineNewTabItem.view.isHidden)
+
+    harness.resize(to: CGSize(width: 360, height: 220))
+
+    let attributes = try #require(harness.layout.layoutAttributesForItem(at: indexPath))
+    #expect(item.view.frame == attributes.frame)
+    #expect(
+      harness.collectionView.indexPathForItem(
+        at: CGPoint(x: attributes.frame.midX, y: attributes.frame.midY)
+      ) == indexPath
+    )
+    let pinnedNewTabView = try #require(
+      harness.controller.view.subviews.compactMap { $0 as? TerminalSidebarPinnedControlView }.first
+    )
+    #expect(!pinnedNewTabView.isHidden)
+    #expect(inlineNewTabItem.view.isHidden)
+  }
+
+  @Test
+  func ordinaryScrollUsesOneFrameworkPreparationPass() throws {
+    let (harness, _) = try tabHarness(
+      size: CGSize(width: 360, height: 220),
+      tabCount: 8
+    )
+    defer { harness.close() }
+    var preferredHeightRequests = 0
+    harness.layout.preferredHeight = { _, _ in
+      preferredHeightRequests += 1
+      return TerminalSidebarLayout.tabRowMinHeight
+    }
+    let contentView = harness.scrollView.contentView
+    contentView.scroll(to: CGPoint(x: 0, y: contentView.bounds.minY + 1))
+    harness.scrollView.reflectScrolledClipView(contentView)
+
+    #expect(preferredHeightRequests == harness.collectionView.numberOfItems(inSection: 0))
+  }
+
+  @Test
+  func tabMeasurementKeyChangesWhenGroupingChanges() {
+    let tab = TerminalTabItem(title: "A long tab title")
+
+    #expect(
+      TerminalSidebarRowPresentation.tab(tabPresentation(tab)).measurementKey
+        != TerminalSidebarRowPresentation.tab(
+          tabPresentation(tab, groupID: TerminalTabGroupID())
+        ).measurementKey
+    )
+  }
+
+  @Test
+  func reduceMotionReplacesAnActiveCollapseImmediately() throws {
+    let groupID = TerminalTabGroupID()
+    let tabs = [TerminalTabItem(title: "First"), TerminalTabItem(title: "Second")]
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .blue, .automatic, tabs.map(\.id)),
+        isPinned: false
+      )
+    ]
+    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 1)
+    let collapsed = TerminalSidebarTestFixture.outline(
+      roots: roots,
+      revision: 2,
+      collapsedGroupIDs: [groupID]
+    )
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let harness = try #require(
+      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300))
+    )
+    defer { harness.close() }
+
+    func rows(isCollapsed: Bool) -> [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
+      var rows = Dictionary(
+        uniqueKeysWithValues: tabs.map {
+          (TerminalSidebarEntryID.tab($0.id), TerminalSidebarRowPresentation.tab(tabPresentation($0)))
+        }
+      )
+      rows[.group(groupID)] = .group(
+        TerminalSidebarGroupRowPresentation(
+          id: groupID,
+          title: "Group",
+          color: .blue,
+          iconURL: nil,
+          isPinned: false,
+          isCollapsed: isCollapsed,
+          tabCount: tabs.count,
+          showsNewTabShortcutHint: false
+        )
+      )
+      rows[.newTab] = .newTab(.inline)
+      return rows
+    }
+
+    harness.apply(
+      outline: expanded,
+      rows: rows(isCollapsed: false),
+      terminal: terminal,
+      selectedTabID: tabs[0].id,
+      reduceMotion: true
+    )
+    harness.layoutNow()
+
+    harness.apply(
+      outline: collapsed,
+      rows: rows(isCollapsed: true),
+      terminal: terminal,
+      selectedTabID: tabs[0].id,
+      reduceMotion: false
+    )
+    #expect(
+      harness.collectionView.numberOfItems(inSection: 0) == expanded.visibleEntries.count
+    )
+
+    harness.apply(
+      outline: collapsed,
+      rows: rows(isCollapsed: true),
+      terminal: terminal,
+      selectedTabID: tabs[0].id,
+      reduceMotion: true
+    )
+
+    #expect(
+      harness.collectionView.numberOfItems(inSection: 0) == collapsed.visibleEntries.count
+    )
   }
 
   private func programmaticReorderFrames(
@@ -66,74 +210,56 @@ struct TerminalSidebarLayoutTests {
       .newTab: .newTab(.inline),
     ]
     let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
-    let controller = TerminalSidebarListController(
-      windowControllerID: UUID(),
-      tabDragRegistry: TerminalTabDragRegistry(),
-      captureRequest: { nil }
+    let harness = try #require(
+      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300))
     )
-    controller.view.frame = CGRect(x: 0, y: 0, width: 280, height: 300)
+    defer { harness.close() }
 
-    func context(for outline: TerminalSidebarOutline) -> TerminalSidebarRowContext {
-      TerminalSidebarRowContext(
-        terminal: terminal,
-        palette: Palette(colorScheme: .dark),
-        renameState: controller.renameState,
-        groupHeaderHoverState: controller.groupHeaderHoverState,
-        tabSelectionState: controller.tabSelectionState,
-        outline: outline,
-        fixedHoveredGroupID: nil,
-        actions: rowActions
-      )
-    }
-
-    controller.apply(
+    harness.apply(
       outline: source,
       rows: rows,
-      context: context(for: source),
+      terminal: terminal,
       selectedTabID: firstTab.id,
       reduceMotion: reduceMotion
     )
-    controller.view.layoutSubtreeIfNeeded()
-    let scrollView = try #require(
-      controller.view.subviews.compactMap { $0 as? TerminalSidebarScrollView }.first
-    )
-    let collectionView = try #require(scrollView.documentView as? NSCollectionView)
-    let layout = try #require(
-      collectionView.collectionViewLayout as? TerminalSidebarCollectionLayout
-    )
-    layout.prepare()
+    harness.layoutNow()
+    harness.layout.prepare()
     let sourceFrame = try #require(
-      layout.plan.items.first { $0.id == .tab(firstTab.id) }?.frame
+      harness.layout.plan.items.first { $0.id == .tab(firstTab.id) }?.frame
     )
 
-    controller.apply(
+    harness.apply(
       outline: target,
       rows: rows,
-      context: context(for: target),
+      terminal: terminal,
       selectedTabID: firstTab.id,
       reduceMotion: reduceMotion
     )
     if stopWithReduceMotion {
-      controller.apply(
+      harness.apply(
         outline: target,
         rows: rows,
-        context: context(for: target),
+        terminal: terminal,
         selectedTabID: firstTab.id,
         reduceMotion: true
       )
     }
-    layout.prepare()
+    harness.layout.prepare()
+    harness.layoutNow()
+    harness.collectionView.layoutSubtreeIfNeeded()
     let transitionFrame = try #require(
-      layout.plan.items.first { $0.id == .tab(firstTab.id) }?.frame
+      harness.layout.plan.items.first { $0.id == .tab(firstTab.id) }?.frame
     )
     let targetFrame = try #require(
-      layout.targetPlan.items.first { $0.id == .tab(firstTab.id) }?.frame
+      harness.layout.targetPlan.items.first { $0.id == .tab(firstTab.id) }?.frame
     )
 
     return ReorderFrames(
       source: sourceFrame,
       transition: transitionFrame,
-      target: targetFrame
+      target: targetFrame,
+      realizedIdentifiers: harness.realizedIdentifiers,
+      targetIdentifiers: target.visibleEntries.map(\.id)
     )
   }
 
@@ -306,6 +432,36 @@ struct TerminalSidebarLayoutTests {
         forBoundsChange: CGRect(x: 0, y: 0, width: 220, height: 181)
       )
     )
+  }
+
+  @Test
+  func collectionLayoutDropsPreparedAttributesWhenInvalidated() throws {
+    let tabID = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [TerminalSidebarOutline.Root(content: .tab(tabID), isPinned: false)],
+      revision: 1
+    )
+    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 220, height: 180))
+    let layout = TerminalSidebarCollectionLayout()
+    collectionView.collectionViewLayout = layout
+    let dataSource = NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>(
+      collectionView: collectionView
+    ) { _, _, _ in NSCollectionViewItem() }
+    var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()
+    snapshot.appendSections([0])
+    snapshot.appendItems(outline.visibleEntries.map(\.id))
+    dataSource.apply(snapshot, animatingDifferences: false)
+    layout.itemIdentifiers = { dataSource.snapshot().itemIdentifiers }
+    layout.setOutline(outline)
+    layout.prepare()
+    let indexPath = IndexPath(item: 0, section: 0)
+
+    #expect(layout.layoutAttributesForItem(at: indexPath) != nil)
+
+    layout.invalidateLayout()
+
+    #expect(layout.layoutAttributesForItem(at: indexPath) == nil)
+    #expect(layout.dropTargetMap.targets.isEmpty)
   }
 
   @Test
@@ -490,10 +646,42 @@ struct TerminalSidebarLayoutTests {
     #expect(Set(view.subviews.map(ObjectIdentifier.init)) == originalSubviewIDs)
   }
 
-  private func tabPresentation(_ tab: TerminalTabItem) -> TerminalSidebarTabRowPresentation {
+  private func tabHarness(
+    size: CGSize,
+    tabCount: Int
+  ) throws -> (TerminalSidebarWindowHarness, [TerminalTabItem]) {
+    let tabs = (0..<tabCount).map { TerminalTabItem(title: "Tab \($0)") }
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: tabs.map {
+        TerminalSidebarOutline.Root(content: .tab($0.id), isPinned: false)
+      },
+      revision: 1
+    )
+    let rows = Dictionary(
+      uniqueKeysWithValues: tabs.map {
+        (TerminalSidebarEntryID.tab($0.id), TerminalSidebarRowPresentation.tab(tabPresentation($0)))
+      }
+    ).merging([.newTab: .newTab(.inline)]) { current, _ in current }
+    let harness = try #require(TerminalSidebarWindowHarness(size: size))
+    harness.apply(
+      outline: outline,
+      rows: rows,
+      terminal: TerminalHostState.test(managesTerminalSurfaces: false),
+      selectedTabID: tabs.first?.id,
+      reduceMotion: true
+    )
+    harness.layoutNow()
+    harness.layoutNow()
+    return (harness, tabs)
+  }
+
+  private func tabPresentation(
+    _ tab: TerminalTabItem,
+    groupID: TerminalTabGroupID? = nil
+  ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
-      groupID: nil,
+      groupID: groupID,
       rootIsPinned: false,
       agentStatus: nil,
       details: [],
@@ -505,16 +693,4 @@ struct TerminalSidebarLayoutTests {
     )
   }
 
-  private var rowActions: TerminalSidebarRowActions {
-    TerminalSidebarRowActions(
-      toggleGroupCollapsed: { _ in },
-      createTabInGroup: { _ in },
-      renameGroup: { _, _ in false },
-      setGroupColor: { _, _ in },
-      toggleGroupPinned: { _ in },
-      ungroup: { _ in },
-      closeGroup: { _ in },
-      newTab: {}
-    )
-  }
 }

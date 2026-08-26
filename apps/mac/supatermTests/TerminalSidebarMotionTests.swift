@@ -384,6 +384,7 @@ struct TerminalSidebarMotionTests {
   @Test
   func autoscrollEdgesAndBoundsStayExact() {
     let visible = CGRect(x: 0, y: 100, width: 220, height: 300)
+    let compact = CGRect(x: 0, y: 100, width: 220, height: 200)
 
     #expect(TerminalSidebarAutoscrollBehavior.edgeSize == 60)
     #expect(TerminalSidebarAutoscrollBehavior.activationDelay == 0.25)
@@ -394,6 +395,7 @@ struct TerminalSidebarMotionTests {
     )
     #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: 160.1, visibleRect: visible) == nil)
     #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: 99, visibleRect: visible) == nil)
+    #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: 120, visibleRect: compact) == nil)
   }
 
   @Test
