@@ -34,7 +34,7 @@ struct TerminalSidebarDragCoordinatorTests {
     let tabID = TerminalTabID()
     let payload = TerminalSidebarTestFixture.payload(source: .tabs([tabID]), revision: 2)
     let plan = TerminalSidebarDropPlan(
-      path: .trailingRoot,
+      path: .rootBoundary(lane: .regular, index: 0),
       destination: .root(isPinned: false, index: 0),
       placeholder: .beforeFooter
     )
@@ -77,7 +77,7 @@ struct TerminalSidebarDragCoordinatorTests {
       TerminalRootPlacement(isPinned: false, index: 0)
     )
     let plan = TerminalSidebarDropPlan(
-      path: .trailingRoot,
+      path: .rootBoundary(lane: .regular, index: 0),
       destination: .root(isPinned: false, index: 0),
       placeholder: .beforeFooter
     )
@@ -134,8 +134,7 @@ struct TerminalSidebarDragCoordinatorTests {
     var drag = TerminalSidebarActiveDrag(
       payload: payload,
       liftedEntryIDs: [.tab(tabID)],
-      coordinator: TerminalSidebarDragCoordinator(payload: payload),
-      target: nil
+      coordinator: TerminalSidebarDragCoordinator(payload: payload)
     )
 
     #expect(drag.registryOutcome(receipt: nil) == .cancelled)

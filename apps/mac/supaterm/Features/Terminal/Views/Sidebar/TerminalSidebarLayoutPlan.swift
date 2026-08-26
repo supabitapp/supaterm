@@ -24,7 +24,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
   static let rootSpacing: CGFloat = 10
   static let pinDividerTopSpacing: CGFloat = 8
-  static let expandedGroupTrailingSpacing: CGFloat = 3
   static let dividerHeight: CGFloat = 9
   static let rootBoundaryTargetHeight: CGFloat = 7
   static let initialY: CGFloat =
@@ -68,90 +67,74 @@ struct TerminalSidebarLayoutPlan: Equatable {
       for: dragDropState?.target?.placeholder,
       entries: entries
     )
-    let dropGapHeight = Self.dropGapHeight(
-      entries: entries,
-      preferredHeights: preferredHeights,
-      draggedItemIDs: dragDropState?.draggingItemIDs ?? [],
-      insertionIndex: insertionIndex
-    )
-    var items: [Item] = []
-    var y = Self.initialY
-    var dropPlaceholderFrame: CGRect?
-    var previousVisibleEntry: TerminalSidebarEntry?
-
-    for (index, entry) in entries.enumerated() {
-      if insertionIndex == index, dropGapHeight > 0 {
-        dropPlaceholderFrame = Self.placeholderFrame(
-          y: y,
-          height: dropGapHeight,
-          width: width
-        )
-        y += dropGapHeight
-      }
-
-      let isDragged = draggedIDs.contains(entry.id)
-      let visibility = visibilityByEntryID[entry.id] ?? .visible
-      if y > Self.initialY, !isDragged {
-        y += Self.spacing(before: entry, previous: previousVisibleEntry) * visibility.height
-      }
-      let preferredHeight = preferredHeights[entry.id] ?? Self.defaultHeight(for: entry)
-      let height = isDragged ? 0 : preferredHeight * visibility.height
-      let horizontalInsets = Self.horizontalInsets(for: entry)
-      items.append(
-        Item(
-          id: entry.id,
-          frame: CGRect(
-            x: horizontalInsets.leading,
-            y: y,
-            width: horizontalInsets.width(in: width),
-            height: height
-          ),
-          alpha: isDragged ? 0 : visibility.alpha
-        )
+    let dropGapHeight =
+      dragDropState?.dropGapHeight
+      ?? Self.dropGapHeight(
+        entries: entries,
+        preferredHeights: preferredHeights,
+        draggedItemIDs: dragDropState?.draggingItemIDs ?? [],
+        insertionIndex: insertionIndex
       )
-      y += height
-      if !isDragged {
-        previousVisibleEntry = entry
-      }
-    }
-
-    if insertionIndex == entries.count, dropGapHeight > 0 {
-      dropPlaceholderFrame = Self.placeholderFrame(
-        y: y,
-        height: dropGapHeight,
+    let naturalGeometry = Self.itemGeometry(
+      ItemGeometryContext(
+        entries: entries,
+        preferredHeights: preferredHeights,
+        visibilityByEntryID: visibilityByEntryID,
+        draggedIDs: [],
+        insertionIndex: nil,
+        naturalTargetGapY: nil,
+        dropGapHeight: 0,
         width: width
       )
-      y += dropGapHeight
-    }
-
-    let itemByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
-    let groups = Self.groups(
-      entries: entries,
-      itemByID: itemByID,
-      dropPlaceholderFrame: dropPlaceholderFrame,
-      destinationGroupID: dragDropState?.target?.destinationGroupID
     )
+    let naturalItemByID = Dictionary(
+      uniqueKeysWithValues: naturalGeometry.items.map { ($0.id, $0) })
     let targetGeometry = Self.targetGeometry(
       TargetGeometryContext(
         outline: outline,
-        itemByID: itemByID,
+        itemByID: naturalItemByID,
         draggedIDs: draggedIDs,
         sourceIsTab: {
-          guard let sourceID = dragDropState?.draggingItemIDs.first else { return false }
-          if case .tab = sourceID { return true }
+          guard let source = dragDropState?.source else { return false }
+          if case .tabs = source { return true }
           return false
         }(),
         width: width,
         viewportHeight: viewportHeight
       )
     )
-    self.items = items
+    let naturalTargetGapY = Self.naturalTargetGapY(
+      for: dragDropState?.target,
+      targets: targetGeometry
+    )
+    let projectedGeometry = Self.itemGeometry(
+      ItemGeometryContext(
+        entries: entries,
+        preferredHeights: preferredHeights,
+        visibilityByEntryID: visibilityByEntryID,
+        draggedIDs: draggedIDs,
+        insertionIndex: naturalTargetGapY == nil ? insertionIndex : nil,
+        naturalTargetGapY: naturalTargetGapY,
+        dropGapHeight: dropGapHeight,
+        width: width
+      )
+    )
+    let projectedItemByID = Dictionary(
+      uniqueKeysWithValues: projectedGeometry.items.map { ($0.id, $0) }
+    )
+    let groups = Self.groups(
+      entries: entries,
+      itemByID: projectedItemByID,
+      dropPlaceholderFrame: projectedGeometry.dropPlaceholderFrame,
+      destinationGroupID: dragDropState?.target?.destinationGroupID
+    )
+    self.items = projectedGeometry.items
     self.groups = groups
     contentSize = CGSize(
       width: width,
-      height: max(0, y + Self.rootSpacing + Self.bottomPadding)
+      height: max(0, projectedGeometry.contentEndY + Self.rootSpacing + Self.bottomPadding)
     )
-    self.dropPlaceholderFrame = dropPlaceholderFrame
+    self.dropPlaceholderFrame = projectedGeometry.dropPlaceholderFrame
     highlightedGroupID = dragDropState?.target?.highlightedGroupID
     semanticTargets = targetGeometry
   }
@@ -182,9 +165,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
     let progress = max(0, min(progress, 1))
     let originItems = Dictionary(uniqueKeysWithValues: origin.items.map { ($0.id, $0) })
     let originGroups = Dictionary(uniqueKeysWithValues: origin.groups.map { ($0.id, $0) })
-    let originTargetFrames = Dictionary(
-      uniqueKeysWithValues: origin.semanticTargets.map { ($0.path, $0.frame) }
-    )
     return Self(
       items: items.map { target in
         let source =
@@ -235,21 +215,107 @@ struct TerminalSidebarLayoutPlan: Equatable {
         progress: progress
       ),
       highlightedGroupID: highlightedGroupID,
-      semanticTargets: semanticTargets.map { target in
-        let source =
-          originTargetFrames[target.path]
-          ?? CGRect(
-            x: target.frame.minX,
-            y: target.frame.minY,
-            width: target.frame.width,
-            height: 0
-          )
-        return TerminalSidebarSemanticTarget(
-          path: target.path,
-          frame: Self.interpolate(source, target.frame, progress: progress)
-        )
-      }
+      semanticTargets: semanticTargets
     )
+  }
+
+  private struct ItemGeometry {
+    let items: [Item]
+    let dropPlaceholderFrame: CGRect?
+    let contentEndY: CGFloat
+  }
+
+  private struct ItemGeometryContext {
+    let entries: [TerminalSidebarEntry]
+    let preferredHeights: [TerminalSidebarEntryID: CGFloat]
+    let visibilityByEntryID: [TerminalSidebarEntryID: Visibility]
+    let draggedIDs: Set<TerminalSidebarEntryID>
+    let insertionIndex: Int?
+    let naturalTargetGapY: CGFloat?
+    let dropGapHeight: CGFloat
+    let width: CGFloat
+  }
+
+  private static func itemGeometry(_ context: ItemGeometryContext) -> ItemGeometry {
+    var items: [Item] = []
+    var y = Self.initialY
+    var dropPlaceholderFrame: CGRect?
+    var previousVisibleEntry: TerminalSidebarEntry?
+
+    for (index, entry) in context.entries.enumerated() {
+      if context.insertionIndex == index, context.dropGapHeight > 0 {
+        dropPlaceholderFrame = Self.placeholderFrame(
+          y: y,
+          height: context.dropGapHeight,
+          width: context.width
+        )
+        y += context.dropGapHeight
+      }
+
+      let isDragged = context.draggedIDs.contains(entry.id)
+      let visibility = context.visibilityByEntryID[entry.id] ?? .visible
+      if y > Self.initialY {
+        y += Self.spacing(before: entry, previous: previousVisibleEntry) * visibility.height
+      }
+      if let naturalTargetGapY = context.naturalTargetGapY, dropPlaceholderFrame == nil,
+        y >= naturalTargetGapY, context.dropGapHeight > 0
+      {
+        dropPlaceholderFrame = Self.placeholderFrame(
+          y: naturalTargetGapY,
+          height: context.dropGapHeight,
+          width: context.width
+        )
+        y += context.dropGapHeight
+      }
+      let preferredHeight = context.preferredHeights[entry.id] ?? Self.defaultHeight(for: entry)
+      let height = preferredHeight * visibility.height
+      let horizontalInsets = Self.horizontalInsets(for: entry)
+      items.append(
+        Item(
+          id: entry.id,
+          frame: CGRect(
+            x: horizontalInsets.leading,
+            y: y,
+            width: horizontalInsets.width(in: context.width),
+            height: height
+          ),
+          alpha: isDragged ? 0 : visibility.alpha
+        )
+      )
+      y += height
+      previousVisibleEntry = entry
+    }
+
+    if context.insertionIndex == context.entries.count, context.dropGapHeight > 0 {
+      dropPlaceholderFrame = Self.placeholderFrame(
+        y: y,
+        height: context.dropGapHeight,
+        width: context.width
+      )
+      y += context.dropGapHeight
+    }
+
+    return ItemGeometry(
+      items: items,
+      dropPlaceholderFrame: dropPlaceholderFrame,
+      contentEndY: y
+    )
+  }
+
+  private static func naturalTargetGapY(
+    for target: TerminalSidebarDropPlan?,
+    targets: [TerminalSidebarSemanticTarget]
+  ) -> CGFloat? {
+    guard let target else { return nil }
+    switch target.path {
+    case .rootItem(_, _, let id):
+      guard case .tab = id else { return nil }
+    case .groupItem:
+      break
+    case .rootBoundary, .groupEntry, .groupBoundary:
+      return nil
+    }
+    return targets.first { $0.path == target.path }?.frame.minY
   }
 
   private static func groups(
@@ -300,19 +366,37 @@ struct TerminalSidebarLayoutPlan: Equatable {
     let tabsEndY: CGFloat
   }
 
+  private struct RootTargetPosition {
+    let outlineIndex: Int
+    let lane: TerminalSidebarRootLane
+    let index: Int
+  }
+
   private static func targetGeometry(
     _ context: TargetGeometryContext
   ) -> [TerminalSidebarSemanticTarget] {
     var targets: [TerminalSidebarSemanticTarget] = []
     var tabsEndY = Self.initialY
+    var nextRootIndexByLane: [TerminalSidebarRootLane: Int] = [:]
 
-    for (rootIndex, root) in context.outline.roots.enumerated() {
-      if rootIndex > 0, context.outline.roots[rootIndex - 1].isPinned, !root.isPinned,
+    for (outlineIndex, root) in context.outline.roots.enumerated() {
+      let lane = TerminalSidebarRootLane(isPinned: root.isPinned)
+      let position = RootTargetPosition(
+        outlineIndex: outlineIndex,
+        lane: lane,
+        index: nextRootIndexByLane[lane, default: 0]
+      )
+      nextRootIndexByLane[lane] = position.index + 1
+
+      if outlineIndex > 0, context.outline.roots[outlineIndex - 1].isPinned, !root.isPinned,
         let divider = context.itemByID[.pinDivider]
       {
         targets.append(
           TerminalSidebarSemanticTarget(
-            path: .pinnedEnd,
+            path: .rootBoundary(
+              lane: .pinned,
+              index: nextRootIndexByLane[.pinned, default: 0]
+            ),
             frame: CGRect(
               x: 0,
               y: divider.frame.minY,
@@ -323,7 +407,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
         )
       }
       let rootGeometry = Self.targetGeometry(
-        rootIndex: rootIndex,
+        position: position,
         root: root,
         context: context
       )
@@ -333,7 +417,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
     targets.append(
       TerminalSidebarSemanticTarget(
-        path: .trailingRoot,
+        path: .rootBoundary(
+          lane: .regular,
+          index: nextRootIndexByLane[.regular, default: 0]
+        ),
         frame: CGRect(
           x: 0,
           y: tabsEndY,
@@ -346,7 +433,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   }
 
   private static func targetGeometry(
-    rootIndex: Int,
+    position: RootTargetPosition,
     root: TerminalSidebarOutline.Root,
     context: TargetGeometryContext
   ) -> RootTargetGeometry {
@@ -361,20 +448,15 @@ struct TerminalSidebarLayoutPlan: Equatable {
       return RootTargetGeometry(
         targets: [
           TerminalSidebarSemanticTarget(
-            path: .rootBoundary(index: rootIndex, affinity: .before),
-            frame: CGRect(
-              x: 0,
-              y: item.frame.minY,
-              width: context.width,
-              height: item.frame.height
-            )
+            path: .rootItem(lane: position.lane, index: position.index, id: .tab(tabID)),
+            frame: item.frame
           )
         ],
         tabsEndY: item.frame.maxY
       )
     case .group(let groupID, _, _, let tabIDs):
       return groupTargetGeometry(
-        rootIndex: rootIndex,
+        position: position,
         groupID: groupID,
         tabIDs: tabIDs,
         context: context
@@ -383,7 +465,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   }
 
   private static func groupTargetGeometry(
-    rootIndex: Int,
+    position: RootTargetPosition,
     groupID: TerminalTabGroupID,
     tabIDs: [TerminalTabID],
     context: TargetGeometryContext
@@ -393,57 +475,34 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
     let groupIsDragged = context.draggedIDs.contains(.group(groupID))
     if context.outline.collapsedGroupIDs.contains(groupID) || tabIDs.isEmpty {
-      let topTargetHeight = ceil(header.frame.height / 2)
-      var targets: [TerminalSidebarSemanticTarget] = []
-      if !groupIsDragged {
-        targets = [
-          TerminalSidebarSemanticTarget(
-            path: .rootBoundary(index: rootIndex, affinity: .before),
-            frame: CGRect(
-              x: 0,
-              y: header.frame.minY,
-              width: context.width,
-              height: min(rootBoundaryTargetHeight, header.frame.height)
-            )
-          ),
-          TerminalSidebarSemanticTarget(
-            path: .group(groupID, index: tabIDs.count),
-            frame: CGRect(
-              x: 0,
-              y: header.frame.minY,
-              width: context.width + 26,
-              height: topTargetHeight
-            )
-          ),
-          TerminalSidebarSemanticTarget(
-            path: .rootBoundary(index: rootIndex, affinity: .after),
-            frame: CGRect(
-              x: 0,
-              y: header.frame.minY + topTargetHeight,
-              width: context.width + 26,
-              height: header.frame.height - topTargetHeight
-            )
-          ),
-        ]
-      }
-      return RootTargetGeometry(
-        targets: targets,
-        tabsEndY: header.frame.maxY
+      return collapsedGroupTargetGeometry(
+        position: position,
+        groupID: groupID,
+        header: header,
+        groupIsDragged: groupIsDragged,
+        context: context
       )
     }
 
-    let childFrames = tabIDs.compactMap { context.itemByID[.tab($0)]?.frame }
+    let childFrames = tabIDs.compactMap { tabID -> CGRect? in
+      guard !context.draggedIDs.contains(.tab(tabID)) else { return nil }
+      return context.itemByID[.tab(tabID)]?.frame
+    }
     let childEndY = childFrames.map(\.maxY).max() ?? header.frame.maxY
-    let containerMaxY = childEndY + expandedGroupTrailingSpacing
+    let visualContainerMaxY = childEndY + TerminalSidebarLayout.groupSurfaceOverflow
     guard !groupIsDragged else {
       return RootTargetGeometry(
         targets: [],
-        tabsEndY: containerMaxY
+        tabsEndY: visualContainerMaxY
       )
     }
+    let headerPath: TerminalSidebarSemanticPath =
+      context.sourceIsTab
+      ? .groupEntry(groupID)
+      : .rootItem(lane: position.lane, index: position.index, id: .group(groupID))
     var targets = [
       TerminalSidebarSemanticTarget(
-        path: .rootBoundary(index: rootIndex, affinity: .before),
+        path: .rootBoundary(lane: position.lane, index: position.index),
         frame: CGRect(
           x: 0,
           y: header.frame.minY,
@@ -452,28 +511,25 @@ struct TerminalSidebarLayoutPlan: Equatable {
         )
       ),
       TerminalSidebarSemanticTarget(
-        path: .rootItem(index: rootIndex),
-        frame: CGRect(
-          x: 3,
-          y: header.frame.minY,
-          width: context.width,
-          height: max(0, header.frame.height - expandedGroupTrailingSpacing)
-        )
+        path: headerPath,
+        frame: header.frame
       ),
     ]
-    targets.append(contentsOf: childTargets(groupID: groupID, tabIDs: tabIDs, context: context))
+    let childTargets = childTargets(groupID: groupID, tabIDs: tabIDs, context: context)
+    targets.append(contentsOf: childTargets)
+    let semanticEndY = childTargets.last?.frame.maxY ?? visualContainerMaxY
     let exitTargetHeight = expandedGroupExitTargetHeight(
-      containerMaxY: containerMaxY,
-      rootIndex: rootIndex,
+      semanticEndY: semanticEndY,
+      position: position,
       context: context
     )
     if context.sourceIsTab, exitTargetHeight > 0 {
       targets.append(
         TerminalSidebarSemanticTarget(
-          path: .rootBoundary(index: rootIndex, affinity: .after),
+          path: .rootBoundary(lane: position.lane, index: position.index + 1),
           frame: CGRect(
             x: 0,
-            y: containerMaxY,
+            y: semanticEndY,
             width: context.width,
             height: exitTargetHeight
           )
@@ -482,26 +538,77 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
     return RootTargetGeometry(
       targets: targets,
-      tabsEndY: containerMaxY
+      tabsEndY: semanticEndY
+    )
+  }
+
+  private static func collapsedGroupTargetGeometry(
+    position: RootTargetPosition,
+    groupID: TerminalTabGroupID,
+    header: Item,
+    groupIsDragged: Bool,
+    context: TargetGeometryContext
+  ) -> RootTargetGeometry {
+    let topTargetHeight = ceil(header.frame.height / 2)
+    let headerPath: TerminalSidebarSemanticPath =
+      context.sourceIsTab
+      ? .groupEntry(groupID)
+      : .rootItem(lane: position.lane, index: position.index, id: .group(groupID))
+    let targets: [TerminalSidebarSemanticTarget]
+    if groupIsDragged {
+      targets = []
+    } else {
+      targets = [
+        TerminalSidebarSemanticTarget(
+          path: .rootBoundary(lane: position.lane, index: position.index),
+          frame: CGRect(
+            x: 0,
+            y: header.frame.minY,
+            width: context.width,
+            height: min(rootBoundaryTargetHeight, header.frame.height)
+          )
+        ),
+        TerminalSidebarSemanticTarget(
+          path: headerPath,
+          frame: CGRect(
+            x: 0,
+            y: header.frame.minY,
+            width: context.width + 26,
+            height: topTargetHeight
+          )
+        ),
+        TerminalSidebarSemanticTarget(
+          path: .rootBoundary(lane: position.lane, index: position.index + 1),
+          frame: CGRect(
+            x: 0,
+            y: header.frame.minY + topTargetHeight,
+            width: context.width + 26,
+            height: header.frame.height - topTargetHeight
+          )
+        ),
+      ]
+    }
+    return RootTargetGeometry(
+      targets: targets,
+      tabsEndY: header.frame.maxY
     )
   }
 
   private static func expandedGroupExitTargetHeight(
-    containerMaxY: CGFloat,
-    rootIndex: Int,
+    semanticEndY: CGFloat,
+    position: RootTargetPosition,
     context: TargetGeometryContext
   ) -> CGFloat {
-    guard context.outline.roots.indices.contains(rootIndex) else { return 0 }
-    let root = context.outline.roots[rootIndex]
+    guard context.outline.roots.indices.contains(position.outlineIndex) else { return 0 }
     guard
-      let nextRoot = context.outline.roots.dropFirst(rootIndex + 1).first(where: {
+      let nextRoot = context.outline.roots.dropFirst(position.outlineIndex + 1).first(where: {
         !context.draggedIDs.contains($0.entryID)
       })
     else { return 0 }
-    guard root.isPinned == nextRoot.isPinned,
+    guard position.lane.isPinned == nextRoot.isPinned,
       let nextItem = context.itemByID[nextRoot.entryID]
     else { return 0 }
-    return max(0, nextItem.frame.minY - containerMaxY)
+    return max(0, nextItem.frame.minY - semanticEndY)
   }
 
   private static func childTargets(
@@ -509,48 +616,35 @@ struct TerminalSidebarLayoutPlan: Equatable {
     tabIDs: [TerminalTabID],
     context: TargetGeometryContext
   ) -> [TerminalSidebarSemanticTarget] {
-    let visibleChildren: [(index: Int, item: Item)] = tabIDs.enumerated().compactMap {
-      childIndex, tabID in
-      guard
-        let item = context.itemByID[.tab(tabID)],
-        !context.draggedIDs.contains(.tab(tabID))
-      else { return nil }
-      return (index: childIndex, item: item)
+    struct VisibleChild {
+      let index: Int
+      let id: TerminalTabID
+      let item: Item
     }
+    let visibleChildren = tabIDs.enumerated()
+      .compactMap { childIndex, tabID -> VisibleChild? in
+        guard
+          let item = context.itemByID[.tab(tabID)],
+          !context.draggedIDs.contains(.tab(tabID))
+        else { return nil }
+        return VisibleChild(index: childIndex, id: tabID, item: item)
+      }
     guard let lastChild = visibleChildren.last else { return [] }
 
-    var targets = visibleChildren.dropLast().map { childIndex, item in
+    var targets = visibleChildren.map { child in
       TerminalSidebarSemanticTarget(
-        path: .group(groupID, index: childIndex),
-        frame: CGRect(
-          x: 0,
-          y: item.frame.minY,
-          width: context.width,
-          height: item.frame.height
-        )
+        path: .groupItem(groupID, index: child.index, id: child.id),
+        frame: child.item.frame
       )
     }
-    let (lastChildIndex, lastItem) = lastChild
-    let splitY = lastItem.frame.midY
     targets.append(
       TerminalSidebarSemanticTarget(
-        path: .group(groupID, index: lastChildIndex),
+        path: .groupBoundary(groupID, index: tabIDs.count),
         frame: CGRect(
           x: 0,
-          y: lastItem.frame.minY,
+          y: lastChild.item.frame.maxY,
           width: context.width,
-          height: splitY - lastItem.frame.minY
-        )
-      )
-    )
-    targets.append(
-      TerminalSidebarSemanticTarget(
-        path: .group(groupID, index: tabIDs.count),
-        frame: CGRect(
-          x: 0,
-          y: splitY,
-          width: context.width,
-          height: lastItem.frame.maxY - splitY + expandedGroupTrailingSpacing
+          height: rootBoundaryTargetHeight
         )
       )
     )

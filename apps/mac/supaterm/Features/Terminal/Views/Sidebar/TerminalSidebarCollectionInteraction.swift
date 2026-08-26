@@ -1,5 +1,33 @@
 import AppKit
 
+typealias TerminalSidebarDropHandoffCompletion = @MainActor @Sendable () -> Void
+
+struct TerminalSidebarDragContent {
+  let outline: TerminalSidebarOutline
+  let selectedTabID: TerminalTabID?
+  let rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation]
+  let context: TerminalSidebarRowContext
+  let motionPolicy: TerminalSidebarMotionPolicy
+  let canBeginDrag: Bool
+  let swipe: SpaceSwipeController?
+  let groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView]
+}
+
+struct TerminalSidebarDragHost {
+  let content: () -> TerminalSidebarDragContent?
+  let indexPath: (TerminalSidebarEntryID) -> IndexPath?
+  let invalidateLayout: () -> Void
+  let rebindRows: (Set<TerminalSidebarEntryID>) -> Void
+  let didBegin: () -> Void
+  let didFinish: () -> Void
+  let completeDropHandoff:
+    (
+      TerminalSidebarDropHandoff,
+      @escaping TerminalSidebarDropHandoffCompletion
+    ) -> Void
+  let setHoveredGroupID: (TerminalTabGroupID?) -> Void
+}
+
 enum TerminalSidebarDragOutlineDisposition: Equatable {
   case inactive
   case unchanged
@@ -35,6 +63,7 @@ struct TerminalSidebarDragSourceGeometry {
   let itemByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item]
   let fanAnchorIndex: Int?
   let frame: CGRect
+  let dropGapHeight: CGFloat
 
   static func resolve(
     payload: TerminalSidebarDragPayload,
@@ -54,14 +83,17 @@ struct TerminalSidebarDragSourceGeometry {
         let anchorIndex = liftedEntryIDs.firstIndex(of: anchorEntryID),
         let anchorFrame = itemByID[anchorEntryID]?.frame
       else { return nil }
+      let rowHeights = liftedEntryIDs.compactMap { itemByID[$0]?.frame.height }
       return Self(
         itemByID: itemByID,
         fanAnchorIndex: anchorIndex,
         frame: TerminalSidebarLiveDragGeometry.fanFrame(
           anchorFrame: anchorFrame,
-          rowHeights: liftedEntryIDs.compactMap { itemByID[$0]?.frame.height },
+          rowHeights: rowHeights,
           anchorIndex: anchorIndex
-        )
+        ),
+        dropGapHeight: rowHeights.reduce(0, +)
+          + TerminalSidebarLayout.tabRowSpacing * CGFloat(max(0, liftedEntryIDs.count - 1))
       )
     case .group:
       guard
@@ -70,7 +102,12 @@ struct TerminalSidebarDragSourceGeometry {
           { $0?.union($1) ?? $1 }
         )
       else { return nil }
-      return Self(itemByID: itemByID, fanAnchorIndex: nil, frame: frame)
+      return Self(
+        itemByID: itemByID,
+        fanAnchorIndex: nil,
+        frame: frame,
+        dropGapHeight: frame.height
+      )
     }
   }
 }
@@ -89,7 +126,7 @@ struct TerminalSidebarActiveDrag {
   let payload: TerminalSidebarDragPayload
   let liftedEntryIDs: [TerminalSidebarEntryID]
   var coordinator: TerminalSidebarDragCoordinator
-  var target: TerminalSidebarDropPlan?
+  var dropTarget = TerminalSidebarDragTargetState.none
   var externalCompletion = TerminalSidebarExternalDragCompletion.pending
 
   mutating func completeExternal(
@@ -160,6 +197,83 @@ enum TerminalSidebarTabPressDecision: Equatable {
       selectedTabIDs.contains(tabID)
     else { return .applySelection }
     return .deferSelection(selectedTabIDs)
+  }
+}
+
+enum TerminalSidebarDragSelection {
+  static func selectPressedTab(
+    _ entryID: TerminalSidebarEntryID,
+    modifiers: NSEvent.ModifierFlags,
+    content: TerminalSidebarDragContent
+  ) {
+    guard case .tab(let tabID) = entryID else { return }
+    selectTab(tabID, modifiers: modifiers, content: content)
+  }
+
+  static func pressSelection(
+    entryID: TerminalSidebarEntryID,
+    modifiers: NSEvent.ModifierFlags,
+    content: TerminalSidebarDragContent
+  ) -> (selectedTabIDs: [TerminalTabID], defersSelection: Bool) {
+    guard case .tab(let tabID) = entryID else { return ([], false) }
+    let selectedTabIDs = content.context.tabSelectionState.orderedTabIDs(
+      primaryTabID: content.selectedTabID,
+      outline: content.outline
+    )
+    switch TerminalSidebarTabPressDecision.resolve(
+      tabID: tabID,
+      modifiers: modifiers,
+      selectedTabIDs: selectedTabIDs
+    ) {
+    case .applySelection:
+      selectTab(tabID, modifiers: modifiers, content: content)
+      return (
+        content.context.tabSelectionState.contextualTabIDs(
+          for: tabID,
+          primaryTabID: content.selectedTabID,
+          outline: content.outline
+        ),
+        false
+      )
+    case .deferSelection(let selectedTabIDs):
+      return (selectedTabIDs, true)
+    }
+  }
+
+  static func resolveDeferred(
+    _ pendingDrag: TerminalSidebarPendingDrag,
+    content: TerminalSidebarDragContent
+  ) {
+    guard pendingDrag.defersSelection, case .tab(let tabID) = pendingDrag.entryID else { return }
+    selectTab(tabID, modifiers: [], content: content)
+  }
+
+  static func selectTab(
+    _ tabID: TerminalTabID,
+    modifiers: NSEvent.ModifierFlags,
+    content: TerminalSidebarDragContent
+  ) {
+    let modifiers = modifiers.intersection([.command, .shift])
+    guard !modifiers.isEmpty else {
+      content.context.tabSelectionState.clear()
+      content.context.terminal.selectTab(tabID)
+      return
+    }
+    guard let selectedTabID = content.selectedTabID else {
+      content.context.tabSelectionState.clear()
+      content.context.terminal.selectTab(tabID)
+      return
+    }
+    if modifiers.contains(.shift) {
+      content.context.tabSelectionState.selectRange(
+        to: tabID,
+        primaryTabID: selectedTabID,
+        outline: content.outline,
+        additive: modifiers.contains(.command)
+      )
+    } else {
+      content.context.tabSelectionState.toggle(tabID, primaryTabID: selectedTabID)
+    }
   }
 }
 

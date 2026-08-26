@@ -250,17 +250,25 @@ struct TerminalSidebarDragPayload: Equatable {
   }
 }
 
-enum TerminalSidebarRootTargetAffinity: Hashable {
-  case before
-  case after
+enum TerminalSidebarRootLane: Hashable {
+  case pinned
+  case regular
+
+  init(isPinned: Bool) {
+    self = isPinned ? .pinned : .regular
+  }
+
+  var isPinned: Bool {
+    self == .pinned
+  }
 }
 
 enum TerminalSidebarSemanticPath: Hashable {
-  case rootItem(index: Int)
-  case rootBoundary(index: Int, affinity: TerminalSidebarRootTargetAffinity)
-  case group(TerminalTabGroupID, index: Int)
-  case pinnedEnd
-  case trailingRoot
+  case rootItem(lane: TerminalSidebarRootLane, index: Int, id: TerminalTabRootItemID)
+  case rootBoundary(lane: TerminalSidebarRootLane, index: Int)
+  case groupEntry(TerminalTabGroupID)
+  case groupItem(TerminalTabGroupID, index: Int, id: TerminalTabID)
+  case groupBoundary(TerminalTabGroupID, index: Int)
 }
 
 struct TerminalSidebarSemanticTarget: Equatable {
@@ -300,8 +308,8 @@ struct TerminalSidebarDropPlan: Equatable {
   }
 
   var highlightedGroupID: TerminalTabGroupID? {
-    guard case .rootItem = path else { return nil }
-    return destinationGroupID
+    guard case .groupEntry(let groupID) = path else { return nil }
+    return groupID
   }
 
   func command(for payload: TerminalSidebarDragPayload) -> TerminalSidebarDropCommand? {
@@ -326,8 +334,22 @@ struct TerminalSidebarDropPlan: Equatable {
 }
 
 struct TerminalSidebarDragDropState: Equatable {
+  let source: TerminalSidebarDragSource
   let draggingItemIDs: [TerminalSidebarEntryID]
   let target: TerminalSidebarDropPlan?
+  let dropGapHeight: CGFloat?
+
+  init(
+    source: TerminalSidebarDragSource,
+    draggingItemIDs: [TerminalSidebarEntryID],
+    target: TerminalSidebarDropPlan?,
+    dropGapHeight: CGFloat? = nil
+  ) {
+    self.source = source
+    self.draggingItemIDs = draggingItemIDs
+    self.target = target
+    self.dropGapHeight = dropGapHeight
+  }
 }
 
 struct TerminalSidebarDropResolution: Equatable {
@@ -376,38 +398,31 @@ enum TerminalSidebarDropPlanner {
   ) -> TerminalSidebarDropPlan? {
     guard payload.topologyStamp == outline.topologyStamp else { return nil }
     switch path {
-    case .rootItem(let index):
-      return rootItemPlan(payload: payload, index: index, outline: outline)
-    case .rootBoundary(let index, let affinity):
-      return rootBoundaryPlan(
+    case .rootItem(let lane, let index, let id):
+      return rootItemPlan(
         payload: payload,
+        lane: lane,
         index: index,
-        affinity: affinity,
+        id: id,
         outline: outline
       )
-    case .group(let groupID, let index):
-      return groupPlan(payload: payload, groupID: groupID, index: index, outline: outline)
-    case .pinnedEnd:
-      let roots = reducedRoots(payload: payload, outline: outline)
-      let firstRegular = roots.first(where: { !$0.isPinned })?.entryID
-      return rejectingNoOp(
-        TerminalSidebarDropPlan(
-          path: path,
-          destination: .root(isPinned: true, index: roots.prefix { $0.isPinned }.count),
-          placeholder: firstRegular.map(TerminalSidebarDropPlaceholder.before) ?? .beforeFooter
-        ),
+    case .rootBoundary(let lane, let index):
+      return rootBoundaryPlan(payload: payload, lane: lane, index: index, outline: outline)
+    case .groupEntry(let groupID):
+      return groupEntryPlan(payload: payload, groupID: groupID, outline: outline)
+    case .groupItem(let groupID, let index, let id):
+      return groupItemPlan(
         payload: payload,
+        groupID: groupID,
+        index: index,
+        id: id,
         outline: outline
       )
-    case .trailingRoot:
-      let roots = reducedRoots(payload: payload, outline: outline)
-      return rejectingNoOp(
-        TerminalSidebarDropPlan(
-          path: path,
-          destination: .root(isPinned: false, index: roots.count { !$0.isPinned }),
-          placeholder: .beforeFooter
-        ),
+    case .groupBoundary(let groupID, let index):
+      return groupBoundaryPlan(
         payload: payload,
+        groupID: groupID,
+        index: index,
         outline: outline
       )
     }
@@ -415,33 +430,42 @@ enum TerminalSidebarDropPlanner {
 
   private static func rootItemPlan(
     payload: TerminalSidebarDragPayload,
+    lane: TerminalSidebarRootLane,
     index: Int,
+    id: TerminalTabRootItemID,
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
-    guard outline.roots.indices.contains(index) else { return nil }
-    let target = outline.roots[index]
-    if case .tabs(let sourceIDs) = payload.source,
-      case .group(let groupID, _, _, let tabIDs) = target.content
-    {
-      let selected = Set(sourceIDs)
-      return rejectingNoOp(
-        TerminalSidebarDropPlan(
-          path: .rootItem(index: index),
-          destination: .group(groupID, index: tabIDs.count { !selected.contains($0) }),
-          placeholder: .groupEnd(groupID)
-        ),
-        payload: payload,
-        outline: outline
-      )
+    let original = outline.roots.filter { $0.isPinned == lane.isPinned }
+    guard original.indices.contains(index), original[index].id == id else { return nil }
+    guard !payload.source.itemIDs.contains(id) else { return nil }
+    let path = TerminalSidebarSemanticPath.rootItem(lane: lane, index: index, id: id)
+
+    if case .tabs = payload.source, case .group = original[index].content {
+      return nil
     }
 
-    return rejectingNoOp(
-      rootInsertionPlan(
+    let reduced = reducedRoots(payload: payload, outline: outline)
+    let reducedLane = reduced.filter { $0.isPinned == lane.isPinned }
+    guard let candidateIndex = reducedLane.firstIndex(where: { $0.id == id }) else {
+      return nil
+    }
+    guard
+      let insertionOffset = itemCandidateInsertionOffset(
         payload: payload,
-        path: .rootItem(index: index),
-        target: target,
-        boundary: index,
+        candidateID: original[index].entryID,
         outline: outline
+      )
+    else { return nil }
+    let destinationIndex = candidateIndex + insertionOffset
+    return rejectingNoOp(
+      TerminalSidebarDropPlan(
+        path: path,
+        destination: .root(isPinned: lane.isPinned, index: destinationIndex),
+        placeholder: rootPlaceholder(
+          lane: lane,
+          index: destinationIndex,
+          reducedRoots: reduced
+        )
       ),
       payload: payload,
       outline: outline
@@ -450,67 +474,136 @@ enum TerminalSidebarDropPlanner {
 
   private static func rootBoundaryPlan(
     payload: TerminalSidebarDragPayload,
+    lane: TerminalSidebarRootLane,
     index: Int,
-    affinity: TerminalSidebarRootTargetAffinity,
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
-    guard outline.roots.indices.contains(index) else { return nil }
-    let target = outline.roots[index]
+    let original = outline.roots.filter { $0.isPinned == lane.isPinned }
+    guard (0...original.count).contains(index) else { return nil }
+    let reduced = reducedRoots(payload: payload, outline: outline)
+    let reducedLane = reduced.filter { $0.isPinned == lane.isPinned }
+    let survivingIDs = Set(reducedLane.map(\.id))
+    let destinationIndex = original.prefix(index).count { survivingIDs.contains($0.id) }
     return rejectingNoOp(
-      rootInsertionPlan(
-        payload: payload,
-        path: .rootBoundary(index: index, affinity: affinity),
-        target: target,
-        boundary: index + (affinity == .after ? 1 : 0),
-        outline: outline
+      TerminalSidebarDropPlan(
+        path: .rootBoundary(lane: lane, index: index),
+        destination: .root(isPinned: lane.isPinned, index: destinationIndex),
+        placeholder: rootPlaceholder(
+          lane: lane,
+          index: destinationIndex,
+          reducedRoots: reduced
+        )
       ),
       payload: payload,
       outline: outline
     )
   }
 
-  private static func rootInsertionPlan(
+  private static func groupEntryPlan(
     payload: TerminalSidebarDragPayload,
-    path: TerminalSidebarSemanticPath,
-    target: TerminalSidebarOutline.Root,
-    boundary: Int,
+    groupID: TerminalTabGroupID,
     outline: TerminalSidebarOutline
-  ) -> TerminalSidebarDropPlan {
-    let reduced = reducedRoots(payload: payload, outline: outline)
-    let destinationIndex = outline.roots[..<boundary].count { root in
-      root.isPinned == target.isPinned && reduced.contains { $0.id == root.id }
-    }
-    return TerminalSidebarDropPlan(
-      path: path,
-      destination: .root(isPinned: target.isPinned, index: destinationIndex),
-      placeholder: rootPlaceholder(
-        boundary: boundary,
-        isPinned: target.isPinned,
-        reducedRoots: reduced,
-        outline: outline
-      )
+  ) -> TerminalSidebarDropPlan? {
+    guard outline.group(groupID) != nil else { return nil }
+    return groupPlan(
+      payload: payload,
+      path: .groupEntry(groupID),
+      groupID: groupID,
+      destinationIndex: 0,
+      outline: outline
     )
   }
 
-  private static func groupPlan(
+  private static func groupItemPlan(
+    payload: TerminalSidebarDragPayload,
+    groupID: TerminalTabGroupID,
+    index: Int,
+    id: TerminalTabID,
+    outline: TerminalSidebarOutline
+  ) -> TerminalSidebarDropPlan? {
+    guard case .tabs(let sourceIDs) = payload.source else { return nil }
+    let original = outline.tabIDs(in: groupID)
+    guard original.indices.contains(index), original[index] == id else { return nil }
+    guard !sourceIDs.contains(id) else { return nil }
+    let reduced = original.filter { !sourceIDs.contains($0) }
+    guard let candidateIndex = reduced.firstIndex(of: id) else { return nil }
+    guard
+      let insertionOffset = itemCandidateInsertionOffset(
+        payload: payload,
+        candidateID: .tab(id),
+        outline: outline
+      )
+    else { return nil }
+    return groupPlan(
+      payload: payload,
+      path: .groupItem(groupID, index: index, id: id),
+      groupID: groupID,
+      destinationIndex: candidateIndex + insertionOffset,
+      outline: outline
+    )
+  }
+
+  private static func itemCandidateInsertionOffset(
+    payload: TerminalSidebarDragPayload,
+    candidateID: TerminalSidebarEntryID,
+    outline: TerminalSidebarOutline
+  ) -> Int? {
+    let visibleIDs = outline.visibleEntries.map(\.id)
+    guard let candidateIndex = visibleIDs.firstIndex(of: candidateID) else { return nil }
+    let sourceIDs = payload.source.itemIDs.map { itemID in
+      switch itemID {
+      case .tab(let tabID): TerminalSidebarEntryID.tab(tabID)
+      case .group(let groupID): TerminalSidebarEntryID.group(groupID)
+      }
+    }
+    let sourceIndices = sourceIDs.compactMap { visibleIDs.firstIndex(of: $0) }
+    guard !sourceIndices.isEmpty else { return 0 }
+    guard sourceIndices.count == sourceIDs.count else { return nil }
+    if sourceIndices.allSatisfy({ $0 < candidateIndex }) { return 1 }
+    if sourceIndices.allSatisfy({ $0 > candidateIndex }) { return 0 }
+    return nil
+  }
+
+  private static func groupBoundaryPlan(
     payload: TerminalSidebarDragPayload,
     groupID: TerminalTabGroupID,
     index: Int,
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
     guard case .tabs(let sourceIDs) = payload.source else { return nil }
+    guard outline.group(groupID) != nil else { return nil }
     let original = outline.tabIDs(in: groupID)
     guard (0...original.count).contains(index) else { return nil }
     let selected = Set(sourceIDs)
-    let reduced = original.filter { !selected.contains($0) }
     let destinationIndex = original.prefix(index).count { !selected.contains($0) }
+    return groupPlan(
+      payload: payload,
+      path: .groupBoundary(groupID, index: index),
+      groupID: groupID,
+      destinationIndex: destinationIndex,
+      outline: outline
+    )
+  }
+
+  private static func groupPlan(
+    payload: TerminalSidebarDragPayload,
+    path: TerminalSidebarSemanticPath,
+    groupID: TerminalTabGroupID,
+    destinationIndex: Int,
+    outline: TerminalSidebarOutline
+  ) -> TerminalSidebarDropPlan? {
+    guard case .tabs(let sourceIDs) = payload.source else { return nil }
+    guard outline.group(groupID) != nil else { return nil }
+    let selected = Set(sourceIDs)
+    let reduced = outline.tabIDs(in: groupID).filter { !selected.contains($0) }
+    guard (0...reduced.count).contains(destinationIndex) else { return nil }
     let placeholder =
       reduced.indices.contains(destinationIndex)
       ? TerminalSidebarDropPlaceholder.before(.tab(reduced[destinationIndex]))
       : .groupEnd(groupID)
     return rejectingNoOp(
       TerminalSidebarDropPlan(
-        path: .group(groupID, index: index),
+        path: path,
         destination: .group(groupID, index: destinationIndex),
         placeholder: placeholder
       ),
@@ -520,18 +613,15 @@ enum TerminalSidebarDropPlanner {
   }
 
   private static func rootPlaceholder(
-    boundary: Int,
-    isPinned: Bool,
-    reducedRoots: [TerminalSidebarOutline.Root],
-    outline: TerminalSidebarOutline
+    lane: TerminalSidebarRootLane,
+    index: Int,
+    reducedRoots: [TerminalSidebarOutline.Root]
   ) -> TerminalSidebarDropPlaceholder {
-    let survivingIDs = Set(reducedRoots.map(\.id))
-    if let next = outline.roots.dropFirst(boundary).first(where: {
-      $0.isPinned == isPinned && survivingIDs.contains($0.id)
-    }) {
-      return .before(next.entryID)
+    let reducedLane = reducedRoots.filter { $0.isPinned == lane.isPinned }
+    if reducedLane.indices.contains(index) {
+      return .before(reducedLane[index].entryID)
     }
-    if isPinned, let firstRegular = reducedRoots.first(where: { !$0.isPinned }) {
+    if lane == .pinned, let firstRegular = reducedRoots.first(where: { !$0.isPinned }) {
       return .before(firstRegular.entryID)
     }
     return .beforeFooter

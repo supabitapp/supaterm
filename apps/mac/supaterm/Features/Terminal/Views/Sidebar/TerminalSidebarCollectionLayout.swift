@@ -3,37 +3,6 @@ import AppKit
 struct TerminalSidebarDropTargetMap: Equatable {
   let targets: [TerminalSidebarSemanticTarget]
 
-  init(targets: [TerminalSidebarSemanticTarget]) {
-    self.targets = targets
-  }
-
-  init(plan: TerminalSidebarLayoutPlan, activePath: TerminalSidebarSemanticPath?) {
-    guard
-      let activePath,
-      let placeholder = plan.dropPlaceholderFrame,
-      let activeIndex = plan.semanticTargets.firstIndex(where: { $0.path == activePath })
-    else {
-      targets = plan.semanticTargets
-      return
-    }
-    let active = plan.semanticTargets[activeIndex]
-    let verticalDistance = max(
-      active.frame.minY - placeholder.maxY,
-      placeholder.minY - active.frame.maxY,
-      0
-    )
-    guard verticalDistance <= TerminalSidebarLayoutPlan.rootSpacing else {
-      targets = plan.semanticTargets
-      return
-    }
-    var targets = plan.semanticTargets
-    targets[activeIndex] = TerminalSidebarSemanticTarget(
-      path: active.path,
-      frame: active.frame.union(placeholder)
-    )
-    self.targets = targets
-  }
-
   func semanticTarget(at pointerY: CGFloat) -> TerminalSidebarSemanticTarget? {
     targets.first { target in
       pointerY >= target.frame.minY && pointerY < target.frame.maxY
@@ -196,10 +165,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
       finishTransition()
       plan = targetPlan
     }
-    dropTargetMap = TerminalSidebarDropTargetMap(
-      plan: plan,
-      activePath: dragDropState?.target?.path
-    )
+    dropTargetMap = TerminalSidebarDropTargetMap(targets: targetPlan.semanticTargets)
     let itemCount =
       collectionView.numberOfSections > 0
       ? collectionView.numberOfItems(inSection: 0)

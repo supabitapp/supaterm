@@ -31,6 +31,7 @@ final class TerminalSidebarDragPresentation {
     let accepted: Bool
     let motionPolicy: TerminalSidebarMotionPolicy
     let rippleCandidates: [RippleCandidate]
+    let rippleVisibleSpan: CGFloat
   }
 
   private weak var collectionView: NSCollectionView?
@@ -152,7 +153,8 @@ final class TerminalSidebarDragPresentation {
     if settlement.accepted, settlement.motionPolicy.ripple {
       applyDropRipple(
         candidates: settlement.rippleCandidates,
-        focusFrame: settlement.rippleFocusFrame
+        focusFrame: settlement.rippleFocusFrame,
+        visibleSpan: settlement.rippleVisibleSpan
       )
     }
     let destination = TerminalSidebarLiveDragGeometry.settlementPosition(
@@ -160,6 +162,7 @@ final class TerminalSidebarDragPresentation {
       currentFrame: liveView.frame,
       targetFrame: settlement.targetFrame
     )
+    liveView.restoreShadow()
     let animatesSettlement =
       settlement.accepted
       ? settlement.motionPolicy.acceptedArc
@@ -192,19 +195,9 @@ final class TerminalSidebarDragPresentation {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     layer.position = destination
-    let translation =
-      (layer.presentation()?.value(forKeyPath: "transform.translation.y") as? NSNumber).map {
-        CGFloat(truncating: $0)
-      }
-      ?? -2
-    layer.setValue(0, forKeyPath: "transform.translation.y")
     CATransaction.setCompletionBlock {
       Task { @MainActor in completion() }
     }
-    layer.add(
-      TerminalSidebarTransformSpring.animation(from: translation, to: 0),
-      forKey: "settleLift"
-    )
     layer.add(
       positionAnimation,
       forKey: settlement.accepted ? "acceptedDrop" : "cancelledDrop"
@@ -222,8 +215,12 @@ final class TerminalSidebarDragPresentation {
     hapticTracker.reset()
   }
 
-  private func applyDropRipple(candidates: [RippleCandidate], focusFrame: CGRect) {
-    guard focusFrame.height > 0, candidates.count >= 5 else { return }
+  private func applyDropRipple(
+    candidates: [RippleCandidate],
+    focusFrame: CGRect,
+    visibleSpan: CGFloat
+  ) {
+    guard visibleSpan > 0, candidates.count >= 5 else { return }
     for candidate in candidates {
       let distance: CGFloat
       if candidate.frame.midY < focusFrame.minY {
@@ -236,7 +233,7 @@ final class TerminalSidebarDragPresentation {
       guard
         let scaleDelta = TerminalSidebarDropRipple.scaleDelta(
           distance: distance,
-          focusSpan: focusFrame.height
+          visibleSpan: visibleSpan
         )
       else { continue }
       candidate.layer.add(
@@ -299,6 +296,10 @@ struct TerminalSidebarLiftedSelectionSurface {
 
 @MainActor
 private final class TerminalSidebarLiveDragView: NSView {
+  private static let restingShadowOpacity: Float = 0.22
+  private static let restingShadowRadius: CGFloat = 8
+  private static let restingShadowOffset = CGSize(width: 0, height: -2)
+
   private let rows: [TerminalSidebarLiftedRow]
   private let groupBackground: TerminalSidebarLiftedGroupBackground?
   let sourceFrame: CGRect
@@ -318,9 +319,9 @@ private final class TerminalSidebarLiveDragView: NSView {
     wantsLayer = true
     layer?.zPosition = 200
     layer?.shadowColor = NSColor.black.cgColor
-    layer?.shadowOpacity = 0.22
-    layer?.shadowRadius = 8
-    layer?.shadowOffset = CGSize(width: 0, height: -2)
+    layer?.shadowOpacity = Self.restingShadowOpacity
+    layer?.shadowRadius = Self.restingShadowRadius
+    layer?.shadowOffset = Self.restingShadowOffset
     layer?.opacity = 0.96
     groupBackground?.install(in: self, relativeTo: frame)
     let fanSpacing = fanAnchorIndex.map { _ in
@@ -363,8 +364,17 @@ private final class TerminalSidebarLiveDragView: NSView {
 
   func lift() {
     guard let layer else { return }
-    layer.setValue(-2, forKeyPath: "transform.translation.y")
-    layer.add(TerminalSidebarTransformSpring.animation(from: 0, to: -2), forKey: "lift")
+    TerminalSidebarDragShadowMotion.lift(layer)
+  }
+
+  func restoreShadow() {
+    guard let layer else { return }
+    TerminalSidebarDragShadowMotion.restore(
+      layer,
+      opacity: Self.restingShadowOpacity,
+      radius: Self.restingShadowRadius,
+      offset: Self.restingShadowOffset
+    )
   }
 
   func finish(

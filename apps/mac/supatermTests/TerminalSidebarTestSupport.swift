@@ -41,10 +41,33 @@ enum TerminalSidebarTestFixture {
         ?? Dictionary(uniqueKeysWithValues: outline.visibleEntries.map { ($0.id, CGFloat(37)) }),
       dragDropState: draggingItemIDs.isEmpty
         ? nil
-        : TerminalSidebarDragDropState(draggingItemIDs: draggingItemIDs, target: target),
+        : TerminalSidebarDragDropState(
+          source: dragSource(for: draggingItemIDs),
+          draggingItemIDs: draggingItemIDs,
+          target: target
+        ),
       width: width,
       viewportHeight: viewportHeight
     )
+  }
+
+  private static func dragSource(
+    for entryIDs: [TerminalSidebarEntryID]
+  ) -> TerminalSidebarDragSource {
+    guard let first = entryIDs.first else { preconditionFailure("Missing drag source") }
+    switch first {
+    case .tab:
+      let tabIDs = entryIDs.compactMap { entryID -> TerminalTabID? in
+        guard case .tab(let id) = entryID else { return nil }
+        return id
+      }
+      precondition(tabIDs.count == entryIDs.count)
+      return .tabs(tabIDs)
+    case .group(let id):
+      return .group(id)
+    case .pinDivider, .newTab:
+      preconditionFailure("Invalid drag source")
+    }
   }
 
   static func payload(
@@ -88,15 +111,21 @@ enum TerminalSidebarTestFixture {
   ) -> TerminalSidebarDragCoordinator {
     let payload = payload(source: source, revision: sourceRevision)
     let dropDestination: TerminalSidebarDropDestination
+    let path: TerminalSidebarSemanticPath
     switch destination {
     case .root(let placement):
       dropDestination = .root(isPinned: placement.isPinned, index: placement.index)
+      path = .rootBoundary(
+        lane: TerminalSidebarRootLane(isPinned: placement.isPinned),
+        index: placement.index
+      )
     case .group(let groupID, let index):
       dropDestination = .group(groupID, index: index)
+      path = .groupBoundary(groupID, index: index)
     }
     var coordinator = TerminalSidebarDragCoordinator(payload: payload)
     let plan = TerminalSidebarDropPlan(
-      path: .trailingRoot,
+      path: path,
       destination: dropDestination,
       placeholder: .beforeFooter
     )
@@ -136,7 +165,8 @@ final class TerminalSidebarWindowHarness {
     )
     window.contentView = controller.view
     guard
-      let scrollView = controller.view.subviews.compactMap({ $0 as? TerminalSidebarScrollView }).first,
+      let scrollView = controller.view.subviews.compactMap({ $0 as? TerminalSidebarScrollView })
+        .first,
       let collectionView = scrollView.documentView as? TerminalSidebarCollectionView,
       let layout = collectionView.collectionViewLayout as? TerminalSidebarCollectionLayout
     else {

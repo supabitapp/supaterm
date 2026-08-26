@@ -14,6 +14,22 @@ struct TerminalSidebarExternalDrop: Equatable {
   }
 }
 
+private struct TerminalSidebarExternalDropSession {
+  let payload: TerminalTabDragPayload
+  let topologyStamp: TerminalSidebarTopologyStamp
+  let dropGapHeight: CGFloat?
+  var dropTarget = TerminalSidebarDragTargetState.none
+
+  func command(in outline: TerminalSidebarOutline) -> TerminalSidebarDropCommand? {
+    guard case .accepted(let target) = dropTarget else { return nil }
+    return TerminalSidebarExternalDrop(
+      payload: payload,
+      topologyStamp: topologyStamp,
+      target: target
+    ).command(in: outline)
+  }
+}
+
 extension TerminalTabDragPayload {
   fileprivate func sidebarPayload(
     topologyStamp: TerminalSidebarTopologyStamp
@@ -47,14 +63,16 @@ final class TerminalSidebarExternalDropController {
     let windowControllerID: UUID
     let content: () -> TerminalSidebarDragController.Content?
     let updateAutoscroll: (CGFloat) -> Void
+    let stopAutoscroll: () -> Void
     let invalidateLayout: () -> Void
     let updateHapticTarget: (TerminalSidebarSemanticPath?) -> Void
     let resetHapticTarget: () -> Void
+    let didClear: () -> Void
   }
 
-  var isActive: Bool { activeDrop != nil }
+  var isActive: Bool { activeSession != nil }
 
-  private var activeDrop: TerminalSidebarExternalDrop?
+  private var activeSession: TerminalSidebarExternalDropSession?
   private let configuration: Configuration
 
   init(configuration: Configuration) {
@@ -62,14 +80,21 @@ final class TerminalSidebarExternalDropController {
   }
 
   func update(_ info: any NSDraggingInfo, isPinnedTarget: Bool) -> NSDragOperation {
+    guard let payload = configuration.tabDragRegistry.resolve(info.draggingPasteboard) else {
+      clear()
+      return []
+    }
+    if let activeSession, activeSession.payload != payload {
+      clear()
+    }
     guard
       let content = configuration.content(),
-      let payload = configuration.tabDragRegistry.resolve(info.draggingPasteboard),
       let sidebarPayload = sidebarPayload(payload, in: content.outline)
     else {
       clear()
       return []
     }
+    beginSession(payload: payload, sidebarPayload: sidebarPayload)
     let path: TerminalSidebarSemanticPath?
     if isPinnedTarget {
       configuration.updateAutoscroll(
@@ -77,7 +102,10 @@ final class TerminalSidebarExternalDropController {
           in: configuration.collectionView.visibleRect
         )
       )
-      path = .trailingRoot
+      path = .rootBoundary(
+        lane: .regular,
+        index: content.outline.roots.count { !$0.isPinned }
+      )
     } else {
       let location = configuration.collectionView.convert(info.draggingLocation, from: nil)
       configuration.updateAutoscroll(location.y)
@@ -88,56 +116,42 @@ final class TerminalSidebarExternalDropController {
       path: path,
       outline: content.outline
     )
-    setTarget(payload: payload, sidebarPayload: sidebarPayload, resolution: resolution)
-    guard resolution.plan != nil else { return [] }
+    guard updateTarget(payload: payload, sidebarPayload: sidebarPayload, resolution: resolution)
+    else {
+      return []
+    }
     info.numberOfValidItemsForDrop = 1
     return .move
   }
 
   func matches(_ info: any NSDraggingInfo) -> Bool {
     guard
-      let activeDrop,
-      configuration.tabDragRegistry.resolve(info.draggingPasteboard) == activeDrop.payload
+      let activeSession,
+      activeSession.dropTarget.acceptsDrop,
+      configuration.tabDragRegistry.resolve(info.draggingPasteboard) == activeSession.payload
     else { return false }
     return true
   }
 
-  func updateAfterAutoscroll(pointerY: CGFloat, isPinnedTarget: Bool) {
-    guard
-      let activeDrop,
-      let content = configuration.content(),
-      let sidebarPayload = activeDrop.payload.sidebarPayload(
-        topologyStamp: activeDrop.topologyStamp
-      )
-    else { return }
-    let path =
-      isPinnedTarget
-      ? TerminalSidebarSemanticPath.trailingRoot
-      : configuration.collectionLayout.dropTargetMap.semanticTarget(at: pointerY)?.path
-    let resolution = TerminalSidebarDropResolution(
-      payload: sidebarPayload,
-      path: path,
-      outline: content.outline
-    )
-    setTarget(
-      payload: activeDrop.payload,
-      sidebarPayload: sidebarPayload,
-      resolution: resolution
-    )
+  func prepare(_ info: any NSDraggingInfo) -> Bool {
+    guard matches(info) else { return false }
+    configuration.stopAutoscroll()
+    return true
   }
 
   func perform(_ info: any NSDraggingInfo) -> Bool {
     guard
-      let activeDrop,
-      configuration.tabDragRegistry.resolve(info.draggingPasteboard) == activeDrop.payload
+      let activeSession,
+      activeSession.dropTarget.acceptsDrop,
+      configuration.tabDragRegistry.resolve(info.draggingPasteboard) == activeSession.payload
     else { return false }
     defer { clear() }
     guard
       let outline = configuration.content()?.outline,
-      let command = activeDrop.command(in: outline)
+      let command = activeSession.command(in: outline)
     else { return false }
     let result = configuration.tabDragRegistry.performTransfer(
-      activeDrop.payload,
+      activeSession.payload,
       to: TerminalTabDragRegistry.Destination(
         windowControllerID: configuration.windowControllerID,
         spaceID: command.topologyStamp.spaceID,
@@ -149,11 +163,13 @@ final class TerminalSidebarExternalDropController {
   }
 
   func clear() {
-    let hadTarget = activeDrop != nil
-    activeDrop = nil
-    if hadTarget {
+    let hadSession = activeSession != nil
+    configuration.stopAutoscroll()
+    activeSession = nil
+    if hadSession {
       configuration.collectionLayout.dragDropState = nil
-      configuration.invalidateLayout()
+      refreshLayout()
+      configuration.didClear()
     }
     configuration.resetHapticTarget()
   }
@@ -166,35 +182,69 @@ final class TerminalSidebarExternalDropController {
     return payload.sidebarPayload(topologyStamp: topologyStamp)
   }
 
-  private func setTarget(
+  func updateTarget(
     payload: TerminalTabDragPayload,
     sidebarPayload: TerminalSidebarDragPayload,
     resolution: TerminalSidebarDropResolution
-  ) {
-    configuration.updateHapticTarget(resolution.path)
-    guard let target = resolution.plan else {
-      clearTarget()
-      return
+  ) -> Bool {
+    beginSession(payload: payload, sidebarPayload: sidebarPayload)
+    guard var session = activeSession else { return false }
+
+    let decision = session.dropTarget.transition(TerminalSidebarDragTargetEvent(resolution))
+    switch decision.target {
+    case .retain, .unchanged:
+      activeSession = session
+    case .update(let target):
+      activeSession = session
+      configuration.collectionLayout.dragDropState = TerminalSidebarDragDropState(
+        source: sidebarPayload.source,
+        draggingItemIDs: entryIDs(for: sidebarPayload.source),
+        target: target,
+        dropGapHeight: session.dropGapHeight
+      )
+      refreshLayout()
+    case .clear:
+      activeSession = session
+      clear()
+      return false
     }
-    let next = TerminalSidebarExternalDrop(
-      payload: payload,
-      topologyStamp: sidebarPayload.topologyStamp,
-      target: target
-    )
-    guard activeDrop != next else { return }
-    activeDrop = next
-    configuration.collectionLayout.dragDropState = TerminalSidebarDragDropState(
-      draggingItemIDs: entryIDs(for: sidebarPayload.source),
-      target: target
-    )
-    configuration.invalidateLayout()
+    switch decision.haptic {
+    case .none: break
+    case .update(let path): configuration.updateHapticTarget(path)
+    case .reset: configuration.resetHapticTarget()
+    }
+    return session.dropTarget.acceptsDrop
   }
 
-  private func clearTarget() {
-    guard activeDrop != nil else { return }
-    activeDrop = nil
-    configuration.collectionLayout.dragDropState = nil
+  private func beginSession(
+    payload: TerminalTabDragPayload,
+    sidebarPayload: TerminalSidebarDragPayload
+  ) {
+    if let activeSession,
+      activeSession.payload != payload
+        || activeSession.topologyStamp != sidebarPayload.topologyStamp
+    {
+      clear()
+    }
+    guard activeSession == nil else { return }
+    let session = TerminalSidebarExternalDropSession(
+      payload: payload,
+      topologyStamp: sidebarPayload.topologyStamp,
+      dropGapHeight: configuration.tabDragRegistry.sidebarDropGapHeight(for: payload)
+    )
+    activeSession = session
+    configuration.collectionLayout.dragDropState = TerminalSidebarDragDropState(
+      source: sidebarPayload.source,
+      draggingItemIDs: entryIDs(for: sidebarPayload.source),
+      target: nil,
+      dropGapHeight: session.dropGapHeight
+    )
+    refreshLayout()
+  }
+
+  private func refreshLayout() {
     configuration.invalidateLayout()
+    configuration.collectionLayout.prepare()
   }
 
   private func entryIDs(for source: TerminalSidebarDragSource) -> [TerminalSidebarEntryID] {

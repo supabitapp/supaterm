@@ -339,7 +339,7 @@ struct TerminalSidebarMotionTests {
     #expect(
       motion.positions == [
         .zero,
-        CGPoint(x: 10, y: 6),
+        CGPoint(x: 10, y: -4),
         CGPoint(x: 20, y: 20),
         CGPoint(x: 20, y: 21),
         CGPoint(x: 20, y: 20),
@@ -351,91 +351,173 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func autoscrollTravelsTheSameDistanceAtSixtyAndOneTwentyHertz() {
-    let distanceAt60 = (0..<60).reduce(CGFloat.zero) { total, _ in
-      total + TerminalSidebarAutoscrollBehavior.distance(outwardDelta: 4, elapsed: 1 / 60)
-    }
-    let distanceAt120 = (0..<120).reduce(CGFloat.zero) { total, _ in
-      total + TerminalSidebarAutoscrollBehavior.distance(outwardDelta: 4, elapsed: 1 / 120)
-    }
+  func acceptedDropArcUsesTheRecoveredBaseAndCap() {
+    let start = CGPoint(x: 0, y: 10)
+    let destination = CGPoint(x: 20, y: 20)
+    let stationary = TerminalSidebarDropMotion.path(
+      start: start,
+      destination: destination,
+      velocity: .zero
+    )
+    let fast = TerminalSidebarDropMotion.path(
+      start: start,
+      destination: destination,
+      velocity: CGVector(dx: 2_000, dy: 0)
+    )
+    let reversed = TerminalSidebarDropMotion.path(
+      start: destination,
+      destination: start,
+      velocity: .zero
+    )
 
-    #expect(distanceAt60 == 480)
-    #expect(distanceAt120 == 480)
+    #expect(stationary.positions[1] == CGPoint(x: 10, y: 8))
+    #expect(fast.positions[1] == CGPoint(x: 10, y: 5))
+    #expect(reversed.positions[1] == CGPoint(x: 10, y: 8))
   }
 
   @Test
-  func autoscrollUsesTargetIntervalFirstCapsStallsAndResets() {
-    var timing = TerminalSidebarAutoscrollTiming()
-    let oneTwentyInterval = TimeInterval(1.0 / 120.0)
-    let sixtyInterval = TimeInterval(1.0 / 60.0)
-    let first = timing.interval(timestamp: 1, targetTimestamp: 1 + oneTwentyInterval)
-    let second = timing.interval(timestamp: 1 + oneTwentyInterval, targetTimestamp: 2)
-
-    #expect(abs(first - oneTwentyInterval) < 0.000_000_001)
-    #expect(abs(second - oneTwentyInterval) < 0.000_000_001)
-    #expect(TerminalSidebarAutoscrollBehavior.distance(outwardDelta: 4, elapsed: 1) == 16)
-    #expect(TerminalSidebarAutoscrollBehavior.distance(outwardDelta: 0, elapsed: 1 / 60) == 1)
-    #expect(TerminalSidebarAutoscrollBehavior.distance(outwardDelta: -4, elapsed: 1 / 60) == 1)
-    timing.reset()
-    let reset = timing.interval(timestamp: 3, targetTimestamp: 3 + sixtyInterval)
-    #expect(abs(reset - sixtyInterval) < 0.000_000_001)
-  }
-
-  @Test
-  func autoscrollEdgesAndBoundsStayExact() {
-    let visible = CGRect(x: 0, y: 100, width: 220, height: 300)
-    let compact = CGRect(x: 0, y: 100, width: 220, height: 200)
-
-    #expect(TerminalSidebarAutoscrollBehavior.edgeSize == 60)
-    #expect(TerminalSidebarAutoscrollBehavior.activationDelay == 0.25)
-    #expect(TerminalSidebarAutoscrollBehavior.directionTolerance == 20)
-    #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: 160, visibleRect: visible) == .up)
+  func standardLayoutCurveUsesTheRecoveredBezier() {
     #expect(
-      TerminalSidebarAutoscrollBehavior.direction(pointerY: 340, visibleRect: visible) == .down
+      TerminalSidebarAnimationCurve.standard(from: 0, to: 1, elapsed: -1, duration: 1) == 0
     )
-    #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: 160.1, visibleRect: visible) == nil)
-    #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: 99, visibleRect: visible) == nil)
-    #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: 120, visibleRect: compact) == nil)
+    #expect(
+      abs(
+        TerminalSidebarAnimationCurve.standard(from: 0, to: 1, elapsed: 0.5, duration: 1)
+          - 0.771_323_562_246_470
+      ) < 0.000_1
+    )
+    #expect(
+      TerminalSidebarAnimationCurve.standard(from: 0, to: 1, elapsed: 2, duration: 1) == 1
+    )
   }
 
   @Test
-  func pinnedNewTabRoutesToBottomAutoscrollAndTrailingRootDrop() throws {
-    let source = TerminalTabID()
-    let target = TerminalTabID()
-    let outline = TerminalSidebarTestFixture.outline(
-      roots: [
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
-        TerminalSidebarOutline.Root(content: .tab(target), isPinned: false),
-      ],
-      revision: 2
+  func collapseVisibilityUsesRecoveredHeightAndAlphaCurves() {
+    let before = TerminalSidebarCollapseMotion.visibility(elapsed: 0, delay: 0.1)
+    let quarter = TerminalSidebarCollapseMotion.visibility(
+      elapsed: TerminalSidebarCollapseMotion.rowDuration * 0.25,
+      delay: 0
     )
-    let payload = try #require(outline.dragPayload(for: .tab(source)))
-    let visibleRect = CGRect(x: 0, y: 100, width: 220, height: 300)
-    let pointerY = TerminalSidebarPinnedDropRouting.autoscrollPointerY(in: visibleRect)
-    let resolution = TerminalSidebarDropResolution(
-      payload: payload,
-      path: .trailingRoot,
-      outline: outline
+    let middle = TerminalSidebarCollapseMotion.visibility(
+      elapsed: TerminalSidebarCollapseMotion.rowDuration * 0.5,
+      delay: 0
     )
+    let threeQuarter = TerminalSidebarCollapseMotion.visibility(
+      elapsed: TerminalSidebarCollapseMotion.rowDuration * 0.75,
+      delay: 0
+    )
+    let after = TerminalSidebarCollapseMotion.visibility(elapsed: 1, delay: 0)
 
-    #expect(pointerY == visibleRect.maxY)
-    #expect(TerminalSidebarAutoscrollBehavior.direction(pointerY: pointerY, visibleRect: visibleRect) == .down)
-    #expect(resolution.path == .trailingRoot)
-    #expect(resolution.plan?.destination == .root(isPinned: false, index: 1))
-    #expect(resolution.plan?.placeholder == .beforeFooter)
+    #expect(before == .visible)
+    #expect(quarter == TerminalSidebarLayoutPlan.Visibility(height: 0.9375, alpha: 0.5))
+    #expect(middle == TerminalSidebarLayoutPlan.Visibility(height: 0.5, alpha: 0))
+    #expect(abs(threeQuarter.height - 0.0625) < 0.000_000_001)
+    #expect(threeQuarter.alpha == 0)
+    #expect(after == TerminalSidebarLayoutPlan.Visibility(height: 0, alpha: 0))
   }
 
   @Test @MainActor
-  func liftAndSettlementUseTheSameSpring() throws {
-    let lift = TerminalSidebarTransformSpring.animation(from: 0, to: -2)
-    let settlement = TerminalSidebarTransformSpring.animation(from: -2, to: 0)
+  func cancelledDropUsesTheConfiguredPositionSpring() throws {
+    let animation = TerminalSidebarTransformSpring.positionAnimation(
+      from: .zero,
+      to: CGPoint(x: 10, y: 20)
+    )
 
-    #expect(try #require(lift.fromValue as? NSNumber) == 0)
-    #expect(try #require(lift.toValue as? NSNumber) == -2)
-    #expect(try #require(settlement.fromValue as? NSNumber) == -2)
-    #expect(try #require(settlement.toValue as? NSNumber) == 0)
-    #expect(lift.stiffness == settlement.stiffness)
-    #expect(lift.damping == settlement.damping)
+    #expect(try #require(animation.fromValue as? NSValue).pointValue == .zero)
+    #expect(
+      try #require(animation.toValue as? NSValue).pointValue == CGPoint(x: 10, y: 20)
+    )
+    #expect(TerminalSidebarTransformSpring.dampingRatio == 0.65)
+    #expect(TerminalSidebarTransformSpring.response == 0.25)
+    #expect(animation.mass == 1)
+    #expect(animation.stiffness == TerminalSidebarTransformSpring.stiffness)
+    #expect(animation.damping == TerminalSidebarTransformSpring.damping)
+    #expect(animation.duration == TerminalSidebarTransformSpring.response)
+  }
+
+  @Test @MainActor
+  func dragLiftUsesTheRecoveredShadowTransition() throws {
+    let layer = CALayer()
+    layer.shadowOpacity = 0.22
+    layer.shadowRadius = 4
+    layer.shadowOffset = CGSize(width: 0, height: -2)
+
+    TerminalSidebarDragShadowMotion.lift(layer)
+
+    let animation = try #require(layer.animation(forKey: "liftShadow") as? CAAnimationGroup)
+    #expect(animation.duration == 0.2)
+    #expect(animation.animations?.count == 3)
+    #expect(layer.shadowOpacity == 0.3)
+    #expect(layer.shadowRadius == 8)
+    #expect(layer.shadowOffset == CGSize(width: 0, height: 4))
+
+    TerminalSidebarDragShadowMotion.restore(
+      layer,
+      opacity: 0.22,
+      radius: 4,
+      offset: CGSize(width: 0, height: -2)
+    )
+
+    #expect(layer.animation(forKey: "liftShadow") == nil)
+    #expect(layer.shadowOpacity == 0.22)
+    #expect(layer.shadowRadius == 4)
+    #expect(layer.shadowOffset == CGSize(width: 0, height: -2))
+  }
+
+  @Test @MainActor
+  func dropRippleStartsWithTheRecoveredUpwardTranslation() throws {
+    let full = TerminalSidebarDropRipple.animation(
+      scaleDelta: TerminalSidebarDropRipple.maximumScaleDelta,
+      center: .zero,
+      distance: 0
+    )
+    let half = TerminalSidebarDropRipple.animation(
+      scaleDelta: TerminalSidebarDropRipple.maximumScaleDelta / 2,
+      center: .zero,
+      distance: 0
+    )
+    let fullTransform = try #require(
+      (full.fromValue as? NSValue)?.caTransform3DValue
+    )
+    let halfTransform = try #require(
+      (half.fromValue as? NSValue)?.caTransform3DValue
+    )
+    let identity = try #require(
+      (full.toValue as? NSValue)?.caTransform3DValue
+    )
+
+    #expect(fullTransform.m42 == -2)
+    #expect(halfTransform.m42 == -1)
+    #expect(CATransform3DEqualToTransform(identity, CATransform3DIdentity))
+    #expect(full.isAdditive)
+    #expect(full.mass == 1)
+    #expect(full.stiffness == TerminalSidebarDropRipple.stiffness)
+    #expect(
+      full.damping
+        == 2
+        * sqrt(TerminalSidebarDropRipple.stiffness * full.mass)
+        * TerminalSidebarDropRipple.dampingRatio
+    )
+    #expect(full.duration == full.settlingDuration)
+  }
+
+  @Test
+  func dropRippleUsesTheFullVisibleLayoutSpan() {
+    let visibleSpan = TerminalSidebarDropRipple.visibleSpan(
+      frames: [
+        CGRect(x: 0, y: 20, width: 100, height: 30),
+        CGRect(x: 0, y: 90, width: 100, height: 50),
+      ]
+    )
+    let middle = TerminalSidebarDropRipple.scaleDelta(
+      distance: 30,
+      visibleSpan: visibleSpan
+    )
+
+    #expect(visibleSpan == 120)
+    #expect(TerminalSidebarDropRipple.scaleDelta(distance: 0, visibleSpan: visibleSpan) == 0.03)
+    #expect(abs((middle ?? 0) - 0.03 * exp(-1.5)) < 0.000_001)
+    #expect(TerminalSidebarDropRipple.scaleDelta(distance: 60, visibleSpan: visibleSpan) == nil)
   }
 
   @Test
@@ -449,8 +531,10 @@ struct TerminalSidebarMotionTests {
         containerFrame: container
       ) == CGRect(x: 12, y: 42, width: 200, height: 56)
     )
-    #expect(TerminalSidebarLiveDragGeometry.constrainedX(-100, frameWidth: 212, bounds: bounds) == 4)
-    #expect(TerminalSidebarLiveDragGeometry.constrainedX(100, frameWidth: 200, bounds: bounds) == 16)
+    #expect(
+      TerminalSidebarLiveDragGeometry.constrainedX(-100, frameWidth: 212, bounds: bounds) == 4)
+    #expect(
+      TerminalSidebarLiveDragGeometry.constrainedX(100, frameWidth: 200, bounds: bounds) == 16)
     #expect(
       TerminalSidebarLiveDragGeometry.settlementPosition(
         currentLayerPosition: .zero,
@@ -458,208 +542,6 @@ struct TerminalSidebarMotionTests {
         targetFrame: CGRect(x: 4, y: 300, width: 212, height: 180)
       ) == CGPoint(x: 0, y: 250)
     )
-  }
-
-  @Test @MainActor
-  func selectedSurfaceStaysWithTheLiftedRow() throws {
-    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
-    let sourceFrame = CGRect(x: 12, y: 40, width: 216, height: 52)
-    let hostedView = NSView(frame: CGRect(origin: .zero, size: sourceFrame.size))
-    let selectedSurfaceView = TerminalSidebarSelectionGlowView(
-      frame: sourceFrame.insetBy(dx: -4, dy: -4)
-    )
-    let selectedSurface = TerminalSidebarLiftedSelectionSurface(view: selectedSurfaceView)
-    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
-    presentation.begin(
-      TerminalSidebarDragPresentation.Lift(
-        rows: [
-          TerminalSidebarLiftedRow(
-            hostedView: hostedView,
-            sourceFrame: sourceFrame,
-            selectedSurface: selectedSurface,
-            restore: {}
-          )
-        ],
-        groupBackground: nil,
-        fanAnchorIndex: nil,
-        sourceFrame: sourceFrame,
-        hotspot: .zero,
-        screenPoint: .zero,
-        timestamp: 0
-      ),
-      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
-    )
-
-    let liveView = try #require(hostedView.superview)
-    #expect(selectedSurfaceView.superview === liveView)
-    #expect(selectedSurfaceView.frame == CGRect(x: -4, y: -4, width: 224, height: 60))
-  }
-
-  @Test @MainActor
-  func destinationHandoffKeepsThenDiscardsThePreviewRows() {
-    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
-    let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
-    let hostedView = NSView(frame: source.bounds)
-    source.addSubview(hostedView)
-    var restored = false
-    let row = TerminalSidebarLiftedRow(
-      hostedView: hostedView,
-      sourceFrame: source.frame,
-      restore: {
-        restored = true
-        source.addSubview(hostedView)
-        hostedView.frame = source.bounds
-      }
-    )
-    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
-    presentation.begin(
-      TerminalSidebarDragPresentation.Lift(
-        rows: [row],
-        groupBackground: nil,
-        fanAnchorIndex: nil,
-        sourceFrame: source.frame,
-        hotspot: .zero,
-        screenPoint: .zero,
-        timestamp: 0
-      ),
-      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
-    )
-    var previewWasInstalled = false
-    var destinationWasCompleted = false
-    var layoutPass = 0
-
-    presentation.handoffToDestination {
-      layoutPass += 1
-      if layoutPass == 1 {
-        previewWasInstalled = true
-      } else {
-        destinationWasCompleted = true
-      }
-    }
-
-    #expect(previewWasInstalled)
-    #expect(destinationWasCompleted)
-    #expect(!restored)
-    #expect(hostedView.superview == nil)
-  }
-
-  @Test @MainActor
-  func cancellationRestoresTheCapturedSourceProjection() {
-    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
-    let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
-    let hostedView = NSView(frame: source.bounds)
-    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
-    source.addSubview(hostedView)
-    collectionView.addSubview(background)
-    var restoreCount = 0
-    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
-    presentation.begin(
-      TerminalSidebarDragPresentation.Lift(
-        rows: [
-          TerminalSidebarLiftedRow(
-            hostedView: hostedView,
-            sourceFrame: source.frame,
-            restore: {
-              restoreCount += 1
-              source.addSubview(hostedView)
-            }
-          )
-        ],
-        groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
-          view: background,
-          sourceFrame: background.frame
-        ),
-        fanAnchorIndex: nil,
-        sourceFrame: source.frame,
-        hotspot: .zero,
-        screenPoint: .zero,
-        timestamp: 0
-      ),
-      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
-    )
-
-    presentation.handoffToSource {}
-
-    #expect(restoreCount == 1)
-    #expect(hostedView.superview === source)
-    #expect(background.superview === collectionView)
-  }
-
-  @Test @MainActor
-  func externalSuccessDiscardsTheCapturedSourceProjection() {
-    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
-    let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
-    let hostedView = NSView(frame: source.bounds)
-    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
-    source.addSubview(hostedView)
-    collectionView.addSubview(background)
-    var restoreCount = 0
-    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
-    presentation.begin(
-      TerminalSidebarDragPresentation.Lift(
-        rows: [
-          TerminalSidebarLiftedRow(
-            hostedView: hostedView,
-            sourceFrame: source.frame,
-            restore: { restoreCount += 1 }
-          )
-        ],
-        groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
-          view: background,
-          sourceFrame: background.frame
-        ),
-        fanAnchorIndex: nil,
-        sourceFrame: source.frame,
-        hotspot: .zero,
-        screenPoint: .zero,
-        timestamp: 0
-      ),
-      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
-    )
-
-    presentation.handoffAfterExternalSuccess(.removed) {}
-
-    #expect(restoreCount == 0)
-    #expect(hostedView.superview == nil)
-    #expect(background.superview == nil)
-  }
-
-  @Test @MainActor
-  func retainedExternalSuccessRestoresTheCapturedSourceProjection() {
-    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
-    let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
-    let hostedView = NSView(frame: source.bounds)
-    source.addSubview(hostedView)
-    var restoreCount = 0
-    let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
-    presentation.begin(
-      TerminalSidebarDragPresentation.Lift(
-        rows: [
-          TerminalSidebarLiftedRow(
-            hostedView: hostedView,
-            sourceFrame: source.frame,
-            restore: {
-              restoreCount += 1
-              source.addSubview(hostedView)
-            }
-          )
-        ],
-        groupBackground: nil,
-        fanAnchorIndex: nil,
-        sourceFrame: source.frame,
-        hotspot: .zero,
-        screenPoint: .zero,
-        timestamp: 0
-      ),
-      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
-    )
-
-    presentation.handoffAfterExternalSuccess(.retained) {}
-
-    #expect(restoreCount == 1)
-    #expect(hostedView.superview === source)
   }
 
   @Test
@@ -680,11 +562,11 @@ struct TerminalSidebarMotionTests {
   @Test
   func hapticTrackerFiresOnlyForPathChanges() {
     var tracker = TerminalSidebarHapticTargetTracker()
-    let first = tracker.shouldPerform(for: .trailingRoot)
-    let repeated = tracker.shouldPerform(for: .trailingRoot)
-    let changed = tracker.shouldPerform(for: .pinnedEnd)
+    let first = tracker.shouldPerform(for: .rootBoundary(lane: .regular, index: 1))
+    let repeated = tracker.shouldPerform(for: .rootBoundary(lane: .regular, index: 1))
+    let changed = tracker.shouldPerform(for: .rootBoundary(lane: .pinned, index: 1))
     let cleared = tracker.shouldPerform(for: nil)
-    let restored = tracker.shouldPerform(for: .pinnedEnd)
+    let restored = tracker.shouldPerform(for: .rootBoundary(lane: .pinned, index: 1))
 
     #expect(first)
     #expect(!repeated)
