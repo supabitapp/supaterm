@@ -390,7 +390,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func failedCommandExitPersistsUnknownWithoutClaimingCompletion() throws {
+  func failedCommandExitPersistsCompletionUntilLaterActivity() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
@@ -407,8 +407,8 @@ struct TerminalHostStateAgentDetectionTests {
 
     host.handleCommandFinished(for: surfaceID)
 
-    #expect(host.agentActivity(for: fixture.tabID) == .codex(.unknown))
-    #expect(host.tabAgentPresentation(for: fixture.tabID).status == nil)
+    #expect(host.agentActivity(for: fixture.tabID) == .codex(.idle))
+    #expect(host.tabAgentPresentation(for: fixture.tabID).status == .done)
 
     host.surfaces[surfaceID]?.bridge.state.commandExitCode = 0
     host.handleCommandFinished(for: surfaceID)
@@ -419,7 +419,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func nativeAgentExitRetainsIdentityWithoutItsLiveSessionState() throws {
+  func nativeAgentExitWithoutStatusRetainsCompletionWithoutItsLiveSessionState() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
@@ -434,8 +434,8 @@ struct TerminalHostStateAgentDetectionTests {
     host.handleCommandFinished(for: fixture.surfaceID)
 
     #expect(host.agentStateRecords(for: fixture.surfaceID).isEmpty)
-    #expect(host.agentActivity(for: fixture.tabID) == .pi(.unknown))
-    #expect(host.tabAgentPresentation(for: fixture.tabID).status == nil)
+    #expect(host.agentActivity(for: fixture.tabID) == .pi(.idle))
+    #expect(host.tabAgentPresentation(for: fixture.tabID).status == .done)
   }
 
   @Test

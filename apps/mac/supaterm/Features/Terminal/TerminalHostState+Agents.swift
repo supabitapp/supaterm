@@ -763,13 +763,11 @@ extension TerminalHostState {
       context: context,
       exitCode: exitCode
     )
-    let isCompletion =
-      exitCode == 0
-      && !agentSurfaceIsFocused(
-        surfaceID,
-        in: tabID,
-        focusedSurfaceID: focusHistoryByTab[tabID]?.current
-      )
+    let isCompletion = !agentSurfaceIsFocused(
+      surfaceID,
+      in: tabID,
+      focusedSurfaceID: focusHistoryByTab[tabID]?.current
+    )
     agentCompletionStore.recordCessation(
       cessation,
       isCompletion: isCompletion,

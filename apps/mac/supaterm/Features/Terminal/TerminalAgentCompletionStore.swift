@@ -32,13 +32,9 @@ struct TerminalAgentCessation: Equatable, Sendable {
     context.completionIdentity
   }
 
-  var phase: AgentActivityPhase {
-    exitCode == 0 ? .idle : .unknown
-  }
-
   func instance(for surfaceID: UUID) -> TerminalHostState.AgentStateInstance {
     TerminalHostState.AgentStateInstance(
-      activity: TerminalHostState.AgentActivity(identity: context.identity, phase: phase),
+      activity: TerminalHostState.AgentActivity(identity: context.identity, phase: .idle),
       completionIdentity: completionIdentity,
       lifecycle: .ceased(exitCode: exitCode),
       nativePresentation: nil,
