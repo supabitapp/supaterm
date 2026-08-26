@@ -30,7 +30,7 @@ struct TerminalSidebarPointerTests {
 
   @Test
   func unassignedHeaderOwnsItsClickAndTogglesCollapse() async throws {
-    let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let tabID = terminal.spaceManager.tabCollection.createTab(title: "Unassigned")
     let outline = TerminalSidebarOutline(
       roots: [

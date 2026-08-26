@@ -104,18 +104,18 @@ struct TerminalSidebarLayoutTests {
     #expect(
       TerminalSidebarRowPresentation.tab(tabPresentation(tab)).measurementKey
         != TerminalSidebarRowPresentation.tab(
-          tabPresentation(tab, groupID: TerminalTabGroupID())
+          tabPresentation(tab, projectID: TerminalProjectID())
         ).measurementKey
     )
   }
 
   @Test
   func reduceMotionReplacesAnActiveCollapseImmediately() throws {
-    let groupID = TerminalTabGroupID()
+    let groupID = TerminalProjectID()
     let tabs = [TerminalTabItem(title: "First"), TerminalTabItem(title: "Second")]
     let roots = [
       TerminalSidebarOutline.Root(
-        content: .group(groupID, .blue, .automatic, tabs.map(\.id)),
+        content: .project(groupID, .blue, tabs.map(\.id)),
         isPinned: false
       )
     ]
@@ -123,7 +123,7 @@ struct TerminalSidebarLayoutTests {
     let collapsed = TerminalSidebarTestFixture.outline(
       roots: roots,
       revision: 2,
-      collapsedGroupIDs: [groupID]
+      collapsedProjectIDs: [groupID]
     )
     let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let harness = try #require(
@@ -134,18 +134,21 @@ struct TerminalSidebarLayoutTests {
     func rows(isCollapsed: Bool) -> [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
       var rows = Dictionary(
         uniqueKeysWithValues: tabs.map {
-          (TerminalSidebarEntryID.tab($0.id), TerminalSidebarRowPresentation.tab(tabPresentation($0)))
+          (
+            TerminalSidebarEntryID.tab($0.id),
+            TerminalSidebarRowPresentation.tab(tabPresentation($0, projectID: groupID))
+          )
         }
       )
-      rows[.group(groupID)] = .group(
-        TerminalSidebarGroupRowPresentation(
+      rows[.project(groupID)] = .project(
+        TerminalSidebarProjectRowPresentation(
           id: groupID,
           title: "Group",
           color: .blue,
           iconURL: nil,
           isPinned: false,
           isCollapsed: isCollapsed,
-          tabCount: tabs.count,
+          tabIDs: tabs.map(\.id),
           showsNewTabShortcutHint: false
         )
       )
@@ -224,20 +227,7 @@ struct TerminalSidebarLayoutTests {
     )
     defer { harness.close() }
 
-    func context(for outline: TerminalSidebarOutline) -> TerminalSidebarRowContext {
-      TerminalSidebarRowContext(
-        terminal: terminal,
-        palette: Palette(colorScheme: .dark),
-        renameState: controller.renameState,
-        projectHeaderHoverState: controller.projectHeaderHoverState,
-        tabSelectionState: controller.tabSelectionState,
-        outline: outline,
-        fixedHoveredProjectID: nil,
-        actions: rowActions
-      )
-    }
-
-    controller.apply(
+    harness.apply(
       outline: source,
       rows: rows,
       terminal: terminal,
@@ -464,7 +454,7 @@ struct TerminalSidebarLayoutTests {
   func collectionLayoutDropsPreparedAttributesWhenInvalidated() throws {
     let tabID = TerminalTabID()
     let outline = TerminalSidebarTestFixture.outline(
-      roots: [TerminalSidebarOutline.Root(content: .tab(tabID), isPinned: false)],
+      roots: [TerminalSidebarOutline.Root(content: .unassigned([tabID]), isPinned: false)],
       revision: 1
     )
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 220, height: 180))
@@ -679,16 +669,26 @@ struct TerminalSidebarLayoutTests {
   ) throws -> (TerminalSidebarWindowHarness, [TerminalTabItem]) {
     let tabs = (0..<tabCount).map { TerminalTabItem(title: "Tab \($0)") }
     let outline = TerminalSidebarTestFixture.outline(
-      roots: tabs.map {
-        TerminalSidebarOutline.Root(content: .tab($0.id), isPinned: false)
-      },
+      roots: [
+        TerminalSidebarOutline.Root(content: .unassigned(tabs.map(\.id)), isPinned: false)
+      ],
       revision: 1
     )
     let rows = Dictionary(
       uniqueKeysWithValues: tabs.map {
         (TerminalSidebarEntryID.tab($0.id), TerminalSidebarRowPresentation.tab(tabPresentation($0)))
       }
-    ).merging([.newTab: .newTab(.inline)]) { current, _ in current }
+    ).merging(
+      [
+        .unassigned: .unassigned(
+          TerminalSidebarUnassignedRowPresentation(
+            isCollapsed: false,
+            tabCount: tabs.count
+          )
+        ),
+        .newTab: .newTab(.inline),
+      ]
+    ) { current, _ in current }
     let harness = try #require(TerminalSidebarWindowHarness(size: size))
     harness.apply(
       outline: outline,
@@ -704,11 +704,11 @@ struct TerminalSidebarLayoutTests {
 
   private func tabPresentation(
     _ tab: TerminalTabItem,
-    groupID: TerminalTabGroupID? = nil
+    projectID: TerminalProjectID? = nil
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
-      projectID: nil,
+      projectID: projectID,
       rootIsPinned: false,
       agentStatus: nil,
       details: [],

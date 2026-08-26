@@ -18,14 +18,18 @@ enum TerminalSidebarTestFixture {
     revision: UInt64,
     spaceID: TerminalSpaceID = primarySpaceID,
     collapsedProjectIDs: Set<TerminalProjectID> = [],
-    pinnedTabIDs: Set<TerminalTabID> = []
+    isUnassignedCollapsed: Bool = false,
+    pinnedTabIDs: Set<TerminalTabID> = [],
+    orderedProjectIDs: [TerminalProjectID] = []
   ) -> TerminalSidebarOutline {
     TerminalSidebarOutline(
       roots: roots,
       collapsedProjectIDs: collapsedProjectIDs,
+      isUnassignedCollapsed: isUnassignedCollapsed,
       pinnedTabIDs: pinnedTabIDs,
       topologyRevision: revision,
-      spaceID: spaceID
+      spaceID: spaceID,
+      orderedProjectIDs: orderedProjectIDs
     )
   }
 
@@ -65,9 +69,9 @@ enum TerminalSidebarTestFixture {
       }
       precondition(tabIDs.count == entryIDs.count)
       return .tabs(tabIDs)
-    case .group(let id):
-      return .group(id)
-    case .pinDivider, .newTab:
+    case .project(let id):
+      return .project(id)
+    case .unassigned, .pinDivider, .newTab:
       preconditionFailure("Invalid drag source")
     }
   }
@@ -108,13 +112,15 @@ enum TerminalSidebarTestFixture {
     destination: TerminalTabPlacement
   ) -> TerminalSidebarDragCoordinator {
     let payload = payload(source: source, revision: sourceRevision)
+    let path: TerminalSidebarSemanticPath
     let dropDestination: TerminalSidebarDropDestination
-    dropDestination =
-      if let projectID = destination.projectID {
-        .project(projectID, index: destination.index)
-      } else {
-        .root(isPinned: destination.isPinned, index: destination.index)
-      }
+    if let projectID = destination.projectID {
+      path = .projectBoundary(projectID, index: destination.index)
+      dropDestination = .project(projectID, index: destination.index)
+    } else {
+      path = .unassignedBoundary(index: destination.index)
+      dropDestination = .unassigned(index: destination.index)
+    }
     var coordinator = TerminalSidebarDragCoordinator(payload: payload)
     let plan = TerminalSidebarDropPlan(
       path: path,
@@ -187,10 +193,10 @@ final class TerminalSidebarWindowHarness {
         terminal: terminal,
         palette: Palette(colorScheme: .dark),
         renameState: controller.renameState,
-        groupHeaderHoverState: controller.groupHeaderHoverState,
+        projectHeaderHoverState: controller.projectHeaderHoverState,
         tabSelectionState: controller.tabSelectionState,
         outline: outline,
-        fixedHoveredGroupID: nil,
+        fixedHoveredProjectID: nil,
         actions: Self.rowActions
       ),
       selectedTabID: selectedTabID,
@@ -223,13 +229,14 @@ final class TerminalSidebarWindowHarness {
 
   private static var rowActions: TerminalSidebarRowActions {
     TerminalSidebarRowActions(
-      toggleGroupCollapsed: { _ in },
-      createTabInGroup: { _ in },
-      renameGroup: { _, _ in false },
-      setGroupColor: { _, _ in },
-      toggleGroupPinned: { _ in },
-      ungroup: { _ in },
-      closeGroup: { _ in },
+      toggleProjectCollapsed: { _ in },
+      toggleUnassignedCollapsed: {},
+      createTabInProject: { _ in },
+      renameProject: { _, _ in false },
+      setProjectColor: { _, _ in },
+      toggleProjectPinned: { _ in },
+      unproject: { _ in },
+      closeProject: { _ in },
       newTab: {}
     )
   }

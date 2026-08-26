@@ -95,7 +95,10 @@ struct TerminalSidebarDragTargetTests {
     TerminalSidebarDropPlan(
       path: path,
       destination: .root(isPinned: false, index: index),
-      placeholder: .beforeFooter
+      placeholder: .beforeFooter,
+      operation: .move(
+        TerminalTabPlacement(projectID: nil, isPinned: false, index: index)
+      )
     )
   }
 }

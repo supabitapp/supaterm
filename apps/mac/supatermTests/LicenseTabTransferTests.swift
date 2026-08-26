@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import Foundation
 import Sharing
@@ -38,8 +39,8 @@ extension TerminalTabTransferTests {
         zmxSessionsEnabled: false,
         licenseTabGate: gate
       )
-      let tabIDs = (0..<5).map { index in
-        liveTab(title: "Tab \(index)", runtime: runtime, host: source).id
+      let tabIDs = try (0..<5).map { _ in
+        try #require(source.createTab(focusing: false))
       }
       destination.spaceManager.registerColdInstance(
         terminalSpaceSession(spaceID: spaces[1].id, tabCount: 0)
@@ -54,6 +55,7 @@ extension TerminalTabTransferTests {
           sourceWindowID: sourceWindowID,
           sourceSpaceID: spaces[0].id,
           sourceTopologyRevision: source.spaceManager.tabCollection.topologyRevision,
+          orderedProjectIDs: [],
           itemIDs: [.tab(tabIDs[0])]
         )
       )
@@ -66,7 +68,9 @@ extension TerminalTabTransferTests {
           expectedTopologyRevision: try #require(
             destination.spaceManager.tabCollection(for: spaces[1].id)?.topologyRevision
           ),
-          placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
+          destination: .move(
+            TerminalTabPlacement(projectID: nil, isPinned: false, index: 0)
+          )
         )
       )
 
@@ -80,5 +84,23 @@ extension TerminalTabTransferTests {
       )
       withExtendedLifetime([sourceWindow, destinationWindow]) {}
     }
+  }
+
+  private func register(
+    _ host: TerminalHostState,
+    id: UUID,
+    in registry: TerminalWindowRegistry
+  ) -> NSWindow {
+    let store = Store(initialState: AppFeature.State()) { AppFeature() }
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: id,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    let window = NSWindow()
+    registry.updateWindow(window, for: id)
+    return window
   }
 }

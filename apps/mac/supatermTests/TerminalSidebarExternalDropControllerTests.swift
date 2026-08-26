@@ -75,15 +75,15 @@ struct SidebarExternalDropControllerTests {
     let childID = TerminalTabID()
     let tailID = TerminalTabID()
     let draggedID = TerminalTabID()
-    let groupID = TerminalTabGroupID()
+    let groupID = TerminalProjectID()
     let operationID = TerminalTabMoveOperationID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .blue, .automatic, [childID]),
+          content: .project(groupID, .blue, [childID]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(tailID), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([tailID]), isPinned: false),
       ],
       revision: 4
     )
@@ -98,6 +98,7 @@ struct SidebarExternalDropControllerTests {
         sourceWindowID: UUID(),
         sourceSpaceID: TerminalSidebarTestFixture.secondarySpaceID,
         sourceTopologyRevision: 2,
+        orderedProjectIDs: [],
         itemIDs: [.tab(draggedID)]
       )
     )
@@ -115,10 +116,10 @@ struct SidebarExternalDropControllerTests {
         resolution: miss
       )
     )
-    #expect(harness.layout.dropTargetMap.targets.contains { $0.path == .groupEntry(groupID) })
+    #expect(harness.layout.dropTargetMap.targets.contains { $0.path == .projectEntry(groupID) })
     #expect(
       !harness.layout.dropTargetMap.targets.contains {
-        $0.path == .rootItem(lane: .regular, index: 0, id: .group(groupID))
+        $0.path == .rootItem(lane: .regular, index: 0, id: .project(groupID))
       }
     )
   }
@@ -132,7 +133,7 @@ struct SidebarExternalDropControllerTests {
       path: .rootItem(
         lane: .regular,
         index: 0,
-        id: .group(TerminalTabGroupID())
+        id: .project(TerminalProjectID())
       ),
       outline: fixture.outline
     )
@@ -273,17 +274,25 @@ struct SidebarExternalDropControllerTests {
   }
 
   private func makeFixture() throws -> Fixture {
-    let sourceGroupID = TerminalTabGroupID()
+    let sourceGroupID = TerminalProjectID()
+    let firstProjectID = TerminalProjectID()
+    let secondProjectID = TerminalProjectID()
     let operationID = TerminalTabMoveOperationID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(TerminalTabID()), isPinned: false),
-        TerminalSidebarOutline.Root(content: .tab(TerminalTabID()), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .project(firstProjectID, .blue, [TerminalTabID()]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(
+          content: .project(secondProjectID, .green, [TerminalTabID()]),
+          isPinned: false
+        ),
       ],
       revision: 4
     )
     let sidebarPayload = TerminalSidebarTestFixture.payload(
-      source: .group(sourceGroupID),
+      source: .project(sourceGroupID),
       revision: 4,
       operationID: operationID
     )
@@ -293,7 +302,8 @@ struct SidebarExternalDropControllerTests {
         sourceWindowID: UUID(),
         sourceSpaceID: TerminalSidebarTestFixture.secondarySpaceID,
         sourceTopologyRevision: 2,
-        itemIDs: [.group(sourceGroupID)]
+        orderedProjectIDs: [],
+        itemIDs: [.project(sourceGroupID)]
       )
     )
     return Fixture(

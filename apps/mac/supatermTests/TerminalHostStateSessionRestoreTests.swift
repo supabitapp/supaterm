@@ -91,7 +91,7 @@ struct TerminalHostStateSessionRestoreTests {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       defer { try? FileManager.default.removeItem(at: directory) }
       let path = GhosttySurfaceView.normalizedWorkingDirectoryPath(directory.path)
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
 
       host.ensureInitialTab(
         focusing: false,
@@ -114,7 +114,7 @@ struct TerminalHostStateSessionRestoreTests {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       defer { try? FileManager.default.removeItem(at: directory) }
       let path = GhosttySurfaceView.normalizedWorkingDirectoryPath(directory.path)
-      let host = TerminalHostState()
+      let host = TerminalHostState.test()
       host.ensureInitialTab(focusing: false, startupCommand: nil, workingDirectoryPath: path)
       let spaceID = host.displayedSpaceID
       let firstTabID = try #require(host.selectedTabID)
@@ -205,7 +205,7 @@ struct TerminalHostStateSessionRestoreTests {
         collapsedProjectIDs: [projectID]
       )
       let hiddenTabID = try #require(hiddenSpace.selectedTabID)
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
 
       #expect(
         host.restore(
@@ -252,7 +252,7 @@ struct TerminalHostStateSessionRestoreTests {
         selectedTabID: first.selectedTabID,
         tabs: first.tabs + projectTab.tabs + last.tabs
       )
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
 
       #expect(
         host.restore(
@@ -297,7 +297,7 @@ struct TerminalHostStateSessionRestoreTests {
         collapsedProjectIDs: [project.id],
         tabs: existing.tabs + moved.tabs + tail.tabs
       )
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       #expect(
         host.restore(
           from: TerminalWindowSession(
@@ -339,7 +339,7 @@ struct TerminalHostStateSessionRestoreTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
       let hiddenSurfaceID = UUID()
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       #expect(
         host.restore(
           from: TerminalWindowSession(
@@ -372,7 +372,7 @@ struct TerminalHostStateSessionRestoreTests {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
       let hiddenSpace = spaceSession(spaceID: spaces[1].id, title: "Hidden")
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
 
       #expect(
         host.restore(

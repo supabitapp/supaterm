@@ -846,7 +846,7 @@ final class TerminalSidebarListController: NSViewController {
     )
     let placementChanged = updateNewTabPlacement()
     guard clearedContentHeight || placementChanged else {
-      updateGroupHover(at: collectionView.pointerLocation)
+      updateProjectHover(at: collectionView.pointerLocation)
       return
     }
     invalidateLayout()

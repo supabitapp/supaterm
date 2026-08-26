@@ -208,9 +208,7 @@ struct LicenseTabGateTests {
       let emptyDisplayedSpace = TerminalSpaceSession(
         spaceID: spaces[0].id,
         selectedTabID: nil,
-        nodes: [],
-        groups: [],
-        collapsedGroupIDs: [],
+        collapsedProjectIDs: [],
         tabs: []
       )
       let session = TerminalWindowSession(

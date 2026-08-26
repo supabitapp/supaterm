@@ -1518,6 +1518,30 @@ struct TerminalWindowRegistryTests {
 }
 
 @MainActor
+func updateRegistry(
+  canCheckForUpdates: Bool = false,
+  phase: UpdatePhase = .idle,
+  configure: (inout UpdateClient) -> Void = { _ in }
+) -> TerminalWindowRegistry {
+  var updateClient = UpdateClient.inert
+  configure(&updateClient)
+  let updateStore = Store(
+    initialState: UpdateFeature.State(
+      canCheckForUpdates: canCheckForUpdates,
+      phase: phase
+    )
+  ) {
+    UpdateFeature()
+  } withDependencies: {
+    $0.updateClient = updateClient
+  }
+  return TerminalWindowRegistry.test(
+    updateClient: updateClient,
+    updateStore: updateStore
+  )
+}
+
+@MainActor
 private func makeCommandPaletteHost(
   title: String,
   workingDirectory: String?

@@ -246,7 +246,7 @@ private enum TerminalSidebarTabMeasurementKey: Hashable {
     id: TerminalTabID,
     title: String,
     detailIDs: [TerminalSidebarTabDetail.ID],
-    isGrouped: Bool
+    isProjected: Bool
   )
 }
 
@@ -283,7 +283,7 @@ enum TerminalSidebarRowPresentation: Equatable {
           id: presentation.tab.id,
           title: presentation.tab.title,
           detailIDs: presentation.details.map(\.id),
-          isGrouped: presentation.groupID != nil
+          isProjected: presentation.projectID != nil
         )
       )
     case .project(let presentation):

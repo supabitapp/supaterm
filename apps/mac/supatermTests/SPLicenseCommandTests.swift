@@ -148,6 +148,7 @@ struct SPLicenseCommandTests {
     defer { cli.remove() }
     let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
     let snapshot = SupatermTreeSnapshot(
+      projects: [],
       windows: [
         SupatermTreeSnapshot.Window(
           index: 1,
@@ -160,7 +161,9 @@ struct SPLicenseCommandTests {
               name: "Work",
               color: .neutral,
               isWarm: true,
-              rootItems: []
+              collapsedProjectIDs: [],
+              isUnassignedCollapsed: false,
+              tabs: []
             )
           ]
         )

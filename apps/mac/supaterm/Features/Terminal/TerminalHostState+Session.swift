@@ -78,8 +78,9 @@ extension TerminalHostState {
       return false
     }
     if spaceManager.tabs(in: session.spaceID).isEmpty {
-      _ = createTab(
+      _ = try? createTab(
         in: session.spaceID,
+        reason: .restore,
         focusing: false,
         sessionChangesEnabled: false,
         synchronizesFocus: false

@@ -225,6 +225,7 @@ final class TerminalWindowRegistry {
         self?.setProjectPinned(projectID, isPinned: isPinned) == true
       }
     )
+    terminal.onLicenseTabLimitAction = performLicenseTabLimitAction
     terminal.onTabDroppedOnSpace = { [weak self] payload, spaceID in
       self?.dropTab(payload, on: spaceID, in: windowControllerID) == true
     }

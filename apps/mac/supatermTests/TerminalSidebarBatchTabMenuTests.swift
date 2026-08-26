@@ -36,7 +36,7 @@ struct TerminalSidebarBatchTabMenuTests {
     withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let terminal = TerminalHostState(managesTerminalSurfaces: false)
+      let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
       let manager = terminal.spaceManager.tabCollection
       let unassignedTabID = manager.createTab(title: "Regular")
       let pinnedTabID = manager.createTab(title: "Pinned")

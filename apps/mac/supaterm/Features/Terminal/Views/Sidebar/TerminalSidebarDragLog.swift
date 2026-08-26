@@ -45,13 +45,22 @@ enum TerminalSidebarDragLog {
 
   private static func semanticPath(_ path: TerminalSidebarSemanticPath) -> String {
     switch path {
-    case .rootItem(let index): "rootItem:\(index)"
-    case .rootBoundary(let index, let affinity): "rootBoundary:\(index):\(affinity)"
-    case .project(let id, let index): "project:\(SupatermLog.uuid(id.rawValue)):\(index)"
-    case .unassigned(let index): "unassigned:\(index)"
-    case .unassignedHeader: "unassignedHeader"
-    case .pinnedEnd: "pinnedEnd"
-    case .trailingRoot: "trailingRoot"
+    case .rootItem(let lane, let index, let id):
+      "rootItem:\(lane):\(index):\(rootID(id))"
+    case .rootBoundary(let lane, let index):
+      "rootBoundary:\(lane):\(index)"
+    case .projectEntry(let id):
+      "projectEntry:\(SupatermLog.uuid(id.rawValue))"
+    case .projectItem(let id, let index, let tabID):
+      "projectItem:\(SupatermLog.uuid(id.rawValue)):\(index):\(SupatermLog.uuid(tabID.rawValue))"
+    case .projectBoundary(let id, let index):
+      "projectBoundary:\(SupatermLog.uuid(id.rawValue)):\(index)"
+    case .unassignedEntry:
+      "unassignedEntry"
+    case .unassignedItem(let index, let tabID):
+      "unassignedItem:\(index):\(SupatermLog.uuid(tabID.rawValue))"
+    case .unassignedBoundary(let index):
+      "unassignedBoundary:\(index)"
     }
   }
 

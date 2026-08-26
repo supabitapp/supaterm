@@ -160,9 +160,9 @@ struct TerminalHostStateProjectTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let host = TerminalHostState(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(spaceID: spaces[0].id)
       host.ensureInitialTab(focusing: false, startupCommand: nil)
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let store = Store(initialState: AppFeature.State()) { AppFeature() }
       let windowControllerID = UUID()
       registry.register(

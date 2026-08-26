@@ -89,21 +89,21 @@ struct TerminalSidebarProjectOutlineTests {
     let pinnedGap = try #require(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .project(project.id, index: 0),
+        path: .projectItem(project.id, index: 0, id: pinned.id),
         outline: outline
       )?.command(for: payload)
     )
     let regularGap = try #require(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .project(project.id, index: 1),
+        path: .projectItem(project.id, index: 1, id: regular.id),
         outline: outline
       )?.command(for: payload)
     )
     let header = try #require(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .rootItem(index: 0),
+        path: .projectEntry(project.id),
         outline: outline
       )?.command(for: payload)
     )

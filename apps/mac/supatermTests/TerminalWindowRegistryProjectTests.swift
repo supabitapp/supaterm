@@ -15,7 +15,7 @@ struct TerminalWindowRegistryProjectTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       var closedWindowIDs: Set<UUID> = []
       let first = registerWindow(
         in: registry,
@@ -81,7 +81,7 @@ struct TerminalWindowRegistryProjectTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       var closeCount = 0
       let window = registerWindow(
         in: registry,
@@ -123,7 +123,7 @@ struct TerminalWindowRegistryProjectTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
       let request = SupatermSetProjectCollapsedRequest(
         isCollapsed: true,
@@ -151,7 +151,7 @@ struct TerminalWindowRegistryProjectTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
       guard
         case .project(let first) = try registry.execute(
@@ -186,7 +186,7 @@ struct TerminalWindowRegistryProjectTests {
       let projects = [pinned, source, regular]
       @Shared(.terminalProjectCatalog) var catalog = TerminalProjectCatalog.default
       $catalog.withLock { $0 = TerminalProjectCatalog(projects: projects) }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
       let terminal = window.terminal
       let command = TerminalSidebarDropCommand(
@@ -218,7 +218,7 @@ struct TerminalWindowRegistryProjectTests {
       let projects = [first, second]
       @Shared(.terminalProjectCatalog) var catalog = TerminalProjectCatalog.default
       $catalog.withLock { $0 = TerminalProjectCatalog(projects: projects) }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
       let terminal = window.terminal
       let operationID = TerminalTabMoveOperationID()
@@ -253,7 +253,7 @@ struct TerminalWindowRegistryProjectTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
       guard
         case .project(let created) = try registry.execute(
@@ -301,7 +301,7 @@ struct TerminalWindowRegistryProjectTests {
       let projects = [TerminalProject(name: "First"), TerminalProject(name: "Second")]
       @Shared(.terminalProjectCatalog) var catalog = TerminalProjectCatalog.default
       $catalog.withLock { $0 = TerminalProjectCatalog(projects: projects) }
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let source = registerWindow(in: registry, spaceID: TerminalSpaceID())
       let destination = registerWindow(in: registry, spaceID: TerminalSpaceID())
       let sourceTabID = source.terminal.spaceManager.tabCollection.createTab(title: "Source")

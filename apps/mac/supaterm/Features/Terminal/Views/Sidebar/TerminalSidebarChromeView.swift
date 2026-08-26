@@ -115,4 +115,18 @@ struct TerminalSidebarChromeView: View {
       renameState: sidebarControllerCache.controller(for: terminal.displayedSpaceID).renameState
     )
   }
+
+  static func auxiliarySection(
+    isLicenseExpired: Bool,
+    hasTabLimitRefusal: Bool,
+    showsUpdate: Bool
+  ) -> AuxiliarySection? {
+    if isLicenseExpired {
+      return .licenseExpired
+    }
+    if hasTabLimitRefusal {
+      return .tabLimit
+    }
+    return showsUpdate ? .update : nil
+  }
 }

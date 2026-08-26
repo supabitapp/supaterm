@@ -148,7 +148,7 @@ final class TerminalSidebarExternalDropController {
     defer { clear() }
     guard
       let outline = configuration.content()?.outline,
-      let command = activeDrop.command(in: outline),
+      let command = activeSession.command(in: outline),
       let destination = command.operation.transferDestination
     else { return false }
     let result = configuration.tabDragRegistry.performTransfer(

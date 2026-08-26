@@ -60,7 +60,7 @@ struct TerminalTabTransferTests {
       $catalog.withLock {
         $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
       }
-      let host = TerminalHostState(managesTerminalSurfaces: false, spaceID: spaces[0].id)
+      let host = TerminalHostState.test(managesTerminalSurfaces: false, spaceID: spaces[0].id)
       let source = host.spaceManager.displayedInstance
       let destination = host.spaceManager.instance(warming: spaces[1].id)
       let tabID = source.tabCollection.createTab(title: "Moved")
@@ -96,7 +96,7 @@ struct TerminalTabTransferTests {
 
   @Test
   func splitTargetAcceptsTheSelectedSourceTab() {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
     host.applySelectedTab(sourceTabID, in: host.displayedSpaceID)
 
@@ -107,7 +107,7 @@ struct TerminalTabTransferTests {
 
   @Test
   func splitTargetUsesTheExactRequestedLiveTab() {
-    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
     let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
 
     #expect(

@@ -18,7 +18,7 @@ struct TerminalSidebarDragPresentationTests {
     window.contentView = collectionView
     let sourceFrame = CGRect(x: 12, y: 20, width: 216, height: 120)
     let palette = Palette(colorScheme: .dark)
-    let background = TerminalSidebarGroupBackgroundView(frame: sourceFrame)
+    let background = TerminalSidebarProjectBackgroundView(frame: sourceFrame)
     background.update(
       color: .orange,
       palette: palette,
@@ -42,8 +42,8 @@ struct TerminalSidebarDragPresentationTests {
     presentation.begin(
       TerminalSidebarDragPresentation.Lift(
         rows: rows,
-        groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
+        projectBackground: TerminalSidebarLiftedProjectBackground(
+          id: TerminalProjectID(),
           view: background,
           sourceFrame: sourceFrame
         ),
@@ -99,7 +99,7 @@ struct TerminalSidebarDragPresentationTests {
             restore: {}
           )
         ],
-        groupBackground: nil,
+        projectBackground: nil,
         fanAnchorIndex: nil,
         sourceFrame: sourceFrame,
         hotspot: .zero,
@@ -134,7 +134,7 @@ struct TerminalSidebarDragPresentationTests {
     presentation.begin(
       TerminalSidebarDragPresentation.Lift(
         rows: [row],
-        groupBackground: nil,
+        projectBackground: nil,
         fanAnchorIndex: nil,
         sourceFrame: source.frame,
         hotspot: .zero,
@@ -167,7 +167,7 @@ struct TerminalSidebarDragPresentationTests {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
     let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
     let hostedView = NSView(frame: source.bounds)
-    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
+    let background = TerminalSidebarProjectBackgroundView(frame: source.frame)
     source.addSubview(hostedView)
     collectionView.addSubview(background)
     var restoreCount = 0
@@ -184,8 +184,8 @@ struct TerminalSidebarDragPresentationTests {
             }
           )
         ],
-        groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
+        projectBackground: TerminalSidebarLiftedProjectBackground(
+          id: TerminalProjectID(),
           view: background,
           sourceFrame: background.frame
         ),
@@ -210,7 +210,7 @@ struct TerminalSidebarDragPresentationTests {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
     let source = NSView(frame: CGRect(x: 12, y: 40, width: 216, height: 52))
     let hostedView = NSView(frame: source.bounds)
-    let background = TerminalSidebarGroupBackgroundView(frame: source.frame)
+    let background = TerminalSidebarProjectBackgroundView(frame: source.frame)
     source.addSubview(hostedView)
     collectionView.addSubview(background)
     var restoreCount = 0
@@ -224,8 +224,8 @@ struct TerminalSidebarDragPresentationTests {
             restore: { restoreCount += 1 }
           )
         ],
-        groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
+        projectBackground: TerminalSidebarLiftedProjectBackground(
+          id: TerminalProjectID(),
           view: background,
           sourceFrame: background.frame
         ),
@@ -265,7 +265,7 @@ struct TerminalSidebarDragPresentationTests {
             }
           )
         ],
-        groupBackground: nil,
+        projectBackground: nil,
         fanAnchorIndex: nil,
         sourceFrame: source.frame,
         hotspot: .zero,

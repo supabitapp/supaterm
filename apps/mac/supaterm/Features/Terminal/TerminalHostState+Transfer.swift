@@ -127,7 +127,8 @@ extension TerminalHostState {
       ? TerminalTabTransferRequest(
         expectedSourceRevision: request.expectedSourceRevision,
         expectedDestinationRevision: instances.destination.tabCollection.topologyRevision,
-        itemIDs: request.itemIDs,
+        orderedProjectIDs: request.orderedProjectIDs,
+        tabIDs: request.tabIDs,
         destination: request.destination
       )
       : request
@@ -147,7 +148,7 @@ extension TerminalHostState {
     return LiveTabTransferPlan(
       collectionPlan: collectionPlan,
       destinationInstance: instances.destination,
-      didMoveSelectedTab: instances.source.selectedTabID.map(tabIDs.contains) == true,
+      didMoveSelectedTab: instances.source.selectedTabID.map { tabIDs.contains($0) } == true,
       sourceInstance: instances.source,
       surfaceIDs: surfaceIDs,
       tabIDs: tabIDs

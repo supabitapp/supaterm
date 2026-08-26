@@ -99,18 +99,12 @@ func terminalSpaceSession(
   return TerminalSpaceSession(
     spaceID: spaceID,
     selectedTabID: tabIDs.first,
-    nodes: tabIDs.enumerated().map { index, tabID in
-      TerminalTabNodeSession(
-        item: .tab(tabID),
-        parent: .root(isPinned: false),
-        order: index
-      )
-    },
-    groups: [],
-    collapsedGroupIDs: [],
+    collapsedProjectIDs: [],
     tabs: tabIDs.map { tabID in
       TerminalTabSession(
         id: tabID,
+        projectID: nil,
+        isPinned: false,
         lockedTitle: nil,
         focusedPaneIndex: 0,
         root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil))

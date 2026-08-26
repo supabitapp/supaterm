@@ -60,36 +60,42 @@ struct TerminalSidebarLayoutPlanTests {
       ],
       revision: 3
     )
-    let baseline = TerminalSidebarTestFixture.layoutPlan(outline: outline)
     let plan = TerminalSidebarTestFixture.layoutPlan(
       outline: outline,
       draggingItemIDs: [.tab(source)],
       viewportHeight: viewportHeight
     )
 
-    #expect(
-      plan.semanticTargets.map(\.path) == [
-        .rootBoundary(index: 0, affinity: .before),
-        .rootItem(index: 0),
-        .project(projectID, index: 0),
-        .project(projectID, index: 1),
-        .project(projectID, index: 2),
-        .rootBoundary(index: 0, affinity: .after),
-        .unassignedHeader,
-        .unassigned(index: 0),
-        .unassigned(index: 2),
-        .trailingRoot,
-      ]
+    let paths = plan.semanticTargets.map(\.path)
+    #expect(paths.contains(.rootBoundary(lane: .regular, index: 0)))
+    #expect(paths.contains(.projectEntry(projectID)))
+    #expect(paths.contains(.projectItem(projectID, index: 0, id: first)))
+    #expect(paths.contains(.projectItem(projectID, index: 1, id: second)))
+    #expect(paths.contains(.projectBoundary(projectID, index: 2)))
+    #expect(paths.contains(.unassignedEntry))
+    #expect(paths.contains(.unassignedItem(index: 0, id: root)))
+    #expect(paths.contains(.unassignedBoundary(index: 2)))
+    #expect(paths.contains(.rootBoundary(lane: .regular, index: 2)))
+    let leading = try #require(
+      plan.semanticTargets.first { $0.path == .rootBoundary(lane: .regular, index: 0) }
     )
-    let leading = try #require(plan.semanticTargets.first)
-    let rootTarget = try #require(plan.semanticTargets[safe: 0])
-    let headerTarget = try #require(plan.semanticTargets[safe: 1])
-    let endTarget = try #require(plan.semanticTargets[safe: 4])
-    let trailingTarget = try #require(plan.semanticTargets[safe: 9])
+    let rootTarget = try #require(
+      plan.semanticTargets.first { $0.path == .unassignedItem(index: 0, id: root) }
+    )
+    let rootFrame = try #require(plan.items.first { $0.id == .tab(root) }?.frame)
+    let headerTarget = try #require(
+      plan.semanticTargets.first { $0.path == .projectEntry(projectID) }
+    )
+    let headerFrame = try #require(plan.items.first { $0.id == .project(projectID) }?.frame)
+    let endTarget = try #require(
+      plan.semanticTargets.first { $0.path == .projectBoundary(projectID, index: 2) }
+    )
+    let trailingTarget = try #require(
+      plan.semanticTargets.last { $0.path == .rootBoundary(lane: .regular, index: 2) }
+    )
     #expect(leading.frame.minY == TerminalSidebarLayoutPlan.initialY)
-    #expect(rootTarget.frame.height > 0)
-    #expect(headerTarget.frame.minX == 3)
-    #expect(headerTarget.frame.height == 34)
+    #expect(rootTarget.frame == rootFrame)
+    #expect(headerTarget.frame == headerFrame)
     #expect(endTarget.frame.minY < endTarget.frame.maxY)
     #expect(trailingTarget.frame.minY > endTarget.frame.maxY)
     #expect(trailingTarget.frame.height > 0)
@@ -97,7 +103,7 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
-  func expandedProjectLastChildLowerHalfTargetsProjectEnd() throws {
+  func expandedProjectKeepsTheLastChildTargetWholeAndAddsAProjectEndBoundary() throws {
     let first = TerminalTabID()
     let last = TerminalTabID()
     let source = TerminalTabID()
@@ -118,12 +124,18 @@ struct TerminalSidebarLayoutPlanTests {
     )
     let lastFrame = try #require(plan.items.first { $0.id == .tab(last) }?.frame)
     let endTarget = try #require(
-      plan.semanticTargets.first { $0.path == .project(projectID, index: 2) }
+      plan.semanticTargets.first { $0.path == .projectBoundary(projectID, index: 2) }
     )
 
-    #expect(plan.semanticTarget(at: lastFrame.midY - 1)?.path == .project(projectID, index: 1))
-    #expect(plan.semanticTarget(at: lastFrame.midY + 1)?.path == .project(projectID, index: 2))
-    #expect(endTarget.frame.maxY == lastFrame.maxY + TerminalSidebarLayoutPlan.expandedProjectTrailingSpacing)
+    let lastPath = TerminalSidebarSemanticPath.projectItem(projectID, index: 1, id: last)
+    #expect(plan.semanticTarget(at: lastFrame.minY + 1)?.path == lastPath)
+    #expect(plan.semanticTarget(at: lastFrame.midY)?.path == lastPath)
+    #expect(plan.semanticTarget(at: lastFrame.maxY - 1)?.path == lastPath)
+    #expect(endTarget.frame.minY == lastFrame.maxY)
+    #expect(
+      endTarget.frame.maxY
+        == lastFrame.maxY + TerminalSidebarLayoutPlan.rootBoundaryTargetHeight
+    )
   }
 
   @Test
@@ -147,7 +159,7 @@ struct TerminalSidebarLayoutPlanTests {
     let target = try #require(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .project(projectID, index: 2),
+        path: .projectBoundary(projectID, index: 2),
         outline: outline
       )
     )
@@ -183,7 +195,7 @@ struct TerminalSidebarLayoutPlanTests {
     let target = try #require(
       TerminalSidebarDropPlanner.plan(
         payload: payload,
-        path: .unassigned(index: 0),
+        path: .unassignedItem(index: 0, id: first),
         outline: outline
       )
     )
@@ -285,20 +297,25 @@ struct TerminalSidebarLayoutPlanTests {
     let rootFrame = try #require(plan.items.first { $0.id == .tab(root) }?.frame)
     let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
     let rootTarget = try #require(
-      plan.semanticTargets.first { $0.path == .unassigned(index: 0) }
+      plan.semanticTargets.first { $0.path == .unassignedItem(index: 0, id: root) }
     )
     let childTarget = try #require(
-      plan.semanticTargets.first { $0.path == .project(projectID, index: 0) }
+      plan.semanticTargets.first {
+        $0.path == .projectItem(projectID, index: 0, id: child)
+      }
     )
     let childEndTarget = try #require(
-      plan.semanticTargets.first { $0.path == .project(projectID, index: 1) }
+      plan.semanticTargets.first { $0.path == .projectBoundary(projectID, index: 1) }
     )
 
     #expect(rootTarget.frame.minY == rootFrame.minY)
-    #expect(rootTarget.frame.height == rootFrame.height / 2)
-    #expect(childTarget.frame == CGRect(x: 0, y: childFrame.minY, width: 220, height: 36.5))
-    #expect(childEndTarget.frame.minY == childFrame.midY)
-    #expect(childEndTarget.frame.maxY == childFrame.maxY + TerminalSidebarLayoutPlan.expandedProjectTrailingSpacing)
+    #expect(rootTarget.frame == rootFrame)
+    #expect(childTarget.frame == childFrame)
+    #expect(childEndTarget.frame.minY == childFrame.maxY)
+    #expect(
+      childEndTarget.frame.maxY
+        == childFrame.maxY + TerminalSidebarLayoutPlan.rootBoundaryTargetHeight
+    )
   }
 
   @Test
@@ -322,7 +339,7 @@ struct TerminalSidebarLayoutPlanTests {
     let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
     let target = try #require(
       plan.semanticTargets.first {
-        $0.path == .rootItem(lane: .regular, index: 0, id: .group(groupID))
+        $0.path == .rootItem(lane: .regular, index: 0, id: .project(projectID))
       }
     )
 
@@ -398,22 +415,14 @@ struct TerminalSidebarLayoutPlanTests {
       draggingItemIDs: [.tab(source)]
     )
 
-    for (projectID, insertionIndex) in [(collapsedProject, 1), (emptyProject, 0)] {
-      let targets = plan.semanticTargets.filter {
-        switch $0.path {
-        case .rootBoundary, .project(projectID, _): true
-        case .rootItem, .project, .unassigned, .unassignedHeader, .pinnedEnd, .trailingRoot:
-          false
-        }
-      }
-      let projectTarget = targets.first {
-        guard case .project(projectID, insertionIndex) = $0.path else { return false }
-        return true
+    for (projectID, rootIndex) in [(collapsedProject, 0), (emptyProject, 1)] {
+      let projectTarget = plan.semanticTargets.first {
+        $0.path == .projectEntry(projectID)
       }
       #expect(projectTarget?.frame.height == 19)
       let bottom = plan.semanticTargets.first {
-        guard case .rootBoundary(let index, .after) = $0.path else { return false }
-        return outline.roots[index].id == .project(projectID)
+        $0.path == .rootBoundary(lane: .regular, index: rootIndex + 1)
+          && $0.frame.minY == projectTarget?.frame.maxY
       }
       #expect(bottom?.frame.height == 18)
     }
@@ -423,33 +432,33 @@ struct TerminalSidebarLayoutPlanTests {
   func collapsedGroupHeaderRemainsAWholeGroupCandidate() throws {
     let targetChild = TerminalTabID()
     let sourceChild = TerminalTabID()
-    let targetGroup = TerminalTabGroupID()
-    let sourceGroup = TerminalTabGroupID()
+    let targetGroup = TerminalProjectID()
+    let sourceGroup = TerminalProjectID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(targetGroup, .orange, .automatic, [targetChild]),
+          content: .project(targetGroup, .orange, [targetChild]),
           isPinned: false
         ),
         TerminalSidebarOutline.Root(
-          content: .group(sourceGroup, .blue, .automatic, [sourceChild]),
+          content: .project(sourceGroup, .blue, [sourceChild]),
           isPinned: false
         ),
       ],
       revision: 1,
-      collapsedGroupIDs: [targetGroup]
+      collapsedProjectIDs: [targetGroup]
     )
-    let payload = try #require(outline.dragPayload(for: .group(sourceGroup)))
+    let payload = try #require(outline.dragPayload(for: .project(sourceGroup)))
     let path = TerminalSidebarSemanticPath.rootItem(
       lane: .regular,
       index: 0,
-      id: .group(targetGroup)
+      id: .project(targetGroup)
     )
     let plan = TerminalSidebarTestFixture.layoutPlan(
       outline: outline,
-      draggingItemIDs: [.group(sourceGroup), .tab(sourceChild)]
+      draggingItemIDs: [.project(sourceGroup), .tab(sourceChild)]
     )
-    let header = try #require(plan.items.first { $0.id == .group(targetGroup) }?.frame)
+    let header = try #require(plan.items.first { $0.id == .project(targetGroup) }?.frame)
 
     #expect(plan.semanticTarget(at: header.minY + 8)?.path == path)
     #expect(TerminalSidebarDropPlanner.plan(payload: payload, path: path, outline: outline) != nil)
@@ -460,9 +469,7 @@ struct TerminalSidebarLayoutPlanTests {
     let first = TerminalTabID()
     let second = TerminalTabID()
     let outline = TerminalSidebarTestFixture.outline(
-      roots: [first, second].map {
-        TerminalSidebarOutline.Root(content: .tab($0), isPinned: false)
-      },
+      roots: [TerminalSidebarOutline.Root(content: .unassigned([first, second]), isPinned: false)],
       revision: 1
     )
     let payload = try #require(
@@ -515,6 +522,9 @@ struct TerminalSidebarLayoutPlanTests {
     let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
     let sourceFrame = try #require(plan.items.first { $0.id == .tab(source) }?.frame)
     let divider = try #require(plan.items.first { $0.id == .pinDivider }?.frame)
+    let naturalDivider = try #require(
+      baseline.items.first { $0.id == .pinDivider }?.frame
+    )
     let regularProjectFrame = try #require(plan.projects.first { $0.id == regularProjectID }?.frame)
     let trailingTarget = try #require(
       plan.semanticTargets.first {
@@ -531,16 +541,16 @@ struct TerminalSidebarLayoutPlanTests {
     )
     #expect(
       plan.semanticTarget(at: naturalDivider.midY)?.path
-        == .rootBoundary(lane: .pinned, index: 2)
+        == .rootBoundary(lane: .pinned, index: 1)
     )
     #expect(
       plan.semanticTarget(at: trailingTarget.frame.minY + 1)?.path
         == .rootBoundary(lane: .regular, index: 1)
     )
     #expect(
-      !plan.semanticTargets.contains {
+      plan.semanticTargets.count {
         $0.path == .rootBoundary(lane: .pinned, index: 1)
-      }
+      } == 1
     )
   }
 
@@ -552,16 +562,21 @@ struct TerminalSidebarLayoutPlanTests {
       revision: 1
     )
     let viewportHeight: CGFloat = 180
-    let plan = TerminalSidebarTestFixture.layoutPlan(
+    let baseline = TerminalSidebarTestFixture.layoutPlan(
       outline: outline,
       viewportHeight: viewportHeight
     )
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(tabs[0])],
+      viewportHeight: viewportHeight
+    )
     let lastTab = try #require(tabs.last)
-    let lastFrame = try #require(plan.items.first { $0.id == .tab(lastTab) }?.frame)
-    let newTabFrame = try #require(plan.items.first { $0.id == .newTab }?.frame)
+    let lastFrame = try #require(baseline.items.first { $0.id == .tab(lastTab) }?.frame)
+    let newTabFrame = try #require(baseline.items.first { $0.id == .newTab }?.frame)
     let trailingPath = TerminalSidebarSemanticPath.rootBoundary(
       lane: .regular,
-      index: tabs.count
+      index: 1
     )
     let trailingTarget = try #require(
       plan.semanticTargets.first { $0.path == trailingPath }
@@ -580,10 +595,10 @@ struct TerminalSidebarLayoutPlanTests {
     )
     #expect(
       trailingTarget.frame.minY
-        == lastFrame.maxY + TerminalSidebarLayoutPlan.expandedProjectTrailingSpacing
+        == lastFrame.maxY + TerminalSidebarLayoutPlan.rootBoundaryTargetHeight
     )
     #expect(newTabFrame.minY > trailingTarget.frame.minY)
-    #expect(plan.semanticTarget(at: trailingTarget.frame.minY + 1)?.path == .trailingRoot)
+    #expect(plan.semanticTarget(at: trailingTarget.frame.minY + 1)?.path == trailingPath)
     #expect(dropPlan?.destination == .root(isPinned: false, index: 1))
     #expect(dropPlan?.placeholder == .beforeFooter)
   }
@@ -651,7 +666,11 @@ struct TerminalSidebarLayoutPlanTests {
     let firstFrame = try #require(plan.projects.first { $0.id == firstProject }?.frame)
     let secondFrame = try #require(plan.projects.first { $0.id == secondProject }?.frame)
 
-    #expect(!plan.semanticTargets.contains { $0.path == .unassigned(index: 0) })
+    #expect(
+      !plan.semanticTargets.contains {
+        $0.path == .unassignedItem(index: 0, id: source)
+      }
+    )
     #expect(secondFrame.minY > firstFrame.maxY)
   }
 

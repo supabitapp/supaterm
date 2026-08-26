@@ -10,7 +10,7 @@ struct TerminalSidebarDragContent {
   let motionPolicy: TerminalSidebarMotionPolicy
   let canBeginDrag: Bool
   let swipe: SpaceSwipeController?
-  let groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView]
+  let projectBackgroundViews: [TerminalProjectID: TerminalSidebarProjectBackgroundView]
 }
 
 struct TerminalSidebarDragHost {
@@ -25,7 +25,7 @@ struct TerminalSidebarDragHost {
       TerminalSidebarDropHandoff,
       @escaping TerminalSidebarDropHandoffCompletion
     ) -> Void
-  let setHoveredGroupID: (TerminalTabGroupID?) -> Void
+  let setHoveredProjectID: (TerminalProjectID?) -> Void
 }
 
 enum TerminalSidebarDragOutlineDisposition: Equatable {

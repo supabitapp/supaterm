@@ -142,8 +142,9 @@ extension TerminalHostState {
     inheritingFromSurfaceID: UUID? = nil
   ) -> TerminalTabID? {
     guard projectCatalog.projects.contains(where: { $0.id == projectID }) else { return nil }
-    return createTab(
+    return try? createTab(
       in: spaceID ?? displayedSpaceID,
+      reason: .user,
       focusing: focusing,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
       projectID: projectID

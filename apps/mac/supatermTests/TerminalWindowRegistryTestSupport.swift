@@ -12,7 +12,7 @@ func registerWindow(
   onClose: @escaping (UUID) -> Void = { _ in }
 ) -> RegisteredWindow {
   let id = UUID()
-  let host = TerminalHostState(managesTerminalSurfaces: createsInitialTab, spaceID: spaceID)
+  let host = TerminalHostState.test(managesTerminalSurfaces: createsInitialTab, spaceID: spaceID)
   if createsInitialTab {
     host.ensureInitialTab(focusing: false, startupCommand: nil)
   }

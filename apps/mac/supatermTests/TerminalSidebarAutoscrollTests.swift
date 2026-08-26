@@ -223,8 +223,7 @@ struct TerminalSidebarAutoscrollTests {
     let target = TerminalTabID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
-        TerminalSidebarOutline.Root(content: .tab(target), isPinned: false),
+        TerminalSidebarOutline.Root(content: .unassigned([source, target]), isPinned: false)
       ],
       revision: 2
     )
@@ -233,7 +232,7 @@ struct TerminalSidebarAutoscrollTests {
     let pointerY = TerminalSidebarPinnedDropRouting.autoscrollPointerY(in: visibleRect)
     let resolution = TerminalSidebarDropResolution(
       payload: payload,
-      path: .rootBoundary(lane: .regular, index: 2),
+      path: .rootBoundary(lane: .regular, index: 1),
       outline: outline
     )
 
@@ -241,7 +240,7 @@ struct TerminalSidebarAutoscrollTests {
     #expect(
       TerminalSidebarAutoscrollBehavior.direction(pointerY: pointerY, visibleRect: visibleRect)
         == .down)
-    #expect(resolution.path == .rootBoundary(lane: .regular, index: 2))
+    #expect(resolution.path == .rootBoundary(lane: .regular, index: 1))
     #expect(resolution.plan?.destination == .root(isPinned: false, index: 1))
     #expect(resolution.plan?.placeholder == .beforeFooter)
   }

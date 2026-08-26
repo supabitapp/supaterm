@@ -12,10 +12,9 @@ struct TerminalSidebarCollectionHarnessTests {
     let source = TerminalTabID()
     let outline = outline([first, second, source])
     let payload = try #require(outline.dragPayload(for: .tab(source)))
-    let path = TerminalSidebarSemanticPath.rootItem(
-      lane: .regular,
+    let path = TerminalSidebarSemanticPath.unassignedItem(
       index: 1,
-      id: .tab(second)
+      id: second
     )
     let target = try #require(
       TerminalSidebarDropPlanner.plan(
@@ -59,15 +58,13 @@ struct TerminalSidebarCollectionHarnessTests {
     let source = TerminalTabID()
     let outline = outline(tabs + [source])
     let payload = try #require(outline.dragPayload(for: .tab(source)))
-    let sourcePath = TerminalSidebarSemanticPath.rootItem(
-      lane: .regular,
+    let sourcePath = TerminalSidebarSemanticPath.unassignedItem(
       index: 0,
-      id: .tab(tabs[0])
+      id: tabs[0]
     )
-    let destinationPath = TerminalSidebarSemanticPath.rootItem(
-      lane: .regular,
+    let destinationPath = TerminalSidebarSemanticPath.unassignedItem(
       index: 4,
-      id: .tab(tabs[4])
+      id: tabs[4]
     )
     let sourceTarget = try #require(
       TerminalSidebarDropPlanner.plan(
@@ -201,9 +198,7 @@ struct TerminalSidebarCollectionHarnessTests {
     revision: UInt64 = 1
   ) -> TerminalSidebarOutline {
     TerminalSidebarTestFixture.outline(
-      roots: tabIDs.map {
-        TerminalSidebarOutline.Root(content: .tab($0), isPinned: false)
-      },
+      roots: [TerminalSidebarOutline.Root(content: .unassigned(tabIDs), isPinned: false)],
       revision: revision
     )
   }

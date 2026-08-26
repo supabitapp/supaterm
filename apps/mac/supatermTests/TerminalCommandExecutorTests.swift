@@ -2,6 +2,7 @@ import AppKit
 import Clocks
 import ComposableArchitecture
 import Sharing
+import SupatermLicenseFeature
 import SupatermSocketFeature
 import SupatermSupport
 import SupatermTerminalCore
@@ -162,7 +163,7 @@ struct TerminalCommandExecutorTests {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
 
       guard
@@ -506,6 +507,7 @@ struct TerminalCommandExecutorTests {
             startupCommand: nil,
             cwd: nil,
             focus: false,
+            projectID: nil,
             target: .space(spaces[1].id.rawValue)
           )
         )
@@ -815,7 +817,7 @@ struct TerminalCommandExecutorTests {
     withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      let registry = TerminalWindowRegistry()
+      let registry = TerminalWindowRegistry.test()
       let commandExecutor = makeCommandExecutor(registry: registry)
       let window = registerWindow(in: registry, spaceID: TerminalSpaceID())
       let tabID = window.terminal.spaceManager.tabCollection.createTab(title: "Build")

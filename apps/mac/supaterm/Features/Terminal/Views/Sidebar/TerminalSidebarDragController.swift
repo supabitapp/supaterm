@@ -4,33 +4,9 @@ import SwiftUI
 
 @MainActor
 final class TerminalSidebarDragController {
-  typealias DropHandoffCompletion = @MainActor @Sendable () -> Void
-
-  struct Content {
-    let outline: TerminalSidebarOutline
-    let selectedTabID: TerminalTabID?
-    let rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation]
-    let context: TerminalSidebarRowContext
-    let motionPolicy: TerminalSidebarMotionPolicy
-    let canBeginDrag: Bool
-    let swipe: SpaceSwipeController?
-    let projectBackgroundViews: [TerminalProjectID: TerminalSidebarProjectBackgroundView]
-  }
-
-  struct Host {
-    let content: () -> Content?
-    let indexPath: (TerminalSidebarEntryID) -> IndexPath?
-    let invalidateLayout: () -> Void
-    let rebindRows: (Set<TerminalSidebarEntryID>) -> Void
-    let didBegin: () -> Void
-    let didFinish: () -> Void
-    let completeDropHandoff:
-      (
-        TerminalSidebarDropHandoff,
-        @escaping DropHandoffCompletion
-      ) -> Void
-    let setHoveredProjectID: (TerminalProjectID?) -> Void
-  }
+  typealias DropHandoffCompletion = TerminalSidebarDropHandoffCompletion
+  typealias Content = TerminalSidebarDragContent
+  typealias Host = TerminalSidebarDragHost
 
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)?
 
