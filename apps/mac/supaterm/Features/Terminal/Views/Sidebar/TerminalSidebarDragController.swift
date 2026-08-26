@@ -247,28 +247,13 @@ final class TerminalSidebarDragController {
   }
 
   private func rowMouseDragged(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
-    guard var pendingDrag, pendingDrag.entryID == entryID else { return false }
-    guard !pendingDrag.isActivationFailed else { return false }
+    guard let pendingDrag, pendingDrag.entryID == entryID else { return false }
     let location = collectionView.convert(event.locationInWindow, from: nil)
-    let decision =
-      if let indexPath = host.indexPath(entryID),
-        let attributes = collectionLayout.layoutAttributesForItem(at: indexPath)
-      {
-        TerminalSidebarDragActivation.decision(
-          origin: pendingDrag.origin,
-          location: location,
-          sourceFrame: attributes.frame
-        )
-      } else {
-        TerminalSidebarDragActivation.Decision.failed
-      }
-    switch decision {
+    switch TerminalSidebarDragActivation.decision(
+      origin: pendingDrag.origin,
+      location: location
+    ) {
     case .pending:
-      return false
-    case .failed:
-      pendingDrag.isActivationFailed = true
-      self.pendingDrag = pendingDrag
-      nativeDragSession.cancelSourceCapture()
       return false
     case .begin:
       self.pendingDrag = nil

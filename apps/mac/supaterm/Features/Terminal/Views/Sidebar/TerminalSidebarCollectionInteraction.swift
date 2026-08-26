@@ -56,7 +56,6 @@ struct TerminalSidebarPendingDrag {
   let selectedTabIDs: [TerminalTabID]
   let defersSelection: Bool
   let selectionHandoff: TerminalSidebarTabDragSelectionHandoff?
-  var isActivationFailed = false
 }
 
 struct TerminalSidebarDragSourceGeometry {
@@ -147,22 +146,18 @@ enum TerminalSidebarDragActivation {
   enum Decision: Equatable {
     case pending
     case begin
-    case failed
   }
 
   static let threshold: CGFloat = 8
 
   static func decision(
     origin: CGPoint,
-    location: CGPoint,
-    sourceFrame: CGRect
+    location: CGPoint
   ) -> Decision {
     guard hypot(location.x - origin.x, location.y - origin.y) >= threshold else {
       return .pending
     }
-    return sourceFrame.insetBy(dx: -threshold, dy: -threshold).contains(location)
-      ? .begin
-      : .failed
+    return .begin
   }
 }
 

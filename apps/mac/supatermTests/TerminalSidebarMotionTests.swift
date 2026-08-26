@@ -1,4 +1,5 @@
 import AppKit
+import CustomDump
 import QuartzCore
 import SupaTheme
 import Testing
@@ -223,46 +224,46 @@ struct TerminalSidebarMotionTests {
 
   @Test
   func activationUsesTheEightPointThreshold() {
-    #expect(
+    expectNoDifference(
       TerminalSidebarDragActivation.decision(
         origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 37.9, y: 20),
-        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
-      ) == .pending
+        location: CGPoint(x: 37.9, y: 20)
+      ),
+      .pending
     )
-    #expect(
+    expectNoDifference(
       TerminalSidebarDragActivation.decision(
         origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 38, y: 20),
-        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
-      ) == .begin
-    )
-  }
-
-  @Test
-  func thresholdCrossingOutsideTheExpandedRowFailsTheDrag() {
-    #expect(
-      TerminalSidebarDragActivation.decision(
-        origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 34, y: 260),
-        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
-      ) == .failed
+        location: CGPoint(x: 38, y: 20)
+      ),
+      .begin
     )
   }
 
   @Test
-  func thresholdCrossingInsideTheExpandedRowBeginsTheDrag() {
-    #expect(
+  func coalescedJumpFarFromTheProjectHeaderStillBeginsTheDrag() {
+    expectNoDifference(
       TerminalSidebarDragActivation.decision(
         origin: CGPoint(x: 30, y: 20),
-        location: CGPoint(x: 30, y: 47.9),
-        sourceFrame: CGRect(x: 0, y: 0, width: 240, height: 40)
-      ) == .begin
+        location: CGPoint(x: 34, y: 260)
+      ),
+      .begin
     )
   }
 
   @Test
-  func failedGroupDragTogglesOnlyWhenReleaseReturnsInsideTheLiveHeader() {
+  func thresholdCrossingNearTheProjectHeaderBeginsTheDrag() {
+    expectNoDifference(
+      TerminalSidebarDragActivation.decision(
+        origin: CGPoint(x: 30, y: 20),
+        location: CGPoint(x: 30, y: 47.9)
+      ),
+      .begin
+    )
+  }
+
+  @Test
+  func groupClickTogglesOnlyWhenReleaseReturnsInsideTheLiveHeader() {
     let frame = CGRect(x: 12, y: 40, width: 216, height: 37)
 
     #expect(
