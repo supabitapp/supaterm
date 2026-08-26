@@ -50,7 +50,7 @@ The integration is split into three layers.
 - reduce every adapter into one canonical agent state store
 - update tab-level activity
 - emit in-app or desktop notifications when needed
-- reduce a finished agent command to `idle` after exit 0 or `unknown` after any other exit, then clear its live process state
+- reduce a finished agent command to `idle`, then clear its live process state
 - use the pane foreground process group with hook-reported processes as port-scan roots
 
 Port discovery expands hook process trees and every live member of the pane's foreground process
@@ -91,10 +91,10 @@ falls back to `idle`.
 Detection-only state is temporary and read-only. It can supply agent identity and `unknown`, `idle`,
 `running`, or `needs input` activity to the panel and tab. It cannot create an action session,
 notification, child-agent state, or saved state. A matching native session can add those fields
-without replacing the detected phase. When the command ends, exit 0 retains a temporary `idle`
-completion and any other exit retains `unknown`. The last exit state clears on later pane activity,
-focus cleanup, or surface cleanup. Live detected state clears when the surface closes, the process
-identity changes, or detection can no longer prove the state.
+without replacing the detected phase. When the command ends, Supaterm retains a temporary `idle`
+completion regardless of exit status. The last exit state clears on later pane activity, focus
+cleanup, or surface cleanup. Live detected state clears when the surface closes, the process identity
+changes, or detection can no longer prove the state.
 
 ### Rules
 
