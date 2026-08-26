@@ -206,6 +206,9 @@ final class TerminalSidebarDragController {
       selectPressedTab(entryID, modifiers: event.modifierFlags, content: content)
       return consumesClick
     }
+    if case .unassigned = entryID {
+      return beginUnassignedHeaderPress(entryID: entryID, event: event)
+    }
     guard let payload = content.outline.dragPayload(for: entryID) else {
       selectPressedTab(entryID, modifiers: event.modifierFlags, content: content)
       return consumesClick
@@ -251,6 +254,26 @@ final class TerminalSidebarDragController {
     case .unassigned, .pinDivider, .newTab:
       return false
     }
+  }
+
+  private func beginUnassignedHeaderPress(
+    entryID: TerminalSidebarEntryID,
+    event: NSEvent
+  ) -> Bool {
+    guard
+      let indexPath = host.indexPath(entryID),
+      let attributes = collectionLayout.layoutAttributesForItem(at: indexPath)
+    else { return false }
+    let location = collectionView.convert(event.locationInWindow, from: nil)
+    guard attributes.frame.contains(location) else { return false }
+    pendingDrag = TerminalSidebarPendingDrag(
+      entryID: entryID,
+      origin: location,
+      selectedTabIDs: [],
+      defersSelection: false,
+      selectionHandoff: nil
+    )
+    return true
   }
 
   private func rowMouseDragged(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
