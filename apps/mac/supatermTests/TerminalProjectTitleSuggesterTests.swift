@@ -5,6 +5,17 @@ import Testing
 
 struct TerminalProjectTitleSuggesterTests {
   @Test
+  func emptyProjectUsesAnEditableDefaultTitle() {
+    let title = TerminalProjectTitleSuggester.title(
+      for: [],
+      sharedRepositoryName: nil,
+      existingTitles: ["New Project"]
+    )
+
+    #expect(title == "New Project 2")
+  }
+
+  @Test
   func lockedSingleTabTitleBeatsRepositoryName() {
     let title = TerminalProjectTitleSuggester.title(
       for: [input("Release checks", isTitleLocked: true)],

@@ -394,7 +394,7 @@ struct TerminalSidebarTabRow: View {
   }
 }
 
-private func createSidebarProject(
+func createSidebarProject(
   terminal: TerminalHostState,
   tabIDs: [TerminalTabID],
   renameState: TerminalSidebarRenameState?
