@@ -254,7 +254,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
       let isDragged = context.draggedIDs.contains(entry.id)
       let visibility = context.visibilityByEntryID[entry.id] ?? .visible
-      if y > Self.initialY {
+      if y > Self.initialY, !isDragged {
         y += Self.spacing(before: entry, previous: previousVisibleEntry) * visibility.height
       }
       if let naturalTargetGapY = context.naturalTargetGapY, dropPlaceholderFrame == nil,
@@ -268,7 +268,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
         y += context.dropGapHeight
       }
       let preferredHeight = context.preferredHeights[entry.id] ?? Self.defaultHeight(for: entry)
-      let height = preferredHeight * visibility.height
+      let height = isDragged ? 0 : preferredHeight * visibility.height
       let horizontalInsets = Self.horizontalInsets(for: entry)
       items.append(
         Item(
@@ -283,7 +283,9 @@ struct TerminalSidebarLayoutPlan: Equatable {
         )
       )
       y += height
-      previousVisibleEntry = entry
+      if !isDragged {
+        previousVisibleEntry = entry
+      }
     }
 
     if context.insertionIndex == context.entries.count, context.dropGapHeight > 0 {

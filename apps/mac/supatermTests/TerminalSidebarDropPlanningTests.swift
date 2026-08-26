@@ -131,15 +131,16 @@ struct TerminalSidebarDropPlanningTests {
         )
       )
       let draggingItemIDs = sourceIndices.map { TerminalSidebarEntryID.tab(tabs[$0]) }
-      let naturalLayout = TerminalSidebarTestFixture.layoutPlan(
+      let baselineLayout = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+      let dragLayout = TerminalSidebarTestFixture.layoutPlan(
         outline: outline,
         draggingItemIDs: draggingItemIDs
       )
       let candidateFrame = try #require(
-        naturalLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
+        baselineLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
       )
       let path = try #require(
-        naturalLayout.semanticTarget(at: candidateFrame.midY)?.path
+        dragLayout.semanticTarget(at: candidateFrame.midY)?.path
       )
       #expect(
         path
@@ -727,15 +728,16 @@ struct TerminalSidebarDropPlanningTests {
         )
       )
       let draggingItemIDs = sourceIndices.map { TerminalSidebarEntryID.tab(tabs[$0]) }
-      let naturalLayout = TerminalSidebarTestFixture.layoutPlan(
+      let baselineLayout = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+      let dragLayout = TerminalSidebarTestFixture.layoutPlan(
         outline: outline,
         draggingItemIDs: draggingItemIDs
       )
       let candidateFrame = try #require(
-        naturalLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
+        baselineLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
       )
       let path = try #require(
-        naturalLayout.semanticTarget(at: candidateFrame.midY)?.path
+        dragLayout.semanticTarget(at: candidateFrame.midY)?.path
       )
       #expect(
         path
