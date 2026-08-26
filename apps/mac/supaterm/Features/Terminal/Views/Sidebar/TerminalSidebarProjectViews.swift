@@ -297,6 +297,7 @@ enum TerminalSidebarRowPresentation: Equatable {
 }
 
 enum TerminalSidebarAccessibilityIdentifier {
+  static let newProject = "sidebar.new-project"
   static let newTab = "sidebar.new-tab"
   static let unassigned = "sidebar.unassigned-header"
   static let tabOutline = "sidebar.tab-outline"

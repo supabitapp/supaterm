@@ -18,7 +18,9 @@ nonisolated enum TerminalProjectTitleSuggester {
     let completeTitles = titles.compactMap(\.self)
     let baseTitle: String
 
-    if tabs.count == 1, tabs[0].isTitleLocked, let title = titles[0] {
+    if tabs.isEmpty {
+      baseTitle = "New Project"
+    } else if tabs.count == 1, tabs[0].isTitleLocked, let title = titles[0] {
       baseTitle = title
     } else if tabs.count > 1,
       tabs.allSatisfy(\.isTitleLocked),

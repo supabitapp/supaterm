@@ -73,12 +73,7 @@ struct TerminalSidebarChromeView: View {
             dismiss: dismissReleaseAnnouncement
           )
         }
-        SpacePageDotsView(
-          store: store,
-          terminal: terminal,
-          palette: palette,
-          position: pagingPosition
-        )
+        footer
       }
       .padding(.leading, TerminalSidebarLayout.cardHorizontalInsets.leading)
       .padding(.trailing, TerminalSidebarLayout.cardHorizontalInsets.trailing)
@@ -87,17 +82,37 @@ struct TerminalSidebarChromeView: View {
     .padding(.trailing, -TerminalChromeMetrics.paneInset)
   }
 
-  static func auxiliarySection(
-    isLicenseExpired: Bool,
-    hasTabLimitRefusal: Bool,
-    showsUpdate: Bool
-  ) -> AuxiliarySection? {
-    if isLicenseExpired {
-      return .licenseExpired
+  private var footer: some View {
+    ZStack {
+      SpacePageDotsView(
+        store: store,
+        terminal: terminal,
+        palette: palette,
+        position: pagingPosition
+      )
+      HStack {
+        Button(action: createProject) {
+          Image(systemName: "folder.badge.plus")
+            .font(.system(size: 14, weight: .medium))
+            .accessibilityHidden(true)
+        }
+        .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .icon))
+        .controlSize(.small)
+        .foregroundStyle(palette.secondaryText)
+        .accessibilityIdentifier(TerminalSidebarAccessibilityIdentifier.newProject)
+        .accessibilityLabel("New Project")
+        .help("New Project")
+        Spacer(minLength: 0)
+      }
     }
-    if hasTabLimitRefusal {
-      return .tabLimit
-    }
-    return showsUpdate ? .update : nil
+    .frame(maxWidth: .infinity)
+  }
+
+  private func createProject() {
+    createSidebarProject(
+      terminal: terminal,
+      tabIDs: [],
+      renameState: sidebarControllerCache.controller(for: terminal.displayedSpaceID).renameState
+    )
   }
 }
