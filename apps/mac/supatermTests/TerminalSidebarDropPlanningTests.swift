@@ -131,13 +131,12 @@ struct TerminalSidebarDropPlanningTests {
         )
       )
       let draggingItemIDs = sourceIndices.map { TerminalSidebarEntryID.tab(tabs[$0]) }
-      let baselineLayout = TerminalSidebarTestFixture.layoutPlan(outline: outline)
       let dragLayout = TerminalSidebarTestFixture.layoutPlan(
         outline: outline,
         draggingItemIDs: draggingItemIDs
       )
       let candidateFrame = try #require(
-        baselineLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
+        dragLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
       )
       let path = try #require(
         dragLayout.semanticTarget(at: candidateFrame.midY)?.path
@@ -236,6 +235,86 @@ struct TerminalSidebarDropPlanningTests {
     #expect(plan?.destination == .root(isPinned: false, index: 1))
     #expect(plan?.placeholder == .beforeFooter)
     #expect(plan?.command(for: payload)?.itemIDs == [.group(groupID)])
+  }
+
+  @Test
+  @MainActor
+  func pinnedGroupMovesBetweenTheDisplayedRegularRootsWhenExpandedOrCollapsed() throws {
+    for isCollapsed in [false, true] {
+      let collection = TerminalTabCollection()
+      let developmentTabs = (0..<3).map { collection.createTab(title: "Development \($0)") }
+      let docs = collection.createTab(title: "docs")
+      let productTabs = (0..<2).map { collection.createTab(title: "Product \($0)") }
+      let development = try #require(
+        collection.createGroup(
+          title: "Development",
+          color: .blue,
+          containing: developmentTabs
+        )?.groupID
+      )
+      let product = try #require(
+        collection.createGroup(
+          title: "Product",
+          color: .pink,
+          containing: productTabs
+        )?.groupID
+      )
+      _ = try #require(collection.setPinned(.group(development), isPinned: true))
+      let outline = TerminalSidebarOutline(
+        snapshot: TerminalTabSurfaceSnapshot(
+          spaceID: TerminalSidebarTestFixture.primarySpaceID,
+          collection: collection.snapshot,
+          collapsedGroupIDs: isCollapsed ? [development] : []
+        )
+      )
+      let payload = try #require(outline.dragPayload(for: .group(development)))
+      let liftedEntryIDs = outline.liftedEntryIDs(for: payload.source)
+      let lifted = TerminalSidebarTestFixture.layoutPlan(
+        outline: outline,
+        draggingItemIDs: liftedEntryIDs
+      )
+      let docsFrame = try #require(lifted.items.first { $0.id == .tab(docs) }?.frame)
+      let productFrame = try #require(
+        lifted.items.first { $0.id == .group(product) }?.frame
+      )
+      let path = try #require(lifted.semanticTarget(at: docsFrame.midY)?.path)
+
+      #expect(
+        path == .rootItem(lane: .regular, index: 0, id: .tab(docs))
+      )
+      let plan = try #require(
+        TerminalSidebarDropPlanner.plan(
+          payload: payload,
+          path: path,
+          outline: outline
+        )
+      )
+      #expect(plan.destination == .root(isPinned: false, index: 1))
+      #expect(plan.placeholder == .before(.group(product)))
+
+      let projected = TerminalSidebarTestFixture.layoutPlan(
+        outline: outline,
+        draggingItemIDs: liftedEntryIDs,
+        target: plan
+      )
+      let placeholder = try #require(projected.dropPlaceholderFrame)
+      #expect(placeholder.minY == docsFrame.maxY)
+      #expect(productFrame.minY - placeholder.minY == TerminalSidebarLayoutPlan.rootSpacing)
+
+      let command = try #require(plan.command(for: payload))
+      _ = try collection.move(
+        TerminalTabMoveRequest(
+          operationID: command.operationID,
+          expectedTopologyRevision: command.topologyStamp.revision,
+          itemIDs: command.itemIDs,
+          destination: command.destination
+        )
+      )
+      #expect(
+        collection.regularRootItems.map(\.id)
+          == [.tab(docs), .group(development), .group(product)]
+      )
+    }
   }
 
   @Test
@@ -728,13 +807,12 @@ struct TerminalSidebarDropPlanningTests {
         )
       )
       let draggingItemIDs = sourceIndices.map { TerminalSidebarEntryID.tab(tabs[$0]) }
-      let baselineLayout = TerminalSidebarTestFixture.layoutPlan(outline: outline)
       let dragLayout = TerminalSidebarTestFixture.layoutPlan(
         outline: outline,
         draggingItemIDs: draggingItemIDs
       )
       let candidateFrame = try #require(
-        baselineLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
+        dragLayout.items.first { $0.id == .tab(tabs[candidateIndex]) }?.frame
       )
       let path = try #require(
         dragLayout.semanticTarget(at: candidateFrame.midY)?.path

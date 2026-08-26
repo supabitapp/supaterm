@@ -75,24 +75,24 @@ struct TerminalSidebarLayoutPlan: Equatable {
         draggedItemIDs: dragDropState?.draggingItemIDs ?? [],
         insertionIndex: insertionIndex
       )
-    let naturalGeometry = Self.itemGeometry(
+    let targetBaselineGeometry = Self.itemGeometry(
       ItemGeometryContext(
         entries: entries,
         preferredHeights: preferredHeights,
         visibilityByEntryID: visibilityByEntryID,
-        draggedIDs: [],
+        draggedIDs: draggedIDs,
         insertionIndex: nil,
-        naturalTargetGapY: nil,
+        tabCandidateGapY: nil,
         dropGapHeight: 0,
         width: width
       )
     )
-    let naturalItemByID = Dictionary(
-      uniqueKeysWithValues: naturalGeometry.items.map { ($0.id, $0) })
+    let targetBaselineItemByID = Dictionary(
+      uniqueKeysWithValues: targetBaselineGeometry.items.map { ($0.id, $0) })
     let targetGeometry = Self.targetGeometry(
       TargetGeometryContext(
         outline: outline,
-        itemByID: naturalItemByID,
+        itemByID: targetBaselineItemByID,
         draggedIDs: draggedIDs,
         sourceIsTab: {
           guard let source = dragDropState?.source else { return false }
@@ -103,8 +103,9 @@ struct TerminalSidebarLayoutPlan: Equatable {
         viewportHeight: viewportHeight
       )
     )
-    let naturalTargetGapY = Self.naturalTargetGapY(
+    let tabCandidateGapY = Self.tabCandidateGapY(
       for: dragDropState?.target,
+      source: dragDropState?.source,
       targets: targetGeometry
     )
     let projectedGeometry = Self.itemGeometry(
@@ -113,8 +114,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
         preferredHeights: preferredHeights,
         visibilityByEntryID: visibilityByEntryID,
         draggedIDs: draggedIDs,
-        insertionIndex: naturalTargetGapY == nil ? insertionIndex : nil,
-        naturalTargetGapY: naturalTargetGapY,
+        insertionIndex: tabCandidateGapY == nil ? insertionIndex : nil,
+        tabCandidateGapY: tabCandidateGapY,
         dropGapHeight: dropGapHeight,
         width: width
       )
@@ -231,7 +232,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     let visibilityByEntryID: [TerminalSidebarEntryID: Visibility]
     let draggedIDs: Set<TerminalSidebarEntryID>
     let insertionIndex: Int?
-    let naturalTargetGapY: CGFloat?
+    let tabCandidateGapY: CGFloat?
     let dropGapHeight: CGFloat
     let width: CGFloat
   }
@@ -257,11 +258,11 @@ struct TerminalSidebarLayoutPlan: Equatable {
       if y > Self.initialY, !isDragged {
         y += Self.spacing(before: entry, previous: previousVisibleEntry) * visibility.height
       }
-      if let naturalTargetGapY = context.naturalTargetGapY, dropPlaceholderFrame == nil,
-        y >= naturalTargetGapY, context.dropGapHeight > 0
+      if let tabCandidateGapY = context.tabCandidateGapY, dropPlaceholderFrame == nil,
+        y >= tabCandidateGapY, context.dropGapHeight > 0
       {
         dropPlaceholderFrame = Self.placeholderFrame(
-          y: naturalTargetGapY,
+          y: tabCandidateGapY,
           height: context.dropGapHeight,
           width: context.width
         )
@@ -304,11 +305,13 @@ struct TerminalSidebarLayoutPlan: Equatable {
     )
   }
 
-  private static func naturalTargetGapY(
+  private static func tabCandidateGapY(
     for target: TerminalSidebarDropPlan?,
+    source: TerminalSidebarDragSource?,
     targets: [TerminalSidebarSemanticTarget]
   ) -> CGFloat? {
     guard let target else { return nil }
+    guard case .tabs = source else { return nil }
     switch target.path {
     case .rootItem(_, _, let id):
       guard case .tab = id else { return nil }
