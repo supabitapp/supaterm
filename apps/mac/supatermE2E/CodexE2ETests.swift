@@ -228,7 +228,7 @@ private final class CodexE2EFixture {
     let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
     try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
     let config = """
-      approval_policy = "untrusted"
+      approval_policy = "on-request"
       model = "gpt-5.6-luna"
       model_provider = "e2e"
       model_reasoning_effort = "low"
@@ -610,6 +610,9 @@ private func waitForCommandApproval(
         && lastCapture.contains("Would you like to run the following command?")
     }
   } catch {
+    if let serverFailure = fixture.server.recordedFailure {
+      throw SupatermE2EError(serverFailure)
+    }
     throw SupatermE2EError("\(error)\n--- pane capture ---\n\(lastCapture)")
   }
 }
@@ -635,7 +638,7 @@ private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
     ),
     FakeModelExchange(
       request: .responsesFunctionOutput(callID: CodexFakeCallID.lifecycleQuestion),
-      response: .responsesShellCommand(
+      response: .responsesExecCommand(
         callID: CodexFakeCallID.lifecycleCommand,
         command: lifecycleCommand(space)
       )
@@ -647,7 +650,7 @@ private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
     ),
     FakeModelExchange(
       request: .responsesInputText(interruptedMarker(space, name: "escape")),
-      response: .responsesShellCommand(
+      response: .responsesExecCommand(
         callID: CodexFakeCallID.escapeCommand,
         command: interruptedCommand(space, name: "escape")
       ),
@@ -655,7 +658,7 @@ private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
     ),
     FakeModelExchange(
       request: .responsesInputText(interruptedMarker(space, name: "ctrl-c")),
-      response: .responsesShellCommand(
+      response: .responsesExecCommand(
         callID: CodexFakeCallID.ctrlCCommand,
         command: interruptedCommand(space, name: "ctrl-c")
       ),
@@ -663,7 +666,7 @@ private func makeCodexScript(_ space: TestSpace) -> [FakeModelExchange] {
     ),
     FakeModelExchange(
       request: .responsesInputText(interruptedMarker(space, name: "cancel")),
-      response: .responsesShellCommand(
+      response: .responsesExecCommand(
         callID: CodexFakeCallID.cancelCommand,
         command: codexCancelCommand(space)
       ),
@@ -676,7 +679,7 @@ private func makeCodexStaticTitleScript(_ space: TestSpace) -> [FakeModelExchang
   [
     FakeModelExchange(
       request: .responsesInputText(staticTitleMarker(space)),
-      response: .responsesShellCommand(
+      response: .responsesExecCommand(
         callID: CodexFakeCallID.staticTitleCommand,
         command: staticTitleCommand(space)
       ),
