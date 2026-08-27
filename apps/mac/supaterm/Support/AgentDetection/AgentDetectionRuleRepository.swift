@@ -58,13 +58,6 @@ public struct AgentDetectionEvaluation: Equatable, Sendable {
   }
 }
 
-public struct AgentDetectionDetailedEvaluation: Equatable, Sendable {
-  public let identity: AgentDetectionAgentIdentity
-  public let generation: UInt64
-  public let manifest: AgentDetectionManifestSnapshot
-  public let explanation: AgentDetectionMatcherExplanation
-}
-
 public struct AgentDetectionSignalRequest: Equatable, Sendable {
   public let agentID: String
   public let input: AgentDetectionSignalInput
@@ -227,17 +220,5 @@ public actor AgentDetectionRuleRepository {
         match: agent.matcher.match(request.input)
       )
     }
-  }
-
-  public func explain(
-    _ request: AgentDetectionEvaluationRequest
-  ) -> AgentDetectionDetailedEvaluation? {
-    guard let agent = active.agent(id: request.agentID) else { return nil }
-    return AgentDetectionDetailedEvaluation(
-      identity: agent.identity,
-      generation: active.generation,
-      manifest: agent.manifest,
-      explanation: agent.matcher.explain(request.input)
-    )
   }
 }

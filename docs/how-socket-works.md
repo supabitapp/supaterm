@@ -210,8 +210,7 @@ sp config get updates.channel
 sp config set appearance.mode system
 sp config validate
 sp agent install-hooks
-sp agent install-hook claude
-sp agent remove-hook codex
+sp agent remove-hooks
 sp skills list
 sp skills get core
 sp skills install
@@ -228,7 +227,8 @@ sp project icon ~/code/project --json
 - Every other command in those two blocks needs a reachable app.
 - `sp config path` reads the local state root, so it can differ from the path the app reports when the two run with different `SUPATERM_STATE_HOME` values.
 - Without a reachable app, `sp config` and `sp agent` exit 64 and `sp skills` exits 1. All three print `Error: No reachable Supaterm instance was found.`
-- `sp agent install-hooks` installs Claude and then Codex, and stops at the first failure.
+- `sp agent install-hooks` checks every supported agent, reports every failure, and fails when no supported agent is available.
+- `sp agent remove-hooks` checks every supported agent and succeeds when an agent is absent or unavailable.
 - `sp agent receive-agent-hook` forwards hook payloads and is unaffected by these rules.
 
 ## Runtime Guarantees
@@ -249,7 +249,6 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `license.*` — status, activation, refresh, deactivation, purchase, and renewal
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
-- `terminal.agent_explain` — explicit rule evidence for one pane
 - `terminal.*` — space, tab, and pane control, one method per CLI verb
 
 `terminal.capture_pane` returns terminal text. `terminal.screenshot_pane` returns PNG data for a
@@ -279,7 +278,7 @@ resolves, an `agent` object.
 - `process` contains `processID` and `startTimeMicroseconds`.
 
 `sp ls --json` mirrors `agent` and `agentStatus` on pane items. The snapshot omits terminal text,
-rule patterns, and internal match weights. `sp agent explain` is the explicit rule-evidence surface.
+rule patterns, and internal match weights.
 
 Skill methods serve the app bundle:
 

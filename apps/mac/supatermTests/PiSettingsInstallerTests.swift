@@ -168,6 +168,79 @@ struct PiSettingsInstallerTests {
   }
 
   @Test
+  func installIsIdempotentWithExistingCanonicalPackage() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writePiSettings(
+      #"{"packages":["git:github.com/supabitapp/supaterm-skills"]}"#,
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let capture = PiCommandCapture()
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: { true },
+      runPiCommand: { arguments in
+        capture.record(arguments)
+        return PiSettingsInstaller.CommandResult(status: 0)
+      }
+    )
+    let settingsURL = PiSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+
+    try installer.installSupatermPackage()
+    let firstInstall = try Data(contentsOf: settingsURL)
+    try installer.installSupatermPackage()
+    let secondInstall = try Data(contentsOf: settingsURL)
+
+    #expect(secondInstall == firstInstall)
+    #expect(
+      capture.commands == [
+        PiSettingsInstaller.updateCommandArguments(
+          source: PiSettingsInstaller.canonicalPackageSource
+        ),
+        PiSettingsInstaller.updateCommandArguments(
+          source: PiSettingsInstaller.canonicalPackageSource
+        ),
+      ]
+    )
+    #expect(
+      try piSettingsObject(homeDirectoryURL: homeDirectoryURL)["packages"] as? [String]
+        == [PiSettingsInstaller.canonicalPackageSource]
+    )
+  }
+
+  @Test
+  func installRemovesDuplicateCanonicalPackageSources() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writePiSettings(
+      #"{"packages":["git:github.com/supabitapp/supaterm-skills","git:github.com/supabitapp/supaterm-skills"]}"#,
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let capture = PiCommandCapture()
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: { true },
+      runPiCommand: { arguments in
+        capture.record(arguments)
+        return PiSettingsInstaller.CommandResult(status: 0)
+      }
+    )
+
+    try installer.installSupatermPackage()
+
+    #expect(
+      capture.commands == [
+        PiSettingsInstaller.removeCommandArguments(
+          source: PiSettingsInstaller.canonicalPackageSource
+        ),
+        PiSettingsInstaller.installCommandArguments(
+          source: PiSettingsInstaller.canonicalPackageSource
+        ),
+      ]
+    )
+  }
+
+  @Test
   func installReplacesNoncanonicalPackageSource() throws {
     let homeDirectoryURL = try temporaryPiHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

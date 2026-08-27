@@ -24,16 +24,6 @@ extension SocketControlFeature {
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
-    case SupatermSocketMethod.terminalAgentExplain:
-      let payload = try request.decodeParams(SupatermAgentDetectionExplainRequest.self)
-      let execution = try await socketRequestExecutor.executeTerminalPane(
-        .agentExplain(createPaneTarget(from: payload.target))
-      )
-      guard case .agentExplain(let result) = execution else {
-        throw SocketExecutorError.unexpectedResult
-      }
-      return try .ok(id: request.id, encodableResult: result)
-
     case SupatermSocketMethod.terminalFocusPane:
       let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(

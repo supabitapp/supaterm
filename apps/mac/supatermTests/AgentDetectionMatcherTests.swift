@@ -120,62 +120,6 @@ struct AgentDetectionMatcherTests {
   }
 
   @Test
-  func shortCircuitMatchingAgreesWithFullEvidenceEvaluation() throws {
-    let matcher = try AgentDetectionMatcher(
-      agent: agent(
-        rules: [
-          rule(
-            gate: AgentDetectionGate(
-              contains: ["ready", "enter"],
-              regex: [#"Press\s+Enter"#],
-              lineRegex: [#"^Press Enter$"#],
-              all: [AgentDetectionGate(contains: ["press"])],
-              any: [
-                AgentDetectionGate(contains: ["return"]),
-                AgentDetectionGate(contains: ["ready"]),
-              ],
-              not: [AgentDetectionGate(contains: ["denied"])]
-            )
-          )
-        ]
-      )
-    )
-    let inputs = [
-      "READY\nPress Enter",
-      "missing every condition",
-      "READY\nPress Later",
-      "READY\nPress Enter\nDenied",
-    ]
-
-    for screen in inputs {
-      let input = AgentDetectionInput(screen: screen, oscTitle: "")
-      #expect(matcher.match(input) == matcher.explain(input).match)
-    }
-  }
-
-  @Test
-  func explanationIncludesEveryRuleAndConditionResult() throws {
-    let matcher = try AgentDetectionMatcher(
-      agent: agent(
-        rules: [
-          rule(id: "miss", priority: 20, contains: ["blocked"]),
-          rule(id: "winner", result: .idle, priority: 10, contains: ["ready"]),
-        ]
-      )
-    )
-
-    let explanation = matcher.explain(
-      AgentDetectionInput(screen: "Ready", oscTitle: "")
-    )
-
-    #expect(explanation.match == AgentDetectionMatch(result: .idle, ruleID: "winner"))
-    #expect(explanation.rules.map(\.ruleID) == ["miss", "winner"])
-    #expect(explanation.rules.map(\.matched) == [false, true])
-    #expect(explanation.rules[1].condition.children.first?.kind == "contains")
-    #expect(explanation.rules[1].condition.children.first?.matched == true)
-  }
-
-  @Test
   func extractsEveryUsedRegion() throws {
     let rules = [
       rule(id: "bottom", priority: 10, region: .bottomNonEmptyLines(2), contains: ["b\n\nc"]),
