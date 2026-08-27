@@ -31,6 +31,32 @@ extension TerminalHostState {
 }
 
 extension TerminalHostState {
+  func agentsPopoverItems() -> [TerminalAgentsPopoverItem] {
+    spaces.flatMap { space -> [TerminalAgentsPopoverItem] in
+      spaceManager.tabs(in: space.id).flatMap { tab -> [TerminalAgentsPopoverItem] in
+        guard let tree = trees[tab.id] else { return [] }
+        return tree.leaves().flatMap { surface -> [TerminalAgentsPopoverItem] in
+          resolvedAgentState(for: surface.id).instances.compactMap { instance in
+            guard let status = agentsPopoverStatus(for: instance) else { return nil }
+            let identity = instance.activity.identity
+            return TerminalAgentsPopoverItem(
+              id: agentsPopoverItemID(for: instance),
+              agentID: identity.id,
+              agentName: identity.displayName,
+              task: Self.trimmedNonEmpty(instance.activity.detail) ?? tab.title,
+              workspace: agentsPopoverWorkspace(
+                for: instance,
+                surface: surface,
+                fallback: space.name
+              ),
+              status: status
+            )
+          }
+        }
+      }
+    }
+  }
+
   func tabAgentContext(for tabID: TerminalTabID) -> TabAgentContext {
     guard let state = resolvedTabAgentState(for: tabID) else {
       return TabAgentContext(presentation: .empty, workspaces: [])
@@ -158,6 +184,55 @@ extension TerminalHostState {
         )
       }
     )
+  }
+
+  private func agentsPopoverStatus(
+    for instance: AgentStateInstance
+  ) -> TerminalAgentsPopoverStatus? {
+    let isDone = agentCompletionStore.contains(
+      instance.completionIdentity,
+      for: instance.surfaceID
+    )
+    if case .ceased = instance.lifecycle {
+      return isDone ? .done : nil
+    }
+    switch instance.activity.phase {
+    case .unknown:
+      return .unknown
+    case .idle:
+      return isDone ? .done : .idle
+    case .needsInput:
+      return .needsInput
+    case .running:
+      return .working
+    }
+  }
+
+  private func agentsPopoverItemID(for instance: AgentStateInstance) -> String {
+    let surfaceID = instance.surfaceID.uuidString
+    switch instance.completionIdentity {
+    case .native(let agent, let sessionID):
+      return "\(surfaceID):native:\(agent.rawValue):\(sessionID)"
+    case .screen(let agent, let processIdentity):
+      return
+        "\(surfaceID):screen:\(agent.id):\(processIdentity.processID):\(processIdentity.startTimeMicroseconds)"
+    }
+  }
+
+  private func agentsPopoverWorkspace(
+    for instance: AgentStateInstance,
+    surface: GhosttySurfaceView,
+    fallback: String
+  ) -> String {
+    guard
+      let path = TerminalAgentPanelWorkspaceKey(
+        workingDirectoryPath: instance.nativePresentation?.workingDirectoryPath
+          ?? surface.bridge.state.pwd
+      )?.workingDirectoryPath
+    else {
+      return fallback
+    }
+    return Self.trimmedNonEmpty(URL(fileURLWithPath: path).lastPathComponent) ?? path
   }
 
   func agentPanelPresentations(for tabID: TerminalTabID) -> [UUID: PaneAgentPanelPresentation] {
