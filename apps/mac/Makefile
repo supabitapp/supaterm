@@ -30,6 +30,7 @@ XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
 E2E_AGENT ?= none
+CODEX_E2E_TOOL := codex@0.150.1
 CLAUDE_E2E_TOOL := npm:@anthropic-ai/claude-code-darwin-arm64@2.1.235
 PI_E2E_TOOL := npm:@mariozechner/pi-coding-agent@0.73.1
 SUPATERM_SKILLS_DIR := $(abspath $(CURRENT_MAKEFILE_DIR)/../../integrations/supaterm-skills)
@@ -194,7 +195,7 @@ test-e2e-xcodebuild:
 	pi_binary=""; \
 	pi_package=""; \
 	if includes_agent codex; then \
-		codex_binary="$${CODEX_E2E_BINARY:-$$(mise which codex)}"; \
+		codex_binary="$${CODEX_E2E_BINARY:-$$(mise x "$(CODEX_E2E_TOOL)" -- which codex)}"; \
 		test -x "$$codex_binary" || exit 1; \
 	fi; \
 	if includes_agent claude; then \
