@@ -3,6 +3,13 @@ import XCTest
 final class SidebarChromeUITests: SupatermUITestCase {
   @MainActor
   func testNewTabPinsOnlyWhileInlineRowIsHiddenAndCreatesSelectedTab() async throws {
+    let settingsWindow = try await activateUITestLicense()
+    let closeSettings = settingsWindow.buttons[XCUIIdentifierCloseWindow]
+    try require(closeSettings)
+    closeSettings.click()
+    let didCloseSettings = await wait { !settingsWindow.exists }
+    XCTAssertTrue(didCloseSettings)
+
     let terminal = mainTerminal
     terminal.click()
     await requireInitialSidebarTab()
