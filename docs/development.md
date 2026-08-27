@@ -139,10 +139,10 @@ with the installed app. Debug uses `dev-<checkout>` and `run-state/dev`; Release
 `default`. Explicit environment variables and raw binary launches are unaffected.
 
 The stamped instance name also isolates each local build's license Keychain item. Debug uses an
-in-memory license service and never contacts `license.supaterm.com`. Set
-`SUPATERM_LICENSE_MODE=free` to test the five-tab gate. Local Release builds use the live license
-service with their isolated state and Keychain item for end-to-end checks. Only an unstamped
-production app uses the production app's state and Keychain item.
+in-memory license service and never contacts `license.supaterm.com`. The five-tab free-mode gate
+is active in every build. Local Release builds use the live license service with their isolated
+state and Keychain item for end-to-end checks. Only an unstamped production app uses the
+production app's state and Keychain item.
 
 Development launches and UI tests never start zmx. The zmx E2E suite opts in with an isolated zmx
 directory. For a clean slate, quit the app, then delete the state home:

@@ -104,7 +104,7 @@ jobs:
       - run: make mac-build-ghostty
       - run: make mac-build-zmx
       - run: make mac-build-ap
-      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_RELEASE_DATE=${{ env.RELEASE_DAY }} SUPATERM_LICENSE_SALES_ENABLED=${{ vars.LICENSE_SALES_ENABLED == 'true' && 'YES' || 'NO' }}'
+      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_RELEASE_DATE=${{ env.RELEASE_DAY }}'
       - name: Write export options
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

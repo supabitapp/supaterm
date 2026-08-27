@@ -133,18 +133,12 @@ public enum UpdatePhase: Equatable, Sendable {
       LicensePortalURL.license(licenseID)
     }
 
-    func detailMessage(salesEnabled: Bool) -> String {
+    var detailMessage: String {
       let updateNotice = "Supaterm \(version) is out. Your updates ended \(updatesThrough.rawValue)"
-      switch (salesEnabled, latestIncludedReleaseURL != nil) {
-      case (true, true):
+      if latestIncludedReleaseURL != nil {
         return "\(updateNotice). Renew to update, or download the newest release included with your license."
-      case (true, false):
-        return "\(updateNotice) — renew to update."
-      case (false, true):
-        return "\(updateNotice). Download the newest release included with your license."
-      case (false, false):
-        return "\(updateNotice). You can keep using your current version."
       }
+      return "\(updateNotice) — renew to update."
     }
   }
 
@@ -185,10 +179,6 @@ public enum UpdatePhase: Equatable, Sendable {
   }
 
   public var detailMessage: String {
-    detailMessage(salesEnabled: AppBuild.licenseSalesEnabled)
-  }
-
-  func detailMessage(salesEnabled: Bool) -> String {
     switch self {
     case .idle:
       return ""
@@ -216,7 +206,7 @@ public enum UpdatePhase: Equatable, Sendable {
     case .notFound:
       return "You're already running the latest version."
     case .ownershipEnded(let ownership):
-      return ownership.detailMessage(salesEnabled: salesEnabled)
+      return ownership.detailMessage
     case .error(let failure):
       return failure.message
     }
@@ -323,10 +313,6 @@ public enum UpdatePhase: Equatable, Sendable {
   }
 
   public var summaryText: String {
-    summaryText(salesEnabled: AppBuild.licenseSalesEnabled)
-  }
-
-  func summaryText(salesEnabled: Bool) -> String {
     switch self {
     case .idle:
       return ""
@@ -345,7 +331,7 @@ public enum UpdatePhase: Equatable, Sendable {
     case .notFound:
       return "No Updates Available"
     case .ownershipEnded:
-      return salesEnabled ? "Renew to Update" : "Update Not Included"
+      return "Renew to Update"
     case .error:
       return "Update Failed"
     }

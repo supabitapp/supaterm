@@ -56,7 +56,3 @@ A full renewal refund voids that renewal period. Supaterm recalculates the updat
 
 - Cloudflare hosts the licensing service, its data, and its user-facing management surfaces.
 - Stripe handles purchases, renewals, and refunds.
-
-## Sales Launch
-
-Purchase, renewal, and the free-mode tab limit stay off by default in the app. The app release workflows read the `LICENSE_SALES_ENABLED` repository variable. The website and licensing service do not use a sales flag. Activation and entitlement refresh remain available in every build.

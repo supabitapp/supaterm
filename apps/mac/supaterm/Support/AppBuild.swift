@@ -1,5 +1,4 @@
 import Foundation
-import SupatermCLIShared
 
 public enum AppBuild {
   public nonisolated static var usesStubServices: Bool {
@@ -24,10 +23,6 @@ public enum AppBuild {
 
   public nonisolated static var isTestMode: Bool {
     ProcessInfo.processInfo.environment["SUPATERM_TEST_MODE"] == "1"
-  }
-
-  public nonisolated static var licenseSalesEnabled: Bool {
-    SupatermLicensePolicy.salesEnabled
   }
 
   public nonisolated static var version: String {

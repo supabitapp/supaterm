@@ -19,10 +19,10 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func freeLicenseStatusDoesNotClaimADisabledLimit() {
+  func freeLicenseStatusExplainsTheActiveLimit() {
     let state = LicenseFeature.State(runtime: .preview())
 
-    #expect(state.settingsStatus == "Use Supaterm free, or activate an existing license.")
+    #expect(state.settingsStatus == "Use Supaterm free with up to five tabs, or activate a license.")
   }
 
   @Test

@@ -2,7 +2,6 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermLicenseFeature
-import SupatermSupport
 
 extension TerminalCommandExecutor {
   func execute(_ request: LicenseControlRequest) async throws -> LicenseControlResult {
@@ -23,7 +22,6 @@ extension TerminalCommandExecutor {
       return .status(licenseStatus(store))
 
     case .buy:
-      try requireLicenseSales()
       try requireIdle(store)
       await store.send(.buyButtonTapped).finish()
       return .url(SupatermLicenseURLResult(url: LicensePortalURL.buy.absoluteString))
@@ -45,7 +43,6 @@ extension TerminalCommandExecutor {
       return .status(licenseStatus(store))
 
     case .renew:
-      try requireLicenseSales()
       try requireIdle(store)
       guard let licenseID = store.access.ownership?.licenseID else {
         throw LicenseControlError(
@@ -89,15 +86,6 @@ extension TerminalCommandExecutor {
       throw LicenseControlError(
         code: "license_busy",
         message: "Another license action is in progress."
-      )
-    }
-  }
-
-  private func requireLicenseSales() throws {
-    guard AppBuild.licenseSalesEnabled else {
-      throw LicenseControlError(
-        code: "license_sales_unavailable",
-        message: "License sales are not open yet."
       )
     }
   }

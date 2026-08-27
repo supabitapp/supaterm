@@ -243,7 +243,6 @@ public struct LicenseFeature {
         return refresh(&state, source: .automatic, completion: nil)
 
       case .buyButtonTapped:
-        guard AppBuild.licenseSalesEnabled else { return .none }
         analyticsClient.capture("license_buy_opened")
         return .run { @MainActor [externalNavigationClient] _ in
           _ = externalNavigationClient.open(LicensePortalURL.buy)
@@ -302,7 +301,6 @@ public struct LicenseFeature {
         return .none
 
       case .renewButtonTapped:
-        guard AppBuild.licenseSalesEnabled else { return .none }
         guard let licenseID = state.access.ownership?.licenseID else { return .none }
         analyticsClient.capture("license_renew_opened")
         return .run { @MainActor [externalNavigationClient] _ in

@@ -33,7 +33,7 @@ struct SPLicenseCommandTests {
 
             """
         )
-        #expect(plain.stdout == "paid\t2027-08-21\tTest Mac\t3/-\n")
+        #expect(plain.stdout == "paid\t2027-08-21\tTest Mac\t3/5\n")
         #expect(
           json.stdout == """
             {"deviceName":"Test Mac","mode":"paid","openTabCount":3,\
@@ -48,7 +48,7 @@ struct SPLicenseCommandTests {
   }
 
   @Test
-  func freeStatusMatchesTheSalesPolicy() {
+  func freeStatusShowsTheActiveTabLimitAndPurchasePath() {
     let status = SupatermLicenseStatusResult(
       mode: .free,
       updatesThrough: nil,
@@ -57,15 +57,7 @@ struct SPLicenseCommandTests {
     )
 
     #expect(
-      renderLicenseStatus(status, salesEnabled: false) == """
-        Mode: Free
-        Device: Test Mac
-        Open tabs: 3
-        Run `sp license activate` to activate an existing license.
-        """
-    )
-    #expect(
-      renderLicenseStatus(status, salesEnabled: true) == """
+      renderLicenseStatus(status) == """
         Mode: Free
         Device: Test Mac
         Open tabs: 3 of 5
