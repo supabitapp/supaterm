@@ -89,7 +89,7 @@ struct TerminalSidebarLayoutPlanTests {
     #expect(rootTarget.frame.height == 37)
     #expect(headerTarget.frame == headerFrame)
     #expect(endTarget.frame.minY < endTarget.frame.maxY)
-    #expect(sourceFrame.height == 0)
+    #expect(sourceFrame.height == 3)
     #expect(trailingTarget.frame.minY == endTarget.frame.maxY)
     #expect(trailingTarget.frame.height == viewportHeight)
     #expect(plan.semanticTarget(at: leading.frame.midY)?.path == leading.path)
@@ -300,9 +300,13 @@ struct TerminalSidebarLayoutPlanTests {
     )
 
     #expect(liftedTop.frame.origin == baselineTop.frame.origin)
-    #expect(liftedTop.frame.height == 0)
+    #expect(liftedTop.frame.height == 3)
     #expect(liftedTop.alpha == 0)
-    #expect(projectedSecond.frame == baselineTop.frame)
+    #expect(
+      projectedSecond.frame.minY - liftedTop.frame.maxY
+        == TerminalSidebarLayout.tabRowSpacing
+    )
+    #expect(projectedSecond.frame.size == baselineTop.frame.size)
     #expect(projectedSecond.frame != baselineSecond.frame)
     #expect(
       draggingTop.semanticTargets.first { $0.path == middlePath }?.frame
@@ -311,6 +315,44 @@ struct TerminalSidebarLayoutPlanTests {
     #expect(
       draggingBottom.semanticTargets.first { $0.path == upperPath }?.frame
         == projectedUpper.frame
+    )
+  }
+
+  @Test
+  func liftedOrdinaryTabsReserveThreePointsEachAndHaveNoTargets() throws {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let tail = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [first, second, tail].map {
+        TerminalSidebarOutline.Root(content: .tab($0), isPinned: false)
+      },
+      revision: 1
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(first), .tab(second)]
+    )
+    let firstSource = try #require(plan.items.first { $0.id == .tab(first) })
+    let secondSource = try #require(plan.items.first { $0.id == .tab(second) })
+    let projectedTail = try #require(plan.items.first { $0.id == .tab(tail) })
+
+    #expect(firstSource.frame.height == 3)
+    #expect(secondSource.frame.height == 3)
+    #expect(firstSource.alpha == 0)
+    #expect(secondSource.alpha == 0)
+    #expect(secondSource.frame.minY == firstSource.frame.maxY)
+    #expect(
+      projectedTail.frame.minY - secondSource.frame.maxY
+        == TerminalSidebarLayout.tabRowSpacing
+    )
+    #expect(
+      !plan.semanticTargets.contains { target in
+        switch target.path {
+        case .rootItem(_, _, let id): id == .tab(first) || id == .tab(second)
+        case .rootBoundary, .groupEntry, .groupItem, .groupBoundary: false
+        }
+      }
     )
   }
 
@@ -837,9 +879,10 @@ struct TerminalSidebarLayoutPlanTests {
       }
     )
 
-    #expect(sourceFrame.height == 0)
+    #expect(sourceFrame.height == 3)
     #expect(
-      divider.minY - childFrame.maxY == TerminalSidebarLayoutPlan.pinDividerTopSpacing
+      divider.minY - childFrame.maxY
+        == 3 + TerminalSidebarLayoutPlan.pinDividerTopSpacing
     )
     #expect(
       regularGroupFrame.minY - divider.maxY == TerminalSidebarLayout.tabRowSpacing

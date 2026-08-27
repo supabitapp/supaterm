@@ -46,9 +46,25 @@ struct TerminalSidebarCollectionHarnessTests {
     let mappedTarget = try #require(
       harness.layout.dropTargetMap.targets.first { $0.path == path }
     )
+    let sourcePlanItem = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(source) }
+    )
+    let sourceIndexPath = try #require(harness.dataSource.indexPath(for: .tab(source)))
+    let sourceAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: sourceIndexPath)
+    )
 
     #expect(item.view.frame == planItem.frame)
     #expect(attributes.frame == planItem.frame)
+    #expect(sourcePlanItem.frame.height == 3)
+    #expect(sourcePlanItem.alpha == 0)
+    #expect(sourceAttributes.frame == sourcePlanItem.frame)
+    #expect(sourceAttributes.alpha == 0)
+    #expect(
+      !harness.layout.dropTargetMap.targets.contains {
+        $0.path == .rootItem(lane: .regular, index: 2, id: .tab(source))
+      }
+    )
     #expect(harness.layout.dropTargetMap.targets == harness.layout.plan.semanticTargets)
     #expect(mappedTarget.frame == semanticTarget.frame)
   }
