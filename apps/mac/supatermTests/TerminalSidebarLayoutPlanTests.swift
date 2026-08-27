@@ -400,6 +400,90 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func committedTabSettlementKeepsFinalGeometryHiddenUnderThePreview() throws {
+    let first = TerminalTabID()
+    let moved = TerminalTabID()
+    let last = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [first, moved, last].map {
+        TerminalSidebarOutline.Root(content: .tab($0), isPinned: false)
+      },
+      revision: 2
+    )
+    let baseline = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+    let settlement = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(moved)],
+      dragPhase: .committedSettlement
+    )
+    let baselineItem = try #require(baseline.items.first { $0.id == .tab(moved) })
+    let settlementItem = try #require(settlement.items.first { $0.id == .tab(moved) })
+    let sourceFrame = CGRect(x: 12, y: 200, width: 180, height: 45)
+    let targetFrame = try #require(
+      TerminalSidebarDropSettlementGeometry.frame(
+        source: .tabs([moved]),
+        liftedEntryIDs: [.tab(moved)],
+        sourceFrame: sourceFrame,
+        plan: settlement
+      )
+    )
+
+    #expect(settlementItem.frame == baselineItem.frame)
+    #expect(settlementItem.alpha == 0)
+    #expect(settlement.dropPlaceholderFrame == nil)
+    #expect(targetFrame.midY == baselineItem.frame.midY)
+    #expect(targetFrame.size == sourceFrame.size)
+  }
+
+  @Test
+  func committedGroupSettlementKeepsItsFinalSurfaceHiddenUnderThePreview() throws {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let tail = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .green, .automatic, [first, second]),
+          isPinned: false
+        ),
+      ],
+      revision: 2
+    )
+    let sourceIDs: [TerminalSidebarEntryID] = [
+      .group(groupID), .tab(first), .tab(second),
+    ]
+    let baseline = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+    let settlement = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: sourceIDs,
+      dragPhase: .committedSettlement
+    )
+    let baselineGroup = try #require(baseline.groups.first { $0.id == groupID })
+    let settlementGroup = try #require(settlement.groups.first { $0.id == groupID })
+    let sourceFrame = CGRect(x: 12, y: 200, width: 180, height: 130)
+    let targetFrame = try #require(
+      TerminalSidebarDropSettlementGeometry.frame(
+        source: .group(groupID),
+        liftedEntryIDs: sourceIDs,
+        sourceFrame: sourceFrame,
+        plan: settlement
+      )
+    )
+
+    #expect(settlementGroup.frame == baselineGroup.frame)
+    #expect(settlementGroup.alpha == 0)
+    #expect(
+      settlement.items.filter { sourceIDs.contains($0.id) }.allSatisfy {
+        $0.frame.height > 0 && $0.alpha == 0
+      }
+    )
+    #expect(targetFrame.midY == baselineGroup.frame.midY)
+    #expect(targetFrame.size == sourceFrame.size)
+  }
+
+  @Test
   func collapsedContentHeightStaysPinnedUntilItReentersTheScrollRange() {
     var state = TerminalSidebarContentHeightState()
     state.begin(at: 500)

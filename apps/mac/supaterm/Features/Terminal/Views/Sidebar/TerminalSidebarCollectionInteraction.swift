@@ -20,12 +20,48 @@ struct TerminalSidebarDragHost {
   let rebindRows: (Set<TerminalSidebarEntryID>) -> Void
   let didBegin: () -> Void
   let didFinish: () -> Void
+  let prepareDropSettlement: (TerminalSidebarDropSettlementPreparation) -> Void
   let completeDropHandoff:
     (
       TerminalSidebarDropHandoff,
       @escaping TerminalSidebarDropHandoffCompletion
     ) -> Void
   let setHoveredGroupID: (TerminalTabGroupID?) -> Void
+}
+
+struct TerminalSidebarDropSettlementPreparation {
+  let requirement: TerminalSidebarDropHandoff
+  let applyLayout: TerminalSidebarDropHandoffCompletion
+  let completion: TerminalSidebarDropHandoffCompletion
+}
+
+struct TerminalSidebarDropSettlementGeometry {
+  static func frame(
+    source: TerminalSidebarDragSource,
+    liftedEntryIDs: [TerminalSidebarEntryID],
+    sourceFrame: CGRect,
+    plan: TerminalSidebarLayoutPlan
+  ) -> CGRect? {
+    let destinationFrame: CGRect
+    switch source {
+    case .group(let groupID):
+      guard let frame = plan.groups.first(where: { $0.id == groupID })?.frame else { return nil }
+      destinationFrame = frame
+    case .tabs:
+      let liftedIDs = Set(liftedEntryIDs)
+      let frames = plan.items.compactMap { item in
+        liftedIDs.contains(item.id) && item.frame.height > 0 ? item.frame : nil
+      }
+      guard frames.count == liftedIDs.count, let first = frames.first else { return nil }
+      destinationFrame = frames.dropFirst().reduce(first) { $0.union($1) }
+    }
+    return CGRect(
+      x: destinationFrame.minX,
+      y: destinationFrame.midY - sourceFrame.height / 2,
+      width: sourceFrame.width,
+      height: sourceFrame.height
+    )
+  }
 }
 
 enum TerminalSidebarDragOutlineDisposition: Equatable {

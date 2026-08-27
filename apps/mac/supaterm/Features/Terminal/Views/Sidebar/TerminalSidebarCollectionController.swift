@@ -124,6 +124,7 @@ final class TerminalSidebarListController: NSViewController {
   )
   private var pendingUpdate: Update?
   private var pendingDropHandoff: PendingDropHandoff?
+  private var pendingDropSettlement: TerminalSidebarDropSettlementPreparation?
   private var updatePhase = UpdatePhase.idle
   private var hasAppliedSnapshot = false
   private var selectedTabID: TerminalTabID?
@@ -178,7 +179,12 @@ final class TerminalSidebarListController: NSViewController {
     host: TerminalSidebarDragController.Host(
       content: { [weak self] in
         guard let self, let context else { return nil }
-        let canBeginDrag = if case .idle = updatePhase { pendingDropHandoff == nil } else { false }
+        let canBeginDrag =
+          if case .idle = updatePhase {
+            pendingDropHandoff == nil && pendingDropSettlement == nil
+          } else {
+            false
+          }
         return TerminalSidebarDragController.Content(
           outline: appliedOutline,
           selectedTabID: selectedTabID,
@@ -195,6 +201,7 @@ final class TerminalSidebarListController: NSViewController {
       rebindRows: { [weak self] in self?.refreshVisibleRows(ids: $0) },
       didBegin: { [weak self] in self?.hoverCardController.dismiss() },
       didFinish: { [weak self] in self?.consumePendingUpdate() },
+      prepareDropSettlement: { [weak self] in self?.prepareDropSettlement($0) },
       completeDropHandoff: { [weak self] requirement, completion in
         self?.completeDropHandoff(requirement, completion: completion)
       },
@@ -540,16 +547,45 @@ final class TerminalSidebarListController: NSViewController {
       return
     case .queue:
       queue(update)
+      consumeDropSettlementUpdate()
     case .replaceAndCancel(let reason):
       queue(update)
       dragController.cancelTopologyChange(reason: reason)
     }
   }
 
+  private func prepareDropSettlement(_ settlement: TerminalSidebarDropSettlementPreparation) {
+    precondition(pendingDropSettlement == nil)
+    pendingDropSettlement = settlement
+    consumeDropSettlementUpdate()
+  }
+
+  private func consumeDropSettlementUpdate() {
+    guard
+      case .idle = updatePhase,
+      dragController.isActive,
+      let settlement = pendingDropSettlement,
+      let update = pendingUpdate,
+      settlement.requirement.accepts(update.outline.topologyStamp)
+    else { return }
+    pendingDropSettlement = nil
+    pendingUpdate = nil
+    settlement.applyLayout()
+    applySnapshot(update, animated: false, completion: settlement.completion)
+  }
+
   private func queue(_ update: Update) {
     guard let current = pendingUpdate else {
       pendingUpdate = update
       return
+    }
+    if let settlement = pendingDropSettlement {
+      let currentAccepted = settlement.requirement.accepts(current.outline.topologyStamp)
+      let nextAccepted = settlement.requirement.accepts(update.outline.topologyStamp)
+      if currentAccepted != nextAccepted {
+        if nextAccepted { pendingUpdate = update }
+        return
+      }
     }
     guard
       let currentStamp = current.outline.topologyStamp,

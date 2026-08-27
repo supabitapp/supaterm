@@ -678,11 +678,7 @@ final class TerminalSidebarDragController {
       break
     }
     if let settlement {
-      guard let content = host.content() else {
-        finishDragging()
-        return
-      }
-      beginSettlement(settlement, content: content)
+      beginSettlement(settlement)
     }
   }
 
@@ -789,33 +785,92 @@ final class TerminalSidebarDragController {
     return activeDrag.dropTarget.acceptsDrop
   }
 
-  private func beginSettlement(
-    _ settlement: TerminalSidebarDragCoordinator.Settlement,
-    content: Content
-  ) {
+  private func beginSettlement(_ settlement: TerminalSidebarDragCoordinator.Settlement) {
     guard let activeDrag else { return }
     switch settlement {
     case .accepted(let receipt):
-      settleDragging(receipt: receipt, content: content)
+      prepareAcceptedSettlement(receipt)
     case .rejected(let topologyChanged):
       if topologyChanged {
         finishDragging()
       } else {
         logCancel(reason: "dropRejected", operationID: activeDrag.payload.operationID)
+        guard let content = host.content() else {
+          finishDragging()
+          return
+        }
         settleDragging(receipt: nil, content: content)
       }
     }
   }
 
+  private func prepareAcceptedSettlement(_ receipt: TerminalSidebarDropReceipt) {
+    guard activeDrag != nil else { return }
+    let requirement = TerminalSidebarDropHandoff(
+      topologyStamp: receipt.topologyStamp,
+      revisionRequirement: .sameOrNewer
+    )
+    host.prepareDropSettlement(
+      TerminalSidebarDropSettlementPreparation(
+        requirement: requirement,
+        applyLayout: { [weak self] in
+          guard let self, let activeDrag = self.activeDrag else { return }
+          collectionLayout.dragDropState = TerminalSidebarDragDropState(
+            source: activeDrag.payload.source,
+            draggingItemIDs: activeDrag.liftedEntryIDs,
+            target: nil,
+            phase: .committedSettlement
+          )
+        },
+        completion: { [weak self] in
+          guard let self else { return }
+          host.invalidateLayout()
+          guard let content = host.content() else {
+            finishDragging(receipt: receipt)
+            return
+          }
+          settleDragging(receipt: receipt, content: content)
+        }
+      )
+    )
+  }
+
   private func settleDragging(receipt: TerminalSidebarDropReceipt?, content: Content) {
     guard activeDrag != nil, let sourceFrame = dragPresentation.sourceFrame else {
-      finishDragging()
+      finishDragging(receipt: receipt)
       return
     }
     autoscrollController.stop()
     layoutAnimator.finish()
     let accepted = receipt != nil
-    let destination = accepted ? settlementFrame(sourceFrame: sourceFrame) : sourceFrame
+    let destination: CGRect
+    if accepted {
+      guard
+        let activeDrag,
+        let frame = TerminalSidebarDropSettlementGeometry.frame(
+          source: activeDrag.payload.source,
+          liftedEntryIDs: activeDrag.liftedEntryIDs,
+          sourceFrame: sourceFrame,
+          plan: collectionLayout.plan
+        )
+      else {
+        finishDragging(receipt: receipt)
+        return
+      }
+      destination = frame
+    } else {
+      destination = sourceFrame
+    }
+    if let activeDrag {
+      logDrag(
+        "sidebar.drag.settlement",
+        fields: TerminalSidebarDragLog.activeFields(activeDrag.payload) + [
+          "accepted=\(accepted)",
+          "sourceMidY=\(TerminalSidebarDragLog.coordinate(sourceFrame.midY))",
+          "destinationMidY=\(TerminalSidebarDragLog.coordinate(destination.midY))",
+        ]
+      )
+    }
     dragPresentation.settle(
       TerminalSidebarDragPresentation.Settlement(
         targetFrame: destination,
@@ -828,23 +883,6 @@ final class TerminalSidebarDragController {
     ) { [weak self] in
       self?.finishDragging(receipt: receipt)
     }
-  }
-
-  private func settlementFrame(sourceFrame: CGRect) -> CGRect {
-    if let placeholder = collectionLayout.plan.dropPlaceholderFrame {
-      return CGRect(
-        x: placeholder.minX,
-        y: placeholder.midY - sourceFrame.height / 2,
-        width: sourceFrame.width,
-        height: sourceFrame.height
-      )
-    }
-    if let groupID = collectionLayout.plan.highlightedGroupID,
-      let frame = collectionLayout.plan.groups.first(where: { $0.id == groupID })?.frame
-    {
-      return frame
-    }
-    return sourceFrame
   }
 
   private func rippleCandidates(
@@ -900,7 +938,7 @@ final class TerminalSidebarDragController {
     self.activeDrag = nil
     pendingDrag = nil
     host.content()?.swipe?.isRowDragActive = false
-    guard let receipt else {
+    guard receipt != nil else {
       if let sourceDisposition = externalSourceDisposition {
         host.completeDropHandoff(
           TerminalSidebarDropHandoff(
@@ -927,26 +965,12 @@ final class TerminalSidebarDragController {
       host.didFinish()
       return
     }
-    collectionLayout.dragDropState = TerminalSidebarDragDropState(
-      source: activeDrag.payload.source,
-      draggingItemIDs: liftedEntryIDs,
-      target: nil
-    )
-    host.invalidateLayout()
-    host.completeDropHandoff(
-      TerminalSidebarDropHandoff(
-        topologyStamp: receipt.topologyStamp,
-        revisionRequirement: .sameOrNewer
-      )
-    ) { [weak self] in
-      guard let self else { return }
-      dragPresentation.handoffToDestination {
-        collectionLayout.dragDropState = nil
-        host.invalidateLayout()
-        host.rebindRows(Set(liftedEntryIDs))
-      }
-      host.didFinish()
+    dragPresentation.handoffToDestination {
+      collectionLayout.dragDropState = nil
+      host.invalidateLayout()
+      host.rebindRows(Set(liftedEntryIDs))
     }
+    host.didFinish()
   }
 
   private func screenPoint(for event: NSEvent) -> CGPoint {

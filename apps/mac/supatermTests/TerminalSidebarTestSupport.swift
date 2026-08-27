@@ -32,6 +32,7 @@ enum TerminalSidebarTestFixture {
     draggingItemIDs: [TerminalSidebarEntryID] = [],
     preferredHeights: [TerminalSidebarEntryID: CGFloat]? = nil,
     target: TerminalSidebarDropPlan? = nil,
+    dragPhase: TerminalSidebarDragDropState.Phase = .tracking,
     width: CGFloat = 220,
     viewportHeight: CGFloat = 300
   ) -> TerminalSidebarLayoutPlan {
@@ -44,7 +45,8 @@ enum TerminalSidebarTestFixture {
         : TerminalSidebarDragDropState(
           source: dragSource(for: draggingItemIDs),
           draggingItemIDs: draggingItemIDs,
-          target: target
+          target: target,
+          phase: dragPhase
         ),
       width: width,
       viewportHeight: viewportHeight

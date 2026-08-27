@@ -334,21 +334,29 @@ struct TerminalSidebarDropPlan: Equatable {
 }
 
 struct TerminalSidebarDragDropState: Equatable {
+  enum Phase: Equatable {
+    case tracking
+    case committedSettlement
+  }
+
   let source: TerminalSidebarDragSource
   let draggingItemIDs: [TerminalSidebarEntryID]
   let target: TerminalSidebarDropPlan?
   let dropGapHeight: CGFloat?
+  let phase: Phase
 
   init(
     source: TerminalSidebarDragSource,
     draggingItemIDs: [TerminalSidebarEntryID],
     target: TerminalSidebarDropPlan?,
-    dropGapHeight: CGFloat? = nil
+    dropGapHeight: CGFloat? = nil,
+    phase: Phase = .tracking
   ) {
     self.source = source
     self.draggingItemIDs = draggingItemIDs
     self.target = target
     self.dropGapHeight = dropGapHeight
+    self.phase = phase
   }
 }
 

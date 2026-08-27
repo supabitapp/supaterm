@@ -63,6 +63,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
   ) {
     let entries = outline.visibleEntries
     let draggedIDs = Set(dragDropState?.draggingItemIDs ?? [])
+    let collapsedDraggedIDs =
+      dragDropState?.phase == .committedSettlement ? [] : draggedIDs
     let insertionIndex = Self.insertionIndex(
       for: dragDropState?.target?.placeholder,
       entries: entries
@@ -80,7 +82,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
         entries: entries,
         preferredHeights: preferredHeights,
         visibilityByEntryID: visibilityByEntryID,
-        draggedIDs: draggedIDs,
+        collapsedDraggedIDs: collapsedDraggedIDs,
+        hiddenDraggedIDs: draggedIDs,
         insertionIndex: nil,
         tabCandidateGapY: nil,
         dropGapHeight: 0,
@@ -113,7 +116,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
         entries: entries,
         preferredHeights: preferredHeights,
         visibilityByEntryID: visibilityByEntryID,
-        draggedIDs: draggedIDs,
+        collapsedDraggedIDs: collapsedDraggedIDs,
+        hiddenDraggedIDs: draggedIDs,
         insertionIndex: tabCandidateGapY == nil ? insertionIndex : nil,
         tabCandidateGapY: tabCandidateGapY,
         dropGapHeight: dropGapHeight,
@@ -230,7 +234,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
     let entries: [TerminalSidebarEntry]
     let preferredHeights: [TerminalSidebarEntryID: CGFloat]
     let visibilityByEntryID: [TerminalSidebarEntryID: Visibility]
-    let draggedIDs: Set<TerminalSidebarEntryID>
+    let collapsedDraggedIDs: Set<TerminalSidebarEntryID>
+    let hiddenDraggedIDs: Set<TerminalSidebarEntryID>
     let insertionIndex: Int?
     let tabCandidateGapY: CGFloat?
     let dropGapHeight: CGFloat
@@ -253,9 +258,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
         y += context.dropGapHeight
       }
 
-      let isDragged = context.draggedIDs.contains(entry.id)
+      let isCollapsed = context.collapsedDraggedIDs.contains(entry.id)
+      let isHidden = context.hiddenDraggedIDs.contains(entry.id)
       let visibility = context.visibilityByEntryID[entry.id] ?? .visible
-      if y > Self.initialY, !isDragged {
+      if y > Self.initialY, !isCollapsed {
         y += Self.spacing(before: entry, previous: previousVisibleEntry) * visibility.height
       }
       if let tabCandidateGapY = context.tabCandidateGapY, dropPlaceholderFrame == nil,
@@ -269,7 +275,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
         y += context.dropGapHeight
       }
       let preferredHeight = context.preferredHeights[entry.id] ?? Self.defaultHeight(for: entry)
-      let height = isDragged ? 0 : preferredHeight * visibility.height
+      let height = isCollapsed ? 0 : preferredHeight * visibility.height
       let horizontalInsets = Self.horizontalInsets(for: entry)
       items.append(
         Item(
@@ -280,11 +286,11 @@ struct TerminalSidebarLayoutPlan: Equatable {
             width: horizontalInsets.width(in: context.width),
             height: height
           ),
-          alpha: isDragged ? 0 : visibility.alpha
+          alpha: isHidden ? 0 : visibility.alpha
         )
       )
       y += height
-      if !isDragged {
+      if !isCollapsed {
         previousVisibleEntry = entry
       }
     }

@@ -150,6 +150,51 @@ struct TerminalSidebarCollectionHarnessTests {
   }
 
   @Test
+  func committedSnapshotIsLaidOutHiddenBeforeThePreviewHandoff() throws {
+    let first = TerminalTabID()
+    let moved = TerminalTabID()
+    let last = TerminalTabID()
+    let source = outline([moved, first, last], revision: 1)
+    let committed = outline([first, moved, last], revision: 2)
+    let harness = CollectionHarness(size: CGSize(width: 220, height: 300))
+    defer { harness.close() }
+
+    harness.apply(outline: source)
+    harness.apply(
+      outline: committed,
+      dragDropState: TerminalSidebarDragDropState(
+        source: .tabs([moved]),
+        draggingItemIDs: [.tab(moved)],
+        target: nil,
+        phase: .committedSettlement
+      )
+    )
+
+    let committedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(moved)))
+    let hiddenAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: committedIndexPath)
+    )
+    let hiddenPlanItem = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(moved) }
+    )
+
+    #expect(harness.dataSource.snapshot().itemIdentifiers == committed.visibleEntries.map(\.id))
+    #expect(harness.realizedIdentifiers == committed.visibleEntries.map(\.id))
+    #expect(hiddenAttributes.frame == hiddenPlanItem.frame)
+    #expect(hiddenAttributes.alpha == 0)
+    #expect(hiddenPlanItem.frame.height > 0)
+    #expect(harness.layout.plan.dropPlaceholderFrame == nil)
+
+    harness.apply(outline: committed)
+
+    let visibleAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: committedIndexPath)
+    )
+    #expect(visibleAttributes.frame == hiddenAttributes.frame)
+    #expect(visibleAttributes.alpha == 1)
+  }
+
+  @Test
   func structuralHandoffKeepsSnapshotIndexPathsAndRealizedItemsAligned() throws {
     let first = TerminalTabID()
     let second = TerminalTabID()
