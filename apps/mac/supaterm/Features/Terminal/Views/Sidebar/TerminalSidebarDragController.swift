@@ -874,56 +874,12 @@ final class TerminalSidebarDragController {
     dragPresentation.settle(
       TerminalSidebarDragPresentation.Settlement(
         targetFrame: destination,
-        rippleFocusFrame: collectionLayout.plan.dropPlaceholderFrame ?? destination,
         accepted: accepted,
-        motionPolicy: content.motionPolicy,
-        rippleCandidates: accepted ? rippleCandidates(content: content) : [],
-        rippleVisibleSpan: accepted ? rippleVisibleSpan() : 0
+        motionPolicy: content.motionPolicy
       )
     ) { [weak self] in
       self?.finishDragging(receipt: receipt)
     }
-  }
-
-  private func rippleCandidates(
-    content: Content
-  ) -> [TerminalSidebarDragPresentation.RippleCandidate] {
-    let draggedIDs = Set(activeDrag?.liftedEntryIDs ?? [])
-    let itemFrames = Dictionary(
-      uniqueKeysWithValues: collectionLayout.plan.items.map { ($0.id, $0.frame) }
-    )
-    let candidates = collectionView.visibleItems().compactMap {
-      item -> TerminalSidebarDragPresentation.RippleCandidate? in
-      guard
-        let item = item as? TerminalSidebarCollectionItem,
-        let id = item.entryID,
-        !draggedIDs.contains(id),
-        let frame = itemFrames[id],
-        frame.height > 0,
-        let presentation = content.rows[id]
-      else { return nil }
-      switch presentation {
-      case .tab: break
-      case .group, .pinDivider, .newTab: return nil
-      }
-      item.view.wantsLayer = true
-      guard let layer = item.view.layer else { return nil }
-      return TerminalSidebarDragPresentation.RippleCandidate(
-        layer: layer,
-        frame: frame,
-        center: CGPoint(x: item.view.bounds.midX, y: item.view.bounds.midY)
-      )
-    }
-    return candidates
-  }
-
-  private func rippleVisibleSpan() -> CGFloat {
-    let visibleRect = collectionView.visibleRect
-    let frames = collectionLayout.plan.items.compactMap { item -> CGRect? in
-      guard item.frame.height > 0, item.frame.intersects(visibleRect) else { return nil }
-      return item.frame
-    }
-    return TerminalSidebarDropRipple.visibleSpan(frames: frames)
   }
 
   private func finishDragging(receipt: TerminalSidebarDropReceipt? = nil) {

@@ -290,7 +290,6 @@ struct TerminalSidebarMotionTests {
     #expect(!policy.collapseStagger)
     #expect(!policy.hoverFade)
     #expect(!policy.acceptedArc)
-    #expect(!policy.ripple)
     #expect(!policy.snapback)
   }
 
@@ -463,62 +462,6 @@ struct TerminalSidebarMotionTests {
     #expect(layer.shadowOpacity == 0.22)
     #expect(layer.shadowRadius == 4)
     #expect(layer.shadowOffset == CGSize(width: 0, height: -2))
-  }
-
-  @Test @MainActor
-  func dropRippleStartsWithTheRecoveredUpwardTranslation() throws {
-    let full = TerminalSidebarDropRipple.animation(
-      scaleDelta: TerminalSidebarDropRipple.maximumScaleDelta,
-      center: .zero,
-      distance: 0
-    )
-    let half = TerminalSidebarDropRipple.animation(
-      scaleDelta: TerminalSidebarDropRipple.maximumScaleDelta / 2,
-      center: .zero,
-      distance: 0
-    )
-    let fullTransform = try #require(
-      (full.fromValue as? NSValue)?.caTransform3DValue
-    )
-    let halfTransform = try #require(
-      (half.fromValue as? NSValue)?.caTransform3DValue
-    )
-    let identity = try #require(
-      (full.toValue as? NSValue)?.caTransform3DValue
-    )
-
-    #expect(fullTransform.m42 == -2)
-    #expect(halfTransform.m42 == -1)
-    #expect(CATransform3DEqualToTransform(identity, CATransform3DIdentity))
-    #expect(full.isAdditive)
-    #expect(full.mass == 1)
-    #expect(full.stiffness == TerminalSidebarDropRipple.stiffness)
-    #expect(
-      full.damping
-        == 2
-        * sqrt(TerminalSidebarDropRipple.stiffness * full.mass)
-        * TerminalSidebarDropRipple.dampingRatio
-    )
-    #expect(full.duration == full.settlingDuration)
-  }
-
-  @Test
-  func dropRippleUsesTheFullVisibleLayoutSpan() {
-    let visibleSpan = TerminalSidebarDropRipple.visibleSpan(
-      frames: [
-        CGRect(x: 0, y: 20, width: 100, height: 30),
-        CGRect(x: 0, y: 90, width: 100, height: 50),
-      ]
-    )
-    let middle = TerminalSidebarDropRipple.scaleDelta(
-      distance: 30,
-      visibleSpan: visibleSpan
-    )
-
-    #expect(visibleSpan == 120)
-    #expect(TerminalSidebarDropRipple.scaleDelta(distance: 0, visibleSpan: visibleSpan) == 0.03)
-    #expect(abs((middle ?? 0) - 0.03 * exp(-1.5)) < 0.000_001)
-    #expect(TerminalSidebarDropRipple.scaleDelta(distance: 60, visibleSpan: visibleSpan) == nil)
   }
 
   @Test

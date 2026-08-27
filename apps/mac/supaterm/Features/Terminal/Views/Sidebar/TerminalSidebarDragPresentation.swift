@@ -19,19 +19,10 @@ final class TerminalSidebarDragPresentation {
     let timestamp: TimeInterval
   }
 
-  struct RippleCandidate {
-    let layer: CALayer
-    let frame: CGRect
-    let center: CGPoint
-  }
-
   struct Settlement {
     let targetFrame: CGRect
-    let rippleFocusFrame: CGRect
     let accepted: Bool
     let motionPolicy: TerminalSidebarMotionPolicy
-    let rippleCandidates: [RippleCandidate]
-    let rippleVisibleSpan: CGFloat
   }
 
   private weak var collectionView: NSCollectionView?
@@ -150,13 +141,6 @@ final class TerminalSidebarDragPresentation {
       return
     }
     liveView.isHidden = false
-    if settlement.accepted, settlement.motionPolicy.ripple {
-      applyDropRipple(
-        candidates: settlement.rippleCandidates,
-        focusFrame: settlement.rippleFocusFrame,
-        visibleSpan: settlement.rippleVisibleSpan
-      )
-    }
     let destination = TerminalSidebarLiveDragGeometry.settlementPosition(
       currentLayerPosition: layer.position,
       currentFrame: liveView.frame,
@@ -213,38 +197,6 @@ final class TerminalSidebarDragPresentation {
     hotspot = .zero
     velocityTracker = TerminalSidebarDragVelocityTracker()
     hapticTracker.reset()
-  }
-
-  private func applyDropRipple(
-    candidates: [RippleCandidate],
-    focusFrame: CGRect,
-    visibleSpan: CGFloat
-  ) {
-    guard visibleSpan > 0, candidates.count >= 5 else { return }
-    for candidate in candidates {
-      let distance: CGFloat
-      if candidate.frame.midY < focusFrame.minY {
-        distance = focusFrame.minY - candidate.frame.midY
-      } else if candidate.frame.midY > focusFrame.maxY {
-        distance = candidate.frame.midY - focusFrame.maxY
-      } else {
-        distance = 0
-      }
-      guard
-        let scaleDelta = TerminalSidebarDropRipple.scaleDelta(
-          distance: distance,
-          visibleSpan: visibleSpan
-        )
-      else { continue }
-      candidate.layer.add(
-        TerminalSidebarDropRipple.animation(
-          scaleDelta: scaleDelta,
-          center: candidate.center,
-          distance: distance
-        ),
-        forKey: "dropRipple"
-      )
-    }
   }
 
   private func timingFunction(
