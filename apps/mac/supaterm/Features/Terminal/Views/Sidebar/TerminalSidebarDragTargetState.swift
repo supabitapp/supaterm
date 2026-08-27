@@ -35,13 +35,12 @@ struct TerminalSidebarDragTargetDecision: Equatable {
 
 enum TerminalSidebarDragTargetState: Equatable {
   case none
-  case retained(TerminalSidebarDropPlan)
   case accepted(TerminalSidebarDropPlan)
 
   var plan: TerminalSidebarDropPlan? {
     switch self {
     case .none: nil
-    case .retained(let plan), .accepted(let plan): plan
+    case .accepted(let plan): plan
     }
   }
 
@@ -66,7 +65,6 @@ enum TerminalSidebarDragTargetState: Equatable {
         haptic: current?.path == plan.path ? .none : .update(plan.path)
       )
     case .rejected, .miss:
-      self = current.map(Self.retained) ?? .none
       return TerminalSidebarDragTargetDecision(target: .retain, haptic: .none)
     case .ended:
       self = .none

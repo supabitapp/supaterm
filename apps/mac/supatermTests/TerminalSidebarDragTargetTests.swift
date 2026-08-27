@@ -4,35 +4,35 @@ import Testing
 
 struct TerminalSidebarDragTargetTests {
   @Test
-  func missRetainsTheCurrentTargetAndRejectsTheDrop() {
+  func missKeepsTheVisibleTargetDroppableUntilExplicitEnd() {
     let current = plan(path: path(1), index: 1)
     var state = TerminalSidebarDragTargetState.accepted(current)
 
     let decision = state.transition(.miss)
 
-    #expect(state == .retained(current))
+    #expect(state == .accepted(current))
     #expect(decision.target == .retain)
     #expect(decision.haptic == .none)
-    #expect(!state.acceptsDrop)
+    #expect(state.acceptsDrop)
   }
 
   @Test
-  func rejectedHitRetainsTheCurrentTargetAndRejectsTheDrop() {
+  func rejectedHitKeepsTheVisibleTargetDroppableUntilExplicitEnd() {
     let current = plan(path: path(1), index: 1)
     var state = TerminalSidebarDragTargetState.accepted(current)
 
     let decision = state.transition(.rejected)
 
-    #expect(state == .retained(current))
+    #expect(state == .accepted(current))
     #expect(decision.target == .retain)
     #expect(decision.haptic == .none)
-    #expect(!state.acceptsDrop)
+    #expect(state.acceptsDrop)
   }
 
   @Test
-  func sameAcceptedPlanChangesOnlyCurrentDropValidity() {
+  func sameAcceptedPlanDoesNotRetarget() {
     let current = plan(path: path(1), index: 1)
-    var state = TerminalSidebarDragTargetState.retained(current)
+    var state = TerminalSidebarDragTargetState.accepted(current)
 
     let decision = state.transition(.accepted(current))
 
@@ -40,6 +40,18 @@ struct TerminalSidebarDragTargetTests {
     #expect(decision.target == .unchanged)
     #expect(decision.haptic == .none)
     #expect(state.acceptsDrop)
+  }
+
+  @Test
+  func missWithoutAPreviousTargetRemainsInvalid() {
+    var state = TerminalSidebarDragTargetState.none
+
+    let decision = state.transition(.miss)
+
+    #expect(state == .none)
+    #expect(decision.target == .retain)
+    #expect(decision.haptic == .none)
+    #expect(!state.acceptsDrop)
   }
 
   @Test

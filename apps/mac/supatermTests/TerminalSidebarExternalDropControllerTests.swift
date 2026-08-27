@@ -121,7 +121,7 @@ struct SidebarExternalDropControllerTests {
   }
 
   @Test
-  func rejectedAndMissedHitsRetainTheLastAcceptedExternalTarget() throws {
+  func rejectedAndMissedHitsKeepTheLastAcceptedExternalTargetDroppable() throws {
     let fixture = try makeFixture()
     let harness = ExternalDropHarness(outline: fixture.outline)
     let rejected = TerminalSidebarDropResolution(
@@ -166,7 +166,7 @@ struct SidebarExternalDropControllerTests {
     #expect(harness.hapticPaths == [first.path])
 
     #expect(
-      !harness.controller.updateTarget(
+      harness.controller.updateTarget(
         payload: fixture.payload,
         sidebarPayload: fixture.sidebarPayload,
         resolution: rejected
@@ -183,7 +183,7 @@ struct SidebarExternalDropControllerTests {
       outline: fixture.outline
     )
     #expect(
-      !harness.controller.updateTarget(
+      harness.controller.updateTarget(
         payload: fixture.payload,
         sidebarPayload: fixture.sidebarPayload,
         resolution: miss
