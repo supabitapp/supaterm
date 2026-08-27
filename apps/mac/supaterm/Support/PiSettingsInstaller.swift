@@ -76,11 +76,18 @@ public struct PiSettingsInstaller {
     }
 
     let sources = try installedSupatermPackageSources()
-    for source in sources where source != Self.canonicalPackageSource {
+    var seenSources: Set<String> = []
+    let uniqueSources = sources.filter { seenSources.insert($0).inserted }
+    let canonicalSourceCount = sources.count { $0 == Self.canonicalPackageSource }
+    let sourcesToRemove =
+      canonicalSourceCount == 1
+      ? uniqueSources.filter { $0 != Self.canonicalPackageSource }
+      : uniqueSources
+    for source in sourcesToRemove {
       try runInstallCommand(Self.removeCommandArguments(source: source))
     }
     let arguments =
-      sources.contains(Self.canonicalPackageSource)
+      canonicalSourceCount == 1
       ? Self.updateCommandArguments(source: Self.canonicalPackageSource)
       : Self.installCommandArguments(source: Self.canonicalPackageSource)
     try runInstallCommand(arguments)

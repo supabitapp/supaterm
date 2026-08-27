@@ -8,6 +8,9 @@ extension TerminalCommandExecutor {
     installer: CodingAgentHookInstaller = .live
   ) async throws -> SupatermAgentHookHealth {
     try await Task.detached(priority: .utility) {
+      guard try installer.isAvailable(request.agent) else {
+        return SupatermAgentHookHealth(agent: request.agent, health: .unavailable)
+      }
       try installer.installSupatermHooks(request.agent)
       return SupatermAgentHookHealth(
         agent: request.agent,

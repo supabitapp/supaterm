@@ -22,14 +22,6 @@ struct SupatermManagedHookCommandTests {
   }
 
   @Test
-  func installArgumentsMatchAgentInstallHookInterface() {
-    #expect(
-      SupatermManagedHookCommand.installArguments(for: .codex)
-        == ["agent", "install-hook", "codex"]
-    )
-  }
-
-  @Test
   func managedCommandDetectionMatchesOnlyCanonicalCommands() {
     #expect(
       AgentHookCommandOwnership.isSupatermManagedCommand(

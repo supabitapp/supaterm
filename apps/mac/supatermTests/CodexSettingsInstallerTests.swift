@@ -23,6 +23,24 @@ struct CodexSettingsInstallerTests {
   }
 
   @Test
+  func installIsIdempotent() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
+    )
+    let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+
+    try installer.installSupatermHooks()
+    let firstInstall = try Data(contentsOf: settingsURL)
+    try installer.installSupatermHooks()
+    let secondInstall = try Data(contentsOf: settingsURL)
+
+    #expect(secondInstall == firstInstall)
+  }
+
+  @Test
   func installPreservesUnrelatedHooks() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

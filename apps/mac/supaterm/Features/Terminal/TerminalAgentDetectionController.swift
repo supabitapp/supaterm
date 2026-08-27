@@ -32,11 +32,6 @@ nonisolated struct TerminalAgentDetectionExplanation: Equatable, Sendable {
   )
 }
 
-nonisolated struct TerminalAgentDetectionDetail: Equatable, Sendable {
-  let summary: TerminalAgentDetectionExplanation
-  let evaluation: AgentDetectionDetailedEvaluation?
-}
-
 nonisolated struct TerminalAgentDetectionSurfaceKey: Equatable, Hashable, Sendable {
   let id: UUID
   let instance: ObjectIdentifier
@@ -61,7 +56,6 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
   let snapshot: @Sendable () async -> AgentDetectionRuleSnapshot
   let evaluateSignals: @Sendable ([AgentDetectionSignalRequest]) async -> [AgentDetectionSignalEvaluation?]
   let evaluate: @Sendable ([AgentDetectionEvaluationRequest]) async -> [AgentDetectionEvaluation?]
-  let explain: @Sendable (AgentDetectionEvaluationRequest) async -> AgentDetectionDetailedEvaluation?
 
   init(repository: AgentDetectionRuleRepository) {
     snapshot = { await repository.snapshot() }
@@ -70,9 +64,6 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
     }
     evaluate = { requests in
       await repository.evaluate(requests)
-    }
-    explain = { request in
-      await repository.explain(request)
     }
   }
 
@@ -83,15 +74,11 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
       [AgentDetectionSignalEvaluation?],
     evaluate:
       @escaping @Sendable ([AgentDetectionEvaluationRequest]) async ->
-      [AgentDetectionEvaluation?],
-    explain:
-      @escaping @Sendable (AgentDetectionEvaluationRequest) async ->
-      AgentDetectionDetailedEvaluation? = { _ in nil }
+      [AgentDetectionEvaluation?]
   ) {
     self.snapshot = snapshot
     self.evaluateSignals = evaluateSignals
     self.evaluate = evaluate
-    self.explain = explain
   }
 }
 
@@ -366,39 +353,6 @@ final class TerminalAgentDetectionController {
       publishedPhase: observation?.phase,
       publishedRuleID: observation?.ruleID
     )
-  }
-
-  func detailedExplanation(
-    for surfaceID: UUID
-  ) async -> TerminalAgentDetectionDetail {
-    let summary = explanation(for: surfaceID)
-    guard
-      let state = states[surfaceID],
-      let proof = state.proof,
-      let signals = host.signals(state.key)
-    else {
-      return TerminalAgentDetectionDetail(summary: summary, evaluation: nil)
-    }
-    let evaluation = await rules.explain(
-      AgentDetectionEvaluationRequest(
-        agentID: proof.agentID,
-        input: AgentDetectionInput(
-          screen: Self.utf8Suffix(host.screen(state.key) ?? "", maximumBytes: Self.screenByteLimit),
-          oscTitle: Self.utf8Prefix(signals.oscTitle, maximumBytes: Self.titleByteLimit),
-          oscProgress: signals.oscProgress
-        )
-      )
-    )
-    guard states[surfaceID]?.nonce == state.nonce else {
-      return TerminalAgentDetectionDetail(
-        summary: explanation(for: surfaceID),
-        evaluation: nil
-      )
-    }
-    guard evaluation?.generation == summary.generation else {
-      return TerminalAgentDetectionDetail(summary: explanation(for: surfaceID), evaluation: nil)
-    }
-    return TerminalAgentDetectionDetail(summary: summary, evaluation: evaluation)
   }
 
   func provenProcessIdentity(
@@ -1122,14 +1076,5 @@ extension TerminalHostState {
     for surfaceID: UUID
   ) -> TerminalAgentDetectionExplanation {
     agentDetectionController?.explanation(for: surfaceID) ?? .disabled
-  }
-
-  func detailedAgentDetectionExplanation(
-    for surfaceID: UUID
-  ) async -> TerminalAgentDetectionDetail {
-    guard let agentDetectionController else {
-      return TerminalAgentDetectionDetail(summary: .disabled, evaluation: nil)
-    }
-    return await agentDetectionController.detailedExplanation(for: surfaceID)
   }
 }

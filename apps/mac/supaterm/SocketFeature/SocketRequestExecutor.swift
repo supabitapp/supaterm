@@ -64,7 +64,6 @@ public struct SocketRequestExecutor: Sendable {
   public var executeLicense: @MainActor @Sendable (LicenseControlRequest) async throws -> LicenseControlResult
 
   public enum TerminalPaneRequest: Sendable {
-    case agentExplain(TerminalPaneTarget)
     case focusPane(TerminalPaneTarget)
     case lastPane(TerminalPaneTarget)
     case closePane(TerminalPaneTarget)
@@ -78,7 +77,6 @@ public struct SocketRequestExecutor: Sendable {
   }
 
   public enum TerminalPaneResult: Sendable {
-    case agentExplain(SupatermAgentDetectionExplainResult)
     case focusPane(SupatermFocusPaneResult)
     case lastPane(SupatermFocusPaneResult)
     case closePane(SupatermClosePaneResult)

@@ -122,8 +122,7 @@ private final class CodexE2EFixture {
           tabID: space.tab.tabID,
           paneID: space.tab.paneID
         )
-        try await installAgentHook(
-          .codex,
+        try await installAgentHooks(
           runner: runner,
           socketPath: app.socketPath,
           workspace: space.directory,

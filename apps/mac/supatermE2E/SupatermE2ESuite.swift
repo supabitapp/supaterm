@@ -135,17 +135,16 @@ func closeTestSpace(_ app: SupatermE2EApp, spaceID: UUID) throws {
   }
 }
 
-func installAgentHook(
-  _ agent: SupatermAgentKind,
+func installAgentHooks(
   runner: SPBinaryRunner,
   socketPath: String,
   workspace: URL,
   app: SupatermE2EApp
 ) async throws {
-  let arguments = SupatermManagedHookCommand.installArguments(for: agent) + ["--socket", socketPath]
+  let arguments = ["agent", "install-hooks", "--socket", socketPath]
   var lastResult: SPBinaryResult?
   do {
-    try await app.waitUntil("the \(agent.notificationTitle) hook installer replies", timeout: 45) {
+    try await app.waitUntil("the hook installers reply", timeout: 45) {
       lastResult = try runner.run(arguments, cwd: workspace, timeout: 15)
       return lastResult?.exitCode == 0
     }

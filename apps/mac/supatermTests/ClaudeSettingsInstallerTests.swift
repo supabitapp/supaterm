@@ -98,6 +98,21 @@ struct ClaudeSettingsInstallerTests {
   }
 
   @Test
+  func installIsIdempotent() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL)
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+
+    try installer.installSupatermHooks()
+    let firstInstall = try Data(contentsOf: settingsURL)
+    try installer.installSupatermHooks()
+    let secondInstall = try Data(contentsOf: settingsURL)
+
+    #expect(secondInstall == firstInstall)
+  }
+
+  @Test
   func installPreservesUnrelatedSettingsAndHooks() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

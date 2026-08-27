@@ -38,27 +38,6 @@ public struct AgentDetectionMatch: Equatable, Sendable {
   }
 }
 
-public struct AgentDetectionConditionEvidence: Equatable, Sendable {
-  public let kind: String
-  public let value: String?
-  public let matched: Bool
-  public let children: [AgentDetectionConditionEvidence]
-}
-
-public struct AgentDetectionRuleEvidence: Equatable, Sendable {
-  public let ruleID: String
-  public let result: AgentDetectionRuleResult
-  public let priority: Int
-  public let region: String
-  public let matched: Bool
-  public let condition: AgentDetectionConditionEvidence
-}
-
-public struct AgentDetectionMatcherExplanation: Equatable, Sendable {
-  public let match: AgentDetectionMatch
-  public let rules: [AgentDetectionRuleEvidence]
-}
-
 struct AgentDetectionMatcher {
   static let fallbackRuleID = "default_known_agent_unknown_fallback"
 
@@ -98,17 +77,6 @@ struct AgentDetectionMatcher {
       return rule.match
     }
     return Self.fallbackMatch
-  }
-
-  func explain(_ input: AgentDetectionInput) -> AgentDetectionMatcherExplanation {
-    let input = PreparedInput(input)
-    let evaluations = rules.map { rule in
-      (match: rule.match, evidence: rule.evidence(input))
-    }
-    return AgentDetectionMatcherExplanation(
-      match: evaluations.first(where: { $0.evidence.matched })?.match ?? Self.fallbackMatch,
-      rules: evaluations.map(\.evidence)
-    )
   }
 
   private static var fallbackMatch: AgentDetectionMatch {
@@ -152,26 +120,9 @@ private struct CompiledRule {
   func matches(_ input: PreparedInput) -> Bool {
     gate.matches(input.text(in: region))
   }
-
-  func evidence(_ input: PreparedInput) -> AgentDetectionRuleEvidence {
-    let condition = gate.evidence(input.text(in: region))
-    return AgentDetectionRuleEvidence(
-      ruleID: id,
-      result: result,
-      priority: priority,
-      region: region.description,
-      matched: condition.matched,
-      condition: condition
-    )
-  }
 }
 
 private struct CompiledGate {
-  private struct SegmentEvaluation {
-    let matched: Bool
-    let children: [AgentDetectionConditionEvidence]
-  }
-
   let contains: [CompiledContains]
   let regex: [CompiledRegularExpression]
   let lineRegex: [CompiledRegularExpression]
@@ -203,124 +154,20 @@ private struct CompiledGate {
     return !not.contains(where: { $0.matches(text) })
   }
 
-  func evidence(_ text: PreparedText) -> AgentDetectionConditionEvidence {
-    let segments = [
-      evaluateLeaves(
-        contains,
-        kind: "contains",
-        value: \.pattern
-      ) { text.lowercase.contains($0.lowercase) },
-      evaluateLeaves(
-        regex,
-        kind: "regex",
-        value: \.pattern
-      ) { $0.matches(text.raw) },
-      evaluateLeaves(
-        lineRegex,
-        kind: "line_regex",
-        value: \.pattern
-      ) { expression in text.lines.contains { expression.matches($0) } },
-      evaluateAll(text),
-      evaluateAny(text),
-      evaluateNot(text),
-    ]
-    let matched = segments.allSatisfy(\.matched)
-    return AgentDetectionConditionEvidence(
-      kind: "all",
-      value: nil,
-      matched: matched,
-      children: segments.flatMap(\.children)
-    )
-  }
-
-  private func evaluateLeaves<Value>(
-    _ values: [Value],
-    kind: String,
-    value: KeyPath<Value, String>,
-    matches: (Value) -> Bool
-  ) -> SegmentEvaluation {
-    let results = values.map { item in
-      (item: item, matched: matches(item))
-    }
-    return SegmentEvaluation(
-      matched: results.allSatisfy(\.matched),
-      children: results.map { result in
-        AgentDetectionConditionEvidence(
-          kind: kind,
-          value: result.item[keyPath: value],
-          matched: result.matched,
-          children: []
-        )
-      }
-    )
-  }
-
-  private func evaluateAll(_ text: PreparedText) -> SegmentEvaluation {
-    let evaluations = all.map { $0.evidence(text) }
-    return SegmentEvaluation(
-      matched: evaluations.allSatisfy(\.matched),
-      children: evaluations.map { evaluation in
-        AgentDetectionConditionEvidence(
-          kind: "all",
-          value: nil,
-          matched: evaluation.matched,
-          children: evaluation.children
-        )
-      }
-    )
-  }
-
-  private func evaluateAny(_ text: PreparedText) -> SegmentEvaluation {
-    guard !any.isEmpty else { return SegmentEvaluation(matched: true, children: []) }
-    let evaluations = any.map { $0.evidence(text) }
-    let matched = evaluations.contains(where: \.matched)
-    return SegmentEvaluation(
-      matched: matched,
-      children: [
-        AgentDetectionConditionEvidence(
-          kind: "any",
-          value: nil,
-          matched: matched,
-          children: evaluations
-        )
-      ]
-    )
-  }
-
-  private func evaluateNot(_ text: PreparedText) -> SegmentEvaluation {
-    guard !not.isEmpty else { return SegmentEvaluation(matched: true, children: []) }
-    let evaluations = not.map { $0.evidence(text) }
-    let matched = !evaluations.contains(where: \.matched)
-    return SegmentEvaluation(
-      matched: matched,
-      children: [
-        AgentDetectionConditionEvidence(
-          kind: "not",
-          value: nil,
-          matched: matched,
-          children: evaluations
-        )
-      ]
-    )
-  }
 }
 
 private struct CompiledContains {
-  let pattern: String
   let lowercase: String
 
   init(_ pattern: String) {
-    self.pattern = pattern
     lowercase = pattern.lowercased()
   }
 }
 
 private struct CompiledRegularExpression {
-  let pattern: String
   private let value: NSRegularExpression
 
   init(_ pattern: String) throws {
-    self.pattern = pattern
     value = try NSRegularExpression(pattern: pattern)
   }
 

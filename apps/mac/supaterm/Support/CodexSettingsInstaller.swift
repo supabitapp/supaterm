@@ -114,6 +114,12 @@ public struct CodexSettingsInstaller {
     return try integrationHealthLocked()
   }
 
+  public func isAvailable() throws -> Bool {
+    Self.operationLock.lock()
+    defer { Self.operationLock.unlock() }
+    return try codexAvailability() != .unavailable
+  }
+
   private func integrationHealthLocked() throws -> CodingAgentIntegrationHealth {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     let settingsHealth = try fileInstaller.integrationHealth(

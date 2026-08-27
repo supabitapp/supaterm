@@ -105,10 +105,8 @@ final class TerminalCommandExecutor {
 
   func execute(
     _ request: SocketRequestExecutor.TerminalPaneRequest
-  ) async throws -> SocketRequestExecutor.TerminalPaneResult {
+  ) throws -> SocketRequestExecutor.TerminalPaneResult {
     switch request {
-    case .agentExplain(let target):
-      return .agentExplain(try await agentDetectionExplain(target))
     case .focusPane(let target):
       return .focusPane(try focusPane(target))
     case .lastPane(let target):

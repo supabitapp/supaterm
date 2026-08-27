@@ -104,12 +104,6 @@ them over the network. At startup and on reload, a file at
 default directory is `~/.config/supaterm/agent-detection`. A failed reload keeps the current complete
 rule set.
 
-Inspect a pane's process proof, manifest source, chosen rule, and every rule condition with:
-
-```bash
-sp agent explain [pane]
-```
-
 Reload local manifests after an edit with:
 
 ```bash
@@ -158,7 +152,7 @@ sp onboard
 Claude and Codex share the settings-file hook bridge, but each installer uses the agent's public configuration surface.
 
 - Settings > Coding Agents exposes a toggle per agent. Turning it on installs hooks; turning it off removes them.
-- `sp agent install-hook <agent>` and `sp agent remove-hook <agent>` reach the same installers over the socket, so the CLI and the toggle do the same work in the same process. Each returns the agent's resulting health, and both fail when no app is reachable.
+- `sp agent install-hooks` and `sp agent remove-hooks` reach every supported installer over the socket. A Settings toggle only operates on its selected agent. Both use the same installer code in the app process and fail when no app is reachable.
 - On open, Settings reports each integration as unavailable, unavailable but installed, absent, partial, drifted, or healthy.
 - Claude must be available through the user's login shell. Codex must be version 0.144.1 or newer, have its hooks feature enabled, and have canonical trust state.
 - A hook is Supaterm-managed only when its command exactly matches one of Supaterm's canonical hook commands.
@@ -211,10 +205,10 @@ The app uses Codex hooks only for root session identity.
 
 ## Pi
 
-Pi uses the extension package from `supaterm-skills`, not the `sp agent install-hook` settings bridge.
+Pi uses the extension package from `supaterm-skills`, not the Claude and Codex settings-file bridge.
 
 Settings > Coding Agents can install or remove the package by invoking `pi` through the user's login shell.
-The socket methods `app.hooks.install` and `app.hooks.remove` accept `pi` and run that same package install or removal. `sp agent install-hook` and `sp agent remove-hook` expose only `claude` and `codex`.
+The socket methods `app.hooks.install` and `app.hooks.remove` accept `pi` and run that same package install or removal. The aggregate CLI commands include Pi.
 When Pi is unavailable, removal edits Pi's settings file directly so the installed integration can still be disabled.
 Supaterm treats canonical package protocol `0.2.0` or newer as healthy, updates an existing canonical checkout with `pi update`, and replaces noncanonical remote sources during repair.
 
