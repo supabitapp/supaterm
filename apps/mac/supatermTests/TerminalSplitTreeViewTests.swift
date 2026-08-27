@@ -1,3 +1,4 @@
+import GhosttyKit
 import SupaTheme
 import SupatermCLIShared
 import SwiftUI
@@ -24,6 +25,36 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  func progressBarUsesTerminalThemeColorForActiveProgress() {
+    let themeColor = Color(red: 0.2, green: 0.4, blue: 0.6)
+    let progressBar = GhosttySurfaceProgressBar(
+      progressState: GHOSTTY_PROGRESS_STATE_SET,
+      progressValue: 42,
+      themeColor: themeColor
+    )
+
+    expectSameColor(progressBar.progressColor, themeColor)
+  }
+
+  @Test
+  func progressBarKeepsSemanticColorsForErrorAndPause() {
+    let themeColor = Color.purple
+    let errorProgressBar = GhosttySurfaceProgressBar(
+      progressState: GHOSTTY_PROGRESS_STATE_ERROR,
+      progressValue: nil,
+      themeColor: themeColor
+    )
+    let pausedProgressBar = GhosttySurfaceProgressBar(
+      progressState: GHOSTTY_PROGRESS_STATE_PAUSE,
+      progressValue: nil,
+      themeColor: themeColor
+    )
+
+    expectSameColor(errorProgressBar.progressColor, .red)
+    expectSameColor(pausedProgressBar.progressColor, .orange)
+  }
+
+  @Test
   @MainActor
   func splitContainerOwnsItsBackgroundBelowHostedTerminals() {
     let initialColor = NSColor(deviceWhite: 0.1, alpha: 1)
@@ -35,7 +66,7 @@ struct TerminalSplitTreeViewTests {
       dimmingOpacity: 0,
       focusedSurfaceID: nil,
       hiddenAgentPanelSurfaceIDs: [],
-      notificationColor: .clear,
+      terminalAccentColor: .clear,
       palette: Palette(colorScheme: .dark),
       agentPanelForksDown: false,
       agentPanelShortcutHint: nil,
@@ -488,4 +519,20 @@ struct TerminalSplitTreeViewTests {
     #expect(descriptor.adjustedRatio(incrementing: false) == 0.125)
     #expect(descriptor.adjustedRatio(incrementing: true) == 0.245)
   }
+}
+
+private func expectSameColor(
+  _ actual: Color,
+  _ expected: Color,
+  sourceLocation: SourceLocation = #_sourceLocation
+) {
+  let actual = actual.resolve(in: EnvironmentValues())
+  let expected = expected.resolve(in: EnvironmentValues())
+  #expect(
+    abs(actual.red - expected.red) < 0.0001
+      && abs(actual.green - expected.green) < 0.0001
+      && abs(actual.blue - expected.blue) < 0.0001
+      && abs(actual.opacity - expected.opacity) < 0.0001,
+    sourceLocation: sourceLocation
+  )
 }
