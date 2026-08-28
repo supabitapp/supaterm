@@ -17,6 +17,8 @@ struct TerminalSidebarDragContent {
   let canBeginDrag: Bool
   let swipe: SpaceSwipeController?
   let groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView]
+
+  var liveSelectedTabID: TerminalTabID? { context.terminal.selectedTabID }
 }
 
 struct TerminalSidebarDragHost {

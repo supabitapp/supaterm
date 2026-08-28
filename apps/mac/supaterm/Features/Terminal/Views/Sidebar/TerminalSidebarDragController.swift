@@ -459,7 +459,7 @@ final class TerminalSidebarDragController {
   ) -> TerminalSidebarLiftedSelectionSurface? {
     guard
       case .tab(let tabID) = entryID,
-      tabID == content.selectedTabID,
+      tabID == content.liveSelectedTabID,
       case .tab(let presentation) = content.rows[entryID]
     else { return nil }
     let view = TerminalSidebarSelectionGlowView()

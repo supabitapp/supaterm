@@ -307,6 +307,31 @@ struct TerminalSidebarPointerTests {
   }
 
   @Test
+  func liftedRowUsesSelectionAppliedDuringMouseDown() async throws {
+    let fixture = try await fixture()
+    defer {
+      fixture.window.contentView = nil
+      fixture.window.orderOut(nil)
+    }
+    let staleContent = TerminalSidebarDragContent(
+      outline: fixture.outline,
+      selectedTabID: fixture.secondTabID,
+      rows: [:],
+      context: fixture.context,
+      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true),
+      shouldPlayTabMoveHaptics: false,
+      canBeginDrag: true,
+      swipe: nil,
+      groupBackgroundViews: [:]
+    )
+
+    fixture.terminal.selectTab(fixture.firstTabID)
+
+    #expect(staleContent.selectedTabID == fixture.secondTabID)
+    #expect(staleContent.liveSelectedTabID == fixture.firstTabID)
+  }
+
+  @Test
   func liftedRowCannotBeReboundThroughItsCollectionItem() async throws {
     let fixture = try await fixture()
     defer {
