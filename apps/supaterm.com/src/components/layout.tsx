@@ -128,10 +128,10 @@ function Layout() {
               Pricing
             </a>
             <a
-              href="https://license.supaterm.com/login"
+              href="https://license.supaterm.com"
               className="transition-colors hover:text-white/78"
             >
-              Manage licenses
+              License Management Portal
             </a>
             <Link to="/changelog" className="transition-colors hover:text-white/78">
               Changelog

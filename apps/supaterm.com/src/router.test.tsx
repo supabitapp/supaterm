@@ -169,9 +169,9 @@ describe("router", () => {
   it("links to license management and the legal policies", async () => {
     await renderRoute("/");
 
-    expect(screen.getByRole("link", { name: "Manage licenses" }).getAttribute("href")).toBe(
-      "https://license.supaterm.com/login",
-    );
+    expect(
+      screen.getByRole("link", { name: "License Management Portal" }).getAttribute("href"),
+    ).toBe("https://license.supaterm.com");
     expect(screen.getByRole("link", { name: "Terms" }).getAttribute("href")).toBe("/terms");
     expect(screen.getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe("/privacy");
     expect(screen.getByRole("link", { name: "Refunds" }).getAttribute("href")).toBe("/refunds");
