@@ -35,11 +35,15 @@ final class TabDragUITests: SupatermUITestCase {
     let didPinSecondTab = await wait(for: secondTab) { $0.label.contains("Pinned") }
     XCTAssertTrue(didPinSecondTab)
 
+    let pinDivider = app.descendants(matching: .tableRow)["sidebar.pin-divider"]
     let didPinThirdTab = await dragTab(
       source: thirdTab,
       destination: secondTab,
       destinationY: 0.1,
-      until: { thirdTab.label.contains("Pinned") }
+      until: {
+        self.tabRowsMatch(["Third UI Tab", "Second UI Tab", "First UI Tab"])
+          && thirdTab.frame.maxY <= pinDivider.frame.minY
+      }
     )
     XCTAssertTrue(didPinThirdTab)
   }
