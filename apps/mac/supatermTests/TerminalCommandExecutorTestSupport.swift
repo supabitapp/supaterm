@@ -124,12 +124,14 @@ func agentHookRequest(
   sessionID: String,
   hookEventName: SupatermAgentHookEventName,
   context: SupatermCLIContext? = nil,
+  contextSource: SupatermAgentHookContextSource? = nil,
   lastAssistantMessage: String? = nil,
   processID: Int32? = nil
 ) -> SupatermAgentHookRequest {
   SupatermAgentHookRequest(
     agent: agent,
     context: context,
+    contextSource: contextSource,
     event: SupatermAgentHookEvent(
       cwd: CodexHookFixtures.cwd,
       hookEventName: hookEventName,
@@ -222,6 +224,35 @@ struct ClaudeHookHarness {
     self.registry = registry
     self.tabID = tabID
     self.window = window
+  }
+
+  @MainActor
+  func makeAdditionalHarness() throws -> ClaudeHookHarness {
+    let host = TerminalHostState.test()
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    let window = makeWindow()
+    host.ensureInitialTab(focusing: false, startupCommand: nil)
+    let surface = try #require(host.selectedSurfaceView)
+    attachTerminalSurfaces([surface], to: window, focusing: surface)
+    let tabID = try #require(host.selectedTabID)
+    registry.updateWindow(window, for: windowControllerID)
+    return ClaudeHookHarness(
+      context: SupatermCLIContext(surfaceID: surface.id, tabID: tabID.rawValue),
+      host: host,
+      registry: registry,
+      tabID: tabID,
+      window: window
+    )
   }
 }
 

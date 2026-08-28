@@ -15,11 +15,13 @@ extension TerminalCommandExecutor {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
     pruneDeadAgentProcesses()
-    guard let terminal = agentTerminal(for: request),
-      shouldHandleAgentHook(request, in: terminal)
-    else {
+    guard let terminal = agentTerminal(for: request) else {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
+    guard shouldHandleAgentHook(request, in: terminal) else {
+      return TerminalAgentHookResult(desktopNotification: nil)
+    }
+    rebindLaunchBoundSessionIfNeeded(request, to: terminal)
     var didChange = false
     var result = TerminalAgentHookResult(desktopNotification: nil)
     for event in events {
@@ -115,6 +117,23 @@ extension TerminalCommandExecutor {
     return AgentHookNotification(body: body, semantic: semantic, subtitle: subtitle)
   }
 
+  private func rebindLaunchBoundSessionIfNeeded(
+    _ request: SupatermAgentHookRequest,
+    to terminal: TerminalHostState
+  ) {
+    guard request.contextSource == .launchBound,
+      let sessionID = request.event.sessionID
+    else {
+      return
+    }
+    for entry in registry.activeEntries()
+    where entry.terminal !== terminal
+      && entry.terminal.clearAgentSession(agent: request.agent, sessionID: sessionID)
+    {
+      entry.terminal.sessionDidChange()
+    }
+  }
+
   private func clearRecentStructuredNotification(
     for terminal: TerminalHostState,
     event: TerminalAgentEvent
@@ -133,7 +152,17 @@ extension TerminalCommandExecutor {
   private func agentTerminal(
     for request: SupatermAgentHookRequest
   ) -> TerminalHostState? {
-    agentTerminal(
+    if request.contextSource != .launchBound,
+      let sessionID = request.event.sessionID,
+      let terminal = agentTerminal(
+        agent: request.agent,
+        sessionID: sessionID,
+        context: nil
+      )
+    {
+      return terminal
+    }
+    return agentTerminal(
       agent: request.agent,
       sessionID: request.event.sessionID,
       context: request.context
@@ -152,6 +181,9 @@ extension TerminalCommandExecutor {
     else {
       return true
     }
+    if request.contextSource == .launchBound {
+      return true
+    }
     guard
       let foregroundWorkingDirectoryPath = terminal.foregroundAgentWorkingDirectoryPath(
         agent: .codex,
@@ -159,7 +191,7 @@ extension TerminalCommandExecutor {
         for: surfaceID
       )
     else {
-      return true
+      return false
     }
     guard
       let workingDirectoryPath = TerminalAgentPanelWorkspaceKey(

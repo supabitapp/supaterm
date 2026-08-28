@@ -13,7 +13,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
   - `SUPATERM_STATE_HOME` when the app is launched with a state root
   - `SUPATERM_SURFACE_ID`
   - `SUPATERM_TAB_ID`
-- For login-shell panes, Supaterm prepends the app's `Contents/MacOS` directory to `PATH`. The directory ships `sp`, `ap`, and `wt`. The app builds `ap` from `ThirdParty/coding-agents-session-picker` and embeds `wt` from `ThirdParty/git-wt`. Direct launches keep the caller's `PATH` unchanged.
+- For login-shell panes, Supaterm prepends the app's `Contents/MacOS` directory to `PATH`. The directory ships `sp`, `ap`, `wt`, and a thin `codex` shim. The app builds `ap` from `ThirdParty/coding-agents-session-picker` and embeds `wt` from `ThirdParty/git-wt`. Direct launches keep the caller's `PATH` unchanged.
 - Structured agent events go through the `sp` CLI and then through the socket control boundary into the app process.
 - The app process is the only place that decides tab activity, pending input state, and desktop notification delivery.
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.
@@ -33,6 +33,7 @@ The integration is split into three layers.
 
 - inject pane context into the process environment
 - inject the Debug or bundled `sp` path
+- route session-starting Codex commands through the bundled shim so hook routing is bound to the launching pane instead of a shared app-server daemon's environment
 - preserve isolated `SUPATERM_STATE_HOME` for development runs
 - read the foreground process-group ID and tty from the live Ghostty surface when needed
 
@@ -168,6 +169,8 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 - The forwarded request carries the decoded event, the explicit agent kind, and the ambient `SupatermCLIContext` from the current pane.
 - Root session-start payloads should include the agent's absolute `cwd`. Supaterm uses it for the Workspace row, Git status, and forked session working directory.
 
+The bundled Codex shim affects only session entrypoints: interactive launches, `exec`, `resume`, and `fork`. It finds and `exec`s the user's real Codex binary, preserving the process ID and terminal. For each launch it adds a SessionStart hook whose command contains the pane, tab, socket, bundled `sp` path, and Codex client PID captured before the real process starts. This remains exact when Codex connects to a shared app-server whose ambient environment belongs to an older pane. Non-session commands such as `--version`, `login`, `doctor`, and `app-server` pass through unchanged. Invoking a real Codex binary by absolute path bypasses the shim; Supaterm rejects an unmatched shared-daemon callback instead of guessing a pane. Set `SUPATERM_CODEX_HOOKS_DISABLED=1` to bypass the launch shim while diagnosing an integration.
+
 ## Claude
 
 - Settings file: `~/.claude/settings.json`.
@@ -199,7 +202,8 @@ Codex uses the same session-identity bridge. The terminal reader alone owns the 
 
 The app uses Codex hooks only for root session identity.
 
-- `SessionStart` binds the session ID, process, workspace, and pane surface.
+- A launch-bound `SessionStart` binds the session ID, client process, workspace, and exact pane surface, replacing any stale binding for that session in another window.
+- An ambient `SessionStart` for a new session is accepted only when its reported process already matches the pane's foreground Codex state. This rejects callbacks parented by a shared app-server daemon. Once a session is known, its stored surface wins over stale ambient context.
 - Every other Codex hook event is ignored by the app.
 - The terminal reader alone sets Codex's root `unknown`, `idle`, `running`, or `needs input` phase.
 

@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# Launch-bound Codex hook injection for Supaterm panes. Every failure path
+# delegates to the real Codex executable so this shim cannot block Codex use.
+
+is_supaterm_codex_shim() {
+  local candidate="$1"
+  [[ -n "$candidate" ]] || return 1
+  if [[ -e "$candidate" && "$candidate" -ef "$0" ]]; then
+    return 0
+  fi
+  case "$candidate" in
+    */Supaterm.app/Contents/MacOS/codex|*/supaterm.app/Contents/MacOS/codex)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+find_real_codex() {
+  local custom="${SUPATERM_CODEX_PATH:-}"
+  custom="${custom#"${custom%%[![:space:]]*}"}"
+  custom="${custom%"${custom##*[![:space:]]}"}"
+  if [[ -n "$custom" && -f "$custom" && -x "$custom" ]] && ! is_supaterm_codex_shim "$custom"; then
+    printf '%s' "$custom"
+    return 0
+  fi
+
+  local self_dir
+  self_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+  local IFS=:
+  local directory
+  for directory in $PATH; do
+    [[ -n "$directory" ]] || directory="."
+    [[ "$directory" == "$self_dir" ]] && continue
+    local candidate="$directory/codex"
+    is_supaterm_codex_shim "$candidate" && continue
+    if [[ -x "$candidate" ]]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+codex_subcommand_starts_session() {
+  case "$1" in
+    exec|e|resume|fork) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+codex_known_subcommand() {
+  case "$1" in
+    agents|exec|e|review|login|logout|mcp|plugin|mcp-server|app-server|\
+    remote-control|app|completion|update|doctor|sandbox|debug|apply|a|resume|\
+    queue|archive|delete|migrate-rollouts|unarchive|fork|cloud|exec-server|\
+    features|help)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+codex_option_consumes_value() {
+  case "$1" in
+    -c|--config|-i|--image|-m|--model|-p|--profile|-C|--cd|--add-dir|\
+    --remote|--remote-auth-token-env|--local-provider|-a|--ask-for-approval|\
+    -s|--sandbox|--output-last-message|--enable|--disable)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+should_inject_hooks() {
+  (( $# == 0 )) && return 0
+
+  local argument
+  local skip_next=false
+  for argument in "$@"; do
+    if [[ "$skip_next" == true ]]; then
+      skip_next=false
+      continue
+    fi
+    case "$argument" in
+      --)
+        return 0
+        ;;
+      --help|-h|-V|--version)
+        return 1
+        ;;
+      -*)
+        if [[ "$argument" != *=* ]] && codex_option_consumes_value "$argument"; then
+          skip_next=true
+        fi
+        ;;
+      *)
+        if codex_known_subcommand "$argument"; then
+          codex_subcommand_starts_session "$argument"
+          return $?
+        fi
+        return 0
+        ;;
+    esac
+  done
+  return 0
+}
+
+REAL_CODEX="$(find_real_codex)" || {
+  echo "Error: codex not found in PATH" >&2
+  exit 127
+}
+
+if [[ "${SUPATERM_CODEX_HOOKS_DISABLED:-}" == "1" ]] ||
+  [[ -z "${SUPATERM_SURFACE_ID:-}" ]] ||
+  [[ -z "${SUPATERM_TAB_ID:-}" ]] ||
+  [[ -z "${SUPATERM_SOCKET_PATH:-}" ]] ||
+  [[ -z "${SUPATERM_CLI_PATH:-}" ]] ||
+  [[ ! -x "${SUPATERM_CLI_PATH:-}" ]] ||
+  ! should_inject_hooks "$@"
+then
+  exec "$REAL_CODEX" "$@"
+fi
+
+injected_arguments=()
+while IFS= read -r -d '' argument; do
+  injected_arguments+=("$argument")
+done < <(
+  "$SUPATERM_CLI_PATH" agent codex-inject-args --pid "$$" 2>/dev/null
+)
+
+if (( ${#injected_arguments[@]} > 0 )); then
+  exec "$REAL_CODEX" "${injected_arguments[@]}" "$@"
+fi
+
+exec "$REAL_CODEX" "$@"

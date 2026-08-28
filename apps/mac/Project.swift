@@ -11,6 +11,7 @@ let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
 let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
+let codexWrapperPath: Path = "scripts/codex-wrapper"
 
 let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
@@ -480,6 +481,25 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/zmx",
+          ]
+        ),
+        .post(
+          script: """
+            set -euo pipefail
+
+            destination_dir="${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}"
+            destination_path="${destination_dir}/codex"
+            source_path="${SRCROOT}/\(codexWrapperPath.pathString)"
+
+            mkdir -p "${destination_dir}"
+            /usr/bin/install -m 755 "${source_path}" "${destination_path}"
+            """,
+          name: "Embed Codex wrapper",
+          inputPaths: [
+            "$(SRCROOT)/\(codexWrapperPath.pathString)",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/codex",
           ]
         ),
         .post(

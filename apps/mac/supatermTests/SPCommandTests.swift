@@ -605,6 +605,25 @@ struct SPCommandTests {
       try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "pi", "--pid", "123"])
         as? SP.ReceiveAgentHook
     )
+    let receiveLaunchBoundCommand = try #require(
+      try SP.parseAsRoot([
+        "agent",
+        "receive-agent-hook",
+        "--agent",
+        "codex",
+        "--pid",
+        "456",
+        "--surface-id",
+        "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF",
+        "--tab-id",
+        "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE",
+        "--launch-bound",
+      ]) as? SP.ReceiveAgentHook
+    )
+    let injectCommand = try #require(
+      try SP.parseAsRoot(["agent", "codex-inject-args", "--pid", "789"])
+        as? SP.CodexInjectArgs
+    )
 
     #expect(reloadCommand.options.output.plain)
     #expect(type(of: installAllCommand) == SP.InstallAgentHooks.self)
@@ -613,6 +632,10 @@ struct SPCommandTests {
     #expect(receiveClaudeCommand.pid == nil)
     #expect(receivePiCommand.agent == .pi)
     #expect(receivePiCommand.pid == 123)
+    #expect(receiveLaunchBoundCommand.agent == .codex)
+    #expect(receiveLaunchBoundCommand.pid == 456)
+    #expect(receiveLaunchBoundCommand.launchBound)
+    #expect(injectCommand.pid == 789)
   }
 
   @Test

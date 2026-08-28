@@ -9,6 +9,7 @@ extension SP {
       abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
       subcommands: [
+        CodexInjectArgs.self,
         InstallAgentHooks.self,
         ReloadAgentDetectionRules.self,
         RemoveAgentHooks.self,
@@ -73,10 +74,37 @@ extension SP {
     @Option(name: .long, help: "Process ID that emitted the hook payload.")
     var pid: Int32?
 
+    @Option(name: .long, help: "Pane surface UUID captured when the agent launched.")
+    var surfaceID: String?
+
+    @Option(name: .long, help: "Tab UUID captured when the agent launched.")
+    var tabID: String?
+
+    @Flag(name: .long, help: "Treat the explicit pane context as launch-bound.")
+    var launchBound = false
+
     @OptionGroup
     var connection: SPConnectionOptions
 
     mutating func run() throws {
+      let context: SupatermCLIContext?
+      switch (surfaceID.flatMap(UUID.init(uuidString:)), tabID.flatMap(UUID.init(uuidString:))) {
+      case (.none, .none):
+        if surfaceID != nil || tabID != nil {
+          throw ValidationError("Pass valid UUIDs to --surface-id and --tab-id.")
+        }
+        context = SupatermCLIContext.current
+      case (.some(let surfaceID), .some(let tabID)):
+        context = SupatermCLIContext(surfaceID: surfaceID, tabID: tabID)
+      default:
+        throw ValidationError("Pass --surface-id and --tab-id together.")
+      }
+      if launchBound, context == nil || pid == nil {
+        throw ValidationError("Launch-bound hooks require pane context and a process ID.")
+      }
+      if launchBound, agent != .codex {
+        throw ValidationError("Launch-bound hook routing is available only for Codex.")
+      }
       let rawInput = FileHandle.standardInput.readDataToEndOfFile()
       let event = try agentHookEvent(from: rawInput)
       let client = try socketClient(
@@ -87,7 +115,8 @@ extension SP {
         .agentHook(
           SupatermAgentHookRequest(
             agent: agent,
-            context: SupatermCLIContext.current,
+            context: context,
+            contextSource: launchBound ? .launchBound : nil,
             event: event,
             processID: pid
           )
@@ -96,6 +125,34 @@ extension SP {
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
+    }
+  }
+
+  struct CodexInjectArgs: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "codex-inject-args",
+      abstract: "Print launch-bound Codex hook arguments.",
+      shouldDisplay: false
+    )
+
+    @Option(name: .long, help: "Process ID that will become the Codex client.")
+    var pid: Int32
+
+    mutating func run() throws {
+      guard
+        let arguments = SupatermCodexLaunchHookInjection.arguments(
+          processID: pid
+        )
+      else {
+        throw ValidationError("Run this command inside a Supaterm pane.")
+      }
+
+      var output = Data()
+      for argument in arguments {
+        output.append(contentsOf: argument.utf8)
+        output.append(0)
+      }
+      FileHandle.standardOutput.write(output)
     }
   }
 

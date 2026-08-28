@@ -148,20 +148,27 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
 public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
   public let agent: SupatermAgentKind
   public let context: SupatermCLIContext?
+  public let contextSource: SupatermAgentHookContextSource?
   public let event: SupatermAgentHookEvent
   public let processID: Int32?
 
   public init(
     agent: SupatermAgentKind,
     context: SupatermCLIContext? = nil,
+    contextSource: SupatermAgentHookContextSource? = nil,
     event: SupatermAgentHookEvent,
     processID: Int32? = nil
   ) {
     self.agent = agent
     self.context = context
+    self.contextSource = contextSource
     self.event = event
     self.processID = processID
   }
+}
+
+public enum SupatermAgentHookContextSource: String, Equatable, Sendable, Codable {
+  case launchBound
 }
 
 private func normalizeAgentHookString(_ value: String?) -> String? {

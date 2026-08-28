@@ -173,7 +173,7 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_TAB_ID`
 - `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled
 
-For login-shell panes, the app prepends its `Contents/MacOS` directory to `PATH`. The directory includes `sp`, `ap`, and `wt`. Direct launches keep the caller's `PATH` unchanged.
+For login-shell panes, the app prepends its `Contents/MacOS` directory to `PATH`. The directory includes `sp`, `ap`, `wt`, and the launch-bound Codex shim. Direct launches keep the caller's `PATH` unchanged.
 
 A pane with no startup command starts the account login shell. `--script` and agent-panel forks enter visible text in that shell, then return to the same shell when the command ends. Supaterm waits for shell readiness when the shell reports it; otherwise it queues the text when it creates the surface. Arguments after `--` use the caller's `PATH` and launch directly with exact arguments, without running shell startup files. The tab or pane closes when that process exits. Terminal configuration cannot replace the launch selected by Supaterm.
 

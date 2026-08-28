@@ -18,6 +18,7 @@ struct TerminalCommandExecutorAgentHookTests {
         sessionID: sessionID,
         hookEventName: .sessionStart,
         context: harness.context,
+        contextSource: agent == .codex ? .launchBound : nil,
         processID: getpid()
       )
     )
@@ -56,6 +57,7 @@ struct TerminalCommandExecutorAgentHookTests {
         sessionID: sessionID,
         hookEventName: .sessionStart,
         context: harness.context,
+        contextSource: agent == .codex ? .launchBound : nil,
         processID: getpid()
       )
     )
@@ -89,6 +91,7 @@ struct TerminalCommandExecutorAgentHookTests {
           sessionID: sessionID,
           hookEventName: .sessionStart,
           context: harness.context,
+          contextSource: .launchBound,
           processID: getpid()
         )
       )
@@ -113,6 +116,7 @@ struct TerminalCommandExecutorAgentHookTests {
         sessionID: "foreground-session",
         hookEventName: .sessionStart,
         context: harness.context,
+        contextSource: .launchBound,
         processID: processID
       )
     )
@@ -136,6 +140,74 @@ struct TerminalCommandExecutorAgentHookTests {
       ) == "foreground-session"
     )
     #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "internal-session"))
+  }
+
+  @Test
+  func codexSessionStartFromUnmatchedProcessIsIgnored() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      agentHookRequest(
+        agent: .codex,
+        sessionID: "shared-daemon-session",
+        hookEventName: .sessionStart,
+        context: harness.context,
+        processID: Int32.max
+      )
+    )
+
+    #expect(
+      !harness.host.hasAgentSession(
+        agent: .codex,
+        sessionID: "shared-daemon-session"
+      )
+    )
+  }
+
+  @Test
+  func codexLaunchBoundSessionStartUsesCapturedPane() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      agentHookRequest(
+        agent: .codex,
+        sessionID: "launch-bound-session",
+        hookEventName: .sessionStart,
+        context: harness.context,
+        contextSource: .launchBound,
+        processID: Int32.max
+      )
+    )
+
+    #expect(
+      harness.host.hasAgentSession(
+        agent: .codex,
+        sessionID: "launch-bound-session"
+      )
+    )
+  }
+
+  @Test
+  func codexLaunchBoundSessionMovesFromStaleWindow() throws {
+    let staleHarness = try makeClaudeHookHarness()
+    let currentHarness = try staleHarness.makeAdditionalHarness()
+    let sessionID = "rebound-session"
+
+    for context in [staleHarness.context, currentHarness.context] {
+      _ = try staleHarness.commandExecutor.handleAgentHook(
+        agentHookRequest(
+          agent: .codex,
+          sessionID: sessionID,
+          hookEventName: .sessionStart,
+          context: context,
+          contextSource: .launchBound,
+          processID: getpid()
+        )
+      )
+    }
+
+    #expect(!staleHarness.host.hasAgentSession(agent: .codex, sessionID: sessionID))
+    #expect(currentHarness.host.hasAgentSession(agent: .codex, sessionID: sessionID))
   }
 
   @Test

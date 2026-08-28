@@ -684,6 +684,13 @@ extension TerminalHostState {
     agentStateStore.hasSession(agent: agent, sessionID: sessionID)
   }
 
+  @discardableResult
+  func clearAgentSession(agent: SupatermAgentKind, sessionID: String) -> Bool {
+    guard hasAgentSession(agent: agent, sessionID: sessionID) else { return false }
+    agentStateStore.clearSession(agent: agent, sessionID: sessionID)
+    return true
+  }
+
   func foregroundAgentWorkingDirectoryPath(
     agent: SupatermAgentKind,
     processID: Int32,
