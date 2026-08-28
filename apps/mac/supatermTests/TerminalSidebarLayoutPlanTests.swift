@@ -89,7 +89,7 @@ struct TerminalSidebarLayoutPlanTests {
     #expect(rootTarget.frame.height == 37)
     #expect(headerTarget.frame == headerFrame)
     #expect(endTarget.frame.minY < endTarget.frame.maxY)
-    #expect(sourceFrame.height == 3)
+    #expect(sourceFrame.height == 37)
     #expect(trailingTarget.frame.minY == endTarget.frame.maxY)
     #expect(trailingTarget.frame.height == viewportHeight)
     #expect(plan.semanticTarget(at: leading.frame.midY)?.path == leading.path)
@@ -300,10 +300,10 @@ struct TerminalSidebarLayoutPlanTests {
     )
 
     #expect(liftedTop.frame.origin == baselineTop.frame.origin)
-    #expect(liftedTop.frame.height == 3)
+    #expect(liftedTop.frame.height == baselineTop.frame.height)
     #expect(liftedTop.alpha == 0)
     #expect(
-      projectedSecond.frame.minY - liftedTop.frame.maxY
+      projectedSecond.frame.minY - (liftedTop.frame.minY + 3)
         == TerminalSidebarLayout.tabRowSpacing
     )
     #expect(projectedSecond.frame.size == baselineTop.frame.size)
@@ -319,7 +319,7 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
-  func liftedOrdinaryTabsReserveThreePointsEachAndHaveNoTargets() throws {
+  func liftedOrdinaryTabsKeepFullAttributesAndReserveThreePointsEach() throws {
     let first = TerminalTabID()
     let second = TerminalTabID()
     let tail = TerminalTabID()
@@ -331,19 +331,24 @@ struct TerminalSidebarLayoutPlanTests {
     )
     let plan = TerminalSidebarTestFixture.layoutPlan(
       outline: outline,
-      draggingItemIDs: [.tab(first), .tab(second)]
+      draggingItemIDs: [.tab(first), .tab(second)],
+      preferredHeights: [
+        .tab(first): 30,
+        .tab(second): 50,
+        .tab(tail): 41,
+      ]
     )
     let firstSource = try #require(plan.items.first { $0.id == .tab(first) })
     let secondSource = try #require(plan.items.first { $0.id == .tab(second) })
     let projectedTail = try #require(plan.items.first { $0.id == .tab(tail) })
 
-    #expect(firstSource.frame.height == 3)
-    #expect(secondSource.frame.height == 3)
+    #expect(firstSource.frame.height == 30)
+    #expect(secondSource.frame.height == 50)
     #expect(firstSource.alpha == 0)
     #expect(secondSource.alpha == 0)
-    #expect(secondSource.frame.minY == firstSource.frame.maxY)
+    #expect(secondSource.frame.minY == firstSource.frame.minY + 3)
     #expect(
-      projectedTail.frame.minY - secondSource.frame.maxY
+      projectedTail.frame.minY - (secondSource.frame.minY + 3)
         == TerminalSidebarLayout.tabRowSpacing
     )
     #expect(
@@ -879,7 +884,7 @@ struct TerminalSidebarLayoutPlanTests {
       }
     )
 
-    #expect(sourceFrame.height == 3)
+    #expect(sourceFrame.height == 37)
     #expect(
       divider.minY - childFrame.maxY
         == 3 + TerminalSidebarLayoutPlan.pinDividerTopSpacing

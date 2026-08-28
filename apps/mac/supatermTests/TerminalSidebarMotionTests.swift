@@ -290,6 +290,7 @@ struct TerminalSidebarMotionTests {
     #expect(!policy.collapseStagger)
     #expect(!policy.hoverFade)
     #expect(!policy.acceptedArc)
+    #expect(!policy.ripple)
     #expect(!policy.snapback)
   }
 
@@ -417,22 +418,49 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test @MainActor
-  func cancelledDropUsesTheConfiguredPositionSpring() throws {
-    let animation = TerminalSidebarTransformSpring.positionAnimation(
-      from: .zero,
-      to: CGPoint(x: 10, y: 20)
+  func dropRippleUsesRecoveredGeometryAndSpring() throws {
+    let visibleSpan = TerminalSidebarDropRipple.visibleSpan(
+      frames: [
+        CGRect(x: 0, y: 20, width: 100, height: 30),
+        CGRect(x: 0, y: 90, width: 100, height: 50),
+      ]
     )
+    let sourceFrame = CGRect(x: 0, y: 50, width: 100, height: 40)
+    let middle = try #require(
+      TerminalSidebarDropRipple.scaleDelta(distance: 30, visibleSpan: visibleSpan)
+    )
+    let animation = TerminalSidebarDropRipple.animation(
+      scaleDelta: TerminalSidebarDropRipple.maximumScaleDelta,
+      center: .zero,
+      distance: 20,
+      currentTime: 100
+    )
+    let transform = try #require((animation.fromValue as? NSValue)?.caTransform3DValue)
 
-    #expect(try #require(animation.fromValue as? NSValue).pointValue == .zero)
+    #expect(visibleSpan == 120)
     #expect(
-      try #require(animation.toValue as? NSValue).pointValue == CGPoint(x: 10, y: 20)
-    )
-    #expect(TerminalSidebarTransformSpring.dampingRatio == 0.65)
-    #expect(TerminalSidebarTransformSpring.response == 0.25)
+      TerminalSidebarDropRipple.distance(frame: CGRect(x: 0, y: 0, width: 10, height: 40), sourceFrame: sourceFrame)
+        == 30)
+    #expect(
+      TerminalSidebarDropRipple.distance(frame: CGRect(x: 0, y: 60, width: 10, height: 20), sourceFrame: sourceFrame)
+        == 0)
+    #expect(
+      TerminalSidebarDropRipple.distance(frame: CGRect(x: 0, y: 100, width: 10, height: 40), sourceFrame: sourceFrame)
+        == 30)
+    #expect(abs(middle - 0.03 * exp(-1.5)) < 0.000_001)
+    #expect(TerminalSidebarDropRipple.scaleDelta(distance: 60, visibleSpan: visibleSpan) == nil)
+    #expect(transform.m42 == -2)
+    #expect(animation.isAdditive)
     #expect(animation.mass == 1)
-    #expect(animation.stiffness == TerminalSidebarTransformSpring.stiffness)
-    #expect(animation.damping == TerminalSidebarTransformSpring.damping)
-    #expect(animation.duration == TerminalSidebarTransformSpring.response)
+    #expect(animation.stiffness == TerminalSidebarDropRipple.stiffness)
+    #expect(
+      animation.damping
+        == 2
+        * sqrt(animation.mass * animation.stiffness)
+        * TerminalSidebarDropRipple.dampingRatio
+    )
+    #expect(abs(animation.beginTime - 100.18) < 0.000_001)
+    #expect(animation.duration == animation.settlingDuration)
   }
 
   @Test @MainActor
@@ -465,7 +493,7 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func livePreviewPreservesRowsBoundsAndSettlementGeometry() {
+  func livePreviewPreservesRowBoundsAndHorizontalConstraint() {
     let container = CGRect(x: 4, y: 50, width: 212, height: 180)
     let bounds = CGRect(x: 4, y: 0, width: 212, height: 400)
 
@@ -479,13 +507,6 @@ struct TerminalSidebarMotionTests {
       TerminalSidebarLiveDragGeometry.constrainedX(-100, frameWidth: 212, bounds: bounds) == 4)
     #expect(
       TerminalSidebarLiveDragGeometry.constrainedX(100, frameWidth: 200, bounds: bounds) == 16)
-    #expect(
-      TerminalSidebarLiveDragGeometry.settlementPosition(
-        currentLayerPosition: .zero,
-        currentFrame: container,
-        targetFrame: CGRect(x: 4, y: 300, width: 212, height: 180)
-      ) == CGPoint(x: 0, y: 250)
-    )
   }
 
   @Test

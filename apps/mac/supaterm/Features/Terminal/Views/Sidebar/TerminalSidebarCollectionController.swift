@@ -131,6 +131,7 @@ final class TerminalSidebarListController: NSViewController {
   private var fixedHoveredGroupID: TerminalTabGroupID?
   private var pendingRevealTabID: TerminalTabID?
   private var motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: false)
+  private var shouldPlayTabMoveHaptics = true
   private var isLayingOut = false
   private let tabDragRegistry: TerminalTabDragRegistry
   private let windowControllerID: UUID
@@ -191,6 +192,7 @@ final class TerminalSidebarListController: NSViewController {
           rows: rows,
           context: context,
           motionPolicy: motionPolicy,
+          shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics,
           canBeginDrag: canBeginDrag,
           swipe: swipe,
           groupBackgroundViews: groupBackgroundViews
@@ -256,14 +258,15 @@ final class TerminalSidebarListController: NSViewController {
     rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation],
     context: TerminalSidebarRowContext,
     selectedTabID: TerminalTabID?,
-    reduceMotion: Bool
+    interactionPolicy: TerminalSidebarInteractionPolicy
   ) {
     self.rows = rows
     self.context = context
+    shouldPlayTabMoveHaptics = interactionPolicy.shouldPlayTabMoveHaptics
     hoverCardController.refresh()
     dragController.pinnedControl.update(context: context)
     fixedHoveredGroupID = context.fixedHoveredGroupID
-    updateMotionPolicy(reduceMotion: reduceMotion)
+    updateMotionPolicy(reduceMotion: interactionPolicy.reduceMotion)
     let groupIDs = Set(
       outline.roots.compactMap { root -> TerminalTabGroupID? in
         guard case .group(let id, _, _, _) = root.content else { return nil }
@@ -294,7 +297,7 @@ final class TerminalSidebarListController: NSViewController {
     tabSelectionState.retainVisible(in: outline, primaryTabID: selectedTabID)
 
     refreshVisibleRows(ids: Set(rows.keys))
-    let update = Update(outline: outline, reduceMotion: reduceMotion)
+    let update = Update(outline: outline, reduceMotion: interactionPolicy.reduceMotion)
     if dragController.isActive {
       handleActiveDragUpdate(update)
       return

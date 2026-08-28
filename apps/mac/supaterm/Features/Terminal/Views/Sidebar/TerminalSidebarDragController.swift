@@ -2,6 +2,12 @@ import AppKit
 import ComposableArchitecture
 import SwiftUI
 
+private struct TerminalSidebarVisibleRippleItem {
+  let item: TerminalSidebarCollectionItem
+  let entryID: TerminalSidebarEntryID
+  let frame: CGRect
+}
+
 @MainActor
 final class TerminalSidebarDragController {
   typealias DropHandoffCompletion = TerminalSidebarDropHandoffCompletion
@@ -46,7 +52,13 @@ final class TerminalSidebarDragController {
       updateAutoscroll: { [weak self] in self?.autoscrollController.update(pointerY: $0) },
       stopAutoscroll: { [weak self] in self?.autoscrollController.stop() },
       invalidateLayout: { [weak self] in self?.host.invalidateLayout() },
-      updateHapticTarget: { [weak self] in self?.dragPresentation.updateHapticTarget($0) },
+      updateHapticTarget: { [weak self] path in
+        guard let self else { return }
+        dragPresentation.updateHapticTarget(
+          path,
+          enabled: host.content()?.shouldPlayTabMoveHaptics == true
+        )
+      },
       resetHapticTarget: { [weak self] in self?.dragPresentation.resetHapticTarget() },
       didClear: { [weak self] in self?.host.didFinish() }
     )
@@ -435,6 +447,7 @@ final class TerminalSidebarDragController {
       hostedView.frame.size = sourceItem.frame.size
       liftedRows.append(
         TerminalSidebarLiftedRow(
+          id: entryID,
           hostedView: hostedView,
           sourceFrame: sourceItem.frame,
           selectedSurface: selectedSurface,
@@ -755,7 +768,11 @@ final class TerminalSidebarDragController {
     let decision = activeDrag.dropTarget.transition(event)
     switch decision.haptic {
     case .none: break
-    case .update(let path): dragPresentation.updateHapticTarget(path)
+    case .update(let path):
+      dragPresentation.updateHapticTarget(
+        path,
+        enabled: content.shouldPlayTabMoveHaptics
+      )
     case .reset: dragPresentation.resetHapticTarget()
     }
     switch decision.target {
@@ -836,17 +853,27 @@ final class TerminalSidebarDragController {
   }
 
   private func settleDragging(receipt: TerminalSidebarDropReceipt?, content: Content) {
-    guard activeDrag != nil, let sourceFrame = dragPresentation.sourceFrame else {
+    guard let activeDrag, let sourceFrame = dragPresentation.sourceFrame else {
       finishDragging(receipt: receipt)
       return
     }
     autoscrollController.stop()
     layoutAnimator.finish()
     let accepted = receipt != nil
+    if !accepted {
+      layoutAnimator.animate(enabled: content.motionPolicy.targetInterpolation) {
+        collectionLayout.dragDropState = TerminalSidebarDragDropState(
+          source: activeDrag.payload.source,
+          draggingItemIDs: activeDrag.liftedEntryIDs,
+          target: nil,
+          phase: .committedSettlement
+        )
+      }
+      host.invalidateLayout()
+    }
     let destination: CGRect
     if accepted {
       guard
-        let activeDrag,
         let frame = TerminalSidebarDropSettlementGeometry.frame(
           source: activeDrag.payload.source,
           liftedEntryIDs: activeDrag.liftedEntryIDs,
@@ -861,25 +888,89 @@ final class TerminalSidebarDragController {
     } else {
       destination = sourceFrame
     }
-    if let activeDrag {
-      logDrag(
-        "sidebar.drag.settlement",
-        fields: TerminalSidebarDragLog.activeFields(activeDrag.payload) + [
-          "accepted=\(accepted)",
-          "sourceMidY=\(TerminalSidebarDragLog.coordinate(sourceFrame.midY))",
-          "destinationMidY=\(TerminalSidebarDragLog.coordinate(destination.midY))",
-        ]
-      )
-    }
+    logDrag(
+      "sidebar.drag.settlement",
+      fields: TerminalSidebarDragLog.activeFields(activeDrag.payload) + [
+        "accepted=\(accepted)",
+        "sourceMidY=\(TerminalSidebarDragLog.coordinate(sourceFrame.midY))",
+        "destinationMidY=\(TerminalSidebarDragLog.coordinate(destination.midY))",
+      ]
+    )
     dragPresentation.settle(
       TerminalSidebarDragPresentation.Settlement(
-        targetFrame: destination,
+        targetFrames: settlementFrames(for: activeDrag.liftedEntryIDs),
+        groupFrame: settlementGroupFrame(for: activeDrag.payload.source),
         accepted: accepted,
-        motionPolicy: content.motionPolicy
+        motionPolicy: content.motionPolicy,
+        ripple: content.motionPolicy.ripple ? dropRipple() : nil
       )
     ) { [weak self] in
       self?.finishDragging(receipt: receipt)
     }
+  }
+
+  private func settlementFrames(
+    for entryIDs: [TerminalSidebarEntryID]
+  ) -> [TerminalSidebarEntryID: CGRect] {
+    let ids = Set(entryIDs)
+    return Dictionary(
+      uniqueKeysWithValues: collectionLayout.targetPlan.items.compactMap { item in
+        ids.contains(item.id) ? (item.id, item.frame) : nil
+      }
+    )
+  }
+
+  private func settlementGroupFrame(
+    for source: TerminalSidebarDragSource
+  ) -> CGRect? {
+    guard case .group(let groupID) = source else { return nil }
+    return collectionLayout.targetPlan.groups.first { $0.id == groupID }?.frame
+  }
+
+  private func dropRipple() -> TerminalSidebarDragPresentation.Ripple? {
+    guard let activeDrag else { return nil }
+    let visibleIndexPaths = collectionView.indexPathsForVisibleItems()
+    let targetFrames = Dictionary(
+      uniqueKeysWithValues: collectionLayout.targetPlan.items.map { ($0.id, $0.frame) }
+    )
+    let visibleItems: [TerminalSidebarVisibleRippleItem] =
+      visibleIndexPaths.compactMap { indexPath in
+        guard
+          let item = collectionView.item(at: indexPath) as? TerminalSidebarCollectionItem,
+          let entryID = item.entryID,
+          let frame = targetFrames[entryID]
+        else { return nil }
+        return TerminalSidebarVisibleRippleItem(item: item, entryID: entryID, frame: frame)
+      }
+    let sourceFrames = activeDrag.liftedEntryIDs.compactMap {
+      targetFrames[$0]
+    }
+    guard let sourceFrame = sourceFrames.first else { return nil }
+    let draggedIDs = Set(activeDrag.liftedEntryIDs)
+    let candidates = visibleItems.compactMap {
+      visibleItem -> TerminalSidebarDragPresentation.RippleCandidate? in
+      guard
+        case .tab = visibleItem.entryID,
+        !draggedIDs.contains(visibleItem.entryID),
+        visibleItem.frame.height > 0
+      else { return nil }
+      guard let layer = visibleItem.item.view.layer else { return nil }
+      return TerminalSidebarDragPresentation.RippleCandidate(
+        layer: layer,
+        frame: visibleItem.frame,
+        center: CGPoint(
+          x: visibleItem.item.view.bounds.midX,
+          y: visibleItem.item.view.bounds.midY
+        )
+      )
+    }
+    let combinedSourceFrame = sourceFrames.dropFirst().reduce(sourceFrame) { $0.union($1) }
+    guard combinedSourceFrame.height > 0 else { return nil }
+    return TerminalSidebarDragPresentation.Ripple(
+      sourceFrame: combinedSourceFrame,
+      candidates: candidates,
+      visibleSpan: TerminalSidebarDropRipple.visibleSpan(frames: visibleItems.map { $0.frame })
+    )
   }
 
   private func finishDragging(receipt: TerminalSidebarDropReceipt? = nil) {

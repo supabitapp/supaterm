@@ -9,6 +9,7 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
   var entryID: TerminalSidebarEntryID? { containerView.entryID }
 
   override func loadView() {
+    containerView.wantsLayer = true
     view = containerView
   }
 
@@ -25,6 +26,7 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
   ) -> TerminalSidebarLiftedRow? {
     guard let lift = containerView.liftHostedView() else { return nil }
     return TerminalSidebarLiftedRow(
+      id: lift.entryID,
       hostedView: lift.hostedView,
       sourceFrame: sourceFrame,
       selectedSurface: selectedSurface,
@@ -42,17 +44,20 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
 
 @MainActor
 struct TerminalSidebarLiftedRow {
+  let id: TerminalSidebarEntryID
   let hostedView: NSView
   let sourceFrame: CGRect
   let selectedSurface: TerminalSidebarLiftedSelectionSurface?
   let restoreAction: @MainActor () -> Void
 
   init(
+    id: TerminalSidebarEntryID,
     hostedView: NSView,
     sourceFrame: CGRect,
     selectedSurface: TerminalSidebarLiftedSelectionSurface? = nil,
     restore: @escaping @MainActor () -> Void
   ) {
+    self.id = id
     self.hostedView = hostedView
     self.sourceFrame = sourceFrame
     self.selectedSurface = selectedSurface

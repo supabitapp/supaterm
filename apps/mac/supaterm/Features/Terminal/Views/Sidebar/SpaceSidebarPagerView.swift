@@ -8,6 +8,7 @@ struct SpaceSidebarPagerView: View {
   let isActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
+  let shouldPlayTabMoveHaptics: Bool
   @Binding var position: Double?
 
   private struct Page: Identifiable {
@@ -59,7 +60,8 @@ struct SpaceSidebarPagerView: View {
         palette: pagePalette,
         swipe: swipe,
         controllerCache: sidebarControllerCache,
-        fixedHoveredGroupID: fixedHoveredGroupID
+        fixedHoveredGroupID: fixedHoveredGroupID,
+        shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics
       )
     } else {
       SpaceSidebarPlaceholderView(space: page.space, palette: pagePalette)

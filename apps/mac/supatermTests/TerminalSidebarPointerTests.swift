@@ -94,7 +94,10 @@ struct TerminalSidebarPointerTests {
         rows: rows,
         context: context,
         selectedTabID: destinationTabID,
-        reduceMotion: true
+        interactionPolicy: TerminalSidebarInteractionPolicy(
+          reduceMotion: true,
+          shouldPlayTabMoveHaptics: true
+        )
       )
       controller.tabSelectionState.toggle(sourceTabID, primaryTabID: destinationTabID)
       let scrollView = try #require(

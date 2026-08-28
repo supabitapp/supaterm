@@ -21,6 +21,7 @@ struct TerminalSidebarChromeView: View {
   let isPagingActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
+  let shouldPlayTabMoveHaptics: Bool
   let dismissReleaseAnnouncement: () -> Void
 
   @State private var pagingPosition: Double?
@@ -33,6 +34,7 @@ struct TerminalSidebarChromeView: View {
         isActive: isPagingActive,
         sidebarControllerCache: sidebarControllerCache,
         fixedHoveredGroupID: fixedHoveredGroupID,
+        shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics,
         position: $pagingPosition
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)

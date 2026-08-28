@@ -56,8 +56,9 @@ struct TerminalSidebarCollectionHarnessTests {
 
     #expect(item.view.frame == planItem.frame)
     #expect(attributes.frame == planItem.frame)
-    #expect(sourcePlanItem.frame.height == 3)
+    #expect(sourcePlanItem.frame.height == TerminalSidebarLayout.tabRowMinHeight)
     #expect(sourcePlanItem.alpha == 0)
+    #expect(sourcePlanItem.frame.minY == planItem.frame.maxY)
     #expect(sourceAttributes.frame == sourcePlanItem.frame)
     #expect(sourceAttributes.alpha == 0)
     #expect(

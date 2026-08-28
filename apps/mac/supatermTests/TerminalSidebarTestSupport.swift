@@ -203,7 +203,10 @@ final class TerminalSidebarWindowHarness {
         actions: Self.rowActions
       ),
       selectedTabID: selectedTabID,
-      reduceMotion: reduceMotion
+      interactionPolicy: TerminalSidebarInteractionPolicy(
+        reduceMotion: reduceMotion,
+        shouldPlayTabMoveHaptics: true
+      )
     )
   }
 

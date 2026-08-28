@@ -2,12 +2,18 @@ import AppKit
 
 typealias TerminalSidebarDropHandoffCompletion = @MainActor @Sendable () -> Void
 
+struct TerminalSidebarInteractionPolicy {
+  let reduceMotion: Bool
+  let shouldPlayTabMoveHaptics: Bool
+}
+
 struct TerminalSidebarDragContent {
   let outline: TerminalSidebarOutline
   let selectedTabID: TerminalTabID?
   let rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation]
   let context: TerminalSidebarRowContext
   let motionPolicy: TerminalSidebarMotionPolicy
+  let shouldPlayTabMoveHaptics: Bool
   let canBeginDrag: Bool
   let swipe: SpaceSwipeController?
   let groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView]

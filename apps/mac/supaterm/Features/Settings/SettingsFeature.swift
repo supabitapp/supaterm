@@ -146,6 +146,7 @@ public struct SettingsFeature {
     var systemNotificationsEnabled: Bool {
       pendingSystemNotificationsEnabled ?? supatermSettings.systemNotificationsEnabled
     }
+    var tabMoveHapticsEnabled: Bool { supatermSettings.tabMoveHapticsEnabled }
     var updateChannel: UpdateChannel { supatermSettings.updateChannel }
     var verboseLoggingEnabled: Bool { supatermSettings.verboseLoggingEnabled }
     var zmxSessionsEnabled: Bool { supatermSettings.zmxSessionsEnabled }
@@ -175,6 +176,7 @@ public struct SettingsFeature {
     case systemNotificationsAuthorizationResult(
       DesktopNotificationClient.AuthorizationRequestResult)
     case systemNotificationsEnabledChanged(Bool)
+    case tabMoveHapticsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
     case terminalConfirmCloseSurfaceSelected(GhosttyTerminalCloseConfirmation)
@@ -352,7 +354,8 @@ public struct SettingsFeature {
 
       case .systemNotificationsEnabledChanged,
         .systemNotificationsAuthorizationChecked,
-        .systemNotificationsAuthorizationResult:
+        .systemNotificationsAuthorizationResult,
+        .tabMoveHapticsEnabledChanged:
         return reduceNotifications(&state, action: action)
 
       case .agentIntegrationStatusRefreshRequested,

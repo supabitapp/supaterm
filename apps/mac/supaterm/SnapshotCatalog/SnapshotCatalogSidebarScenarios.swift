@@ -823,6 +823,7 @@ private struct SidebarChromeSnapshotFixture: View {
       isPagingActive: false,
       sidebarControllerCache: sidebarControllerCache,
       fixedHoveredGroupID: fixedHoveredGroupID,
+      shouldPlayTabMoveHaptics: true,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)
@@ -856,6 +857,7 @@ private struct SidebarWindowControlsSnapshotFixture: View {
       terminal: terminal,
       isPagingActive: false,
       sidebarControllerCache: sidebarControllerCache,
+      shouldPlayTabMoveHaptics: true,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)

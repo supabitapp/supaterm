@@ -289,7 +289,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       let preferredHeight = context.preferredHeights[entry.id] ?? Self.defaultHeight(for: entry)
       let height =
         if isLiftedTabSource {
-          Self.liftedTabSourceSlotHeight
+          preferredHeight
         } else if isCollapsed {
           CGFloat.zero
         } else {
@@ -308,7 +308,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
           alpha: isHidden ? 0 : visibility.alpha
         )
       )
-      y += height
+      y += isLiftedTabSource ? Self.liftedTabSourceSlotHeight : height
       if !isCollapsed {
         previousVisibleEntry = entry
       }
@@ -473,7 +473,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
         return RootTargetGeometry(targets: [], tabsEndY: initialY)
       }
       guard !context.draggedIDs.contains(.tab(tabID)) else {
-        return RootTargetGeometry(targets: [], tabsEndY: item.frame.maxY)
+        return RootTargetGeometry(
+          targets: [],
+          tabsEndY: item.frame.minY + liftedTabSourceSlotHeight
+        )
       }
       return RootTargetGeometry(
         targets: [
