@@ -73,6 +73,11 @@ struct TerminalSidebarLayoutPlan: Equatable {
       else { return [] }
       return draggedIDs
     }()
+    let sourceIsTab =
+      switch dragDropState?.source {
+      case .tabs: true
+      default: false
+      }
     let insertionIndex = Self.insertionIndex(
       for: dragDropState?.target?.placeholder,
       entries: entries
@@ -90,8 +95,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
         entries: entries,
         preferredHeights: preferredHeights,
         visibilityByEntryID: visibilityByEntryID,
-        collapsedDraggedIDs: collapsedDraggedIDs,
-        liftedTabSourceIDs: liftedTabSourceIDs,
+        collapsedDraggedIDs: sourceIsTab ? [] : collapsedDraggedIDs,
+        liftedTabSourceIDs: [],
         hiddenDraggedIDs: draggedIDs,
         insertionIndex: nil,
         tabCandidateGapY: nil,
@@ -106,11 +111,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
         outline: outline,
         itemByID: targetBaselineItemByID,
         draggedIDs: draggedIDs,
-        sourceIsTab: {
-          guard let source = dragDropState?.source else { return false }
-          if case .tabs = source { return true }
-          return false
-        }(),
+        sourceIsTab: sourceIsTab,
         width: width,
         viewportHeight: viewportHeight
       )
@@ -475,7 +476,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       guard !context.draggedIDs.contains(.tab(tabID)) else {
         return RootTargetGeometry(
           targets: [],
-          tabsEndY: item.frame.minY + liftedTabSourceSlotHeight
+          tabsEndY: item.frame.maxY
         )
       }
       return RootTargetGeometry(

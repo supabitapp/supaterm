@@ -35,6 +35,51 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func selectionGlowUsesLiveSelectionBeforeTheNextSnapshot() throws {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let collection = terminal.spaceManager.tabCollection
+    let firstID = collection.createTab(title: "First")
+    let secondID = collection.createTab(title: "Second")
+    collection.selectTab(secondID)
+    let outline = TerminalSidebarOutline(
+      snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot
+    )
+    var rows = Dictionary(
+      uniqueKeysWithValues: terminal.tabs.map {
+        (
+          TerminalSidebarEntryID.tab($0.id),
+          TerminalSidebarRowPresentation.tab(tabPresentation($0))
+        )
+      }
+    )
+    rows[.newTab] = .newTab(.inline)
+    let harness = try #require(
+      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300))
+    )
+    defer { harness.close() }
+    harness.apply(
+      outline: outline,
+      rows: rows,
+      terminal: terminal,
+      selectedTabID: secondID,
+      reduceMotion: true
+    )
+    harness.layoutNow()
+
+    terminal.selectTab(firstID)
+    harness.controller.viewWillLayout()
+
+    let glow = try #require(
+      harness.collectionView.subviews.compactMap { $0 as? TerminalSidebarSelectionGlowView }.first
+    )
+    let firstFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(firstID) }?.frame
+    )
+    #expect(!glow.isHidden)
+    #expect(glow.frame.midY == firstFrame.midY)
+  }
+
+  @Test
   func programmaticReorderStopsWhenReduceMotionTurnsOn() throws {
     let frames = try programmaticReorderFrames(
       reduceMotion: false,

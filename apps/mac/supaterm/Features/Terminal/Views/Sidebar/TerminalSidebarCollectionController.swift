@@ -765,8 +765,8 @@ final class TerminalSidebarListController: NSViewController {
 
   private func updateSelectionGlow() {
     guard
-      let selectedTabID,
       let context,
+      let selectedTabID = context.terminal.selectedTabID ?? selectedTabID,
       let item = collectionLayout.plan.items.first(where: { $0.id == .tab(selectedTabID) }),
       case .tab(let presentation) = rows[.tab(selectedTabID)],
       item.alpha > 0,
