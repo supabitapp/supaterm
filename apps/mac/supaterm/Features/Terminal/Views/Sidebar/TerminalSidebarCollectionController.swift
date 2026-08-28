@@ -727,6 +727,7 @@ final class TerminalSidebarListController: NSViewController {
           groupBackgroundViews[group.id] = background
           return background
         }()
+      guard group.id != liftedGroupID else { continue }
       background.frame = group.frame
       updateGroupSurface(group: group, background: background)
       background.needsLayout = true

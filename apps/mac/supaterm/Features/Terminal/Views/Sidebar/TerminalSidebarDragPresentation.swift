@@ -152,6 +152,7 @@ final class TerminalSidebarDragPresentation {
       return
     }
     liveView.isHidden = false
+    liveView.prepareForSettlement()
     guard
       let targets = liveView.settlementTargets(
         rowFrames: settlement.targetFrames,
@@ -358,6 +359,15 @@ private final class TerminalSidebarLiveDragView: NSView {
       radius: Self.restingShadowRadius,
       offset: Self.restingShadowOffset
     )
+  }
+
+  func prepareForSettlement() {
+    groupBackground?.view.alphaValue = 1
+    for row in rows {
+      row.hostedView.alphaValue = 1
+      row.selectedSurface?.view.alphaValue = 1
+      row.selectedSurface?.view.isHidden = false
+    }
   }
 
   func settlementTargets(

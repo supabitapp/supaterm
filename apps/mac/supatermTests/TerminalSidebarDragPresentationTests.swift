@@ -28,10 +28,11 @@ struct TerminalSidebarDragPresentationTests {
     )
     collectionView.addSubview(background)
     let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
-    let rows = [
+    let rowFrames = [
       CGRect(x: 12, y: 20, width: 216, height: 37),
       CGRect(x: 12, y: 59, width: 216, height: 37),
-    ].map { rowFrame in
+    ]
+    let rows = rowFrames.map { rowFrame in
       TerminalSidebarLiftedRow(
         id: .tab(TerminalTabID()),
         hostedView: NSView(frame: rowFrame),
@@ -78,6 +79,21 @@ struct TerminalSidebarDragPresentationTests {
     #expect(abs(renderedColor.redComponent - expectedColor.redComponent) < 0.02)
     #expect(abs(renderedColor.greenComponent - expectedColor.greenComponent) < 0.02)
     #expect(abs(renderedColor.blueComponent - expectedColor.blueComponent) < 0.02)
+
+    background.alphaValue = 0
+    presentation.settle(
+      TerminalSidebarDragPresentation.Settlement(
+        targetFrames: Dictionary(
+          uniqueKeysWithValues: zip(rows, rowFrames).map { ($0.id, $1) }
+        ),
+        groupFrame: sourceFrame,
+        accepted: true,
+        motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
+      ),
+      completion: {}
+    )
+
+    #expect(background.alphaValue == 1)
   }
 
   @Test @MainActor
@@ -89,12 +105,13 @@ struct TerminalSidebarDragPresentationTests {
       frame: sourceFrame.insetBy(dx: -4, dy: -4)
     )
     let selectedSurface = TerminalSidebarLiftedSelectionSurface(view: selectedSurfaceView)
+    let rowID = TerminalSidebarEntryID.tab(TerminalTabID())
     let presentation = TerminalSidebarDragPresentation(collectionView: collectionView)
     presentation.begin(
       TerminalSidebarDragPresentation.Lift(
         rows: [
           TerminalSidebarLiftedRow(
-            id: .tab(TerminalTabID()),
+            id: rowID,
             hostedView: hostedView,
             sourceFrame: sourceFrame,
             selectedSurface: selectedSurface,
@@ -114,6 +131,23 @@ struct TerminalSidebarDragPresentationTests {
     let liveView = try #require(hostedView.superview)
     #expect(selectedSurfaceView.superview === liveView)
     #expect(selectedSurfaceView.frame == CGRect(x: -4, y: -4, width: 224, height: 60))
+
+    hostedView.alphaValue = 0
+    selectedSurfaceView.alphaValue = 0
+    selectedSurfaceView.isHidden = true
+    presentation.settle(
+      TerminalSidebarDragPresentation.Settlement(
+        targetFrames: [rowID: sourceFrame],
+        groupFrame: nil,
+        accepted: true,
+        motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
+      ),
+      completion: {}
+    )
+
+    #expect(hostedView.alphaValue == 1)
+    #expect(selectedSurfaceView.alphaValue == 1)
+    #expect(!selectedSurfaceView.isHidden)
   }
 
   @Test @MainActor
