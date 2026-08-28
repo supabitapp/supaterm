@@ -1,5 +1,6 @@
 import Clocks
 import ComposableArchitecture
+import Foundation
 import Sharing
 import SupatermCLIShared
 import Testing
@@ -97,17 +98,29 @@ struct TerminalCommandExecutorLicenseTests {
   }
 
   @Test
-  func darkBuildRejectsPurchaseAndRenewalRoutes() async throws {
-    let fixture = licenseExecutor()
+  func purchaseAndRenewalRoutesAreAlwaysAvailable() async throws {
+    let free = licenseExecutor()
+    let paid = licenseExecutor(
+      snapshot: LicenseClient.Snapshot(
+        entitlement: licenseEntitlement(updatesThrough: "2099-01-01"),
+        hasLicenseKey: true
+      )
+    )
 
-    #expect(!AppBuild.licenseSalesEnabled)
-    for request in [LicenseControlRequest.buy, .renew] {
-      let error = try await #require(throws: LicenseControlError.self) {
-        try await fixture.executor.execute(request)
-      }
-      #expect(error.code == "license_sales_unavailable")
-    }
-    withExtendedLifetime(fixture) {}
+    #expect(
+      try await free.executor.execute(.buy)
+        == .url(SupatermLicenseURLResult(url: LicensePortalURL.buy.absoluteString))
+    )
+    #expect(
+      try await paid.executor.execute(.renew)
+        == .url(
+          SupatermLicenseURLResult(
+            url: LicensePortalURL.license("00112233445566778899aabbccddeeff").absoluteString
+          )
+        )
+    )
+    withExtendedLifetime(free) {}
+    withExtendedLifetime(paid) {}
   }
 }
 
@@ -126,6 +139,7 @@ private func licenseExecutor(
     LicenseFeature(runtime: runtime)
   } withDependencies: {
     $0.continuousClock = clock
+    $0.externalNavigationClient.open = { _ in true }
   }
   let registry = TerminalWindowRegistry.test(licenseStore: store)
   return LicenseExecutorFixture(

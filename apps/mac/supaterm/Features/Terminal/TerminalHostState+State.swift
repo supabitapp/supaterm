@@ -152,9 +152,9 @@ extension TerminalHostState {
     return appearance == .darkAqua ? .dark : .light
   }
 
-  var notificationAttentionColor: Color {
+  var terminalAccentColor: Color {
     _ = runtimeConfigGeneration
-    return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
+    return Color(nsColor: runtime?.terminalAccentColor() ?? .controlAccentColor)
   }
 
   var splitDividerColor: Color {

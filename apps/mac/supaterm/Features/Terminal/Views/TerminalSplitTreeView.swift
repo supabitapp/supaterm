@@ -45,7 +45,7 @@ struct TerminalSplitTreeView: View {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
-  let notificationColor: Color
+  let terminalAccentColor: Color
   let palette: Palette
   let agentPanelForksDown: Bool
   let agentPanelShortcutHint: String?
@@ -119,7 +119,7 @@ struct TerminalSplitTreeView: View {
         dimmingOpacity: dimmingOpacity,
         focusedSurfaceID: focusedSurfaceID,
         hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
-        notificationColor: notificationColor,
+        terminalAccentColor: terminalAccentColor,
         palette: palette,
         agentPanelForksDown: agentPanelForksDown,
         agentPanelShortcutHint: agentPanelShortcutHint,
@@ -161,7 +161,7 @@ struct TerminalSplitTreeView: View {
     let dimmingOpacity: Double
     let focusedSurfaceID: UUID?
     let hiddenAgentPanelSurfaceIDs: Set<UUID>
-    let notificationColor: Color
+    let terminalAccentColor: Color
     let palette: Palette
     let agentPanelForksDown: Bool
     let agentPanelShortcutHint: String?
@@ -181,7 +181,7 @@ struct TerminalSplitTreeView: View {
           dimmingOpacity: dimmingOpacity,
           focusedSurfaceID: focusedSurfaceID,
           isAgentPanelCollapsed: hiddenAgentPanelSurfaceIDs.contains(leafView.id),
-          notificationColor: notificationColor,
+          terminalAccentColor: terminalAccentColor,
           palette: palette,
           agentPanelForksDown: agentPanelForksDown,
           agentPanelShortcutHint: agentPanelShortcutHint,
@@ -217,7 +217,7 @@ struct TerminalSplitTreeView: View {
               dimmingOpacity: dimmingOpacity,
               focusedSurfaceID: focusedSurfaceID,
               hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
-              notificationColor: notificationColor,
+              terminalAccentColor: terminalAccentColor,
               palette: palette,
               agentPanelForksDown: agentPanelForksDown,
               agentPanelShortcutHint: agentPanelShortcutHint,
@@ -236,7 +236,7 @@ struct TerminalSplitTreeView: View {
               dimmingOpacity: dimmingOpacity,
               focusedSurfaceID: focusedSurfaceID,
               hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
-              notificationColor: notificationColor,
+              terminalAccentColor: terminalAccentColor,
               palette: palette,
               agentPanelForksDown: agentPanelForksDown,
               agentPanelShortcutHint: agentPanelShortcutHint,
@@ -261,7 +261,7 @@ struct TerminalSplitTreeView: View {
     let dimmingOpacity: Double
     let focusedSurfaceID: UUID?
     let isAgentPanelCollapsed: Bool
-    let notificationColor: Color
+    let terminalAccentColor: Color
     let palette: Palette
     let agentPanelForksDown: Bool
     let agentPanelShortcutHint: String?
@@ -338,7 +338,10 @@ struct TerminalSplitTreeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityHidden(true)
         .overlay(alignment: .top) {
-          GhosttySurfaceProgressOverlay(state: surfaceView.bridge.state)
+          GhosttySurfaceProgressOverlay(
+            state: surfaceView.bridge.state,
+            themeColor: terminalAccentColor
+          )
         }
         .overlay {
           hoverLinkOverlay
@@ -469,15 +472,15 @@ struct TerminalSplitTreeView: View {
 
     private var unreadBackground: some View {
       unreadGlowShape
-        .fill(notificationColor.opacity(backgroundOpacity))
+        .fill(terminalAccentColor.opacity(backgroundOpacity))
         .opacity(hasVisibleAttention ? 1 : 0)
         .allowsHitTesting(false)
     }
 
     private var unreadRingOverlay: some View {
       unreadGlowShape
-        .strokeBorder(notificationColor.opacity(strokeOpacity), lineWidth: lineWidth)
-        .shadow(color: notificationColor.opacity(shadowOpacity), radius: shadowRadius)
+        .strokeBorder(terminalAccentColor.opacity(strokeOpacity), lineWidth: lineWidth)
+        .shadow(color: terminalAccentColor.opacity(shadowOpacity), radius: shadowRadius)
         .compositingGroup()
         .opacity(hasVisibleAttention ? 1 : 0)
         .allowsHitTesting(false)
@@ -486,11 +489,11 @@ struct TerminalSplitTreeView: View {
     private var notificationPulseOverlay: some View {
       unreadGlowShape
         .strokeBorder(
-          notificationColor.opacity(notificationPulseOpacity),
+          terminalAccentColor.opacity(notificationPulseOpacity),
           lineWidth: notificationPulseLineWidth
         )
         .shadow(
-          color: notificationColor.opacity(notificationPulseOpacity * 0.6),
+          color: terminalAccentColor.opacity(notificationPulseOpacity * 0.6),
           radius: notificationPulseShadowRadius
         )
         .compositingGroup()
@@ -1212,7 +1215,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
-  let notificationColor: Color
+  let terminalAccentColor: Color
   let palette: Palette
   let agentPanelForksDown: Bool
   let agentPanelShortcutHint: String?
@@ -1237,7 +1240,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
         dimmingOpacity: dimmingOpacity,
         focusedSurfaceID: focusedSurfaceID,
         hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
-        notificationColor: notificationColor,
+        terminalAccentColor: terminalAccentColor,
         palette: palette,
         agentPanelForksDown: agentPanelForksDown,
         agentPanelShortcutHint: agentPanelShortcutHint,

@@ -12,11 +12,32 @@ import Testing
 @MainActor
 struct LicenseTabGateTests {
   @Test
-  func enforcementFollowsSalesWithAnExplicitDebugOverride() {
-    #expect(!LicenseTabGate.enforcementEnabled(salesEnabled: false, debugFreeMode: false))
-    #expect(LicenseTabGate.enforcementEnabled(salesEnabled: true, debugFreeMode: false))
-    #expect(LicenseTabGate.enforcementEnabled(salesEnabled: false, debugFreeMode: true))
+  func defaultGateEnforcesTheFreeLimit() {
+    let gate = LicenseTabGate(licenseAccess: { .free })
+
+    #expect(
+      gate.refusal(for: .user, openTabs: 5)
+        == LicenseTabGate.Refusal(limit: 5, openTabs: 5)
+    )
   }
+
+  #if DEBUG
+    @Test
+    func e2eHarnessOnlyEnforcesWhenTestingTheFreeLimit() {
+      #expect(LicenseTabGate.enforcementEnabled(environment: [:]))
+      #expect(
+        !LicenseTabGate.enforcementEnabled(environment: ["SUPATERM_TEST_MODE": "1"])
+      )
+      #expect(
+        LicenseTabGate.enforcementEnabled(
+          environment: [
+            "SUPATERM_LICENSE_MODE": "free",
+            "SUPATERM_TEST_MODE": "1",
+          ]
+        )
+      )
+    }
+  #endif
 
   @Test
   func freeModeWithFourOpenTabsAllowsAnotherTab() throws {
@@ -305,19 +326,6 @@ struct LicenseTabGateTests {
       withExtendedLifetime(host.window) {}
     }
   }
-
-  #if DEBUG
-    @Test
-    func debugDefaultsToPaidAndOnlyLicenseModeFreeOptsIn() {
-      #expect(!LicenseTabGate.debugFreeMode(environment: [:]))
-      #expect(
-        LicenseTabGate.debugFreeMode(environment: ["SUPATERM_LICENSE_MODE": "free"])
-      )
-      #expect(
-        !LicenseTabGate.debugFreeMode(environment: ["SUPATERM_TEST_MODE": "1"])
-      )
-    }
-  #endif
 
   @Test
   func registryWiresBothRefusalActions() {

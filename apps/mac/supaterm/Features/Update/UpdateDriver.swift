@@ -469,7 +469,6 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
       guard let url = ownership.latestIncludedReleaseURL else { return }
       openURL(url)
     case .renewUpdates:
-      guard AppBuild.licenseSalesEnabled else { return }
       openURL(ownership.renewURL)
     case .allowAutomaticChecks, .cancel, .checkForUpdates, .declineAutomaticChecks,
       .install, .installAfterNextRestart, .restartLater, .restartNow, .retry,

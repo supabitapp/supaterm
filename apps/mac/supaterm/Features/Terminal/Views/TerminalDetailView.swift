@@ -44,7 +44,7 @@ struct TerminalDetailView: View {
         dimmingColor: terminal.unfocusedSplitDimmingColor,
         dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
         focusedSurfaceID: terminal.currentFocusedSurfaceID(),
-        notificationColor: terminal.notificationAttentionColor,
+        terminalAccentColor: terminal.terminalAccentColor,
         palette: palette,
         showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
         splitDividerColor: terminal.splitDividerColor,
@@ -216,7 +216,7 @@ private struct TerminalDetailSurface: View {
   let dimmingColor: Color
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
-  let notificationColor: Color
+  let terminalAccentColor: Color
   let palette: Palette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
@@ -228,7 +228,7 @@ private struct TerminalDetailSurface: View {
       dimmingColor: dimmingColor,
       dimmingOpacity: dimmingOpacity,
       focusedSurfaceID: focusedSurfaceID,
-      notificationColor: notificationColor,
+      terminalAccentColor: terminalAccentColor,
       palette: palette,
       showsGlowingPaneRing: showsGlowingPaneRing,
       splitDividerColor: splitDividerColor,
@@ -247,7 +247,7 @@ private struct TerminalSurfacePaneView: View {
   let dimmingColor: Color
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
-  let notificationColor: Color
+  let terminalAccentColor: Color
   let palette: Palette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
@@ -262,7 +262,7 @@ private struct TerminalSurfacePaneView: View {
       dimmingOpacity: dimmingOpacity,
       focusedSurfaceID: focusedSurfaceID,
       hiddenAgentPanelSurfaceIDs: store.hiddenAgentPanelSurfaceIDs,
-      notificationColor: notificationColor,
+      terminalAccentColor: terminalAccentColor,
       palette: palette,
       agentPanelForksDown: agentPanelForksDown,
       agentPanelShortcutHint: agentPanelShortcutHint,

@@ -3,11 +3,13 @@ import SwiftUI
 
 struct GhosttySurfaceProgressOverlay: View {
   @Bindable var state: GhosttySurfaceState
+  let themeColor: Color
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  init(state: GhosttySurfaceState) {
+  init(state: GhosttySurfaceState, themeColor: Color) {
     self._state = Bindable(state)
+    self.themeColor = themeColor
   }
 
   var body: some View {
@@ -17,7 +19,8 @@ struct GhosttySurfaceProgressOverlay: View {
     {
       GhosttySurfaceProgressBar(
         progressState: progressState,
-        progressValue: state.progressValue
+        progressValue: state.progressValue,
+        themeColor: themeColor
       )
       .terminalTransition(.opacity, reduceMotion: reduceMotion)
     }

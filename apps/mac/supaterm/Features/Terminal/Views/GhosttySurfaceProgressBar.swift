@@ -4,17 +4,20 @@ import SwiftUI
 struct GhosttySurfaceProgressBar: View {
   let progressState: ghostty_action_progress_report_state_e
   let progressValue: Int?
+  let themeColor: Color
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var position: CGFloat = 0
 
+  var progressColor: Color {
+    switch progressState {
+    case GHOSTTY_PROGRESS_STATE_ERROR: .red
+    case GHOSTTY_PROGRESS_STATE_PAUSE: .orange
+    default: themeColor
+    }
+  }
+
   var body: some View {
-    let color: Color =
-      switch progressState {
-      case GHOSTTY_PROGRESS_STATE_ERROR: .red
-      case GHOSTTY_PROGRESS_STATE_PAUSE: .orange
-      default: .accentColor
-      }
     let progress: Int? =
       progressValue ?? (progressState == GHOSTTY_PROGRESS_STATE_PAUSE ? 100 : nil)
     let accessibilityLabel: String =
@@ -40,7 +43,7 @@ struct GhosttySurfaceProgressBar: View {
       ZStack(alignment: .leading) {
         if let progress {
           Rectangle()
-            .fill(color)
+            .fill(progressColor)
             .frame(
               width: geometry.size.width * CGFloat(progress) / 100,
               height: geometry.size.height
@@ -49,9 +52,9 @@ struct GhosttySurfaceProgressBar: View {
         } else {
           ZStack(alignment: .leading) {
             Rectangle()
-              .fill(color.opacity(0.3))
+              .fill(progressColor.opacity(0.3))
             Rectangle()
-              .fill(color)
+              .fill(progressColor)
               .frame(width: geometry.size.width * 0.25, height: geometry.size.height)
               .offset(x: position * (geometry.size.width * 0.75))
           }

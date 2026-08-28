@@ -1,7 +1,6 @@
 import Foundation
 import SupatermCLIShared
 import SupatermLicenseFeature
-import SupatermSupport
 
 enum LicenseTabLimitAction: CaseIterable, Hashable {
   case activate
@@ -58,27 +57,23 @@ final class LicenseTabGate {
     onRefusal: @escaping @MainActor (LicenseTabLimitOrigin) -> Void = { _ in }
   ) {
     #if DEBUG
-      let freeMode = Self.debugFreeMode(environment: ProcessInfo.processInfo.environment)
+      let enforcementEnabled = Self.enforcementEnabled(
+        environment: ProcessInfo.processInfo.environment
+      )
     #else
-      let freeMode = false
+      let enforcementEnabled = true
     #endif
     self.init(
       licenseAccess: licenseAccess,
-      enforcementEnabled: Self.enforcementEnabled(
-        salesEnabled: AppBuild.licenseSalesEnabled,
-        debugFreeMode: freeMode
-      ),
+      enforcementEnabled: enforcementEnabled,
       onRefusal: onRefusal
     )
   }
 
-  static func enforcementEnabled(salesEnabled: Bool, debugFreeMode: Bool) -> Bool {
-    salesEnabled || debugFreeMode
-  }
-
   #if DEBUG
-    static func debugFreeMode(environment: [String: String]) -> Bool {
-      environment["SUPATERM_LICENSE_MODE"] == "free"
+    static func enforcementEnabled(environment: [String: String]) -> Bool {
+      environment["SUPATERM_TEST_MODE"] != "1"
+        || environment["SUPATERM_LICENSE_MODE"] == "free"
     }
   #endif
 

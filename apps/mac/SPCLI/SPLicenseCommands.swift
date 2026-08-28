@@ -151,44 +151,25 @@ private func runLicenseURL(
 }
 
 private func renderLicenseStatusPlain(_ status: SupatermLicenseStatusResult) -> String {
-  let limit =
-    SupatermLicensePolicy.salesEnabled
-    ? String(SupatermLicensePolicy.freeTabLimit)
-    : "-"
   return [
     status.mode.rawValue,
     status.updatesThrough ?? "-",
     status.deviceName,
-    "\(status.openTabCount)/\(limit)",
+    "\(status.openTabCount)/\(SupatermLicensePolicy.freeTabLimit)",
   ].joined(separator: "\t")
 }
 
-private func renderLicenseStatus(_ status: SupatermLicenseStatusResult) -> String {
-  renderLicenseStatus(status, salesEnabled: SupatermLicensePolicy.salesEnabled)
-}
-
-func renderLicenseStatus(
-  _ status: SupatermLicenseStatusResult,
-  salesEnabled: Bool
-) -> String {
+func renderLicenseStatus(_ status: SupatermLicenseStatusResult) -> String {
   var lines = ["Mode: \(licenseModeName(status.mode))"]
   if let updatesThrough = status.updatesThrough {
     lines.append("Updates through: \(updatesThrough)")
   }
   lines.append("Device: \(status.deviceName)")
   if status.mode != .paid {
-    let count =
-      salesEnabled
-      ? "\(status.openTabCount) of \(SupatermLicensePolicy.freeTabLimit)"
-      : "\(status.openTabCount)"
-    lines.append("Open tabs: \(count)")
+    lines.append("Open tabs: \(status.openTabCount) of \(SupatermLicensePolicy.freeTabLimit)")
   }
   if status.mode == .free {
-    let nextStep =
-      salesEnabled
-      ? "Run `sp license buy` or `sp license activate` to unlock more tabs."
-      : "Run `sp license activate` to activate an existing license."
-    lines.append(nextStep)
+    lines.append("Run `sp license buy` or `sp license activate` to unlock more tabs.")
   }
   return lines.joined(separator: "\n")
 }

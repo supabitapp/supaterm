@@ -3,11 +3,23 @@ import SupatermCLIShared
 import SupatermSupport
 
 nonisolated struct CodingAgentHookInstaller: Sendable {
+  let isAvailable: @Sendable (SupatermAgentKind) throws -> Bool
   let integrationHealth: @Sendable (SupatermAgentKind) throws -> CodingAgentIntegrationHealth
   let installSupatermHooks: @Sendable (SupatermAgentKind) throws -> Void
   let removeSupatermHooks: @Sendable (SupatermAgentKind) throws -> Void
 
   static let live = Self(
+    isAvailable: { agent in
+      let homeDirectoryURL = Self.homeDirectoryURL()
+      switch agent {
+      case .claude:
+        return try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).isAvailable()
+      case .codex:
+        return try CodexSettingsInstaller(homeDirectoryURL: homeDirectoryURL).isAvailable()
+      case .pi:
+        return try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL).isPiAvailable()
+      }
+    },
     integrationHealth: { agent in
       let homeDirectoryURL = Self.homeDirectoryURL()
       switch agent {

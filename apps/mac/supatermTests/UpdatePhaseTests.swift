@@ -145,19 +145,13 @@ struct UpdatePhaseTests {
       )
     )
 
-    #expect(phase.summaryText(salesEnabled: true) == "Renew to Update")
+    #expect(phase.summaryText == "Renew to Update")
     #expect(
-      phase.detailMessage(salesEnabled: true)
+      phase.detailMessage
         == "Supaterm 26.4.0 is out. Your updates ended 2026-08-21 — renew to update."
     )
-    #expect(phase.summaryText(salesEnabled: false) == "Update Not Included")
     #expect(
-      phase.detailMessage(salesEnabled: false)
-        == "Supaterm 26.4.0 is out. Your updates ended 2026-08-21. You can keep using your current version."
-    )
-    #expect(phase.presentations(salesEnabled: false).map(\.action) == [.dismiss])
-    #expect(
-      phase.presentations(salesEnabled: true).map(\.action) == [.dismiss, .renewUpdates]
+      phase.actionPresentations.map(\.action) == [.dismiss, .renewUpdates]
     )
     #expect(phase.debugIdentifier == "ownership_ended")
   }
@@ -174,28 +168,18 @@ struct UpdatePhaseTests {
     )
 
     #expect(
-      phase.presentations(salesEnabled: false).map(\.title)
-        == ["Not Now", "Download Your Latest Release"]
+      phase.actionPresentations.map(\.title)
+        == ["Not Now", "Download Your Latest Release", "Renew Updates"]
     )
     #expect(
-      phase.presentations(salesEnabled: false).map(\.action)
-        == [.dismiss, .downloadLatestIncludedRelease]
-    )
-    #expect(
-      phase.presentations(salesEnabled: true).map(\.action)
+      phase.actionPresentations.map(\.action)
         == [.dismiss, .downloadLatestIncludedRelease, .renewUpdates]
     )
     let renewalDetail =
       "Supaterm 6 is out. Your updates ended 2026-08-21. "
       + "Renew to update, or download the newest release included with your license."
     #expect(
-      phase.detailMessage(salesEnabled: true) == renewalDetail
-    )
-    let downloadDetail =
-      "Supaterm 6 is out. Your updates ended 2026-08-21. "
-      + "Download the newest release included with your license."
-    #expect(
-      phase.detailMessage(salesEnabled: false) == downloadDetail
+      phase.detailMessage == renewalDetail
     )
   }
 }

@@ -135,7 +135,7 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
-  func notificationAttentionColorPrefersBrightestBlueCandidate() throws {
+  func terminalAccentColorPrefersBrightestBlueCandidate() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
@@ -145,11 +145,11 @@ struct GhosttyRuntimeTests {
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#83A598")
+    #expect(hexString(runtime.terminalAccentColor()) == "#83A598")
   }
 
   @Test
-  func notificationAttentionColorUsesBrightBlueWhenBlueFails() throws {
+  func terminalAccentColorUsesBrightBlueWhenBlueFails() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
@@ -159,11 +159,11 @@ struct GhosttyRuntimeTests {
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#83A598")
+    #expect(hexString(runtime.terminalAccentColor()) == "#83A598")
   }
 
   @Test
-  func notificationAttentionColorUsesBlueWhenBrightBlueFails() throws {
+  func terminalAccentColorUsesBlueWhenBrightBlueFails() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
@@ -173,11 +173,11 @@ struct GhosttyRuntimeTests {
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#458588")
+    #expect(hexString(runtime.terminalAccentColor()) == "#458588")
   }
 
   @Test
-  func notificationAttentionColorFallsBackToForegroundWhenBlueCandidatesFail() throws {
+  func terminalAccentColorFallsBackToForegroundWhenBlueCandidatesFail() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
@@ -187,7 +187,7 @@ struct GhosttyRuntimeTests {
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#E0E0E0")
+    #expect(hexString(runtime.terminalAccentColor()) == "#E0E0E0")
   }
 
   @Test

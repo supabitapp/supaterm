@@ -9,56 +9,15 @@ extension SP {
       abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
       subcommands: [
-        ExplainAgentDetection.self,
         InstallAgentHooks.self,
-        InstallAgentHook.self,
         ReloadAgentDetectionRules.self,
-        RemoveAgentHook.self,
+        RemoveAgentHooks.self,
         ReceiveAgentHook.self,
       ]
     )
 
     mutating func run() throws {
       print(Self.helpMessage())
-    }
-  }
-
-  struct ExplainAgentDetection: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "explain",
-      abstract: "Explain agent detection for a pane."
-    )
-
-    @Argument(help: "Optional pane target.")
-    var pane: SPPaneReference?
-
-    @OptionGroup
-    var options: SPCommandOptions
-
-    mutating func run() throws {
-      applyOutputStyle(options.output)
-      let client = try socketClient(
-        path: options.connection.explicitSocketPath,
-        instance: options.connection.instance
-      )
-      let target = try resolvePublicPaneTarget(
-        pane,
-        context: SupatermCLIContext.current,
-        snapshot: try treeSnapshot(client)
-      )
-      let response = try client.send(
-        .agentDetectionExplain(SupatermAgentDetectionExplainRequest(target: target))
-      )
-      guard response.ok else {
-        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
-      }
-      let result = try response.decodeResult(SupatermAgentDetectionExplainResult.self)
-      try emitCommandResult(
-        result,
-        options: options.output,
-        plain: renderAgentDetectionExplanation(result),
-        human: renderAgentDetectionExplanation(result)
-      )
     }
   }
 
@@ -93,10 +52,9 @@ extension SP {
     var connection: SPConnectionOptions
 
     mutating func run() throws {
-      try sendAgentHookRequests(
-        agents: [.claude, .codex],
+      try manageAgentHooks(
+        .installDetected,
         connection: connection,
-        request: { try .hooksInstall($0) }
       )
     }
   }
@@ -141,108 +99,20 @@ extension SP {
     }
   }
 
-  struct InstallAgentHook: ParsableCommand {
+  struct RemoveAgentHooks: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "install-hook",
-      abstract: "Install Supaterm's hook bridge for a coding agent.",
-      discussion: SPHelp.installAgentHookDiscussion,
-      subcommands: [Claude.self, Codex.self]
-    )
-
-    mutating func run() throws {
-      print(Self.helpMessage())
-    }
-  }
-
-  struct RemoveAgentHook: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "remove-hook",
-      abstract: "Remove Supaterm's hook bridge for a coding agent.",
-      discussion: SPHelp.removeAgentHookDiscussion,
-      subcommands: [Claude.self, Codex.self]
-    )
-
-    mutating func run() throws {
-      print(Self.helpMessage())
-    }
-  }
-}
-
-extension SP.InstallAgentHook {
-  struct Claude: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "claude",
-      abstract: "Install Supaterm's Claude hook bridge.",
-      discussion: SPHelp.installAgentHookClaudeDiscussion
+      commandName: "remove-hooks",
+      abstract: "Remove Supaterm's hook bridge from every supported coding agent.",
+      discussion: SPHelp.removeAgentHooksDiscussion
     )
 
     @OptionGroup
     var connection: SPConnectionOptions
 
     mutating func run() throws {
-      try sendAgentHookRequests(
-        agents: [.claude],
+      try manageAgentHooks(
+        .removeAll,
         connection: connection,
-        request: { try .hooksInstall($0) }
-      )
-    }
-  }
-
-  struct Codex: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "codex",
-      abstract: "Install Supaterm's Codex hook bridge.",
-      discussion: SPHelp.installAgentHookCodexDiscussion
-    )
-
-    @OptionGroup
-    var connection: SPConnectionOptions
-
-    mutating func run() throws {
-      try sendAgentHookRequests(
-        agents: [.codex],
-        connection: connection,
-        request: { try .hooksInstall($0) }
-      )
-    }
-  }
-}
-
-extension SP.RemoveAgentHook {
-  struct Claude: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "claude",
-      abstract: "Remove Supaterm's Claude hook bridge.",
-      discussion: SPHelp.removeAgentHookClaudeDiscussion
-    )
-
-    @OptionGroup
-    var connection: SPConnectionOptions
-
-    mutating func run() throws {
-      try sendAgentHookRequests(
-        agents: [.claude],
-        connection: connection,
-        request: { try .hooksRemove($0) }
-      )
-    }
-  }
-
-  struct Codex: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "codex",
-      abstract: "Remove Supaterm's Codex hook bridge.",
-      discussion: SPHelp.removeAgentHookCodexDiscussion
-    )
-
-    @OptionGroup
-    var connection: SPConnectionOptions
-
-    mutating func run() throws {
-      try sendAgentHookRequests(
-        agents: [.codex],
-        connection: connection,
-        request: { try .hooksRemove($0) }
       )
     }
   }
@@ -309,78 +179,99 @@ private func renderAgentDetectionReload(
     }).joined(separator: "\n")
 }
 
-private func renderAgentDetectionExplanation(
-  _ result: SupatermAgentDetectionExplainResult
-) -> String {
-  var lines = [
-    "pane\t\(result.target.paneID.uuidString.lowercased())",
-    "status\t\(result.status.rawValue)",
-    "generation\t\(result.generation.map(String.init) ?? "unknown")",
-    "agent\t\(result.agentID ?? "unknown")",
-    "agent-name\t\(result.displayName ?? "unknown")",
-    "phase\t\(result.phase?.rawValue ?? "unknown")",
-    "matched-rule\t\(result.matchedRuleID ?? "none")",
-    "published-rule\t\(result.publishedRuleID ?? "none")",
-  ]
-  if let process = result.process {
-    lines.append("process\t\(process.processID)\t\(process.startTimeMicroseconds)")
-  } else {
-    lines.append("process\tnone")
+private enum AgentHookManagementOperation {
+  case installDetected
+  case removeAll
+
+  func request(for target: SupatermAgentHookTargetRequest) throws -> SupatermSocketRequest {
+    switch self {
+    case .installDetected:
+      try .hooksInstall(target)
+    case .removeAll:
+      try .hooksRemove(target)
+    }
   }
-  if let manifest = result.manifest {
-    lines.append(
-      "manifest\t\(manifest.version ?? "unknown")\t\(manifest.origin.rawValue)\t\(manifest.path)"
-    )
+
+  func disposition(for health: CodingAgentIntegrationHealth) -> AgentHookDisposition {
+    switch self {
+    case .installDetected:
+      switch health {
+      case .healthy:
+        return .success
+      case .unavailable:
+        return .notDetected
+      case .unavailableInstalled, .absent, .partial, .drifted:
+        return .failure("Expected a healthy hook integration, got \(health.rawValue).")
+      }
+    case .removeAll:
+      switch health {
+      case .absent, .unavailable:
+        return .success
+      case .unavailableInstalled, .partial, .drifted, .healthy:
+        return .failure("Expected hooks to be absent, got \(health.rawValue).")
+      }
+    }
   }
-  for rule in result.rules {
-    lines.append(
-      [
-        "rule",
-        rule.matched ? "match" : "miss",
-        String(rule.priority),
-        rule.state.rawValue,
-        rule.region,
-        rule.ruleID,
-      ].joined(separator: "\t")
-    )
-    lines += renderAgentDetectionCondition(rule.condition, depth: 1)
-  }
-  return lines.joined(separator: "\n")
 }
 
-private func renderAgentDetectionCondition(
-  _ condition: SupatermAgentDetectionConditionEvidence,
-  depth: Int
-) -> [String] {
-  let prefix = String(repeating: "  ", count: depth)
-  let value = condition.value.map { "\t\(renderAgentDetectionValue($0))" } ?? ""
-  return ["\(prefix)\(condition.kind)\t\(condition.matched ? "match" : "miss")\(value)"]
-    + condition.children.flatMap { renderAgentDetectionCondition($0, depth: depth + 1) }
+private enum AgentHookDisposition: Equatable {
+  case success
+  case notDetected
+  case failure(String)
 }
 
-private func renderAgentDetectionValue(_ value: String) -> String {
-  value
-    .replacingOccurrences(of: "\\", with: "\\\\")
-    .replacingOccurrences(of: "\t", with: "\\t")
-    .replacingOccurrences(of: "\r", with: "\\r")
-    .replacingOccurrences(of: "\n", with: "\\n")
-}
-
-private func sendAgentHookRequests(
-  agents: [SupatermAgentKind],
-  connection: SPConnectionOptions,
-  request: (SupatermAgentHookTargetRequest) throws -> SupatermSocketRequest
+private func manageAgentHooks(
+  _ operation: AgentHookManagementOperation,
+  agents: [SupatermAgentKind] = SupatermAgentKind.allCases,
+  connection: SPConnectionOptions
 ) throws {
   let client = try socketClient(
     path: connection.explicitSocketPath,
     instance: connection.instance,
     responseTimeout: SupatermAgentHookManagementTiming.clientResponseTimeout
   )
+  var failures: [String] = []
+  var dispositions: [AgentHookDisposition] = []
   for agent in agents {
-    let response = try client.send(try request(SupatermAgentHookTargetRequest(agent: agent)))
-    guard response.ok else {
-      throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+    do {
+      let target = SupatermAgentHookTargetRequest(agent: agent)
+      let response = try client.send(try operation.request(for: target))
+      guard response.ok else {
+        let message = response.error?.message ?? "Supaterm socket request failed."
+        failures.append("\(agent.notificationTitle): \(message)")
+        dispositions.append(.failure(message))
+        continue
+      }
+      let result = try response.decodeResult(SupatermAgentHookHealth.self)
+      guard result.agent == agent else {
+        let message =
+          "Supaterm returned status for \(result.agent.notificationTitle), expected \(agent.notificationTitle)."
+        failures.append("\(agent.notificationTitle): \(message)")
+        dispositions.append(.failure(message))
+        continue
+      }
+      let disposition = operation.disposition(for: result.health)
+      switch disposition {
+      case .success, .notDetected:
+        dispositions.append(disposition)
+      case .failure(let message):
+        failures.append("\(agent.notificationTitle): \(message)")
+        dispositions.append(.failure(message))
+      }
+    } catch {
+      let message = error.localizedDescription
+      failures.append("\(agent.notificationTitle): \(message)")
+      dispositions.append(.failure(message))
     }
+  }
+  guard failures.isEmpty else {
+    throw ValidationError(failures.joined(separator: "\n"))
+  }
+  if case .installDetected = operation,
+    !dispositions.isEmpty,
+    dispositions.allSatisfy({ $0 == .notDetected })
+  {
+    throw ValidationError("No supported coding agent was detected.")
   }
 }
 

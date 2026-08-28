@@ -51,7 +51,7 @@ struct TerminalCommandExecutorHookTests {
   }
 
   @Test
-  func installReportsUnavailableInstalledWithoutClaude() async throws {
+  func installSkipsUnavailableClaude() async throws {
     let homeDirectoryURL = try temporaryHookHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let registry = TerminalWindowRegistry.test()
@@ -62,7 +62,12 @@ struct TerminalCommandExecutorHookTests {
       installer: claudeHookInstaller(homeDirectoryURL: homeDirectoryURL, isAvailable: false)
     )
 
-    #expect(result == SupatermAgentHookHealth(agent: .claude, health: .unavailableInstalled))
+    #expect(result == SupatermAgentHookHealth(agent: .claude, health: .unavailable))
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL).path
+      )
+    )
   }
 
   @Test
@@ -128,6 +133,7 @@ struct TerminalCommandExecutorHookTests {
     let commandExecutor = makeCommandExecutor(registry: registry)
     let recorder = AgentHookInstallRecorder()
     let installer = CodingAgentHookInstaller(
+      isAvailable: { _ in true },
       integrationHealth: { _ in .absent },
       installSupatermHooks: { recorder.recordInstall($0) },
       removeSupatermHooks: { recorder.recordRemove($0) }
@@ -160,6 +166,7 @@ private func claudeHookInstaller(
     )
   }
   return CodingAgentHookInstaller(
+    isAvailable: { _ in try makeInstaller().isAvailable() },
     integrationHealth: { _ in try makeInstaller().integrationHealth() },
     installSupatermHooks: { _ in try makeInstaller().installSupatermHooks() },
     removeSupatermHooks: { _ in try makeInstaller().removeSupatermHooks() }

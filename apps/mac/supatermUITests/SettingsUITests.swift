@@ -120,29 +120,15 @@ final class SettingsUITests: SupatermUITestCase {
 
   @MainActor
   func testLicenseCanBeActivatedAndDeactivated() async throws {
-    let settingsWindow = try openSettings()
-    try await select(.license, in: settingsWindow)
-
-    let key = element(SupatermUITestIdentifier.Settings.licenseKey, in: settingsWindow)
-    key.click()
-    key.typeText(uiTestLicenseKey)
-
-    let activate = element(
-      SupatermUITestIdentifier.Settings.licenseActivate,
-      in: settingsWindow
-    )
-    let didEnableActivation = await wait(for: activate) { $0.exists && $0.isEnabled }
-    XCTAssertTrue(didEnableActivation)
-    activate.click()
+    let settingsWindow = try await activateUITestLicense()
 
     let deactivate = element(
       SupatermUITestIdentifier.Settings.licenseDeactivate,
       in: settingsWindow
     )
-    let didActivate = await wait(for: deactivate) { $0.exists && $0.isEnabled }
-    XCTAssertTrue(didActivate)
     deactivate.click()
 
+    let key = element(SupatermUITestIdentifier.Settings.licenseKey, in: settingsWindow)
     let didDeactivate = await wait(for: key) { $0.exists }
     XCTAssertTrue(didDeactivate)
   }
@@ -282,6 +268,3 @@ private enum SettingsTab: String, CaseIterable {
     }
   }
 }
-
-private let uiTestLicenseKey =
-  "SUPATERM-AAAAAAAAAAAAAAAAAAAAAAAAAA-AAAAAAAAAAAAAAAAAAAAAAAAAA"

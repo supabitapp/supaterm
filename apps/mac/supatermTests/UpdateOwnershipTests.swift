@@ -218,7 +218,7 @@ struct UpdateOwnershipTests {
     #expect(presentedPhase == .ownershipEnded(ownership))
     #expect(
       presentedActions.map(\.title)
-        == ["Download Your Latest Release", "Not Now"]
+        == ["Renew Updates", "Download Your Latest Release", "Not Now"]
     )
     #expect(openedURL == downloadURL)
     #expect(acknowledgementCount == 1)

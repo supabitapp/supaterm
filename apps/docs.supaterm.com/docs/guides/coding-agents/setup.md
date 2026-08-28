@@ -31,12 +31,10 @@ Install the discovery skill used by coding agents:
 sp skills install
 ```
 
-Install every supported settings-file hook bridge, or one bridge at a time:
+Install every supported hook bridge:
 
 ```bash
 sp agent install-hooks
-sp agent install-hook claude
-sp agent install-hook codex
 ```
 
 Pi is normally managed from Settings. Its package can also be installed directly:
@@ -44,6 +42,21 @@ Pi is normally managed from Settings. Its package can also be installed directly
 ```bash
 pi install git:github.com/supabitapp/supaterm-skills
 ```
+
+## Update existing scripts
+
+Replace per-agent hook commands with the aggregate commands:
+
+| Previous command               | Replacement              |
+| ------------------------------ | ------------------------ |
+| `sp agent install-hook claude` | `sp agent install-hooks` |
+| `sp agent install-hook codex`  | `sp agent install-hooks` |
+| `sp agent remove-hook claude`  | `sp agent remove-hooks`  |
+| `sp agent remove-hook codex`   | `sp agent remove-hooks`  |
+
+For detection troubleshooting, replace `sp agent explain` with `sp diagnostic --json` for the
+current pane and `sp ls --json` for pane status across the live tree. Detailed rule evaluation is
+no longer part of the public CLI.
 
 ## Verify
 

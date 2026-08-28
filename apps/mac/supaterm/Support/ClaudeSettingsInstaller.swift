@@ -36,12 +36,16 @@ public struct ClaudeSettingsInstaller {
     )
   }
 
+  public func isAvailable() throws -> Bool {
+    try runAvailabilityCommand().status == 0
+  }
+
   public func integrationHealth() throws -> CodingAgentIntegrationHealth {
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL),
       hookGroupsByEvent: SupatermClaudeHookSettings.hookGroupsByEvent()
     )
-    guard try runAvailabilityCommand().status == 0 else {
+    guard try isAvailable() else {
       return settingsHealth == .absent ? .unavailable : .unavailableInstalled
     }
     return settingsHealth

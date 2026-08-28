@@ -90,9 +90,9 @@ final class GhosttyRuntime {
   private var surfaceRefs: [SurfaceReference] = []
   private var lastColorScheme: ghostty_color_scheme_e?
 
-  private static let notificationAttentionPaletteIndexes = [4, 12]
-  private static let minNotificationContrastRatio = 2.2
-  private static let minNotificationSaturation = 0.12
+  private static let terminalAccentPaletteIndexes = [4, 12]
+  private static let minTerminalAccentContrastRatio = 2.2
+  private static let minTerminalAccentSaturation = 0.12
 
   convenience init(
     applicationIsActive: () -> Bool = { NSApp.isActive },
@@ -799,7 +799,7 @@ final class GhosttyRuntime {
     return 1 - min(max(value, 0.15), 1)
   }
 
-  func notificationAttentionColor() -> NSColor {
+  func terminalAccentColor() -> NSColor {
     let fallbackColor = color(forKey: "foreground") ?? .controlAccentColor
     guard
       let config,
@@ -818,13 +818,13 @@ final class GhosttyRuntime {
       Array(buffer.bindMemory(to: ghostty_config_color_s.self)).map { NSColor(ghostty: $0) }
     }
 
-    return Self.notificationAttentionPaletteIndexes
+    return Self.terminalAccentPaletteIndexes
       .compactMap { index -> NSColor? in
         guard colors.indices.contains(index) else { return nil }
         let color = colors[index]
         guard
-          color.saturation >= Self.minNotificationSaturation,
-          color.contrastRatio(with: background) >= Self.minNotificationContrastRatio
+          color.saturation >= Self.minTerminalAccentSaturation,
+          color.contrastRatio(with: background) >= Self.minTerminalAccentContrastRatio
         else {
           return nil
         }
