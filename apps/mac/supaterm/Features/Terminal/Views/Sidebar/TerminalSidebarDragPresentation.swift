@@ -20,8 +20,7 @@ final class TerminalSidebarDragPresentation {
   }
 
   struct Settlement {
-    let targetFrames: [TerminalSidebarEntryID: CGRect]
-    let groupFrame: CGRect?
+    let geometry: TerminalSidebarDropSettlementGeometry
     let accepted: Bool
     let motionPolicy: TerminalSidebarMotionPolicy
   }
@@ -34,8 +33,6 @@ final class TerminalSidebarDragPresentation {
   private var hapticTracker = TerminalSidebarHapticTargetTracker()
 
   var sourceFrame: CGRect? { liveView?.sourceFrame }
-  var groupID: TerminalTabGroupID? { liveView?.groupID }
-
   init(
     collectionView: NSCollectionView,
     performHaptic: @escaping () -> Void = {
@@ -155,8 +152,7 @@ final class TerminalSidebarDragPresentation {
     liveView.prepareForSettlement()
     guard
       let targets = liveView.settlementTargets(
-        rowFrames: settlement.targetFrames,
-        groupFrame: settlement.groupFrame,
+        geometry: settlement.geometry,
         in: collectionView
       )
     else {
@@ -216,8 +212,7 @@ final class TerminalSidebarDragPresentation {
   }
 
   private func finish(_ disposition: TerminalSidebarDragProjectionDisposition) {
-    guard let collectionView else { return }
-    liveView?.finish(in: collectionView, disposition: disposition)
+    liveView?.finish(disposition)
     liveView?.removeFromSuperview()
     liveView = nil
     hotspot = .zero
@@ -244,7 +239,6 @@ private struct TerminalSidebarSettlementTarget {
 
 @MainActor
 struct TerminalSidebarLiftedGroupBackground {
-  let id: TerminalTabGroupID
   let view: TerminalSidebarGroupBackgroundView
   let sourceFrame: CGRect
 
@@ -253,11 +247,6 @@ struct TerminalSidebarLiftedGroupBackground {
     container.addSubview(view, positioned: .below, relativeTo: nil)
   }
 
-  func restore(in collectionView: NSCollectionView) {
-    view.removeFromSuperview()
-    collectionView.addSubview(view, positioned: .below, relativeTo: nil)
-    view.frame = sourceFrame
-  }
 }
 
 @MainActor
@@ -287,8 +276,6 @@ private final class TerminalSidebarLiveDragView: NSView {
   private let rows: [TerminalSidebarLiftedRow]
   private let groupBackground: TerminalSidebarLiftedGroupBackground?
   let sourceFrame: CGRect
-
-  var groupID: TerminalTabGroupID? { groupBackground?.id }
 
   init(
     rows: [TerminalSidebarLiftedRow],
@@ -371,13 +358,12 @@ private final class TerminalSidebarLiveDragView: NSView {
   }
 
   func settlementTargets(
-    rowFrames: [TerminalSidebarEntryID: CGRect],
-    groupFrame: CGRect?,
+    geometry: TerminalSidebarDropSettlementGeometry,
     in collectionView: NSCollectionView
   ) -> [TerminalSidebarSettlementTarget]? {
     var targets: [TerminalSidebarSettlementTarget] = []
     for row in rows {
-      guard let frame = rowFrames[row.id] else { return nil }
+      guard let frame = geometry.rowFrames[row.id] else { return nil }
       let targetFrame = convert(frame, from: collectionView)
       if let selectedSurface = row.selectedSurface {
         let offset = CGPoint(
@@ -393,7 +379,7 @@ private final class TerminalSidebarLiveDragView: NSView {
       }
       targets.append(TerminalSidebarSettlementTarget(view: row.hostedView, frame: targetFrame))
     }
-    if let groupBackground, let groupFrame {
+    if let groupBackground, let groupFrame = geometry.groupFrame {
       targets.insert(
         TerminalSidebarSettlementTarget(
           view: groupBackground.view,
@@ -405,20 +391,15 @@ private final class TerminalSidebarLiveDragView: NSView {
     return targets
   }
 
-  func finish(
-    in collectionView: NSCollectionView,
-    disposition: TerminalSidebarDragProjectionDisposition
-  ) {
+  func finish(_ disposition: TerminalSidebarDragProjectionDisposition) {
     switch disposition {
     case .restoreSource:
       for row in rows { row.restore() }
-      groupBackground?.restore(in: collectionView)
     case .commitWithinSource:
       for row in rows { row.hostedView.removeFromSuperview() }
-      groupBackground?.restore(in: collectionView)
     case .commitOutsideSource:
       for row in rows { row.hostedView.removeFromSuperview() }
-      groupBackground?.view.removeFromSuperview()
     }
+    groupBackground?.view.removeFromSuperview()
   }
 }

@@ -6,6 +6,11 @@ enum TerminalSidebarAutoscrollDirection: Equatable {
   case down
 }
 
+enum TerminalSidebarAutoscrollTarget: Equatable {
+  case collection
+  case pinnedControl
+}
+
 enum TerminalSidebarAutoscrollBehavior {
   static let edgeSize: CGFloat = 60
   static let minimumVisibleHeight: CGFloat = 240
@@ -220,7 +225,9 @@ enum TerminalSidebarAutoscrollReducer {
 final class TerminalSidebarDragAutoscrollController {
   private weak var collectionView: NSCollectionView?
   private weak var scrollView: NSScrollView?
+  private let onScroll: (CGFloat, TerminalSidebarAutoscrollTarget) -> Void
   private var pointerY: CGFloat?
+  private var target: TerminalSidebarAutoscrollTarget?
   private var state = TerminalSidebarAutoscrollState.initial
   private var isLiveScrolling = false
   private lazy var displayLinkDriver = TerminalSidebarDisplayLinkDriver(
@@ -230,10 +237,12 @@ final class TerminalSidebarDragAutoscrollController {
 
   init(
     collectionView: NSCollectionView,
-    scrollView: NSScrollView
+    scrollView: NSScrollView,
+    onScroll: @escaping (CGFloat, TerminalSidebarAutoscrollTarget) -> Void
   ) {
     self.collectionView = collectionView
     self.scrollView = scrollView
+    self.onScroll = onScroll
   }
 
   func setLiveScrolling(_ isLiveScrolling: Bool) {
@@ -241,7 +250,7 @@ final class TerminalSidebarDragAutoscrollController {
     if isLiveScrolling { stop() }
   }
 
-  func update(pointerY: CGFloat) {
+  func update(pointerY: CGFloat, target: TerminalSidebarAutoscrollTarget) {
     guard !isLiveScrolling, let collectionView else {
       stop()
       return
@@ -267,20 +276,19 @@ final class TerminalSidebarDragAutoscrollController {
       return
     }
     self.pointerY = pointerY
+    self.target = target
     displayLinkDriver.start()
   }
 
   func stop() {
     pointerY = nil
+    target = nil
     state = .initial
     displayLinkDriver.stop()
   }
 
   private func update(_ displayLink: CADisplayLink) -> Bool {
-    guard
-      let scrollView,
-      let pointerY
-    else {
+    guard pointerY != nil else {
       stop()
       return false
     }
@@ -292,6 +300,14 @@ final class TerminalSidebarDragAutoscrollController {
       )
     else { return state.isActive }
 
+    return scroll(by: signedDelta)
+  }
+
+  func scroll(by signedDelta: CGFloat) -> Bool {
+    guard let scrollView, let pointerY, let target else {
+      stop()
+      return false
+    }
     let clipView = scrollView.contentView
     let previousY = clipView.bounds.origin.y
     let nextY = TerminalSidebarScrollGeometry.constrainedY(
@@ -309,6 +325,7 @@ final class TerminalSidebarDragAutoscrollController {
       in: &state,
       by: nextY - previousY
     )
+    onScroll(updatedPointerY, target)
     return true
   }
 }

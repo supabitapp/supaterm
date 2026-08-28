@@ -62,7 +62,7 @@ final class TerminalSidebarExternalDropController {
     let tabDragRegistry: TerminalTabDragRegistry
     let windowControllerID: UUID
     let content: () -> TerminalSidebarDragController.Content?
-    let updateAutoscroll: (CGFloat) -> Void
+    let updateAutoscroll: (CGFloat, TerminalSidebarAutoscrollTarget) -> Void
     let stopAutoscroll: () -> Void
     let invalidateLayout: () -> Void
     let updateHapticTarget: (TerminalSidebarSemanticPath?) -> Void
@@ -99,7 +99,8 @@ final class TerminalSidebarExternalDropController {
       configuration.updateAutoscroll(
         TerminalSidebarPinnedDropRouting.autoscrollPointerY(
           in: configuration.collectionView.visibleRect
-        )
+        ),
+        .pinnedControl
       )
       path = .rootBoundary(
         lane: .regular,
@@ -107,7 +108,7 @@ final class TerminalSidebarExternalDropController {
       )
     } else {
       let location = configuration.collectionView.convert(info.draggingLocation, from: nil)
-      configuration.updateAutoscroll(location.y)
+      configuration.updateAutoscroll(location.y, .collection)
       path = configuration.collectionLayout.dropTargetMap.semanticTarget(at: location.y)?.path
     }
     let resolution = TerminalSidebarDropResolution(
@@ -121,6 +122,36 @@ final class TerminalSidebarExternalDropController {
     }
     info.numberOfValidItemsForDrop = 1
     return .move
+  }
+
+  func updateAfterAutoscroll(
+    pointerY: CGFloat,
+    target: TerminalSidebarAutoscrollTarget
+  ) {
+    guard
+      let activeSession,
+      let content = configuration.content(),
+      let sidebarPayload = sidebarPayload(activeSession.payload, in: content.outline)
+    else { return }
+    let path =
+      switch target {
+      case .collection:
+        configuration.collectionLayout.dropTargetMap.semanticTarget(at: pointerY)?.path
+      case .pinnedControl:
+        TerminalSidebarSemanticPath.rootBoundary(
+          lane: .regular,
+          index: content.outline.roots.count { !$0.isPinned }
+        )
+      }
+    _ = updateTarget(
+      payload: activeSession.payload,
+      sidebarPayload: sidebarPayload,
+      resolution: TerminalSidebarDropResolution(
+        payload: sidebarPayload,
+        path: path,
+        outline: content.outline
+      )
+    )
   }
 
   func matches(_ info: any NSDraggingInfo) -> Bool {

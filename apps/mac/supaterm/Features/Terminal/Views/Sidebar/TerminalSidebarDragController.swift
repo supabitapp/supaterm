@@ -24,7 +24,10 @@ final class TerminalSidebarDragController {
 
   private lazy var autoscrollController = TerminalSidebarDragAutoscrollController(
     collectionView: collectionView,
-    scrollView: scrollView
+    scrollView: scrollView,
+    onScroll: { [weak self] pointerY, target in
+      self?.updateDropTargetAfterAutoscroll(pointerY: pointerY, target: target)
+    }
   )
   private lazy var dragPresentation = TerminalSidebarDragPresentation(
     collectionView: collectionView
@@ -43,7 +46,9 @@ final class TerminalSidebarDragController {
       tabDragRegistry: tabDragRegistry,
       windowControllerID: sourceWindowID,
       content: { [weak self] in self?.host.content() },
-      updateAutoscroll: { [weak self] in self?.autoscrollController.update(pointerY: $0) },
+      updateAutoscroll: { [weak self] pointerY, target in
+        self?.autoscrollController.update(pointerY: pointerY, target: target)
+      },
       stopAutoscroll: { [weak self] in self?.autoscrollController.stop() },
       invalidateLayout: { [weak self] in self?.host.invalidateLayout() },
       updateHapticTarget: { [weak self] path in
@@ -124,8 +129,6 @@ final class TerminalSidebarDragController {
   }
 
   var isActive: Bool { activeDrag != nil || externalDropController.isActive }
-  var liftedGroupID: TerminalTabGroupID? { dragPresentation.groupID }
-
   func disposition(
     for incoming: TerminalSidebarOutline,
     applied: TerminalSidebarOutline,
@@ -474,11 +477,22 @@ final class TerminalSidebarDragController {
   ) -> TerminalSidebarLiftedGroupBackground? {
     guard
       case .group(let groupID) = source,
-      let view = content.groupBackgroundViews[groupID]
+      let group = collectionLayout.plan.groups.first(where: { $0.id == groupID })
     else {
       return nil
     }
-    return TerminalSidebarLiftedGroupBackground(id: groupID, view: view, sourceFrame: view.frame)
+    let view = TerminalSidebarGroupBackgroundView(frame: group.frame)
+    view.update(
+      color: group.color,
+      palette: content.context.palette,
+      surfaceState: .resting,
+      alpha: 1,
+      reduceMotion: true
+    )
+    return TerminalSidebarLiftedGroupBackground(
+      view: view,
+      sourceFrame: group.frame
+    )
   }
 
   private func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
@@ -491,7 +505,7 @@ final class TerminalSidebarDragController {
       let content = host.content()
     else { return [] }
     let location = collectionView.convert(info.draggingLocation, from: nil)
-    autoscrollController.update(pointerY: location.y)
+    autoscrollController.update(pointerY: location.y, target: .collection)
     guard updateDropTarget(pointerY: location.y, content: content) else { return [] }
     info.numberOfValidItemsForDrop = 1
     return .move
@@ -509,7 +523,8 @@ final class TerminalSidebarDragController {
     autoscrollController.update(
       pointerY: TerminalSidebarPinnedDropRouting.autoscrollPointerY(
         in: collectionView.visibleRect
-      )
+      ),
+      target: .pinnedControl
     )
     guard updatePinnedNewTabDropTarget(content: content) else { return [] }
     info.numberOfValidItemsForDrop = 1
@@ -691,6 +706,23 @@ final class TerminalSidebarDragController {
     return setDropTarget(resolution, pointerY: pointerY, content: content)
   }
 
+  private func updateDropTargetAfterAutoscroll(
+    pointerY: CGFloat,
+    target: TerminalSidebarAutoscrollTarget
+  ) {
+    if externalDropController.isActive {
+      externalDropController.updateAfterAutoscroll(pointerY: pointerY, target: target)
+      return
+    }
+    guard let content = host.content() else { return }
+    switch target {
+    case .collection:
+      _ = updateDropTarget(pointerY: pointerY, content: content)
+    case .pinnedControl:
+      _ = updatePinnedNewTabDropTarget(content: content)
+    }
+  }
+
   private func updatePinnedNewTabDropTarget(content: Content) -> Bool {
     guard let activeDrag, case .tracking = activeDrag.coordinator.phase else { return false }
     let resolution = TerminalSidebarDropResolution(
@@ -845,23 +877,18 @@ final class TerminalSidebarDragController {
       }
       host.invalidateLayout()
     }
-    let destination: CGRect
-    if accepted {
-      guard
-        let frame = TerminalSidebarDropSettlementGeometry.frame(
-          source: activeDrag.payload.source,
-          liftedEntryIDs: activeDrag.liftedEntryIDs,
-          sourceFrame: sourceFrame,
-          plan: collectionLayout.plan
-        )
-      else {
-        finishDragging(receipt: receipt)
-        return
-      }
-      destination = frame
-    } else {
-      destination = sourceFrame
+    guard
+      let geometry = TerminalSidebarDropSettlementGeometry.resolve(
+        source: activeDrag.payload.source,
+        liftedEntryIDs: activeDrag.liftedEntryIDs,
+        sourceFrame: sourceFrame,
+        plan: collectionLayout.targetPlan
+      )
+    else {
+      finishDragging(receipt: receipt)
+      return
     }
+    let destination = accepted ? geometry.frame : sourceFrame
     logDrag(
       "sidebar.drag.settlement",
       fields: TerminalSidebarDragLog.activeFields(activeDrag.payload) + [
@@ -872,32 +899,13 @@ final class TerminalSidebarDragController {
     )
     dragPresentation.settle(
       TerminalSidebarDragPresentation.Settlement(
-        targetFrames: settlementFrames(for: activeDrag.liftedEntryIDs),
-        groupFrame: settlementGroupFrame(for: activeDrag.payload.source),
+        geometry: geometry,
         accepted: accepted,
         motionPolicy: content.motionPolicy
       )
     ) { [weak self] in
       self?.finishDragging(receipt: receipt)
     }
-  }
-
-  private func settlementFrames(
-    for entryIDs: [TerminalSidebarEntryID]
-  ) -> [TerminalSidebarEntryID: CGRect] {
-    let ids = Set(entryIDs)
-    return Dictionary(
-      uniqueKeysWithValues: collectionLayout.targetPlan.items.compactMap { item in
-        ids.contains(item.id) ? (item.id, item.frame) : nil
-      }
-    )
-  }
-
-  private func settlementGroupFrame(
-    for source: TerminalSidebarDragSource
-  ) -> CGRect? {
-    guard case .group(let groupID) = source else { return nil }
-    return collectionLayout.targetPlan.groups.first { $0.id == groupID }?.frame
   }
 
   private func finishDragging(receipt: TerminalSidebarDropReceipt? = nil) {

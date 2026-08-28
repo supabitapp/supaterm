@@ -4,6 +4,28 @@ import Testing
 @testable import supaterm
 
 struct TerminalSidebarAutoscrollTests {
+  @Test @MainActor
+  func scrollingRefreshesTheDropTargetAtTheShiftedPointer() {
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 220, height: 300))
+    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 220, height: 900))
+    collectionView.collectionViewLayout = AutoscrollTestLayout()
+    scrollView.documentView = collectionView
+    collectionView.setFrameSize(CGSize(width: 220, height: 900))
+    scrollView.contentView.scroll(to: .zero)
+    var updates: [(CGFloat, TerminalSidebarAutoscrollTarget)] = []
+    let controller = TerminalSidebarDragAutoscrollController(
+      collectionView: collectionView,
+      scrollView: scrollView,
+      onScroll: { updates.append(($0, $1)) }
+    )
+    controller.update(pointerY: 280, target: .collection)
+
+    #expect(controller.scroll(by: 8))
+    #expect(updates.count == 1)
+    #expect(updates.first?.0 == 288)
+    #expect(updates.first?.1 == .collection)
+  }
+
   @Test
   func reducerRefreshesTheAwaitingAnchorWithoutRefreshingItsDeadline() {
     let visibleRect = CGRect(x: 0, y: 100, width: 220, height: 300)
@@ -245,4 +267,8 @@ struct TerminalSidebarAutoscrollTests {
     #expect(resolution.plan?.destination == .root(isPinned: false, index: 1))
     #expect(resolution.plan?.placeholder == .beforeFooter)
   }
+}
+
+private final class AutoscrollTestLayout: NSCollectionViewLayout {
+  override var collectionViewContentSize: NSSize { CGSize(width: 220, height: 900) }
 }

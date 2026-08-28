@@ -45,7 +45,6 @@ struct TerminalSidebarDragPresentationTests {
       TerminalSidebarDragPresentation.Lift(
         rows: rows,
         groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
           view: background,
           sourceFrame: sourceFrame
         ),
@@ -83,10 +82,12 @@ struct TerminalSidebarDragPresentationTests {
     background.alphaValue = 0
     presentation.settle(
       TerminalSidebarDragPresentation.Settlement(
-        targetFrames: Dictionary(
-          uniqueKeysWithValues: zip(rows, rowFrames).map { ($0.id, $1) }
+        geometry: settlementGeometry(
+          rowFrames: Dictionary(
+            uniqueKeysWithValues: zip(rows, rowFrames).map { ($0.id, $1) }
+          ),
+          groupFrame: sourceFrame
         ),
-        groupFrame: sourceFrame,
         accepted: true,
         motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
       ),
@@ -137,8 +138,7 @@ struct TerminalSidebarDragPresentationTests {
     selectedSurfaceView.isHidden = true
     presentation.settle(
       TerminalSidebarDragPresentation.Settlement(
-        targetFrames: [rowID: sourceFrame],
-        groupFrame: nil,
+        geometry: settlementGeometry(rowFrames: [rowID: sourceFrame]),
         accepted: true,
         motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
       ),
@@ -223,7 +223,6 @@ struct TerminalSidebarDragPresentationTests {
           )
         ],
         groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
           view: background,
           sourceFrame: background.frame
         ),
@@ -240,7 +239,7 @@ struct TerminalSidebarDragPresentationTests {
 
     #expect(restoreCount == 1)
     #expect(hostedView.superview === source)
-    #expect(background.superview === collectionView)
+    #expect(background.superview == nil)
   }
 
   @Test @MainActor
@@ -264,7 +263,6 @@ struct TerminalSidebarDragPresentationTests {
           )
         ],
         groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: TerminalTabGroupID(),
           view: background,
           sourceFrame: background.frame
         ),
@@ -379,8 +377,7 @@ struct TerminalSidebarDragPresentationTests {
 
       presentation.settle(
         TerminalSidebarDragPresentation.Settlement(
-          targetFrames: [entryID: targetFrame],
-          groupFrame: nil,
+          geometry: settlementGeometry(rowFrames: [entryID: targetFrame]),
           accepted: accepted,
           motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: false)
         ),
@@ -439,8 +436,9 @@ struct TerminalSidebarDragPresentationTests {
 
     presentation.settle(
       TerminalSidebarDragPresentation.Settlement(
-        targetFrames: [firstID: firstTarget, secondID: secondTarget],
-        groupFrame: nil,
+        geometry: settlementGeometry(
+          rowFrames: [firstID: firstTarget, secondID: secondTarget]
+        ),
         accepted: true,
         motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: false)
       ),
@@ -487,7 +485,6 @@ struct TerminalSidebarDragPresentationTests {
           ),
         ],
         groupBackground: TerminalSidebarLiftedGroupBackground(
-          id: groupID,
           view: background,
           sourceFrame: sourceGroupFrame
         ),
@@ -506,8 +503,10 @@ struct TerminalSidebarDragPresentationTests {
 
     presentation.settle(
       TerminalSidebarDragPresentation.Settlement(
-        targetFrames: [groupEntryID: headerTarget, tabEntryID: tabTarget],
-        groupFrame: groupTarget,
+        geometry: settlementGeometry(
+          rowFrames: [groupEntryID: headerTarget, tabEntryID: tabTarget],
+          groupFrame: groupTarget
+        ),
         accepted: true,
         motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
       ),
@@ -518,6 +517,18 @@ struct TerminalSidebarDragPresentationTests {
     #expect(headerView.frame == liveView.convert(headerTarget, from: collectionView))
     #expect(tabView.frame == liveView.convert(tabTarget, from: collectionView))
   }
+}
+
+private func settlementGeometry(
+  rowFrames: [TerminalSidebarEntryID: CGRect],
+  groupFrame: CGRect? = nil
+) -> TerminalSidebarDropSettlementGeometry {
+  let destinationFrame = groupFrame ?? rowFrames.values.reduce(.null) { $0.union($1) }
+  return TerminalSidebarDropSettlementGeometry(
+    rowFrames: rowFrames,
+    groupFrame: groupFrame,
+    sourceSize: destinationFrame.size
+  )
 }
 
 private struct DragPreviewRaster {

@@ -467,12 +467,12 @@ struct TerminalSidebarLayoutPlanTests {
     let settlementItem = try #require(settlement.items.first { $0.id == .tab(moved) })
     let sourceFrame = CGRect(x: 12, y: 200, width: 180, height: 45)
     let targetFrame = try #require(
-      TerminalSidebarDropSettlementGeometry.frame(
+      TerminalSidebarDropSettlementGeometry.resolve(
         source: .tabs([moved]),
         liftedEntryIDs: [.tab(moved)],
         sourceFrame: sourceFrame,
         plan: settlement
-      )
+      )?.frame
     )
 
     #expect(settlementItem.frame == baselineItem.frame)
@@ -511,12 +511,12 @@ struct TerminalSidebarLayoutPlanTests {
     let settlementGroup = try #require(settlement.groups.first { $0.id == groupID })
     let sourceFrame = CGRect(x: 12, y: 200, width: 180, height: 130)
     let targetFrame = try #require(
-      TerminalSidebarDropSettlementGeometry.frame(
+      TerminalSidebarDropSettlementGeometry.resolve(
         source: .group(groupID),
         liftedEntryIDs: sourceIDs,
         sourceFrame: sourceFrame,
         plan: settlement
-      )
+      )?.frame
     )
 
     #expect(settlementGroup.frame == baselineGroup.frame)

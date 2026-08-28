@@ -321,8 +321,7 @@ struct TerminalSidebarPointerTests {
       motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true),
       shouldPlayTabMoveHaptics: false,
       canBeginDrag: true,
-      swipe: nil,
-      groupBackgroundViews: [:]
+      swipe: nil
     )
 
     fixture.terminal.selectTab(fixture.firstTabID)

@@ -16,7 +16,6 @@ struct TerminalSidebarDragContent {
   let shouldPlayTabMoveHaptics: Bool
   let canBeginDrag: Bool
   let swipe: SpaceSwipeController?
-  let groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView]
 
   var liveSelectedTabID: TerminalTabID? { context.terminal.selectedTabID }
 }
@@ -44,30 +43,46 @@ struct TerminalSidebarDropSettlementPreparation {
 }
 
 struct TerminalSidebarDropSettlementGeometry {
-  static func frame(
+  let rowFrames: [TerminalSidebarEntryID: CGRect]
+  let groupFrame: CGRect?
+  let sourceSize: CGSize
+
+  var frame: CGRect {
+    let destinationFrame = groupFrame ?? rowFrames.values.reduce(.null) { $0.union($1) }
+    return CGRect(
+      x: destinationFrame.minX,
+      y: destinationFrame.midY - sourceSize.height / 2,
+      width: sourceSize.width,
+      height: sourceSize.height
+    )
+  }
+
+  static func resolve(
     source: TerminalSidebarDragSource,
     liftedEntryIDs: [TerminalSidebarEntryID],
     sourceFrame: CGRect,
     plan: TerminalSidebarLayoutPlan
-  ) -> CGRect? {
-    let destinationFrame: CGRect
+  ) -> Self? {
+    let liftedIDs = Set(liftedEntryIDs)
+    let rowFrames = Dictionary(
+      uniqueKeysWithValues: plan.items.compactMap { item in
+        liftedIDs.contains(item.id) && item.frame.height > 0 ? (item.id, item.frame) : nil
+      }
+    )
+    guard rowFrames.count == liftedIDs.count else { return nil }
+    let groupFrame: CGRect?
     switch source {
     case .group(let groupID):
       guard let frame = plan.groups.first(where: { $0.id == groupID })?.frame else { return nil }
-      destinationFrame = frame
+      groupFrame = frame
     case .tabs:
-      let liftedIDs = Set(liftedEntryIDs)
-      let frames = plan.items.compactMap { item in
-        liftedIDs.contains(item.id) && item.frame.height > 0 ? item.frame : nil
-      }
-      guard frames.count == liftedIDs.count, let first = frames.first else { return nil }
-      destinationFrame = frames.dropFirst().reduce(first) { $0.union($1) }
+      groupFrame = nil
+      guard !rowFrames.isEmpty else { return nil }
     }
-    return CGRect(
-      x: destinationFrame.minX,
-      y: destinationFrame.midY - sourceFrame.height / 2,
-      width: sourceFrame.width,
-      height: sourceFrame.height
+    return Self(
+      rowFrames: rowFrames,
+      groupFrame: groupFrame,
+      sourceSize: sourceFrame.size
     )
   }
 }

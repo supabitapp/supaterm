@@ -326,7 +326,7 @@ private final class ExternalDropHarness {
       tabDragRegistry: registry,
       windowControllerID: UUID(),
       content: { nil },
-      updateAutoscroll: { _ in },
+      updateAutoscroll: { _, _ in },
       stopAutoscroll: { [weak self] in self?.autoscrollStopCount += 1 },
       invalidateLayout: { [weak self] in self?.invalidations += 1 },
       updateHapticTarget: { [weak self] in self?.hapticPaths.append($0) },

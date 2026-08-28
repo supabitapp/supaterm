@@ -186,6 +186,79 @@ struct TerminalSidebarLayoutTests {
     )
   }
 
+  @Test
+  func collapseAtTheTopReleasesItsPinnedContentHeight() async throws {
+    let groupID = TerminalTabGroupID()
+    let tabs = (0..<6).map { TerminalTabItem(title: "Tab \($0)") }
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .blue, .automatic, tabs.map(\.id)),
+        isPinned: false
+      )
+    ]
+    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 1)
+    let collapsed = TerminalSidebarTestFixture.outline(
+      roots: roots,
+      revision: 2,
+      collapsedGroupIDs: [groupID]
+    )
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let harness = try #require(
+      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300))
+    )
+    defer {
+      harness.close()
+      harness.window.orderOut(nil)
+    }
+    harness.window.orderFront(nil)
+    var rows = Dictionary(
+      uniqueKeysWithValues: tabs.map {
+        (
+          TerminalSidebarEntryID.tab($0.id),
+          TerminalSidebarRowPresentation.tab(tabPresentation($0, groupID: groupID))
+        )
+      }
+    )
+    rows[.group(groupID)] = .group(
+      TerminalSidebarGroupRowPresentation(
+        id: groupID,
+        title: "Group",
+        color: .blue,
+        iconURL: nil,
+        isPinned: false,
+        isCollapsed: false,
+        tabCount: tabs.count,
+        showsNewTabShortcutHint: false
+      )
+    )
+    rows[.newTab] = .newTab(.inline)
+    harness.apply(
+      outline: expanded,
+      rows: rows,
+      terminal: terminal,
+      selectedTabID: tabs[0].id,
+      reduceMotion: true
+    )
+    harness.layoutNow()
+    harness.layout.prepare()
+    let expandedHeight = harness.layout.collectionViewContentSize.height
+
+    harness.apply(
+      outline: collapsed,
+      rows: rows,
+      terminal: terminal,
+      selectedTabID: tabs[0].id,
+      reduceMotion: false
+    )
+    try await Task.sleep(for: .milliseconds(350))
+    harness.layoutNow()
+    harness.layout.prepare()
+
+    #expect(harness.collectionView.visibleRect.minY == 0)
+    #expect(harness.layout.collectionViewContentSize.height < expandedHeight)
+    #expect(harness.layout.collectionViewContentSize.height == harness.layout.plan.contentSize.height)
+  }
+
   private func programmaticReorderFrames(
     reduceMotion: Bool,
     stopWithReduceMotion: Bool = false
