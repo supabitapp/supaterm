@@ -9,7 +9,6 @@ struct TerminalSidebarMotionPolicy: Equatable {
   var collapseStagger: Bool { !reduceMotion }
   var hoverFade: Bool { !reduceMotion }
   var acceptedArc: Bool { !reduceMotion }
-  var ripple: Bool { !reduceMotion }
   var snapback: Bool { !reduceMotion }
 }
 
@@ -234,67 +233,6 @@ enum TerminalSidebarDragShadowMotion {
     let animation = CABasicAnimation(keyPath: keyPath)
     animation.fromValue = from
     animation.toValue = to
-    return animation
-  }
-}
-
-enum TerminalSidebarDropRipple {
-  static let stiffness: CGFloat = 130.5071656342394
-  static let dampingRatio: CGFloat = 0.55
-  static let maximumScaleDelta: CGFloat = 0.03
-
-  static func scaleDelta(distance: CGFloat, visibleSpan: CGFloat) -> CGFloat? {
-    guard visibleSpan > 0 else { return nil }
-    let halfSpan = visibleSpan / 2
-    guard distance >= 0, distance < halfSpan else { return nil }
-    let delta = maximumScaleDelta * exp(-3 * distance / halfSpan)
-    return delta > 0.001 ? delta : nil
-  }
-
-  static func visibleSpan(frames: [CGRect]) -> CGFloat {
-    guard
-      let minimumY = frames.map(\.minY).min(),
-      let maximumY = frames.map(\.maxY).max()
-    else { return 0 }
-    return maximumY - minimumY
-  }
-
-  static func distance(frame: CGRect, sourceFrame: CGRect) -> CGFloat {
-    if frame.midY < sourceFrame.minY {
-      sourceFrame.minY - frame.midY
-    } else if frame.midY > sourceFrame.maxY {
-      frame.midY - sourceFrame.maxY
-    } else {
-      0
-    }
-  }
-
-  static func animation(
-    scaleDelta: CGFloat,
-    center: CGPoint,
-    distance: CGFloat,
-    currentTime: TimeInterval = CACurrentMediaTime()
-  ) -> CASpringAnimation {
-    var transform = CATransform3DIdentity
-    transform = CATransform3DTranslate(
-      transform,
-      0,
-      -2 * scaleDelta / maximumScaleDelta,
-      0
-    )
-    transform = CATransform3DTranslate(transform, center.x, center.y, 0)
-    transform = CATransform3DScale(transform, 1 + scaleDelta, 1 + scaleDelta, 1)
-    transform = CATransform3DTranslate(transform, -center.x, -center.y, 0)
-
-    let animation = CASpringAnimation(keyPath: "transform")
-    animation.fromValue = NSValue(caTransform3D: transform)
-    animation.toValue = NSValue(caTransform3D: CATransform3DIdentity)
-    animation.isAdditive = true
-    animation.mass = 1
-    animation.stiffness = stiffness * animation.mass
-    animation.damping = 2 * sqrt(animation.mass * animation.stiffness) * dampingRatio
-    animation.beginTime = currentTime + 0.15 + distance * 0.0015
-    animation.duration = animation.settlingDuration
     return animation
   }
 }

@@ -2,12 +2,6 @@ import AppKit
 import ComposableArchitecture
 import SwiftUI
 
-private struct TerminalSidebarVisibleRippleItem {
-  let item: TerminalSidebarCollectionItem
-  let entryID: TerminalSidebarEntryID
-  let frame: CGRect
-}
-
 @MainActor
 final class TerminalSidebarDragController {
   typealias DropHandoffCompletion = TerminalSidebarDropHandoffCompletion
@@ -901,8 +895,7 @@ final class TerminalSidebarDragController {
         targetFrames: settlementFrames(for: activeDrag.liftedEntryIDs),
         groupFrame: settlementGroupFrame(for: activeDrag.payload.source),
         accepted: accepted,
-        motionPolicy: content.motionPolicy,
-        ripple: content.motionPolicy.ripple ? dropRipple() : nil
+        motionPolicy: content.motionPolicy
       )
     ) { [weak self] in
       self?.finishDragging(receipt: receipt)
@@ -925,52 +918,6 @@ final class TerminalSidebarDragController {
   ) -> CGRect? {
     guard case .group(let groupID) = source else { return nil }
     return collectionLayout.targetPlan.groups.first { $0.id == groupID }?.frame
-  }
-
-  private func dropRipple() -> TerminalSidebarDragPresentation.Ripple? {
-    guard let activeDrag else { return nil }
-    let visibleIndexPaths = collectionView.indexPathsForVisibleItems()
-    let targetFrames = Dictionary(
-      uniqueKeysWithValues: collectionLayout.targetPlan.items.map { ($0.id, $0.frame) }
-    )
-    let visibleItems: [TerminalSidebarVisibleRippleItem] =
-      visibleIndexPaths.compactMap { indexPath in
-        guard
-          let item = collectionView.item(at: indexPath) as? TerminalSidebarCollectionItem,
-          let entryID = item.entryID,
-          let frame = targetFrames[entryID]
-        else { return nil }
-        return TerminalSidebarVisibleRippleItem(item: item, entryID: entryID, frame: frame)
-      }
-    let sourceFrames = activeDrag.liftedEntryIDs.compactMap {
-      targetFrames[$0]
-    }
-    guard let sourceFrame = sourceFrames.first else { return nil }
-    let draggedIDs = Set(activeDrag.liftedEntryIDs)
-    let candidates = visibleItems.compactMap {
-      visibleItem -> TerminalSidebarDragPresentation.RippleCandidate? in
-      guard
-        case .tab = visibleItem.entryID,
-        !draggedIDs.contains(visibleItem.entryID),
-        visibleItem.frame.height > 0
-      else { return nil }
-      guard let layer = visibleItem.item.view.layer else { return nil }
-      return TerminalSidebarDragPresentation.RippleCandidate(
-        layer: layer,
-        frame: visibleItem.frame,
-        center: CGPoint(
-          x: visibleItem.item.view.bounds.midX,
-          y: visibleItem.item.view.bounds.midY
-        )
-      )
-    }
-    let combinedSourceFrame = sourceFrames.dropFirst().reduce(sourceFrame) { $0.union($1) }
-    guard combinedSourceFrame.height > 0 else { return nil }
-    return TerminalSidebarDragPresentation.Ripple(
-      sourceFrame: combinedSourceFrame,
-      candidates: candidates,
-      visibleSpan: TerminalSidebarDropRipple.visibleSpan(frames: visibleItems.map { $0.frame })
-    )
   }
 
   private func finishDragging(receipt: TerminalSidebarDropReceipt? = nil) {

@@ -19,24 +19,11 @@ final class TerminalSidebarDragPresentation {
     let timestamp: TimeInterval
   }
 
-  struct RippleCandidate {
-    let layer: CALayer
-    let frame: CGRect
-    let center: CGPoint
-  }
-
-  struct Ripple {
-    let sourceFrame: CGRect
-    let candidates: [RippleCandidate]
-    let visibleSpan: CGFloat
-  }
-
   struct Settlement {
     let targetFrames: [TerminalSidebarEntryID: CGRect]
     let groupFrame: CGRect?
     let accepted: Bool
     let motionPolicy: TerminalSidebarMotionPolicy
-    let ripple: Ripple?
   }
 
   private weak var collectionView: NSCollectionView?
@@ -165,9 +152,6 @@ final class TerminalSidebarDragPresentation {
       return
     }
     liveView.isHidden = false
-    if let ripple = settlement.ripple {
-      applyDropRipple(ripple)
-    }
     guard
       let targets = liveView.settlementTargets(
         rowFrames: settlement.targetFrames,
@@ -238,30 +222,6 @@ final class TerminalSidebarDragPresentation {
     hotspot = .zero
     velocityTracker = TerminalSidebarDragVelocityTracker()
     hapticTracker.reset()
-  }
-
-  private func applyDropRipple(_ ripple: Ripple) {
-    guard ripple.visibleSpan > 0, ripple.candidates.count >= 5 else { return }
-    for candidate in ripple.candidates {
-      let distance = TerminalSidebarDropRipple.distance(
-        frame: candidate.frame,
-        sourceFrame: ripple.sourceFrame
-      )
-      guard
-        let scaleDelta = TerminalSidebarDropRipple.scaleDelta(
-          distance: distance,
-          visibleSpan: ripple.visibleSpan
-        )
-      else { continue }
-      candidate.layer.add(
-        TerminalSidebarDropRipple.animation(
-          scaleDelta: scaleDelta,
-          center: candidate.center,
-          distance: distance
-        ),
-        forKey: "dropRipple"
-      )
-    }
   }
 
   private func timingFunction(

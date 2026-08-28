@@ -7,16 +7,6 @@ import Testing
 
 struct TerminalSidebarDragPresentationTests {
   @Test @MainActor
-  func collectionRowsExposeRippleLayers() {
-    let item = TerminalSidebarCollectionItem()
-
-    item.loadView()
-
-    #expect(item.view.wantsLayer)
-    #expect(item.view.layer != nil)
-  }
-
-  @Test @MainActor
   func liftedGroupPreviewRendersItsCapturedTint() throws {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 200))
     let window = NSWindow(
@@ -358,8 +348,7 @@ struct TerminalSidebarDragPresentationTests {
           targetFrames: [entryID: targetFrame],
           groupFrame: nil,
           accepted: accepted,
-          motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: false),
-          ripple: nil
+          motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: false)
         ),
         completion: {}
       )
@@ -419,8 +408,7 @@ struct TerminalSidebarDragPresentationTests {
         targetFrames: [firstID: firstTarget, secondID: secondTarget],
         groupFrame: nil,
         accepted: true,
-        motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: false),
-        ripple: nil
+        motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: false)
       ),
       completion: {}
     )
@@ -487,8 +475,7 @@ struct TerminalSidebarDragPresentationTests {
         targetFrames: [groupEntryID: headerTarget, tabEntryID: tabTarget],
         groupFrame: groupTarget,
         accepted: true,
-        motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true),
-        ripple: nil
+        motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true)
       ),
       completion: {}
     )

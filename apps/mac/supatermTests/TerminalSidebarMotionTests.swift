@@ -290,7 +290,6 @@ struct TerminalSidebarMotionTests {
     #expect(!policy.collapseStagger)
     #expect(!policy.hoverFade)
     #expect(!policy.acceptedArc)
-    #expect(!policy.ripple)
     #expect(!policy.snapback)
   }
 
@@ -415,52 +414,6 @@ struct TerminalSidebarMotionTests {
     #expect(abs(threeQuarter.height - 0.0625) < 0.000_000_001)
     #expect(threeQuarter.alpha == 0)
     #expect(after == TerminalSidebarLayoutPlan.Visibility(height: 0, alpha: 0))
-  }
-
-  @Test @MainActor
-  func dropRippleUsesRecoveredGeometryAndSpring() throws {
-    let visibleSpan = TerminalSidebarDropRipple.visibleSpan(
-      frames: [
-        CGRect(x: 0, y: 20, width: 100, height: 30),
-        CGRect(x: 0, y: 90, width: 100, height: 50),
-      ]
-    )
-    let sourceFrame = CGRect(x: 0, y: 50, width: 100, height: 40)
-    let middle = try #require(
-      TerminalSidebarDropRipple.scaleDelta(distance: 30, visibleSpan: visibleSpan)
-    )
-    let animation = TerminalSidebarDropRipple.animation(
-      scaleDelta: TerminalSidebarDropRipple.maximumScaleDelta,
-      center: .zero,
-      distance: 20,
-      currentTime: 100
-    )
-    let transform = try #require((animation.fromValue as? NSValue)?.caTransform3DValue)
-
-    #expect(visibleSpan == 120)
-    #expect(
-      TerminalSidebarDropRipple.distance(frame: CGRect(x: 0, y: 0, width: 10, height: 40), sourceFrame: sourceFrame)
-        == 30)
-    #expect(
-      TerminalSidebarDropRipple.distance(frame: CGRect(x: 0, y: 60, width: 10, height: 20), sourceFrame: sourceFrame)
-        == 0)
-    #expect(
-      TerminalSidebarDropRipple.distance(frame: CGRect(x: 0, y: 100, width: 10, height: 40), sourceFrame: sourceFrame)
-        == 30)
-    #expect(abs(middle - 0.03 * exp(-1.5)) < 0.000_001)
-    #expect(TerminalSidebarDropRipple.scaleDelta(distance: 60, visibleSpan: visibleSpan) == nil)
-    #expect(transform.m42 == -2)
-    #expect(animation.isAdditive)
-    #expect(animation.mass == 1)
-    #expect(animation.stiffness == TerminalSidebarDropRipple.stiffness)
-    #expect(
-      animation.damping
-        == 2
-        * sqrt(animation.mass * animation.stiffness)
-        * TerminalSidebarDropRipple.dampingRatio
-    )
-    #expect(abs(animation.beginTime - 100.18) < 0.000_001)
-    #expect(animation.duration == animation.settlingDuration)
   }
 
   @Test @MainActor
