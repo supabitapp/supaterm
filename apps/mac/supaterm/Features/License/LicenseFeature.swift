@@ -189,6 +189,7 @@ public struct LicenseFeature {
 
   public enum Action {
     case activationButtonTapped
+    case activationLinkOpened(String)
     case activationRequested(String, LicenseOperationCompletion)
     case activationResponse(Result<Void, LicenseClientError>)
     case applicationBecameActive
@@ -200,7 +201,6 @@ public struct LicenseFeature {
     case noticeBuyButtonTapped
     case noticeDifferentKeyButtonTapped
     case ownedReleaseButtonTapped
-    case prefillKey(String)
     case refreshRequested(LicenseRefreshSource)
     case refreshCommandRequested(LicenseOperationCompletion)
     case refreshResponse(LicenseRefreshSource, Result<Void, LicenseClientError>)
@@ -224,6 +224,10 @@ public struct LicenseFeature {
       switch action {
       case .activationButtonTapped:
         return activate(&state, key: state.key, completion: nil)
+
+      case .activationLinkOpened(let key):
+        state.key = key
+        return activate(&state, key: key, completion: nil)
 
       case .activationRequested(let key, let completion):
         return activate(&state, key: key, completion: completion)
@@ -278,11 +282,6 @@ public struct LicenseFeature {
       case .ownedReleaseButtonTapped:
         guard case .expired = state.access else { return .none }
         analyticsClient.capture("license_owned_release_download_opened")
-        return .none
-
-      case .prefillKey(let key):
-        state.key = key
-        state.error = nil
         return .none
 
       case .refreshRequested(let source):
