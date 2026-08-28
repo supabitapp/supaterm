@@ -32,7 +32,6 @@ struct TerminalSidebarDropPlanningTests {
     #expect(group.source.itemIDs == [.group(groupID)])
     #expect(
       outline.liftedEntryIDs(for: group.source) == [.group(groupID), .tab(first), .tab(second)])
-    #expect(group.topologyRevision == 9)
   }
 
   @Test

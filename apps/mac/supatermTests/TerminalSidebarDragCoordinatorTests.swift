@@ -150,7 +150,7 @@ struct TerminalSidebarDragCoordinatorTests {
       sourceDisposition: .retained
     )
     #expect(completed)
-    #expect(drag.externalCompletion == .moved(.retained))
+    #expect(drag.externalSourceDisposition == .retained)
     #expect(drag.registryOutcome(receipt: nil) == .moved)
   }
 }

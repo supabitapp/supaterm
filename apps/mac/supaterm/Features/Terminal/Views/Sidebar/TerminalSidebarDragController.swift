@@ -134,7 +134,7 @@ final class TerminalSidebarDragController {
     guard let activeDrag else {
       return externalDropController.isActive ? .queue : .inactive
     }
-    if activeDrag.externalCompletion.sourceDisposition != nil { return .queue }
+    if activeDrag.externalSourceDisposition != nil { return .queue }
     guard canApplyUpdate else { return .queue }
     switch activeDrag.coordinator.phase {
     case .tracking:
@@ -242,14 +242,7 @@ final class TerminalSidebarDragController {
       )
     )
     nativeDragSession.prepareSourceCapture()
-    switch entryID {
-    case .group:
-      return true
-    case .tab:
-      return true
-    case .pinDivider, .newTab:
-      return false
-    }
+    return true
   }
 
   private func rowMouseDragged(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
@@ -490,7 +483,7 @@ final class TerminalSidebarDragController {
 
   private func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
     if info.draggingSource as AnyObject? !== collectionView {
-      return draggingUpdatedFromExternalSource(info)
+      return externalDropController.update(info, isPinnedTarget: false)
     }
     guard
       let activeDrag,
@@ -506,7 +499,7 @@ final class TerminalSidebarDragController {
 
   private func draggingUpdatedAtPinnedControl(_ info: any NSDraggingInfo) -> NSDragOperation {
     if info.draggingSource as AnyObject? !== collectionView {
-      return draggingUpdatedAtPinnedControlFromExternalSource(info)
+      return externalDropController.update(info, isPinnedTarget: true)
     }
     guard
       let activeDrag,
@@ -523,24 +516,12 @@ final class TerminalSidebarDragController {
     return .move
   }
 
-  private func draggingUpdatedFromExternalSource(
-    _ info: any NSDraggingInfo
-  ) -> NSDragOperation {
-    return externalDropController.update(info, isPinnedTarget: false)
-  }
-
-  private func draggingUpdatedAtPinnedControlFromExternalSource(
-    _ info: any NSDraggingInfo
-  ) -> NSDragOperation {
-    return externalDropController.update(info, isPinnedTarget: true)
-  }
-
   private func externalTransferDidComplete(
     _ operationID: TerminalTabMoveOperationID,
     sourceDisposition: TerminalTabDragRegistry.SourceDisposition
   ) {
-    guard var activeDrag else { return }
     guard
+      var activeDrag,
       activeDrag.completeExternal(
         operationID: operationID,
         sourceDisposition: sourceDisposition
@@ -651,7 +632,6 @@ final class TerminalSidebarDragController {
     autoscrollController.stop()
     externalDropController.clear()
     guard var activeDrag else { return }
-    activeDrag.dropTarget.transition(.miss)
     logDrag(
       "sidebar.drag.nativeEnd",
       fields: TerminalSidebarDragLog.operationFields(activeDrag.payload.operationID) + [
@@ -660,7 +640,7 @@ final class TerminalSidebarDragController {
         "phase=\(String(describing: activeDrag.coordinator.phase))",
       ]
     )
-    if activeDrag.externalCompletion.sourceDisposition != nil,
+    if activeDrag.externalSourceDisposition != nil,
       case .tracking = activeDrag.coordinator.phase
     {
       self.activeDrag = activeDrag
@@ -928,7 +908,7 @@ final class TerminalSidebarDragController {
     )
     activeDrag.coordinator.finish()
     let liftedEntryIDs = activeDrag.liftedEntryIDs
-    let externalSourceDisposition = activeDrag.externalCompletion.sourceDisposition
+    let externalSourceDisposition = activeDrag.externalSourceDisposition
     self.activeDrag = nil
     pendingDrag = nil
     host.content()?.swipe?.isRowDragActive = false
@@ -982,5 +962,4 @@ final class TerminalSidebarDragController {
       fields: TerminalSidebarDragLog.operationFields(operationID) + ["reason=\(reason)"]
     )
   }
-
 }

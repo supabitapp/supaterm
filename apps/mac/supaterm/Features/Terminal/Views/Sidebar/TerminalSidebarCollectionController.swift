@@ -58,7 +58,6 @@ final class TerminalSidebarControllerCache {
       controller.dismissHoverCard()
     }
   }
-
 }
 
 final class TerminalSidebarScrollView: NSScrollView {
@@ -286,13 +285,9 @@ final class TerminalSidebarListController: NSViewController {
     }
 
     if selectedTabID != self.selectedTabID {
-      let previous = self.selectedTabID
       tabSelectionState.clear()
       self.selectedTabID = selectedTabID
       pendingRevealTabID = selectedTabID
-      refreshVisibleRows(
-        ids: Set([previous, selectedTabID].compactMap { $0 }.map(TerminalSidebarEntryID.tab))
-      )
     }
     tabSelectionState.retainVisible(in: outline, primaryTabID: selectedTabID)
 

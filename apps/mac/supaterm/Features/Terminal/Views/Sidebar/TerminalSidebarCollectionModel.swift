@@ -103,13 +103,11 @@ struct TerminalSidebarOutline: Equatable {
           )
         )
         guard !isCollapsed else { continue }
-        if !tabIDs.isEmpty {
-          entries.append(
-            contentsOf: tabIDs.map {
-              TerminalSidebarEntry(kind: .tab($0, parentGroupID: id, rootIsPinned: root.isPinned))
-            }
-          )
-        }
+        entries.append(
+          contentsOf: tabIDs.map {
+            TerminalSidebarEntry(kind: .tab($0, parentGroupID: id, rootIsPinned: root.isPinned))
+          }
+        )
       }
     }
 
@@ -177,8 +175,7 @@ struct TerminalSidebarOutline: Equatable {
     case .tabs(let ids):
       return ids.map(TerminalSidebarEntryID.tab)
     case .group(let id):
-      let visibleIDs = Set(visibleEntryIDs(forGroup: id))
-      return visibleEntries.map(\.id).filter { visibleIDs.contains($0) }
+      return visibleEntryIDs(forGroup: id)
     }
   }
 
@@ -194,9 +191,7 @@ struct TerminalSidebarOutline: Equatable {
     guard let root = group(id), case .group(_, _, _, let tabIDs) = root.content else { return [] }
     var ids: [TerminalSidebarEntryID] = [.group(id)]
     guard !collapsedGroupIDs.contains(id) else { return ids }
-    if !tabIDs.isEmpty {
-      ids.append(contentsOf: tabIDs.map(TerminalSidebarEntryID.tab))
-    }
+    ids.append(contentsOf: tabIDs.map(TerminalSidebarEntryID.tab))
     return ids
   }
 }
@@ -238,16 +233,19 @@ enum TerminalSidebarDragSource: Equatable {
     case .group(let id): [.group(id)]
     }
   }
+
+  var entryIDs: [TerminalSidebarEntryID] {
+    switch self {
+    case .tabs(let ids): ids.map(TerminalSidebarEntryID.tab)
+    case .group(let id): [.group(id)]
+    }
+  }
 }
 
 struct TerminalSidebarDragPayload: Equatable {
   let operationID: TerminalTabMoveOperationID
   let source: TerminalSidebarDragSource
   let topologyStamp: TerminalSidebarTopologyStamp
-
-  var topologyRevision: UInt64 {
-    topologyStamp.revision
-  }
 }
 
 enum TerminalSidebarRootLane: Hashable {
@@ -291,16 +289,6 @@ struct TerminalSidebarDropPlan: Equatable {
   let path: TerminalSidebarSemanticPath
   let destination: TerminalSidebarDropDestination
   let placeholder: TerminalSidebarDropPlaceholder
-
-  init(
-    path: TerminalSidebarSemanticPath,
-    destination: TerminalSidebarDropDestination,
-    placeholder: TerminalSidebarDropPlaceholder
-  ) {
-    self.path = path
-    self.destination = destination
-    self.placeholder = placeholder
-  }
 
   var destinationGroupID: TerminalTabGroupID? {
     guard case .group(let groupID, _) = destination else { return nil }
@@ -512,7 +500,6 @@ enum TerminalSidebarDropPlanner {
     groupID: TerminalTabGroupID,
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
-    guard outline.group(groupID) != nil else { return nil }
     return groupPlan(
       payload: payload,
       path: .groupEntry(groupID),
@@ -558,12 +545,7 @@ enum TerminalSidebarDropPlanner {
   ) -> Int? {
     let visibleIDs = outline.visibleEntries.map(\.id)
     guard let candidateIndex = visibleIDs.firstIndex(of: candidateID) else { return nil }
-    let sourceIDs = payload.source.itemIDs.map { itemID in
-      switch itemID {
-      case .tab(let tabID): TerminalSidebarEntryID.tab(tabID)
-      case .group(let groupID): TerminalSidebarEntryID.group(groupID)
-      }
-    }
+    let sourceIDs = payload.source.entryIDs
     let sourceIndices = sourceIDs.compactMap { visibleIDs.firstIndex(of: $0) }
     guard !sourceIndices.isEmpty else { return 0 }
     guard sourceIndices.count == sourceIDs.count else { return nil }
@@ -579,7 +561,6 @@ enum TerminalSidebarDropPlanner {
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
     guard case .tabs(let sourceIDs) = payload.source else { return nil }
-    guard outline.group(groupID) != nil else { return nil }
     let original = outline.tabIDs(in: groupID)
     guard (0...original.count).contains(index) else { return nil }
     let selected = Set(sourceIDs)
@@ -689,11 +670,7 @@ enum TerminalSidebarDropPlanner {
       result.insert(contentsOf: itemIDs, at: index)
       return result == current
     case .group(let groupID, let index):
-      let tabIDs = itemIDs.compactMap { itemID -> TerminalTabID? in
-        guard case .tab(let tabID) = itemID else { return nil }
-        return tabID
-      }
-      guard tabIDs.count == itemIDs.count else { return false }
+      guard case .tabs(let tabIDs) = payload.source else { return false }
       guard
         tabIDs.allSatisfy({ tabID in
           if case .group(let currentGroupID, _) = outline.location(of: .tab(tabID)) {

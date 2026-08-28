@@ -94,7 +94,6 @@ final class TerminalSidebarExternalDropController {
       clear()
       return []
     }
-    beginSession(payload: payload, sidebarPayload: sidebarPayload)
     let path: TerminalSidebarSemanticPath?
     if isPinnedTarget {
       configuration.updateAutoscroll(
@@ -140,11 +139,7 @@ final class TerminalSidebarExternalDropController {
   }
 
   func perform(_ info: any NSDraggingInfo) -> Bool {
-    guard
-      let activeSession,
-      activeSession.dropTarget.acceptsDrop,
-      configuration.tabDragRegistry.resolve(info.draggingPasteboard) == activeSession.payload
-    else { return false }
+    guard matches(info), let activeSession else { return false }
     defer { clear() }
     guard
       let outline = configuration.content()?.outline,
@@ -191,20 +186,19 @@ final class TerminalSidebarExternalDropController {
     guard var session = activeSession else { return false }
 
     let decision = session.dropTarget.transition(TerminalSidebarDragTargetEvent(resolution))
+    activeSession = session
     switch decision.target {
     case .retain, .unchanged:
-      activeSession = session
+      break
     case .update(let target):
-      activeSession = session
       configuration.collectionLayout.dragDropState = TerminalSidebarDragDropState(
         source: sidebarPayload.source,
-        draggingItemIDs: entryIDs(for: sidebarPayload.source),
+        draggingItemIDs: sidebarPayload.source.entryIDs,
         target: target,
         dropGapHeight: session.dropGapHeight
       )
       refreshLayout()
     case .clear:
-      activeSession = session
       clear()
       return false
     }
@@ -235,7 +229,7 @@ final class TerminalSidebarExternalDropController {
     activeSession = session
     configuration.collectionLayout.dragDropState = TerminalSidebarDragDropState(
       source: sidebarPayload.source,
-      draggingItemIDs: entryIDs(for: sidebarPayload.source),
+      draggingItemIDs: sidebarPayload.source.entryIDs,
       target: nil,
       dropGapHeight: session.dropGapHeight
     )
@@ -245,14 +239,5 @@ final class TerminalSidebarExternalDropController {
   private func refreshLayout() {
     configuration.invalidateLayout()
     configuration.collectionLayout.prepare()
-  }
-
-  private func entryIDs(for source: TerminalSidebarDragSource) -> [TerminalSidebarEntryID] {
-    switch source {
-    case .tabs(let tabIDs):
-      tabIDs.map(TerminalSidebarEntryID.tab)
-    case .group(let groupID):
-      [.group(groupID)]
-    }
   }
 }

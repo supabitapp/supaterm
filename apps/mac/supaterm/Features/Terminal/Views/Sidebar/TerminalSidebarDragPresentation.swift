@@ -375,7 +375,6 @@ private final class TerminalSidebarLiveDragView: NSView {
     groupFrame: CGRect?,
     in collectionView: NSCollectionView
   ) -> [TerminalSidebarSettlementTarget]? {
-    guard rows.allSatisfy({ rowFrames[$0.id] != nil }) else { return nil }
     var targets: [TerminalSidebarSettlementTarget] = []
     for row in rows {
       guard let frame = rowFrames[row.id] else { return nil }

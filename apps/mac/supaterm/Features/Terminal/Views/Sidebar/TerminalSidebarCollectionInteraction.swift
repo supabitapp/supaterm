@@ -155,34 +155,24 @@ struct TerminalSidebarDragSourceGeometry {
   }
 }
 
-enum TerminalSidebarExternalDragCompletion: Equatable {
-  case pending
-  case moved(TerminalTabDragRegistry.SourceDisposition)
-
-  var sourceDisposition: TerminalTabDragRegistry.SourceDisposition? {
-    guard case .moved(let sourceDisposition) = self else { return nil }
-    return sourceDisposition
-  }
-}
-
 struct TerminalSidebarActiveDrag {
   let payload: TerminalSidebarDragPayload
   let liftedEntryIDs: [TerminalSidebarEntryID]
   var coordinator: TerminalSidebarDragCoordinator
   var dropTarget = TerminalSidebarDragTargetState.none
-  var externalCompletion = TerminalSidebarExternalDragCompletion.pending
+  var externalSourceDisposition: TerminalTabDragRegistry.SourceDisposition?
 
   mutating func completeExternal(
     operationID: TerminalTabMoveOperationID,
     sourceDisposition: TerminalTabDragRegistry.SourceDisposition
   ) -> Bool {
     guard payload.operationID == operationID else { return false }
-    externalCompletion = .moved(sourceDisposition)
+    externalSourceDisposition = sourceDisposition
     return true
   }
 
   func registryOutcome(receipt: TerminalSidebarDropReceipt?) -> TerminalTabDragRegistry.Outcome {
-    receipt != nil || externalCompletion.sourceDisposition != nil ? .moved : .cancelled
+    receipt != nil || externalSourceDisposition != nil ? .moved : .cancelled
   }
 }
 
@@ -413,11 +403,7 @@ struct TerminalSidebarDragCoordinator: Equatable {
 
   mutating func nativeEnded() -> Settlement? {
     switch phase {
-    case .tracking, .frozen:
-      let settlement = Settlement.rejected(topologyChanged: false)
-      phase = .settling(settlement)
-      return settlement
-    case .awaitingNativeEnd(_, nil):
+    case .tracking, .frozen, .awaitingNativeEnd(_, nil):
       let settlement = Settlement.rejected(topologyChanged: false)
       phase = .settling(settlement)
       return settlement
