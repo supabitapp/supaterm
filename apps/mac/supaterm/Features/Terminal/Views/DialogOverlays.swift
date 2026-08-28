@@ -77,12 +77,10 @@ struct TerminalWindowDialogView: View {
         LicenseTabLimitOverlay(
           palette: palette,
           onActivate: {
-            terminal.dismissLicenseTabLimitRefusal()
-            terminal.onLicenseTabLimitAction(.activate)
+            terminal.performLicenseTabLimitAction(.activate)
           },
           onBuy: {
-            terminal.dismissLicenseTabLimitRefusal()
-            terminal.onLicenseTabLimitAction(.buy)
+            terminal.performLicenseTabLimitAction(.buy)
           },
           onCancel: terminal.dismissLicenseTabLimitRefusal
         )
@@ -109,7 +107,7 @@ struct LicenseTabLimitOverlay: View {
   var body: some View {
     DialogSurface(
       theme: .palette(palette),
-      title: "Free Mode Tab Limit",
+      title: "Free Trial Limit",
       message: Self.message,
       icon: .application,
       layout: DialogSurfaceLayout(width: 360),
@@ -123,19 +121,19 @@ struct LicenseTabLimitOverlay: View {
           action: onCancel
         ),
         DialogSurfaceAction(
-          id: "buy",
-          title: "Buy",
-          role: .secondary,
-          accessibilityIdentifier: "dialog.license.buy",
-          action: onBuy
-        ),
-        DialogSurfaceAction(
           id: "activate",
           title: "Activate",
-          role: .primary,
-          shortcut: .default,
+          role: .secondary,
           accessibilityIdentifier: "dialog.license.activate",
           action: onActivate
+        ),
+        DialogSurfaceAction(
+          id: "buy",
+          title: "Buy",
+          role: .primary,
+          shortcut: .default,
+          accessibilityIdentifier: "dialog.license.buy",
+          action: onBuy
         ),
       ],
       scrimLabel: "Dismiss tab limit",

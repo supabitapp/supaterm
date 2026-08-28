@@ -39,6 +39,11 @@ extension TerminalHostState {
     showsLicenseTabLimitRefusal = false
   }
 
+  func performLicenseTabLimitAction(_ action: LicenseTabLimitAction) {
+    dismissLicenseTabLimitRefusal()
+    onLicenseTabLimitAction(action)
+  }
+
   @discardableResult
   func createTab(
     reason: LicenseTabGate.CreationReason = .user,

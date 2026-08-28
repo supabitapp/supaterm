@@ -29,6 +29,7 @@ enum TerminalWindowLaunch: Equatable {
 
 @MainActor
 private final class TerminalGestureWindow: NSWindow {
+  var onLicenseTabLimitDefaultAction: () -> Bool = { false }
   var onModifierFlagsChanged: ((NSEvent.ModifierFlags) -> Void)?
   var onPaletteShortcut: ((Int) -> Bool)?
   var onSwipeLeft: (() -> Void)?
@@ -59,6 +60,13 @@ private final class TerminalGestureWindow: NSWindow {
   }
 
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if event.type == .keyDown,
+      event.charactersIgnoringModifiers == "\r",
+      event.modifierFlags.isDisjoint(with: [.command, .control, .option, .shift]),
+      onLicenseTabLimitDefaultAction()
+    {
+      return true
+    }
     if let slot = TerminalCommandPaletteShortcut.slot(for: event) {
       if onPaletteShortcut?(slot) == true { return true }
     }
@@ -253,6 +261,11 @@ final class TerminalWindowController: NSWindowController {
       [commandHoldObserver = input.commandHoldObserver]
       modifierFlags in
       commandHoldObserver.update(modifierFlags: modifierFlags)
+    }
+    window.onLicenseTabLimitDefaultAction = { [terminal = input.terminal] in
+      guard terminal.showsLicenseTabLimitRefusal else { return false }
+      terminal.performLicenseTabLimitAction(.buy)
+      return true
     }
     window.onPaletteShortcut = { [store = input.store] slot in
       guard store.terminal.commandPalette != nil else { return false }
