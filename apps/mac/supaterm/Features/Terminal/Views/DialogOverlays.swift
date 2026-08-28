@@ -3,11 +3,12 @@ import ComposableArchitecture
 import Sharing
 import SupaTheme
 import SupatermSettingsFeature
+import SupatermTerminalCore
 import SupatermUI
 import SwiftUI
 
 @MainActor
-final class TerminalWindowConfirmationController: NSViewController {
+final class TerminalWindowDialogController: NSViewController {
   private let store: StoreOf<TerminalWindowFeature>
   private let terminal: TerminalHostState
 
@@ -23,17 +24,18 @@ final class TerminalWindowConfirmationController: NSViewController {
   }
 
   override func loadView() {
-    let hostingView = TerminalWindowConfirmationHostingView(
-      rootView: TerminalWindowConfirmationView(store: store, terminal: terminal)
+    let hostingView = TerminalWindowDialogHostingView(
+      rootView: TerminalWindowDialogView(store: store, terminal: terminal)
     )
     hostingView.isInteractive = { [weak self] in
-      self?.store.windowCloseConfirmation != nil
+      guard let self else { return false }
+      return store.windowCloseConfirmation != nil || terminal.showsLicenseTabLimitRefusal
     }
     view = hostingView
   }
 }
 
-private final class TerminalWindowConfirmationHostingView: NSHostingView<TerminalWindowConfirmationView> {
+private final class TerminalWindowDialogHostingView: NSHostingView<TerminalWindowDialogView> {
   var isInteractive: () -> Bool = { false }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
@@ -42,7 +44,7 @@ private final class TerminalWindowConfirmationHostingView: NSHostingView<Termina
   }
 }
 
-struct TerminalWindowConfirmationView: View {
+struct TerminalWindowDialogView: View {
   let store: StoreOf<TerminalWindowFeature>
   @Bindable var terminal: TerminalHostState
   @Shared(.supatermSettings) private var supatermSettings = .default
@@ -71,15 +73,75 @@ struct TerminalWindowConfirmationView: View {
             _ = store.send(.confirmationCancelButtonTapped)
           }
         )
+      } else if terminal.showsLicenseTabLimitRefusal {
+        LicenseTabLimitOverlay(
+          palette: palette,
+          onActivate: {
+            terminal.dismissLicenseTabLimitRefusal()
+            terminal.onLicenseTabLimitAction(.activate)
+          },
+          onBuy: {
+            terminal.dismissLicenseTabLimitRefusal()
+            terminal.onLicenseTabLimitAction(.buy)
+          },
+          onCancel: terminal.dismissLicenseTabLimitRefusal
+        )
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .terminalAnimation(
       .spring(response: 0.3, dampingFraction: 0.82),
-      value: store.windowCloseConfirmation,
+      value: store.windowCloseConfirmation != nil || terminal.showsLicenseTabLimitRefusal,
       reduceMotion: reduceMotion
     )
     .environment(\.colorScheme, chromeColorScheme)
+  }
+}
+
+struct LicenseTabLimitOverlay: View {
+  static let message = TerminalCreateTabError.tabLimitMessage(limit: LicenseTabGate.tabLimit)
+
+  let palette: Palette
+  let onActivate: () -> Void
+  let onBuy: () -> Void
+  let onCancel: () -> Void
+
+  var body: some View {
+    DialogSurface(
+      theme: .palette(palette),
+      title: "Free Mode Tab Limit",
+      message: Self.message,
+      icon: .application,
+      layout: DialogSurfaceLayout(width: 360),
+      actions: [
+        DialogSurfaceAction(
+          id: "cancel",
+          title: "Cancel",
+          role: .secondary,
+          shortcut: .cancel,
+          accessibilityIdentifier: "dialog.cancel",
+          action: onCancel
+        ),
+        DialogSurfaceAction(
+          id: "buy",
+          title: "Buy",
+          role: .secondary,
+          accessibilityIdentifier: "dialog.license.buy",
+          action: onBuy
+        ),
+        DialogSurfaceAction(
+          id: "activate",
+          title: "Activate",
+          role: .primary,
+          shortcut: .default,
+          accessibilityIdentifier: "dialog.license.activate",
+          action: onActivate
+        ),
+      ],
+      scrimLabel: "Dismiss tab limit",
+      onDismiss: onCancel
+    )
+    .accessibilityIdentifier("dialog.license-tab-limit")
   }
 }
 

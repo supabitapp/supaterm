@@ -481,7 +481,7 @@ final class TerminalWindowShellController: NSViewController {
     background: NSViewController,
     sidebar: NSViewController,
     detail: NSViewController,
-    confirmationOverlay: NSViewController? = nil
+    dialogOverlay: NSViewController? = nil
   ) {
     precondition(sidebarController == nil && detailController == nil)
     sidebar.view.wantsLayer = true
@@ -496,11 +496,11 @@ final class TerminalWindowShellController: NSViewController {
     addChild(sidebar)
     view.addSubview(sidebar.view)
     view.addSubview(sidebarResizeView)
-    if let confirmationOverlay {
-      addChild(confirmationOverlay)
-      confirmationOverlay.view.frame = view.bounds
-      confirmationOverlay.view.autoresizingMask = [.width, .height]
-      view.addSubview(confirmationOverlay.view)
+    if let dialogOverlay {
+      addChild(dialogOverlay)
+      dialogOverlay.view.frame = view.bounds
+      dialogOverlay.view.autoresizingMask = [.width, .height]
+      view.addSubview(dialogOverlay.view)
     }
     sidebarController = sidebar
     detailController = detail
