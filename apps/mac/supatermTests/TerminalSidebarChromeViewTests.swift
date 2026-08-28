@@ -9,32 +9,22 @@ import Testing
 
 struct TerminalSidebarChromeViewTests {
   @Test
-  func tabLimitRefusalTakesTheUpdateSectionSlot() {
+  func licenseExpiryTakesTheUpdateSectionSlot() {
     #expect(
       TerminalSidebarChromeView.auxiliarySection(
         isLicenseExpired: false,
-        hasTabLimitRefusal: true,
-        showsUpdate: true
-      ) == .tabLimit
-    )
-    #expect(
-      TerminalSidebarChromeView.auxiliarySection(
-        isLicenseExpired: false,
-        hasTabLimitRefusal: false,
         showsUpdate: true
       ) == .update
     )
     #expect(
       TerminalSidebarChromeView.auxiliarySection(
         isLicenseExpired: false,
-        hasTabLimitRefusal: false,
         showsUpdate: false
       ) == nil
     )
     #expect(
       TerminalSidebarChromeView.auxiliarySection(
         isLicenseExpired: true,
-        hasTabLimitRefusal: true,
         showsUpdate: true
       ) == .licenseExpired
     )

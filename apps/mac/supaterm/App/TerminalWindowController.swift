@@ -304,7 +304,7 @@ final class TerminalWindowController: NSWindowController {
         }
       }
     )
-    let confirmationController = TerminalWindowConfirmationController(
+    let dialogController = TerminalWindowDialogController(
       store: input.store.scope(state: \.terminal, action: \.terminal),
       terminal: input.terminal
     )
@@ -355,7 +355,7 @@ final class TerminalWindowController: NSWindowController {
       background: backgroundController,
       sidebar: sidebarController,
       detail: detailController,
-      confirmationOverlay: confirmationController
+      dialogOverlay: dialogController
     )
     return shellController
   }

@@ -41,7 +41,7 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test @MainActor
-  func confirmationOverlayCoversTheWholeWindowContentArea() {
+  func dialogOverlayCoversTheWholeWindowContentArea() {
     let shell = TerminalWindowShellController(
       windowControllerID: UUID(),
       tabDragRegistry: TerminalTabDragRegistry()
@@ -49,13 +49,13 @@ struct TerminalWindowShellControllerTests {
     let sidebar = NSHostingController(rootView: Color.clear)
     let detail = NSHostingController(rootView: Color.clear)
     let background = NSHostingController(rootView: Color.clear)
-    let confirmationOverlay = NSViewController()
-    confirmationOverlay.view = NSView()
+    let dialogOverlay = NSViewController()
+    dialogOverlay.view = NSView()
     shell.install(
       background: background,
       sidebar: sidebar,
       detail: detail,
-      confirmationOverlay: confirmationOverlay
+      dialogOverlay: dialogOverlay
     )
     let window = NSWindow(
       contentRect: CGRect(x: 0, y: 0, width: 1_000, height: 700),
@@ -68,7 +68,7 @@ struct TerminalWindowShellControllerTests {
     shell.viewDidLayout()
     window.layoutIfNeeded()
 
-    #expect(confirmationOverlay.view.frame == shell.view.bounds)
+    #expect(dialogOverlay.view.frame == shell.view.bounds)
   }
 
   @Test @MainActor

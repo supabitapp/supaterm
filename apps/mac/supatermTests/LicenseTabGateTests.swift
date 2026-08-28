@@ -69,6 +69,22 @@ struct LicenseTabGateTests {
   }
 
   @Test
+  func dismissesTabLimitRefusal() throws {
+    try withGateHarness { harness in
+      for _ in 0..<5 {
+        _ = try harness.host.createTab(in: harness.space.id, reason: .restore)
+      }
+      #expect(throws: TerminalCreateTabError.tabLimitReached(limit: 5, openTabs: 5)) {
+        _ = try harness.host.createTab(in: harness.space.id, reason: .user)
+      }
+
+      harness.host.dismissLicenseTabLimitRefusal()
+
+      #expect(!harness.host.showsLicenseTabLimitRefusal)
+    }
+  }
+
+  @Test
   func countSpansLiveHostsWarmSpacesAndColdSessions() {
     withDependencies {
       $0.defaultFileStorage = .inMemory
