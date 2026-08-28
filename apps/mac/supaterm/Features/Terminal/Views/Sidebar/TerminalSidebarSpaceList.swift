@@ -49,6 +49,7 @@ struct TerminalSidebarSpaceList: View {
   let swipe: SpaceSwipeController
   let controllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
+  let shouldPlayTabMoveHaptics: Bool
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -67,6 +68,7 @@ struct TerminalSidebarSpaceList: View {
       selectedTabID: snapshot.collection.selectedTabID,
       fixedHoveredGroupID: fixedHoveredGroupID,
       reduceMotion: reduceMotion,
+      shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics,
       actions: rowActions,
       performDrop: performDrop
     )

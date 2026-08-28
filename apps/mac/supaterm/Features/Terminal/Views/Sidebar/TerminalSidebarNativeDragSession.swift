@@ -122,6 +122,7 @@ final class TerminalSidebarNativeDragSession {
 
   func register(
     _ payload: TerminalTabDragPayload,
+    dropGapHeight: CGFloat? = nil,
     splitDestinationEntryAction: (() -> Void)? = nil,
     didTransfer:
       @escaping (
@@ -134,6 +135,7 @@ final class TerminalSidebarNativeDragSession {
       payload,
       previewImage: source.previewImage,
       previewContentSize: source.previewContentSize,
+      sidebarDropGapHeight: dropGapHeight,
       splitDestinationEntryAction: splitDestinationEntryAction,
       didTransfer: didTransfer
     )

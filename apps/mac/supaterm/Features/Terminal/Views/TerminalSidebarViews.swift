@@ -59,6 +59,7 @@ struct TerminalWindowSidebarRoot: View {
       terminal: terminal,
       isPagingActive: true,
       sidebarControllerCache: sidebarControllerCache,
+      shouldPlayTabMoveHaptics: supatermSettings.tabMoveHapticsEnabled,
       dismissReleaseAnnouncement: dismissReleaseAnnouncement
     )
   }
@@ -73,6 +74,7 @@ struct TerminalSidebarView: View {
   let terminal: TerminalHostState
   let isPagingActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
+  let shouldPlayTabMoveHaptics: Bool
   let dismissReleaseAnnouncement: () -> Void
 
   var body: some View {
@@ -86,6 +88,7 @@ struct TerminalSidebarView: View {
       isPagingActive: isPagingActive,
       sidebarControllerCache: sidebarControllerCache,
       fixedHoveredGroupID: nil,
+      shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics,
       dismissReleaseAnnouncement: dismissReleaseAnnouncement
     )
     .overlay(alignment: .topLeading) {

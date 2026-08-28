@@ -57,7 +57,7 @@ final class TabRootDragUITests: SupatermUITestCase {
     )
 
     await requireSidebarStructure([
-      .group("Alpha", children: ["Group Seed", "Root A"]),
+      .group("Alpha", children: ["Root A", "Group Seed"]),
       .tab("Root B"),
     ])
   }

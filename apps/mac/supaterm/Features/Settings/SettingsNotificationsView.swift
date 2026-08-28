@@ -22,6 +22,15 @@ struct SettingsNotificationsView: View {
     )
   }
 
+  private var tabMoveHapticsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.tabMoveHapticsEnabled },
+      set: { newValue in
+        _ = store.send(.tabMoveHapticsEnabledChanged(newValue))
+      }
+    )
+  }
+
   var body: some View {
     Form {
       Section {
@@ -38,6 +47,13 @@ struct SettingsNotificationsView: View {
           isOn: glowingPaneRingEnabled
         )
         .accessibilityIdentifier("settings.notifications.glowing-pane-ring")
+
+        SettingsToggleRow(
+          title: "Haptic feedback when reordering tabs",
+          subtitle: "Play feedback when a dragged tab enters a new drop target.",
+          isOn: tabMoveHapticsEnabled
+        )
+        .accessibilityIdentifier("settings.notifications.tab-move-haptics")
       } footer: {
         Text(
           "Turning off system notifications only suppresses macOS delivery. "

@@ -94,7 +94,10 @@ struct TerminalSidebarPointerTests {
         rows: rows,
         context: context,
         selectedTabID: destinationTabID,
-        reduceMotion: true
+        interactionPolicy: TerminalSidebarInteractionPolicy(
+          reduceMotion: true,
+          shouldPlayTabMoveHaptics: true
+        )
       )
       controller.tabSelectionState.toggle(sourceTabID, primaryTabID: destinationTabID)
       let scrollView = try #require(
@@ -301,6 +304,30 @@ struct TerminalSidebarPointerTests {
 
     #expect(pressedStates == [true, false])
     #expect(mouseUpCount == 0)
+  }
+
+  @Test
+  func liftedRowUsesSelectionAppliedDuringMouseDown() async throws {
+    let fixture = try await fixture()
+    defer {
+      fixture.window.contentView = nil
+      fixture.window.orderOut(nil)
+    }
+    let staleContent = TerminalSidebarDragContent(
+      outline: fixture.outline,
+      selectedTabID: fixture.secondTabID,
+      rows: [:],
+      context: fixture.context,
+      motionPolicy: TerminalSidebarMotionPolicy(reduceMotion: true),
+      shouldPlayTabMoveHaptics: false,
+      canBeginDrag: true,
+      swipe: nil
+    )
+
+    fixture.terminal.selectTab(fixture.firstTabID)
+
+    #expect(staleContent.selectedTabID == fixture.secondTabID)
+    #expect(staleContent.liveSelectedTabID == fixture.firstTabID)
   }
 
   @Test

@@ -37,6 +37,7 @@ enum SupatermUITestIdentifier {
     static let licenseDeactivate = "settings.license.deactivate"
     static let terminalFont = "settings.terminal.font"
     static let notificationsSystem = "settings.notifications.system"
+    static let notificationsTabMoveHaptics = "settings.notifications.tab-move-haptics"
     static let codingAgentsShowPanel = "settings.coding-agents.show-panel"
     static let advancedVerboseLogging = "settings.advanced.verbose-logging"
     static let aboutVersion = "settings.about.version"

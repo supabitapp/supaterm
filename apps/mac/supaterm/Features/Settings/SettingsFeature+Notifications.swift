@@ -60,6 +60,12 @@ extension SettingsFeature {
       }
       return .none
 
+    case .tabMoveHapticsEnabledChanged(let isEnabled):
+      updateSettings(&state) {
+        $0.tabMoveHapticsEnabled = isEnabled
+      }
+      return .none
+
     default:
       return .none
     }

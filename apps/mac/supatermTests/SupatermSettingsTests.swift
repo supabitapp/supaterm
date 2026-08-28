@@ -52,6 +52,7 @@ struct SupatermSettingsTests {
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(prefs.shortcutOverrides.isEmpty)
     #expect(!prefs.systemNotificationsEnabled)
+    #expect(prefs.tabMoveHapticsEnabled)
     #expect(prefs.updateChannel == .stable)
     #expect(!prefs.verboseLoggingEnabled)
     #expect(prefs.zmxSessionsEnabled)
@@ -102,7 +103,6 @@ struct SupatermSettingsTests {
       )
     )
     let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
-
     #expect(
       string
         == """
@@ -124,7 +124,6 @@ struct SupatermSettingsTests {
       )
     )
     let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
-
     #expect(
       string
         == """
@@ -176,6 +175,30 @@ struct SupatermSettingsTests {
         verbose_enabled = true
         """
     )
+  }
+
+  @Test
+  func prefsEncodeDisabledTabMoveHaptics() throws {
+    let data = try SupatermSettingsCodec.encode(
+      SupatermSettings(
+        appearanceMode: .dark,
+        analyticsEnabled: true,
+        crashReportsEnabled: true,
+        tabMoveHapticsEnabled: false,
+        updateChannel: .stable
+      )
+    )
+    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
+    let decoded = try SupatermSettingsCodec.decode(data)
+
+    #expect(
+      string
+        == """
+        [notifications]
+        tab_move_haptics = false
+        """
+    )
+    #expect(!decoded.tabMoveHapticsEnabled)
   }
 
   @Test
@@ -309,6 +332,7 @@ struct SupatermSettingsTests {
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
+    #expect(prefs.tabMoveHapticsEnabled)
     #expect(prefs.updateChannel == .stable)
     #expect(!prefs.verboseLoggingEnabled)
     #expect(prefs.zmxSessionsEnabled)

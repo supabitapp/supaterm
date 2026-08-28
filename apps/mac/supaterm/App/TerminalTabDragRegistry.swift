@@ -76,6 +76,7 @@ final class TerminalTabDragRegistry {
     let didTransfer: (TerminalTabMoveOperationID, SourceDisposition) -> Void
     var previewImage: NSImage?
     let previewContentSize: CGSize?
+    let sidebarDropGapHeight: CGFloat?
     var splitDestinationEntryAction: (() -> Void)?
     var presentationState: PresentationState
   }
@@ -104,6 +105,7 @@ final class TerminalTabDragRegistry {
     _ payload: TerminalTabDragPayload,
     previewImage: NSImage? = nil,
     previewContentSize: CGSize? = nil,
+    sidebarDropGapHeight: CGFloat? = nil,
     splitDestinationEntryAction: (() -> Void)? = nil,
     didTransfer: @escaping (TerminalTabMoveOperationID, SourceDisposition) -> Void = { _, _ in }
   ) -> Bool {
@@ -113,6 +115,7 @@ final class TerminalTabDragRegistry {
       didTransfer: didTransfer,
       previewImage: previewImage,
       previewContentSize: previewContentSize,
+      sidebarDropGapHeight: sidebarDropGapHeight,
       splitDestinationEntryAction: splitDestinationEntryAction,
       presentationState: .sourceSurface
     )
@@ -120,8 +123,14 @@ final class TerminalTabDragRegistry {
     return true
   }
 
+  func sidebarDropGapHeight(for payload: TerminalTabDragPayload) -> CGFloat? {
+    guard session?.payload == payload else { return nil }
+    return session?.sidebarDropGapHeight
+  }
+
   func resolve(_ pasteboard: NSPasteboard) -> TerminalTabDragPayload? {
-    guard let decoded = TerminalTabDragPasteboard.read(from: pasteboard), decoded == activePayload else {
+    guard let decoded = TerminalTabDragPasteboard.read(from: pasteboard), decoded == activePayload
+    else {
       return nil
     }
     return decoded
@@ -131,7 +140,8 @@ final class TerminalTabDragRegistry {
     _ payload: TerminalTabDragPayload,
     to destination: Destination
   ) -> TerminalTabTransferResult? {
-    guard let session, session.payload == payload, let result = transfer?(payload, destination) else {
+    guard let session, session.payload == payload, let result = transfer?(payload, destination)
+    else {
       return nil
     }
     session.didTransfer(payload.moveOperationID, .removed)

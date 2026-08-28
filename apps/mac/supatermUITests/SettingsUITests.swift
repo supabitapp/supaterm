@@ -88,6 +88,37 @@ final class SettingsUITests: SupatermUITestCase {
   }
 
   @MainActor
+  func testTabMoveHapticsPersistsAcrossRelaunch() async throws {
+    let settingsWindow = try openSettings()
+    try await select(.notifications, in: settingsWindow)
+
+    let toggle = element(
+      SupatermUITestIdentifier.Settings.notificationsTabMoveHaptics,
+      in: settingsWindow
+    )
+    let didLoadEnabledToggle = await wait(for: toggle) { self.toggleState($0) == true }
+    XCTAssertTrue(didLoadEnabledToggle)
+    toggle.click()
+    let didDisableToggle = await wait(for: toggle) { self.toggleState($0) == false }
+    XCTAssertTrue(didDisableToggle)
+    let didPersistSetting = await waitForSettingsFile(containing: "tab_move_haptics = false")
+    XCTAssertTrue(didPersistSetting)
+
+    try relaunch()
+
+    let relaunchedSettingsWindow = try openSettings()
+    try await select(.notifications, in: relaunchedSettingsWindow)
+    let persistedToggle = element(
+      SupatermUITestIdentifier.Settings.notificationsTabMoveHaptics,
+      in: relaunchedSettingsWindow
+    )
+    let didRestoreDisabledToggle = await wait(for: persistedToggle) {
+      self.toggleState($0) == false
+    }
+    XCTAssertTrue(didRestoreDisabledToggle)
+  }
+
+  @MainActor
   func testLicenseCanBeActivatedAndDeactivated() async throws {
     let settingsWindow = try await activateUITestLicense()
 
