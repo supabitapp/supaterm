@@ -59,7 +59,7 @@ struct TerminalWindowControllerTests {
   }
 
   @Test
-  func returnBuysLicenseWhenTabLimitDialogIsVisible() throws {
+  func returnBuysLicenseWhenTerminalHasFocusUnderTabLimitDialog() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -95,8 +95,11 @@ struct TerminalWindowControllerTests {
         )
       )
       controller.terminal.showsLicenseTabLimitRefusal = true
+      let surface = try #require(controller.terminal.selectedSurfaceView)
+      #expect(window.makeFirstResponder(surface))
+      #expect(window.firstResponder === surface)
 
-      #expect(window.performKeyEquivalent(with: event))
+      window.sendEvent(event)
       #expect(performedAction == .buy)
       #expect(!controller.terminal.showsLicenseTabLimitRefusal)
     }

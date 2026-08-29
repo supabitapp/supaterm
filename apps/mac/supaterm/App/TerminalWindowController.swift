@@ -60,13 +60,7 @@ private final class TerminalGestureWindow: NSWindow {
   }
 
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
-    if event.type == .keyDown,
-      event.charactersIgnoringModifiers == "\r",
-      event.modifierFlags.isDisjoint(with: [.command, .control, .option, .shift]),
-      onLicenseTabLimitDefaultAction()
-    {
-      return true
-    }
+    if performLicenseTabLimitDefaultAction(with: event) { return true }
     if let slot = TerminalCommandPaletteShortcut.slot(for: event) {
       if onPaletteShortcut?(slot) == true { return true }
     }
@@ -74,6 +68,7 @@ private final class TerminalGestureWindow: NSWindow {
   }
 
   override func sendEvent(_ event: NSEvent) {
+    if performLicenseTabLimitDefaultAction(with: event) { return }
     if event.type == .flagsChanged {
       onModifierFlagsChanged?(event.modifierFlags)
     }
@@ -81,6 +76,15 @@ private final class TerminalGestureWindow: NSWindow {
       return
     }
     super.sendEvent(event)
+  }
+
+  private func performLicenseTabLimitDefaultAction(with event: NSEvent) -> Bool {
+    guard
+      event.type == .keyDown,
+      event.charactersIgnoringModifiers == "\r",
+      event.modifierFlags.isDisjoint(with: [.command, .control, .option, .shift])
+    else { return false }
+    return onLicenseTabLimitDefaultAction()
   }
 
   private func handleSwipe(_ event: NSEvent) -> Bool {
