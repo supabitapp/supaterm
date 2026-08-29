@@ -8,10 +8,6 @@ struct TerminalHorizontalTabsView: View {
   private enum Metrics {
     static let spacing: CGFloat = 6
     static let spaceSwitcherWidth: CGFloat = 120
-    static let leadingWidth =
-      WindowTrafficLightMetrics.clusterWidth
-      + spaceSwitcherWidth + spacing * 2
-    static let trailingWidth: CGFloat = 78
   }
 
   let store: StoreOf<TerminalWindowFeature>
@@ -27,8 +23,19 @@ struct TerminalHorizontalTabsView: View {
   }
 
   var body: some View {
-    ZStack {
-      WindowDragSurface()
+    HStack(spacing: Metrics.spacing) {
+      WindowTrafficLights()
+        .frame(width: WindowTrafficLightMetrics.clusterWidth)
+
+      TerminalSpaceSwitcher(
+        store: store,
+        terminal: terminal,
+        palette: palette,
+        spaces: terminal.spaces,
+        selectedSpaceID: terminal.displayedSpaceID
+      )
+      .frame(width: Metrics.spaceSwitcherWidth, alignment: .leading)
+      .clipped()
 
       TerminalHorizontalTabStripBridge(
         snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot,
@@ -43,36 +50,18 @@ struct TerminalHorizontalTabsView: View {
           toggleGroup: { _ = terminal.toggleGroupCollapsed($0) }
         )
       )
-      .padding(.leading, Metrics.leadingWidth)
-      .padding(.trailing, Metrics.trailingWidth)
+      .frame(maxWidth: .infinity)
 
-      HStack(spacing: Metrics.spacing) {
-        WindowTrafficLights()
-          .frame(width: WindowTrafficLightMetrics.clusterWidth)
+      TerminalAgentsPopoverButton(palette: palette)
 
-        TerminalSpaceSwitcher(
-          store: store,
-          terminal: terminal,
-          palette: palette,
-          spaces: terminal.spaces,
-          selectedSpaceID: terminal.displayedSpaceID
-        )
-        .frame(width: Metrics.spaceSwitcherWidth, alignment: .leading)
-        .clipped()
-
-        Spacer(minLength: 0)
-
-        TerminalAgentsPopoverButton(palette: palette)
-
-        ToolbarIconButton(
-          symbol: "sidebar.left",
-          palette: palette,
-          accessibilityLabel: "Show Tabs in Sidebar"
-        ) {
-          _ = store.send(.toggleTabLayoutButtonTapped)
-        }
-        .padding(.trailing, Metrics.spacing)
+      ToolbarIconButton(
+        symbol: "sidebar.left",
+        palette: palette,
+        accessibilityLabel: "Show Tabs in Sidebar"
+      ) {
+        _ = store.send(.toggleTabLayoutButtonTapped)
       }
+      .padding(.trailing, Metrics.spacing)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .environment(

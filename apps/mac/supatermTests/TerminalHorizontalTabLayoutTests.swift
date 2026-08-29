@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import SupaTheme
@@ -26,6 +27,52 @@ struct TerminalHorizontalTabLayoutTests {
     #expect(layout.overflowFrame == nil)
     #expect(layout.items.allSatisfy { $0.frame.width <= 172 })
     #expect(layout.items.allSatisfy { $0.frame.height == 30 })
+    #expect(layout.groups.count == 1)
+  }
+
+  @Test
+  func expandedGroupSurfaceJoinsItsHeaderAndTabs() throws {
+    let fixture = makeSnapshot()
+    let layout = TerminalHorizontalTabLayout(
+      snapshot: fixture.snapshot,
+      availableWidth: 900,
+      measureTitle: { CGFloat($0.count * 7) }
+    )
+    let group = try #require(layout.groups.first)
+    let groupItems = layout.items.filter { item in
+      switch item.kind {
+      case .group(let id, _, _, _):
+        id == fixture.groupID
+      case .groupedTab(_, let groupID, _):
+        groupID == fixture.groupID
+      case .rootTab:
+        false
+      }
+    }
+    let itemFrame = try #require(
+      groupItems.map(\.frame).reduce(Optional<CGRect>.none) { $0?.union($1) ?? $1 }
+    )
+
+    #expect(group.id == fixture.groupID)
+    #expect(group.isCollapsed == false)
+    #expect(group.frame.minX == itemFrame.minX - 2)
+    #expect(group.frame.maxX == itemFrame.maxX + 2)
+    #expect(group.frame.minY == 2)
+    #expect(group.frame.maxY == TerminalHorizontalTabMetrics.height - 2)
+  }
+
+  @Test @MainActor
+  func tabItemOwnsPointerEventsAcrossItsLabel() {
+    let view = TerminalHorizontalTabItemView()
+    view.frame = CGRect(x: 0, y: 0, width: 140, height: 30)
+    view.layoutSubtreeIfNeeded()
+    var pressCount = 0
+    view.onAccessibilityPress = { pressCount += 1 }
+
+    #expect(view.hitTest(CGPoint(x: 70, y: 15)) === view)
+    #expect(view.acceptsFirstMouse(for: nil))
+    #expect(view.accessibilityPerformPress())
+    #expect(pressCount == 1)
   }
 
   @Test

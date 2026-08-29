@@ -2,6 +2,8 @@ import CoreGraphics
 
 enum TerminalHorizontalTabLayoutMetrics {
   static let controlWidth: CGFloat = 28
+  static let groupSurfaceHorizontalInset: CGFloat = 2
+  static let groupSurfaceVerticalInset: CGFloat = 2
   static let groupMaximumWidth: CGFloat = 128
   static let groupMinimumWidth: CGFloat = 56
   static let itemHeight: CGFloat = 30
@@ -35,6 +37,13 @@ struct TerminalHorizontalTabLayout: Equatable {
     let kind: ItemKind
   }
 
+  struct Group: Equatable {
+    let id: TerminalTabGroupID
+    let frame: CGRect
+    let isCollapsed: Bool
+  }
+
+  let groups: [Group]
   let hiddenEntryIDs: [TerminalSidebarEntryID]
   let items: [Item]
   let newTabFrame: CGRect
@@ -83,6 +92,7 @@ struct TerminalHorizontalTabLayout: Equatable {
       x = frame.maxX + TerminalHorizontalTabLayoutMetrics.itemSpacing
     }
     self.items = items
+    groups = Self.groups(items: items)
     let visibleSet = Set(visibleIndices)
     hiddenEntryIDs = candidates.indices.compactMap {
       visibleSet.contains($0) ? nil : candidates[$0].entryID
@@ -176,6 +186,36 @@ struct TerminalHorizontalTabLayout: Equatable {
     let kind: ItemKind
     let minimumWidth: CGFloat
     let preferredWidth: CGFloat
+  }
+
+  private static func groups(items: [Item]) -> [Group] {
+    items.compactMap { item in
+      guard case .group(let id, _, _, let isCollapsed) = item.kind else { return nil }
+      let frames = items.compactMap { candidate -> CGRect? in
+        switch candidate.kind {
+        case .group(let candidateID, _, _, _) where candidateID == id:
+          candidate.frame
+        case .groupedTab(_, let groupID, _) where groupID == id:
+          candidate.frame
+        default:
+          nil
+        }
+      }
+      guard let frame = frames.reduce(Optional<CGRect>.none, { $0?.union($1) ?? $1 }) else {
+        return nil
+      }
+      return Group(
+        id: id,
+        frame: CGRect(
+          x: frame.minX - TerminalHorizontalTabLayoutMetrics.groupSurfaceHorizontalInset,
+          y: TerminalHorizontalTabLayoutMetrics.groupSurfaceVerticalInset,
+          width: frame.width + TerminalHorizontalTabLayoutMetrics.groupSurfaceHorizontalInset * 2,
+          height: TerminalHorizontalTabMetrics.height
+            - TerminalHorizontalTabLayoutMetrics.groupSurfaceVerticalInset * 2
+        ),
+        isCollapsed: isCollapsed
+      )
+    }
   }
 
   private static func candidates(
