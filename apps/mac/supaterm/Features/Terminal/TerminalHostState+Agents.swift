@@ -567,20 +567,15 @@ extension TerminalHostState {
     for instance: AgentStateInstance,
     isFocused: Bool
   ) -> TabAgentStatus? {
-    switch instance.activity.phase {
-    case .unknown:
+    switch agentPresentationStatus(for: instance) {
+    case .unknown, .idle, nil:
       return nil
     case .needsInput:
       return .needsInput
-    case .running:
+    case .working:
       return .working
-    case .idle:
-      guard
-        !isFocused,
-        agentCompletionStore.contains(instance.completionIdentity, for: instance.surfaceID)
-      else {
-        return nil
-      }
+    case .done:
+      guard !isFocused else { return nil }
       return .done
     }
   }

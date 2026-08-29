@@ -77,13 +77,16 @@ struct TerminalWindowHeader: View {
       WindowDragSurface()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      TerminalAgentsPopoverButton(palette: palette)
-        .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
-        .padding(.trailing, TerminalWindowHeaderMetrics.spacing)
-        .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .top)
-        .background {
-          WindowDragSurface()
-        }
+      TerminalAgentsPopoverButton(
+        items: terminal.windowAgentPresentations(),
+        palette: palette
+      )
+      .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
+      .padding(.trailing, TerminalWindowHeaderMetrics.spacing)
+      .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .top)
+      .background {
+        WindowDragSurface()
+      }
     }
     .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .topLeading)
   }

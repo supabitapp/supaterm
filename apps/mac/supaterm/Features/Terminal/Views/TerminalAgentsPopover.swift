@@ -1,5 +1,6 @@
 import AppKit
 import SupaTheme
+import SupatermCLIShared
 import SupatermUI
 import SwiftUI
 
@@ -16,77 +17,107 @@ enum TerminalAgentsPopoverMetrics {
     min(max(itemCount, 0), maximumVisibleRows)
   }
 
+  static func visibleContentRowCount(_ itemCount: Int) -> Int {
+    max(visibleItemCount(itemCount), 1)
+  }
+
   static func preferredHeight(itemCount: Int) -> CGFloat {
     headerTopInset
       + headerHeight
       + headerToRowsSpacing
-      + CGFloat(visibleItemCount(itemCount)) * rowHeight
+      + CGFloat(visibleContentRowCount(itemCount)) * rowHeight
       + bottomInset
   }
 }
 
-struct TerminalAgentsPopoverItem: Identifiable {
-  let id: String
-  let role: String
-  let symbol: String
-  let task: String
-  let workspace: String
-  let phase: AgentActivityPhase
-
-  var subtitle: String {
-    "\(role) · \(workspace)"
-  }
-
-  var phaseTitle: String {
-    switch phase {
+extension TerminalHostState.AgentPresentationStatus {
+  fileprivate var title: String {
+    switch self {
     case .unknown:
       "Unknown"
     case .idle:
+      "Idle"
+    case .done:
       "Done"
     case .needsInput:
       "Needs input"
-    case .running:
+    case .working:
       "Working"
     }
   }
+}
 
-  static let dummyData = [
-    TerminalAgentsPopoverItem(
-      id: "build-popover",
-      role: "Builder",
-      symbol: "hammer.fill",
+private enum TerminalAgentsPopoverIcon {
+  case asset(String)
+  case system(String)
+}
+
+extension TerminalHostState.WindowAgentPresentation {
+  fileprivate var subtitle: String {
+    "\(identity.displayName) · \(workspace)"
+  }
+
+  fileprivate var icon: TerminalAgentsPopoverIcon {
+    if let agent = SupatermAgentKind(rawValue: identity.id) {
+      .asset(agent.markImageName)
+    } else {
+      .system("terminal.fill")
+    }
+  }
+
+  static let snapshotData = [
+    snapshot(
+      agent: .codex,
+      sessionID: "build-popover",
       task: "Build the agents popview",
       workspace: "supaterm",
-      phase: .running
+      status: .working
     ),
-    TerminalAgentsPopoverItem(
-      id: "inspect-interaction",
-      role: "Researcher",
-      symbol: "magnifyingglass",
+    snapshot(
+      agent: .claude,
+      sessionID: "inspect-interaction",
       task: "Inspect the interaction",
       workspace: "ui-research",
-      phase: .idle
+      status: .done
     ),
-    TerminalAgentsPopoverItem(
-      id: "review-layout",
-      role: "Reviewer",
-      symbol: "text.document",
+    snapshot(
+      agent: .pi,
+      sessionID: "review-layout",
       task: "Review spacing and type",
       workspace: "supaterm",
-      phase: .needsInput
+      status: .needsInput
     ),
-    TerminalAgentsPopoverItem(
-      id: "test-appearance",
-      role: "Tester",
-      symbol: "checkmark.seal.fill",
+    snapshot(
+      agent: .codex,
+      sessionID: "test-appearance",
       task: "Check light and dark modes",
       workspace: "supaterm",
-      phase: .running
+      status: .working
     ),
   ]
+
+  private static func snapshot(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    task: String,
+    workspace: String,
+    status: TerminalHostState.AgentPresentationStatus
+  ) -> Self {
+    Self(
+      id: TerminalHostState.WindowAgentPresentationID(
+        surfaceID: UUID(),
+        completionIdentity: .native(agent: agent, sessionID: sessionID)
+      ),
+      identity: AgentDetectionAgentIdentity(agent),
+      task: task,
+      workspace: workspace,
+      status: status
+    )
+  }
 }
 
 struct TerminalAgentsPopoverButton: View {
+  let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
 
   @State private var isHovered = false
@@ -102,7 +133,7 @@ struct TerminalAgentsPopoverButton: View {
           .foregroundStyle(foregroundStyle)
           .frame(width: 28, height: 28)
 
-        if TerminalAgentsPopoverItem.dummyData.contains(where: { $0.phase == .needsInput }) {
+        if items.contains(where: { $0.status == .needsInput }) {
           Circle()
             .fill(palette.warning)
             .frame(width: 6, height: 6)
@@ -121,7 +152,7 @@ struct TerminalAgentsPopoverButton: View {
     .background {
       TerminalAgentsPopoverPresenter(
         isPresented: $isPresented,
-        items: TerminalAgentsPopoverItem.dummyData,
+        items: items,
         palette: palette
       )
     }
@@ -141,13 +172,13 @@ struct TerminalAgentsPopoverButton: View {
 }
 
 struct TerminalAgentsPopoverView: View {
-  let items: [TerminalAgentsPopoverItem]
+  let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
 
   @State private var acceptsInput = false
 
   private var visibleRowCount: Int {
-    TerminalAgentsPopoverMetrics.visibleItemCount(items.count)
+    TerminalAgentsPopoverMetrics.visibleContentRowCount(items.count)
   }
 
   var body: some View {
@@ -159,9 +190,17 @@ struct TerminalAgentsPopoverView: View {
         .frame(height: TerminalAgentsPopoverMetrics.headerToRowsSpacing)
 
       ScrollView {
-        LazyVStack(spacing: 0) {
-          ForEach(items) { item in
-            TerminalAgentsPopoverRow(item: item, palette: palette)
+        if items.isEmpty {
+          Text("No active agents")
+            .font(.system(size: 11))
+            .foregroundStyle(palette.secondaryText)
+            .frame(maxWidth: .infinity, minHeight: TerminalAgentsPopoverMetrics.rowHeight)
+            .accessibilityIdentifier("agents.popover.empty")
+        } else {
+          LazyVStack(spacing: 0) {
+            ForEach(items) { item in
+              TerminalAgentsPopoverRow(item: item, palette: palette)
+            }
           }
         }
       }
@@ -213,14 +252,14 @@ struct TerminalAgentsPopoverView: View {
 }
 
 private struct TerminalAgentsPopoverRow: View {
-  let item: TerminalAgentsPopoverItem
+  let item: TerminalHostState.WindowAgentPresentation
   let palette: Palette
 
   @State private var isHovered = false
 
   var body: some View {
     HStack(spacing: 8) {
-      roleIcon
+      icon
 
       VStack(alignment: .leading, spacing: 0) {
         Text(item.task)
@@ -250,27 +289,47 @@ private struct TerminalAgentsPopoverRow: View {
     .contentShape(.rect)
     .onHover { isHovered = $0 }
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(item.task), \(item.subtitle), \(item.phaseTitle)")
+    .accessibilityLabel("\(item.task), \(item.subtitle), \(item.status.title)")
   }
 
-  private var roleIcon: some View {
-    Image(systemName: item.symbol)
-      .font(.system(size: 10, weight: .semibold))
+  @ViewBuilder
+  private var agentIconContent: some View {
+    switch item.icon {
+    case .asset(let name):
+      Image(name)
+        .renderingMode(.template)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .padding(5)
+        .accessibilityHidden(true)
+    case .system(let name):
+      Image(systemName: name)
+        .font(.system(size: 10, weight: .semibold))
+        .accessibilityHidden(true)
+    }
+  }
+
+  private var icon: some View {
+    agentIconContent
       .foregroundStyle(palette.accent)
       .frame(width: 20, height: 20)
       .background(palette.accent.opacity(0.12), in: .circle)
-      .accessibilityHidden(true)
   }
 
   @ViewBuilder
   private var statusIcon: some View {
-    switch item.phase {
+    switch item.status {
     case .unknown:
       Image(systemName: "questionmark.circle")
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(.secondary)
         .accessibilityHidden(true)
     case .idle:
+      Image(systemName: "pause.circle")
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(palette.secondaryText)
+        .accessibilityHidden(true)
+    case .done:
       Image(systemName: "checkmark.circle.fill")
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(palette.success)
@@ -280,7 +339,7 @@ private struct TerminalAgentsPopoverRow: View {
         .font(.system(size: 12, weight: .medium))
         .foregroundStyle(palette.warning)
         .accessibilityHidden(true)
-    case .running:
+    case .working:
       DotsSpinner(size: 11, color: palette.working)
         .frame(width: 16, height: 16)
         .accessibilityHidden(true)
@@ -290,7 +349,7 @@ private struct TerminalAgentsPopoverRow: View {
 
 private struct TerminalAgentsPopoverPresenter: NSViewRepresentable {
   @Binding var isPresented: Bool
-  let items: [TerminalAgentsPopoverItem]
+  let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
 
   func makeNSView(context: Context) -> TerminalAgentsPopoverAnchorView {
@@ -319,7 +378,7 @@ private struct TerminalAgentsPopoverPresenter: NSViewRepresentable {
 private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
   private var hostingController: NSHostingController<TerminalAgentsPopoverView>?
   private var isPresented = false
-  private var items = [TerminalAgentsPopoverItem]()
+  private var items = [TerminalHostState.WindowAgentPresentation]()
   private var onDismiss: (() -> Void)?
   private var palette = Palette(colorScheme: .light)
   private let popover: NSPopover
@@ -347,7 +406,7 @@ private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
 
   func render(
     isPresented: Bool,
-    items: [TerminalAgentsPopoverItem],
+    items: [TerminalHostState.WindowAgentPresentation],
     palette: Palette,
     onDismiss: @escaping () -> Void
   ) {
