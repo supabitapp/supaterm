@@ -1,5 +1,9 @@
 import Foundation
 
+public enum SupatermCodexEnvironment {
+  public static let threadIDKey = "CODEX_THREAD_ID"
+}
+
 public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Sendable {
   case claude
   case codex
@@ -71,6 +75,7 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public var toolInput: JSONValue? { payload["tool_input"] }
   public var toolName: String? { string("tool_name") }
   public var toolUseID: String? { string("tool_use_id") }
+  public var transcriptPath: String? { string("transcript_path") }
   public var turnID: String? { string("turn_id") }
 
   public init(
@@ -88,6 +93,7 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     toolInput: JSONValue? = nil,
     toolName: String? = nil,
     toolUseID: String? = nil,
+    transcriptPath: String? = nil,
     turnID: String? = nil,
     agentID: String? = nil
   ) {
@@ -105,6 +111,7 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     Self.insert(title, key: "title", into: &payload)
     Self.insert(toolName, key: "tool_name", into: &payload)
     Self.insert(toolUseID, key: "tool_use_id", into: &payload)
+    Self.insert(transcriptPath, key: "transcript_path", into: &payload)
     Self.insert(turnID, key: "turn_id", into: &payload)
     if let toolInput {
       payload["tool_input"] = toolInput
@@ -149,17 +156,20 @@ public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
   public let agent: SupatermAgentKind
   public let context: SupatermCLIContext?
   public let event: SupatermAgentHookEvent
+  public let inheritedSessionID: String?
   public let processID: Int32?
 
   public init(
     agent: SupatermAgentKind,
     context: SupatermCLIContext? = nil,
     event: SupatermAgentHookEvent,
+    inheritedSessionID: String? = nil,
     processID: Int32? = nil
   ) {
     self.agent = agent
     self.context = context
     self.event = event
+    self.inheritedSessionID = inheritedSessionID
     self.processID = processID
   }
 }

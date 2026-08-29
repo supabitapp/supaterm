@@ -89,6 +89,7 @@ extension SP {
             agent: agent,
             context: SupatermCLIContext.current,
             event: event,
+            inheritedSessionID: inheritedCodexSessionID,
             processID: pid
           )
         )
@@ -96,6 +97,16 @@ extension SP {
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
+    }
+
+    private var inheritedCodexSessionID: String? {
+      guard agent == .codex,
+        let sessionID = ProcessInfo.processInfo.environment[SupatermCodexEnvironment.threadIDKey],
+        !sessionID.isEmpty
+      else {
+        return nil
+      }
+      return sessionID
     }
   }
 

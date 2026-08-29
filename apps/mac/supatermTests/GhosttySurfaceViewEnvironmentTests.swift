@@ -263,6 +263,7 @@ struct GhosttySurfaceViewEnvironmentTests {
       environmentVariables == [
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.surfaceIDKey, value: surfaceID.uuidString),
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.tabIDKey, value: tabID.uuidString),
+        SupatermCLIEnvironmentVariable(key: SupatermCodexEnvironment.threadIDKey, value: ""),
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.socketPathKey, value: "/tmp/supaterm.sock"),
         SupatermCLIEnvironmentVariable(
           key: SupatermCLIEnvironment.cliPathKey,
@@ -341,6 +342,26 @@ struct GhosttySurfaceViewEnvironmentTests {
     #expect(environmentVariables.contains(SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionKey, value: "")))
     #expect(
       environmentVariables.contains(SupatermCLIEnvironmentVariable(key: ZmxEnvironment.sessionPrefixKey, value: ""))
+    )
+  }
+
+  @Test
+  func supatermEnvironmentVariablesClearInheritedCodexSessionContext() {
+    let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      surfaceID: UUID(),
+      tabID: UUID(),
+      socketPath: nil,
+      cliPath: nil,
+      processEnvironment: [SupatermCodexEnvironment.threadIDKey: "parent-session"]
+    )
+
+    #expect(
+      environmentVariables.contains(
+        SupatermCLIEnvironmentVariable(
+          key: SupatermCodexEnvironment.threadIDKey,
+          value: ""
+        )
+      )
     )
   }
 

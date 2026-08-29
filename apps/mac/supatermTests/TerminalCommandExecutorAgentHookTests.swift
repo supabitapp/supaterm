@@ -123,8 +123,10 @@ struct TerminalCommandExecutorAgentHookTests {
         event: SupatermAgentHookEvent(
           cwd: "/tmp/codex/memories",
           hookEventName: .sessionStart,
-          sessionID: "internal-session"
+          sessionID: "internal-session",
+          transcriptPath: "/tmp/codex/memories/internal-session.jsonl"
         ),
+        inheritedSessionID: "foreground-session",
         processID: processID
       )
     )
@@ -136,6 +138,161 @@ struct TerminalCommandExecutorAgentHookTests {
       ) == "foreground-session"
     )
     #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "internal-session"))
+  }
+
+  @Test
+  func ephemeralCodexSessionCannotReplacePersistedSession() throws {
+    let harness = try makeClaudeHookHarness()
+    let processID = getpid()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: codexSessionStartEvent(
+          sessionID: "persisted-session",
+          transcriptPath: "/tmp/persisted-session.jsonl"
+        ),
+        processID: processID
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: codexSessionStartEvent(sessionID: "ephemeral-session"),
+        processID: processID
+      )
+    )
+
+    #expect(
+      harness.host.agentStateStore.foregroundSessionID(
+        for: harness.context.surfaceID,
+        agent: .codex
+      ) == "persisted-session"
+    )
+    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "ephemeral-session"))
+    let session = try #require(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session
+    )
+    #expect(session.sessionID == "persisted-session")
+    #expect(session.forkStartupCommand == .shell("codex fork persisted-session"))
+  }
+
+  @Test
+  func ephemeralCodexSessionCannotBindAnEmptyPane() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: codexSessionStartEvent(sessionID: "ephemeral-session"),
+        processID: getpid()
+      )
+    )
+
+    #expect(harness.host.agentStateStore.snapshots(for: harness.context.surfaceID).isEmpty)
+  }
+
+  @Test
+  func nestedCodexSessionCannotReplacePersistedSession() throws {
+    let harness = try makeClaudeHookHarness()
+    let processID = getpid()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexSessionStartRequest(
+        context: harness.context,
+        sessionID: "root-session",
+        processID: processID
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexSessionStartRequest(
+        context: harness.context,
+        sessionID: "nested-session",
+        inheritedSessionID: "root-session",
+        processID: processID
+      )
+    )
+
+    #expect(
+      harness.host.agentStateStore.foregroundSessionID(
+        for: harness.context.surfaceID,
+        agent: .codex
+      ) == "root-session"
+    )
+    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "nested-session"))
+    let session = try #require(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session
+    )
+    #expect(session.sessionID == "root-session")
+    #expect(session.forkStartupCommand == .shell("codex fork root-session"))
+  }
+
+  @Test
+  func nestedCodexSessionCannotBindAnEmptyPane() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexSessionStartRequest(
+        context: harness.context,
+        sessionID: "nested-session",
+        inheritedSessionID: "root-session",
+        processID: getpid()
+      )
+    )
+
+    #expect(harness.host.agentStateStore.snapshots(for: harness.context.surfaceID).isEmpty)
+  }
+
+  @Test
+  func matchingInheritedCodexSessionBindsIdentity() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexSessionStartRequest(
+        context: harness.context,
+        sessionID: "root-session",
+        inheritedSessionID: "root-session",
+        processID: getpid()
+      )
+    )
+
+    #expect(harness.host.hasAgentSession(agent: .codex, sessionID: "root-session"))
+  }
+
+  @Test
+  func persistedCodexRootCanMoveToAnotherWorkingDirectory() throws {
+    let harness = try makeClaudeHookHarness()
+    let processID = getpid()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexSessionStartRequest(
+        context: harness.context,
+        sessionID: "first-session",
+        processID: processID
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: codexSessionStartEvent(
+          cwd: "/tmp/second-workspace",
+          sessionID: "second-session",
+          transcriptPath: "/tmp/second-session.jsonl"
+        ),
+        processID: processID
+      )
+    )
+
+    #expect(
+      harness.host.agentStateStore.foregroundSessionID(
+        for: harness.context.surfaceID,
+        agent: .codex
+      ) == "second-session"
+    )
   }
 
   @Test
@@ -224,4 +381,35 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(!harness.host.hasAgentSession(agent: .pi, sessionID: sessionID))
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
   }
+}
+
+private func codexSessionStartEvent(
+  cwd: String = CodexHookFixtures.cwd,
+  sessionID: String,
+  transcriptPath: String? = nil
+) -> SupatermAgentHookEvent {
+  SupatermAgentHookEvent(
+    cwd: cwd,
+    hookEventName: .sessionStart,
+    sessionID: sessionID,
+    transcriptPath: transcriptPath
+  )
+}
+
+private func codexSessionStartRequest(
+  context: SupatermCLIContext,
+  sessionID: String,
+  inheritedSessionID: String? = nil,
+  processID: Int32
+) -> SupatermAgentHookRequest {
+  SupatermAgentHookRequest(
+    agent: .codex,
+    context: context,
+    event: codexSessionStartEvent(
+      sessionID: sessionID,
+      transcriptPath: "/tmp/\(sessionID).jsonl"
+    ),
+    inheritedSessionID: inheritedSessionID,
+    processID: processID
+  )
 }

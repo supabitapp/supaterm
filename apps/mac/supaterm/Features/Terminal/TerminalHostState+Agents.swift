@@ -684,16 +684,6 @@ extension TerminalHostState {
     agentStateStore.hasSession(agent: agent, sessionID: sessionID)
   }
 
-  func foregroundAgentWorkingDirectoryPath(
-    agent: SupatermAgentKind,
-    processID: Int32,
-    for surfaceID: UUID
-  ) -> String? {
-    agentStateStore.snapshots(for: surfaceID).first {
-      $0.agent == agent && $0.isForeground && $0.processIDs.contains(processID)
-    }?.workingDirectoryPath
-  }
-
   func agentSessionIsForeground(agent: SupatermAgentKind, sessionID: String) -> Bool {
     agentStateStore.isForeground(agent: agent, sessionID: sessionID)
   }

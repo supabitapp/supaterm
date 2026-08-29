@@ -5,12 +5,14 @@ import Foundation
 enum CodexHookFixtures {
   static let sessionID = "session-123"
   static let cwd = "/Users/Developer/code/github.com/supabitapp/supaterm"
+  static let transcriptPath = "/Users/Developer/.codex/sessions/session-123.jsonl"
 
   static let sessionStart = """
     {
       "session_id": "\(sessionID)",
       "cwd": "\(cwd)",
       "hook_event_name": "SessionStart",
+      "transcript_path": "\(transcriptPath)",
       "source": "resume"
     }
     """

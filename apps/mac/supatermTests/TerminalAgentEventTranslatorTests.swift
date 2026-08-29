@@ -6,10 +6,15 @@ import Testing
 
 struct TerminalAgentEventTranslatorTests {
   @Test(arguments: [SupatermAgentKind.claude, .codex])
-  func sessionStartReportsIdentity(agent: SupatermAgentKind) throws {
-    let request = try request(
+  func sessionStartReportsIdentity(agent: SupatermAgentKind) {
+    let request = SupatermAgentHookRequest(
       agent: agent,
-      json: #"{"session_id":"session-1","cwd":"/tmp/workspace","hook_event_name":"SessionStart"}"#
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        transcriptPath: agent == .codex ? "/tmp/session-1.jsonl" : nil
+      )
     )
 
     #expect(
@@ -21,6 +26,63 @@ struct TerminalAgentEventTranslatorTests {
         )
       ]
     )
+  }
+
+  @Test
+  func codexSessionStartRejectsMissingTranscriptPath() {
+    let request = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        hookEventName: .sessionStart,
+        sessionID: "session-1"
+      )
+    )
+
+    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
+  }
+
+  @Test
+  func codexSessionStartRejectsEmptyTranscriptPath() {
+    let request = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        transcriptPath: ""
+      )
+    )
+
+    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
+  }
+
+  @Test
+  func codexSessionStartAcceptsMatchingInheritedSession() {
+    let request = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        transcriptPath: "/tmp/session-1.jsonl"
+      ),
+      inheritedSessionID: "session-1"
+    )
+
+    #expect(TerminalAgentEventTranslator.events(for: request).count == 1)
+  }
+
+  @Test
+  func codexSessionStartRejectsDifferentInheritedSession() {
+    let request = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        hookEventName: .sessionStart,
+        sessionID: "nested-session",
+        transcriptPath: "/tmp/nested-session.jsonl"
+      ),
+      inheritedSessionID: "root-session"
+    )
+
+    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
   }
 
   @Test(
@@ -78,6 +140,7 @@ struct TerminalAgentEventTranslatorTests {
       event: SupatermAgentHookEvent(
         hookEventName: .sessionStart,
         sessionID: "session-1",
+        transcriptPath: agent == .codex ? "/tmp/session-1.jsonl" : nil,
         agentID: "child-1"
       )
     )

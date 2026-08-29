@@ -15,9 +15,7 @@ extension TerminalCommandExecutor {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
     pruneDeadAgentProcesses()
-    guard let terminal = agentTerminal(for: request),
-      shouldHandleAgentHook(request, in: terminal)
-    else {
+    guard let terminal = agentTerminal(for: request) else {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
     var didChange = false
@@ -138,37 +136,6 @@ extension TerminalCommandExecutor {
       sessionID: request.event.sessionID,
       context: request.context
     )
-  }
-
-  private func shouldHandleAgentHook(
-    _ request: SupatermAgentHookRequest,
-    in terminal: TerminalHostState
-  ) -> Bool {
-    guard request.agent == .codex,
-      let sessionID = request.event.sessionID,
-      !terminal.hasAgentSession(agent: .codex, sessionID: sessionID),
-      let surfaceID = request.context?.surfaceID,
-      let processID = request.processID
-    else {
-      return true
-    }
-    guard
-      let foregroundWorkingDirectoryPath = terminal.foregroundAgentWorkingDirectoryPath(
-        agent: .codex,
-        processID: processID,
-        for: surfaceID
-      )
-    else {
-      return true
-    }
-    guard
-      let workingDirectoryPath = TerminalAgentPanelWorkspaceKey(
-        workingDirectoryPath: request.event.cwd
-      )?.workingDirectoryPath
-    else {
-      return false
-    }
-    return workingDirectoryPath == foregroundWorkingDirectoryPath
   }
 
   private func agentTerminal(

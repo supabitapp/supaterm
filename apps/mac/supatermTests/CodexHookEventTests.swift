@@ -11,6 +11,18 @@ struct CodexHookEventTests {
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
     #expect(event.cwd == CodexHookFixtures.cwd)
+    #expect(event.transcriptPath == CodexHookFixtures.transcriptPath)
+  }
+
+  @Test
+  func unavailableTranscriptPathsDecodeAsNil() throws {
+    for transcriptPath in ["null", "\"\"", "\"   \""] {
+      let event = try CodexHookFixtures.event(
+        #"{"hook_event_name":"SessionStart","transcript_path":\#(transcriptPath)}"#
+      )
+
+      #expect(event.transcriptPath == nil)
+    }
   }
 
   @Test

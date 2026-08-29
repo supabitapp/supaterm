@@ -1036,6 +1036,20 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func codexAgentHookRequestRoundTripsInheritedSessionIdentity() throws {
+    let requestPayload = SupatermAgentHookRequest(
+      agent: .codex,
+      event: try CodexHookFixtures.event(CodexHookFixtures.sessionStart),
+      inheritedSessionID: CodexHookFixtures.sessionID,
+      processID: 123
+    )
+
+    let request = try SupatermSocketRequest.agentHook(requestPayload, id: "codex-hook-1")
+
+    #expect(try request.decodeParams(SupatermAgentHookRequest.self) == requestPayload)
+  }
+
+  @Test
   func paneControlRequestsRoundTripThroughTypedHelpers() throws {
     let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     let paneTarget = SupatermPaneTarget(
