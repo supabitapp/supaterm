@@ -90,6 +90,15 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  func paneDragSourceCoversTheTopOfItsPane() {
+    #expect(
+      TerminalPaneDragSourceLayout.frame(
+        for: CGRect(x: 20, y: 30, width: 300, height: 200)
+      ) == CGRect(x: 20, y: 220, width: 300, height: 10)
+    )
+  }
+
+  @Test
   func notificationPulsePatternMatchesThreeFixedSizePulses() {
     #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
     #expect(TerminalNotificationPulsePattern.lowOpacity == 0.32)

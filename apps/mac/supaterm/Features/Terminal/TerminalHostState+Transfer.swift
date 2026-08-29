@@ -47,6 +47,12 @@ extension TerminalHostState {
     let trees: [TerminalTabID: SplitTree<GhosttySurfaceView>]
   }
 
+  private struct PaneTabMoveSource {
+    let instance: TerminalSpaceInstance
+    let tabID: TerminalTabID
+    let tree: SplitTree<GhosttySurfaceView>
+  }
+
   func liveTabSplitTargetTabID(
     _ requestedTabID: TerminalTabID,
     in spaceID: TerminalSpaceID
@@ -174,28 +180,52 @@ extension TerminalHostState {
     )
   }
 
+  func movePaneToNewTab(
+    _ surfaceID: UUID,
+    destinationTabID: TerminalTabID,
+    at placement: TerminalTabPlacement,
+    expectedTopologyRevision: UInt64
+  ) throws -> TerminalTabID {
+    let source = try paneTabMoveSource(for: [surfaceID])
+    guard source.instance.tabCollection.topologyRevision == expectedTopologyRevision else {
+      throw TerminalTabTransferError.staleSource(
+        expected: expectedTopologyRevision,
+        actual: source.instance.tabCollection.topologyRevision
+      )
+    }
+    try requireTabCapacity(1, reason: .user)
+    let previousSelectedTabID = source.instance.tabCollection.selectedTabID
+    guard
+      source.instance.tabCollection.createTab(
+        id: destinationTabID,
+        title: "Terminal \(nextTabIndex(in: source.instance.spaceID))",
+        at: placement
+      ) != nil
+    else {
+      throw TerminalCreateTabError.creationFailed
+    }
+    commitPaneMoves(
+      [surfaceID],
+      to: [destinationTabID],
+      from: source,
+      previousSelectedTabID: previousSelectedTabID,
+      selectsMovedPane: true
+    )
+    return destinationTabID
+  }
+
   private func movePanesToNewTabs(
     _ surfaceIDs: [UUID],
     reason: LicenseTabGate.CreationReason,
     selectsMovedPane: Bool
   ) throws -> [TerminalTabID] {
-    guard
-      let firstSurfaceID = surfaceIDs.first,
-      let sourceTabID = tabID(containing: firstSurfaceID),
-      let sourceTree = trees[sourceTabID],
-      let instance = spaceManager.instance(for: sourceTabID),
-      Set(surfaceIDs).count == surfaceIDs.count,
-      surfaceIDs.allSatisfy({ sourceTree.find(id: $0) != nil }),
-      surfaceIDs.count < sourceTree.leaves().count
-    else {
-      throw TerminalControlError.paneRequiresSplit
-    }
+    let source = try paneTabMoveSource(for: surfaceIDs)
     try requireTabCapacity(surfaceIDs.count, reason: reason)
 
-    let collection = instance.tabCollection
+    let collection = source.instance.tabCollection
     let previousSelectedTabID = collection.selectedTabID
-    let firstDefaultTitleIndex = nextTabIndex(in: instance.spaceID)
-    var anchorTabID = sourceTabID
+    let firstDefaultTitleIndex = nextTabIndex(in: source.instance.spaceID)
+    var anchorTabID = source.tabID
     var createdTabIDs: [TerminalTabID] = []
     for offset in surfaceIDs.indices {
       guard
@@ -217,27 +247,63 @@ extension TerminalHostState {
       anchorTabID = tabID
     }
 
-    var remainingTree = sourceTree
+    commitPaneMoves(
+      surfaceIDs,
+      to: createdTabIDs,
+      from: source,
+      previousSelectedTabID: previousSelectedTabID,
+      selectsMovedPane: selectsMovedPane
+    )
+    return createdTabIDs
+  }
+
+  private func paneTabMoveSource(
+    for surfaceIDs: [UUID]
+  ) throws -> PaneTabMoveSource {
+    guard
+      let firstSurfaceID = surfaceIDs.first,
+      let sourceTabID = tabID(containing: firstSurfaceID),
+      let sourceTree = trees[sourceTabID],
+      let instance = spaceManager.instance(for: sourceTabID),
+      Set(surfaceIDs).count == surfaceIDs.count,
+      surfaceIDs.allSatisfy({ sourceTree.find(id: $0) != nil }),
+      surfaceIDs.count < sourceTree.leaves().count
+    else {
+      throw TerminalControlError.paneRequiresSplit
+    }
+    return PaneTabMoveSource(instance: instance, tabID: sourceTabID, tree: sourceTree)
+  }
+
+  private func commitPaneMoves(
+    _ surfaceIDs: [UUID],
+    to createdTabIDs: [TerminalTabID],
+    from source: PaneTabMoveSource,
+    previousSelectedTabID: TerminalTabID?,
+    selectsMovedPane: Bool
+  ) {
+    precondition(surfaceIDs.count == createdTabIDs.count)
+
+    var remainingTree = source.tree
     for surfaceID in surfaceIDs {
       guard let node = remainingTree.find(id: surfaceID) else {
         preconditionFailure()
       }
       remainingTree = remainingTree.removing(node)
     }
-    trees[sourceTabID] = remainingTree
+    trees[source.tabID] = remainingTree
 
     let retainedSurfaceIDs = Set(remainingTree.leaves().map(\.id))
-    if let current = focusHistoryByTab[sourceTabID]?.current,
+    if let current = focusHistoryByTab[source.tabID]?.current,
       !retainedSurfaceIDs.contains(current)
     {
       let nextSurfaceID =
-        sourceTree.find(id: current)
-        .flatMap(sourceTree.focusTargetAfterClosing)
+        source.tree.find(id: current)
+        .flatMap(source.tree.focusTargetAfterClosing)
         .map(\.id)
         .flatMap { retainedSurfaceIDs.contains($0) ? $0 : nil }
         ?? remainingTree.root?.leftmostLeaf().id
       if let nextSurfaceID {
-        focusHistoryByTab[sourceTabID] = FocusHistory(current: nextSurfaceID)
+        focusHistoryByTab[source.tabID] = FocusHistory(current: nextSurfaceID)
       }
     }
 
@@ -250,25 +316,24 @@ extension TerminalHostState {
       updateRunningState(for: tabID)
       updateTabTitle(for: tabID)
     }
-    updateRunningState(for: sourceTabID)
-    updateTabTitle(for: sourceTabID)
+    updateRunningState(for: source.tabID)
+    updateTabTitle(for: source.tabID)
 
     if selectsMovedPane,
       let surfaceID = surfaceIDs.first,
       let tabID = createdTabIDs.first
     {
-      switchSpace(to: instance.spaceID)
-      applySelectedTab(tabID, in: instance.spaceID)
+      switchSpace(to: source.instance.spaceID)
+      applySelectedTab(tabID, in: source.instance.spaceID)
       if let surface = surfaces[surfaceID] {
         focusSurface(surface, in: tabID)
       }
     } else if let previousSelectedTabID {
-      collection.selectTab(previousSelectedTabID)
+      source.instance.tabCollection.selectTab(previousSelectedTabID)
     }
 
     syncFocus(windowActivity)
     sessionDidChange()
-    return createdTabIDs
   }
 
   static func prepareLiveTabTransfer(

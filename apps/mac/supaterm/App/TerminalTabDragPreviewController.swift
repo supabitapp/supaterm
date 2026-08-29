@@ -12,6 +12,11 @@ struct TerminalTabDragPreviewLayout {
   private static let fallbackHeight: CGFloat = 138.6
   private static let contentInset: CGFloat = 2
   private static let windowContentLeadingInset: CGFloat = 45
+  static let tabPreviewHeight = max(
+    TerminalSidebarLayout.tabRowMinHeight,
+    TerminalSidebarLayout.tabTrailingAccessorySize
+      + TerminalSidebarLayout.tabRowVerticalPadding * 2
+  )
 
   static func frame(
     for sourceSize: CGSize?,
@@ -48,28 +53,42 @@ struct TerminalTabDragPreviewLayout {
 
   static func contentFrame(for type: TerminalTabDragPreviewType, in bounds: CGRect) -> CGRect {
     let surfaceFrame = contentHostFrame(in: bounds)
-    guard type == .window else { return surfaceFrame }
-    let minX = min(surfaceFrame.maxX, surfaceFrame.minX + windowContentLeadingInset)
-    return CGRect(
-      x: minX,
-      y: surfaceFrame.minY,
-      width: max(0, surfaceFrame.maxX - minX),
-      height: surfaceFrame.height
-    )
+    switch type {
+    case .tab:
+      let height = min(tabPreviewHeight, surfaceFrame.height)
+      return CGRect(
+        x: surfaceFrame.minX,
+        y: surfaceFrame.midY - height / 2,
+        width: surfaceFrame.width,
+        height: height
+      )
+    case .window:
+      let minX = min(surfaceFrame.maxX, surfaceFrame.minX + windowContentLeadingInset)
+      return CGRect(
+        x: minX,
+        y: surfaceFrame.minY,
+        width: max(0, surfaceFrame.maxX - minX),
+        height: surfaceFrame.height
+      )
+    case .contentPane:
+      return surfaceFrame
+    }
   }
 
   static func silhouettePath(for type: TerminalTabDragPreviewType, in bounds: CGRect) -> CGPath {
     let surfaceFrame = contentHostFrame(in: bounds)
     let path = CGMutablePath()
-    path.addRoundedRect(
-      in: CGRect(x: surfaceFrame.minX + 2, y: surfaceFrame.minY + 12, width: 40, height: 8),
-      cornerWidth: 2.5,
-      cornerHeight: 2.5
-    )
+    if type != .tab {
+      path.addRoundedRect(
+        in: CGRect(x: surfaceFrame.minX + 2, y: surfaceFrame.minY + 12, width: 40, height: 8),
+        cornerWidth: 2.5,
+        cornerHeight: 2.5
+      )
+    }
     path.addRoundedRect(
       in: contentFrame(for: type, in: bounds),
-      cornerWidth: 2,
-      cornerHeight: 2
+      cornerWidth: type == .tab ? 8 : 2,
+      cornerHeight: type == .tab ? 8 : 2
     )
     return path
   }
@@ -101,7 +120,7 @@ struct TerminalTabDragPreviewLayout {
 
 @MainActor
 protocol TerminalTabDragPreviewPresenting: AnyObject {
-  func show(image: NSImage?, frame: CGRect) -> CGRect
+  func show(image: NSImage?, frame: CGRect, type: TerminalTabDragPreviewType) -> CGRect
   func update(image: NSImage?)
   func transition(to type: TerminalTabDragPreviewType) -> Bool
   func hide()
@@ -121,15 +140,16 @@ final class TerminalTabDragPreviewController: TerminalTabDragPreviewPresenting {
     self.reduceMotion = reduceMotion
   }
 
-  func show(image: NSImage?, frame: CGRect) -> CGRect {
-    let wasVisible = panel?.isVisible == true
+  func show(
+    image: NSImage?,
+    frame: CGRect,
+    type: TerminalTabDragPreviewType
+  ) -> CGRect {
     snapshotView.image = image?.isValid == true ? image : nil
     let panel = panel ?? TerminalTabDragPreviewPanel(contentView: snapshotView)
     self.panel = panel
     panel.setFrame(frame, display: false)
-    if !wasVisible {
-      _ = snapshotView.setPreviewType(.window, animated: false, force: true)
-    }
+    _ = snapshotView.setPreviewType(type, animated: false, force: true)
     panel.orderFrontRegardless()
     return panel.frame
   }
@@ -304,8 +324,8 @@ private final class TerminalTabDragSnapshotView: NSView {
       translationX: -contentHostFrame.minX,
       y: -contentHostFrame.minY
     )
-    let path = TerminalTabDragPreviewLayout.silhouettePath(for: previewType, in: bounds)
-      .copy(using: &contentTransform)
+    let rootPath = TerminalTabDragPreviewLayout.silhouettePath(for: previewType, in: bounds)
+    let path = rootPath.copy(using: &contentTransform)
     let contentFrame = TerminalTabDragPreviewLayout.contentFrame(for: previewType, in: bounds)
       .offsetBy(dx: -contentHostFrame.minX, dy: -contentHostFrame.minY)
     CATransaction.begin()
@@ -314,14 +334,10 @@ private final class TerminalTabDragSnapshotView: NSView {
     silhouetteLayer.frame = contentView.bounds
     silhouetteLayer.path = path
     silhouetteLayer.shadowPath = path
-    layer?.shadowPath = CGPath(
-      roundedRect: bounds,
-      cornerWidth: 4,
-      cornerHeight: 4,
-      transform: nil
-    )
+    layer?.shadowPath = rootPath
     effectView.frame = bounds
     windowControlsView.frame = TerminalTabDragPreviewLayout.windowControlsFrame(in: effectView.bounds)
+    windowControlsView.isHidden = previewType == .tab
     imageContainerView.frame = contentFrame
     imageView.frame = TerminalTabDragPreviewLayout.snapshotFrame(
       for: image?.size,

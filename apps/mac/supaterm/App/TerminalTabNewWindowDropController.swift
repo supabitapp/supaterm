@@ -79,8 +79,10 @@ final class TerminalTabNewWindowDropController {
     )
     guard let frame else {
       destinationWindow.orderOut(nil)
+      tabDragRegistry.restoreSharedPreview(payload)
       return
     }
+    tabDragRegistry.transitionSharedPreview(payload, to: .window)
     destinationWindow.setFrame(frame, display: false)
     destinationWindow.orderFrontRegardless()
   }

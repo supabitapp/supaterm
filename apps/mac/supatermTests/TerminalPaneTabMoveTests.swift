@@ -1,4 +1,5 @@
 import Dependencies
+import Foundation
 import GhosttyKit
 import Sharing
 import SupatermLicenseFeature
@@ -48,6 +49,83 @@ struct TerminalPaneTabMoveTests {
       #expect(fixture.host.selectedSurfaceView === fixture.surfaces[1])
       #expect(result.isSelectedTab)
       #expect(!fixture.host.canMovePaneToNewTab(fixture.surfaces[1].id))
+    }
+  }
+
+  @Test
+  func movingPaneToAnExactTabPlacementUsesTheReservedIdentity() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = makeFixture()
+      let collection = fixture.host.spaceManager.tabCollection
+      let tailID = collection.createTab(title: "Tail")
+      let destinationTabID = TerminalTabID()
+
+      let movedTabID = try fixture.host.movePaneToNewTab(
+        fixture.surfaces[2].id,
+        destinationTabID: destinationTabID,
+        at: .root(TerminalRootPlacement(isPinned: false, index: 0)),
+        expectedTopologyRevision: collection.topologyRevision
+      )
+
+      #expect(movedTabID == destinationTabID)
+      #expect(collection.tabs.map(\.id) == [destinationTabID, fixture.tabID, tailID])
+      #expect(fixture.host.trees[destinationTabID]?.leaves().map(\.id) == [fixture.surfaces[2].id])
+      #expect(
+        fixture.host.trees[fixture.tabID]?.leaves().map(\.id) == [
+          fixture.surfaces[0].id,
+          fixture.surfaces[1].id,
+        ])
+      #expect(fixture.host.selectedTabID == destinationTabID)
+    }
+  }
+
+  @Test
+  func stalePanePlacementDoesNotChangeTheSplit() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = makeFixture()
+      let collection = fixture.host.spaceManager.tabCollection
+      let hoveredRevision = collection.topologyRevision
+      let concurrentTabID = collection.createTab(title: "Concurrent")
+
+      #expect(throws: TerminalTabTransferError.self) {
+        _ = try fixture.host.movePaneToNewTab(
+          fixture.surfaces[2].id,
+          destinationTabID: TerminalTabID(),
+          at: .root(TerminalRootPlacement(isPinned: false, index: 0)),
+          expectedTopologyRevision: hoveredRevision
+        )
+      }
+      #expect(collection.tabs.map(\.id) == [fixture.tabID, concurrentTabID])
+      #expect(fixture.host.trees[fixture.tabID]?.leaves().map(\.id) == fixture.surfaces.map(\.id))
+    }
+  }
+
+  @Test
+  func paneDragStartsOnlyWhileThePaneBelongsToASplit() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = makeFixture()
+      let registry = TerminalTabDragRegistry()
+      let client = TerminalPaneDragClient(
+        terminal: fixture.host,
+        windowControllerID: UUID(),
+        registry: registry
+      )
+
+      let payload = try #require(client.begin(surfaceView: fixture.surfaces[1]))
+
+      #expect(payload.pane?.surfaceID == fixture.surfaces[1].id)
+      #expect(registry.activePayload == payload)
+      client.end(payload)
+      #expect(registry.lastOutcome == .cancelled)
+
+      #expect(fixture.host.moveAllPanesToNewTabs(fixture.tabID))
+      #expect(client.begin(surfaceView: fixture.surfaces[1]) == nil)
     }
   }
 

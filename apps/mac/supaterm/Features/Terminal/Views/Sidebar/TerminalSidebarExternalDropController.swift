@@ -35,6 +35,14 @@ extension TerminalTabDragPayload {
     topologyStamp: TerminalSidebarTopologyStamp
   ) -> TerminalSidebarDragPayload? {
     let source: TerminalSidebarDragSource
+    if let pane {
+      source = .tabs([pane.destinationTabID])
+      return TerminalSidebarDragPayload(
+        operationID: moveOperationID,
+        source: source,
+        topologyStamp: topologyStamp
+      )
+    }
     let tabIDs = itemIDs.compactMap { itemID -> TerminalTabID? in
       guard case .tab(let tabID) = itemID else { return nil }
       return tabID

@@ -6,6 +6,11 @@ nonisolated enum TerminalTabDragItemKind: String, Codable, Sendable {
 }
 
 nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
+  struct Pane: Codable, Equatable, Sendable {
+    let surfaceID: UUID
+    let destinationTabID: TerminalTabID
+  }
+
   struct Item: Codable, Hashable, Sendable {
     let id: UUID
     let kind: TerminalTabDragItemKind
@@ -39,6 +44,7 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
   let sourceSpaceID: TerminalSpaceID
   let sourceTopologyRevision: UInt64
   let items: [Item]
+  let pane: Pane?
 
   init?(
     operationID: TerminalTabMoveOperationID,
@@ -54,6 +60,24 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     self.sourceSpaceID = sourceSpaceID
     self.sourceTopologyRevision = sourceTopologyRevision
     items = itemIDs.map(Item.init)
+    pane = nil
+  }
+
+  init(
+    operationID: TerminalTabMoveOperationID,
+    sourceWindowID: UUID,
+    sourceSpaceID: TerminalSpaceID,
+    sourceTopologyRevision: UInt64,
+    surfaceID: UUID,
+    destinationTabID: TerminalTabID
+  ) {
+    version = Self.schemaVersion
+    self.operationID = operationID.rawValue
+    self.sourceWindowID = sourceWindowID
+    self.sourceSpaceID = sourceSpaceID
+    self.sourceTopologyRevision = sourceTopologyRevision
+    items = []
+    pane = Pane(surfaceID: surfaceID, destinationTabID: destinationTabID)
   }
 
   var moveOperationID: TerminalTabMoveOperationID {
@@ -70,8 +94,10 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
   }
 
   var isValid: Bool {
-    version == Self.schemaVersion
-      && !items.isEmpty
-      && Set(items).count == items.count
+    guard version == Self.schemaVersion else { return false }
+    if pane != nil {
+      return items.isEmpty
+    }
+    return !items.isEmpty && Set(items).count == items.count
   }
 }

@@ -907,7 +907,11 @@ private final class TerminalWindowShellPreviewRecorder: TerminalTabDragPreviewPr
   private(set) var transitions: [TerminalTabDragPreviewType] = []
   private(set) var hideCount = 0
 
-  func show(image _: NSImage?, frame: CGRect) -> CGRect {
+  func show(
+    image _: NSImage?,
+    frame: CGRect,
+    type _: TerminalTabDragPreviewType
+  ) -> CGRect {
     frame
   }
 

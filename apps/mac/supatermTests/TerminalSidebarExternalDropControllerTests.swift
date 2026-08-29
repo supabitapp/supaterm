@@ -68,6 +68,47 @@ struct SidebarExternalDropControllerTests {
   }
 
   @Test
+  func paneDropPlansWithItsReservedTabIdentity() throws {
+    let existingTabID = TerminalTabID()
+    let destinationTabID = TerminalTabID()
+    let operationID = TerminalTabMoveOperationID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(existingTabID), isPinned: false)
+      ],
+      revision: 4
+    )
+    let sidebarPayload = TerminalSidebarTestFixture.payload(
+      source: .tabs([destinationTabID]),
+      revision: 4,
+      operationID: operationID
+    )
+    let payload = TerminalTabDragPayload(
+      operationID: operationID,
+      sourceWindowID: UUID(),
+      sourceSpaceID: TerminalSidebarTestFixture.secondarySpaceID,
+      sourceTopologyRevision: 2,
+      surfaceID: UUID(),
+      destinationTabID: destinationTabID
+    )
+    let target = try #require(
+      TerminalSidebarDropPlanner.plan(
+        payload: sidebarPayload,
+        path: .rootBoundary(lane: .regular, index: 1),
+        outline: outline
+      )
+    )
+
+    #expect(
+      TerminalSidebarExternalDrop(
+        payload: payload,
+        topologyStamp: sidebarPayload.topologyStamp,
+        target: target
+      ).command(in: outline)?.itemIDs == [.tab(destinationTabID)]
+    )
+  }
+
+  @Test
   func provisionalTabSessionBuildsTabSourceTargetsBeforeAcceptance() throws {
     let childID = TerminalTabID()
     let tailID = TerminalTabID()

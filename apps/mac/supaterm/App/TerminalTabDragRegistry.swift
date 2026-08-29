@@ -1,6 +1,7 @@
 import AppKit
 
 enum TerminalTabDragPreviewType: Equatable {
+  case tab
   case window
   case contentPane
 }
@@ -75,10 +76,17 @@ final class TerminalTabDragRegistry {
     let payload: TerminalTabDragPayload
     let didTransfer: (TerminalTabMoveOperationID, SourceDisposition) -> Void
     var previewImage: NSImage?
+    let tabPreviewImage: NSImage?
     let previewContentSize: CGSize?
     let sidebarDropGapHeight: CGFloat?
     var splitDestinationEntryAction: (() -> Void)?
+    let initialPreviewType: TerminalTabDragPreviewType
+    var previewType: TerminalTabDragPreviewType
     var presentationState: PresentationState
+
+    func previewImage(for type: TerminalTabDragPreviewType) -> NSImage? {
+      type == .tab ? tabPreviewImage : previewImage
+    }
   }
 
   var transfer: ((TerminalTabDragPayload, Destination) -> TerminalTabTransferResult?)?
@@ -104,8 +112,10 @@ final class TerminalTabDragRegistry {
   func begin(
     _ payload: TerminalTabDragPayload,
     previewImage: NSImage? = nil,
+    tabPreviewImage: NSImage? = nil,
     previewContentSize: CGSize? = nil,
     sidebarDropGapHeight: CGFloat? = nil,
+    initialPreviewType: TerminalTabDragPreviewType = .window,
     splitDestinationEntryAction: (() -> Void)? = nil,
     didTransfer: @escaping (TerminalTabMoveOperationID, SourceDisposition) -> Void = { _, _ in }
   ) -> Bool {
@@ -114,9 +124,12 @@ final class TerminalTabDragRegistry {
       payload: payload,
       didTransfer: didTransfer,
       previewImage: previewImage,
+      tabPreviewImage: tabPreviewImage,
       previewContentSize: previewContentSize,
       sidebarDropGapHeight: sidebarDropGapHeight,
       splitDestinationEntryAction: splitDestinationEntryAction,
+      initialPreviewType: initialPreviewType,
+      previewType: initialPreviewType,
       presentationState: .sourceSurface
     )
     lastOutcome = nil
@@ -172,6 +185,7 @@ final class TerminalTabDragRegistry {
     let presentationState: PresentationState
     if sourceSurfaceFrame.contains(screenPoint) {
       previewPresenter.hide()
+      session.previewType = session.initialPreviewType
       presentationState = .sourceSurface
     } else {
       let frame = TerminalTabDragPreviewLayout.frame(
@@ -180,8 +194,9 @@ final class TerminalTabDragRegistry {
       )
       presentationState = .sharedPreview(
         frame: previewPresenter.show(
-          image: session.previewImage,
-          frame: frame
+          image: session.previewImage(for: session.previewType),
+          frame: frame,
+          type: session.previewType
         )
       )
     }
@@ -199,7 +214,7 @@ final class TerminalTabDragRegistry {
     guard var session, session.payload.moveOperationID == operationID else { return false }
     session.previewImage = image
     self.session = session
-    if case .sharedPreview = session.presentationState {
+    if case .sharedPreview = session.presentationState, session.previewType != .tab {
       previewPresenter.update(image: image)
     }
     return true
@@ -211,12 +226,23 @@ final class TerminalTabDragRegistry {
     to type: TerminalTabDragPreviewType
   ) -> Bool {
     guard
-      let session,
+      var session,
       session.payload == payload,
       case .sharedPreview = session.presentationState,
-      type != .contentPane || payload.singleTabID != nil
+      type != .contentPane || payload.singleTabID != nil,
+      type != session.previewType
     else { return false }
-    return previewPresenter.transition(to: type)
+    session.previewType = type
+    self.session = session
+    previewPresenter.update(image: session.previewImage(for: type))
+    _ = previewPresenter.transition(to: type)
+    return true
+  }
+
+  @discardableResult
+  func restoreSharedPreview(_ payload: TerminalTabDragPayload) -> Bool {
+    guard let session, session.payload == payload else { return false }
+    return transitionSharedPreview(payload, to: session.initialPreviewType)
   }
 
   func performDetach(_ payload: TerminalTabDragPayload) -> Bool {

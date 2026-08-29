@@ -96,19 +96,7 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  private static let dragType = UTType(exportedAs: "sh.supacode.ghosttySurfaceId")
-  private static func dragProvider(for surfaceView: GhosttySurfaceView) -> NSItemProvider {
-    let provider = NSItemProvider()
-    let data = surfaceView.id.uuidString.data(using: .utf8) ?? Data()
-    provider.registerDataRepresentation(
-      forTypeIdentifier: dragType.identifier,
-      visibility: .all
-    ) { completion in
-      completion(data, nil)
-      return nil
-    }
-    return provider
-  }
+  static let dragType = UTType(exportedAs: "sh.supacode.ghosttySurfaceId")
 
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
@@ -274,7 +262,6 @@ struct TerminalSplitTreeView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dropState: DropState = .idle
-    @State private var isPaneHovering = false
     @State private var notificationPulseAnimationGeneration = 0
     @State private var notificationPulseOpacity = 0.0
 
@@ -358,12 +345,6 @@ struct TerminalSplitTreeView: View {
         .overlay {
           failureOverlay
         }
-        .overlay(alignment: .top) {
-          dragHandleOverlay
-        }
-        .onHover { hovering in
-          isPaneHovering = hovering
-        }
     }
 
     @ViewBuilder
@@ -444,16 +425,6 @@ struct TerminalSplitTreeView: View {
     private var failureOverlay: some View {
       if let failure = surfaceView.bridge.state.failure {
         GhosttySurfaceFailureOverlay(failure: failure, palette: palette)
-      }
-    }
-
-    @ViewBuilder
-    private var dragHandleOverlay: some View {
-      if isSplit {
-        DragHandle(
-          surfaceView: surfaceView,
-          isVisible: isPaneHovering
-        )
       }
     }
 
@@ -945,47 +916,6 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  struct DragHandle: View {
-    let surfaceView: GhosttySurfaceView
-    let isVisible: Bool
-    private let handleHeight: CGFloat = 10
-    @State private var isHandleHovering = false
-
-    var body: some View {
-      Rectangle()
-        .fill(Color.clear)
-        .frame(maxWidth: .infinity)
-        .frame(height: handleHeight)
-        .overlay {
-          if isVisible {
-            Image(systemName: "ellipsis")
-              .font(.system(.callout, weight: .semibold))
-              .foregroundStyle(.primary.opacity(0.5))
-              .accessibilityHidden(true)
-          }
-        }
-        .contentShape(.rect)
-        .onHover { hovering in
-          guard hovering != isHandleHovering else { return }
-          isHandleHovering = hovering
-          if hovering {
-            NSCursor.openHand.push()
-          } else {
-            NSCursor.pop()
-          }
-        }
-        .onDisappear {
-          if isHandleHovering {
-            isHandleHovering = false
-            NSCursor.pop()
-          }
-        }
-        .onDrag {
-          TerminalSplitTreeView.dragProvider(for: surfaceView)
-        }
-    }
-  }
-
   enum DropState: Equatable {
     case idle
     case dropping(TerminalSplitDropZone)
@@ -1210,6 +1140,8 @@ enum TerminalSplitAccessibility {
 /// Wraps the SwiftUI split tree in an AppKit view so we can expose an ordered
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
+  @Environment(\.terminalPaneDragClient) private var paneDragClient
+
   let agentPanelPresentations: [UUID: PaneAgentPanelPresentation]
   let dimmingColor: Color
   let dimmingOpacity: Double
@@ -1252,7 +1184,8 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
       ),
       visibleNode: visibleNode,
       action: action,
-      panes: visiblePanes
+      panes: visiblePanes,
+      paneDragClient: tree.isSplit ? paneDragClient : nil
     )
   }
 }
@@ -1271,6 +1204,8 @@ final class TerminalSplitAXContainerView: NSView {
   private var panes: [GhosttySurfaceView] = []
   private var dividerElements: [TerminalSplitAXDividerElement] = []
   private var dividerElementsByPath: [TerminalSplitAXPath: TerminalSplitAXDividerElement] = [:]
+  private var paneDragSourcesByID: [UUID: TerminalPaneDragSourceNSView] = [:]
+  private var paneTrackingArea: NSTrackingArea?
   private var panesLabel: String = "Terminal split: 0 panes"
   private var lastPaneIDs: [UUID] = []
   private var lastDividerPaths: [TerminalSplitAXPath] = []
@@ -1303,7 +1238,8 @@ final class TerminalSplitAXContainerView: NSView {
     rootView: TerminalSplitTreeView,
     visibleNode: SplitTree<GhosttySurfaceView>.Node?,
     action: @escaping (TerminalSplitTreeView.Operation) -> Void,
-    panes: [GhosttySurfaceView]
+    panes: [GhosttySurfaceView],
+    paneDragClient: TerminalPaneDragClient? = nil
   ) {
     if self.backgroundColor != backgroundColor {
       self.backgroundColor = backgroundColor
@@ -1328,6 +1264,7 @@ final class TerminalSplitAXContainerView: NSView {
 
     self.visibleNode = visibleNode
     self.action = action
+    updatePaneDragSources(panes: panes, client: paneDragClient)
     let newPaneIDs = panes.map(\.id)
     self.panes = panes
     panesLabel = "Terminal split: \(panes.count) pane" + (panes.count == 1 ? "" : "s")
@@ -1344,7 +1281,75 @@ final class TerminalSplitAXContainerView: NSView {
 
   override func layout() {
     super.layout()
+    for pane in panes {
+      let paneFrame = convert(pane.bounds, from: pane)
+      paneDragSourcesByID[pane.id]?.frame = TerminalPaneDragSourceLayout.frame(
+        for: paneFrame
+      )
+    }
     refreshAccessibilityDividers(postLayoutChanged: false)
+  }
+
+  override func updateTrackingAreas() {
+    if let paneTrackingArea {
+      removeTrackingArea(paneTrackingArea)
+    }
+    let paneTrackingArea = NSTrackingArea(
+      rect: bounds,
+      options: [.activeInKeyWindow, .mouseEnteredAndExited, .mouseMoved],
+      owner: self,
+      userInfo: nil
+    )
+    addTrackingArea(paneTrackingArea)
+    self.paneTrackingArea = paneTrackingArea
+    super.updateTrackingAreas()
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    updatePaneDragIndicators(at: convert(event.locationInWindow, from: nil))
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    updatePaneDragIndicators(at: convert(event.locationInWindow, from: nil))
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    paneDragSourcesByID.values.forEach { $0.showsIndicator = false }
+  }
+
+  private func updatePaneDragIndicators(at location: CGPoint) {
+    for pane in panes {
+      let paneFrame = convert(pane.bounds, from: pane)
+      paneDragSourcesByID[pane.id]?.showsIndicator = paneFrame.contains(location)
+    }
+  }
+
+  private func updatePaneDragSources(
+    panes: [GhosttySurfaceView],
+    client: TerminalPaneDragClient?
+  ) {
+    guard let client else {
+      paneDragSourcesByID.values.forEach { $0.removeFromSuperview() }
+      paneDragSourcesByID.removeAll()
+      return
+    }
+    let paneIDs = Set(panes.map(\.id))
+    for id in paneDragSourcesByID.keys.filter({ !paneIDs.contains($0) }) {
+      paneDragSourcesByID.removeValue(forKey: id)?.removeFromSuperview()
+    }
+    for pane in panes {
+      let source =
+        paneDragSourcesByID[pane.id]
+        ?? TerminalPaneDragSourceNSView(surfaceView: pane, client: client)
+      source.update(surfaceView: pane, client: client)
+      if source.superview == nil {
+        source.wantsLayer = true
+        source.layer?.zPosition = 2
+        addSubview(source)
+      }
+      paneDragSourcesByID[pane.id] = source
+    }
+    needsLayout = true
   }
 
   func adjustDivider(
