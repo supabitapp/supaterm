@@ -173,6 +173,7 @@ final class TerminalWindowController: NSWindowController {
         process: process,
         terminal: TerminalWindowFeature.State(
           sidebarWidth: session?.sidebarWidth.map { CGFloat($0) },
+          tabLayoutStyle: session?.tabLayoutStyle ?? .vertical,
           windowControllerID: windowControllerID
         )
       )
@@ -347,6 +348,18 @@ final class TerminalWindowController: NSWindowController {
         }
       }
     )
+    let tabStripController = NSHostingController(
+      rootView: AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
+          TerminalHorizontalTabsContentView(
+            store: input.store,
+            tabDragRegistry: input.tabDragRegistry,
+            terminal: input.terminal,
+            windowControllerID: input.windowControllerID
+          )
+        }
+      }
+    )
     shellController.isSpacePaging = { [weak terminal = input.terminal] in
       terminal?.spacePager?.isTracking == true
     }
@@ -371,6 +384,7 @@ final class TerminalWindowController: NSWindowController {
     shellController.install(
       background: backgroundController,
       sidebar: sidebarController,
+      tabStrip: tabStripController,
       detail: detailController,
       dialogOverlay: dialogController
     )

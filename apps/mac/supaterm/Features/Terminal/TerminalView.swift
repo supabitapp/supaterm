@@ -252,7 +252,8 @@ struct TerminalView: View {
     TerminalWindowShellPresentation(
       isSidebarCollapsed: store.isSidebarCollapsed,
       sidebarResizeState: store.sidebarResizeState,
-      sidebarWidth: store.sidebarWidth
+      sidebarWidth: store.sidebarWidth,
+      tabLayoutStyle: store.tabLayoutStyle
     )
   }
 }

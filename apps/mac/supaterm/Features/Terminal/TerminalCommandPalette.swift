@@ -45,6 +45,7 @@ enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case focusPane(TerminalCommandPaletteFocusTarget)
   case update(UpdateUserAction)
   case toggleSidebar
+  case toggleTabLayout
   case createSpace
   case renameSpace(TerminalSpaceItem)
   case togglePinned(TerminalTabID)
@@ -791,6 +792,17 @@ enum TerminalCommandPalettePresentation {
     @Shared(.supatermSettings) var supatermSettings = .default
     var rows = [
       TerminalCommandPaletteRow(
+        id: "supaterm:toggle-tab-layout",
+        title: "Toggle Tab Layout",
+        subtitle: "View",
+        description: nil,
+        leadingIcon: "rectangle.topthird.inset.filled",
+        badge: nil,
+        emphasis: false,
+        shortcut: nil,
+        command: .toggleTabLayout
+      ),
+      TerminalCommandPaletteRow(
         id: "supaterm:toggle-sidebar",
         title: "Toggle Sidebar",
         subtitle: "View",
@@ -803,7 +815,7 @@ enum TerminalCommandPalettePresentation {
           overrides: supatermSettings.shortcutOverrides
         )?.display,
         command: .toggleSidebar
-      )
+      ),
     ]
     rows.append(contentsOf: appRows([.openSettings], from: snapshot))
     return rows
