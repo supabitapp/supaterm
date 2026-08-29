@@ -40,6 +40,18 @@ Generate the macOS workspace:
 make mac-generate
 ```
 
+Generate the iOS workspace:
+
+```bash
+make ios-generate
+```
+
+Generate one workspace with both apps:
+
+```bash
+make apple-generate
+```
+
 Generate without external binary cache:
 
 ```bash
@@ -61,6 +73,13 @@ make mac-check          # format + lint
 make mac-test           # full test suite
 ```
 
+Canonical iOS gates:
+
+```bash
+make ios-check
+make ios-build
+```
+
 Useful macOS development commands:
 
 ```bash
@@ -70,6 +89,17 @@ make mac-build          # Debug build
 make mac-run            # Debug run with isolated persistent state
 make mac-inspect-dependencies # Check Tuist dependency graph hygiene
 ```
+
+Useful iOS development commands:
+
+```bash
+make ios-generate
+make ios-xcode-open
+make ios-build
+make ios-inspect-dependencies
+```
+
+The Apple projects share package versions through `apps/Tuist` and reusable targets through `apps/shared`.
 
 Snapshot commands:
 

@@ -23,7 +23,7 @@ TUIST_CACHED_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_BINARY_CA
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
 TUIST_CACHED_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_BINARY_CACHE_PROFILE)-release
 TUIST_SOURCE_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
-TUIST_GENERATION_INPUTS := Project.swift Workspace.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
+TUIST_GENERATION_INPUTS := Project.swift ../Tuist.swift ../Tuist/Package.swift ../Tuist/Package.resolved ../shared/Project.swift Configurations/Project.xcconfig ../Configurations/Versions.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= $(TUIST_BINARY_CACHE_PROFILE)
 TUIST_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
@@ -232,10 +232,10 @@ scan-dead-code: tuist-generate build-ghostty build-zmx build-ap
 	mise exec -- periphery scan --skip-build --schemes $(PERIPHERY_SCHEMES) --index-store-path "$(PERIPHERY_INDEX_STORE_PATH)"
 
 format: # Format code with swift format (local only)
-	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupaThemeLogoGenerator SupatermCLIShared SupatermTestSupport SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
+	swift format -p --in-place --recursive --configuration ../.swift-format.json ../shared/SupaTheme SupaThemeLogoGenerator SupatermCLIShared SupatermTestSupport SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
 
 lint: # Lint code with swiftlint
-	"$$(mise which swiftlint)" lint --quiet --config .swiftlint.yml
+	"$$(mise which swiftlint)" lint --quiet --config ../.swiftlint.yml
 
 inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant Tuist dependencies
 	mise exec -- tuist inspect dependencies

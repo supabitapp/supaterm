@@ -1,6 +1,9 @@
 ## Layout
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
+- `apps/ios` — iOS app and Tuist project
+- `apps/shared` — code and resources shared by the macOS and iOS projects
+- `apps/Tuist` — shared Apple-platform package dependencies and lockfile
 - `apps/supaterm.com` — Marketing website (Vite+, Cloudflare Workers)
 - `apps/docs.supaterm.com` — Documentation website (Blume, Cloudflare Workers)
 - `integrations/supaterm-skills` — User-facing skill submodule for Supaterm integrations and agent workflows

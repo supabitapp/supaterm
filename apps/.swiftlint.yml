@@ -1,13 +1,14 @@
 strict: true
 
 included:
-  - SupaTheme
-  - SupaThemeLogoGenerator
-  - supaterm
-  - supatermTests
-  - supatermSnapshotTests
-  - supatermE2E
-  - supatermUITests
+  - ios/Sources
+  - mac/SupaThemeLogoGenerator
+  - mac/supaterm
+  - mac/supatermTests
+  - mac/supatermSnapshotTests
+  - mac/supatermE2E
+  - mac/supatermUITests
+  - shared/SupaTheme
 
 disabled_rules:
   - file_length
@@ -72,10 +73,10 @@ custom_rules:
     regex: "(?:\\.sleep|\\bu?sleep)\\s*\\("
     message: "Wait for observable UI state with XCTest."
     severity: error
-    included: "supatermUITests/.*\\.swift"
+    included: "mac/supatermUITests/.*\\.swift"
   store_state_mutation_in_views:
     name: "Store State Mutation In Views"
     regex: "\\bstore\\.[A-Za-z0-9_]+\\s*(?:\\+=|-=|\\*=|/=|=(?!=))"
     message: "Do not mutate store state directly in views. Send actions instead."
     severity: error
-    included: "supaterm/.*/Views/.*\\.swift"
+    included: "(?:ios/Sources|mac/supaterm/.*/Views)/.*\\.swift"
