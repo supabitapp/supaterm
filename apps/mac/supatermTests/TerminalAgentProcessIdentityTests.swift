@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 import Testing
 
+@testable import SupatermSupport
 @testable import supaterm
 
 struct TerminalAgentProcessIdentityTests {
@@ -23,6 +24,43 @@ struct TerminalAgentProcessIdentityTests {
     #expect(
       TerminalAgentProcessInspector.workingDirectoryPath(for: identity)
         == FileManager.default.currentDirectoryPath
+    )
+  }
+
+  @Test(
+    arguments: [
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "/tmp/agent"],
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C", "agent"],
+        expectedPath: "/tmp/shell/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd=/tmp/agent"],
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-Cagent"],
+        expectedPath: "/tmp/shell/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "/tmp/first", "-C", "/tmp/last"],
+        expectedPath: "/tmp/last"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex"],
+        expectedPath: "/tmp/shell"
+      ),
+    ]
+  )
+  func codexWorkingDirectoryFollowsCommandLine(testCase: CodexWorkingDirectoryTestCase) {
+    #expect(
+      TerminalAgentProcessInspector.codexWorkingDirectoryPath(
+        processWorkingDirectoryPath: "/tmp/shell",
+        commandLineArguments: testCase.arguments
+      ) == testCase.expectedPath
     )
   }
 
@@ -50,4 +88,9 @@ struct TerminalAgentProcessIdentityTests {
     #expect(TerminalAgentProcessInspector.identity(for: processID) == nil)
     #expect(TerminalAgentProcessInspector.foregroundProcessGroupID(for: processID) == nil)
   }
+}
+
+struct CodexWorkingDirectoryTestCase: Sendable {
+  let arguments: [String]
+  let expectedPath: String
 }

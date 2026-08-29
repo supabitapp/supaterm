@@ -807,7 +807,7 @@ extension TerminalHostState {
         let observation = agentDetectionStore.observation(for: surface.id),
         observation.agent == identity,
         TerminalAgentPanelWorkspaceKey(
-          workingDirectoryPath: TerminalAgentProcessInspector.workingDirectoryPath(
+          workingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
             for: observation.processIdentity
           )
         ) == workspace

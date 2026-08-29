@@ -1,4 +1,5 @@
 import Darwin
+import Foundation
 
 public struct TerminalAgentProcessIdentity: Codable, Equatable, Hashable, Sendable {
   public let processID: Int32
@@ -84,6 +85,47 @@ public enum TerminalAgentProcessInspector {
       }
     }
     return path.isEmpty ? nil : path
+  }
+
+  public static func codexWorkingDirectoryPath(
+    for identity: TerminalAgentProcessIdentity
+  ) -> String? {
+    guard let processWorkingDirectoryPath = workingDirectoryPath(for: identity) else {
+      return nil
+    }
+    return codexWorkingDirectoryPath(
+      processWorkingDirectoryPath: processWorkingDirectoryPath,
+      commandLineArguments: commandLineArguments(for: identity) ?? []
+    )
+  }
+
+  static func codexWorkingDirectoryPath(
+    processWorkingDirectoryPath: String,
+    commandLineArguments: [String]
+  ) -> String {
+    var declaredPath: String?
+    for index in commandLineArguments.indices {
+      let argument = commandLineArguments[index]
+      if argument == "--cd" || argument == "-C" {
+        let valueIndex = commandLineArguments.index(after: index)
+        if valueIndex < commandLineArguments.endIndex {
+          declaredPath = commandLineArguments[valueIndex]
+        }
+      } else if argument.hasPrefix("--cd=") {
+        declaredPath = String(argument.dropFirst("--cd=".count))
+      } else if argument.hasPrefix("-C"), argument.count > 2 {
+        declaredPath = String(argument.dropFirst(2))
+      }
+    }
+    guard let declaredPath, !declaredPath.isEmpty else {
+      return processWorkingDirectoryPath
+    }
+    return URL(
+      fileURLWithPath: declaredPath,
+      relativeTo: URL(fileURLWithPath: processWorkingDirectoryPath, isDirectory: true)
+    )
+    .standardizedFileURL
+    .path(percentEncoded: false)
   }
 
   public static func foregroundProcessGroupID(for processID: Int32) -> Int32? {
