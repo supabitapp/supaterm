@@ -12,6 +12,7 @@ final class TerminalPaneDragClient {
     let operationID: TerminalTabMoveOperationID
     var captureTask: Task<Void, Never>?
     var didTransfer = false
+    var splitDestinationID: UUID?
   }
 
   private let captureClient: TerminalWindowCaptureClient
@@ -75,6 +76,33 @@ final class TerminalPaneDragClient {
   func move(_ payload: TerminalTabDragPayload, to screenPoint: CGPoint) {
     guard activeDrag?.operationID == payload.moveOperationID else { return }
     _ = registry.move(to: screenPoint, sourceSurfaceFrame: .null)
+  }
+
+  func enteredSplitDestination(_ destinationID: UUID) {
+    guard
+      var activeDrag,
+      let payload = registry.activePayload,
+      payload.moveOperationID == activeDrag.operationID,
+      let sourceID = payload.pane?.surfaceID
+    else { return }
+    activeDrag.splitDestinationID = destinationID
+    self.activeDrag = activeDrag
+    registry.transitionSharedPreview(
+      payload,
+      to: sourceID == destinationID ? .window : .contentPane
+    )
+  }
+
+  func exitedSplitDestination(_ destinationID: UUID) {
+    guard
+      var activeDrag,
+      activeDrag.splitDestinationID == destinationID,
+      let payload = registry.activePayload,
+      payload.moveOperationID == activeDrag.operationID
+    else { return }
+    activeDrag.splitDestinationID = nil
+    self.activeDrag = activeDrag
+    registry.transitionSharedPreview(payload, to: .window)
   }
 
   func end(_ payload: TerminalTabDragPayload) {

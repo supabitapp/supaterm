@@ -218,7 +218,7 @@ final class TerminalTabDragRegistry {
       var session,
       session.payload == payload,
       case .sharedPreview = session.presentationState,
-      type != .contentPane || payload.singleTabID != nil,
+      type != .contentPane || payload.singleTabID != nil || payload.pane != nil,
       type != session.previewType
     else { return false }
     session.previewType = type

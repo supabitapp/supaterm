@@ -172,6 +172,50 @@ struct TerminalPaneTabMoveTests {
   }
 
   @Test
+  func paneDragUsesContentPreviewOverAnotherPane() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = makeFixture()
+      let previewPresenter = TerminalTabDragPreviewRecorder()
+      let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)
+      let client = TerminalPaneDragClient(
+        terminal: fixture.host,
+        windowControllerID: UUID(),
+        registry: registry,
+        captureClient: TerminalWindowCaptureClient { _ in nil }
+      )
+      let source = fixture.surfaces[1]
+      let destination = fixture.surfaces[2]
+      let nextDestination = fixture.surfaces[0]
+      let payload = try #require(client.begin(surfaceView: source))
+      client.move(payload, to: CGPoint(x: 800, y: 500))
+
+      client.enteredSplitDestination(destination.id)
+
+      #expect(previewPresenter.currentType == .contentPane)
+      #expect(previewPresenter.transitions == [.contentPane])
+
+      client.enteredSplitDestination(nextDestination.id)
+      client.exitedSplitDestination(destination.id)
+
+      #expect(previewPresenter.currentType == .contentPane)
+      #expect(previewPresenter.transitions == [.contentPane])
+
+      client.exitedSplitDestination(nextDestination.id)
+
+      #expect(previewPresenter.currentType == .window)
+      #expect(previewPresenter.transitions == [.contentPane, .window])
+
+      client.enteredSplitDestination(source.id)
+
+      #expect(previewPresenter.currentType == .window)
+      #expect(previewPresenter.transitions == [.contentPane, .window])
+      client.end(payload)
+    }
+  }
+
+  @Test
   func movingAllPanesKeepsFocusedPaneAndPreservesSelection() {
     withDependencies {
       $0.defaultFileStorage = .inMemory

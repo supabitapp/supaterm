@@ -778,7 +778,7 @@ final class TerminalWindowShellController: NSViewController {
   }
 
   private func dragDestinationExited() {
-    if let payload = tabDragRegistry.activePayload {
+    if let payload = tabDragRegistry.activePayload, payload.singleTabID != nil {
       tabDragRegistry.transitionSharedPreview(payload, to: .window)
     }
     resetSplitDrop()

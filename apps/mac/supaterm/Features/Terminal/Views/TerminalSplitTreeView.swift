@@ -53,6 +53,7 @@ struct TerminalSplitTreeView: View {
   let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
+  let paneDragClient: TerminalPaneDragClient?
   let action: (Operation) -> Void
 
   enum OuterEdgeBranch {
@@ -119,6 +120,7 @@ struct TerminalSplitTreeView: View {
         action: action
       )
       .id(node.structuralIdentity)
+      .environment(\.terminalPaneDragClient, paneDragClient)
     }
   }
 
@@ -261,6 +263,7 @@ struct TerminalSplitTreeView: View {
     let action: (Operation) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.terminalPaneDragClient) private var paneDragClient
     @State private var dropState: DropState = .idle
     @State private var notificationPulseAnimationGeneration = 0
     @State private var notificationPulseOpacity = 0.0
@@ -437,6 +440,7 @@ struct TerminalSplitTreeView: View {
             dropState: $dropState,
             viewSize: size,
             destinationId: surfaceView.id,
+            paneDragClient: paneDragClient,
             action: action
           ))
     }
@@ -925,6 +929,7 @@ struct TerminalSplitTreeView: View {
     @Binding var dropState: DropState
     let viewSize: CGSize
     let destinationId: UUID
+    let paneDragClient: TerminalPaneDragClient?
     let action: (Operation) -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
@@ -933,6 +938,7 @@ struct TerminalSplitTreeView: View {
 
     func dropEntered(info: DropInfo) {
       dropState = .dropping(.calculate(at: info.location, in: viewSize))
+      paneDragClient?.enteredSplitDestination(destinationId)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -943,6 +949,7 @@ struct TerminalSplitTreeView: View {
 
     func dropExited(info: DropInfo) {
       dropState = .idle
+      paneDragClient?.exitedSplitDestination(destinationId)
     }
 
     func performDrop(info: DropInfo) -> Bool {
@@ -1180,6 +1187,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
         splitDividerColor: splitDividerColor,
         tree: tree,
         unreadSurfaceIDs: unreadSurfaceIDs,
+        paneDragClient: paneDragClient,
         action: action
       ),
       visibleNode: visibleNode,

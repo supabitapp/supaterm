@@ -74,6 +74,7 @@ struct TerminalSplitTreeViewTests {
       splitDividerColor: .clear,
       tree: SplitTree(),
       unreadSurfaceIDs: [],
+      paneDragClient: nil,
       action: { _ in }
     )
 
