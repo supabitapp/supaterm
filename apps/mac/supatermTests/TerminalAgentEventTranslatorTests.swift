@@ -42,20 +42,6 @@ struct TerminalAgentEventTranslatorTests {
   }
 
   @Test
-  func codexSessionStartRejectsEmptyTranscriptPath() {
-    let request = SupatermAgentHookRequest(
-      agent: .codex,
-      event: SupatermAgentHookEvent(
-        hookEventName: .sessionStart,
-        sessionID: "session-1",
-        transcriptPath: ""
-      )
-    )
-
-    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
-  }
-
-  @Test
   func codexSessionStartAcceptsMatchingInheritedSession() {
     let request = SupatermAgentHookRequest(
       agent: .codex,

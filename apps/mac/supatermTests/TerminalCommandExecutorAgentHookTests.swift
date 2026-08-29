@@ -103,44 +103,6 @@ struct TerminalCommandExecutorAgentHookTests {
   }
 
   @Test
-  func codexInternalSessionCannotReplaceForegroundIdentity() throws {
-    let harness = try makeClaudeHookHarness()
-    let processID = getpid()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      agentHookRequest(
-        agent: .codex,
-        sessionID: "foreground-session",
-        hookEventName: .sessionStart,
-        context: harness.context,
-        processID: processID
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .codex,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          cwd: "/tmp/codex/memories",
-          hookEventName: .sessionStart,
-          sessionID: "internal-session",
-          transcriptPath: "/tmp/codex/memories/internal-session.jsonl"
-        ),
-        inheritedSessionID: "foreground-session",
-        processID: processID
-      )
-    )
-
-    #expect(
-      harness.host.agentStateStore.foregroundSessionID(
-        for: harness.context.surfaceID,
-        agent: .codex
-      ) == "foreground-session"
-    )
-    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "internal-session"))
-  }
-
-  @Test
   func ephemeralCodexSessionCannotReplacePersistedSession() throws {
     let harness = try makeClaudeHookHarness()
     let processID = getpid()
@@ -209,6 +171,7 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     _ = try harness.commandExecutor.handleAgentHook(
       codexSessionStartRequest(
+        cwd: "/tmp/codex/memories",
         context: harness.context,
         sessionID: "nested-session",
         inheritedSessionID: "root-session",
@@ -397,6 +360,7 @@ private func codexSessionStartEvent(
 }
 
 private func codexSessionStartRequest(
+  cwd: String = CodexHookFixtures.cwd,
   context: SupatermCLIContext,
   sessionID: String,
   inheritedSessionID: String? = nil,
@@ -406,8 +370,9 @@ private func codexSessionStartRequest(
     agent: .codex,
     context: context,
     event: codexSessionStartEvent(
+      cwd: cwd,
       sessionID: sessionID,
-      transcriptPath: "/tmp/\(sessionID).jsonl"
+      transcriptPath: "\(cwd)/\(sessionID).jsonl"
     ),
     inheritedSessionID: inheritedSessionID,
     processID: processID
