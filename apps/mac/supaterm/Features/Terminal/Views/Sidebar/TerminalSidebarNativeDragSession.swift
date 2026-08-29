@@ -2,8 +2,6 @@ import AppKit
 
 @MainActor
 final class TerminalSidebarNativeDragSession {
-  private static let previewContentVerticalInset: CGFloat = 80
-
   private struct SourceCapture {
     let id: UUID
     var previewImage: NSImage?
@@ -69,10 +67,7 @@ final class TerminalSidebarNativeDragSession {
       return false
     }
     return prepareSourceCapture(
-      previewContentSize: CGSize(
-        width: window.frame.width,
-        height: window.frame.height - Self.previewContentVerticalInset
-      ),
+      previewContentSize: TerminalTabDragPreviewLayout.sourceContentSize(for: window.frame),
       request: captureRequest()
     )
   }

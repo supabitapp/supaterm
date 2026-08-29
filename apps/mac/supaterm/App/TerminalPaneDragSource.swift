@@ -1,5 +1,4 @@
 import AppKit
-import SupaTheme
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -49,21 +48,15 @@ final class TerminalPaneDragClient {
       surfaceID: surfaceView.id,
       destinationTabID: TerminalTabID()
     )
-    let palette = terminal.chromePalette(
-      appearanceMode: terminal.supatermSettings.appearanceMode
-    )
-    let tabPreviewImage = TerminalPaneDragPreviewRenderer.image(
-      title: surfaceView.resolvedDisplayTitle(defaultValue: "Pane"),
-      palette: palette,
-      scale: surfaceView.window?.backingScaleFactor ?? 2
-    )
     guard
       registry.begin(
         payload,
-        tabPreviewImage: tabPreviewImage,
-        previewContentSize: surfaceView.bounds.size,
-        sidebarDropGapHeight: TerminalPaneDragPreviewRenderer.size.height,
-        initialPreviewType: .tab,
+        previewContentSize: previewContentSize(for: surfaceView),
+        sidebarDropGapHeight: max(
+          TerminalSidebarLayout.tabRowMinHeight,
+          TerminalSidebarLayout.tabTrailingAccessorySize
+            + TerminalSidebarLayout.tabRowVerticalPadding * 2
+        ),
         didTransfer: { [weak self] completedOperationID, _ in
           guard
             var activeDrag = self?.activeDrag,
@@ -130,6 +123,11 @@ final class TerminalPaneDragClient {
         backingScaleFactor: window.backingScaleFactor
       )
     )
+  }
+
+  private func previewContentSize(for surfaceView: GhosttySurfaceView) -> CGSize {
+    guard let window = surfaceView.window else { return surfaceView.bounds.size }
+    return TerminalTabDragPreviewLayout.sourceContentSize(for: window.frame)
   }
 }
 
@@ -276,65 +274,5 @@ final class TerminalPaneDragSourceNSView: NSView, NSDraggingSource {
     if let payload {
       client.move(payload, to: NSEvent.mouseLocation)
     }
-  }
-}
-
-private enum TerminalPaneDragPreviewRenderer {
-  static let size = CGSize(
-    width: 210,
-    height: TerminalTabDragPreviewLayout.tabPreviewHeight
-  )
-
-  static func image(title: String, palette: Palette, scale: CGFloat) -> NSImage? {
-    let renderer = ImageRenderer(
-      content: TerminalPaneDragTabPreview(title: title, palette: palette)
-        .frame(width: size.width, height: size.height)
-    )
-    renderer.scale = scale
-    return renderer.nsImage
-  }
-}
-
-private struct TerminalPaneDragTabPreview: View {
-  let title: String
-  let palette: Palette
-
-  private var rowAppearance: SelectableRowStyle.ResolvedAppearance {
-    SelectableRowStyle.Appearance.sidebar.resolve(palette: palette)
-  }
-
-  var body: some View {
-    TerminalSidebarTabSummaryView(
-      tab: TerminalTabItem(title: title),
-      palette: palette,
-      isSelected: true,
-      isPinned: false,
-      details: [],
-      unreadCount: 0,
-      agentStatus: nil,
-      hasTerminalBell: false,
-      terminalProgress: nil,
-      shortcutHint: nil,
-      showsShortcutHint: false,
-      isRowHovering: false
-    )
-    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
-    .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    .background(
-      rowAppearance.fill(
-        selection: .primary,
-        isPressed: false,
-        isHovering: false
-      )
-    )
-    .modifier(
-      SelectableRowChrome(
-        selection: .primary,
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-        appearance: rowAppearance,
-        showsSelectionEdge: true
-      )
-    )
   }
 }

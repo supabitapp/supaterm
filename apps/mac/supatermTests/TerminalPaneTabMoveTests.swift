@@ -1,3 +1,4 @@
+import AppKit
 import Dependencies
 import Foundation
 import GhosttyKit
@@ -126,6 +127,47 @@ struct TerminalPaneTabMoveTests {
 
       #expect(fixture.host.moveAllPanesToNewTabs(fixture.tabID))
       #expect(client.begin(surfaceView: fixture.surfaces[1]) == nil)
+    }
+  }
+
+  @Test
+  func paneDragUsesTabWindowPreviewGeometry() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = makeFixture()
+      let previewPresenter = TerminalTabDragPreviewRecorder()
+      let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)
+      let window = NSWindow(
+        contentRect: CGRect(x: 100, y: 100, width: 1_000, height: 700),
+        styleMask: .borderless,
+        backing: .buffered,
+        defer: false
+      )
+      let surface = fixture.surfaces[1]
+      surface.frame = CGRect(x: 600, y: 0, width: 300, height: 620)
+      try #require(window.contentView).addSubview(surface)
+      let client = TerminalPaneDragClient(
+        terminal: fixture.host,
+        windowControllerID: UUID(),
+        registry: registry,
+        captureClient: TerminalWindowCaptureClient { _ in nil }
+      )
+      let payload = try #require(client.begin(surfaceView: surface))
+      let screenPoint = CGPoint(x: 800, y: 500)
+
+      client.move(payload, to: screenPoint)
+
+      #expect(previewPresenter.typesDuringShows == [.window])
+      #expect(
+        previewPresenter.requestedFrames == [
+          TerminalTabDragPreviewLayout.frame(
+            for: TerminalTabDragPreviewLayout.sourceContentSize(for: window.frame),
+            at: screenPoint
+          )
+        ]
+      )
+      client.end(payload)
     }
   }
 

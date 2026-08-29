@@ -90,57 +90,22 @@ struct TerminalTabDragPayloadTests {
   @Test
   func previewTypeMorphKeepsStableSilhouetteTopologyAndExpandsItsContent() {
     let bounds = CGRect(x: 0, y: 0, width: 210, height: 120)
-    let tabFrame = TerminalTabDragPreviewLayout.contentFrame(for: .tab, in: bounds)
     let windowFrame = TerminalTabDragPreviewLayout.contentFrame(for: .window, in: bounds)
     let contentPaneFrame = TerminalTabDragPreviewLayout.contentFrame(for: .contentPane, in: bounds)
-    let tabPath = TerminalTabDragPreviewLayout.silhouettePath(for: .tab, in: bounds)
     let windowPath = TerminalTabDragPreviewLayout.silhouettePath(for: .window, in: bounds)
     let contentPanePath = TerminalTabDragPreviewLayout.silhouettePath(for: .contentPane, in: bounds)
 
-    #expect(tabFrame == CGRect(x: 2, y: 43, width: 206, height: 34))
     #expect(windowFrame == CGRect(x: 47, y: 2, width: 161, height: 116))
     #expect(contentPaneFrame == CGRect(x: 2, y: 2, width: 206, height: 116))
     #expect(
       TerminalTabDragPreviewLayout.windowControlsFrame(in: bounds)
         == CGRect(x: 6, y: 111, width: 16, height: 4)
     )
-    #expect(silhouetteSubpathCount(tabPath) == 1)
     #expect(silhouetteSubpathCount(windowPath) == 2)
     #expect(silhouetteSubpathCount(contentPanePath) == 2)
     #expect(windowPath.contains(CGPoint(x: 5, y: 18)))
     #expect(!windowPath.contains(CGPoint(x: 45, y: 18)))
     #expect(contentPanePath.contains(CGPoint(x: 45, y: 18)))
-  }
-
-  @Test
-  func panePreviewStartsAsALiftedTabAndMorphsForDesktopTearOff() {
-    let previewPresenter = TerminalTabDragPreviewRecorder()
-    let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)
-    let payload = TerminalTabDragPayload(
-      operationID: TerminalTabMoveOperationID(),
-      sourceWindowID: UUID(),
-      sourceSpaceID: TerminalSpaceID(),
-      sourceTopologyRevision: 0,
-      surfaceID: UUID(),
-      destinationTabID: TerminalTabID()
-    )
-
-    #expect(
-      registry.begin(
-        payload,
-        previewImage: NSImage(size: CGSize(width: 1_440, height: 900)),
-        tabPreviewImage: NSImage(size: CGSize(width: 210, height: 34)),
-        previewContentSize: CGSize(width: 1_440, height: 820),
-        initialPreviewType: .tab
-      )
-    )
-    _ = registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: .null)
-
-    #expect(previewPresenter.typesDuringShows == [.tab])
-    #expect(!registry.transitionSharedPreview(payload, to: .contentPane))
-    #expect(registry.transitionSharedPreview(payload, to: .window))
-    #expect(registry.restoreSharedPreview(payload))
-    #expect(previewPresenter.transitions == [.window, .tab])
   }
 
   @Test
@@ -546,7 +511,7 @@ private func silhouetteSubpathCount(_ path: CGPath) -> Int {
 }
 
 @MainActor
-private final class TerminalTabDragPreviewRecorder: TerminalTabDragPreviewPresenting {
+final class TerminalTabDragPreviewRecorder: TerminalTabDragPreviewPresenting {
   private(set) var requestedFrames: [CGRect] = []
   private(set) var imageWasPresent: [Bool] = []
   private(set) var typesDuringShows: [TerminalTabDragPreviewType] = []

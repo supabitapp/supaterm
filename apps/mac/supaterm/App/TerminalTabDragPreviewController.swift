@@ -12,11 +12,7 @@ struct TerminalTabDragPreviewLayout {
   private static let fallbackHeight: CGFloat = 138.6
   private static let contentInset: CGFloat = 2
   private static let windowContentLeadingInset: CGFloat = 45
-  static let tabPreviewHeight = max(
-    TerminalSidebarLayout.tabRowMinHeight,
-    TerminalSidebarLayout.tabTrailingAccessorySize
-      + TerminalSidebarLayout.tabRowVerticalPadding * 2
-  )
+  private static let sourceContentVerticalInset: CGFloat = 80
 
   static func frame(
     for sourceSize: CGSize?,
@@ -28,6 +24,13 @@ struct TerminalTabDragPreviewLayout {
       y: screenPoint.y - size.height / 2,
       width: size.width,
       height: size.height
+    )
+  }
+
+  static func sourceContentSize(for windowFrame: CGRect) -> CGSize {
+    CGSize(
+      width: windowFrame.width,
+      height: max(0, windowFrame.height - sourceContentVerticalInset)
     )
   }
 
@@ -54,14 +57,6 @@ struct TerminalTabDragPreviewLayout {
   static func contentFrame(for type: TerminalTabDragPreviewType, in bounds: CGRect) -> CGRect {
     let surfaceFrame = contentHostFrame(in: bounds)
     switch type {
-    case .tab:
-      let height = min(tabPreviewHeight, surfaceFrame.height)
-      return CGRect(
-        x: surfaceFrame.minX,
-        y: surfaceFrame.midY - height / 2,
-        width: surfaceFrame.width,
-        height: height
-      )
     case .window:
       let minX = min(surfaceFrame.maxX, surfaceFrame.minX + windowContentLeadingInset)
       return CGRect(
@@ -78,17 +73,15 @@ struct TerminalTabDragPreviewLayout {
   static func silhouettePath(for type: TerminalTabDragPreviewType, in bounds: CGRect) -> CGPath {
     let surfaceFrame = contentHostFrame(in: bounds)
     let path = CGMutablePath()
-    if type != .tab {
-      path.addRoundedRect(
-        in: CGRect(x: surfaceFrame.minX + 2, y: surfaceFrame.minY + 12, width: 40, height: 8),
-        cornerWidth: 2.5,
-        cornerHeight: 2.5
-      )
-    }
+    path.addRoundedRect(
+      in: CGRect(x: surfaceFrame.minX + 2, y: surfaceFrame.minY + 12, width: 40, height: 8),
+      cornerWidth: 2.5,
+      cornerHeight: 2.5
+    )
     path.addRoundedRect(
       in: contentFrame(for: type, in: bounds),
-      cornerWidth: type == .tab ? 8 : 2,
-      cornerHeight: type == .tab ? 8 : 2
+      cornerWidth: 2,
+      cornerHeight: 2
     )
     return path
   }
@@ -337,7 +330,6 @@ private final class TerminalTabDragSnapshotView: NSView {
     layer?.shadowPath = rootPath
     effectView.frame = bounds
     windowControlsView.frame = TerminalTabDragPreviewLayout.windowControlsFrame(in: effectView.bounds)
-    windowControlsView.isHidden = previewType == .tab
     imageContainerView.frame = contentFrame
     imageView.frame = TerminalTabDragPreviewLayout.snapshotFrame(
       for: image?.size,
