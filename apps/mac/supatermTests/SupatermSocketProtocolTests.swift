@@ -1070,11 +1070,13 @@ struct SupatermSocketProtocolTests {
       candidates: [
         SupatermAgentHookCandidate(
           context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-          processID: 123
+          processID: 123,
+          workingDirectoryMatch: .exact
         ),
         SupatermAgentHookCandidate(
           context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-          processID: 456
+          processID: 456,
+          workingDirectoryMatch: .unknown
         ),
       ]
     )

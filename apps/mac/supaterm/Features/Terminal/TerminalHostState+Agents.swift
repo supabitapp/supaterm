@@ -805,18 +805,25 @@ extension TerminalHostState {
       guard
         let tabID = tabID(containing: surface.id),
         let observation = agentDetectionStore.observation(for: surface.id),
-        observation.agent == identity,
-        TerminalAgentPanelWorkspaceKey(
-          workingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
-            for: observation.processIdentity
-          )
-        ) == workspace
+        observation.agent == identity
       else {
         return nil
       }
+      let candidateWorkspace = TerminalAgentPanelWorkspaceKey(
+        workingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
+          for: observation.processIdentity
+        )
+      )
+      let workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch =
+        if let candidateWorkspace {
+          candidateWorkspace == workspace ? .exact : .different
+        } else {
+          .unknown
+        }
       return SupatermAgentHookCandidate(
         context: SupatermCLIContext(surfaceID: surface.id, tabID: tabID.rawValue),
-        processID: observation.processIdentity.processID
+        processID: observation.processIdentity.processID,
+        workingDirectoryMatch: workingDirectoryMatch
       )
     }
   }

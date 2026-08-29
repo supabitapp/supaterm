@@ -174,13 +174,25 @@ public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
   }
 }
 
+public enum SupatermAgentHookWorkingDirectoryMatch: String, Equatable, Sendable, Codable {
+  case different
+  case exact
+  case unknown
+}
+
 public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
   public let context: SupatermCLIContext
   public let processID: Int32
+  public let workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch
 
-  public init(context: SupatermCLIContext, processID: Int32) {
+  public init(
+    context: SupatermCLIContext,
+    processID: Int32,
+    workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch
+  ) {
     self.context = context
     self.processID = processID
+    self.workingDirectoryMatch = workingDirectoryMatch
   }
 }
 

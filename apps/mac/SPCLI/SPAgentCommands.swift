@@ -203,6 +203,45 @@ private struct AgentHookCandidateMatch {
   let candidate: SupatermAgentHookCandidate
 }
 
+enum AgentHookCandidateDecision: Equatable {
+  case deliver(Int)
+  case reject
+  case retry
+}
+
+func agentHookCandidateDecision(
+  candidates: [SupatermAgentHookCandidate],
+  processID: Int32?,
+  pollingComplete: Bool,
+  retryExpired: Bool
+) -> AgentHookCandidateDecision {
+  if let processID {
+    let processMatches = candidates.indices.filter { candidates[$0].processID == processID }
+    if processMatches.count == 1, let index = processMatches.first {
+      return .deliver(index)
+    }
+    return retryExpired ? .reject : .retry
+  }
+
+  let exactMatches = candidates.indices.filter {
+    candidates[$0].workingDirectoryMatch == .exact
+  }
+  if exactMatches.count == 1, let index = exactMatches.first {
+    return .deliver(index)
+  }
+  guard retryExpired, exactMatches.isEmpty else {
+    return retryExpired ? .reject : .retry
+  }
+
+  let fallbackMatches = candidates.indices.filter {
+    candidates[$0].workingDirectoryMatch == .unknown
+  }
+  guard pollingComplete, fallbackMatches.count == 1, let index = fallbackMatches.first else {
+    return .reject
+  }
+  return .deliver(index)
+}
+
 private enum AgentHookCandidateTiming {
   static let connectRetryTimeout: TimeInterval = 0.25
   static let responseTimeout: TimeInterval = 0.25
@@ -221,20 +260,28 @@ private func receiveContextlessCodexSessionStart(
   let candidatesRequest = try SupatermSocketRequest.agentHookCandidates(request)
 
   while true {
-    let matches = destinations.flatMap { destination -> [AgentHookCandidateMatch] in
+    let pollingResults = destinations.map { destination -> [AgentHookCandidateMatch]? in
       guard
         let response = try? destination.candidateClient.send(candidatesRequest),
         response.ok,
         let result = try? response.decodeResult(SupatermAgentHookCandidates.self)
       else {
-        return []
+        return nil
       }
       return result.candidates.map {
         AgentHookCandidateMatch(destination: destination, candidate: $0)
       }
     }
-
-    if matches.count == 1, let match = matches.first {
+    let matches = pollingResults.compactMap { $0 }.flatMap { $0 }
+    let decision = agentHookCandidateDecision(
+      candidates: matches.map(\.candidate),
+      processID: request.processID,
+      pollingComplete: pollingResults.allSatisfy { $0 != nil },
+      retryExpired: Date() >= deadline
+    )
+    switch decision {
+    case .deliver(let index):
+      let match = matches[index]
       let response = try match.destination.deliveryClient.send(
         try SupatermSocketRequest.agentHook(
           SupatermAgentHookRequest(
@@ -250,11 +297,13 @@ private func receiveContextlessCodexSessionStart(
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
       return
-    }
-    guard matches.isEmpty, Date() < deadline else {
+    case .reject:
       return
+    case .retry:
+      Thread.sleep(
+        forTimeInterval: min(AgentHookCandidateTiming.retryInterval, deadline.timeIntervalSinceNow)
+      )
     }
-    Thread.sleep(forTimeInterval: min(AgentHookCandidateTiming.retryInterval, deadline.timeIntervalSinceNow))
   }
 }
 

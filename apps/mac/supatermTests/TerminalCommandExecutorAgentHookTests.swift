@@ -62,12 +62,14 @@ struct TerminalCommandExecutorAgentHookTests {
           candidates: [
             SupatermAgentHookCandidate(
               context: SupatermCLIContext(surfaceID: surface.id, tabID: harness.tabID.rawValue),
-              processID: processIdentity.processID
+              processID: processIdentity.processID,
+              workingDirectoryMatch: .exact
             )
           ]
         )
     )
     #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "contextless-session"))
+    #expect(candidates.candidates.first?.workingDirectoryMatch == .exact)
   }
 
   @Test
@@ -98,6 +100,37 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(candidates.candidates.count == 1)
     #expect(candidates.candidates.first?.context.surfaceID == surface.id)
+    #expect(candidates.candidates.first?.workingDirectoryMatch == .exact)
+  }
+
+  @Test
+  func contextlessCodexSessionStartKeepsUniqueDetectedPaneWhenWorkspaceCannotMatch() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "contextless-session",
+        hookEventName: .sessionStart,
+        cwd: "/tmp/unmatched-workspace"
+      )
+    )
+
+    #expect(candidates.candidates.count == 1)
+    #expect(candidates.candidates.first?.context.surfaceID == surface.id)
+    #expect(candidates.candidates.first?.workingDirectoryMatch == .different)
   }
 
   @Test

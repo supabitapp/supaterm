@@ -487,7 +487,8 @@ struct SocketControlFeatureNotificationsTests {
     )
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-      processID: 456
+      processID: 456,
+      workingDirectoryMatch: .exact
     )
     let request = SocketControlClient.Request(
       handle: handle,

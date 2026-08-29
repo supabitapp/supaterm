@@ -7,12 +7,16 @@ import Testing
 
 struct SPAgentHookCommandTests {
   @Test
-  func contextlessCodexSessionStartDeliversToTheOnlyGlobalCandidate() async throws {
+  func contextlessCodexSessionStartDeliversToEmitterProcessAcrossInstances() async throws {
     var cli = try SPCLIHarness()
     defer { cli.remove() }
     cli.environment[SupatermCodexEnvironment.threadIDKey] = "inherited-session"
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
-    let candidate = SupatermAgentHookCandidate(context: context, processID: 303)
+    let candidate = SupatermAgentHookCandidate(
+      context: context,
+      processID: 303,
+      workingDirectoryMatch: .different
+    )
     let firstEndpoint = hookEndpoint(
       name: "first",
       processID: 101,
@@ -41,7 +45,7 @@ struct SPAgentHookCommandTests {
     )
 
     let result = try cli.run(
-      ["agent", "receive-agent-hook", "--agent", "codex"],
+      ["agent", "receive-agent-hook", "--agent", "codex", "--pid", "303"],
       standardInput: """
         {
           "hook_event_name": "SessionStart",
@@ -89,7 +93,8 @@ struct SPAgentHookCommandTests {
     defer { cli.remove() }
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-      processID: 303
+      processID: 303,
+      workingDirectoryMatch: .exact
     )
     let firstEndpoint = hookEndpoint(name: "first", processID: 101, environment: cli.environment)
     let secondEndpoint = hookEndpoint(name: "second", processID: 202, environment: cli.environment)
@@ -125,16 +130,52 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
+  func contextlessCodexSessionStartDeliversToTheOnlyGlobalFallbackCandidate() async throws {
+    let cli = try SPCLIHarness()
+    defer { cli.remove() }
+    let candidate = SupatermAgentHookCandidate(
+      context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+      processID: 303,
+      workingDirectoryMatch: .unknown
+    )
+    let endpoint = hookEndpoint(name: "fallback", processID: 101, environment: cli.environment)
+    let log = SPSocketRequestLog()
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+    let responder = try await startHookResponder(
+      runtime: runtime,
+      endpoint: endpoint,
+      log: log,
+      candidateProvider: { [candidate] }
+    )
+
+    let result = try cli.run(
+      ["agent", "receive-agent-hook", "--agent", "codex"],
+      standardInput: codexSessionStartHookJSON
+    )
+
+    responder.cancel()
+    await runtime.stop()
+    #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+    #expect(log.requests.filter { $0.method == SupatermSocketMethod.terminalAgentHook }.count == 1)
+    #expect(
+      log.requests.filter { $0.method == SupatermSocketMethod.terminalAgentHookCandidates }.count
+        > 1
+    )
+  }
+
+  @Test
   func contextlessCodexSessionStartWithSocketSelectorQueriesOnlyThatInstance() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let firstCandidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-      processID: 303
+      processID: 303,
+      workingDirectoryMatch: .exact
     )
     let secondCandidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-      processID: 404
+      processID: 404,
+      workingDirectoryMatch: .exact
     )
     let firstEndpoint = hookEndpoint(name: "first", processID: 101, environment: cli.environment)
     let secondEndpoint = hookEndpoint(name: "second", processID: 202, environment: cli.environment)
@@ -200,7 +241,8 @@ struct SPAgentHookCommandTests {
     defer { cli.remove() }
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-      processID: 303
+      processID: 303,
+      workingDirectoryMatch: .exact
     )
     let endpoint = hookEndpoint(name: "delayed", processID: 101, environment: cli.environment)
     let log = SPSocketRequestLog()
@@ -233,7 +275,8 @@ struct SPAgentHookCommandTests {
     defer { cli.remove() }
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-      processID: 303
+      processID: 303,
+      workingDirectoryMatch: .exact
     )
     let rejectingEndpoint = hookEndpoint(name: "rejecting", processID: 101, environment: cli.environment)
     let winningEndpoint = hookEndpoint(name: "winning", processID: 202, environment: cli.environment)
@@ -274,12 +317,56 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
+  func contextlessCodexSessionStartRejectsFallbackWhenAnInstanceCannotAnswer() async throws {
+    let cli = try SPCLIHarness()
+    defer { cli.remove() }
+    let candidate = agentHookCandidate(processID: 303, workingDirectoryMatch: .unknown)
+    let rejectingEndpoint = hookEndpoint(name: "rejecting", processID: 101, environment: cli.environment)
+    let fallbackEndpoint = hookEndpoint(name: "fallback", processID: 202, environment: cli.environment)
+    let rejectingLog = SPSocketRequestLog()
+    let fallbackLog = SPSocketRequestLog()
+    let rejectingRuntime = SocketControlRuntime(endpointProvider: { rejectingEndpoint })
+    let fallbackRuntime = SocketControlRuntime(endpointProvider: { fallbackEndpoint })
+    let rejectingResponder = try await startHookResponder(
+      runtime: rejectingRuntime,
+      endpoint: rejectingEndpoint,
+      log: rejectingLog,
+      candidateResponse: { request, _ in
+        guard request.method == SupatermSocketMethod.terminalAgentHookCandidates else {
+          return nil
+        }
+        return .error(id: request.id, code: "rejected", message: "Not ready")
+      }
+    )
+    let fallbackResponder = try await startHookResponder(
+      runtime: fallbackRuntime,
+      endpoint: fallbackEndpoint,
+      log: fallbackLog,
+      candidateProvider: { [candidate] }
+    )
+
+    let result = try cli.run(
+      ["agent", "receive-agent-hook", "--agent", "codex"],
+      standardInput: codexSessionStartHookJSON
+    )
+
+    rejectingResponder.cancel()
+    fallbackResponder.cancel()
+    await rejectingRuntime.stop()
+    await fallbackRuntime.stop()
+    #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+    #expect(!rejectingLog.requests.contains { $0.method == SupatermSocketMethod.terminalAgentHook })
+    #expect(!fallbackLog.requests.contains { $0.method == SupatermSocketMethod.terminalAgentHook })
+  }
+
+  @Test
   func contextlessCodexSessionStartSilentlyIgnoresMalformedCandidateResponse() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-      processID: 303
+      processID: 303,
+      workingDirectoryMatch: .exact
     )
     let malformedEndpoint = hookEndpoint(name: "malformed", processID: 101, environment: cli.environment)
     let winningEndpoint = hookEndpoint(name: "winning", processID: 202, environment: cli.environment)
@@ -746,6 +833,17 @@ private func hookEndpoint(
     ).path,
     pid: processID,
     startedAt: Date(timeIntervalSince1970: TimeInterval(processID))
+  )
+}
+
+private func agentHookCandidate(
+  processID: Int32,
+  workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch
+) -> SupatermAgentHookCandidate {
+  SupatermAgentHookCandidate(
+    context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+    processID: processID,
+    workingDirectoryMatch: workingDirectoryMatch
   )
 }
 
