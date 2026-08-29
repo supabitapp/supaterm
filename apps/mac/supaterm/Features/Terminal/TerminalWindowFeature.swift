@@ -128,7 +128,6 @@ struct TerminalWindowFeature {
     var hiddenAgentPanelSurfaceIDs: Set<UUID> = []
     var sidebarResizeState: TerminalSidebarResizeState?
     var sidebarWidth: CGFloat?
-    var tabLayoutStyle = TerminalTabLayoutStyle.vertical
     var windowControllerID = UUID()
     var windowID: ObjectIdentifier?
 
@@ -196,7 +195,6 @@ struct TerminalWindowFeature {
     case spaceEditorSaveButtonTapped
     case spaceEditorTextChanged(String)
     case toggleSidebarButtonTapped
-    case toggleTabLayoutButtonTapped
     case confirmationCancelButtonTapped
     case confirmationConfirmButtonTapped
     case windowIdentifierChanged(ObjectIdentifier)
@@ -516,13 +514,6 @@ struct TerminalWindowFeature {
         toggleSidebar(state: &state)
         return .none
 
-      case .toggleTabLayoutButtonTapped:
-        state.tabLayoutStyle = state.tabLayoutStyle.toggled
-        state.sidebarResizeState = nil
-        return .run { [terminalClient] _ in
-          await terminalClient.host().sessionDidChange()
-        }
-
       case .confirmationCancelButtonTapped:
         guard let confirmation = state.windowCloseConfirmation else { return .none }
         SupatermLog.debug(
@@ -695,12 +686,6 @@ struct TerminalWindowFeature {
     case .toggleSidebar:
       toggleSidebar(state: &state)
       return .none
-    case .toggleTabLayout:
-      state.tabLayoutStyle = state.tabLayoutStyle.toggled
-      state.sidebarResizeState = nil
-      return .run { [terminalClient] _ in
-        await terminalClient.host().sessionDidChange()
-      }
     case .createSpace:
       return .send(.spaceCreateButtonTapped)
     case .renameSpace(let space):

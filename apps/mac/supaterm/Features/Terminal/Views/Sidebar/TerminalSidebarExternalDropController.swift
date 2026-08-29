@@ -31,7 +31,7 @@ private struct TerminalSidebarExternalDropSession {
 }
 
 extension TerminalTabDragPayload {
-  func sidebarPayload(
+  fileprivate func sidebarPayload(
     topologyStamp: TerminalSidebarTopologyStamp
   ) -> TerminalSidebarDragPayload? {
     let source: TerminalSidebarDragSource

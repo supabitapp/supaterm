@@ -79,19 +79,3 @@ struct TerminalSidebarContentView: View {
     .environment(ghosttyShortcuts)
   }
 }
-
-struct TerminalHorizontalTabsContentView: View {
-  let store: StoreOf<AppFeature>
-  let tabDragRegistry: TerminalTabDragRegistry
-  let terminal: TerminalHostState
-  let windowControllerID: UUID
-
-  var body: some View {
-    TerminalHorizontalTabsView(
-      store: store.scope(state: \.terminal, action: \.terminal),
-      tabDragRegistry: tabDragRegistry,
-      terminal: terminal,
-      windowControllerID: windowControllerID
-    )
-  }
-}

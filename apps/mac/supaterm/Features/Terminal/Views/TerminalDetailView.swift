@@ -18,21 +18,15 @@ struct TerminalDetailView: View {
         canSplit: terminal.selectedSurfaceView != nil,
         isPaneZoomed: terminal.selectedPaneIsZoomed,
         isSidebarCollapsed: store.isSidebarCollapsed,
-        showsHorizontalTabs: store.tabLayoutStyle == .horizontal,
-        showsSidebarAttentionIndicator: store.tabLayoutStyle == .vertical
-          && store.isSidebarCollapsed
+        showsSidebarAttentionIndicator: store.isSidebarCollapsed
           && terminal.hasUnreadSidebarNotifications,
         palette: palette,
         backgroundColor: terminal.terminalBackgroundColor,
         equalizePanes: {
           _ = terminal.performBindingActionOnFocusedSurface(.equalizeSplits)
         },
-        toggleTabSurface: {
-          _ = store.send(
-            store.tabLayoutStyle == .horizontal
-              ? .toggleTabLayoutButtonTapped
-              : .toggleSidebarButtonTapped
-          )
+        toggleSidebar: {
+          _ = store.send(.toggleSidebarButtonTapped)
         },
         title: terminal.selectedPaneDisplayTitle,
         splitDown: {
@@ -69,21 +63,17 @@ private struct TerminalDetailTopBar: View {
   let canSplit: Bool
   let isPaneZoomed: Bool
   let isSidebarCollapsed: Bool
-  let showsHorizontalTabs: Bool
   let showsSidebarAttentionIndicator: Bool
   let palette: Palette
   let backgroundColor: Color
   let equalizePanes: () -> Void
-  let toggleTabSurface: () -> Void
+  let toggleSidebar: () -> Void
   let title: String
   let splitDown: () -> Void
   let splitRight: () -> Void
   let togglePaneZoom: () -> Void
 
   private var sidebarAccessibilityLabel: String {
-    if showsHorizontalTabs {
-      return "Show tabs in sidebar"
-    }
     if showsSidebarAttentionIndicator {
       return "Show sidebar, unread notifications"
     }
@@ -97,13 +87,9 @@ private struct TerminalDetailTopBar: View {
         palette: palette,
         accessibilityLabel: sidebarAccessibilityLabel,
         showsAttentionIndicator: showsSidebarAttentionIndicator,
-        action: toggleTabSurface
+        action: toggleSidebar
       )
-      .help(
-        showsHorizontalTabs
-          ? "Show Tabs in Sidebar"
-          : isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"
-      )
+      .help(isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar")
 
       Text(title)
         .font(.system(size: 13, weight: .semibold))
