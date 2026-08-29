@@ -6,17 +6,24 @@ enum TerminalTabDragPreviewType: Equatable {
 }
 
 extension NSPasteboard.PasteboardType {
+  static let terminalPaneDrag = NSPasteboard.PasteboardType(
+    "app.supaterm.terminal-pane-drag.v1"
+  )
   static let terminalTabDrag = NSPasteboard.PasteboardType(
     "app.supaterm.terminal-tab-drag.v1"
   )
 }
 
 enum TerminalTabDragPasteboard {
-  static func write(_ payload: TerminalTabDragPayload, to item: NSPasteboardItem) -> Bool {
+  static func write(
+    _ payload: TerminalTabDragPayload,
+    to item: NSPasteboardItem,
+    types: [NSPasteboard.PasteboardType] = [.terminalTabDrag]
+  ) -> Bool {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     guard let data = try? encoder.encode(payload) else { return false }
-    return item.setData(data, forType: .terminalTabDrag)
+    return types.allSatisfy { item.setData(data, forType: $0) }
   }
 
   static func read(from pasteboard: NSPasteboard) -> TerminalTabDragPayload? {

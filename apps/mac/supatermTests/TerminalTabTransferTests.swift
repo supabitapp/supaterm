@@ -1,5 +1,5 @@
-import AppKit
-import ComposableArchitecture
+import Dependencies
+import Foundation
 import GhosttyKit
 import Sharing
 import SupaTheme
@@ -217,12 +217,12 @@ struct TerminalTabTransferTests {
       let destinationTabID = host.spaceManager.tabCollection.createTab(title: "Destination")
       let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
       let destinationSurfaces = [
-        unbackedSurface(runtime: runtime, tabID: destinationTabID),
-        unbackedSurface(runtime: runtime, tabID: destinationTabID),
+        unbackedTerminalSurface(runtime: runtime, tabID: destinationTabID),
+        unbackedTerminalSurface(runtime: runtime, tabID: destinationTabID),
       ]
       let sourceSurfaces = [
-        unbackedSurface(runtime: runtime, tabID: sourceTabID),
-        unbackedSurface(runtime: runtime, tabID: sourceTabID),
+        unbackedTerminalSurface(runtime: runtime, tabID: sourceTabID),
+        unbackedTerminalSurface(runtime: runtime, tabID: sourceTabID),
       ]
       let destinationTree = try #require(
         SplitTree(view: destinationSurfaces[0]).joining(
@@ -351,7 +351,7 @@ struct TerminalTabTransferTests {
         zmxSessionsEnabled: false
       )
       let tabID = source.spaceManager.tabCollection.createTab(title: "Source")
-      let surface = unbackedSurface(runtime: runtime, tabID: tabID)
+      let surface = unbackedTerminalSurface(runtime: runtime, tabID: tabID)
       let processIdentity = TerminalAgentProcessIdentity(
         processID: 42,
         startTimeMicroseconds: 1
@@ -438,13 +438,14 @@ struct TerminalTabTransferTests {
       source.applySelectedTab(first, in: space.id)
       #expect(source.setGroupCollapsed(groupID, isCollapsed: true))
       var didCloseSourceWindow = false
-      let sourceWindow = register(
+      let sourceWindow = registerTerminalWindow(
         source,
         id: sourceWindowID,
         in: registry,
         onClose: { didCloseSourceWindow = true }
       )
-      let destinationWindow = register(destination, id: destinationWindowID, in: registry)
+      let destinationWindow = registerTerminalWindow(
+        destination, id: destinationWindowID, in: registry)
       let payload = try #require(
         TerminalTabDragPayload(
           operationID: TerminalTabMoveOperationID(),
@@ -483,104 +484,6 @@ struct TerminalTabTransferTests {
     }
   }
 
-  @Test
-  func registryTransfersPaneToReservedTabInAnotherWindow() throws {
-    try withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      initializeGhosttyForTests()
-      let space = TerminalSpaceItem(name: "Main")
-      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
-      $catalog.withLock {
-        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
-      }
-      let runtime = GhosttyRuntime()
-      let registry = TerminalWindowRegistry.test(zmxClient: .noop)
-      let sourceWindowID = UUID()
-      let destinationWindowID = UUID()
-      let source = TerminalHostState.test(
-        runtime: runtime,
-        spaceID: space.id,
-        zmxClient: .noop,
-        zmxSessionsEnabled: false
-      )
-      let destination = TerminalHostState.test(
-        runtime: runtime,
-        spaceID: space.id,
-        zmxClient: .noop,
-        zmxSessionsEnabled: false
-      )
-      let sourceTabID = source.spaceManager.tabCollection.createTab(title: "Source")
-      let retainedSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
-      let movedSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
-      let sourceTree = try #require(
-        SplitTree(view: retainedSurface).joining(
-          SplitTree(view: movedSurface),
-          direction: .horizontal,
-          placingOtherAfter: true
-        )
-      )
-      source.trees[sourceTabID] = sourceTree
-      source.surfaces[retainedSurface.id] = retainedSurface
-      source.surfaces[movedSurface.id] = movedSurface
-      source.focusHistoryByTab[sourceTabID] = TerminalHostState.FocusHistory(
-        current: movedSurface.id
-      )
-      let sourceWindow = register(source, id: sourceWindowID, in: registry)
-      let destinationWindow = register(destination, id: destinationWindowID, in: registry)
-      let destinationTabID = TerminalTabID()
-      let payload = TerminalTabDragPayload(
-        operationID: TerminalTabMoveOperationID(),
-        sourceWindowID: sourceWindowID,
-        sourceSpaceID: space.id,
-        sourceTopologyRevision: source.spaceManager.tabCollection.topologyRevision,
-        surfaceID: movedSurface.id,
-        destinationTabID: destinationTabID
-      )
-      let hoveredRevision = destination.spaceManager.tabCollection.topologyRevision
-      let concurrentTabID = destination.spaceManager.tabCollection.createTab(title: "Concurrent")
-
-      #expect(
-        registry.transferTab(
-          payload,
-          to: TerminalTabDragRegistry.Destination(
-            windowControllerID: destinationWindowID,
-            spaceID: space.id,
-            expectedTopologyRevision: hoveredRevision,
-            placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
-          )
-        ) == nil
-      )
-      #expect(source.trees[sourceTabID]?.leaves().map(\.id) == [retainedSurface.id, movedSurface.id])
-      #expect(source.spaceManager.tabCollection.tabs.map(\.id) == [sourceTabID])
-
-      let result = try #require(
-        registry.transferTab(
-          payload,
-          to: TerminalTabDragRegistry.Destination(
-            windowControllerID: destinationWindowID,
-            spaceID: space.id,
-            expectedTopologyRevision: destination.spaceManager.tabCollection.topologyRevision,
-            placement: .root(TerminalRootPlacement(isPinned: false, index: 1))
-          )
-        )
-      )
-
-      #expect(result.tabIDs == [destinationTabID])
-      #expect(source.spaceManager.tabCollection.tabs.map(\.id) == [sourceTabID])
-      #expect(source.trees[sourceTabID]?.leaves().map(\.id) == [retainedSurface.id])
-      #expect(source.surfaces[movedSurface.id] == nil)
-      #expect(
-        destination.spaceManager.tabCollection.tabs.map(\.id) == [
-          concurrentTabID,
-          destinationTabID,
-        ])
-      #expect(destination.trees[destinationTabID]?.leaves().map(\.id) == [movedSurface.id])
-      #expect(destination.surfaces[movedSurface.id] === movedSurface)
-      withExtendedLifetime([sourceWindow, destinationWindow]) {}
-    }
-  }
-
   @Test(arguments: TerminalSplitDropZone.allCases)
   func splitTransferMovesTheSourceTabIntoTheExactDestinationZone(
     zone: TerminalSplitDropZone
@@ -605,8 +508,8 @@ struct TerminalTabTransferTests {
       let sourceTabID = host.spaceManager.tabCollection.createTab(title: "Source")
       host.applySelectedTab(sourceTabID, in: space.id)
       host.applySelectedTab(destinationTabID, in: space.id)
-      let destinationSurface = unbackedSurface(runtime: runtime, tabID: destinationTabID)
-      let sourceSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
+      let destinationSurface = unbackedTerminalSurface(runtime: runtime, tabID: destinationTabID)
+      let sourceSurface = unbackedTerminalSurface(runtime: runtime, tabID: sourceTabID)
       host.trees[destinationTabID] = SplitTree(view: destinationSurface)
       host.trees[sourceTabID] = SplitTree(view: sourceSurface)
       host.surfaces[destinationSurface.id] = destinationSurface
@@ -694,8 +597,8 @@ struct TerminalTabTransferTests {
       let destinationTabID = destination.spaceManager.tabCollection.createTab(
         title: "Destination"
       )
-      let sourceSurface = unbackedSurface(runtime: runtime, tabID: sourceTabID)
-      let destinationSurface = unbackedSurface(runtime: runtime, tabID: destinationTabID)
+      let sourceSurface = unbackedTerminalSurface(runtime: runtime, tabID: sourceTabID)
+      let destinationSurface = unbackedTerminalSurface(runtime: runtime, tabID: destinationTabID)
       source.trees[sourceTabID] = SplitTree(view: sourceSurface)
       source.surfaces[sourceSurface.id] = sourceSurface
       source.focusHistoryByTab[sourceTabID] = TerminalHostState.FocusHistory(
@@ -707,13 +610,14 @@ struct TerminalTabTransferTests {
         current: destinationSurface.id
       )
       var didCloseSourceWindow = false
-      let sourceWindow = register(
+      let sourceWindow = registerTerminalWindow(
         source,
         id: sourceWindowID,
         in: registry,
         onClose: { didCloseSourceWindow = true }
       )
-      let destinationWindow = register(destination, id: destinationWindowID, in: registry)
+      let destinationWindow = registerTerminalWindow(
+        destination, id: destinationWindowID, in: registry)
       let payload = try #require(
         TerminalTabDragPayload(
           operationID: TerminalTabMoveOperationID(),
@@ -814,7 +718,7 @@ struct TerminalTabTransferTests {
       let registry = TerminalWindowRegistry.test(zmxClient: .noop)
       let windowControllerID = UUID()
       var didCloseWindow = false
-      let window = register(
+      let window = registerTerminalWindow(
         host,
         id: windowControllerID,
         in: registry,
@@ -914,8 +818,8 @@ struct TerminalTabTransferTests {
       source.trees[tabID] = SplitTree(view: surface)
       source.surfaces[surface.id] = surface
       source.focusHistoryByTab[tabID] = TerminalHostState.FocusHistory(current: surface.id)
-      let sourceWindow = register(source, id: sourceID, in: registry)
-      let destinationWindow = register(destination, id: destinationID, in: registry)
+      let sourceWindow = registerTerminalWindow(source, id: sourceID, in: registry)
+      let destinationWindow = registerTerminalWindow(destination, id: destinationID, in: registry)
       let payload = try #require(
         TerminalTabDragPayload(
           operationID: TerminalTabMoveOperationID(),
@@ -983,27 +887,6 @@ struct TerminalTabTransferTests {
     }
   }
 
-  func register(
-    _ terminal: TerminalHostState,
-    id: UUID,
-    in registry: TerminalWindowRegistry,
-    onClose: @escaping @MainActor () -> Void = {}
-  ) -> NSWindow {
-    let store = Store(initialState: AppFeature.State()) {
-      AppFeature()
-    }
-    registry.register(
-      keyboardShortcutForAction: { _ in nil },
-      windowControllerID: id,
-      store: store,
-      terminal: terminal,
-      requestConfirmedWindowClose: onClose
-    )
-    let window = NSWindow()
-    registry.updateWindow(window, for: id)
-    return window
-  }
-
   private func liveHost() -> LiveHostFixture {
     initializeGhosttyForTests()
     let space = TerminalSpaceItem(name: "Main")
@@ -1030,23 +913,11 @@ struct TerminalTabTransferTests {
     host: TerminalHostState
   ) -> (id: TerminalTabID, surface: GhosttySurfaceView) {
     let tabID = host.spaceManager.tabCollection.createTab(title: title)
-    let surface = unbackedSurface(runtime: runtime, tabID: tabID)
+    let surface = unbackedTerminalSurface(runtime: runtime, tabID: tabID)
     host.trees[tabID] = SplitTree(view: surface)
     host.surfaces[surface.id] = surface
     host.focusHistoryByTab[tabID] = TerminalHostState.FocusHistory(current: surface.id)
     return (tabID, surface)
   }
 
-  private func unbackedSurface(
-    runtime: GhosttyRuntime,
-    tabID: TerminalTabID
-  ) -> GhosttySurfaceView {
-    GhosttySurfaceView(
-      runtime: runtime,
-      tabID: tabID.rawValue,
-      workingDirectory: nil,
-      context: GHOSTTY_SURFACE_CONTEXT_TAB,
-      surfaceFactory: { _, _ in nil }
-    )
-  }
 }

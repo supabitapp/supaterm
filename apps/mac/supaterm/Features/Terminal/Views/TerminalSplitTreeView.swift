@@ -97,7 +97,7 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  static let dragType = UTType(exportedAs: NSPasteboard.PasteboardType.terminalTabDrag.rawValue)
+  static let dragType = UTType(exportedAs: NSPasteboard.PasteboardType.terminalPaneDrag.rawValue)
 
   var body: some View {
     if let node = tree.zoomed ?? tree.root {

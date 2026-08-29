@@ -286,7 +286,13 @@ final class TerminalPaneDragSourceNSView: NSView, NSDraggingSource {
   private func beginDragging(with event: NSEvent) {
     guard let payload = client.begin(surfaceView: surfaceView) else { return }
     let pasteboardItem = NSPasteboardItem()
-    precondition(TerminalTabDragPasteboard.write(payload, to: pasteboardItem))
+    precondition(
+      TerminalTabDragPasteboard.write(
+        payload,
+        to: pasteboardItem,
+        types: [.terminalPaneDrag, .terminalTabDrag]
+      )
+    )
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
     draggingItem.setDraggingFrame(
       CGRect(origin: convert(event.locationInWindow, from: nil), size: CGSize(width: 1, height: 1)),

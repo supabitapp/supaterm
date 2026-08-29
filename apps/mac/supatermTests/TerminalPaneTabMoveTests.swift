@@ -83,6 +83,108 @@ struct TerminalPaneTabMoveTests {
   }
 
   @Test
+  func registryTransfersPaneToReservedTabInAnotherWindow() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let space = TerminalSpaceItem(name: "Main")
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+      }
+      let runtime = GhosttyRuntime()
+      let registry = TerminalWindowRegistry.test(zmxClient: .noop)
+      let sourceWindowID = UUID()
+      let destinationWindowID = UUID()
+      let source = TerminalHostState.test(
+        runtime: runtime,
+        spaceID: space.id,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      let destination = TerminalHostState.test(
+        runtime: runtime,
+        spaceID: space.id,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      let sourceTabID = source.spaceManager.tabCollection.createTab(title: "Source")
+      let retainedSurface = unbackedTerminalSurface(runtime: runtime, tabID: sourceTabID)
+      let movedSurface = unbackedTerminalSurface(runtime: runtime, tabID: sourceTabID)
+      let sourceTree = try #require(
+        SplitTree(view: retainedSurface).joining(
+          SplitTree(view: movedSurface),
+          direction: .horizontal,
+          placingOtherAfter: true
+        )
+      )
+      source.trees[sourceTabID] = sourceTree
+      source.surfaces[retainedSurface.id] = retainedSurface
+      source.surfaces[movedSurface.id] = movedSurface
+      source.focusHistoryByTab[sourceTabID] = TerminalHostState.FocusHistory(
+        current: movedSurface.id
+      )
+      let sourceWindow = registerTerminalWindow(source, id: sourceWindowID, in: registry)
+      let destinationWindow = registerTerminalWindow(
+        destination,
+        id: destinationWindowID,
+        in: registry
+      )
+      let destinationTabID = TerminalTabID()
+      let payload = TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: sourceWindowID,
+        sourceSpaceID: space.id,
+        sourceTopologyRevision: source.spaceManager.tabCollection.topologyRevision,
+        surfaceID: movedSurface.id,
+        destinationTabID: destinationTabID
+      )
+      let hoveredRevision = destination.spaceManager.tabCollection.topologyRevision
+      let concurrentTabID = destination.spaceManager.tabCollection.createTab(title: "Concurrent")
+
+      #expect(
+        registry.transferTab(
+          payload,
+          to: TerminalTabDragRegistry.Destination(
+            windowControllerID: destinationWindowID,
+            spaceID: space.id,
+            expectedTopologyRevision: hoveredRevision,
+            placement: .root(TerminalRootPlacement(isPinned: false, index: 0))
+          )
+        ) == nil
+      )
+      #expect(source.trees[sourceTabID]?.leaves().map(\.id) == [retainedSurface.id, movedSurface.id])
+      #expect(source.spaceManager.tabCollection.tabs.map(\.id) == [sourceTabID])
+
+      let result = try #require(
+        registry.transferTab(
+          payload,
+          to: TerminalTabDragRegistry.Destination(
+            windowControllerID: destinationWindowID,
+            spaceID: space.id,
+            expectedTopologyRevision: destination.spaceManager.tabCollection.topologyRevision,
+            placement: .root(TerminalRootPlacement(isPinned: false, index: 1))
+          )
+        )
+      )
+
+      #expect(result.tabIDs == [destinationTabID])
+      #expect(source.spaceManager.tabCollection.tabs.map(\.id) == [sourceTabID])
+      #expect(source.trees[sourceTabID]?.leaves().map(\.id) == [retainedSurface.id])
+      #expect(source.surfaces[movedSurface.id] == nil)
+      #expect(
+        destination.spaceManager.tabCollection.tabs.map(\.id) == [
+          concurrentTabID,
+          destinationTabID,
+        ])
+      #expect(destination.trees[destinationTabID]?.leaves().map(\.id) == [movedSurface.id])
+      #expect(destination.surfaces[movedSurface.id] === movedSurface)
+      withExtendedLifetime([sourceWindow, destinationWindow]) {}
+    }
+  }
+
+  @Test
   func stalePanePlacementDoesNotChangeTheSplit() {
     withDependencies {
       $0.defaultFileStorage = .inMemory

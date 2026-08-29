@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Testing
+import UniformTypeIdentifiers
 
 @testable import supaterm
 
@@ -65,6 +66,55 @@ struct TerminalTabDragPayloadTests {
     #expect(pane.destinationTabID == destinationTabID)
     #expect(decoded.itemIDs.isEmpty)
     #expect(decoded.singleTabID == nil)
+  }
+
+  @Test
+  func panePasteboardPublishesPaneAndTabDropTypes() {
+    let payload = TerminalTabDragPayload(
+      operationID: TerminalTabMoveOperationID(),
+      sourceWindowID: UUID(),
+      sourceSpaceID: TerminalSpaceID(),
+      sourceTopologyRevision: 0,
+      surfaceID: UUID(),
+      destinationTabID: TerminalTabID()
+    )
+    let item = NSPasteboardItem()
+
+    #expect(
+      TerminalTabDragPasteboard.write(
+        payload,
+        to: item,
+        types: [.terminalPaneDrag, .terminalTabDrag]
+      )
+    )
+    #expect(
+      TerminalSplitTreeView.dragType.identifier
+        == NSPasteboard.PasteboardType.terminalPaneDrag.rawValue
+    )
+    #expect(
+      TerminalSplitTreeView.dragType.identifier
+        != NSPasteboard.PasteboardType.terminalTabDrag.rawValue
+    )
+    #expect(item.data(forType: .terminalPaneDrag) != nil)
+    #expect(item.data(forType: .terminalTabDrag) != nil)
+  }
+
+  @Test
+  func tabPasteboardDoesNotClaimPaneDropTargets() throws {
+    let payload = try #require(
+      TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: UUID(),
+        sourceSpaceID: TerminalSpaceID(),
+        sourceTopologyRevision: 0,
+        itemIDs: [.tab(TerminalTabID())]
+      )
+    )
+    let item = NSPasteboardItem()
+
+    #expect(TerminalTabDragPasteboard.write(payload, to: item))
+    #expect(item.data(forType: .terminalPaneDrag) == nil)
+    #expect(item.data(forType: .terminalTabDrag) != nil)
   }
 
   @Test
