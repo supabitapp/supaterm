@@ -293,7 +293,7 @@ private struct TerminalSurfacePaneView: View {
         _ = store.send(.agentPanelVisibilityToggled(surfaceID))
       case .agentPanelURLTapped(let url):
         _ = store.send(.agentPanelURLTapped(url))
-      case .resize, .drop, .equalize:
+      case .resize, .equalize:
         AppPostHog.capture("terminal_pane_created")
         terminal.performSplitOperation(operation, in: tabID)
       }

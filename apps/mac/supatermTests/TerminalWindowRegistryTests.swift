@@ -68,7 +68,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func coldContextRequiresItsSurfaceAndTabTogether() throws {
+  func coldContextUsesSurfaceWhenTabIsStale() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -119,7 +119,7 @@ struct TerminalWindowRegistryTests {
       #expect(
         registry.ambientEntries(
           for: SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
-        ).isEmpty
+        ).first?.terminal === owner.terminal
       )
       #expect(
         registry.ambientEntries(

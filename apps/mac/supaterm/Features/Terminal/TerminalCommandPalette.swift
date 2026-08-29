@@ -43,6 +43,7 @@ enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case closeTab(TerminalTabID)
   case ghosttyBindingAction(String)
   case focusPane(TerminalCommandPaletteFocusTarget)
+  case movePaneToNewTab(UUID)
   case update(UpdateUserAction)
   case toggleSidebar
   case createSpace
@@ -620,6 +621,21 @@ enum TerminalCommandPalettePresentation {
       ),
     ]
     guard snapshot.selectedTabIsSplit else { return rows }
+    if let selectedSurfaceID = snapshot.selectedSurfaceID {
+      rows.append(
+        TerminalCommandPaletteRow(
+          id: "terminal:move-pane-to-new-tab",
+          title: "Move Pane to a New Tab",
+          subtitle: "Layout",
+          description: "Move the focused pane out of its split into a new tab.",
+          leadingIcon: "macwindow.badge.plus",
+          badge: nil,
+          emphasis: false,
+          shortcut: nil,
+          command: .movePaneToNewTab(selectedSurfaceID)
+        )
+      )
+    }
     rows.append(
       bindingRow(
         BindingRowDefinition(

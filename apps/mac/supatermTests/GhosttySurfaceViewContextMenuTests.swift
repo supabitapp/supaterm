@@ -30,6 +30,24 @@ struct GhosttySurfaceViewContextMenuTests {
   }
 
   @Test
+  func contextMenuIncludesMoveOnlyForSplitPane() {
+    let target = NSObject()
+    let availableMenu = GhosttySurfaceView.contextMenu(
+      hasSelection: false,
+      canMoveToNewTab: true,
+      target: target
+    )
+    let unavailableMenu = GhosttySurfaceView.contextMenu(
+      hasSelection: false,
+      target: target
+    )
+    let moveItem = availableMenu.items.first { $0.title == "Move to a New Tab" }
+
+    #expect(moveItem?.image?.accessibilityDescription == "Move to a New Tab")
+    #expect(!unavailableMenu.items.contains { $0.title == "Move to a New Tab" })
+  }
+
+  @Test
   func contextMenuUsesItemTitlesForImageAccessibilityDescriptions() {
     let menu = GhosttySurfaceView.contextMenu(hasSelection: false, target: NSObject())
     let expectedTitles = Set([

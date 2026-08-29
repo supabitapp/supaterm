@@ -115,6 +115,8 @@ final class GhosttySurfaceBridge {
   var onSplitAction: ((GhosttySplitAction) -> Bool)?
   var onCloseRequest: ((Bool) -> Void)?
   var onNewTab: (() -> Bool)?
+  var canMoveToNewTab: (() -> Bool)?
+  var onMoveToNewTab: (() -> Bool)?
   var onCloseTab: ((ghostty_action_close_tab_mode_e) -> Bool)?
   var onGotoTab: ((ghostty_action_goto_tab_e) -> Bool)?
   var onMoveTab: ((ghostty_action_move_tab_s) -> Bool)?

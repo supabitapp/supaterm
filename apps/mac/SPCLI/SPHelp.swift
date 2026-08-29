@@ -243,6 +243,19 @@ enum SPHelp {
       sp pane close <pane-uuid>
     """
 
+  static let movePaneToNewTabDiscussion = """
+    If you omit the pane target inside Supaterm, this command moves the current pane.
+
+    The pane must share its tab with another pane. The moved pane takes focus in an adjacent tab.
+
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
+
+    Example:
+      sp pane move-to-new-tab
+      sp pane move-to-new-tab 1/2/3
+      sp pane move-to-new-tab <pane-uuid>
+    """
+
   static let selectTabDiscussion = """
     If you omit the tab target inside Supaterm, this command focuses the current tab.
 

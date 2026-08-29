@@ -68,6 +68,7 @@ extension SP {
       subcommands: [
         NewPane.self,
         FocusPane.self,
+        MovePaneToNewTab.self,
         ClosePane.self,
         SendText.self,
         SendKey.self,
@@ -448,6 +449,40 @@ extension SP {
           )
         },
         human: { render($0) }
+      )
+    }
+
+    private func requestPayload(client: SPSocketClient) throws -> SupatermPaneTargetRequest {
+      try resolvePublicPaneTarget(
+        pane,
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      )
+    }
+  }
+
+  struct MovePaneToNewTab: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "move-to-new-tab",
+      abstract: "Move a pane from a split into a new tab.",
+      discussion: SPHelp.movePaneToNewTabDiscussion
+    )
+
+    @Argument(help: "Optional pane target.")
+    var pane: SPPaneReference?
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      try runControlCommand(
+        options: options,
+        request: { try .movePaneToNewTab(try requestPayload(client: $0)) },
+        as: SupatermNewTabResult.self,
+        plain: { $0.paneID.uuidString.lowercased() },
+        human: {
+          "window \($0.windowIndex) space \($0.spaceIndex) tab \($0.tabIndex) pane \($0.paneIndex)"
+        }
       )
     }
 
