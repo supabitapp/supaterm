@@ -21,6 +21,8 @@ Click a row to focus it, middle-click a tab to close it, or right-click for tab 
 
 Choose **View > Show Tabs in Sidebar** or run **Toggle Tab Layout** from the command palette to switch between the sidebar and horizontal tab bar. Supaterm saves the choice for each window. Both layouts show the same tab order, group colors, collapse state, and drag targets.
 
+![Supaterm horizontal tab bar with an expanded blue Development group.](/images/horizontal-tabs-dark.png)
+
 In sidebar layout, toggle the sidebar with `Command-S`.
 
 ## Use the command palette
