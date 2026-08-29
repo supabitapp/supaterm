@@ -234,7 +234,11 @@ private final class CapturePreviewRecorder: TerminalTabDragPreviewPresenting {
   private(set) var hideCount = 0
   private(set) var updateCount = 0
 
-  func show(image: NSImage?, frame: CGRect) -> CGRect {
+  func show(
+    image: NSImage?,
+    frame: CGRect,
+    type: TerminalTabDragPreviewType
+  ) -> CGRect {
     shownImage = image
     showCount += 1
     return frame

@@ -7,6 +7,7 @@ struct TerminalSidebarTabRow: View {
     case newTab
     case divider
     case togglePinned(Bool)
+    case moveAllPanesToNewTabs
     case moveToNewGroup
     case moveToGroup
     case removeFromGroup
@@ -23,6 +24,8 @@ struct TerminalSidebarTabRow: View {
         nil
       case .togglePinned(let isPinned):
         isPinned ? "Unpin Tab" : "Pin Tab"
+      case .moveAllPanesToNewTabs:
+        "Move All Panes to New Tabs"
       case .moveToNewGroup:
         "Move to New Group"
       case .moveToGroup:
@@ -82,7 +85,8 @@ struct TerminalSidebarTabRow: View {
     isPinned: Bool,
     hasTabsBelow: Bool,
     hasOtherTabs: Bool,
-    isGrouped: Bool = false
+    isGrouped: Bool = false,
+    paneCount: Int = 1
   ) -> [ContextMenuItem] {
     var items: [ContextMenuItem] = [
       .newTab,
@@ -93,6 +97,9 @@ struct TerminalSidebarTabRow: View {
       .moveToNewGroup,
       .moveToGroup,
     ])
+    if paneCount > 1 {
+      items.append(.moveAllPanesToNewTabs)
+    }
     if isGrouped {
       items.append(.removeFromGroup)
     }
@@ -265,7 +272,8 @@ struct TerminalSidebarTabRow: View {
               isPinned: groupID == nil && rootIsPinned,
               hasTabsBelow: hasTabsBelow,
               hasOtherTabs: hasOtherTabs,
-              isGrouped: groupID != nil
+              isGrouped: groupID != nil,
+              paneCount: terminal.trees[tab.id]?.leaves().count ?? 0
             ).enumerated()
           ),
           id: \.offset
@@ -287,6 +295,13 @@ struct TerminalSidebarTabRow: View {
               terminal.togglePinned(tab.id)
             } label: {
               Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
+            }
+
+          case .moveAllPanesToNewTabs:
+            Button {
+              terminal.moveAllPanesToNewTabs(tab.id)
+            } label: {
+              Label("Move All Panes to New Tabs", systemImage: "rectangle.stack.badge.plus")
             }
 
           case .moveToNewGroup:

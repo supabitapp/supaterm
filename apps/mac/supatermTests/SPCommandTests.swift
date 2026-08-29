@@ -191,6 +191,17 @@ struct SPCommandTests {
   }
 
   @Test
+  func movePaneToNewTabParserAcceptsPaneTarget() throws {
+    let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    let command = try #require(
+      try SP.parseAsRoot(["pane", "move-to-new-tab", paneID.uuidString])
+        as? SP.MovePaneToNewTab
+    )
+
+    #expect(command.pane == .id(paneID))
+  }
+
+  @Test
   func pinAndUnpinParsersAcceptSelectorTargets() throws {
     let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
     let pinTab = try #require(
