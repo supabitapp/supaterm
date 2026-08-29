@@ -205,40 +205,12 @@ final class TerminalSidebarTabSelectionState {
   }
 }
 
-enum TerminalSidebarTabDetail: Equatable, Identifiable {
-  enum ID: Hashable {
-    case agentWorkspace(TerminalTabAgentWorkspace.ID)
-    case workingDirectory(String)
-  }
-
-  case agentWorkspace(TerminalTabAgentWorkspace)
-  case workingDirectory(String)
-
-  var id: ID {
-    switch self {
-    case .agentWorkspace(let workspace):
-      .agentWorkspace(workspace.id)
-    case .workingDirectory(let path):
-      .workingDirectory(path)
-    }
-  }
-
-  static func resolve(
-    agentWorkspaces: [TerminalTabAgentWorkspace],
-    paneWorkingDirectories: [String]
-  ) -> [Self] {
-    guard agentWorkspaces.isEmpty else {
-      return agentWorkspaces.map(Self.agentWorkspace)
-    }
-    return paneWorkingDirectories.map(Self.workingDirectory)
-  }
-}
-
 private enum TerminalSidebarTabMeasurementKey: Hashable {
   case tab(
     id: TerminalTabID,
     title: String,
-    detailIDs: [TerminalSidebarTabDetail.ID],
+    paneIDs: [UUID],
+    showsTitleHeader: Bool,
     isGrouped: Bool
   )
 }
@@ -247,11 +219,8 @@ struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
-  let agentStatus: TerminalHostState.TabAgentStatus?
-  let details: [TerminalSidebarTabDetail]
-  let unreadCount: Int
+  let panes: [TerminalSidebarPanePresentation]
   let terminalProgress: TerminalSidebarTerminalProgress?
-  let hasTerminalBell: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
 }
@@ -274,7 +243,8 @@ enum TerminalSidebarRowPresentation: Equatable {
         TerminalSidebarTabMeasurementKey.tab(
           id: presentation.tab.id,
           title: presentation.tab.title,
-          detailIDs: presentation.details.map(\.id),
+          paneIDs: presentation.panes.map(\.id),
+          showsTitleHeader: presentation.tab.isTitleLocked || presentation.panes.isEmpty,
           isGrouped: presentation.groupID != nil
         )
       )
@@ -380,11 +350,8 @@ struct TerminalSidebarHostedRow: View {
         renameState: context.renameState,
         selectionState: context.tabSelectionState,
         outline: context.outline,
-        agentStatus: presentation.agentStatus,
-        details: presentation.details,
-        unreadCount: presentation.unreadCount,
+        panes: presentation.panes,
         terminalProgress: presentation.terminalProgress,
-        hasTerminalBell: presentation.hasTerminalBell,
         palette: context.palette,
         shortcutHint: presentation.shortcutHint,
         showsShortcutHint: presentation.showsShortcutHint

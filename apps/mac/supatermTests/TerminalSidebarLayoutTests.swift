@@ -155,6 +155,91 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func tabMeasurementKeyChangesWhenPanesChange() {
+    let tab = TerminalTabItem(title: "Tab")
+    let pane = TerminalSidebarPanePresentation(
+      id: UUID(),
+      title: "Pane 1",
+      indicator: nil
+    )
+
+    #expect(
+      TerminalSidebarRowPresentation.tab(tabPresentation(tab)).measurementKey
+        != TerminalSidebarRowPresentation.tab(tabPresentation(tab, panes: [pane])).measurementKey
+    )
+  }
+
+  @Test
+  func tabMeasurementKeyIgnoresHeightNeutralPaneIndicators() {
+    let tab = TerminalTabItem(title: "Tab")
+    let paneID = UUID()
+    let quietPane = TerminalSidebarPanePresentation(
+      id: paneID,
+      title: "Pane 1",
+      indicator: nil
+    )
+    let attentionPane = TerminalSidebarPanePresentation(
+      id: paneID,
+      title: "Pane 1",
+      indicator: .attention
+    )
+
+    #expect(
+      TerminalSidebarRowPresentation.tab(tabPresentation(tab, panes: [quietPane])).measurementKey
+        == TerminalSidebarRowPresentation.tab(
+          tabPresentation(tab, panes: [attentionPane])
+        ).measurementKey
+    )
+  }
+
+  @Test
+  func tabAccessoriesKeepMeasuredRowHeightStable() throws {
+    let tab = TerminalTabItem(title: "Tab")
+    let pane = TerminalSidebarPanePresentation(
+      id: UUID(),
+      title: "Pane 1",
+      indicator: nil
+    )
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [TerminalSidebarOutline.Root(content: .tab(tab.id), isPinned: false)],
+      revision: 1
+    )
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let harness = try #require(
+      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300))
+    )
+    defer { harness.close() }
+    let tabEntryID = TerminalSidebarEntryID.tab(tab.id)
+    let indexPath = IndexPath(item: 0, section: 0)
+
+    func apply(progress: TerminalSidebarTerminalProgress?) {
+      harness.apply(
+        outline: outline,
+        rows: [
+          tabEntryID: .tab(tabPresentation(tab, panes: [pane], terminalProgress: progress)),
+          .newTab: .newTab(.inline),
+        ],
+        terminal: terminal,
+        selectedTabID: tab.id,
+        reduceMotion: true
+      )
+      harness.layoutNow()
+    }
+
+    apply(progress: nil)
+    let quietHeight = try #require(
+      harness.layout.layoutAttributesForItem(at: indexPath)
+    ).frame.height
+
+    apply(progress: TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active))
+    let progressHeight = try #require(
+      harness.layout.layoutAttributesForItem(at: indexPath)
+    ).frame.height
+
+    #expect(progressHeight == quietHeight)
+  }
+
+  @Test
   func reduceMotionReplacesAnActiveCollapseImmediately() throws {
     let groupID = TerminalTabGroupID()
     let tabs = [TerminalTabItem(title: "First"), TerminalTabItem(title: "Second")]
@@ -795,17 +880,16 @@ struct TerminalSidebarLayoutTests {
 
   private func tabPresentation(
     _ tab: TerminalTabItem,
-    groupID: TerminalTabGroupID? = nil
+    groupID: TerminalTabGroupID? = nil,
+    panes: [TerminalSidebarPanePresentation] = [],
+    terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
       groupID: groupID,
       rootIsPinned: false,
-      agentStatus: nil,
-      details: [],
-      unreadCount: 0,
-      terminalProgress: nil,
-      hasTerminalBell: false,
+      panes: panes,
+      terminalProgress: terminalProgress,
       shortcutHint: nil,
       showsShortcutHint: false
     )

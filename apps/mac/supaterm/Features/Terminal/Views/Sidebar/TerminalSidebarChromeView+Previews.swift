@@ -22,11 +22,10 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let scenario: String
   let title: String
   let isSelected: Bool
-  let paneWorkingDirectories: [String]
-  let agentWorkspaces: [TerminalTabAgentWorkspace]
-  let unreadCount: Int
-  let agentStatus: TerminalHostState.TabAgentStatus?
-  let hasTerminalBell: Bool
+  let isTitleLocked: Bool
+  let paneTitles: [String]
+  let paneAgentStatuses: [TerminalHostState.TabAgentStatus?]
+  let paneHasAttention: [Bool]
   let terminalProgress: TerminalSidebarTerminalProgress?
 
   var id: String {
@@ -37,15 +36,22 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     TerminalTabItem(
       id: tabID,
       title: title,
-      isDirty: section == .terminalProgress
+      isDirty: section == .terminalProgress,
+      isTitleLocked: isTitleLocked
     )
   }
 
-  var details: [TerminalSidebarTabDetail] {
-    TerminalSidebarTabDetail.resolve(
-      agentWorkspaces: agentWorkspaces,
-      paneWorkingDirectories: paneWorkingDirectories
-    )
+  var panes: [TerminalSidebarPanePresentation] {
+    paneTitles.enumerated().map { index, title in
+      let agentStatus = paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
+      let hasAttention = paneHasAttention.indices.contains(index) && paneHasAttention[index]
+      return TerminalSidebarPanePresentation(
+        id: Self.paneID(index),
+        title: title,
+        indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
+          ?? (hasAttention ? .attention : nil)
+      )
+    }
   }
 
   var metadataLine: String? {
@@ -61,37 +67,18 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   }
 
   private var stateLabel: String? {
-    guard let statusAccessory else {
-      return nil
-    }
-    switch statusAccessory {
-    case .agentStatus(let status):
+    if let status = paneAgentStatuses.compactMap({ $0 }).first {
       return "Agent \(statusLabel(status))"
-    case .pinned:
-      return "Pinned"
-    case .terminalBell:
-      return "Terminal Bell"
-    case .terminalProgress:
-      return "Terminal Progress"
-    case .unreadCount(let count):
-      return "Unread \(count)"
     }
+    if paneHasAttention.contains(true) { return "Attention" }
+    if terminalProgress != nil { return "Terminal Progress" }
+    return nil
   }
 
   private var paneCountLabel: String? {
-    guard !paneWorkingDirectories.isEmpty else { return nil }
-    let count = paneWorkingDirectories.count
+    guard !paneTitles.isEmpty else { return nil }
+    let count = paneTitles.count
     return "\(count) pane\(count == 1 ? "" : "s")"
-  }
-
-  private var statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory? {
-    TerminalSidebarTabSummaryView.statusAccessory(
-      isPinned: false,
-      unreadCount: unreadCount,
-      agentStatus: agentStatus,
-      terminalProgress: terminalProgress,
-      hasTerminalBell: hasTerminalBell
-    )
   }
 
   init(
@@ -100,11 +87,10 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     title: String,
     id: String,
     isSelected: Bool = false,
-    paneWorkingDirectories: [String] = [],
-    agentWorkspaces: [TerminalTabAgentWorkspace] = [],
-    unreadCount: Int = 0,
-    agentStatus: TerminalHostState.TabAgentStatus? = nil,
-    hasTerminalBell: Bool = false,
+    isTitleLocked: Bool = false,
+    paneTitles: [String] = [],
+    paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = [],
+    paneHasAttention: [Bool] = [],
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
     previewID = id
@@ -113,11 +99,10 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.scenario = scenario
     self.title = title
     self.isSelected = isSelected
-    self.paneWorkingDirectories = paneWorkingDirectories
-    self.agentWorkspaces = agentWorkspaces
-    self.unreadCount = unreadCount
-    self.agentStatus = agentStatus
-    self.hasTerminalBell = hasTerminalBell
+    self.isTitleLocked = isTitleLocked
+    self.paneTitles = paneTitles
+    self.paneAgentStatuses = paneAgentStatuses
+    self.paneHasAttention = paneHasAttention
     self.terminalProgress = terminalProgress
   }
 
@@ -138,6 +123,10 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     }
     return value
   }
+
+  private static func paneID(_ index: Int) -> UUID {
+    UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!
+  }
 }
 
 private enum TerminalSidebarTabPreviewFixtures {
@@ -145,9 +134,9 @@ private enum TerminalSidebarTabPreviewFixtures {
     TerminalSidebarTabPreviewItem(
       section: .shellTitles,
       scenario: "Prompt title from fish, one pane",
-      title: "\(cwd()) - fish",
+      title: "fish",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A01",
-      paneWorkingDirectories: cwdList(cwd())
+      paneTitles: ["fish"]
     ),
     TerminalSidebarTabPreviewItem(
       section: .shellTitles,
@@ -155,95 +144,53 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Sidebar polish",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A02",
       isSelected: true,
-      paneWorkingDirectories: cwdList(
-        cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar")
-      )
+      isTitleLocked: true,
+      paneTitles: ["codex"]
     ),
     TerminalSidebarTabPreviewItem(
       section: .splitPanes,
-      scenario: "Three panes with distinct working trees",
+      scenario: "Three panes in split order",
       title: "Socket routing",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A03",
-      paneWorkingDirectories: cwdList(
-        cwd(),
-        cwd("apps", "mac", "supaterm"),
-        cwd("apps", "mac", "supatermTests")
-      )
+      paneTitles: ["codex", "swift test", "git status"]
     ),
     TerminalSidebarTabPreviewItem(
       section: .splitPanes,
-      scenario: "Four panes with duplicate roots collapsed",
+      scenario: "Four panes with repeated terminal titles",
       title: "mac-check",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A04",
-      paneWorkingDirectories: cwdList(
-        cwd("apps", "mac"),
-        cwd("apps", "mac", "supatermTests")
-      )
+      paneTitles: ["codex", "codex", "swift test", "swift test"]
     ),
     TerminalSidebarTabPreviewItem(
       section: .codingAgents,
-      scenario: "Running agent inside a split coding tab",
+      scenario: "Six mixed agent panes",
       title: "Socket cleanup",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05",
-      paneWorkingDirectories: cwdList(
-        cwd("apps", "mac"),
-        cwd("docs")
-      ),
-      agentWorkspaces: [
-        workspace(
-          path: cwd("apps", "mac"),
-          branch: "feature/sidebar-agent-context",
-          pullRequestNumber: 128
-        ),
-        workspace(
-          path: cwd("docs"),
-          branch: "docs/agent-tabs"
-        ),
-      ],
-      agentStatus: .working
+      paneTitles: ["Codex 1", "Codex 2", "Codex 3", "Review 1", "Review 2", "Review 3"],
+      paneAgentStatuses: [.working, .done, .needsInput, .working, .done, .needsInput]
     ),
     TerminalSidebarTabPreviewItem(
       section: .codingAgents,
       scenario: "Agent is waiting for input",
       title: "Release note pass",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06",
-      paneWorkingDirectories: cwdList(
-        cwd("apps", "supaterm.com"),
-        cwd("docs")
-      ),
-      agentWorkspaces: [
-        workspace(
-          path: cwd("apps", "supaterm.com"),
-          branch: "release/sidebar-copy",
-          pullRequestNumber: 131
-        )
-      ],
-      agentStatus: .needsInput
+      paneTitles: ["Review agent", "release notes"],
+      paneAgentStatuses: [.needsInput, nil]
     ),
     TerminalSidebarTabPreviewItem(
       section: .codingAgents,
       scenario: "Agent finished in a background tab",
       title: "Docs audit",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
-      paneWorkingDirectories: cwdList(cwd("docs")),
-      agentWorkspaces: [
-        workspace(
-          path: cwd("docs"),
-          branch: "docs/sidebar-agent-context",
-          pullRequestNumber: 132
-        )
-      ],
-      agentStatus: .done
+      paneTitles: ["Codex"],
+      paneAgentStatuses: [.done]
     ),
     TerminalSidebarTabPreviewItem(
       section: .terminalProgress,
       scenario: "Shell command is reporting OSC 9;4 progress",
       title: "Archive export",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A10",
-      paneWorkingDirectories: cwdList(
-        cwd("apps", "mac"),
-        cwd("docs")
-      ),
+      paneTitles: ["tar -czf release.tar.gz", "fish"],
       terminalProgress: TerminalSidebarTerminalProgress(fraction: 0.68, tone: .active)
     ),
     TerminalSidebarTabPreviewItem(
@@ -251,63 +198,27 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Raw terminal bell",
       title: "Background job done",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A11",
-      paneWorkingDirectories: cwdList(cwd("apps", "mac")),
-      hasTerminalBell: true
+      paneTitles: ["make mac-check"],
+      paneHasAttention: [true]
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,
       scenario: "Single unread pane",
       title: "Deploy smoke test",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
-      paneWorkingDirectories: cwdList(
-        cwd("apps", "supaterm.com"),
-        cwd("docs")
-      ),
-      unreadCount: 1
+      paneTitles: ["wrangler deploy", "curl smoke test"],
+      paneHasAttention: [false, true]
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,
-      scenario: "Unread count overrides agent attention",
+      scenario: "Agent state hides same-pane attention",
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
-      paneWorkingDirectories: cwdList(
-        cwd("apps", "mac"),
-        cwd("apps", "mac", "supatermTests")
-      ),
-      unreadCount: 12,
-      agentStatus: .needsInput
+      paneTitles: ["Codex", "swift test"],
+      paneAgentStatuses: [.working, nil],
+      paneHasAttention: [true, true],
     ),
   ]
-
-  private static func cwd(_ components: String...) -> String {
-    let root = "~/code/github.com/supabitapp/supaterm"
-    guard !components.isEmpty else { return root }
-    return ([root] + components).joined(separator: "/")
-  }
-
-  private static func cwdList(_ values: String...) -> [String] {
-    values
-  }
-
-  private static func workspace(
-    path: String,
-    branch: String,
-    pullRequestNumber: Int? = nil
-  ) -> TerminalTabAgentWorkspace {
-    TerminalTabAgentWorkspace(
-      workingDirectoryPath: path,
-      branch: TerminalTabAgentWorkspace.Branch(
-        repositoryRootPath: cwd(),
-        name: branch,
-        pullRequest: pullRequestNumber.map {
-          TerminalTabAgentWorkspace.PullRequest(
-            kind: .open,
-            title: "#\($0)",
-          )
-        }
-      )
-    )
-  }
 }
 
 private struct TerminalSidebarTabPreviewRow: View {
@@ -320,10 +231,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       palette: palette,
       isSelected: item.isSelected,
       isPinned: false,
-      details: item.details,
-      unreadCount: item.unreadCount,
-      agentStatus: item.agentStatus,
-      hasTerminalBell: item.hasTerminalBell,
+      panes: item.panes,
       terminalProgress: item.terminalProgress,
       shortcutHint: nil,
       showsShortcutHint: false,
@@ -467,18 +375,13 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
     item(
       title: "Socket routing",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B01",
-      paneWorkingDirectories: [
-        cwd("apps", "mac", "supaterm"),
-        cwd("docs"),
-      ]
+      paneTitles: ["codex", "swift test"]
     ),
     item(
       title: "Ghostty vendor bump",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B02",
-      paneWorkingDirectories: [
-        cwd("apps", "mac")
-      ],
-      unreadCount: 2
+      paneTitles: ["git submodule update"],
+      paneHasAttention: [true]
     ),
   ]
 
@@ -490,25 +393,18 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
         title: "supaterm.com polish",
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B03",
         isSelected: true,
-        paneWorkingDirectories: [
-          cwd("apps", "supaterm.com")
-        ]
+        paneTitles: ["pnpm dev"]
       ),
       item(
         title: "Release notes",
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B04",
-        paneWorkingDirectories: [
-          cwd("docs")
-        ]
+        paneTitles: ["codex"]
       ),
       item(
         title: "Smoke test",
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B05",
-        paneWorkingDirectories: [
-          cwd("apps", "mac"),
-          cwd("apps", "supaterm.com"),
-        ],
-        agentStatus: .needsInput
+        paneTitles: ["Review agent", "make smoke-test"],
+        paneAgentStatuses: [.needsInput, nil]
       ),
     ]
   )
@@ -517,9 +413,9 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
     title: String,
     id: String,
     isSelected: Bool = false,
-    paneWorkingDirectories: [String] = [],
-    unreadCount: Int = 0,
-    agentStatus: TerminalHostState.TabAgentStatus? = nil
+    paneTitles: [String] = [],
+    paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = [],
+    paneHasAttention: [Bool] = [],
   ) -> TerminalSidebarTabPreviewItem {
     TerminalSidebarTabPreviewItem(
       section: .attention,
@@ -527,16 +423,10 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
       title: title,
       id: id,
       isSelected: isSelected,
-      paneWorkingDirectories: paneWorkingDirectories,
-      unreadCount: unreadCount,
-      agentStatus: agentStatus
+      paneTitles: paneTitles,
+      paneAgentStatuses: paneAgentStatuses,
+      paneHasAttention: paneHasAttention,
     )
-  }
-
-  private static func cwd(_ components: String...) -> String {
-    let root = "~/code/github.com/supabitapp/supaterm"
-    guard !components.isEmpty else { return root }
-    return ([root] + components).joined(separator: "/")
   }
 }
 
