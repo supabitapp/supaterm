@@ -208,7 +208,6 @@ private struct TerminalSidebarTabLineView: View {
         isSelected: isSelected,
         palette: palette
       )
-      .accessibilityLabel("Terminal attention")
 
     case .pinned:
       Image(systemName: "pin.fill")
