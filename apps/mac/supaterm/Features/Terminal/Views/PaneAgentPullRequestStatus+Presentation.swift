@@ -23,18 +23,6 @@ extension TerminalTabAgentWorkspace.PullRequest {
   var icon: TerminalMetadataIcon {
     kind.icon
   }
-
-  func color(in palette: Palette) -> Color {
-    kind.color(in: palette, mergeAutomation: mergeAutomation)
-  }
-
-  var compactContextTitle: String {
-    "\(kind.stateTitle) \(title)"
-  }
-
-  var accessibilityTitle: String {
-    "\(kind.stateTitle) pull request \(title)"
-  }
 }
 
 extension PaneAgentPullRequestStatus.Kind {
@@ -73,23 +61,6 @@ extension PaneAgentPullRequestStatus.Kind {
       palette.merged
     case .closed:
       palette.danger
-    }
-  }
-
-  fileprivate var stateTitle: String {
-    switch self {
-    case .unavailable:
-      "Unavailable"
-    case .none:
-      "No pull request"
-    case .open:
-      "Open"
-    case .draft:
-      "Draft"
-    case .merged:
-      "Merged"
-    case .closed:
-      "Closed"
     }
   }
 }

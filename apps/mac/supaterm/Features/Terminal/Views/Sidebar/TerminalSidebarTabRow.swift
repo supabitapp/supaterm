@@ -50,19 +50,8 @@ struct TerminalSidebarTabRow: View {
   }
 
   private struct AnimatedPresentation: Equatable {
-    let agentStatus: TerminalHostState.TabAgentStatus?
-    let details: [TerminalSidebarTabDetail]
-    let hasTerminalBell: Bool
+    let panes: [TerminalSidebarPanePresentation]
     let terminalProgress: TerminalSidebarTerminalProgress?
-    let unreadCount: Int
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.agentStatus == rhs.agentStatus
-        && lhs.details == rhs.details
-        && lhs.hasTerminalBell == rhs.hasTerminalBell
-        && lhs.terminalProgress == rhs.terminalProgress
-        && lhs.unreadCount == rhs.unreadCount
-    }
   }
 
   let terminal: TerminalHostState
@@ -72,11 +61,8 @@ struct TerminalSidebarTabRow: View {
   let renameState: TerminalSidebarRenameState?
   let selectionState: TerminalSidebarTabSelectionState
   let outline: TerminalSidebarOutline
-  let agentStatus: TerminalHostState.TabAgentStatus?
-  let details: [TerminalSidebarTabDetail]
-  let unreadCount: Int
+  let panes: [TerminalSidebarPanePresentation]
   let terminalProgress: TerminalSidebarTerminalProgress?
-  let hasTerminalBell: Bool
   let palette: Palette
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -161,31 +147,18 @@ struct TerminalSidebarTabRow: View {
     let isGrouped = groupID != nil
     let contentInsets = TerminalSidebarLayout.tabContentHorizontalInsets(isGrouped: isGrouped)
     let surfaceInsets = TerminalSidebarLayout.tabSurfaceHorizontalInsets(isGrouped: isGrouped)
-    let summary = TerminalSidebarTabSummaryView(
+    TerminalSidebarTabSummaryView(
       tab: tab,
       palette: palette,
       isSelected: isSelected,
       isPinned: groupID == nil && rootIsPinned,
-      details: details,
-      unreadCount: unreadCount,
-      agentStatus: agentStatus,
-      hasTerminalBell: hasTerminalBell,
+      panes: panes,
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
       isRowHovering: isHovering
     )
-    .lineLimit(8)
-
-    Group {
-      if let helpText = TerminalSidebarTabSummaryView.helpText(
-        details: details
-      ) {
-        summary.help(helpText)
-      } else {
-        summary
-      }
-    }
+    .help(TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes))
     .padding(.leading, contentInsets.leading)
     .padding(.trailing, contentInsets.trailing)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
@@ -387,11 +360,8 @@ struct TerminalSidebarTabRow: View {
 
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
-      agentStatus: agentStatus,
-      details: details,
-      hasTerminalBell: hasTerminalBell,
-      terminalProgress: terminalProgress,
-      unreadCount: unreadCount
+      panes: panes,
+      terminalProgress: terminalProgress
     )
   }
 
