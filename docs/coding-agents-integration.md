@@ -165,7 +165,7 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 
 - It reads one agent hook event JSON object from stdin; the caller must declare the agent explicitly with `--agent`.
 - It forwards that payload to the app over the socket method `terminal.agent_hook`.
-- The forwarded request carries the decoded event, the explicit agent kind, and the ambient `SupatermCLIContext` from the current pane.
+- The forwarded request carries the decoded event, the explicit agent kind, and the ambient `SupatermCLIContext` from the current pane. For Codex, the CLI also forwards a non-empty inherited `CODEX_THREAD_ID`.
 - Root session-start payloads should include the agent's absolute `cwd`. Supaterm uses it for the Workspace row, Git status, and forked session working directory.
 
 ## Claude
@@ -199,7 +199,10 @@ Codex uses the same session-identity bridge. The terminal reader alone owns the 
 
 The app uses Codex hooks only for root session identity.
 
-- `SessionStart` binds the session ID, process, workspace, and pane surface.
+- A `SessionStart` event must include a non-empty `transcript_path`. Supaterm treats the path as persistence metadata and does not read the transcript.
+- If the hook process inherited `CODEX_THREAD_ID`, the value must match `session_id`. This keeps nested Codex processes from replacing the pane's root session.
+- Supaterm clears `CODEX_THREAD_ID` when it creates a pane, so the new pane can bind its own root session.
+- An accepted `SessionStart` binds the session ID, process, workspace, and pane surface.
 - Every other Codex hook event is ignored by the app.
 - The terminal reader alone sets Codex's root `unknown`, `idle`, `running`, or `needs input` phase.
 
