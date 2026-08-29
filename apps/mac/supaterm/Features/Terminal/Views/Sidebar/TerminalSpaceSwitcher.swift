@@ -78,7 +78,7 @@ struct TerminalWindowHeader: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
       TerminalAgentsPopoverButton(
-        items: terminal.agentsPopoverItems(),
+        items: terminal.windowAgentPresentations(),
         palette: palette
       )
       .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)

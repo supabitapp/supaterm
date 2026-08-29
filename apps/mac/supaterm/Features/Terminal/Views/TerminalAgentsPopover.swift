@@ -30,14 +30,8 @@ enum TerminalAgentsPopoverMetrics {
   }
 }
 
-enum TerminalAgentsPopoverStatus: Equatable {
-  case unknown
-  case idle
-  case done
-  case needsInput
-  case working
-
-  var title: String {
+extension TerminalHostState.AgentPresentationStatus {
+  fileprivate var title: String {
     switch self {
     case .unknown:
       "Unknown"
@@ -53,97 +47,77 @@ enum TerminalAgentsPopoverStatus: Equatable {
   }
 }
 
-struct TerminalAgentsPopoverItem: Identifiable, Equatable {
-  enum Icon: Equatable {
-    case asset(String)
-    case system(String)
+private enum TerminalAgentsPopoverIcon {
+  case asset(String)
+  case system(String)
+}
+
+extension TerminalHostState.WindowAgentPresentation {
+  fileprivate var subtitle: String {
+    "\(identity.displayName) · \(workspace)"
   }
 
-  let id: String
-  let agentName: String
-  let icon: Icon
-  let task: String
-  let workspace: String
-  let status: TerminalAgentsPopoverStatus
-
-  var subtitle: String {
-    "\(agentName) · \(workspace)"
-  }
-
-  init(
-    id: String,
-    agentID: String,
-    agentName: String,
-    task: String,
-    workspace: String,
-    status: TerminalAgentsPopoverStatus
-  ) {
-    self.id = id
-    self.agentName = agentName
-    self.task = task
-    self.workspace = workspace
-    self.status = status
-    if let agent = SupatermAgentKind(rawValue: agentID) {
-      icon = .asset(agent.markImageName)
+  fileprivate var icon: TerminalAgentsPopoverIcon {
+    if let agent = SupatermAgentKind(rawValue: identity.id) {
+      .asset(agent.markImageName)
     } else {
-      icon = .system("terminal.fill")
+      .system("terminal.fill")
     }
   }
 
-  private init(
-    id: String,
-    agentName: String,
-    icon: Icon,
-    task: String,
-    workspace: String,
-    status: TerminalAgentsPopoverStatus
-  ) {
-    self.id = id
-    self.agentName = agentName
-    self.icon = icon
-    self.task = task
-    self.workspace = workspace
-    self.status = status
-  }
-
   static let snapshotData = [
-    TerminalAgentsPopoverItem(
-      id: "build-popover",
-      agentName: "Builder",
-      icon: .system("hammer.fill"),
+    snapshot(
+      agent: .codex,
+      sessionID: "build-popover",
       task: "Build the agents popview",
       workspace: "supaterm",
       status: .working
     ),
-    TerminalAgentsPopoverItem(
-      id: "inspect-interaction",
-      agentName: "Researcher",
-      icon: .system("magnifyingglass"),
+    snapshot(
+      agent: .claude,
+      sessionID: "inspect-interaction",
       task: "Inspect the interaction",
       workspace: "ui-research",
       status: .done
     ),
-    TerminalAgentsPopoverItem(
-      id: "review-layout",
-      agentName: "Reviewer",
-      icon: .system("text.document"),
+    snapshot(
+      agent: .pi,
+      sessionID: "review-layout",
       task: "Review spacing and type",
       workspace: "supaterm",
       status: .needsInput
     ),
-    TerminalAgentsPopoverItem(
-      id: "test-appearance",
-      agentName: "Tester",
-      icon: .system("checkmark.seal.fill"),
+    snapshot(
+      agent: .codex,
+      sessionID: "test-appearance",
       task: "Check light and dark modes",
       workspace: "supaterm",
       status: .working
     ),
   ]
+
+  private static func snapshot(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    task: String,
+    workspace: String,
+    status: TerminalHostState.AgentPresentationStatus
+  ) -> Self {
+    Self(
+      id: TerminalHostState.WindowAgentPresentationID(
+        surfaceID: UUID(),
+        completionIdentity: .native(agent: agent, sessionID: sessionID)
+      ),
+      identity: AgentDetectionAgentIdentity(agent),
+      task: task,
+      workspace: workspace,
+      status: status
+    )
+  }
 }
 
 struct TerminalAgentsPopoverButton: View {
-  let items: [TerminalAgentsPopoverItem]
+  let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
 
   @State private var isHovered = false
@@ -198,7 +172,7 @@ struct TerminalAgentsPopoverButton: View {
 }
 
 struct TerminalAgentsPopoverView: View {
-  let items: [TerminalAgentsPopoverItem]
+  let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
 
   @State private var acceptsInput = false
@@ -278,7 +252,7 @@ struct TerminalAgentsPopoverView: View {
 }
 
 private struct TerminalAgentsPopoverRow: View {
-  let item: TerminalAgentsPopoverItem
+  let item: TerminalHostState.WindowAgentPresentation
   let palette: Palette
 
   @State private var isHovered = false
@@ -375,7 +349,7 @@ private struct TerminalAgentsPopoverRow: View {
 
 private struct TerminalAgentsPopoverPresenter: NSViewRepresentable {
   @Binding var isPresented: Bool
-  let items: [TerminalAgentsPopoverItem]
+  let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
 
   func makeNSView(context: Context) -> TerminalAgentsPopoverAnchorView {
@@ -404,7 +378,7 @@ private struct TerminalAgentsPopoverPresenter: NSViewRepresentable {
 private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
   private var hostingController: NSHostingController<TerminalAgentsPopoverView>?
   private var isPresented = false
-  private var items = [TerminalAgentsPopoverItem]()
+  private var items = [TerminalHostState.WindowAgentPresentation]()
   private var onDismiss: (() -> Void)?
   private var palette = Palette(colorScheme: .light)
   private let popover: NSPopover
@@ -432,7 +406,7 @@ private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
 
   func render(
     isPresented: Bool,
-    items: [TerminalAgentsPopoverItem],
+    items: [TerminalHostState.WindowAgentPresentation],
     palette: Palette,
     onDismiss: @escaping () -> Void
   ) {

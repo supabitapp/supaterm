@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Sendable {
+public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
   case claude
   case codex
   case pi
