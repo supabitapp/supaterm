@@ -77,7 +77,11 @@ final class DiaParityDragUITests: SupatermUITestCase {
     try await createGroup(named: "Target", containing: "Seed")
     try clickMenuItem(.toggleTabLayout)
 
-    try drag(horizontalTab(named: "Mover"), to: horizontalGroup(named: "Target"))
+    try drag(
+      horizontalTab(named: "Mover"),
+      to: horizontalGroup(named: "Target"),
+      destinationOffset: CGVector(dx: 0.2, dy: 0.5)
+    )
     let didJoinGroup = await wait {
       self.horizontalGroup(named: "Target").frame.maxX
         <= self.horizontalTab(named: "Mover").frame.minX
