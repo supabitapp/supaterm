@@ -281,53 +281,41 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func terminalProgressTakesPrecedenceOverUnreadCount() {
+  func terminalProgressTakesPrecedenceOverPaneAttention() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
-        unreadCount: 3,
-        terminalProgress: progress
-      ) == .terminalProgress(progress)
-    )
-  }
-
-  @Test
-  func terminalProgressTakesPrecedenceOverTerminalBell() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
-
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
         terminalProgress: progress,
-        hasTerminalBell: true
+        hasPaneAttention: true
       ) == .terminalProgress(progress)
     )
   }
 
   @Test
-  func unreadCountTakesPrecedenceOverTerminalBell() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 3,
-        terminalProgress: nil,
-        hasTerminalBell: true
-      ) == .unreadCount(3)
-    )
+  func everyAgentStatusHidesPaneAttention() {
+    let statuses: [TerminalHostState.TabAgentStatus] = [.working, .done, .needsInput]
+    for status in statuses {
+      #expect(
+        TerminalSidebarTabSummaryView.statusAccessory(
+          isPinned: false,
+          terminalProgress: nil,
+          agentStatus: status,
+          hasPaneAttention: true
+        ) == nil
+      )
+    }
   }
 
   @Test
-  func terminalBellTakesPrecedenceOverPinnedStatus() {
+  func paneAttentionTakesPrecedenceOverPinnedStatus() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
-        unreadCount: 0,
         terminalProgress: nil,
-        hasTerminalBell: true
-      ) == .terminalBell
+        hasPaneAttention: true
+      ) == .attention
     )
   }
 
@@ -347,7 +335,6 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
-        unreadCount: 0,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -359,17 +346,10 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func unreadCountFitsTheTrailingAccessorySlot() {
-    #expect(TerminalSidebarTabSummaryView.unreadCountText(12) == "12")
-    #expect(TerminalSidebarTabSummaryView.unreadCountText(100) == "99+")
-  }
-
-  @Test
   func quietTabShowsNoStatusAccessory() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
-        unreadCount: 0,
         terminalProgress: nil
       ) == nil
     )
@@ -380,7 +360,6 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
-        unreadCount: 0,
         terminalProgress: nil
       ) == .pinned
     )
@@ -393,7 +372,6 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
-        unreadCount: 0,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -403,10 +381,9 @@ struct TerminalSidebarChromeViewTests {
   func rowShortcutHintHidesStatusAccessories() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
     let statuses: [TerminalSidebarTabSummaryView.StatusAccessory] = [
+      .attention,
       .pinned,
       .terminalProgress(progress),
-      .unreadCount(2),
-      .terminalBell,
     ]
 
     for status in statuses {
@@ -445,7 +422,7 @@ struct TerminalSidebarChromeViewTests {
         shortcutHint: "⌘1",
         showsShortcutHint: true,
         isRowHovering: true,
-        statusAccessory: .unreadCount(2)
+        statusAccessory: .attention
       )
         == TerminalSidebarTabSummaryView.RowAccessories(
           shortcutHint: "⌘1",
@@ -514,12 +491,14 @@ struct TerminalSidebarChromeViewTests {
       TerminalHostState.TabPanePresentation(
         id: UUID(),
         title: "Codex",
-        agentStatus: .working
+        agentStatus: .working,
+        hasAttention: false
       ),
       TerminalHostState.TabPanePresentation(
         id: UUID(),
         title: "Review agent",
-        agentStatus: .done
+        agentStatus: .done,
+        hasAttention: false
       ),
     ]
 

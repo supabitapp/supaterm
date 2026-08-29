@@ -84,7 +84,8 @@ extension TerminalHostState {
     guard let tree = trees[tabID] else { return [] }
     let focusedSurfaceID = focusHistoryByTab[tabID]?.current
     return tree.leaves().enumerated().map { index, surface in
-      TabPanePresentation(
+      let notifications = notificationStore.notifications(for: surface.id) ?? []
+      return TabPanePresentation(
         id: surface.id,
         title: Self.resolvedSidebarPaneTitle(
           titleOverride: surface.bridge.state.titleOverride,
@@ -96,7 +97,9 @@ extension TerminalHostState {
           for: surface.id,
           in: tabID,
           focusedSurfaceID: focusedSurfaceID
-        )
+        ),
+        hasAttention: Self.surfaceAttentionState(in: notifications) == .unread
+          || surface.bridge.state.bellCount > 0
       )
     }
   }

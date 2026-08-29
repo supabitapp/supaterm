@@ -3,10 +3,9 @@ import SwiftUI
 
 struct TerminalSidebarTabSummaryView: View {
   enum StatusAccessory: Equatable {
+    case attention
     case pinned
-    case terminalBell
     case terminalProgress(TerminalSidebarTerminalProgress)
-    case unreadCount(Int)
   }
 
   struct RowAccessories: Equatable {
@@ -19,8 +18,6 @@ struct TerminalSidebarTabSummaryView: View {
   let isSelected: Bool
   let isPinned: Bool
   let panes: [TerminalHostState.TabPanePresentation]
-  let unreadCount: Int
-  let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -28,18 +25,15 @@ struct TerminalSidebarTabSummaryView: View {
 
   static func statusAccessory(
     isPinned: Bool,
-    unreadCount: Int,
     terminalProgress: TerminalSidebarTerminalProgress?,
-    hasTerminalBell: Bool = false
+    agentStatus: TerminalHostState.TabAgentStatus? = nil,
+    hasPaneAttention: Bool = false
   ) -> StatusAccessory? {
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
     }
-    if unreadCount > 0 {
-      return .unreadCount(unreadCount)
-    }
-    if hasTerminalBell {
-      return .terminalBell
+    if agentStatus == nil, hasPaneAttention {
+      return .attention
     }
     if isPinned {
       return .pinned
@@ -69,10 +63,6 @@ struct TerminalSidebarTabSummaryView: View {
     title.contains("/") ? .middle : .tail
   }
 
-  static func unreadCountText(_ unreadCount: Int) -> String {
-    unreadCount > 99 ? "99+" : unreadCount.formatted()
-  }
-
   static func helpText(
     tab: TerminalTabItem,
     panes: [TerminalHostState.TabPanePresentation]
@@ -83,17 +73,6 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   var body: some View {
-    let rowAccessories = Self.rowAccessories(
-      shortcutHint: shortcutHint,
-      showsShortcutHint: showsShortcutHint,
-      isRowHovering: isRowHovering,
-      statusAccessory: Self.statusAccessory(
-        isPinned: isPinned,
-        unreadCount: unreadCount,
-        terminalProgress: terminalProgress,
-        hasTerminalBell: hasTerminalBell
-      )
-    )
     let showsTitleHeader = tab.isTitleLocked || panes.isEmpty
 
     VStack(alignment: .leading, spacing: TerminalSidebarLayout.tabPaneLineSpacing) {
@@ -101,23 +80,53 @@ struct TerminalSidebarTabSummaryView: View {
         TerminalSidebarTabLineView(
           title: tab.title,
           agentStatus: nil,
-          rowAccessories: rowAccessories,
+          rowAccessories: tabRowAccessories,
           palette: palette,
           isSelected: isSelected
         )
       }
 
       ForEach(panes) { pane in
+        let ownsTabAccessories = !showsTitleHeader && pane.id == panes.first?.id
         TerminalSidebarTabLineView(
           title: pane.title,
           agentStatus: pane.agentStatus,
-          rowAccessories: !showsTitleHeader && pane.id == panes.first?.id ? rowAccessories : nil,
+          rowAccessories: paneRowAccessories(pane, ownsTabAccessories: ownsTabAccessories),
           palette: palette,
           isSelected: isSelected
         )
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var tabRowAccessories: RowAccessories? {
+    Self.rowAccessories(
+      shortcutHint: shortcutHint,
+      showsShortcutHint: showsShortcutHint,
+      isRowHovering: isRowHovering,
+      statusAccessory: Self.statusAccessory(
+        isPinned: isPinned,
+        terminalProgress: terminalProgress
+      )
+    )
+  }
+
+  private func paneRowAccessories(
+    _ pane: TerminalHostState.TabPanePresentation,
+    ownsTabAccessories: Bool
+  ) -> RowAccessories? {
+    Self.rowAccessories(
+      shortcutHint: ownsTabAccessories ? shortcutHint : nil,
+      showsShortcutHint: ownsTabAccessories && showsShortcutHint,
+      isRowHovering: ownsTabAccessories && isRowHovering,
+      statusAccessory: Self.statusAccessory(
+        isPinned: ownsTabAccessories && isPinned,
+        terminalProgress: ownsTabAccessories ? terminalProgress : nil,
+        agentStatus: pane.agentStatus,
+        hasPaneAttention: pane.hasAttention
+      )
+    )
   }
 }
 
@@ -200,25 +209,12 @@ private struct TerminalSidebarTabLineView: View {
     _ statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory
   ) -> some View {
     switch statusAccessory {
-    case .unreadCount(let unreadCount):
-      Text(TerminalSidebarTabSummaryView.unreadCountText(unreadCount))
-        .font(.system(size: 9, weight: .bold))
-        .foregroundStyle(isSelected ? palette.selectedText : Color.white)
-        .accessibilityLabel(
-          "\(unreadCount) unread \(unreadCount == 1 ? "notification" : "notifications")"
-        )
-        .padding(.horizontal, unreadCount > 9 ? 4 : 5)
-        .frame(minWidth: 16, minHeight: 16)
-        .background(
-          isSelected ? palette.selectedText.opacity(0.16) : palette.accent,
-          in: Capsule(style: .continuous)
-        )
-
-    case .terminalBell:
+    case .attention:
       TerminalSidebarBellIndicatorView(
         isSelected: isSelected,
         palette: palette
       )
+      .accessibilityLabel("Terminal attention")
 
     case .pinned:
       Image(systemName: "pin.fill")

@@ -25,8 +25,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let isTitleLocked: Bool
   let paneTitles: [String]
   let paneAgentStatuses: [TerminalHostState.TabAgentStatus?]
-  let unreadCount: Int
-  let hasTerminalBell: Bool
+  let paneHasAttention: [Bool]
   let terminalProgress: TerminalSidebarTerminalProgress?
 
   var id: String {
@@ -47,7 +46,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       TerminalHostState.TabPanePresentation(
         id: Self.paneID(index),
         title: title,
-        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
+        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil,
+        hasAttention: paneHasAttention.indices.contains(index) && paneHasAttention[index]
       )
     }
   }
@@ -68,32 +68,15 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     if let status = paneAgentStatuses.compactMap({ $0 }).first {
       return "Agent \(statusLabel(status))"
     }
-    guard let statusAccessory else { return nil }
-    switch statusAccessory {
-    case .pinned:
-      return "Pinned"
-    case .terminalBell:
-      return "Terminal Bell"
-    case .terminalProgress:
-      return "Terminal Progress"
-    case .unreadCount(let count):
-      return "Unread \(count)"
-    }
+    if paneHasAttention.contains(true) { return "Attention" }
+    if terminalProgress != nil { return "Terminal Progress" }
+    return nil
   }
 
   private var paneCountLabel: String? {
     guard !paneTitles.isEmpty else { return nil }
     let count = paneTitles.count
     return "\(count) pane\(count == 1 ? "" : "s")"
-  }
-
-  private var statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory? {
-    TerminalSidebarTabSummaryView.statusAccessory(
-      isPinned: false,
-      unreadCount: unreadCount,
-      terminalProgress: terminalProgress,
-      hasTerminalBell: hasTerminalBell
-    )
   }
 
   init(
@@ -105,8 +88,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     isTitleLocked: Bool = false,
     paneTitles: [String] = [],
     paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = [],
-    unreadCount: Int = 0,
-    hasTerminalBell: Bool = false,
+    paneHasAttention: [Bool] = [],
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
     previewID = id
@@ -118,8 +100,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.isTitleLocked = isTitleLocked
     self.paneTitles = paneTitles
     self.paneAgentStatuses = paneAgentStatuses
-    self.unreadCount = unreadCount
-    self.hasTerminalBell = hasTerminalBell
+    self.paneHasAttention = paneHasAttention
     self.terminalProgress = terminalProgress
   }
 
@@ -216,7 +197,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Background job done",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A11",
       paneTitles: ["make mac-check"],
-      hasTerminalBell: true
+      paneHasAttention: [true]
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,
@@ -224,16 +205,16 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Deploy smoke test",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
       paneTitles: ["wrangler deploy", "curl smoke test"],
-      unreadCount: 1
+      paneHasAttention: [false, true]
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,
-      scenario: "Unread count overrides agent attention",
+      scenario: "Agent state hides same-pane attention",
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
       paneTitles: ["Codex", "swift test"],
-      paneAgentStatuses: [.needsInput, nil],
-      unreadCount: 12,
+      paneAgentStatuses: [.working, nil],
+      paneHasAttention: [true, true],
     ),
   ]
 }
@@ -249,8 +230,6 @@ private struct TerminalSidebarTabPreviewRow: View {
       isSelected: item.isSelected,
       isPinned: false,
       panes: item.panes,
-      unreadCount: item.unreadCount,
-      hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
       shortcutHint: nil,
       showsShortcutHint: false,
@@ -400,7 +379,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
       title: "Ghostty vendor bump",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B02",
       paneTitles: ["git submodule update"],
-      unreadCount: 2
+      paneHasAttention: [true]
     ),
   ]
 
@@ -434,7 +413,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
     isSelected: Bool = false,
     paneTitles: [String] = [],
     paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = [],
-    unreadCount: Int = 0,
+    paneHasAttention: [Bool] = [],
   ) -> TerminalSidebarTabPreviewItem {
     TerminalSidebarTabPreviewItem(
       section: .attention,
@@ -444,7 +423,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
       isSelected: isSelected,
       paneTitles: paneTitles,
       paneAgentStatuses: paneAgentStatuses,
-      unreadCount: unreadCount,
+      paneHasAttention: paneHasAttention,
     )
   }
 }

@@ -48,16 +48,7 @@ struct TerminalSidebarTabRow: View {
 
   private struct AnimatedPresentation: Equatable {
     let panes: [TerminalHostState.TabPanePresentation]
-    let hasTerminalBell: Bool
     let terminalProgress: TerminalSidebarTerminalProgress?
-    let unreadCount: Int
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.panes == rhs.panes
-        && lhs.hasTerminalBell == rhs.hasTerminalBell
-        && lhs.terminalProgress == rhs.terminalProgress
-        && lhs.unreadCount == rhs.unreadCount
-    }
   }
 
   let terminal: TerminalHostState
@@ -68,9 +59,7 @@ struct TerminalSidebarTabRow: View {
   let selectionState: TerminalSidebarTabSelectionState
   let outline: TerminalSidebarOutline
   let panes: [TerminalHostState.TabPanePresentation]
-  let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
-  let hasTerminalBell: Bool
   let palette: Palette
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -157,8 +146,6 @@ struct TerminalSidebarTabRow: View {
       isSelected: isSelected,
       isPinned: groupID == nil && rootIsPinned,
       panes: panes,
-      unreadCount: unreadCount,
-      hasTerminalBell: hasTerminalBell,
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
@@ -359,9 +346,7 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
       panes: panes,
-      hasTerminalBell: hasTerminalBell,
-      terminalProgress: terminalProgress,
-      unreadCount: unreadCount
+      terminalProgress: terminalProgress
     )
   }
 

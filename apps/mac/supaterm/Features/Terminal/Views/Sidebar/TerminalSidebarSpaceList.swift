@@ -168,9 +168,7 @@ struct TerminalSidebarSpaceList: View {
       groupID: groupID,
       rootIsPinned: rootIsPinned,
       panes: terminal.tabPanePresentations(for: tab.id),
-      unreadCount: terminal.unreadNotificationCount(for: tab.id),
       terminalProgress: terminal.sidebarTerminalProgress(for: tab.id),
-      hasTerminalBell: terminal.tabHasBell(for: tab.id),
       shortcutHint: shortcutHints[tab.id],
       showsShortcutHint: commandHoldObserver.isPressed
     )

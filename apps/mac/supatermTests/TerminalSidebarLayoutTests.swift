@@ -160,12 +160,38 @@ struct TerminalSidebarLayoutTests {
     let pane = TerminalHostState.TabPanePresentation(
       id: UUID(),
       title: "Pane 1",
-      agentStatus: nil
+      agentStatus: nil,
+      hasAttention: false
     )
 
     #expect(
       TerminalSidebarRowPresentation.tab(tabPresentation(tab)).measurementKey
         != TerminalSidebarRowPresentation.tab(tabPresentation(tab, panes: [pane])).measurementKey
+    )
+  }
+
+  @Test
+  func tabMeasurementKeyChangesWhenPaneAttentionBecomesVisible() {
+    let tab = TerminalTabItem(title: "Tab")
+    let paneID = UUID()
+    let quietPane = TerminalHostState.TabPanePresentation(
+      id: paneID,
+      title: "Pane 1",
+      agentStatus: nil,
+      hasAttention: false
+    )
+    let attentionPane = TerminalHostState.TabPanePresentation(
+      id: paneID,
+      title: "Pane 1",
+      agentStatus: nil,
+      hasAttention: true
+    )
+
+    #expect(
+      TerminalSidebarRowPresentation.tab(tabPresentation(tab, panes: [quietPane])).measurementKey
+        != TerminalSidebarRowPresentation.tab(
+          tabPresentation(tab, panes: [attentionPane])
+        ).measurementKey
     )
   }
 
@@ -818,9 +844,7 @@ struct TerminalSidebarLayoutTests {
       groupID: groupID,
       rootIsPinned: false,
       panes: panes,
-      unreadCount: 0,
       terminalProgress: nil,
-      hasTerminalBell: false,
       shortcutHint: nil,
       showsShortcutHint: false
     )

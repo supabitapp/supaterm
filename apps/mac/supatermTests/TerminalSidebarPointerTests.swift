@@ -485,9 +485,7 @@ struct TerminalSidebarPointerTests {
       groupID: nil,
       rootIsPinned: false,
       panes: [],
-      unreadCount: 0,
       terminalProgress: nil,
-      hasTerminalBell: false,
       shortcutHint: nil,
       showsShortcutHint: false
     )

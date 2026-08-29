@@ -197,7 +197,7 @@ extension SnapshotCatalog {
     scenario(
       "unread-text",
       group: "Sidebar Rows",
-      title: "Unread count",
+      title: "Pane attention bells",
       size: CGSize(width: 320, height: 94)
     ) { appearance in
       AnyView(
@@ -210,7 +210,26 @@ extension SnapshotCatalog {
               "swift build",
               "swift test",
             ],
-            unreadCount: 12
+            paneHasAttention: [true, true]
+          )
+        )
+      )
+    },
+    scenario(
+      "agent-attention-priority",
+      group: "Sidebar Rows",
+      title: "Agent state hides same-pane attention",
+      size: CGSize(width: 320, height: 94)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000012",
+            title: "Agent and shell attention",
+            paneTitles: ["Codex", "swift test"],
+            paneAgentStatuses: [.working, nil],
+            paneHasAttention: [true, true]
           )
         )
       )
@@ -353,7 +372,7 @@ extension SnapshotCatalog {
               SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog"),
               "swift run SnapshotCatalog",
             ],
-            hasTerminalBell: true
+            paneHasAttention: [false, true]
           )
         )
       )
@@ -371,8 +390,7 @@ private struct SidebarRowSnapshotItem {
   var isTitleLocked = false
   var paneTitles: [String] = []
   var paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = []
-  var unreadCount = 0
-  var hasTerminalBell = false
+  var paneHasAttention: [Bool] = []
   var terminalProgress: TerminalSidebarTerminalProgress?
   var shortcutHint: String?
   var showsShortcutHint = false
@@ -392,7 +410,8 @@ private struct SidebarRowSnapshotItem {
       TerminalHostState.TabPanePresentation(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
         title: title,
-        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
+        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil,
+        hasAttention: paneHasAttention.indices.contains(index) && paneHasAttention[index]
       )
     }
   }
@@ -459,8 +478,6 @@ private struct SidebarRowSnapshotFixture: View {
       isSelected: item.isSelected,
       isPinned: item.isPinned,
       panes: item.panes,
-      unreadCount: item.unreadCount,
-      hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
       shortcutHint: item.shortcutHint,
       showsShortcutHint: item.showsShortcutHint,
