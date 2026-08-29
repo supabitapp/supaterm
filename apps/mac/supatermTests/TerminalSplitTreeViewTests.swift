@@ -99,6 +99,25 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  @MainActor
+  func paneDragSourceWinsHitTestingAtThePaneHandle() {
+    let source = NSView(frame: CGRect(x: 20, y: 220, width: 300, height: 10))
+
+    #expect(
+      TerminalPaneDragSourceHitTesting.source(
+        at: CGPoint(x: 100, y: 225),
+        in: [source]
+      ) === source
+    )
+    #expect(
+      TerminalPaneDragSourceHitTesting.source(
+        at: CGPoint(x: 100, y: 219),
+        in: [source]
+      ) == nil
+    )
+  }
+
+  @Test
   func notificationPulsePatternMatchesThreeFixedSizePulses() {
     #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
     #expect(TerminalNotificationPulsePattern.lowOpacity == 0.32)

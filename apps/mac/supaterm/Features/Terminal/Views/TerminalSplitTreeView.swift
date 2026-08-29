@@ -1213,6 +1213,16 @@ final class TerminalSplitAXContainerView: NSView {
 
   nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    if let source = TerminalPaneDragSourceHitTesting.source(
+      at: point,
+      in: Array(paneDragSourcesByID.values)
+    ) {
+      return source
+    }
+    return super.hitTest(point)
+  }
+
   init(backgroundColor: NSColor) {
     self.backgroundColor = backgroundColor
     super.init(frame: .zero)

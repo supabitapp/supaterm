@@ -146,6 +146,15 @@ enum TerminalPaneDragSourceLayout {
   }
 }
 
+enum TerminalPaneDragSourceHitTesting {
+  static func source<View: NSView>(
+    at point: NSPoint,
+    in sources: [View]
+  ) -> View? {
+    sources.first { $0.frame.contains(point) }
+  }
+}
+
 @MainActor
 final class TerminalPaneDragSourceNSView: NSView, NSDraggingSource {
   private var client: TerminalPaneDragClient
