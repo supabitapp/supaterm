@@ -488,14 +488,12 @@ struct TerminalSidebarChromeViewTests {
       TerminalHostState.TabPanePresentation(
         id: UUID(),
         title: "Codex",
-        agentStatus: .working,
-        isFocused: true
+        agentStatus: .working
       ),
       TerminalHostState.TabPanePresentation(
         id: UUID(),
         title: "Review agent",
-        agentStatus: .done,
-        isFocused: false
+        agentStatus: .done
       ),
     ]
 

@@ -425,7 +425,6 @@ struct TerminalHostStateAgentPresentationTests {
     #expect(panes.map(\.id) == [firstSurface.id, secondSurface.id, thirdSurface.id])
     #expect(panes.map(\.title) == ["Codex 1", "Review agent 1", "Pane 3"])
     #expect(panes.map(\.agentStatus) == [.working, .needsInput, nil])
-    #expect(panes.map(\.isFocused) == [true, false, false])
   }
 
   @Test

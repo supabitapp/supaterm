@@ -47,8 +47,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       TerminalHostState.TabPanePresentation(
         id: Self.paneID(index),
         title: title,
-        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil,
-        isFocused: index == 0
+        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
       )
     }
   }

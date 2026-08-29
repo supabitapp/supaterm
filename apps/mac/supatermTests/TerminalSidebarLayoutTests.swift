@@ -160,8 +160,7 @@ struct TerminalSidebarLayoutTests {
     let pane = TerminalHostState.TabPanePresentation(
       id: UUID(),
       title: "Pane 1",
-      agentStatus: nil,
-      isFocused: true
+      agentStatus: nil
     )
 
     #expect(

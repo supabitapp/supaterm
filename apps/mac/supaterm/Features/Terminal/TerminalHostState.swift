@@ -217,7 +217,6 @@ final class TerminalHostState {
     let id: UUID
     let title: String
     let agentStatus: TabAgentStatus?
-    let isFocused: Bool
   }
 
   struct TabAgentPresentation: Equatable, Sendable {

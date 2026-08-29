@@ -392,8 +392,7 @@ private struct SidebarRowSnapshotItem {
       TerminalHostState.TabPanePresentation(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
         title: title,
-        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil,
-        isFocused: index == 0
+        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
       )
     }
   }

@@ -96,8 +96,7 @@ extension TerminalHostState {
           for: surface.id,
           in: tabID,
           focusedSurfaceID: focusedSurfaceID
-        ),
-        isFocused: surface.id == focusedSurfaceID
+        )
       )
     }
   }

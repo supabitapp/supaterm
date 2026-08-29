@@ -94,7 +94,6 @@ struct TerminalSidebarTabSummaryView: View {
       if showsTitleHeader {
         TerminalSidebarTabLineView(
           title: tab.title,
-          emphasis: .primary,
           agentStatus: nil,
           rowAccessories: rowAccessories,
           palette: palette,
@@ -105,7 +104,6 @@ struct TerminalSidebarTabSummaryView: View {
       ForEach(panes) { pane in
         TerminalSidebarTabLineView(
           title: pane.title,
-          emphasis: pane.isFocused ? .primary : .secondary,
           agentStatus: pane.agentStatus,
           rowAccessories: !showsTitleHeader && pane.id == panes.first?.id ? rowAccessories : nil,
           palette: palette,
@@ -118,13 +116,7 @@ struct TerminalSidebarTabSummaryView: View {
 }
 
 private struct TerminalSidebarTabLineView: View {
-  enum Emphasis {
-    case primary
-    case secondary
-  }
-
   let title: String
-  let emphasis: Emphasis
   let agentStatus: TerminalHostState.TabAgentStatus?
   let rowAccessories: TerminalSidebarTabSummaryView.RowAccessories?
   let palette: Palette
@@ -138,7 +130,7 @@ private struct TerminalSidebarTabLineView: View {
         geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
       HStack(spacing: 6) {
         Text(title)
-          .font(.system(size: 12, weight: emphasis == .primary ? .medium : .regular))
+          .font(.system(size: 12, weight: .medium))
           .foregroundStyle(titleColor)
           .lineLimit(1)
           .truncationMode(TerminalSidebarTabSummaryView.titleTruncationMode(title))
@@ -172,16 +164,7 @@ private struct TerminalSidebarTabLineView: View {
   }
 
   private var titleColor: Color {
-    switch (isSelected, emphasis) {
-    case (true, .primary):
-      palette.selectedText
-    case (true, .secondary):
-      palette.selectedSecondaryText
-    case (false, .primary):
-      palette.selectableRow.title
-    case (false, .secondary):
-      palette.secondaryText
-    }
+    isSelected ? palette.selectedText : palette.selectableRow.title
   }
 
   private func trailingAccessory(
