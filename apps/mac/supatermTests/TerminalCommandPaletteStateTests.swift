@@ -42,6 +42,7 @@ struct TerminalCommandPaletteStateTests {
         "server.log",
         "Split Pane Right",
         "Split Pane Down",
+        "Move Pane to a New Tab",
         "Zoom Pane",
         "Equalize Panes",
         "Pin Tab",
@@ -54,7 +55,6 @@ struct TerminalCommandPaletteStateTests {
         "Close Other Tabs",
         "Close Pane",
         "Close Tab",
-        "Toggle Tab Layout",
         "Toggle Sidebar",
         "Open Settings",
       ]
@@ -72,6 +72,28 @@ struct TerminalCommandPaletteStateTests {
 
     #expect(row?.title == "Unpin Tab")
     #expect(row?.command == .togglePinned(snapshot.visibleTabs[0].id))
+  }
+
+  @Test
+  func rowsHideMovePaneWhenSelectedTabIsNotSplit() {
+    let source = makeSnapshot()
+    let snapshot = TerminalCommandPaletteSnapshot(
+      availableAppActions: source.availableAppActions,
+      ghosttyShortcutDisplayByAction: source.ghosttyShortcutDisplayByAction,
+      updateEntries: source.updateEntries,
+      focusTargets: source.focusTargets,
+      selectedSurfaceID: source.selectedSurfaceID,
+      selectedTabPaneCount: 1,
+      selectedPaneIsZoomed: source.selectedPaneIsZoomed,
+      selectedSpaceID: source.selectedSpaceID,
+      spaces: source.spaces,
+      selectedTabID: source.selectedTabID,
+      rootItems: source.rootItems
+    )
+
+    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
+
+    #expect(!rows.contains { $0.id == "terminal:move-pane-to-new-tab" })
   }
 
   @Test

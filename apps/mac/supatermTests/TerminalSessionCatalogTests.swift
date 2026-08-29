@@ -31,33 +31,6 @@ struct TerminalSessionCatalogTests {
   }
 
   @Test
-  func windowTabLayoutStyleRoundTripsAndOldSessionsDefaultToVertical() throws {
-    let spaceID = TerminalSpaceID()
-    let catalog = TerminalSessionCatalog(
-      windows: [
-        TerminalWindowSession(
-          displayedSpaceID: spaceID,
-          spaces: [],
-          tabLayoutStyle: .horizontal
-        )
-      ]
-    )
-    let data = try TerminalSessionCatalog.fileStorageEncoder().encode(catalog)
-    let decoded = try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
-    var object = try #require(
-      JSONSerialization.jsonObject(with: data) as? [String: Any]
-    )
-    var windows = try #require(object["windows"] as? [[String: Any]])
-    windows[0].removeValue(forKey: "tabLayoutStyle")
-    object["windows"] = windows
-    let legacyData = try JSONSerialization.data(withJSONObject: object)
-    let legacy = try JSONDecoder().decode(TerminalSessionCatalog.self, from: legacyData)
-
-    #expect(decoded.windows.first?.tabLayoutStyle == .horizontal)
-    #expect(legacy.windows.first?.tabLayoutStyle == .vertical)
-  }
-
-  @Test
   func everyStoredCatalogVersionMigratesToCurrent() throws {
     #expect(
       TerminalSessionCatalogVersion.allCases.map(\.rawValue)

@@ -43,9 +43,9 @@ enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case closeTab(TerminalTabID)
   case ghosttyBindingAction(String)
   case focusPane(TerminalCommandPaletteFocusTarget)
+  case movePaneToNewTab(UUID)
   case update(UpdateUserAction)
   case toggleSidebar
-  case toggleTabLayout
   case createSpace
   case renameSpace(TerminalSpaceItem)
   case togglePinned(TerminalTabID)
@@ -621,6 +621,21 @@ enum TerminalCommandPalettePresentation {
       ),
     ]
     guard snapshot.selectedTabIsSplit else { return rows }
+    if let selectedSurfaceID = snapshot.selectedSurfaceID {
+      rows.append(
+        TerminalCommandPaletteRow(
+          id: "terminal:move-pane-to-new-tab",
+          title: "Move Pane to a New Tab",
+          subtitle: "Layout",
+          description: "Move the focused pane out of its split into a new tab.",
+          leadingIcon: "macwindow.badge.plus",
+          badge: nil,
+          emphasis: false,
+          shortcut: nil,
+          command: .movePaneToNewTab(selectedSurfaceID)
+        )
+      )
+    }
     rows.append(
       bindingRow(
         BindingRowDefinition(
@@ -792,17 +807,6 @@ enum TerminalCommandPalettePresentation {
     @Shared(.supatermSettings) var supatermSettings = .default
     var rows = [
       TerminalCommandPaletteRow(
-        id: "supaterm:toggle-tab-layout",
-        title: "Toggle Tab Layout",
-        subtitle: "View",
-        description: nil,
-        leadingIcon: "rectangle.topthird.inset.filled",
-        badge: nil,
-        emphasis: false,
-        shortcut: nil,
-        command: .toggleTabLayout
-      ),
-      TerminalCommandPaletteRow(
         id: "supaterm:toggle-sidebar",
         title: "Toggle Sidebar",
         subtitle: "View",
@@ -815,7 +819,7 @@ enum TerminalCommandPalettePresentation {
           overrides: supatermSettings.shortcutOverrides
         )?.display,
         command: .toggleSidebar
-      ),
+      )
     ]
     rows.append(contentsOf: appRows([.openSettings], from: snapshot))
     return rows

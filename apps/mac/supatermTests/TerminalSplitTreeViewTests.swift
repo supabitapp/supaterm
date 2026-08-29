@@ -74,6 +74,7 @@ struct TerminalSplitTreeViewTests {
       splitDividerColor: .clear,
       tree: SplitTree(),
       unreadSurfaceIDs: [],
+      paneDragClient: nil,
       action: { _ in }
     )
 
@@ -86,7 +87,36 @@ struct TerminalSplitTreeViewTests {
     )
 
     #expect(container.backgroundColor == updatedColor)
-    #expect(container.subviews.count == 2)
+    #expect(container.subviews.count == 3)
+    #expect(container.subviews.last is TerminalPaneDragSourceHost)
+  }
+
+  @Test
+  func paneDragSourceCoversTheTopOfItsPane() {
+    #expect(
+      TerminalPaneDragSourceLayout.frame(
+        for: CGRect(x: 20, y: 30, width: 300, height: 200)
+      ) == CGRect(x: 20, y: 220, width: 300, height: 10)
+    )
+  }
+
+  @Test
+  @MainActor
+  func paneDragSourceWinsHitTestingAtThePaneHandle() {
+    let source = NSView(frame: CGRect(x: 20, y: 220, width: 300, height: 10))
+
+    #expect(
+      TerminalPaneDragSourceHitTesting.source(
+        at: CGPoint(x: 100, y: 225),
+        in: [source]
+      ) === source
+    )
+    #expect(
+      TerminalPaneDragSourceHitTesting.source(
+        at: CGPoint(x: 100, y: 219),
+        in: [source]
+      ) == nil
+    )
   }
 
   @Test

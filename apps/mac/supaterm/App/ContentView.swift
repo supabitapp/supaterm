@@ -8,6 +8,7 @@ struct ContentView: View {
   let commandHoldObserver: CommandHoldObserver
   let ghosttyShortcuts: GhosttyShortcutManager
   let commandPaletteClient: TerminalCommandPaletteClient
+  let paneDragClient: TerminalPaneDragClient
   let updateWindowShell: (TerminalWindowShellPresentation) -> Void
   let store: StoreOf<AppFeature>
   @Bindable var terminal: TerminalHostState
@@ -16,6 +17,7 @@ struct ContentView: View {
     commandHoldObserver: CommandHoldObserver,
     ghosttyShortcuts: GhosttyShortcutManager,
     commandPaletteClient: TerminalCommandPaletteClient,
+    paneDragClient: TerminalPaneDragClient,
     updateWindowShell: @escaping (TerminalWindowShellPresentation) -> Void,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState
@@ -23,6 +25,7 @@ struct ContentView: View {
     self.commandHoldObserver = commandHoldObserver
     self.ghosttyShortcuts = ghosttyShortcuts
     self.commandPaletteClient = commandPaletteClient
+    self.paneDragClient = paneDragClient
     self.updateWindowShell = updateWindowShell
     self.store = store
     self._terminal = Bindable(terminal)
@@ -41,6 +44,7 @@ struct ContentView: View {
     )
     .environment(commandHoldObserver)
     .environment(ghosttyShortcuts)
+    .environment(\.terminalPaneDragClient, paneDragClient)
     .task { @MainActor in
       await terminalStore.send(.task).finish()
     }
@@ -77,21 +81,5 @@ struct TerminalSidebarContentView: View {
     }
     .environment(commandHoldObserver)
     .environment(ghosttyShortcuts)
-  }
-}
-
-struct TerminalHorizontalTabsContentView: View {
-  let store: StoreOf<AppFeature>
-  let tabDragRegistry: TerminalTabDragRegistry
-  let terminal: TerminalHostState
-  let windowControllerID: UUID
-
-  var body: some View {
-    TerminalHorizontalTabsView(
-      store: store.scope(state: \.terminal, action: \.terminal),
-      tabDragRegistry: tabDragRegistry,
-      terminal: terminal,
-      windowControllerID: windowControllerID
-    )
   }
 }

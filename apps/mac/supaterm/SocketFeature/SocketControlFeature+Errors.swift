@@ -127,6 +127,12 @@ extension SocketControlFeature {
     if let response = tabGroupErrorResponse(error, requestID: requestID) {
       return response
     }
+    if let response = paneMoveErrorResponse(error, requestID: requestID) {
+      return response
+    }
+    if let response = terminalLocationErrorResponse(error, requestID: requestID) {
+      return response
+    }
 
     switch error {
     case .contextPaneNotFound:
@@ -137,7 +143,8 @@ extension SocketControlFeature {
       )
 
     case .captureFailed, .groupNotFound, .groupSpaceMismatch, .invalidCaptureLines,
-      .invalidGroupIndex, .invalidGroupTitle, .screenshotFailed:
+      .invalidGroupIndex, .invalidGroupTitle, .paneNotFound, .paneRequiresSplit, .screenshotFailed,
+      .spaceNotFound, .tabNotFound, .windowNotFound:
       preconditionFailure()
 
     case .invalidSpaceName:
@@ -175,14 +182,6 @@ extension SocketControlFeature {
         message: "Cannot close the only remaining space."
       )
 
-    case .paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      return .error(
-        id: requestID,
-        code: "not_found",
-        message:
-          "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
-      )
-
     case .resizeFailed:
       return .error(
         id: requestID,
@@ -195,6 +194,21 @@ extension SocketControlFeature {
         id: requestID,
         code: "invalid_request",
         message: "Space name is already in use."
+      )
+    }
+  }
+
+  private func terminalLocationErrorResponse(
+    _ error: TerminalControlError,
+    requestID: String
+  ) -> SupatermSocketResponse? {
+    switch error {
+    case .paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message:
+          "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
       )
 
     case .spaceNotFound(let windowIndex, let spaceIndex):
@@ -217,6 +231,9 @@ extension SocketControlFeature {
         code: "not_found",
         message: "Window \(windowIndex) was not found."
       )
+
+    default:
+      return nil
     }
   }
 
@@ -246,6 +263,18 @@ extension SocketControlFeature {
     default:
       return nil
     }
+  }
+
+  private func paneMoveErrorResponse(
+    _ error: TerminalControlError,
+    requestID: String
+  ) -> SupatermSocketResponse? {
+    guard case .paneRequiresSplit = error else { return nil }
+    return .error(
+      id: requestID,
+      code: "invalid_request",
+      message: "The pane must share its tab with another pane."
+    )
   }
 
   private func tabGroupErrorResponse(

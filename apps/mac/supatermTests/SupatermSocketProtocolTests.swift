@@ -933,6 +933,21 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func movePaneToNewTabRequestUsesTypedHelper() throws {
+    let payload = SupatermPaneTargetRequest(
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    )
+
+    let request = try SupatermSocketRequest.movePaneToNewTab(
+      payload,
+      id: "move-pane-to-new-tab-1"
+    )
+
+    #expect(request.method == SupatermSocketMethod.terminalMovePaneToNewTab)
+    #expect(try request.decodeParams(SupatermPaneTargetRequest.self) == payload)
+  }
+
+  @Test
   func newPaneRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     let requestPayload = SupatermNewPaneRequest(

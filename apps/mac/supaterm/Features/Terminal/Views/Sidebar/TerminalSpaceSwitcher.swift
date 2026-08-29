@@ -79,23 +79,11 @@ struct TerminalWindowHeader: View {
 
       TerminalAgentsPopoverButton(palette: palette)
         .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
+        .padding(.trailing, TerminalWindowHeaderMetrics.spacing)
         .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .top)
         .background {
           WindowDragSurface()
         }
-
-      ToolbarIconButton(
-        symbol: "rectangle.topthird.inset.filled",
-        palette: palette,
-        accessibilityLabel: "Show Tabs at Top"
-      ) {
-        _ = store.send(.toggleTabLayoutButtonTapped)
-      }
-      .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding - 1)
-      .padding(.trailing, TerminalWindowHeaderMetrics.spacing)
-      .background {
-        WindowDragSurface()
-      }
     }
     .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .topLeading)
   }

@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Testing
+import UniformTypeIdentifiers
 
 @testable import supaterm
 
@@ -33,6 +34,87 @@ struct TerminalTabDragPayloadTests {
     #expect(decoded == payload)
     #expect(decoded.moveOperationID == operationID)
     #expect(decoded.itemIDs == [.group(groupID), .tab(tabID)])
+  }
+
+  @Test
+  func panePasteboardRoundTripPreservesDeferredTabIdentity() throws {
+    let operationID = TerminalTabMoveOperationID()
+    let surfaceID = UUID()
+    let destinationTabID = TerminalTabID()
+    let payload = TerminalTabDragPayload(
+      operationID: operationID,
+      sourceWindowID: UUID(),
+      sourceSpaceID: TerminalSpaceID(),
+      sourceTopologyRevision: 8,
+      surfaceID: surfaceID,
+      destinationTabID: destinationTabID
+    )
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+    let item = NSPasteboardItem()
+
+    #expect(TerminalTabDragPasteboard.write(payload, to: item))
+    pasteboard.clearContents()
+    pasteboard.writeObjects([item])
+
+    let decoded = try #require(TerminalTabDragPasteboard.read(from: pasteboard))
+    #expect(decoded == payload)
+    guard case .pane(let pane) = decoded.source else {
+      Issue.record("Expected pane source")
+      return
+    }
+    #expect(pane.surfaceID == surfaceID)
+    #expect(pane.destinationTabID == destinationTabID)
+    #expect(decoded.itemIDs.isEmpty)
+    #expect(decoded.singleTabID == nil)
+  }
+
+  @Test
+  func panePasteboardPublishesPaneAndTabDropTypes() {
+    let payload = TerminalTabDragPayload(
+      operationID: TerminalTabMoveOperationID(),
+      sourceWindowID: UUID(),
+      sourceSpaceID: TerminalSpaceID(),
+      sourceTopologyRevision: 0,
+      surfaceID: UUID(),
+      destinationTabID: TerminalTabID()
+    )
+    let item = NSPasteboardItem()
+
+    #expect(
+      TerminalTabDragPasteboard.write(
+        payload,
+        to: item,
+        types: [.terminalPaneDrag, .terminalTabDrag]
+      )
+    )
+    #expect(
+      TerminalSplitTreeView.dragType.identifier
+        == NSPasteboard.PasteboardType.terminalPaneDrag.rawValue
+    )
+    #expect(
+      TerminalSplitTreeView.dragType.identifier
+        != NSPasteboard.PasteboardType.terminalTabDrag.rawValue
+    )
+    #expect(item.data(forType: .terminalPaneDrag) != nil)
+    #expect(item.data(forType: .terminalTabDrag) != nil)
+  }
+
+  @Test
+  func tabPasteboardDoesNotClaimPaneDropTargets() throws {
+    let payload = try #require(
+      TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: UUID(),
+        sourceSpaceID: TerminalSpaceID(),
+        sourceTopologyRevision: 0,
+        itemIDs: [.tab(TerminalTabID())]
+      )
+    )
+    let item = NSPasteboardItem()
+
+    #expect(TerminalTabDragPasteboard.write(payload, to: item))
+    #expect(item.data(forType: .terminalPaneDrag) == nil)
+    #expect(item.data(forType: .terminalTabDrag) != nil)
   }
 
   @Test
@@ -157,7 +239,8 @@ struct TerminalTabDragPayloadTests {
     #expect(group.singleTabID == nil)
     #expect(tabs.singleTabID == nil)
 
-    let registry = TerminalTabDragRegistry(previewPresenter: TerminalTabDragPreviewRecorder())
+    let preview = TerminalTabDragPreviewRecorder()
+    let registry = TerminalTabDragRegistry(previewPresenter: preview)
     #expect(
       registry.begin(group)
     )
@@ -165,7 +248,16 @@ struct TerminalTabDragPayloadTests {
       to: CGPoint(x: 800, y: 500),
       sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700)
     )
-    #expect(!registry.transitionSharedPreview(group, to: .contentPane))
+    registry.setSplitDestination(
+      group,
+      destination: TerminalTabDragRegistry.SplitDestination(
+        windowControllerID: UUID(),
+        spaceID: TerminalSpaceID(),
+        tabID: TerminalTabID(),
+        zone: .left
+      )
+    )
+    #expect(preview.transitions.isEmpty)
   }
 
   @Test
@@ -408,7 +500,7 @@ struct TerminalTabDragPayloadTests {
   }
 
   @Test
-  func registryDelegatesSharedPreviewTypeAndPointerMovesRespectVisibility() throws {
+  func registryDerivesSharedPreviewTypeFromItsDestination() throws {
     let previewPresenter = TerminalTabDragPreviewRecorder()
     let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)
     let payload = try #require(
@@ -435,13 +527,19 @@ struct TerminalTabDragPayloadTests {
         previewContentSize: CGSize(width: 1_440, height: 820)
       )
     )
-    #expect(!registry.transitionSharedPreview(payload, to: .contentPane))
     let sourceSurfaceFrame = CGRect(x: 0, y: 0, width: 240, height: 700)
     _ = registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: sourceSurfaceFrame)
+    let destination = TerminalTabDragRegistry.SplitDestination(
+      windowControllerID: UUID(),
+      spaceID: TerminalSpaceID(),
+      tabID: TerminalTabID(),
+      zone: .left
+    )
 
-    #expect(!registry.transitionSharedPreview(otherPayload, to: .contentPane))
-    #expect(registry.transitionSharedPreview(payload, to: .contentPane))
-    #expect(!registry.transitionSharedPreview(payload, to: .contentPane))
+    registry.setSplitDestination(otherPayload, destination: destination)
+    registry.setSplitDestination(payload, destination: destination)
+    registry.setDesktopDestination(payload, isActive: false)
+    registry.setSplitDestination(payload, destination: destination)
     #expect(previewPresenter.transitions == [.contentPane])
 
     let movedState = try #require(
@@ -453,6 +551,12 @@ struct TerminalTabDragPayloadTests {
     }
     #expect(previewPresenter.currentType == .contentPane)
     #expect(previewPresenter.typesDuringShows == [.window, .contentPane])
+
+    registry.clearSplitDestination(
+      payload,
+      windowControllerID: destination.windowControllerID
+    )
+    #expect(previewPresenter.transitions == [.contentPane, .window])
 
     #expect(
       registry.move(
@@ -483,23 +587,23 @@ private func silhouetteSubpathCount(_ path: CGPath) -> Int {
 }
 
 @MainActor
-private final class TerminalTabDragPreviewRecorder: TerminalTabDragPreviewPresenting {
+final class TerminalTabDragPreviewRecorder: TerminalTabDragPreviewPresenting {
   private(set) var requestedFrames: [CGRect] = []
   private(set) var imageWasPresent: [Bool] = []
   private(set) var typesDuringShows: [TerminalTabDragPreviewType] = []
   private(set) var transitions: [TerminalTabDragPreviewType] = []
   private(set) var hideCount = 0
   private(set) var currentType = TerminalTabDragPreviewType.window
-  private var isVisible = false
 
-  func show(image: NSImage?, frame: CGRect) -> CGRect {
-    if !isVisible {
-      currentType = .window
-      isVisible = true
-    }
+  func show(
+    image: NSImage?,
+    frame: CGRect,
+    type: TerminalTabDragPreviewType
+  ) -> CGRect {
+    currentType = type
     requestedFrames.append(frame)
     imageWasPresent.append(image?.isValid == true)
-    typesDuringShows.append(currentType)
+    typesDuringShows.append(type)
     return frame.integral
   }
 
@@ -515,7 +619,6 @@ private final class TerminalTabDragPreviewRecorder: TerminalTabDragPreviewPresen
   }
 
   func hide() {
-    isVisible = false
     hideCount += 1
   }
 }

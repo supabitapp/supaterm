@@ -71,8 +71,23 @@ final class TerminalTabCollection {
     isTitleLocked: Bool = false,
     at placement: TerminalTabPlacement
   ) -> TerminalTabID? {
-    let tab = TerminalTabItem(title: title, isTitleLocked: isTitleLocked)
+    createTab(
+      id: TerminalTabID(),
+      title: title,
+      isTitleLocked: isTitleLocked,
+      at: placement
+    )
+  }
+
+  func createTab(
+    id: TerminalTabID,
+    title: String,
+    isTitleLocked: Bool = false,
+    at placement: TerminalTabPlacement
+  ) -> TerminalTabID? {
+    let tab = TerminalTabItem(id: id, title: title, isTitleLocked: isTitleLocked)
     var next = topology
+    guard next.tabsByID[id] == nil else { return nil }
     guard next.insertTabID(tab.id, at: placement) else { return nil }
     next.tabsByID[tab.id] = tab
     next.revision += 1
@@ -495,6 +510,21 @@ final class TerminalTabCollection {
       return nil
     }
     return groupID
+  }
+
+  func placement(after tabID: TerminalTabID) -> TerminalTabPlacement? {
+    guard let location = topology.location(of: .tab(tabID)) else { return nil }
+    switch location {
+    case .root(let placement):
+      return .root(
+        TerminalRootPlacement(
+          isPinned: placement.isPinned,
+          index: placement.index + 1
+        )
+      )
+    case .group(let groupID, let index):
+      return .group(groupID, index: index + 1)
+    }
   }
 
   func tabIDs(in groupID: TerminalTabGroupID) -> [TerminalTabID] {

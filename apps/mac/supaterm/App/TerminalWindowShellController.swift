@@ -7,23 +7,6 @@ struct TerminalWindowShellPresentation: Equatable {
   let isSidebarCollapsed: Bool
   let sidebarResizeState: TerminalSidebarResizeState?
   let sidebarWidth: CGFloat?
-  let tabLayoutStyle: TerminalTabLayoutStyle
-
-  init(
-    isSidebarCollapsed: Bool,
-    sidebarResizeState: TerminalSidebarResizeState?,
-    sidebarWidth: CGFloat?,
-    tabLayoutStyle: TerminalTabLayoutStyle = .vertical
-  ) {
-    self.isSidebarCollapsed = isSidebarCollapsed
-    self.sidebarResizeState = sidebarResizeState
-    self.sidebarWidth = sidebarWidth
-    self.tabLayoutStyle = tabLayoutStyle
-  }
-}
-
-enum TerminalHorizontalTabMetrics {
-  static let height: CGFloat = 42
 }
 
 enum TerminalSidebarShellPresentation: Equatable {
@@ -37,40 +20,14 @@ struct TerminalWindowShellLayout: Equatable {
   let revealFrame: CGRect
   let resizeFrame: CGRect
   let sidebarFrame: CGRect
-  let tabStripFrame: CGRect
 
   init(
     bounds: CGRect,
     presentation: TerminalSidebarShellPresentation,
     isRevealPointerInside: Bool = false,
     sidebarResizeState: TerminalSidebarResizeState?,
-    sidebarWidth: CGFloat?,
-    tabLayoutStyle: TerminalTabLayoutStyle = .vertical
+    sidebarWidth: CGFloat?
   ) {
-    if tabLayoutStyle == .horizontal {
-      let height = min(TerminalHorizontalTabMetrics.height, max(0, bounds.height))
-      detailFrame = CGRect(
-        x: bounds.minX,
-        y: bounds.minY,
-        width: bounds.width,
-        height: max(0, bounds.height - height)
-      )
-      revealFrame = .zero
-      resizeFrame = .zero
-      sidebarFrame = CGRect(
-        x: bounds.minX - bounds.width,
-        y: bounds.minY,
-        width: bounds.width,
-        height: bounds.height
-      )
-      tabStripFrame = CGRect(
-        x: bounds.minX,
-        y: bounds.maxY - height,
-        width: bounds.width,
-        height: height
-      )
-      return
-    }
     let sidebarWidth = TerminalSidebarWidthPolicy.displayedWidth(
       preferredWidth: sidebarWidth,
       resizeState: sidebarResizeState,
@@ -95,7 +52,6 @@ struct TerminalWindowShellLayout: Equatable {
     )
     self.detailFrame = detailFrame
     self.sidebarFrame = sidebarFrame
-    tabStripFrame = .zero
     revealFrame =
       switch presentation {
       case .anchored:
@@ -187,7 +143,7 @@ final class TerminalWindowShellState {
   private(set) var isFloating = false
 
   func apply(presentation: TerminalWindowShellPresentation) {
-    isFloating = presentation.tabLayoutStyle == .vertical && presentation.isSidebarCollapsed
+    isFloating = presentation.isSidebarCollapsed
   }
 }
 
@@ -424,13 +380,10 @@ final class TerminalWindowShellController: NSViewController {
   private var presentation = TerminalWindowShellPresentation(
     isSidebarCollapsed: false,
     sidebarResizeState: nil,
-    sidebarWidth: nil,
-    tabLayoutStyle: .vertical
+    sidebarWidth: nil
   )
   private let revealCoordinator: TerminalSidebarRevealCoordinator
   private var sidebarController: NSViewController?
-  private var tabStripController: NSViewController?
-  private var surfaceTransitionID = UUID()
   private let splitDropOverlay = TerminalTabSplitDropOverlayView()
   private var splitDropCoordinator = TerminalTabSplitDropCoordinator()
   private let reduceMotion: () -> Bool
@@ -443,13 +396,11 @@ final class TerminalWindowShellController: NSViewController {
       presentation: sidebarPresentation,
       isRevealPointerInside: isRevealPointerInside,
       sidebarResizeState: presentation.sidebarResizeState,
-      sidebarWidth: presentation.sidebarWidth,
-      tabLayoutStyle: presentation.tabLayoutStyle
+      sidebarWidth: presentation.sidebarWidth
     )
   }
 
   private var sidebarPresentation: TerminalSidebarShellPresentation {
-    guard presentation.tabLayoutStyle == .vertical else { return .hidden }
     guard presentation.isSidebarCollapsed else { return .anchored }
     return revealCoordinator.isVisible ? .floating : .hidden
   }
@@ -516,11 +467,10 @@ final class TerminalWindowShellController: NSViewController {
 
   override func viewDidLayout() {
     super.viewDidLayout()
-    guard let sidebarController, let tabStripController, let detailController else { return }
+    guard let sidebarController, let detailController else { return }
     let layout = currentLayout
     guard
       sidebarController.view.frame != layout.sidebarFrame
-        || tabStripController.view.frame != layout.tabStripFrame
         || detailController.view.frame != layout.detailFrame
         || sidebarResizeView.frame != layout.resizeFrame
     else { return }
@@ -530,14 +480,11 @@ final class TerminalWindowShellController: NSViewController {
   func install(
     background: NSViewController,
     sidebar: NSViewController,
-    tabStrip: NSViewController? = nil,
     detail: NSViewController,
     dialogOverlay: NSViewController? = nil
   ) {
-    let tabStrip = tabStrip ?? NSViewController()
-    precondition(sidebarController == nil && tabStripController == nil && detailController == nil)
+    precondition(sidebarController == nil && detailController == nil)
     sidebar.view.wantsLayer = true
-    tabStrip.view.wantsLayer = true
     detail.view.wantsLayer = true
     addChild(background)
     background.view.frame = view.bounds
@@ -548,8 +495,6 @@ final class TerminalWindowShellController: NSViewController {
     view.addSubview(splitDropOverlay)
     addChild(sidebar)
     view.addSubview(sidebar.view)
-    addChild(tabStrip)
-    view.addSubview(tabStrip.view)
     view.addSubview(sidebarResizeView)
     if let dialogOverlay {
       addChild(dialogOverlay)
@@ -558,7 +503,6 @@ final class TerminalWindowShellController: NSViewController {
       view.addSubview(dialogOverlay.view)
     }
     sidebarController = sidebar
-    tabStripController = tabStrip
     detailController = detail
     applyLayout(motion: .immediate)
   }
@@ -567,16 +511,9 @@ final class TerminalWindowShellController: NSViewController {
     guard presentation != self.presentation else { return }
     let motion = frameMotion(from: self.presentation, to: presentation)
     let collapseChanged = presentation.isSidebarCollapsed != self.presentation.isSidebarCollapsed
-    let styleChanged = presentation.tabLayoutStyle != self.presentation.tabLayoutStyle
-    if styleChanged, let payload = tabDragRegistry.activePayload {
-      tabDragRegistry.finish(operationID: payload.moveOperationID, outcome: .cancelled)
-    }
     self.presentation = presentation
-    if collapseChanged || styleChanged {
+    if collapseChanged {
       revealCoordinator.reset()
-    }
-    if styleChanged {
-      surfaceTransitionID = UUID()
     }
     applyLayout(motion: motion)
   }
@@ -594,9 +531,8 @@ final class TerminalWindowShellController: NSViewController {
       window.windowNumber > 0
     else { return nil }
     let detailFrame = sourceView.convert(sourceView.bounds, to: view)
-    let sidebarFrame: CGRect? = sidebarController.flatMap { controller -> CGRect? in
-      guard presentation.tabLayoutStyle == .vertical else { return nil }
-      return controller.view.convert(controller.view.bounds, to: view)
+    let sidebarFrame = sidebarController.map {
+      $0.view.convert($0.view.bounds, to: view)
     }
     let captureFrame = TerminalTabDragCaptureLayout.frame(
       detailFrame: detailFrame,
@@ -615,16 +551,13 @@ final class TerminalWindowShellController: NSViewController {
   }
 
   private func applyLayout(motion: FrameMotion) {
-    guard let sidebarController, let tabStripController, let detailController else { return }
+    guard let sidebarController, let detailController else { return }
     let layout = currentLayout
     let sidebarPresentation = sidebarPresentation
     state.apply(presentation: presentation)
     sidebarController.view.setAccessibilityHidden(
       sidebarPresentation == .hidden
     )
-    let showsTabStrip = presentation.tabLayoutStyle == .horizontal
-    tabStripController.view.isHidden = !showsTabStrip
-    tabStripController.view.setAccessibilityHidden(!showsTabStrip)
     (view as? TerminalWindowShellView)?.setRevealFrame(layout.revealFrame)
     setSidebarFrame(
       layout.sidebarFrame,
@@ -632,7 +565,6 @@ final class TerminalWindowShellController: NSViewController {
       motion: motion,
       hidesSidebar: sidebarPresentation == .hidden
     )
-    setFrame(layout.tabStripFrame, of: tabStripController.view, motion: .immediate)
     setFrame(layout.detailFrame, of: detailController.view, motion: motion)
     splitDropOverlay.frame = TerminalTabSplitDropLayout.surfaceFrame(in: layout.detailFrame)
     sidebarResizeView.sidebarWidth = layout.sidebarFrame.width
@@ -657,13 +589,11 @@ final class TerminalWindowShellController: NSViewController {
       sidebarView.isHidden = true
       return
     }
-    let transitionID = surfaceTransitionID
     CATransaction.begin()
     CATransaction.setCompletionBlock { [weak self, weak sidebarView] in
       Task { @MainActor in
         guard
           let self,
-          self.surfaceTransitionID == transitionID,
           self.sidebarPresentation == .hidden
         else { return }
         sidebarView?.isHidden = true
@@ -680,7 +610,6 @@ final class TerminalWindowShellController: NSViewController {
     guard
       !reduceMotion(),
       !view.inLiveResize,
-      current.tabLayoutStyle == next.tabLayoutStyle,
       current.sidebarResizeState == nil,
       next.sidebarResizeState == nil
     else { return .immediate }
@@ -811,12 +740,18 @@ final class TerminalWindowShellController: NSViewController {
       return []
     }
     let overlayPoint = splitDropOverlay.convert(location, from: view)
-    tabDragRegistry.transitionSharedPreview(payload, to: .contentPane)
     let target = splitDropOverlay.target(at: overlayPoint)
     let context = TerminalTabSplitDropCoordinator.Context(
       spaceID: destination.spaceID,
       tabID: destination.tabID
     )
+    let registryDestination = TerminalTabDragRegistry.SplitDestination(
+      windowControllerID: windowControllerID,
+      spaceID: destination.spaceID,
+      tabID: destination.tabID,
+      zone: target
+    )
+    tabDragRegistry.setSplitDestination(payload, destination: registryDestination)
     splitDropCoordinator.update(context: context, target: target)
     splitDropOverlay.render(target, color: destination.color)
     info.numberOfValidItemsForDrop = 1
@@ -850,7 +785,7 @@ final class TerminalWindowShellController: NSViewController {
 
   private func dragDestinationExited() {
     if let payload = tabDragRegistry.activePayload {
-      tabDragRegistry.transitionSharedPreview(payload, to: .window)
+      tabDragRegistry.clearSplitDestination(payload, windowControllerID: windowControllerID)
     }
     resetSplitDrop()
   }

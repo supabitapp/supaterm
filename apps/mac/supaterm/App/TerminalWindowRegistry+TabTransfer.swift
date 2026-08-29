@@ -5,6 +5,18 @@ extension TerminalWindowRegistry {
     _ payload: TerminalTabDragPayload,
     to destination: TerminalTabDragRegistry.Destination
   ) -> TerminalTabTransferResult? {
+    switch payload.source {
+    case .pane(let pane):
+      return transferPane(pane, from: payload, to: destination)
+    case .rootItems:
+      return transferRootItems(payload, to: destination)
+    }
+  }
+
+  private func transferRootItems(
+    _ payload: TerminalTabDragPayload,
+    to destination: TerminalTabDragRegistry.Destination
+  ) -> TerminalTabTransferResult? {
     guard
       let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
       let destinationEntry = entry(forWindowControllerID: destination.windowControllerID)
@@ -54,6 +66,62 @@ extension TerminalWindowRegistry {
     }
     onChange()
     return result
+  }
+
+  private func transferPane(
+    _ pane: TerminalTabDragPayload.Pane,
+    from payload: TerminalTabDragPayload,
+    to destination: TerminalTabDragRegistry.Destination
+  ) -> TerminalTabTransferResult? {
+    guard
+      let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
+      let destinationEntry = entry(forWindowControllerID: destination.windowControllerID),
+      let sourceTabID = sourceEntry.terminal.tabID(containing: pane.surfaceID),
+      let sourceCollection = sourceEntry.terminal.spaceManager.tabCollection(
+        for: payload.sourceSpaceID
+      ),
+      let destinationCollection = destinationEntry.terminal.spaceManager.tabCollection(
+        for: destination.spaceID
+      )
+    else { return nil }
+
+    if sourceCollection === destinationCollection {
+      guard destination.expectedTopologyRevision == payload.sourceTopologyRevision else {
+        return nil
+      }
+      guard
+        (try? sourceEntry.terminal.movePaneToNewTab(
+          pane.surfaceID,
+          destinationTabID: pane.destinationTabID,
+          at: destination.placement,
+          expectedTopologyRevision: payload.sourceTopologyRevision
+        )) != nil
+      else { return nil }
+      onChange()
+      return TerminalTabTransferResult(
+        tabIDs: [pane.destinationTabID],
+        deletedEmptyGroupIDs: []
+      )
+    }
+
+    guard
+      destinationCollection.topologyRevision == destination.expectedTopologyRevision,
+      let placement = sourceCollection.placement(after: sourceTabID),
+      (try? sourceEntry.terminal.movePaneToNewTab(
+        pane.surfaceID,
+        destinationTabID: pane.destinationTabID,
+        at: placement,
+        expectedTopologyRevision: payload.sourceTopologyRevision
+      )) != nil,
+      let materializedPayload = TerminalTabDragPayload(
+        operationID: payload.moveOperationID,
+        sourceWindowID: payload.sourceWindowID,
+        sourceSpaceID: payload.sourceSpaceID,
+        sourceTopologyRevision: sourceCollection.topologyRevision,
+        itemIDs: [.tab(pane.destinationTabID)]
+      )
+    else { return nil }
+    return transferRootItems(materializedPayload, to: destination)
   }
 
   func splitTab(
@@ -115,6 +183,31 @@ extension TerminalWindowRegistry {
     if closesSourceWindow {
       sourceEntry.requestConfirmedWindowClose()
     }
+    onChange()
+    return true
+  }
+
+  func rearrangePane(
+    _ payload: TerminalTabDragPayload,
+    to destination: TerminalTabDragRegistry.PaneRearrangementDestination
+  ) -> Bool {
+    guard
+      case .pane(let pane) = payload.source,
+      let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
+      let destinationEntry = entry(forWindowControllerID: destination.windowControllerID),
+      sourceEntry.terminal === destinationEntry.terminal,
+      payload.sourceSpaceID == destination.spaceID,
+      sourceEntry.terminal.spaceManager.tabCollection(for: payload.sourceSpaceID)?
+        .topologyRevision == payload.sourceTopologyRevision,
+      sourceEntry.terminal.tabID(containing: pane.surfaceID) == destination.tabID,
+      destinationEntry.terminal.tabID(containing: destination.surfaceID) == destination.tabID,
+      destinationEntry.terminal.rearrangePane(
+        pane.surfaceID,
+        relativeTo: destination.surfaceID,
+        zone: destination.zone,
+        in: destination.tabID
+      )
+    else { return false }
     onChange()
     return true
   }

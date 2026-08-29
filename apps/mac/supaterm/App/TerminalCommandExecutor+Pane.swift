@@ -37,6 +37,13 @@ extension TerminalCommandExecutor {
     throw TerminalControlError.contextPaneNotFound
   }
 
+  func movePaneToNewTab(_ target: TerminalPaneTarget) throws -> SupatermNewTabResult {
+    try executeTargeted(
+      operation: { try $0.terminal.movePaneToNewTab(target) },
+      rewrite: TerminalWindowRegistry.rewrite
+    )
+  }
+
   func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {
     try executeTargeted(
       operation: { try $0.terminal.sendText(request) },

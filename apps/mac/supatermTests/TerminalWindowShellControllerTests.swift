@@ -9,8 +9,9 @@ import Testing
 struct TerminalWindowShellControllerTests {
   @Test @MainActor
   func shellGivesEveryHostTheWholeWindowContentArea() {
+    let windowControllerID = UUID()
     let shell = TerminalWindowShellController(
-      windowControllerID: UUID(),
+      windowControllerID: windowControllerID,
       tabDragRegistry: TerminalTabDragRegistry()
     )
     let background = NSHostingController(rootView: Color.clear)
@@ -689,59 +690,6 @@ struct TerminalWindowShellControllerTests {
     #expect(layout.detailFrame.minX == 300)
   }
 
-  @Test
-  func horizontalLayoutReplacesSidebarWithTopStripWithoutMotion() {
-    let layout = TerminalWindowShellLayout(
-      bounds: bounds,
-      presentation: .hidden,
-      sidebarResizeState: nil,
-      sidebarWidth: 240,
-      tabLayoutStyle: .horizontal
-    )
-
-    #expect(layout.tabStripFrame == CGRect(x: 0, y: 658, width: 1_000, height: 42))
-    #expect(layout.detailFrame == CGRect(x: 0, y: 0, width: 1_000, height: 658))
-    #expect(layout.revealFrame.isEmpty)
-    #expect(layout.resizeFrame.isEmpty)
-    #expect(layout.sidebarFrame.maxX == 0)
-  }
-
-  @Test @MainActor
-  func switchingLayoutCancelsAnActiveTabDrag() throws {
-    let registry = TerminalTabDragRegistry()
-    let operationID = TerminalTabMoveOperationID()
-    let payload = try #require(
-      TerminalTabDragPayload(
-        operationID: operationID,
-        sourceWindowID: UUID(),
-        sourceSpaceID: TerminalSpaceID(),
-        sourceTopologyRevision: 1,
-        itemIDs: [.tab(TerminalTabID())]
-      )
-    )
-    #expect(registry.begin(payload))
-    let shell = TerminalWindowShellController(
-      windowControllerID: UUID(),
-      tabDragRegistry: registry
-    )
-    let background = NSViewController()
-    let sidebar = NSViewController()
-    let detail = NSViewController()
-    shell.install(background: background, sidebar: sidebar, detail: detail)
-
-    shell.apply(
-      TerminalWindowShellPresentation(
-        isSidebarCollapsed: false,
-        sidebarResizeState: nil,
-        sidebarWidth: 240,
-        tabLayoutStyle: .horizontal
-      )
-    )
-
-    #expect(registry.activePayload == nil)
-    #expect(registry.lastOutcome == .cancelled)
-  }
-
   private func presentation(
     collapsed: Bool,
     width: CGFloat
@@ -860,8 +808,9 @@ struct TerminalWindowShellControllerTests {
         itemIDs: [.tab(TerminalTabID())]
       )
     )
+    let windowControllerID = UUID()
     let shell = TerminalWindowShellController(
-      windowControllerID: UUID(),
+      windowControllerID: windowControllerID,
       tabDragRegistry: registry
     )
     let shellView = try #require(shell.view as? TerminalWindowShellView)
@@ -870,7 +819,8 @@ struct TerminalWindowShellControllerTests {
       registry: registry,
       payload: payload,
       shell: shell,
-      shellView: shellView
+      shellView: shellView,
+      windowControllerID: windowControllerID
     )
   }
 
@@ -941,6 +891,7 @@ private struct TerminalWindowShellDragFixture {
   let payload: TerminalTabDragPayload
   let shell: TerminalWindowShellController
   let shellView: TerminalWindowShellView
+  let windowControllerID: UUID
 
   func showContentPreview() -> Bool {
     guard
@@ -950,7 +901,16 @@ private struct TerminalWindowShellDragFixture {
       ),
       registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: .zero) != nil
     else { return false }
-    return registry.transitionSharedPreview(payload, to: .contentPane)
+    registry.setSplitDestination(
+      payload,
+      destination: TerminalTabDragRegistry.SplitDestination(
+        windowControllerID: windowControllerID,
+        spaceID: TerminalSpaceID(),
+        tabID: payload.singleTabID ?? TerminalTabID(),
+        zone: .left
+      )
+    )
+    return preview.currentType == .contentPane
   }
 }
 
@@ -960,7 +920,11 @@ private final class TerminalWindowShellPreviewRecorder: TerminalTabDragPreviewPr
   private(set) var transitions: [TerminalTabDragPreviewType] = []
   private(set) var hideCount = 0
 
-  func show(image _: NSImage?, frame: CGRect) -> CGRect {
+  func show(
+    image _: NSImage?,
+    frame: CGRect,
+    type _: TerminalTabDragPreviewType
+  ) -> CGRect {
     frame
   }
 

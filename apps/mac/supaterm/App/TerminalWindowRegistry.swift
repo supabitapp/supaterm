@@ -59,7 +59,6 @@ final class TerminalWindowRegistry {
     let visibleTabCount: Int
     let spaceCount: Int
     let isUpdateMenuItemEnabled: Bool
-    let tabLayoutStyle: TerminalTabLayoutStyle?
   }
 
   final class WindowReference {
@@ -116,6 +115,9 @@ final class TerminalWindowRegistry {
     }
     tabDragRegistry.split = { [weak self] payload, destination in
       self?.splitTab(payload, to: destination) == true
+    }
+    tabDragRegistry.rearrangePane = { [weak self] payload, destination in
+      self?.rearrangePane(payload, to: destination) == true
     }
   }
 
@@ -476,8 +478,7 @@ final class TerminalWindowRegistry {
         updateMenuItemText: updateState.phase.menuItemTitle,
         visibleTabCount: 0,
         spaceCount: 0,
-        isUpdateMenuItemEnabled: updateMenuItemAction != nil,
-        tabLayoutStyle: nil
+        isUpdateMenuItemEnabled: updateMenuItemAction != nil
       )
     }
 
@@ -490,8 +491,7 @@ final class TerminalWindowRegistry {
       updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: spaceCount,
-      isUpdateMenuItemEnabled: updateMenuItemAction != nil,
-      tabLayoutStyle: entry.store.terminal.tabLayoutStyle
+      isUpdateMenuItemEnabled: updateMenuItemAction != nil
     )
   }
 
@@ -565,10 +565,6 @@ final class TerminalWindowRegistry {
 
   func requestToggleSidebarInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.toggleSidebarButtonTapped))
-  }
-
-  func requestToggleTabLayoutInKeyWindow() {
-    preferredActiveEntry()?.store.send(.terminal(.toggleTabLayoutButtonTapped))
   }
 
   func requestToggleAgentPanelInKeyWindow() {
@@ -731,7 +727,6 @@ final class TerminalWindowRegistry {
         var snapshot = entry.terminal.restorationSnapshot()
         snapshot.frame = entry.windowReference.value.map { TerminalWindowFrame($0.frame) }
         snapshot.sidebarWidth = entry.store.terminal.sidebarWidth.map { Double($0) }
-        snapshot.tabLayoutStyle = entry.store.terminal.tabLayoutStyle
         return snapshot
       }
     )
@@ -1078,14 +1073,9 @@ final class TerminalWindowRegistry {
   }
 
   private func ambientIndex(in entries: [Entry], context: SupatermCLIContext) -> Int? {
-    let tabID = TerminalTabID(rawValue: context.tabID)
     return entries.firstIndex { entry in
-      let surfaceTabID =
-        entry.terminal.tabID(containing: context.surfaceID)
-        ?? entry.terminal.spaceManager.pendingTabID(containingSurface: context.surfaceID)
-      return surfaceTabID == tabID
-        && (entry.terminal.spaceManager.instance(for: tabID) != nil
-          || entry.terminal.spaceManager.pendingInstance(containingTab: tabID) != nil)
+      entry.terminal.tabID(containing: context.surfaceID) != nil
+        || entry.terminal.spaceManager.pendingTabID(containingSurface: context.surfaceID) != nil
     }
   }
 
