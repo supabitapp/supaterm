@@ -131,7 +131,7 @@ struct TerminalPaneTabMoveTests {
   }
 
   @Test
-  func paneDragUsesTabWindowPreviewGeometry() throws {
+  func paneDragCapturesOnlyItsSurfaceWithTabWindowPreviewGeometry() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -147,11 +147,16 @@ struct TerminalPaneTabMoveTests {
       let surface = fixture.surfaces[1]
       surface.frame = CGRect(x: 600, y: 0, width: 300, height: 620)
       try #require(window.contentView).addSubview(surface)
+      let captureImage = try #require(makeCaptureImage(width: 7, height: 5))
+      var capturedSurface: GhosttySurfaceView?
       let client = TerminalPaneDragClient(
         terminal: fixture.host,
         windowControllerID: UUID(),
         registry: registry,
-        captureClient: TerminalWindowCaptureClient { _ in nil }
+        captureClient: TerminalPaneCaptureClient {
+          capturedSurface = $0
+          return captureImage
+        }
       )
       let payload = try #require(client.begin(surfaceView: surface))
       let screenPoint = CGPoint(x: 800, y: 500)
@@ -159,6 +164,8 @@ struct TerminalPaneTabMoveTests {
       client.move(payload, to: screenPoint)
 
       #expect(previewPresenter.typesDuringShows == [.window])
+      #expect(previewPresenter.imageWasPresent == [true])
+      #expect(capturedSurface === surface)
       #expect(
         previewPresenter.requestedFrames == [
           TerminalTabDragPreviewLayout.frame(
@@ -183,7 +190,7 @@ struct TerminalPaneTabMoveTests {
         terminal: fixture.host,
         windowControllerID: UUID(),
         registry: registry,
-        captureClient: TerminalWindowCaptureClient { _ in nil }
+        captureClient: TerminalPaneCaptureClient { _ in nil }
       )
       let source = fixture.surfaces[1]
       let destination = fixture.surfaces[2]

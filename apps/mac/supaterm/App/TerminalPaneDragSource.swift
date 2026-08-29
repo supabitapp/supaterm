@@ -10,12 +10,11 @@ extension EnvironmentValues {
 final class TerminalPaneDragClient {
   private struct ActiveDrag {
     let operationID: TerminalTabMoveOperationID
-    var captureTask: Task<Void, Never>?
     var didTransfer = false
     var splitDestinationID: UUID?
   }
 
-  private let captureClient: TerminalWindowCaptureClient
+  private let captureClient: TerminalPaneCaptureClient
   private let registry: TerminalTabDragRegistry
   private let terminal: TerminalHostState
   private let windowControllerID: UUID
@@ -25,7 +24,7 @@ final class TerminalPaneDragClient {
     terminal: TerminalHostState,
     windowControllerID: UUID,
     registry: TerminalTabDragRegistry,
-    captureClient: TerminalWindowCaptureClient = .live
+    captureClient: TerminalPaneCaptureClient = .live
   ) {
     self.terminal = terminal
     self.windowControllerID = windowControllerID
@@ -52,6 +51,7 @@ final class TerminalPaneDragClient {
     guard
       registry.begin(
         payload,
+        previewImage: previewImage(for: surfaceView),
         previewContentSize: previewContentSize(for: surfaceView),
         sidebarDropGapHeight: max(
           TerminalSidebarLayout.tabRowMinHeight,
@@ -69,7 +69,6 @@ final class TerminalPaneDragClient {
       )
     else { return nil }
     activeDrag = ActiveDrag(operationID: operationID)
-    startCapture(surfaceView: surfaceView, operationID: operationID)
     return payload
   }
 
@@ -107,7 +106,6 @@ final class TerminalPaneDragClient {
 
   func end(_ payload: TerminalTabDragPayload) {
     guard let activeDrag, activeDrag.operationID == payload.moveOperationID else { return }
-    activeDrag.captureTask?.cancel()
     self.activeDrag = nil
     registry.finish(
       operationID: payload.moveOperationID,
@@ -115,42 +113,10 @@ final class TerminalPaneDragClient {
     )
   }
 
-  private func startCapture(
-    surfaceView: GhosttySurfaceView,
-    operationID: TerminalTabMoveOperationID
-  ) {
-    guard let request = captureRequest(for: surfaceView) else { return }
-    let capture = captureClient.capture
-    let task = Task { [weak self] in
-      let image = await capture(request).map {
-        NSImage(cgImage: $0, size: request.geometry.sourceRect.size)
-      }
-      guard !Task.isCancelled else { return }
-      _ = self?.registry.updatePreviewImage(image, operationID: operationID)
+  private func previewImage(for surfaceView: GhosttySurfaceView) -> NSImage? {
+    captureClient.capture(surfaceView).map {
+      NSImage(cgImage: $0, size: surfaceView.bounds.size)
     }
-    guard var activeDrag, activeDrag.operationID == operationID else {
-      task.cancel()
-      return
-    }
-    activeDrag.captureTask = task
-    self.activeDrag = activeDrag
-  }
-
-  private func captureRequest(for surfaceView: GhosttySurfaceView) -> TerminalWindowCaptureRequest? {
-    guard
-      let window = surfaceView.window,
-      window.windowNumber > 0,
-      !surfaceView.bounds.isEmpty
-    else { return nil }
-    let screenFrame = window.convertToScreen(surfaceView.convert(surfaceView.bounds, to: nil))
-    return TerminalWindowCaptureRequest(
-      windowID: CGWindowID(window.windowNumber),
-      geometry: TerminalWindowCaptureGeometry(
-        windowFrame: window.frame,
-        viewScreenFrame: screenFrame,
-        backingScaleFactor: window.backingScaleFactor
-      )
-    )
   }
 
   private func previewContentSize(for surfaceView: GhosttySurfaceView) -> CGSize {

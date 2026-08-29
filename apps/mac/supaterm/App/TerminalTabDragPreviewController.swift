@@ -142,7 +142,7 @@ final class TerminalTabDragPreviewController: TerminalTabDragPreviewPresenting {
     let panel = panel ?? TerminalTabDragPreviewPanel(contentView: snapshotView)
     self.panel = panel
     panel.setFrame(frame, display: false)
-    _ = snapshotView.setPreviewType(type, animated: false, force: true)
+    _ = snapshotView.setPreviewType(type, animated: false)
     panel.orderFrontRegardless()
     return panel.frame
   }
@@ -244,11 +244,9 @@ private final class TerminalTabDragSnapshotView: NSView {
 
   func setPreviewType(
     _ type: TerminalTabDragPreviewType,
-    animated: Bool,
-    force: Bool = false
+    animated: Bool
   ) -> Bool {
-    guard force || type != previewType else { return false }
-    let changed = type != previewType
+    guard type != previewType else { return false }
     layoutSubtreeIfNeeded()
     let oldPath = silhouetteLayer.presentation()?.path ?? silhouetteLayer.path
     let oldShadowPath = silhouetteLayer.presentation()?.shadowPath ?? silhouetteLayer.shadowPath
@@ -261,7 +259,7 @@ private final class TerminalTabDragSnapshotView: NSView {
     removeMorphAnimations()
     previewType = type
     applyLayout()
-    guard animated else { return changed }
+    guard animated else { return true }
     addAnimation(
       to: silhouetteLayer,
       key: "previewPath",
@@ -308,7 +306,7 @@ private final class TerminalTabDragSnapshotView: NSView {
         to: NSValue(rect: layer.bounds)
       )
     }
-    return changed
+    return true
   }
 
   private func applyLayout() {
