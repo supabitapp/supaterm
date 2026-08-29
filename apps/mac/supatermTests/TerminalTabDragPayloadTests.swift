@@ -57,8 +57,12 @@ struct TerminalTabDragPayloadTests {
 
     let decoded = try #require(TerminalTabDragPasteboard.read(from: pasteboard))
     #expect(decoded == payload)
-    #expect(decoded.pane?.surfaceID == surfaceID)
-    #expect(decoded.pane?.destinationTabID == destinationTabID)
+    guard case .pane(let pane) = decoded.source else {
+      Issue.record("Expected pane source")
+      return
+    }
+    #expect(pane.surfaceID == surfaceID)
+    #expect(pane.destinationTabID == destinationTabID)
     #expect(decoded.itemIDs.isEmpty)
     #expect(decoded.singleTabID == nil)
   }
@@ -185,7 +189,8 @@ struct TerminalTabDragPayloadTests {
     #expect(group.singleTabID == nil)
     #expect(tabs.singleTabID == nil)
 
-    let registry = TerminalTabDragRegistry(previewPresenter: TerminalTabDragPreviewRecorder())
+    let preview = TerminalTabDragPreviewRecorder()
+    let registry = TerminalTabDragRegistry(previewPresenter: preview)
     #expect(
       registry.begin(group)
     )
@@ -193,7 +198,16 @@ struct TerminalTabDragPayloadTests {
       to: CGPoint(x: 800, y: 500),
       sourceSurfaceFrame: CGRect(x: 0, y: 0, width: 240, height: 700)
     )
-    #expect(!registry.transitionSharedPreview(group, to: .contentPane))
+    registry.setSplitDestination(
+      group,
+      destination: TerminalTabDragRegistry.SplitDestination(
+        windowControllerID: UUID(),
+        spaceID: TerminalSpaceID(),
+        tabID: TerminalTabID(),
+        zone: .left
+      )
+    )
+    #expect(preview.transitions.isEmpty)
   }
 
   @Test
@@ -436,7 +450,7 @@ struct TerminalTabDragPayloadTests {
   }
 
   @Test
-  func registryDelegatesSharedPreviewTypeAndPointerMovesRespectVisibility() throws {
+  func registryDerivesSharedPreviewTypeFromItsDestination() throws {
     let previewPresenter = TerminalTabDragPreviewRecorder()
     let registry = TerminalTabDragRegistry(previewPresenter: previewPresenter)
     let payload = try #require(
@@ -463,13 +477,19 @@ struct TerminalTabDragPayloadTests {
         previewContentSize: CGSize(width: 1_440, height: 820)
       )
     )
-    #expect(!registry.transitionSharedPreview(payload, to: .contentPane))
     let sourceSurfaceFrame = CGRect(x: 0, y: 0, width: 240, height: 700)
     _ = registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: sourceSurfaceFrame)
+    let destination = TerminalTabDragRegistry.SplitDestination(
+      windowControllerID: UUID(),
+      spaceID: TerminalSpaceID(),
+      tabID: TerminalTabID(),
+      zone: .left
+    )
 
-    #expect(!registry.transitionSharedPreview(otherPayload, to: .contentPane))
-    #expect(registry.transitionSharedPreview(payload, to: .contentPane))
-    #expect(!registry.transitionSharedPreview(payload, to: .contentPane))
+    registry.setSplitDestination(otherPayload, destination: destination)
+    registry.setSplitDestination(payload, destination: destination)
+    registry.setDesktopDestination(payload, isActive: false)
+    registry.setSplitDestination(payload, destination: destination)
     #expect(previewPresenter.transitions == [.contentPane])
 
     let movedState = try #require(
@@ -481,6 +501,12 @@ struct TerminalTabDragPayloadTests {
     }
     #expect(previewPresenter.currentType == .contentPane)
     #expect(previewPresenter.typesDuringShows == [.window, .contentPane])
+
+    registry.clearSplitDestination(
+      payload,
+      windowControllerID: destination.windowControllerID
+    )
+    #expect(previewPresenter.transitions == [.contentPane, .window])
 
     #expect(
       registry.move(

@@ -6,6 +6,11 @@ nonisolated enum TerminalTabDragItemKind: String, Codable, Sendable {
 }
 
 nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
+  enum Source: Codable, Equatable, Sendable {
+    case rootItems([Item])
+    case pane(Pane)
+  }
+
   struct Pane: Codable, Equatable, Sendable {
     let surfaceID: UUID
     let destinationTabID: TerminalTabID
@@ -36,15 +41,14 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     }
   }
 
-  static let schemaVersion = 1
+  static let schemaVersion = 2
 
   let version: Int
   let operationID: UUID
   let sourceWindowID: UUID
   let sourceSpaceID: TerminalSpaceID
   let sourceTopologyRevision: UInt64
-  let items: [Item]
-  let pane: Pane?
+  let source: Source
 
   init?(
     operationID: TerminalTabMoveOperationID,
@@ -59,8 +63,7 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     self.sourceWindowID = sourceWindowID
     self.sourceSpaceID = sourceSpaceID
     self.sourceTopologyRevision = sourceTopologyRevision
-    items = itemIDs.map(Item.init)
-    pane = nil
+    source = .rootItems(itemIDs.map(Item.init))
   }
 
   init(
@@ -76,8 +79,7 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
     self.sourceWindowID = sourceWindowID
     self.sourceSpaceID = sourceSpaceID
     self.sourceTopologyRevision = sourceTopologyRevision
-    items = []
-    pane = Pane(surfaceID: surfaceID, destinationTabID: destinationTabID)
+    source = .pane(Pane(surfaceID: surfaceID, destinationTabID: destinationTabID))
   }
 
   var moveOperationID: TerminalTabMoveOperationID {
@@ -85,19 +87,23 @@ nonisolated struct TerminalTabDragPayload: Codable, Equatable, Sendable {
   }
 
   var itemIDs: [TerminalTabRootItemID] {
-    items.map(\.rootItemID)
+    guard case .rootItems(let items) = source else { return [] }
+    return items.map(\.rootItemID)
   }
 
   var singleTabID: TerminalTabID? {
+    guard case .rootItems(let items) = source else { return nil }
     guard items.count == 1, items[0].kind == .tab else { return nil }
     return TerminalTabID(rawValue: items[0].id)
   }
 
   var isValid: Bool {
     guard version == Self.schemaVersion else { return false }
-    if pane != nil {
-      return items.isEmpty
+    switch source {
+    case .rootItems(let items):
+      return !items.isEmpty && Set(items).count == items.count
+    case .pane:
+      return true
     }
-    return !items.isEmpty && Set(items).count == items.count
   }
 }

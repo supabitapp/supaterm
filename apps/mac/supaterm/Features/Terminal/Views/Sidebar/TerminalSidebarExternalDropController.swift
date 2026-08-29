@@ -35,24 +35,26 @@ extension TerminalTabDragPayload {
     topologyStamp: TerminalSidebarTopologyStamp
   ) -> TerminalSidebarDragPayload? {
     let source: TerminalSidebarDragSource
-    if let pane {
+    switch self.source {
+    case .pane(let pane):
       source = .tabs([pane.destinationTabID])
       return TerminalSidebarDragPayload(
         operationID: moveOperationID,
         source: source,
         topologyStamp: topologyStamp
       )
-    }
-    let tabIDs = itemIDs.compactMap { itemID -> TerminalTabID? in
-      guard case .tab(let tabID) = itemID else { return nil }
-      return tabID
-    }
-    if tabIDs.count == itemIDs.count {
-      source = .tabs(tabIDs)
-    } else if itemIDs.count == 1, case .group(let groupID) = itemIDs[0] {
-      source = .group(groupID)
-    } else {
-      return nil
+    case .rootItems:
+      let tabIDs = itemIDs.compactMap { itemID -> TerminalTabID? in
+        guard case .tab(let tabID) = itemID else { return nil }
+        return tabID
+      }
+      if tabIDs.count == itemIDs.count {
+        source = .tabs(tabIDs)
+      } else if itemIDs.count == 1, case .group(let groupID) = itemIDs[0] {
+        source = .group(groupID)
+      } else {
+        return nil
+      }
     }
     return TerminalSidebarDragPayload(
       operationID: moveOperationID,
@@ -197,10 +199,15 @@ final class TerminalSidebarExternalDropController {
   }
 
   func clear() {
-    let hadSession = activeSession != nil
+    let clearedPayload = activeSession?.payload
     configuration.stopAutoscroll()
     activeSession = nil
-    if hadSession {
+    if let clearedPayload {
+      configuration.tabDragRegistry.setSidebarDestination(
+        clearedPayload,
+        windowControllerID: configuration.windowControllerID,
+        isActive: false
+      )
       configuration.collectionLayout.dragDropState = nil
       refreshLayout()
       configuration.didClear()
@@ -226,6 +233,11 @@ final class TerminalSidebarExternalDropController {
 
     let decision = session.dropTarget.transition(TerminalSidebarDragTargetEvent(resolution))
     activeSession = session
+    configuration.tabDragRegistry.setSidebarDestination(
+      payload,
+      windowControllerID: configuration.windowControllerID,
+      isActive: true
+    )
     switch decision.target {
     case .retain, .unchanged:
       break

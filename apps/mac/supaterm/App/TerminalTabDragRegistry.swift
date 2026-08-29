@@ -56,6 +56,14 @@ final class TerminalTabDragRegistry {
     }
   }
 
+  struct PaneRearrangementDestination: Equatable {
+    let windowControllerID: UUID
+    let spaceID: TerminalSpaceID
+    let tabID: TerminalTabID
+    let surfaceID: UUID
+    let zone: TerminalSplitDropZone
+  }
+
   enum Outcome: Equatable {
     case cancelled
     case moved
@@ -71,6 +79,23 @@ final class TerminalTabDragRegistry {
     case sharedPreview(frame: CGRect)
   }
 
+  private enum PreviewDestination: Equatable {
+    case none
+    case desktop
+    case sidebar(UUID)
+    case split(SplitDestination)
+    case pane(PaneRearrangementDestination)
+
+    var previewType: TerminalTabDragPreviewType {
+      switch self {
+      case .none, .desktop, .sidebar:
+        .window
+      case .split, .pane:
+        .contentPane
+      }
+    }
+  }
+
   private struct Session {
     let payload: TerminalTabDragPayload
     let didTransfer: (TerminalTabMoveOperationID, SourceDisposition) -> Void
@@ -78,12 +103,13 @@ final class TerminalTabDragRegistry {
     let previewContentSize: CGSize?
     let sidebarDropGapHeight: CGFloat?
     var splitDestinationEntryAction: (() -> Void)?
-    var previewType: TerminalTabDragPreviewType
+    var previewDestination: PreviewDestination
     var presentationState: PresentationState
   }
 
   var transfer: ((TerminalTabDragPayload, Destination) -> TerminalTabTransferResult?)?
   var split: ((TerminalTabDragPayload, SplitDestination) -> Bool)?
+  var rearrangePane: ((TerminalTabDragPayload, PaneRearrangementDestination) -> Bool)?
   var detach: ((TerminalTabDragPayload, CGRect) -> Bool)?
   var sessionMoved: ((TerminalTabDragPayload, CGPoint) -> Void)?
   var sessionFinished: (() -> Void)?
@@ -118,7 +144,7 @@ final class TerminalTabDragRegistry {
       previewContentSize: previewContentSize,
       sidebarDropGapHeight: sidebarDropGapHeight,
       splitDestinationEntryAction: splitDestinationEntryAction,
-      previewType: .window,
+      previewDestination: .none,
       presentationState: .sourceSurface
     )
     lastOutcome = nil
@@ -174,7 +200,7 @@ final class TerminalTabDragRegistry {
     let presentationState: PresentationState
     if sourceSurfaceFrame.contains(screenPoint) {
       previewPresenter.hide()
-      session.previewType = .window
+      session.previewDestination = .none
       presentationState = .sourceSurface
     } else {
       let frame = TerminalTabDragPreviewLayout.frame(
@@ -185,7 +211,7 @@ final class TerminalTabDragRegistry {
         frame: previewPresenter.show(
           image: session.previewImage,
           frame: frame,
-          type: session.previewType
+          type: session.previewDestination.previewType
         )
       )
     }
@@ -209,21 +235,68 @@ final class TerminalTabDragRegistry {
     return true
   }
 
-  @discardableResult
-  func transitionSharedPreview(
+  func setDesktopDestination(_ payload: TerminalTabDragPayload, isActive: Bool) {
+    setPreviewDestination(payload, to: isActive ? .desktop : nil, clearing: .desktop)
+  }
+
+  func setSidebarDestination(
     _ payload: TerminalTabDragPayload,
-    to type: TerminalTabDragPreviewType
+    windowControllerID: UUID,
+    isActive: Bool
+  ) {
+    let destination = PreviewDestination.sidebar(windowControllerID)
+    setPreviewDestination(
+      payload,
+      to: isActive ? destination : nil,
+      clearing: .sidebar(windowControllerID)
+    )
+  }
+
+  func setSplitDestination(
+    _ payload: TerminalTabDragPayload,
+    destination: SplitDestination
+  ) {
+    guard payload.singleTabID != nil else { return }
+    setPreviewDestination(payload, to: .split(destination))
+  }
+
+  func clearSplitDestination(
+    _ payload: TerminalTabDragPayload,
+    windowControllerID: UUID
+  ) {
+    setPreviewDestination(
+      payload,
+      to: nil,
+      clearing: .split(windowControllerID)
+    )
+  }
+
+  func setPaneDestination(
+    _ payload: TerminalTabDragPayload,
+    destination: PaneRearrangementDestination
+  ) {
+    guard case .pane = payload.source else { return }
+    setPreviewDestination(payload, to: .pane(destination))
+  }
+
+  func clearPaneDestination(
+    _ payload: TerminalTabDragPayload,
+    surfaceID: UUID
+  ) {
+    setPreviewDestination(payload, to: nil, clearing: .pane(surfaceID))
+  }
+
+  func performPaneRearrangement(
+    _ payload: TerminalTabDragPayload,
+    to destination: PaneRearrangementDestination
   ) -> Bool {
     guard
-      var session,
+      let session,
       session.payload == payload,
-      case .sharedPreview = session.presentationState,
-      type != .contentPane || payload.singleTabID != nil || payload.pane != nil,
-      type != session.previewType
+      session.previewDestination == .pane(destination),
+      rearrangePane?(payload, destination) == true
     else { return false }
-    session.previewType = type
-    self.session = session
-    _ = previewPresenter.transition(to: type)
+    session.didTransfer(payload.moveOperationID, .retained)
     return true
   }
 
@@ -244,5 +317,52 @@ final class TerminalTabDragRegistry {
     previewPresenter.hide()
     lastOutcome = outcome
     sessionFinished?()
+  }
+
+  private enum PreviewDestinationKind {
+    case desktop
+    case sidebar(UUID)
+    case split(UUID)
+    case pane(UUID)
+
+    func matches(_ destination: PreviewDestination) -> Bool {
+      switch (self, destination) {
+      case (.desktop, .desktop):
+        true
+      case (.sidebar(let expected), .sidebar(let actual)):
+        expected == actual
+      case (.split(let expected), .split(let actual)):
+        expected == actual.windowControllerID
+      case (.pane(let expected), .pane(let actual)):
+        expected == actual.surfaceID
+      default:
+        false
+      }
+    }
+  }
+
+  private func setPreviewDestination(
+    _ payload: TerminalTabDragPayload,
+    to destination: PreviewDestination?,
+    clearing kind: PreviewDestinationKind? = nil
+  ) {
+    guard
+      var session,
+      session.payload == payload
+    else { return }
+    if let kind, destination == nil, !kind.matches(session.previewDestination) {
+      return
+    }
+    let nextDestination = destination ?? .none
+    guard nextDestination != session.previewDestination else { return }
+    let previousType = session.previewDestination.previewType
+    session.previewDestination = nextDestination
+    self.session = session
+    let nextType = nextDestination.previewType
+    guard
+      previousType != nextType,
+      case .sharedPreview = session.presentationState
+    else { return }
+    _ = previewPresenter.transition(to: nextType)
   }
 }

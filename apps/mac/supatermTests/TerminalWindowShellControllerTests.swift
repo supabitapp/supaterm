@@ -9,8 +9,9 @@ import Testing
 struct TerminalWindowShellControllerTests {
   @Test @MainActor
   func shellGivesEveryHostTheWholeWindowContentArea() {
+    let windowControllerID = UUID()
     let shell = TerminalWindowShellController(
-      windowControllerID: UUID(),
+      windowControllerID: windowControllerID,
       tabDragRegistry: TerminalTabDragRegistry()
     )
     let background = NSHostingController(rootView: Color.clear)
@@ -807,8 +808,9 @@ struct TerminalWindowShellControllerTests {
         itemIDs: [.tab(TerminalTabID())]
       )
     )
+    let windowControllerID = UUID()
     let shell = TerminalWindowShellController(
-      windowControllerID: UUID(),
+      windowControllerID: windowControllerID,
       tabDragRegistry: registry
     )
     let shellView = try #require(shell.view as? TerminalWindowShellView)
@@ -817,7 +819,8 @@ struct TerminalWindowShellControllerTests {
       registry: registry,
       payload: payload,
       shell: shell,
-      shellView: shellView
+      shellView: shellView,
+      windowControllerID: windowControllerID
     )
   }
 
@@ -888,6 +891,7 @@ private struct TerminalWindowShellDragFixture {
   let payload: TerminalTabDragPayload
   let shell: TerminalWindowShellController
   let shellView: TerminalWindowShellView
+  let windowControllerID: UUID
 
   func showContentPreview() -> Bool {
     guard
@@ -897,7 +901,16 @@ private struct TerminalWindowShellDragFixture {
       ),
       registry.move(to: CGPoint(x: 800, y: 500), sourceSurfaceFrame: .zero) != nil
     else { return false }
-    return registry.transitionSharedPreview(payload, to: .contentPane)
+    registry.setSplitDestination(
+      payload,
+      destination: TerminalTabDragRegistry.SplitDestination(
+        windowControllerID: windowControllerID,
+        spaceID: TerminalSpaceID(),
+        tabID: payload.singleTabID ?? TerminalTabID(),
+        zone: .left
+      )
+    )
+    return preview.currentType == .contentPane
   }
 }
 

@@ -97,7 +97,7 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  static let dragType = UTType(exportedAs: "sh.supacode.ghosttySurfaceId")
+  static let dragType = UTType(exportedAs: NSPasteboard.PasteboardType.terminalTabDrag.rawValue)
 
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
@@ -126,7 +126,6 @@ struct TerminalSplitTreeView: View {
 
   enum Operation: Equatable {
     case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
-    case drop(payloadId: UUID, destinationId: UUID, zone: TerminalSplitDropZone)
     case equalize
     case agentPanelCopyText(String)
     case agentPanelForkSessionRequested(
@@ -440,8 +439,7 @@ struct TerminalSplitTreeView: View {
             dropState: $dropState,
             viewSize: size,
             destinationId: surfaceView.id,
-            paneDragClient: paneDragClient,
-            action: action
+            paneDragClient: paneDragClient
           ))
     }
 
@@ -930,20 +928,28 @@ struct TerminalSplitTreeView: View {
     let viewSize: CGSize
     let destinationId: UUID
     let paneDragClient: TerminalPaneDragClient?
-    let action: (Operation) -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
-      info.hasItemsConforming(to: [TerminalSplitTreeView.dragType])
+      paneDragClient != nil && info.hasItemsConforming(to: [TerminalSplitTreeView.dragType])
     }
 
     func dropEntered(info: DropInfo) {
-      dropState = .dropping(.calculate(at: info.location, in: viewSize))
-      paneDragClient?.enteredSplitDestination(destinationId)
+      let zone = TerminalSplitDropZone.calculate(at: info.location, in: viewSize)
+      guard paneDragClient?.updateSplitDestination(destinationId, zone: zone) == true else {
+        dropState = .idle
+        return
+      }
+      dropState = .dropping(zone)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
       guard case .dropping = dropState else { return DropProposal(operation: .forbidden) }
-      dropState = .dropping(.calculate(at: info.location, in: viewSize))
+      let zone = TerminalSplitDropZone.calculate(at: info.location, in: viewSize)
+      guard paneDragClient?.updateSplitDestination(destinationId, zone: zone) == true else {
+        dropState = .idle
+        return DropProposal(operation: .forbidden)
+      }
+      dropState = .dropping(zone)
       return DropProposal(operation: .move)
     }
 
@@ -955,21 +961,7 @@ struct TerminalSplitTreeView: View {
     func performDrop(info: DropInfo) -> Bool {
       let zone = TerminalSplitDropZone.calculate(at: info.location, in: viewSize)
       dropState = .idle
-
-      let providers = info.itemProviders(for: [TerminalSplitTreeView.dragType])
-      guard let provider = providers.first else { return false }
-      provider.loadDataRepresentation(
-        forTypeIdentifier: TerminalSplitTreeView.dragType.identifier
-      ) { data, _ in
-        guard let data,
-          let raw = String(data: data, encoding: .utf8),
-          let payloadId = UUID(uuidString: raw)
-        else { return }
-        Task { @MainActor in
-          action(.drop(payloadId: payloadId, destinationId: destinationId, zone: zone))
-        }
-      }
-      return true
+      return paneDragClient?.performDrop(on: destinationId, zone: zone) == true
     }
   }
 
@@ -1206,30 +1198,19 @@ private final class TerminalSplitHostingView: NSHostingView<TerminalSplitTreeVie
 
 final class TerminalSplitAXContainerView: NSView {
   private let backgroundView = NSView()
+  private let paneDragSourceHost = TerminalPaneDragSourceHost()
   private(set) var backgroundColor: NSColor
   private var hostingView: TerminalSplitHostingView?
   private var visibleNode: SplitTree<GhosttySurfaceView>.Node?
   private var panes: [GhosttySurfaceView] = []
   private var dividerElements: [TerminalSplitAXDividerElement] = []
   private var dividerElementsByPath: [TerminalSplitAXPath: TerminalSplitAXDividerElement] = [:]
-  private var paneDragSourcesByID: [UUID: TerminalPaneDragSourceNSView] = [:]
-  private var paneTrackingArea: NSTrackingArea?
   private var panesLabel: String = "Terminal split: 0 panes"
   private var lastPaneIDs: [UUID] = []
   private var lastDividerPaths: [TerminalSplitAXPath] = []
   private var action: ((TerminalSplitTreeView.Operation) -> Void)?
 
   nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
-
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    if let source = TerminalPaneDragSourceHitTesting.source(
-      at: point,
-      in: Array(paneDragSourcesByID.values)
-    ) {
-      return source
-    }
-    return super.hitTest(point)
-  }
 
   init(backgroundColor: NSColor) {
     self.backgroundColor = backgroundColor
@@ -1243,6 +1224,14 @@ final class TerminalSplitAXContainerView: NSView {
       backgroundView.trailingAnchor.constraint(equalTo: trailingAnchor),
       backgroundView.topAnchor.constraint(equalTo: topAnchor),
       backgroundView.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+    paneDragSourceHost.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(paneDragSourceHost)
+    NSLayoutConstraint.activate([
+      paneDragSourceHost.leadingAnchor.constraint(equalTo: leadingAnchor),
+      paneDragSourceHost.trailingAnchor.constraint(equalTo: trailingAnchor),
+      paneDragSourceHost.topAnchor.constraint(equalTo: topAnchor),
+      paneDragSourceHost.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
   }
 
@@ -1270,7 +1259,7 @@ final class TerminalSplitAXContainerView: NSView {
       hostingView.wantsLayer = true
       hostingView.layer?.zPosition = 1
       hostingView.translatesAutoresizingMaskIntoConstraints = false
-      addSubview(hostingView)
+      addSubview(hostingView, positioned: .below, relativeTo: paneDragSourceHost)
       NSLayoutConstraint.activate([
         hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
         hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -1282,7 +1271,7 @@ final class TerminalSplitAXContainerView: NSView {
 
     self.visibleNode = visibleNode
     self.action = action
-    updatePaneDragSources(panes: panes, client: paneDragClient)
+    paneDragSourceHost.update(panes: panes, client: paneDragClient)
     let newPaneIDs = panes.map(\.id)
     self.panes = panes
     panesLabel = "Terminal split: \(panes.count) pane" + (panes.count == 1 ? "" : "s")
@@ -1299,75 +1288,7 @@ final class TerminalSplitAXContainerView: NSView {
 
   override func layout() {
     super.layout()
-    for pane in panes {
-      let paneFrame = convert(pane.bounds, from: pane)
-      paneDragSourcesByID[pane.id]?.frame = TerminalPaneDragSourceLayout.frame(
-        for: paneFrame
-      )
-    }
     refreshAccessibilityDividers(postLayoutChanged: false)
-  }
-
-  override func updateTrackingAreas() {
-    if let paneTrackingArea {
-      removeTrackingArea(paneTrackingArea)
-    }
-    let paneTrackingArea = NSTrackingArea(
-      rect: bounds,
-      options: [.activeInKeyWindow, .mouseEnteredAndExited, .mouseMoved],
-      owner: self,
-      userInfo: nil
-    )
-    addTrackingArea(paneTrackingArea)
-    self.paneTrackingArea = paneTrackingArea
-    super.updateTrackingAreas()
-  }
-
-  override func mouseEntered(with event: NSEvent) {
-    updatePaneDragIndicators(at: convert(event.locationInWindow, from: nil))
-  }
-
-  override func mouseMoved(with event: NSEvent) {
-    updatePaneDragIndicators(at: convert(event.locationInWindow, from: nil))
-  }
-
-  override func mouseExited(with event: NSEvent) {
-    paneDragSourcesByID.values.forEach { $0.showsIndicator = false }
-  }
-
-  private func updatePaneDragIndicators(at location: CGPoint) {
-    for pane in panes {
-      let paneFrame = convert(pane.bounds, from: pane)
-      paneDragSourcesByID[pane.id]?.showsIndicator = paneFrame.contains(location)
-    }
-  }
-
-  private func updatePaneDragSources(
-    panes: [GhosttySurfaceView],
-    client: TerminalPaneDragClient?
-  ) {
-    guard let client else {
-      paneDragSourcesByID.values.forEach { $0.removeFromSuperview() }
-      paneDragSourcesByID.removeAll()
-      return
-    }
-    let paneIDs = Set(panes.map(\.id))
-    for id in paneDragSourcesByID.keys.filter({ !paneIDs.contains($0) }) {
-      paneDragSourcesByID.removeValue(forKey: id)?.removeFromSuperview()
-    }
-    for pane in panes {
-      let source =
-        paneDragSourcesByID[pane.id]
-        ?? TerminalPaneDragSourceNSView(surfaceView: pane, client: client)
-      source.update(surfaceView: pane, client: client)
-      if source.superview == nil {
-        source.wantsLayer = true
-        source.layer?.zPosition = 2
-        addSubview(source)
-      }
-      paneDragSourcesByID[pane.id] = source
-    }
-    needsLayout = true
   }
 
   func adjustDivider(

@@ -11,7 +11,6 @@ final class TerminalPaneDragClient {
   private struct ActiveDrag {
     let operationID: TerminalTabMoveOperationID
     var didTransfer = false
-    var splitDestinationID: UUID?
   }
 
   private let captureClient: TerminalPaneCaptureClient
@@ -77,31 +76,46 @@ final class TerminalPaneDragClient {
     _ = registry.move(to: screenPoint, sourceSurfaceFrame: .null)
   }
 
-  func enteredSplitDestination(_ destinationID: UUID) {
+  func updateSplitDestination(
+    _ destinationID: UUID,
+    zone: TerminalSplitDropZone
+  ) -> Bool {
     guard
-      var activeDrag,
       let payload = registry.activePayload,
-      payload.moveOperationID == activeDrag.operationID,
-      let sourceID = payload.pane?.surfaceID
-    else { return }
-    activeDrag.splitDestinationID = destinationID
-    self.activeDrag = activeDrag
-    registry.transitionSharedPreview(
-      payload,
-      to: sourceID == destinationID ? .window : .contentPane
-    )
+      activeDrag?.operationID == payload.moveOperationID,
+      let destination = paneDestination(
+        payload: payload,
+        surfaceID: destinationID,
+        zone: zone
+      )
+    else { return false }
+    registry.setPaneDestination(payload, destination: destination)
+    return true
   }
 
   func exitedSplitDestination(_ destinationID: UUID) {
     guard
-      var activeDrag,
-      activeDrag.splitDestinationID == destinationID,
       let payload = registry.activePayload,
-      payload.moveOperationID == activeDrag.operationID
+      activeDrag?.operationID == payload.moveOperationID
     else { return }
-    activeDrag.splitDestinationID = nil
-    self.activeDrag = activeDrag
-    registry.transitionSharedPreview(payload, to: .window)
+    registry.clearPaneDestination(payload, surfaceID: destinationID)
+  }
+
+  func performDrop(
+    on destinationID: UUID,
+    zone: TerminalSplitDropZone
+  ) -> Bool {
+    guard
+      let payload = registry.activePayload,
+      activeDrag?.operationID == payload.moveOperationID,
+      let destination = paneDestination(
+        payload: payload,
+        surfaceID: destinationID,
+        zone: zone
+      )
+    else { return false }
+    registry.setPaneDestination(payload, destination: destination)
+    return registry.performPaneRearrangement(payload, to: destination)
   }
 
   func end(_ payload: TerminalTabDragPayload) {
@@ -122,6 +136,27 @@ final class TerminalPaneDragClient {
   private func previewContentSize(for surfaceView: GhosttySurfaceView) -> CGSize {
     guard let window = surfaceView.window else { return surfaceView.bounds.size }
     return TerminalTabDragPreviewLayout.sourceContentSize(for: window.frame)
+  }
+
+  private func paneDestination(
+    payload: TerminalTabDragPayload,
+    surfaceID: UUID,
+    zone: TerminalSplitDropZone
+  ) -> TerminalTabDragRegistry.PaneRearrangementDestination? {
+    guard
+      case .pane(let pane) = payload.source,
+      pane.surfaceID != surfaceID,
+      let sourceTabID = terminal.tabID(containing: pane.surfaceID),
+      terminal.tabID(containing: surfaceID) == sourceTabID,
+      let instance = terminal.spaceManager.instance(for: sourceTabID)
+    else { return nil }
+    return TerminalTabDragRegistry.PaneRearrangementDestination(
+      windowControllerID: windowControllerID,
+      spaceID: instance.spaceID,
+      tabID: sourceTabID,
+      surfaceID: surfaceID,
+      zone: zone
+    )
   }
 }
 
@@ -249,13 +284,9 @@ final class TerminalPaneDragSourceNSView: NSView, NSDraggingSource {
   }
 
   private func beginDragging(with event: NSEvent) {
+    guard let payload = client.begin(surfaceView: surfaceView) else { return }
     let pasteboardItem = NSPasteboardItem()
-    let splitType = NSPasteboard.PasteboardType(TerminalSplitTreeView.dragType.identifier)
-    precondition(pasteboardItem.setString(surfaceView.id.uuidString, forType: splitType))
-    let payload = client.begin(surfaceView: surfaceView)
-    if let payload {
-      precondition(TerminalTabDragPasteboard.write(payload, to: pasteboardItem))
-    }
+    precondition(TerminalTabDragPasteboard.write(payload, to: pasteboardItem))
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
     draggingItem.setDraggingFrame(
       CGRect(origin: convert(event.locationInWindow, from: nil), size: CGSize(width: 1, height: 1)),
@@ -265,8 +296,6 @@ final class TerminalPaneDragSourceNSView: NSView, NSDraggingSource {
     session.animatesToStartingPositionsOnCancelOrFail = false
     session.draggingFormation = .none
     self.payload = payload
-    if let payload {
-      client.move(payload, to: NSEvent.mouseLocation)
-    }
+    client.move(payload, to: NSEvent.mouseLocation)
   }
 }

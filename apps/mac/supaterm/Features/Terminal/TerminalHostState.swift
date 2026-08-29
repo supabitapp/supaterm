@@ -650,26 +650,6 @@ final class TerminalHostState {
         return
       }
 
-    case .drop(let payloadID, let destinationID, let zone):
-      guard let payload = surfaces[payloadID] else { return }
-      guard let destination = surfaces[destinationID] else { return }
-      if payload === destination { return }
-      guard let sourceNode = tree.root?.node(view: payload) else { return }
-      let treeWithoutSource = tree.removing(sourceNode)
-      if treeWithoutSource.isEmpty { return }
-      do {
-        let newTree = try treeWithoutSource.inserting(
-          view: payload,
-          at: destination,
-          direction: mapDropZone(zone)
-        )
-        trees[tabID] = newTree
-        focusSurface(payload, in: tabID)
-        sessionDidChange()
-      } catch {
-        return
-      }
-
     case .equalize:
       trees[tabID] = tree.equalized()
       sessionDidChange()
@@ -680,6 +660,36 @@ final class TerminalHostState {
       .agentPanelURLTapped:
       break
     }
+  }
+
+  func rearrangePane(
+    _ surfaceID: UUID,
+    relativeTo destinationID: UUID,
+    zone: TerminalSplitDropZone,
+    in tabID: TerminalTabID
+  ) -> Bool {
+    guard
+      var tree = trees[tabID],
+      let surface = surfaces[surfaceID],
+      let destination = surfaces[destinationID],
+      surface !== destination,
+      let sourceNode = tree.root?.node(view: surface)
+    else { return false }
+    let treeWithoutSource = tree.removing(sourceNode)
+    guard !treeWithoutSource.isEmpty else { return false }
+    do {
+      tree = try treeWithoutSource.inserting(
+        view: surface,
+        at: destination,
+        direction: mapDropZone(zone)
+      )
+    } catch {
+      return false
+    }
+    trees[tabID] = tree
+    focusSurface(surface, in: tabID)
+    sessionDidChange()
+    return true
   }
 
   static func surfaceActivity(

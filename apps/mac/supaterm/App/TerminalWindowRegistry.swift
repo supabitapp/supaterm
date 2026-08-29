@@ -116,6 +116,9 @@ final class TerminalWindowRegistry {
     tabDragRegistry.split = { [weak self] payload, destination in
       self?.splitTab(payload, to: destination) == true
     }
+    tabDragRegistry.rearrangePane = { [weak self] payload, destination in
+      self?.rearrangePane(payload, to: destination) == true
+    }
   }
 
   #if DEBUG

@@ -740,12 +740,18 @@ final class TerminalWindowShellController: NSViewController {
       return []
     }
     let overlayPoint = splitDropOverlay.convert(location, from: view)
-    tabDragRegistry.transitionSharedPreview(payload, to: .contentPane)
     let target = splitDropOverlay.target(at: overlayPoint)
     let context = TerminalTabSplitDropCoordinator.Context(
       spaceID: destination.spaceID,
       tabID: destination.tabID
     )
+    let registryDestination = TerminalTabDragRegistry.SplitDestination(
+      windowControllerID: windowControllerID,
+      spaceID: destination.spaceID,
+      tabID: destination.tabID,
+      zone: target
+    )
+    tabDragRegistry.setSplitDestination(payload, destination: registryDestination)
     splitDropCoordinator.update(context: context, target: target)
     splitDropOverlay.render(target, color: destination.color)
     info.numberOfValidItemsForDrop = 1
@@ -778,8 +784,8 @@ final class TerminalWindowShellController: NSViewController {
   }
 
   private func dragDestinationExited() {
-    if let payload = tabDragRegistry.activePayload, payload.singleTabID != nil {
-      tabDragRegistry.transitionSharedPreview(payload, to: .window)
+    if let payload = tabDragRegistry.activePayload {
+      tabDragRegistry.clearSplitDestination(payload, windowControllerID: windowControllerID)
     }
     resetSplitDrop()
   }

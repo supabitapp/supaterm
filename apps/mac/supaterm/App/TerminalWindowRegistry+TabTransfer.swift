@@ -5,10 +5,12 @@ extension TerminalWindowRegistry {
     _ payload: TerminalTabDragPayload,
     to destination: TerminalTabDragRegistry.Destination
   ) -> TerminalTabTransferResult? {
-    if let pane = payload.pane {
+    switch payload.source {
+    case .pane(let pane):
       return transferPane(pane, from: payload, to: destination)
+    case .rootItems:
+      return transferRootItems(payload, to: destination)
     }
-    return transferRootItems(payload, to: destination)
   }
 
   private func transferRootItems(
@@ -181,6 +183,31 @@ extension TerminalWindowRegistry {
     if closesSourceWindow {
       sourceEntry.requestConfirmedWindowClose()
     }
+    onChange()
+    return true
+  }
+
+  func rearrangePane(
+    _ payload: TerminalTabDragPayload,
+    to destination: TerminalTabDragRegistry.PaneRearrangementDestination
+  ) -> Bool {
+    guard
+      case .pane(let pane) = payload.source,
+      let sourceEntry = entry(forWindowControllerID: payload.sourceWindowID),
+      let destinationEntry = entry(forWindowControllerID: destination.windowControllerID),
+      sourceEntry.terminal === destinationEntry.terminal,
+      payload.sourceSpaceID == destination.spaceID,
+      sourceEntry.terminal.spaceManager.tabCollection(for: payload.sourceSpaceID)?
+        .topologyRevision == payload.sourceTopologyRevision,
+      sourceEntry.terminal.tabID(containing: pane.surfaceID) == destination.tabID,
+      destinationEntry.terminal.tabID(containing: destination.surfaceID) == destination.tabID,
+      destinationEntry.terminal.rearrangePane(
+        pane.surfaceID,
+        relativeTo: destination.surfaceID,
+        zone: destination.zone,
+        in: destination.tabID
+      )
+    else { return false }
     onChange()
     return true
   }

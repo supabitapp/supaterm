@@ -120,7 +120,11 @@ struct TerminalPaneTabMoveTests {
 
       let payload = try #require(client.begin(surfaceView: fixture.surfaces[1]))
 
-      #expect(payload.pane?.surfaceID == fixture.surfaces[1].id)
+      guard case .pane(let pane) = payload.source else {
+        Issue.record("Expected pane source")
+        return
+      }
+      #expect(pane.surfaceID == fixture.surfaces[1].id)
       #expect(registry.activePayload == payload)
       client.end(payload)
       #expect(registry.lastOutcome == .cancelled)
@@ -198,12 +202,12 @@ struct TerminalPaneTabMoveTests {
       let payload = try #require(client.begin(surfaceView: source))
       client.move(payload, to: CGPoint(x: 800, y: 500))
 
-      client.enteredSplitDestination(destination.id)
+      #expect(client.updateSplitDestination(destination.id, zone: .left))
 
       #expect(previewPresenter.currentType == .contentPane)
       #expect(previewPresenter.transitions == [.contentPane])
 
-      client.enteredSplitDestination(nextDestination.id)
+      #expect(client.updateSplitDestination(nextDestination.id, zone: .right))
       client.exitedSplitDestination(destination.id)
 
       #expect(previewPresenter.currentType == .contentPane)
@@ -214,11 +218,70 @@ struct TerminalPaneTabMoveTests {
       #expect(previewPresenter.currentType == .window)
       #expect(previewPresenter.transitions == [.contentPane, .window])
 
-      client.enteredSplitDestination(source.id)
+      #expect(!client.updateSplitDestination(source.id, zone: .left))
 
       #expect(previewPresenter.currentType == .window)
       #expect(previewPresenter.transitions == [.contentPane, .window])
       client.end(payload)
+    }
+  }
+
+  @Test
+  func sameTabPaneDropCompletesThroughTheSharedRegistry() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = makeFixture()
+      let registry = TerminalTabDragRegistry()
+      var receivedDestination: TerminalTabDragRegistry.PaneRearrangementDestination?
+      registry.rearrangePane = { _, destination in
+        receivedDestination = destination
+        return true
+      }
+      let client = TerminalPaneDragClient(
+        terminal: fixture.host,
+        windowControllerID: UUID(),
+        registry: registry,
+        captureClient: TerminalPaneCaptureClient { _ in nil }
+      )
+      let source = fixture.surfaces[1]
+      let destination = fixture.surfaces[2]
+      let payload = try #require(client.begin(surfaceView: source))
+      client.move(payload, to: CGPoint(x: 800, y: 500))
+
+      #expect(client.updateSplitDestination(destination.id, zone: .bottom))
+      #expect(client.performDrop(on: destination.id, zone: .bottom))
+      client.end(payload)
+
+      #expect(receivedDestination?.surfaceID == destination.id)
+      #expect(receivedDestination?.zone == .bottom)
+      #expect(registry.lastOutcome == .moved)
+    }
+  }
+
+  @Test
+  func rearrangingPaneUpdatesTheSplitAndFocusesItsSurface() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = makeFixture()
+
+      #expect(
+        fixture.host.rearrangePane(
+          fixture.surfaces[0].id,
+          relativeTo: fixture.surfaces[2].id,
+          zone: .right,
+          in: fixture.tabID
+        )
+      )
+      #expect(
+        fixture.host.trees[fixture.tabID]?.leaves().map(\.id) == [
+          fixture.surfaces[1].id,
+          fixture.surfaces[2].id,
+          fixture.surfaces[0].id,
+        ]
+      )
+      #expect(fixture.host.selectedSurfaceView === fixture.surfaces[0])
     }
   }
 

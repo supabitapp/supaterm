@@ -77,11 +77,12 @@ final class TerminalTabNewWindowDropController {
       screenFrames: NSScreen.screens.map(\.frame),
       currentProcessWindowFrames: currentProcessWindowFrames()
     )
-    tabDragRegistry.transitionSharedPreview(payload, to: .window)
     guard let frame else {
+      tabDragRegistry.setDesktopDestination(payload, isActive: false)
       destinationWindow.orderOut(nil)
       return
     }
+    tabDragRegistry.setDesktopDestination(payload, isActive: true)
     destinationWindow.setFrame(frame, display: false)
     destinationWindow.orderFrontRegardless()
   }
