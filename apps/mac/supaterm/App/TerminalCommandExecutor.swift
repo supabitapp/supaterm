@@ -105,16 +105,16 @@ final class TerminalCommandExecutor {
 
   func execute(
     _ request: SocketRequestExecutor.TerminalPaneRequest
-  ) async throws -> SocketRequestExecutor.TerminalPaneResult {
+  ) throws -> SocketRequestExecutor.TerminalPaneResult {
     switch request {
-    case .agentExplain(let target):
-      return .agentExplain(try await agentDetectionExplain(target))
     case .focusPane(let target):
       return .focusPane(try focusPane(target))
     case .lastPane(let target):
       return .lastPane(try lastPane(target))
     case .closePane(let target):
       return .closePane(try closePane(target))
+    case .movePaneToNewTab(let target):
+      return .movePaneToNewTab(try movePaneToNewTab(target))
     case .sendText(let sendTextRequest):
       return .sendText(try sendText(sendTextRequest))
     case .sendKey(let sendKeyRequest):

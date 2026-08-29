@@ -8,7 +8,6 @@ import SwiftUI
 struct TerminalSidebarChromeView: View {
   enum AuxiliarySection: Equatable {
     case licenseExpired
-    case tabLimit
     case update
   }
 
@@ -21,6 +20,7 @@ struct TerminalSidebarChromeView: View {
   let isPagingActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
+  let shouldPlayTabMoveHaptics: Bool
   let dismissReleaseAnnouncement: () -> Void
 
   @State private var pagingPosition: Double?
@@ -33,6 +33,7 @@ struct TerminalSidebarChromeView: View {
         isActive: isPagingActive,
         sidebarControllerCache: sidebarControllerCache,
         fixedHoveredGroupID: fixedHoveredGroupID,
+        shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics,
         position: $pagingPosition
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -42,7 +43,6 @@ struct TerminalSidebarChromeView: View {
             if case .expired = licenseStore.access { return true }
             return false
           }(),
-          hasTabLimitRefusal: terminal.showsLicenseTabLimitRefusal,
           showsUpdate: updateStore.phase.showsSidebarSection
         ) {
         case .licenseExpired:
@@ -53,11 +53,6 @@ struct TerminalSidebarChromeView: View {
               ownership: ownership
             )
           }
-        case .tabLimit:
-          LicenseTabLimitCardView(
-            palette: palette,
-            action: terminal.onLicenseTabLimitAction
-          )
         case .update:
           TerminalSidebarUpdateSection(
             store: updateStore,
@@ -89,14 +84,10 @@ struct TerminalSidebarChromeView: View {
 
   static func auxiliarySection(
     isLicenseExpired: Bool,
-    hasTabLimitRefusal: Bool,
     showsUpdate: Bool
   ) -> AuxiliarySection? {
     if isLicenseExpired {
       return .licenseExpired
-    }
-    if hasTabLimitRefusal {
-      return .tabLimit
     }
     return showsUpdate ? .update : nil
   }

@@ -812,14 +812,6 @@ struct SupatermSocketProtocolTests {
 
   @Test
   func agentDetectionRequestsRoundTripThroughTypedHelpers() throws {
-    let paneID = UUID(uuidString: "20D1A721-EA1E-44FB-B46D-29FBF240D4CB")!
-    let explainPayload = SupatermAgentDetectionExplainRequest(
-      target: SupatermPaneTargetRequest(paneID: paneID)
-    )
-    let explainRequest = try SupatermSocketRequest.agentDetectionExplain(
-      explainPayload,
-      id: "agent-explain-1"
-    )
     let reloadRequest = SupatermSocketRequest.agentDetectionReload(id: "agent-reload-1")
     let reloadResult = SupatermAgentDetectionReloadResult(
       generation: 42,
@@ -839,8 +831,6 @@ struct SupatermSocketProtocolTests {
       encodableResult: reloadResult
     )
 
-    #expect(explainRequest.method == SupatermSocketMethod.terminalAgentExplain)
-    #expect(try explainRequest.decodeParams(SupatermAgentDetectionExplainRequest.self) == explainPayload)
     #expect(reloadRequest.method == SupatermSocketMethod.appAgentDetectionReload)
     #expect(reloadRequest.params.isEmpty)
     #expect(try response.decodeResult(SupatermAgentDetectionReloadResult.self) == reloadResult)
@@ -940,6 +930,21 @@ struct SupatermSocketProtocolTests {
     #expect(request.method == SupatermSocketMethod.terminalNewTab)
     #expect(try request.decodeParams(SupatermNewTabRequest.self) == requestPayload)
     #expect(try response.decodeResult(SupatermNewTabResult.self) == result)
+  }
+
+  @Test
+  func movePaneToNewTabRequestUsesTypedHelper() throws {
+    let payload = SupatermPaneTargetRequest(
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    )
+
+    let request = try SupatermSocketRequest.movePaneToNewTab(
+      payload,
+      id: "move-pane-to-new-tab-1"
+    )
+
+    #expect(request.method == SupatermSocketMethod.terminalMovePaneToNewTab)
+    #expect(try request.decodeParams(SupatermPaneTargetRequest.self) == payload)
   }
 
   @Test

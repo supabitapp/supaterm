@@ -8,6 +8,26 @@ import Testing
 @MainActor
 struct SettingsFeatureNotificationsTests {
   @Test
+  func tabMoveHapticsSettingPersistsPrefs() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.tabMoveHapticsEnabledChanged(false)) {
+        $0.$supatermSettings.withLock {
+          $0.tabMoveHapticsEnabled = false
+        }
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.tabMoveHapticsEnabled)
+    }
+  }
+
+  @Test
   func glowingPaneRingSettingPersistsPrefs() async throws {
     await withDependencies {
       $0.defaultFileStorage = .inMemory

@@ -12,6 +12,7 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
   let selectedTabID: TerminalTabID?
   let fixedHoveredGroupID: TerminalTabGroupID?
   let reduceMotion: Bool
+  let shouldPlayTabMoveHaptics: Bool
   let actions: TerminalSidebarRowActions
   let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
 
@@ -39,7 +40,10 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
         actions: actions
       ),
       selectedTabID: selectedTabID,
-      reduceMotion: reduceMotion
+      interactionPolicy: TerminalSidebarInteractionPolicy(
+        reduceMotion: reduceMotion,
+        shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics
+      )
     )
   }
 }

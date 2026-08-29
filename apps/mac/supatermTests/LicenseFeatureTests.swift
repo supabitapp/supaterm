@@ -9,19 +9,37 @@ import Testing
 @MainActor
 struct LicenseFeatureTests {
   @Test
-  func activationLinkOnlyPrefillsKey() async {
-    let runtime = runtime()
+  func activationLinkActivatesKey() async {
+    let entitlement = paidEntitlement()
+    let activatedKey = LockIsolated<String?>(nil)
+    let runtime = runtime {
+      $0.activate = { key in
+        activatedKey.withValue { $0 = key }
+        return entitlement
+      }
+    }
     let store = TestStore(initialState: LicenseFeature.State(runtime: runtime)) {
       LicenseFeature(runtime: runtime)
+    } withDependencies: {
+      $0.analyticsClient.capture = { _ in }
     }
 
-    await store.send(.prefillKey("license-key")) {
+    await store.send(.activationLinkOpened("license-key")) {
       $0.key = "license-key"
-      $0.error = nil
+      $0.$session.withLock { $0.phase = .activating }
+    }
+    await store.receive(\.activationResponse) {
+      $0.key = ""
+      $0.$session.withLock {
+        $0.entitlement = entitlement
+        $0.hasLicenseKey = true
+        $0.phase = .idle
+      }
     }
 
+    #expect(activatedKey.value == "license-key")
     #expect(store.state.phase == .idle)
-    #expect(store.state.entitlement == nil)
+    #expect(store.state.entitlement == entitlement)
   }
 
   @Test
@@ -89,7 +107,7 @@ struct LicenseFeatureTests {
   }
 
   @Test
-  func activationURLAcceptsOnlyPrefillRoute() {
+  func activationURLAcceptsOnlyActivationRoute() {
     #expect(
       LicenseActivationURL.key(
         from: URL(string: "supaterm://activate?key=license-key")!

@@ -21,6 +21,7 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
   case terminalZmxSessionsEnabled = "terminal.zmx_sessions_enabled"
   case notificationsSystemNotifications = "notifications.system_notifications"
   case notificationsGlowingPaneRing = "notifications.glowing_pane_ring"
+  case notificationsTabMoveHaptics = "notifications.tab_move_haptics"
   case codingAgentsShowPanel = "coding_agents.show_panel"
   case privacyAnalyticsEnabled = "privacy.analytics_enabled"
   case privacyCrashReportsEnabled = "privacy.crash_reports_enabled"
@@ -43,6 +44,7 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       .terminalZmxSessionsEnabled,
       .notificationsSystemNotifications,
       .notificationsGlowingPaneRing,
+      .notificationsTabMoveHaptics,
       .codingAgentsShowPanel,
       .privacyAnalyticsEnabled,
       .privacyCrashReportsEnabled,
@@ -61,6 +63,7 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       .terminalZmxSessionsEnabled,
       .notificationsSystemNotifications,
       .notificationsGlowingPaneRing,
+      .notificationsTabMoveHaptics,
       .codingAgentsShowPanel,
       .privacyAnalyticsEnabled,
       .privacyCrashReportsEnabled,
@@ -81,6 +84,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       return string(settings.systemNotificationsEnabled)
     case .notificationsGlowingPaneRing:
       return string(settings.glowingPaneRingEnabled)
+    case .notificationsTabMoveHaptics:
+      return string(settings.tabMoveHapticsEnabled)
     case .codingAgentsShowPanel:
       return string(settings.codingAgentsShowPanel)
     case .privacyAnalyticsEnabled:
@@ -110,6 +115,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       settings.systemNotificationsEnabled = try parsedBool(rawValue)
     case .notificationsGlowingPaneRing:
       settings.glowingPaneRingEnabled = try parsedBool(rawValue)
+    case .notificationsTabMoveHaptics:
+      settings.tabMoveHapticsEnabled = try parsedBool(rawValue)
     case .codingAgentsShowPanel:
       settings.codingAgentsShowPanel = try parsedBool(rawValue)
     case .privacyAnalyticsEnabled:
@@ -135,6 +142,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       settings.systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
     case .notificationsGlowingPaneRing:
       settings.glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
+    case .notificationsTabMoveHaptics:
+      settings.tabMoveHapticsEnabled = SupatermSettings.default.tabMoveHapticsEnabled
     case .codingAgentsShowPanel:
       settings.codingAgentsShowPanel = SupatermSettings.default.codingAgentsShowPanel
     case .privacyAnalyticsEnabled:

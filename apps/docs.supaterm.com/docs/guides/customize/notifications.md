@@ -1,6 +1,6 @@
 ---
 title: Notifications
-description: Configure macOS delivery, pane attention, unread badges, and terminal notifications.
+description: Configure macOS delivery, pane attention, unread badges, terminal notifications, and tab-reorder haptics.
 ---
 
 Supaterm can surface terminal and coding-agent activity in the sidebar, inside the pane, and through macOS.
@@ -16,6 +16,16 @@ If delivery is enabled but nothing appears, open **System Settings > Notificatio
 Enable **Glowing Pane Ring** to highlight a pane when terminal or coding-agent activity needs attention.
 
 Turning off the ring removes only the in-pane glow. Unread attention and sidebar badges remain.
+
+## Tab-reorder haptics
+
+Enable **Haptic feedback when reordering tabs** to play feedback when a dragged tab enters a new drop target. The setting applies to local and incoming sidebar drags. It does not change drag motion.
+
+Set the same value from the command line:
+
+```bash
+sp config set notifications.tab_move_haptics false
+```
 
 ## Sidebar state
 

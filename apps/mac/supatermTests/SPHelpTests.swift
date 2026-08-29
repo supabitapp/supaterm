@@ -68,6 +68,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Pane.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
       SP.helpMessage(for: SP.FocusPane.self, columns: 100),
+      SP.helpMessage(for: SP.MovePaneToNewTab.self, columns: 100),
       SP.helpMessage(for: SP.SelectTab.self, columns: 100),
       SP.helpMessage(for: SP.PinTab.self, columns: 100),
       SP.helpMessage(for: SP.UnpinTab.self, columns: 100),
@@ -91,9 +92,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Agent.self, columns: 100),
       SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100),
-      SP.helpMessage(for: SP.InstallAgentHook.self, columns: 100),
-      SP.helpMessage(for: SP.InstallAgentHook.Claude.self, columns: 100),
-      SP.helpMessage(for: SP.InstallAgentHook.Codex.self, columns: 100),
+      SP.helpMessage(for: SP.RemoveAgentHooks.self, columns: 100),
       SP.helpMessage(for: SP.Internal.self, columns: 100),
       SP.helpMessage(for: SP.AgentSettings.self, columns: 100),
       SP.helpMessage(for: SP.Development.self, columns: 100),
@@ -288,8 +287,8 @@ struct SPHelpTests {
     #expect(help.contains("Settings > Coding Agents"))
     #expect(help.contains("sp skills install"))
     #expect(help.contains("sp agent install-hooks"))
-    #expect(help.contains("sp agent install-hook"))
-    #expect(help.contains("sp agent remove-hook"))
+    #expect(!help.contains("sp agent install-hook "))
+    #expect(!help.contains("sp agent remove-hook "))
     #expect(help.contains("receive-agent-hook --agent claude"))
   }
 
@@ -321,20 +320,18 @@ struct SPHelpTests {
 
   @Test
   func installAgentHooksHelpShowsExamples() {
-    let aggregateHelp = SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100)
-    let help = SP.helpMessage(for: SP.InstallAgentHook.self, columns: 100)
+    let help = SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100)
 
-    #expect(aggregateHelp.contains("sp agent install-hooks"))
-    #expect(help.contains("sp agent install-hook claude"))
-    #expect(help.contains("sp agent install-hook codex"))
+    #expect(help.contains("sp agent install-hooks"))
+    #expect(!help.contains("sp agent install-hook "))
   }
 
   @Test
   func removeAgentHooksHelpShowsExamples() {
-    let help = SP.helpMessage(for: SP.RemoveAgentHook.self, columns: 100)
+    let help = SP.helpMessage(for: SP.RemoveAgentHooks.self, columns: 100)
 
-    #expect(help.contains("sp agent remove-hook claude"))
-    #expect(help.contains("sp agent remove-hook codex"))
+    #expect(help.contains("sp agent remove-hooks"))
+    #expect(!help.contains("sp agent remove-hook "))
   }
 
   @Test

@@ -9,32 +9,22 @@ import Testing
 
 struct TerminalSidebarChromeViewTests {
   @Test
-  func tabLimitRefusalTakesTheUpdateSectionSlot() {
+  func licenseExpiryTakesTheUpdateSectionSlot() {
     #expect(
       TerminalSidebarChromeView.auxiliarySection(
         isLicenseExpired: false,
-        hasTabLimitRefusal: true,
-        showsUpdate: true
-      ) == .tabLimit
-    )
-    #expect(
-      TerminalSidebarChromeView.auxiliarySection(
-        isLicenseExpired: false,
-        hasTabLimitRefusal: false,
         showsUpdate: true
       ) == .update
     )
     #expect(
       TerminalSidebarChromeView.auxiliarySection(
         isLicenseExpired: false,
-        hasTabLimitRefusal: false,
         showsUpdate: false
       ) == nil
     )
     #expect(
       TerminalSidebarChromeView.auxiliarySection(
         isLicenseExpired: true,
-        hasTabLimitRefusal: true,
         showsUpdate: true
       ) == .licenseExpired
     )
@@ -706,74 +696,6 @@ struct TerminalSidebarChromeViewTests {
     #expect(hints[third.id] == "⌘1")
     #expect(hints[first.id] == "⌘2")
     #expect(hints[second.id] == "⌘3")
-  }
-
-  @Test
-  func tabContextMenuIncludesChangeTabTitle() {
-    let titles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: false,
-      hasTabsBelow: true,
-      hasOtherTabs: true
-    ).compactMap(\.title)
-
-    #expect(
-      titles == [
-        "New Tab",
-        "Pin Tab",
-        "Move to New Group",
-        "Move to Group...",
-        "Change Tab Title...",
-        "Close All Below",
-        "Close Others",
-        "Close",
-      ]
-    )
-  }
-
-  @Test
-  func pinnedTabContextMenuOmitsManualSaveLayout() {
-    let titles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: true,
-      hasTabsBelow: true,
-      hasOtherTabs: true
-    ).compactMap(\.title)
-
-    #expect(
-      titles == [
-        "New Tab",
-        "Unpin Tab",
-        "Move to New Group",
-        "Move to Group...",
-        "Change Tab Title...",
-        "Close All Below",
-        "Close Others",
-        "Close",
-      ]
-    )
-  }
-
-  @Test
-  func groupedTabContextMenuSupportsExtractionAndRegrouping() {
-    let titles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: false,
-      hasTabsBelow: true,
-      hasOtherTabs: true,
-      isGrouped: true
-    ).compactMap(\.title)
-
-    #expect(
-      titles == [
-        "New Tab",
-        "Pin Tab",
-        "Move to New Group",
-        "Move to Group...",
-        "Remove from Group",
-        "Change Tab Title...",
-        "Close All Below",
-        "Close Others",
-        "Close",
-      ]
-    )
   }
 
   @Test

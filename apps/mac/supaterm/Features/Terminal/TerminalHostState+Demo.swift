@@ -98,14 +98,17 @@
           action: .sessionResumed
         )
       )
-      let action: TerminalAgentEvent.Action =
-        switch phase {
-        case .unknown:
-          return
-        case .idle: .turnCompleted(message: nil)
-        case .needsInput: .attentionRequested(requestID: nil, message: detail)
-        case .running: .turnRunning(detail: detail)
-        }
+      let action: TerminalAgentEvent.Action
+      switch phase {
+      case .unknown:
+        return
+      case .idle:
+        action = .turnCompleted(message: nil)
+      case .needsInput:
+        action = .attentionRequested(requestID: nil, message: detail)
+      case .running:
+        action = .turnRunning(detail: detail)
+      }
       _ = applyAgentEvent(
         TerminalAgentEvent(
           scope: scope,

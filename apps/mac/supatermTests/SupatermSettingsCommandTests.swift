@@ -18,6 +18,7 @@ struct SupatermSettingsCommandTests {
         "terminal.zmx_sessions_enabled",
         "notifications.system_notifications",
         "notifications.glowing_pane_ring",
+        "notifications.tab_move_haptics",
         "coding_agents.show_panel",
         "privacy.analytics_enabled",
         "privacy.crash_reports_enabled",
@@ -51,6 +52,31 @@ struct SupatermSettingsCommandTests {
     #expect(resetEdit.settings.appearanceMode == .dark)
     #expect(resetEdit.result.oldValue == "system")
     #expect(resetEdit.result.value == "dark")
+    #expect(resetEdit.result.isDefault)
+  }
+
+  @Test
+  func registrySetsAndResetsTabMoveHaptics() throws {
+    let setEdit = try SupatermSettingsRegistry.set(
+      SupatermSettingsSetRequest(key: "notifications.tab_move_haptics", value: "false"),
+      settings: .default,
+      path: "/tmp/settings.toml"
+    )
+
+    #expect(!setEdit.settings.tabMoveHapticsEnabled)
+    #expect(setEdit.result.oldValue == "true")
+    #expect(setEdit.result.value == "false")
+    #expect(!setEdit.result.isDefault)
+
+    let resetEdit = try SupatermSettingsRegistry.reset(
+      SupatermSettingsResetRequest(key: "notifications.tab_move_haptics"),
+      settings: setEdit.settings,
+      path: "/tmp/settings.toml"
+    )
+
+    #expect(resetEdit.settings.tabMoveHapticsEnabled)
+    #expect(resetEdit.result.oldValue == "false")
+    #expect(resetEdit.result.value == "true")
     #expect(resetEdit.result.isDefault)
   }
 

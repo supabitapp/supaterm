@@ -63,6 +63,52 @@ struct SocketControlFeatureTerminalControlTests {
   }
 
   @Test
+  func movePaneToNewTabRequestRepliesWithCreatedTab() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "A0DAD893-A33E-4F8A-8BB4-9F380A937736")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .movePaneToNewTab(
+        SupatermPaneTargetRequest(paneID: controlPaneID),
+        id: "move-pane-to-new-tab-1"
+      )
+    )
+    let result = SupatermNewTabResult(
+      isFocused: true,
+      isSelectedSpace: true,
+      isSelectedTab: true,
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 4,
+      tabID: UUID(uuidString: "02CD1D20-AB77-45BB-B6BA-E03A9CECB3DB")!,
+      paneIndex: 1,
+      paneID: controlPaneID
+    )
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .movePaneToNewTab(let target) = execution else {
+          Issue.record("Expected move pane to new tab request")
+          throw CancellationError()
+        }
+        #expect(target == TerminalPaneTarget(paneID: controlPaneID))
+        return .movePaneToNewTab(result)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermNewTabResult.self) == result)
+  }
+
+  @Test
   func paneHealthRequestRepliesWithResolvedHealth() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "44C38F69-421B-4BB7-93C7-902BDDB74B1F")!
@@ -515,61 +561,6 @@ struct SocketControlFeatureTerminalControlTests {
       response.error?.message
         == "Capture lines must be between 1 and \(UInt32.max), not \(lines)."
     )
-  }
-
-  @Test
-  func agentExplainRequestRepliesWithRuleEvidence() async throws {
-    let recorder = SocketReplyRecorder()
-    let handle = UUID()
-    let request = SocketControlClient.Request(
-      handle: handle,
-      payload: try .agentDetectionExplain(
-        SupatermAgentDetectionExplainRequest(
-          target: SupatermPaneTargetRequest(paneID: controlPaneID)
-        ),
-        id: "agent-explain-1"
-      )
-    )
-    let target = SupatermPaneTarget(
-      windowIndex: 1,
-      spaceIndex: 2,
-      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
-      tabIndex: 3,
-      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
-      paneIndex: 4,
-      paneID: controlPaneID
-    )
-    let result = SupatermAgentDetectionExplainResult(
-      target: target,
-      status: .resolved,
-      generation: 42,
-      agentID: "codex",
-      displayName: "Codex",
-      phase: .running,
-      process: nil,
-      manifest: nil,
-      matchedRuleID: "working",
-      publishedRuleID: "working",
-      rules: []
-    )
-    let store = makeStore {
-      $0.socketControlClient.reply = { handle, response in
-        await recorder.record(handle: handle, response: response)
-      }
-      $0.socketRequestExecutor.executeTerminalPane = { execution in
-        guard case .agentExplain(let target) = execution else {
-          Issue.record("Expected agent explain request")
-          throw CancellationError()
-        }
-        #expect(target == TerminalPaneTarget(paneID: controlPaneID))
-        return .agentExplain(result)
-      }
-    }
-
-    await store.send(.requestReceived(request))
-
-    let record = try #require(await recorder.snapshot().first)
-    #expect(try record.response.decodeResult(SupatermAgentDetectionExplainResult.self) == result)
   }
 
   @Test

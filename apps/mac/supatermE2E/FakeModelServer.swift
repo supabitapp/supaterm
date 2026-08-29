@@ -15,7 +15,7 @@ nonisolated struct FakeModelExchange: Sendable {
     case messagesToolUse(callID: String, name: String, input: JSONValue)
     case responsesMessage(String)
     case responsesRequestUserInput(callID: String, question: String)
-    case responsesShellCommand(callID: String, command: String)
+    case responsesExecCommand(callID: String, command: String)
 
     static func messagesAskUserQuestion(callID: String, question: String) -> Self {
       .messagesToolUse(
@@ -223,12 +223,10 @@ nonisolated final class FakeModelServer: @unchecked Sendable {
       fail("Fake model server received invalid JSON.", connection: connection)
       return
     }
-    if request.path == "/v1/messages", isMessagesTitleRequest(body) {
+    if let titleResponse = titleResponse(path: request.path, body: body) {
       responseIndex += 1
       do {
-        let response = try FakeModelExchange.Response
-          .messagesText(#"{"title":"E2E title"}"#)
-          .sse(index: responseIndex)
+        let response = try titleResponse.sse(index: responseIndex)
         sendResponse(response, to: connection)
       } catch {
         fail("Fake model server could not encode a title response: \(error)", connection: connection)
@@ -254,7 +252,8 @@ nonisolated final class FakeModelServer: @unchecked Sendable {
       fail(
         "Fake model request did not match \(exchange.request.name); "
           + "body keys: \(body.keys.sorted().joined(separator: ", ")); "
-          + "message shape: \(messagesShape(body)).",
+          + "message shape: \(messagesShape(body)); "
+          + "input shape: \(responsesInputShape(body)).",
         connection: connection
       )
       return
@@ -344,6 +343,33 @@ nonisolated final class FakeModelServer: @unchecked Sendable {
     }.joined(separator: ",")
   }
 
+  private func responsesInputShape(_ body: [String: Any]) -> String {
+    guard let input = body["input"] else { return "none" }
+    guard let items = input as? [Any] else { return String(describing: type(of: input)) }
+    return items.map { item in
+      guard let object = item as? [String: Any] else {
+        return String(describing: type(of: item))
+      }
+      let role = object["role"] as? String
+      let type = object["type"] as? String
+      return [role, type].compactMap { $0 }.joined(separator: ":")
+    }.joined(separator: ";")
+  }
+
+  private func titleResponse(
+    path: String,
+    body: [String: Any]
+  ) -> FakeModelExchange.Response? {
+    let title = #"{"title":"E2E title"}"#
+    if path == "/v1/messages", isMessagesTitleRequest(body) {
+      return .messagesText(title)
+    }
+    if path == "/v1/responses", isResponsesTitleRequest(body) {
+      return .responsesMessage(title)
+    }
+    return nil
+  }
+
   private func isMessagesTitleRequest(_ body: [String: Any]) -> Bool {
     guard let tools = body["tools"] as? [Any], tools.isEmpty,
       let outputConfig = body["output_config"] as? [String: Any],
@@ -361,6 +387,24 @@ nonisolated final class FakeModelServer: @unchecked Sendable {
       return false
     }
     return true
+  }
+
+  private func isResponsesTitleRequest(_ body: [String: Any]) -> Bool {
+    guard let input = body["input"] as? [Any] else { return false }
+    return containsText("Generate a concise, single-line task title", in: input)
+  }
+
+  private func containsText(_ expected: String, in value: Any) -> Bool {
+    if let string = value as? String {
+      return string.contains(expected)
+    }
+    if let array = value as? [Any] {
+      return array.contains { containsText(expected, in: $0) }
+    }
+    if let object = value as? [String: Any] {
+      return object.values.contains { containsText(expected, in: $0) }
+    }
+    return false
   }
 }
 
@@ -487,7 +531,7 @@ extension FakeModelExchange.Response {
     switch self {
     case .messagesText, .messagesToolUse:
       .messages
-    case .responsesMessage, .responsesRequestUserInput, .responsesShellCommand:
+    case .responsesMessage, .responsesRequestUserInput, .responsesExecCommand:
       .responses
     }
   }
@@ -519,7 +563,7 @@ extension FakeModelExchange.Response {
         delta: ["type": "input_json_delta", "partial_json": partialJSON],
         stopReason: "tool_use"
       )
-    case .responsesMessage, .responsesRequestUserInput, .responsesShellCommand:
+    case .responsesMessage, .responsesRequestUserInput, .responsesExecCommand:
       return try responsesSSE(index: index)
     }
   }
@@ -625,11 +669,16 @@ extension FakeModelExchange.Response {
           ]
         ]
       )
-    case .responsesShellCommand(let callID, let command):
+    case .responsesExecCommand(let callID, let command):
       item = try responsesFunctionCall(
         callID: callID,
-        name: "shell_command",
-        arguments: ["command": command, "timeout_ms": 60_000]
+        name: "exec_command",
+        arguments: [
+          "cmd": command,
+          "justification": "Allow the E2E command to run outside the read-only sandbox?",
+          "sandbox_permissions": "require_escalated",
+          "timeout_ms": 60_000,
+        ]
       )
     case .messagesText, .messagesToolUse:
       throw SupatermE2EError("Fake Messages response cannot use the Responses wire protocol.")

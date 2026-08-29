@@ -481,7 +481,7 @@ final class TerminalWindowShellController: NSViewController {
     background: NSViewController,
     sidebar: NSViewController,
     detail: NSViewController,
-    confirmationOverlay: NSViewController? = nil
+    dialogOverlay: NSViewController? = nil
   ) {
     precondition(sidebarController == nil && detailController == nil)
     sidebar.view.wantsLayer = true
@@ -496,11 +496,11 @@ final class TerminalWindowShellController: NSViewController {
     addChild(sidebar)
     view.addSubview(sidebar.view)
     view.addSubview(sidebarResizeView)
-    if let confirmationOverlay {
-      addChild(confirmationOverlay)
-      confirmationOverlay.view.frame = view.bounds
-      confirmationOverlay.view.autoresizingMask = [.width, .height]
-      view.addSubview(confirmationOverlay.view)
+    if let dialogOverlay {
+      addChild(dialogOverlay)
+      dialogOverlay.view.frame = view.bounds
+      dialogOverlay.view.autoresizingMask = [.width, .height]
+      view.addSubview(dialogOverlay.view)
     }
     sidebarController = sidebar
     detailController = detail
@@ -740,12 +740,18 @@ final class TerminalWindowShellController: NSViewController {
       return []
     }
     let overlayPoint = splitDropOverlay.convert(location, from: view)
-    tabDragRegistry.transitionSharedPreview(payload, to: .contentPane)
     let target = splitDropOverlay.target(at: overlayPoint)
     let context = TerminalTabSplitDropCoordinator.Context(
       spaceID: destination.spaceID,
       tabID: destination.tabID
     )
+    let registryDestination = TerminalTabDragRegistry.SplitDestination(
+      windowControllerID: windowControllerID,
+      spaceID: destination.spaceID,
+      tabID: destination.tabID,
+      zone: target
+    )
+    tabDragRegistry.setSplitDestination(payload, destination: registryDestination)
     splitDropCoordinator.update(context: context, target: target)
     splitDropOverlay.render(target, color: destination.color)
     info.numberOfValidItemsForDrop = 1
@@ -779,7 +785,7 @@ final class TerminalWindowShellController: NSViewController {
 
   private func dragDestinationExited() {
     if let payload = tabDragRegistry.activePayload {
-      tabDragRegistry.transitionSharedPreview(payload, to: .window)
+      tabDragRegistry.clearSplitDestination(payload, windowControllerID: windowControllerID)
     }
     resetSplitDrop()
   }

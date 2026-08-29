@@ -9,6 +9,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var restoreTerminalLayoutEnabled: Bool
   public var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride]
   public var systemNotificationsEnabled: Bool
+  public var tabMoveHapticsEnabled: Bool
   public var updateChannel: UpdateChannel
   public var verboseLoggingEnabled: Bool
   public var zmxSessionsEnabled: Bool
@@ -22,6 +23,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     restoreTerminalLayoutEnabled: Bool = true,
     shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] = [:],
     systemNotificationsEnabled: Bool = false,
+    tabMoveHapticsEnabled: Bool = true,
     updateChannel: UpdateChannel,
     verboseLoggingEnabled: Bool = false,
     zmxSessionsEnabled: Bool = true
@@ -34,6 +36,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
     self.shortcutOverrides = shortcutOverrides
     self.systemNotificationsEnabled = systemNotificationsEnabled
+    self.tabMoveHapticsEnabled = tabMoveHapticsEnabled
     self.updateChannel = updateChannel
     self.verboseLoggingEnabled = verboseLoggingEnabled
     self.zmxSessionsEnabled = zmxSessionsEnabled
@@ -47,6 +50,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     glowingPaneRingEnabled: true,
     restoreTerminalLayoutEnabled: true,
     systemNotificationsEnabled: false,
+    tabMoveHapticsEnabled: true,
     updateChannel: .stable,
     verboseLoggingEnabled: false,
     zmxSessionsEnabled: true
@@ -77,6 +81,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       restoreTerminalLayoutEnabled: terminal?.restoreLayout ?? defaults.restoreTerminalLayoutEnabled,
       shortcutOverrides: shortcuts ?? defaults.shortcutOverrides,
       systemNotificationsEnabled: notifications?.systemNotifications ?? defaults.systemNotificationsEnabled,
+      tabMoveHapticsEnabled: notifications?.tabMoveHaptics ?? defaults.tabMoveHapticsEnabled,
       updateChannel: updates?.channel ?? defaults.updateChannel,
       verboseLoggingEnabled: logging?.verboseEnabled ?? defaults.verboseLoggingEnabled,
       zmxSessionsEnabled: terminal?.zmxSessionsEnabled ?? defaults.zmxSessionsEnabled
@@ -113,11 +118,13 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     }
     if glowingPaneRingEnabled != defaults.glowingPaneRingEnabled
       || systemNotificationsEnabled != defaults.systemNotificationsEnabled
+      || tabMoveHapticsEnabled != defaults.tabMoveHapticsEnabled
     {
       try container.encode(
         PersistedNotifications(
           glowingPaneRing: glowingPaneRingEnabled,
-          systemNotifications: systemNotificationsEnabled
+          systemNotifications: systemNotificationsEnabled,
+          tabMoveHaptics: tabMoveHapticsEnabled
         ),
         forKey: .notifications
       )
@@ -174,6 +181,7 @@ extension SupatermSettings {
   enum NotificationKeys: String, CodingKey {
     case glowingPaneRing = "glowing_pane_ring"
     case systemNotifications = "system_notifications"
+    case tabMoveHaptics = "tab_move_haptics"
   }
 
   enum TerminalKeys: String, CodingKey {
@@ -288,10 +296,12 @@ extension SupatermSettings {
   struct PersistedNotifications: Codable, Equatable, Sendable {
     let glowingPaneRing: Bool
     let systemNotifications: Bool
+    let tabMoveHaptics: Bool
 
-    init(glowingPaneRing: Bool, systemNotifications: Bool) {
+    init(glowingPaneRing: Bool, systemNotifications: Bool, tabMoveHaptics: Bool) {
       self.glowingPaneRing = glowingPaneRing
       self.systemNotifications = systemNotifications
+      self.tabMoveHaptics = tabMoveHaptics
     }
 
     init(from decoder: any Decoder) throws {
@@ -303,6 +313,9 @@ extension SupatermSettings {
       systemNotifications =
         try container.decodeIfPresent(Bool.self, forKey: .systemNotifications)
         ?? defaults.systemNotificationsEnabled
+      tabMoveHaptics =
+        try container.decodeIfPresent(Bool.self, forKey: .tabMoveHaptics)
+        ?? defaults.tabMoveHapticsEnabled
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -314,6 +327,9 @@ extension SupatermSettings {
       }
       if systemNotifications != defaults.systemNotificationsEnabled {
         try container.encode(systemNotifications, forKey: .systemNotifications)
+      }
+      if tabMoveHaptics != defaults.tabMoveHapticsEnabled {
+        try container.encode(tabMoveHaptics, forKey: .tabMoveHaptics)
       }
     }
   }

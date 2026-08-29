@@ -19,31 +19,28 @@ final class TerminalSidebarDragPresentation {
     let timestamp: TimeInterval
   }
 
-  struct RippleCandidate {
-    let layer: CALayer
-    let frame: CGRect
-    let center: CGPoint
-  }
-
   struct Settlement {
-    let targetFrame: CGRect
-    let rippleFocusFrame: CGRect
+    let geometry: TerminalSidebarDropSettlementGeometry
     let accepted: Bool
     let motionPolicy: TerminalSidebarMotionPolicy
-    let rippleCandidates: [RippleCandidate]
   }
 
   private weak var collectionView: NSCollectionView?
+  private let performHaptic: () -> Void
   private var liveView: TerminalSidebarLiveDragView?
   private var hotspot = CGPoint.zero
   private var velocityTracker = TerminalSidebarDragVelocityTracker()
   private var hapticTracker = TerminalSidebarHapticTargetTracker()
 
   var sourceFrame: CGRect? { liveView?.sourceFrame }
-  var groupID: TerminalTabGroupID? { liveView?.groupID }
-
-  init(collectionView: NSCollectionView) {
+  init(
+    collectionView: NSCollectionView,
+    performHaptic: @escaping () -> Void = {
+      NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+    }
+  ) {
     self.collectionView = collectionView
+    self.performHaptic = performHaptic
   }
 
   func begin(
@@ -98,9 +95,12 @@ final class TerminalSidebarDragPresentation {
     )
   }
 
-  func updateHapticTarget(_ path: TerminalSidebarSemanticPath?) {
-    if hapticTracker.shouldPerform(for: path) {
-      NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+  func updateHapticTarget(
+    _ path: TerminalSidebarSemanticPath?,
+    enabled: Bool
+  ) {
+    if hapticTracker.shouldPerform(for: path), enabled {
+      performHaptic()
     }
   }
 
@@ -144,110 +144,80 @@ final class TerminalSidebarDragPresentation {
     _ settlement: Settlement,
     completion: @escaping @MainActor @Sendable () -> Void
   ) {
-    guard let liveView, let layer = liveView.layer else {
+    guard let collectionView, let liveView else {
       completion()
       return
     }
     liveView.isHidden = false
-    if settlement.accepted, settlement.motionPolicy.ripple {
-      applyDropRipple(
-        candidates: settlement.rippleCandidates,
-        focusFrame: settlement.rippleFocusFrame
+    liveView.prepareForSettlement()
+    guard
+      let targets = liveView.settlementTargets(
+        geometry: settlement.geometry,
+        in: collectionView
       )
+    else {
+      completion()
+      return
     }
-    let destination = TerminalSidebarLiveDragGeometry.settlementPosition(
-      currentLayerPosition: layer.position,
-      currentFrame: liveView.frame,
-      targetFrame: settlement.targetFrame
-    )
+    liveView.restoreShadow()
     let animatesSettlement =
       settlement.accepted
       ? settlement.motionPolicy.acceptedArc
       : settlement.motionPolicy.snapback
     guard animatesSettlement else {
-      liveView.frame = settlement.targetFrame
+      apply(targets)
       completion()
       return
     }
-    let positionAnimation: CAAnimation
-    if settlement.accepted {
-      let motion = TerminalSidebarDropMotion.path(
-        start: layer.position,
-        destination: destination,
-        velocity: velocityTracker.velocity
-      )
-      let animation = CAKeyframeAnimation(keyPath: "position")
-      animation.values = motion.positions.map(NSValue.init(point:))
-      animation.keyTimes = motion.times.map { NSNumber(value: Double($0)) }
-      animation.timingFunctions = motion.timings.map(timingFunction)
-      animation.duration = motion.duration
-      positionAnimation = animation
-    } else {
-      positionAnimation = TerminalSidebarTransformSpring.positionAnimation(
-        from: layer.position,
-        to: destination
-      )
+    let animations = targets.compactMap { target -> (CALayer, CGPoint)? in
+      guard let layer = target.view.layer else { return nil }
+      return (layer, (layer.presentation() ?? layer).position)
     }
-    positionAnimation.isRemovedOnCompletion = true
+    guard animations.count == targets.count else {
+      completion()
+      return
+    }
     CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    layer.position = destination
-    let translation =
-      (layer.presentation()?.value(forKeyPath: "transform.translation.y") as? NSNumber).map {
-        CGFloat(truncating: $0)
-      }
-      ?? -2
-    layer.setValue(0, forKeyPath: "transform.translation.y")
     CATransaction.setCompletionBlock {
       Task { @MainActor in completion() }
     }
-    layer.add(
-      TerminalSidebarTransformSpring.animation(from: translation, to: 0),
-      forKey: "settleLift"
-    )
-    layer.add(
-      positionAnimation,
-      forKey: settlement.accepted ? "acceptedDrop" : "cancelledDrop"
-    )
+    apply(targets)
+    for (layer, start) in animations {
+      let motion = TerminalSidebarDropMotion.path(
+        start: start,
+        destination: layer.position,
+        velocity: velocityTracker.velocity
+      )
+      let positionAnimation = CAKeyframeAnimation(keyPath: "position")
+      positionAnimation.values = motion.positions.map(NSValue.init(point:))
+      positionAnimation.keyTimes = motion.times.map { NSNumber(value: Double($0)) }
+      positionAnimation.timingFunctions = motion.timings.map(timingFunction)
+      positionAnimation.duration = motion.duration
+      layer.add(
+        positionAnimation,
+        forKey: settlement.accepted ? "acceptedDrop" : "cancelledDrop"
+      )
+    }
+    CATransaction.commit()
+  }
+
+  private func apply(_ targets: [TerminalSidebarSettlementTarget]) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    for target in targets {
+      target.view.frame = target.frame
+      target.view.layoutSubtreeIfNeeded()
+    }
     CATransaction.commit()
   }
 
   private func finish(_ disposition: TerminalSidebarDragProjectionDisposition) {
-    guard let collectionView else { return }
-    liveView?.finish(in: collectionView, disposition: disposition)
+    liveView?.finish(disposition)
     liveView?.removeFromSuperview()
     liveView = nil
     hotspot = .zero
     velocityTracker = TerminalSidebarDragVelocityTracker()
     hapticTracker.reset()
-  }
-
-  private func applyDropRipple(candidates: [RippleCandidate], focusFrame: CGRect) {
-    guard focusFrame.height > 0, candidates.count >= 5 else { return }
-    for candidate in candidates {
-      let distance: CGFloat
-      if candidate.frame.midY < focusFrame.minY {
-        distance = focusFrame.minY - candidate.frame.midY
-      } else if candidate.frame.midY > focusFrame.maxY {
-        distance = candidate.frame.midY - focusFrame.maxY
-      } else {
-        distance = 0
-      }
-      guard
-        let scaleDelta = TerminalSidebarDropRipple.scaleDelta(
-          distance: distance,
-          focusSpan: focusFrame.height
-        )
-      else { continue }
-      candidate.layer.add(
-        TerminalSidebarDropRipple.animation(
-          scaleDelta: scaleDelta,
-          center: candidate.center,
-          distance: distance
-        ),
-        forKey: "dropRipple"
-      )
-    }
   }
 
   private func timingFunction(
@@ -262,8 +232,13 @@ final class TerminalSidebarDragPresentation {
 }
 
 @MainActor
+private struct TerminalSidebarSettlementTarget {
+  let view: NSView
+  let frame: CGRect
+}
+
+@MainActor
 struct TerminalSidebarLiftedGroupBackground {
-  let id: TerminalTabGroupID
   let view: TerminalSidebarGroupBackgroundView
   let sourceFrame: CGRect
 
@@ -272,11 +247,6 @@ struct TerminalSidebarLiftedGroupBackground {
     container.addSubview(view, positioned: .below, relativeTo: nil)
   }
 
-  func restore(in collectionView: NSCollectionView) {
-    view.removeFromSuperview()
-    collectionView.addSubview(view, positioned: .below, relativeTo: nil)
-    view.frame = sourceFrame
-  }
 }
 
 @MainActor
@@ -299,11 +269,13 @@ struct TerminalSidebarLiftedSelectionSurface {
 
 @MainActor
 private final class TerminalSidebarLiveDragView: NSView {
+  private static let restingShadowOpacity: Float = 0.22
+  private static let restingShadowRadius: CGFloat = 8
+  private static let restingShadowOffset = CGSize(width: 0, height: -2)
+
   private let rows: [TerminalSidebarLiftedRow]
   private let groupBackground: TerminalSidebarLiftedGroupBackground?
   let sourceFrame: CGRect
-
-  var groupID: TerminalTabGroupID? { groupBackground?.id }
 
   init(
     rows: [TerminalSidebarLiftedRow],
@@ -318,15 +290,16 @@ private final class TerminalSidebarLiveDragView: NSView {
     wantsLayer = true
     layer?.zPosition = 200
     layer?.shadowColor = NSColor.black.cgColor
-    layer?.shadowOpacity = 0.22
-    layer?.shadowRadius = 8
-    layer?.shadowOffset = CGSize(width: 0, height: -2)
+    layer?.shadowOpacity = Self.restingShadowOpacity
+    layer?.shadowRadius = Self.restingShadowRadius
+    layer?.shadowOffset = Self.restingShadowOffset
     layer?.opacity = 0.96
     groupBackground?.install(in: self, relativeTo: frame)
     let fanSpacing = fanAnchorIndex.map { _ in
       TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: rows.count)
     }
     for (index, row) in rows.enumerated() {
+      row.hostedView.wantsLayer = true
       let rowFrame: CGRect
       if let fanSpacing {
         rowFrame = CGRect(
@@ -335,7 +308,6 @@ private final class TerminalSidebarLiveDragView: NSView {
           width: frame.width,
           height: row.sourceFrame.height
         )
-        row.hostedView.wantsLayer = true
         row.hostedView.layer?.zPosition = index == fanAnchorIndex ? 1 : 0
       } else {
         rowFrame = TerminalSidebarLiveDragGeometry.rowFrame(
@@ -363,24 +335,71 @@ private final class TerminalSidebarLiveDragView: NSView {
 
   func lift() {
     guard let layer else { return }
-    layer.setValue(-2, forKeyPath: "transform.translation.y")
-    layer.add(TerminalSidebarTransformSpring.animation(from: 0, to: -2), forKey: "lift")
+    TerminalSidebarDragShadowMotion.lift(layer)
   }
 
-  func finish(
-    in collectionView: NSCollectionView,
-    disposition: TerminalSidebarDragProjectionDisposition
-  ) {
+  func restoreShadow() {
+    guard let layer else { return }
+    TerminalSidebarDragShadowMotion.restore(
+      layer,
+      opacity: Self.restingShadowOpacity,
+      radius: Self.restingShadowRadius,
+      offset: Self.restingShadowOffset
+    )
+  }
+
+  func prepareForSettlement() {
+    groupBackground?.view.alphaValue = 1
+    for row in rows {
+      row.hostedView.alphaValue = 1
+      row.selectedSurface?.view.alphaValue = 1
+      row.selectedSurface?.view.isHidden = false
+    }
+  }
+
+  func settlementTargets(
+    geometry: TerminalSidebarDropSettlementGeometry,
+    in collectionView: NSCollectionView
+  ) -> [TerminalSidebarSettlementTarget]? {
+    var targets: [TerminalSidebarSettlementTarget] = []
+    for row in rows {
+      guard let frame = geometry.rowFrames[row.id] else { return nil }
+      let targetFrame = convert(frame, from: collectionView)
+      if let selectedSurface = row.selectedSurface {
+        let offset = CGPoint(
+          x: selectedSurface.view.frame.minX - row.hostedView.frame.minX,
+          y: selectedSurface.view.frame.minY - row.hostedView.frame.minY
+        )
+        targets.append(
+          TerminalSidebarSettlementTarget(
+            view: selectedSurface.view,
+            frame: targetFrame.offsetBy(dx: offset.x, dy: offset.y)
+          )
+        )
+      }
+      targets.append(TerminalSidebarSettlementTarget(view: row.hostedView, frame: targetFrame))
+    }
+    if let groupBackground, let groupFrame = geometry.groupFrame {
+      targets.insert(
+        TerminalSidebarSettlementTarget(
+          view: groupBackground.view,
+          frame: convert(groupFrame, from: collectionView)
+        ),
+        at: 0
+      )
+    }
+    return targets
+  }
+
+  func finish(_ disposition: TerminalSidebarDragProjectionDisposition) {
     switch disposition {
     case .restoreSource:
       for row in rows { row.restore() }
-      groupBackground?.restore(in: collectionView)
     case .commitWithinSource:
       for row in rows { row.hostedView.removeFromSuperview() }
-      groupBackground?.restore(in: collectionView)
     case .commitOutsideSource:
       for row in rows { row.hostedView.removeFromSuperview() }
-      groupBackground?.view.removeFromSuperview()
     }
+    groupBackground?.view.removeFromSuperview()
   }
 }

@@ -149,6 +149,7 @@ private struct TerminalChromeSnapshotFixture: View {
         terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
         isPagingActive: true,
         sidebarControllerCache: sidebarControllerCache,
+        shouldPlayTabMoveHaptics: true,
         dismissReleaseAnnouncement: {}
       )
       .frame(width: 228)
@@ -215,6 +216,7 @@ private struct FloatingSidebarSnapshotFixture: View {
           terminal: SidebarChromeSnapshotContext.selectedGroupTerminal,
           isPagingActive: true,
           sidebarControllerCache: sidebarControllerCache,
+          shouldPlayTabMoveHaptics: true,
           dismissReleaseAnnouncement: {}
         )
       }

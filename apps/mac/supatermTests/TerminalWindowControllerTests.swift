@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import ComposableArchitecture
 import Foundation
 import Observation
@@ -54,6 +55,53 @@ struct TerminalWindowControllerTests {
 
       #expect(!window.isOpaque)
       #expect(window.backgroundColor == .clear)
+    }
+  }
+
+  @Test
+  func returnBuysLicenseWhenTerminalHasFocusUnderTabLimitDialog() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      var performedAction: LicenseTabLimitAction?
+      let registry = TerminalWindowRegistry.test(
+        zmxClient: .noop,
+        performLicenseTabLimitAction: { performedAction = $0 }
+      )
+      let controller = TerminalWindowController(
+        runtime: GhosttyRuntime(applicationIsActive: { false }),
+        registry: registry,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      defer {
+        controller.window?.delegate = nil
+        controller.window?.close()
+      }
+      let window = try #require(controller.window)
+      let event = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [],
+          timestamp: 0,
+          windowNumber: window.windowNumber,
+          context: nil,
+          characters: "\r",
+          charactersIgnoringModifiers: "\r",
+          isARepeat: false,
+          keyCode: UInt16(kVK_Return)
+        )
+      )
+      controller.terminal.showsLicenseTabLimitRefusal = true
+      let surface = try #require(controller.terminal.selectedSurfaceView)
+      #expect(window.makeFirstResponder(surface))
+      #expect(window.firstResponder === surface)
+
+      window.sendEvent(event)
+      #expect(performedAction == .buy)
+      #expect(!controller.terminal.showsLicenseTabLimitRefusal)
     }
   }
 

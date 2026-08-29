@@ -13,7 +13,7 @@ final class TabGroupMembershipDragUITests: SupatermUITestCase {
     )
     await requireSidebarStructure([
       .group("Alpha", children: ["Alpha Child"]),
-      .group("Beta", children: ["Beta Child", "Mover"]),
+      .group("Beta", children: ["Mover", "Beta Child"]),
     ])
 
     let betaHeader = try require(sidebarGroupHeader(named: "Beta"))
@@ -40,7 +40,7 @@ final class TabGroupMembershipDragUITests: SupatermUITestCase {
       to: sidebarGroupHeader(named: "Target")
     )
     await requireSidebarStructure([
-      .group("Target", children: ["Seed", "Expanded Join"]),
+      .group("Target", children: ["Expanded Join", "Seed"]),
       .tab("Collapsed Join"),
       .tab("Tail"),
     ])
@@ -69,7 +69,7 @@ final class TabGroupMembershipDragUITests: SupatermUITestCase {
     XCTAssertTrue(didAddAndExpandCollapsedGroup)
 
     await requireSidebarStructure([
-      .group("Target", children: ["Seed", "Expanded Join", "Collapsed Join"]),
+      .group("Target", children: ["Collapsed Join", "Expanded Join", "Seed"]),
       .tab("Tail"),
     ])
   }

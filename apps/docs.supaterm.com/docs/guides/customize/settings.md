@@ -9,7 +9,7 @@ Open **Supaterm > Settings** to configure the app.
 
 - **General** — app appearance, layout restoration, and zmx session persistence.
 - **Terminal** — Ghostty themes, font, font size, and close confirmation.
-- **Notifications** — macOS delivery and the glowing pane attention ring.
+- **Notifications** — macOS delivery, the glowing pane attention ring, and tab-reorder haptics.
 - **Coding Agents** — agent integrations, status icons, and panel visibility.
 - **Advanced** — verbose diagnostics in local OSLog.
 - **About** — version, update channel, automatic updates, analytics, and crash reporting.

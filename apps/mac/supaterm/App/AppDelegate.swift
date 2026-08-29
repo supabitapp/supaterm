@@ -281,7 +281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   func application(_ application: NSApplication, open urls: [URL]) {
     guard let key = urls.lazy.compactMap(LicenseActivationURL.key(from:)).first else { return }
-    licenseStore.send(.prefillKey(key))
+    licenseStore.send(.activationLinkOpened(key))
     _ = performShowSettings(tab: .license)
   }
 

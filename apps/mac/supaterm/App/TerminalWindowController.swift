@@ -29,6 +29,7 @@ enum TerminalWindowLaunch: Equatable {
 
 @MainActor
 private final class TerminalGestureWindow: NSWindow {
+  var onLicenseTabLimitDefaultAction: () -> Bool = { false }
   var onModifierFlagsChanged: ((NSEvent.ModifierFlags) -> Void)?
   var onPaletteShortcut: ((Int) -> Bool)?
   var onSwipeLeft: (() -> Void)?
@@ -59,6 +60,7 @@ private final class TerminalGestureWindow: NSWindow {
   }
 
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if performLicenseTabLimitDefaultAction(with: event) { return true }
     if let slot = TerminalCommandPaletteShortcut.slot(for: event) {
       if onPaletteShortcut?(slot) == true { return true }
     }
@@ -66,6 +68,7 @@ private final class TerminalGestureWindow: NSWindow {
   }
 
   override func sendEvent(_ event: NSEvent) {
+    if performLicenseTabLimitDefaultAction(with: event) { return }
     if event.type == .flagsChanged {
       onModifierFlagsChanged?(event.modifierFlags)
     }
@@ -73,6 +76,15 @@ private final class TerminalGestureWindow: NSWindow {
       return
     }
     super.sendEvent(event)
+  }
+
+  private func performLicenseTabLimitDefaultAction(with event: NSEvent) -> Bool {
+    guard
+      event.type == .keyDown,
+      event.charactersIgnoringModifiers == "\r",
+      event.modifierFlags.isDisjoint(with: [.command, .control, .option, .shift])
+    else { return false }
+    return onLicenseTabLimitDefaultAction()
   }
 
   private func handleSwipe(_ event: NSEvent) -> Bool {
@@ -254,6 +266,11 @@ final class TerminalWindowController: NSWindowController {
       modifierFlags in
       commandHoldObserver.update(modifierFlags: modifierFlags)
     }
+    window.onLicenseTabLimitDefaultAction = { [terminal = input.terminal] in
+      guard terminal.showsLicenseTabLimitRefusal else { return false }
+      terminal.performLicenseTabLimitAction(.buy)
+      return true
+    }
     window.onPaletteShortcut = { [store = input.store] slot in
       guard store.terminal.commandPalette != nil else { return false }
       _ = store.send(.terminal(.commandPaletteSlotActivated(slot)))
@@ -295,6 +312,11 @@ final class TerminalWindowController: NSWindowController {
             commandHoldObserver: input.commandHoldObserver,
             ghosttyShortcuts: input.ghosttyShortcuts,
             commandPaletteClient: input.commandPaletteClient,
+            paneDragClient: TerminalPaneDragClient(
+              terminal: input.terminal,
+              windowControllerID: input.windowControllerID,
+              registry: input.tabDragRegistry
+            ),
             updateWindowShell: { [weak shellController] presentation in
               shellController?.apply(presentation)
             },
@@ -304,7 +326,7 @@ final class TerminalWindowController: NSWindowController {
         }
       }
     )
-    let confirmationController = TerminalWindowConfirmationController(
+    let dialogController = TerminalWindowDialogController(
       store: input.store.scope(state: \.terminal, action: \.terminal),
       terminal: input.terminal
     )
@@ -355,7 +377,7 @@ final class TerminalWindowController: NSWindowController {
       background: backgroundController,
       sidebar: sidebarController,
       detail: detailController,
-      confirmationOverlay: confirmationController
+      dialogOverlay: dialogController
     )
     return shellController
   }

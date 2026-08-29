@@ -58,7 +58,6 @@ final class TerminalSidebarControllerCache {
       controller.dismissHoverCard()
     }
   }
-
 }
 
 final class TerminalSidebarScrollView: NSScrollView {
@@ -74,7 +73,7 @@ final class TerminalSidebarScrollView: NSScrollView {
 }
 
 @MainActor
-final class TerminalSidebarListController: NSViewController, NSCollectionViewDelegate {
+final class TerminalSidebarListController: NSViewController {
   private struct Update {
     let outline: TerminalSidebarOutline
     let reduceMotion: Bool
@@ -91,10 +90,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     let completion: TerminalSidebarDragController.DropHandoffCompletion
   }
 
-  private enum UpdatePhase {
+  private enum UpdateState {
     case idle
     case collapsing(Update)
-    case applyingSnapshot
+    case applyingSnapshot(Update?)
+    case queued(Update)
+    case handoff(PendingDropHandoff, Update?)
+    case settlement(TerminalSidebarDropSettlementPreparation, Update?)
   }
 
   let renameState = TerminalSidebarRenameState()
@@ -122,14 +124,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collapsedGroupIDs: [],
     topologyRevision: 0
   )
-  private var pendingUpdate: Update?
-  private var pendingDropHandoff: PendingDropHandoff?
-  private var updatePhase = UpdatePhase.idle
+  private var updateState = UpdateState.idle
   private var hasAppliedSnapshot = false
   private var selectedTabID: TerminalTabID?
   private var fixedHoveredGroupID: TerminalTabGroupID?
   private var pendingRevealTabID: TerminalTabID?
   private var motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: false)
+  private var shouldPlayTabMoveHaptics = true
   private var isLayingOut = false
   private let tabDragRegistry: TerminalTabDragRegistry
   private let windowControllerID: UUID
@@ -178,16 +179,16 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     host: TerminalSidebarDragController.Host(
       content: { [weak self] in
         guard let self, let context else { return nil }
-        let canBeginDrag = if case .idle = updatePhase { pendingDropHandoff == nil } else { false }
+        let canBeginDrag = if case .idle = updateState { true } else { false }
         return TerminalSidebarDragController.Content(
           outline: appliedOutline,
           selectedTabID: selectedTabID,
           rows: rows,
           context: context,
           motionPolicy: motionPolicy,
+          shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics,
           canBeginDrag: canBeginDrag,
-          swipe: swipe,
-          groupBackgroundViews: groupBackgroundViews
+          swipe: swipe
         )
       },
       indexPath: { [weak self] in self?.dataSource?.indexPath(for: $0) },
@@ -195,6 +196,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       rebindRows: { [weak self] in self?.refreshVisibleRows(ids: $0) },
       didBegin: { [weak self] in self?.hoverCardController.dismiss() },
       didFinish: { [weak self] in self?.consumePendingUpdate() },
+      prepareDropSettlement: { [weak self] in self?.prepareDropSettlement($0) },
       completeDropHandoff: { [weak self] requirement, completion in
         self?.completeDropHandoff(requirement, completion: completion)
       },
@@ -234,9 +236,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     hoverCardController.dismiss()
   }
 
+  override func viewWillLayout() {
+    super.viewWillLayout()
+    layoutHierarchy()
+  }
+
   override func viewDidLayout() {
     super.viewDidLayout()
-    layoutHierarchy()
     revealSelectedTabIfNeeded()
   }
 
@@ -245,14 +251,15 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation],
     context: TerminalSidebarRowContext,
     selectedTabID: TerminalTabID?,
-    reduceMotion: Bool
+    interactionPolicy: TerminalSidebarInteractionPolicy
   ) {
     self.rows = rows
     self.context = context
+    shouldPlayTabMoveHaptics = interactionPolicy.shouldPlayTabMoveHaptics
     hoverCardController.refresh()
     dragController.pinnedControl.update(context: context)
     fixedHoveredGroupID = context.fixedHoveredGroupID
-    updateMotionPolicy(reduceMotion: reduceMotion)
+    updateMotionPolicy(reduceMotion: interactionPolicy.reduceMotion)
     let groupIDs = Set(
       outline.roots.compactMap { root -> TerminalTabGroupID? in
         guard case .group(let id, _, _, _) = root.content else { return nil }
@@ -272,30 +279,35 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     }
 
     if selectedTabID != self.selectedTabID {
-      let previous = self.selectedTabID
       tabSelectionState.clear()
       self.selectedTabID = selectedTabID
       pendingRevealTabID = selectedTabID
-      refreshVisibleRows(
-        ids: Set([previous, selectedTabID].compactMap { $0 }.map(TerminalSidebarEntryID.tab))
-      )
     }
     tabSelectionState.retainVisible(in: outline, primaryTabID: selectedTabID)
 
     refreshVisibleRows(ids: Set(rows.keys))
-    let update = Update(outline: outline, reduceMotion: reduceMotion)
+    let update = Update(outline: outline, reduceMotion: interactionPolicy.reduceMotion)
     if dragController.isActive {
       handleActiveDragUpdate(update)
       return
     }
-    if pendingDropHandoff != nil {
+    if case .handoff = updateState {
       queue(update)
       consumeDropHandoffUpdate()
       return
     }
-    guard case .idle = updatePhase else {
-      pendingUpdate = update
+    switch updateState {
+    case .idle:
+      break
+    case .collapsing(let activeUpdate):
+      guard activeUpdate.outline != update.outline || update.reduceMotion else { return }
+      _ = endCollapse()
+    case .applyingSnapshot, .queued, .settlement:
+      queue(update)
+      consumePendingUpdate()
       return
+    case .handoff:
+      preconditionFailure()
     }
     if hasAppliedSnapshot, outline == appliedOutline {
       invalidateLayout()
@@ -324,7 +336,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     )
     collectionView.registerForDraggedTypes([.terminalTabDrag])
     collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
-    collectionView.delegate = self
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     collectionView.onPointerMoved = { [weak self] point in
       self?.updateGroupHover(at: point)
@@ -398,7 +409,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     if !collapsing.isEmpty, motionPolicy.collapseStagger,
       !dataSource.snapshot().itemIdentifiers.isEmpty
     {
-      updatePhase = .collapsing(update)
+      updateState = .collapsing(update)
+      collectionLayout.beginCollapse()
       collapseAnimator.start(rowIDs: collapsing)
       return
     }
@@ -417,10 +429,16 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private func completeCollapse() {
-    guard case .collapsing(let update) = updatePhase else { return }
-    updatePhase = .idle
-    collectionLayout.visibilityByEntryID = [:]
+    guard let update = endCollapse() else { return }
     applySnapshot(update, animated: false)
+  }
+
+  private func endCollapse() -> Update? {
+    guard case .collapsing(let update) = updateState else { return nil }
+    collapseAnimator.cancel()
+    collectionLayout.endCollapse()
+    updateState = .idle
+    return update
   }
 
   private func applySnapshot(
@@ -433,7 +451,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       from: appliedOutline,
       to: update.outline
     )
-    updatePhase = .applyingSnapshot
+    updateState = .applyingSnapshot(nil)
     collectionLayout.visibilityByEntryID = [:]
     layoutAnimator.animate(enabled: animated, duration: animationDuration) {
       collectionLayout.setOutline(update.outline)
@@ -445,11 +463,20 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       guard let self else { return }
       appliedOutline = update.outline
       hasAppliedSnapshot = true
-      updatePhase = .idle
+      let pendingUpdate: Update?
+      if case .applyingSnapshot(let update) = updateState {
+        pendingUpdate = update
+      } else {
+        pendingUpdate = nil
+      }
+      updateState = pendingUpdate.map(UpdateState.queued) ?? .idle
       collectionLayout.finishStructuralUpdate()
       refreshVisibleRows(ids: Set(rows.keys))
-      additionalCompletion?()
       invalidateLayout()
+      if collectionLayout.clearPinnedContentHeight(visibleRect: collectionView.visibleRect) {
+        invalidateLayout()
+      }
+      additionalCompletion?()
       if isInitialSnapshot {
         let contentView = scrollView.contentView
         contentView.scroll(to: contentView.documentRect.origin)
@@ -476,14 +503,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func consumePendingUpdate() {
     Task { @MainActor [weak self] in
-      guard let self, case .idle = updatePhase, !dragController.isActive else { return }
-      if pendingDropHandoff != nil {
+      guard let self, !dragController.isActive else { return }
+      if case .handoff = updateState {
         consumeDropHandoffUpdate()
         return
       }
-      guard let pendingUpdate else { return }
-      self.pendingUpdate = nil
-      process(pendingUpdate)
+      guard case .queued(let update) = updateState else { return }
+      updateState = .idle
+      process(update)
     }
   }
 
@@ -491,29 +518,33 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     _ requirement: TerminalSidebarDropHandoff,
     completion: @escaping TerminalSidebarDragController.DropHandoffCompletion
   ) {
-    precondition(pendingDropHandoff == nil)
-    pendingDropHandoff = PendingDropHandoff(
+    let handoff = PendingDropHandoff(
       requirement: requirement,
       completion: completion
     )
+    switch updateState {
+    case .idle:
+      updateState = .handoff(handoff, nil)
+    case .queued(let update):
+      updateState = .handoff(handoff, update)
+    case .collapsing, .applyingSnapshot, .handoff, .settlement:
+      preconditionFailure()
+    }
     consumeDropHandoffUpdate()
   }
 
   private func consumeDropHandoffUpdate() {
     guard
-      case .idle = updatePhase,
       !dragController.isActive,
-      let handoff = pendingDropHandoff,
-      let update = pendingUpdate,
+      case .handoff(let handoff, let update?) = updateState,
       handoff.requirement.accepts(update.outline.topologyStamp)
     else { return }
-    pendingDropHandoff = nil
-    pendingUpdate = nil
+    updateState = .idle
     applySnapshot(update, animated: false, completion: handoff.completion)
   }
 
   private func handleActiveDragUpdate(_ update: Update) {
-    let canApplyUpdate = if case .idle = updatePhase { true } else { false }
+    let canApplyUpdate = if case .idle = updateState { true } else { false }
     switch dragController.disposition(
       for: update.outline,
       applied: appliedOutline,
@@ -523,26 +554,78 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       return
     case .queue:
       queue(update)
+      consumeDropSettlementUpdate()
     case .replaceAndCancel(let reason):
       queue(update)
       dragController.cancelTopologyChange(reason: reason)
     }
   }
 
+  private func prepareDropSettlement(_ settlement: TerminalSidebarDropSettlementPreparation) {
+    switch updateState {
+    case .idle:
+      updateState = .settlement(settlement, nil)
+    case .queued(let update):
+      updateState = .settlement(settlement, update)
+    case .collapsing, .applyingSnapshot, .handoff, .settlement:
+      preconditionFailure()
+    }
+    consumeDropSettlementUpdate()
+  }
+
+  private func consumeDropSettlementUpdate() {
+    guard
+      dragController.isActive,
+      case .settlement(let settlement, let update?) = updateState,
+      settlement.requirement.accepts(update.outline.topologyStamp)
+    else { return }
+    updateState = .idle
+    settlement.applyLayout()
+    applySnapshot(update, animated: false, completion: settlement.completion)
+  }
+
   private func queue(_ update: Update) {
-    guard let current = pendingUpdate else {
-      pendingUpdate = update
-      return
+    switch updateState {
+    case .idle:
+      updateState = .queued(update)
+    case .collapsing:
+      preconditionFailure()
+    case .applyingSnapshot(let current):
+      updateState = .applyingSnapshot(preferredUpdate(current, update))
+    case .queued(let current):
+      updateState = .queued(preferredUpdate(current, update))
+    case .handoff(let handoff, let current):
+      updateState = .handoff(
+        handoff,
+        preferredUpdate(current, update, requirement: handoff.requirement)
+      )
+    case .settlement(let settlement, let current):
+      updateState = .settlement(
+        settlement,
+        preferredUpdate(current, update, requirement: settlement.requirement)
+      )
+    }
+  }
+
+  private func preferredUpdate(
+    _ current: Update?,
+    _ next: Update,
+    requirement: TerminalSidebarDropHandoff? = nil
+  ) -> Update {
+    guard let current else { return next }
+    if let requirement {
+      let currentAccepted = requirement.accepts(current.outline.topologyStamp)
+      let nextAccepted = requirement.accepts(next.outline.topologyStamp)
+      if currentAccepted != nextAccepted { return nextAccepted ? next : current }
     }
     guard
       let currentStamp = current.outline.topologyStamp,
-      let nextStamp = update.outline.topologyStamp,
+      let nextStamp = next.outline.topologyStamp,
       currentStamp.spaceID == nextStamp.spaceID
     else {
-      pendingUpdate = update
-      return
+      return next
     }
-    if nextStamp.revision >= currentStamp.revision { pendingUpdate = update }
+    return nextStamp.revision >= currentStamp.revision ? next : current
   }
 
   private func preferredHeight(for id: TerminalSidebarEntryID, width: CGFloat) -> CGFloat {
@@ -604,19 +687,23 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
     for _ in 0..<2 {
       layoutViewportAndCollection()
-      let shouldPin = TerminalSidebarNewTabPlacement.shouldPin(
-        itemFrame: collectionLayout.plan.items.first { $0.id == .newTab }?.frame,
-        visibleRect: scrollView.documentVisibleRect,
-        pinnedHeight: TerminalSidebarLayout.pinnedControlHeight,
-        isPinned: dragController.pinnedControl.isPinned
-      )
-      let placementChanged = dragController.pinnedControl.setPinned(shouldPin)
-      collectionLayout.isNewTabItemHidden = shouldPin
-      guard placementChanged else { break }
+      guard updateNewTabPlacement() else { break }
     }
 
     updateDecorations()
     updateGroupHover(at: collectionView.pointerLocation)
+  }
+
+  private func updateNewTabPlacement() -> Bool {
+    let shouldPin = TerminalSidebarNewTabPlacement.shouldPin(
+      itemFrame: collectionLayout.plan.items.first { $0.id == .newTab }?.frame,
+      visibleRect: scrollView.documentVisibleRect,
+      pinnedHeight: TerminalSidebarLayout.pinnedControlHeight,
+      isPinned: dragController.pinnedControl.isPinned
+    )
+    let placementChanged = dragController.pinnedControl.setPinned(shouldPin)
+    collectionLayout.isNewTabItemHidden = shouldPin
+    return placementChanged
   }
 
   private func layoutViewportAndCollection() {
@@ -647,16 +734,12 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     if collectionView.frame.size != contentSize {
       collectionView.setFrameSize(contentSize)
     }
-    collectionLayout.invalidateLayout()
-    collectionLayout.prepare()
   }
 
   private func updateDecorations() {
     let groups = collectionLayout.plan.groups
     let visibleIDs = Set(groups.map(\.id))
-    let liftedGroupID = dragController.liftedGroupID
-    for (id, view) in groupBackgroundViews
-    where !visibleIDs.contains(id) && id != liftedGroupID {
+    for (id, view) in groupBackgroundViews where !visibleIDs.contains(id) {
       view.removeFromSuperview()
       groupBackgroundViews[id] = nil
     }
@@ -682,8 +765,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func updateSelectionGlow() {
     guard
-      let selectedTabID,
       let context,
+      let selectedTabID = context.terminal.selectedTabID ?? selectedTabID,
       let item = collectionLayout.plan.items.first(where: { $0.id == .tab(selectedTabID) }),
       case .tab(let presentation) = rows[.tab(selectedTabID)],
       item.alpha > 0,
@@ -721,7 +804,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private var allowsHoverCardPresentation: Bool {
-    view.window?.isKeyWindow == true && !dragController.isActive && pendingDropHandoff == nil
+    guard view.window?.isKeyWindow == true, !dragController.isActive else { return false }
+    if case .handoff = updateState { return false }
+    return true
   }
 
   private func hoveredTabID(at point: CGPoint) -> TerminalTabID? {
@@ -805,19 +890,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     pendingRevealTabID = nil
   }
 
-  func collectionView(
-    _ collectionView: NSCollectionView,
-    willDisplay item: NSCollectionViewItem,
-    forRepresentedObjectAt indexPath: IndexPath
-  ) {
-    guard
-      let item = item as? TerminalSidebarCollectionItem,
-      let id = item.entryID
-    else { return }
-    measuredHeights[id] = nil
-    invalidateLayout()
-  }
-
   private func accessibilityIdentifier(for presentation: TerminalSidebarRowPresentation) -> String {
     TerminalSidebarAccessibilityIdentifier.row(presentation)
   }
@@ -834,7 +906,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   @objc private func scrollViewDidScroll() {
     guard !isLayingOut else { return }
     hoverCardController.dismiss()
-    view.needsLayout = true
-    view.layoutSubtreeIfNeeded()
+    let clearedContentHeight = collectionLayout.clearPinnedContentHeight(
+      visibleRect: collectionView.visibleRect
+    )
+    let placementChanged = updateNewTabPlacement()
+    guard clearedContentHeight || placementChanged else {
+      updateGroupHover(at: collectionView.pointerLocation)
+      return
+    }
+    invalidateLayout()
   }
 }

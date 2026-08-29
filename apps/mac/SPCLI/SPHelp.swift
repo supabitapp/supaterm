@@ -243,6 +243,19 @@ enum SPHelp {
       sp pane close <pane-uuid>
     """
 
+  static let movePaneToNewTabDiscussion = """
+    If you omit the pane target inside Supaterm, this command moves the current pane.
+
+    The pane must share its tab with another pane. The moved pane takes focus in an adjacent tab.
+
+    Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
+
+    Example:
+      sp pane move-to-new-tab
+      sp pane move-to-new-tab 1/2/3
+      sp pane move-to-new-tab <pane-uuid>
+    """
+
   static let selectTabDiscussion = """
     If you omit the tab target inside Supaterm, this command focuses the current tab.
 
@@ -513,68 +526,27 @@ enum SPHelp {
     Manage coding-agent integrations from Supaterm Settings > Coding Agents.
     Use `sp skills install` to install Supaterm's bundled discovery skill.
     Use `sp agent install-hooks` to install every supported hook bridge.
-    Use `sp agent install-hook` and `sp agent remove-hook` for one agent.
 
     Example:
       sp skills install
       sp agent install-hooks
-      sp agent install-hook claude
-      sp agent remove-hook claude
       \(receiveAgentHookExample) | sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
-    """
-
-  static let installAgentHookDiscussion = """
-    Install Supaterm's hook bridge into the selected agent's user configuration.
-
-    Example:
-      sp agent install-hook claude
-      sp agent install-hook codex
     """
 
   static let installAgentHooksDiscussion = """
     Install Supaterm's hook bridge into every supported agent user configuration.
 
     Example:
-      sp agent explain
       sp agent reload-rules
       sp agent install-hooks
     """
 
-  static let removeAgentHookDiscussion = """
-    Remove Supaterm's hook bridge from the selected agent's user configuration.
+  static let removeAgentHooksDiscussion = """
+    Remove Supaterm's hook bridge from every supported agent user configuration.
 
     Example:
-      sp agent remove-hook claude
-      sp agent remove-hook codex
-    """
-
-  static let installAgentHookClaudeDiscussion = """
-    Installs Supaterm hooks into ~/.claude/settings.json.
-
-    Example:
-      sp agent install-hook claude
-    """
-
-  static let installAgentHookCodexDiscussion = """
-    Enables Codex hooks and installs Supaterm hooks into ~/.codex/hooks.json.
-
-    Example:
-      sp agent install-hook codex
-    """
-
-  static let removeAgentHookClaudeDiscussion = """
-    Removes Supaterm hooks from ~/.claude/settings.json.
-
-    Example:
-      sp agent remove-hook claude
-    """
-
-  static let removeAgentHookCodexDiscussion = """
-    Removes Supaterm hooks from ~/.codex/hooks.json.
-
-    Example:
-      sp agent remove-hook codex
+      sp agent remove-hooks
     """
 
   static let agentSettingsDiscussion = """
@@ -728,8 +700,8 @@ enum SPHelp {
   static let agentDiscussion = """
     Example:
       sp agent install-hooks
-      sp agent install-hook claude
-      sp agent install-hook codex
+      sp agent remove-hooks
+      sp agent reload-rules
     """
 
   static let skillsDiscussion = """

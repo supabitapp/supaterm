@@ -45,11 +45,16 @@ enum TerminalSidebarDragLog {
 
   private static func semanticPath(_ path: TerminalSidebarSemanticPath) -> String {
     switch path {
-    case .rootItem(let index): "rootItem:\(index)"
-    case .rootBoundary(let index, let affinity): "rootBoundary:\(index):\(affinity)"
-    case .group(let id, let index): "group:\(SupatermLog.uuid(id.rawValue)):\(index)"
-    case .pinnedEnd: "pinnedEnd"
-    case .trailingRoot: "trailingRoot"
+    case .rootItem(let lane, let index, let id):
+      "rootItem:\(lane):\(index):\(rootID(id))"
+    case .rootBoundary(let lane, let index):
+      "rootBoundary:\(lane):\(index)"
+    case .groupEntry(let id):
+      "groupEntry:\(SupatermLog.uuid(id.rawValue))"
+    case .groupItem(let groupID, let index, let id):
+      "groupItem:\(SupatermLog.uuid(groupID.rawValue)):\(index):\(SupatermLog.uuid(id.rawValue))"
+    case .groupBoundary(let id, let index):
+      "groupBoundary:\(SupatermLog.uuid(id.rawValue)):\(index)"
     }
   }
 

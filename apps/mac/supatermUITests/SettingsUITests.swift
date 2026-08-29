@@ -88,30 +88,47 @@ final class SettingsUITests: SupatermUITestCase {
   }
 
   @MainActor
-  func testLicenseCanBeActivatedAndDeactivated() async throws {
+  func testTabMoveHapticsPersistsAcrossRelaunch() async throws {
     let settingsWindow = try openSettings()
-    try await select(.license, in: settingsWindow)
+    try await select(.notifications, in: settingsWindow)
 
-    let key = element(SupatermUITestIdentifier.Settings.licenseKey, in: settingsWindow)
-    key.click()
-    key.typeText(uiTestLicenseKey)
-
-    let activate = element(
-      SupatermUITestIdentifier.Settings.licenseActivate,
+    let toggle = element(
+      SupatermUITestIdentifier.Settings.notificationsTabMoveHaptics,
       in: settingsWindow
     )
-    let didEnableActivation = await wait(for: activate) { $0.exists && $0.isEnabled }
-    XCTAssertTrue(didEnableActivation)
-    activate.click()
+    let didLoadEnabledToggle = await wait(for: toggle) { self.toggleState($0) == true }
+    XCTAssertTrue(didLoadEnabledToggle)
+    toggle.click()
+    let didDisableToggle = await wait(for: toggle) { self.toggleState($0) == false }
+    XCTAssertTrue(didDisableToggle)
+    let didPersistSetting = await waitForSettingsFile(containing: "tab_move_haptics = false")
+    XCTAssertTrue(didPersistSetting)
+
+    try relaunch()
+
+    let relaunchedSettingsWindow = try openSettings()
+    try await select(.notifications, in: relaunchedSettingsWindow)
+    let persistedToggle = element(
+      SupatermUITestIdentifier.Settings.notificationsTabMoveHaptics,
+      in: relaunchedSettingsWindow
+    )
+    let didRestoreDisabledToggle = await wait(for: persistedToggle) {
+      self.toggleState($0) == false
+    }
+    XCTAssertTrue(didRestoreDisabledToggle)
+  }
+
+  @MainActor
+  func testLicenseCanBeActivatedAndDeactivated() async throws {
+    let settingsWindow = try await activateUITestLicense()
 
     let deactivate = element(
       SupatermUITestIdentifier.Settings.licenseDeactivate,
       in: settingsWindow
     )
-    let didActivate = await wait(for: deactivate) { $0.exists && $0.isEnabled }
-    XCTAssertTrue(didActivate)
     deactivate.click()
 
+    let key = element(SupatermUITestIdentifier.Settings.licenseKey, in: settingsWindow)
     let didDeactivate = await wait(for: key) { $0.exists }
     XCTAssertTrue(didDeactivate)
   }
@@ -251,6 +268,3 @@ private enum SettingsTab: String, CaseIterable {
     }
   }
 }
-
-private let uiTestLicenseKey =
-  "SUPATERM-AAAAAAAAAAAAAAAAAAAAAAAAAA-AAAAAAAAAAAAAAAAAAAAAAAAAA"

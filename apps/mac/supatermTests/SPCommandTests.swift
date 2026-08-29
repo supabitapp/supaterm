@@ -191,6 +191,17 @@ struct SPCommandTests {
   }
 
   @Test
+  func movePaneToNewTabParserAcceptsPaneTarget() throws {
+    let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    let command = try #require(
+      try SP.parseAsRoot(["pane", "move-to-new-tab", paneID.uuidString])
+        as? SP.MovePaneToNewTab
+    )
+
+    #expect(command.pane == .id(paneID))
+  }
+
+  @Test
   func pinAndUnpinParsersAcceptSelectorTargets() throws {
     let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
     let pinTab = try #require(
@@ -511,11 +522,9 @@ struct SPCommandTests {
 
         sp skills install
 
-        Run the commands that match your setup:
+        Install every supported coding-agent integration:
 
-        sp agent install-hook claude
-        sp agent install-hook codex
-        pi install git:github.com/supabitapp/supaterm-skills
+        sp agent install-hooks
 
         Run "sp" for the list of available commands.
         """
@@ -566,11 +575,29 @@ struct SPCommandTests {
   }
 
   @Test
-  func agentParserAcceptsDetectionAndHookSubcommands() throws {
-    let explainCommand = try #require(
-      try SP.parseAsRoot(["agent", "explain", "1/2/3", "--json"])
-        as? SP.ExplainAgentDetection
-    )
+  func agentExplainCommandIsRemoved() {
+    do {
+      _ = try SP.parseAsRoot(["agent", "explain"])
+      Issue.record("Expected agent explain to be removed.")
+    } catch {
+      #expect(String(describing: error).contains("explain"))
+    }
+  }
+
+  @Test
+  func agentInstallAndRemoveHookCommandsAreRemoved() {
+    for command in ["install-hook", "remove-hook"] {
+      do {
+        _ = try SP.parseAsRoot(["agent", command, "claude"])
+        Issue.record("Expected agent \(command) to be removed.")
+      } catch {
+        #expect(String(describing: error).contains(command))
+      }
+    }
+  }
+
+  @Test
+  func agentParserAcceptsAggregateAndHiddenHookSubcommands() throws {
     let reloadCommand = try #require(
       try SP.parseAsRoot(["agent", "reload-rules", "--plain"])
         as? SP.ReloadAgentDetectionRules
@@ -578,17 +605,8 @@ struct SPCommandTests {
     let installAllCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hooks"]) as? SP.InstallAgentHooks
     )
-    let claudeCommand = try #require(
-      try SP.parseAsRoot(["agent", "install-hook", "claude"]) as? SP.InstallAgentHook.Claude
-    )
-    let codexCommand = try #require(
-      try SP.parseAsRoot(["agent", "install-hook", "codex"]) as? SP.InstallAgentHook.Codex
-    )
-    let removeClaudeCommand = try #require(
-      try SP.parseAsRoot(["agent", "remove-hook", "claude"]) as? SP.RemoveAgentHook.Claude
-    )
-    let removeCodexCommand = try #require(
-      try SP.parseAsRoot(["agent", "remove-hook", "codex"]) as? SP.RemoveAgentHook.Codex
+    let removeAllCommand = try #require(
+      try SP.parseAsRoot(["agent", "remove-hooks"]) as? SP.RemoveAgentHooks
     )
     let receiveClaudeCommand = try #require(
       try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"])
@@ -599,13 +617,9 @@ struct SPCommandTests {
         as? SP.ReceiveAgentHook
     )
 
-    #expect(explainCommand.options.output.json)
     #expect(reloadCommand.options.output.plain)
     #expect(type(of: installAllCommand) == SP.InstallAgentHooks.self)
-    #expect(type(of: claudeCommand) == SP.InstallAgentHook.Claude.self)
-    #expect(type(of: codexCommand) == SP.InstallAgentHook.Codex.self)
-    #expect(type(of: removeClaudeCommand) == SP.RemoveAgentHook.Claude.self)
-    #expect(type(of: removeCodexCommand) == SP.RemoveAgentHook.Codex.self)
+    #expect(type(of: removeAllCommand) == SP.RemoveAgentHooks.self)
     #expect(receiveClaudeCommand.agent == .claude)
     #expect(receiveClaudeCommand.pid == nil)
     #expect(receivePiCommand.agent == .pi)
