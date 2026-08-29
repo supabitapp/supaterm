@@ -497,6 +497,21 @@ final class TerminalTabCollection {
     return groupID
   }
 
+  func placement(after tabID: TerminalTabID) -> TerminalTabPlacement? {
+    guard let location = topology.location(of: .tab(tabID)) else { return nil }
+    switch location {
+    case .root(let placement):
+      return .root(
+        TerminalRootPlacement(
+          isPinned: placement.isPinned,
+          index: placement.index + 1
+        )
+      )
+    case .group(let groupID, let index):
+      return .group(groupID, index: index + 1)
+    }
+  }
+
   func tabIDs(in groupID: TerminalTabGroupID) -> [TerminalTabID] {
     topology.childIDsByGroupID[groupID] ?? []
   }

@@ -767,6 +767,24 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func splitTabContextMenuIncludesMoveAllPanes() {
+    let splitTabTitles = TerminalSidebarTabRow.contextMenuItems(
+      isPinned: false,
+      hasTabsBelow: false,
+      hasOtherTabs: false,
+      paneCount: 2
+    ).compactMap(\.title)
+    let singlePaneTabTitles = TerminalSidebarTabRow.contextMenuItems(
+      isPinned: false,
+      hasTabsBelow: false,
+      hasOtherTabs: false
+    ).compactMap(\.title)
+
+    #expect(splitTabTitles.contains("Move All Panes to New Tabs"))
+    #expect(!singlePaneTabTitles.contains("Move All Panes to New Tabs"))
+  }
+
+  @Test
   func regularHoveredTabShowsEnabledCloseButton() {
     #expect(
       TerminalSidebarTabRow.closeButtonPresentation(

@@ -17,13 +17,8 @@ enum SupatermDebugSnapshotResolver {
 
     for window in windows {
       for space in window.spaces {
-        for (tabOffset, tab) in space.flattenedTabs.enumerated() where tab.id == context.tabID {
-          let pane = tab.panes.first { $0.id == context.surfaceID }
-          var problems: [String] = []
-          if pane == nil {
-            problems.append(
-              "Context pane \(context.surfaceID.uuidString) was not found in tab \(context.tabID.uuidString).")
-          }
+        for (tabOffset, tab) in space.flattenedTabs.enumerated() {
+          guard let pane = tab.panes.first(where: { $0.id == context.surfaceID }) else { continue }
           return Resolution(
             currentTarget: SupatermAppDebugSnapshot.CurrentTarget(
               windowIndex: window.index,
@@ -33,10 +28,10 @@ enum SupatermDebugSnapshotResolver {
               tabIndex: tabOffset + 1,
               tabID: tab.id,
               tabTitle: tab.title,
-              paneIndex: pane?.index,
-              paneID: pane?.id
+              paneIndex: pane.index,
+              paneID: pane.id
             ),
-            problems: problems
+            problems: []
           )
         }
       }
@@ -44,7 +39,7 @@ enum SupatermDebugSnapshotResolver {
 
     return Resolution(
       currentTarget: nil,
-      problems: ["Context tab \(context.tabID.uuidString) was not found."]
+      problems: ["Context pane \(context.surfaceID.uuidString) was not found."]
     )
   }
 }

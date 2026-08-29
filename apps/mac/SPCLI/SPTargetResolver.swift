@@ -89,9 +89,7 @@ private struct SPTreeIndex {
         let spaceKey = SPSpacePathKey(windowIndex: window.index, spaceIndex: space.index)
         spacesByPath[spaceKey] = space
         let tabs = space.flattenedTabs
-        let tabIndexes = Dictionary(
-          uniqueKeysWithValues: tabs.enumerated().map { ($0.element.id, $0.offset + 1) }
-        )
+        let tabIndexes = Self.tabIndexes(in: tabs)
         for group in tabGroups(in: space) {
           let groupLocation = SPGroupLocation(
             spaceID: space.id,
@@ -165,6 +163,12 @@ private struct SPTreeIndex {
     self.firstTabBySpace = firstTabBySpace
     self.focusedPaneByTab = focusedPaneByTab
     self.firstPaneByTab = firstPaneByTab
+  }
+
+  private static func tabIndexes(
+    in tabs: [SupatermTreeSnapshot.Tab]
+  ) -> [UUID: Int] {
+    Dictionary(uniqueKeysWithValues: tabs.enumerated().map { ($0.element.id, $0.offset + 1) })
   }
 
   func spaceLocation(id: UUID, windowIndex: Int) -> SPSpaceLocation? {
@@ -390,14 +394,8 @@ private struct SPTreeIndex {
   }
 
   func validatedContextLocation(_ context: SupatermCLIContext) throws -> SPPaneLocation {
-    guard
-      let pane = paneLocation(id: context.surfaceID),
-      let tab = tabLocation(id: context.tabID),
-      pane.windowIndex == tab.windowIndex,
-      pane.spaceIndex == tab.spaceIndex,
-      pane.tabIndex == tab.tabIndex
-    else {
-      throw ValidationError("The current Supaterm tab and pane no longer exist together.")
+    guard let pane = paneLocation(id: context.surfaceID) else {
+      throw ValidationError("The current Supaterm pane no longer exists.")
     }
     return pane
   }

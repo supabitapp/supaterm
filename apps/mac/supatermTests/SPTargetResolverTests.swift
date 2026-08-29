@@ -334,26 +334,34 @@ struct SPTargetResolverTests {
   }
 
   @Test
-  func mismatchedAmbientContextDoesNotChooseEitherWindow() {
+  func staleAmbientTabContextFollowsMovedPane() throws {
     let context = SupatermCLIContext(
       surfaceID: UUID(uuidString: "D0000000-0000-4000-8000-000000000001")!,
       tabID: UUID(uuidString: "C0000000-0000-4000-8000-000000000002")!
     )
     let snapshot = sharedSpaceSnapshot()
 
-    #expect(throws: ValidationError.self) {
-      _ = try resolvePublicSpaceTarget(
+    #expect(
+      try resolvePublicSpaceTarget(
         nil,
         context: context,
         snapshot: snapshot
       )
-    }
-    #expect(throws: ValidationError.self) {
-      _ = try resolvePublicPaneTarget(nil, context: context, snapshot: snapshot)
-    }
-    #expect(throws: ValidationError.self) {
-      _ = try resolvePublicSplitTarget(nil, context: context, snapshot: snapshot)
-    }
+        == SupatermSpaceTargetRequest(
+          spaceID: UUID(uuidString: "A0000000-0000-4000-8000-000000000001")!,
+          context: context
+        )
+    )
+    #expect(
+      try resolvePublicPaneTarget(nil, context: context, snapshot: snapshot)
+        == SupatermPaneTargetRequest(
+          paneID: UUID(uuidString: "D0000000-0000-4000-8000-000000000001")!
+        )
+    )
+    #expect(
+      try resolvePublicSplitTarget(nil, context: context, snapshot: snapshot)
+        == .pane(UUID(uuidString: "D0000000-0000-4000-8000-000000000001")!)
+    )
   }
 
   @Test

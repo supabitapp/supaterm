@@ -456,6 +456,7 @@ public enum TerminalControlError: Error, Equatable {
   case lastTabNotFound
   case onlyRemainingSpace
   case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+  case paneRequiresSplit
   case resizeFailed
   case screenshotFailed
   case spaceNameUnavailable

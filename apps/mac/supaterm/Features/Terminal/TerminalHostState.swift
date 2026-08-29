@@ -782,6 +782,7 @@ final class TerminalHostState {
       self.emit(.newTabRequested(inheritingFromSurfaceID: view?.id))
       return true
     }
+    configureBridgePaneTabCallbacks(for: view)
     view.bridge.onCloseTab = { [weak self] _ in
       guard let self else { return false }
       self.requestCloseTab(tabID)
@@ -814,6 +815,17 @@ final class TerminalHostState {
         surfaceID: view.id,
         title: title
       )
+    }
+  }
+
+  func configureBridgePaneTabCallbacks(for view: GhosttySurfaceView) {
+    view.bridge.canMoveToNewTab = { [weak self, weak view] in
+      guard let self, let view else { return false }
+      return self.canMovePaneToNewTab(view.id)
+    }
+    view.bridge.onMoveToNewTab = { [weak self, weak view] in
+      guard let self, let view else { return false }
+      return self.movePaneToNewTab(view.id)
     }
   }
 

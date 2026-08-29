@@ -63,6 +63,52 @@ struct SocketControlFeatureTerminalControlTests {
   }
 
   @Test
+  func movePaneToNewTabRequestRepliesWithCreatedTab() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "A0DAD893-A33E-4F8A-8BB4-9F380A937736")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .movePaneToNewTab(
+        SupatermPaneTargetRequest(paneID: controlPaneID),
+        id: "move-pane-to-new-tab-1"
+      )
+    )
+    let result = SupatermNewTabResult(
+      isFocused: true,
+      isSelectedSpace: true,
+      isSelectedTab: true,
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 4,
+      tabID: UUID(uuidString: "02CD1D20-AB77-45BB-B6BA-E03A9CECB3DB")!,
+      paneIndex: 1,
+      paneID: controlPaneID
+    )
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.socketRequestExecutor.executeTerminalPane = { execution in
+        guard case .movePaneToNewTab(let target) = execution else {
+          Issue.record("Expected move pane to new tab request")
+          throw CancellationError()
+        }
+        #expect(target == TerminalPaneTarget(paneID: controlPaneID))
+        return .movePaneToNewTab(result)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermNewTabResult.self) == result)
+  }
+
+  @Test
   func paneHealthRequestRepliesWithResolvedHealth() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "44C38F69-421B-4BB7-93C7-902BDDB74B1F")!
