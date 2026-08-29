@@ -398,9 +398,25 @@ final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSo
   }
 
   func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
+    guard let payload = tabDragRegistry.resolve(info.draggingPasteboard) else {
+      clearDropTarget()
+      return []
+    }
+    let point = stripView.convert(info.draggingLocation, from: nil)
+    let operation = updateDrop(payload, at: point)
+    if operation == .move {
+      info.numberOfValidItemsForDrop = 1
+    }
+    return operation
+  }
+
+  func updateDrop(
+    _ payload: TerminalTabDragPayload,
+    at point: CGPoint
+  ) -> NSDragOperation {
     guard
+      tabDragRegistry.activePayload == payload,
       let snapshot,
-      let payload = tabDragRegistry.resolve(info.draggingPasteboard),
       let stamp = TerminalSidebarOutline(snapshot: snapshot).topologyStamp,
       let layout,
       let sidebarPayload = payload.sidebarPayload(topologyStamp: stamp)
@@ -408,7 +424,6 @@ final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSo
       clearDropTarget()
       return []
     }
-    let point = stripView.convert(info.draggingLocation, from: nil)
     let resolution = TerminalSidebarDropResolution(
       payload: sidebarPayload,
       path: layout.semanticPath(at: point),
@@ -417,7 +432,6 @@ final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSo
     dropPlan = resolution.plan
     updateDropIndicator()
     guard resolution.plan != nil else { return [] }
-    info.numberOfValidItemsForDrop = 1
     return .move
   }
 
@@ -430,9 +444,17 @@ final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSo
   }
 
   func performDragOperation(_ info: any NSDraggingInfo) -> Bool {
+    guard let payload = tabDragRegistry.resolve(info.draggingPasteboard) else {
+      clearDropTarget()
+      return false
+    }
+    return performDrop(payload)
+  }
+
+  func performDrop(_ payload: TerminalTabDragPayload) -> Bool {
     guard
+      tabDragRegistry.activePayload == payload,
       let snapshot,
-      let payload = tabDragRegistry.resolve(info.draggingPasteboard),
       let stamp = TerminalSidebarOutline(snapshot: snapshot).topologyStamp,
       let plan = dropPlan,
       let sidebarPayload = payload.sidebarPayload(topologyStamp: stamp),
@@ -894,11 +916,12 @@ final class TerminalHorizontalTabItemView: NSView {
       isGroup
       ? TerminalHorizontalTabLayoutMetrics.groupTitleHorizontalInset
       : TerminalHorizontalTabLayoutMetrics.tabTitleHorizontalInset
+    let labelHeight = ceil(label.fittingSize.height)
     label.frame = CGRect(
       x: labelLeadingInset,
-      y: 0,
+      y: (bounds.height - labelHeight) / 2,
       width: max(0, bounds.width - titleHorizontalInset),
-      height: bounds.height
+      height: labelHeight
     )
   }
 

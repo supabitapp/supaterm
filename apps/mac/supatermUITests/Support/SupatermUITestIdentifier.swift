@@ -70,6 +70,7 @@ enum SupatermUITestIdentifier {
     case findNext = "app.supabit.supaterm.edit.findNext"
     case findPrevious = "app.supabit.supaterm.edit.findPrevious"
     case toggleSidebar = "app.supabit.supaterm.view.toggleSidebar"
+    case toggleTabLayout = "app.supabit.supaterm.view.toggleTabLayout"
     case toggleAgentPanel = "app.supabit.supaterm.view.toggleAgentPanel"
     case changeTabTitle = "app.supabit.supaterm.view.changeTabTitle"
     case changeTerminalTitle = "app.supabit.supaterm.view.changeTerminalTitle"

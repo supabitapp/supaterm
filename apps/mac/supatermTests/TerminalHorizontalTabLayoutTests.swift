@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 import SupaTheme
+import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -96,6 +97,80 @@ struct TerminalHorizontalTabLayoutTests {
     view.layoutSubtreeIfNeeded()
 
     #expect(label.frame.width >= label.fittingSize.width)
+    #expect(label.frame.height == ceil(label.fittingSize.height))
+    #expect(label.frame.midY == view.bounds.midY)
+  }
+
+  @Test @MainActor
+  func groupDropCommitsThroughTheHorizontalController() throws {
+    let fixture = makeSnapshot()
+    guard case .tab(let source) = fixture.snapshot.collection.rootItems.first else {
+      Issue.record("Expected a root tab")
+      return
+    }
+    let windowControllerID = UUID()
+    let registry = TerminalTabDragRegistry()
+    let controller = TerminalHorizontalTabStripController(
+      windowControllerID: windowControllerID,
+      tabDragRegistry: registry
+    )
+    controller.view.frame = CGRect(
+      x: 0,
+      y: 0,
+      width: 900,
+      height: TerminalHorizontalTabMetrics.height
+    )
+    controller.apply(
+      snapshot: fixture.snapshot,
+      palette: Palette(colorScheme: .dark),
+      reduceMotion: true,
+      actions: TerminalHorizontalTabStripController.Actions(
+        closeTab: { _ in },
+        newTab: {},
+        selectTab: { _ in },
+        toggleGroup: { _ in }
+      )
+    )
+    controller.view.layoutSubtreeIfNeeded()
+    let groupView = try #require(
+      controller.view.subviews.compactMap { $0 as? TerminalHorizontalTabItemView }
+        .first { $0.accessibilityLabel() == "Tab Group Build" }
+    )
+    let payload = try #require(
+      TerminalTabDragPayload(
+        operationID: TerminalTabMoveOperationID(),
+        sourceWindowID: windowControllerID,
+        sourceSpaceID: fixture.snapshot.spaceID,
+        sourceTopologyRevision: fixture.snapshot.collection.topologyRevision,
+        itemIDs: [.tab(source.tab.id)]
+      )
+    )
+    var destination: TerminalTabDragRegistry.Destination?
+    registry.transfer = { _, proposed in
+      destination = proposed
+      return TerminalTabTransferResult(
+        tabIDs: [source.tab.id],
+        deletedEmptyGroupIDs: []
+      )
+    }
+    #expect(registry.begin(payload))
+
+    #expect(
+      controller.updateDrop(
+        payload,
+        at: CGPoint(x: groupView.frame.midX, y: groupView.frame.midY)
+      ) == .move
+    )
+    #expect(controller.performDrop(payload))
+    #expect(
+      destination
+        == TerminalTabDragRegistry.Destination(
+          windowControllerID: windowControllerID,
+          spaceID: fixture.snapshot.spaceID,
+          expectedTopologyRevision: fixture.snapshot.collection.topologyRevision,
+          placement: .group(fixture.groupID, index: 0)
+        )
+    )
   }
 
   @Test
