@@ -14,7 +14,7 @@ struct TerminalHorizontalTabLayoutTests {
   }
 
   @Test
-  func wideLayoutShowsEveryItemWithoutScrollingOrOverflow() {
+  func wideLayoutShowsEveryItemWithoutScrollingOrOverflow() throws {
     let fixture = makeSnapshot()
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
@@ -28,6 +28,12 @@ struct TerminalHorizontalTabLayoutTests {
     #expect(layout.items.allSatisfy { $0.frame.width <= 172 })
     #expect(layout.items.allSatisfy { $0.frame.height == 30 })
     #expect(layout.groups.count == 1)
+    let rootTab = try #require(layout.items.first)
+    let groupHeader = try #require(
+      layout.items.first { $0.entryID == .group(fixture.groupID) }
+    )
+    #expect(rootTab.frame.width == 71)
+    #expect(groupHeader.frame.width == 65)
   }
 
   @Test
@@ -73,6 +79,23 @@ struct TerminalHorizontalTabLayoutTests {
     #expect(view.acceptsFirstMouse(for: nil))
     #expect(view.accessibilityPerformPress())
     #expect(pressCount == 1)
+  }
+
+  @Test @MainActor
+  func tabChromeLeavesRoomForFittingTitle() throws {
+    let view = TerminalHorizontalTabItemView()
+    let label = try #require(view.subviews.compactMap { $0 as? NSTextField }.first)
+    label.stringValue = "Shell"
+    view.frame = CGRect(
+      x: 0,
+      y: 0,
+      width: ceil(label.fittingSize.width)
+        + TerminalHorizontalTabLayoutMetrics.tabTitleHorizontalInset,
+      height: TerminalHorizontalTabLayoutMetrics.itemHeight
+    )
+    view.layoutSubtreeIfNeeded()
+
+    #expect(label.frame.width >= label.fittingSize.width)
   }
 
   @Test

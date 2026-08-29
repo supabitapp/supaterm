@@ -4,15 +4,26 @@ enum TerminalHorizontalTabLayoutMetrics {
   static let controlWidth: CGFloat = 28
   static let groupSurfaceHorizontalInset: CGFloat = 2
   static let groupSurfaceVerticalInset: CGFloat = 2
+  static let groupLabelLeadingInset: CGFloat = 23
+  static let groupLabelTrailingInset: CGFloat = 7
   static let groupMaximumWidth: CGFloat = 128
   static let groupMinimumWidth: CGFloat = 56
   static let itemHeight: CGFloat = 30
   static let itemSpacing: CGFloat = 4
   static let leadingInset: CGFloat = 2
+  static let tabLabelLeadingInset: CGFloat = 9
+  static let tabLabelTrailingInset: CGFloat = 27
   static let tabMaximumWidth: CGFloat = 172
   static let tabMinimumWidth: CGFloat = 64
-  static let titleHorizontalInset: CGFloat = 34
   static let trailingInset: CGFloat = 2
+
+  static var groupTitleHorizontalInset: CGFloat {
+    groupLabelLeadingInset + groupLabelTrailingInset
+  }
+
+  static var tabTitleHorizontalInset: CGFloat {
+    tabLabelLeadingInset + tabLabelTrailingInset
+  }
 }
 
 struct TerminalHorizontalTabLayout: Equatable {
@@ -240,7 +251,7 @@ struct TerminalHorizontalTabLayout: Equatable {
               max(
                 TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
                 measureTitle(item.tab.title)
-                  + TerminalHorizontalTabLayoutMetrics.titleHorizontalInset
+                  + TerminalHorizontalTabLayoutMetrics.tabTitleHorizontalInset
               )
             )
           )
@@ -261,7 +272,8 @@ struct TerminalHorizontalTabLayout: Equatable {
               TerminalHorizontalTabLayoutMetrics.groupMaximumWidth,
               max(
                 TerminalHorizontalTabLayoutMetrics.groupMinimumWidth,
-                measureTitle(group.title) + 28
+                measureTitle(group.title)
+                  + TerminalHorizontalTabLayoutMetrics.groupTitleHorizontalInset
               )
             )
           )
@@ -277,7 +289,8 @@ struct TerminalHorizontalTabLayout: Equatable {
                 TerminalHorizontalTabLayoutMetrics.tabMaximumWidth,
                 max(
                   TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
-                  measureTitle(tab.title) + TerminalHorizontalTabLayoutMetrics.titleHorizontalInset
+                  measureTitle(tab.title)
+                    + TerminalHorizontalTabLayoutMetrics.tabTitleHorizontalInset
                 )
               )
             )

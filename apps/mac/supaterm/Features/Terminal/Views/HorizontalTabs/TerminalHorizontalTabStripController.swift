@@ -26,6 +26,10 @@ struct TerminalHorizontalDropMotion: Equatable {
   }
 }
 
+private enum TerminalHorizontalTabTypography {
+  static var titleFont: NSFont { .systemFont(ofSize: 12, weight: .medium) }
+}
+
 @MainActor
 final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSource {
   struct Actions {
@@ -649,7 +653,11 @@ final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSo
   }
 
   private static func measureTitle(_ title: String) -> CGFloat {
-    (title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)]).width
+    let label = NSTextField(labelWithString: title)
+    label.font = TerminalHorizontalTabTypography.titleFont
+    label.lineBreakMode = .byTruncatingTail
+    label.maximumNumberOfLines = 1
+    return ceil(label.fittingSize.width)
   }
 }
 
@@ -768,7 +776,7 @@ final class TerminalHorizontalTabItemView: NSView {
     super.init(frame: .zero)
     wantsLayer = true
     layer?.cornerRadius = 7
-    label.font = .systemFont(ofSize: 12, weight: .medium)
+    label.font = TerminalHorizontalTabTypography.titleFont
     label.lineBreakMode = .byTruncatingTail
     label.maximumNumberOfLines = 1
     label.setAccessibilityElement(false)
@@ -878,10 +886,18 @@ final class TerminalHorizontalTabItemView: NSView {
       width: closeWidth,
       height: 22
     )
+    let labelLeadingInset =
+      isGroup
+      ? TerminalHorizontalTabLayoutMetrics.groupLabelLeadingInset
+      : TerminalHorizontalTabLayoutMetrics.tabLabelLeadingInset
+    let titleHorizontalInset =
+      isGroup
+      ? TerminalHorizontalTabLayoutMetrics.groupTitleHorizontalInset
+      : TerminalHorizontalTabLayoutMetrics.tabTitleHorizontalInset
     label.frame = CGRect(
-      x: isGroup ? 23 : 9,
+      x: labelLeadingInset,
       y: 0,
-      width: max(0, bounds.width - (isGroup ? 30 : closeWidth + 14)),
+      width: max(0, bounds.width - titleHorizontalInset),
       height: bounds.height
     )
   }
