@@ -70,13 +70,15 @@ struct TerminalHorizontalTabLayoutTests {
 
   @Test @MainActor
   func tabItemOwnsPointerEventsAcrossItsLabel() {
+    let parent = NSView(frame: CGRect(x: 0, y: 0, width: 400, height: 100))
     let view = TerminalHorizontalTabItemView()
-    view.frame = CGRect(x: 0, y: 0, width: 140, height: 30)
+    view.frame = CGRect(x: 80, y: 40, width: 140, height: 30)
+    parent.addSubview(view)
     view.layoutSubtreeIfNeeded()
     var pressCount = 0
     view.onAccessibilityPress = { pressCount += 1 }
 
-    #expect(view.hitTest(CGPoint(x: 70, y: 15)) === view)
+    #expect(parent.hitTest(CGPoint(x: view.frame.midX, y: view.frame.midY)) === view)
     #expect(view.acceptsFirstMouse(for: nil))
     #expect(view.accessibilityPerformPress())
     #expect(pressCount == 1)

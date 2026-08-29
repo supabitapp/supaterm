@@ -694,7 +694,8 @@ private final class TerminalHorizontalTabStripView: NSView {
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    controller?.pointerTarget(at: point) ?? super.hitTest(point)
+    let localPoint = localHitTestPoint(point)
+    return controller?.pointerTarget(at: localPoint) ?? super.hitTest(point)
   }
 
   override func mouseDown(with event: NSEvent) {
@@ -828,8 +829,9 @@ final class TerminalHorizontalTabItemView: NSView {
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    guard bounds.contains(point) else { return nil }
-    return pointerTarget(at: point)
+    let localPoint = localHitTestPoint(point)
+    guard bounds.contains(localPoint) else { return nil }
+    return pointerTarget(at: localPoint)
   }
 
   fileprivate func pointerTarget(at point: NSPoint) -> NSView {
@@ -974,5 +976,11 @@ final class TerminalHorizontalTabItemView: NSView {
 
   @objc private func close() {
     onClose?()
+  }
+}
+
+private extension NSView {
+  func localHitTestPoint(_ point: NSPoint) -> NSPoint {
+    superview.map { convert(point, from: $0) } ?? point
   }
 }
