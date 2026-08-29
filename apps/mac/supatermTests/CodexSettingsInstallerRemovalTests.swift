@@ -93,6 +93,25 @@ extension CodexSettingsInstallerTests {
   }
 
   @Test
+  func removeSupatermHooksRemovesBridge() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }
+    )
+    try installer.installSupatermHooks()
+
+    try installer.removeSupatermHooks()
+
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: CodexSettingsInstaller.bridgeURL(homeDirectoryURL: homeDirectoryURL).path
+      )
+    )
+  }
+
+  @Test
   func removeDoesNotCreateMissingSettingsFile() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

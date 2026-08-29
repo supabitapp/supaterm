@@ -1,4 +1,5 @@
 import Darwin
+import Foundation
 import Testing
 
 @testable import supaterm
@@ -13,6 +14,16 @@ struct TerminalAgentProcessIdentityTests {
     #expect(identity.processID == processID)
     #expect(identity.startTimeMicroseconds > 0)
     #expect(TerminalAgentProcessInspector.isCurrent(identity))
+  }
+
+  @Test
+  func currentProcessWorkingDirectoryMatchesCurrentDirectory() throws {
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+
+    #expect(
+      TerminalAgentProcessInspector.workingDirectoryPath(for: identity)
+        == FileManager.default.currentDirectoryPath
+    )
   }
 
   @Test

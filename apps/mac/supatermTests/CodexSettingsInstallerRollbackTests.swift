@@ -28,6 +28,38 @@ extension CodexSettingsInstallerTests {
 
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
     #expect(try String(contentsOf: settingsURL, encoding: .utf8) == original)
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: CodexSettingsInstaller.bridgeURL(homeDirectoryURL: homeDirectoryURL).path
+      )
+    )
+  }
+
+  @Test
+  func installRestoresExistingBridgeWhenNativeWriteFails() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let bridgeURL = CodexSettingsInstaller.bridgeURL(homeDirectoryURL: homeDirectoryURL)
+    try FileManager.default.createDirectory(
+      at: bridgeURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    let original = Data("old bridge".utf8)
+    try original.write(to: bridgeURL)
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) },
+      appServer: TestCodexAppServer(
+        homeDirectoryURL: homeDirectoryURL,
+        rejectsBatchWrite: true
+      )
+    )
+
+    #expect(throws: CodexAppServerClientError.serverRejected("config/batchWrite")) {
+      try installer.installSupatermHooks()
+    }
+
+    #expect(try Data(contentsOf: bridgeURL) == original)
   }
 
   @Test

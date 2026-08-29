@@ -31,6 +31,177 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
   }
 
+  @Test
+  func contextlessCodexSessionStartFindsUniqueDetectedPaneInWorkspace() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "contextless-session",
+        hookEventName: .sessionStart,
+        cwd: FileManager.default.currentDirectoryPath
+      )
+    )
+
+    #expect(
+      candidates
+        == SupatermAgentHookCandidates(
+          candidates: [
+            SupatermAgentHookCandidate(
+              context: SupatermCLIContext(surfaceID: surface.id, tabID: harness.tabID.rawValue),
+              processID: processIdentity.processID
+            )
+          ]
+        )
+    )
+    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "contextless-session"))
+  }
+
+  @Test
+  func contextlessCodexSessionStartFindsProcessWorkingDirectory() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    surface.bridge.state.pwd = "/tmp/other-workspace"
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "contextless-session",
+        hookEventName: .sessionStart,
+        cwd: FileManager.default.currentDirectoryPath
+      )
+    )
+
+    #expect(candidates.candidates.count == 1)
+    #expect(candidates.candidates.first?.context.surfaceID == surface.id)
+  }
+
+  @Test
+  func contextlessCodexSessionStartRejectsAmbiguousWorkspace() throws {
+    let harness = try makeClaudeHookHarness()
+    let firstSurface = try #require(harness.host.selectedSurfaceView)
+    let secondPane = try harness.host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .pane(firstSurface.id)
+      )
+    )
+    let secondSurface = try #require(harness.host.surfaces[secondPane.paneID])
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    for (sequence, surface) in [firstSurface, secondSurface].enumerated() {
+      #expect(
+        harness.host.applyAgentDetection(
+          agentDetectionObservation(
+            phase: .idle,
+            processIdentity: processIdentity,
+            sequence: UInt64(sequence + 1)
+          ),
+          for: surface.id
+        )
+      )
+    }
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "contextless-session",
+        hookEventName: .sessionStart,
+        cwd: FileManager.default.currentDirectoryPath
+      )
+    )
+
+    #expect(candidates.candidates.count == 2)
+    #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "contextless-session"))
+  }
+
+  @Test
+  func agentHookCandidatesRejectEventsThatCannotOwnACodexRootSession() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+    let cwd = FileManager.default.currentDirectoryPath
+    let event = SupatermAgentHookEvent(
+      cwd: cwd,
+      hookEventName: .sessionStart,
+      sessionID: "session-1",
+      transcriptPath: "/tmp/session-1.jsonl"
+    )
+    let requests = [
+      SupatermAgentHookRequest(agent: .claude, event: event),
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: event
+      ),
+      SupatermAgentHookRequest(
+        agent: .codex,
+        event: SupatermAgentHookEvent(
+          cwd: cwd,
+          hookEventName: .stop,
+          sessionID: "session-1",
+          transcriptPath: "/tmp/session-1.jsonl"
+        )
+      ),
+      SupatermAgentHookRequest(
+        agent: .codex,
+        event: SupatermAgentHookEvent(
+          cwd: cwd,
+          hookEventName: .sessionStart,
+          sessionID: "session-1"
+        )
+      ),
+      SupatermAgentHookRequest(
+        agent: .codex,
+        event: SupatermAgentHookEvent(
+          hookEventName: .sessionStart,
+          sessionID: "session-1",
+          transcriptPath: "/tmp/session-1.jsonl"
+        )
+      ),
+    ]
+
+    for request in requests {
+      #expect(harness.commandExecutor.agentHookCandidates(for: request).candidates.isEmpty)
+    }
+  }
+
   @Test(
     arguments: [SupatermAgentKind.claude, .codex],
     [

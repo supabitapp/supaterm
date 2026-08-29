@@ -174,6 +174,24 @@ public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
   }
 }
 
+public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
+  public let context: SupatermCLIContext
+  public let processID: Int32
+
+  public init(context: SupatermCLIContext, processID: Int32) {
+    self.context = context
+    self.processID = processID
+  }
+}
+
+public struct SupatermAgentHookCandidates: Equatable, Sendable, Codable {
+  public let candidates: [SupatermAgentHookCandidate]
+
+  public init(candidates: [SupatermAgentHookCandidate] = []) {
+    self.candidates = candidates
+  }
+}
+
 private func normalizeAgentHookString(_ value: String?) -> String? {
   guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
     return nil

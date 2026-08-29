@@ -789,6 +789,38 @@ extension TerminalHostState {
     }
   }
 
+  func agentHookCandidates(
+    agent: SupatermAgentKind,
+    workingDirectoryPath: String
+  ) -> [SupatermAgentHookCandidate] {
+    guard
+      let workspace = TerminalAgentPanelWorkspaceKey(
+        workingDirectoryPath: workingDirectoryPath
+      )
+    else {
+      return []
+    }
+    let identity = AgentDetectionAgentIdentity(agent)
+    return surfaces.values.compactMap { surface in
+      guard
+        let tabID = tabID(containing: surface.id),
+        let observation = agentDetectionStore.observation(for: surface.id),
+        observation.agent == identity,
+        TerminalAgentPanelWorkspaceKey(
+          workingDirectoryPath: TerminalAgentProcessInspector.workingDirectoryPath(
+            for: observation.processIdentity
+          )
+        ) == workspace
+      else {
+        return nil
+      }
+      return SupatermAgentHookCandidate(
+        context: SupatermCLIContext(surfaceID: surface.id, tabID: tabID.rawValue),
+        processID: observation.processIdentity.processID
+      )
+    }
+  }
+
   private func sessionIdentityPresentation(
     _ presentation: TerminalAgentStatePresentation
   ) -> TerminalAgentStatePresentation {

@@ -441,4 +441,88 @@ struct SocketControlFeatureNotificationsTests {
     #expect(response.error?.code == "invalid_request")
     #expect(try #require(response.error?.message).isEmpty == false)
   }
+
+  @Test
+  func agentHookCandidateRequestMapsValidationErrorsToInvalidRequest() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "93CB5EE6-D5A7-47D1-8191-1CC54801602A")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: SupatermSocketRequest(
+        id: "agent-hook-candidates-invalid",
+        method: SupatermSocketMethod.terminalAgentHookCandidates,
+        params: [:]
+      )
+    )
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let record = try #require(await recorder.snapshot().first)
+    #expect(record.handle == handle)
+    #expect(record.response.id == "agent-hook-candidates-invalid")
+    #expect(!record.response.ok)
+    #expect(record.response.error?.code == "invalid_request")
+    #expect(try #require(record.response.error?.message).isEmpty == false)
+  }
+
+  @Test
+  func agentHookCandidateRequestReturnsTypedCandidatesWithoutNotification() async throws {
+    let recorder = SocketReplyRecorder()
+    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let handle = UUID(uuidString: "42DA3808-BBEC-4441-9B02-8B1C79C0B00A")!
+    let payload = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        transcriptPath: "/tmp/session-1.jsonl"
+      ),
+      processID: 123
+    )
+    let candidate = SupatermAgentHookCandidate(
+      context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+      processID: 456
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try SupatermSocketRequest.agentHookCandidates(
+        payload,
+        id: "agent-hook-candidates-1"
+      )
+    )
+
+    let store = makeStore {
+      $0.desktopNotificationClient.deliver = { request in
+        await desktopNotificationRecorder.record(request)
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.socketRequestExecutor.executeApp = { execution in
+        guard case .agentHookCandidates(let receivedPayload) = execution else {
+          Issue.record("Expected agent hook candidate request")
+          throw CancellationError()
+        }
+        #expect(receivedPayload == payload)
+        return .agentHookCandidates(SupatermAgentHookCandidates(candidates: [candidate]))
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let record = try #require(await recorder.snapshot().first)
+    #expect(record.handle == handle)
+    #expect(record.response.ok)
+    #expect(
+      try record.response.decodeResult(SupatermAgentHookCandidates.self)
+        == SupatermAgentHookCandidates(candidates: [candidate])
+    )
+    #expect(await desktopNotificationRecorder.snapshot().isEmpty)
+  }
 }

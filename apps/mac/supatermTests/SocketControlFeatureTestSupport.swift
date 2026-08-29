@@ -163,7 +163,8 @@ extension SocketRequestExecutor {
       throw SocketControlTestError.unexpectedRequest
     case .quit:
       return .quit
-    case .agentHook, .debugSnapshot, .notify, .onboardingSnapshot, .treeSnapshot:
+    case .agentHook, .agentHookCandidates, .debugSnapshot, .notify, .onboardingSnapshot,
+      .treeSnapshot:
       Issue.record("Unexpected app request: \(request)")
       throw SocketControlTestError.unexpectedRequest
     }

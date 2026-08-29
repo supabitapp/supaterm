@@ -8,7 +8,7 @@ enum AgentHookCommandOwnership {
     }
     let normalizedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
     return SupatermAgentKind.allCases.contains {
-      normalizedCommand == SupatermManagedHookCommand.receiveHookCommand(for: $0)
+      SupatermManagedHookCommand.matchesReceiveHookCommand(normalizedCommand, for: $0)
     }
   }
 }

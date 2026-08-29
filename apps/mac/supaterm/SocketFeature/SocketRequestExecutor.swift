@@ -13,6 +13,7 @@ public struct SocketRequestExecutor: Sendable {
     case settingsValidate(SupatermSettingsValidateRequest)
     case treeSnapshot
     case notify(TerminalNotifyRequest)
+    case agentHookCandidates(SupatermAgentHookRequest)
     case agentHook(SupatermAgentHookRequest)
     case quit
   }
@@ -27,6 +28,7 @@ public struct SocketRequestExecutor: Sendable {
     case settingsValidate(SupatermSettingsValidationResult)
     case treeSnapshot(SupatermTreeSnapshot)
     case notify(SupatermNotifyResult)
+    case agentHookCandidates(SupatermAgentHookCandidates)
     case agentHook(TerminalAgentHookResult)
     case quit
   }

@@ -106,13 +106,18 @@ private final class CodexE2EFixture {
     var server: FakeModelServer?
     do {
       let space = try await makeTestSpace(app)
+      let agentWorkspace =
+        mode.hooksEnabled
+        ? space.directory.appendingPathComponent("agent-workspace", isDirectory: true)
+        : space.directory
+      try FileManager.default.createDirectory(at: agentWorkspace, withIntermediateDirectories: true)
       let startedServer = try FakeModelServer(script: script(space))
       server = startedServer
       try writeConfig(
         baseURL: startedServer.responsesBaseURL,
         hooksEnabled: mode.hooksEnabled,
         home: app.cliHome,
-        workspace: space.directory,
+        workspace: agentWorkspace,
         terminalTitleItems: terminalTitleItems,
         streamMaxRetries: streamMaxRetries
       )
@@ -132,7 +137,8 @@ private final class CodexE2EFixture {
       let command = makeCodexCommand(
         app: app,
         executable: environment.executable,
-        workspace: space.directory
+        workspace: agentWorkspace,
+        removesAgentHookContext: mode.hooksEnabled
       )
       try app.type(command + "\n", into: space.pane)
       let initial = try await waitForAgentSnapshot(
@@ -464,17 +470,28 @@ private func runCodexStaticTitleLifecycle() async throws {
 private func makeCodexCommand(
   app: SupatermE2EApp,
   executable: URL,
-  workspace: URL
+  workspace: URL,
+  removesAgentHookContext: Bool = false
 ) -> String {
-  SupatermShellCommand.escapedCommand([
-    "/usr/bin/env",
+  var arguments = ["/usr/bin/env"]
+  if removesAgentHookContext {
+    for key in [
+      SupatermCLIEnvironment.cliPathKey,
+      SupatermCLIEnvironment.surfaceIDKey,
+      SupatermCLIEnvironment.tabIDKey,
+    ] {
+      arguments += ["-u", key]
+    }
+  }
+  arguments += [
     "CODEX_HOME=\(app.cliHome.appendingPathComponent(".codex").path)",
     executable.path,
     "--strict-config",
     "--no-alt-screen",
     "--cd",
     workspace.path,
-  ])
+  ]
+  return SupatermShellCommand.escapedCommand(arguments)
 }
 
 private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {

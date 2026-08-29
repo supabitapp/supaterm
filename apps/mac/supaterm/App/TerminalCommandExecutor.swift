@@ -63,6 +63,8 @@ final class TerminalCommandExecutor {
       return .treeSnapshot(treeSnapshot())
     case .notify(let notifyRequest):
       return .notify(try notify(notifyRequest))
+    case .agentHookCandidates(let hookRequest):
+      return .agentHookCandidates(agentHookCandidates(for: hookRequest))
     case .agentHook(let hookRequest):
       return .agentHook(try handleAgentHook(hookRequest))
     case .quit:

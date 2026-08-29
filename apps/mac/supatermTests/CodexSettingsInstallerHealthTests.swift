@@ -129,4 +129,40 @@ extension CodexSettingsInstallerTests {
 
     #expect(try installer.integrationHealth() == .absent)
   }
+
+  @Test
+  func integrationHealthFindsLegacyHooksDrifted() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let settings = try SupatermCodexHookSettings.jsonString().replacingOccurrences(
+      of: SupatermCodexHookSettings.command,
+      with: legacySupatermHookCommand(agent: "codex")
+    )
+    try writeCodexSettings(settings, homeDirectoryURL: homeDirectoryURL)
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }
+    )
+
+    #expect(try installer.integrationHealth() == .drifted)
+  }
+
+  @Test(arguments: [nil, "echo changed"])
+  func integrationHealthFindsMissingOrChangedBridgeDrifted(contents: String?) throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }
+    )
+    try installer.installSupatermHooks()
+    let bridgeURL = CodexSettingsInstaller.bridgeURL(homeDirectoryURL: homeDirectoryURL)
+    if let contents {
+      try contents.write(to: bridgeURL, atomically: true, encoding: .utf8)
+    } else {
+      try FileManager.default.removeItem(at: bridgeURL)
+    }
+
+    #expect(try installer.integrationHealth() == .drifted)
+  }
 }

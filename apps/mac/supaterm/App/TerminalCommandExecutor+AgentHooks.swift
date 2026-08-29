@@ -15,7 +15,13 @@ extension TerminalCommandExecutor {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
     pruneDeadAgentProcesses()
-    guard let terminal = agentTerminal(for: request) else {
+    guard
+      let terminal = agentTerminal(
+        agent: request.agent,
+        sessionID: request.event.sessionID,
+        context: request.context
+      )
+    else {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
     var didChange = false
@@ -49,6 +55,28 @@ extension TerminalCommandExecutor {
       terminal.sessionDidChange()
     }
     return result
+  }
+
+  func agentHookCandidates(
+    for request: SupatermAgentHookRequest
+  ) -> SupatermAgentHookCandidates {
+    guard
+      request.agent == .codex,
+      request.context == nil,
+      request.event.hookEventName == .sessionStart,
+      !TerminalAgentEventTranslator.events(for: request).isEmpty,
+      let workingDirectoryPath = request.event.cwd
+    else {
+      return SupatermAgentHookCandidates(candidates: [])
+    }
+    pruneDeadAgentProcesses()
+    let candidates = registry.activeEntries().flatMap { entry in
+      entry.terminal.agentHookCandidates(
+        agent: request.agent,
+        workingDirectoryPath: workingDirectoryPath
+      )
+    }
+    return SupatermAgentHookCandidates(candidates: candidates)
   }
 
   func handleAgentEventNotification(
@@ -126,16 +154,6 @@ extension TerminalCommandExecutor {
       return
     }
     _ = terminal.clearRecentStructuredNotification(for: surfaceID)
-  }
-
-  private func agentTerminal(
-    for request: SupatermAgentHookRequest
-  ) -> TerminalHostState? {
-    agentTerminal(
-      agent: request.agent,
-      sessionID: request.event.sessionID,
-      context: request.context
-    )
   }
 
   private func agentTerminal(

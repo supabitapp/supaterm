@@ -1065,6 +1065,43 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func agentHookCandidatesRoundTripThroughTypedHelpers() throws {
+    let candidates = SupatermAgentHookCandidates(
+      candidates: [
+        SupatermAgentHookCandidate(
+          context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+          processID: 123
+        ),
+        SupatermAgentHookCandidate(
+          context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+          processID: 456
+        ),
+      ]
+    )
+    let requestPayload = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        transcriptPath: "/tmp/session-1.jsonl"
+      )
+    )
+    let request = try SupatermSocketRequest.agentHookCandidates(
+      requestPayload,
+      id: "agent-hook-candidates-1"
+    )
+    let response = try SupatermSocketResponse.ok(
+      id: request.id,
+      encodableResult: candidates
+    )
+
+    #expect(request.method == SupatermSocketMethod.terminalAgentHookCandidates)
+    #expect(try request.decodeParams(SupatermAgentHookRequest.self) == requestPayload)
+    #expect(try response.decodeResult(SupatermAgentHookCandidates.self) == candidates)
+  }
+
+  @Test
   func paneControlRequestsRoundTripThroughTypedHelpers() throws {
     let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     let paneTarget = SupatermPaneTarget(

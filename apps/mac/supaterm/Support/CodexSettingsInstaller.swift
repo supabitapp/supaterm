@@ -8,6 +8,7 @@ public struct CodexSettingsInstaller {
 
   let homeDirectoryURL: URL
   let fileManager: FileManager
+  let cliPath: String
   let runEnableHooksCommand: @Sendable () throws -> CommandResult
   let runVersionCommand: @Sendable () throws -> CodingAgentCommandResult
   let appServerClient: CodexAppServerClient
@@ -19,6 +20,7 @@ public struct CodexSettingsInstaller {
     self.init(
       homeDirectoryURL: homeDirectoryURL,
       fileManager: fileManager,
+      cliPath: GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL) ?? "",
       runEnableHooksCommand: Self.runEnableHooksCommand,
       runVersionCommand: Self.runVersionCommand,
       appServerClient: CodexAppServerClient(homeDirectoryURL: homeDirectoryURL)
@@ -28,6 +30,7 @@ public struct CodexSettingsInstaller {
   init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default,
+    cliPath: String = GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL) ?? "",
     runEnableHooksCommand: @escaping @Sendable () throws -> CommandResult,
     runVersionCommand: @escaping @Sendable () throws -> CodingAgentCommandResult = {
       CodingAgentCommandResult(status: 0, standardOutput: "codex-cli 0.144.1")
@@ -36,6 +39,7 @@ public struct CodexSettingsInstaller {
   ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
+    self.cliPath = cliPath
     self.runEnableHooksCommand = runEnableHooksCommand
     self.runVersionCommand = runVersionCommand
     self.appServerClient = appServerClient ?? CodexAppServerClient(homeDirectoryURL: homeDirectoryURL)
@@ -63,6 +67,7 @@ public struct CodexSettingsInstaller {
 
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     var fileMutation: AgentHookSettingsFileInstaller.Mutation?
+    var bridgeMutation: AgentHookSettingsFileInstaller.Mutation?
     do {
       let config = try appServerClient.readUserConfig(
         cwd: homeDirectoryURL,
@@ -72,6 +77,7 @@ public struct CodexSettingsInstaller {
         throw CodexSettingsInstallerError.hooksFeatureDisabled
       }
       let oldHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
+      bridgeMutation = try installBridge()
       fileMutation = try fileInstaller.install(
         settingsURL: settingsURL,
         hookGroupsByEvent: try SupatermCodexHookSettings.hookGroupsByEvent()
@@ -101,6 +107,7 @@ public struct CodexSettingsInstaller {
     } catch {
       do {
         try fileMutation?.rollback(fileManager: fileManager)
+        try bridgeMutation?.rollback(fileManager: fileManager)
       } catch {
         throw CodexSettingsInstallerError.rollbackFailed(error.localizedDescription)
       }
@@ -126,11 +133,18 @@ public struct CodexSettingsInstaller {
       settingsURL: settingsURL,
       hookGroupsByEvent: SupatermCodexHookSettings.hookGroupsByEvent()
     )
+    let bridgeExists = fileManager.fileExists(atPath: bridgeURL.path)
     guard try codexAvailability() == .supported else {
-      return settingsHealth == .absent ? .unavailable : .unavailableInstalled
+      return settingsHealth == .absent && !bridgeExists ? .unavailable : .unavailableInstalled
+    }
+    if settingsHealth == .absent {
+      return bridgeExists ? .partial : .absent
     }
     guard settingsHealth == .healthy else {
       return settingsHealth
+    }
+    guard (try? Data(contentsOf: bridgeURL)) == bridgeData else {
+      return .drifted
     }
 
     let hooks: [CodexAppServerHook]
@@ -167,6 +181,7 @@ public struct CodexSettingsInstaller {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     guard (try? codexAvailability()) == .supported else {
       try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
+      try removeBridge()
       return
     }
 
@@ -180,13 +195,16 @@ public struct CodexSettingsInstaller {
       oldHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
     } catch CodexAppServerClientError.userConfigLayerMissing {
       try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
+      try removeBridge()
       return
     } catch {
       try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
+      try removeBridge()
       throw CodexSettingsInstallerError.trustCleanupFailed(error.localizedDescription)
     }
 
     try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
+    try removeBridge()
     do {
       let newHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
       let hookState = try rebasedHookState(
@@ -221,6 +239,10 @@ public struct CodexSettingsInstaller {
     homeDirectoryURL
       .appendingPathComponent(".codex", isDirectory: true)
       .appendingPathComponent("config.toml", isDirectory: false)
+  }
+
+  static func bridgeURL(homeDirectoryURL: URL) -> URL {
+    SupatermCodexHookBridge.url(homeDirectoryURL: homeDirectoryURL)
   }
 
   static func runEnableHooksCommand() throws -> CommandResult {
@@ -396,7 +418,8 @@ public struct CodexSettingsInstaller {
   }
 
   private func isManagedHook(_ hook: CodexAppServerHook) -> Bool {
-    hook.command == SupatermCodexHookSettings.command
+    guard let command = hook.command else { return false }
+    return SupatermManagedHookCommand.matchesReceiveHookCommand(command, for: .codex)
   }
 
   private func stateKey(_ key: String, belongsToSourcePath sourcePath: String) -> Bool {
@@ -405,6 +428,37 @@ public struct CodexSettingsInstaller {
 
   private func canonicalPath(_ url: URL) -> String {
     url.standardizedFileURL.resolvingSymlinksInPath().path
+  }
+
+  private func installBridge() throws -> AgentHookSettingsFileInstaller.Mutation {
+    let previousData =
+      fileManager.fileExists(atPath: bridgeURL.path)
+      ? try Data(contentsOf: bridgeURL)
+      : nil
+    let writtenData = bridgeData
+    try fileManager.createDirectory(
+      at: bridgeURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try writtenData.write(to: bridgeURL, options: .atomic)
+    return AgentHookSettingsFileInstaller.Mutation(
+      url: bridgeURL,
+      previousData: previousData,
+      writtenData: writtenData
+    )
+  }
+
+  private func removeBridge() throws {
+    guard fileManager.fileExists(atPath: bridgeURL.path) else { return }
+    try fileManager.removeItem(at: bridgeURL)
+  }
+
+  private var bridgeURL: URL {
+    Self.bridgeURL(homeDirectoryURL: homeDirectoryURL)
+  }
+
+  private var bridgeData: Data {
+    SupatermCodexHookBridge.data(cliPath: cliPath)
   }
 
   private static func isTestHookInstallation(environment: [String: String]) -> Bool {

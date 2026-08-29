@@ -25,6 +25,7 @@ func temporaryCodexHomeDirectory() throws -> URL {
 func testCodexSettingsInstaller(
   homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
   fileManager: FileManager = .default,
+  cliPath: String = "/usr/bin/true",
   runEnableHooksCommand: @escaping @Sendable () throws -> CodingAgentCommandResult,
   runVersionCommand: @escaping @Sendable () throws -> CodingAgentCommandResult = {
     CodingAgentCommandResult(status: 0, standardOutput: "codex-cli 0.144.1")
@@ -47,6 +48,7 @@ func testCodexSettingsInstaller(
   return CodexSettingsInstaller(
     homeDirectoryURL: homeDirectoryURL,
     fileManager: fileManager,
+    cliPath: cliPath,
     runEnableHooksCommand: runEnableHooksCommand,
     runVersionCommand: runVersionCommand,
     appServerClient: appServer.client

@@ -124,6 +124,7 @@ func agentHookRequest(
   sessionID: String,
   hookEventName: SupatermAgentHookEventName,
   context: SupatermCLIContext? = nil,
+  cwd: String = CodexHookFixtures.cwd,
   lastAssistantMessage: String? = nil,
   processID: Int32? = nil
 ) -> SupatermAgentHookRequest {
@@ -131,7 +132,7 @@ func agentHookRequest(
     agent: agent,
     context: context,
     event: SupatermAgentHookEvent(
-      cwd: CodexHookFixtures.cwd,
+      cwd: cwd,
       hookEventName: hookEventName,
       lastAssistantMessage: lastAssistantMessage,
       sessionID: sessionID,

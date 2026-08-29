@@ -79,21 +79,27 @@ extension SP {
     mutating func run() throws {
       let rawInput = FileHandle.standardInput.readDataToEndOfFile()
       let event = try agentHookEvent(from: rawInput)
+      let context = SupatermCLIContext.current
+      let hookRequest = SupatermAgentHookRequest(
+        agent: agent,
+        context: context,
+        event: event,
+        inheritedSessionID: inheritedCodexSessionID,
+        processID: pid
+      )
+      if agent == .codex, context == nil, event.hookEventName == .sessionStart {
+        try receiveContextlessCodexSessionStart(
+          request: hookRequest,
+          connection: connection
+        )
+        return
+      }
+      let request = try SupatermSocketRequest.agentHook(hookRequest)
       let client = try socketClient(
         path: connection.explicitSocketPath,
         instance: connection.instance
       )
-      let response = try client.send(
-        .agentHook(
-          SupatermAgentHookRequest(
-            agent: agent,
-            context: SupatermCLIContext.current,
-            event: event,
-            inheritedSessionID: inheritedCodexSessionID,
-            processID: pid
-          )
-        )
-      )
+      let response = try client.send(request)
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
@@ -176,6 +182,102 @@ private func agentHookEvent(from data: Data) throws -> SupatermAgentHookEvent {
   } catch {
     throw ValidationError("Agent hook input must be valid hook JSON.")
   }
+}
+
+private struct AgentHookDestination {
+  let candidateClient: SPSocketClient
+  let deliveryClient: SPSocketClient
+
+  init(path: String) throws {
+    candidateClient = try SPSocketClient(
+      path: path,
+      connectRetryTimeout: AgentHookCandidateTiming.connectRetryTimeout,
+      responseTimeout: AgentHookCandidateTiming.responseTimeout
+    )
+    deliveryClient = try SPSocketClient(path: path)
+  }
+}
+
+private struct AgentHookCandidateMatch {
+  let destination: AgentHookDestination
+  let candidate: SupatermAgentHookCandidate
+}
+
+private enum AgentHookCandidateTiming {
+  static let connectRetryTimeout: TimeInterval = 0.25
+  static let responseTimeout: TimeInterval = 0.25
+  static let retryInterval: TimeInterval = 0.1
+  static let retryTimeout: TimeInterval = 2
+}
+
+private func receiveContextlessCodexSessionStart(
+  request: SupatermAgentHookRequest,
+  connection: SPConnectionOptions
+) throws {
+  guard let destinations = try? agentHookDestinations(connection: connection), !destinations.isEmpty else {
+    return
+  }
+  let deadline = Date().addingTimeInterval(AgentHookCandidateTiming.retryTimeout)
+  let candidatesRequest = try SupatermSocketRequest.agentHookCandidates(request)
+
+  while true {
+    let matches = destinations.flatMap { destination -> [AgentHookCandidateMatch] in
+      guard
+        let response = try? destination.candidateClient.send(candidatesRequest),
+        response.ok,
+        let result = try? response.decodeResult(SupatermAgentHookCandidates.self)
+      else {
+        return []
+      }
+      return result.candidates.map {
+        AgentHookCandidateMatch(destination: destination, candidate: $0)
+      }
+    }
+
+    if matches.count == 1, let match = matches.first {
+      let response = try match.destination.deliveryClient.send(
+        try SupatermSocketRequest.agentHook(
+          SupatermAgentHookRequest(
+            agent: request.agent,
+            context: match.candidate.context,
+            event: request.event,
+            inheritedSessionID: request.inheritedSessionID,
+            processID: match.candidate.processID
+          )
+        )
+      )
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+      return
+    }
+    guard matches.isEmpty, Date() < deadline else {
+      return
+    }
+    Thread.sleep(forTimeInterval: min(AgentHookCandidateTiming.retryInterval, deadline.timeIntervalSinceNow))
+  }
+}
+
+private func agentHookDestinations(connection: SPConnectionOptions) throws -> [AgentHookDestination] {
+  let diagnostics = SPSocketSelection.resolve(
+    explicitPath: connection.explicitSocketPath,
+    instance: connection.instance
+  )
+  if let target = diagnostics.resolvedTarget {
+    return [
+      try AgentHookDestination(path: target.path)
+    ]
+  }
+  if connection.explicitSocketPath == nil,
+    connection.instance == nil,
+    diagnostics.environmentSocketPath == nil,
+    !diagnostics.discoveredEndpoints.isEmpty
+  {
+    return try diagnostics.discoveredEndpoints.map {
+      try AgentHookDestination(path: $0.path)
+    }
+  }
+  throw ValidationError(diagnostics.errorMessage ?? "Unable to resolve a Supaterm socket path.")
 }
 
 private func renderAgentDetectionReload(
