@@ -113,7 +113,7 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000008",
             title: "supaterm - fish",
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace()]
+            paneTitles: ["fish"]
           )
         )
       )
@@ -131,7 +131,8 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000001",
             title: "supaterm - fish",
             selection: .primary,
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace()]
+            isTitleLocked: true,
+            paneTitles: ["fish"]
           )
         )
       )
@@ -150,7 +151,7 @@ extension SnapshotCatalog {
             title: "release-check",
             isPinned: true,
             isRowHovering: true,
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
+            paneTitles: ["release-check"],
             shortcutHint: "⌘2",
             showsShortcutHint: true
           )
@@ -170,7 +171,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000007",
             title: "supaterm - fish",
             selection: .secondary,
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace()]
+            paneTitles: ["fish"]
           )
         )
       )
@@ -188,7 +189,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000009",
             title: "supaterm - fish",
             isPressed: true,
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace()]
+            paneTitles: ["fish"]
           )
         )
       )
@@ -205,9 +206,9 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000003",
             title: "Build failures",
-            paneWorkingDirectories: [
-              SnapshotFixtureValues.workspace("apps/mac"),
-              SnapshotFixtureValues.workspace("apps/mac/supatermTests"),
+            paneTitles: [
+              "swift build",
+              "swift test",
             ],
             unreadCount: 12
           )
@@ -254,15 +255,15 @@ extension SnapshotCatalog {
       )
     },
     scenario(
-      "agent-pr-states",
+      "agent-six-panes",
       group: "Sidebar Rows",
-      title: "Coding agent pull request states",
-      size: CGSize(width: 320, height: 160)
+      title: "Six coding agent panes",
+      size: CGSize(width: 320, height: 170)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
           appearance: appearance,
-          item: .agentPullRequestStates
+          item: .sixAgents
         )
       )
     },
@@ -330,7 +331,7 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000007",
             title: "Archive export",
-            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
+            paneTitles: ["tar -czf release.tar.gz"],
             terminalProgress: TerminalSidebarTerminalProgress(fraction: 0.68, tone: .paused)
           )
         )
@@ -348,9 +349,9 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000008",
             title: SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog"),
-            paneWorkingDirectories: [
+            paneTitles: [
               SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog"),
-              SnapshotFixtureValues.workspace("docs"),
+              "swift run SnapshotCatalog",
             ],
             hasTerminalBell: true
           )
@@ -367,10 +368,10 @@ private struct SidebarRowSnapshotItem {
   var isPinned = false
   var isRowHovering = false
   var isPressed = false
-  var paneWorkingDirectories: [String] = []
-  var agentWorkspaces: [TerminalTabAgentWorkspace] = []
+  var isTitleLocked = false
+  var paneTitles: [String] = []
+  var paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = []
   var unreadCount = 0
-  var agentStatus: TerminalHostState.TabAgentStatus?
   var hasTerminalBell = false
   var terminalProgress: TerminalSidebarTerminalProgress?
   var shortcutHint: String?
@@ -379,25 +380,30 @@ private struct SidebarRowSnapshotItem {
   var tab: TerminalTabItem {
     TerminalTabItem(
       id: TerminalTabID(rawValue: SnapshotFixtureValues.uuid(id)),
-      title: title
+      title: title,
+      isTitleLocked: isTitleLocked
     )
   }
 
   var isSelected: Bool { selection != .none }
 
+  var panes: [TerminalHostState.TabPanePresentation] {
+    paneTitles.enumerated().map { index, title in
+      TerminalHostState.TabPanePresentation(
+        id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
+        title: title,
+        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil,
+        isFocused: index == 0
+      )
+    }
+  }
+
   static var agentRunning: Self {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000004",
-      title: "khoi/routine-ui-what-happened | Thinking | Tasks 5/5",
-      paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
-      agentWorkspaces: [
-        workspace(
-          path: SnapshotFixtureValues.workspace("apps/mac"),
-          branch: "feature/sidebar-agent-context",
-          pullRequestNumber: 128
-        )
-      ],
-      agentStatus: .working
+      title: "Codex",
+      paneTitles: ["khoi/routine-ui-what-happened | Thinking | Tasks 5/5"],
+      paneAgentStatuses: [.working]
     )
   }
 
@@ -405,62 +411,17 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000010",
       title: "Review authentication",
-      paneWorkingDirectories: [
-        SnapshotFixtureValues.workspace("apps/mac"),
-        SnapshotFixtureValues.workspace("apps/docs.supaterm.com"),
-      ],
-      agentWorkspaces: [
-        workspace(
-          path: SnapshotFixtureValues.workspace("apps/mac"),
-          branch: "feature/auth-refresh",
-          pullRequestNumber: 241
-        ),
-        workspace(
-          path: SnapshotFixtureValues.workspace("apps/docs.supaterm.com"),
-          branch: "fix/token-expiry",
-          pullRequestNumber: 238
-        ),
-      ],
-      agentStatus: .working
+      paneTitles: ["Codex auth", "Review token expiry"],
+      paneAgentStatuses: [.working, .done]
     )
   }
 
-  static var agentPullRequestStates: Self {
+  static var sixAgents: Self {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000011",
-      title: "Pull request states",
-      agentWorkspaces: [
-        workspace(
-          path: SnapshotFixtureValues.workspace("draft"),
-          branch: "feature/draft",
-          pullRequestNumber: 241,
-          pullRequestKind: .draft
-        ),
-        workspace(
-          path: SnapshotFixtureValues.workspace("open"),
-          branch: "feature/open",
-          pullRequestNumber: 242
-        ),
-        workspace(
-          path: SnapshotFixtureValues.workspace("merged"),
-          branch: "feature/merged",
-          pullRequestNumber: 243,
-          pullRequestKind: .merged
-        ),
-        workspace(
-          path: SnapshotFixtureValues.workspace("closed"),
-          branch: "feature/closed",
-          pullRequestNumber: 244,
-          pullRequestKind: .closed
-        ),
-        workspace(
-          path: SnapshotFixtureValues.workspace("local-changes"),
-          branch: "feature/local-changes",
-          pullRequestNumber: nil,
-          pullRequestKind: .none
-        ),
-      ],
-      agentStatus: .working
+      title: "Coding agents",
+      paneTitles: ["Codex 1", "Codex 2", "Codex 3", "Review 1", "Review 2", "Review 3"],
+      paneAgentStatuses: [.working, .done, .needsInput, .working, .done, .needsInput]
     )
   }
 
@@ -468,15 +429,8 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000005",
       title: "Release note pass",
-      paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/supaterm.com")],
-      agentWorkspaces: [
-        workspace(
-          path: SnapshotFixtureValues.workspace("apps/supaterm.com"),
-          branch: "release/sidebar-copy",
-          pullRequestNumber: 131
-        )
-      ],
-      agentStatus: .needsInput
+      paneTitles: ["Review agent"],
+      paneAgentStatuses: [.needsInput]
     )
   }
 
@@ -484,43 +438,8 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000006",
       title: "Docs audit",
-      paneWorkingDirectories: [SnapshotFixtureValues.workspace("docs")],
-      agentWorkspaces: [
-        workspace(
-          path: SnapshotFixtureValues.workspace("docs"),
-          branch: "docs/sidebar-agent-context",
-          pullRequestNumber: 132
-        )
-      ],
-      agentStatus: .done
-    )
-  }
-
-  var details: [TerminalSidebarTabDetail] {
-    TerminalSidebarTabDetail.resolve(
-      agentWorkspaces: agentWorkspaces,
-      paneWorkingDirectories: paneWorkingDirectories
-    )
-  }
-
-  private static func workspace(
-    path: String,
-    branch: String,
-    pullRequestNumber: Int?,
-    pullRequestKind: PaneAgentPullRequestStatus.Kind = .open
-  ) -> TerminalTabAgentWorkspace {
-    TerminalTabAgentWorkspace(
-      workingDirectoryPath: path,
-      branch: TerminalTabAgentWorkspace.Branch(
-        repositoryRootPath: SnapshotFixtureValues.workspace(),
-        name: branch,
-        pullRequest: pullRequestNumber.map {
-          TerminalTabAgentWorkspace.PullRequest(
-            kind: pullRequestKind,
-            title: "#\($0)"
-          )
-        }
-      )
+      paneTitles: ["Codex"],
+      paneAgentStatuses: [.done]
     )
   }
 }
@@ -540,9 +459,8 @@ private struct SidebarRowSnapshotFixture: View {
       palette: palette,
       isSelected: item.isSelected,
       isPinned: item.isPinned,
-      details: item.details,
+      panes: item.panes,
       unreadCount: item.unreadCount,
-      agentStatus: item.agentStatus,
       hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
       shortcutHint: item.shortcutHint,

@@ -213,6 +213,13 @@ final class TerminalHostState {
     case working
   }
 
+  struct TabPanePresentation: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let title: String
+    let agentStatus: TabAgentStatus?
+    let isFocused: Bool
+  }
+
   struct TabAgentPresentation: Equatable, Sendable {
     let status: TabAgentStatus?
     let detailActivity: AgentActivity?

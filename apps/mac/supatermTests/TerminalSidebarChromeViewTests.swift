@@ -281,18 +281,6 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentInputTakesPrecedenceOverUnreadCount() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 3,
-        agentStatus: .needsInput,
-        terminalProgress: nil
-      ) == .agentStatus(.needsInput)
-    )
-  }
-
-  @Test
   func terminalProgressTakesPrecedenceOverUnreadCount() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
@@ -300,7 +288,6 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 3,
-        agentStatus: nil,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -314,7 +301,6 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentStatus: nil,
         terminalProgress: progress,
         hasTerminalBell: true
       ) == .terminalProgress(progress)
@@ -327,7 +313,6 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 3,
-        agentStatus: nil,
         terminalProgress: nil,
         hasTerminalBell: true
       ) == .unreadCount(3)
@@ -335,70 +320,14 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentInputTakesPrecedenceOverTerminalBell() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
-        agentStatus: .needsInput,
-        terminalProgress: nil,
-        hasTerminalBell: true
-      ) == .agentStatus(.needsInput)
-    )
-  }
-
-  @Test
-  func terminalBellTakesPrecedenceOverRunningAgentAndPinnedStatus() {
+  func terminalBellTakesPrecedenceOverPinnedStatus() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
         unreadCount: 0,
-        agentStatus: .working,
         terminalProgress: nil,
         hasTerminalBell: true
       ) == .terminalBell
-    )
-  }
-
-  @Test
-  func agentWorkingAppearsWhenNoHigherPriorityStatusExists() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
-        agentStatus: .working,
-        terminalProgress: nil
-      ) == .agentStatus(.working)
-    )
-  }
-
-  @Test
-  func agentActivityTakesPrecedenceOverPinnedStatus() {
-    for status in [
-      TerminalHostState.TabAgentStatus.needsInput,
-      .working,
-      .done,
-    ] {
-      #expect(
-        TerminalSidebarTabSummaryView.statusAccessory(
-          isPinned: true,
-          unreadCount: 0,
-          agentStatus: status,
-          terminalProgress: nil
-        ) == .agentStatus(status)
-      )
-    }
-  }
-
-  @Test
-  func agentDoneTakesPrecedenceOverUnreadCount() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 3,
-        agentStatus: .done,
-        terminalProgress: nil
-      ) == .agentStatus(.done)
     )
   }
 
@@ -412,20 +341,6 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func terminalProgressTakesPrecedenceOverAgentActivity() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
-
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
-        agentStatus: .working,
-        terminalProgress: progress
-      ) == .terminalProgress(progress)
-    )
-  }
-
-  @Test
   func terminalProgressAppearsWhenNoHigherPriorityStatusExists() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
@@ -433,21 +348,8 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentStatus: nil,
         terminalProgress: progress
       ) == .terminalProgress(progress)
-    )
-  }
-
-  @Test
-  func missingAgentStatusShowsNoStatusAccessory() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        unreadCount: 0,
-        agentStatus: nil,
-        terminalProgress: nil
-      ) == nil
     )
   }
 
@@ -468,7 +370,6 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: false,
         unreadCount: 0,
-        agentStatus: nil,
         terminalProgress: nil
       ) == nil
     )
@@ -480,7 +381,6 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
         unreadCount: 0,
-        agentStatus: nil,
         terminalProgress: nil
       ) == .pinned
     )
@@ -494,7 +394,6 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.statusAccessory(
         isPinned: true,
         unreadCount: 0,
-        agentStatus: nil,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -506,7 +405,6 @@ struct TerminalSidebarChromeViewTests {
     let statuses: [TerminalSidebarTabSummaryView.StatusAccessory] = [
       .pinned,
       .terminalProgress(progress),
-      .agentStatus(.working),
       .unreadCount(2),
       .terminalBell,
     ]
@@ -584,68 +482,26 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func helpTextIncludesPaneDirectories() {
-    #expect(
-      TerminalSidebarTabSummaryView.helpText(
-        details: [
-          .workingDirectory("~/Downloads"),
-          .workingDirectory("~/Downloads/abc"),
-        ]
-      ) == "~/Downloads\n~/Downloads/abc"
-    )
-  }
-
-  @Test
-  func agentWorkspacesReplaceAllPaneDirectories() {
-    let workspace = TerminalTabAgentWorkspace(
-      workingDirectoryPath: "/repo",
-      branch: nil
-    )
-
-    #expect(
-      TerminalSidebarTabDetail.resolve(
-        agentWorkspaces: [workspace],
-        paneWorkingDirectories: ["~/repo", "~/Downloads"]
-      ) == [.agentWorkspace(workspace)]
-    )
-  }
-
-  @Test
-  func agentWorkspaceHelpIncludesGitContextAndPath() {
-    let workspace = TerminalTabAgentWorkspace(
-      workingDirectoryPath: "/repo/apps/mac",
-      branch: TerminalTabAgentWorkspace.Branch(
-        repositoryRootPath: "/repo",
-        name: "feature/sidebar-context",
-        pullRequest: TerminalTabAgentWorkspace.PullRequest(
-          kind: .open,
-          title: "#128",
-        )
-      )
-    )
+  func helpTextListsLockedTitleAndPaneTitles() {
+    let tab = TerminalTabItem(title: "Release", isTitleLocked: true)
+    let panes = [
+      TerminalHostState.TabPanePresentation(
+        id: UUID(),
+        title: "Codex",
+        agentStatus: .working,
+        isFocused: true
+      ),
+      TerminalHostState.TabPanePresentation(
+        id: UUID(),
+        title: "Review agent",
+        agentStatus: .done,
+        isFocused: false
+      ),
+    ]
 
     #expect(
-      TerminalSidebarTabSummaryView.helpText(
-        details: [.agentWorkspace(workspace)]
-      ) == "feature/sidebar-context · Open #128\n/repo/apps/mac"
-    )
-  }
-
-  @Test
-  func agentWorkspaceHelpOmitsMissingPullRequest() {
-    let workspace = TerminalTabAgentWorkspace(
-      workingDirectoryPath: "/repo/apps/mac",
-      branch: TerminalTabAgentWorkspace.Branch(
-        repositoryRootPath: "/repo",
-        name: "feature/sidebar-context",
-        pullRequest: nil
-      )
-    )
-
-    #expect(
-      TerminalSidebarTabSummaryView.helpText(
-        details: [.agentWorkspace(workspace)]
-      ) == "feature/sidebar-context\n/repo/apps/mac"
+      TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes)
+        == "Release\nCodex\nReview agent"
     )
   }
 

@@ -53,29 +53,12 @@ extension TerminalHostState {
     in state: ResolvedTabAgentState
   ) -> TabAgentPresentation {
     let instances = state.instances
-    let statusCandidate = instances.compactMap { instance in
-      let isFocused = agentInstanceIsFocused(
+    let statusCandidate = preferredTabAgentStatus(in: instances) { instance in
+      agentInstanceIsFocused(
         instance,
         in: tabID,
         focusedSurfaceID: state.focusedSurfaceID
       )
-      return tabAgentStatus(for: instance, isFocused: isFocused).map {
-        (instance: instance, status: $0)
-      }
-    }.max { lhs, rhs in
-      let lhsPriority = Self.tabAgentStatusPriority(lhs.status)
-      let rhsPriority = Self.tabAgentStatusPriority(rhs.status)
-      if lhsPriority != rhsPriority {
-        return lhsPriority < rhsPriority
-      }
-
-      let lhsIsFocused = lhs.instance.surfaceID == state.focusedSurfaceID
-      let rhsIsFocused = rhs.instance.surfaceID == state.focusedSurfaceID
-      if lhsIsFocused != rhsIsFocused {
-        return !lhsIsFocused && rhsIsFocused
-      }
-
-      return lhs.instance.revision < rhs.instance.revision
     }
     let focusedInstances = instances.filter { $0.surfaceID == state.focusedSurfaceID }
     let detailActivity = focusedInstances.filter(\.hasActivity).max {
@@ -95,6 +78,28 @@ extension TerminalHostState {
       detailActivity: detailActivity,
       latestResponse: latestResponse
     )
+  }
+
+  func tabPanePresentations(for tabID: TerminalTabID) -> [TabPanePresentation] {
+    guard let tree = trees[tabID] else { return [] }
+    let focusedSurfaceID = focusHistoryByTab[tabID]?.current
+    return tree.leaves().enumerated().map { index, surface in
+      TabPanePresentation(
+        id: surface.id,
+        title: Self.resolvedSidebarPaneTitle(
+          titleOverride: surface.bridge.state.titleOverride,
+          title: surface.bridge.state.title,
+          pwd: surface.bridge.state.pwd,
+          defaultValue: "Pane \(index + 1)"
+        ),
+        agentStatus: paneAgentStatus(
+          for: surface.id,
+          in: tabID,
+          focusedSurfaceID: focusedSurfaceID
+        ),
+        isFocused: surface.id == focusedSurfaceID
+      )
+    }
   }
 
   func agentActivity(for tabID: TerminalTabID) -> AgentActivity? {
@@ -517,6 +522,45 @@ extension TerminalHostState {
     case .working:
       return 1
     }
+  }
+
+  private func preferredTabAgentStatus(
+    in instances: [AgentStateInstance],
+    isFocused: (AgentStateInstance) -> Bool
+  ) -> (instance: AgentStateInstance, status: TabAgentStatus)? {
+    instances.compactMap { instance in
+      tabAgentStatus(for: instance, isFocused: isFocused(instance)).map {
+        (instance: instance, status: $0)
+      }
+    }.max { lhs, rhs in
+      let lhsPriority = Self.tabAgentStatusPriority(lhs.status)
+      let rhsPriority = Self.tabAgentStatusPriority(rhs.status)
+      if lhsPriority != rhsPriority {
+        return lhsPriority < rhsPriority
+      }
+
+      let lhsIsFocused = isFocused(lhs.instance)
+      let rhsIsFocused = isFocused(rhs.instance)
+      if lhsIsFocused != rhsIsFocused {
+        return !lhsIsFocused && rhsIsFocused
+      }
+
+      return lhs.instance.revision < rhs.instance.revision
+    }
+  }
+
+  private func paneAgentStatus(
+    for surfaceID: UUID,
+    in tabID: TerminalTabID,
+    focusedSurfaceID: UUID?
+  ) -> TabAgentStatus? {
+    let instances = resolvedAgentState(for: surfaceID).instances
+    let isFocused = agentSurfaceIsFocused(
+      surfaceID,
+      in: tabID,
+      focusedSurfaceID: focusedSurfaceID
+    )
+    return preferredTabAgentStatus(in: instances) { _ in isFocused }?.status
   }
 
   private static func preferredAgentActivityInstance(

@@ -3,41 +3,35 @@ import SwiftUI
 
 struct TerminalSidebarTabSummaryView: View {
   enum StatusAccessory: Equatable {
-    case agentStatus(TerminalHostState.TabAgentStatus)
     case pinned
     case terminalBell
     case terminalProgress(TerminalSidebarTerminalProgress)
     case unreadCount(Int)
   }
 
+  struct RowAccessories: Equatable {
+    let shortcutHint: String?
+    let statusAccessory: StatusAccessory?
+  }
+
   let tab: TerminalTabItem
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
-  let details: [TerminalSidebarTabDetail]
+  let panes: [TerminalHostState.TabPanePresentation]
   let unreadCount: Int
-  let agentStatus: TerminalHostState.TabAgentStatus?
   let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
 
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
   static func statusAccessory(
     isPinned: Bool,
     unreadCount: Int,
-    agentStatus: TerminalHostState.TabAgentStatus?,
     terminalProgress: TerminalSidebarTerminalProgress?,
     hasTerminalBell: Bool = false
   ) -> StatusAccessory? {
-    if agentStatus == .needsInput {
-      return .agentStatus(.needsInput)
-    }
-    if agentStatus == .done {
-      return .agentStatus(.done)
-    }
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
     }
@@ -47,18 +41,10 @@ struct TerminalSidebarTabSummaryView: View {
     if hasTerminalBell {
       return .terminalBell
     }
-    if agentStatus == .working {
-      return .agentStatus(.working)
-    }
     if isPinned {
       return .pinned
     }
     return nil
-  }
-
-  struct RowAccessories: Equatable {
-    let shortcutHint: String?
-    let statusAccessory: StatusAccessory?
   }
 
   static func rowAccessories(
@@ -82,10 +68,12 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   static func helpText(
-    details: [TerminalSidebarTabDetail]
-  ) -> String? {
-    guard !details.isEmpty else { return nil }
-    return details.map(\.helpText).joined(separator: "\n")
+    tab: TerminalTabItem,
+    panes: [TerminalHostState.TabPanePresentation]
+  ) -> String {
+    var titles = tab.isTitleLocked ? [tab.title] : []
+    titles.append(contentsOf: panes.map(\.title))
+    return titles.isEmpty ? tab.title : titles.joined(separator: "\n")
   }
 
   var body: some View {
@@ -96,31 +84,30 @@ struct TerminalSidebarTabSummaryView: View {
       statusAccessory: Self.statusAccessory(
         isPinned: isPinned,
         unreadCount: unreadCount,
-        agentStatus: agentStatus,
         terminalProgress: terminalProgress,
         hasTerminalBell: hasTerminalBell
       )
     )
+    let showsTitleHeader = tab.isTitleLocked || panes.isEmpty
 
-    VStack(alignment: .leading, spacing: 2) {
-      GeometryReader { geometry in
-        let showsAgentStatusText =
-          geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
-        header(
-          rowAccessories,
-          showsAgentStatusText: showsAgentStatusText
-        )
-        .terminalAnimation(
-          .easeInOut(duration: 0.18),
-          value: showsAgentStatusText,
-          reduceMotion: reduceMotion
+    VStack(alignment: .leading, spacing: TerminalSidebarLayout.tabPaneLineSpacing) {
+      if showsTitleHeader {
+        TerminalSidebarTabLineView(
+          title: tab.title,
+          emphasis: .primary,
+          agentStatus: nil,
+          rowAccessories: rowAccessories,
+          palette: palette,
+          isSelected: isSelected
         )
       }
-      .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
 
-      ForEach(details) { detail in
-        TerminalSidebarTabDetailView(
-          detail: detail,
+      ForEach(panes) { pane in
+        TerminalSidebarTabLineView(
+          title: pane.title,
+          emphasis: pane.isFocused ? .primary : .secondary,
+          agentStatus: pane.agentStatus,
+          rowAccessories: !showsTitleHeader && pane.id == panes.first?.id ? rowAccessories : nil,
           palette: palette,
           isSelected: isSelected
         )
@@ -128,30 +115,77 @@ struct TerminalSidebarTabSummaryView: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
+}
 
-  private func header(
-    _ rowAccessories: RowAccessories,
-    showsAgentStatusText: Bool
-  ) -> some View {
-    HStack(spacing: 6) {
-      Text(tab.title)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(isSelected ? palette.selectedText : palette.selectableRow.title)
-        .lineLimit(1)
-        .truncationMode(Self.titleTruncationMode(tab.title))
-        .frame(maxWidth: .infinity, minHeight: TerminalSidebarLayout.tabTrailingAccessorySize, alignment: .leading)
+private struct TerminalSidebarTabLineView: View {
+  enum Emphasis {
+    case primary
+    case secondary
+  }
 
-      trailingAccessory(
-        rowAccessories,
-        showsAgentStatusText: showsAgentStatusText
+  let title: String
+  let emphasis: Emphasis
+  let agentStatus: TerminalHostState.TabAgentStatus?
+  let rowAccessories: TerminalSidebarTabSummaryView.RowAccessories?
+  let palette: Palette
+  let isSelected: Bool
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    GeometryReader { geometry in
+      let showsAgentStatusText =
+        geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
+      HStack(spacing: 6) {
+        Text(title)
+          .font(.system(size: 12, weight: emphasis == .primary ? .medium : .regular))
+          .foregroundStyle(titleColor)
+          .lineLimit(1)
+          .truncationMode(TerminalSidebarTabSummaryView.titleTruncationMode(title))
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        if let agentStatus {
+          TerminalSidebarAgentStatusView(
+            status: agentStatus,
+            showsText: showsAgentStatusText,
+            palette: palette
+          )
+          .layoutPriority(1)
+        }
+
+        if let rowAccessories {
+          trailingAccessory(rowAccessories)
+            .layoutPriority(2)
+        }
+      }
+      .terminalAnimation(
+        .easeInOut(duration: 0.18),
+        value: showsAgentStatusText,
+        reduceMotion: reduceMotion
       )
-      .layoutPriority(1)
+    }
+    .frame(
+      height: rowAccessories == nil
+        ? TerminalSidebarLayout.tabPaneLineHeight
+        : TerminalSidebarLayout.tabTrailingAccessorySize
+    )
+  }
+
+  private var titleColor: Color {
+    switch (isSelected, emphasis) {
+    case (true, .primary):
+      palette.selectedText
+    case (true, .secondary):
+      palette.selectedSecondaryText
+    case (false, .primary):
+      palette.selectableRow.title
+    case (false, .secondary):
+      palette.secondaryText
     }
   }
 
   private func trailingAccessory(
-    _ rowAccessories: RowAccessories,
-    showsAgentStatusText: Bool
+    _ rowAccessories: TerminalSidebarTabSummaryView.RowAccessories
   ) -> some View {
     ZStack {
       if let shortcutHint = rowAccessories.shortcutHint {
@@ -165,10 +199,7 @@ struct TerminalSidebarTabSummaryView: View {
       }
 
       if let statusAccessory = rowAccessories.statusAccessory {
-        statusAccessoryView(
-          statusAccessory,
-          showsAgentStatusText: showsAgentStatusText
-        )
+        statusAccessoryView(statusAccessory)
       }
     }
     .frame(minWidth: TerminalSidebarLayout.tabTrailingAccessorySize)
@@ -177,12 +208,11 @@ struct TerminalSidebarTabSummaryView: View {
 
   @ViewBuilder
   private func statusAccessoryView(
-    _ statusAccessory: StatusAccessory,
-    showsAgentStatusText: Bool
+    _ statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory
   ) -> some View {
     switch statusAccessory {
     case .unreadCount(let unreadCount):
-      Text(Self.unreadCountText(unreadCount))
+      Text(TerminalSidebarTabSummaryView.unreadCountText(unreadCount))
         .font(.system(size: 9, weight: .bold))
         .foregroundStyle(isSelected ? palette.selectedText : Color.white)
         .accessibilityLabel(
@@ -194,13 +224,6 @@ struct TerminalSidebarTabSummaryView: View {
           isSelected ? palette.selectedText.opacity(0.16) : palette.accent,
           in: Capsule(style: .continuous)
         )
-
-    case .agentStatus(let status):
-      TerminalSidebarAgentStatusView(
-        status: status,
-        showsText: showsAgentStatusText,
-        palette: palette
-      )
 
     case .terminalBell:
       TerminalSidebarBellIndicatorView(
@@ -225,121 +248,5 @@ struct TerminalSidebarTabSummaryView: View {
         palette: palette
       )
     }
-  }
-}
-
-private struct TerminalSidebarTabDetailView: View {
-  let detail: TerminalSidebarTabDetail
-  let palette: Palette
-  let isSelected: Bool
-
-  var body: some View {
-    switch detail {
-    case .agentWorkspace(let workspace):
-      if let branch = workspace.branch {
-        branchView(branch)
-      } else {
-        pathView(workspace.abbreviatedWorkingDirectoryPath)
-      }
-    case .workingDirectory(let path):
-      pathView(path)
-    }
-  }
-
-  private func pathView(_ path: String) -> some View {
-    Text(path)
-      .font(.system(size: 11, weight: .regular, design: .monospaced))
-      .foregroundStyle(secondaryText)
-      .lineLimit(1)
-      .truncationMode(.middle)
-      .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  private func branchView(_ branch: TerminalTabAgentWorkspace.Branch) -> some View {
-    HStack(spacing: 5) {
-      Text(branch.name)
-        .font(.system(size: 11, weight: .medium, design: .monospaced))
-        .foregroundStyle(secondaryText)
-        .lineLimit(1)
-        .truncationMode(.middle)
-        .layoutPriority(1)
-
-      if let pullRequest = branch.pullRequest {
-        TerminalSidebarPullRequestView(
-          pullRequest: pullRequest,
-          palette: palette
-        )
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .accessibilityElement(children: .combine)
-  }
-
-  private var secondaryText: Color {
-    isSelected ? palette.selectedSecondaryText : palette.secondaryText
-  }
-}
-
-private struct TerminalSidebarPullRequestView: View {
-  let pullRequest: TerminalTabAgentWorkspace.PullRequest
-  let palette: Palette
-
-  var body: some View {
-    HStack(spacing: 2) {
-      icon
-
-      Text(pullRequest.title)
-        .font(.system(size: 10, weight: .semibold, design: .rounded))
-    }
-    .foregroundStyle(pullRequest.color(in: palette))
-    .fixedSize()
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(pullRequest.accessibilityTitle)
-  }
-
-  @ViewBuilder
-  private var icon: some View {
-    switch pullRequest.icon {
-    case .asset(let name):
-      Image(name)
-        .renderingMode(.template)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
-        .frame(width: 10, height: 10)
-        .accessibilityHidden(true)
-    case .system(let name):
-      Image(systemName: name)
-        .renderingMode(.template)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
-        .frame(width: 10, height: 10)
-        .accessibilityHidden(true)
-    }
-  }
-}
-
-extension TerminalSidebarTabDetail {
-  fileprivate var helpText: String {
-    switch self {
-    case .agentWorkspace(let workspace):
-      workspace.helpText
-    case .workingDirectory(let path):
-      path
-    }
-  }
-}
-
-extension TerminalTabAgentWorkspace {
-  fileprivate var abbreviatedWorkingDirectoryPath: String {
-    (workingDirectoryPath as NSString).abbreviatingWithTildeInPath
-  }
-
-  fileprivate var helpText: String {
-    guard let branch else { return abbreviatedWorkingDirectoryPath }
-    var context = [branch.name]
-    if let pullRequest = branch.pullRequest {
-      context.append(pullRequest.compactContextTitle)
-    }
-    return "\(context.joined(separator: " · "))\n\(abbreviatedWorkingDirectoryPath)"
   }
 }

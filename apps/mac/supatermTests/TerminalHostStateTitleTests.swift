@@ -116,6 +116,30 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
+  func resolvedSidebarPaneTitleDoesNotFallBackToWorkingDirectory() {
+    let title = TerminalHostState.resolvedSidebarPaneTitle(
+      titleOverride: nil,
+      title: nil,
+      pwd: "/tmp/project",
+      defaultValue: "Pane 2"
+    )
+
+    #expect(title == "Pane 2")
+  }
+
+  @Test
+  func resolvedSidebarPaneTitleNormalizesTerminalTitle() {
+    let title = TerminalHostState.resolvedSidebarPaneTitle(
+      titleOverride: nil,
+      title: "/tmp/project - codex - codex",
+      pwd: "/tmp/project",
+      defaultValue: "Pane 1"
+    )
+
+    #expect(title == "codex")
+  }
+
+  @Test
   func selectedPaneDisplayTitleFallsBackToFocusedPaneOrdinal() throws {
     let first = PaneTitleTestView()
     let second = PaneTitleTestView()
@@ -169,23 +193,6 @@ struct TerminalHostStateTitleTests {
     #expect(title == "shell")
   }
 
-  @Test
-  func paneWorkingDirectoriesDedupeNormalizedPathsInPaneOrder() throws {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    let first = PaneTitleTestView(workingDirectory: "\(home)/Downloads/")
-    let second = PaneTitleTestView(workingDirectory: "\(home)/Downloads")
-    let third = PaneTitleTestView(workingDirectory: "\(home)/Downloads/abc/")
-    let tree = try SplitTree(view: first)
-      .inserting(view: second, at: first, direction: .right)
-      .inserting(view: third, at: second, direction: .down)
-
-    let directories = TerminalHostState.paneWorkingDirectories(
-      in: tree,
-      pwd: \.workingDirectory
-    )
-
-    #expect(directories == ["~/Downloads", "~/Downloads/abc"])
-  }
 }
 
 private final class PaneTitleTestView: NSView, Identifiable {

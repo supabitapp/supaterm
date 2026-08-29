@@ -155,6 +155,22 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func tabMeasurementKeyChangesWhenPanesChange() {
+    let tab = TerminalTabItem(title: "Tab")
+    let pane = TerminalHostState.TabPanePresentation(
+      id: UUID(),
+      title: "Pane 1",
+      agentStatus: nil,
+      isFocused: true
+    )
+
+    #expect(
+      TerminalSidebarRowPresentation.tab(tabPresentation(tab)).measurementKey
+        != TerminalSidebarRowPresentation.tab(tabPresentation(tab, panes: [pane])).measurementKey
+    )
+  }
+
+  @Test
   func reduceMotionReplacesAnActiveCollapseImmediately() throws {
     let groupID = TerminalTabGroupID()
     let tabs = [TerminalTabItem(title: "First"), TerminalTabItem(title: "Second")]
@@ -795,14 +811,14 @@ struct TerminalSidebarLayoutTests {
 
   private func tabPresentation(
     _ tab: TerminalTabItem,
-    groupID: TerminalTabGroupID? = nil
+    groupID: TerminalTabGroupID? = nil,
+    panes: [TerminalHostState.TabPanePresentation] = []
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
       groupID: groupID,
       rootIsPinned: false,
-      agentStatus: nil,
-      details: [],
+      panes: panes,
       unreadCount: 0,
       terminalProgress: nil,
       hasTerminalBell: false,

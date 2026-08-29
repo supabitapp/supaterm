@@ -112,12 +112,6 @@ extension TerminalHostState {
     return trees[tabID]?.root?.leftmostLeaf().id
   }
 
-  func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
-    paneWorkingDirectoryPaths(for: tabID).map {
-      ($0 as NSString).abbreviatingWithTildeInPath
-    }
-  }
-
   func paneWorkingDirectoryPaths(for tabID: TerminalTabID) -> [String] {
     guard let tree = trees[tabID] else { return [] }
     return Self.paneWorkingDirectoryPaths(paths: tree.leaves().map { $0.bridge.state.pwd })
@@ -224,23 +218,6 @@ extension TerminalHostState {
     )
   }
 
-  static func paneWorkingDirectories<Surface: NSView & Identifiable>(
-    in tree: SplitTree<Surface>?,
-    pwd: (Surface) -> String?
-  ) -> [String] where Surface.ID == UUID {
-    paneWorkingDirectories(
-      paths: (tree?.leaves() ?? []).map(pwd)
-    )
-  }
-
-  static func paneWorkingDirectories(
-    paths: [String?]
-  ) -> [String] {
-    paneWorkingDirectoryPaths(paths: paths).map {
-      ($0 as NSString).abbreviatingWithTildeInPath
-    }
-  }
-
   static func paneWorkingDirectoryPaths(
     paths: [String?]
   ) -> [String] {
@@ -290,22 +267,48 @@ extension TerminalHostState {
     pwd: String?,
     defaultValue: String
   ) -> String {
-    if let titleOverride {
-      return titleOverride
-    }
-    if let title = trimmedNonEmpty(title) {
-      var resolved = strippedLeadingWorkingDirectory(from: title, pwd: pwd) ?? title
-      while let stripped = strippedDuplicatedTrailingCommandSuffix(from: resolved),
-        stripped != resolved
-      {
-        resolved = stripped
-      }
-      return resolved
+    if let title = resolvedTerminalTitle(
+      titleOverride: titleOverride,
+      title: title,
+      pwd: pwd
+    ) {
+      return title
     }
     if let pwd = trimmedNonEmpty(pwd) {
       return pwd
     }
     return defaultValue
+  }
+
+  static func resolvedSidebarPaneTitle(
+    titleOverride: String?,
+    title: String?,
+    pwd: String?,
+    defaultValue: String
+  ) -> String {
+    resolvedTerminalTitle(
+      titleOverride: titleOverride,
+      title: title,
+      pwd: pwd
+    ) ?? defaultValue
+  }
+
+  private static func resolvedTerminalTitle(
+    titleOverride: String?,
+    title: String?,
+    pwd: String?
+  ) -> String? {
+    if let titleOverride {
+      return titleOverride
+    }
+    guard let title = trimmedNonEmpty(title) else { return nil }
+    var resolved = strippedLeadingWorkingDirectory(from: title, pwd: pwd) ?? title
+    while let stripped = strippedDuplicatedTrailingCommandSuffix(from: resolved),
+      stripped != resolved
+    {
+      resolved = stripped
+    }
+    return resolved
   }
 
   static func paneFallbackTitle<Surface: NSView & Identifiable>(
