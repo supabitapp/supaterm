@@ -42,8 +42,8 @@ struct SupatermMenuControllerTests {
       )
       #expect(viewMenu.items[0].keyEquivalent == "b")
       #expect(viewMenu.items[0].keyEquivalentModifierMask == [.command, .option])
-      #expect(viewMenu.items[1].keyEquivalent.isEmpty)
-      #expect(viewMenu.items[1].keyEquivalentModifierMask.isEmpty)
+      #expect(viewMenu.items[2].keyEquivalent.isEmpty)
+      #expect(viewMenu.items[2].keyEquivalentModifierMask.isEmpty)
     }
   }
 
@@ -200,10 +200,10 @@ struct SupatermMenuControllerTests {
       #expect(findMenu.items[0].keyEquivalentModifierMask == [.command, .shift])
 
       let viewMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "View" })?.submenu)
-      #expect(viewMenu.items[1].keyEquivalent == "i")
-      #expect(viewMenu.items[1].keyEquivalentModifierMask == [.command])
-      #expect(viewMenu.items[6].keyEquivalent == "r")
-      #expect(viewMenu.items[6].keyEquivalentModifierMask == [.command, .option])
+      #expect(viewMenu.items[2].keyEquivalent == "i")
+      #expect(viewMenu.items[2].keyEquivalentModifierMask == [.command])
+      #expect(viewMenu.items[7].keyEquivalent == "r")
+      #expect(viewMenu.items[7].keyEquivalentModifierMask == [.command, .option])
     }
   }
 
@@ -1178,6 +1178,7 @@ struct SupatermMenuControllerTests {
     #expect(
       viewMenu.items.map(\.title) == [
         "Toggle Sidebar",
+        "Show Tabs in Sidebar",
         "Toggle Agent Panel",
         "Open Pull Request",
         "Fork Agent Session",
@@ -1186,12 +1187,12 @@ struct SupatermMenuControllerTests {
         "Change Tab Title...",
         "Change Terminal Title...",
       ])
-    #expect(viewMenu.items[2].keyEquivalent == "p")
-    #expect(viewMenu.items[2].keyEquivalentModifierMask == [.command, .option])
-    #expect(viewMenu.items[3].keyEquivalent == "f")
+    #expect(viewMenu.items[3].keyEquivalent == "p")
     #expect(viewMenu.items[3].keyEquivalentModifierMask == [.command, .option])
-    #expect(viewMenu.items[4].keyEquivalent == "c")
+    #expect(viewMenu.items[4].keyEquivalent == "f")
     #expect(viewMenu.items[4].keyEquivalentModifierMask == [.command, .option])
+    #expect(viewMenu.items[5].keyEquivalent == "c")
+    #expect(viewMenu.items[5].keyEquivalentModifierMask == [.command, .option])
   }
 
   private func assertSpacesMenu(_ menu: NSMenu?) throws {

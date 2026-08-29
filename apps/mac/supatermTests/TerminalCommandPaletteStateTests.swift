@@ -54,6 +54,7 @@ struct TerminalCommandPaletteStateTests {
         "Close Other Tabs",
         "Close Pane",
         "Close Tab",
+        "Toggle Tab Layout",
         "Toggle Sidebar",
         "Open Settings",
       ]

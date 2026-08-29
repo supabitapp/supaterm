@@ -65,6 +65,8 @@ final class SupatermMenuController: NSObject {
     static let hideFindBar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.hideFindBar")
     static let selectionForFind = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.selectionForFind")
     static let toggleSidebar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleSidebar")
+    static let toggleTabLayout = NSUserInterfaceItemIdentifier(
+      "app.supabit.supaterm.view.toggleTabLayout")
     static let toggleAgentPanel = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleAgentPanel")
     static let openPullRequest = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.openPullRequest")
     static let forkAgentSession = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.forkAgentSession")
@@ -321,6 +323,7 @@ final class SupatermMenuController: NSObject {
       title: "View",
       entries: [
         .item(MenuItemIdentifier.toggleSidebar),
+        .item(MenuItemIdentifier.toggleTabLayout),
         .item(MenuItemIdentifier.toggleAgentPanel),
         .item(MenuItemIdentifier.openPullRequest),
         .item(MenuItemIdentifier.forkAgentSession),
@@ -631,6 +634,11 @@ final class SupatermMenuController: NSObject {
         title: "Toggle Sidebar",
         action: #selector(toggleSidebar(_:)),
         shortcut: .app(.toggleSidebar)
+      ),
+      SupatermMenuItemSpec(
+        id: MenuItemIdentifier.toggleTabLayout,
+        title: "Show Tabs in Sidebar",
+        action: #selector(toggleTabLayout(_:))
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.toggleAgentPanel,
@@ -1103,6 +1111,10 @@ final class SupatermMenuController: NSObject {
     registry.requestToggleSidebarInKeyWindow()
   }
 
+  @objc func toggleTabLayout(_ sender: Any?) {
+    registry.requestToggleTabLayoutInKeyWindow()
+  }
+
   @objc func toggleAgentPanel(_ sender: Any?) {
     registry.requestToggleAgentPanelInKeyWindow()
   }
@@ -1427,6 +1439,9 @@ final class SupatermMenuController: NSObject {
 extension SupatermMenuController: NSMenuItemValidation {
   func validateMenuItem(_ item: NSMenuItem) -> Bool {
     let context = registry.menuContext()
+    if let result = validateViewMenuItem(item, context: context) {
+      return result
+    }
 
     switch item.identifier {
     case MenuItemIdentifier.checkForUpdates:
@@ -1435,8 +1450,7 @@ extension SupatermMenuController: NSMenuItemValidation {
     case MenuItemIdentifier.newTab,
       MenuItemIdentifier.openCommandPalette,
       MenuItemIdentifier.closeWindow,
-      MenuItemIdentifier.closeAllWindows,
-      MenuItemIdentifier.toggleSidebar:
+      MenuItemIdentifier.closeAllWindows:
       return context.availability.hasWindow
     case MenuItemIdentifier.newTabInGroup:
       return context.hasSelectedGroup
@@ -1449,13 +1463,6 @@ extension SupatermMenuController: NSMenuItemValidation {
       return context.availability.hasSurface || context.closesKeyWindowDirectly
     case MenuItemIdentifier.closeTab:
       return context.availability.hasTab
-    case MenuItemIdentifier.toggleAgentPanel:
-      return context.availability.hasAgentPanel
-    case MenuItemIdentifier.openPullRequest:
-      return context.availability.hasAgentPanelPullRequest
-    case MenuItemIdentifier.forkAgentSession,
-      MenuItemIdentifier.copyAgentSessionID:
-      return context.availability.hasAgentPanelSession
     case MenuItemIdentifier.terminateAllTerminalSessions:
       return context.availability.hasAnySurface
     case MenuItemIdentifier.find,
@@ -1489,6 +1496,28 @@ extension SupatermMenuController: NSMenuItemValidation {
       return context.availability.hasWindow && context.spaceCount > 1
     default:
       return validateIndexedMenuItem(item, context: context)
+    }
+  }
+
+  private func validateViewMenuItem(
+    _ item: NSMenuItem,
+    context: TerminalWindowRegistry.MenuContext
+  ) -> Bool? {
+    switch item.identifier {
+    case MenuItemIdentifier.toggleSidebar:
+      return context.availability.hasWindow && context.tabLayoutStyle == .vertical
+    case MenuItemIdentifier.toggleTabLayout:
+      item.state = context.tabLayoutStyle == .vertical ? .on : .off
+      return context.availability.hasWindow
+    case MenuItemIdentifier.toggleAgentPanel:
+      return context.availability.hasAgentPanel
+    case MenuItemIdentifier.openPullRequest:
+      return context.availability.hasAgentPanelPullRequest
+    case MenuItemIdentifier.forkAgentSession,
+      MenuItemIdentifier.copyAgentSessionID:
+      return context.availability.hasAgentPanelSession
+    default:
+      return nil
     }
   }
 

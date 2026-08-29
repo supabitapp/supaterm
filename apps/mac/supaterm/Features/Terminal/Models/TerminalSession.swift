@@ -118,22 +118,56 @@ nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
   }
 }
 
+nonisolated enum TerminalTabLayoutStyle: String, Codable, Equatable, Sendable {
+  case horizontal
+  case vertical
+
+  var toggled: Self {
+    switch self {
+    case .horizontal: .vertical
+    case .vertical: .horizontal
+    }
+  }
+}
+
 nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
   var displayedSpaceID: TerminalSpaceID
   var spaces: [TerminalSpaceSession]
   var frame: TerminalWindowFrame?
   var sidebarWidth: Double?
+  var tabLayoutStyle: TerminalTabLayoutStyle
+
+  private enum CodingKeys: String, CodingKey {
+    case displayedSpaceID
+    case frame
+    case sidebarWidth
+    case spaces
+    case tabLayoutStyle
+  }
 
   init(
     displayedSpaceID: TerminalSpaceID,
     spaces: [TerminalSpaceSession],
     frame: TerminalWindowFrame? = nil,
-    sidebarWidth: Double? = nil
+    sidebarWidth: Double? = nil,
+    tabLayoutStyle: TerminalTabLayoutStyle = .vertical
   ) {
     self.displayedSpaceID = displayedSpaceID
     self.spaces = spaces
     self.frame = frame
     self.sidebarWidth = sidebarWidth
+    self.tabLayoutStyle = tabLayoutStyle
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    displayedSpaceID = try container.decode(TerminalSpaceID.self, forKey: .displayedSpaceID)
+    spaces = try container.decode([TerminalSpaceSession].self, forKey: .spaces)
+    frame = try container.decodeIfPresent(TerminalWindowFrame.self, forKey: .frame)
+    sidebarWidth = try container.decodeIfPresent(Double.self, forKey: .sidebarWidth)
+    tabLayoutStyle =
+      try container.decodeIfPresent(TerminalTabLayoutStyle.self, forKey: .tabLayoutStyle)
+      ?? .vertical
   }
 
   var displayedSpace: TerminalSpaceSession? {
@@ -197,7 +231,8 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
       displayedSpaceID: seenSpaceIDs.contains(displayedSpaceID) ? displayedSpaceID : firstSpaceID,
       spaces: prunedSpaces,
       frame: frame,
-      sidebarWidth: sidebarWidth
+      sidebarWidth: sidebarWidth,
+      tabLayoutStyle: tabLayoutStyle
     )
   }
 }

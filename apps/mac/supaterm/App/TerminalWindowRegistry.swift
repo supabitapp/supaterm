@@ -59,6 +59,7 @@ final class TerminalWindowRegistry {
     let visibleTabCount: Int
     let spaceCount: Int
     let isUpdateMenuItemEnabled: Bool
+    let tabLayoutStyle: TerminalTabLayoutStyle?
   }
 
   final class WindowReference {
@@ -475,7 +476,8 @@ final class TerminalWindowRegistry {
         updateMenuItemText: updateState.phase.menuItemTitle,
         visibleTabCount: 0,
         spaceCount: 0,
-        isUpdateMenuItemEnabled: updateMenuItemAction != nil
+        isUpdateMenuItemEnabled: updateMenuItemAction != nil,
+        tabLayoutStyle: nil
       )
     }
 
@@ -488,7 +490,8 @@ final class TerminalWindowRegistry {
       updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: spaceCount,
-      isUpdateMenuItemEnabled: updateMenuItemAction != nil
+      isUpdateMenuItemEnabled: updateMenuItemAction != nil,
+      tabLayoutStyle: entry.store.terminal.tabLayoutStyle
     )
   }
 
@@ -562,6 +565,10 @@ final class TerminalWindowRegistry {
 
   func requestToggleSidebarInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.toggleSidebarButtonTapped))
+  }
+
+  func requestToggleTabLayoutInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.toggleTabLayoutButtonTapped))
   }
 
   func requestToggleAgentPanelInKeyWindow() {
@@ -724,6 +731,7 @@ final class TerminalWindowRegistry {
         var snapshot = entry.terminal.restorationSnapshot()
         snapshot.frame = entry.windowReference.value.map { TerminalWindowFrame($0.frame) }
         snapshot.sidebarWidth = entry.store.terminal.sidebarWidth.map { Double($0) }
+        snapshot.tabLayoutStyle = entry.store.terminal.tabLayoutStyle
         return snapshot
       }
     )

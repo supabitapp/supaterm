@@ -332,6 +332,49 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func toggleTabLayoutPersistsAndClearsResizeState() async {
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    var sessionChangeCount = 0
+    host.onSessionChange = { sessionChangeCount += 1 }
+    var initialState = TerminalWindowFeature.State()
+    initialState.sidebarResizeState = TerminalSidebarResizeState(startingWidth: 240, delta: 40)
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.host = { host }
+    }
+
+    await store.send(.toggleTabLayoutButtonTapped) {
+      $0.tabLayoutStyle = .horizontal
+      $0.sidebarResizeState = nil
+    }
+    await store.finish()
+
+    #expect(sessionChangeCount == 1)
+  }
+
+  @Test
+  func commandPaletteTogglesTabLayout() async {
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    var initialState = TerminalWindowFeature.State()
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: "supaterm:toggle-tab-layout")
+    )
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.host = { host }
+      $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.destination = nil
+      $0.tabLayoutStyle = .horizontal
+    }
+    await store.finish()
+  }
+
+  @Test
   func windowIdentifierChangedStoresWindowID() async {
     let windowID = ObjectIdentifier(NSObject())
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
