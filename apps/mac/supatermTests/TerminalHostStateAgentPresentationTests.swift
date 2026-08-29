@@ -389,7 +389,7 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
-  func tabPanePresentationsKeepSplitOrderAndPairAgentStatusesWithTitles() throws {
+  func sidebarPanePresentationsKeepSplitOrderAndResolveIndicators() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
@@ -420,6 +420,7 @@ struct TerminalHostStateAgentPresentationTests {
     #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondSurface.id))
     firstSurface.bridge.state.bellCount = 1
+    thirdSurface.bridge.state.bellCount = 1
     host.notificationStore.append(
       TerminalHostState.PaneNotification(
         attentionState: .unread,
@@ -430,12 +431,11 @@ struct TerminalHostStateAgentPresentationTests {
       for: secondSurface.id
     )
 
-    let panes = host.tabPanePresentations(for: tabID)
+    let panes = host.sidebarPanePresentations(for: tabID)
 
     #expect(panes.map(\.id) == [firstSurface.id, secondSurface.id, thirdSurface.id])
     #expect(panes.map(\.title) == ["Codex 1", "Review agent 1", "Pane 3"])
-    #expect(panes.map(\.agentStatus) == [.working, .needsInput, nil])
-    #expect(panes.map(\.hasAttention) == [true, true, false])
+    #expect(panes.map(\.indicator) == [.agent(.working), .agent(.needsInput), .attention])
   }
 
   @Test

@@ -80,30 +80,6 @@ extension TerminalHostState {
     )
   }
 
-  func tabPanePresentations(for tabID: TerminalTabID) -> [TabPanePresentation] {
-    guard let tree = trees[tabID] else { return [] }
-    let focusedSurfaceID = focusHistoryByTab[tabID]?.current
-    return tree.leaves().enumerated().map { index, surface in
-      let notifications = notificationStore.notifications(for: surface.id) ?? []
-      return TabPanePresentation(
-        id: surface.id,
-        title: Self.resolvedSidebarPaneTitle(
-          titleOverride: surface.bridge.state.titleOverride,
-          title: surface.bridge.state.title,
-          pwd: surface.bridge.state.pwd,
-          defaultValue: "Pane \(index + 1)"
-        ),
-        agentStatus: paneAgentStatus(
-          for: surface.id,
-          in: tabID,
-          focusedSurfaceID: focusedSurfaceID
-        ),
-        hasAttention: Self.surfaceAttentionState(in: notifications) == .unread
-          || surface.bridge.state.bellCount > 0
-      )
-    }
-  }
-
   func agentActivity(for tabID: TerminalTabID) -> AgentActivity? {
     guard let tree = trees[tabID] else { return nil }
     let focusedSurfaceID = focusHistoryByTab[tabID]?.current
@@ -551,7 +527,7 @@ extension TerminalHostState {
     }
   }
 
-  private func paneAgentStatus(
+  func paneAgentStatus(
     for surfaceID: UUID,
     in tabID: TerminalTabID,
     focusedSurfaceID: UUID?

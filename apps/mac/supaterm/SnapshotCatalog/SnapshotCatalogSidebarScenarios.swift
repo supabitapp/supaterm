@@ -405,13 +405,15 @@ private struct SidebarRowSnapshotItem {
 
   var isSelected: Bool { selection != .none }
 
-  var panes: [TerminalHostState.TabPanePresentation] {
+  var panes: [TerminalSidebarPanePresentation] {
     paneTitles.enumerated().map { index, title in
-      TerminalHostState.TabPanePresentation(
+      let agentStatus = paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
+      let hasAttention = paneHasAttention.indices.contains(index) && paneHasAttention[index]
+      return TerminalSidebarPanePresentation(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
         title: title,
-        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil,
-        hasAttention: paneHasAttention.indices.contains(index) && paneHasAttention[index]
+        indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
+          ?? (hasAttention ? .attention : nil)
       )
     }
   }

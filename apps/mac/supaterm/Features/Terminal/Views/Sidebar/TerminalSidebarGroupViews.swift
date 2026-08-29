@@ -210,7 +210,6 @@ private enum TerminalSidebarTabMeasurementKey: Hashable {
     id: TerminalTabID,
     title: String,
     paneIDs: [UUID],
-    paneAttentionAccessoryIDs: [UUID],
     showsTitleHeader: Bool,
     isGrouped: Bool
   )
@@ -220,7 +219,7 @@ struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
-  let panes: [TerminalHostState.TabPanePresentation]
+  let panes: [TerminalSidebarPanePresentation]
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -245,9 +244,6 @@ enum TerminalSidebarRowPresentation: Equatable {
           id: presentation.tab.id,
           title: presentation.tab.title,
           paneIDs: presentation.panes.map(\.id),
-          paneAttentionAccessoryIDs: presentation.panes.compactMap {
-            $0.agentStatus == nil && $0.hasAttention ? $0.id : nil
-          },
           showsTitleHeader: presentation.tab.isTitleLocked || presentation.panes.isEmpty,
           isGrouped: presentation.groupID != nil
         )

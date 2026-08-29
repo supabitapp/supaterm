@@ -8,16 +8,17 @@ struct TerminalSidebarTabSummaryView: View {
     case terminalProgress(TerminalSidebarTerminalProgress)
   }
 
-  struct RowAccessories: Equatable {
-    let shortcutHint: String?
-    let statusAccessory: StatusAccessory?
+  enum TrailingSlot: Equatable {
+    case reserved
+    case shortcut(String)
+    case status(StatusAccessory)
   }
 
   let tab: TerminalTabItem
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
-  let panes: [TerminalHostState.TabPanePresentation]
+  let panes: [TerminalSidebarPanePresentation]
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -26,13 +27,12 @@ struct TerminalSidebarTabSummaryView: View {
   static func statusAccessory(
     isPinned: Bool,
     terminalProgress: TerminalSidebarTerminalProgress?,
-    agentStatus: TerminalHostState.TabAgentStatus? = nil,
-    hasPaneAttention: Bool = false
+    paneIndicator: TerminalSidebarPanePresentation.Indicator? = nil
   ) -> StatusAccessory? {
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
     }
-    if agentStatus == nil, hasPaneAttention {
+    if paneIndicator == .attention {
       return .attention
     }
     if isPinned {
@@ -41,22 +41,19 @@ struct TerminalSidebarTabSummaryView: View {
     return nil
   }
 
-  static func rowAccessories(
+  static func trailingSlot(
     shortcutHint: String?,
     showsShortcutHint: Bool,
     isRowHovering: Bool,
     statusAccessory: StatusAccessory?
-  ) -> RowAccessories? {
-    let visibleShortcutHint = showsShortcutHint ? shortcutHint : nil
-    let visibleStatusAccessory = showsShortcutHint || isRowHovering ? nil : statusAccessory
-    let reservesCloseButton = isRowHovering && !showsShortcutHint
-    guard visibleShortcutHint != nil || visibleStatusAccessory != nil || reservesCloseButton else {
-      return nil
+  ) -> TrailingSlot? {
+    if showsShortcutHint {
+      return shortcutHint.map(TrailingSlot.shortcut)
     }
-    return RowAccessories(
-      shortcutHint: visibleShortcutHint,
-      statusAccessory: visibleStatusAccessory
-    )
+    if isRowHovering {
+      return .reserved
+    }
+    return statusAccessory.map(TrailingSlot.status)
   }
 
   static func titleTruncationMode(_ title: String) -> Text.TruncationMode {
@@ -65,7 +62,7 @@ struct TerminalSidebarTabSummaryView: View {
 
   static func helpText(
     tab: TerminalTabItem,
-    panes: [TerminalHostState.TabPanePresentation]
+    panes: [TerminalSidebarPanePresentation]
   ) -> String {
     var titles = tab.isTitleLocked ? [tab.title] : []
     titles.append(contentsOf: panes.map(\.title))
@@ -79,8 +76,8 @@ struct TerminalSidebarTabSummaryView: View {
       if showsTitleHeader {
         TerminalSidebarTabLineView(
           title: tab.title,
-          agentStatus: nil,
-          rowAccessories: tabRowAccessories,
+          indicator: nil,
+          trailingSlot: tabTrailingSlot,
           palette: palette,
           isSelected: isSelected
         )
@@ -90,8 +87,8 @@ struct TerminalSidebarTabSummaryView: View {
         let ownsTabAccessories = !showsTitleHeader && pane.id == panes.first?.id
         TerminalSidebarTabLineView(
           title: pane.title,
-          agentStatus: pane.agentStatus,
-          rowAccessories: paneRowAccessories(pane, ownsTabAccessories: ownsTabAccessories),
+          indicator: pane.indicator,
+          trailingSlot: paneTrailingSlot(pane, ownsTabAccessories: ownsTabAccessories),
           palette: palette,
           isSelected: isSelected
         )
@@ -100,8 +97,8 @@ struct TerminalSidebarTabSummaryView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private var tabRowAccessories: RowAccessories? {
-    Self.rowAccessories(
+  private var tabTrailingSlot: TrailingSlot? {
+    Self.trailingSlot(
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
       isRowHovering: isRowHovering,
@@ -112,19 +109,18 @@ struct TerminalSidebarTabSummaryView: View {
     )
   }
 
-  private func paneRowAccessories(
-    _ pane: TerminalHostState.TabPanePresentation,
+  private func paneTrailingSlot(
+    _ pane: TerminalSidebarPanePresentation,
     ownsTabAccessories: Bool
-  ) -> RowAccessories? {
-    Self.rowAccessories(
+  ) -> TrailingSlot? {
+    Self.trailingSlot(
       shortcutHint: ownsTabAccessories ? shortcutHint : nil,
       showsShortcutHint: ownsTabAccessories && showsShortcutHint,
       isRowHovering: ownsTabAccessories && isRowHovering,
       statusAccessory: Self.statusAccessory(
         isPinned: ownsTabAccessories && isPinned,
         terminalProgress: ownsTabAccessories ? terminalProgress : nil,
-        agentStatus: pane.agentStatus,
-        hasPaneAttention: pane.hasAttention
+        paneIndicator: pane.indicator
       )
     )
   }
@@ -132,8 +128,8 @@ struct TerminalSidebarTabSummaryView: View {
 
 private struct TerminalSidebarTabLineView: View {
   let title: String
-  let agentStatus: TerminalHostState.TabAgentStatus?
-  let rowAccessories: TerminalSidebarTabSummaryView.RowAccessories?
+  let indicator: TerminalSidebarPanePresentation.Indicator?
+  let trailingSlot: TerminalSidebarTabSummaryView.TrailingSlot?
   let palette: Palette
   let isSelected: Bool
 
@@ -151,7 +147,7 @@ private struct TerminalSidebarTabLineView: View {
           .truncationMode(TerminalSidebarTabSummaryView.titleTruncationMode(title))
           .frame(maxWidth: .infinity, alignment: .leading)
 
-        if let agentStatus {
+        if case .agent(let agentStatus) = indicator {
           TerminalSidebarAgentStatusView(
             status: agentStatus,
             showsText: showsAgentStatusText,
@@ -160,8 +156,8 @@ private struct TerminalSidebarTabLineView: View {
           .layoutPriority(1)
         }
 
-        if let rowAccessories {
-          trailingAccessory(rowAccessories)
+        if let trailingSlot {
+          trailingAccessory(trailingSlot)
             .layoutPriority(2)
         }
       }
@@ -171,11 +167,7 @@ private struct TerminalSidebarTabLineView: View {
         reduceMotion: reduceMotion
       )
     }
-    .frame(
-      height: rowAccessories == nil
-        ? TerminalSidebarLayout.tabPaneLineHeight
-        : TerminalSidebarLayout.tabTrailingAccessorySize
-    )
+    .frame(height: TerminalSidebarLayout.tabPaneLineHeight)
   }
 
   private var titleColor: Color {
@@ -183,10 +175,14 @@ private struct TerminalSidebarTabLineView: View {
   }
 
   private func trailingAccessory(
-    _ rowAccessories: TerminalSidebarTabSummaryView.RowAccessories
+    _ trailingSlot: TerminalSidebarTabSummaryView.TrailingSlot
   ) -> some View {
     ZStack {
-      if let shortcutHint = rowAccessories.shortcutHint {
+      switch trailingSlot {
+      case .reserved:
+        Color.clear
+
+      case .shortcut(let shortcutHint):
         Text(shortcutHint)
           .font(.system(size: 11, weight: .semibold))
           .foregroundStyle(
@@ -194,9 +190,7 @@ private struct TerminalSidebarTabLineView: View {
               ? palette.selectedSecondaryText
               : palette.secondaryText
           )
-      }
-
-      if let statusAccessory = rowAccessories.statusAccessory {
+      case .status(let statusAccessory):
         statusAccessoryView(statusAccessory)
       }
     }

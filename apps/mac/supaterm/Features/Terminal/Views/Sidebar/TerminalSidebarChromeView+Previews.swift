@@ -41,13 +41,15 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     )
   }
 
-  var panes: [TerminalHostState.TabPanePresentation] {
+  var panes: [TerminalSidebarPanePresentation] {
     paneTitles.enumerated().map { index, title in
-      TerminalHostState.TabPanePresentation(
+      let agentStatus = paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
+      let hasAttention = paneHasAttention.indices.contains(index) && paneHasAttention[index]
+      return TerminalSidebarPanePresentation(
         id: Self.paneID(index),
         title: title,
-        agentStatus: paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil,
-        hasAttention: paneHasAttention.indices.contains(index) && paneHasAttention[index]
+        indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
+          ?? (hasAttention ? .attention : nil)
       )
     }
   }

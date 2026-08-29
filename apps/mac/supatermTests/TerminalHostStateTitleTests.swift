@@ -128,6 +128,18 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
+  func resolvedSidebarPaneTitleFallsBackFromBlankOverride() {
+    let title = TerminalHostState.resolvedSidebarPaneTitle(
+      titleOverride: "  ",
+      title: nil,
+      pwd: nil,
+      defaultValue: "Pane 1"
+    )
+
+    #expect(title == "Pane 1")
+  }
+
+  @Test
   func resolvedSidebarPaneTitleNormalizesTerminalTitle() {
     let title = TerminalHostState.resolvedSidebarPaneTitle(
       titleOverride: nil,

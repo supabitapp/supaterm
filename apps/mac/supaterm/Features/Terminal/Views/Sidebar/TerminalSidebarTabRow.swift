@@ -47,7 +47,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   private struct AnimatedPresentation: Equatable {
-    let panes: [TerminalHostState.TabPanePresentation]
+    let panes: [TerminalSidebarPanePresentation]
     let terminalProgress: TerminalSidebarTerminalProgress?
   }
 
@@ -58,7 +58,7 @@ struct TerminalSidebarTabRow: View {
   let renameState: TerminalSidebarRenameState?
   let selectionState: TerminalSidebarTabSelectionState
   let outline: TerminalSidebarOutline
-  let panes: [TerminalHostState.TabPanePresentation]
+  let panes: [TerminalSidebarPanePresentation]
   let terminalProgress: TerminalSidebarTerminalProgress?
   let palette: Palette
   let shortcutHint: String?

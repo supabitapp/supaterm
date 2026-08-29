@@ -280,11 +280,17 @@ extension TerminalHostState {
     pwd: String?,
     defaultValue: String
   ) -> String {
-    resolvedTerminalTitle(
-      titleOverride: titleOverride,
-      title: title,
-      pwd: pwd
-    ) ?? defaultValue
+    guard
+      let resolved = resolvedTerminalTitle(
+        titleOverride: titleOverride,
+        title: title,
+        pwd: pwd
+      ),
+      trimmedNonEmpty(resolved) != nil
+    else {
+      return defaultValue
+    }
+    return resolved
   }
 
   private static func resolvedTerminalTitle(
