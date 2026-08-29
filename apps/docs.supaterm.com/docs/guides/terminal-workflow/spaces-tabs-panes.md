@@ -21,7 +21,7 @@ sp space last
 
 ## Groups and tabs
 
-Tabs belong to the selected space. They can remain at the root or sit inside a named, colored group. Create a tab with `Command-T`, then drag it to reorder it, move it into a group, remove it from a group, or combine it with another root tab in a new group.
+Tabs belong to the selected space. They can remain at the root or sit inside a named, colored group. Create a tab with `Command-T`, then drag it in the sidebar or horizontal tab bar to reorder it, move it into a group, remove it from a group, or combine it with another root tab in a new group.
 
 Use **New Group** at the bottom of the outline to create an empty group and rename it immediately. A group keeps its identity when empty, can be renamed, colored, collapsed, pinned, ungrouped, or closed, and persists across relaunches. Ungrouping promotes its tabs to the space root. Closing it closes every contained tab.
 
@@ -67,7 +67,7 @@ sp pane layout main-vertical
 
 ## Inspect the hierarchy
 
-Run `sp ls` for a readable tree with typed short refs. Use `sp ls --json` for a flat snapshot with canonical UUIDs, parent IDs, cwd, and coding-agent state. Items preserve the same root order shown in the sidebar:
+Run `sp ls` for a readable tree with typed short refs. Use `sp ls --json` for a flat snapshot with canonical UUIDs, parent IDs, cwd, and coding-agent state. Items preserve the same root order shown in the sidebar and horizontal tab bar:
 
 ```bash
 sp ls

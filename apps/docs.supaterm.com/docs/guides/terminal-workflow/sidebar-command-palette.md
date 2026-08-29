@@ -3,7 +3,7 @@ title: Sidebar and command palette
 description: Navigate activity, tabs, spaces, and actions without leaving the keyboard.
 ---
 
-The sidebar is Supaterm's overview of the active window. The command palette is the fastest route to any action.
+The sidebar shows tabs, groups, spaces, and activity for the active window. The horizontal tab bar shows the same tab hierarchy above the terminal. The command palette is the fastest route to any action.
 
 ## Read the sidebar
 
@@ -19,7 +19,9 @@ Root tabs and groups share one outline. Pinned root items remain before regular 
 
 Click a row to focus it, middle-click a tab to close it, or right-click for tab and group actions. Drag a root tab onto another root tab to create a group, onto a group to append it, or out of a group to promote it to the root. Drag a group to reorder it as one item. Pinning a grouped tab extracts it as a pinned root tab.
 
-Toggle the sidebar with `Command-S`.
+Choose **View > Show Tabs in Sidebar** or run **Toggle Tab Layout** from the command palette to switch between the sidebar and horizontal tab bar. Supaterm saves the choice for each window. Both layouts show the same tab order, group colors, collapse state, and drag targets.
+
+In sidebar layout, toggle the sidebar with `Command-S`.
 
 ## Use the command palette
 
