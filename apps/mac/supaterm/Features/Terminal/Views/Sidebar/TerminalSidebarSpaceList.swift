@@ -219,17 +219,6 @@ struct TerminalSidebarSpaceList: View {
   private func performDrop(
     _ command: TerminalSidebarDropCommand
   ) -> TerminalSidebarDropReceipt? {
-    guard command.topologyStamp.spaceID == terminal.displayedSpaceID else { return nil }
-    return try? TerminalSidebarDropReceipt(
-      spaceID: command.topologyStamp.spaceID,
-      result: terminal.move(
-        TerminalTabMoveRequest(
-          operationID: command.operationID,
-          expectedTopologyRevision: command.topologyStamp.revision,
-          itemIDs: command.itemIDs,
-          destination: command.destination
-        )
-      )
-    )
+    TerminalSidebarDropTransaction.commit(command, to: terminal)
   }
 }

@@ -37,6 +37,7 @@ final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSo
     let newTab: () -> Void
     let selectTab: (TerminalTabID) -> Void
     let toggleGroup: (TerminalTabGroupID) -> Void
+    let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
   }
 
   private struct DragState {
@@ -463,20 +464,31 @@ final class TerminalHorizontalTabStripController: NSViewController, NSDraggingSo
       clearDropTarget()
       return false
     }
-    let result = tabDragRegistry.performTransfer(
-      payload,
-      to: TerminalTabDragRegistry.Destination(
-        windowControllerID: windowControllerID,
-        spaceID: snapshot.spaceID,
-        expectedTopologyRevision: command.topologyStamp.revision,
-        placement: command.destination
-      )
-    )
-    if result != nil {
+    let accepted: Bool
+    if payload.sourceWindowID == windowControllerID,
+      payload.sourceSpaceID == snapshot.spaceID
+    {
+      accepted = actions?.performDrop(command) != nil
+      if accepted {
+        dragState?.didTransfer = true
+      }
+    } else {
+      accepted =
+        tabDragRegistry.performTransfer(
+          payload,
+          to: TerminalTabDragRegistry.Destination(
+            windowControllerID: windowControllerID,
+            spaceID: snapshot.spaceID,
+            expectedTopologyRevision: command.topologyStamp.revision,
+            placement: command.destination
+          )
+        ) != nil
+    }
+    if accepted {
       animateDropSettlement(path: plan.path)
     }
     clearDropTarget()
-    return result != nil
+    return accepted
   }
 
   private func updateDropIndicator() {
@@ -979,8 +991,8 @@ final class TerminalHorizontalTabItemView: NSView {
   }
 }
 
-private extension NSView {
-  func localHitTestPoint(_ point: NSPoint) -> NSPoint {
+extension NSView {
+  fileprivate func localHitTestPoint(_ point: NSPoint) -> NSPoint {
     superview.map { convert(point, from: $0) } ?? point
   }
 }

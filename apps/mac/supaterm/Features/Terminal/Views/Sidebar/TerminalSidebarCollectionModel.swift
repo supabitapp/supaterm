@@ -386,6 +386,27 @@ struct TerminalSidebarDropReceipt: Equatable {
   var deletedEmptyGroupIDs: [TerminalTabGroupID] { result.deletedEmptyGroupIDs }
 }
 
+enum TerminalSidebarDropTransaction {
+  @MainActor
+  static func commit(
+    _ command: TerminalSidebarDropCommand,
+    to terminal: TerminalHostState
+  ) -> TerminalSidebarDropReceipt? {
+    guard command.topologyStamp.spaceID == terminal.displayedSpaceID else { return nil }
+    return try? TerminalSidebarDropReceipt(
+      spaceID: command.topologyStamp.spaceID,
+      result: terminal.move(
+        TerminalTabMoveRequest(
+          operationID: command.operationID,
+          expectedTopologyRevision: command.topologyStamp.revision,
+          itemIDs: command.itemIDs,
+          destination: command.destination
+        )
+      )
+    )
+  }
+}
+
 enum TerminalSidebarDropPlanner {
   static func plan(
     payload: TerminalSidebarDragPayload,

@@ -47,7 +47,8 @@ struct TerminalHorizontalTabsView: View {
           closeTab: { terminal.requestCloseTab($0) },
           newTab: newTab,
           selectTab: { terminal.selectTab($0) },
-          toggleGroup: { _ = terminal.toggleGroupCollapsed($0) }
+          toggleGroup: { _ = terminal.toggleGroupCollapsed($0) },
+          performDrop: { TerminalSidebarDropTransaction.commit($0, to: terminal) }
         )
       )
       .frame(maxWidth: .infinity)

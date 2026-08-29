@@ -104,7 +104,7 @@ struct TerminalHorizontalTabLayoutTests {
   }
 
   @Test @MainActor
-  func groupDropCommitsThroughTheHorizontalController() throws {
+  func sameSpaceGroupDropCommitsThroughTheLocalMoveTransaction() throws {
     let fixture = makeSnapshot()
     guard case .tab(let source) = fixture.snapshot.collection.rootItems.first else {
       Issue.record("Expected a root tab")
@@ -122,6 +122,7 @@ struct TerminalHorizontalTabLayoutTests {
       width: 900,
       height: TerminalHorizontalTabMetrics.height
     )
+    var committedCommand: TerminalSidebarDropCommand?
     controller.apply(
       snapshot: fixture.snapshot,
       palette: Palette(colorScheme: .dark),
@@ -130,7 +131,20 @@ struct TerminalHorizontalTabLayoutTests {
         closeTab: { _ in },
         newTab: {},
         selectTab: { _ in },
-        toggleGroup: { _ in }
+        toggleGroup: { _ in },
+        performDrop: { command in
+          committedCommand = command
+          return TerminalSidebarDropReceipt(
+            spaceID: command.topologyStamp.spaceID,
+            result: TerminalTabMoveResult(
+              operationID: command.operationID,
+              itemIDs: command.itemIDs,
+              location: command.destination,
+              deletedEmptyGroupIDs: [],
+              topologyRevision: command.topologyStamp.revision + 1
+            )
+          )
+        }
       )
     )
     controller.view.layoutSubtreeIfNeeded()
@@ -147,13 +161,9 @@ struct TerminalHorizontalTabLayoutTests {
         itemIDs: [.tab(source.tab.id)]
       )
     )
-    var destination: TerminalTabDragRegistry.Destination?
-    registry.transfer = { _, proposed in
-      destination = proposed
-      return TerminalTabTransferResult(
-        tabIDs: [source.tab.id],
-        deletedEmptyGroupIDs: []
-      )
+    registry.transfer = { _, _ in
+      Issue.record("Same-space drops must not use cross-collection transfer")
+      return nil
     }
     #expect(registry.begin(payload))
 
@@ -165,12 +175,15 @@ struct TerminalHorizontalTabLayoutTests {
     )
     #expect(controller.performDrop(payload))
     #expect(
-      destination
-        == TerminalTabDragRegistry.Destination(
-          windowControllerID: windowControllerID,
-          spaceID: fixture.snapshot.spaceID,
-          expectedTopologyRevision: fixture.snapshot.collection.topologyRevision,
-          placement: .group(fixture.groupID, index: 0)
+      committedCommand
+        == TerminalSidebarDropCommand(
+          operationID: payload.moveOperationID,
+          topologyStamp: TerminalSidebarTopologyStamp(
+            spaceID: fixture.snapshot.spaceID,
+            revision: fixture.snapshot.collection.topologyRevision
+          ),
+          itemIDs: [.tab(source.tab.id)],
+          destination: .group(fixture.groupID, index: 0)
         )
     )
   }
