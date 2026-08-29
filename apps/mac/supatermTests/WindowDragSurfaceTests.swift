@@ -121,6 +121,14 @@ struct WindowDragSurfaceTests {
       x: WindowTrafficLightMetrics.edgePadding + WindowTrafficLightMetrics.buttonSize / 2,
       y: trafficLightCenterY
     )
+    let layoutControlPoint = NSPoint(
+      x: header.bounds.maxX
+        - TerminalWindowHeaderMetrics.spacing
+        - 15,
+      y: header.bounds.maxY
+        - TerminalWindowHeaderMetrics.switcherTopPadding
+        - 16
+    )
     let control = try #require(header.hitTest(controlPoint))
 
     #expect(header.hitTest(blankPoint) is WindowDragSurfaceView)
@@ -131,6 +139,7 @@ struct WindowDragSurfaceTests {
     #expect(header.hitTest(switcherBottomPoint) is WindowDragSurfaceView)
     #expect(header.hitTest(trafficLightBottomPoint) is WindowDragSurfaceView)
     #expect(!(header.hitTest(switcherControlPoint) is WindowDragSurfaceView))
+    #expect(!(header.hitTest(layoutControlPoint) is WindowDragSurfaceView))
     #expect(!(control is WindowDragSurfaceView))
   }
 }

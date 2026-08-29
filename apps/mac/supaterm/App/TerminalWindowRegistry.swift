@@ -117,6 +117,9 @@ final class TerminalWindowRegistry {
     tabDragRegistry.split = { [weak self] payload, destination in
       self?.splitTab(payload, to: destination) == true
     }
+    tabDragRegistry.rearrangePane = { [weak self] payload, destination in
+      self?.rearrangePane(payload, to: destination) == true
+    }
   }
 
   #if DEBUG
@@ -1078,14 +1081,9 @@ final class TerminalWindowRegistry {
   }
 
   private func ambientIndex(in entries: [Entry], context: SupatermCLIContext) -> Int? {
-    let tabID = TerminalTabID(rawValue: context.tabID)
     return entries.firstIndex { entry in
-      let surfaceTabID =
-        entry.terminal.tabID(containing: context.surfaceID)
-        ?? entry.terminal.spaceManager.pendingTabID(containingSurface: context.surfaceID)
-      return surfaceTabID == tabID
-        && (entry.terminal.spaceManager.instance(for: tabID) != nil
-          || entry.terminal.spaceManager.pendingInstance(containingTab: tabID) != nil)
+      entry.terminal.tabID(containing: context.surfaceID) != nil
+        || entry.terminal.spaceManager.pendingTabID(containingSurface: context.surfaceID) != nil
     }
   }
 

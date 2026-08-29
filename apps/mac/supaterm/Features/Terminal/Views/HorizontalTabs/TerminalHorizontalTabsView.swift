@@ -53,7 +53,10 @@ struct TerminalHorizontalTabsView: View {
       )
       .frame(maxWidth: .infinity)
 
-      TerminalAgentsPopoverButton(palette: palette)
+      TerminalAgentsPopoverButton(
+        items: terminal.windowAgentPresentations(),
+        palette: palette
+      )
 
       ToolbarIconButton(
         symbol: "sidebar.left",

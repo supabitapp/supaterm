@@ -2,7 +2,7 @@ import Foundation
 import SupatermCLIShared
 import SupatermSupport
 
-nonisolated enum TerminalAgentCompletionIdentity: Equatable, Sendable {
+nonisolated enum TerminalAgentCompletionIdentity: Equatable, Hashable, Sendable {
   case native(agent: SupatermAgentKind, sessionID: String)
   case screen(
     agent: AgentDetectionAgentIdentity,
@@ -11,16 +11,18 @@ nonisolated enum TerminalAgentCompletionIdentity: Equatable, Sendable {
 }
 
 struct TerminalAgentExitContext: Equatable, Sendable {
-  let identity: AgentDetectionAgentIdentity
+  let activity: TerminalHostState.AgentActivity
   let completionIdentity: TerminalAgentCompletionIdentity
   let phaseSource: TerminalHostState.AgentPhaseSource
   let revision: UInt64
+  let workingDirectoryPath: String?
 
   init(_ instance: TerminalHostState.AgentStateInstance) {
-    identity = instance.activity.identity
+    activity = instance.activity
     completionIdentity = instance.completionIdentity
     phaseSource = instance.phaseSource
     revision = instance.revision
+    workingDirectoryPath = instance.nativePresentation?.workingDirectoryPath
   }
 }
 
@@ -32,9 +34,17 @@ struct TerminalAgentCessation: Equatable, Sendable {
     context.completionIdentity
   }
 
+  var workingDirectoryPath: String? {
+    context.workingDirectoryPath
+  }
+
   func instance(for surfaceID: UUID) -> TerminalHostState.AgentStateInstance {
     TerminalHostState.AgentStateInstance(
-      activity: TerminalHostState.AgentActivity(identity: context.identity, phase: .idle),
+      activity: TerminalHostState.AgentActivity(
+        identity: context.activity.identity,
+        phase: .idle,
+        detail: context.activity.detail
+      ),
       completionIdentity: completionIdentity,
       lifecycle: .ceased(exitCode: exitCode),
       nativePresentation: nil,

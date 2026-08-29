@@ -313,6 +313,11 @@ final class TerminalWindowController: NSWindowController {
             commandHoldObserver: input.commandHoldObserver,
             ghosttyShortcuts: input.ghosttyShortcuts,
             commandPaletteClient: input.commandPaletteClient,
+            paneDragClient: TerminalPaneDragClient(
+              terminal: input.terminal,
+              windowControllerID: input.windowControllerID,
+              registry: input.tabDragRegistry
+            ),
             updateWindowShell: { [weak shellController] presentation in
               shellController?.apply(presentation)
             },

@@ -39,6 +39,7 @@ public enum SupatermSocketMethod {
   public static let terminalLastSpace = "terminal.last_space"
   public static let terminalLastTab = "terminal.last_tab"
   public static let terminalMainVerticalPanes = "terminal.main_vertical_panes"
+  public static let terminalMovePaneToNewTab = "terminal.move_pane_to_new_tab"
   public static let terminalMoveTab = "terminal.move_tab"
   public static let terminalMoveTabGroup = "terminal.move_tab_group"
   public static let terminalNewTab = "terminal.new_tab"
@@ -328,6 +329,13 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.terminalClosePane, payload, id: id)
+  }
+
+  public static func movePaneToNewTab(
+    _ payload: SupatermPaneTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalMovePaneToNewTab, payload, id: id)
   }
 
   public static func closeSpace(

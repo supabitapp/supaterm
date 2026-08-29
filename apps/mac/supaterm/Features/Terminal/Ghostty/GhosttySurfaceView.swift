@@ -1595,11 +1595,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
       return nil
     }
 
-    return Self.contextMenu(hasSelection: accessibilitySelectedText() != nil, target: self)
+    return Self.contextMenu(
+      hasSelection: accessibilitySelectedText() != nil,
+      canMoveToNewTab: bridge.canMoveToNewTab?() == true,
+      target: self
+    )
   }
 
   @MainActor
-  static func contextMenu(hasSelection: Bool, target: AnyObject) -> NSMenu {
+  static func contextMenu(
+    hasSelection: Bool,
+    canMoveToNewTab: Bool = false,
+    target: AnyObject
+  ) -> NSMenu {
     let menu = NSMenu()
     menu.automaticallyInsertsWritingToolsItems = false
     if hasSelection {
@@ -1631,6 +1639,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
         action: #selector(GhosttySurfaceView.splitUp(_:)),
         symbol: "rectangle.tophalf.inset.filled"
       ))
+    if canMoveToNewTab {
+      menu.addItem(
+        contextMenuItem(
+          title: "Move to a New Tab",
+          action: #selector(GhosttySurfaceView.moveToNewTab(_:)),
+          symbol: "macwindow.badge.plus"
+        ))
+    }
     menu.addItem(
       contextMenuItem(
         title: "Close Pane",
@@ -1683,6 +1699,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   @IBAction func splitUp(_ sender: Any?) {
     _ = bridge.onSplitAction?(.newSplit(direction: .up))
+  }
+
+  @IBAction func moveToNewTab(_ sender: Any?) {
+    _ = bridge.onMoveToNewTab?()
   }
 
   @IBAction func closePane(_ sender: Any?) {

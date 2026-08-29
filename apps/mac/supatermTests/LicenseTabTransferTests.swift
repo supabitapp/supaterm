@@ -46,8 +46,9 @@ extension TerminalTabTransferTests {
       )
       let sourceWindowID = UUID()
       let destinationWindowID = UUID()
-      let sourceWindow = register(source, id: sourceWindowID, in: registry)
-      let destinationWindow = register(destination, id: destinationWindowID, in: registry)
+      let sourceWindow = registerTerminalWindow(source, id: sourceWindowID, in: registry)
+      let destinationWindow = registerTerminalWindow(
+        destination, id: destinationWindowID, in: registry)
       let payload = try #require(
         TerminalTabDragPayload(
           operationID: TerminalTabMoveOperationID(),

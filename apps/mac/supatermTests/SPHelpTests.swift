@@ -68,6 +68,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Pane.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
       SP.helpMessage(for: SP.FocusPane.self, columns: 100),
+      SP.helpMessage(for: SP.MovePaneToNewTab.self, columns: 100),
       SP.helpMessage(for: SP.SelectTab.self, columns: 100),
       SP.helpMessage(for: SP.PinTab.self, columns: 100),
       SP.helpMessage(for: SP.UnpinTab.self, columns: 100),

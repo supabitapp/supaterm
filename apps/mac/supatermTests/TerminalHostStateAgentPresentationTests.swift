@@ -389,6 +389,56 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
+  func sidebarPanePresentationsKeepSplitOrderAndResolveIndicators() throws {
+    let host = makeHost()
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .pane(firstSurface.id)
+      )
+    )
+    let thirdPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .down,
+        focus: false,
+        equalize: true,
+        target: .pane(secondPane.paneID)
+      )
+    )
+    let secondSurface = try #require(host.surfaces[secondPane.paneID])
+    let thirdSurface = try #require(host.surfaces[thirdPane.paneID])
+    firstSurface.bridge.state.title = "/repo - Codex 1"
+    firstSurface.bridge.state.pwd = "/repo"
+    secondSurface.bridge.state.title = "Review agent 1"
+    thirdSurface.bridge.state.pwd = "/tmp/unused"
+    #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
+    #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondSurface.id))
+    firstSurface.bridge.state.bellCount = 1
+    thirdSurface.bridge.state.bellCount = 1
+    host.notificationStore.append(
+      TerminalHostState.PaneNotification(
+        attentionState: .unread,
+        body: "Review needs attention",
+        createdAt: Date(),
+        title: "Review"
+      ),
+      for: secondSurface.id
+    )
+
+    let panes = host.sidebarPanePresentations(for: tabID)
+
+    #expect(panes.map(\.id) == [firstSurface.id, secondSurface.id, thirdSurface.id])
+    #expect(panes.map(\.title) == ["Codex 1", "Review agent 1", "Pane 3"])
+    #expect(panes.map(\.indicator) == [.agent(.working), .agent(.needsInput), .attention])
+  }
+
+  @Test
   func tabAgentWorkspacesPutFocusedFirstAndDedupeRepoBranches() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)

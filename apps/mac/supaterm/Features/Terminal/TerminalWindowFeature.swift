@@ -688,6 +688,8 @@ struct TerminalWindowFeature {
       return .run { [terminalCommandPaletteClient] _ in
         await terminalCommandPaletteClient.focusPane(target)
       }
+    case .movePaneToNewTab(let surfaceID):
+      return perform { $0.movePaneToNewTab(surfaceID) }
     case .update(let action):
       return .run { [terminalCommandPaletteClient, windowID] _ in
         await terminalCommandPaletteClient.performUpdateAction(windowID, action)

@@ -63,7 +63,7 @@ private struct AgentsPopoverSnapshotFixture: View {
 
   var body: some View {
     TerminalAgentsPopoverView(
-      items: TerminalAgentsPopoverItem.dummyData,
+      items: TerminalHostState.WindowAgentPresentation.snapshotData,
       palette: palette
     )
     .background {

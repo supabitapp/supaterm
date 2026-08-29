@@ -239,5 +239,7 @@ struct TerminalSidebarBellIndicatorView: View {
           .foregroundStyle(TerminalSidebarWarningBadgeStyle.foregroundColor(isSelected: isSelected, palette: palette))
           .accessibilityHidden(true)
       }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Terminal attention")
   }
 }

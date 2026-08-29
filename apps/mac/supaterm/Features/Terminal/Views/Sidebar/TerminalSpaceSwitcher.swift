@@ -77,12 +77,15 @@ struct TerminalWindowHeader: View {
       WindowDragSurface()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      TerminalAgentsPopoverButton(palette: palette)
-        .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
-        .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .top)
-        .background {
-          WindowDragSurface()
-        }
+      TerminalAgentsPopoverButton(
+        items: terminal.windowAgentPresentations(),
+        palette: palette
+      )
+      .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
+      .frame(height: TerminalSidebarLayout.scrollViewportTopInset, alignment: .top)
+      .background {
+        WindowDragSurface()
+      }
 
       ToolbarIconButton(
         symbol: "rectangle.topthird.inset.filled",

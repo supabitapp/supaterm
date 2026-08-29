@@ -80,19 +80,7 @@ extension TerminalHostState {
     synchronizesFocus: Bool = true
   ) throws -> TerminalTabID? {
     warmInstance(for: spaceID)
-    if let refusal = licenseTabGate.refusal(
-      for: reason,
-      openTabs: licenseOpenTabCount()
-    ) {
-      showsLicenseTabLimitRefusal = true
-      throw TerminalCreateTabError.tabLimitReached(
-        limit: refusal.limit,
-        openTabs: refusal.openTabs
-      )
-    }
-    if reason == .user {
-      showsLicenseTabLimitRefusal = false
-    }
+    try requireTabCapacity(1, reason: reason)
     guard let tabCollection = spaceManager.tabCollection(for: spaceID) else { return nil }
     let context: ghostty_surface_context_e =
       tabCollection.tabs.isEmpty
@@ -471,5 +459,25 @@ extension TerminalHostState {
       maxIndex = max(maxIndex, value)
     }
     return maxIndex + 1
+  }
+
+  func requireTabCapacity(
+    _ count: Int,
+    reason: LicenseTabGate.CreationReason
+  ) throws {
+    if let refusal = licenseTabGate.refusal(
+      for: reason,
+      openTabs: licenseOpenTabCount(),
+      addingTabs: count
+    ) {
+      showsLicenseTabLimitRefusal = true
+      throw TerminalCreateTabError.tabLimitReached(
+        limit: refusal.limit,
+        openTabs: refusal.openTabs
+      )
+    }
+    if reason == .user {
+      showsLicenseTabLimitRefusal = false
+    }
   }
 }

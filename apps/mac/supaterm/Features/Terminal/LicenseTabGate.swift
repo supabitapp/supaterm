@@ -77,13 +77,17 @@ final class LicenseTabGate {
     }
   #endif
 
-  func refusal(for reason: CreationReason, openTabs: Int) -> Refusal? {
+  func refusal(
+    for reason: CreationReason,
+    openTabs: Int,
+    addingTabs: Int = 1
+  ) -> Refusal? {
     guard
       let origin = reason.origin,
       enforcementEnabled,
       !licenseAccess().permitsPaidUse
     else { return nil }
-    guard openTabs >= Self.tabLimit else { return nil }
+    guard openTabs + addingTabs > Self.tabLimit else { return nil }
     onRefusal(origin)
     return Refusal(limit: Self.tabLimit, openTabs: openTabs)
   }
