@@ -426,7 +426,7 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func rowShortcutHintHidesStatusAccessoryWithoutVisibleHint() {
+  func rowShortcutHintWithoutVisibleHintReservesNoAccessorySlot() {
     #expect(
       TerminalSidebarTabSummaryView.rowAccessories(
         shortcutHint: nil,
@@ -434,10 +434,7 @@ struct TerminalSidebarChromeViewTests {
         isRowHovering: false,
         statusAccessory: .pinned
       )
-        == TerminalSidebarTabSummaryView.RowAccessories(
-          shortcutHint: nil,
-          statusAccessory: nil
-        )
+        == nil
     )
   }
 
@@ -454,6 +451,35 @@ struct TerminalSidebarChromeViewTests {
           shortcutHint: "⌘1",
           statusAccessory: nil
         )
+    )
+  }
+
+  @Test
+  func rowHoverReservesTrailingAccessorySlotForCloseButton() {
+    #expect(
+      TerminalSidebarTabSummaryView.rowAccessories(
+        shortcutHint: nil,
+        showsShortcutHint: false,
+        isRowHovering: true,
+        statusAccessory: nil
+      )
+        == TerminalSidebarTabSummaryView.RowAccessories(
+          shortcutHint: nil,
+          statusAccessory: nil
+        )
+    )
+  }
+
+  @Test
+  func quietRowReservesNoTrailingAccessorySlot() {
+    #expect(
+      TerminalSidebarTabSummaryView.rowAccessories(
+        shortcutHint: nil,
+        showsShortcutHint: false,
+        isRowHovering: false,
+        statusAccessory: nil
+      )
+        == nil
     )
   }
 

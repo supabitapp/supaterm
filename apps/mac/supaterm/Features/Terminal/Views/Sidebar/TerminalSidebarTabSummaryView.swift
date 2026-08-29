@@ -52,10 +52,16 @@ struct TerminalSidebarTabSummaryView: View {
     showsShortcutHint: Bool,
     isRowHovering: Bool,
     statusAccessory: StatusAccessory?
-  ) -> RowAccessories {
-    RowAccessories(
-      shortcutHint: showsShortcutHint ? shortcutHint : nil,
-      statusAccessory: showsShortcutHint || isRowHovering ? nil : statusAccessory
+  ) -> RowAccessories? {
+    let visibleShortcutHint = showsShortcutHint ? shortcutHint : nil
+    let visibleStatusAccessory = showsShortcutHint || isRowHovering ? nil : statusAccessory
+    let reservesCloseButton = isRowHovering && !showsShortcutHint
+    guard visibleShortcutHint != nil || visibleStatusAccessory != nil || reservesCloseButton else {
+      return nil
+    }
+    return RowAccessories(
+      shortcutHint: visibleShortcutHint,
+      statusAccessory: visibleStatusAccessory
     )
   }
 
