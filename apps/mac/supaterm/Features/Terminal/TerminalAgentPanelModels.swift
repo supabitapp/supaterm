@@ -219,23 +219,19 @@ nonisolated struct TerminalTabAgentWorkspace: Equatable, Identifiable, Sendable 
   struct PullRequest: Equatable, Sendable {
     let kind: PaneAgentPullRequestStatus.Kind
     let title: String
-    let mergeAutomation: PaneAgentPullRequestStatus.MergeAutomation?
 
     init?(_ status: PaneAgentPullRequestStatus) {
       guard status.kind != .none, status.kind != .unavailable else { return nil }
       kind = status.kind
       title = status.title
-      mergeAutomation = status.mergeAutomation
     }
 
     init(
       kind: PaneAgentPullRequestStatus.Kind,
-      title: String,
-      mergeAutomation: PaneAgentPullRequestStatus.MergeAutomation? = nil
+      title: String
     ) {
       self.kind = kind
       self.title = title
-      self.mergeAutomation = mergeAutomation
     }
   }
 
