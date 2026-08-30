@@ -1,0 +1,94 @@
+import SupatermCLIShared
+
+extension TerminalHostState {
+  func agentHookCandidates(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    workingDirectoryPath: String,
+    processID: Int32?,
+    processTree: TerminalAgentProcessTreeSnapshot
+  ) -> [SupatermAgentHookCandidate] {
+    guard
+      let workspace = TerminalAgentPanelWorkspaceKey(
+        workingDirectoryPath: workingDirectoryPath
+      )
+    else {
+      return []
+    }
+    let identity = AgentDetectionAgentIdentity(agent)
+    return surfaces.values.compactMap { surface in
+      guard let tabID = tabID(containing: surface.id) else { return nil }
+      let observation = agentDetectionStore.observation(for: surface.id).flatMap {
+        $0.agent == identity ? $0 : nil
+      }
+      let paneProcessIdentity = surface.processIdentity
+      let foregroundProcessMatch = Self.agentHookProcessMatch(
+        processTree.isRelated(
+          processID: processID,
+          foregroundProcessGroupID: paneProcessIdentity.foregroundProcessGroupID
+        )
+      )
+      let sessionIDMatchesTitle = Self.agentHookSessionIDMatchesTitle(
+        sessionID,
+        rawTitle: surface.rawTitle,
+        ownedSessionID: agentStateStore.foregroundSessionID(for: surface.id, agent: agent)
+      )
+      guard observation != nil || foregroundProcessMatch == .matching || sessionIDMatchesTitle else {
+        return nil
+      }
+      let candidateProcessIdentity: TerminalAgentProcessIdentity?
+      if foregroundProcessMatch == .matching {
+        candidateProcessIdentity = processTree.identity(for: processID)
+      } else {
+        candidateProcessIdentity =
+          observation?.processIdentity
+          ?? processTree.identity(
+            foregroundProcessGroupID: paneProcessIdentity.foregroundProcessGroupID
+          )
+      }
+      guard let candidateProcessIdentity else { return nil }
+      let candidateWorkspace = TerminalAgentPanelWorkspaceKey(
+        workingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
+          for: candidateProcessIdentity
+        )
+      )
+      let workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch =
+        if let candidateWorkspace {
+          candidateWorkspace == workspace ? .exact : .different
+        } else {
+          .unknown
+        }
+      return SupatermAgentHookCandidate(
+        context: SupatermCLIContext(surfaceID: surface.id, tabID: tabID.rawValue),
+        processID: candidateProcessIdentity.processID,
+        sessionIDMatchesTitle: sessionIDMatchesTitle,
+        processMatch: Self.agentHookProcessMatch(
+          processTree.isRelated(
+            processID: processID,
+            candidate: candidateProcessIdentity
+          )
+        ),
+        workingDirectoryMatch: workingDirectoryMatch
+      )
+    }
+  }
+
+  private static func agentHookSessionIDMatchesTitle(
+    _ sessionID: String,
+    rawTitle: String?,
+    ownedSessionID: String?
+  ) -> Bool {
+    guard ownedSessionID == nil || ownedSessionID == sessionID else { return false }
+    return rawTitle == sessionID || rawTitle?.hasPrefix("\(sessionID) | ") == true
+  }
+
+  private static func agentHookProcessMatch(
+    _ isRelated: Bool?
+  ) -> SupatermAgentHookProcessMatch {
+    switch isRelated {
+    case true: .matching
+    case false: .different
+    case nil: .unknown
+    }
+  }
+}

@@ -180,19 +180,68 @@ public enum SupatermAgentHookWorkingDirectoryMatch: String, Equatable, Sendable,
   case unknown
 }
 
+public enum SupatermAgentHookProcessMatch: String, Equatable, Sendable, Codable {
+  case different
+  case matching
+  case unknown
+}
+
 public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
   public let context: SupatermCLIContext
   public let processID: Int32
+  public let sessionIDMatchesTitle: Bool
+  public let processMatch: SupatermAgentHookProcessMatch
   public let workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch
 
   public init(
     context: SupatermCLIContext,
     processID: Int32,
+    sessionIDMatchesTitle: Bool = false,
+    processMatch: SupatermAgentHookProcessMatch,
     workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch
   ) {
     self.context = context
     self.processID = processID
+    self.sessionIDMatchesTitle = sessionIDMatchesTitle
+    self.processMatch = processMatch
     self.workingDirectoryMatch = workingDirectoryMatch
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    context = try container.decode(SupatermCLIContext.self, forKey: .context)
+    processID = try container.decode(Int32.self, forKey: .processID)
+    sessionIDMatchesTitle =
+      try container.decodeIfPresent(
+        Bool.self,
+        forKey: .sessionIDMatchesTitle
+      ) ?? false
+    processMatch =
+      try container.decodeIfPresent(
+        SupatermAgentHookProcessMatch.self,
+        forKey: .processMatch
+      ) ?? .unknown
+    workingDirectoryMatch = try container.decode(
+      SupatermAgentHookWorkingDirectoryMatch.self,
+      forKey: .workingDirectoryMatch
+    )
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(context, forKey: .context)
+    try container.encode(processID, forKey: .processID)
+    try container.encode(sessionIDMatchesTitle, forKey: .sessionIDMatchesTitle)
+    try container.encode(processMatch, forKey: .processMatch)
+    try container.encode(workingDirectoryMatch, forKey: .workingDirectoryMatch)
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case context
+    case processID
+    case sessionIDMatchesTitle
+    case processMatch
+    case workingDirectoryMatch
   }
 }
 

@@ -215,15 +215,63 @@ func agentHookCandidateDecision(
   pollingComplete: Bool,
   retryExpired: Bool
 ) -> AgentHookCandidateDecision {
-  if let processID {
-    let processMatches = candidates.indices.filter { candidates[$0].processID == processID }
+  let sessionMatches = candidates.indices.filter {
+    candidates[$0].sessionIDMatchesTitle
+  }
+  if !sessionMatches.isEmpty {
+    if sessionMatches.count == 1, let index = sessionMatches.first {
+      return .deliver(index)
+    }
+    let processMatches = sessionMatches.filter {
+      candidateMatchesProcess(candidates[$0], processID: processID)
+    }
     if processMatches.count == 1, let index = processMatches.first {
       return .deliver(index)
     }
     return retryExpired ? .reject : .retry
   }
 
-  let exactMatches = candidates.indices.filter {
+  if processID != nil {
+    let processMatches = candidates.indices.filter {
+      candidateMatchesProcess(candidates[$0], processID: processID)
+    }
+    if processMatches.count == 1, let index = processMatches.first {
+      return .deliver(index)
+    }
+    guard processMatches.isEmpty, retryExpired else {
+      return retryExpired ? .reject : .retry
+    }
+    guard pollingComplete else { return .reject }
+    return agentHookWorkspaceDecision(
+      candidates: candidates,
+      indices: candidates.indices.filter { candidates[$0].processMatch == .unknown },
+      pollingComplete: true,
+      retryExpired: true
+    )
+  }
+
+  return agentHookWorkspaceDecision(
+    candidates: candidates,
+    indices: Array(candidates.indices),
+    pollingComplete: pollingComplete,
+    retryExpired: retryExpired
+  )
+}
+
+private func candidateMatchesProcess(
+  _ candidate: SupatermAgentHookCandidate,
+  processID: Int32?
+) -> Bool {
+  candidate.processMatch == .matching || candidate.processID == processID
+}
+
+private func agentHookWorkspaceDecision(
+  candidates: [SupatermAgentHookCandidate],
+  indices: [Int],
+  pollingComplete: Bool,
+  retryExpired: Bool
+) -> AgentHookCandidateDecision {
+  let exactMatches = indices.filter {
     candidates[$0].workingDirectoryMatch == .exact
   }
   if exactMatches.count == 1, let index = exactMatches.first {
@@ -233,7 +281,7 @@ func agentHookCandidateDecision(
     return retryExpired ? .reject : .retry
   }
 
-  let fallbackMatches = candidates.indices.filter {
+  let fallbackMatches = indices.filter {
     candidates[$0].workingDirectoryMatch == .unknown
   }
   guard pollingComplete, fallbackMatches.count == 1, let index = fallbackMatches.first else {
@@ -282,13 +330,18 @@ private func receiveContextlessCodexSessionStart(
     switch decision {
     case .deliver(let index):
       let match = matches[index]
+      let inheritedSessionID =
+        match.candidate.sessionIDMatchesTitle
+          && match.candidate.processMatch == .different
+        ? nil
+        : request.inheritedSessionID
       let response = try match.destination.deliveryClient.send(
         try SupatermSocketRequest.agentHook(
           SupatermAgentHookRequest(
             agent: request.agent,
             context: match.candidate.context,
             event: request.event,
-            inheritedSessionID: request.inheritedSessionID,
+            inheritedSessionID: inheritedSessionID,
             processID: match.candidate.processID
           )
         )

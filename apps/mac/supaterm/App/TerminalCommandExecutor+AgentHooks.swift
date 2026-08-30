@@ -64,16 +64,21 @@ extension TerminalCommandExecutor {
       request.agent == .codex,
       request.context == nil,
       request.event.hookEventName == .sessionStart,
-      !TerminalAgentEventTranslator.events(for: request).isEmpty,
+      request.event.transcriptPath != nil,
+      let sessionID = request.event.sessionID,
       let workingDirectoryPath = request.event.cwd
     else {
       return SupatermAgentHookCandidates(candidates: [])
     }
     pruneDeadAgentProcesses()
+    let processTree = TerminalAgentProcessTreeSnapshot.capture()
     let candidates = registry.activeEntries().flatMap { entry in
       entry.terminal.agentHookCandidates(
         agent: request.agent,
-        workingDirectoryPath: workingDirectoryPath
+        sessionID: sessionID,
+        workingDirectoryPath: workingDirectoryPath,
+        processID: request.processID,
+        processTree: processTree
       )
     }
     return SupatermAgentHookCandidates(candidates: candidates)

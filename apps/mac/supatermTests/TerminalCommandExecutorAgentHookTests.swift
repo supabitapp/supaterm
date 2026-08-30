@@ -63,6 +63,7 @@ struct TerminalCommandExecutorAgentHookTests {
             SupatermAgentHookCandidate(
               context: SupatermCLIContext(surfaceID: surface.id, tabID: harness.tabID.rawValue),
               processID: processIdentity.processID,
+              processMatch: .unknown,
               workingDirectoryMatch: .exact
             )
           ]
@@ -70,6 +71,161 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     #expect(!harness.host.hasAgentSession(agent: .codex, sessionID: "contextless-session"))
     #expect(candidates.candidates.first?.workingDirectoryMatch == .exact)
+  }
+
+  @Test
+  func contextlessCodexSessionStartClassifiesEmitterProcess() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+
+    let exact = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "exact-session",
+        hookEventName: .sessionStart,
+        cwd: FileManager.default.currentDirectoryPath,
+        processID: getpid()
+      )
+    )
+    let unavailable = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "unavailable-session",
+        hookEventName: .sessionStart,
+        cwd: FileManager.default.currentDirectoryPath,
+        processID: Int32.max
+      )
+    )
+
+    #expect(exact.candidates.first?.processMatch == .matching)
+    #expect(unavailable.candidates.first?.processMatch == .unknown)
+  }
+
+  @Test
+  func contextlessCodexSessionStartMatchesHookSessionToRawTitle() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let sessionID = "01a0502d-dcaa-72d1-8bbb-4e06b3a08f10"
+    surface.bridge.state.title = "\(sessionID) | Ready"
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: SupatermAgentHookRequest(
+        agent: .codex,
+        event: SupatermAgentHookEvent(
+          cwd: FileManager.default.currentDirectoryPath,
+          hookEventName: .sessionStart,
+          sessionID: sessionID,
+          transcriptPath: CodexHookFixtures.transcriptPath
+        ),
+        inheritedSessionID: "outer-session",
+        processID: Int32.max
+      )
+    )
+
+    #expect(candidates.candidates.count == 1)
+    #expect(candidates.candidates.first?.sessionIDMatchesTitle == true)
+  }
+
+  @Test
+  func contextlessCodexSessionStartMatchesOnlyTheExactTitleSession() throws {
+    let harness = try makeClaudeHookHarness()
+    let firstSurface = try #require(harness.host.selectedSurfaceView)
+    let secondPane = try harness.host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .pane(firstSurface.id)
+      )
+    )
+    let secondSurface = try #require(harness.host.surfaces[secondPane.paneID])
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let sessionID = "01a0502d-dcaa-72d1-8bbb-4e06b3a08f10"
+    firstSurface.bridge.state.title = "\(sessionID)-child | Ready"
+    secondSurface.bridge.state.title = "\(sessionID) | Working"
+    for (sequence, surface) in [firstSurface, secondSurface].enumerated() {
+      #expect(
+        harness.host.applyAgentDetection(
+          agentDetectionObservation(
+            phase: .idle,
+            processIdentity: processIdentity,
+            sequence: UInt64(sequence + 1)
+          ),
+          for: surface.id
+        )
+      )
+    }
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: sessionID,
+        hookEventName: .sessionStart,
+        processID: Int32.max
+      )
+    )
+    let matchesBySurfaceID = Dictionary(
+      uniqueKeysWithValues: candidates.candidates.map {
+        ($0.context.surfaceID, $0.sessionIDMatchesTitle)
+      }
+    )
+
+    #expect(matchesBySurfaceID[firstSurface.id] == false)
+    #expect(matchesBySurfaceID[secondSurface.id] == true)
+  }
+
+  @Test
+  func contextlessNestedCodexCannotOwnPaneThroughItsTitle() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let outerSessionID = "01a0502d-dcaa-72d1-8bbb-4e06b3a08f10"
+    let nestedSessionID = "01a0502d-dcaa-72d1-8bbb-4e06b3a08f11"
+    _ = try harness.commandExecutor.handleAgentHook(
+      agentHookRequest(
+        agent: .codex,
+        sessionID: outerSessionID,
+        hookEventName: .sessionStart,
+        context: harness.context,
+        processID: getpid()
+      )
+    )
+    surface.bridge.state.title = "\(nestedSessionID) | Working"
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: nestedSessionID,
+        hookEventName: .sessionStart,
+        processID: getpid()
+      )
+    )
+
+    #expect(candidates.candidates.count == 1)
+    #expect(candidates.candidates.first?.sessionIDMatchesTitle == false)
+    #expect(candidates.candidates.first?.processMatch == .matching)
   }
 
   @Test

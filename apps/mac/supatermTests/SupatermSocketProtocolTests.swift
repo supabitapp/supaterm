@@ -1071,11 +1071,13 @@ struct SupatermSocketProtocolTests {
         SupatermAgentHookCandidate(
           context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
           processID: 123,
+          processMatch: .matching,
           workingDirectoryMatch: .exact
         ),
         SupatermAgentHookCandidate(
           context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
           processID: 456,
+          processMatch: .unknown,
           workingDirectoryMatch: .unknown
         ),
       ]
@@ -1101,6 +1103,30 @@ struct SupatermSocketProtocolTests {
     #expect(request.method == SupatermSocketMethod.terminalAgentHookCandidates)
     #expect(try request.decodeParams(SupatermAgentHookRequest.self) == requestPayload)
     #expect(try response.decodeResult(SupatermAgentHookCandidates.self) == candidates)
+  }
+
+  @Test
+  func agentHookCandidateDecodesRepliesFromEarlierAppVersions() throws {
+    let candidate = SupatermAgentHookCandidate(
+      context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+      processID: 123,
+      processMatch: .matching,
+      workingDirectoryMatch: .exact
+    )
+    let encoded = try JSONEncoder().encode(candidate)
+    var object = try #require(
+      JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+    )
+    object.removeValue(forKey: "sessionIDMatchesTitle")
+    object.removeValue(forKey: "processMatch")
+
+    let decoded = try JSONDecoder().decode(
+      SupatermAgentHookCandidate.self,
+      from: JSONSerialization.data(withJSONObject: object)
+    )
+
+    #expect(decoded.sessionIDMatchesTitle == false)
+    #expect(decoded.processMatch == .unknown)
   }
 
   @Test

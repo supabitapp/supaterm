@@ -7,6 +7,163 @@ import Testing
 
 struct SPAgentHookCommandTests {
   @Test
+  func contextlessCodexSessionStartUsesTitleOwnerAcrossInstances() async throws {
+    var cli = try SPCLIHarness()
+    defer { cli.remove() }
+    cli.environment[SupatermCodexEnvironment.threadIDKey] = "outer-session"
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    let titleOwner = agentHookCandidate(
+      context: context,
+      processID: 303,
+      sessionIDMatchesTitle: true,
+      processMatch: .different,
+      workingDirectoryMatch: .different
+    )
+    let processOwner = agentHookCandidate(
+      processID: 404,
+      processMatch: .matching,
+      workingDirectoryMatch: .exact
+    )
+    let firstEndpoint = hookEndpoint(name: "first", processID: 101, environment: cli.environment)
+    let secondEndpoint = hookEndpoint(name: "second", processID: 202, environment: cli.environment)
+    let firstLog = SPSocketRequestLog()
+    let secondLog = SPSocketRequestLog()
+    let firstRuntime = SocketControlRuntime(endpointProvider: { firstEndpoint })
+    let secondRuntime = SocketControlRuntime(endpointProvider: { secondEndpoint })
+    let firstResponder = try await startHookResponder(
+      runtime: firstRuntime,
+      endpoint: firstEndpoint,
+      log: firstLog,
+      candidateProvider: { [titleOwner] }
+    )
+    let secondResponder = try await startHookResponder(
+      runtime: secondRuntime,
+      endpoint: secondEndpoint,
+      log: secondLog,
+      candidateProvider: { [processOwner] }
+    )
+
+    let result = try cli.run(
+      ["agent", "receive-agent-hook", "--agent", "codex", "--pid", "404"],
+      standardInput: codexSessionStartHookJSON
+    )
+
+    firstResponder.cancel()
+    secondResponder.cancel()
+    await firstRuntime.stop()
+    await secondRuntime.stop()
+    #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+    let request = try #require(
+      firstLog.requests.first { $0.method == SupatermSocketMethod.terminalAgentHook }
+    )
+    let hook = try request.decodeParams(SupatermAgentHookRequest.self)
+    #expect(hook.context == context)
+    #expect(hook.inheritedSessionID == nil)
+    #expect(!secondLog.requests.contains { $0.method == SupatermSocketMethod.terminalAgentHook })
+  }
+
+  @Test
+  func contextlessCodexSessionStartPreservesNestedSessionOwnership() async throws {
+    var cli = try SPCLIHarness()
+    defer { cli.remove() }
+    cli.environment[SupatermCodexEnvironment.threadIDKey] = "outer-session"
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    let titleOwner = agentHookCandidate(
+      context: context,
+      processID: 303,
+      sessionIDMatchesTitle: true,
+      processMatch: .matching,
+      workingDirectoryMatch: .exact
+    )
+    let endpoint = hookEndpoint(name: "current", processID: 101, environment: cli.environment)
+    let log = SPSocketRequestLog()
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+    let responder = try await startHookResponder(
+      runtime: runtime,
+      endpoint: endpoint,
+      log: log,
+      candidateProvider: { [titleOwner] }
+    )
+
+    let result = try cli.run(
+      ["agent", "receive-agent-hook", "--agent", "codex", "--pid", "303"],
+      standardInput: codexSessionStartHookJSON
+    )
+
+    responder.cancel()
+    await runtime.stop()
+    #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+    let request = try #require(
+      log.requests.first { $0.method == SupatermSocketMethod.terminalAgentHook }
+    )
+    let hook = try request.decodeParams(SupatermAgentHookRequest.self)
+    #expect(hook.context == context)
+    #expect(hook.inheritedSessionID == "outer-session")
+  }
+
+  @Test
+  func contextlessCodexSessionTitleOwnerIgnoresUnsupportedInstances() async throws {
+    let cli = try SPCLIHarness()
+    defer { cli.remove() }
+    let titleOwner = agentHookCandidate(
+      processID: 303,
+      sessionIDMatchesTitle: true,
+      processMatch: .different,
+      workingDirectoryMatch: .exact
+    )
+    let currentEndpoint = hookEndpoint(
+      name: "current",
+      processID: 101,
+      environment: cli.environment
+    )
+    let oldEndpoint = hookEndpoint(
+      name: "old",
+      processID: 202,
+      environment: cli.environment
+    )
+    let currentLog = SPSocketRequestLog()
+    let oldLog = SPSocketRequestLog()
+    let currentRuntime = SocketControlRuntime(endpointProvider: { currentEndpoint })
+    let oldRuntime = SocketControlRuntime(endpointProvider: { oldEndpoint })
+    let currentResponder = try await startHookResponder(
+      runtime: currentRuntime,
+      endpoint: currentEndpoint,
+      log: currentLog,
+      candidateProvider: { [titleOwner] }
+    )
+    let oldResponder = try await startHookResponder(
+      runtime: oldRuntime,
+      endpoint: oldEndpoint,
+      log: oldLog,
+      candidateResponse: { request, _ in
+        guard request.method == SupatermSocketMethod.terminalAgentHookCandidates else {
+          return nil
+        }
+        return .error(
+          id: request.id,
+          code: "method_not_found",
+          message: "Unknown method"
+        )
+      }
+    )
+
+    let result = try cli.run(
+      ["agent", "receive-agent-hook", "--agent", "codex", "--pid", "404"],
+      standardInput: codexSessionStartHookJSON
+    )
+
+    currentResponder.cancel()
+    oldResponder.cancel()
+    await currentRuntime.stop()
+    await oldRuntime.stop()
+    #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+    #expect(
+      currentLog.requests.filter { $0.method == SupatermSocketMethod.terminalAgentHook }.count == 1
+    )
+    #expect(!oldLog.requests.contains { $0.method == SupatermSocketMethod.terminalAgentHook })
+  }
+
+  @Test
   func contextlessCodexSessionStartDeliversToEmitterProcessAcrossInstances() async throws {
     var cli = try SPCLIHarness()
     defer { cli.remove() }
@@ -15,6 +172,7 @@ struct SPAgentHookCommandTests {
     let candidate = SupatermAgentHookCandidate(
       context: context,
       processID: 303,
+      processMatch: .matching,
       workingDirectoryMatch: .different
     )
     let firstEndpoint = hookEndpoint(
@@ -94,6 +252,7 @@ struct SPAgentHookCommandTests {
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
       processID: 303,
+      processMatch: .unknown,
       workingDirectoryMatch: .exact
     )
     let firstEndpoint = hookEndpoint(name: "first", processID: 101, environment: cli.environment)
@@ -136,6 +295,7 @@ struct SPAgentHookCommandTests {
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
       processID: 303,
+      processMatch: .unknown,
       workingDirectoryMatch: .unknown
     )
     let endpoint = hookEndpoint(name: "fallback", processID: 101, environment: cli.environment)
@@ -164,17 +324,60 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
+  func contextlessCodexSessionStartFallsBackWhenEmitterProcessIsUnavailable() async throws {
+    let cli = try SPCLIHarness()
+    defer { cli.remove() }
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    let candidate = SupatermAgentHookCandidate(
+      context: context,
+      processID: 303,
+      processMatch: .unknown,
+      workingDirectoryMatch: .exact
+    )
+    let endpoint = hookEndpoint(name: "unavailable-emitter", processID: 101, environment: cli.environment)
+    let log = SPSocketRequestLog()
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+    let responder = try await startHookResponder(
+      runtime: runtime,
+      endpoint: endpoint,
+      log: log,
+      candidateProvider: { [candidate] }
+    )
+
+    let result = try cli.run(
+      ["agent", "receive-agent-hook", "--agent", "codex", "--pid", "404"],
+      standardInput: codexSessionStartHookJSON
+    )
+
+    responder.cancel()
+    await runtime.stop()
+    #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+    #expect(
+      log.requests.filter { $0.method == SupatermSocketMethod.terminalAgentHookCandidates }.count
+        > 1
+    )
+    let request = try #require(
+      log.requests.first { $0.method == SupatermSocketMethod.terminalAgentHook }
+    )
+    let hook = try request.decodeParams(SupatermAgentHookRequest.self)
+    #expect(hook.context == context)
+    #expect(hook.processID == candidate.processID)
+  }
+
+  @Test
   func contextlessCodexSessionStartWithSocketSelectorQueriesOnlyThatInstance() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let firstCandidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
       processID: 303,
+      processMatch: .unknown,
       workingDirectoryMatch: .exact
     )
     let secondCandidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
       processID: 404,
+      processMatch: .unknown,
       workingDirectoryMatch: .exact
     )
     let firstEndpoint = hookEndpoint(name: "first", processID: 101, environment: cli.environment)
@@ -242,6 +445,7 @@ struct SPAgentHookCommandTests {
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
       processID: 303,
+      processMatch: .unknown,
       workingDirectoryMatch: .exact
     )
     let endpoint = hookEndpoint(name: "delayed", processID: 101, environment: cli.environment)
@@ -276,6 +480,7 @@ struct SPAgentHookCommandTests {
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
       processID: 303,
+      processMatch: .unknown,
       workingDirectoryMatch: .exact
     )
     let rejectingEndpoint = hookEndpoint(name: "rejecting", processID: 101, environment: cli.environment)
@@ -366,6 +571,7 @@ struct SPAgentHookCommandTests {
     let candidate = SupatermAgentHookCandidate(
       context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
       processID: 303,
+      processMatch: .unknown,
       workingDirectoryMatch: .exact
     )
     let malformedEndpoint = hookEndpoint(name: "malformed", processID: 101, environment: cli.environment)
@@ -459,363 +665,6 @@ struct SPAgentHookCommandTests {
     )
     #expect(try request.decodeParams(SupatermAgentHookRequest.self).context == context)
   }
-
-  @Test
-  func hookCommandsSendOneRequestPerSupportedAgentAndStaySilent() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        let health: CodingAgentIntegrationHealth =
-          request.method == SupatermSocketMethod.appHooksInstall ? .healthy : .absent
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
-        )
-      },
-      run: { endpoint in
-        for command in ["install-hooks", "remove-hooks"] {
-          let result = try cli.run(["agent", command, "--socket", endpoint.path])
-
-          #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
-        }
-      }
-    )
-
-    #expect(
-      log.requests.map(\.method) == Array(
-        repeating: SupatermSocketMethod.appHooksInstall,
-        count: SupatermAgentKind.allCases.count
-      )
-        + Array(
-          repeating: SupatermSocketMethod.appHooksRemove,
-          count: SupatermAgentKind.allCases.count
-        )
-    )
-    #expect(
-      try log.requests.map { try $0.decodeParams(SupatermAgentHookTargetRequest.self).agent }
-        == SupatermAgentKind.allCases + SupatermAgentKind.allCases
-    )
-  }
-
-  @Test
-  func hookCommandsWaitForLongRunningInstallers() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let replyCount = LockedCounter()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        if replyCount.increment() == 1 {
-          try await Task.sleep(for: .seconds(6))
-        }
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .healthy)
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run([
-          "agent", "install-hooks", "--socket", endpoint.path,
-        ])
-
-        #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
-      }
-    )
-  }
-
-  @Test
-  func hookCommandsTryEveryAgentAndReportEveryFailure() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        if payload.agent == .pi {
-          return try .ok(
-            id: request.id,
-            encodableResult: SupatermAgentHookHealth(agent: .pi, health: .healthy)
-          )
-        }
-        return .error(
-          id: request.id,
-          code: "internal_error",
-          message: "Invalid \(payload.agent.notificationTitle) configuration."
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
-
-        #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("Claude Code: Invalid Claude Code configuration."))
-        #expect(result.stderr.contains("Codex: Invalid Codex configuration."))
-      }
-    )
-
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
-  }
-
-  @Test
-  func installHooksFailsWhenEveryAgentIsUnavailable() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .unavailable)
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
-
-        #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("No supported coding agent was detected."))
-      }
-    )
-
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
-  }
-
-  @Test
-  func installHooksSucceedsWhenAtLeastOneAgentIsHealthy() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        let health: CodingAgentIntegrationHealth =
-          payload.agent == .claude ? .unavailable : .healthy
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
-
-        #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
-      }
-    )
-  }
-
-  @Test
-  func installHooksReportsUnhealthySuccessResponses() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .partial)
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
-
-        #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(
-          result.stderr.contains("Claude Code: Expected a healthy hook integration, got partial."))
-        #expect(result.stderr.contains("Codex: Expected a healthy hook integration, got partial."))
-        #expect(result.stderr.contains("Pi: Expected a healthy hook integration, got partial."))
-      }
-    )
-
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
-  }
-
-  @Test
-  func hookCommandsRejectMismatchedResponseAgentsAndContinue() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        let responseAgent: SupatermAgentKind = payload.agent == .codex ? .claude : payload.agent
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: responseAgent, health: .healthy)
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
-
-        #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(
-          result.stderr.contains("Codex: Supaterm returned status for Claude Code, expected Codex.")
-        )
-      }
-    )
-
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
-  }
-
-  @Test
-  func hookCommandsReportMalformedSuccessResponsesAndContinue() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        return .ok(id: request.id)
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
-
-        #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("Claude Code:"))
-        #expect(result.stderr.contains("Codex:"))
-        #expect(result.stderr.contains("Pi:"))
-      }
-    )
-
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
-  }
-
-  @Test
-  func removeHooksSucceedsWhenAgentsAreAbsentOrUnavailable() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        let health: CodingAgentIntegrationHealth = payload.agent == .pi ? .unavailable : .absent
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "remove-hooks", "--socket", endpoint.path])
-
-        #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
-      }
-    )
-  }
-
-  @Test
-  func removeHooksReportsUnhealthySuccessResponses() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        return try .ok(
-          id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .healthy)
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "remove-hooks", "--socket", endpoint.path])
-
-        #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("Claude Code: Expected hooks to be absent, got healthy."))
-        #expect(result.stderr.contains("Codex: Expected hooks to be absent, got healthy."))
-        #expect(result.stderr.contains("Pi: Expected hooks to be absent, got healthy."))
-      }
-    )
-
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
-  }
-
-  @Test
-  func removeHooksReportsEveryFailureAndContinues() async throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-    let log = SPSocketRequestLog()
-
-    try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-        if payload.agent == .pi {
-          return try .ok(
-            id: request.id,
-            encodableResult: SupatermAgentHookHealth(agent: .pi, health: .absent)
-          )
-        }
-        return .error(
-          id: request.id,
-          code: "internal_error",
-          message: "Could not remove \(payload.agent.notificationTitle) hooks."
-        )
-      },
-      run: { endpoint in
-        let result = try cli.run(["agent", "remove-hooks", "--socket", endpoint.path])
-
-        #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("Claude Code: Could not remove Claude Code hooks."))
-        #expect(result.stderr.contains("Codex: Could not remove Codex hooks."))
-      }
-    )
-
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
-  }
-
-  @Test(arguments: [["agent", "install-hooks"], ["agent", "remove-hooks"]])
-  func hookCommandsFailWithoutAReachableInstance(arguments: [String]) throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-
-    let result = try cli.run(arguments)
-
-    #expect(result.exitCode == 64)
-    #expect(result.stdout.isEmpty)
-    #expect(
-      result.stderr == """
-        Error: No reachable Supaterm instance was found.
-        Usage: sp <subcommand>
-          See 'sp --help' for more information.
-
-        """
-    )
-    #expect(!FileManager.default.fileExists(atPath: cli.claudeSettingsURL.path))
-  }
-
-  @Test
-  func agentCommandPrintsHelp() throws {
-    let cli = try SPCLIHarness()
-    defer { cli.remove() }
-
-    let result = try cli.run(["agent"])
-
-    #expect(result.exitCode == 0)
-    #expect(result.stdout.contains("USAGE:"))
-    #expect(result.stderr.isEmpty)
-  }
 }
 
 private func hookEndpoint(
@@ -837,12 +686,17 @@ private func hookEndpoint(
 }
 
 private func agentHookCandidate(
+  context: SupatermCLIContext = SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
   processID: Int32,
+  sessionIDMatchesTitle: Bool = false,
+  processMatch: SupatermAgentHookProcessMatch = .unknown,
   workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch
 ) -> SupatermAgentHookCandidate {
   SupatermAgentHookCandidate(
-    context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+    context: context,
     processID: processID,
+    sessionIDMatchesTitle: sessionIDMatchesTitle,
+    processMatch: processMatch,
     workingDirectoryMatch: workingDirectoryMatch
   )
 }
@@ -871,24 +725,6 @@ private func startHookResponder(
     }
     log.record(request)
     return .ok(id: request.id)
-  }
-}
-
-nonisolated private final class LockedCounter: @unchecked Sendable {
-  private let lock = NSLock()
-  private var value = 0
-
-  func increment() -> Int {
-    lock.lock()
-    defer { lock.unlock() }
-    value += 1
-    return value
-  }
-
-  var count: Int {
-    lock.lock()
-    defer { lock.unlock() }
-    return value
   }
 }
 

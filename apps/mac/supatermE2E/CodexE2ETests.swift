@@ -21,6 +21,31 @@ struct CodexE2ETests {
   }
 
   @Test(.timeLimit(.minutes(5)))
+  func hooksBindSessionOnFirstPrompt() async throws {
+    let fixture = try await CodexE2EFixture.launch(
+      mode: .hooks,
+      script: { space in
+        let marker = "hook-bind-\(space.token)"
+        return [
+          FakeModelExchange(
+            request: .responsesInputText(marker),
+            response: .responsesMessage("HOOK_BOUND_\(space.token)")
+          )
+        ]
+      }
+    )
+    defer { fixture.close() }
+
+    let marker = "hook-bind-\(fixture.space.token)"
+    try await fixture.app.submit(
+      "\(marker) Reply once with exactly HOOK_BOUND_\(fixture.space.token).",
+      waitingFor: marker,
+      into: fixture.space.pane
+    )
+    try await fixture.expectSessionBound(timeout: 15)
+  }
+
+  @Test(.timeLimit(.minutes(5)))
   func trustPromptBlocksUntilApproved() async throws {
     try await runCodexTrustPrompt()
   }
@@ -190,26 +215,30 @@ private final class CodexE2EFixture {
     )
     #expect(agent.process == initialProcess)
     if mode.hooksEnabled {
-      var nextSessionID: String?
-      try await app.waitUntil("the native Codex session remains bound", timeout: timeout) {
-        guard
-          let agent = try app.debugPane(space.tab.paneID)?.agent,
-          let boundSessionID = agent.sessionID
-        else {
-          return false
-        }
-        let matchesSession = sessionID.map { boundSessionID == $0 } ?? true
-        guard agent.kind == .codex, matchesSession else { return false }
-        nextSessionID = boundSessionID
-        return true
-      }
-      sessionID = sessionID ?? nextSessionID
+      try await expectSessionBound(timeout: timeout)
     } else {
       try await app.waitUntil("the pane has no native Codex session", timeout: timeout) {
         guard let pane = try app.debugPane(space.tab.paneID) else { return false }
         return pane.agent?.sessionID == nil
       }
     }
+  }
+
+  func expectSessionBound(timeout: TimeInterval) async throws {
+    var nextSessionID: String?
+    try await app.waitUntil("the native Codex session remains bound", timeout: timeout) {
+      guard
+        let agent = try app.debugPane(space.tab.paneID)?.agent,
+        let boundSessionID = agent.sessionID
+      else {
+        return false
+      }
+      let matchesSession = sessionID.map { boundSessionID == $0 } ?? true
+      guard agent.kind == .codex, matchesSession else { return false }
+      nextSessionID = boundSessionID
+      return true
+    }
+    sessionID = sessionID ?? nextSessionID
   }
 
   func approve() throws {

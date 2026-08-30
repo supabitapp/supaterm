@@ -227,4 +227,64 @@ struct ProcessTableTests {
 
     #expect(snapshot.descendants(of: [reused]).isEmpty)
   }
+
+  @Test
+  func processTreeClassifiesHookProcessOwnership() {
+    let candidate = Self.entry(10, parentProcessID: 1, processGroupID: 10, name: "candidate")
+    let groupPeer = Self.entry(20, parentProcessID: 1, processGroupID: 10, name: "peer")
+    let child = Self.entry(30, parentProcessID: 10, processGroupID: 30, name: "child")
+    let unrelated = Self.entry(40, parentProcessID: 1, processGroupID: 40, name: "unrelated")
+    let snapshot = TerminalAgentProcessTreeSnapshot(
+      entries: [candidate, groupPeer, child, unrelated]
+    )
+
+    #expect(snapshot.isRelated(processID: nil, candidate: candidate.identity) == nil)
+    #expect(snapshot.isRelated(processID: 10, candidate: candidate.identity) == true)
+    #expect(snapshot.isRelated(processID: 20, candidate: candidate.identity) == true)
+    #expect(snapshot.isRelated(processID: 30, candidate: candidate.identity) == true)
+    #expect(snapshot.isRelated(processID: 10, candidate: child.identity) == true)
+    #expect(snapshot.isRelated(processID: 40, candidate: candidate.identity) == false)
+    #expect(snapshot.isRelated(processID: 50, candidate: candidate.identity) == nil)
+    #expect(
+      snapshot.isRelated(
+        processID: 10,
+        candidate: TerminalAgentProcessIdentity(
+          processID: 10,
+          startTimeMicroseconds: candidate.identity.startTimeMicroseconds + 1
+        )
+      ) == nil
+    )
+  }
+
+  @Test
+  func processTreeClassifiesHookProcessAgainstTerminalProcessGroup() {
+    let foreground = Self.entry(10, parentProcessID: 1, processGroupID: 10, name: "foreground")
+    let groupPeer = Self.entry(20, parentProcessID: 1, processGroupID: 10, name: "peer")
+    let child = Self.entry(30, parentProcessID: 20, processGroupID: 30, name: "child")
+    let unrelated = Self.entry(40, parentProcessID: 1, processGroupID: 40, name: "unrelated")
+    let snapshot = TerminalAgentProcessTreeSnapshot(
+      entries: [foreground, groupPeer, child, unrelated]
+    )
+
+    #expect(
+      snapshot.isRelated(processID: nil, foregroundProcessGroupID: 10) == nil
+    )
+    #expect(
+      snapshot.isRelated(processID: 20, foregroundProcessGroupID: nil) == nil
+    )
+    #expect(
+      snapshot.isRelated(processID: 20, foregroundProcessGroupID: 10) == true
+    )
+    #expect(
+      snapshot.isRelated(processID: 30, foregroundProcessGroupID: 10) == true
+    )
+    #expect(
+      snapshot.isRelated(processID: 40, foregroundProcessGroupID: 10) == false
+    )
+    #expect(
+      snapshot.isRelated(processID: 50, foregroundProcessGroupID: 10) == nil
+    )
+    #expect(snapshot.identity(for: 20) == groupPeer.identity)
+    #expect(snapshot.identity(for: 50) == nil)
+  }
 }
