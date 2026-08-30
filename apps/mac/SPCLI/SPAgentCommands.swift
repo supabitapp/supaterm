@@ -332,7 +332,7 @@ private func receiveContextlessCodexSessionStart(
       let match = matches[index]
       let inheritedSessionID =
         match.candidate.sessionIDMatchesTitle
-          && match.candidate.processMatch == .different
+          && match.candidate.processMatch != .matching
         ? nil
         : request.inheritedSessionID
       let response = try match.destination.deliveryClient.send(

@@ -72,12 +72,13 @@ extension TerminalCommandExecutor {
     }
     pruneDeadAgentProcesses()
     let processTree = TerminalAgentProcessTreeSnapshot.capture()
+    let processID = codexHookOwningProcessID(request.processID)
     let candidates = registry.activeEntries().flatMap { entry in
       entry.terminal.agentHookCandidates(
         agent: request.agent,
         sessionID: sessionID,
         workingDirectoryPath: workingDirectoryPath,
-        processID: request.processID,
+        processID: processID,
         processTree: processTree
       )
     }
@@ -203,4 +204,22 @@ extension TerminalCommandExecutor {
       entry.terminal.sessionDidChange()
     }
   }
+}
+
+private func codexHookOwningProcessID(_ processID: Int32?) -> Int32? {
+  guard
+    let processID,
+    let identity = TerminalAgentProcessInspector.identity(for: processID),
+    let arguments = TerminalAgentProcessInspector.commandLineArguments(for: identity)
+  else {
+    return processID
+  }
+  return codexHookOwningProcessID(processID, commandLineArguments: arguments)
+}
+
+func codexHookOwningProcessID(
+  _ processID: Int32?,
+  commandLineArguments: [String]?
+) -> Int32? {
+  commandLineArguments?.dropFirst().contains("app-server") == true ? nil : processID
 }

@@ -134,12 +134,14 @@ private func stopNarrowAgent(
   _ fixture: NarrowAgentTabFixture,
   app: SupatermE2EApp
 ) async throws {
-  let exitKey: SupatermInputKey = fixture.kind == .pi ? .ctrlD : .ctrlC
-  try await app.waitUntil("\(fixture.kind.rawValue) exits to the shell", timeout: 15) {
-    try app.press(exitKey, in: fixture.pane)
-    return try app.capture(fixture.pane).contains(hermeticShellPrompt)
+  if fixture.kind == .pi {
+    try app.press(.ctrlD, in: fixture.pane)
   }
   try await app.waitUntil("\(fixture.kind.rawValue) clears its process", timeout: 15) {
-    try app.debugPane(fixture.pane.paneID)?.agent == nil
+    if fixture.kind != .pi {
+      try app.press(.ctrlC, in: fixture.pane)
+    }
+    return try app.debugPane(fixture.pane.paneID)?.agent == nil
   }
+  try await app.waitForCapture(fixture.pane, contains: hermeticShellPrompt, timeout: 15)
 }

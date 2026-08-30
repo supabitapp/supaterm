@@ -16,7 +16,7 @@ struct SPAgentHookCommandTests {
       context: context,
       processID: 303,
       sessionIDMatchesTitle: true,
-      processMatch: .different,
+      processMatch: .unknown,
       workingDirectoryMatch: .different
     )
     let processOwner = agentHookCandidate(

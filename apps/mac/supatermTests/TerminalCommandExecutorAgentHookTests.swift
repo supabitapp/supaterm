@@ -112,6 +112,35 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(unavailable.candidates.first?.processMatch == .unknown)
   }
 
+  @Test(
+    arguments: [
+      CodexHookOwningProcessTestCase(
+        arguments: ["codex", "app-server", "--stdio"],
+        expectedProcessID: nil
+      ),
+      CodexHookOwningProcessTestCase(
+        arguments: ["codex", "-c", "features.hooks=true", "app-server", "--listen", "stdio://"],
+        expectedProcessID: nil
+      ),
+      CodexHookOwningProcessTestCase(
+        arguments: ["codex", "--no-alt-screen"],
+        expectedProcessID: 42
+      ),
+      CodexHookOwningProcessTestCase(
+        arguments: nil,
+        expectedProcessID: 42
+      ),
+    ]
+  )
+  func codexAppServerDoesNotOwnAPane(testCase: CodexHookOwningProcessTestCase) {
+    #expect(
+      codexHookOwningProcessID(
+        42,
+        commandLineArguments: testCase.arguments
+      ) == testCase.expectedProcessID
+    )
+  }
+
   @Test
   func contextlessCodexSessionStartMatchesHookSessionToRawTitle() throws {
     let harness = try makeClaudeHookHarness()
@@ -737,4 +766,9 @@ private func codexSessionStartRequest(
     inheritedSessionID: inheritedSessionID,
     processID: processID
   )
+}
+
+struct CodexHookOwningProcessTestCase: Sendable {
+  let arguments: [String]?
+  let expectedProcessID: Int32?
 }
