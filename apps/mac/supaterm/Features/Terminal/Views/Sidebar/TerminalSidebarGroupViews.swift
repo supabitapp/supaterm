@@ -217,7 +217,6 @@ private enum TerminalSidebarTabMeasurementKey: Hashable {
 
 struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
-  let iconURL: URL?
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
   let panes: [TerminalSidebarPanePresentation]
@@ -346,7 +345,6 @@ struct TerminalSidebarHostedRow: View {
       TerminalSidebarTabRow(
         terminal: context.terminal,
         tab: presentation.tab,
-        iconURL: presentation.iconURL,
         groupID: presentation.groupID,
         rootIsPinned: presentation.rootIsPinned,
         renameState: context.renameState,

@@ -55,7 +55,6 @@ struct TerminalSidebarSpaceList: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
   @State private var groupIconURLs: [TerminalTabGroupID: URL] = [:]
-  @State private var tabIconURLs: [TerminalTabID: URL] = [:]
 
   var body: some View {
     TerminalSidebarOutlineList(
@@ -84,17 +83,6 @@ struct TerminalSidebarSpaceList: View {
       }.value
       guard !Task.isCancelled else { return }
       groupIconURLs = icons
-    }
-    .task(id: tabIconRequests) {
-      let requests = tabIconRequests
-      tabIconURLs = [:]
-      let icons = await Task.detached(priority: .utility) {
-        requests.reduce(into: [TerminalTabID: URL]()) { icons, request in
-          icons[request.key] = request.value.resolve()
-        }
-      }.value
-      guard !Task.isCancelled else { return }
-      tabIconURLs = icons
     }
   }
 
@@ -169,28 +157,14 @@ struct TerminalSidebarSpaceList: View {
     )
   }
 
-  private var tabIconRequests: [TerminalTabID: TerminalSidebarProjectIconRequest] {
-    Dictionary(
-      uniqueKeysWithValues: snapshot.collection.tabs.map { tab in
-        (
-          tab.id,
-          TerminalSidebarProjectIconRequest(
-            workingDirectoryPaths: terminal.paneWorkingDirectoryPaths(for: tab.id)
-          )
-        )
-      }
-    )
-  }
-
   private func tabPresentation(
     _ tab: TerminalTabItem,
     groupID: TerminalTabGroupID?,
     rootIsPinned: Bool,
     shortcutHints: [TerminalTabID: String]
   ) -> TerminalSidebarTabRowPresentation {
-    return TerminalSidebarTabRowPresentation(
+    TerminalSidebarTabRowPresentation(
       tab: tab,
-      iconURL: tabIconURLs[tab.id],
       groupID: groupID,
       rootIsPinned: rootIsPinned,
       panes: terminal.sidebarPanePresentations(for: tab.id),

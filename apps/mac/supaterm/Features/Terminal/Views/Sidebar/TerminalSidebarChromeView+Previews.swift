@@ -228,7 +228,6 @@ private struct TerminalSidebarTabPreviewRow: View {
   var body: some View {
     TerminalSidebarTabSummaryView(
       tab: item.tab,
-      iconURL: nil,
       palette: palette,
       isSelected: item.isSelected,
       isPinned: false,

@@ -1,4 +1,3 @@
-import AppKit
 import SupaTheme
 import SwiftUI
 
@@ -18,7 +17,6 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   let tab: TerminalTabItem
-  let iconURL: URL?
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
@@ -79,7 +77,6 @@ struct TerminalSidebarTabSummaryView: View {
       if showsTitleHeader {
         TerminalSidebarTabLineView(
           title: tab.title,
-          iconURL: iconURL,
           trailingAccessory: tabTrailingAccessory,
           palette: palette,
           isSelected: isSelected
@@ -90,7 +87,6 @@ struct TerminalSidebarTabSummaryView: View {
         let ownsTabAccessories = !showsTitleHeader && pane.id == panes.first?.id
         TerminalSidebarTabLineView(
           title: pane.title,
-          iconURL: !showsTitleHeader && pane.id == panes.first?.id ? iconURL : nil,
           trailingAccessory: paneTrailingAccessory(
             pane.indicator,
             ownsTabAccessories: ownsTabAccessories
@@ -131,7 +127,6 @@ struct TerminalSidebarTabSummaryView: View {
 
 private struct TerminalSidebarTabLineView: View {
   let title: String
-  let iconURL: URL?
   let trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory?
   let palette: Palette
   let isSelected: Bool
@@ -143,18 +138,6 @@ private struct TerminalSidebarTabLineView: View {
       let showsAgentStatusText =
         geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
       HStack(spacing: 6) {
-        if let iconURL, let image = NSImage(contentsOf: iconURL) {
-          Image(nsImage: image)
-            .resizable()
-            .scaledToFit()
-            .frame(
-              width: TerminalSidebarLayout.tabProjectIconSize,
-              height: TerminalSidebarLayout.tabProjectIconSize
-            )
-            .clipShape(.rect(cornerRadius: 2))
-            .accessibilityHidden(true)
-        }
-
         Text(title)
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(titleColor)

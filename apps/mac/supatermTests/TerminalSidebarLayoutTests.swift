@@ -886,7 +886,6 @@ struct TerminalSidebarLayoutTests {
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
-      iconURL: nil,
       groupID: groupID,
       rootIsPinned: false,
       panes: panes,
