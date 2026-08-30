@@ -415,6 +415,50 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(candidates.candidates.first?.workingDirectoryMatch == .different)
   }
 
+  @Test(
+    arguments: [
+      AgentHookWorkingDirectoryTestCase(
+        processWorkingDirectoryPath: "/tmp/hook-workspace",
+        terminalWorkingDirectoryPath: "/tmp/terminal-workspace",
+        expected: .exact
+      ),
+      AgentHookWorkingDirectoryTestCase(
+        processWorkingDirectoryPath: "/tmp/process-workspace",
+        terminalWorkingDirectoryPath: "/tmp/hook-workspace",
+        expected: .different
+      ),
+      AgentHookWorkingDirectoryTestCase(
+        processWorkingDirectoryPath: nil,
+        terminalWorkingDirectoryPath: "/tmp/hook-workspace",
+        expected: .exact
+      ),
+      AgentHookWorkingDirectoryTestCase(
+        processWorkingDirectoryPath: nil,
+        terminalWorkingDirectoryPath: "/tmp/terminal-workspace",
+        expected: .different
+      ),
+      AgentHookWorkingDirectoryTestCase(
+        processWorkingDirectoryPath: nil,
+        terminalWorkingDirectoryPath: nil,
+        expected: .unknown
+      ),
+    ])
+  func codexHookWorkingDirectoryUsesProcessBeforeTerminal(
+    testCase: AgentHookWorkingDirectoryTestCase
+  ) throws {
+    let workspace = try #require(
+      TerminalAgentPanelWorkspaceKey(workingDirectoryPath: "/tmp/hook-workspace")
+    )
+
+    #expect(
+      agentHookWorkingDirectoryMatch(
+        workspace: workspace,
+        processWorkingDirectoryPath: testCase.processWorkingDirectoryPath,
+        terminalWorkingDirectoryPath: testCase.terminalWorkingDirectoryPath
+      ) == testCase.expected
+    )
+  }
+
   @Test
   func contextlessCodexSessionStartRejectsAmbiguousWorkspace() throws {
     let harness = try makeClaudeHookHarness()
@@ -868,4 +912,10 @@ private func codexSessionStartRequest(
 struct CodexHookOwningProcessTestCase: Sendable {
   let arguments: [String]?
   let expectedProcessID: Int32?
+}
+
+struct AgentHookWorkingDirectoryTestCase: Sendable {
+  let processWorkingDirectoryPath: String?
+  let terminalWorkingDirectoryPath: String?
+  let expected: SupatermAgentHookWorkingDirectoryMatch
 }

@@ -45,17 +45,13 @@ extension TerminalHostState {
         )
       )
       guard let candidateProcessIdentity else { return nil }
-      let candidateWorkspace = TerminalAgentPanelWorkspaceKey(
-        workingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
+      let workingDirectoryMatch = agentHookWorkingDirectoryMatch(
+        workspace: workspace,
+        processWorkingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
           for: candidateProcessIdentity
-        )
+        ),
+        terminalWorkingDirectoryPath: surface.bridge.state.pwd
       )
-      let workingDirectoryMatch: SupatermAgentHookWorkingDirectoryMatch =
-        if let candidateWorkspace {
-          candidateWorkspace == workspace ? .exact : .different
-        } else {
-          .unknown
-        }
       return SupatermAgentHookCandidate(
         context: SupatermCLIContext(surfaceID: surface.id, tabID: tabID.rawValue),
         processID: candidateProcessIdentity.processID,
@@ -89,6 +85,19 @@ extension TerminalHostState {
     case nil: .unknown
     }
   }
+}
+
+func agentHookWorkingDirectoryMatch(
+  workspace: TerminalAgentPanelWorkspaceKey,
+  processWorkingDirectoryPath: String?,
+  terminalWorkingDirectoryPath: String?
+) -> SupatermAgentHookWorkingDirectoryMatch {
+  let candidateWorkspace =
+    TerminalAgentPanelWorkspaceKey(
+      workingDirectoryPath: processWorkingDirectoryPath
+    ) ?? TerminalAgentPanelWorkspaceKey(workingDirectoryPath: terminalWorkingDirectoryPath)
+  guard let candidateWorkspace else { return .unknown }
+  return candidateWorkspace == workspace ? .exact : .different
 }
 
 func agentHookCandidateProcessIdentity(

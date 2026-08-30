@@ -172,11 +172,18 @@ struct CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let legacyCommand = legacySupatermHookCommand(agent: "codex")
-    let settings = try SupatermCodexHookSettings.jsonString().replacingOccurrences(
-      of: SupatermCodexHookSettings.command,
-      with: legacyCommand
+    try writeCodexSettingsObject(
+      [
+        "hooks": [
+          "SessionStart": [
+            [
+              "hooks": [["command": legacyCommand, "timeout": 10, "type": "command"]]
+            ]
+          ]
+        ]
+      ],
+      homeDirectoryURL: homeDirectoryURL
     )
-    try writeCodexSettings(settings, homeDirectoryURL: homeDirectoryURL)
     let installer = testCodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }

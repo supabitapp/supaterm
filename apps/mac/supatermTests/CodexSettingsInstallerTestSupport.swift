@@ -300,8 +300,8 @@ func writeCodexSettingsObject(
   homeDirectoryURL: URL
 ) throws {
   let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-  let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
-  try data.write(to: settingsURL, options: .atomic)
+  let contents = try #require(String(data: data, encoding: .utf8))
+  try writeCodexSettings(contents, homeDirectoryURL: homeDirectoryURL)
 }
 
 func codexSettingsObject(homeDirectoryURL: URL) throws -> [String: Any] {
