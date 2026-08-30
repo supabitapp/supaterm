@@ -146,6 +146,20 @@
   min-height: 100svh;
 }
 
+.coming-soon-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, transparent, black 24%, black 76%, transparent);
+}
+
+.coming-soon-glow {
+  background:
+    radial-gradient(circle at 50% 47%, rgb(255 168 45 / 0.11), transparent 27%),
+    radial-gradient(circle at 50% 44%, rgb(255 255 255 / 0.035), transparent 48%);
+}
+
 .supaterm-reveal {
   animation: supaterm-reveal 700ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   opacity: 0;
