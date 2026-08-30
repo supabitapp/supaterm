@@ -3,6 +3,23 @@ A terminal for ur coding agents.
 
 ![](https://supaterm.com/og.png)
 
+## Other apps in the same space
+
+There are other amazing open-source apps like Supaterm. Check them out:
+
+- [SupaCode](https://github.com/supabitapp/supacode)
+- [cmux](https://github.com/manaflow-ai/cmux)
+- [Termio](https://github.com/termio-sh/termio)
+- [Pane](https://github.com/dcouple/Pane)
+- [Orca](https://github.com/stablyai/orca)
+- [Warp](https://github.com/warpdotdev/warp)
+- [Arbor](https://github.com/penso/arbor)
+- [Emdash](https://github.com/generalaction/emdash)
+- [Termic](https://github.com/simion/termic)
+- [Paseo](https://github.com/getpaseo/paseo)
+- [T3 Code](https://github.com/pingdotgg/t3code)
+- [bb](https://github.com/get-bb/bb)
+
 ## Development
 
 - [Development](./docs/development.md)
