@@ -11,6 +11,7 @@ let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
 let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
+let supaThemeDependency = TargetDependency.project(target: "SupaTheme", path: "../shared")
 
 let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
@@ -128,7 +129,7 @@ let project = Project(
         "SupaThemeLogoGenerator",
       ],
       dependencies: [
-        .project(target: "SupaTheme", path: "../shared"),
+        supaThemeDependency,
       ],
       settings: .settings(
         base: [
@@ -150,7 +151,7 @@ let project = Project(
         "supaterm/Features/UI",
       ],
       dependencies: [
-        .project(target: "SupaTheme", path: "../shared"),
+        supaThemeDependency,
       ],
       settings: .settings(
         defaultSettings: .essential
@@ -588,7 +589,7 @@ let project = Project(
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermUpdateFeature"),
-        .project(target: "SupaTheme", path: "../shared"),
+        supaThemeDependency,
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -638,7 +639,7 @@ let project = Project(
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermUpdateFeature"),
-        .project(target: "SupaTheme", path: "../shared"),
+        supaThemeDependency,
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -738,7 +739,7 @@ let project = Project(
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermUpdateFeature"),
-        .project(target: "SupaTheme", path: "../shared"),
+        supaThemeDependency,
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
