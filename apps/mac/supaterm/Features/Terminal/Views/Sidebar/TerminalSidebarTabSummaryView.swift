@@ -76,13 +76,6 @@ struct TerminalSidebarTabSummaryView: View {
     return titles.isEmpty ? tab.title : titles.joined(separator: "\n")
   }
 
-  static func visibleLineCount(
-    tab: TerminalTabItem,
-    panes: [TerminalSidebarPanePresentation]
-  ) -> Int {
-    panes.count + ((tab.isTitleLocked || panes.isEmpty) ? 1 : 0)
-  }
-
   var body: some View {
     let showsTitleHeader = tab.isTitleLocked || panes.isEmpty
 

@@ -350,12 +350,6 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func closeButtonTracksTheFirstVisibleLine() {
-    #expect(TerminalSidebarTabCloseButton.Placement(lineCount: 1) == .rowCenter)
-    #expect(TerminalSidebarTabCloseButton.Placement(lineCount: 2) == .firstLine)
-  }
-
-  @Test
   func quietTabShowsNoStatusAccessory() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
