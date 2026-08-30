@@ -51,7 +51,7 @@ jobs:
               *.md)
                 continue
                 ;;
-              .github/actions/setup-macos/* | .github/actions/setup-mise/* | .github/workflows/ci.yml | apps/.swift-format.json | apps/.swiftlint.yml | apps/Configurations/* | apps/shared/* | apps/Tuist.swift | apps/Tuist/* | apps/Workspace.swift | Makefile | mise.toml)
+              .github/actions/setup-macos/* | .github/actions/setup-mise/* | .github/workflows/ci.yml | apps/.swift-format.json | apps/.swiftlint.yml | apps/Configurations/* | apps/shared/* | apps/Tuist.mk | apps/Tuist.swift | apps/Tuist/* | apps/Workspace.swift | Makefile | mise.toml)
                 ios=true
                 mac=true
                 ;;
@@ -295,6 +295,7 @@ jobs:
       - mac_test_ui
     runs-on: ubuntu-latest
     env:
+      CHANGES: ${{ needs.changes.result }}
       IOS: ${{ needs.changes.outputs.ios }}
       IOS_BUILD: ${{ needs.ios_build.result }}
       MAC: ${{ needs.changes.outputs.mac }}
@@ -306,6 +307,7 @@ jobs:
       UI: ${{ needs.mac_test_ui.result }}
     steps:
       - run: |
+          test "$CHANGES" = success
           if [ "$IOS" = true ] || [ "$MAC" = true ]; then
             test "$SWIFTLINT" = success
           fi

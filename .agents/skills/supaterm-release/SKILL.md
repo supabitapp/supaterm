@@ -90,7 +90,7 @@ make bump-and-release
 
 Choose `regular` for the first yearly release or a normal release, and `hotfix` for patch-only follow-ups.
 
-This command computes the next CalVer version, updates `apps/mac/Configurations/Project.xcconfig`, creates the bump commit, pushes the branch, creates the annotated tag, and pushes the tag. Never run it before changelog approval because it publishes immediately.
+This command computes the next CalVer version, updates `apps/Configurations/Versions.xcconfig`, creates the bump commit, pushes the branch, creates the annotated tag, and pushes the tag. Never run it before changelog approval because it publishes immediately.
 
 9. Sync the GitHub release notes.
 
