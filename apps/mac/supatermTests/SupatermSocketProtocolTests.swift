@@ -7,93 +7,79 @@ import Testing
 
 struct SupatermSocketProtocolTests {
   @Test
-  func managedDirectoryURLPrefersXDGThenTMPDIRThenTmp() {
-    #expect(
-      SupatermSocketPath.managedDirectoryURL(
-        environment: [
-          "XDG_RUNTIME_DIR": "/run/user/501",
-          "TMPDIR": "/tmp/ignored",
-        ],
-        userID: 501
-      )
-        == URL(fileURLWithPath: "/run/user/501", isDirectory: true)
-        .appendingPathComponent("supaterm", isDirectory: true)
-    )
+  func managedDirectoryURLIgnoresOrdinaryRuntimeEnvironment() {
+    let expected = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+      .appendingPathComponent("supaterm-501", isDirectory: true)
+    let appEnvironment = [
+      "XDG_RUNTIME_DIR": "/run/app/501",
+      "TMPDIR": "/tmp/app",
+    ]
+    let hostEnvironment = [
+      "XDG_RUNTIME_DIR": "/run/host/501",
+      "TMPDIR": "/tmp/host",
+    ]
 
     #expect(
       SupatermSocketPath.managedDirectoryURL(
-        environment: [
-          "TMPDIR": "/tmp/SupatermTests"
-        ],
+        environment: appEnvironment,
         userID: 501
-      )
-        == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
-        .appendingPathComponent("supaterm-501", isDirectory: true)
+      ) == expected
     )
-
     #expect(
       SupatermSocketPath.managedDirectoryURL(
-        environment: [:],
+        environment: hostEnvironment,
         userID: 501
-      )
-        == URL(fileURLWithPath: "/private/tmp", isDirectory: true)
-        .appendingPathComponent("supaterm-501", isDirectory: true)
+      ) == expected
     )
   }
 
   @Test
-  func managedDirectoryURLIgnoresBlankEnvironmentValuesAndTrailingSlashes() {
-    #expect(
-      SupatermSocketPath.managedDirectoryURL(
-        environment: [
-          "XDG_RUNTIME_DIR": "   ",
-          "TMPDIR": "/tmp/SupatermTests///",
-        ],
-        userID: 501
-      )
-        == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
-        .appendingPathComponent("supaterm-501", isDirectory: true)
-    )
+  func managedDirectoryURLRequiresTestHomeForTestSocketRoot() {
+    let productionURL = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+      .appendingPathComponent("supaterm-501", isDirectory: true)
+    let testURL = URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
+      .appendingPathComponent("supaterm-501", isDirectory: true)
 
     #expect(
       SupatermSocketPath.managedDirectoryURL(
         environment: [
-          "XDG_RUNTIME_DIR": "   ",
-          "TMPDIR": "   ",
+          SupatermCLIEnvironment.testSocketRootKey: "/tmp/SupatermTests"
         ],
         userID: 501
-      )
-        == URL(fileURLWithPath: "/private/tmp", isDirectory: true)
-        .appendingPathComponent("supaterm-501", isDirectory: true)
+      ) == productionURL
+    )
+    #expect(
+      SupatermSocketPath.managedDirectoryURL(
+        environment: [
+          SupatermCLIEnvironment.testHomeKey: "/tmp/test-home",
+          SupatermCLIEnvironment.testSocketRootKey: "/tmp/SupatermTests",
+        ],
+        userID: 501
+      ) == testURL
     )
   }
 
   @Test
-  func managedDirectoryURLSkipsEnvironmentRootsThatCannotFitSocketPath() {
+  func managedSocketURLHandlesOverlongInjectedRoots() {
     let longRoot = "/private/tmp/" + String(repeating: "x", count: darwinSocketPathByteLimit())
-    #expect(
-      SupatermSocketPath.managedDirectoryURL(
-        environment: [
-          "XDG_RUNTIME_DIR": longRoot,
-          "TMPDIR": "/tmp/SupatermTests",
-        ],
-        userID: 501
-      )
-        == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
-        .appendingPathComponent("supaterm-501", isDirectory: true)
-    )
-
-    let socketPath = SupatermSocketPath.managedSocketURL(
+    let explicitRootPath = SupatermSocketPath.managedSocketURL(
+      instanceName: "dev",
+      processID: 90374,
+      rootDirectory: URL(fileURLWithPath: longRoot, isDirectory: true),
+      userID: 501
+    ).path
+    let testRootPath = SupatermSocketPath.managedSocketURL(
       instanceName: "dev",
       processID: 90374,
       environment: [
-        "TMPDIR": longRoot
+        SupatermCLIEnvironment.testHomeKey: "/tmp/test-home",
+        SupatermCLIEnvironment.testSocketRootKey: longRoot,
       ],
       userID: 501
     ).path
 
-    #expect(socketPath.hasPrefix("/private/tmp/supaterm-501/"))
-    #expect(socketPath.utf8.count < darwinSocketPathByteLimit())
+    #expect(URL(fileURLWithPath: explicitRootPath).lastPathComponent.hasSuffix("-pid-90374"))
+    #expect(URL(fileURLWithPath: testRootPath).lastPathComponent.hasSuffix("-pid-90374"))
   }
 
   @Test
@@ -243,7 +229,7 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func processSocketEndpointUsesEnvironmentSelectedManagedPathAndInstanceName() {
+  func processSocketEndpointUsesFixedManagedPathAndInstanceName() {
     let endpointID = UUID(uuidString: "C46492BD-5A6E-4C73-8D0F-71AFBA7EF1DE")!
     let startedAt = Date(timeIntervalSince1970: 123)
     let environment = [
@@ -274,6 +260,7 @@ struct SupatermSocketProtocolTests {
           startedAt: startedAt
         )
     )
+    #expect(endpoint?.path.hasPrefix("/private/tmp/supaterm-501/") == true)
   }
 
   @Test
@@ -344,10 +331,10 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func isManagedSocketPathRecognizesXdgAndTempLayouts() {
+  func isManagedSocketPathRecognizesOnlyTheResolvedManagedDirectory() {
     #expect(
       SupatermSocketPath.isManagedSocketPath(
-        "/run/user/501/supaterm/control.sock",
+        "/private/tmp/supaterm-501/control.sock",
         environment: ["XDG_RUNTIME_DIR": "/run/user/501"],
         userID: 501
       )
@@ -355,13 +342,16 @@ struct SupatermSocketProtocolTests {
     #expect(
       SupatermSocketPath.isManagedSocketPath(
         "/private/tmp/SupatermTests/supaterm-501/control.sock",
-        environment: ["TMPDIR": "/tmp/SupatermTests"],
+        environment: [
+          SupatermCLIEnvironment.testHomeKey: "/tmp/test-home",
+          SupatermCLIEnvironment.testSocketRootKey: "/tmp/SupatermTests",
+        ],
         userID: 501
       )
     )
     #expect(
       !SupatermSocketPath.isManagedSocketPath(
-        "/run/user/501/not-supaterm/control.sock",
+        "/run/user/501/supaterm/control.sock",
         environment: ["XDG_RUNTIME_DIR": "/run/user/501"],
         userID: 501
       )
@@ -369,44 +359,43 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func discoverManagedSocketPathsUsesEnvironmentSelectedDirectory() throws {
+  func discoverManagedSocketPathsIgnoresConflictingRuntimeEnvironment() throws {
     let rootURL = try makeSocketProtocolTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
-
-    let xdgRuntimeDirectory = rootURL.appendingPathComponent("xdg", isDirectory: true)
-    let xdgManagedDirectory = xdgRuntimeDirectory.appendingPathComponent(
-      "supaterm", isDirectory: true)
-    let tmpDirectory = rootURL.appendingPathComponent("tmp", isDirectory: true)
-    let tmpManagedDirectory =
-      tmpDirectory
-      .appendingPathComponent("supaterm-\(getuid())", isDirectory: true)
-    try FileManager.default.createDirectory(
-      at: xdgManagedDirectory, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(
-      at: tmpManagedDirectory, withIntermediateDirectories: true)
-
-    let xdgSocketURL = xdgManagedDirectory.appendingPathComponent("xdg.sock", isDirectory: false)
-    let tmpSocketURL = tmpManagedDirectory.appendingPathComponent("tmp.sock", isDirectory: false)
-    try createSocketNode(at: xdgSocketURL)
-    try createSocketNode(at: tmpSocketURL)
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(
+      environment: [
+        SupatermCLIEnvironment.testHomeKey: "/tmp/app-home",
+        SupatermCLIEnvironment.testSocketRootKey: rootURL.path,
+      ]
+    )
+    try createPrivateSocketDirectory(at: managedDirectoryURL)
+    let socketURL = managedDirectoryURL.appendingPathComponent("control.sock", isDirectory: false)
+    try createSocketNode(at: socketURL)
 
     #expect(
       SupatermSocketPath.discoverManagedSocketPaths(
         environment: [
-          "XDG_RUNTIME_DIR": xdgRuntimeDirectory.path,
-          "TMPDIR": tmpDirectory.path,
+          "XDG_RUNTIME_DIR": rootURL.appendingPathComponent("app-xdg").path,
+          "TMPDIR": rootURL.appendingPathComponent("app-tmp").path,
+          SupatermCLIEnvironment.testHomeKey: "/tmp/app-home",
+          SupatermCLIEnvironment.testSocketRootKey: rootURL.path,
         ]
-      ) == [xdgSocketURL.path]
+      ) == [socketURL.path]
     )
     #expect(
       SupatermSocketPath.discoverManagedSocketPaths(
-        environment: ["TMPDIR": tmpDirectory.path]
-      ) == [tmpSocketURL.path]
+        environment: [
+          "XDG_RUNTIME_DIR": rootURL.appendingPathComponent("host-xdg").path,
+          "TMPDIR": rootURL.appendingPathComponent("host-tmp").path,
+          SupatermCLIEnvironment.testHomeKey: "/tmp/host-home",
+          SupatermCLIEnvironment.testSocketRootKey: rootURL.path,
+        ]
+      ) == [socketURL.path]
     )
   }
 
   @Test
-  func discoverManagedSocketPathsCanonicalizesSymlinkedTmpDirectory() throws {
+  func discoverManagedSocketPathsCanonicalizesSymlinkedExplicitRoot() throws {
     let rootURL = try makeSocketProtocolTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -415,7 +404,7 @@ struct SupatermSocketProtocolTests {
     let managedDirectory =
       actualDirectory
       .appendingPathComponent("supaterm-\(getuid())", isDirectory: true)
-    try FileManager.default.createDirectory(at: managedDirectory, withIntermediateDirectories: true)
+    try createPrivateSocketDirectory(at: managedDirectory)
     try FileManager.default.createSymbolicLink(
       at: symlinkDirectory, withDestinationURL: actualDirectory)
 
@@ -424,8 +413,46 @@ struct SupatermSocketProtocolTests {
 
     #expect(
       SupatermSocketPath.discoverManagedSocketPaths(
-        environment: ["TMPDIR": symlinkDirectory.path]
+        rootDirectory: symlinkDirectory,
+        environment: [:]
       ) == [socketURL.path]
+    )
+  }
+
+  @Test
+  func discoverManagedSocketPathsRejectsSymlinkedManagedDirectory() throws {
+    let rootURL = try makeSocketProtocolTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let targetURL = rootURL.appendingPathComponent("target", isDirectory: true)
+    try createPrivateSocketDirectory(at: targetURL)
+    let socketURL = targetURL.appendingPathComponent("control.sock", isDirectory: false)
+    try createSocketNode(at: socketURL)
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
+    try FileManager.default.createSymbolicLink(
+      at: managedDirectoryURL,
+      withDestinationURL: targetURL
+    )
+
+    #expect(
+      SupatermSocketPath.discoverManagedSocketPaths(rootDirectory: rootURL).isEmpty
+    )
+  }
+
+  @Test
+  func discoverManagedSocketPathsRejectsSharedManagedDirectory() throws {
+    let rootURL = try makeSocketProtocolTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
+    try createPrivateSocketDirectory(at: managedDirectoryURL)
+    let socketURL = managedDirectoryURL.appendingPathComponent("control.sock", isDirectory: false)
+    try createSocketNode(at: socketURL)
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o755],
+      ofItemAtPath: managedDirectoryURL.path
+    )
+
+    #expect(
+      SupatermSocketPath.discoverManagedSocketPaths(rootDirectory: rootURL).isEmpty
     )
   }
 
@@ -1256,6 +1283,17 @@ private func makeSocketProtocolTemporaryDirectory() throws -> URL {
 private func darwinSocketPathByteLimit() -> Int {
   let address = sockaddr_un()
   return MemoryLayout.size(ofValue: address.sun_path)
+}
+
+private func createPrivateSocketDirectory(at url: URL) throws {
+  try FileManager.default.createDirectory(
+    at: url,
+    withIntermediateDirectories: true,
+    attributes: [.posixPermissions: 0o700]
+  )
+  guard chmod(url.path, 0o700) == 0 else {
+    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+  }
 }
 
 private func createSocketNode(at url: URL) throws {

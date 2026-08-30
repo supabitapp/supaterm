@@ -38,6 +38,7 @@ struct SPCLIHarness {
       "XDG_RUNTIME_DIR": runtimeURL.path,
       SupatermCLIEnvironment.stateHomeKey: stateHomeURL.path,
       SupatermCLIEnvironment.testHomeKey: homeURL.path,
+      SupatermCLIEnvironment.testSocketRootKey: runtimeURL.path,
     ]
   }
 

@@ -255,6 +255,122 @@ struct SPSocketClientTests {
   }
 
   @Test
+  func conflictingRuntimeEnvironmentsDiscoverTheSameManagedEndpoint() async throws {
+    let rootURL = try makeSocketClientTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let appEnvironment = [
+      "TMPDIR": rootURL.appendingPathComponent("app-tmp").path,
+      "XDG_RUNTIME_DIR": rootURL.appendingPathComponent("app-xdg").path,
+      SupatermCLIEnvironment.testHomeKey: rootURL.appendingPathComponent("app-home").path,
+      SupatermCLIEnvironment.testSocketRootKey: rootURL.path,
+    ]
+    let cliEnvironment = [
+      "TMPDIR": rootURL.appendingPathComponent("cli-tmp").path,
+      "XDG_RUNTIME_DIR": rootURL.appendingPathComponent("cli-xdg").path,
+      SupatermCLIEnvironment.testHomeKey: rootURL.appendingPathComponent("cli-home").path,
+      SupatermCLIEnvironment.testSocketRootKey: rootURL.path,
+    ]
+    let endpoint = try #require(
+      SupatermProcessSocketEndpoint.make(
+        environment: appEnvironment,
+        processID: 99,
+        startedAt: Date(timeIntervalSince1970: 0)
+      )
+    )
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+    let responder = try await startSocketResponder(
+      runtime: runtime,
+      endpoint: endpoint,
+      replying: { request, endpoint in
+        try .ok(id: request.id, encodableResult: endpoint)
+      }
+    )
+
+    let diagnostics = SPSocketSelection.resolve(
+      explicitPath: nil,
+      instance: nil,
+      environment: cliEnvironment
+    )
+
+    #expect(diagnostics.discoveredEndpoints == [endpoint])
+    #expect(diagnostics.resolvedTarget?.path == endpoint.path)
+    #expect(diagnostics.resolvedTarget?.source == .discoveredSingleton)
+
+    responder.cancel()
+    await runtime.stop()
+  }
+
+  @Test
+  func staleRemovalRejectsSocketOutsideManagedDirectory() throws {
+    let rootURL = try makeSocketClientTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
+    try FileManager.default.createDirectory(
+      at: managedDirectoryURL,
+      withIntermediateDirectories: true,
+      attributes: [.posixPermissions: 0o700]
+    )
+    let socketURL = rootURL.appendingPathComponent("outside.sock", isDirectory: false)
+    try createStaleSocket(at: socketURL)
+
+    #expect(
+      !SPSocketSelection.removeManagedSocketPath(
+        socketURL.path,
+        rootDirectory: rootURL
+      )
+    )
+    #expect(FileManager.default.fileExists(atPath: socketURL.path))
+  }
+
+  @Test
+  func staleRemovalRemovesOwnedSocketInsidePrivateManagedDirectory() throws {
+    let rootURL = try makeSocketClientTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
+    try FileManager.default.createDirectory(
+      at: managedDirectoryURL,
+      withIntermediateDirectories: true,
+      attributes: [.posixPermissions: 0o700]
+    )
+    let socketURL = managedDirectoryURL.appendingPathComponent("stale.sock", isDirectory: false)
+    try createStaleSocket(at: socketURL)
+
+    #expect(
+      SPSocketSelection.removeManagedSocketPath(
+        socketURL.path,
+        rootDirectory: rootURL
+      )
+    )
+    #expect(!FileManager.default.fileExists(atPath: socketURL.path))
+  }
+
+  @Test
+  func staleRemovalRejectsSocketInSharedManagedDirectory() throws {
+    let rootURL = try makeSocketClientTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
+    try FileManager.default.createDirectory(
+      at: managedDirectoryURL,
+      withIntermediateDirectories: true,
+      attributes: [.posixPermissions: 0o700]
+    )
+    let socketURL = managedDirectoryURL.appendingPathComponent("stale.sock", isDirectory: false)
+    try createStaleSocket(at: socketURL)
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o755],
+      ofItemAtPath: managedDirectoryURL.path
+    )
+
+    #expect(
+      !SPSocketSelection.removeManagedSocketPath(
+        socketURL.path,
+        rootDirectory: rootURL
+      )
+    )
+    #expect(FileManager.default.fileExists(atPath: socketURL.path))
+  }
+
+  @Test
   func socketResolutionStrategyUsesExplicitPathWithoutDiscoveryWhenNeeded() {
     let strategy = SPSocketResolutionStrategy.make(
       explicitSocketPath: "/tmp/explicit.sock",

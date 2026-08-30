@@ -9,6 +9,7 @@ public enum SupatermCLIEnvironment {
   public static let socketPathKey = "SUPATERM_SOCKET_PATH"
   public static let testCodexEnableHooksKey = "SUPATERM_TEST_CODEX_ENABLE_HOOKS"
   public static let testHomeKey = "SUPATERM_TEST_HOME"
+  public static let testSocketRootKey = "SUPATERM_TEST_SOCKET_ROOT"
 }
 
 public struct SupatermCLIEnvironmentVariable: Equatable, Sendable {
@@ -49,11 +50,11 @@ public struct SupatermCLIContext: Equatable, Sendable, Codable {
 
   public var environmentVariables: [SupatermCLIEnvironmentVariable] {
     [
-      .init(
+      SupatermCLIEnvironmentVariable(
         key: SupatermCLIEnvironment.surfaceIDKey,
         value: surfaceID.uuidString
       ),
-      .init(
+      SupatermCLIEnvironmentVariable(
         key: SupatermCLIEnvironment.tabIDKey,
         value: tabID.uuidString
       ),

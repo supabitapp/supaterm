@@ -383,7 +383,11 @@ enum SPSocketSelection {
           )
         },
         removeStalePath: { path in
-          removeManagedSocketPath(path)
+          removeManagedSocketPath(
+            path,
+            rootDirectory: rootDirectory,
+            environment: environment
+          )
         }
       )
     } else {
@@ -462,8 +466,24 @@ enum SPSocketSelection {
     return client.probeIdentity()
   }
 
-  private static func removeManagedSocketPath(_ path: String) {
-    _ = path.withCString(unlink)
+  @discardableResult
+  static func removeManagedSocketPath(
+    _ path: String,
+    rootDirectory: URL? = nil,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    userID: uid_t = getuid()
+  ) -> Bool {
+    guard
+      SupatermSocketPath.isOwnedManagedSocketPath(
+        path,
+        rootDirectory: rootDirectory,
+        environment: environment,
+        userID: userID
+      )
+    else {
+      return false
+    }
+    return path.withCString(unlink) == 0
   }
 
   private static func formatResolutionError(

@@ -34,14 +34,11 @@ public enum SupatermInstanceIdentity {
 
 public enum SupatermSocketPath {
   public static let managedDirectoryPrefix = "supaterm-"
-  public static let managedRuntimeDirectoryName = "supaterm"
   private static let socketPathByteLimit: Int = {
     let address = sockaddr_un()
     return MemoryLayout.size(ofValue: address.sun_path) - 1
   }()
   private static let tmpPath = "/tmp"
-  private static let xdgRuntimeDirectoryKey = "XDG_RUNTIME_DIR"
-  private static let temporaryDirectoryKey = "TMPDIR"
 
   public static func managedDirectoryURL(
     rootDirectory: URL? = nil,
@@ -55,24 +52,13 @@ public enum SupatermSocketPath {
       )
     }
 
-    if let xdgRuntimeDirectory = normalized(environment[xdgRuntimeDirectoryKey]) {
-      let directoryURL = managedDirectoryURL(
-        rootPath: xdgRuntimeDirectory,
-        directoryName: managedRuntimeDirectoryName
-      )
-      if canFitManagedSocket(in: directoryURL) {
-        return directoryURL
-      }
-    }
-
-    if let temporaryDirectory = normalized(environment[temporaryDirectoryKey]) {
-      let directoryURL = managedDirectoryURL(
-        rootPath: temporaryDirectory,
+    if normalized(environment[SupatermCLIEnvironment.testHomeKey]) != nil,
+      let testSocketRoot = normalized(environment[SupatermCLIEnvironment.testSocketRootKey])
+    {
+      return managedDirectoryURL(
+        rootPath: testSocketRoot,
         directoryName: tempManagedDirectoryName(userID: userID)
       )
-      if canFitManagedSocket(in: directoryURL) {
-        return directoryURL
-      }
     }
 
     return managedDirectoryURL(
@@ -128,6 +114,9 @@ public enum SupatermSocketPath {
       environment: environment,
       userID: userID
     )
+    guard isPrivateDirectory(at: managedDirectoryURL.path, userID: userID) else {
+      return []
+    }
     guard
       let contents = try? fileManager.contentsOfDirectory(
         at: managedDirectoryURL,
@@ -140,7 +129,7 @@ public enum SupatermSocketPath {
 
     return
       contents
-      .filter { isSocketNode(at: $0.path) }
+      .filter { isOwnedSocketNode(at: $0.path, userID: userID) }
       .map { $0.path }
       .sorted()
   }
@@ -157,21 +146,44 @@ public enum SupatermSocketPath {
       return false
     }
 
+    let managedDirectoryURL = managedDirectoryURL(
+      rootDirectory: rootDirectory,
+      environment: environment,
+      userID: userID
+    )
     let canonicalManagedDirectoryPath =
-      canonicalized(
-        managedDirectoryURL(
-          rootDirectory: rootDirectory,
-          environment: environment,
-          userID: userID
-        ).path
-      )
-      ?? managedDirectoryURL(
+      canonicalized(managedDirectoryURL.path) ?? managedDirectoryURL.path
+    return
+      URL(fileURLWithPath: canonicalPath)
+      .deletingLastPathComponent()
+      .path == canonicalManagedDirectoryPath
+  }
+
+  public static func isOwnedManagedSocketPath(
+    _ path: String,
+    rootDirectory: URL? = nil,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    userID: uid_t = getuid()
+  ) -> Bool {
+    let managedDirectoryURL = managedDirectoryURL(
+      rootDirectory: rootDirectory,
+      environment: environment,
+      userID: userID
+    )
+    guard isPrivateDirectory(at: managedDirectoryURL.path, userID: userID) else {
+      return false
+    }
+    guard
+      isManagedSocketPath(
+        path,
         rootDirectory: rootDirectory,
         environment: environment,
         userID: userID
       )
-      .path
-    return canonicalPath.hasPrefix(canonicalManagedDirectoryPath + "/")
+    else {
+      return false
+    }
+    return isOwnedSocketNode(at: path, userID: userID)
   }
 
   public static func normalized(_ path: String?) -> String? {
@@ -186,7 +198,7 @@ public enum SupatermSocketPath {
     return canonicalizedExistingPrefix(of: URL(fileURLWithPath: path).standardizedFileURL.path)
   }
 
-  private static func isSocketNode(at path: String) -> Bool {
+  static func isPrivateDirectory(at path: String, userID: uid_t) -> Bool {
     var fileStatus = stat()
     let status = path.withCString { pointer in
       lstat(pointer, &fileStatus)
@@ -194,7 +206,15 @@ public enum SupatermSocketPath {
     guard status == 0 else {
       return false
     }
-    return (fileStatus.st_mode & S_IFMT) == S_IFSOCK
+    return isPrivateDirectory(fileStatus, userID: userID)
+  }
+
+  static func isPrivateDirectory(descriptor: Int32, userID: uid_t) -> Bool {
+    var fileStatus = stat()
+    guard fstat(descriptor, &fileStatus) == 0 else {
+      return false
+    }
+    return isPrivateDirectory(fileStatus, userID: userID)
   }
 
   private static func managedDirectoryURL(
@@ -212,10 +232,6 @@ public enum SupatermSocketPath {
     return "\(managedDirectoryPrefix)\(userID)"
   }
 
-  private static func canFitManagedSocket(in directoryURL: URL) -> Bool {
-    directoryURL.path.utf8.count + 1 + minimumSocketFileNameByteCount <= socketPathByteLimit
-  }
-
   private static func managedSocketFileName(
     forInstanceName instanceName: String,
     processID: Int32,
@@ -226,7 +242,7 @@ public enum SupatermSocketPath {
     let hash = SupatermInstanceIdentity.stableHash(for: normalizedInstanceName)
     let processSuffix = "-pid-\(processID)"
     let fullName = "instance-\(stem)-\(hash)\(processSuffix)"
-    let maxFileNameByteCount = socketPathByteLimit - directoryPath.utf8.count - 1
+    let maxFileNameByteCount = max(0, socketPathByteLimit - directoryPath.utf8.count - 1)
     guard fullName.utf8.count > maxFileNameByteCount else {
       return fullName
     }
@@ -241,8 +257,21 @@ public enum SupatermSocketPath {
     return "\(prefix)\(String(stem.prefix(maxStemByteCount)))-\(hash)\(processSuffix)"
   }
 
-  private static var minimumSocketFileNameByteCount: Int {
-    "instance-0123456789abcdef-pid-2147483647".utf8.count
+  private static func isPrivateDirectory(_ fileStatus: stat, userID: uid_t) -> Bool {
+    (fileStatus.st_mode & S_IFMT) == S_IFDIR
+      && fileStatus.st_uid == userID
+      && (fileStatus.st_mode & 0o777) == 0o700
+  }
+
+  private static func isOwnedSocketNode(at path: String, userID: uid_t) -> Bool {
+    var fileStatus = stat()
+    let status = path.withCString { pointer in
+      lstat(pointer, &fileStatus)
+    }
+    guard status == 0 else {
+      return false
+    }
+    return (fileStatus.st_mode & S_IFMT) == S_IFSOCK && fileStatus.st_uid == userID
   }
 
   private static func canonicalizedExistingPrefix(of path: String) -> String {
@@ -325,7 +354,7 @@ public enum SupatermProcessSocketEndpoint {
     let name =
       SupatermSocketPath.normalized(environment[SupatermCLIEnvironment.instanceNameKey])
       ?? "default"
-    return .init(
+    return SupatermSocketEndpoint(
       id: endpointID,
       name: name,
       path: SupatermSocketPath.managedSocketURL(
@@ -389,14 +418,14 @@ public enum SupatermSocketTargetResolver {
     discoveredEndpoints: [SupatermSocketEndpoint]
   ) throws -> SupatermResolvedSocketTarget {
     if let explicitPath = SupatermSocketPath.normalized(explicitPath) {
-      return .init(
+      return SupatermResolvedSocketTarget(
         path: explicitPath,
         source: .explicitPath
       )
     }
 
     if let environmentPath = SupatermSocketPath.normalized(environmentPath) {
-      return .init(
+      return SupatermResolvedSocketTarget(
         path: environmentPath,
         source: .environmentPath
       )
@@ -406,7 +435,7 @@ public enum SupatermSocketTargetResolver {
       if let instanceID = UUID(uuidString: instance),
         let matchedByID = discoveredEndpoints.first(where: { $0.id == instanceID })
       {
-        return .init(
+        return SupatermResolvedSocketTarget(
           path: matchedByID.path,
           source: .explicitInstance
         )
@@ -414,7 +443,7 @@ public enum SupatermSocketTargetResolver {
 
       let matchedByName = discoveredEndpoints.filter { $0.name == instance }
       if matchedByName.count == 1, let endpoint = matchedByName.first {
-        return .init(
+        return SupatermResolvedSocketTarget(
           path: endpoint.path,
           source: .explicitInstance
         )
@@ -426,7 +455,7 @@ public enum SupatermSocketTargetResolver {
     }
 
     if discoveredEndpoints.count == 1, let endpoint = discoveredEndpoints.first {
-      return .init(
+      return SupatermResolvedSocketTarget(
         path: endpoint.path,
         source: .discoveredSingleton
       )
@@ -492,7 +521,7 @@ public enum SupatermManagedSocketDiscovery {
       return $0.path < $1.path
     }
 
-    return .init(
+    return SupatermManagedSocketDiscoveryResult(
       reachableEndpoints: reachableEndpoints,
       removedStalePaths: removedStalePaths
     )
