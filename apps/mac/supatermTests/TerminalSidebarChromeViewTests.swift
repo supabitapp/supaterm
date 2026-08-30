@@ -281,28 +281,31 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func terminalProgressTakesPrecedenceOverPaneAttention() {
+  func terminalProgressTakesPrecedenceOverPaneStatus() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    let paneIndicators: [TerminalSidebarPanePresentation.Indicator] = [
+      .agent(.working),
+      .attention,
+    ]
 
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        terminalProgress: progress,
-        paneIndicator: .attention
-      ) == .terminalProgress(progress)
-    )
+    for paneIndicator in paneIndicators {
+      #expect(
+        TerminalSidebarTabSummaryView.trailingAccessory(
+          terminalProgress: progress,
+          paneIndicator: paneIndicator
+        ) == .terminalProgress(progress)
+      )
+    }
   }
 
   @Test
-  func agentIndicatorsDoNotShowAttentionAccessories() {
+  func agentStateUsesTheTrailingAccessory() {
     let statuses: [TerminalHostState.TabAgentStatus] = [.working, .done, .needsInput]
     for status in statuses {
       #expect(
-        TerminalSidebarTabSummaryView.statusAccessory(
-          isPinned: false,
-          terminalProgress: nil,
+        TerminalSidebarTabSummaryView.trailingAccessory(
           paneIndicator: .agent(status)
-        ) == nil
+        ) == .agent(status)
       )
     }
   }
@@ -310,9 +313,8 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func paneAttentionTakesPrecedenceOverPinnedStatus() {
     #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
+      TerminalSidebarTabSummaryView.trailingAccessory(
         isPinned: true,
-        terminalProgress: nil,
         paneIndicator: .attention
       ) == .attention
     )
@@ -332,8 +334,7 @@ struct TerminalSidebarChromeViewTests {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
+      TerminalSidebarTabSummaryView.trailingAccessory(
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
@@ -351,20 +352,14 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func quietTabShowsNoStatusAccessory() {
-    #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: false,
-        terminalProgress: nil
-      ) == nil
-    )
+    #expect(TerminalSidebarTabSummaryView.trailingAccessory() == nil)
   }
 
   @Test
   func pinnedTabsShowPinnedStatusWhenNoHigherPriorityStatusExists() {
     #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
-        isPinned: true,
-        terminalProgress: nil
+      TerminalSidebarTabSummaryView.trailingAccessory(
+        isPinned: true
       ) == .pinned
     )
   }
@@ -374,7 +369,7 @@ struct TerminalSidebarChromeViewTests {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
-      TerminalSidebarTabSummaryView.statusAccessory(
+      TerminalSidebarTabSummaryView.trailingAccessory(
         isPinned: true,
         terminalProgress: progress
       ) == .terminalProgress(progress)
@@ -384,33 +379,36 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func shortcutHintTakesTheTrailingSlot() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
-    let statuses: [TerminalSidebarTabSummaryView.StatusAccessory] = [
-      .attention,
-      .pinned,
-      .terminalProgress(progress),
-    ]
-
-    for status in statuses {
+    func expectShortcut(
+      isPinned: Bool = false,
+      terminalProgress: TerminalSidebarTerminalProgress? = nil,
+      paneIndicator: TerminalSidebarPanePresentation.Indicator? = nil
+    ) {
       #expect(
-        TerminalSidebarTabSummaryView.trailingSlot(
+        TerminalSidebarTabSummaryView.trailingAccessory(
           shortcutHint: "⌘1",
           showsShortcutHint: true,
-          isRowHovering: false,
-          statusAccessory: status
+          isPinned: isPinned,
+          terminalProgress: terminalProgress,
+          paneIndicator: paneIndicator
         )
           == .shortcut("⌘1")
       )
     }
+
+    expectShortcut(paneIndicator: .agent(.working))
+    expectShortcut(paneIndicator: .attention)
+    expectShortcut(isPinned: true)
+    expectShortcut(terminalProgress: progress)
   }
 
   @Test
   func rowShortcutHintWithoutVisibleHintReservesNoAccessorySlot() {
     #expect(
-      TerminalSidebarTabSummaryView.trailingSlot(
+      TerminalSidebarTabSummaryView.trailingAccessory(
         shortcutHint: nil,
         showsShortcutHint: true,
-        isRowHovering: false,
-        statusAccessory: .pinned
+        paneIndicator: .agent(.working)
       )
         == nil
     )
@@ -419,47 +417,21 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func rowHoverTakesPriorityOverShortcutHint() {
     #expect(
-      TerminalSidebarTabSummaryView.trailingSlot(
+      TerminalSidebarTabSummaryView.trailingAccessory(
         shortcutHint: "⌘1",
         showsShortcutHint: true,
         isRowHovering: true,
-        statusAccessory: .attention
+        paneIndicator: .attention
       )
         == .reserved
     )
   }
 
   @Test
-  func rowHoverHidesPaneIndicators() {
-    let indicators: [TerminalSidebarPanePresentation.Indicator] = [
-      .agent(.working),
-      .attention,
-    ]
-
-    for indicator in indicators {
-      #expect(
-        TerminalSidebarTabSummaryView.visiblePaneIndicator(
-          indicator,
-          isRowHovering: true
-        ) == nil
-      )
-      #expect(
-        TerminalSidebarTabSummaryView.visiblePaneIndicator(
-          indicator,
-          isRowHovering: false
-        ) == indicator
-      )
-    }
-  }
-
-  @Test
   func rowHoverReservesTrailingAccessorySlotForCloseButton() {
     #expect(
-      TerminalSidebarTabSummaryView.trailingSlot(
-        shortcutHint: nil,
-        showsShortcutHint: false,
-        isRowHovering: true,
-        statusAccessory: nil
+      TerminalSidebarTabSummaryView.trailingAccessory(
+        isRowHovering: true
       )
         == .reserved
     )
@@ -467,28 +439,18 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func quietRowReservesNoTrailingAccessorySlot() {
-    #expect(
-      TerminalSidebarTabSummaryView.trailingSlot(
-        shortcutHint: nil,
-        showsShortcutHint: false,
-        isRowHovering: false,
-        statusAccessory: nil
-      )
-        == nil
-    )
+    #expect(TerminalSidebarTabSummaryView.trailingAccessory() == nil)
   }
 
   @Test
   func trailingSlotShowsProgressWithoutShortcutHint() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
     #expect(
-      TerminalSidebarTabSummaryView.trailingSlot(
+      TerminalSidebarTabSummaryView.trailingAccessory(
         shortcutHint: "⌘1",
-        showsShortcutHint: false,
-        isRowHovering: false,
-        statusAccessory: .terminalProgress(progress)
+        terminalProgress: progress
       )
-        == .status(.terminalProgress(progress))
+        == .terminalProgress(progress)
     )
   }
 

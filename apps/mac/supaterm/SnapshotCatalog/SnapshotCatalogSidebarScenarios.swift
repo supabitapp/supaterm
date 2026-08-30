@@ -178,6 +178,27 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "agent-running-command",
+      group: "Sidebar Rows",
+      title: "Command shortcut replaces running coding agent",
+      size: CGSize(width: 320, height: 72)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000015",
+            title: "khoi/routine-ui",
+            selection: .primary,
+            paneTitles: ["khoi/routine-ui"],
+            paneAgentStatuses: [.working],
+            shortcutHint: "⌘1",
+            showsShortcutHint: true
+          )
+        )
+      )
+    },
+    scenario(
       "two-panes-hover",
       group: "Sidebar Rows",
       title: "Hovered tab with two panes",
@@ -193,6 +214,27 @@ extension SnapshotCatalog {
             paneTitles: ["Codex auth", "swift test"],
             paneAgentStatuses: [.working, nil],
             paneHasAttention: [false, true]
+          )
+        )
+      )
+    },
+    scenario(
+      "two-panes-command",
+      group: "Sidebar Rows",
+      title: "Command shortcut replaces two-pane statuses",
+      size: CGSize(width: 320, height: 94)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000016",
+            title: "Review authentication",
+            paneTitles: ["Codex auth", "swift test"],
+            paneAgentStatuses: [.working, nil],
+            paneHasAttention: [false, true],
+            shortcutHint: "⌘2",
+            showsShortcutHint: true
           )
         )
       )
