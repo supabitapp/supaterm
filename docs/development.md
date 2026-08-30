@@ -49,7 +49,7 @@ make ios-generate
 Generate one workspace with both apps:
 
 ```bash
-make apple-generate
+make workspace-generate
 ```
 
 Generate without external binary cache:
