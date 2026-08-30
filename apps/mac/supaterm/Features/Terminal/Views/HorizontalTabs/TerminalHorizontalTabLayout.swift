@@ -1,7 +1,9 @@
 import CoreGraphics
 
 enum TerminalHorizontalTabLayoutMetrics {
-  static let controlWidth: CGFloat = 28
+  static let closeButtonSize: CGFloat = 22
+  static let closeButtonTrailingInset: CGFloat = 6
+  static let controlWidth: CGFloat = 32
   static let groupSurfaceHorizontalInset: CGFloat = 2
   static let groupSurfaceVerticalInset: CGFloat = 2
   static let groupLabelLeadingInset: CGFloat = 23
@@ -11,11 +13,22 @@ enum TerminalHorizontalTabLayoutMetrics {
   static let itemHeight: CGFloat = 30
   static let itemSpacing: CGFloat = 4
   static let leadingInset: CGFloat = 2
+  static let sectionSeparatorFollowingGap: CGFloat = 2
+  static let sectionSeparatorWidth: CGFloat = 8
   static let tabLabelLeadingInset: CGFloat = 9
-  static let tabLabelTrailingInset: CGFloat = 27
+  static let tabLabelTrailingInset: CGFloat = closeButtonSize + closeButtonTrailingInset
   static let tabMaximumWidth: CGFloat = 172
   static let tabMinimumWidth: CGFloat = 64
   static let trailingInset: CGFloat = 2
+
+  static func closeButtonFrame(in bounds: CGRect) -> CGRect {
+    CGRect(
+      x: bounds.maxX - closeButtonTrailingInset - closeButtonSize,
+      y: bounds.midY - closeButtonSize / 2,
+      width: closeButtonSize,
+      height: closeButtonSize
+    )
+  }
 
   static var groupTitleHorizontalInset: CGFloat {
     groupLabelLeadingInset + groupLabelTrailingInset
@@ -59,6 +72,7 @@ struct TerminalHorizontalTabLayout: Equatable {
   let items: [Item]
   let newTabFrame: CGRect
   let overflowFrame: CGRect?
+  let sectionSeparatorFrame: CGRect?
 
   init(
     snapshot: TerminalTabSurfaceSnapshot,
@@ -75,24 +89,38 @@ struct TerminalHorizontalTabLayout: Equatable {
       availableWidth - TerminalHorizontalTabLayoutMetrics.leadingInset - controlsWidth
     )
     let initialWidths = Self.resolvedWidths(candidates, budget: initialBudget)
-    let needsOverflow = Self.consumedWidth(initialWidths) > initialBudget
+    let needsOverflow = Self.consumedWidth(candidates, widths: initialWidths) > initialBudget
     let overflowWidth =
       needsOverflow
       ? TerminalHorizontalTabLayoutMetrics.controlWidth
         + TerminalHorizontalTabLayoutMetrics.itemSpacing
       : 0
     let itemBudget = max(0, initialBudget - overflowWidth)
-    let visibleIndices = Self.visibleIndices(
-      candidates,
-      budget: itemBudget,
-      selectedTabID: snapshot.collection.selectedTabID
-    )
-    let visibleCandidates = visibleIndices.map { candidates[$0] }
+    let visibleCount = Self.visiblePrefixCount(candidates, budget: itemBudget)
+    let visibleCandidates = Array(candidates.prefix(visibleCount))
     let widths = Self.resolvedWidths(visibleCandidates, budget: itemBudget)
 
     var x = TerminalHorizontalTabLayoutMetrics.leadingInset
     var items: [Item] = []
-    for (candidate, width) in zip(visibleCandidates, widths) {
+    var sectionSeparatorFrame: CGRect?
+    for (index, element) in zip(visibleCandidates, widths).enumerated() {
+      let (candidate, width) = element
+      if index > 0 {
+        let previous = visibleCandidates[index - 1]
+        if previous.lane == candidate.lane {
+          x += TerminalHorizontalTabLayoutMetrics.itemSpacing
+        } else {
+          let frame = CGRect(
+            x: x,
+            y: (TerminalHorizontalTabMetrics.height
+              - TerminalHorizontalTabLayoutMetrics.itemHeight) / 2,
+            width: TerminalHorizontalTabLayoutMetrics.sectionSeparatorWidth,
+            height: TerminalHorizontalTabLayoutMetrics.itemHeight
+          )
+          sectionSeparatorFrame = frame
+          x = frame.maxX + TerminalHorizontalTabLayoutMetrics.sectionSeparatorFollowingGap
+        }
+      }
       let frame = CGRect(
         x: x,
         y: (TerminalHorizontalTabMetrics.height - TerminalHorizontalTabLayoutMetrics.itemHeight) / 2,
@@ -100,13 +128,14 @@ struct TerminalHorizontalTabLayout: Equatable {
         height: TerminalHorizontalTabLayoutMetrics.itemHeight
       )
       items.append(Item(entryID: candidate.entryID, frame: frame, kind: candidate.kind))
-      x = frame.maxX + TerminalHorizontalTabLayoutMetrics.itemSpacing
+      x = frame.maxX
     }
     self.items = items
+    self.sectionSeparatorFrame = sectionSeparatorFrame
     groups = Self.groups(items: items)
-    let visibleSet = Set(visibleIndices)
-    hiddenEntryIDs = candidates.indices.compactMap {
-      visibleSet.contains($0) ? nil : candidates[$0].entryID
+    hiddenEntryIDs = candidates.dropFirst(visibleCount).map(\.entryID)
+    if !items.isEmpty {
+      x += TerminalHorizontalTabLayoutMetrics.itemSpacing
     }
     if hiddenEntryIDs.isEmpty {
       overflowFrame = nil
@@ -128,6 +157,17 @@ struct TerminalHorizontalTabLayout: Equatable {
   }
 
   func semanticPath(at point: CGPoint) -> TerminalSidebarSemanticPath? {
+    if sectionSeparatorFrame?.contains(point) == true {
+      let index = items.compactMap { item -> Int? in
+        switch item.kind {
+        case .rootTab(_, .pinned, let rootIndex), .group(_, .pinned, let rootIndex, _):
+          rootIndex + 1
+        case .groupedTab, .rootTab, .group:
+          nil
+        }
+      }.max() ?? 0
+      return .rootBoundary(lane: .pinned, index: index)
+    }
     guard let item = items.first(where: { $0.frame.contains(point) }) else { return nil }
     let fraction = item.frame.width > 0 ? (point.x - item.frame.minX) / item.frame.width : 0.5
     switch item.kind {
@@ -192,9 +232,21 @@ struct TerminalHorizontalTabLayout: Equatable {
     }
   }
 
+  func dragSourceFrame(for entryID: TerminalSidebarEntryID) -> CGRect? {
+    switch entryID {
+    case .tab:
+      items.first { $0.entryID == entryID }?.frame
+    case .group(let groupID):
+      groups.first { $0.id == groupID }?.frame
+    case .pinDivider, .newTab:
+      nil
+    }
+  }
+
   private struct Candidate {
     let entryID: TerminalSidebarEntryID
     let kind: ItemKind
+    let lane: TerminalSidebarRootLane
     let minimumWidth: CGFloat
     let preferredWidth: CGFloat
   }
@@ -245,6 +297,7 @@ struct TerminalHorizontalTabLayout: Equatable {
           Candidate(
             entryID: .tab(item.tab.id),
             kind: .rootTab(id: item.tab.id, lane: lane, rootIndex: rootIndex),
+            lane: lane,
             minimumWidth: TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
             preferredWidth: min(
               TerminalHorizontalTabLayoutMetrics.tabMaximumWidth,
@@ -267,6 +320,7 @@ struct TerminalHorizontalTabLayout: Equatable {
               rootIndex: rootIndex,
               isCollapsed: isCollapsed
             ),
+            lane: lane,
             minimumWidth: TerminalHorizontalTabLayoutMetrics.groupMinimumWidth,
             preferredWidth: min(
               TerminalHorizontalTabLayoutMetrics.groupMaximumWidth,
@@ -284,6 +338,7 @@ struct TerminalHorizontalTabLayout: Equatable {
             Candidate(
               entryID: .tab(tab.id),
               kind: .groupedTab(id: tab.id, groupID: group.id, index: index),
+              lane: lane,
               minimumWidth: TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
               preferredWidth: min(
                 TerminalHorizontalTabLayoutMetrics.tabMaximumWidth,
@@ -303,10 +358,7 @@ struct TerminalHorizontalTabLayout: Equatable {
 
   private static func resolvedWidths(_ candidates: [Candidate], budget: CGFloat) -> [CGFloat] {
     guard !candidates.isEmpty else { return [] }
-    let spacing =
-      CGFloat(max(0, candidates.count - 1))
-      * TerminalHorizontalTabLayoutMetrics.itemSpacing
-    let widthBudget = max(0, budget - spacing)
+    let widthBudget = max(0, budget - spacingWidth(candidates))
     var widths = candidates.map(\.preferredWidth)
     var excess = max(0, widths.reduce(0, +) - widthBudget)
     while excess > 0 {
@@ -325,52 +377,42 @@ struct TerminalHorizontalTabLayout: Equatable {
     return widths
   }
 
-  private static func consumedWidth(_ widths: [CGFloat]) -> CGFloat {
-    widths.reduce(0, +)
-      + CGFloat(max(0, widths.count - 1)) * TerminalHorizontalTabLayoutMetrics.itemSpacing
+  private static func consumedWidth(_ candidates: [Candidate], widths: [CGFloat]) -> CGFloat {
+    widths.reduce(0, +) + spacingWidth(candidates)
   }
 
-  private static func visibleIndices(
-    _ candidates: [Candidate],
-    budget: CGFloat,
-    selectedTabID: TerminalTabID?
-  ) -> [Int] {
+  private static func visiblePrefixCount(_ candidates: [Candidate], budget: CGFloat) -> Int {
     let minimumWidths = candidates.map(\.minimumWidth)
-    guard consumedWidth(minimumWidths) > budget else { return Array(candidates.indices) }
-    var result: [Int] = []
+    guard consumedWidth(candidates, widths: minimumWidths) > budget else {
+      return candidates.count
+    }
+    var count = 0
     var consumed: CGFloat = 0
     for index in candidates.indices {
       let addition =
         candidates[index].minimumWidth
-        + (result.isEmpty ? 0 : TerminalHorizontalTabLayoutMetrics.itemSpacing)
+        + (index == candidates.startIndex
+          ? 0
+          : spacing(from: candidates[index - 1], to: candidates[index]))
       guard consumed + addition <= budget else { break }
-      result.append(index)
+      count += 1
       consumed += addition
     }
-    let selectedIndex = candidates.firstIndex {
-      guard let selectedTabID else { return false }
-      return $0.entryID == .tab(selectedTabID)
+    return count
+  }
+
+  private static func spacingWidth(_ candidates: [Candidate]) -> CGFloat {
+    guard candidates.count > 1 else { return 0 }
+    return candidates.indices.dropFirst().reduce(into: CGFloat.zero) { result, index in
+      result += spacing(from: candidates[index - 1], to: candidates[index])
     }
-    guard let selectedIndex, !result.contains(selectedIndex) else { return result }
-    var required = [selectedIndex]
-    if case .groupedTab(_, let groupID, _) = candidates[selectedIndex].kind,
-      let groupIndex = candidates.firstIndex(where: {
-        guard case .group(let id, _, _, _) = $0.kind else { return false }
-        return id == groupID
-      })
-    {
-      required.insert(groupIndex, at: 0)
+  }
+
+  private static func spacing(from previous: Candidate, to candidate: Candidate) -> CGFloat {
+    if previous.lane == candidate.lane {
+      return TerminalHorizontalTabLayoutMetrics.itemSpacing
     }
-    if consumedWidth(required.map { candidates[$0].minimumWidth }) > budget {
-      required = [selectedIndex]
-    }
-    result.removeAll { required.contains($0) }
-    while !result.isEmpty,
-      consumedWidth((result + required).map { candidates[$0].minimumWidth }) > budget
-    {
-      result.removeLast()
-    }
-    guard consumedWidth(required.map { candidates[$0].minimumWidth }) <= budget else { return [] }
-    return Array(Set(result + required)).sorted()
+    return TerminalHorizontalTabLayoutMetrics.sectionSeparatorWidth
+      + TerminalHorizontalTabLayoutMetrics.sectionSeparatorFollowingGap
   }
 }
