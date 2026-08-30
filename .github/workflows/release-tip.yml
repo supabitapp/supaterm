@@ -11,7 +11,12 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/workflows/release-tip.yml"
       - ".gitmodules"
+      - "apps/Configurations/**"
       - "apps/mac/**"
+      - "apps/shared/**"
+      - "apps/Tuist.mk"
+      - "apps/Tuist.swift"
+      - "apps/Tuist/**"
       - "integrations/supaterm-skills"
       - "Makefile"
       - "mise.toml"
@@ -200,7 +205,7 @@ jobs:
           STAGING=$(mktemp -d)
           trap 'rm -rf "$STAGING"' EXIT
           cp apps/mac/build/supaterm.app.zip "$STAGING/"
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
             --download-url-prefix "https://supaterm.com/download/tip/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
@@ -209,9 +214,9 @@ jobs:
             apps/mac/build/appcast.xml \
             --release-day "$RELEASE_DAY" \
             --channel tip
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
             --ed-key-file - apps/mac/build/appcast.xml
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
             --verify --ed-key-file - apps/mac/build/appcast.xml
           LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || true)
           if [ -z "$LATEST_TAG" ]; then
@@ -225,9 +230,9 @@ jobs:
             "$STAGING/stable.xml" \
             apps/mac/build/appcast.xml \
             apps/mac/build/latest/appcast.xml
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
             --ed-key-file - apps/mac/build/latest/appcast.xml
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
             --verify --ed-key-file - apps/mac/build/latest/appcast.xml
       - name: Generate checksums
         run: |
@@ -302,7 +307,7 @@ jobs:
           set -euo pipefail
           test -n "$POSTHOG_CLI_PROJECT_ID"
           test -n "$POSTHOG_CLI_API_KEY"
-          MARKETING_VERSION=$(sed -n 's/^MARKETING_VERSION *= *//p' apps/mac/Configurations/Project.xcconfig)
+          MARKETING_VERSION=$(sed -n 's/^MARKETING_VERSION *= *//p' apps/Configurations/Versions.xcconfig)
           posthog-cli dsym upload \
             --directory dsyms \
             --project app.supabit.supaterm \

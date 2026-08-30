@@ -34,13 +34,13 @@ runs:
       uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
         path: |
-          apps/mac/Tuist/.build/repositories
-          apps/mac/Tuist/.build/checkouts
-          apps/mac/Tuist/.build/artifacts
-          apps/mac/Tuist/.build/prebuilts
-          apps/mac/Tuist/.build/workspace-state.json
-          apps/mac/Tuist/.build/Derived
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v1-${{ hashFiles('apps/mac/Tuist/Package.swift', 'apps/mac/Tuist/Package.resolved') }}
+          apps/Tuist/.build/repositories
+          apps/Tuist/.build/checkouts
+          apps/Tuist/.build/artifacts
+          apps/Tuist/.build/prebuilts
+          apps/Tuist/.build/workspace-state.json
+          apps/Tuist/.build/Derived
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v1-${{ hashFiles('apps/Tuist/Package.swift', 'apps/Tuist/Package.resolved') }}
     - name: Ghostty fingerprint
       if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash

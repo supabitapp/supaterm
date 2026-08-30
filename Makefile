@@ -6,6 +6,10 @@ MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 
 MAC_APP_DIR := apps/mac
+IOS_APP_DIR := apps/ios
+WORKSPACE_DIR := apps
+WORKSPACE_PATH := $(WORKSPACE_DIR)/supaterm.xcworkspace
+TUIST_CACHE_PROFILE ?= only-external
 WEB_APP_DIR := apps/supaterm.com
 WEB_INSTALL_PREREQS := $(WEB_APP_DIR)/package.json $(WEB_APP_DIR)/pnpm-lock.yaml
 WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
@@ -16,7 +20,7 @@ WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
+.PHONY: help install-git-hooks bump-and-release worktree-create workspace-generate workspace-open workspace-format workspace-check mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache ios-tuist-install ios-generate ios-generate-sources ios-build ios-format ios-lint ios-check ios-inspect-dependencies ios-warm-cache ios-xcode-open web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -50,6 +54,22 @@ worktree-create: install-git-hooks  # Create a worktree and copy ignored and unt
 	fi; \
 	test -n "$$wt_bin" || { echo "error: failed to install wt" >&2; exit 1; }; \
 	"$$wt_bin" switch "$(WORKTREE)" --from "$$(git rev-parse HEAD)" --copy-ignored --copy-untracked
+
+workspace-generate:
+	@$(MAKE) -f "$(WORKSPACE_DIR)/Tuist.mk" tuist-install
+	@mise exec -- tuist generate --path "$(WORKSPACE_DIR)" --no-open --cache-profile "$(TUIST_CACHE_PROFILE)" --configuration Debug
+
+workspace-open: workspace-generate
+	@open "$(WORKSPACE_PATH)"
+
+workspace-format:  # Format Apple app and shared Swift code.
+	@$(MAKE) mac-format
+	@$(MAKE) ios-format
+	@swift format -p --in-place --recursive --configuration "$(WORKSPACE_DIR)/.swift-format.json" "$(WORKSPACE_DIR)/shared/SupaTheme"
+
+workspace-check:  # Format and lint Apple app and shared Swift code.
+	@$(MAKE) workspace-format
+	@$(MAKE) swiftlint
 
 mac-tuist-install:
 	@$(MAKE) -C "$(MAC_APP_DIR)" tuist-install
@@ -115,8 +135,8 @@ mac-export-archive:  # Export the archived macOS app for distribution.
 mac-format:  # Format macOS app code.
 	@$(MAKE) -C "$(MAC_APP_DIR)" format
 
-swiftlint:  # Lint macOS app Swift code.
-	@$(MAKE) -C "$(MAC_APP_DIR)" lint
+swiftlint:  # Lint Apple app Swift code.
+	@cd "$(WORKSPACE_DIR)" && "$$(mise which swiftlint)" lint --quiet --config .swiftlint.yml
 
 mac-check:  # Run local formatting and linting for the macOS app.
 	@$(MAKE) -C "$(MAC_APP_DIR)" check
@@ -144,6 +164,36 @@ mac-inspect-dependencies:  # Check the macOS Tuist graph for implicit dependenci
 
 mac-warm-cache:  # Warm the macOS external Tuist cache.
 	@$(MAKE) -C "$(MAC_APP_DIR)" warm-cache
+
+ios-tuist-install:
+	@$(MAKE) -C "$(IOS_APP_DIR)" tuist-install
+
+ios-generate:
+	@$(MAKE) -C "$(IOS_APP_DIR)" generate-project
+
+ios-generate-sources:
+	@$(MAKE) -C "$(IOS_APP_DIR)" generate-project-sources
+
+ios-build:
+	@$(MAKE) -C "$(IOS_APP_DIR)" build-app
+
+ios-format:
+	@$(MAKE) -C "$(IOS_APP_DIR)" format
+
+ios-lint:
+	@$(MAKE) -C "$(IOS_APP_DIR)" lint
+
+ios-check:
+	@$(MAKE) -C "$(IOS_APP_DIR)" check
+
+ios-inspect-dependencies:
+	@$(MAKE) -C "$(IOS_APP_DIR)" inspect-dependencies
+
+ios-warm-cache:
+	@$(MAKE) -C "$(IOS_APP_DIR)" warm-cache
+
+ios-xcode-open:
+	@$(MAKE) -C "$(IOS_APP_DIR)" xcode-open
 
 web-help:  # Show available Vite+ commands for the web app.
 	@cd "$(WEB_APP_DIR)" && vp help

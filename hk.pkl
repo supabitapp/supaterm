@@ -24,7 +24,7 @@ hooks {
         depends = "check-added-large-files"
       }
       ["swiftlint"] = (Builtins.swiftlint) {
-        dir = "apps/mac"
+        dir = "apps"
         depends = "check-added-large-files"
       }
     }

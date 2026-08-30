@@ -24,6 +24,7 @@ jobs:
     name: changes
     runs-on: ubuntu-latest
     outputs:
+      ios: ${{ steps.changes.outputs.ios }}
       mac: ${{ steps.changes.outputs.mac }}
     steps:
       - if: github.event_name == 'pull_request'
@@ -38,27 +39,37 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT_NAME" != pull_request ]; then
+            echo "ios=true" >> "$GITHUB_OUTPUT"
             echo "mac=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          ios=false
           mac=false
           while IFS= read -r path; do
             case "$path" in
               *.md)
                 continue
                 ;;
-              .github/actions/setup-macos/* | .github/actions/setup-mise/* | .github/workflows/ci.yml | .gitmodules | apps/mac/* | integrations/supaterm-skills | Makefile | mise.toml)
+              .github/actions/setup-macos/* | .github/actions/setup-mise/* | .github/workflows/ci.yml | apps/.swift-format.json | apps/.swiftlint.yml | apps/Configurations/* | apps/shared/* | apps/Tuist.mk | apps/Tuist.swift | apps/Tuist/* | apps/Workspace.swift | Makefile | mise.toml)
+                ios=true
+                mac=true
+                ;;
+              apps/ios/*)
+                ios=true
+                ;;
+              .gitmodules | apps/mac/* | integrations/supaterm-skills)
                 mac=true
                 ;;
             esac
           done < <(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "ios=$ios" >> "$GITHUB_OUTPUT"
           echo "mac=$mac" >> "$GITHUB_OUTPUT"
 
   swiftlint:
     name: swiftlint
     needs: changes
-    if: needs.changes.outputs.mac == 'true'
+    if: needs.changes.outputs.ios == 'true' || needs.changes.outputs.mac == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -70,6 +81,21 @@ jobs:
         env:
           MISE_GITHUB_TOKEN: ${{ github.token }}
       - run: make swiftlint
+
+  ios_build:
+    name: ios-build
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: ./.github/actions/setup-macos
+        with:
+          cache-native-builds: false
+          github-token: ${{ github.token }}
+      - run: make ios-build
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 
   mac_test:
     name: mac-test
@@ -261,6 +287,7 @@ jobs:
     needs:
       - changes
       - swiftlint
+      - ios_build
       - mac_test
       - mac_test_e2e
       - mac_test_agent_e2e
@@ -268,6 +295,9 @@ jobs:
       - mac_test_ui
     runs-on: ubuntu-latest
     env:
+      CHANGES: ${{ needs.changes.result }}
+      IOS: ${{ needs.changes.outputs.ios }}
+      IOS_BUILD: ${{ needs.ios_build.result }}
       MAC: ${{ needs.changes.outputs.mac }}
       SWIFTLINT: ${{ needs.swiftlint.result }}
       UNIT: ${{ needs.mac_test.result }}
@@ -277,12 +307,17 @@ jobs:
       UI: ${{ needs.mac_test_ui.result }}
     steps:
       - run: |
-          if [ "$MAC" = false ]; then
-            exit 0
+          test "$CHANGES" = success
+          if [ "$IOS" = true ] || [ "$MAC" = true ]; then
+            test "$SWIFTLINT" = success
           fi
-          test "$SWIFTLINT" = success
-          test "$UNIT" = success
-          test "$E2E" = success
-          test "$AGENT_E2E" = success
-          test "$UI_BUILD" = success
-          test "$UI" = success
+          if [ "$IOS" = true ]; then
+            test "$IOS_BUILD" = success
+          fi
+          if [ "$MAC" = true ]; then
+            test "$UNIT" = success
+            test "$E2E" = success
+            test "$AGENT_E2E" = success
+            test "$UI_BUILD" = success
+            test "$UI" = success
+          fi
