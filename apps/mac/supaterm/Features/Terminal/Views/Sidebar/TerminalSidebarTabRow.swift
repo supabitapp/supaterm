@@ -138,6 +138,9 @@ struct TerminalSidebarTabRow: View {
     let isGrouped = groupID != nil
     let contentInsets = TerminalSidebarLayout.tabContentHorizontalInsets(isGrouped: isGrouped)
     let surfaceInsets = TerminalSidebarLayout.tabSurfaceHorizontalInsets(isGrouped: isGrouped)
+    let closeButtonPlacement = TerminalSidebarTabCloseButton.Placement(
+      lineCount: TerminalSidebarTabSummaryView.visibleLineCount(tab: tab, panes: panes)
+    )
     TerminalSidebarTabSummaryView(
       tab: tab,
       palette: palette,
@@ -180,11 +183,12 @@ struct TerminalSidebarTabRow: View {
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
-    .overlay(alignment: .topTrailing) {
+    .overlay(alignment: closeButtonPlacement.alignment) {
       if isHovering {
         TerminalSidebarTabCloseButton(
           palette: palette,
           isSelected: isSelected,
+          placement: closeButtonPlacement,
           action: close
         )
       }
@@ -354,8 +358,37 @@ struct TerminalSidebarTabRow: View {
 }
 
 struct TerminalSidebarTabCloseButton: View {
+  enum Placement: Equatable {
+    case rowCenter
+    case firstLine
+
+    init(lineCount: Int) {
+      self = lineCount == 1 ? .rowCenter : .firstLine
+    }
+
+    var alignment: Alignment {
+      switch self {
+      case .rowCenter:
+        .trailing
+      case .firstLine:
+        .topTrailing
+      }
+    }
+
+    var verticalOffset: CGFloat {
+      switch self {
+      case .rowCenter:
+        0
+      case .firstLine:
+        TerminalSidebarLayout.tabRowVerticalPadding
+          + (TerminalSidebarLayout.tabPaneLineHeight - TerminalSidebarLayout.tabTrailingAccessorySize) / 2
+      }
+    }
+  }
+
   let palette: Palette
   let isSelected: Bool
+  let placement: Placement
   let action: () -> Void
 
   @State private var isHovering = false
@@ -380,11 +413,8 @@ struct TerminalSidebarTabCloseButton: View {
     .buttonStyle(.plain)
     .help("Close")
     .accessibilityLabel("Close")
-    .padding(.trailing, TerminalSidebarLayout.rowHorizontalPadding)
-    .offset(
-      y: TerminalSidebarLayout.tabRowVerticalPadding
-        + (TerminalSidebarLayout.tabPaneLineHeight - TerminalSidebarLayout.tabTrailingAccessorySize) / 2
-    )
+    .padding(.trailing, TerminalSidebarLayout.tabCloseButtonOuterPadding)
+    .offset(y: placement.verticalOffset)
     .onHover { isHovering = $0 }
   }
 }

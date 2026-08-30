@@ -513,6 +513,9 @@ private struct SidebarRowSnapshotFixture: View {
   }
 
   var body: some View {
+    let closeButtonPlacement = TerminalSidebarTabCloseButton.Placement(
+      lineCount: TerminalSidebarTabSummaryView.visibleLineCount(tab: item.tab, panes: item.panes)
+    )
     TerminalSidebarTabSummaryView(
       tab: item.tab,
       palette: palette,
@@ -544,11 +547,12 @@ private struct SidebarRowSnapshotFixture: View {
         showsSelectionEdge: true
       )
     )
-    .overlay(alignment: .topTrailing) {
+    .overlay(alignment: closeButtonPlacement.alignment) {
       if item.isRowHovering {
         TerminalSidebarTabCloseButton(
           palette: palette,
           isSelected: item.isSelected,
+          placement: closeButtonPlacement,
           action: {}
         )
       }
