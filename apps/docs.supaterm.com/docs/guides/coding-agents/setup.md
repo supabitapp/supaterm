@@ -31,11 +31,30 @@ Install the discovery skill used by coding agents:
 sp skills install
 ```
 
-Install every supported hook bridge:
+Set up every supported integration:
 
 ```bash
-sp agent install-hooks
+sp agent setup
 ```
+
+Setup installs the Claude and Codex hook bridges and the Pi package. It also adds these defaults:
+
+```json
+{
+  "terminalProgressBarEnabled": true
+}
+```
+
+Supaterm adds `terminalProgressBarEnabled` to `~/.claude/settings.json`.
+
+```toml
+[tui]
+terminal_title = ["thread-title", "task-progress"]
+```
+
+Supaterm adds `tui.terminal_title` to `~/.codex/config.toml`. It writes each default only when the
+key is absent, so existing values stay unchanged. The command prints progress for each agent and is
+safe to run again.
 
 Pi is normally managed from Settings. Its package can also be installed directly:
 
@@ -47,12 +66,13 @@ pi install git:github.com/supabitapp/supaterm-skills
 
 Replace per-agent hook commands with the aggregate commands:
 
-| Previous command               | Replacement              |
-| ------------------------------ | ------------------------ |
-| `sp agent install-hook claude` | `sp agent install-hooks` |
-| `sp agent install-hook codex`  | `sp agent install-hooks` |
-| `sp agent remove-hook claude`  | `sp agent remove-hooks`  |
-| `sp agent remove-hook codex`   | `sp agent remove-hooks`  |
+| Previous command               | Replacement             |
+| ------------------------------ | ----------------------- |
+| `sp agent install-hooks`       | `sp agent setup`        |
+| `sp agent install-hook claude` | `sp agent setup`        |
+| `sp agent install-hook codex`  | `sp agent setup`        |
+| `sp agent remove-hook claude`  | `sp agent remove-hooks` |
+| `sp agent remove-hook codex`   | `sp agent remove-hooks` |
 
 For detection troubleshooting, replace `sp agent explain` with `sp diagnostic --json` for the
 current pane and `sp ls --json` for pane status across the live tree. Detailed rule evaluation is

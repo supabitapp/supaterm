@@ -209,7 +209,7 @@ sp config path
 sp config get updates.channel
 sp config set appearance.mode system
 sp config validate
-sp agent install-hooks
+sp agent setup
 sp agent remove-hooks
 sp skills list
 sp skills get core
@@ -227,7 +227,8 @@ sp project icon ~/code/project --json
 - Every other command in those two blocks needs a reachable app.
 - `sp config path` reads the local state root, so it can differ from the path the app reports when the two run with different `SUPATERM_STATE_HOME` values.
 - Without a reachable app, `sp config` and `sp agent` exit 64 and `sp skills` exits 1. All three print `Error: No reachable Supaterm instance was found.`
-- `sp agent install-hooks` checks every supported agent, reports every failure, and fails when no supported agent is available.
+- `sp agent setup` checks every supported agent, prints progress for each one, reports every failure, and fails when no supported agent is available.
+- Setup installs the supported hooks or package. It seeds Claude's `terminalProgressBarEnabled` and Codex's `tui.terminal_title` only when each key is absent, preserves existing values, and is safe to rerun.
 - `sp agent remove-hooks` checks every supported agent and succeeds when an agent is absent or unavailable.
 - `sp agent receive-agent-hook` forwards hook payloads and is unaffected by these rules.
 
@@ -262,7 +263,8 @@ Settings methods read and write the running app:
 Hook methods own the agent settings files:
 
 - `app.hooks.install` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
-- The app writes `~/.claude/settings.json` and `~/.codex/hooks.json`, and talks to Codex app-server. The CLI never touches those files.
+- The app writes `~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.codex/config.toml`, and talks to Codex app-server. The CLI never touches those files.
+- Install adds Claude's `terminalProgressBarEnabled: true` and Codex's `[tui] terminal_title = ["thread-title", "task-progress"]` only when each key is absent.
 
 `app.agent_detection.reload` atomically reloads local manifests from the app's state root and
 returns the active generation and source of each manifest.
