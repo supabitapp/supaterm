@@ -2,6 +2,33 @@ import Foundation
 import SupatermCLIShared
 
 nonisolated enum TerminalAgentLaunchOptions {
+  static func codexAppServerRuns(
+    commandLineArguments: [String]
+  ) -> Bool {
+    Schema.codex.firstPositional(from: commandLineArguments) == Codex.appServerCommand
+  }
+
+  static func codexWorkingDirectoryPath(
+    processWorkingDirectoryPath: String?,
+    commandLineArguments: [String]
+  ) -> String? {
+    let declaredPath = Schema.codex.lastOptionValue(
+      named: Codex.workingDirectoryOptions,
+      from: commandLineArguments
+    )
+    guard let declaredPath else { return processWorkingDirectoryPath }
+    if declaredPath.hasPrefix("/") {
+      return URL(fileURLWithPath: declaredPath).standardizedFileURL.path(percentEncoded: false)
+    }
+    guard let processWorkingDirectoryPath else { return nil }
+    return URL(
+      fileURLWithPath: declaredPath,
+      relativeTo: URL(fileURLWithPath: processWorkingDirectoryPath, isDirectory: true)
+    )
+    .standardizedFileURL
+    .path(percentEncoded: false)
+  }
+
   static func inherited(
     from commandLineArguments: [String],
     agent: SupatermAgentKind
@@ -24,6 +51,66 @@ nonisolated enum TerminalAgentLaunchOptions {
     case reject
     case stop
     case unknownOption
+  }
+
+  private enum ParsedArgument {
+    case discarded
+    case inherited(ParsedOption)
+    case positional(String)
+    case reject
+    case stop
+    case unknownOption
+  }
+
+  private struct ParsedOption {
+    let arguments: [String]
+    let name: String
+    let value: String?
+  }
+
+  private struct ParsedArguments {
+    let values: [ParsedArgument]
+
+    var firstPositional: String? {
+      for value in values {
+        switch value {
+        case .discarded, .inherited:
+          continue
+        case .positional(let argument):
+          return argument
+        case .reject, .stop, .unknownOption:
+          return nil
+        }
+      }
+      return nil
+    }
+
+    func lastOptionValue(named names: Set<String>) -> String? {
+      var value: String?
+      for argument in values {
+        switch argument {
+        case .inherited(let option):
+          guard names.contains(option.name), let candidate = option.value else {
+            continue
+          }
+          value = candidate.isEmpty ? nil : candidate
+        case .reject, .stop, .unknownOption:
+          return value
+        case .discarded, .positional:
+          continue
+        }
+      }
+      return value
+    }
+  }
+
+  private enum Codex {
+    static let appServerCommand = "app-server"
+    static let longWorkingDirectoryOption = "--cd"
+    static let shortWorkingDirectoryOption = "-C"
+    static let workingDirectoryOptions: Set<String> = [
+      longWorkingDirectoryOption, shortWorkingDirectoryOption,
+    ]
   }
 
   private struct Schema {
@@ -75,47 +162,80 @@ nonisolated enum TerminalAgentLaunchOptions {
     }
 
     func inherited(from commandLineArguments: [String]) -> [String]? {
-      let arguments = agentArguments(from: commandLineArguments)
+      let arguments = parsedArguments(from: commandLineArguments).values
       var inherited: [String] = []
-      var index = 0
       var sawPositional = false
       var sessionCommandFound = false
       var skippedSessionIdentifier = false
-      while index < arguments.count {
-        let argument = arguments[index]
-        switch resolution(in: arguments, at: index) {
-        case .discard(let end):
-          index = end
-        case .inherit(let end):
-          inherited.append(contentsOf: arguments[index..<end])
-          index = end
+      for argument in arguments {
+        switch argument {
+        case .discarded:
+          continue
+        case .inherited(let option):
+          inherited.append(contentsOf: option.arguments)
         case .reject:
           return nil
         case .stop:
           return inherited
         case .unknownOption:
           guard scansOptionsPastPositionals || sessionCommandFound else { return inherited }
-          index += 1
-        case .positional:
-          if !sawPositional, sessionCommands.contains(argument) {
+        case .positional(let value):
+          if !sawPositional, sessionCommands.contains(value) {
             sawPositional = true
             sessionCommandFound = true
-            index += 1
-          } else if !sawPositional, nonRestorableCommands.contains(argument) {
+          } else if !sawPositional, nonRestorableCommands.contains(value) {
             return nil
           } else if sessionCommandFound, !skippedSessionIdentifier {
             sawPositional = true
             skippedSessionIdentifier = true
-            index += 1
           } else if scansOptionsPastPositionals || sessionCommandFound {
             sawPositional = true
-            index += 1
           } else {
             return inherited
           }
         }
       }
       return inherited
+    }
+
+    func firstPositional(from commandLineArguments: [String]) -> String? {
+      parsedArguments(from: commandLineArguments).firstPositional
+    }
+
+    func lastOptionValue(
+      named names: Set<String>,
+      from commandLineArguments: [String]
+    ) -> String? {
+      parsedArguments(from: commandLineArguments).lastOptionValue(named: names)
+    }
+
+    private func parsedArguments(from commandLineArguments: [String]) -> ParsedArguments {
+      let arguments = agentArguments(from: commandLineArguments)
+      var parsed: [ParsedArgument] = []
+      var index = arguments.startIndex
+      while index < arguments.endIndex {
+        switch resolution(in: arguments, at: index) {
+        case .discard(let end):
+          parsed.append(.discarded)
+          index = end
+        case .inherit(let end):
+          parsed.append(.inherited(parsedOption(in: arguments, from: index, until: end)))
+          index = end
+        case .positional:
+          parsed.append(.positional(arguments[index]))
+          index += 1
+        case .reject:
+          parsed.append(.reject)
+          index += 1
+        case .stop:
+          parsed.append(.stop)
+          return ParsedArguments(values: parsed)
+        case .unknownOption:
+          parsed.append(.unknownOption)
+          index += 1
+        }
+      }
+      return ParsedArguments(values: parsed)
     }
 
     private func resolution(in arguments: [String], at index: Int) -> ArgumentResolution {
@@ -156,6 +276,36 @@ nonisolated enum TerminalAgentLaunchOptions {
       return attachedValueOptionPrefixes.contains(where: {
         argument.hasPrefix($0) && argument.count > $0.count
       }) ? index + 1 : nil
+    }
+
+    private func parsedOption(
+      in arguments: [String],
+      from index: Int,
+      until end: Int
+    ) -> ParsedOption {
+      let argument = arguments[index]
+      let name = optionName(argument)
+      if argument.contains("="), inheritedValueOptions.contains(name) {
+        return ParsedOption(
+          arguments: Array(arguments[index..<end]),
+          name: name,
+          value: String(argument.dropFirst(name.count + 1))
+        )
+      }
+      if let prefix = attachedValueOptionPrefixes.first(where: {
+        argument.hasPrefix($0) && argument.count > $0.count
+      }) {
+        return ParsedOption(
+          arguments: Array(arguments[index..<end]),
+          name: prefix,
+          value: String(argument.dropFirst(prefix.count))
+        )
+      }
+      return ParsedOption(
+        arguments: Array(arguments[index..<end]),
+        name: argument,
+        value: index + 1 < end ? arguments[index + 1] : nil
+      )
     }
 
     private func discardedOptionEnd(in arguments: [String], at index: Int) -> Int? {
@@ -209,7 +359,11 @@ nonisolated enum TerminalAgentLaunchOptions {
     }
 
     private func valueEnd(in arguments: [String], from index: Int) -> Int {
-      min(index + 2, arguments.count)
+      let valueIndex = index + 1
+      guard valueIndex < arguments.count, arguments[valueIndex] != "--" else {
+        return valueIndex
+      }
+      return valueIndex + 1
     }
 
     private func variadicEnd(in arguments: [String], from index: Int) -> Int {
@@ -342,7 +496,7 @@ nonisolated enum TerminalAgentLaunchOptions {
       valueOptions: [
         "--add-dir",
         "--ask-for-approval",
-        "--cd",
+        Codex.longWorkingDirectoryOption,
         "--config",
         "--disable",
         "--enable",
@@ -350,7 +504,7 @@ nonisolated enum TerminalAgentLaunchOptions {
         "--model",
         "--profile",
         "--sandbox",
-        "-C",
+        Codex.shortWorkingDirectoryOption,
         "-a",
         "-c",
         "-m",
@@ -361,12 +515,12 @@ nonisolated enum TerminalAgentLaunchOptions {
       discardedFlagOptions: ["--all", "--last"],
       discardedValueOptions: ["--remote", "--remote-auth-token-env"],
       discardedOptionalValueOptions: [],
-      attachedValueOptionPrefixes: ["-C", "-a", "-c", "-m", "-p", "-s"],
+      attachedValueOptionPrefixes: [Codex.shortWorkingDirectoryOption, "-a", "-c", "-m", "-p", "-s"],
       discardedVariadicOptions: ["--image", "-i"],
       discardedAttachedValueOptionPrefixes: ["-i"],
       nonRestorableCommands: [
         "app",
-        "app-server",
+        Codex.appServerCommand,
         "a",
         "apply",
         "cloud",

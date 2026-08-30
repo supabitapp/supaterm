@@ -1,0 +1,168 @@
+import Testing
+
+@testable import supaterm
+
+struct TerminalAgentLaunchOptionsTests {
+  @Test(
+    arguments: [
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "/tmp/agent"],
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd=/tmp/agent"],
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C", "/tmp/agent"],
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C/tmp/agent"],
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "agent"],
+        expectedPath: "/tmp/shell/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-Cagent"],
+        expectedPath: "/tmp/shell/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "/tmp/first", "-C/tmp/last"],
+        expectedPath: "/tmp/last"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--", "--cd", "/tmp/spoof"],
+        expectedPath: "/tmp/shell"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C/tmp/real", "--", "--cd=/tmp/spoof"],
+        expectedPath: "/tmp/real"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--config", "--cd=/tmp/spoof"],
+        expectedPath: "/tmp/shell"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-c", "-C/tmp/spoof"],
+        expectedPath: "/tmp/shell"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--config", "--cd=/tmp/spoof", "-C/tmp/real"],
+        expectedPath: "/tmp/real"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C/tmp/real", "--future-option", "--cd=/tmp/spoof"],
+        expectedPath: "/tmp/real"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C", "--", "--cd=/tmp/spoof"],
+        expectedPath: "/tmp/shell"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["node", "/tmp/codex.js", "--cd", "/tmp/agent"],
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-Cagent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: nil
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd=/tmp/agent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: "/tmp/agent"
+      ),
+    ]
+  )
+  private func codexWorkingDirectoryFollowsCommandLine(testCase: CodexWorkingDirectoryTestCase) {
+    #expect(
+      TerminalAgentLaunchOptions.codexWorkingDirectoryPath(
+        processWorkingDirectoryPath: testCase.processWorkingDirectoryPath,
+        commandLineArguments: testCase.arguments
+      ) == testCase.expectedPath
+    )
+  }
+
+  @Test(
+    arguments: [
+      CodexAppServerTestCase(
+        arguments: ["codex", "app-server", "--stdio"],
+        expected: true
+      ),
+      CodexAppServerTestCase(
+        arguments: ["codex", "-c", "features.hooks=true", "app-server"],
+        expected: true
+      ),
+      CodexAppServerTestCase(
+        arguments: ["node", "/tmp/codex.js", "app-server"],
+        expected: true
+      ),
+      CodexAppServerTestCase(
+        arguments: ["codex", "--cd", "app-server"],
+        expected: false
+      ),
+      CodexAppServerTestCase(
+        arguments: ["codex", "--model=app-server"],
+        expected: false
+      ),
+      CodexAppServerTestCase(
+        arguments: ["codex", "--config", "app-server"],
+        expected: false
+      ),
+      CodexAppServerTestCase(
+        arguments: ["codex", "--", "app-server"],
+        expected: false
+      ),
+      CodexAppServerTestCase(
+        arguments: ["codex", "--future-option", "app-server"],
+        expected: false
+      ),
+      CodexAppServerTestCase(
+        arguments: ["codex", "explain app-server"],
+        expected: false
+      ),
+    ]
+  )
+  private func codexAppServerUsesParsedSubcommand(testCase: CodexAppServerTestCase) {
+    #expect(
+      TerminalAgentLaunchOptions.codexAppServerRuns(
+        commandLineArguments: testCase.arguments
+      ) == testCase.expected
+    )
+  }
+
+  @Test
+  func relativeCodexWorkingDirectoryUsesTerminalPathWhenProcPathIsUnreadable() {
+    #expect(
+      codexAgentHookWorkingDirectoryPath(
+        processWorkingDirectoryPath: nil,
+        commandLineArguments: ["codex", "--cd", "project"],
+        terminalWorkingDirectoryPath: "/tmp/shell"
+      ) == "/tmp/shell/project"
+    )
+  }
+}
+
+private struct CodexWorkingDirectoryTestCase: Sendable {
+  let arguments: [String]
+  let processWorkingDirectoryPath: String?
+  let expectedPath: String?
+
+  nonisolated init(
+    arguments: [String],
+    processWorkingDirectoryPath: String? = "/tmp/shell",
+    expectedPath: String?
+  ) {
+    self.arguments = arguments
+    self.processWorkingDirectoryPath = processWorkingDirectoryPath
+    self.expectedPath = expectedPath
+  }
+}
+
+private struct CodexAppServerTestCase: Sendable {
+  let arguments: [String]
+  let expected: Bool
+}
