@@ -153,6 +153,39 @@ private actor TerminalAgentDetectionLiveSampler {
   }
 }
 
+nonisolated struct TerminalAgentDetectionProcessProof: Equatable, Sendable {
+  let agentID: String
+  let processIdentity: TerminalAgentProcessIdentity
+  let workingDirectoryPath: String?
+
+  init(_ match: AgentDetectionProcessMatch) {
+    agentID = match.agentID
+    processIdentity = match.processIdentity
+    workingDirectoryPath = match.workingDirectoryPath
+  }
+
+  func refreshed(with match: AgentDetectionProcessMatch) -> Self {
+    guard agentID == match.agentID, processIdentity == match.processIdentity else {
+      return Self(match)
+    }
+    return Self(
+      agentID: agentID,
+      processIdentity: processIdentity,
+      workingDirectoryPath: match.workingDirectoryPath ?? workingDirectoryPath
+    )
+  }
+
+  private init(
+    agentID: String,
+    processIdentity: TerminalAgentProcessIdentity,
+    workingDirectoryPath: String?
+  ) {
+    self.agentID = agentID
+    self.processIdentity = processIdentity
+    self.workingDirectoryPath = workingDirectoryPath
+  }
+}
+
 @MainActor
 final class TerminalAgentDetectionController {
   static let screenByteLimit = 64 * 1_024
@@ -167,7 +200,7 @@ final class TerminalAgentDetectionController {
   private static let unrecognizedProcessInterval: Duration = .seconds(2)
   private static let processSampler = AgentDetectionProcessSampler()
 
-  private typealias Proof = AgentDetectionProcessMatch
+  private typealias Proof = TerminalAgentDetectionProcessProof
 
   private struct Matched: Equatable, Sendable {
     let agent: AgentDetectionAgentIdentity
@@ -515,9 +548,10 @@ final class TerminalAgentDetectionController {
         states[key.id] = state
         continue
       }
-      if state.proof != match {
+      let proof = state.proof?.refreshed(with: match) ?? Proof(match)
+      if state.proof != proof {
         clearPublished(key.id)
-        state.proof = match
+        state.proof = proof
         state.settler = AgentDetectionSettler()
         state.matched = nil
       }

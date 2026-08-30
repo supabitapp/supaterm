@@ -6,6 +6,70 @@ import Testing
 @testable import SupatermSupport
 @testable import supaterm
 
+@Suite
+struct TerminalAgentDetectionProcessProofTests {
+  @Test
+  func missingPathKeepsSameProcessEvidence() {
+    let initial = TerminalAgentDetectionProcessProof(
+      match(workingDirectoryPath: "/tmp/agent-workspace")
+    )
+
+    let refreshed = initial.refreshed(with: match())
+
+    #expect(refreshed.workingDirectoryPath == "/tmp/agent-workspace")
+  }
+
+  @Test
+  func newPathReplacesSameProcessEvidence() {
+    let initial = TerminalAgentDetectionProcessProof(
+      match(workingDirectoryPath: "/tmp/agent-workspace")
+    )
+
+    let refreshed = initial.refreshed(
+      with: match(workingDirectoryPath: "/tmp/refined-workspace")
+    )
+
+    #expect(refreshed.workingDirectoryPath == "/tmp/refined-workspace")
+  }
+
+  @Test
+  func newProcessStartDropsPriorEvidence() {
+    let initial = TerminalAgentDetectionProcessProof(
+      match(startTime: 1, workingDirectoryPath: "/tmp/agent-workspace")
+    )
+
+    let refreshed = initial.refreshed(with: match(startTime: 2))
+
+    #expect(refreshed.workingDirectoryPath == nil)
+  }
+
+  @Test
+  func newAgentDropsPriorEvidence() {
+    let initial = TerminalAgentDetectionProcessProof(
+      match(agentID: "agent", workingDirectoryPath: "/tmp/agent-workspace")
+    )
+
+    let refreshed = initial.refreshed(with: match(agentID: "other-agent"))
+
+    #expect(refreshed.workingDirectoryPath == nil)
+  }
+
+  private func match(
+    agentID: String = "agent",
+    startTime: UInt64 = 1,
+    workingDirectoryPath: String? = nil
+  ) -> AgentDetectionProcessMatch {
+    AgentDetectionProcessMatch(
+      agentID: agentID,
+      processIdentity: TerminalAgentProcessIdentity(
+        processID: 101,
+        startTimeMicroseconds: startTime
+      ),
+      workingDirectoryPath: workingDirectoryPath
+    )
+  }
+}
+
 @Suite(.serialized)
 @MainActor
 struct TerminalAgentDetectionControllerTests {
@@ -126,6 +190,34 @@ struct TerminalAgentDetectionControllerTests {
 
     #expect(fixture.host.observations[surfaceID]?.workingDirectoryPath == "/tmp/refined-workspace")
     #expect(fixture.host.applyCalls.count == 2)
+  }
+
+  @Test
+  func retainsWorkingDirectoryWhenSameProcessScanLosesIt() async throws {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    let now = ContinuousClock.now
+    await fixture.sampler.setMatches([
+      11: match(identity: proof, workingDirectoryPath: "/tmp/agent-workspace")
+    ])
+    await fixture.sampler.setCurrent([proof])
+
+    await fixture.controller.tick(now: now)
+
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.controller.tick(now: now.advanced(by: .seconds(5)))
+
+    #expect(fixture.host.observations[surfaceID]?.workingDirectoryPath == "/tmp/agent-workspace")
+    #expect(fixture.host.applyCalls.count == 1)
+
+    let replacement = identity(processID: 101, startTime: 2)
+    await fixture.sampler.setMatches([11: match(identity: replacement)])
+    await fixture.sampler.setCurrent([replacement])
+    await fixture.controller.tick(now: now.advanced(by: .seconds(10)))
+
+    #expect(fixture.host.observations[surfaceID]?.processIdentity == replacement)
+    #expect(fixture.host.observations[surfaceID]?.workingDirectoryPath == nil)
   }
 
   @Test
