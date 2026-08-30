@@ -5,10 +5,14 @@ import Testing
 struct NarrowAgentTabFixture {
   let kind: SupatermAgentKind
   let pane: SupatermPaneTargetRequest
-  let prompt: String
   let promptMarker: String
+  let completion: String
   let runningRuleIDs: Set<String>
   let server: FakeModelServer
+
+  var prompt: String {
+    "\(promptMarker) Reply once with exactly \(completion)."
+  }
 }
 
 @Suite(
@@ -99,5 +103,28 @@ struct AgentNarrowTabE2ETests {
         for: 0.5
       )
     }
+
+    for fixture in fixtures {
+      fixture.server.releaseNextResponse()
+    }
+    for fixture in fixtures {
+      try await app.waitForCapture(fixture.pane, contains: fixture.completion, timeout: 60)
+      try fixture.server.verifyComplete()
+      try await stopNarrowAgent(fixture, app: app)
+    }
+  }
+}
+
+private func stopNarrowAgent(
+  _ fixture: NarrowAgentTabFixture,
+  app: SupatermE2EApp
+) async throws {
+  let exitKey: SupatermInputKey = fixture.kind == .pi ? .ctrlD : .ctrlC
+  try await app.waitUntil("\(fixture.kind.rawValue) exits to the shell", timeout: 15) {
+    try app.press(exitKey, in: fixture.pane)
+    return try app.capture(fixture.pane).contains(hermeticShellPrompt)
+  }
+  try await app.waitUntil("\(fixture.kind.rawValue) clears its process", timeout: 15) {
+    try app.debugPane(fixture.pane.paneID)?.agent == nil
   }
 }

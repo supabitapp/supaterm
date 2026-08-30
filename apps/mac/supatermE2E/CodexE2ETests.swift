@@ -375,8 +375,8 @@ func makeCodexNarrowTabFixture(
     return NarrowAgentTabFixture(
       kind: .codex,
       pane: pane,
-      prompt: "\(marker) Reply once with exactly CODEX_NARROW_DONE_\(space.token).",
       promptMarker: marker,
+      completion: "CODEX_NARROW_DONE_\(space.token)",
       runningRuleIDs: CodexRuleID.screenWorking,
       server: server
     )

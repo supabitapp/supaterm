@@ -318,8 +318,8 @@ func makeClaudeNarrowTabFixture(
     return NarrowAgentTabFixture(
       kind: .claude,
       pane: pane,
-      prompt: "\(marker) Reply once with exactly CLAUDE_NARROW_DONE_\(space.token).",
       promptMarker: marker,
+      completion: "CLAUDE_NARROW_DONE_\(space.token)",
       runningRuleIDs: ClaudeRuleID.workingTitle,
       server: server
     )

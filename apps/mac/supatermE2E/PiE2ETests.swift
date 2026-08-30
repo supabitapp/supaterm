@@ -484,8 +484,8 @@ func makePiNarrowTabFixture(
     return NarrowAgentTabFixture(
       kind: .pi,
       pane: pane,
-      prompt: "\(marker) Reply once with exactly PI_NARROW_DONE_\(space.token).",
       promptMarker: marker,
+      completion: "PI_NARROW_DONE_\(space.token)",
       runningRuleIDs: try requireValue(
         piScreenRuleIDs(for: .running),
         "Pi has no running screen rule."
