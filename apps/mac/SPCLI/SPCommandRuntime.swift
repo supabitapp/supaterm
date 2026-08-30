@@ -393,9 +393,9 @@ enum SPOnboardingRenderer {
     lines.append("")
     lines.append("sp skills install")
     lines.append("")
-    lines.append("Install every supported coding-agent integration:")
+    lines.append("Set up every supported coding-agent integration:")
     lines.append("")
-    lines.append("sp agent install-hooks")
+    lines.append("sp agent setup")
     lines.append("")
     lines.append(#"Run "sp" for the list of available commands."#)
 

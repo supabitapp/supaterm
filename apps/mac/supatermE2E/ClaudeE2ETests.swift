@@ -113,7 +113,7 @@ private final class ClaudeE2EFixture {
           tabID: space.tab.tabID,
           paneID: space.tab.paneID
         )
-        try await installAgentHooks(
+        try await setupAgentIntegrations(
           runner: runner,
           socketPath: app.socketPath,
           workspace: space.directory,

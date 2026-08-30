@@ -6,6 +6,7 @@ nonisolated struct CodingAgentHookInstaller: Sendable {
   let isAvailable: @Sendable (SupatermAgentKind) throws -> Bool
   let integrationHealth: @Sendable (SupatermAgentKind) throws -> CodingAgentIntegrationHealth
   let installSupatermHooks: @Sendable (SupatermAgentKind) throws -> Void
+  let configureForSupaterm: @Sendable (SupatermAgentKind) throws -> Void
   let removeSupatermHooks: @Sendable (SupatermAgentKind) throws -> Void
 
   static let live = Self(
@@ -40,6 +41,17 @@ nonisolated struct CodingAgentHookInstaller: Sendable {
         try CodexSettingsInstaller(homeDirectoryURL: homeDirectoryURL).installSupatermHooks()
       case .pi:
         try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL).installSupatermPackage()
+      }
+    },
+    configureForSupaterm: { agent in
+      let homeDirectoryURL = Self.homeDirectoryURL()
+      switch agent {
+      case .claude:
+        try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
+      case .codex:
+        try CodexSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
+      case .pi:
+        break
       }
     },
     removeSupatermHooks: { agent in

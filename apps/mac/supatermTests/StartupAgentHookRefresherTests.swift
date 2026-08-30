@@ -81,7 +81,7 @@ struct StartupAgentHookRefresherTests {
             try PiSettingsInstaller(
               homeDirectoryURL: homeDirectoryURL,
               checkPiAvailable: { true },
-              runPiCommand: { _ in PiSettingsInstaller.CommandResult(status: 0) }
+              runPiCommand: { _, _ in PiSettingsInstaller.CommandResult(status: 0) }
             ).integrationHealth()
           },
           installSupatermHooks: {

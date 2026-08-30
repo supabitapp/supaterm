@@ -47,6 +47,26 @@ public struct CodexSettingsInstaller {
     try installSupatermHooksLocked()
   }
 
+  public func configureForSupaterm() throws {
+    Self.operationLock.lock()
+    defer { Self.operationLock.unlock() }
+    let configURL = Self.configURL(homeDirectoryURL: homeDirectoryURL)
+    let config = try appServerClient.readUserConfig(
+      cwd: homeDirectoryURL,
+      configURL: configURL
+    )
+    guard !config.hasTerminalTitle else { return }
+    try writeConfig(
+      write: {
+        try appServerClient.setTerminalTitle(
+          filePath: config.filePath,
+          expectedVersion: config.version
+        )
+      },
+      isApplied: { $0.hasTerminalTitle }
+    )
+  }
+
   private func installSupatermHooksLocked() throws {
     switch try codexAvailability() {
     case .unavailable:
@@ -92,8 +112,7 @@ public struct CodexSettingsInstaller {
         try replaceHookState(
           hookState,
           filePath: config.filePath,
-          expectedVersion: config.version,
-          configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
+          expectedVersion: config.version
         )
       }
     } catch CodexSettingsInstallerError.configWriteOutcomeUnknown(let message) {
@@ -200,8 +219,7 @@ public struct CodexSettingsInstaller {
         try replaceHookState(
           hookState,
           filePath: config.filePath,
-          expectedVersion: config.version,
-          configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
+          expectedVersion: config.version
         )
       }
     } catch CodexSettingsInstallerError.configWriteOutcomeUnknown(let message) {
@@ -270,29 +288,39 @@ public struct CodexSettingsInstaller {
   private func replaceHookState(
     _ hookState: JSONObject,
     filePath: String,
-    expectedVersion: String?,
-    configURL: URL
+    expectedVersion: String?
+  ) throws {
+    try writeConfig(
+      write: {
+        try appServerClient.replaceHookState(
+          hookState,
+          filePath: filePath,
+          expectedVersion: expectedVersion
+        )
+      },
+      isApplied: { $0.hookState == hookState }
+    )
+  }
+
+  private func writeConfig(
+    write: () throws -> Void,
+    isApplied: (CodexAppServerUserConfig) -> Bool
   ) throws {
     do {
-      try appServerClient.replaceHookState(
-        hookState,
-        filePath: filePath,
-        expectedVersion: expectedVersion
-      )
-    } catch {
+      try write()
+    } catch let writeError {
       let config: CodexAppServerUserConfig
       do {
         config = try appServerClient.readUserConfig(
           cwd: homeDirectoryURL,
-          configURL: configURL
+          configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
         )
       } catch {
         throw CodexSettingsInstallerError.configWriteOutcomeUnknown(
           error.localizedDescription
         )
       }
-      guard config.hookState != hookState else { return }
-      throw error
+      guard isApplied(config) else { throw writeError }
     }
   }
 
@@ -502,7 +530,7 @@ enum CodexSettingsInstallerError: Error, Equatable, LocalizedError {
     case .codexUnavailable:
       return "Codex must be installed and available in your login shell before Supaterm can install hooks."
     case .configWriteOutcomeUnknown(let message):
-      return "Supaterm could not verify Codex's hook trust update: \(message)"
+      return "Supaterm could not verify Codex's config update: \(message)"
     case .enableHooksFailed(let details):
       if details.isEmpty {
         return "Supaterm could not enable the Codex hooks feature."

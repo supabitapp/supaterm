@@ -136,6 +136,7 @@ struct TerminalCommandExecutorHookTests {
       isAvailable: { _ in true },
       integrationHealth: { _ in .absent },
       installSupatermHooks: { recorder.recordInstall($0) },
+      configureForSupaterm: { recorder.recordConfiguration($0) },
       removeSupatermHooks: { recorder.recordRemove($0) }
     )
 
@@ -151,6 +152,7 @@ struct TerminalCommandExecutorHookTests {
     }
 
     #expect(recorder.installedAgents() == SupatermAgentKind.allCases)
+    #expect(recorder.configuredAgents() == SupatermAgentKind.allCases)
     #expect(recorder.removedAgents() == SupatermAgentKind.allCases)
   }
 }
@@ -169,6 +171,7 @@ private func claudeHookInstaller(
     isAvailable: { _ in try makeInstaller().isAvailable() },
     integrationHealth: { _ in try makeInstaller().integrationHealth() },
     installSupatermHooks: { _ in try makeInstaller().installSupatermHooks() },
+    configureForSupaterm: { _ in try makeInstaller().configureForSupaterm() },
     removeSupatermHooks: { _ in try makeInstaller().removeSupatermHooks() }
   )
 }
@@ -201,11 +204,18 @@ private func claudeHookEventNames(homeDirectoryURL: URL) throws -> [String] {
 nonisolated private final class AgentHookInstallRecorder: @unchecked Sendable {
   private let lock = NSLock()
   private var installs: [SupatermAgentKind] = []
+  private var configurations: [SupatermAgentKind] = []
   private var removes: [SupatermAgentKind] = []
 
   func recordInstall(_ agent: SupatermAgentKind) {
     lock.lock()
     installs.append(agent)
+    lock.unlock()
+  }
+
+  func recordConfiguration(_ agent: SupatermAgentKind) {
+    lock.lock()
+    configurations.append(agent)
     lock.unlock()
   }
 
@@ -225,6 +235,13 @@ nonisolated private final class AgentHookInstallRecorder: @unchecked Sendable {
   func removedAgents() -> [SupatermAgentKind] {
     lock.lock()
     let snapshot = removes
+    lock.unlock()
+    return snapshot
+  }
+
+  func configuredAgents() -> [SupatermAgentKind] {
+    lock.lock()
+    let snapshot = configurations
     lock.unlock()
     return snapshot
   }

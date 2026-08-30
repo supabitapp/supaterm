@@ -35,6 +35,7 @@ struct CodexAppServerUserConfig: Equatable, Sendable {
   let filePath: String
   let version: String?
   let hookState: JSONObject
+  let hasTerminalTitle: Bool
 }
 
 struct CodexAppServerClient: Sendable {
@@ -117,7 +118,8 @@ struct CodexAppServerClient: Sendable {
         hooksFeatureEnabled: hooksFeatureEnabled,
         filePath: configPath,
         version: nil,
-        hookState: [:]
+        hookState: [:],
+        hasTerminalTitle: false
       )
     }
     guard
@@ -133,7 +135,8 @@ struct CodexAppServerClient: Sendable {
       hooksFeatureEnabled: hooksFeatureEnabled,
       filePath: filePath,
       version: version,
-      hookState: hookState
+      hookState: hookState,
+      hasTerminalTitle: layerConfig["tui"]?.objectValue?["terminal_title"] != nil
     )
   }
 
@@ -142,14 +145,43 @@ struct CodexAppServerClient: Sendable {
     filePath: String,
     expectedVersion: String?
   ) throws {
-    var params: JSONObject = [
-      "edits": [
+    try batchWrite(
+      [
         [
           "keyPath": "hooks.state",
           "value": .object(hookState),
           "mergeStrategy": "replace",
         ]
       ],
+      filePath: filePath,
+      expectedVersion: expectedVersion
+    )
+  }
+
+  func setTerminalTitle(
+    filePath: String,
+    expectedVersion: String?
+  ) throws {
+    try batchWrite(
+      [
+        [
+          "keyPath": "tui.terminal_title",
+          "value": ["thread-title", "task-progress"],
+          "mergeStrategy": "replace",
+        ]
+      ],
+      filePath: filePath,
+      expectedVersion: expectedVersion
+    )
+  }
+
+  private func batchWrite(
+    _ edits: [JSONValue],
+    filePath: String,
+    expectedVersion: String?
+  ) throws {
+    var params: JSONObject = [
+      "edits": .array(edits),
       "filePath": .string(filePath),
       "reloadUserConfig": true,
     ]
@@ -215,7 +247,7 @@ enum CodexAppServerClientError: Error, Equatable, LocalizedError {
   var errorDescription: String? {
     switch self {
     case .configWriteRejected:
-      return "Codex rejected the hook trust update."
+      return "Codex rejected the config update."
     case .hookDiscoveryFailed(let message):
       return message.isEmpty ? "Codex could not discover hooks." : message
     case .invalidResponse(let method):

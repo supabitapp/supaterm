@@ -18,7 +18,7 @@ public struct PiSettingsInstaller {
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let checkPiAvailable: @Sendable () throws -> Bool
-  let runPiCommand: @Sendable ([String]) throws -> CommandResult
+  let runPiCommand: @Sendable ([String], TimeInterval) throws -> CommandResult
 
   public init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -36,7 +36,7 @@ public struct PiSettingsInstaller {
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default,
     checkPiAvailable: @escaping @Sendable () throws -> Bool,
-    runPiCommand: @escaping @Sendable ([String]) throws -> CommandResult
+    runPiCommand: @escaping @Sendable ([String], TimeInterval) throws -> CommandResult
   ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
@@ -71,10 +71,6 @@ public struct PiSettingsInstaller {
   }
 
   public func installSupatermPackage() throws {
-    guard try isPiAvailable() else {
-      throw PiSettingsInstallerError.piUnavailable
-    }
-
     let sources = try installedSupatermPackageSources()
     var seenSources: Set<String> = []
     let uniqueSources = sources.filter { seenSources.insert($0).inserted }
@@ -83,6 +79,10 @@ public struct PiSettingsInstaller {
       canonicalSourceCount == 1
       ? uniqueSources.filter { $0 != Self.canonicalPackageSource }
       : uniqueSources
+    try Self.validateMutationCount(sourcesToRemove.count + 1)
+    guard try isPiAvailable() else {
+      throw PiSettingsInstallerError.piUnavailable
+    }
     for source in sourcesToRemove {
       try runInstallCommand(Self.removeCommandArguments(source: source))
     }
@@ -95,15 +95,16 @@ public struct PiSettingsInstaller {
 
   public func removeSupatermPackage() throws {
     let sources = try installedSupatermPackageSources()
-    guard !sources.isEmpty else { return }
+    var seenSources: Set<String> = []
+    let uniqueSources = sources.filter { seenSources.insert($0).inserted }
+    guard !uniqueSources.isEmpty else { return }
     guard try isPiAvailable() else {
       try removeSupatermPackagesFromSettings()
       return
     }
-    for source in sources {
-      let commandResult = try runPiCommand(
-        Self.removeCommandArguments(source: source)
-      )
+    try Self.validateMutationCount(uniqueSources.count)
+    for source in uniqueSources {
+      let commandResult = try runMutationCommand(Self.removeCommandArguments(source: source))
       guard commandResult.status == 0 else {
         throw PiSettingsInstallerError.removeFailed(
           Self.commandFailureDetails(from: commandResult)
@@ -120,11 +121,17 @@ public struct PiSettingsInstaller {
   }
 
   static func checkPiAvailable() throws -> Bool {
-    try runShellCommand(commandArguments: piAvailabilityCommandArguments()).status == 0
+    try CodingAgentCommandRunner.run(
+      arguments: piAvailabilityCommandArguments(),
+      timeout: SupatermAgentHookManagementTiming.piAvailabilityTimeout
+    ).status == 0
   }
 
-  static func runPiCommand(commandArguments: [String]) throws -> CommandResult {
-    try runShellCommand(commandArguments: commandArguments)
+  static func runPiCommand(
+    commandArguments: [String],
+    timeout: TimeInterval
+  ) throws -> CommandResult {
+    try CodingAgentCommandRunner.run(arguments: commandArguments, timeout: timeout)
   }
 
   static func piAvailabilityCommandArguments() -> [String] {
@@ -245,7 +252,7 @@ public struct PiSettingsInstaller {
   }
 
   private func runInstallCommand(_ arguments: [String]) throws {
-    let commandResult = try runPiCommand(arguments)
+    let commandResult = try runMutationCommand(arguments)
     guard commandResult.status == 0 else {
       throw PiSettingsInstallerError.installFailed(
         Self.commandFailureDetails(from: commandResult)
@@ -253,8 +260,8 @@ public struct PiSettingsInstaller {
     }
   }
 
-  private static func runShellCommand(commandArguments: [String]) throws -> CommandResult {
-    try CodingAgentCommandRunner.run(arguments: commandArguments)
+  private func runMutationCommand(_ arguments: [String]) throws -> CommandResult {
+    try runPiCommand(arguments, SupatermAgentHookManagementTiming.piMutationTimeout)
   }
 
   private static func commandFailureDetails(from commandResult: CommandResult) -> String {
@@ -262,6 +269,12 @@ public struct PiSettingsInstaller {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .first { !$0.isEmpty }
     return details ?? ""
+  }
+
+  private static func validateMutationCount(_ count: Int) throws {
+    guard count <= SupatermAgentHookManagementTiming.maxPiMutationsPerRequest else {
+      throw PiSettingsInstallerError.tooManyPackageSources
+    }
   }
 
   private static func shellEscaped(_ value: String) -> String {
@@ -302,6 +315,7 @@ public enum PiSettingsInstallerError: Error, Equatable, LocalizedError {
   case invalidSettings
   case piUnavailable
   case removeFailed(String)
+  case tooManyPackageSources
 
   public var errorDescription: String? {
     switch self {
@@ -319,6 +333,10 @@ public enum PiSettingsInstallerError: Error, Equatable, LocalizedError {
         return "Supaterm could not remove the Pi package."
       }
       return "Supaterm could not remove the Pi package: \(details)"
+    case .tooManyPackageSources:
+      let limit = SupatermAgentHookManagementTiming.maxPiMutationsPerRequest
+      return
+        "Supaterm can run at most \(limit) Pi package changes at once. Remove package sources before trying again."
     }
   }
 }

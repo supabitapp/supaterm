@@ -113,6 +113,104 @@ struct ClaudeSettingsInstallerTests {
   }
 
   @Test
+  func configureCreatesMissingSettingsFile() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    #expect(object["terminalProgressBarEnabled"] as? Bool == true)
+  }
+
+  @Test
+  func configurePreservesUnrelatedSettings() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeSettings(
+      """
+      {
+        "env": {
+          "SUPATERM_TEST": "keep"
+        },
+        "theme": "dark"
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    let environment = try #require(object["env"] as? [String: Any])
+    #expect(environment["SUPATERM_TEST"] as? String == "keep")
+    #expect(object["theme"] as? String == "dark")
+    #expect(object["terminalProgressBarEnabled"] as? Bool == true)
+  }
+
+  @Test
+  func configurePreservesExistingProgressSetting() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeSettings(
+      """
+      { "theme": "dark", "terminalProgressBarEnabled": false }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    let beforeConfiguration = try Data(contentsOf: settingsURL)
+
+    try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
+
+    #expect(try Data(contentsOf: settingsURL) == beforeConfiguration)
+  }
+
+  @Test
+  func configureIsIdempotent() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL)
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+
+    try installer.configureForSupaterm()
+    let firstConfiguration = try Data(contentsOf: settingsURL)
+    try installer.configureForSupaterm()
+
+    #expect(try Data(contentsOf: settingsURL) == firstConfiguration)
+  }
+
+  @Test
+  func configureFailsWithoutOverwritingInvalidJSON() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let invalidJSON = #"{ "terminalProgressBarEnabled":"#
+    try writeSettings(invalidJSON, homeDirectoryURL: homeDirectoryURL)
+
+    #expect(throws: ClaudeSettingsInstallerError.invalidJSON) {
+      try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
+    }
+
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    #expect(try String(contentsOf: settingsURL, encoding: .utf8) == invalidJSON)
+  }
+
+  @Test
+  func configureFailsWithoutOverwritingNonObjectRoot() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let nonObjectRoot = "[]"
+    try writeSettings(nonObjectRoot, homeDirectoryURL: homeDirectoryURL)
+
+    #expect(throws: ClaudeSettingsInstallerError.invalidRootObject) {
+      try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
+    }
+
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    #expect(try String(contentsOf: settingsURL, encoding: .utf8) == nonObjectRoot)
+  }
+
+  @Test
   func installPreservesUnrelatedSettingsAndHooks() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

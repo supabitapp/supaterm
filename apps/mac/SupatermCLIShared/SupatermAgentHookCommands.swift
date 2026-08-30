@@ -1,7 +1,11 @@
 import Foundation
 
 public enum SupatermAgentHookManagementTiming {
-  public static let serverReplyTimeout: TimeInterval = 60
+  public static let piAvailabilityTimeout: TimeInterval = 10
+  public static let piMutationTimeout: TimeInterval = 60
+  public static let maxPiMutationsPerRequest = 3
+  public static let serverReplyTimeout =
+    piMutationTimeout * TimeInterval(maxPiMutationsPerRequest + 1)
   public static let clientResponseTimeout = serverReplyTimeout + 5
 }
 

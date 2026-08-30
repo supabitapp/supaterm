@@ -24,7 +24,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -51,7 +51,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -78,7 +78,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -105,7 +105,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -121,8 +121,8 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { arguments in
-        capture.record(arguments)
+      runPiCommand: { arguments, timeout in
+        capture.record(arguments, timeout: timeout)
         return PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -136,6 +136,7 @@ struct PiSettingsInstallerTests {
         )
       ]
     )
+    #expect(capture.timeouts == [SupatermAgentHookManagementTiming.piMutationTimeout])
   }
 
   @Test
@@ -150,8 +151,8 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { arguments in
-        capture.record(arguments)
+      runPiCommand: { arguments, timeout in
+        capture.record(arguments, timeout: timeout)
         return PiSettingsInstaller.CommandResult(status: 0)
       }
     )
@@ -165,6 +166,7 @@ struct PiSettingsInstallerTests {
         )
       ]
     )
+    #expect(capture.timeouts == [SupatermAgentHookManagementTiming.piMutationTimeout])
   }
 
   @Test
@@ -179,7 +181,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { arguments in
+      runPiCommand: { arguments, _ in
         capture.record(arguments)
         return PiSettingsInstaller.CommandResult(status: 0)
       }
@@ -220,7 +222,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { arguments in
+      runPiCommand: { arguments, _ in
         capture.record(arguments)
         return PiSettingsInstaller.CommandResult(status: 0)
       }
@@ -253,7 +255,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { arguments in
+      runPiCommand: { arguments, _ in
         capture.record(arguments)
         return PiSettingsInstaller.CommandResult(status: 0)
       }
@@ -272,6 +274,36 @@ struct PiSettingsInstallerTests {
   }
 
   @Test
+  func installRejectsTooManyMutationsBeforeRunningCommands() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let sources = [
+      "git:git@github.com:supabitapp/supaterm-skills.git",
+      "https://github.com/supabitapp/supaterm-skills",
+      "ssh://git@github.com/supabitapp/supaterm-skills.git",
+    ]
+    try writePiPackageSources(sources, homeDirectoryURL: homeDirectoryURL)
+    let capture = PiCommandCapture()
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: {
+        Issue.record("Preflight must run before checking Pi availability.")
+        return true
+      },
+      runPiCommand: { arguments, timeout in
+        capture.record(arguments, timeout: timeout)
+        return PiSettingsInstaller.CommandResult(status: 0)
+      }
+    )
+
+    #expect(throws: PiSettingsInstallerError.tooManyPackageSources) {
+      try installer.installSupatermPackage()
+    }
+
+    #expect(capture.commands.isEmpty)
+  }
+
+  @Test
   func integrationHealthRequiresCurrentCanonicalPackage() throws {
     let homeDirectoryURL = try temporaryPiHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
@@ -282,7 +314,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in PiSettingsInstaller.CommandResult(status: 0) }
+      runPiCommand: { _, _ in PiSettingsInstaller.CommandResult(status: 0) }
     )
 
     try writeInstalledPiPackage(version: "0.1.0", homeDirectoryURL: homeDirectoryURL)
@@ -303,7 +335,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         Issue.record("Local development packages must not invoke Pi during health checks.")
         return PiSettingsInstaller.CommandResult(status: 0)
       }
@@ -330,6 +362,7 @@ struct PiSettingsInstallerTests {
       {
         "packages": [
           "../../code/github.com/supabitapp/supaterm-skills",
+          "git:github.com/supabitapp/supaterm-skills",
           "git:github.com/supabitapp/supaterm-skills"
         ]
       }
@@ -341,8 +374,8 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { arguments in
-        capture.record(arguments)
+      runPiCommand: { arguments, timeout in
+        capture.record(arguments, timeout: timeout)
         return PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -355,10 +388,54 @@ struct PiSettingsInstallerTests {
         PiSettingsInstaller.removeCommandArguments(source: "git:github.com/supabitapp/supaterm-skills"),
       ]
     )
+    #expect(
+      capture.timeouts
+        == Array(
+          repeating: SupatermAgentHookManagementTiming.piMutationTimeout,
+          count: 2
+        )
+    )
   }
 
   @Test
-  func removeEditsSettingsWhenPiIsUnavailable() throws {
+  func removeRejectsTooManyMutationsBeforeRunningCommands() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let sources = [
+      "git:git@github.com:supabitapp/supaterm-skills.git",
+      "https://github.com/supabitapp/supaterm-skills",
+      "ssh://git@github.com/supabitapp/supaterm-skills.git",
+      "../../code/github.com/supabitapp/supaterm-skills",
+    ]
+    try writePiPackageSources(sources, homeDirectoryURL: homeDirectoryURL)
+    let capture = PiCommandCapture()
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: { true },
+      runPiCommand: { arguments, timeout in
+        capture.record(arguments, timeout: timeout)
+        return PiSettingsInstaller.CommandResult(status: 0)
+      }
+    )
+
+    #expect(throws: PiSettingsInstallerError.tooManyPackageSources) {
+      try installer.removeSupatermPackage()
+    }
+
+    #expect(capture.commands.isEmpty)
+  }
+
+  @Test
+  func hookManagementTimeoutsCoverPiMutationsAndChecks() {
+    #expect(SupatermAgentHookManagementTiming.piAvailabilityTimeout == 10)
+    #expect(SupatermAgentHookManagementTiming.piMutationTimeout == 60)
+    #expect(SupatermAgentHookManagementTiming.maxPiMutationsPerRequest == 3)
+    #expect(SupatermAgentHookManagementTiming.serverReplyTimeout == 240)
+    #expect(SupatermAgentHookManagementTiming.clientResponseTimeout == 245)
+  }
+
+  @Test
+  func removeEditsAllSettingsWhenPiIsUnavailable() throws {
     let homeDirectoryURL = try temporaryPiHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writePiSettings(
@@ -369,6 +446,9 @@ struct PiSettingsInstallerTests {
             "source": "git:github.com/supabitapp/supaterm-skills",
             "extensions": ["extensions/pi-notify-supaterm"]
           },
+          "git:git@github.com:supabitapp/supaterm-skills.git",
+          "https://github.com/supabitapp/supaterm-skills",
+          "../../code/github.com/supabitapp/supaterm-skills",
           "git:github.com/example/other-package"
         ],
         "theme": "dark"
@@ -379,7 +459,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { false },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         Issue.record("Removal must not invoke unavailable Pi.")
         return PiSettingsInstaller.CommandResult(status: 0)
       }
@@ -412,7 +492,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -421,10 +501,13 @@ struct PiSettingsInstallerTests {
   }
 
   @Test
-  func installFailsWhenPiIsUnavailable() {
+  func installFailsWhenPiIsUnavailable() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { false },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         Issue.record("runPiCommand should not be called when Pi is unavailable.")
         return PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
@@ -450,7 +533,7 @@ struct PiSettingsInstallerTests {
     let installer = PiSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
-      runPiCommand: { _ in
+      runPiCommand: { _, _ in
         PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
@@ -482,6 +565,15 @@ private func writePiSettings(
   try Data(contents.utf8).write(to: settingsURL)
 }
 
+private func writePiPackageSources(
+  _ sources: [String],
+  homeDirectoryURL: URL
+) throws {
+  let data = try JSONSerialization.data(withJSONObject: ["packages": sources])
+  let contents = try #require(String(bytes: data, encoding: .utf8))
+  try writePiSettings(contents, homeDirectoryURL: homeDirectoryURL)
+}
+
 private func writeInstalledPiPackage(
   version: String,
   homeDirectoryURL: URL
@@ -504,10 +596,14 @@ private func piSettingsObject(homeDirectoryURL: URL) throws -> [String: Any] {
 nonisolated final class PiCommandCapture: @unchecked Sendable {
   private let lock = NSLock()
   private var value: [[String]] = []
+  private var timeoutValue: [TimeInterval] = []
 
-  func record(_ arguments: [String]) {
+  func record(_ arguments: [String], timeout: TimeInterval? = nil) {
     lock.lock()
     value.append(arguments)
+    if let timeout {
+      timeoutValue.append(timeout)
+    }
     lock.unlock()
   }
 
@@ -516,5 +612,12 @@ nonisolated final class PiCommandCapture: @unchecked Sendable {
     let commands = value
     lock.unlock()
     return commands
+  }
+
+  var timeouts: [TimeInterval] {
+    lock.lock()
+    let timeouts = timeoutValue
+    lock.unlock()
+    return timeouts
   }
 }

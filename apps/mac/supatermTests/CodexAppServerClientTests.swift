@@ -95,7 +95,8 @@ struct CodexAppServerClientTests {
                 "state": [
                   "external": ["enabled": false]
                 ]
-              ]
+              ],
+              "tui": ["terminal_title": []],
             ],
           ],
         ],
@@ -126,6 +127,7 @@ struct CodexAppServerClientTests {
     )
     #expect(snapshot.version == "user-version")
     #expect(snapshot.hookState == ["external": ["enabled": false]])
+    #expect(snapshot.hasTerminalTitle)
   }
 
   @Test
@@ -148,6 +150,7 @@ struct CodexAppServerClientTests {
     #expect(snapshot.filePath == configURL.standardizedFileURL.path)
     #expect(snapshot.version == nil)
     #expect(snapshot.hookState.isEmpty)
+    #expect(!snapshot.hasTerminalTitle)
   }
 
   @Test
@@ -182,6 +185,44 @@ struct CodexAppServerClientTests {
               [
                 "keyPath": "hooks.state",
                 "value": .object(state),
+                "mergeStrategy": "replace",
+              ]
+            ],
+            "filePath": "/tmp/home/.codex/config.toml",
+            "expectedVersion": "user-version",
+            "reloadUserConfig": true,
+          ]
+        )
+      ])
+  }
+
+  @Test
+  func batchWriteSetsTerminalTitle() throws {
+    let recorder = CodexAppServerRequestRecorder { method, _ in
+      #expect(method == "config/batchWrite")
+      return [
+        "status": "ok",
+        "version": "next-version",
+        "filePath": "/tmp/home/.codex/config.toml",
+        "overriddenMetadata": nil,
+      ]
+    }
+    let client = CodexAppServerClient(request: recorder.request)
+
+    try client.setTerminalTitle(
+      filePath: "/tmp/home/.codex/config.toml",
+      expectedVersion: "user-version"
+    )
+
+    #expect(
+      recorder.requests() == [
+        CodexAppServerRecordedRequest(
+          method: "config/batchWrite",
+          params: [
+            "edits": [
+              [
+                "keyPath": "tui.terminal_title",
+                "value": ["thread-title", "task-progress"],
                 "mergeStrategy": "replace",
               ]
             ],

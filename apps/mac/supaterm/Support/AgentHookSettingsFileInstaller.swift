@@ -42,20 +42,25 @@ struct AgentHookSettingsFileInstaller {
       from: loadedSettings.object,
       hookGroupsByEvent: try hookGroupsByEvent()
     )
-    try fileManager.createDirectory(
-      at: settingsURL.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(JSONValue.object(mergedObject))
-    try data.write(to: settingsURL, options: .atomic)
+    let data = try writeSettingsObject(mergedObject, to: settingsURL)
     return Mutation(
       url: settingsURL,
       previousData: loadedSettings.data,
       writtenData: data
     )
+  }
+
+  func setDefault(
+    _ value: JSONValue,
+    forKey key: String,
+    settingsURL: URL
+  ) throws {
+    let loadedSettings = try loadSettings(at: settingsURL)
+    guard loadedSettings.object[key] == nil else { return }
+
+    var settingsObject = loadedSettings.object
+    settingsObject[key] = value
+    try writeSettingsObject(settingsObject, to: settingsURL)
   }
 
   func integrationHealth(
@@ -105,6 +110,14 @@ struct AgentHookSettingsFileInstaller {
     }
     let settingsObject = try loadSettingsObject(at: settingsURL)
     let prunedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
+    try writeSettingsObject(prunedObject, to: settingsURL)
+  }
+
+  @discardableResult
+  private func writeSettingsObject(
+    _ settingsObject: [String: JSONValue],
+    to settingsURL: URL
+  ) throws -> Data {
     try fileManager.createDirectory(
       at: settingsURL.deletingLastPathComponent(),
       withIntermediateDirectories: true
@@ -112,8 +125,9 @@ struct AgentHookSettingsFileInstaller {
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(JSONValue.object(prunedObject))
+    let data = try encoder.encode(JSONValue.object(settingsObject))
     try data.write(to: settingsURL, options: .atomic)
+    return data
   }
 
   private func loadSettingsObject(at url: URL) throws -> [String: JSONValue] {

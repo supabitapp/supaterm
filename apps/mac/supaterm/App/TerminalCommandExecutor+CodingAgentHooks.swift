@@ -12,6 +12,7 @@ extension TerminalCommandExecutor {
         return SupatermAgentHookHealth(agent: request.agent, health: .unavailable)
       }
       try installer.installSupatermHooks(request.agent)
+      try installer.configureForSupaterm(request.agent)
       return SupatermAgentHookHealth(
         agent: request.agent,
         health: try installer.integrationHealth(request.agent)

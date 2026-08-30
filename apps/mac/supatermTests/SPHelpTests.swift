@@ -91,7 +91,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.InstallSkill.self, columns: 100),
       SP.helpMessage(for: SP.Agent.self, columns: 100),
       SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100),
-      SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100),
+      SP.helpMessage(for: SP.SetupAgentIntegrations.self, columns: 100),
       SP.helpMessage(for: SP.RemoveAgentHooks.self, columns: 100),
       SP.helpMessage(for: SP.Internal.self, columns: 100),
       SP.helpMessage(for: SP.AgentSettings.self, columns: 100),
@@ -286,7 +286,8 @@ struct SPHelpTests {
 
     #expect(help.contains("Settings > Coding Agents"))
     #expect(help.contains("sp skills install"))
-    #expect(help.contains("sp agent install-hooks"))
+    #expect(help.contains("sp agent setup"))
+    #expect(!help.contains("sp agent install-hooks"))
     #expect(!help.contains("sp agent install-hook "))
     #expect(!help.contains("sp agent remove-hook "))
     #expect(help.contains("receive-agent-hook --agent claude"))
@@ -319,10 +320,11 @@ struct SPHelpTests {
   }
 
   @Test
-  func installAgentHooksHelpShowsExamples() {
-    let help = SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100)
+  func setupAgentIntegrationsHelpShowsExamples() {
+    let help = SP.helpMessage(for: SP.SetupAgentIntegrations.self, columns: 100)
 
-    #expect(help.contains("sp agent install-hooks"))
+    #expect(help.contains("sp agent setup"))
+    #expect(!help.contains("sp agent install-hooks"))
     #expect(!help.contains("sp agent install-hook "))
   }
 

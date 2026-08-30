@@ -36,6 +36,14 @@ public struct ClaudeSettingsInstaller {
     )
   }
 
+  public func configureForSupaterm() throws {
+    try fileInstaller.setDefault(
+      .bool(true),
+      forKey: "terminalProgressBarEnabled",
+      settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    )
+  }
+
   public func isAvailable() throws -> Bool {
     try runAvailabilityCommand().status == 0
   }

@@ -1053,7 +1053,7 @@ private let parentHelpCommands = [
   ["tab"],
   ["pane"],
   ["agent"],
-  ["agent", "install-hooks", "--help"],
+  ["agent", "setup", "--help"],
   ["agent", "remove-hooks", "--help"],
   ["config"],
   ["instance"],
