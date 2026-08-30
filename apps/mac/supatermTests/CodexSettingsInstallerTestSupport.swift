@@ -22,6 +22,10 @@ func temporaryCodexHomeDirectory() throws -> URL {
   return url
 }
 
+func canonicalCodexHookCommand(homeDirectoryURL: URL) -> String {
+  SupatermCodexHookSettings.command(homeDirectoryURL: homeDirectoryURL)
+}
+
 func testCodexSettingsInstaller(
   homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
   fileManager: FileManager = .default,

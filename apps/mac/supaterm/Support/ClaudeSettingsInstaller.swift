@@ -75,7 +75,8 @@ public struct ClaudeSettingsInstaller {
         invalidHooksObject: { ClaudeSettingsInstallerError.invalidHooksObject },
         invalidJSON: { ClaudeSettingsInstallerError.invalidJSON },
         invalidRootObject: { ClaudeSettingsInstallerError.invalidRootObject }
-      )
+      ),
+      commandPolicy: SupatermManagedHookCommand.policy(for: .claude)
     )
   }
 }

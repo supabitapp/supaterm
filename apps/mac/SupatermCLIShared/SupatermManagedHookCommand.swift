@@ -1,22 +1,37 @@
-public enum SupatermManagedHookCommand {
-  public static func receiveHookCommand(for agent: SupatermAgentKind) -> String {
-    if agent == .codex {
-      return SupatermCodexHookBridge.command
-    }
-    let command = bridgeCommand(for: agent)
-    return #"exec /bin/sh -c '\#(command)'"#
+import Foundation
+
+public struct SupatermManagedHookCommandPolicy: Sendable {
+  public let command: String
+  private let legacyCommands: Set<String>
+
+  fileprivate init(command: String, legacyCommands: Set<String>) {
+    self.command = command
+    self.legacyCommands = legacyCommands
   }
 
-  public static func matchesReceiveHookCommand(
-    _ command: String,
-    for agent: SupatermAgentKind
-  ) -> Bool {
+  public func matches(_ candidate: String?) -> Bool {
+    guard let candidate else { return false }
+    let command = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    return command == self.command || legacyCommands.contains(command)
+  }
+}
+
+public enum SupatermManagedHookCommand {
+  public static func policy(
+    for agent: SupatermAgentKind,
+    homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
+  ) -> SupatermManagedHookCommandPolicy {
     if agent == .codex {
-      return command == SupatermCodexHookBridge.command
-        || SupatermCodexHookBridge.legacyCommands.contains(command)
+      return SupatermManagedHookCommandPolicy(
+        command: SupatermCodexHookBridge.command(homeDirectoryURL: homeDirectoryURL),
+        legacyCommands: Set(SupatermCodexHookBridge.legacyCommands)
+      )
     }
-    return command == receiveHookCommand(for: agent)
-      || command == bridgeCommand(for: agent)
+    let directCommand = bridgeCommand(for: agent)
+    return SupatermManagedHookCommandPolicy(
+      command: #"exec /bin/sh -c '\#(directCommand)'"#,
+      legacyCommands: [directCommand]
+    )
   }
 
   private static func bridgeCommand(for agent: SupatermAgentKind) -> String {

@@ -1,15 +1,17 @@
 import Foundation
 
 public enum SupatermCodexHookBridge {
-  public static let relativePath = ".codex/supaterm-agent-state.sh"
+  private static let relativePath = ".codex/supaterm-agent-state.sh"
 
-  public static var command: String {
-    #"exec /bin/sh -c '/bin/sh "$HOME/\#(relativePath)" "$PPID" || cat >/dev/null || true'"#
+  public static func command(homeDirectoryURL: URL) -> String {
+    let path = SupatermShellCommand.escapedToken(url(homeDirectoryURL: homeDirectoryURL).path)
+    let script = #"if [ -r "$1" ]; then exec /bin/sh "$1"; else cat >/dev/null; fi"#
+    return #"exec /bin/sh -c '\#(script)' _ \#(path)"#
   }
 
-  public static var legacyCommands: [String] {
-    let command = legacyCommand
-    return [#"exec /bin/sh -c '\#(command)'"#, command]
+  static var legacyCommands: [String] {
+    let directCommand = legacyDirectCommand
+    return [legacyHomeCommand, #"exec /bin/sh -c '\#(directCommand)'"#, directCommand]
   }
 
   public static func url(homeDirectoryURL: URL) -> URL {
@@ -25,7 +27,7 @@ public enum SupatermCodexHookBridge {
         cli_path=\(fallbackCLIPath)
       fi
       if [ -x "$cli_path" ]; then
-        "$cli_path" agent receive-agent-hook --agent codex --pid "$1" && exit 0
+        "$cli_path" agent receive-agent-hook --agent codex --pid "$PPID" && exit 0
       fi
       cat >/dev/null
 
@@ -33,7 +35,11 @@ public enum SupatermCodexHookBridge {
     )
   }
 
-  private static var legacyCommand: String {
+  private static var legacyHomeCommand: String {
+    #"exec /bin/sh -c '/bin/sh "$HOME/\#(relativePath)" "$PPID" || cat >/dev/null || true'"#
+  }
+
+  private static var legacyDirectCommand: String {
     #"[ -x "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook "#
       + #"--agent codex --pid "$PPID" || cat >/dev/null || true"#
   }

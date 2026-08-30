@@ -8,7 +8,7 @@ struct SupatermManagedHookCommandTests {
   @Test
   func receiveHookCommandMatchesClaudeSettingsCommand() {
     #expect(
-      SupatermManagedHookCommand.receiveHookCommand(for: .claude)
+      SupatermManagedHookCommand.policy(for: .claude).command
         == SupatermClaudeHookSettings.command
     )
   }
@@ -16,25 +16,37 @@ struct SupatermManagedHookCommandTests {
   @Test
   func receiveHookCommandBuildsPiCommand() {
     #expect(
-      SupatermManagedHookCommand.receiveHookCommand(for: .pi)
+      SupatermManagedHookCommand.policy(for: .pi).command
         == expectedSupatermHookCommand(agent: "pi")
+    )
+  }
+
+  @Test
+  func receiveHookCommandUsesCurrentCodexBridgePath() {
+    #expect(
+      SupatermManagedHookCommand.policy(for: .codex).command
+        == SupatermCodexHookSettings.command(
+          homeDirectoryURL: FileManager.default.homeDirectoryForCurrentUser
+        )
     )
   }
 
   @Test
   func managedCommandDetectionMatchesOnlyCanonicalCommands() {
     #expect(
-      AgentHookCommandOwnership.isSupatermManagedCommand(
-        SupatermManagedHookCommand.receiveHookCommand(for: .claude)
+      SupatermManagedHookCommand.policy(for: .claude).matches(
+        SupatermManagedHookCommand.policy(for: .claude).command
       )
     )
     #expect(
-      AgentHookCommandOwnership.isSupatermManagedCommand(
-        "  \(SupatermManagedHookCommand.receiveHookCommand(for: .codex))\n"
+      SupatermManagedHookCommand.policy(for: .codex).matches(
+        "  \(SupatermManagedHookCommand.policy(for: .codex).command)\n"
       )
     )
     #expect(
-      !AgentHookCommandOwnership.isSupatermManagedCommand("echo SUPATERM bridge")
+      SupatermAgentKind.allCases.allSatisfy {
+        !SupatermManagedHookCommand.policy(for: $0).matches("echo SUPATERM bridge")
+      }
     )
   }
 
@@ -42,11 +54,27 @@ struct SupatermManagedHookCommandTests {
   func managedCommandDetectionIncludesLegacyCommands() {
     for agent in SupatermAgentKind.allCases {
       #expect(
-        AgentHookCommandOwnership.isSupatermManagedCommand(
+        SupatermManagedHookCommand.policy(for: agent).matches(
           legacySupatermHookCommand(agent: agent.rawValue)
         )
       )
     }
+    #expect(
+      SupatermManagedHookCommand.policy(for: .codex).matches(
+        #"exec /bin/sh -c '/bin/sh "$HOME/.codex/supaterm-agent-state.sh" "$PPID" || cat >/dev/null || true'"#
+      )
+    )
+  }
+
+  @Test
+  func managedCommandDetectionAcceptsInstalledCodexCommand() {
+    let policy = SupatermManagedHookCommand.policy(
+      for: .codex,
+      homeDirectoryURL: URL(fileURLWithPath: "/tmp/isolated-home", isDirectory: true)
+    )
+
+    #expect(policy.matches(policy.command))
+    #expect(!SupatermManagedHookCommand.policy(for: .codex).matches(policy.command))
   }
 
   @Test
@@ -66,7 +94,7 @@ struct SupatermManagedHookCommandTests {
     for shellPath in ["/bin/sh", "/bin/bash", "/bin/zsh", "/opt/homebrew/bin/fish"]
     where FileManager.default.isExecutableFile(atPath: shellPath) {
       try runHookCommand(
-        SupatermManagedHookCommand.receiveHookCommand(for: .claude),
+        SupatermManagedHookCommand.policy(for: .claude).command,
         shellPath: shellPath,
         environment: [
           "HOOK_ARGUMENTS_PATH": argumentsURL.path,
@@ -90,16 +118,28 @@ struct SupatermManagedHookCommandTests {
   @Test
   func commandDrainsStdinWithoutCliPath() throws {
     try runHookCommand(
-      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
+      SupatermManagedHookCommand.policy(for: .codex).command,
       environment: [:],
       payload: hookPayload()
     )
   }
 
   @Test
+  func codexCommandDrainsStdinWithoutBridge() throws {
+    let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    try runHookCommand(
+      SupatermCodexHookSettings.command(homeDirectoryURL: temporaryDirectory),
+      environment: [:],
+      payload: Data(#"{"hook_event_name":"SessionStart"}"#.utf8)
+    )
+  }
+
+  @Test
   func commandDrainsStdinWhenCliPathCannotRun() throws {
     try runHookCommand(
-      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
+      SupatermManagedHookCommand.policy(for: .codex).command,
       environment: ["SUPATERM_CLI_PATH": "/tmp/supaterm-missing-sp"],
       payload: hookPayload()
     )
@@ -114,7 +154,7 @@ struct SupatermManagedHookCommandTests {
     try writeExecutable(at: executableURL, script: "#!/bin/sh\nexit 1\n")
 
     try runHookCommand(
-      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
+      SupatermManagedHookCommand.policy(for: .codex).command,
       environment: ["SUPATERM_CLI_PATH": executableURL.path],
       payload: hookPayload()
     )

@@ -5,18 +5,26 @@ import Testing
 
 struct SupatermCodexHookSettingsTests {
   @Test
-  func commandStaysStable() {
+  func commandUsesAbsoluteEscapedBridgePath() {
+    let homeDirectoryURL = URL(fileURLWithPath: "/tmp/Codex user's home", isDirectory: true)
+    let path = #"'/tmp/Codex user'"'"'s home/.codex/supaterm-agent-state.sh'"#
+    let command = #"exec /bin/sh -c 'if [ -r "$1" ]; then exec /bin/sh "$1"; else cat >/dev/null; fi' _ \#(path)"#
+
     #expect(
-      SupatermCodexHookSettings.command
-        == expectedSupatermHookCommand(agent: "codex")
+      SupatermCodexHookSettings.command(homeDirectoryURL: homeDirectoryURL)
+        == command
     )
   }
 
   @Test
   func jsonIncludesExpectedHookEventsMatchersAndTimeouts() throws {
+    let homeDirectoryURL = URL(fileURLWithPath: "/tmp/codex-home", isDirectory: true)
+    let command = SupatermCodexHookSettings.command(homeDirectoryURL: homeDirectoryURL)
     let object =
       try JSONSerialization.jsonObject(
-        with: Data(SupatermCodexHookSettings.jsonString().utf8)
+        with: Data(
+          SupatermCodexHookSettings.jsonString(homeDirectoryURL: homeDirectoryURL).utf8
+        )
       ) as? [String: Any]
     let hooks = try #require(object?["hooks"] as? [String: [[String: Any]]])
 
@@ -46,6 +54,20 @@ struct SupatermCodexHookSettingsTests {
     #expect(try group(in: hooks, event: "SessionStart")["matcher"] == nil)
     #expect(try group(in: hooks, event: "SubagentStart")["matcher"] == nil)
     #expect(try group(in: hooks, event: "SubagentStop")["matcher"] == nil)
+    for event in hooks.keys {
+      #expect(try commandHook(in: hooks, event: event)["command"] as? String == command)
+    }
+  }
+
+  @Test
+  func nativeHookIdentityIncludesInstalledBridgePath() {
+    let first = URL(fileURLWithPath: "/tmp/first", isDirectory: true)
+    let second = URL(fileURLWithPath: "/tmp/second", isDirectory: true)
+
+    #expect(
+      SupatermCodexHookSettings.nativeHookIdentities(homeDirectoryURL: first)
+        != SupatermCodexHookSettings.nativeHookIdentities(homeDirectoryURL: second)
+    )
   }
 }
 

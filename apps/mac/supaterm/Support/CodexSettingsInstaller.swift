@@ -80,7 +80,9 @@ public struct CodexSettingsInstaller {
       bridgeMutation = try installBridge()
       fileMutation = try fileInstaller.install(
         settingsURL: settingsURL,
-        hookGroupsByEvent: try SupatermCodexHookSettings.hookGroupsByEvent()
+        hookGroupsByEvent: try SupatermCodexHookSettings.hookGroupsByEvent(
+          homeDirectoryURL: homeDirectoryURL
+        )
       )
       let newHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
       let managedHooks = try canonicalNativeHooks(
@@ -131,7 +133,9 @@ public struct CodexSettingsInstaller {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: settingsURL,
-      hookGroupsByEvent: SupatermCodexHookSettings.hookGroupsByEvent()
+      hookGroupsByEvent: SupatermCodexHookSettings.hookGroupsByEvent(
+        homeDirectoryURL: homeDirectoryURL
+      )
     )
     let bridgeExists = fileManager.fileExists(atPath: bridgeURL.path)
     guard try codexAvailability() == .supported else {
@@ -322,11 +326,13 @@ public struct CodexSettingsInstaller {
     _ hooks: [CodexAppServerHook],
     settingsURL: URL
   ) throws -> [CodexAppServerHook] {
-    let expected = SupatermCodexHookSettings.nativeHookIdentities
+    let expected = SupatermCodexHookSettings.nativeHookIdentities(
+      homeDirectoryURL: homeDirectoryURL
+    )
     let settingsPath = canonicalPath(settingsURL)
     let owned = hooks.filter {
       canonicalPath(URL(fileURLWithPath: $0.sourcePath)) == settingsPath
-        && $0.command == SupatermCodexHookSettings.command
+        && $0.command == bridgeCommand
     }
     guard
       owned.count == expected.count,
@@ -418,8 +424,7 @@ public struct CodexSettingsInstaller {
   }
 
   private func isManagedHook(_ hook: CodexAppServerHook) -> Bool {
-    guard let command = hook.command else { return false }
-    return SupatermManagedHookCommand.matchesReceiveHookCommand(command, for: .codex)
+    commandPolicy.matches(hook.command)
   }
 
   private func stateKey(_ key: String, belongsToSourcePath sourcePath: String) -> Bool {
@@ -461,6 +466,17 @@ public struct CodexSettingsInstaller {
     SupatermCodexHookBridge.data(cliPath: cliPath)
   }
 
+  private var bridgeCommand: String {
+    commandPolicy.command
+  }
+
+  private var commandPolicy: SupatermManagedHookCommandPolicy {
+    SupatermManagedHookCommand.policy(
+      for: .codex,
+      homeDirectoryURL: homeDirectoryURL
+    )
+  }
+
   private static func isTestHookInstallation(environment: [String: String]) -> Bool {
     environment[SupatermCLIEnvironment.testHomeKey] != nil
       && environment[SupatermCLIEnvironment.testCodexEnableHooksKey] == "1"
@@ -474,7 +490,8 @@ public struct CodexSettingsInstaller {
         invalidHooksObject: { CodexSettingsInstallerError.invalidHooksObject },
         invalidJSON: { CodexSettingsInstallerError.invalidJSON },
         invalidRootObject: { CodexSettingsInstallerError.invalidRootObject }
-      )
+      ),
+      commandPolicy: commandPolicy
     )
   }
 }

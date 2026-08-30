@@ -165,7 +165,8 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+      .replacingOccurrences(of: "\"", with: "\\\"")
     try writeCodexSettings(
       """
       {

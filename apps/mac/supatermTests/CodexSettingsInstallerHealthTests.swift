@@ -29,7 +29,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try SupatermCodexHookSettings.jsonString(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let installer = testCodexSettingsInstaller(
@@ -63,7 +63,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try SupatermCodexHookSettings.jsonString(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let installer = testCodexSettingsInstaller(
@@ -134,8 +134,11 @@ extension CodexSettingsInstallerTests {
   func integrationHealthFindsLegacyHooksDrifted() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let settings = try SupatermCodexHookSettings.jsonString().replacingOccurrences(
-      of: SupatermCodexHookSettings.command,
+    let command = canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+    let settings = try SupatermCodexHookSettings.jsonString(
+      homeDirectoryURL: homeDirectoryURL
+    ).replacingOccurrences(
+      of: command,
       with: legacySupatermHookCommand(agent: "codex")
     )
     try writeCodexSettings(settings, homeDirectoryURL: homeDirectoryURL)

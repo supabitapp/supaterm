@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SupatermClaudeHookSettings {
-  public static let command = SupatermManagedHookCommand.receiveHookCommand(for: .claude)
+  public static let command = SupatermManagedHookCommand.policy(for: .claude).command
   public static let actionableNotificationTypes: Set<String> = [
     "elicitation_dialog",
     "idle_prompt",

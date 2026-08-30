@@ -9,6 +9,8 @@ extension CodexSettingsInstallerTests {
   func removeSupatermHooksPreservesUnrelatedHooksAndDoesNotRequireCodex() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+      .replacingOccurrences(of: "\"", with: "\\\"")
 
     try writeCodexSettings(
       """
@@ -18,7 +20,7 @@ extension CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": "\(command)",
                   "timeout": 10,
                   "type": "command"
                 },
@@ -59,6 +61,8 @@ extension CodexSettingsInstallerTests {
   func removeSupatermHooksDropsEmptyHooksObject() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+      .replacingOccurrences(of: "\"", with: "\\\"")
 
     try writeCodexSettings(
       """
@@ -68,7 +72,7 @@ extension CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": "\(command)",
                   "timeout": 10,
                   "type": "command"
                 }
@@ -156,7 +160,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try SupatermCodexHookSettings.jsonString(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
@@ -184,7 +188,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try SupatermCodexHookSettings.jsonString(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let appServer = TestCodexAppServer(
@@ -209,7 +213,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try SupatermCodexHookSettings.jsonString(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)

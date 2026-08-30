@@ -24,8 +24,13 @@ struct CodexSettingsInstallerTests {
 
   @Test
   func installedBridgeForwardsHookWithoutPaneEnvironment() throws {
-    let homeDirectoryURL = try temporaryCodexHomeDirectory()
-    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let temporaryDirectory = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    let homeDirectoryURL = temporaryDirectory.appendingPathComponent(
+      "Codex user's home",
+      isDirectory: true
+    )
+    try FileManager.default.createDirectory(at: homeDirectoryURL, withIntermediateDirectories: true)
     let executableURL = homeDirectoryURL.appendingPathComponent("sp", isDirectory: false)
     let argumentsURL = homeDirectoryURL.appendingPathComponent("arguments", isDirectory: false)
     let inputURL = homeDirectoryURL.appendingPathComponent("input", isDirectory: false)
@@ -40,14 +45,18 @@ struct CodexSettingsInstallerTests {
     )
     try installer.installSupatermHooks()
     let payload = Data(#"{"hook_event_name":"SessionStart"}"#.utf8)
+    let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
+    let groups = try codexEventGroupsValue("SessionStart", in: object)
+    let hooks = try #require(groups.first?["hooks"] as? [[String: Any]])
+    let command = try #require(hooks.first?["command"] as? String)
 
     for shellPath in ["/bin/sh", "/bin/bash", "/bin/zsh", "/opt/homebrew/bin/fish"]
     where FileManager.default.isExecutableFile(atPath: shellPath) {
       try runHookCommand(
-        SupatermCodexHookSettings.command,
+        command,
         shellPath: shellPath,
         environment: [
-          "HOME": homeDirectoryURL.path,
+          "HOME": homeDirectoryURL.appendingPathComponent("other-home").path,
           "HOOK_ARGUMENTS_PATH": argumentsURL.path,
           "HOOK_INPUT_PATH": inputURL.path,
         ],
@@ -126,7 +135,7 @@ struct CodexSettingsInstallerTests {
 
     #expect(commands.count == 2)
     #expect(commands.contains("echo keep"))
-    #expect(commands.contains(SupatermCodexHookSettings.command))
+    #expect(commands.contains(canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)))
   }
 
   @Test
@@ -199,8 +208,9 @@ struct CodexSettingsInstallerTests {
       .compactMap { $0["hooks"] as? [[String: Any]] }
       .flatMap { $0 }
       .compactMap { $0["command"] as? String }
+    let canonicalCommand = canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
     #expect(commands.count == canonicalCodexHookEvents.count)
-    #expect(commands.allSatisfy { $0 == SupatermCodexHookSettings.command })
+    #expect(commands.allSatisfy { $0 == canonicalCommand })
     #expect(!commands.contains(legacyCommand))
   }
 }
