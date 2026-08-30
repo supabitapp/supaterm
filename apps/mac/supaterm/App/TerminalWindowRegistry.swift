@@ -66,13 +66,19 @@ final class TerminalWindowRegistry {
   }
 
   struct Entry {
-    let keyboardShortcutForAction: (String) -> KeyboardShortcut?
+    let ghosttyShortcutForAction: (String) -> GhosttyShortcut?
     let requestConfirmedWindowClose: @MainActor () -> Void
     let setTerminatesTerminalSessionsOnClose: @MainActor (Bool) -> Void
     let windowControllerID: UUID
     let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
     let windowReference: WindowReference
+
+    var keyboardShortcutForAction: (String) -> KeyboardShortcut? {
+      { action in
+        ghosttyShortcutForAction(action)?.keyboardShortcut
+      }
+    }
   }
 
   private struct SelectedAgentPanel {
@@ -176,6 +182,26 @@ final class TerminalWindowRegistry {
     requestConfirmedWindowClose: @escaping @MainActor () -> Void,
     setTerminatesTerminalSessionsOnClose: @escaping @MainActor (Bool) -> Void = { _ in }
   ) {
+    register(
+      ghosttyShortcutForAction: { action in
+        keyboardShortcutForAction(action).map { GhosttyShortcut(keyboardShortcut: $0) }
+      },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: terminal,
+      requestConfirmedWindowClose: requestConfirmedWindowClose,
+      setTerminatesTerminalSessionsOnClose: setTerminatesTerminalSessionsOnClose
+    )
+  }
+
+  func register(
+    ghosttyShortcutForAction: @escaping (String) -> GhosttyShortcut?,
+    windowControllerID: UUID,
+    store: StoreOf<AppFeature>,
+    terminal: TerminalHostState,
+    requestConfirmedWindowClose: @escaping @MainActor () -> Void,
+    setTerminatesTerminalSessionsOnClose: @escaping @MainActor (Bool) -> Void = { _ in }
+  ) {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
     terminal.onSpaceAction = { [weak self] action in
       self?.performSpaceAction(action, from: windowControllerID)
@@ -188,7 +214,7 @@ final class TerminalWindowRegistry {
       self?.paneCount(inSpace: spaceID) ?? 0
     }
     let entry = Entry(
-      keyboardShortcutForAction: keyboardShortcutForAction,
+      ghosttyShortcutForAction: ghosttyShortcutForAction,
       requestConfirmedWindowClose: requestConfirmedWindowClose,
       setTerminatesTerminalSessionsOnClose: setTerminatesTerminalSessionsOnClose,
       windowControllerID: windowControllerID,
@@ -497,6 +523,10 @@ final class TerminalWindowRegistry {
 
   func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
     shortcutEntry()?.keyboardShortcutForAction(action)
+  }
+
+  func ghosttyShortcut(forAction action: String) -> GhosttyShortcut? {
+    shortcutEntry()?.ghosttyShortcutForAction(action)
   }
 
   func requestNewTabInKeyWindow() {

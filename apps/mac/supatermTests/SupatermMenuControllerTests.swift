@@ -228,10 +228,12 @@ struct SupatermMenuControllerTests {
       assertDefaultFindNavigationShortcuts(findMenu)
 
       var shortcuts = [
-        "new_window": KeyboardShortcut("u", modifiers: [.command, .option])
+        "new_window": GhosttyShortcut(
+          keyboardShortcut: KeyboardShortcut("u", modifiers: [.command, .option])
+        )
       ]
       registry.register(
-        keyboardShortcutForAction: { shortcuts[$0] },
+        ghosttyShortcutForAction: { shortcuts[$0] },
         windowControllerID: UUID(),
         store: Store(initialState: AppFeature.State()) {
           AppFeature()
@@ -243,28 +245,20 @@ struct SupatermMenuControllerTests {
 
       assertDefaultFindNavigationShortcuts(findMenu)
 
-      shortcuts["reload_config"] = KeyboardShortcut("g", modifiers: [.command])
+      shortcuts["reload_config"] = GhosttyShortcut(
+        keyboardShortcut: KeyboardShortcut("g", modifiers: [.command])
+      )
       controller.refresh()
 
-      let commandG = try #require(
-        NSEvent.keyEvent(
-          with: .keyDown,
-          location: .zero,
-          modifierFlags: [.command],
-          timestamp: 0,
-          windowNumber: 0,
-          context: nil,
-          characters: "g",
-          charactersIgnoringModifiers: "g",
-          isARepeat: false,
-          keyCode: UInt16(kVK_ANSI_G)
-        )
-      )
+      let commandG = try keyEvent("g", modifiers: [.command], keyCode: UInt16(kVK_ANSI_G))
       #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: commandG))
       assertDefaultFindNavigationShortcuts(findMenu)
 
       shortcuts["reload_config"] = nil
-      shortcuts["toggle_split_zoom"] = KeyboardShortcut("g", modifiers: [.command])
+      shortcuts["toggle_split_zoom"] = GhosttyShortcut(
+        keyboardShortcut: KeyboardShortcut("g", modifiers: [.command]),
+        physicalKeyCode: UInt16(kVK_ANSI_G)
+      )
       controller.refresh()
 
       #expect(findMenu.items[1].keyEquivalent.isEmpty)
@@ -296,7 +290,9 @@ struct SupatermMenuControllerTests {
       $settings.withLock {
         $0.shortcutOverrides[.toggleSidebar] = nil
       }
-      shortcuts["copy_to_clipboard"] = KeyboardShortcut("g", modifiers: [.command])
+      shortcuts["copy_to_clipboard"] = GhosttyShortcut(
+        keyboardShortcut: KeyboardShortcut("g", modifiers: [.command])
+      )
       controller.refresh()
 
       assertDefaultFindNavigationShortcuts(findMenu)
@@ -304,9 +300,11 @@ struct SupatermMenuControllerTests {
       #expect(copy.keyEquivalent == "c")
       #expect(copy.keyEquivalentModifierMask == [.command])
 
-      shortcuts["navigate_search:previous"] = KeyboardShortcut(
-        "j",
-        modifiers: [.command, .option]
+      shortcuts["navigate_search:previous"] = GhosttyShortcut(
+        keyboardShortcut: KeyboardShortcut(
+          "j",
+          modifiers: [.command, .option]
+        )
       )
       controller.refresh()
 
@@ -457,6 +455,110 @@ struct SupatermMenuControllerTests {
 
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
       #expect(tabs == [.terminal])
+    }
+  }
+
+  @Test
+  func physicalShortcutRefreshesWithLayoutAndPrecedesUnicodeShortcut() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry.test()
+      let host = TerminalHostState.test(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      var shortcuts = [
+        "new_window": GhosttyShortcut(
+          keyboardShortcut: KeyboardShortcut("q", modifiers: .command),
+          physicalKeyCode: UInt16(kVK_ANSI_A)
+        ),
+        "open_config": GhosttyShortcut(
+          keyboardShortcut: KeyboardShortcut("a", modifiers: .command)
+        ),
+      ]
+      registry.register(
+        ghosttyShortcutForAction: { shortcuts[$0] },
+        windowControllerID: UUID(),
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let controller = SupatermMenuController(registry: registry)
+      var newWindowCount = 0
+      var settingsTabs: [SettingsFeature.Tab] = []
+      controller.setNewWindowAction {
+        newWindowCount += 1
+        return true
+      }
+      controller.setShowSettingsAction {
+        settingsTabs.append($0)
+        return true
+      }
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+
+      let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+      let settingsItem = try #require(appMenu.items.first { $0.title == "Settings..." })
+      let fileMenu = try #require(app.mainMenu?.items.first { $0.title == "File" }?.submenu)
+      let newWindowItem = try #require(fileMenu.items.first { $0.title == "New Window" })
+      #expect(newWindowItem.keyEquivalent == "q")
+      #expect(!newWindowItem.allowsAutomaticKeyEquivalentLocalization)
+      #expect(!newWindowItem.allowsAutomaticKeyEquivalentMirroring)
+      #expect(settingsItem.allowsAutomaticKeyEquivalentLocalization)
+      #expect(settingsItem.allowsAutomaticKeyEquivalentMirroring)
+
+      shortcuts["new_window"] = GhosttyShortcut(
+        keyboardShortcut: KeyboardShortcut("w", modifiers: .command),
+        physicalKeyCode: UInt16(kVK_ANSI_A)
+      )
+      NotificationCenter.default.post(
+        name: NSTextInputContext.keyboardSelectionDidChangeNotification,
+        object: nil
+      )
+
+      #expect(newWindowItem.keyEquivalent == "w")
+
+      let physicalEvent = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: .command,
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "a",
+          charactersIgnoringModifiers: "a",
+          isARepeat: false,
+          keyCode: UInt16(kVK_ANSI_A)
+        )
+      )
+      #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: physicalEvent))
+      #expect(newWindowCount == 1)
+      #expect(settingsTabs.isEmpty)
+
+      let unicodeEvent = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: .command,
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "a",
+          charactersIgnoringModifiers: "a",
+          isARepeat: false,
+          keyCode: UInt16(kVK_ANSI_Q)
+        )
+      )
+      #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: unicodeEvent))
+      #expect(newWindowCount == 1)
+      #expect(settingsTabs == [.terminal])
     }
   }
 
@@ -1055,6 +1157,27 @@ struct SupatermMenuControllerTests {
     #expect(findMenu.items[1].keyEquivalentModifierMask == [.command])
     #expect(findMenu.items[2].keyEquivalent == "g")
     #expect(findMenu.items[2].keyEquivalentModifierMask == [.command, .shift])
+  }
+
+  private func keyEvent(
+    _ characters: String,
+    modifiers: NSEvent.ModifierFlags,
+    keyCode: UInt16
+  ) throws -> NSEvent {
+    try #require(
+      NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: modifiers,
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: characters,
+        charactersIgnoringModifiers: characters,
+        isARepeat: false,
+        keyCode: keyCode
+      )
+    )
   }
 
   private func assertAppMenu(_ menu: NSMenu?) throws {

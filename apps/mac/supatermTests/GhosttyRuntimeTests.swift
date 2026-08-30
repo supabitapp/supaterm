@@ -1,10 +1,13 @@
 import AppKit
 import Carbon.HIToolbox
+import Darwin
 import Foundation
 import GhosttyKit
+import SupatermSupport
 import SwiftUI
 import Synchronization
 import Testing
+import UniformTypeIdentifiers
 
 @testable import supaterm
 
@@ -79,10 +82,33 @@ struct GhosttyRuntimeTests {
     let latinShortcut = try #require(runtime.keyboardShortcut(forAction: "new_window"))
     #expect(latinShortcut.key == "l")
     #expect(latinShortcut.modifiers == [.command])
+    #expect(runtime.shortcut(forAction: "new_window")?.physicalKeyCode == nil)
 
     let nonASCIIShortcut = try #require(runtime.keyboardShortcut(forAction: "new_tab"))
     #expect(nonASCIIShortcut.key == "ä")
     #expect(nonASCIIShortcut.modifiers == [.command])
+    #expect(runtime.shortcut(forAction: "new_tab")?.physicalKeyCode == nil)
+  }
+
+  @Test
+  func printablePhysicalShortcutUsesCurrentKeyboardLayout() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = super+backquote=new_window
+      """
+    )
+    let expected = try #require(
+      SupatermKeyboardLayout.character(
+        for: UInt16(kVK_ANSI_Grave),
+        modifiers: .command
+      )
+    )
+
+    let shortcut = try #require(runtime.shortcut(forAction: "new_window"))
+
+    #expect(shortcut.keyboardShortcut.key == KeyEquivalent(expected))
+    #expect(shortcut.keyboardShortcut.modifiers == .command)
+    #expect(shortcut.physicalKeyCode == UInt16(kVK_ANSI_Grave))
   }
 
   @Test
@@ -189,6 +215,204 @@ struct GhosttyRuntimeTests {
 
     let data = try Data(contentsOf: URL(fileURLWithPath: path))
     #expect(Array(data.prefix(8)) == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+  }
+
+  @Test
+  func clipboardContentCopiesBinaryDataByLength() throws {
+    var source: [UInt8] = [0x41, 0x00, 0x42, 0xFF]
+    let copied = "application/octet-stream".withCString { mime in
+      source.withUnsafeMutableBytes { bytes in
+        GhosttyClipboardContent(
+          copying: ghostty_clipboard_content_s(
+            mime: mime,
+            data: bytes.baseAddress?.assumingMemoryBound(to: CChar.self),
+            len: bytes.count
+          )
+        )
+      }
+    }
+    source = Array(repeating: 0, count: source.count)
+
+    let content = try #require(copied)
+    #expect(content.mime == "application/octet-stream")
+    #expect(content.data == Data([0x41, 0x00, 0x42, 0xFF]))
+  }
+
+  @Test
+  func kittyWriteConfirmationCapsItsTotalPromptCopy() throws {
+    let first = Data(repeating: 0x41, count: 12_000)
+    let second = Data(repeating: 0x42, count: 12_000)
+    let payload = try #require(
+      makeClipboardConfirmationPayload(
+        contents: [
+          (mime: "text/plain", data: first),
+          (mime: "application/octet-stream", data: second),
+        ],
+        request: GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE
+      )
+    )
+
+    #expect(
+      payload.contents.reduce(0) { $0 + $1.data.count }
+        == GhosttyClipboardDisplay.maximumPromptCopyBytes
+    )
+    #expect(payload.contents.map(\.originalByteCount) == [first.count, second.count])
+  }
+
+  @Test
+  func pasteConfirmationKeepsItsFullExactSnapshot() throws {
+    let first = Data(repeating: 0x41, count: 12_000)
+    let second = Data(repeating: 0x42, count: 12_000)
+    let payload = try #require(
+      makeClipboardConfirmationPayload(
+        contents: [
+          (mime: "text/plain", data: first),
+          (mime: "application/octet-stream", data: second),
+        ],
+        request: GHOSTTY_CLIPBOARD_REQUEST_PASTE
+      )
+    )
+
+    #expect(payload.contents.map(\.data) == [first, second])
+  }
+
+  @Test
+  func clipboardReadsBinaryRepresentationWithoutCStringTruncation() {
+    let pasteboard = makePasteboard()
+    let type = NSPasteboard.PasteboardType("application/octet-stream")
+    let data = Data([0x41, 0x00, 0x42, 0xFF])
+    pasteboard.declareTypes([type], owner: nil)
+    pasteboard.setData(data, forType: type)
+
+    #expect(
+      pasteboard.ghosttyData(
+        forMime: "application/octet-stream",
+        request: GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ
+      ) == data
+    )
+  }
+
+  @Test
+  func clipboardReadsCopiedFilesAsURIList() throws {
+    let pasteboard = makePasteboard()
+    let first = URL(fileURLWithPath: "/tmp/first file") as NSURL
+    let second = URL(fileURLWithPath: "/tmp/second") as NSURL
+    pasteboard.writeObjects([first, second])
+
+    let data = try #require(
+      pasteboard.ghosttyData(
+        forMime: "text/uri-list",
+        request: GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ
+      )
+    )
+    #expect(
+      String(bytes: data, encoding: .utf8)
+        == "file:///tmp/first%20file\r\nfile:///tmp/second\r\n"
+    )
+  }
+
+  @Test
+  func clipboardListsOnlyDeclaredImageRepresentationsWithoutLoadingData() {
+    let pasteboard = makePasteboard()
+    let item = NSPasteboardItem()
+    let provider = PasteboardDataProviderSpy()
+    item.setDataProvider(provider, forTypes: [.supatermPNGImage])
+    pasteboard.writeObjects([item])
+
+    let mimes = pasteboard.ghosttyAvailableMimes()
+
+    #expect(mimes == ["image/png"])
+    #expect(Set(mimes).count == mimes.count)
+    #expect(provider.requestedTypes.isEmpty)
+  }
+
+  @Test
+  func programmaticImageReadsDoNotSynthesizePlainTextOrLoadImageData() {
+    let pasteboard = makePasteboard()
+    let item = NSPasteboardItem()
+    let provider = PasteboardDataProviderSpy()
+    item.setDataProvider(provider, forTypes: [.supatermPNGImage])
+    pasteboard.writeObjects([item])
+
+    #expect(
+      pasteboard.ghosttyData(
+        forMime: "text/plain",
+        request: GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ
+      ) == nil
+    )
+    #expect(
+      pasteboard.ghosttyData(
+        forMime: "text/plain",
+        request: GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ
+      ) == nil
+    )
+    #expect(provider.requestedTypes.isEmpty)
+  }
+
+  @Test
+  func clipboardListsPublicDataAsOctetStreamWithoutLoadingData() {
+    let pasteboard = makePasteboard()
+    let item = NSPasteboardItem()
+    let provider = PasteboardDataProviderSpy()
+    let type = NSPasteboard.PasteboardType(UTType.data.identifier)
+    item.setDataProvider(provider, forTypes: [type])
+    pasteboard.writeObjects([item])
+
+    #expect(pasteboard.ghosttyAvailableMimes() == ["application/octet-stream"])
+    #expect(provider.requestedTypes.isEmpty)
+  }
+
+  @Test
+  func clipboardListsFileURLsWithoutSynthesizedPlainText() {
+    let pasteboard = makePasteboard()
+    pasteboard.writeObjects([URL(fileURLWithPath: "/tmp/clipboard-file") as NSURL])
+
+    let mimes = pasteboard.ghosttyAvailableMimes()
+
+    #expect(mimes.contains("text/uri-list"))
+    #expect(!mimes.contains("text/plain"))
+  }
+
+  @Test
+  func clipboardWriteReturnsFalseAfterTryingEveryRepresentation() {
+    let pasteboard = makePasteboard()
+    let contents = [
+      GhosttyClipboardContent(mime: "text/plain", data: Data("safe".utf8)),
+      GhosttyClipboardContent(mime: "application/octet-stream", data: Data([0xFF])),
+    ]
+    var results = [true, false]
+    var writtenTypes: [NSPasteboard.PasteboardType] = []
+
+    let wrote = GhosttyClipboard.write(contents, to: pasteboard) { _, type in
+      writtenTypes.append(type)
+      return results.removeFirst()
+    }
+
+    #expect(!wrote)
+    #expect(writtenTypes == [.string, NSPasteboard.PasteboardType(UTType.data.identifier)])
+  }
+
+  @Test
+  func clipboardTextAliasesUseOneNativeStringRepresentation() {
+    let aliases = ["text/plain", "text/plain;charset=utf-8", "UTF8_STRING", "TEXT", "STRING"]
+    let expected = GhosttyClipboardContent(mime: "text/plain", data: Data("safe".utf8))
+    let contents = [expected]
+      + aliases.dropFirst().map {
+        GhosttyClipboardContent(mime: $0, data: Data("different".utf8))
+      }
+
+    #expect(
+      aliases.allSatisfy {
+        NSPasteboard.PasteboardType(mimeType: $0) == .string
+      }
+    )
+
+    #expect(GhosttyClipboard.normalizedWriteContents(contents) == [expected])
+  }
+
+  @Test
+  func primaryClipboardIsUnsupported() {
+    #expect(NSPasteboard.ghostty(GHOSTTY_CLIPBOARD_PRIMARY) == nil)
   }
 
   @Test
@@ -616,6 +840,60 @@ struct GhosttyRuntimeTests {
     #expect(delegate.newWindowCount == 1)
   }
 
+  private func makeClipboardConfirmationPayload(
+    contents: [(mime: String, data: Data)],
+    request: ghostty_clipboard_request_e
+  ) -> GhosttyClipboardConfirmationPayload? {
+    var mimePointers: [UnsafeMutablePointer<CChar>] = []
+    for content in contents {
+      guard let pointer = strdup(content.mime) else { return nil }
+      mimePointers.append(pointer)
+    }
+    defer {
+      for pointer in mimePointers {
+        free(pointer)
+      }
+    }
+
+    let dataPointers = contents.map { content in
+      let pointer = UnsafeMutableRawPointer.allocate(
+        byteCount: max(content.data.count, 1),
+        alignment: 1
+      )
+      content.data.withUnsafeBytes { bytes in
+        guard let source = bytes.baseAddress else { return }
+        pointer.copyMemory(from: source, byteCount: bytes.count)
+      }
+      return pointer
+    }
+    defer {
+      for pointer in dataPointers {
+        pointer.deallocate()
+      }
+    }
+
+    let copiedContents = contents.indices.map { index in
+      ghostty_clipboard_content_s(
+        mime: mimePointers[index],
+        data: dataPointers[index].assumingMemoryBound(to: CChar.self),
+        len: contents[index].data.count
+      )
+    }
+    return copiedContents.withUnsafeBufferPointer { buffer in
+      var confirmation = ghostty_clipboard_confirm_s(
+        contents: buffer.baseAddress,
+        contents_len: buffer.count,
+        available: nil,
+        available_len: 0,
+        name: nil,
+        can_remember: false
+      )
+      return withUnsafePointer(to: &confirmation) {
+        GhosttyClipboardConfirmationPayload(copying: $0, request: request)
+      }
+    }
+  }
+
   private func hexString(_ color: NSColor) -> String {
     let rgb = color.usingColorSpace(.sRGB) ?? color
     let red = Int(round(rgb.redComponent * 255))
@@ -708,5 +986,18 @@ private final class EffectiveAppearanceSource {
 
   func send(_ appearance: NSAppearance) {
     observer?(appearance)
+  }
+}
+
+private final class PasteboardDataProviderSpy: NSObject, NSPasteboardItemDataProvider {
+  private(set) var requestedTypes: [NSPasteboard.PasteboardType] = []
+
+  func pasteboard(
+    _ pasteboard: NSPasteboard?,
+    item: NSPasteboardItem,
+    provideDataForType type: NSPasteboard.PasteboardType
+  ) {
+    requestedTypes.append(type)
+    item.setData(Data([0xFF]), forType: type)
   }
 }

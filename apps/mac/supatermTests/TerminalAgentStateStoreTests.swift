@@ -230,7 +230,7 @@ struct TerminalAgentStateStoreTests {
       )
     )
 
-    #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/first/")
+    #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/first")
 
     store.apply(
       event(
@@ -241,7 +241,7 @@ struct TerminalAgentStateStoreTests {
       )
     )
 
-    #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/second/")
+    #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/second")
   }
 
   @Test

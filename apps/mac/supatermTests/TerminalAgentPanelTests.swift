@@ -90,7 +90,7 @@ struct TerminalAgentPanelTests {
 
     #expect(
       TerminalAgentPanelWorkspaceKey(workingDirectoryPath: " \(path) ")?
-        .workingDirectoryPath == root.path(percentEncoded: false)
+        .workingDirectoryPath == SupatermWorkingDirectory.normalizedPath(root.standardizedFileURL)
     )
     #expect(TerminalAgentPanelWorkspaceKey(workingDirectoryPath: " ") == nil)
   }
@@ -171,7 +171,7 @@ struct TerminalAgentPanelTests {
     #expect(inheritedSurface !== sourceSurface)
     #expect(
       inheritedSurface.bridge.state.pwd
-        == GhosttySurfaceView.normalizedWorkingDirectoryPath(
+        == SupatermWorkingDirectory.normalizedPath(
           agentWorkspace.path(percentEncoded: false)
         )
     )
@@ -586,13 +586,13 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace/")
+    #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace")
     #expect(
       presentation.session
         == PaneAgentPanelSession.supported(
           agent: .pi,
           sessionID: "session-2",
-          workingDirectoryPath: "/tmp/pi-workspace/"
+          workingDirectoryPath: "/tmp/pi-workspace"
         )
     )
   }

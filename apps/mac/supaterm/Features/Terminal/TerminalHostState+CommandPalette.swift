@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 extension TerminalHostState {
   func commandPaletteGhosttyShortcutDisplayByAction() -> [String: String] {
@@ -46,7 +47,7 @@ extension TerminalHostState {
     workingDirectory: String?
   ) -> String? {
     guard let path = Self.trimmedNonEmpty(workingDirectory) else { return nil }
-    let normalizedPath = GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
+    let normalizedPath = SupatermWorkingDirectory.normalizedPath(path)
     let abbreviatedPath = (normalizedPath as NSString).abbreviatingWithTildeInPath
     if displayTitle.contains(normalizedPath) || displayTitle.contains(abbreviatedPath) {
       return nil

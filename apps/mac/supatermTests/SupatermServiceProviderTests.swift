@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SupatermCLIShared
 import Testing
 
 @testable import supaterm
@@ -13,7 +14,11 @@ struct SupatermServiceProviderTests {
 
     let pasteboard = makePasteboard([root])
 
-    #expect(SupatermServiceProvider.directoryPaths(from: pasteboard) == [root.path(percentEncoded: false)])
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(root)
+      ]
+    )
   }
 
   @Test
@@ -49,8 +54,8 @@ struct SupatermServiceProviderTests {
 
     #expect(
       SupatermServiceProvider.directoryPaths(from: pasteboard) == [
-        first.path(percentEncoded: false),
-        second.path(percentEncoded: false),
+        SupatermWorkingDirectory.normalizedPath(first),
+        SupatermWorkingDirectory.normalizedPath(second),
       ]
     )
   }
@@ -70,7 +75,7 @@ struct SupatermServiceProviderTests {
 
     provider.openTab(pasteboard, userData: nil, error: &error)
 
-    #expect(openedTabs == [[root.path(percentEncoded: false)]])
+    #expect(openedTabs == [[SupatermWorkingDirectory.normalizedPath(root)]])
     #expect(openedWindows.isEmpty)
     #expect(error.length == 0)
   }
@@ -91,7 +96,7 @@ struct SupatermServiceProviderTests {
     provider.openWindow(pasteboard, userData: nil, error: &error)
 
     #expect(openedTabs.isEmpty)
-    #expect(openedWindows == [[root.path(percentEncoded: false)]])
+    #expect(openedWindows == [[SupatermWorkingDirectory.normalizedPath(root)]])
     #expect(error.length == 0)
   }
 

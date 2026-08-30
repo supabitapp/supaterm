@@ -188,7 +188,7 @@ func resolvedWorkingDirectory(_ path: String?) throws -> String? {
       .appendingPathComponent(expandedPath, isDirectory: true)
   }
 
-  return url.standardizedFileURL.path
+  return SupatermWorkingDirectory.normalizedPath(url.standardizedFileURL)
 }
 
 func cliHomeDirectoryURL(

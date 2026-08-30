@@ -891,18 +891,7 @@ struct GhosttySurfaceViewTests {
   @Test
   @MainActor
   func koreanArrowCommitUsesTextOnlyInputAndReplaysOnlyUnconsumedArrows() throws {
-    GhosttySurfaceView.withCommittedPreeditKey(
-      action: GHOSTTY_ACTION_PRESS,
-      text: "한"
-    ) { key in
-      #expect(key.action == GHOSTTY_ACTION_PRESS)
-      #expect(key.keycode == 0)
-      #expect(key.text.map { String(cString: $0) } == "한")
-      #expect(key.composing == false)
-      #expect(key.mods == GHOSTTY_MODS_NONE)
-      #expect(key.consumed_mods == GHOSTTY_MODS_NONE)
-      #expect(key.unshifted_codepoint == 0)
-    }
+    expectTextOnlyCommittedKey("한")
 
     let down = try keyDownEvent(keyCode: kVK_DownArrow)
     let right = try keyDownEvent(keyCode: kVK_RightArrow)
@@ -917,6 +906,64 @@ struct GhosttySurfaceViewTests {
     #expect(!GhosttySurfaceView.shouldReplayCommittedPreeditKey(left))
     #expect(GhosttySurfaceView.shouldReplayCommittedPreeditKey(modifiedLeft))
     #expect(!GhosttySurfaceView.shouldReplayCommittedPreeditKey(letter))
+  }
+
+  @Test
+  @MainActor
+  func unmarkedCommittedTextUsesTextOnlyKeyEvent() {
+    expectTextOnlyCommittedKey("dictated 😀")
+  }
+
+  @MainActor
+  private func expectTextOnlyCommittedKey(_ text: String) {
+    GhosttySurfaceView.withCommittedTextKey(
+      action: GHOSTTY_ACTION_PRESS,
+      text: text
+    ) { key in
+      #expect(key.action == GHOSTTY_ACTION_PRESS)
+      #expect(key.keycode == 0)
+      #expect(key.text.map { String(cString: $0) } == text)
+      #expect(key.composing == false)
+      #expect(key.mods == GHOSTTY_MODS_NONE)
+      #expect(key.consumed_mods == GHOSTTY_MODS_NONE)
+      #expect(key.unshifted_codepoint == 0)
+    }
+  }
+
+  @Test
+  @MainActor
+  func droppedTextUsesDirectPastePayload() {
+    var receivedText: String?
+    var receivedLength: UInt?
+
+    GhosttySurfaceView.withDroppedText("/tmp/some\\ file 😀") { pointer, length in
+      receivedText = String(cString: pointer)
+      receivedLength = length
+    }
+
+    #expect(receivedText == "/tmp/some\\ file 😀")
+    #expect(receivedLength == UInt("/tmp/some\\ file 😀".utf8.count))
+  }
+
+  @Test
+  @MainActor
+  func droppedTextDoesNotRequireAnAppKitEvent() async {
+    initializeGhosttyForTests()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    defer { surfaceView.closeSurface() }
+    surfaceView.focusDidChange(true)
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+    pasteboard.clearContents()
+    #expect(pasteboard.setString("dropped text", forType: .string))
+
+    #expect(surfaceView.performDrop(from: pasteboard))
+    #expect(await waitUntil { surfaceView.bridge.state.userInputGeneration == 1 })
   }
 
   @Test
@@ -1475,8 +1522,8 @@ struct GhosttySurfaceViewTests {
     #expect(
       TerminalHostState.surfaceActivity(
         isSelectedTab: true,
-        windowIsVisible: true,
-        windowIsKey: true,
+        isPaneVisible: true,
+        windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
         focusedSurfaceID: surface.id,
         surface: surface
       ).isFocused
@@ -1486,8 +1533,8 @@ struct GhosttySurfaceViewTests {
     #expect(
       !TerminalHostState.surfaceActivity(
         isSelectedTab: true,
-        windowIsVisible: true,
-        windowIsKey: true,
+        isPaneVisible: true,
+        windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
         focusedSurfaceID: surface.id,
         surface: surface
       ).isFocused

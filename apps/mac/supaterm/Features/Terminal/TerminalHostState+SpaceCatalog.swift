@@ -73,6 +73,7 @@ extension TerminalHostState {
       focusing: false,
       synchronizesFocus: false
     )
+    syncFocus(windowActivity)
   }
 
   func space(warming spaceID: TerminalSpaceID) -> TerminalSpaceItem? {
@@ -101,10 +102,12 @@ extension TerminalHostState {
   func warmInstance(for spaceID: TerminalSpaceID) {
     guard restorePendingInstance(for: spaceID) != nil else { return }
     ensureRestoredTab(in: spaceID)
+    syncFocus(windowActivity)
   }
 
   func warmInstanceForTabTransfer(for spaceID: TerminalSpaceID) {
-    restorePendingInstance(for: spaceID)
+    guard restorePendingInstance(for: spaceID) != nil else { return }
+    syncFocus(windowActivity)
   }
 
   @discardableResult

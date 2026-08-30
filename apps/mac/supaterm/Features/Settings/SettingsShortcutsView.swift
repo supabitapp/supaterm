@@ -21,6 +21,7 @@ struct SettingsShortcutsView: View {
 
   @State private var expandedGroups = Set(SupatermShortcuts.groups.map(\.id))
   @State private var isRestoreConfirmationPresented = false
+  @State private var keyboardLayoutRefreshID = UUID()
   @State private var searchText = ""
 
   private var filteredGroups: [SupatermShortcutGroup] {
@@ -110,6 +111,7 @@ struct SettingsShortcutsView: View {
           store: store,
           warning: warnings
         )
+        .id(keyboardLayoutRefreshID)
       }
       .width(min: 100, ideal: 140, max: 220)
       TableColumn("Enabled") { item in
@@ -139,6 +141,13 @@ struct SettingsShortcutsView: View {
     }
     .alternatingRowBackgrounds()
     .padding(.leading, -6)
+    .onReceive(
+      NotificationCenter.default.publisher(
+        for: NSTextInputContext.keyboardSelectionDidChangeNotification
+      )
+    ) { _ in
+      keyboardLayoutRefreshID = UUID()
+    }
   }
 }
 

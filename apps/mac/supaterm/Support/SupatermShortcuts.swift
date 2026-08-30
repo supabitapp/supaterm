@@ -19,24 +19,35 @@ public struct SupatermShortcutBinding: Hashable, Sendable {
     self.init(keyCode: override.keyCode, modifiers: override.modifiers)
   }
 
+  @MainActor
   public var keyboardShortcut: KeyboardShortcut {
     KeyboardShortcut(
-      SupatermShortcutKey.keyEquivalent(for: keyCode),
+      SupatermShortcutKey.keyEquivalent(
+        for: keyCode,
+        modifiers: modifiers
+      ),
       modifiers: modifiers.eventModifiers
     )
   }
 
+  @MainActor
   public var display: String {
     displaySymbols.joined()
   }
 
+  @MainActor
   public var displaySymbols: [String] {
     var symbols: [String] = []
     if modifiers.contains(.command) { symbols.append("⌘") }
     if modifiers.contains(.shift) { symbols.append("⇧") }
     if modifiers.contains(.option) { symbols.append("⌥") }
     if modifiers.contains(.control) { symbols.append("⌃") }
-    symbols.append(SupatermShortcutKey.displayCharacter(for: keyCode))
+    symbols.append(
+      SupatermShortcutKey.displayCharacter(
+        for: keyCode,
+        modifiers: modifiers
+      )
+    )
     return symbols
   }
 }
@@ -210,6 +221,7 @@ public enum SupatermShortcuts {
     shortcut(for: id).effective(from: overrides)
   }
 
+  @MainActor
   public static func conflict(
     for proposed: SupatermShortcutBinding,
     replacing id: SupatermShortcutID,
@@ -225,6 +237,7 @@ public enum SupatermShortcuts {
     )
   }
 
+  @MainActor
   public static func warnings(
     overrides: [SupatermShortcutID: SupatermShortcutOverride],
     terminalDisplays: Set<String>
@@ -247,6 +260,7 @@ public enum SupatermShortcuts {
       })
   }
 
+  @MainActor
   private static func conflict(
     for proposed: SupatermShortcutBinding,
     replacing id: SupatermShortcutID,
@@ -282,14 +296,52 @@ public enum SupatermShortcuts {
   }
 }
 
+@MainActor
+public enum SupatermKeyboardLayout {
+  public static func character(
+    for keyCode: UInt16,
+    modifiers: NSEvent.ModifierFlags
+  ) -> Character? {
+    guard
+      let event = NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: "",
+        charactersIgnoringModifiers: "",
+        isARepeat: false,
+        keyCode: keyCode
+      ),
+      let result = event.characters(
+        byApplyingModifiers: modifiers.intersection(.command)
+      ),
+      result.count == 1
+    else {
+      return nil
+    }
+    return result.first
+  }
+}
+
+@MainActor
 private enum SupatermShortcutKey {
-  static func keyEquivalent(for code: UInt16) -> KeyEquivalent {
-    keyEquivalents[code] ?? KeyEquivalent(layoutCharacter(for: code)?.first ?? "?")
+  static func keyEquivalent(
+    for code: UInt16,
+    modifiers: SupatermShortcutOverride.Modifiers
+  ) -> KeyEquivalent {
+    keyEquivalents[code]
+      ?? KeyEquivalent(layoutCharacter(for: code, modifiers: modifiers)?.first ?? "?")
   }
 
-  static func displayCharacter(for code: UInt16) -> String {
+  static func displayCharacter(
+    for code: UInt16,
+    modifiers: SupatermShortcutOverride.Modifiers
+  ) -> String {
     displayCharacters[code]
-      ?? layoutCharacter(for: code)?.uppercased()
+      ?? layoutCharacter(for: code, modifiers: modifiers)?.uppercased()
       ?? String(format: "0x%02X", code)
   }
 
@@ -327,73 +379,15 @@ private enum SupatermShortcutKey {
     return result
   }
 
-  private static func layoutCharacter(for code: UInt16) -> String? {
-    currentLayoutCharacter(for: code, modifierState: 0) ?? usQwertyFallback[code]
-  }
-
-  private static func currentLayoutCharacter(
+  private static func layoutCharacter(
     for code: UInt16,
-    modifierState: UInt32
+    modifiers: SupatermShortcutOverride.Modifiers
   ) -> String? {
-    guard let layoutData = currentKeyboardLayoutData(),
-      let bytes = CFDataGetBytePtr(layoutData)
-    else {
-      return nil
-    }
-
-    return bytes.withMemoryRebound(to: UCKeyboardLayout.self, capacity: 1) { keyboardLayout in
-      var deadKeyState: UInt32 = 0
-      var characters = [UniChar](repeating: 0, count: 4)
-      var length = 0
-      let status = UCKeyTranslate(
-        keyboardLayout,
-        code,
-        UInt16(kUCKeyActionDisplay),
-        modifierState,
-        UInt32(LMGetKbdType()),
-        UInt32(kUCKeyTranslateNoDeadKeysBit),
-        &deadKeyState,
-        characters.count,
-        &length,
-        &characters
-      )
-      guard status == noErr, length > 0 else {
-        return nil
-      }
-      let result = String(utf16CodeUnits: characters, count: length)
-      guard let scalar = result.unicodeScalars.first,
-        scalar.value > 0x20,
-        scalar.value != 0x7F
-      else {
-        return nil
-      }
-      return result
-    }
-  }
-
-  private static func currentKeyboardLayoutData() -> CFData? {
-    let sources = [
-      TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
-      TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
-      TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
-    ].compactMap { $0 }
-
-    for source in sources {
-      guard
-        let pointer = TISGetInputSourceProperty(
-          source,
-          kTISPropertyUnicodeKeyLayoutData
-        )
-      else {
-        continue
-      }
-      let value = unsafeBitCast(pointer, to: CFTypeRef.self)
-      guard CFGetTypeID(value) == CFDataGetTypeID() else {
-        continue
-      }
-      return unsafeDowncast(value, to: CFData.self)
-    }
-    return nil
+    let layoutModifiers: NSEvent.ModifierFlags = modifiers.contains(.command) ? .command : []
+    return SupatermKeyboardLayout.character(
+      for: code,
+      modifiers: layoutModifiers
+    ).map { String($0) } ?? usQwertyFallback[code]
   }
 
   private static let keyEquivalents: [UInt16: KeyEquivalent] = [

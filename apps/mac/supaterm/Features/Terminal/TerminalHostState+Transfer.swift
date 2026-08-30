@@ -160,8 +160,8 @@ extension TerminalHostState {
       tree: tree
     )
     let selectionState = Self.newPaneSelectionState(
-      selectedTabID: selectedTabID,
-      targetTabID: tabID,
+      isSelectedTab: selectedTabID == tabID,
+      isPaneVisible: visiblePaneIDs.contains(surface.id),
       windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surface: surface

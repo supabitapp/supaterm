@@ -1,6 +1,7 @@
 import Darwin
 import Dispatch
 import Foundation
+import SupatermCLIShared
 import Synchronization
 
 nonisolated struct TerminalAgentPanelWorkspaceContext: Equatable, Sendable {
@@ -17,12 +18,9 @@ nonisolated struct TerminalAgentPanelWorkspaceKey: Equatable, Hashable, Sendable
     else {
       return nil
     }
-    self.workingDirectoryPath = URL(
-      fileURLWithPath: workingDirectoryPath,
-      isDirectory: true
+    self.workingDirectoryPath = SupatermWorkingDirectory.normalizedPath(
+      URL(fileURLWithPath: workingDirectoryPath, isDirectory: true).standardizedFileURL
     )
-    .standardizedFileURL
-    .path(percentEncoded: false)
   }
 }
 

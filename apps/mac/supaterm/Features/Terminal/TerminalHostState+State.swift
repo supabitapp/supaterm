@@ -218,7 +218,7 @@ extension TerminalHostState {
     var seen = Set<String>()
     return paths.compactMap { path in
       guard let path = trimmedNonEmpty(path) else { return nil }
-      let normalized = GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
+      let normalized = SupatermWorkingDirectory.normalizedPath(path)
       guard seen.insert(normalized).inserted else { return nil }
       return normalized
     }
@@ -580,7 +580,7 @@ extension TerminalHostState {
     pwd: String?
   ) -> String? {
     guard let pwd = trimmedNonEmpty(pwd) else { return nil }
-    let normalizedPath = GhosttySurfaceView.normalizedWorkingDirectoryPath(pwd)
+    let normalizedPath = SupatermWorkingDirectory.normalizedPath(pwd)
     let abbreviatedPath = (normalizedPath as NSString).abbreviatingWithTildeInPath
     let prefixes = Set([normalizedPath, abbreviatedPath]).sorted { $0.count > $1.count }
 

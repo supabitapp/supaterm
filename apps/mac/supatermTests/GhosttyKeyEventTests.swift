@@ -19,6 +19,19 @@ struct GhosttyKeyEventTests {
 
   @Test
   @MainActor
+  func keyEventTextRejectsC0ControlsAndDelete() {
+    for value in UInt32(0)...0x1F {
+      let text = String(UnicodeScalar(value)!)
+      #expect(GhosttyKeyEvent.keyEventText(text) == nil)
+    }
+    #expect(GhosttyKeyEvent.keyEventText("\u{7F}") == nil)
+    #expect(GhosttyKeyEvent.keyEventText("") == nil)
+    #expect(GhosttyKeyEvent.keyEventText(" ") == " ")
+    #expect(GhosttyKeyEvent.keyEventText("😀") == "😀")
+  }
+
+  @Test
+  @MainActor
   func modifierTranslationDoesNotReadCharacters() throws {
     initializeGhosttyForTests()
     let surfaceView = GhosttySurfaceView(

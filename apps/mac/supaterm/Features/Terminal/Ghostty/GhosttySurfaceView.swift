@@ -5,7 +5,6 @@ import GhosttyKit
 import QuartzCore
 import SupatermCLIShared
 import SupatermSupport
-import System
 
 final class GhosttySurfaceView: NSView, Identifiable {
   typealias SurfaceFactory = (
@@ -152,10 +151,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     .supatermPNGImage,
     .supatermTIFFImage,
   ]
-
-  static func normalizedWorkingDirectoryPath(_ path: String) -> String {
-    FilePath(path).string
-  }
 
   static func acceptsDropTypes(_ types: [NSPasteboard.PasteboardType]) -> Bool {
     !Set(types).isDisjoint(with: dropTypes)
@@ -343,9 +338,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.accessibilitySelectionSleep = accessibilitySelectionSleep
     let initialWorkingDirectoryPath: String?
     if let workingDirectory {
-      let path = Self.normalizedWorkingDirectoryPath(
-        workingDirectory.path(percentEncoded: false)
-      )
+      let path = SupatermWorkingDirectory.normalizedPath(workingDirectory)
       initialWorkingDirectoryPath = path
       workingDirectoryCString = path.withCString { strdup($0) }
     } else {
@@ -477,14 +470,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   func confirmClipboardRead(
-    value: String?,
+    payload: GhosttyClipboardConfirmationPayload?,
     state: UnsafeMutableRawPointer?,
     request: ghostty_clipboard_request_e
   ) {
     runtime.confirmClipboardRead(
       from: self,
       surfaceReference: surfaceRef,
-      value: value,
+      payload: payload,
       state: state,
       request: request
     )
@@ -492,16 +485,22 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   func readClipboard(
     location: ghostty_clipboard_e,
-    state: UnsafeMutableRawPointer?
-  ) -> Bool {
-    runtime.readClipboard(from: self, location: location, state: state)
+    state: UnsafeMutableRawPointer?,
+    request: GhosttyClipboardReadRequest
+  ) -> ghostty_clipboard_read_result_e {
+    runtime.readClipboard(
+      from: self,
+      location: location,
+      state: state,
+      request: request
+    )
   }
 
   func writeClipboard(
     location: ghostty_clipboard_e,
-    items: [(mime: String, data: String)],
+    items: [GhosttyClipboardContent],
     confirm: Bool
-  ) {
+  ) -> Bool {
     runtime.writeClipboard(
       from: self,
       surfaceReference: surfaceRef,
@@ -939,7 +938,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         if Self.shouldSuppressComposingControlInput(text, composing: composing) {
           continue
         }
-        _ = sendCommittedPreeditText(text, action: action)
+        _ = sendCommittedText(text, action: action)
       }
       if Self.shouldReplayCommittedPreeditKey(translationEvent) {
         _ = sendKey(
@@ -1803,10 +1802,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
       translationMods: resolvedMods,
       composing: composing
     )
-    let finalText = text ?? GhosttyKeyEvent.characters(resolvedEvent)
-    if let finalText, !finalText.isEmpty,
-      let codepoint = finalText.utf8.first, codepoint >= 0x20
-    {
+    let finalText = GhosttyKeyEvent.keyEventText(
+      text ?? GhosttyKeyEvent.characters(resolvedEvent)
+    )
+    if let finalText {
       return finalText.withCString { ptr in
         key.text = ptr
         return ghostty_surface_key(surface, key)
@@ -1827,7 +1826,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  static func withCommittedPreeditKey<Result>(
+  static func withCommittedTextKey<Result>(
     action: ghostty_input_action_e,
     text: String,
     perform: (ghostty_input_key_s) -> Result
@@ -1846,12 +1845,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  private func sendCommittedPreeditText(
+  private func sendCommittedText(
     _ text: String,
     action: ghostty_input_action_e
   ) -> Bool {
     guard let surface else { return false }
-    return Self.withCommittedPreeditKey(action: action, text: text) { key in
+    return Self.withCommittedTextKey(action: action, text: text) { key in
       ghostty_surface_key(surface, key)
     }
   }
@@ -2044,12 +2043,33 @@ extension GhosttySurfaceView {
   }
 
   override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-    let pasteboard = sender.draggingPasteboard
+    performDrop(from: sender.draggingPasteboard)
+  }
+
+  func performDrop(from pasteboard: NSPasteboard) -> Bool {
     guard let content = pasteboard.getOpinionatedStringContents() else { return false }
     Task { @MainActor in
-      self.insertText(content, replacementRange: NSRange(location: 0, length: 0))
+      self.sendDroppedText(content)
     }
     return true
+  }
+
+  static func withDroppedText<Result>(
+    _ text: String,
+    perform: (UnsafePointer<CChar>, UInt) -> Result
+  ) -> Result {
+    let length = text.utf8.count
+    return text.withCString { pointer in
+      perform(pointer, UInt(length))
+    }
+  }
+
+  private func sendDroppedText(_ text: String) {
+    guard let surface else { return }
+    Self.withDroppedText(text) { pointer, length in
+      ghostty_surface_text(surface, pointer, length)
+    }
+    recordUserInput()
   }
 }
 
@@ -2156,7 +2176,7 @@ extension GhosttySurfaceView: NSTextInputClient {
 
   func insertText(_ string: Any, replacementRange: NSRange) {
     guard NSApp.currentEvent != nil else { return }
-    guard let surface else { return }
+    guard surface != nil else { return }
     var chars = ""
     switch string {
     case let attributedText as NSAttributedString:
@@ -2166,7 +2186,6 @@ extension GhosttySurfaceView: NSTextInputClient {
     default:
       return
     }
-    let hadMarkedText = hasMarkedText()
     unmarkText()
     if var acc = keyTextAccumulator {
       acc.append(chars)
@@ -2174,13 +2193,8 @@ extension GhosttySurfaceView: NSTextInputClient {
       return
     }
     defer { recordUserInput() }
-    if hadMarkedText, !chars.isEmpty {
-      _ = sendCommittedPreeditText(chars, action: GHOSTTY_ACTION_PRESS)
-      return
-    }
-    let len = chars.utf8CString.count
-    chars.withCString { ptr in
-      ghostty_surface_text(surface, ptr, UInt(len - 1))
+    if !chars.isEmpty {
+      _ = sendCommittedText(chars, action: GHOSTTY_ACTION_PRESS)
     }
   }
 }

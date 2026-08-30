@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SupatermCLIShared
 
 final class SupatermServiceProvider: NSObject {
   private enum OpenTarget {
@@ -51,7 +52,7 @@ final class SupatermServiceProvider: NSObject {
       guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
         return nil
       }
-      return url.standardizedFileURL.path(percentEncoded: false)
+      return SupatermWorkingDirectory.normalizedPath(url)
     }
     return Array(Set(directoryPaths)).sorted()
   }

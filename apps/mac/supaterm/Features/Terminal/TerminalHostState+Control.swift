@@ -28,6 +28,14 @@ extension TerminalHostState {
     let tabID: TerminalTabID
   }
 
+  private static func requestedWorkingDirectoryURL(for path: String?) -> URL? {
+    guard let path else { return nil }
+    return URL(
+      fileURLWithPath: SupatermWorkingDirectory.normalizedPath(path),
+      isDirectory: true
+    )
+  }
+
   func treeSnapshot() -> SupatermTreeSnapshot {
     let window = SupatermTreeSnapshot.Window(
       index: 1,
@@ -226,7 +234,7 @@ extension TerminalHostState {
       tabID: resolvedTarget.tabID,
       startupCommand: request.startupCommand,
       inheritingFromSurfaceID: resolvedTarget.anchorSurface.id,
-      workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
+      workingDirectory: Self.requestedWorkingDirectoryURL(for: request.cwd),
       context: GHOSTTY_SURFACE_CONTEXT_SPLIT
     )
 
@@ -264,8 +272,8 @@ extension TerminalHostState {
         tree: finalTree
       )
       let selectionState = Self.newPaneSelectionState(
-        selectedTabID: selectedTabID,
-        targetTabID: resolvedTarget.tabID,
+        isSelectedTab: selectedTabID == resolvedTarget.tabID,
+        isPaneVisible: visiblePaneIDs.contains(newSurface.id),
         windowActivity: windowActivity,
         focusedSurfaceID: focusHistoryByTab[resolvedTarget.tabID]?.current,
         surface: newSurface
@@ -309,7 +317,7 @@ extension TerminalHostState {
           reason: .socket,
           focusing: false,
           startupCommand: request.startupCommand,
-          workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
+          workingDirectory: Self.requestedWorkingDirectoryURL(for: request.cwd),
           inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
           at: placement,
           sessionChangesEnabled: false,
@@ -351,8 +359,8 @@ extension TerminalHostState {
       }
 
       let selectionState = Self.newPaneSelectionState(
-        selectedTabID: selectedTabID,
-        targetTabID: tabID,
+        isSelectedTab: selectedTabID == tabID,
+        isPaneVisible: visiblePaneIDs.contains(surface.id),
         windowActivity: windowActivity,
         focusedSurfaceID: focusHistoryByTab[tabID]?.current,
         surface: surface
@@ -596,6 +604,7 @@ extension TerminalHostState {
       with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
     )
     trees[resolvedTarget.tabID] = newTree
+    syncFocus(windowActivity)
     sessionDidChange()
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
@@ -618,6 +627,7 @@ extension TerminalHostState {
       with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
     )
     trees[resolvedTarget.tabID] = newTree
+    syncFocus(windowActivity)
     sessionDidChange()
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
@@ -665,6 +675,7 @@ extension TerminalHostState {
   func tilePanes(_ request: TerminalTilePanesRequest) throws -> SupatermTilePanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.tiled()
+    syncFocus(windowActivity)
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
@@ -674,6 +685,7 @@ extension TerminalHostState {
   ) throws -> SupatermMainVerticalPanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.mainVertical()
+    syncFocus(windowActivity)
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
@@ -865,8 +877,8 @@ extension TerminalHostState {
     )
     let activity = Self.surfaceActivity(
       isSelectedTab: selectedTabID == tabID,
-      windowIsVisible: windowActivity.isVisible,
-      windowIsKey: windowActivity.isKeyWindow,
+      isPaneVisible: visiblePaneIDs.contains(surface.id),
+      windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surface: surface
     )
@@ -893,8 +905,8 @@ extension TerminalHostState {
     )
     let activity = Self.surfaceActivity(
       isSelectedTab: selectedTabID == tabID,
-      windowIsVisible: windowActivity.isVisible,
-      windowIsKey: windowActivity.isKeyWindow,
+      isPaneVisible: visiblePaneIDs.contains(resolvedSurface.surface.id),
+      windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surface: resolvedSurface.surface
     )
@@ -945,8 +957,8 @@ extension TerminalHostState {
     )
     let activity = Self.surfaceActivity(
       isSelectedTab: selectedTabID == tabID,
-      windowIsVisible: windowActivity.isVisible,
-      windowIsKey: windowActivity.isKeyWindow,
+      isPaneVisible: visiblePaneIDs.contains(resolvedSurface.surface.id),
+      windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surface: resolvedSurface.surface
     )
@@ -973,9 +985,10 @@ extension TerminalHostState {
       surfaceID: resolvedTarget.anchorSurface.id,
       tree: resolvedTarget.tree
     )
+    let isPaneVisible = visiblePaneIDs.contains(resolvedTarget.anchorSurface.id)
     let selectionState = Self.newPaneSelectionState(
-      selectedTabID: selectedTabID,
-      targetTabID: resolvedTarget.tabID,
+      isSelectedTab: selectedTabID == resolvedTarget.tabID,
+      isPaneVisible: isPaneVisible,
       windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[resolvedTarget.tabID]?.current,
       surface: resolvedTarget.anchorSurface
@@ -984,6 +997,7 @@ extension TerminalHostState {
     let storedAttentionState: SupatermNotificationAttentionState? =
       if origin == .structuredAgent(.completion),
         selectionState.isSelectedTab,
+        isPaneVisible,
         windowActivity.isVisible,
         windowActivity.isKeyWindow
       {
