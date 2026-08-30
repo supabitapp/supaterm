@@ -112,6 +112,103 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(unavailable.candidates.first?.processMatch == .unknown)
   }
 
+  @Test
+  func contextlessCodexSessionStartBindsDetectedPaneProcessWhenEmitterIsRelated() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let detectedProcess = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: detectedProcess,
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+    let emitter = Process()
+    emitter.executableURL = URL(fileURLWithPath: "/bin/sleep")
+    emitter.arguments = ["30"]
+    try emitter.run()
+    defer {
+      if emitter.isRunning {
+        emitter.terminate()
+      }
+      emitter.waitUntilExit()
+    }
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "related-emitter-session",
+        hookEventName: .sessionStart,
+        cwd: FileManager.default.currentDirectoryPath,
+        processID: emitter.processIdentifier
+      )
+    )
+
+    let candidate = try #require(candidates.candidates.first)
+    #expect(candidate.processMatch == .matching)
+    #expect(candidate.processID == detectedProcess.processID)
+  }
+
+  @Test
+  func contextlessCodexSessionStartChoosesStablePaneProcessOverMatchingEmitter() {
+    let detected = TerminalAgentProcessIdentity(processID: 10, startTimeMicroseconds: 1)
+    let foreground = TerminalAgentProcessIdentity(processID: 20, startTimeMicroseconds: 1)
+    let emitter = TerminalAgentProcessIdentity(processID: 30, startTimeMicroseconds: 1)
+
+    #expect(
+      agentHookCandidateProcessIdentity(
+        foregroundProcessMatch: .matching,
+        emitterProcessIdentity: emitter,
+        observedProcessIdentity: detected,
+        foregroundProcessIdentity: foreground
+      ) == detected
+    )
+    #expect(
+      agentHookCandidateProcessIdentity(
+        foregroundProcessMatch: .matching,
+        emitterProcessIdentity: emitter,
+        observedProcessIdentity: nil,
+        foregroundProcessIdentity: foreground
+      ) == foreground
+    )
+    #expect(
+      agentHookCandidateProcessIdentity(
+        foregroundProcessMatch: .matching,
+        emitterProcessIdentity: emitter,
+        observedProcessIdentity: nil,
+        foregroundProcessIdentity: nil
+      ) == emitter
+    )
+    #expect(
+      agentHookCandidateProcessIdentity(
+        foregroundProcessMatch: .different,
+        emitterProcessIdentity: emitter,
+        observedProcessIdentity: detected,
+        foregroundProcessIdentity: foreground
+      ) == detected
+    )
+    #expect(
+      agentHookCandidateProcessIdentity(
+        foregroundProcessMatch: .unknown,
+        emitterProcessIdentity: emitter,
+        observedProcessIdentity: nil,
+        foregroundProcessIdentity: foreground
+      ) == foreground
+    )
+    #expect(
+      agentHookCandidateProcessIdentity(
+        foregroundProcessMatch: .different,
+        emitterProcessIdentity: emitter,
+        observedProcessIdentity: nil,
+        foregroundProcessIdentity: nil
+      ) == nil
+    )
+  }
+
   @Test(
     arguments: [
       CodexHookOwningProcessTestCase(

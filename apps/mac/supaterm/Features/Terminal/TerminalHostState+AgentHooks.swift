@@ -36,16 +36,14 @@ extension TerminalHostState {
       guard observation != nil || foregroundProcessMatch == .matching || sessionIDMatchesTitle else {
         return nil
       }
-      let candidateProcessIdentity: TerminalAgentProcessIdentity?
-      if foregroundProcessMatch == .matching {
-        candidateProcessIdentity = processTree.identity(for: processID)
-      } else {
-        candidateProcessIdentity =
-          observation?.processIdentity
-          ?? processTree.identity(
-            foregroundProcessGroupID: paneProcessIdentity.foregroundProcessGroupID
-          )
-      }
+      let candidateProcessIdentity = agentHookCandidateProcessIdentity(
+        foregroundProcessMatch: foregroundProcessMatch,
+        emitterProcessIdentity: processTree.identity(for: processID),
+        observedProcessIdentity: observation?.processIdentity,
+        foregroundProcessIdentity: processTree.identity(
+          foregroundProcessGroupID: paneProcessIdentity.foregroundProcessGroupID
+        )
+      )
       guard let candidateProcessIdentity else { return nil }
       let candidateWorkspace = TerminalAgentPanelWorkspaceKey(
         workingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
@@ -91,4 +89,15 @@ extension TerminalHostState {
     case nil: .unknown
     }
   }
+}
+
+func agentHookCandidateProcessIdentity(
+  foregroundProcessMatch: SupatermAgentHookProcessMatch,
+  emitterProcessIdentity: TerminalAgentProcessIdentity?,
+  observedProcessIdentity: TerminalAgentProcessIdentity?,
+  foregroundProcessIdentity: TerminalAgentProcessIdentity?
+) -> TerminalAgentProcessIdentity? {
+  observedProcessIdentity
+    ?? foregroundProcessIdentity
+    ?? (foregroundProcessMatch == .matching ? emitterProcessIdentity : nil)
 }
