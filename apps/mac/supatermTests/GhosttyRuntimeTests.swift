@@ -2,6 +2,7 @@ import AppKit
 import Carbon.HIToolbox
 import Foundation
 import GhosttyKit
+import SupatermSettingsFeature
 import SwiftUI
 import Synchronization
 import Testing
@@ -10,6 +11,60 @@ import Testing
 
 @MainActor
 struct GhosttyRuntimeTests {
+  @Test
+  func runtimeUsesInitialEffectiveAppearance() throws {
+    let darkAppearance = try #require(NSAppearance(named: .darkAqua))
+    for appearanceMode in AppearanceMode.allCases {
+      let source = EffectiveAppearanceSource(
+        initialAppearance: appearanceMode.appearance ?? darkAppearance
+      )
+      let runtime = try makeGhosttyRuntime(
+        "",
+        effectiveAppearanceObserver: source.observe
+      )
+
+      #expect(runtime.colorSchemeForTesting() == (appearanceMode == .light ? .light : .dark))
+    }
+  }
+
+  @Test
+  func runtimeTracksEffectiveAppearanceChanges() throws {
+    let lightAppearance = try #require(NSAppearance(named: .aqua))
+    let darkAppearance = try #require(NSAppearance(named: .darkAqua))
+    let source = EffectiveAppearanceSource(initialAppearance: lightAppearance)
+    let runtime = try makeGhosttyRuntime(
+      "",
+      effectiveAppearanceObserver: source.observe
+    )
+
+    #expect(runtime.colorSchemeForTesting() == .light)
+
+    source.send(darkAppearance)
+
+    #expect(runtime.colorSchemeForTesting() == .dark)
+
+    source.send(lightAppearance)
+
+    #expect(runtime.colorSchemeForTesting() == .light)
+  }
+
+  @Test
+  func runtimeStopsObservingEffectiveAppearanceOnDeinit() throws {
+    let appearance = try #require(NSAppearance(named: .aqua))
+    let source = EffectiveAppearanceSource(initialAppearance: appearance)
+    var runtime: GhosttyRuntime? = try makeGhosttyRuntime(
+      "",
+      effectiveAppearanceObserver: source.observe
+    )
+
+    #expect(source.isObserved)
+
+    runtime = nil
+
+    #expect(runtime == nil)
+    #expect(!source.isObserved)
+  }
+
   @Test
   func keyboardShortcutsNormalizeUnicodeKeyEquivalents() throws {
     let runtime = try makeGhosttyRuntime(
@@ -626,5 +681,30 @@ struct GhosttyRuntimeTests {
 
   private enum PasteboardImageTestError: Error {
     case encodingFailed
+  }
+}
+
+@MainActor
+private final class EffectiveAppearanceSource {
+  private let initialAppearance: NSAppearance
+  private var observer: ((NSAppearance) -> Void)?
+  private(set) var isObserved = false
+
+  init(initialAppearance: NSAppearance) {
+    self.initialAppearance = initialAppearance
+  }
+
+  func observe(_ observer: @escaping (NSAppearance) -> Void) -> () -> Void {
+    self.observer = observer
+    isObserved = true
+    observer(initialAppearance)
+    return { [weak self] in
+      self?.observer = nil
+      self?.isObserved = false
+    }
+  }
+
+  func send(_ appearance: NSAppearance) {
+    observer?(appearance)
   }
 }

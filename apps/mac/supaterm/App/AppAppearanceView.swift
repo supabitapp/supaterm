@@ -16,47 +16,35 @@ struct AppAppearanceView<Content: View>: View {
     content
       .preferredColorScheme(supatermSettings.appearanceMode.colorScheme)
       .background {
-        WindowAppearanceSetter(appearanceMode: supatermSettings.appearanceMode)
+        ApplicationAppearanceSetter(appearanceMode: supatermSettings.appearanceMode)
       }
   }
 }
 
-private struct WindowAppearanceSetter: NSViewRepresentable {
+private struct ApplicationAppearanceSetter: NSViewRepresentable {
   let appearanceMode: AppearanceMode
 
-  func makeNSView(context: Context) -> WindowAppearanceView {
-    let view = WindowAppearanceView()
+  func makeNSView(context: Context) -> ApplicationAppearanceView {
+    let view = ApplicationAppearanceView()
     view.appearanceMode = appearanceMode
     return view
   }
 
-  func updateNSView(_ nsView: WindowAppearanceView, context: Context) {
+  func updateNSView(_ nsView: ApplicationAppearanceView, context: Context) {
     nsView.appearanceMode = appearanceMode
   }
 }
 
-private final class WindowAppearanceView: NSView {
+private final class ApplicationAppearanceView: NSView {
   var appearanceMode: AppearanceMode = .system {
     didSet {
       applyAppearance()
     }
   }
 
-  override func viewDidMoveToWindow() {
-    super.viewDidMoveToWindow()
-    applyAppearance()
-  }
-
   private func applyAppearance() {
-    guard window != nil else { return }
     let appearance = appearanceMode.appearance
+    guard NSApp.appearance?.name != appearance?.name else { return }
     NSApp.appearance = appearance
-    for window in NSApp.windows {
-      window.appearance = appearance
-      window.contentView?.needsLayout = true
-      window.contentView?.needsDisplay = true
-      window.contentView?.displayIfNeeded()
-      window.invalidateShadow()
-    }
   }
 }
