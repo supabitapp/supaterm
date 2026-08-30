@@ -306,6 +306,7 @@ struct AgentDetectionMatcherTests {
       version: nil,
       source: AgentDetectionManifestSource(origin: .bundled, path: "agent.toml"),
       processes: [AgentDetectionProcessRule(executable: "agent")],
+      workingDirectoryStrategy: nil,
       rules: rules
     )
   }

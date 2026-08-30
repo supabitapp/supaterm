@@ -12,9 +12,28 @@ nonisolated struct TerminalAgentDetectionObservation: Equatable, Sendable {
   let agent: AgentDetectionAgentIdentity
   let phase: AgentActivityPhase
   let processIdentity: TerminalAgentProcessIdentity
+  let workingDirectoryPath: String?
   let ruleID: String
   let generation: UInt64
   let sequence: UInt64
+
+  init(
+    agent: AgentDetectionAgentIdentity,
+    phase: AgentActivityPhase,
+    processIdentity: TerminalAgentProcessIdentity,
+    workingDirectoryPath: String? = nil,
+    ruleID: String,
+    generation: UInt64,
+    sequence: UInt64
+  ) {
+    self.agent = agent
+    self.phase = phase
+    self.processIdentity = processIdentity
+    self.workingDirectoryPath = workingDirectoryPath
+    self.ruleID = ruleID
+    self.generation = generation
+    self.sequence = sequence
+  }
 }
 
 nonisolated struct TerminalAgentDetectionNativeCandidate: Equatable, Sendable {

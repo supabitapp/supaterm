@@ -159,7 +159,8 @@ public actor AgentDetectionRuleRepository {
         ),
         processManifest: AgentDetectionProcessManifest(
           agentID: agent.id,
-          processes: agent.processes
+          processes: agent.processes,
+          workingDirectoryStrategy: agent.workingDirectoryStrategy
         ),
         matcher: try AgentDetectionMatcher(agent: agent)
       )

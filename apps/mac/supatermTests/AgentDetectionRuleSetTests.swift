@@ -82,6 +82,9 @@ struct AgentDetectionRuleSetTests {
         ),
       ]
     )
+    #expect(
+      agents.map(\.workingDirectoryStrategy) == [nil, .codexInvocation, nil]
+    )
   }
 
   @Test

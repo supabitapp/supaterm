@@ -10,7 +10,8 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
 
   private static let codex = AgentDetectionProcessManifest(
     agentID: "codex",
-    processes: [AgentDetectionProcessRule(executable: "codex")]
+    processes: [AgentDetectionProcessRule(executable: "codex")],
+    workingDirectoryStrategy: .codexInvocation
   )
 
   private static let claude = AgentDetectionProcessManifest(
@@ -57,13 +58,17 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     entries: [ProcessEntry],
     invocations: [pid_t: ProcessInvocation],
     manifests: [AgentDetectionProcessManifest] = [codex, claude],
-    foregroundProcessGroupID: pid_t = foregroundProcessGroupID
+    foregroundProcessGroupID: pid_t = foregroundProcessGroupID,
+    workingDirectory: @escaping AgentDetectionProcessRecognizer.WorkingDirectoryProvider = { _ in
+      nil
+    }
   ) -> AgentDetectionProcessMatch? {
     AgentDetectionProcessRecognizer.matches(
       foregroundProcessGroupIDs: [foregroundProcessGroupID],
       manifests: manifests,
       table: ProcessTable(entries: entries),
-      invocation: { invocations[$0] }
+      invocation: { invocations[$0] },
+      workingDirectory: workingDirectory
     )[foregroundProcessGroupID]
   }
 
@@ -80,7 +85,8 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
         snapshotCount.withLock { $0 += 1 }
         return ProcessTable(entries: [])
       },
-      invocation: { _ in nil }
+      invocation: { _ in nil },
+      workingDirectory: { _ in nil }
     )
 
     #expect(snapshotCount.withLock { $0 } == 1)
@@ -105,7 +111,8 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       },
       invocation: { processID in
         Self.invocation("/opt/homebrew/bin/codex", arguments: ["codex", "\(processID)"])
-      }
+      },
+      workingDirectory: { _ in nil }
     )
 
     async let first = sampler.matches(
@@ -158,7 +165,8 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
           ),
         ]
       ),
-      invocation: { invocations[$0] }
+      invocation: { invocations[$0] },
+      workingDirectory: { _ in nil }
     )
 
     #expect(
@@ -189,7 +197,8 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       foregroundProcessGroupIDs: [Int32.min, -1, 0, 999],
       manifests: [Self.codex],
       table: ProcessTable(entries: [Self.process(100, name: "codex")]),
-      invocation: { _ in invocation }
+      invocation: { _ in invocation },
+      workingDirectory: { _ in nil }
     )
 
     #expect(matches.isEmpty)
@@ -217,6 +226,115 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
           )
         )
     )
+  }
+
+  @Test
+  func codexMatchCapturesDeclaredAbsoluteWorkingDirectory() throws {
+    let result = try #require(
+      Self.match(
+        entries: [Self.process(100, name: "codex")],
+        invocations: [
+          100: Self.invocation(
+            "/opt/homebrew/bin/codex",
+            arguments: ["codex", "--cd", "/tmp/agent-workspace"]
+          )
+        ],
+        manifests: [Self.codex]
+      )
+    )
+
+    #expect(result.workingDirectoryPath == "/tmp/agent-workspace")
+  }
+
+  @Test
+  func codexMatchResolvesDeclaredRelativeWorkingDirectory() throws {
+    let match = Self.match(
+      entries: [Self.process(100, name: "codex")],
+      invocations: [
+        100: Self.invocation(
+          "/opt/homebrew/bin/codex",
+          arguments: ["codex", "-C", "agent-workspace"]
+        )
+      ],
+      manifests: [Self.codex],
+      workingDirectory: { identity in
+        identity.processID == 100 ? "/tmp" : nil
+      }
+    )
+    let result = try #require(match)
+
+    #expect(result.workingDirectoryPath == "/tmp/agent-workspace")
+  }
+
+  @Test
+  func workingDirectoryStrategyDoesNotDependOnAgentID() throws {
+    let manifest = AgentDetectionProcessManifest(
+      agentID: "other",
+      processes: [AgentDetectionProcessRule(executable: "other")],
+      workingDirectoryStrategy: .codexInvocation
+    )
+    let result = try #require(
+      Self.match(
+        entries: [Self.process(100, name: "other")],
+        invocations: [
+          100: Self.invocation(
+            "/usr/local/bin/other",
+            arguments: ["other", "--cd", "/tmp/agent-workspace"]
+          )
+        ],
+        manifests: [manifest]
+      )
+    )
+
+    #expect(result.workingDirectoryPath == "/tmp/agent-workspace")
+  }
+
+  @Test
+  func agentIDDoesNotEnableWorkingDirectoryCapture() throws {
+    let manifest = AgentDetectionProcessManifest(
+      agentID: "codex",
+      processes: [AgentDetectionProcessRule(executable: "codex")]
+    )
+    let result = try #require(
+      Self.match(
+        entries: [Self.process(100, name: "codex")],
+        invocations: [
+          100: Self.invocation(
+            "/opt/homebrew/bin/codex",
+            arguments: ["codex", "--cd", "/tmp/agent-workspace"]
+          )
+        ],
+        manifests: [manifest]
+      )
+    )
+
+    #expect(result.workingDirectoryPath == nil)
+  }
+
+  @Test
+  func codexMatchKeepsTheChosenProcessWorkingDirectory() throws {
+    let result = try #require(
+      Self.match(
+        entries: [
+          Self.process(300, name: "codex"),
+          Self.process(100, parentProcessID: 300, name: "codex"),
+        ],
+        invocations: [
+          100: Self.invocation(
+            "/opt/homebrew/bin/codex",
+            arguments: ["codex", "--cd", "/tmp/child-workspace"]
+          ),
+          300: Self.invocation(
+            "/opt/homebrew/bin/codex",
+            arguments: ["codex", "--cd", "/tmp/root-workspace"]
+          ),
+        ],
+        manifests: [Self.codex]
+      )
+    )
+
+    #expect(result.processIdentity.processID == 300)
+    #expect(result.workingDirectoryPath == "/tmp/root-workspace")
   }
 
   @Test

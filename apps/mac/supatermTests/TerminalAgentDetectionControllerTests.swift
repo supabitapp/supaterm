@@ -103,6 +103,32 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func publishesWorkingDirectoryFromProcessProof() async throws {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    let now = ContinuousClock.now
+    await fixture.sampler.setMatches([
+      11: match(identity: proof, workingDirectoryPath: "/tmp/agent-workspace")
+    ])
+    await fixture.sampler.setCurrent([proof])
+
+    await fixture.controller.tick(now: now)
+
+    let initial = try #require(fixture.host.observations[surfaceID])
+    #expect(initial.processIdentity == proof)
+    #expect(initial.workingDirectoryPath == "/tmp/agent-workspace")
+
+    await fixture.sampler.setMatches([
+      11: match(identity: proof, workingDirectoryPath: "/tmp/refined-workspace")
+    ])
+    await fixture.controller.tick(now: now.advanced(by: .seconds(5)))
+
+    #expect(fixture.host.observations[surfaceID]?.workingDirectoryPath == "/tmp/refined-workspace")
+    #expect(fixture.host.applyCalls.count == 2)
+  }
+
+  @Test
   func rejectsPIDReuseUntilTheExactStartTimeIsCurrent() async {
     let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(processGroupID: 11)
@@ -655,10 +681,14 @@ struct TerminalAgentDetectionControllerTests {
     )
   }
 
-  private func match(identity: TerminalAgentProcessIdentity) -> AgentDetectionProcessMatch {
+  private func match(
+    identity: TerminalAgentProcessIdentity,
+    workingDirectoryPath: String? = nil
+  ) -> AgentDetectionProcessMatch {
     AgentDetectionProcessMatch(
       agentID: "agent",
-      processIdentity: identity
+      processIdentity: identity,
+      workingDirectoryPath: workingDirectoryPath
     )
   }
 

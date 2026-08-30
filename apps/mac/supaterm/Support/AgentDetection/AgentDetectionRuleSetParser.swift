@@ -23,7 +23,8 @@ enum AgentDetectionRuleSetParser {
           executable: "node",
           scriptSuffix: "/@openai/codex/bin/codex.js"
         ),
-      ]
+      ],
+      workingDirectoryStrategy: .codexInvocation
     ),
     Definition(
       id: "pi",
@@ -89,6 +90,7 @@ enum AgentDetectionRuleSetParser {
             path: selectedURL.path
           ),
           processes: definition.processes,
+          workingDirectoryStrategy: definition.workingDirectoryStrategy,
           rules: manifest.rules
         )
       )
@@ -121,6 +123,19 @@ enum AgentDetectionRuleSetParser {
     let id: String
     let displayName: String
     let processes: [AgentDetectionProcessRule]
+    let workingDirectoryStrategy: AgentDetectionWorkingDirectoryStrategy?
+
+    init(
+      id: String,
+      displayName: String,
+      processes: [AgentDetectionProcessRule],
+      workingDirectoryStrategy: AgentDetectionWorkingDirectoryStrategy? = nil
+    ) {
+      self.id = id
+      self.displayName = displayName
+      self.processes = processes
+      self.workingDirectoryStrategy = workingDirectoryStrategy
+    }
   }
 }
 

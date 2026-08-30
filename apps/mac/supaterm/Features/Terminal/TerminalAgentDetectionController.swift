@@ -857,6 +857,7 @@ final class TerminalAgentDetectionController {
       agent: evaluation.identity,
       phase: phase,
       processIdentity: proof.processIdentity,
+      workingDirectoryPath: proof.workingDirectoryPath,
       ruleID: ruleID,
       generation: evaluation.generation,
       sequence: sequence
@@ -919,11 +920,17 @@ final class TerminalAgentDetectionController {
     phase: AgentActivityPhase,
     ruleID: String
   ) -> Bool {
-    observation?.agent == evaluation.identity
-      && observation?.phase == phase
-      && observation?.processIdentity == proof.processIdentity
-      && observation?.ruleID == ruleID
-      && observation?.generation == evaluation.generation
+    guard let observation else { return false }
+    return observation
+      == TerminalAgentDetectionObservation(
+        agent: evaluation.identity,
+        phase: phase,
+        processIdentity: proof.processIdentity,
+        workingDirectoryPath: proof.workingDirectoryPath,
+        ruleID: ruleID,
+        generation: evaluation.generation,
+        sequence: observation.sequence
+      )
   }
 
   private func phase(_ state: AgentDetectionState) -> AgentActivityPhase? {

@@ -146,6 +146,7 @@ func agentDetectionObservation(
   agent: SupatermAgentKind = .codex,
   phase: AgentActivityPhase,
   processIdentity: TerminalAgentProcessIdentity,
+  workingDirectoryPath: String? = nil,
   ruleID: String = "test",
   sequence: UInt64
 ) -> TerminalAgentDetectionObservation {
@@ -153,6 +154,7 @@ func agentDetectionObservation(
     agent: AgentDetectionAgentIdentity(agent),
     phase: phase,
     processIdentity: processIdentity,
+    workingDirectoryPath: workingDirectoryPath,
     ruleID: ruleID,
     generation: 1,
     sequence: sequence

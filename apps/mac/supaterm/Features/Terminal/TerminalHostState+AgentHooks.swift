@@ -47,9 +47,8 @@ extension TerminalHostState {
       guard let candidateProcessIdentity else { return nil }
       let workingDirectoryMatch = agentHookWorkingDirectoryMatch(
         workspace: workspace,
-        processWorkingDirectoryPath: TerminalAgentProcessInspector.codexWorkingDirectoryPath(
-          for: candidateProcessIdentity
-        ),
+        processWorkingDirectoryPath: observation?.workingDirectoryPath
+          ?? TerminalAgentProcessInspector.codexWorkingDirectoryPath(for: candidateProcessIdentity),
         terminalWorkingDirectoryPath: surface.bridge.state.pwd
       )
       return SupatermAgentHookCandidate(

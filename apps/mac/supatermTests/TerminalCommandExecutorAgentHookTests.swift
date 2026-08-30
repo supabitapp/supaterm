@@ -386,6 +386,38 @@ struct TerminalCommandExecutorAgentHookTests {
   }
 
   @Test
+  func contextlessCodexSessionStartUsesWorkingDirectoryCapturedAtDetection() throws {
+    let harness = try makeClaudeHookHarness()
+    let surface = try #require(harness.host.selectedSurfaceView)
+    let processIdentity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    surface.bridge.state.pwd = "/tmp/terminal-workspace"
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: processIdentity,
+          workingDirectoryPath: "/tmp/hook-workspace",
+          sequence: 1
+        ),
+        for: surface.id
+      )
+    )
+
+    let candidates = harness.commandExecutor.agentHookCandidates(
+      for: agentHookRequest(
+        agent: .codex,
+        sessionID: "contextless-session",
+        hookEventName: .sessionStart,
+        cwd: "/tmp/hook-workspace"
+      )
+    )
+
+    #expect(candidates.candidates.count == 1)
+    #expect(candidates.candidates.first?.context.surfaceID == surface.id)
+    #expect(candidates.candidates.first?.workingDirectoryMatch == .exact)
+  }
+
+  @Test
   func contextlessCodexSessionStartKeepsUniqueDetectedPaneWhenWorkspaceCannotMatch() throws {
     let harness = try makeClaudeHookHarness()
     let surface = try #require(harness.host.selectedSurfaceView)

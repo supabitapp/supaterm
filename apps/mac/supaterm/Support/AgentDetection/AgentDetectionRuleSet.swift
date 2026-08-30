@@ -26,6 +26,7 @@ struct AgentDetectionAgentRule: Equatable, Sendable {
   let version: String?
   let source: AgentDetectionManifestSource
   let processes: [AgentDetectionProcessRule]
+  let workingDirectoryStrategy: AgentDetectionWorkingDirectoryStrategy?
   let rules: [AgentDetectionStateRule]
 }
 
