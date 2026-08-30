@@ -482,6 +482,7 @@ struct TerminalSidebarPointerTests {
   private func presentation(_ tab: TerminalTabItem) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
+      iconURL: nil,
       groupID: nil,
       rootIsPinned: false,
       panes: [],

@@ -1,3 +1,4 @@
+import AppKit
 import SupaTheme
 import SwiftUI
 
@@ -15,6 +16,7 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   let tab: TerminalTabItem
+  let iconURL: URL?
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
@@ -83,6 +85,7 @@ struct TerminalSidebarTabSummaryView: View {
       if showsTitleHeader {
         TerminalSidebarTabLineView(
           title: tab.title,
+          iconURL: iconURL,
           indicator: nil,
           trailingSlot: tabTrailingSlot,
           palette: palette,
@@ -98,6 +101,7 @@ struct TerminalSidebarTabSummaryView: View {
         )
         TerminalSidebarTabLineView(
           title: pane.title,
+          iconURL: !showsTitleHeader && pane.id == panes.first?.id ? iconURL : nil,
           indicator: indicator,
           trailingSlot: paneTrailingSlot(
             indicator,
@@ -143,6 +147,7 @@ struct TerminalSidebarTabSummaryView: View {
 
 private struct TerminalSidebarTabLineView: View {
   let title: String
+  let iconURL: URL?
   let indicator: TerminalSidebarPanePresentation.Indicator?
   let trailingSlot: TerminalSidebarTabSummaryView.TrailingSlot?
   let palette: Palette
@@ -155,6 +160,18 @@ private struct TerminalSidebarTabLineView: View {
       let showsAgentStatusText =
         geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
       HStack(spacing: 6) {
+        if let iconURL, let image = NSImage(contentsOf: iconURL) {
+          Image(nsImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(
+              width: TerminalSidebarLayout.tabProjectIconSize,
+              height: TerminalSidebarLayout.tabProjectIconSize
+            )
+            .clipShape(.rect(cornerRadius: 2))
+            .accessibilityHidden(true)
+        }
+
         Text(title)
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(titleColor)

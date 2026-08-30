@@ -3,7 +3,19 @@ import Testing
 
 @testable import supaterm
 
-struct TerminalSidebarGroupIconTests {
+struct TerminalSidebarProjectIconTests {
+  @Test
+  func resolvesIconFromAWorkingDirectoryWithoutARepository() throws {
+    let fixture = try RepositoryIconFixture(name: "standalone", createsRepository: false)
+    defer { fixture.remove() }
+    let iconURL = try fixture.writeIcon()
+    let request = TerminalSidebarProjectIconRequest(
+      workingDirectoryPaths: [fixture.rootURL.path]
+    )
+
+    #expect(request.resolve() == iconURL)
+  }
+
   @Test
   func resolvesIconFromTheGroupSharedRepository() throws {
     let fixture = try RepositoryIconFixture(name: "supaterm")
@@ -11,8 +23,8 @@ struct TerminalSidebarGroupIconTests {
     let iconURL = try fixture.writeIcon()
     let macURL = try fixture.createDirectory("apps/mac")
     let docsURL = try fixture.createDirectory("docs")
-    let request = TerminalSidebarGroupIconRequest(
-      workingDirectoryPathsByTab: [[macURL.path], [docsURL.path]]
+    let request = TerminalSidebarProjectIconRequest(
+      workingDirectoryPaths: [macURL.path, docsURL.path]
     )
 
     #expect(request.resolve() == iconURL)
@@ -28,8 +40,8 @@ struct TerminalSidebarGroupIconTests {
     }
     let iconURL = try first.writeIcon()
     _ = try second.writeIcon()
-    let request = TerminalSidebarGroupIconRequest(
-      workingDirectoryPathsByTab: [[first.rootURL.path], [second.rootURL.path]]
+    let request = TerminalSidebarProjectIconRequest(
+      workingDirectoryPaths: [first.rootURL.path, second.rootURL.path]
     )
 
     #expect(request.resolve() == iconURL)
@@ -44,8 +56,8 @@ struct TerminalSidebarGroupIconTests {
       second.remove()
     }
     let iconURL = try second.writeIcon()
-    let request = TerminalSidebarGroupIconRequest(
-      workingDirectoryPathsByTab: [[first.rootURL.path], [second.rootURL.path]]
+    let request = TerminalSidebarProjectIconRequest(
+      workingDirectoryPaths: [first.rootURL.path, second.rootURL.path]
     )
 
     #expect(request.resolve() == iconURL)
@@ -56,16 +68,17 @@ private struct RepositoryIconFixture {
   let containerURL: URL
   let rootURL: URL
 
-  init(name: String) throws {
+  init(name: String, createsRepository: Bool = true) throws {
     containerURL = FileManager.default.temporaryDirectory.appending(
       path: UUID().uuidString,
       directoryHint: .isDirectory
     )
     rootURL = containerURL.appending(path: name, directoryHint: .isDirectory)
-    try FileManager.default.createDirectory(
-      at: rootURL.appending(path: ".git", directoryHint: .isDirectory),
-      withIntermediateDirectories: true
-    )
+    let directoryURL =
+      createsRepository
+      ? rootURL.appending(path: ".git", directoryHint: .isDirectory)
+      : rootURL
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
   }
 
   func createDirectory(_ path: String) throws -> URL {

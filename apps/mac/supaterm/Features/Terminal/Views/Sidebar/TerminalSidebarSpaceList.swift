@@ -2,15 +2,15 @@ import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 
-nonisolated struct TerminalSidebarGroupIconRequest: Hashable, Sendable {
-  let workingDirectoryPathsByTab: [[String]]
+nonisolated struct TerminalSidebarProjectIconRequest: Hashable, Sendable {
+  let workingDirectoryPaths: [String]
 
   func resolve() -> URL? {
-    for path in workingDirectoryPathsByTab.joined() {
+    for path in workingDirectoryPaths {
+      let projectPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path) ?? path
       guard
-        let rootPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path),
         let iconURL = SupatermProjectIconResolver.resolve(
-          in: URL(fileURLWithPath: rootPath, isDirectory: true)
+          in: URL(fileURLWithPath: projectPath, isDirectory: true)
         )
       else {
         continue
@@ -55,6 +55,7 @@ struct TerminalSidebarSpaceList: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
   @State private var groupIconURLs: [TerminalTabGroupID: URL] = [:]
+  @State private var tabIconURLs: [TerminalTabID: URL] = [:]
 
   var body: some View {
     TerminalSidebarOutlineList(
@@ -83,6 +84,17 @@ struct TerminalSidebarSpaceList: View {
       }.value
       guard !Task.isCancelled else { return }
       groupIconURLs = icons
+    }
+    .task(id: tabIconRequests) {
+      let requests = tabIconRequests
+      tabIconURLs = [:]
+      let icons = await Task.detached(priority: .utility) {
+        requests.reduce(into: [TerminalTabID: URL]()) { icons, request in
+          icons[request.key] = request.value.resolve()
+        }
+      }.value
+      guard !Task.isCancelled else { return }
+      tabIconURLs = icons
     }
   }
 
@@ -141,16 +153,29 @@ struct TerminalSidebarSpaceList: View {
     return rows
   }
 
-  private var groupIconRequests: [TerminalTabGroupID: TerminalSidebarGroupIconRequest] {
+  private var groupIconRequests: [TerminalTabGroupID: TerminalSidebarProjectIconRequest] {
     Dictionary(
       uniqueKeysWithValues: snapshot.collection.rootItems.compactMap { root in
         guard case .group(let group) = root else { return nil }
         return (
           group.id,
-          TerminalSidebarGroupIconRequest(
-            workingDirectoryPathsByTab: group.tabs.map {
+          TerminalSidebarProjectIconRequest(
+            workingDirectoryPaths: group.tabs.flatMap {
               terminal.paneWorkingDirectoryPaths(for: $0.id)
             }
+          )
+        )
+      }
+    )
+  }
+
+  private var tabIconRequests: [TerminalTabID: TerminalSidebarProjectIconRequest] {
+    Dictionary(
+      uniqueKeysWithValues: snapshot.collection.tabs.map { tab in
+        (
+          tab.id,
+          TerminalSidebarProjectIconRequest(
+            workingDirectoryPaths: terminal.paneWorkingDirectoryPaths(for: tab.id)
           )
         )
       }
@@ -165,6 +190,7 @@ struct TerminalSidebarSpaceList: View {
   ) -> TerminalSidebarTabRowPresentation {
     return TerminalSidebarTabRowPresentation(
       tab: tab,
+      iconURL: tabIconURLs[tab.id],
       groupID: groupID,
       rootIsPinned: rootIsPinned,
       panes: terminal.sidebarPanePresentations(for: tab.id),
