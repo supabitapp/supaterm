@@ -246,6 +246,71 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
+  func contextlessCodexSessionStartUsesExactWorkspaceOverConflictingEmitterProcess() async throws {
+    var cli = try SPCLIHarness()
+    defer { cli.remove() }
+    cli.environment[SupatermCodexEnvironment.threadIDKey] = "launch-session"
+    let emitter = SupatermAgentHookCandidate(
+      context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+      processID: 303,
+      processMatch: .matching,
+      workingDirectoryMatch: .different
+    )
+    let workspaceContext = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    let workspace = SupatermAgentHookCandidate(
+      context: workspaceContext,
+      processID: 404,
+      processMatch: .different,
+      workingDirectoryMatch: .exact
+    )
+    let emitterEndpoint = hookEndpoint(name: "emitter", processID: 101, environment: cli.environment)
+    let workspaceEndpoint = hookEndpoint(
+      name: "workspace",
+      processID: 202,
+      environment: cli.environment
+    )
+    let emitterLog = SPSocketRequestLog()
+    let workspaceLog = SPSocketRequestLog()
+    let emitterRuntime = SocketControlRuntime(endpointProvider: { emitterEndpoint })
+    let workspaceRuntime = SocketControlRuntime(endpointProvider: { workspaceEndpoint })
+    let emitterResponder = try await startHookResponder(
+      runtime: emitterRuntime,
+      endpoint: emitterEndpoint,
+      log: emitterLog,
+      candidateProvider: { [emitter] }
+    )
+    let workspaceResponder = try await startHookResponder(
+      runtime: workspaceRuntime,
+      endpoint: workspaceEndpoint,
+      log: workspaceLog,
+      candidateProvider: { [workspace] }
+    )
+
+    let result = try cli.run(
+      ["agent", "receive-agent-hook", "--agent", "codex", "--pid", "303"],
+      standardInput: codexSessionStartHookJSON
+    )
+
+    emitterResponder.cancel()
+    workspaceResponder.cancel()
+    await emitterRuntime.stop()
+    await workspaceRuntime.stop()
+    #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+    #expect(!emitterLog.requests.contains { $0.method == SupatermSocketMethod.terminalAgentHook })
+    let request = try #require(
+      workspaceLog.requests.first { $0.method == SupatermSocketMethod.terminalAgentHook }
+    )
+    let hook = try request.decodeParams(SupatermAgentHookRequest.self)
+    #expect(hook.context == workspaceContext)
+    #expect(hook.inheritedSessionID == nil)
+    #expect(hook.processID == workspace.processID)
+    #expect(
+      workspaceLog.requests.filter { $0.method == SupatermSocketMethod.terminalAgentHookCandidates }
+        .count > 1
+    )
+  }
+
+  @Test
   func contextlessCodexSessionStartDoesNotDeliverWhenCandidatesAreAmbiguous() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
@@ -323,18 +388,21 @@ struct SPAgentHookCommandTests {
     )
   }
 
-  @Test
-  func contextlessCodexSessionStartFallsBackWhenEmitterProcessIsUnavailable() async throws {
-    let cli = try SPCLIHarness()
+  @Test(arguments: [SupatermAgentHookProcessMatch.unknown, .different])
+  func contextlessCodexSessionStartFallsBackWhenEmitterDoesNotOwnPane(
+    processMatch: SupatermAgentHookProcessMatch
+  ) async throws {
+    var cli = try SPCLIHarness()
     defer { cli.remove() }
+    cli.environment[SupatermCodexEnvironment.threadIDKey] = "outer-session"
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
     let candidate = SupatermAgentHookCandidate(
       context: context,
       processID: 303,
-      processMatch: .unknown,
+      processMatch: processMatch,
       workingDirectoryMatch: .exact
     )
-    let endpoint = hookEndpoint(name: "unavailable-emitter", processID: 101, environment: cli.environment)
+    let endpoint = hookEndpoint(name: processMatch.rawValue, processID: 101, environment: cli.environment)
     let log = SPSocketRequestLog()
     let runtime = SocketControlRuntime(endpointProvider: { endpoint })
     let responder = try await startHookResponder(
@@ -361,6 +429,7 @@ struct SPAgentHookCommandTests {
     )
     let hook = try request.decodeParams(SupatermAgentHookRequest.self)
     #expect(hook.context == context)
+    #expect(hook.inheritedSessionID == "outer-session")
     #expect(hook.processID == candidate.processID)
   }
 

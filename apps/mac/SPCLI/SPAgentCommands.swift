@@ -204,9 +204,14 @@ private struct AgentHookCandidateMatch {
 }
 
 enum AgentHookCandidateDecision: Equatable {
-  case deliver(Int)
+  case deliver(Int, AgentHookInheritedSessionDisposition)
   case reject
   case retry
+}
+
+enum AgentHookInheritedSessionDisposition: Equatable {
+  case clear
+  case preserve
 }
 
 func agentHookCandidateDecision(
@@ -220,13 +225,16 @@ func agentHookCandidateDecision(
   }
   if !sessionMatches.isEmpty {
     if sessionMatches.count == 1, let index = sessionMatches.first {
-      return .deliver(index)
+      return .deliver(
+        index,
+        candidateMatchesProcess(candidates[index], processID: processID) ? .preserve : .clear
+      )
     }
     let processMatches = sessionMatches.filter {
       candidateMatchesProcess(candidates[$0], processID: processID)
     }
     if processMatches.count == 1, let index = processMatches.first {
-      return .deliver(index)
+      return .deliver(index, .preserve)
     }
     return retryExpired ? .reject : .retry
   }
@@ -236,7 +244,20 @@ func agentHookCandidateDecision(
       candidateMatchesProcess(candidates[$0], processID: processID)
     }
     if processMatches.count == 1, let index = processMatches.first {
-      return .deliver(index)
+      let exactMatches = candidates.indices.filter {
+        candidates[$0].workingDirectoryMatch == .exact
+      }
+      guard
+        candidates[index].workingDirectoryMatch == .different,
+        !exactMatches.isEmpty
+      else {
+        return .deliver(index, .preserve)
+      }
+      guard retryExpired else { return .retry }
+      guard pollingComplete, exactMatches.count == 1, let exactIndex = exactMatches.first else {
+        return .reject
+      }
+      return .deliver(exactIndex, .clear)
     }
     guard processMatches.isEmpty, retryExpired else {
       return retryExpired ? .reject : .retry
@@ -244,7 +265,8 @@ func agentHookCandidateDecision(
     guard pollingComplete else { return .reject }
     return agentHookWorkspaceDecision(
       candidates: candidates,
-      indices: candidates.indices.filter { candidates[$0].processMatch == .unknown },
+      exactIndices: Array(candidates.indices),
+      fallbackIndices: candidates.indices.filter { candidates[$0].processMatch == .unknown },
       pollingComplete: true,
       retryExpired: true
     )
@@ -252,7 +274,8 @@ func agentHookCandidateDecision(
 
   return agentHookWorkspaceDecision(
     candidates: candidates,
-    indices: Array(candidates.indices),
+    exactIndices: Array(candidates.indices),
+    fallbackIndices: Array(candidates.indices),
     pollingComplete: pollingComplete,
     retryExpired: retryExpired
   )
@@ -267,27 +290,28 @@ private func candidateMatchesProcess(
 
 private func agentHookWorkspaceDecision(
   candidates: [SupatermAgentHookCandidate],
-  indices: [Int],
+  exactIndices: [Int],
+  fallbackIndices: [Int],
   pollingComplete: Bool,
   retryExpired: Bool
 ) -> AgentHookCandidateDecision {
-  let exactMatches = indices.filter {
+  let exactMatches = exactIndices.filter {
     candidates[$0].workingDirectoryMatch == .exact
   }
   if exactMatches.count == 1, let index = exactMatches.first {
-    return .deliver(index)
+    return .deliver(index, .preserve)
   }
   guard retryExpired, exactMatches.isEmpty else {
     return retryExpired ? .reject : .retry
   }
 
-  let fallbackMatches = indices.filter {
+  let fallbackMatches = fallbackIndices.filter {
     candidates[$0].workingDirectoryMatch == .unknown
   }
   guard pollingComplete, fallbackMatches.count == 1, let index = fallbackMatches.first else {
     return .reject
   }
-  return .deliver(index)
+  return .deliver(index, .preserve)
 }
 
 private enum AgentHookCandidateTiming {
@@ -328,13 +352,10 @@ private func receiveContextlessCodexSessionStart(
       retryExpired: Date() >= deadline
     )
     switch decision {
-    case .deliver(let index):
+    case .deliver(let index, let inheritedSessionDisposition):
       let match = matches[index]
       let inheritedSessionID =
-        match.candidate.sessionIDMatchesTitle
-          && match.candidate.processMatch != .matching
-        ? nil
-        : request.inheritedSessionID
+        inheritedSessionDisposition == .clear ? nil : request.inheritedSessionID
       let response = try match.destination.deliveryClient.send(
         try SupatermSocketRequest.agentHook(
           SupatermAgentHookRequest(

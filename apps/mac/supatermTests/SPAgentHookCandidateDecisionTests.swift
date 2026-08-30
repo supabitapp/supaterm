@@ -25,7 +25,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: matchingProcess.processID,
         pollingComplete: true,
         retryExpired: false
-      ) == .deliver(1)
+      ) == .deliver(1, .clear)
     )
     #expect(
       agentHookCandidateDecision(
@@ -33,7 +33,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: matchingProcess.processID,
         pollingComplete: false,
         retryExpired: false
-      ) == .deliver(0)
+      ) == .deliver(0, .clear)
     )
   }
 
@@ -58,7 +58,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: second.processID,
         pollingComplete: true,
         retryExpired: false
-      ) == .deliver(1)
+      ) == .deliver(1, .preserve)
     )
     #expect(
       agentHookCandidateDecision(
@@ -80,6 +80,37 @@ struct SPAgentHookCandidateDecisionTests {
 
   @Test
   func emitterProcessHasFirstPriority() {
+    let emitter = candidate(
+      processID: 303,
+      processMatch: .matching,
+      workingDirectoryMatch: .unknown
+    )
+    let exactEmitter = candidate(
+      processID: 404,
+      processMatch: .matching,
+      workingDirectoryMatch: .different
+    )
+
+    #expect(
+      agentHookCandidateDecision(
+        candidates: [emitter],
+        processID: emitter.processID,
+        pollingComplete: false,
+        retryExpired: false
+      ) == .deliver(0, .preserve)
+    )
+    #expect(
+      agentHookCandidateDecision(
+        candidates: [exactEmitter],
+        processID: exactEmitter.processID,
+        pollingComplete: false,
+        retryExpired: false
+      ) == .deliver(0, .preserve)
+    )
+  }
+
+  @Test
+  func conflictingEmitterProcessUsesUniqueExactWorkspaceAfterRetry() {
     let exactWorkspace = candidate(
       processID: 202,
       processMatch: .different,
@@ -90,31 +121,15 @@ struct SPAgentHookCandidateDecisionTests {
       processMatch: .matching,
       workingDirectoryMatch: .different
     )
-    let exactEmitter = candidate(
+    let secondExactWorkspace = candidate(
       processID: 404,
-      processMatch: .matching,
-      workingDirectoryMatch: .different
+      processMatch: .different,
+      workingDirectoryMatch: .exact
     )
 
     #expect(
       agentHookCandidateDecision(
         candidates: [exactWorkspace, emitter],
-        processID: emitter.processID,
-        pollingComplete: false,
-        retryExpired: false
-      ) == .deliver(1)
-    )
-    #expect(
-      agentHookCandidateDecision(
-        candidates: [exactEmitter],
-        processID: exactEmitter.processID,
-        pollingComplete: false,
-        retryExpired: false
-      ) == .deliver(0)
-    )
-    #expect(
-      agentHookCandidateDecision(
-        candidates: [exactWorkspace],
         processID: emitter.processID,
         pollingComplete: true,
         retryExpired: false
@@ -122,11 +137,61 @@ struct SPAgentHookCandidateDecisionTests {
     )
     #expect(
       agentHookCandidateDecision(
-        candidates: [exactWorkspace],
+        candidates: [exactWorkspace, emitter],
+        processID: emitter.processID,
+        pollingComplete: false,
+        retryExpired: true
+      ) == .reject
+    )
+    #expect(
+      agentHookCandidateDecision(
+        candidates: [exactWorkspace, emitter],
+        processID: emitter.processID,
+        pollingComplete: true,
+        retryExpired: true
+      ) == .deliver(0, .clear)
+    )
+    #expect(
+      agentHookCandidateDecision(
+        candidates: [exactWorkspace, secondExactWorkspace, emitter],
         processID: emitter.processID,
         pollingComplete: true,
         retryExpired: true
       ) == .reject
+    )
+  }
+
+  @Test
+  func sharedEmitterProcessUsesUniqueExactWorkspaceAfterRetry() {
+    let exactWorkspace = candidate(
+      processID: 202,
+      processMatch: .different,
+      workingDirectoryMatch: .exact
+    )
+
+    #expect(
+      agentHookCandidateDecision(
+        candidates: [exactWorkspace],
+        processID: 303,
+        pollingComplete: true,
+        retryExpired: false
+      ) == .retry
+    )
+    #expect(
+      agentHookCandidateDecision(
+        candidates: [exactWorkspace],
+        processID: 303,
+        pollingComplete: false,
+        retryExpired: true
+      ) == .reject
+    )
+    #expect(
+      agentHookCandidateDecision(
+        candidates: [exactWorkspace],
+        processID: 303,
+        pollingComplete: true,
+        retryExpired: true
+      ) == .deliver(0, .preserve)
     )
   }
 
@@ -144,7 +209,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: 303,
         pollingComplete: false,
         retryExpired: false
-      ) == .deliver(0)
+      ) == .deliver(0, .preserve)
     )
   }
 
@@ -163,7 +228,7 @@ struct SPAgentHookCandidateDecisionTests {
     let differentProcess = candidate(
       processID: 303,
       processMatch: .different,
-      workingDirectoryMatch: .exact
+      workingDirectoryMatch: .different
     )
 
     #expect(
@@ -188,7 +253,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: 404,
         pollingComplete: true,
         retryExpired: true
-      ) == .deliver(0)
+      ) == .deliver(0, .preserve)
     )
     #expect(
       agentHookCandidateDecision(
@@ -196,7 +261,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: 404,
         pollingComplete: true,
         retryExpired: true
-      ) == .deliver(0)
+      ) == .deliver(0, .preserve)
     )
   }
 
@@ -205,15 +270,25 @@ struct SPAgentHookCandidateDecisionTests {
     let differentProcess = candidate(
       processID: 101,
       processMatch: .different,
+      workingDirectoryMatch: .unknown
+    )
+    let firstExact = candidate(
+      processID: 202,
+      processMatch: .different,
+      workingDirectoryMatch: .exact
+    )
+    let secondExact = candidate(
+      processID: 303,
+      processMatch: .unknown,
       workingDirectoryMatch: .exact
     )
     let firstUnknown = candidate(
-      processID: 202,
+      processID: 404,
       processMatch: .unknown,
       workingDirectoryMatch: .unknown
     )
     let secondUnknown = candidate(
-      processID: 303,
+      processID: 505,
       processMatch: .unknown,
       workingDirectoryMatch: .unknown
     )
@@ -228,8 +303,16 @@ struct SPAgentHookCandidateDecisionTests {
     )
     #expect(
       agentHookCandidateDecision(
+        candidates: [firstExact, secondExact],
+        processID: 606,
+        pollingComplete: true,
+        retryExpired: true
+      ) == .reject
+    )
+    #expect(
+      agentHookCandidateDecision(
         candidates: [firstUnknown, secondUnknown],
-        processID: 404,
+        processID: 606,
         pollingComplete: true,
         retryExpired: true
       ) == .reject
@@ -247,7 +330,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: nil,
         pollingComplete: false,
         retryExpired: false
-      ) == .deliver(1)
+      ) == .deliver(1, .preserve)
     )
     #expect(
       agentHookCandidateDecision(
@@ -255,7 +338,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: nil,
         pollingComplete: true,
         retryExpired: false
-      ) == .deliver(2)
+      ) == .deliver(2, .preserve)
     )
   }
 
@@ -278,7 +361,7 @@ struct SPAgentHookCandidateDecisionTests {
         processID: nil,
         pollingComplete: true,
         retryExpired: true
-      ) == .deliver(0)
+      ) == .deliver(0, .preserve)
     )
     #expect(
       agentHookCandidateDecision(
