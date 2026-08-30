@@ -108,10 +108,25 @@ struct AgentNarrowTabE2ETests {
       fixture.server.releaseNextResponse()
     }
     for fixture in fixtures {
-      try await app.waitForCapture(fixture.pane, contains: fixture.completion, timeout: 60)
+      try await waitForNarrowCompletion(fixture, app: app)
       try fixture.server.verifyComplete()
       try await stopNarrowAgent(fixture, app: app)
     }
+  }
+}
+
+private func waitForNarrowCompletion(
+  _ fixture: NarrowAgentTabFixture,
+  app: SupatermE2EApp
+) async throws {
+  var lastCapture = ""
+  do {
+    try await app.waitUntil("\(fixture.kind.rawValue) completes its narrow-tab turn", timeout: 60) {
+      lastCapture = try app.capture(fixture.pane)
+      return lastCapture.filter { !$0.isWhitespace }.contains(fixture.completion)
+    }
+  } catch {
+    throw SupatermE2EError("\(error)\n--- last pane capture ---\n\(lastCapture)")
   }
 }
 
