@@ -346,7 +346,7 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func closeButtonUsesEqualOneRowOuterPadding() {
-    #expect(TerminalSidebarLayout.tabCloseButtonOuterPadding == 3)
+    #expect(TerminalSidebarLayout.tabCloseButtonOuterPadding == 5)
   }
 
   @Test

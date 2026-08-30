@@ -49,8 +49,15 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
   }
 
   private func fill(isPressed: Bool) -> some View {
-    RoundedRectangle(cornerRadius: 8, style: .continuous)
+    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
       .fill(background(isPressed: isPressed))
+  }
+
+  private var cornerRadius: CGFloat {
+    switch layout {
+    case .rect: TerminalSidebarLayout.tabRowCornerRadius
+    case .icon: 8
+    }
   }
 
   private var size: CGFloat {

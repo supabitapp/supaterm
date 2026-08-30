@@ -754,7 +754,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   ) -> CGFloat {
     switch (previous?.kind, entry.kind) {
     case (_, .newTab):
-      rootSpacing
+      TerminalSidebarLayout.tabRowSpacing
     case (_, .pinDivider):
       pinDividerTopSpacing
     case (.pinDivider, .group):
@@ -774,8 +774,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   private static func defaultHeight(for entry: TerminalSidebarEntry) -> CGFloat {
     switch entry.kind {
     case .pinDivider: dividerHeight
-    case .newTab: TerminalSidebarLayout.newTabRowHeight
-    case .tab, .group: TerminalSidebarLayout.tabRowMinHeight
+    case .tab, .group, .newTab: TerminalSidebarLayout.tabRowMinHeight
     }
   }
 

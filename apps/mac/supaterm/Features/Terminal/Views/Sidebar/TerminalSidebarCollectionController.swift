@@ -630,7 +630,7 @@ final class TerminalSidebarListController: NSViewController {
 
   private func preferredHeight(for id: TerminalSidebarEntryID, width: CGFloat) -> CGFloat {
     if case .pinDivider = id { return TerminalSidebarLayoutPlan.dividerHeight }
-    if case .newTab = id { return TerminalSidebarLayout.newTabRowHeight }
+    if case .newTab = id { return TerminalSidebarLayout.tabRowMinHeight }
     guard let presentation = rows[id], let context else {
       return TerminalSidebarLayout.tabRowMinHeight
     }
