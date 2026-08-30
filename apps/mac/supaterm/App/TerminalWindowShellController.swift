@@ -419,6 +419,7 @@ final class TerminalWindowShellController: NSViewController {
   }
   var isSpacePaging: () -> Bool = { false }
   var splitDestination: () -> TerminalTabSplitDropDestination? = { nil }
+  var cancelTabSurfaceInteractions: (TerminalTabLayoutStyle) -> Void = { _ in }
 
   private var detailController: NSViewController?
   private var presentation = TerminalWindowShellPresentation(
@@ -568,8 +569,12 @@ final class TerminalWindowShellController: NSViewController {
     let motion = frameMotion(from: self.presentation, to: presentation)
     let collapseChanged = presentation.isSidebarCollapsed != self.presentation.isSidebarCollapsed
     let styleChanged = presentation.tabLayoutStyle != self.presentation.tabLayoutStyle
-    if styleChanged, let payload = tabDragRegistry.activePayload {
-      tabDragRegistry.finish(operationID: payload.moveOperationID, outcome: .cancelled)
+    if styleChanged {
+      cancelTabSurfaceInteractions(self.presentation.tabLayoutStyle)
+      dragDestinationExited()
+      if let payload = tabDragRegistry.activePayload {
+        tabDragRegistry.finish(operationID: payload.moveOperationID, outcome: .cancelled)
+      }
     }
     self.presentation = presentation
     if collapseChanged || styleChanged {

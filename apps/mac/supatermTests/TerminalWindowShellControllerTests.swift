@@ -708,7 +708,188 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test @MainActor
-  func switchingLayoutCancelsAnActiveTabDrag() throws {
+  func tabLayoutRoundTripRetainsContentFocusFramesAndAccessibility() throws {
+    let shell = TerminalWindowShellController(
+      windowControllerID: UUID(),
+      tabDragRegistry: TerminalTabDragRegistry()
+    )
+    shell.view.frame = bounds
+    let background = NSViewController()
+    background.view = NSView()
+    let sidebar = NSViewController()
+    sidebar.view = NSView()
+    sidebar.view.setAccessibilityElement(true)
+    sidebar.view.setAccessibilityLabel("Vertical tabs")
+    let tabStrip = NSViewController()
+    tabStrip.view = NSView()
+    tabStrip.view.setAccessibilityElement(true)
+    tabStrip.view.setAccessibilityLabel("Horizontal tabs")
+    let detail = TerminalWindowShellContentController()
+    shell.install(
+      background: background,
+      sidebar: sidebar,
+      tabStrip: tabStrip,
+      detail: detail
+    )
+    shell.apply(
+      TerminalWindowShellPresentation(
+        isSidebarCollapsed: false,
+        sidebarResizeState: nil,
+        sidebarWidth: 286,
+        tabLayoutStyle: .vertical
+      )
+    )
+    let window = NSWindow(
+      contentRect: bounds,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentViewController = shell
+    window.layoutIfNeeded()
+    shell.viewDidLayout()
+    let verticalDetailFrame = detail.view.frame
+    let focusedPaneID = detail.focusedPaneID
+    let paneViews = detail.paneViews
+    #expect(window.makeFirstResponder(detail.focusedPaneView))
+    var cancelledStyles: [TerminalTabLayoutStyle] = []
+    shell.cancelTabSurfaceInteractions = { cancelledStyles.append($0) }
+
+    shell.apply(
+      TerminalWindowShellPresentation(
+        isSidebarCollapsed: false,
+        sidebarResizeState: nil,
+        sidebarWidth: 286,
+        tabLayoutStyle: .horizontal
+      )
+    )
+
+    #expect(sidebar.view.isHidden)
+    #expect(sidebar.view.isAccessibilityHidden())
+    #expect(!tabStrip.view.isHidden)
+    #expect(!tabStrip.view.isAccessibilityHidden())
+    #expect(tabStrip.view.frame == CGRect(x: 0, y: 658, width: 1_000, height: 42))
+    #expect(detail.view.frame == CGRect(x: 0, y: 0, width: 1_000, height: 658))
+    #expect(!detail.view.isAccessibilityHidden())
+    #expect(detail.focusedPaneView.accessibilityLabel() == "Focused terminal pane")
+    #expect(window.firstResponder === detail.focusedPaneView)
+
+    shell.apply(
+      TerminalWindowShellPresentation(
+        isSidebarCollapsed: false,
+        sidebarResizeState: nil,
+        sidebarWidth: 286,
+        tabLayoutStyle: .vertical
+      )
+    )
+
+    #expect(cancelledStyles == [.vertical, .horizontal])
+    #expect(!sidebar.view.isHidden)
+    #expect(!sidebar.view.isAccessibilityHidden())
+    #expect(sidebar.view.frame == CGRect(x: 0, y: 0, width: 286, height: 700))
+    #expect(tabStrip.view.isHidden)
+    #expect(tabStrip.view.isAccessibilityHidden())
+    #expect(detail.view.frame == verticalDetailFrame)
+    #expect(detail.view.frame == CGRect(x: 286, y: 0, width: 714, height: 700))
+    #expect(detail.focusedPaneID == focusedPaneID)
+    #expect(detail.paneViews.elementsEqual(paneViews, by: { $0 === $1 }))
+    #expect(window.firstResponder === detail.focusedPaneView)
+    #expect(shell.children.contains(where: { $0 === sidebar }))
+    #expect(shell.children.contains(where: { $0 === tabStrip }))
+    #expect(shell.children.contains(where: { $0 === detail }))
+    for childView in [sidebar.view, tabStrip.view, detail.view] {
+      #expect(childView.layer?.animation(forKey: "windowShellPosition") == nil)
+      #expect(childView.layer?.animation(forKey: "windowShellBounds") == nil)
+    }
+  }
+
+  @Test @MainActor
+  func switchingLayoutCancelsPendingSourceInteractions() {
+    let registry = TerminalTabDragRegistry()
+    let shell = TerminalWindowShellController(
+      windowControllerID: UUID(),
+      tabDragRegistry: registry
+    )
+    var pendingSource = true
+    var cancelledStyles: [TerminalTabLayoutStyle] = []
+    shell.cancelTabSurfaceInteractions = {
+      cancelledStyles.append($0)
+      pendingSource = false
+    }
+
+    shell.apply(
+      TerminalWindowShellPresentation(
+        isSidebarCollapsed: false,
+        sidebarResizeState: nil,
+        sidebarWidth: 240,
+        tabLayoutStyle: .horizontal
+      )
+    )
+
+    #expect(!pendingSource)
+    #expect(cancelledStyles == [.vertical])
+    #expect(registry.activePayload == nil)
+    #expect(registry.lastOutcome == nil)
+  }
+
+  @Test @MainActor
+  func switchingLayoutLetsTheSourceFinishAnActiveTabDragOnce() throws {
+    let registry = TerminalTabDragRegistry()
+    let operationID = TerminalTabMoveOperationID()
+    let payload = try #require(
+      TerminalTabDragPayload(
+        operationID: operationID,
+        sourceWindowID: UUID(),
+        sourceSpaceID: TerminalSpaceID(),
+        sourceTopologyRevision: 1,
+        itemIDs: [.tab(TerminalTabID())]
+      )
+    )
+    var staleSelectionHandoffCount = 0
+    #expect(
+      registry.begin(
+        payload,
+        splitDestinationEntryAction: { staleSelectionHandoffCount += 1 }
+      )
+    )
+    var registryFinishCount = 0
+    registry.sessionFinished = { registryFinishCount += 1 }
+    let shell = TerminalWindowShellController(
+      windowControllerID: UUID(),
+      tabDragRegistry: registry
+    )
+    let background = NSViewController()
+    let sidebar = NSViewController()
+    let detail = NSViewController()
+    shell.install(background: background, sidebar: sidebar, detail: detail)
+    var sourceIsActive = true
+    var cancelledStyles: [TerminalTabLayoutStyle] = []
+    shell.cancelTabSurfaceInteractions = {
+      cancelledStyles.append($0)
+      sourceIsActive = false
+      registry.finish(operationID: operationID, outcome: .cancelled)
+    }
+
+    shell.apply(
+      TerminalWindowShellPresentation(
+        isSidebarCollapsed: false,
+        sidebarResizeState: nil,
+        sidebarWidth: 240,
+        tabLayoutStyle: .horizontal
+      )
+    )
+    registry.consumeSplitDestinationEntryAction(for: payload)
+
+    #expect(!sourceIsActive)
+    #expect(cancelledStyles == [.vertical])
+    #expect(registry.activePayload == nil)
+    #expect(registry.lastOutcome == .cancelled)
+    #expect(registryFinishCount == 1)
+    #expect(staleSelectionHandoffCount == 0)
+  }
+
+  @Test @MainActor
+  func switchingLayoutFinishesAnActiveRegistryWhenTheSourceDoesNot() throws {
     let registry = TerminalTabDragRegistry()
     let operationID = TerminalTabMoveOperationID()
     let payload = try #require(
@@ -721,14 +902,12 @@ struct TerminalWindowShellControllerTests {
       )
     )
     #expect(registry.begin(payload))
+    var registryFinishCount = 0
+    registry.sessionFinished = { registryFinishCount += 1 }
     let shell = TerminalWindowShellController(
       windowControllerID: UUID(),
       tabDragRegistry: registry
     )
-    let background = NSViewController()
-    let sidebar = NSViewController()
-    let detail = NSViewController()
-    shell.install(background: background, sidebar: sidebar, detail: detail)
 
     shell.apply(
       TerminalWindowShellPresentation(
@@ -741,6 +920,7 @@ struct TerminalWindowShellControllerTests {
 
     #expect(registry.activePayload == nil)
     #expect(registry.lastOutcome == .cancelled)
+    #expect(registryFinishCount == 1)
   }
 
   private func presentation(
@@ -921,6 +1101,50 @@ private struct TerminalWindowShellMotionFixture {
   let shell: TerminalWindowShellController
   let sidebar: NSViewController
   let detail: NSViewController
+}
+
+@MainActor
+private final class TerminalWindowShellContentController: NSViewController {
+  let focusedPaneID = UUID()
+  let focusedPaneView = TerminalWindowShellFocusedPaneView()
+  private let siblingPaneView = NSView()
+
+  var paneViews: [NSView] {
+    [siblingPaneView, focusedPaneView]
+  }
+
+  override func loadView() {
+    let contentView = NSView()
+    contentView.setAccessibilityElement(false)
+    siblingPaneView.setAccessibilityElement(true)
+    siblingPaneView.setAccessibilityLabel("Terminal pane")
+    focusedPaneView.setAccessibilityElement(true)
+    focusedPaneView.setAccessibilityLabel("Focused terminal pane")
+    contentView.addSubview(siblingPaneView)
+    contentView.addSubview(focusedPaneView)
+    view = contentView
+  }
+
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    let leadingWidth = floor(view.bounds.width / 2)
+    siblingPaneView.frame = CGRect(
+      x: view.bounds.minX,
+      y: view.bounds.minY,
+      width: leadingWidth,
+      height: view.bounds.height
+    )
+    focusedPaneView.frame = CGRect(
+      x: view.bounds.minX + leadingWidth,
+      y: view.bounds.minY,
+      width: view.bounds.width - leadingWidth,
+      height: view.bounds.height
+    )
+  }
+}
+
+private final class TerminalWindowShellFocusedPaneView: NSView {
+  override var acceptsFirstResponder: Bool { true }
 }
 
 enum TerminalSidebarWindowGeometryChange: CaseIterable, Sendable {

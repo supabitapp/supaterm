@@ -354,6 +354,48 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func tabLayoutRoundTripPreservesCanonicalTabState() async throws {
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let collection = host.spaceManager.tabCollection
+    let rootTabID = collection.createTab(title: "Root")
+    let firstGroupedTabID = collection.createTab(title: "First")
+    let selectedTabID = collection.createTab(title: "Selected")
+    let groupID = try #require(
+      collection.createGroup(
+        title: "Group",
+        containing: [firstGroupedTabID, selectedTabID]
+      )
+    ).groupID
+    collection.selectTab(selectedTabID)
+    #expect(host.setGroupCollapsed(groupID, isCollapsed: true))
+    let before = host.spaceManager.displayedInstance.tabSurfaceSnapshot
+    var initialState = TerminalWindowFeature.State()
+    initialState.sidebarWidth = 286
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.host = { host }
+    }
+
+    await store.send(.toggleTabLayoutButtonTapped) {
+      $0.tabLayoutStyle = .horizontal
+    }
+    await store.send(.toggleTabLayoutButtonTapped) {
+      $0.tabLayoutStyle = .vertical
+    }
+    await store.finish()
+
+    let after = host.spaceManager.displayedInstance.tabSurfaceSnapshot
+    #expect(after.collection.rootItems.map(\.id) == before.collection.rootItems.map(\.id))
+    #expect(after.collection.rootItems.map(\.id) == [.tab(rootTabID), .group(groupID)])
+    #expect(collection.tabIDs(in: groupID) == [firstGroupedTabID, selectedTabID])
+    #expect(after.collection.selectedTabID == selectedTabID)
+    #expect(after.collapsedGroupIDs == [groupID])
+    #expect(after == before)
+    #expect(store.state.sidebarWidth == 286)
+  }
+
+  @Test
   func commandPaletteTogglesTabLayout() async {
     let host = TerminalHostState.test(managesTerminalSurfaces: false)
     var initialState = TerminalWindowFeature.State()
