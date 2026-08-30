@@ -175,7 +175,7 @@ struct TerminalTabDragCaptureTests {
   @Test
   func nativeDraggingItemUsesOnePointGeometry() {
     #expect(
-      TerminalSidebarNativeDragSession.draggingFrame(
+      TerminalTabNativeDragSession.draggingFrame(
         for: CGRect(x: 12, y: 34, width: 220, height: 56)
       ) == CGRect(x: 12, y: 34, width: 1, height: 1)
     )
@@ -372,7 +372,7 @@ private final class CaptureCountProbe {
 @MainActor
 private final class NativeDragSessionFixture {
   let presenter = CapturePreviewRecorder()
-  let session: TerminalSidebarNativeDragSession
+  let session: TerminalTabNativeDragSession
   let sourceSurfaceView: NSView
   private let window: NSWindow
   private let captureResolution = CaptureCountProbe()
@@ -393,7 +393,7 @@ private final class NativeDragSessionFixture {
     window.contentView = contentView
     self.window = window
     self.sourceSurfaceView = sourceSurfaceView
-    session = TerminalSidebarNativeDragSession(
+    session = TerminalTabNativeDragSession(
       collectionView: collectionView,
       sourceSurfaceView: sourceSurfaceView,
       registry: registry,

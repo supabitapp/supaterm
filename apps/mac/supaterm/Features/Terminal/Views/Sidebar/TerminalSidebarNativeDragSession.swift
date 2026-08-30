@@ -1,7 +1,37 @@
 import AppKit
 
 @MainActor
-final class TerminalSidebarNativeDragSession {
+final class TerminalTabNativeDragSession {
+  struct NativeStart {
+    let begin:
+      @MainActor (
+        NSView,
+        any NSDraggingSource,
+        TerminalTabDragPayload,
+        CGRect,
+        NSEvent?
+      ) -> Bool
+
+    static let live = Self { sourceView, draggingSource, payload, frame, event in
+      guard let event else { return false }
+      let pasteboardItem = NSPasteboardItem()
+      guard TerminalTabDragPasteboard.write(payload, to: pasteboardItem) else { return false }
+      let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+      draggingItem.setDraggingFrame(
+        TerminalTabNativeDragSession.draggingFrame(for: frame),
+        contents: nil
+      )
+      let session = sourceView.beginDraggingSession(
+        with: [draggingItem],
+        event: event,
+        source: draggingSource
+      )
+      session.draggingFormation = .none
+      session.animatesToStartingPositionsOnCancelOrFail = false
+      return true
+    }
+  }
+
   private struct SourceCapture {
     let id: UUID
     var previewImage: NSImage?
@@ -35,31 +65,54 @@ final class TerminalSidebarNativeDragSession {
     }
   }
 
-  private let collectionView: TerminalSidebarCollectionView
+  private let sourceView: NSView
+  private let draggingSource: any NSDraggingSource
   private weak var sourceSurfaceView: NSView?
   private let registry: TerminalTabDragRegistry
   private let captureClient: TerminalWindowCaptureClient
   private let captureRequest: () -> TerminalWindowCaptureRequest?
+  private let nativeStart: NativeStart
   private var lifecycle = Lifecycle.idle
 
   init(
+    sourceView: NSView,
+    draggingSource: any NSDraggingSource,
+    sourceSurfaceView: NSView,
+    registry: TerminalTabDragRegistry,
+    captureClient: TerminalWindowCaptureClient,
+    captureRequest: @escaping () -> TerminalWindowCaptureRequest?,
+    nativeStart: NativeStart = .live
+  ) {
+    self.sourceView = sourceView
+    self.draggingSource = draggingSource
+    self.sourceSurfaceView = sourceSurfaceView
+    self.registry = registry
+    self.captureClient = captureClient
+    self.captureRequest = captureRequest
+    self.nativeStart = nativeStart
+  }
+
+  convenience init(
     collectionView: TerminalSidebarCollectionView,
     sourceSurfaceView: NSView,
     registry: TerminalTabDragRegistry,
     captureClient: TerminalWindowCaptureClient,
     captureRequest: @escaping () -> TerminalWindowCaptureRequest?
   ) {
-    self.collectionView = collectionView
-    self.sourceSurfaceView = sourceSurfaceView
-    self.registry = registry
-    self.captureClient = captureClient
-    self.captureRequest = captureRequest
+    self.init(
+      sourceView: collectionView,
+      draggingSource: collectionView,
+      sourceSurfaceView: sourceSurfaceView,
+      registry: registry,
+      captureClient: captureClient,
+      captureRequest: captureRequest
+    )
   }
 
   @discardableResult
   func prepareSourceCapture() -> Bool {
     guard
-      let window = collectionView.window,
+      let window = sourceView.window,
       let sourceSurfaceView,
       sourceSurfaceView.window === window
     else {
@@ -68,6 +121,14 @@ final class TerminalSidebarNativeDragSession {
     }
     return prepareSourceCapture(
       previewContentSize: TerminalTabDragPreviewLayout.sourceContentSize(for: window.frame),
+      request: captureRequest()
+    )
+  }
+
+  @discardableResult
+  func prepareSourceCapture(previewContentSize: CGSize) -> Bool {
+    prepareSourceCapture(
+      previewContentSize: previewContentSize,
       request: captureRequest()
     )
   }
@@ -146,11 +207,14 @@ final class TerminalSidebarNativeDragSession {
     return true
   }
 
-  func move(to screenPoint: CGPoint) -> TerminalTabDragRegistry.PresentationState {
+  func move(
+    to screenPoint: CGPoint,
+    sourceSurfaceFrame: CGRect? = nil
+  ) -> TerminalTabDragRegistry.PresentationState {
     guard
       let presentationState = registry.move(
         to: screenPoint,
-        sourceSurfaceFrame: liveSourceSurfaceFrame
+        sourceSurfaceFrame: sourceSurfaceFrame ?? liveSourceSurfaceFrame
       )
     else {
       preconditionFailure("Native drag session is not registered")
@@ -169,22 +233,13 @@ final class TerminalSidebarNativeDragSession {
     registry.finish(operationID: operationID, outcome: outcome)
   }
 
+  @discardableResult
   func beginDraggingSession(
     payload: TerminalTabDragPayload,
     frame: CGRect,
-    event: NSEvent
-  ) {
-    let pasteboardItem = NSPasteboardItem()
-    precondition(TerminalTabDragPasteboard.write(payload, to: pasteboardItem))
-    let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-    draggingItem.setDraggingFrame(Self.draggingFrame(for: frame), contents: nil)
-    let session = collectionView.beginDraggingSession(
-      with: [draggingItem],
-      event: event,
-      source: collectionView
-    )
-    session.draggingFormation = .none
-    session.animatesToStartingPositionsOnCancelOrFail = false
+    event: NSEvent?
+  ) -> Bool {
+    nativeStart.begin(sourceView, draggingSource, payload, frame, event)
   }
 
   private func captureCompleted(_ image: NSImage?, captureID: UUID) {
@@ -216,3 +271,5 @@ final class TerminalSidebarNativeDragSession {
     return window.convertToScreen(sourceSurfaceView.convert(sourceSurfaceView.bounds, to: nil))
   }
 }
+
+typealias TerminalSidebarNativeDragSession = TerminalTabNativeDragSession
