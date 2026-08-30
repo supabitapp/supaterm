@@ -507,6 +507,7 @@ struct TerminalAgentDetectionControllerTests {
     let runtime = try makeGhosttyRuntime("")
     let host = TerminalHostState.test(
       runtime: runtime,
+      createsLiveTerminalSurfaces: true,
       zmxSessionsEnabled: zmxSessionsEnabled,
       agentDetectionRuleRepository: repository
     )

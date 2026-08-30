@@ -279,6 +279,8 @@ final class TerminalHostState {
   @ObservationIgnored
   let managesTerminalSurfaces: Bool
   @ObservationIgnored
+  let surfaceFactory: GhosttySurfaceView.SurfaceFactory
+  @ObservationIgnored
   let zmxClient: ZmxClient
   @ObservationIgnored
   let zmxSessionsEnabled: Bool
@@ -330,6 +332,9 @@ final class TerminalHostState {
   init(
     runtime: GhosttyRuntime? = nil,
     managesTerminalSurfaces: Bool = true,
+    surfaceFactory: @escaping GhosttySurfaceView.SurfaceFactory = { app, config in
+      ghostty_surface_new(app, config)
+    },
     spaceID: TerminalSpaceID? = nil,
     zmxClient: ZmxClient = .live,
     zmxSessionsEnabled: Bool = true,
@@ -340,6 +345,7 @@ final class TerminalHostState {
     @Shared(.terminalSpaceCatalog) var launchSpaceCatalog = TerminalSpaceCatalog.default
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(launchSpaceCatalog)
     self.managesTerminalSurfaces = managesTerminalSurfaces
+    self.surfaceFactory = surfaceFactory
     self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
     self.spaceManager = TerminalSpaceManager(
       catalog: initialSpaceCatalog,
@@ -370,6 +376,7 @@ final class TerminalHostState {
     static func test(
       runtime: GhosttyRuntime? = nil,
       managesTerminalSurfaces: Bool = true,
+      createsLiveTerminalSurfaces: Bool = false,
       spaceID: TerminalSpaceID? = nil,
       zmxClient: ZmxClient = .live,
       zmxSessionsEnabled: Bool = true,
@@ -377,9 +384,14 @@ final class TerminalHostState {
       licenseTabGate: LicenseTabGate = .unrestricted,
       licenseOpenTabCount: @escaping @MainActor () -> Int = { 0 }
     ) -> TerminalHostState {
-      TerminalHostState(
+      let surfaceFactory: GhosttySurfaceView.SurfaceFactory =
+        createsLiveTerminalSurfaces
+        ? { app, config in ghostty_surface_new(app, config) }
+        : { _, _ in nil }
+      return TerminalHostState(
         runtime: runtime,
         managesTerminalSurfaces: managesTerminalSurfaces,
+        surfaceFactory: surfaceFactory,
         spaceID: spaceID,
         zmxClient: zmxClient,
         zmxSessionsEnabled: zmxSessionsEnabled,

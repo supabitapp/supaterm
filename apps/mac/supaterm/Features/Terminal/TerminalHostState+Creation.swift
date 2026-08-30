@@ -211,7 +211,8 @@ extension TerminalHostState {
       fontSize: inherited.fontSize,
       context: context,
       managesWindowAppearance: false,
-      zmxSessionsEnabled: usesZmx
+      zmxSessionsEnabled: usesZmx,
+      surfaceFactory: surfaceFactory
     )
     configureBridgeCallbacks(for: view, tabID: tabID)
     configureSurfaceCallbacks(for: view, tabID: tabID)
