@@ -351,7 +351,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000007",
             title: "Archive export",
             paneTitles: ["tar -czf release.tar.gz"],
-            terminalProgress: TerminalSidebarTerminalProgress(fraction: 0.68, tone: .paused)
+            terminalProgress: TerminalTabProgress(fraction: 0.68, tone: .paused)
           )
         )
       )
@@ -391,7 +391,7 @@ private struct SidebarRowSnapshotItem {
   var paneTitles: [String] = []
   var paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = []
   var paneHasAttention: [Bool] = []
-  var terminalProgress: TerminalSidebarTerminalProgress?
+  var terminalProgress: TerminalTabProgress?
   var shortcutHint: String?
   var showsShortcutHint = false
 
@@ -405,14 +405,14 @@ private struct SidebarRowSnapshotItem {
 
   var isSelected: Bool { selection != .none }
 
-  var panes: [TerminalSidebarPanePresentation] {
+  var panes: [TerminalTabPanePresentation] {
     paneTitles.enumerated().map { index, title in
       let agentStatus = paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
       let hasAttention = paneHasAttention.indices.contains(index) && paneHasAttention[index]
-      return TerminalSidebarPanePresentation(
+      return TerminalTabPanePresentation(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
         title: title,
-        indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
+        indicator: agentStatus.map(TerminalTabPanePresentation.Indicator.agent)
           ?? (hasAttention ? .attention : nil)
       )
     }

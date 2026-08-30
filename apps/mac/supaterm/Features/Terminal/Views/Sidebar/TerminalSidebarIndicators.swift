@@ -2,7 +2,7 @@ import SupaTheme
 import SupatermUI
 import SwiftUI
 
-struct TerminalSidebarTerminalProgress: Equatable {
+struct TerminalTabProgress: Equatable {
   enum Tone: Equatable {
     case active
     case paused
@@ -28,7 +28,7 @@ struct TerminalSidebarTerminalProgress: Equatable {
 }
 
 struct TerminalSidebarProgressIndicatorView: View {
-  let progress: TerminalSidebarTerminalProgress
+  let progress: TerminalTabProgress
   let isSelected: Bool
   let palette: Palette
 

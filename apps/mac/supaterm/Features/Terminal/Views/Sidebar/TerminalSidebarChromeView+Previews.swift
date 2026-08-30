@@ -26,7 +26,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let paneTitles: [String]
   let paneAgentStatuses: [TerminalHostState.TabAgentStatus?]
   let paneHasAttention: [Bool]
-  let terminalProgress: TerminalSidebarTerminalProgress?
+  let terminalProgress: TerminalTabProgress?
 
   var id: String {
     previewID
@@ -41,14 +41,14 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     )
   }
 
-  var panes: [TerminalSidebarPanePresentation] {
+  var panes: [TerminalTabPanePresentation] {
     paneTitles.enumerated().map { index, title in
       let agentStatus = paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
       let hasAttention = paneHasAttention.indices.contains(index) && paneHasAttention[index]
-      return TerminalSidebarPanePresentation(
+      return TerminalTabPanePresentation(
         id: Self.paneID(index),
         title: title,
-        indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
+        indicator: agentStatus.map(TerminalTabPanePresentation.Indicator.agent)
           ?? (hasAttention ? .attention : nil)
       )
     }
@@ -91,7 +91,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     paneTitles: [String] = [],
     paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = [],
     paneHasAttention: [Bool] = [],
-    terminalProgress: TerminalSidebarTerminalProgress? = nil
+    terminalProgress: TerminalTabProgress? = nil
   ) {
     previewID = id
     tabID = TerminalTabID(rawValue: Self.uuid(id))
@@ -191,7 +191,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Archive export",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A10",
       paneTitles: ["tar -czf release.tar.gz", "fish"],
-      terminalProgress: TerminalSidebarTerminalProgress(fraction: 0.68, tone: .active)
+      terminalProgress: TerminalTabProgress(fraction: 0.68, tone: .active)
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,

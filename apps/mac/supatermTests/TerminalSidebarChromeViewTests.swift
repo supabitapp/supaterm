@@ -282,7 +282,7 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func terminalProgressTakesPrecedenceOverPaneAttention() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    let progress = TerminalTabProgress(fraction: 0.5, tone: .active)
 
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
@@ -329,7 +329,7 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func terminalProgressAppearsWhenNoHigherPriorityStatusExists() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    let progress = TerminalTabProgress(fraction: 0.5, tone: .active)
 
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
@@ -366,7 +366,7 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func terminalProgressHidesPinnedStatus() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    let progress = TerminalTabProgress(fraction: 0.5, tone: .active)
 
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
@@ -378,7 +378,7 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func shortcutHintTakesTheTrailingSlot() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    let progress = TerminalTabProgress(fraction: 0.5, tone: .active)
     let statuses: [TerminalSidebarTabSummaryView.StatusAccessory] = [
       .attention,
       .pinned,
@@ -452,7 +452,7 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func trailingSlotShowsProgressWithoutShortcutHint() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    let progress = TerminalTabProgress(fraction: 0.5, tone: .active)
     #expect(
       TerminalSidebarTabSummaryView.trailingSlot(
         shortcutHint: "⌘1",
@@ -475,12 +475,12 @@ struct TerminalSidebarChromeViewTests {
   func helpTextListsLockedTitleAndPaneTitles() {
     let tab = TerminalTabItem(title: "Release", isTitleLocked: true)
     let panes = [
-      TerminalSidebarPanePresentation(
+      TerminalTabPanePresentation(
         id: UUID(),
         title: "Codex",
         indicator: .agent(.working)
       ),
-      TerminalSidebarPanePresentation(
+      TerminalTabPanePresentation(
         id: UUID(),
         title: "Review agent",
         indicator: .agent(.done)
@@ -579,8 +579,8 @@ struct TerminalSidebarChromeViewTests {
     state.progressState = GHOSTTY_PROGRESS_STATE_INDETERMINATE
 
     #expect(
-      TerminalHostState.sidebarTerminalProgress(state: state)
-        == TerminalSidebarTerminalProgress(fraction: nil, tone: .active)
+      TerminalHostState.tabProgress(state: state)
+        == TerminalTabProgress(fraction: nil, tone: .active)
     )
   }
 
@@ -592,8 +592,8 @@ struct TerminalSidebarChromeViewTests {
     state.progressValue = 42
 
     #expect(
-      TerminalHostState.sidebarTerminalProgress(state: state)
-        == TerminalSidebarTerminalProgress(fraction: 0.42, tone: .active)
+      TerminalHostState.tabProgress(state: state)
+        == TerminalTabProgress(fraction: 0.42, tone: .active)
     )
   }
 
@@ -604,14 +604,14 @@ struct TerminalSidebarChromeViewTests {
     state.progressState = GHOSTTY_PROGRESS_STATE_PAUSE
 
     #expect(
-      TerminalHostState.sidebarTerminalProgress(state: state)
-        == TerminalSidebarTerminalProgress(fraction: 1, tone: .paused)
+      TerminalHostState.tabProgress(state: state)
+        == TerminalTabProgress(fraction: 1, tone: .paused)
     )
   }
 
   @Test
   func pausedProgressUsesPauseIconIndicator() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 1, tone: .paused)
+    let progress = TerminalTabProgress(fraction: 1, tone: .paused)
 
     #expect(progress.indicatorStyle == .pauseIcon)
   }
@@ -623,15 +623,15 @@ struct TerminalSidebarChromeViewTests {
     state.progressState = GHOSTTY_PROGRESS_STATE_ERROR
 
     #expect(
-      TerminalHostState.sidebarTerminalProgress(state: state)
-        == TerminalSidebarTerminalProgress(fraction: nil, tone: .error)
+      TerminalHostState.tabProgress(state: state)
+        == TerminalTabProgress(fraction: nil, tone: .error)
     )
   }
 
   @MainActor
   @Test
   func missingFocusedPaneStateProducesNoProgressRing() {
-    #expect(TerminalHostState.sidebarTerminalProgress(state: nil) == nil)
+    #expect(TerminalHostState.tabProgress(state: nil) == nil)
   }
 }
 

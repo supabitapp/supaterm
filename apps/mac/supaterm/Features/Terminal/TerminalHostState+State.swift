@@ -74,8 +74,8 @@ extension TerminalHostState {
     selectedSurfaceView?.bridge.state
   }
 
-  func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
-    Self.sidebarTerminalProgress(
+  func tabProgress(for tabID: TerminalTabID) -> TerminalTabProgress? {
+    Self.tabProgress(
       state: focusHistoryByTab[tabID].map(\.current).flatMap { surfaceID in
         surfaces[surfaceID]?.bridge.state
       }
@@ -274,7 +274,7 @@ extension TerminalHostState {
     return defaultValue
   }
 
-  static func resolvedSidebarPaneTitle(
+  static func resolvedTabPaneTitle(
     titleOverride: String?,
     title: String?,
     pwd: String?,
@@ -356,26 +356,26 @@ extension TerminalHostState {
     }
   }
 
-  static func sidebarTerminalProgress(
+  static func tabProgress(
     state: GhosttySurfaceState?
-  ) -> TerminalSidebarTerminalProgress? {
+  ) -> TerminalTabProgress? {
     guard let state else { return nil }
 
     switch state.progressState {
     case .some(GHOSTTY_PROGRESS_STATE_SET):
-      return TerminalSidebarTerminalProgress(
+      return TerminalTabProgress(
         fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 },
         tone: .active
       )
     case .some(GHOSTTY_PROGRESS_STATE_INDETERMINATE):
-      return TerminalSidebarTerminalProgress(fraction: nil, tone: .active)
+      return TerminalTabProgress(fraction: nil, tone: .active)
     case .some(GHOSTTY_PROGRESS_STATE_PAUSE):
-      return TerminalSidebarTerminalProgress(
+      return TerminalTabProgress(
         fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 } ?? 1,
         tone: .paused
       )
     case .some(GHOSTTY_PROGRESS_STATE_ERROR):
-      return TerminalSidebarTerminalProgress(
+      return TerminalTabProgress(
         fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 },
         tone: .error
       )

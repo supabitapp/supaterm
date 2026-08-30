@@ -5,7 +5,7 @@ struct TerminalSidebarTabSummaryView: View {
   enum StatusAccessory: Equatable {
     case attention
     case pinned
-    case terminalProgress(TerminalSidebarTerminalProgress)
+    case terminalProgress(TerminalTabProgress)
   }
 
   enum TrailingSlot: Equatable {
@@ -18,16 +18,16 @@ struct TerminalSidebarTabSummaryView: View {
   let palette: Palette
   let isSelected: Bool
   let isPinned: Bool
-  let panes: [TerminalSidebarPanePresentation]
-  let terminalProgress: TerminalSidebarTerminalProgress?
+  let panes: [TerminalTabPanePresentation]
+  let terminalProgress: TerminalTabProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
 
   static func statusAccessory(
     isPinned: Bool,
-    terminalProgress: TerminalSidebarTerminalProgress?,
-    paneIndicator: TerminalSidebarPanePresentation.Indicator? = nil
+    terminalProgress: TerminalTabProgress?,
+    paneIndicator: TerminalTabPanePresentation.Indicator? = nil
   ) -> StatusAccessory? {
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
@@ -62,7 +62,7 @@ struct TerminalSidebarTabSummaryView: View {
 
   static func helpText(
     tab: TerminalTabItem,
-    panes: [TerminalSidebarPanePresentation]
+    panes: [TerminalTabPanePresentation]
   ) -> String {
     var titles = tab.isTitleLocked ? [tab.title] : []
     titles.append(contentsOf: panes.map(\.title))
@@ -110,7 +110,7 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   private func paneTrailingSlot(
-    _ pane: TerminalSidebarPanePresentation,
+    _ pane: TerminalTabPanePresentation,
     ownsTabAccessories: Bool
   ) -> TrailingSlot? {
     Self.trailingSlot(
@@ -128,7 +128,7 @@ struct TerminalSidebarTabSummaryView: View {
 
 private struct TerminalSidebarTabLineView: View {
   let title: String
-  let indicator: TerminalSidebarPanePresentation.Indicator?
+  let indicator: TerminalTabPanePresentation.Indicator?
   let trailingSlot: TerminalSidebarTabSummaryView.TrailingSlot?
   let palette: Palette
   let isSelected: Bool

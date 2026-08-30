@@ -116,8 +116,8 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
-  func resolvedSidebarPaneTitleDoesNotFallBackToWorkingDirectory() {
-    let title = TerminalHostState.resolvedSidebarPaneTitle(
+  func resolvedTabPaneTitleDoesNotFallBackToWorkingDirectory() {
+    let title = TerminalHostState.resolvedTabPaneTitle(
       titleOverride: nil,
       title: nil,
       pwd: "/tmp/project",
@@ -128,8 +128,8 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
-  func resolvedSidebarPaneTitleFallsBackFromBlankOverride() {
-    let title = TerminalHostState.resolvedSidebarPaneTitle(
+  func resolvedTabPaneTitleFallsBackFromBlankOverride() {
+    let title = TerminalHostState.resolvedTabPaneTitle(
       titleOverride: "  ",
       title: nil,
       pwd: nil,
@@ -140,8 +140,8 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
-  func resolvedSidebarPaneTitleNormalizesTerminalTitle() {
-    let title = TerminalHostState.resolvedSidebarPaneTitle(
+  func resolvedTabPaneTitleNormalizesTerminalTitle() {
+    let title = TerminalHostState.resolvedTabPaneTitle(
       titleOverride: nil,
       title: "/tmp/project - codex - codex",
       pwd: "/tmp/project",

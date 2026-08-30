@@ -157,7 +157,7 @@ struct TerminalSidebarLayoutTests {
   @Test
   func tabMeasurementKeyChangesWhenPanesChange() {
     let tab = TerminalTabItem(title: "Tab")
-    let pane = TerminalSidebarPanePresentation(
+    let pane = TerminalTabPanePresentation(
       id: UUID(),
       title: "Pane 1",
       indicator: nil
@@ -173,12 +173,12 @@ struct TerminalSidebarLayoutTests {
   func tabMeasurementKeyIgnoresHeightNeutralPaneIndicators() {
     let tab = TerminalTabItem(title: "Tab")
     let paneID = UUID()
-    let quietPane = TerminalSidebarPanePresentation(
+    let quietPane = TerminalTabPanePresentation(
       id: paneID,
       title: "Pane 1",
       indicator: nil
     )
-    let attentionPane = TerminalSidebarPanePresentation(
+    let attentionPane = TerminalTabPanePresentation(
       id: paneID,
       title: "Pane 1",
       indicator: .attention
@@ -195,7 +195,7 @@ struct TerminalSidebarLayoutTests {
   @Test
   func tabAccessoriesKeepMeasuredRowHeightStable() throws {
     let tab = TerminalTabItem(title: "Tab")
-    let pane = TerminalSidebarPanePresentation(
+    let pane = TerminalTabPanePresentation(
       id: UUID(),
       title: "Pane 1",
       indicator: nil
@@ -212,7 +212,7 @@ struct TerminalSidebarLayoutTests {
     let tabEntryID = TerminalSidebarEntryID.tab(tab.id)
     let indexPath = IndexPath(item: 0, section: 0)
 
-    func apply(progress: TerminalSidebarTerminalProgress?) {
+    func apply(progress: TerminalTabProgress?) {
       harness.apply(
         outline: outline,
         rows: [
@@ -231,7 +231,7 @@ struct TerminalSidebarLayoutTests {
       harness.layout.layoutAttributesForItem(at: indexPath)
     ).frame.height
 
-    apply(progress: TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active))
+    apply(progress: TerminalTabProgress(fraction: 0.5, tone: .active))
     let progressHeight = try #require(
       harness.layout.layoutAttributesForItem(at: indexPath)
     ).frame.height
@@ -881,8 +881,8 @@ struct TerminalSidebarLayoutTests {
   private func tabPresentation(
     _ tab: TerminalTabItem,
     groupID: TerminalTabGroupID? = nil,
-    panes: [TerminalSidebarPanePresentation] = [],
-    terminalProgress: TerminalSidebarTerminalProgress? = nil
+    panes: [TerminalTabPanePresentation] = [],
+    terminalProgress: TerminalTabProgress? = nil
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,

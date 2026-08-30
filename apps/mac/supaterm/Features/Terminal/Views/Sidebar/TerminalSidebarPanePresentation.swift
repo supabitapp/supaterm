@@ -1,6 +1,6 @@
 import Foundation
 
-struct TerminalSidebarPanePresentation: Equatable, Identifiable, Sendable {
+struct TerminalTabPanePresentation: Equatable, Identifiable, Sendable {
   enum Indicator: Equatable, Sendable {
     case agent(TerminalHostState.TabAgentStatus)
     case attention
@@ -12,7 +12,7 @@ struct TerminalSidebarPanePresentation: Equatable, Identifiable, Sendable {
 }
 
 extension TerminalHostState {
-  func sidebarPanePresentations(for tabID: TerminalTabID) -> [TerminalSidebarPanePresentation] {
+  func tabPanePresentations(for tabID: TerminalTabID) -> [TerminalTabPanePresentation] {
     guard let tree = trees[tabID] else { return [] }
     let focusedSurfaceID = focusHistoryByTab[tabID]?.current
     return tree.leaves().enumerated().map { index, surface in
@@ -21,7 +21,7 @@ extension TerminalHostState {
         in: tabID,
         focusedSurfaceID: focusedSurfaceID
       )
-      let indicator: TerminalSidebarPanePresentation.Indicator?
+      let indicator: TerminalTabPanePresentation.Indicator?
       if let agentStatus {
         indicator = .agent(agentStatus)
       } else {
@@ -31,9 +31,9 @@ extension TerminalHostState {
           || surface.bridge.state.bellCount > 0
         indicator = hasAttention ? .attention : nil
       }
-      return TerminalSidebarPanePresentation(
+      return TerminalTabPanePresentation(
         id: surface.id,
-        title: Self.resolvedSidebarPaneTitle(
+        title: Self.resolvedTabPaneTitle(
           titleOverride: surface.bridge.state.titleOverride,
           title: surface.bridge.state.title,
           pwd: surface.bridge.state.pwd,

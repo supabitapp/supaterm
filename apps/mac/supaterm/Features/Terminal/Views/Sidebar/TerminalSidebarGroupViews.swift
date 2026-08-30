@@ -219,8 +219,8 @@ struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
-  let panes: [TerminalSidebarPanePresentation]
-  let terminalProgress: TerminalSidebarTerminalProgress?
+  let panes: [TerminalTabPanePresentation]
+  let terminalProgress: TerminalTabProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
 }

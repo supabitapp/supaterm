@@ -389,7 +389,7 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
-  func sidebarPanePresentationsKeepSplitOrderAndResolveIndicators() throws {
+  func tabPanePresentationsKeepSplitOrderAndResolveIndicators() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
@@ -431,7 +431,7 @@ struct TerminalHostStateAgentPresentationTests {
       for: secondSurface.id
     )
 
-    let panes = host.sidebarPanePresentations(for: tabID)
+    let panes = host.tabPanePresentations(for: tabID)
 
     #expect(panes.map(\.id) == [firstSurface.id, secondSurface.id, thirdSurface.id])
     #expect(panes.map(\.title) == ["Codex 1", "Review agent 1", "Pane 3"])
