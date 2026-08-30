@@ -53,12 +53,52 @@ struct TerminalAgentProcessIdentityTests {
         arguments: ["codex"],
         expectedPath: "/tmp/shell"
       ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "/tmp/agent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C", "/tmp/agent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd=/tmp/agent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-C/tmp/agent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: "/tmp/agent"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "/tmp/first", "-C", "/tmp/last"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: "/tmp/last"
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "--cd", "agent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: nil
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex", "-Cagent"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: nil
+      ),
+      CodexWorkingDirectoryTestCase(
+        arguments: ["codex"],
+        processWorkingDirectoryPath: nil,
+        expectedPath: nil
+      ),
     ]
   )
   func codexWorkingDirectoryFollowsCommandLine(testCase: CodexWorkingDirectoryTestCase) {
     #expect(
       TerminalAgentProcessInspector.codexWorkingDirectoryPath(
-        processWorkingDirectoryPath: "/tmp/shell",
+        processWorkingDirectoryPath: testCase.processWorkingDirectoryPath,
         commandLineArguments: testCase.arguments
       ) == testCase.expectedPath
     )
@@ -92,5 +132,16 @@ struct TerminalAgentProcessIdentityTests {
 
 struct CodexWorkingDirectoryTestCase: Sendable {
   let arguments: [String]
-  let expectedPath: String
+  let processWorkingDirectoryPath: String?
+  let expectedPath: String?
+
+  nonisolated init(
+    arguments: [String],
+    processWorkingDirectoryPath: String? = "/tmp/shell",
+    expectedPath: String?
+  ) {
+    self.arguments = arguments
+    self.processWorkingDirectoryPath = processWorkingDirectoryPath
+    self.expectedPath = expectedPath
+  }
 }

@@ -90,19 +90,16 @@ public enum TerminalAgentProcessInspector {
   public static func codexWorkingDirectoryPath(
     for identity: TerminalAgentProcessIdentity
   ) -> String? {
-    guard let processWorkingDirectoryPath = workingDirectoryPath(for: identity) else {
-      return nil
-    }
     return codexWorkingDirectoryPath(
-      processWorkingDirectoryPath: processWorkingDirectoryPath,
+      processWorkingDirectoryPath: workingDirectoryPath(for: identity),
       commandLineArguments: commandLineArguments(for: identity) ?? []
     )
   }
 
   static func codexWorkingDirectoryPath(
-    processWorkingDirectoryPath: String,
+    processWorkingDirectoryPath: String?,
     commandLineArguments: [String]
-  ) -> String {
+  ) -> String? {
     var declaredPath: String?
     for index in commandLineArguments.indices {
       let argument = commandLineArguments[index]
@@ -120,6 +117,10 @@ public enum TerminalAgentProcessInspector {
     guard let declaredPath, !declaredPath.isEmpty else {
       return processWorkingDirectoryPath
     }
+    if declaredPath.hasPrefix("/") {
+      return URL(fileURLWithPath: declaredPath).standardizedFileURL.path(percentEncoded: false)
+    }
+    guard let processWorkingDirectoryPath else { return nil }
     return URL(
       fileURLWithPath: declaredPath,
       relativeTo: URL(fileURLWithPath: processWorkingDirectoryPath, isDirectory: true)
