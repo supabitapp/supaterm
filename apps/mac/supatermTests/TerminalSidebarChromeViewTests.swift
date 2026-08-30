@@ -412,7 +412,7 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func shortcutHintTakesPriorityOverHover() {
+  func rowHoverTakesPriorityOverShortcutHint() {
     #expect(
       TerminalSidebarTabSummaryView.trailingSlot(
         shortcutHint: "⌘1",
@@ -420,8 +420,31 @@ struct TerminalSidebarChromeViewTests {
         isRowHovering: true,
         statusAccessory: .attention
       )
-        == .shortcut("⌘1")
+        == .reserved
     )
+  }
+
+  @Test
+  func rowHoverHidesPaneIndicators() {
+    let indicators: [TerminalSidebarPanePresentation.Indicator] = [
+      .agent(.working),
+      .attention,
+    ]
+
+    for indicator in indicators {
+      #expect(
+        TerminalSidebarTabSummaryView.visiblePaneIndicator(
+          indicator,
+          isRowHovering: true
+        ) == nil
+      )
+      #expect(
+        TerminalSidebarTabSummaryView.visiblePaneIndicator(
+          indicator,
+          isRowHovering: false
+        ) == indicator
+      )
+    }
   }
 
   @Test
@@ -540,36 +563,6 @@ struct TerminalSidebarChromeViewTests {
     #expect(hints[third.id] == "⌘1")
     #expect(hints[first.id] == "⌘2")
     #expect(hints[second.id] == "⌘3")
-  }
-
-  @Test
-  func regularHoveredTabShowsEnabledCloseButton() {
-    #expect(
-      TerminalSidebarTabRow.closeButtonPresentation(
-        isHovering: true,
-        showsShortcutHint: false
-      ) == .enabled
-    )
-  }
-
-  @Test
-  func pinnedHoveredTabShowsEnabledCloseButton() {
-    #expect(
-      TerminalSidebarTabRow.closeButtonPresentation(
-        isHovering: true,
-        showsShortcutHint: false
-      ) == .enabled
-    )
-  }
-
-  @Test
-  func shortcutHintHidesCloseButton() {
-    #expect(
-      TerminalSidebarTabRow.closeButtonPresentation(
-        isHovering: true,
-        showsShortcutHint: true
-      ) == .hidden
-    )
   }
 
   @MainActor

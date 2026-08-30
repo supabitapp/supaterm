@@ -44,14 +44,14 @@ struct TerminalSidebarTabRow: View {
     }
   }
 
-  enum CloseButtonPresentation: Equatable {
-    case hidden
-    case enabled
-  }
-
   private struct AnimatedPresentation: Equatable {
     let panes: [TerminalSidebarPanePresentation]
     let terminalProgress: TerminalSidebarTerminalProgress?
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+      lhs.panes == rhs.panes
+        && lhs.terminalProgress == rhs.terminalProgress
+    }
   }
 
   let terminal: TerminalHostState
@@ -100,18 +100,9 @@ struct TerminalSidebarTabRow: View {
     return items
   }
 
-  static func closeButtonPresentation(
-    isHovering: Bool,
-    showsShortcutHint: Bool
-  ) -> CloseButtonPresentation {
-    guard isHovering, !showsShortcutHint else { return .hidden }
-    return .enabled
-  }
-
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
   @State private var isPressed = false
-  @State private var isCloseHovering = false
 
   private var selectionStyle: SelectableRowSelection {
     selectionState.style(for: tab.id, primaryTabID: terminal.selectedTabID)
@@ -190,41 +181,15 @@ struct TerminalSidebarTabRow: View {
       TerminalSidebarMiddleClickActionView(action: close)
     )
     .overlay(alignment: .topTrailing) {
-      let closeButtonPresentation = Self.closeButtonPresentation(
-        isHovering: isHovering,
-        showsShortcutHint: showsShortcutHint
-      )
-      if closeButtonPresentation != .hidden {
-        Button(action: close) {
-          Image(systemName: "xmark")
-            .font(.system(size: 12, weight: .heavy))
-            .foregroundStyle(isSelected ? palette.selectedText : palette.selectableRow.title)
-            .frame(
-              width: TerminalSidebarLayout.tabTrailingAccessorySize,
-              height: TerminalSidebarLayout.tabTrailingAccessorySize
-            )
-            .accessibilityHidden(true)
-            .background(
-              isCloseHovering
-                ? (isSelected ? palette.selectedPillFill : palette.unselectedFill)
-                : .clear,
-              in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-            )
-        }
-        .buttonStyle(.plain)
-        .help("Close")
-        .accessibilityLabel("Close")
-        .padding(.top, TerminalSidebarLayout.tabRowVerticalPadding)
-        .padding(.trailing, TerminalSidebarLayout.rowHorizontalPadding)
-        .onHover { isCloseHovering = $0 }
+      if isHovering {
+        TerminalSidebarTabCloseButton(
+          palette: palette,
+          isSelected: isSelected,
+          action: close
+        )
       }
     }
-    .onHover { isHovering in
-      self.isHovering = isHovering
-      if !isHovering {
-        isCloseHovering = false
-      }
-    }
+    .onHover { isHovering = $0 }
     .contextMenu {
       let contextualTabIDs = selectionState.contextualTabIDs(
         for: tab.id,
@@ -385,6 +350,42 @@ struct TerminalSidebarTabRow: View {
     TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: reduceMotion) {
       terminal.requestCloseTab(tab.id)
     }
+  }
+}
+
+struct TerminalSidebarTabCloseButton: View {
+  let palette: Palette
+  let isSelected: Bool
+  let action: () -> Void
+
+  @State private var isHovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: "xmark")
+        .font(.system(size: 12, weight: .heavy))
+        .foregroundStyle(isSelected ? palette.selectedText : palette.selectableRow.title)
+        .frame(
+          width: TerminalSidebarLayout.tabTrailingAccessorySize,
+          height: TerminalSidebarLayout.tabTrailingAccessorySize
+        )
+        .accessibilityHidden(true)
+        .background(
+          isHovering
+            ? (isSelected ? palette.selectedPillFill : palette.unselectedFill)
+            : .clear,
+          in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+        )
+    }
+    .buttonStyle(.plain)
+    .help("Close")
+    .accessibilityLabel("Close")
+    .padding(.trailing, TerminalSidebarLayout.rowHorizontalPadding)
+    .offset(
+      y: TerminalSidebarLayout.tabRowVerticalPadding
+        + (TerminalSidebarLayout.tabPaneLineHeight - TerminalSidebarLayout.tabTrailingAccessorySize) / 2
+    )
+    .onHover { isHovering = $0 }
   }
 }
 

@@ -159,6 +159,45 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "agent-running-hover",
+      group: "Sidebar Rows",
+      title: "Hovered running coding agent",
+      size: CGSize(width: 320, height: 72)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000013",
+            title: "Codex",
+            isRowHovering: true,
+            paneTitles: ["khoi/routine-ui"],
+            paneAgentStatuses: [.working]
+          )
+        )
+      )
+    },
+    scenario(
+      "two-panes-hover",
+      group: "Sidebar Rows",
+      title: "Hovered tab with two panes",
+      size: CGSize(width: 320, height: 94)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000014",
+            title: "Review authentication",
+            isRowHovering: true,
+            paneTitles: ["Codex auth", "swift test"],
+            paneAgentStatuses: [.working, nil],
+            paneHasAttention: [false, true]
+          )
+        )
+      )
+    },
+    scenario(
       "secondary-selection",
       group: "Sidebar Rows",
       title: "Secondary selected shell tab",
@@ -505,6 +544,15 @@ private struct SidebarRowSnapshotFixture: View {
         showsSelectionEdge: true
       )
     )
+    .overlay(alignment: .topTrailing) {
+      if item.isRowHovering {
+        TerminalSidebarTabCloseButton(
+          palette: palette,
+          isSelected: item.isSelected,
+          action: {}
+        )
+      }
+    }
     .padding(outerPadding)
     .background(palette.detailBackground)
   }

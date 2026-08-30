@@ -47,13 +47,20 @@ struct TerminalSidebarTabSummaryView: View {
     isRowHovering: Bool,
     statusAccessory: StatusAccessory?
   ) -> TrailingSlot? {
-    if showsShortcutHint {
-      return shortcutHint.map(TrailingSlot.shortcut)
-    }
     if isRowHovering {
       return .reserved
     }
+    if showsShortcutHint {
+      return shortcutHint.map(TrailingSlot.shortcut)
+    }
     return statusAccessory.map(TrailingSlot.status)
+  }
+
+  static func visiblePaneIndicator(
+    _ indicator: TerminalSidebarPanePresentation.Indicator?,
+    isRowHovering: Bool
+  ) -> TerminalSidebarPanePresentation.Indicator? {
+    isRowHovering ? nil : indicator
   }
 
   static func titleTruncationMode(_ title: String) -> Text.TruncationMode {
@@ -85,10 +92,17 @@ struct TerminalSidebarTabSummaryView: View {
 
       ForEach(panes) { pane in
         let ownsTabAccessories = !showsTitleHeader && pane.id == panes.first?.id
+        let indicator = Self.visiblePaneIndicator(
+          pane.indicator,
+          isRowHovering: isRowHovering
+        )
         TerminalSidebarTabLineView(
           title: pane.title,
-          indicator: pane.indicator,
-          trailingSlot: paneTrailingSlot(pane, ownsTabAccessories: ownsTabAccessories),
+          indicator: indicator,
+          trailingSlot: paneTrailingSlot(
+            indicator,
+            ownsTabAccessories: ownsTabAccessories
+          ),
           palette: palette,
           isSelected: isSelected
         )
@@ -110,17 +124,18 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   private func paneTrailingSlot(
-    _ pane: TerminalSidebarPanePresentation,
+    _ indicator: TerminalSidebarPanePresentation.Indicator?,
     ownsTabAccessories: Bool
   ) -> TrailingSlot? {
-    Self.trailingSlot(
+    guard ownsTabAccessories || !isRowHovering else { return nil }
+    return Self.trailingSlot(
       shortcutHint: ownsTabAccessories ? shortcutHint : nil,
       showsShortcutHint: ownsTabAccessories && showsShortcutHint,
       isRowHovering: ownsTabAccessories && isRowHovering,
       statusAccessory: Self.statusAccessory(
         isPinned: ownsTabAccessories && isPinned,
         terminalProgress: ownsTabAccessories ? terminalProgress : nil,
-        paneIndicator: pane.indicator
+        paneIndicator: indicator
       )
     )
   }
@@ -166,6 +181,7 @@ private struct TerminalSidebarTabLineView: View {
         value: showsAgentStatusText,
         reduceMotion: reduceMotion
       )
+      .frame(width: geometry.size.width, height: geometry.size.height)
     }
     .frame(height: TerminalSidebarLayout.tabPaneLineHeight)
   }
@@ -194,7 +210,7 @@ private struct TerminalSidebarTabLineView: View {
         statusAccessoryView(statusAccessory)
       }
     }
-    .frame(minWidth: TerminalSidebarLayout.tabTrailingAccessorySize)
+    .frame(width: TerminalSidebarLayout.tabTrailingAccessorySize)
     .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
   }
 
