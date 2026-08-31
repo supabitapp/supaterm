@@ -19,9 +19,9 @@ Enabling an integration changes the agent's user configuration:
 - Codex: `~/.codex/hooks.json` and native hook trust
 - Pi: Pi's package configuration
 
-Supaterm-managed hooks send lifecycle data to the local app. Most hooks use the current pane and socket context. For a durable Codex root session start, the bundled CLI checks the required fields and finds one live pane through the fixed per-user socket namespace. A working-directory route requires a single matching pane across all live candidates. That pane must have no owner or own the incoming session. The CLI drops invalid or ambiguous starts.
+Supaterm-managed hooks send lifecycle data to the local app. Most hooks use the current pane and socket context. For a durable Codex root session start, the bundled CLI checks the required fields and finds one live pane through the fixed per-user socket namespace. It tries a direct nonshared process, the owner of a same-ID compact, then an exact raw session-title token after the detection wait. A custom display title does not replace the raw title. A startup fork can match one eligible same-workspace pane only when it runs `codex fork <canonical-parent-session-UUID>` from a live session owned by another pane. The last route requires one cwd match across all compatible app instances. Missing instance replies and ambiguous evidence block delivery.
 
-Codex session-start data must include a transcript path. Supaterm never opens the transcript or reads agent conversation files.
+Supaterm binds the chosen pane with its live process ID and process start time, not the shared app-server process. Codex session-start data must include a transcript path. Supaterm never opens the transcript or reads agent conversation files.
 
 The discovery skill installed by `sp skills install` lives at `~/.agents/skills/supaterm`. Its detailed guides come from the installed Supaterm version through `sp skills get`.
 
