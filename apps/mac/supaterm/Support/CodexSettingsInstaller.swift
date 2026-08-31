@@ -8,6 +8,7 @@ public struct CodexSettingsInstaller {
 
   let homeDirectoryURL: URL
   let fileManager: FileManager
+  let cliPath: String
   let runEnableHooksCommand: @Sendable () throws -> CommandResult
   let runVersionCommand: @Sendable () throws -> CodingAgentCommandResult
   let appServerClient: CodexAppServerClient
@@ -19,6 +20,7 @@ public struct CodexSettingsInstaller {
     self.init(
       homeDirectoryURL: homeDirectoryURL,
       fileManager: fileManager,
+      cliPath: GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL) ?? "",
       runEnableHooksCommand: Self.runEnableHooksCommand,
       runVersionCommand: Self.runVersionCommand,
       appServerClient: CodexAppServerClient(homeDirectoryURL: homeDirectoryURL)
@@ -28,6 +30,7 @@ public struct CodexSettingsInstaller {
   init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default,
+    cliPath: String = GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL) ?? "",
     runEnableHooksCommand: @escaping @Sendable () throws -> CommandResult,
     runVersionCommand: @escaping @Sendable () throws -> CodingAgentCommandResult = {
       CodingAgentCommandResult(status: 0, standardOutput: "codex-cli 0.144.1")
@@ -36,6 +39,7 @@ public struct CodexSettingsInstaller {
   ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
+    self.cliPath = cliPath
     self.runEnableHooksCommand = runEnableHooksCommand
     self.runVersionCommand = runVersionCommand
     self.appServerClient = appServerClient ?? CodexAppServerClient(homeDirectoryURL: homeDirectoryURL)
@@ -48,6 +52,9 @@ public struct CodexSettingsInstaller {
   }
 
   private func installSupatermHooksLocked() throws {
+    guard hasValidCLIPath else {
+      throw CodexSettingsInstallerError.bundledCLIUnavailable
+    }
     switch try codexAvailability() {
     case .unavailable:
       throw CodexSettingsInstallerError.codexUnavailable
@@ -74,7 +81,7 @@ public struct CodexSettingsInstaller {
       let oldHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
       fileMutation = try fileInstaller.install(
         settingsURL: settingsURL,
-        hookGroupsByEvent: try SupatermCodexHookSettings.hookGroupsByEvent()
+        hookGroupsByEvent: try SupatermCodexHookSettings.hookGroupsByEvent(cliPath: cliPath)
       )
       let newHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
       let managedHooks = try canonicalNativeHooks(
@@ -122,9 +129,12 @@ public struct CodexSettingsInstaller {
 
   private func integrationHealthLocked() throws -> CodingAgentIntegrationHealth {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    guard hasValidCLIPath else {
+      return .drifted
+    }
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: settingsURL,
-      hookGroupsByEvent: SupatermCodexHookSettings.hookGroupsByEvent()
+      hookGroupsByEvent: SupatermCodexHookSettings.hookGroupsByEvent(cliPath: cliPath)
     )
     guard try codexAvailability() == .supported else {
       return settingsHealth == .absent ? .unavailable : .unavailableInstalled
@@ -300,11 +310,12 @@ public struct CodexSettingsInstaller {
     _ hooks: [CodexAppServerHook],
     settingsURL: URL
   ) throws -> [CodexAppServerHook] {
-    let expected = SupatermCodexHookSettings.nativeHookIdentities
+    let expected = try SupatermCodexHookSettings.nativeHookIdentities(cliPath: cliPath)
+    let command = try SupatermCodexHookSettings.command(cliPath: cliPath)
     let settingsPath = canonicalPath(settingsURL)
     let owned = hooks.filter {
       canonicalPath(URL(fileURLWithPath: $0.sourcePath)) == settingsPath
-        && $0.command == SupatermCodexHookSettings.command
+        && $0.command == command
     }
     guard
       owned.count == expected.count,
@@ -396,7 +407,7 @@ public struct CodexSettingsInstaller {
   }
 
   private func isManagedHook(_ hook: CodexAppServerHook) -> Bool {
-    hook.command == SupatermCodexHookSettings.command
+    ownershipPolicy.matches(hook.command)
   }
 
   private func stateKey(_ key: String, belongsToSourcePath sourcePath: String) -> Bool {
@@ -405,6 +416,14 @@ public struct CodexSettingsInstaller {
 
   private func canonicalPath(_ url: URL) -> String {
     url.standardizedFileURL.resolvingSymlinksInPath().path
+  }
+
+  private var hasValidCLIPath: Bool {
+    (try? SupatermCodexHookSettings.command(cliPath: cliPath)) != nil
+  }
+
+  private var ownershipPolicy: SupatermManagedHookCommandPolicy {
+    SupatermManagedHookCommand.policy(for: .codex)
   }
 
   private static func isTestHookInstallation(environment: [String: String]) -> Bool {
@@ -420,7 +439,8 @@ public struct CodexSettingsInstaller {
         invalidHooksObject: { CodexSettingsInstallerError.invalidHooksObject },
         invalidJSON: { CodexSettingsInstallerError.invalidJSON },
         invalidRootObject: { CodexSettingsInstallerError.invalidRootObject }
-      )
+      ),
+      commandPolicy: ownershipPolicy
     )
   }
 }
@@ -483,6 +503,7 @@ private enum CodexAvailability: Equatable {
 }
 
 enum CodexSettingsInstallerError: Error, Equatable, LocalizedError {
+  case bundledCLIUnavailable
   case codexUnavailable
   case configWriteOutcomeUnknown(String)
   case enableHooksFailed(String)
@@ -499,6 +520,8 @@ enum CodexSettingsInstallerError: Error, Equatable, LocalizedError {
 
   var errorDescription: String? {
     switch self {
+    case .bundledCLIUnavailable:
+      return "Supaterm could not find its bundled sp executable."
     case .codexUnavailable:
       return "Codex must be installed and available in your login shell before Supaterm can install hooks."
     case .configWriteOutcomeUnknown(let message):

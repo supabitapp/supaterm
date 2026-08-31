@@ -9,6 +9,8 @@ extension CodexSettingsInstallerTests {
   func removeSupatermHooksPreservesUnrelatedHooksAndDoesNotRequireCodex() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+      .replacingOccurrences(of: "\"", with: "\\\"")
 
     try writeCodexSettings(
       """
@@ -18,7 +20,7 @@ extension CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": "\(command)",
                   "timeout": 10,
                   "type": "command"
                 },
@@ -59,6 +61,8 @@ extension CodexSettingsInstallerTests {
   func removeSupatermHooksDropsEmptyHooksObject() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+      .replacingOccurrences(of: "\"", with: "\\\"")
 
     try writeCodexSettings(
       """
@@ -68,7 +72,7 @@ extension CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": "\(command)",
                   "timeout": 10,
                   "type": "command"
                 }
@@ -90,6 +94,31 @@ extension CodexSettingsInstallerTests {
 
     let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
     #expect(object["hooks"] == nil)
+  }
+
+  @Test
+  func removeSupatermHooksRemovesManagedCommandAfterCLIMoves() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let appServer = TestCodexAppServer(homeDirectoryURL: homeDirectoryURL)
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      cliPath: "/Applications/Supaterm.app/Contents/MacOS/sp",
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) },
+      appServer: appServer
+    )
+    try installer.installSupatermHooks()
+    let movedInstaller = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      cliPath: "/Users/example/Applications/Supaterm.app/Contents/MacOS/sp",
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) },
+      appServer: appServer
+    )
+
+    try movedInstaller.removeSupatermHooks()
+
+    #expect(try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)["hooks"] == nil)
+    #expect(appServer.state().isEmpty)
   }
 
   @Test
@@ -137,7 +166,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try canonicalCodexHookSettings(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
@@ -165,7 +194,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try canonicalCodexHookSettings(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let appServer = TestCodexAppServer(
@@ -190,7 +219,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try canonicalCodexHookSettings(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)

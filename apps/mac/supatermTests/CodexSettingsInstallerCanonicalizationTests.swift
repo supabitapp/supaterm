@@ -9,8 +9,9 @@ extension CodexSettingsInstallerTests {
   func installCanonicalizesManagedPreAndPostToolUseHooks() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let canonicalCommand = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
 
-    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = canonicalCommand.replacingOccurrences(of: "\"", with: "\\\"")
     try writeCodexSettings(
       """
       {
@@ -57,12 +58,12 @@ extension CodexSettingsInstallerTests {
       postToolUseGroups
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
-      .filter { $0 == SupatermCodexHookSettings.command }
+      .filter { $0 == canonicalCommand }
     let preToolUseCommands =
       preToolUseGroups
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
-      .filter { $0 == SupatermCodexHookSettings.command }
+      .filter { $0 == canonicalCommand }
 
     #expect(postToolUseCommands.count == 1)
     #expect(preToolUseCommands.count == 1)
@@ -81,6 +82,7 @@ extension CodexSettingsInstallerTests {
   func installCanonicalizesDriftedSupatermEntries() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let canonicalCommand = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
 
     try writeCodexSettings(
       """
@@ -91,7 +93,7 @@ extension CodexSettingsInstallerTests {
               "matcher": ".*",
               "hooks": [
                 {
-                  "command": "\(SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": "\(canonicalCommand.replacingOccurrences(of: "\"", with: "\\\""))",
                   "timeout": 99,
                   "type": "command"
                 }
@@ -118,7 +120,7 @@ extension CodexSettingsInstallerTests {
     let supatermHook = try #require(hooks.last)
 
     #expect(group["matcher"] == nil)
-    #expect(supatermHook["command"] as? String == SupatermCodexHookSettings.command)
+    #expect(supatermHook["command"] as? String == canonicalCommand)
     #expect(supatermHook["timeout"] as? Int == 10)
   }
 
@@ -126,8 +128,9 @@ extension CodexSettingsInstallerTests {
   func installCollapsesDuplicateSupatermEntries() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let canonicalCommand = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
 
-    let escapedCommand = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let escapedCommand = canonicalCommand.replacingOccurrences(of: "\"", with: "\\\"")
     try writeCodexSettings(
       """
       {
@@ -169,7 +172,7 @@ extension CodexSettingsInstallerTests {
     let commands = try codexEventGroupsValue("Stop", in: object)
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
-      .filter { $0 == SupatermCodexHookSettings.command }
+      .filter { $0 == canonicalCommand }
 
     #expect(commands.count == 1)
   }
@@ -178,7 +181,8 @@ extension CodexSettingsInstallerTests {
   func installReplacesExistingSupatermCommand() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let canonicalCommand = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+    let command = canonicalCommand.replacingOccurrences(of: "\"", with: "\\\"")
 
     try writeCodexSettings(
       """
@@ -213,9 +217,6 @@ extension CodexSettingsInstallerTests {
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
 
-    #expect(
-      commands.filter(AgentHookCommandOwnership.isSupatermManagedCommand).count == 1
-    )
-    #expect(commands.contains(SupatermCodexHookSettings.command))
+    #expect(commands.filter { $0 == canonicalCommand }.count == 1)
   }
 }

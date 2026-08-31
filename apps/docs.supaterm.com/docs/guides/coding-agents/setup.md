@@ -16,10 +16,10 @@ Install the agent and make sure its executable is available from your login shel
 Open **Supaterm > Settings > Coding Agents** and turn on the agent. Supaterm reports whether the integration is unavailable, incomplete, changed from its managed configuration, or healthy.
 
 - Claude installs managed hooks in `~/.claude/settings.json`.
-- Codex enables supported hooks, writes `~/.codex/hooks.json`, and registers the required trust through Codex's public app-server API.
+- Codex enables supported hooks, writes `~/.codex/hooks.json`, and registers the required trust through Codex's public app-server API. Its hook command uses the absolute path to Supaterm's bundled `sp`, so hooks do not depend on runtime `HOME`, `PATH`, or `SUPATERM_CLI_PATH`.
 - Pi installs the Supaterm package through Pi. It does not use the Claude and Codex settings-file bridge.
 
-Supaterm preserves unrelated settings in those files. Turning an integration off removes only Supaterm-managed configuration.
+Supaterm preserves unrelated settings in those files. Turning Codex off removes its hooks and native trust. Supaterm recognizes old bundled `sp` paths and its old environment-based command so repair and removal still work after an app move or upgrade.
 
 ![Supaterm coding-agent settings with Claude, Codex, and Pi enabled.](/images/settings-coding-agents-enabled-dark.png)
 

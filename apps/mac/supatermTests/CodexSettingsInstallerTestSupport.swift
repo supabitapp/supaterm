@@ -22,9 +22,26 @@ func temporaryCodexHomeDirectory() throws -> URL {
   return url
 }
 
+func testCodexCLIPath(homeDirectoryURL: URL) -> String {
+  homeDirectoryURL.appendingPathComponent("Supaterm.app/Contents/MacOS/sp").path
+}
+
+func canonicalCodexHookCommand(homeDirectoryURL: URL) throws -> String {
+  try SupatermCodexHookSettings.command(
+    cliPath: testCodexCLIPath(homeDirectoryURL: homeDirectoryURL)
+  )
+}
+
+func canonicalCodexHookSettings(homeDirectoryURL: URL) throws -> String {
+  try SupatermCodexHookSettings.jsonString(
+    cliPath: testCodexCLIPath(homeDirectoryURL: homeDirectoryURL)
+  )
+}
+
 func testCodexSettingsInstaller(
   homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
   fileManager: FileManager = .default,
+  cliPath: String? = nil,
   runEnableHooksCommand: @escaping @Sendable () throws -> CodingAgentCommandResult,
   runVersionCommand: @escaping @Sendable () throws -> CodingAgentCommandResult = {
     CodingAgentCommandResult(status: 0, standardOutput: "codex-cli 0.144.1")
@@ -47,6 +64,7 @@ func testCodexSettingsInstaller(
   return CodexSettingsInstaller(
     homeDirectoryURL: homeDirectoryURL,
     fileManager: fileManager,
+    cliPath: cliPath ?? testCodexCLIPath(homeDirectoryURL: homeDirectoryURL),
     runEnableHooksCommand: runEnableHooksCommand,
     runVersionCommand: runVersionCommand,
     appServerClient: appServer.client
@@ -299,6 +317,10 @@ func writeCodexSettingsObject(
 ) throws {
   let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
   let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+  try FileManager.default.createDirectory(
+    at: settingsURL.deletingLastPathComponent(),
+    withIntermediateDirectories: true
+  )
   try data.write(to: settingsURL, options: .atomic)
 }
 

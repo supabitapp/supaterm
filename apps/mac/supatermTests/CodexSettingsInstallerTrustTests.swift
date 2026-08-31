@@ -71,6 +71,7 @@ extension CodexSettingsInstallerTests {
     let appServerClient = CodexAppServerClient(homeDirectoryURL: homeDirectoryURL)
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
+      cliPath: testCodexCLIPath(homeDirectoryURL: homeDirectoryURL),
       runEnableHooksCommand: { CodingAgentCommandResult(status: 0) },
       appServerClient: appServerClient
     )
@@ -165,7 +166,8 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+      .replacingOccurrences(of: "\"", with: "\\\"")
     try writeCodexSettings(
       """
       {

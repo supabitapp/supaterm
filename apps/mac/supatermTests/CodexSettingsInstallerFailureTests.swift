@@ -4,6 +4,29 @@ import Testing
 @testable import SupatermSupport
 
 extension CodexSettingsInstallerTests {
+  @Test(arguments: [" \n\t", "relative/sp", "/tmp/not-sp"])
+  func installFailsWhenBundledCLIPathIsInvalid(cliPath: String) throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      cliPath: cliPath,
+      runEnableHooksCommand: {
+        Issue.record("The hooks feature must not be enabled without the bundled CLI.")
+        return CodingAgentCommandResult(status: 0)
+      }
+    )
+
+    #expect(throws: CodexSettingsInstallerError.bundledCLIUnavailable) {
+      try installer.installSupatermHooks()
+    }
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL).path
+      )
+    )
+  }
+
   @Test
   func installFailsWithoutOverwritingInvalidJSON() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()

@@ -279,9 +279,8 @@ struct ClaudeSettingsInstallerTests {
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
 
-    #expect(
-      commands.filter(AgentHookCommandOwnership.isSupatermManagedCommand).count == 1
-    )
+    let commandPolicy = SupatermManagedHookCommand.policy(for: .claude)
+    #expect(commands.filter(commandPolicy.matches).count == 1)
     #expect(commands.contains(SupatermClaudeHookSettings.command))
   }
 

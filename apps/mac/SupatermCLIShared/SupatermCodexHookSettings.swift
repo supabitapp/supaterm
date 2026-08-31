@@ -1,8 +1,6 @@
 import Foundation
 
 public enum SupatermCodexHookSettings {
-  public static let command = SupatermManagedHookCommand.receiveHookCommand(for: .codex)
-
   private static let specs = [
     HookSpec(configEvent: "PermissionRequest", nativeEvent: "permissionRequest", timeout: 5),
     HookSpec(configEvent: "PostToolUse", nativeEvent: "postToolUse", timeout: 5),
@@ -19,8 +17,13 @@ public enum SupatermCodexHookSettings {
     HookSpec(configEvent: "UserPromptSubmit", nativeEvent: "userPromptSubmit", timeout: 10),
   ]
 
-  public static var nativeHookIdentities: Set<CodexHookIdentity> {
-    Set(
+  public static func command(cliPath: String) throws -> String {
+    try SupatermManagedHookCommand.codexCommand(cliPath: cliPath)
+  }
+
+  public static func nativeHookIdentities(cliPath: String) throws -> Set<CodexHookIdentity> {
+    let command = try command(cliPath: cliPath)
+    return Set(
       specs.map { spec in
         CodexHookIdentity(
           eventName: spec.nativeEvent,
@@ -38,18 +41,20 @@ public enum SupatermCodexHookSettings {
     specs.first(where: { $0.configEvent == event })?.nativeEvent
   }
 
-  public static func jsonString() throws -> String {
+  public static func jsonString(cliPath: String) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
-    guard let json = String(bytes: try encoder.encode(Settings()), encoding: .utf8) else {
+    let settings = Settings(command: try command(cliPath: cliPath))
+    guard let json = String(bytes: try encoder.encode(settings), encoding: .utf8) else {
       throw SupatermCodexHookSettingsError.invalidConfiguration
     }
     return json
   }
 
-  public static func hookGroupsByEvent() throws -> [String: [JSONValue]] {
+  public static func hookGroupsByEvent(cliPath: String) throws -> [String: [JSONValue]] {
+    let settings = Settings(command: try command(cliPath: cliPath))
     guard
-      let objectValue = try JSONValue(Settings()).objectValue,
+      let objectValue = try JSONValue(settings).objectValue,
       let hooksValue = objectValue["hooks"]?.objectValue
     else {
       throw SupatermCodexHookSettingsError.invalidConfiguration
@@ -87,7 +92,7 @@ public enum SupatermCodexHookSettings {
   private struct Settings: Encodable {
     let hooks: [String: [HookGroup]]
 
-    init() {
+    init(command: String) {
       hooks = Dictionary(grouping: specs, by: \.configEvent).mapValues { specs in
         specs.map { spec in
           HookGroup(

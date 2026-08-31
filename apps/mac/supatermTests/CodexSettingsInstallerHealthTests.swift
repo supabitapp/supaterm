@@ -29,7 +29,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try canonicalCodexHookSettings(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let installer = testCodexSettingsInstaller(
@@ -63,7 +63,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try canonicalCodexHookSettings(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let installer = testCodexSettingsInstaller(
@@ -128,5 +128,65 @@ extension CodexSettingsInstallerTests {
     )
 
     #expect(try installer.integrationHealth() == .absent)
+  }
+
+  @Test
+  func integrationHealthFindsShippedDirectHooksDrifted() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = try canonicalCodexHookCommand(homeDirectoryURL: homeDirectoryURL)
+    let settings = try canonicalCodexHookSettings(
+      homeDirectoryURL: homeDirectoryURL
+    ).replacingOccurrences(
+      of: command,
+      with: expectedSupatermHookCommand(agent: "codex")
+    )
+    try writeCodexSettings(settings, homeDirectoryURL: homeDirectoryURL)
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }
+    )
+
+    #expect(try installer.integrationHealth() == .drifted)
+  }
+
+  @Test
+  func integrationHealthFindsMovedCLIPathDrifted() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      cliPath: "/Applications/Supaterm.app/Contents/MacOS/sp",
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }
+    )
+    try installer.installSupatermHooks()
+    let movedInstaller = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      cliPath: "/Users/example/Applications/Supaterm.app/Contents/MacOS/sp",
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }
+    )
+
+    #expect(try movedInstaller.integrationHealth() == .drifted)
+  }
+
+  @Test
+  func integrationHealthRejectsBlankCLIPath() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let appServer = TestCodexAppServer(homeDirectoryURL: homeDirectoryURL)
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) },
+      appServer: appServer
+    )
+    try installer.installSupatermHooks()
+    let missingCLIInstaller = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      cliPath: "",
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) },
+      appServer: appServer
+    )
+
+    #expect(try missingCLIInstaller.integrationHealth() == .drifted)
   }
 }

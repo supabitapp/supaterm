@@ -150,7 +150,10 @@ extension SP {
     )
 
     mutating func run() throws {
-      print(try SupatermCodexHookSettings.jsonString())
+      guard let cliPath = SPExecutable.currentPath() else {
+        throw ValidationError("Supaterm could not resolve the sp executable path.")
+      }
+      print(try SupatermCodexHookSettings.jsonString(cliPath: cliPath))
     }
   }
 }

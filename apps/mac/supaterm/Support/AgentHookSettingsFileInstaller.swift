@@ -31,6 +31,7 @@ struct AgentHookSettingsFileInstaller {
 
   let fileManager: FileManager
   let errors: Errors
+  let commandPolicy: SupatermManagedHookCommandPolicy
 
   @discardableResult
   func install(
@@ -217,7 +218,7 @@ struct AgentHookSettingsFileInstaller {
       guard let hookObject = hook.objectValue else {
         return false
       }
-      return AgentHookCommandOwnership.isSupatermManagedCommand(hookObject["command"]?.stringValue)
+      return commandPolicy.matches(hookObject["command"]?.stringValue)
     }
   }
 
@@ -236,7 +237,7 @@ struct AgentHookSettingsFileInstaller {
       guard let hookObject = hook.objectValue else {
         return true
       }
-      return !AgentHookCommandOwnership.isSupatermManagedCommand(hookObject["command"]?.stringValue)
+      return !commandPolicy.matches(hookObject["command"]?.stringValue)
     }
 
     guard !filteredHooks.isEmpty else {

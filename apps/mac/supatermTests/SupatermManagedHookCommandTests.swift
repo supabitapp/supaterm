@@ -2,19 +2,14 @@ import Foundation
 import Testing
 
 @testable import SupatermCLIShared
-@testable import SupatermSupport
 
 struct SupatermManagedHookCommandTests {
   @Test
-  func receiveHookCommandMatchesClaudeSettingsCommand() {
+  func claudeAndPiCommandsStayDirect() {
     #expect(
       SupatermManagedHookCommand.receiveHookCommand(for: .claude)
         == SupatermClaudeHookSettings.command
     )
-  }
-
-  @Test
-  func receiveHookCommandBuildsPiCommand() {
     #expect(
       SupatermManagedHookCommand.receiveHookCommand(for: .pi)
         == expectedSupatermHookCommand(agent: "pi")
@@ -22,71 +17,85 @@ struct SupatermManagedHookCommandTests {
   }
 
   @Test
-  func managedCommandDetectionMatchesOnlyCanonicalCommands() {
-    #expect(
-      AgentHookCommandOwnership.isSupatermManagedCommand(
-        SupatermManagedHookCommand.receiveHookCommand(for: .claude)
-      )
+  func codexPolicyMatchesCurrentMovedAndShippedCommands() throws {
+    let policy = SupatermManagedHookCommand.policy(for: .codex)
+    let command = try SupatermCodexHookSettings.command(
+      cliPath: "/Applications/Supaterm.app/Contents/MacOS/sp"
     )
-    #expect(
-      AgentHookCommandOwnership.isSupatermManagedCommand(
-        "  \(SupatermManagedHookCommand.receiveHookCommand(for: .codex))\n"
-      )
+    let movedCommand = try SupatermCodexHookSettings.command(
+      cliPath: "/Users/example/Supaterm user's app/Contents/MacOS/sp"
     )
-    #expect(
-      !AgentHookCommandOwnership.isSupatermManagedCommand("echo SUPATERM bridge")
-    )
+
+    #expect(policy.matches("  \(command)\n"))
+    #expect(policy.matches(movedCommand))
+    #expect(policy.matches(expectedSupatermHookCommand(agent: "codex")))
   }
 
   @Test
-  func commandDrainsStdinWithoutCliPath() throws {
-    try runHookCommand(
-      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
-      environment: [:],
-      payload: hookPayload()
-    )
+  func codexPolicyRejectsNearMatchesAndExtraTokens() throws {
+    let cliPath = "/Applications/Supaterm.app/Contents/MacOS/sp"
+    let policy = SupatermManagedHookCommand.policy(for: .codex)
+    let command = try SupatermCodexHookSettings.command(cliPath: cliPath)
+    let prefix = String(command.dropLast(cliPath.count))
+
+    for candidate in [
+      command + " extra",
+      command.replacingOccurrences(of: "supaterm-codex-hook-v1", with: "supaterm-codex-hook-v2"),
+      command.replacingOccurrences(of: "/bin/cat", with: "cat"),
+      prefix + "/Applications/Supaterm.app/Contents/MacOS/sp /tmp/sp",
+      prefix + "'/Applications/Supaterm.app/Contents/MacOS/sp'",
+      prefix + "/Applications/Supaterm.app/Contents/MacOS/../MacOS/sp",
+      prefix + "/Applications/Supaterm.app/Contents/MacOS/wasp",
+      expectedSupatermHookCommand(agent: "codex") + " || true",
+      "echo SUPATERM bridge",
+    ] {
+      #expect(!policy.matches(candidate), Comment(rawValue: candidate))
+    }
   }
 
   @Test
-  func commandDrainsStdinWhenCliPathCannotRun() throws {
-    try runHookCommand(
-      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
-      environment: ["SUPATERM_CLI_PATH": "/tmp/supaterm-missing-sp"],
-      payload: hookPayload()
-    )
-  }
-
-  @Test
-  func commandDrainsStdinWhenCliExitsBeforeReading() throws {
+  func codexCommandDrainsStdinWhenCLIIsMissing() throws {
     let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    let cliPath = temporaryDirectory.appendingPathComponent("sp").path
 
-    let executableURL = temporaryDirectory.appendingPathComponent("sp", isDirectory: false)
+    try runHookCommand(
+      SupatermCodexHookSettings.command(cliPath: cliPath),
+      environment: ["PATH": "/runtime-path-is-unused"],
+      payload: Data(repeating: 0x7b, count: 1024 * 1024)
+    )
+  }
+
+  @Test
+  func codexCommandDrainsStdinAndSwallowsCLIFailure() throws {
+    let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    let executableURL = temporaryDirectory.appendingPathComponent("sp")
     try writeExecutable(at: executableURL, script: "#!/bin/sh\nexit 1\n")
 
     try runHookCommand(
-      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
-      environment: ["SUPATERM_CLI_PATH": executableURL.path],
-      payload: hookPayload()
+      SupatermCodexHookSettings.command(cliPath: executableURL.path),
+      environment: [:],
+      payload: Data(repeating: 0x7b, count: 1024 * 1024)
     )
   }
 }
 
-private func hookPayload() -> Data {
-  Data(repeating: 0x7b, count: 1024 * 1024)
-}
-
-private func runHookCommand(
+func runHookCommand(
   _ command: String,
+  shellPath: String = "/bin/sh",
   environment: [String: String],
   payload: Data
 ) throws {
   let process = Process()
-  process.executableURL = URL(fileURLWithPath: "/bin/sh")
+  process.executableURL = URL(fileURLWithPath: shellPath)
   process.arguments = ["-c", command]
 
   var processEnvironment = ProcessInfo.processInfo.environment
-  processEnvironment.removeValue(forKey: "SUPATERM_CLI_PATH")
+  processEnvironment.removeValue(forKey: "HOME")
+  for key in processEnvironment.keys.filter({ $0.hasPrefix("SUPATERM_") }) {
+    processEnvironment.removeValue(forKey: key)
+  }
   for (key, value) in environment {
     processEnvironment[key] = value
   }

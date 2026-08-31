@@ -7,6 +7,7 @@ import Testing
 struct CodexAppServerClientTests {
   @Test
   func hooksListUsesNativeSchema() throws {
+    let command = try SupatermCodexHookSettings.command(cliPath: "/tmp/Supaterm.app/MacOS/sp")
     let recorder = CodexAppServerRequestRecorder { method, _ in
       #expect(method == "hooks/list")
       let hook: JSONValue = [
@@ -14,7 +15,7 @@ struct CodexAppServerClientTests {
         "eventName": "stop",
         "handlerType": "command",
         "matcher": nil,
-        "command": .string(SupatermCodexHookSettings.command),
+        "command": .string(command),
         "timeoutSec": 10,
         "statusMessage": nil,
         "sourcePath": "/tmp/home/.codex/hooks.json",
@@ -55,7 +56,7 @@ struct CodexAppServerClientTests {
           eventName: "stop",
           handlerType: "command",
           matcher: nil,
-          command: SupatermCodexHookSettings.command,
+          command: command,
           timeoutSeconds: 10,
           statusMessage: nil,
           sourcePath: "/tmp/home/.codex/hooks.json",
