@@ -96,7 +96,8 @@ struct CodexAppServerClientTests {
                 "state": [
                   "external": ["enabled": false]
                 ]
-              ]
+              ],
+              "tui": ["terminal_title": []],
             ],
           ],
         ],
@@ -127,6 +128,7 @@ struct CodexAppServerClientTests {
     )
     #expect(snapshot.version == "user-version")
     #expect(snapshot.hookState == ["external": ["enabled": false]])
+    #expect(snapshot.hasTerminalTitle)
   }
 
   @Test
@@ -149,6 +151,7 @@ struct CodexAppServerClientTests {
     #expect(snapshot.filePath == configURL.standardizedFileURL.path)
     #expect(snapshot.version == nil)
     #expect(snapshot.hookState.isEmpty)
+    #expect(!snapshot.hasTerminalTitle)
   }
 
   @Test
@@ -168,8 +171,8 @@ struct CodexAppServerClientTests {
       "/tmp/home/.codex/hooks.json:stop:0:0": ["trusted_hash": "sha256:native"],
     ]
 
-    try client.replaceHookState(
-      state,
+    try client.batchWrite(
+      [CodexAppServerConfigEdit(keyPath: "hooks.state", value: .object(state))],
       filePath: "/tmp/home/.codex/config.toml",
       expectedVersion: "user-version"
     )
@@ -185,6 +188,57 @@ struct CodexAppServerClientTests {
                 "value": .object(state),
                 "mergeStrategy": "replace",
               ]
+            ],
+            "filePath": "/tmp/home/.codex/config.toml",
+            "expectedVersion": "user-version",
+            "reloadUserConfig": true,
+          ]
+        )
+      ])
+  }
+
+  @Test
+  func batchWriteCombinesConfigEdits() throws {
+    let recorder = CodexAppServerRequestRecorder { method, _ in
+      #expect(method == "config/batchWrite")
+      return [
+        "status": "ok",
+        "version": "next-version",
+        "filePath": "/tmp/home/.codex/config.toml",
+        "overriddenMetadata": nil,
+      ]
+    }
+    let client = CodexAppServerClient(request: recorder.request)
+    let state: JSONObject = ["external": ["enabled": false]]
+
+    try client.batchWrite(
+      [
+        CodexAppServerConfigEdit(keyPath: "hooks.state", value: .object(state)),
+        CodexAppServerConfigEdit(
+          keyPath: "tui.terminal_title",
+          value: ["activity", "thread-title", "task-progress"]
+        ),
+      ],
+      filePath: "/tmp/home/.codex/config.toml",
+      expectedVersion: "user-version"
+    )
+
+    #expect(
+      recorder.requests() == [
+        CodexAppServerRecordedRequest(
+          method: "config/batchWrite",
+          params: [
+            "edits": [
+              [
+                "keyPath": "hooks.state",
+                "value": .object(state),
+                "mergeStrategy": "replace",
+              ],
+              [
+                "keyPath": "tui.terminal_title",
+                "value": ["activity", "thread-title", "task-progress"],
+                "mergeStrategy": "replace",
+              ],
             ],
             "filePath": "/tmp/home/.codex/config.toml",
             "expectedVersion": "user-version",

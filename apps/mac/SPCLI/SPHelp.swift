@@ -529,21 +529,22 @@ enum SPHelp {
 
     Manage coding-agent integrations from Supaterm Settings > Coding Agents.
     Use `sp skills install` to install Supaterm's bundled discovery skill.
-    Use `sp agent install-hooks` to install every supported hook bridge.
+    Use `sp agent setup` to set up every supported coding-agent integration.
 
     Example:
       sp skills install
-      sp agent install-hooks
+      sp agent setup
       \(receiveAgentHookExample) | sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
 
-  static let installAgentHooksDiscussion = """
-    Install Supaterm's hook bridge into every supported agent user configuration.
+  static let setupAgentIntegrationsDiscussion = """
+    Install hooks and add Supaterm defaults for each supported coding agent found on this Mac.
+    Keep each existing configuration value unchanged.
 
     Example:
       sp agent reload-rules
-      sp agent install-hooks
+      sp agent setup
     """
 
   static let removeAgentHooksDiscussion = """
@@ -703,7 +704,7 @@ enum SPHelp {
 
   static let agentDiscussion = """
     Example:
-      sp agent install-hooks
+      sp agent setup
       sp agent remove-hooks
       sp agent reload-rules
     """

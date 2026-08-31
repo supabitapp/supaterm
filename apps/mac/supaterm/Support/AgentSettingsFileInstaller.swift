@@ -1,7 +1,7 @@
 import Foundation
 import SupatermCLIShared
 
-struct AgentHookSettingsFileInstaller {
+struct AgentSettingsFileInstaller {
   struct Mutation {
     let url: URL
     let previousData: Data?
@@ -36,22 +36,16 @@ struct AgentHookSettingsFileInstaller {
   @discardableResult
   func install(
     settingsURL: URL,
-    hookGroupsByEvent: @autoclosure () throws -> [String: [JSONValue]]
+    hookGroupsByEvent: @autoclosure () throws -> [String: [JSONValue]],
+    absentOnlyDefaults: [String: JSONValue] = [:]
   ) throws -> Mutation {
     let loadedSettings = try loadSettings(at: settingsURL)
     let mergedObject = try mergedSettingsObject(
       from: loadedSettings.object,
-      hookGroupsByEvent: try hookGroupsByEvent()
+      hookGroupsByEvent: try hookGroupsByEvent(),
+      absentOnlyDefaults: absentOnlyDefaults
     )
-    try fileManager.createDirectory(
-      at: settingsURL.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(JSONValue.object(mergedObject))
-    try data.write(to: settingsURL, options: .atomic)
+    let data = try writeSettingsObject(mergedObject, to: settingsURL)
     return Mutation(
       url: settingsURL,
       previousData: loadedSettings.data,
@@ -106,6 +100,14 @@ struct AgentHookSettingsFileInstaller {
     }
     let settingsObject = try loadSettingsObject(at: settingsURL)
     let prunedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
+    try writeSettingsObject(prunedObject, to: settingsURL)
+  }
+
+  @discardableResult
+  private func writeSettingsObject(
+    _ settingsObject: [String: JSONValue],
+    to settingsURL: URL
+  ) throws -> Data {
     try fileManager.createDirectory(
       at: settingsURL.deletingLastPathComponent(),
       withIntermediateDirectories: true
@@ -113,8 +115,9 @@ struct AgentHookSettingsFileInstaller {
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(JSONValue.object(prunedObject))
+    let data = try encoder.encode(JSONValue.object(settingsObject))
     try data.write(to: settingsURL, options: .atomic)
+    return data
   }
 
   private func loadSettingsObject(at url: URL) throws -> [String: JSONValue] {
@@ -146,11 +149,11 @@ struct AgentHookSettingsFileInstaller {
 
   private func mergedSettingsObject(
     from settingsObject: [String: JSONValue],
-    hookGroupsByEvent: [String: [JSONValue]]
+    hookGroupsByEvent: [String: [JSONValue]],
+    absentOnlyDefaults: [String: JSONValue]
   ) throws -> [String: JSONValue] {
     var mergedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
-    let hooksObject = mergedObject["hooks"]?.objectValue ?? [:]
-    var mergedHooksObject = hooksObject
+    var mergedHooksObject = mergedObject["hooks"]?.objectValue ?? [:]
 
     for (event, canonicalGroups) in hookGroupsByEvent {
       let existingGroups = try existingGroups(for: event, hooksObject: mergedHooksObject)
@@ -158,6 +161,9 @@ struct AgentHookSettingsFileInstaller {
     }
 
     mergedObject["hooks"] = .object(mergedHooksObject)
+    for (key, value) in absentOnlyDefaults where mergedObject[key] == nil {
+      mergedObject[key] = value
+    }
     return mergedObject
   }
 

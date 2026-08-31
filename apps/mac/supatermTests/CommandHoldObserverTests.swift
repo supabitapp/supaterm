@@ -5,6 +5,25 @@ import Testing
 
 struct CommandHoldObserverTests {
   @Test
+  func commandPressShowsShortcutsImmediately() {
+    let observer = CommandHoldObserver()
+
+    observer.update(modifierFlags: [.command])
+
+    #expect(observer.isPressed)
+  }
+
+  @Test
+  func commandReleaseHidesShortcutsImmediately() {
+    let observer = CommandHoldObserver()
+    observer.update(modifierFlags: [.command])
+
+    observer.update(modifierFlags: [])
+
+    #expect(observer.isPressed == false)
+  }
+
+  @Test
   func shouldShowShortcutsForCommandModifier() {
     #expect(CommandHoldObserver.shouldShowShortcuts(for: [.command]))
     #expect(CommandHoldObserver.shouldShowShortcuts(for: [.command, .shift]))

@@ -12,13 +12,13 @@ struct PiSettingsClient: Sendable {
 extension PiSettingsClient: DependencyKey {
   static let liveValue = Self(
     integrationHealth: {
-      try PiSettingsInstaller().integrationHealth()
+      try CodingAgentIntegrationManager.live.health(.pi)
     },
     installSupatermIntegration: {
-      try PiSettingsInstaller().installSupatermPackage()
+      try CodingAgentIntegrationManager.live.repair(.pi)
     },
     removeSupatermIntegration: {
-      try PiSettingsInstaller().removeSupatermPackage()
+      _ = try CodingAgentIntegrationManager.live.remove(.pi)
     }
   )
 

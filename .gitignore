@@ -40,7 +40,11 @@ supaterm.xcworkspace/
 Tuist/Dependencies/
 apps/mac/supaterm.xcodeproj/
 apps/mac/supaterm.xcworkspace/
-apps/mac/Tuist/Dependencies/
+apps/ios/SupatermIOS.xcodeproj/
+apps/ios/SupatermIOS.xcworkspace/
+apps/shared/SupatermShared.xcodeproj/
+apps/shared/SupatermShared.xcworkspace/
+apps/Tuist/Dependencies/
 
 # CocoaPods
 #

@@ -9,6 +9,7 @@ MAKEFLAGS += --no-builtin-rules
 # Derived values (DO NOT TOUCH).
 CURRENT_MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 CURRENT_MAKEFILE_DIR := $(patsubst %/,%,$(dir $(CURRENT_MAKEFILE_PATH)))
+TUIST_ROOT_DIR := $(abspath $(CURRENT_MAKEFILE_DIR)/..)
 PROJECT_WORKSPACE := $(CURRENT_MAKEFILE_DIR)/supaterm.xcworkspace
 APP_SCHEME := supaterm
 MACOS_DESTINATION := platform=macOS,arch=$(shell uname -m)
@@ -17,15 +18,15 @@ PERIPHERY_DERIVED_DATA_PATH := $(CURRENT_MAKEFILE_DIR)/.build/periphery-derived-
 PERIPHERY_INDEX_STORE_PATH := $(PERIPHERY_DERIVED_DATA_PATH)/Index.noindex/DataStore
 LOGO_GENERATOR_SCHEME := SupaThemeLogoGenerator
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
-TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
 TUIST_BINARY_CACHE_PROFILE ?= only-external
 TUIST_CACHED_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_BINARY_CACHE_PROFILE)
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
 TUIST_CACHED_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_BINARY_CACHE_PROFILE)-release
 TUIST_SOURCE_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
-TUIST_GENERATION_INPUTS := Project.swift Workspace.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
+TUIST_GENERATION_INPUTS := Project.swift ../Tuist.mk ../Tuist.swift ../Tuist/Package.swift ../Tuist/Package.resolved ../shared/Project.swift Configurations/Project.xcconfig ../Configurations/Versions.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= $(TUIST_BINARY_CACHE_PROFILE)
 TUIST_CONFIGURATION ?= Debug
+include ../Tuist.mk
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
@@ -40,12 +41,6 @@ RUN_STATE_ROOT := $(CURRENT_MAKEFILE_DIR)/.build/run-state
 .DEFAULT_GOAL := help
 .PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-ap build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
 
-ifdef CI
-TUIST_INSTALL_FLAGS := --force-resolved-versions
-else
-TUIST_INSTALL_FLAGS :=
-endif
-
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
 	@-+echo
@@ -55,8 +50,6 @@ generate-project: $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_GENERATE_CACHE_PROFILE) 
 
 generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages and generate a source-only Xcode workspace
 
-tuist-install: $(TUIST_INSTALL_STAMP)
-
 tuist-generate: $(TUIST_CACHED_GENERATION_STAMP)
 
 tuist-generate-sources: $(TUIST_SOURCE_GENERATION_STAMP)
@@ -64,17 +57,6 @@ tuist-generate-sources: $(TUIST_SOURCE_GENERATION_STAMP)
 tuist-generate-release: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP)
 
 tuist-generate-release-cached: $(TUIST_CACHED_RELEASE_GENERATION_STAMP)
-
-$(TUIST_INSTALL_STAMP): $(TUIST_GENERATION_INPUTS)
-	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
-	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
-	touch "$@"
-
-$(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
-	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
-	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
-	mise exec -- tuist generate --no-open --cache-profile "$*" --configuration "$(TUIST_CONFIGURATION)"
-	touch "$@"
 
 $(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
@@ -238,10 +220,10 @@ scan-dead-code: tuist-generate build-ghostty build-zmx build-ap
 	mise exec -- periphery scan --skip-build --schemes $(PERIPHERY_SCHEMES) --index-store-path "$(PERIPHERY_INDEX_STORE_PATH)"
 
 format: # Format code with swift format (local only)
-	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupaThemeLogoGenerator SupatermCLIShared SupatermTestSupport SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
+	swift format -p --in-place --recursive --configuration ../.swift-format.json SupaThemeLogoGenerator SupatermCLIShared SupatermTestSupport SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
 
 lint: # Lint code with swiftlint
-	"$$(mise which swiftlint)" lint --quiet --config .swiftlint.yml
+	"$$(mise which swiftlint)" lint --quiet --config ../.swiftlint.yml SupaThemeLogoGenerator supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
 
 inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant Tuist dependencies
 	mise exec -- tuist inspect dependencies

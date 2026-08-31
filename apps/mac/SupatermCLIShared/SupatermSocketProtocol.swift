@@ -4,7 +4,7 @@ public enum SupatermSocketMethod {
   public static let appOnboarding = "app.onboarding"
   public static let appDebug = "app.debug"
   public static let appAgentDetectionReload = "app.agent_detection.reload"
-  public static let appHooksInstall = "app.hooks.install"
+  public static let appAgentIntegrationSetup = "app.agent_integration.setup"
   public static let appHooksRemove = "app.hooks.remove"
   public static let appQuit = "app.quit"
   public static let appSettingsGet = "app.settings.get"
@@ -213,15 +213,15 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     try make(SupatermSocketMethod.appSettingsValidate, payload, id: id)
   }
 
-  public static func hooksInstall(
-    _ payload: SupatermAgentHookTargetRequest,
+  public static func agentIntegrationSetup(
+    _ payload: SupatermAgentIntegrationRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
-    try make(SupatermSocketMethod.appHooksInstall, payload, id: id)
+    try make(SupatermSocketMethod.appAgentIntegrationSetup, payload, id: id)
   }
 
   public static func hooksRemove(
-    _ payload: SupatermAgentHookTargetRequest,
+    _ payload: SupatermAgentIntegrationRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.appHooksRemove, payload, id: id)

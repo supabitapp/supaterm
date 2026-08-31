@@ -35,8 +35,8 @@ public struct SocketRequestExecutor: Sendable {
 
   public enum AgentIntegrationRequest: Sendable {
     case detectionReload
-    case hooksInstall(SupatermAgentHookTargetRequest)
-    case hooksRemove(SupatermAgentHookTargetRequest)
+    case agentIntegrationSetup(SupatermAgentIntegrationRequest)
+    case hooksRemove(SupatermAgentIntegrationRequest)
     case skillsGet(SupatermSkillGetRequest)
     case skillsInstall
     case skillsList
@@ -45,8 +45,8 @@ public struct SocketRequestExecutor: Sendable {
 
   public enum AgentIntegrationResult: Sendable {
     case detectionReload(SupatermAgentDetectionReloadResult)
-    case hooksInstall(SupatermAgentHookHealth)
-    case hooksRemove(SupatermAgentHookHealth)
+    case agentIntegrationSetup(SupatermAgentIntegrationResult)
+    case hooksRemove(SupatermAgentIntegrationResult)
     case skillsGet(SupatermSkillContent)
     case skillsInstall(SupatermSkillInstallResult)
     case skillsList(SupatermSkillListResult)

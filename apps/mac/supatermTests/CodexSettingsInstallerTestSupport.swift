@@ -77,13 +77,16 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
   private let duplicateSourcePath: String?
   private let rejectsConfigRead: Bool
   private let rejectsConfigReadAfterBatchWrite: Bool
+  private let rejectsHooksListAfterBatchWrite: Bool
   private let rejectsBatchWrite: Bool
   private let rejectsBatchWriteAfterCommit: Bool
   private let afterFirstHooksList: @Sendable () throws -> Void
-  private let beforeBatchWriteResponse: @Sendable () throws -> Void
+  private let beforeBatchWriteResponse: @Sendable (TestCodexAppServer) throws -> Void
   private let lock = NSLock()
+  private var batchKeyPaths: [[String]] = []
+  private var config: JSONObject
+  private var configReadCount = 0
   private var didWriteBatch = false
-  private var hookState: JSONObject
   private var hooksListCount = 0
   private var version = 1
 
@@ -93,17 +96,24 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
     duplicateSourcePath: String? = nil,
     rejectsConfigRead: Bool = false,
     rejectsConfigReadAfterBatchWrite: Bool = false,
+    rejectsHooksListAfterBatchWrite: Bool = false,
     rejectsBatchWrite: Bool = false,
     rejectsBatchWriteAfterCommit: Bool = false,
     afterFirstHooksList: @escaping @Sendable () throws -> Void = {},
-    beforeBatchWriteResponse: @escaping @Sendable () throws -> Void = {},
+    beforeBatchWriteResponse: @escaping @Sendable (TestCodexAppServer) throws -> Void = { _ in },
+    terminalTitle: JSONValue? = nil,
     hooksFeatureEnabled: @escaping @Sendable () throws -> Bool = { true }
   ) {
+    var config: JSONObject = ["hooks": ["state": .object(hookState)]]
+    if let terminalTitle {
+      config["tui"] = ["terminal_title": terminalTitle]
+    }
     self.homeDirectoryURL = homeDirectoryURL
-    self.hookState = hookState
+    self.config = config
     self.duplicateSourcePath = duplicateSourcePath
     self.rejectsConfigRead = rejectsConfigRead
     self.rejectsConfigReadAfterBatchWrite = rejectsConfigReadAfterBatchWrite
+    self.rejectsHooksListAfterBatchWrite = rejectsHooksListAfterBatchWrite
     self.rejectsBatchWrite = rejectsBatchWrite
     self.rejectsBatchWriteAfterCommit = rejectsBatchWriteAfterCommit
     self.afterFirstHooksList = afterFirstHooksList
@@ -138,15 +148,59 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
 
   func state() -> JSONObject {
     lock.lock()
-    let result = hookState
+    let result = config["hooks"]?.objectValue?["state"]?.objectValue ?? [:]
     lock.unlock()
     return result
   }
 
+  func terminalTitle() -> JSONValue? {
+    lock.lock()
+    let result = config["tui"]?.objectValue?["terminal_title"]
+    lock.unlock()
+    return result
+  }
+
+  func batchWriteCount() -> Int {
+    lock.lock()
+    let result = batchKeyPaths.count
+    lock.unlock()
+    return result
+  }
+
+  func batchWriteKeyPaths() -> [[String]] {
+    lock.lock()
+    let result = batchKeyPaths
+    lock.unlock()
+    return result
+  }
+
+  func userConfigReadCount() -> Int {
+    lock.lock()
+    let result = configReadCount
+    lock.unlock()
+    return result
+  }
+
+  func setTerminalTitle(_ value: JSONValue) {
+    lock.lock()
+    Self.set(value, at: ["tui", "terminal_title"], in: &config)
+    version += 1
+    lock.unlock()
+  }
+
   private func hooksListResponse() throws -> JSONValue {
+    lock.lock()
+    let shouldReject = rejectsHooksListAfterBatchWrite && didWriteBatch
+    lock.unlock()
+    if shouldReject {
+      throw CodexAppServerClientError.serverRejected("hooks/list")
+    }
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
     let root = try? JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: settingsURL))
     let hooksObject = root?.objectValue?["hooks"]?.objectValue ?? [:]
+    lock.lock()
+    let hookState = config["hooks"]?.objectValue?["state"]?.objectValue ?? [:]
+    lock.unlock()
     var metadata: [JSONValue] = []
     var displayOrder = 0
     for event in hooksObject.keys.sorted() {
@@ -170,9 +224,7 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
           let eventKey = nativeEventKey(event)
           let key = "\(settingsURL.path):\(eventKey):\(groupIndex):\(hookIndex)"
           let hash = "sha256:\(eventKey):\(groupIndex):\(hookIndex):\(command):\(timeout)"
-          lock.lock()
           let state = hookState[key]?.objectValue
-          lock.unlock()
           metadata.append(
             [
               "key": .string(key),
@@ -225,15 +277,13 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
   private func configReadResponse() throws -> JSONValue {
     lock.lock()
     let shouldReject = rejectsConfigRead || (rejectsConfigReadAfterBatchWrite && didWriteBatch)
+    configReadCount += 1
+    let config = self.config
+    let currentVersion = version
     lock.unlock()
     if shouldReject {
       throw CodexAppServerClientError.serverRejected("config/read")
     }
-    let configURL = CodexSettingsInstaller.configURL(homeDirectoryURL: homeDirectoryURL)
-    lock.lock()
-    let state = hookState
-    let currentVersion = version
-    lock.unlock()
     return [
       "config": ["features": ["hooks": .bool(try hooksFeatureEnabled())]],
       "origins": [:],
@@ -245,26 +295,58 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
             "profile": nil,
           ],
           "version": .string("version-\(currentVersion)"),
-          "config": ["hooks": ["state": .object(state)]],
+          "config": .object(config),
         ]
       ],
     ]
   }
 
   private func batchWriteResponse(params: JSONObject) throws -> JSONValue {
-    try beforeBatchWriteResponse()
-    if rejectsBatchWrite {
-      throw CodexAppServerClientError.serverRejected("config/batchWrite")
-    }
     guard
       let edits = params["edits"]?.arrayValue,
-      let state = edits.first?.objectValue?["value"]?.objectValue,
-      let filePath = params["filePath"]?.stringValue
+      !edits.isEmpty,
+      let filePath = params["filePath"]?.stringValue,
+      filePath == configURL.path,
+      params["reloadUserConfig"]?.boolValue == true
     else {
       throw CodexAppServerClientError.invalidResponse("config/batchWrite")
     }
+    let configEdits = try edits.map { value in
+      guard
+        let edit = value.objectValue,
+        let keyPath = edit["keyPath"]?.stringValue,
+        !keyPath.isEmpty,
+        let editValue = edit["value"],
+        edit["mergeStrategy"]?.stringValue == "replace"
+      else {
+        throw CodexAppServerClientError.invalidResponse("config/batchWrite")
+      }
+      return CodexAppServerConfigEdit(keyPath: keyPath, value: editValue)
+    }
     lock.lock()
-    hookState = state
+    batchKeyPaths.append(configEdits.map(\.keyPath))
+    let isFirstBatchWrite = batchKeyPaths.count == 1
+    lock.unlock()
+    if isFirstBatchWrite {
+      try beforeBatchWriteResponse(self)
+    }
+    if rejectsBatchWrite {
+      throw CodexAppServerClientError.serverRejected("config/batchWrite")
+    }
+    lock.lock()
+    guard params["expectedVersion"]?.stringValue == "version-\(version)" else {
+      lock.unlock()
+      throw CodexAppServerClientError.serverRejected("config/batchWrite")
+    }
+    var updatedConfig = config
+    for edit in configEdits {
+      Self.set(
+        edit.value,
+        at: edit.keyPath.split(separator: ".").map(String.init),
+        in: &updatedConfig
+      )
+    }
+    config = updatedConfig
     didWriteBatch = true
     version += 1
     let currentVersion = version
@@ -278,6 +360,30 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
       "filePath": .string(filePath),
       "overriddenMetadata": nil,
     ]
+  }
+
+  private static func set(
+    _ value: JSONValue,
+    at keyPath: ArraySlice<String>,
+    in object: inout JSONObject
+  ) {
+    guard let key = keyPath.first else { return }
+    let remainingKeyPath = keyPath.dropFirst()
+    guard !remainingKeyPath.isEmpty else {
+      object[key] = value
+      return
+    }
+    var child = object[key]?.objectValue ?? [:]
+    set(value, at: remainingKeyPath, in: &child)
+    object[key] = .object(child)
+  }
+
+  private static func set(
+    _ value: JSONValue,
+    at keyPath: [String],
+    in object: inout JSONObject
+  ) {
+    set(value, at: keyPath[...], in: &object)
   }
 
   private func nativeEventName(_ event: String) -> String {
@@ -296,6 +402,10 @@ nonisolated final class TestCodexAppServer: @unchecked Sendable {
     case "UserPromptSubmit": "user_prompt_submit"
     default: event
     }
+  }
+
+  private var configURL: URL {
+    CodexSettingsInstaller.configURL(homeDirectoryURL: homeDirectoryURL)
   }
 }
 

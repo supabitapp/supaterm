@@ -65,6 +65,14 @@ struct TerminalSessionCatalogTests {
   }
 
   @Test
+  func version13WithoutSidebarCollapseStateDecodes() throws {
+    let data = try Data(contentsOf: Self.fixtureURL(for: .v13))
+    let catalog = try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
+
+    #expect(catalog.windows.first?.isSidebarCollapsed == nil)
+  }
+
+  @Test
   func storedCatalogMigrationWritesPriorVersions() throws {
     for version in TerminalSessionCatalogVersion.allCases where version != .current {
       let directory = FileManager.default.temporaryDirectory
@@ -147,6 +155,31 @@ struct TerminalSessionCatalogTests {
     #expect(json.contains(#""spaces":[{"#))
     #expect(json.contains(#""sidebarWidth":304"#))
     #expect(try JSONDecoder().decode(TerminalSessionCatalog.self, from: data).windows == [session])
+  }
+
+  @Test
+  func sidebarCollapseStateRoundTrips() throws {
+    let spaceID = TerminalSpaceID()
+    var session = windowSession(spaceIDs: [spaceID])
+    session.isSidebarCollapsed = true
+
+    let data = try TerminalSessionCatalog.fileStorageEncoder().encode(
+      TerminalSessionCatalog(windows: [session])
+    )
+    let catalog = try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
+
+    #expect(catalog.windows == [session])
+  }
+
+  @Test
+  func pruningPreservesSidebarCollapseState() throws {
+    let spaceID = TerminalSpaceID()
+    var session = windowSession(spaceIDs: [spaceID])
+    session.isSidebarCollapsed = true
+
+    let pruned = try #require(session.pruned(validSpaceIDs: [spaceID]))
+
+    #expect(pruned.isSidebarCollapsed == true)
   }
 
   @Test

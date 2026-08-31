@@ -283,17 +283,31 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func terminalProgressTakesPrecedenceOverPaneStatus() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    let tab = TerminalTabItem(title: "Build")
     let paneIndicators: [TerminalSidebarPanePresentation.Indicator] = [
       .agent(.working),
       .attention,
     ]
 
     for paneIndicator in paneIndicators {
+      let pane = TerminalSidebarPanePresentation(
+        id: UUID(),
+        title: "Agent",
+        indicator: paneIndicator
+      )
       #expect(
         TerminalSidebarTabSummaryView.trailingAccessory(
           terminalProgress: progress,
           paneIndicator: paneIndicator
         ) == .terminalProgress(progress)
+      )
+      #expect(
+        !TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
+          tab: tab,
+          panes: [pane],
+          terminalProgress: progress,
+          showsShortcutHint: false
+        )
       )
     }
   }
@@ -496,6 +510,7 @@ struct TerminalSidebarChromeViewTests {
       let pullRequest = TerminalTabAgentWorkspace.PullRequest(
         kind: kind,
         title: "#128",
+        url: nil
       )
       #expect(pullRequest.icon == icon)
     }

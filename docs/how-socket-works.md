@@ -210,7 +210,7 @@ sp config path
 sp config get updates.channel
 sp config set appearance.mode system
 sp config validate
-sp agent install-hooks
+sp agent setup
 sp agent remove-hooks
 sp skills list
 sp skills get core
@@ -228,7 +228,8 @@ sp project icon ~/code/project --json
 - Every other command in those two blocks needs a reachable app.
 - `sp config path` reads the local state root, so it can differ from the path the app reports when the two run with different `SUPATERM_STATE_HOME` values.
 - Without a reachable app, `sp config` and `sp agent` exit 64 and `sp skills` exits 1. All three print `Error: No reachable Supaterm instance was found.`
-- `sp agent install-hooks` checks every supported agent, reports every failure, and fails when no supported agent is available.
+- `sp agent setup` checks every supported agent, prints progress for each one, reports every failure, and fails when no supported agent is available.
+- Setup installs the supported hooks or package. It seeds Claude's `terminalProgressBarEnabled` and Codex's `tui.terminal_title` only when each key is absent, preserves existing values, and is safe to rerun.
 - `sp agent remove-hooks` checks every supported agent and succeeds when an agent is absent or unavailable.
 - The hidden hook receiver uses normal resolution for ordinary traffic. An invalid, incomplete, unmatched, or ambiguous durable Codex root `SessionStart` exits without delivery.
 
@@ -260,10 +261,11 @@ Settings methods read and write the running app:
 - `app.settings.get`, `app.settings.list`, `app.settings.set`, and `app.settings.reset` act on the live settings the app already holds. A write lands in the app and on disk at once.
 - `app.settings.validate` takes an optional absolute `path` and checks that file. Without a path it checks the app's own settings file.
 
-Hook methods own the agent settings files:
+Agent integration methods own each agent's settings or package:
 
-- `app.hooks.install` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
-- The app writes `~/.claude/settings.json` and `~/.codex/hooks.json`, and talks to Codex app-server. The CLI never touches those files.
+- `app.agent_integration.setup` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
+- The app writes `~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.codex/config.toml`, and talks to Codex app-server. The CLI never touches those files.
+- Setup adds Claude's `terminalProgressBarEnabled: true` and Codex's `[tui] terminal_title = ["activity", "thread-title", "task-progress"]` only when each key is absent.
 
 Durable Codex root session starts use a separate route:
 

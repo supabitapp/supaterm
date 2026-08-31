@@ -219,19 +219,23 @@ nonisolated struct TerminalTabAgentWorkspace: Equatable, Identifiable, Sendable 
   struct PullRequest: Equatable, Sendable {
     let kind: PaneAgentPullRequestStatus.Kind
     let title: String
+    let url: URL?
 
     init?(_ status: PaneAgentPullRequestStatus) {
       guard status.kind != .none, status.kind != .unavailable else { return nil }
       kind = status.kind
       title = status.title
+      url = status.url
     }
 
     init(
       kind: PaneAgentPullRequestStatus.Kind,
-      title: String
+      title: String,
+      url: URL?
     ) {
       self.kind = kind
       self.title = title
+      self.url = url
     }
   }
 

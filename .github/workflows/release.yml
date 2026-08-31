@@ -214,7 +214,7 @@ jobs:
           STAGING=$(mktemp -d)
           trap 'rm -rf "$STAGING"' EXIT
           cp apps/mac/build/supaterm.app.zip "$STAGING/"
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
             --download-url-prefix "https://supaterm.com/download/$RELEASE_TAG/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
@@ -230,9 +230,9 @@ jobs:
             MERGE_ARGS+=(--previous "$STAGING/previous.xml")
           fi
           /usr/bin/python3 .github/scripts/merge_appcasts.py "${MERGE_ARGS[@]}"
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
             --ed-key-file - apps/mac/build/appcast.xml
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/Tuist/.build/artifacts/sparkle/Sparkle/bin/sign_update \
             --verify --ed-key-file - apps/mac/build/appcast.xml
       - name: Generate checksums
         run: |
@@ -303,7 +303,7 @@ jobs:
           set -euo pipefail
           test -n "$POSTHOG_CLI_PROJECT_ID"
           test -n "$POSTHOG_CLI_API_KEY"
-          MARKETING_VERSION=$(sed -n 's/^MARKETING_VERSION *= *//p' apps/mac/Configurations/Project.xcconfig)
+          MARKETING_VERSION=$(sed -n 's/^MARKETING_VERSION *= *//p' apps/Configurations/Versions.xcconfig)
           posthog-cli dsym upload \
             --directory dsyms \
             --project app.supabit.supaterm \

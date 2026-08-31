@@ -379,17 +379,6 @@ nonisolated enum TerminalAgentLaunchOptions {
         .union(discardedVariadicOptions)
     }
 
-    private func agentArguments(from commandLineArguments: [String]) -> [String] {
-      guard let executable = commandLineArguments.first else { return [] }
-      let executableName = URL(fileURLWithPath: executable).lastPathComponent
-      if ["node", "nodejs"].contains(executableName),
-        commandLineArguments.count > 1
-      {
-        return Array(commandLineArguments.dropFirst(2))
-      }
-      return Array(commandLineArguments.dropFirst())
-    }
-
     private func optionName(_ argument: String) -> String {
       guard let separatorIndex = argument.firstIndex(of: "=") else { return argument }
       return String(argument[..<separatorIndex])

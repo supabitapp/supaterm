@@ -222,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     licenseStore.send(.task)
     updateStore.send(.task)
     appStore.send(.task)
-    refreshInstalledAgentHooks()
+    repairAgentIntegrations()
     restoreWindowsAtLaunch()
     #if SUPATERM_DEMO
       DemoSeed.decorate(windowControllers.values.map(\.terminal))
@@ -500,9 +500,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  private func refreshInstalledAgentHooks() {
+  private func repairAgentIntegrations() {
     Task.detached {
-      StartupAgentHookRefresher.live.refreshInstalledHooks()
+      StartupAgentIntegrationRefresher.live.repairIntegrations()
     }
   }
 

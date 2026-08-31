@@ -7,6 +7,50 @@ import Testing
 
 extension CodexSettingsInstallerTests {
   @Test
+  func setupReturnsUnavailableWithoutReadingSettings() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeCodexSettings("not json", homeDirectoryURL: homeDirectoryURL)
+    let appServer = TestCodexAppServer(homeDirectoryURL: homeDirectoryURL)
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: {
+        Issue.record("Setup must not enable hooks when Codex is unavailable.")
+        return CodingAgentCommandResult(status: 0)
+      },
+      runVersionCommand: { CodingAgentCommandResult(status: 127) },
+      appServer: appServer
+    )
+
+    #expect(try installer.setup() == .unavailable)
+    #expect(appServer.userConfigReadCount() == 0)
+  }
+
+  @Test
+  func setupRejectsUnsupportedInstalledCodex() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeCodexSettings(
+      try SupatermCodexHookSettings.jsonString(),
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: {
+        Issue.record("Setup must not enable hooks for an unsupported Codex version.")
+        return CodingAgentCommandResult(status: 0)
+      },
+      runVersionCommand: {
+        CodingAgentCommandResult(status: 0, standardOutput: "codex-cli 0.144.0")
+      }
+    )
+
+    #expect(throws: CodexSettingsInstallerError.unsupportedCodexVersion) {
+      try installer.setup()
+    }
+  }
+
+  @Test
   func integrationHealthIsUnavailableBeforeMinimumCodexVersion() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

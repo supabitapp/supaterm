@@ -1,5 +1,4 @@
 import Darwin
-import Foundation
 import Synchronization
 import Testing
 
@@ -15,13 +14,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
 
   private static let claude = AgentDetectionProcessManifest(
     agentID: "claude",
-    processes: [
-      AgentDetectionProcessRule(executable: "claude"),
-      AgentDetectionProcessRule(
-        executable: "node",
-        scriptSuffix: "/@anthropic-ai/claude-code/cli.js"
-      ),
-    ]
+    processes: [AgentDetectionProcessRule(executable: "claude")]
   )
 
   private static func process(
@@ -239,47 +232,6 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
-  func matchesDeclaredWrappersByOneCompleteScriptArgument() {
-    let cases: [(path: String, arguments: [String])] = [
-      ("/opt/homebrew/bin/node", ["node", "/pkg/agent/cli.js", "--resume"]),
-      ("/usr/bin/python3", ["python3", "-u", "/pkg/agent/cli.js"]),
-      ("/bin/sh", ["sh", "/pkg/agent/cli.js"]),
-      ("/usr/bin/env", ["env", "node", "/pkg/agent/cli.js"]),
-    ]
-
-    for wrapper in cases {
-      let executable = URL(fileURLWithPath: wrapper.path).lastPathComponent
-      let manifest = AgentDetectionProcessManifest(
-        agentID: "agent",
-        processes: [
-          AgentDetectionProcessRule(
-            executable: executable,
-            scriptSuffix: "/agent/cli.js"
-          )
-        ]
-      )
-      let result = Self.match(
-        entries: [Self.process(100, name: executable)],
-        invocations: [
-          100: Self.invocation(wrapper.path, arguments: wrapper.arguments)
-        ],
-        manifests: [manifest]
-      )
-
-      #expect(
-        result
-          == AgentDetectionProcessMatch(
-            agentID: "agent",
-            processIdentity: TerminalAgentProcessIdentity(
-              processID: 100,
-              startTimeMicroseconds: 100
-            )
-          )
-      )
-    }
-  }
-
-  @Test
   func matchesDeclaredProcessTitleAfterArgumentsAreRewritten() {
     let manifest = AgentDetectionProcessManifest(
       agentID: "agent",
@@ -288,7 +240,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       ]
     )
     let result = Self.match(
-      entries: [Self.process(100, name: "node")],
+      entries: [Self.process(100, name: "pi")],
       invocations: [
         100: Self.invocation("/opt/homebrew/bin/node", arguments: ["pi"])
       ],
@@ -338,43 +290,14 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
-  func wrapperRequiresTheDeclaredExecutable() {
-    let result = Self.match(
-      entries: [Self.process(100, name: "python3")],
-      invocations: [
-        100: Self.invocation(
-          "/usr/bin/python3",
-          arguments: ["node", "/pkg/@anthropic-ai/claude-code/cli.js"]
-        )
-      ]
-    )
-
-    #expect(result == nil)
-  }
-
-  @Test
-  func wrapperRejectsJoinedArgumentSubstrings() {
-    let scriptSuffix = "/@anthropic-ai/claude-code/cli.js"
-    let invalidArguments = [
-      ["node", "--eval=run('/pkg\(scriptSuffix)')"],
-      ["node", "/pkg/@anthropic-ai/claude-code/cli", ".js"],
-      ["node", "/pkg\(scriptSuffix).backup"],
-      ["/pkg\(scriptSuffix)"],
+  func exactExecutableOutranksARootProcessTitle() {
+    let manifests = [
+      AgentDetectionProcessManifest(
+        agentID: "pi",
+        processes: [AgentDetectionProcessRule(executable: "node", processTitle: "pi")]
+      ),
+      Self.codex,
     ]
-
-    for arguments in invalidArguments {
-      let result = Self.match(
-        entries: [Self.process(100, name: "node")],
-        invocations: [
-          100: Self.invocation("/opt/homebrew/bin/node", arguments: arguments)
-        ]
-      )
-      #expect(result == nil)
-    }
-  }
-
-  @Test
-  func exactExecutableOutranksARootWrapper() {
     let result = Self.match(
       entries: [
         Self.process(100, name: "node"),
@@ -383,10 +306,39 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       invocations: [
         100: Self.invocation(
           "/opt/homebrew/bin/node",
-          arguments: ["node", "/pkg/@anthropic-ai/claude-code/cli.js"]
+          arguments: ["pi"]
         ),
         200: Self.invocation("/opt/homebrew/bin/codex", arguments: ["codex"]),
-      ]
+      ],
+      manifests: manifests
+    )
+
+    #expect(result?.agentID == "codex")
+    #expect(result?.processIdentity.processID == 200)
+  }
+
+  @Test
+  func nativeExecutableOutranksARewrittenProcessName() {
+    let manifests = [
+      AgentDetectionProcessManifest(
+        agentID: "pi",
+        processes: [
+          AgentDetectionProcessRule(executable: "pi"),
+          AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
+        ]
+      ),
+      Self.codex,
+    ]
+    let result = Self.match(
+      entries: [
+        Self.process(100, name: "pi"),
+        Self.process(200, parentProcessID: 100, name: "codex"),
+      ],
+      invocations: [
+        100: Self.invocation("/opt/homebrew/bin/node", arguments: ["pi"]),
+        200: Self.invocation("/opt/homebrew/bin/codex", arguments: ["codex"]),
+      ],
+      manifests: manifests
     )
 
     #expect(result?.agentID == "codex")
@@ -410,18 +362,18 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
-  func equalWrapperMatchesForDifferentAgentsAreUnknown() {
+  func equalProcessTitleMatchesForDifferentAgentsAreUnknown() {
     let manifests = [
       AgentDetectionProcessManifest(
         agentID: "first",
         processes: [
-          AgentDetectionProcessRule(executable: "node", scriptSuffix: "/agent/cli.js")
+          AgentDetectionProcessRule(executable: "node", processTitle: "agent")
         ]
       ),
       AgentDetectionProcessManifest(
         agentID: "second",
         processes: [
-          AgentDetectionProcessRule(executable: "node", scriptSuffix: "/agent/cli.js")
+          AgentDetectionProcessRule(executable: "node", processTitle: "agent")
         ]
       ),
     ]
@@ -430,7 +382,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       invocations: [
         100: Self.invocation(
           "/opt/homebrew/bin/node",
-          arguments: ["node", "/pkg/agent/cli.js"]
+          arguments: ["agent"]
         )
       ],
       manifests: manifests

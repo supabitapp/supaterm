@@ -1,27 +1,22 @@
 id = "claude"
-version = "2026.08.24.1"
-min_engine_version = 2
-updated_at = "2026-08-24T00:00:00Z"
-aliases = ["claude-code"]
+version = "2026.08.31.1"
 
 [[rules]]
 id = "osc_title_working"
 state = "working"
 priority = 1100
 region = "osc_title"
-visible_working = true
-# Braille covers <= 2.1.227; half-circles are the 2.1.228 busy spinner.
-regex = ['^[\x{2800}-\x{28FF}\x{25D0}-\x{25D3}] ']
+regex = ['^[\x{25D0}\x{25D1}] ']
 
 [[rules]]
 id = "live_turn_working"
 state = "working"
 priority = 970
 region = "bottom_non_empty_lines(12)"
-visible_working = true
 any = [
   { line_regex = ['^\s*[⏸⏵].*esc to interrupt(?:\s|·|$)'] },
   { line_regex = ['^\s*[\x{002A}\x{00B7}\x{2722}\x{2736}\x{273B}\x{273D}]\s+\S.*…(?:\s+\(\d+[smh](?:\s|·)|\s*$)'] },
+  { regex = ['(?m)^[ \t]*\x{273B}\s+Waiting\s+for\s+API\s+response\s+·\s+will\s+retry\s+in\s+\S+\s+·\s+check\s+your\s+network[ \t]*$'] },
 ]
 
 [[rules]]
@@ -29,24 +24,28 @@ id = "background_shell_working"
 state = "working"
 priority = 965
 region = "bottom_non_empty_lines(5)"
-visible_working = true
 line_regex = ['^\s*[⏸⏵].*·\s+[1-9]\d*\s+shells?\s+(?:·|$)']
 
 [[rules]]
 id = "background_agents_working"
 state = "working"
 priority = 965
-region = "last_non_empty_above_prompt_box"
-visible_working = true
-line_regex = ['^\s*[\x{002A}\x{00B7}\x{2722}\x{2736}\x{273B}\x{273D}]\s+Waiting for [1-9]\d* background agents? to finish\s*$']
+region = "whole_recent"
+regex = ['(?m)^[ \t]*[\x{002A}\x{00B7}\x{2722}\x{2736}\x{273B}\x{273D}]\s+Waiting\s+for\s+(?:(?:[1-9]\d*\s+background\s+agents?)(?:\s+and\s+[1-9]\d*\s+dynamic\s+workflows?)?|[1-9]\d*\s+dynamic\s+workflows?)\s+to\s+finish[ \t]*\n(?:[ \t]*\n)?[ \t]*\x{2500}{3,}[ \t]*$']
 
 [[rules]]
-id = "background_mcp_task_working"
+id = "ultraplan_needs_input"
+state = "blocked"
+priority = 980
+region = "bottom_non_empty_lines(12)"
+regex = ['(?m)^[\x{002A}\x{00B7}\x{2722}\x{2736}\x{273B}\x{273D}][ \t]+\S[^\n]*?(?:\n[ \t]+[^\n]*?){0,3}·(?:[ \t]+|\n[ \t]+)[\x{25C7}\x{25C6}]\s+ultraplan\s+needs\s+your\s+input(?:[ \t]+|\n[ \t]+)still(?:[ \t]+|\n[ \t]+)running[ \t]*$']
+
+[[rules]]
+id = "background_tasks_working"
 state = "working"
 priority = 965
 region = "bottom_non_empty_lines(12)"
-visible_working = true
-regex = ['(?m)^[\x{002A}\x{00B7}\x{2722}\x{2736}\x{273B}\x{273D}][ \t]+\S[^\n]*?(?:\n[ \t]+[^\n]*?){0,3}·(?:[ \t]+|\n[ \t]*)[1-9]\d*(?:[ \t]+|\n[ \t]*)MCP(?:[ \t]+|\n[ \t]*)tasks?(?:[ \t]+|\n[ \t]*)still(?:[ \t]+|\n[ \t]*)running[ \t]*$']
+regex = ['(?m)^[\x{002A}\x{00B7}\x{2722}\x{2736}\x{273B}\x{273D}][ \t]+\S[^\n]*?(?:\n[ \t]+[^\n]*?){0,3}·(?:[ \t]+|\n[ \t]+)(?:[1-9]\d*\s+shells?(?:,\s*[1-9]\d*\s+monitors?)?|[1-9]\d*\s+monitors?|[1-9]\d*\s+teams?|[1-9]\d*\s+local\s+agents?|[\x{25C7}\x{25C6}]\s+(?:ultraplan(?:\s+ready)?|[1-9]\d*\s+remote\s+dynamic\s+workflows?|[1-9]\d*\s+cloud\s+sessions?)|[1-9]\d*\s+Artifact\s+comment\s+monitors?|[1-9]\d*\s+MCP\s+tasks?|dreaming|auto-mode\s+scan|[1-9]\d*\s+background\s+(?:dynamic\s+workflows?|tasks?))(?:(?:[ \t]+|\n[ \t]+)still(?:[ \t]+|\n[ \t]+)running)[ \t]*$']
 not = [
   { contains = ["do you want to proceed?"] },
   { contains = ["esc to cancel"] },
@@ -61,7 +60,6 @@ id = "btw_overlay_working"
 state = "working"
 priority = 975
 region = "bottom_non_empty_lines(5)"
-visible_working = true
 line_regex = [
   '^\s*/btw(?:\s|$)',
   '(?i)esc to close\s*$',
@@ -87,7 +85,6 @@ id = "live_blocked_form"
 state = "blocked"
 priority = 980
 region = "after_last_horizontal_rule"
-visible_blocker = true
 contains = ["esc to cancel"]
 any = [
   { contains = ["enter to confirm"] },
@@ -105,8 +102,20 @@ id = "dynamic_workflow_prompt"
 state = "blocked"
 priority = 980
 region = "whole_recent"
-visible_blocker = true
 contains = ["run a dynamic workflow?", "esc to cancel"]
+
+[[rules]]
+id = "mcp_elicitation_prompt"
+state = "blocked"
+priority = 980
+region = "whole_recent"
+regex = [
+  '(?is)\besc\s+to\s+cancel\b',
+  '(?im)^[ \t]*MCP\s+server\s+["\x{201C}][^"\x{201D}]+["\x{201D}]\s+requests\s+your\s+input(?:\s+\(task\s+[^)]+\))?[ \t]*$',
+]
+line_regex = [
+  '^\s*\x{276F}?\s*(?:Accept|Decline)\b',
+]
 
 [[rules]]
 id = "live_prompt_box"
@@ -140,7 +149,6 @@ id = "bash_permission_prompt"
 state = "blocked"
 priority = 850
 region = "whole_recent"
-visible_blocker = true
 contains = ["do you want to proceed?"]
 any = [
   { contains = ["bash command"] },
@@ -158,7 +166,6 @@ id = "generic_permission_prompt"
 state = "blocked"
 priority = 840
 region = "after_last_horizontal_rule"
-visible_blocker = true
 contains = ["do you want to proceed?", "esc to cancel"]
 all = [
   { any = [
@@ -188,14 +195,6 @@ any = [
 not = [
   { regex = ['(?m)^\s*❯\s*$'] },
 ]
-
-[[rules]]
-id = "osc_title_idle"
-state = "idle"
-priority = 250
-region = "osc_title"
-visible_idle = true
-regex = ['^\x{2733} ']
 
 [[rules]]
 id = "osc_progress_idle"

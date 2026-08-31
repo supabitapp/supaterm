@@ -11,6 +11,7 @@ let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
 let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
+let supaThemeDependency = TargetDependency.project(target: "SupaTheme", path: "../shared")
 
 let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
@@ -118,24 +119,6 @@ let project = Project(
       output: .xcframework(path: ghosttyXCFrameworkPath, linking: .static)
     ),
     .target(
-      name: "SupaTheme",
-      destinations: .macOS,
-      product: .staticFramework,
-      bundleId: "app.supabit.supaterm.theme",
-      deploymentTargets: .macOS("26.0"),
-      infoPlist: .default,
-      buildableFolders: [
-        "SupaTheme",
-      ],
-      settings: .settings(
-        base: [
-          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
-          "SWIFT_STRICT_CONCURRENCY": "complete",
-        ],
-        defaultSettings: .essential
-      )
-    ),
-    .target(
       name: "SupaThemeLogoGenerator",
       destinations: .macOS,
       product: .commandLineTool,
@@ -146,7 +129,7 @@ let project = Project(
         "SupaThemeLogoGenerator",
       ],
       dependencies: [
-        .target(name: "SupaTheme"),
+        supaThemeDependency,
       ],
       settings: .settings(
         base: [
@@ -168,7 +151,7 @@ let project = Project(
         "supaterm/Features/UI",
       ],
       dependencies: [
-        .target(name: "SupaTheme"),
+        supaThemeDependency,
       ],
       settings: .settings(
         defaultSettings: .essential
@@ -381,7 +364,7 @@ let project = Project(
       resources: [
         "supaterm/Assets.xcassets",
         .folderReference(path: "supaterm/Resources/AgentDetection"),
-        "supaterm/supaterm.icon",
+        "../shared/Resources/supaterm.icon",
       ],
       buildableFolders: [
         "supaterm/App",
@@ -606,7 +589,7 @@ let project = Project(
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermUpdateFeature"),
-        .target(name: "SupaTheme"),
+        supaThemeDependency,
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -656,7 +639,7 @@ let project = Project(
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermUpdateFeature"),
-        .target(name: "SupaTheme"),
+        supaThemeDependency,
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -739,7 +722,7 @@ let project = Project(
       ]),
       resources: [
         "supaterm/Assets.xcassets",
-        "supaterm/supaterm.icon",
+        "../shared/Resources/supaterm.icon",
       ],
       buildableFolders: [
         "supaterm/App",
@@ -756,7 +739,7 @@ let project = Project(
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUI"),
         .target(name: "SupatermUpdateFeature"),
-        .target(name: "SupaTheme"),
+        supaThemeDependency,
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),

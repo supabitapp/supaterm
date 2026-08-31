@@ -50,6 +50,7 @@ final class SettingsWindowController: NSWindowController {
     window.title = ""
     window.titleVisibility = .hidden
     window.tabbingMode = .disallowed
+    window.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .unified
     window.toolbar = NSToolbar(identifier: "SettingsToolbar")

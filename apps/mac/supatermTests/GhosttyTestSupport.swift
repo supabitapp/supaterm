@@ -100,13 +100,15 @@ func makeGhosttyRuntime(
   applicationIsActive: () -> Bool = { NSApp.isActive },
   pasteboardProvider: @escaping (ghostty_clipboard_e) -> NSPasteboard? = {
     NSPasteboard.ghostty($0)
-  }
+  },
+  effectiveAppearanceObserver: GhosttyEffectiveAppearance.Observer? = nil
 ) throws -> GhosttyRuntime {
   try withGhosttyConfigFile(config) { url in
     GhosttyRuntime(
       configPath: url.path,
       applicationIsActive: applicationIsActive,
-      pasteboardProvider: pasteboardProvider
+      pasteboardProvider: pasteboardProvider,
+      effectiveAppearanceObserver: effectiveAppearanceObserver
     )
   }
 }
