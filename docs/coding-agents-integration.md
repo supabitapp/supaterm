@@ -70,8 +70,7 @@ process ID and start time.
 Terminal detection proves the agent process before it reads terminal content:
 
 1. Read the pane's foreground process group.
-2. Match a declared executable, or a declared wrapper with one complete script argument whose
-   suffix is declared.
+2. Match a declared executable path, process name, or declared process title.
 3. Record the process ID and process start time as one process identity.
 4. Wait until the process has run for three seconds.
 5. Read at most 4 KiB from the start of the raw terminal title and the latest terminal progress
@@ -135,11 +134,20 @@ sp skills path core
 sp skills get coding-agents
 ```
 
-Install every supported hook bridge with:
+Set up every supported coding-agent integration with:
 
 ```bash
-sp agent install-hooks
+sp agent setup
 ```
+
+Setup installs the Claude and Codex hook bridges and the Pi package. It also seeds these display
+settings when their keys are absent:
+
+- `~/.claude/settings.json`: `terminalProgressBarEnabled: true`
+- `~/.codex/config.toml`: `[tui] terminal_title = ["activity", "thread-title", "task-progress"]`
+
+Setup preserves an existing value for either key. It reports progress for each agent and is safe to
+run again.
 
 The app also exposes setup commands through:
 
@@ -151,12 +159,12 @@ sp onboard
 
 Claude and Codex share the settings-file hook bridge, but each installer uses the agent's public configuration surface.
 
-- Settings > Coding Agents exposes a toggle per agent. Turning it on installs hooks; turning it off removes them.
-- `sp agent install-hooks` and `sp agent remove-hooks` reach every supported installer over the socket. A Settings toggle only operates on its selected agent. Both use the same installer code in the app process and fail when no app is reachable.
+- Settings > Coding Agents exposes a toggle per agent. Turning it on sets up the integration; turning it off removes its hooks or package.
+- `sp agent setup` and `sp agent remove-hooks` reach the app's integration manager for every supported agent. A Settings toggle only operates on its selected agent. Both paths use the same concrete integration code in the app process and fail when no app is reachable.
 - On open, Settings reports each integration as unavailable, unavailable but installed, absent, partial, drifted, or healthy.
 - Claude must be available through the user's login shell. Codex must be version 0.144.1 or newer, have its hooks feature enabled, and have canonical trust state.
 - A hook is Supaterm-managed only when its command exactly matches one of Supaterm's canonical hook commands.
-- Install preserves unrelated settings, removes any existing Supaterm-managed hooks anywhere in the file, and then installs the canonical Supaterm hooks.
+- Setup preserves unrelated settings, removes any existing Supaterm-managed hooks anywhere in the file, and then installs the canonical Supaterm hooks.
 - The installed hook command uses `SUPATERM_CLI_PATH` so the hook bridge targets the bundled `sp` binary injected into Supaterm panes, and passes `--pid "$PPID"` so Supaterm can track live agent processes.
 - The canonical hook fragment is also available from `sp internal agent-settings <agent>`.
 - On app launch, Supaterm repairs partial and drifted integrations. It leaves absent and healthy integrations unchanged.
@@ -171,6 +179,7 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 ## Claude
 
 - Settings file: `~/.claude/settings.json`.
+- Setup writes `terminalProgressBarEnabled: true` only when the key is absent. It preserves any existing value.
 - Installed hook events: `SessionStart`, `PreToolUse`, `PostToolUse`, `Notification`, `UserPromptSubmit`, `Stop`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `SessionEnd`.
 
 ### App Behavior
@@ -186,7 +195,9 @@ The app uses Claude hooks only for root session identity.
 
 Codex uses the same session-identity bridge. The terminal reader alone owns the root phase.
 
-- Settings file: `~/.codex/hooks.json`.
+- Hook settings file: `~/.codex/hooks.json`.
+- User config file: `~/.codex/config.toml`.
+- Setup writes `[tui] terminal_title = ["activity", "thread-title", "task-progress"]` only when the key is absent. It preserves any existing value.
 - Installed hook events: `PermissionRequest`, `PostToolUse`, `PreToolUse`, `SessionStart`, `Stop`, `SubagentStart`, `SubagentStop`, `UserPromptSubmit`.
 - Supaterm keeps the full managed hook set installed, but the app ignores every event except root `SessionStart`.
 - Install enables the Codex hooks feature through the user's login shell, writes the canonical `hooks.json` fragment, then uses `codex app-server --stdio` to discover native hooks and update trust.
@@ -208,7 +219,7 @@ The app uses Codex hooks only for root session identity.
 Pi uses the extension package from `supaterm-skills`, not the Claude and Codex settings-file bridge.
 
 Settings > Coding Agents can install or remove the package by invoking `pi` through the user's login shell.
-The socket methods `app.hooks.install` and `app.hooks.remove` accept `pi` and run that same package install or removal. The aggregate CLI commands include Pi.
+The socket methods `app.agent_integration.setup` and `app.hooks.remove` accept `pi` and run that same package setup or removal. The aggregate CLI commands include Pi.
 When Pi is unavailable, removal edits Pi's settings file directly so the installed integration can still be disabled.
 Supaterm treats canonical package protocol `0.2.0` or newer as healthy, updates an existing canonical checkout with `pi update`, and replaces noncanonical remote sources during repair.
 

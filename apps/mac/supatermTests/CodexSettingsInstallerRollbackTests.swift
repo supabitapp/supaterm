@@ -40,7 +40,7 @@ extension CodexSettingsInstallerTests {
     let appServer = TestCodexAppServer(
       homeDirectoryURL: homeDirectoryURL,
       rejectsBatchWrite: true,
-      beforeBatchWriteResponse: {
+      beforeBatchWriteResponse: { _ in
         try writeCodexSettings(concurrent, homeDirectoryURL: homeDirectoryURL)
       }
     )
@@ -86,5 +86,30 @@ extension CodexSettingsInstallerTests {
 
     let settingsURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
     #expect(try String(contentsOf: settingsURL, encoding: .utf8) == concurrent)
+  }
+
+  @Test
+  func installKeepsHooksFileWhenPostWriteHealthCheckFails() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let appServer = TestCodexAppServer(
+      homeDirectoryURL: homeDirectoryURL,
+      rejectsHooksListAfterBatchWrite: true
+    )
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) },
+      appServer: appServer
+    )
+
+    #expect(throws: CodexAppServerClientError.serverRejected("hooks/list")) {
+      try installer.setup()
+    }
+
+    #expect(
+      FileManager.default.fileExists(
+        atPath: CodexSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL).path
+      )
+    )
   }
 }

@@ -1,11 +1,11 @@
 import Foundation
 
-public enum SupatermAgentHookManagementTiming {
-  public static let serverReplyTimeout: TimeInterval = 60
+public enum SupatermAgentIntegrationTiming {
+  public static let serverReplyTimeout: TimeInterval = 240
   public static let clientResponseTimeout = serverReplyTimeout + 5
 }
 
-public struct SupatermAgentHookTargetRequest: Codable, Equatable, Sendable {
+public struct SupatermAgentIntegrationRequest: Codable, Equatable, Sendable {
   public let agent: SupatermAgentKind
 
   public init(agent: SupatermAgentKind) {
@@ -13,7 +13,7 @@ public struct SupatermAgentHookTargetRequest: Codable, Equatable, Sendable {
   }
 }
 
-public struct SupatermAgentHookHealth: Codable, Equatable, Sendable {
+public struct SupatermAgentIntegrationResult: Codable, Equatable, Sendable {
   public let agent: SupatermAgentKind
   public let health: CodingAgentIntegrationHealth
 

@@ -4,9 +4,9 @@ import Testing
 
 @testable import SPCLI
 
-struct SPAgentHookCommandTests {
+struct SPAgentIntegrationCommandTests {
   @Test
-  func hookCommandsSendOneRequestPerSupportedAgentAndStaySilent() async throws {
+  func aggregateCommandsSendOneRequestPerSupportedAgent() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -14,26 +14,33 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth =
-          request.method == SupatermSocketMethod.appHooksInstall ? .healthy : .absent
+          request.method == SupatermSocketMethod.appAgentIntegrationSetup ? .healthy : .absent
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: health)
         )
       },
       run: { endpoint in
-        for command in ["install-hooks", "remove-hooks"] {
-          let result = try cli.run(["agent", command, "--socket", endpoint.path])
+        let setup = try cli.run(["agent", "setup", "--socket", endpoint.path])
+        let remove = try cli.run(["agent", "remove-hooks", "--socket", endpoint.path])
 
-          #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
-        }
+        #expect(
+          setup
+            == SPCLIResult(
+              exitCode: 0,
+              stdout: expectedSetupOutput(states: ["ready", "ready", "ready"]),
+              stderr: ""
+            )
+        )
+        #expect(remove == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
       }
     )
 
     #expect(
       log.requests.map(\.method) == Array(
-        repeating: SupatermSocketMethod.appHooksInstall,
+        repeating: SupatermSocketMethod.appAgentIntegrationSetup,
         count: SupatermAgentKind.allCases.count
       )
         + Array(
@@ -42,40 +49,56 @@ struct SPAgentHookCommandTests {
         )
     )
     #expect(
-      try log.requests.map { try $0.decodeParams(SupatermAgentHookTargetRequest.self).agent }
+      try log.requests.map { try $0.decodeParams(SupatermAgentIntegrationRequest.self).agent }
         == SupatermAgentKind.allCases + SupatermAgentKind.allCases
     )
   }
 
   @Test
-  func hookCommandsWaitForLongRunningInstallers() async throws {
+  func setupWaitsForLongRunningInstallersAndFlushesProgress() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let replyCount = LockedCounter()
+    let firstRequestOutput = LockedString()
+    let outputURL = cli.rootURL.appendingPathComponent("stdout", isDirectory: false)
 
     try await withSocketRuntime(
       replying: { request, _ in
         if replyCount.increment() == 1 {
+          firstRequestOutput.set(
+            try #require(
+              String(bytes: try Data(contentsOf: outputURL), encoding: .utf8)
+            )
+          )
           try await Task.sleep(for: .seconds(6))
         }
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .healthy)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .healthy)
         )
       },
       run: { endpoint in
         let result = try cli.run([
-          "agent", "install-hooks", "--socket", endpoint.path,
+          "agent", "setup", "--socket", endpoint.path,
         ])
 
-        #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+        #expect(
+          result
+            == SPCLIResult(
+              exitCode: 0,
+              stdout: expectedSetupOutput(states: ["ready", "ready", "ready"]),
+              stderr: ""
+            )
+        )
       }
     )
+
+    #expect(firstRequestOutput.get() == "Setting up Claude Code...\n")
   }
 
   @Test
-  func hookCommandsTryEveryAgentAndReportEveryFailure() async throws {
+  func setupTriesEveryAgentAndReportsEveryFailure() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -83,11 +106,11 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         if payload.agent == .pi {
           return try .ok(
             id: request.id,
-            encodableResult: SupatermAgentHookHealth(agent: .pi, health: .healthy)
+            encodableResult: SupatermAgentIntegrationResult(agent: .pi, health: .healthy)
           )
         }
         return .error(
@@ -97,10 +120,13 @@ struct SPAgentHookCommandTests {
         )
       },
       run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
+        let result = try cli.run(["agent", "setup", "--socket", endpoint.path])
 
         #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
+        #expect(
+          result.stdout
+            == expectedSetupOutput(states: ["failed", "failed", "ready"])
+        )
         #expect(result.stderr.contains("Claude Code: Invalid Claude Code configuration."))
         #expect(result.stderr.contains("Codex: Invalid Codex configuration."))
       }
@@ -110,7 +136,7 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
-  func installHooksFailsWhenEveryAgentIsUnavailable() async throws {
+  func setupFailsWhenEveryAgentIsUnavailable() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -118,17 +144,20 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .unavailable)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .unavailable)
         )
       },
       run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
+        let result = try cli.run(["agent", "setup", "--socket", endpoint.path])
 
         #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
+        #expect(
+          result.stdout
+            == expectedSetupOutput(states: ["not detected", "not detected", "not detected"])
+        )
         #expect(result.stderr.contains("No supported coding agent was detected."))
       }
     )
@@ -137,29 +166,36 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
-  func installHooksSucceedsWhenAtLeastOneAgentIsHealthy() async throws {
+  func setupSucceedsWhenAtLeastOneAgentIsHealthy() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
 
     try await withSocketRuntime(
       replying: { request, _ in
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth = payload.agent == .claude ? .unavailable : .healthy
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: health)
         )
       },
       run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
+        let result = try cli.run(["agent", "setup", "--socket", endpoint.path])
 
-        #expect(result == SPCLIResult(exitCode: 0, stdout: "", stderr: ""))
+        #expect(
+          result
+            == SPCLIResult(
+              exitCode: 0,
+              stdout: expectedSetupOutput(states: ["not detected", "ready", "ready"]),
+              stderr: ""
+            )
+        )
       }
     )
   }
 
   @Test
-  func installHooksReportsUnhealthySuccessResponses() async throws {
+  func setupReportsUnhealthySuccessResponses() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -167,20 +203,23 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .partial)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .partial)
         )
       },
       run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
+        let result = try cli.run(["agent", "setup", "--socket", endpoint.path])
 
         #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("Claude Code: Expected a healthy hook integration, got partial."))
-        #expect(result.stderr.contains("Codex: Expected a healthy hook integration, got partial."))
-        #expect(result.stderr.contains("Pi: Expected a healthy hook integration, got partial."))
+        #expect(
+          result.stdout
+            == expectedSetupOutput(states: ["failed", "failed", "failed"])
+        )
+        #expect(result.stderr.contains("Claude Code: Expected a healthy integration, got partial."))
+        #expect(result.stderr.contains("Codex: Expected a healthy integration, got partial."))
+        #expect(result.stderr.contains("Pi: Expected a healthy integration, got partial."))
       }
     )
 
@@ -188,7 +227,7 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
-  func hookCommandsRejectMismatchedResponseAgentsAndContinue() async throws {
+  func setupRejectsMismatchedResponseAgentsAndContinues() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -196,18 +235,21 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let responseAgent: SupatermAgentKind = payload.agent == .codex ? .claude : payload.agent
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: responseAgent, health: .healthy)
+          encodableResult: SupatermAgentIntegrationResult(agent: responseAgent, health: .healthy)
         )
       },
       run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
+        let result = try cli.run(["agent", "setup", "--socket", endpoint.path])
 
         #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
+        #expect(
+          result.stdout
+            == expectedSetupOutput(states: ["ready", "failed", "ready"])
+        )
         #expect(result.stderr.contains("Codex: Supaterm returned status for Claude Code, expected Codex."))
       }
     )
@@ -216,7 +258,7 @@ struct SPAgentHookCommandTests {
   }
 
   @Test
-  func hookCommandsReportMalformedSuccessResponsesAndContinue() async throws {
+  func setupReportsMalformedSuccessResponsesAndContinues() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -227,10 +269,13 @@ struct SPAgentHookCommandTests {
         return .ok(id: request.id)
       },
       run: { endpoint in
-        let result = try cli.run(["agent", "install-hooks", "--socket", endpoint.path])
+        let result = try cli.run(["agent", "setup", "--socket", endpoint.path])
 
         #expect(result.exitCode == 64)
-        #expect(result.stdout.isEmpty)
+        #expect(
+          result.stdout
+            == expectedSetupOutput(states: ["failed", "failed", "failed"])
+        )
         #expect(result.stderr.contains("Claude Code:"))
         #expect(result.stderr.contains("Codex:"))
         #expect(result.stderr.contains("Pi:"))
@@ -247,11 +292,11 @@ struct SPAgentHookCommandTests {
 
     try await withSocketRuntime(
       replying: { request, _ in
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth = payload.agent == .pi ? .unavailable : .absent
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: health)
         )
       },
       run: { endpoint in
@@ -271,10 +316,10 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .healthy)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .healthy)
         )
       },
       run: { endpoint in
@@ -300,11 +345,11 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         if payload.agent == .pi {
           return try .ok(
             id: request.id,
-            encodableResult: SupatermAgentHookHealth(agent: .pi, health: .absent)
+            encodableResult: SupatermAgentIntegrationResult(agent: .pi, health: .absent)
           )
         }
         return .error(
@@ -326,8 +371,8 @@ struct SPAgentHookCommandTests {
     #expect(log.requests.count == SupatermAgentKind.allCases.count)
   }
 
-  @Test(arguments: [["agent", "install-hooks"], ["agent", "remove-hooks"]])
-  func hookCommandsFailWithoutAReachableInstance(arguments: [String]) throws {
+  @Test(arguments: [["agent", "setup"], ["agent", "remove-hooks"]])
+  func aggregateCommandsFailWithoutAReachableInstance(arguments: [String]) throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
 
@@ -359,6 +404,14 @@ struct SPAgentHookCommandTests {
   }
 }
 
+private func expectedSetupOutput(states: [String]) -> String {
+  zip(SupatermAgentKind.allCases, states)
+    .map { agent, state in
+      "Setting up \(agent.notificationTitle)...\n\(agent.notificationTitle): \(state)"
+    }
+    .joined(separator: "\n") + "\n"
+}
+
 nonisolated private final class LockedCounter: @unchecked Sendable {
   private let lock = NSLock()
   private var value = 0
@@ -368,5 +421,22 @@ nonisolated private final class LockedCounter: @unchecked Sendable {
     defer { lock.unlock() }
     value += 1
     return value
+  }
+}
+
+nonisolated private final class LockedString: @unchecked Sendable {
+  private let lock = NSLock()
+  private var value = ""
+
+  func get() -> String {
+    lock.lock()
+    defer { lock.unlock() }
+    return value
+  }
+
+  func set(_ value: String) {
+    lock.lock()
+    defer { lock.unlock() }
+    self.value = value
   }
 }

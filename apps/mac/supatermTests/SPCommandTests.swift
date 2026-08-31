@@ -522,9 +522,9 @@ struct SPCommandTests {
 
         sp skills install
 
-        Install every supported coding-agent integration:
+        Set up every supported coding-agent integration:
 
-        sp agent install-hooks
+        sp agent setup
 
         Run "sp" for the list of available commands.
         """
@@ -597,13 +597,23 @@ struct SPCommandTests {
   }
 
   @Test
+  func agentInstallHooksCommandIsRemoved() {
+    do {
+      _ = try SP.parseAsRoot(["agent", "install-hooks"])
+      Issue.record("Expected agent install-hooks to be removed.")
+    } catch {
+      #expect(String(describing: error).contains("install-hooks"))
+    }
+  }
+
+  @Test
   func agentParserAcceptsAggregateAndHiddenHookSubcommands() throws {
     let reloadCommand = try #require(
       try SP.parseAsRoot(["agent", "reload-rules", "--plain"])
         as? SP.ReloadAgentDetectionRules
     )
-    let installAllCommand = try #require(
-      try SP.parseAsRoot(["agent", "install-hooks"]) as? SP.InstallAgentHooks
+    let setupCommand = try #require(
+      try SP.parseAsRoot(["agent", "setup"]) as? SP.SetupAgentIntegrations
     )
     let removeAllCommand = try #require(
       try SP.parseAsRoot(["agent", "remove-hooks"]) as? SP.RemoveAgentHooks
@@ -618,7 +628,7 @@ struct SPCommandTests {
     )
 
     #expect(reloadCommand.options.output.plain)
-    #expect(type(of: installAllCommand) == SP.InstallAgentHooks.self)
+    #expect(type(of: setupCommand) == SP.SetupAgentIntegrations.self)
     #expect(type(of: removeAllCommand) == SP.RemoveAgentHooks.self)
     #expect(receiveClaudeCommand.agent == .claude)
     #expect(receiveClaudeCommand.pid == nil)

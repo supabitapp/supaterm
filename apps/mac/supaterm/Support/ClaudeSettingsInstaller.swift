@@ -2,9 +2,12 @@ import Foundation
 import SupatermCLIShared
 
 public struct ClaudeSettingsInstaller {
+  private static let settingsMutationLock = NSLock()
+
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let runAvailabilityCommand: @Sendable () throws -> CodingAgentCommandResult
+  let beforeSettingsMutation: @Sendable () -> Void
 
   public init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -22,21 +25,44 @@ public struct ClaudeSettingsInstaller {
   init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default,
-    runAvailabilityCommand: @escaping @Sendable () throws -> CodingAgentCommandResult
+    runAvailabilityCommand: @escaping @Sendable () throws -> CodingAgentCommandResult,
+    beforeSettingsMutation: @escaping @Sendable () -> Void = {}
   ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
     self.runAvailabilityCommand = runAvailabilityCommand
+    self.beforeSettingsMutation = beforeSettingsMutation
   }
 
   public func installSupatermHooks() throws {
+    try withSettingsMutation {
+      try installSettings()
+    }
+  }
+
+  public func setup() throws -> CodingAgentIntegrationHealth {
+    guard try isAvailable() else {
+      return .unavailable
+    }
+    try withSettingsMutation {
+      try installSettings(
+        absentOnlyDefaults: ["terminalProgressBarEnabled": .bool(true)]
+      )
+    }
+    return .healthy
+  }
+
+  private func installSettings(
+    absentOnlyDefaults: [String: JSONValue] = [:]
+  ) throws {
     try fileInstaller.install(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL),
-      hookGroupsByEvent: try SupatermClaudeHookSettings.hookGroupsByEvent()
+      hookGroupsByEvent: try SupatermClaudeHookSettings.hookGroupsByEvent(),
+      absentOnlyDefaults: absentOnlyDefaults
     )
   }
 
-  public func isAvailable() throws -> Bool {
+  private func isAvailable() throws -> Bool {
     try runAvailabilityCommand().status == 0
   }
 
@@ -52,9 +78,11 @@ public struct ClaudeSettingsInstaller {
   }
 
   public func removeSupatermHooks() throws {
-    try fileInstaller.removeSupatermHooks(
-      settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    )
+    try withSettingsMutation {
+      try fileInstaller.removeSupatermHooks(
+        settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+      )
+    }
   }
 
   public static func settingsURL(homeDirectoryURL: URL) -> URL {
@@ -64,13 +92,22 @@ public struct ClaudeSettingsInstaller {
   }
 
   static func availabilityCommandArguments() -> [String] {
-    LoginShellCommandAvailability.commandArguments(for: ["claude", "claude-code"])
+    LoginShellCommandAvailability.commandArguments(for: ["claude"])
   }
 
-  private var fileInstaller: AgentHookSettingsFileInstaller {
-    AgentHookSettingsFileInstaller(
+  private func withSettingsMutation<Result>(
+    _ mutation: () throws -> Result
+  ) rethrows -> Result {
+    try Self.settingsMutationLock.withLock {
+      beforeSettingsMutation()
+      return try mutation()
+    }
+  }
+
+  private var fileInstaller: AgentSettingsFileInstaller {
+    AgentSettingsFileInstaller(
       fileManager: fileManager,
-      errors: AgentHookSettingsFileInstaller.Errors(
+      errors: AgentSettingsFileInstaller.Errors(
         invalidEventHooks: { ClaudeSettingsInstallerError.invalidEventHooks($0) },
         invalidHooksObject: { ClaudeSettingsInstallerError.invalidHooksObject },
         invalidJSON: { ClaudeSettingsInstallerError.invalidJSON },
