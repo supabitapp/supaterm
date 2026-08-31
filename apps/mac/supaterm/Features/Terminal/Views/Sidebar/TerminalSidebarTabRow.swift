@@ -112,12 +112,17 @@ struct TerminalSidebarTabRow: View {
     selectionStyle != .none
   }
 
-  private var hasStatusIndicator: Bool {
-    panes.contains { $0.indicator != nil }
+  private var hasVisibleStatusIndicator: Bool {
+    TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
+      tab: tab,
+      panes: panes,
+      terminalProgress: terminalProgress,
+      showsShortcutHint: showsShortcutHint
+    )
   }
 
   private var showsCloseButton: Bool {
-    isHovering && !hasStatusIndicator
+    isHovering && !hasVisibleStatusIndicator
   }
 
   private var rowFill: Color {
