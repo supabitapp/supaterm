@@ -2,8 +2,9 @@ import XCTest
 
 final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
   @MainActor
-  func testAgentIndicatorHelpOverridesTabTitleHelp() async throws {
+  func testAgentIndicatorRemainsAccessibleFromTabTitleHover() async throws {
     let tab = await requireFirstTab()
+    let tabIdentifier = tab.identifier
 
     startAgentTurn()
     let didShowAgentStatus = await wait(for: tab, timeout: AgentUITest.coldStartTimeout) {
@@ -12,13 +13,15 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
     XCTAssertTrue(didShowAgentStatus)
 
     hoverTitle(in: tab)
-    XCTAssertTrue(tab.label.contains("Agent working"))
     hoverTrailingIndicator(in: tab)
-    try require(helpTag(labeled: "Agent working"), timeout: 5)
+    try require(
+      tabRow(identifier: tabIdentifier, exposing: "Agent working"),
+      timeout: 5
+    )
   }
 
   @MainActor
-  func testAttentionIndicatorHelpOverridesTabTitleHelp() async throws {
+  func testAttentionIndicatorRemainsAccessibleFromTabTitleHover() async throws {
     let firstPaneIdentifier = try await requireVisiblePanes(count: 1)[0].identifier
 
     try clickMenuItem(.splitRight)
@@ -44,15 +47,18 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
     firstPane.typeKey(.return, modifierFlags: [])
 
     let tab = sidebarTabRows.firstMatch
+    let tabIdentifier = tab.identifier
     let didShowAttention = await wait(for: tab, timeout: AgentUITest.coldStartTimeout) {
       $0.label.contains("Terminal attention")
     }
     XCTAssertTrue(didShowAttention)
 
     hoverTitle(in: tab, lineIndex: 1, lineCount: 2)
-    XCTAssertTrue(tab.label.contains("Terminal attention"))
     hoverTrailingIndicator(in: tab, lineIndex: 1, lineCount: 2)
-    try require(helpTag(labeled: "Terminal attention"), timeout: 5)
+    try require(
+      tabRow(identifier: tabIdentifier, exposing: "Terminal attention"),
+      timeout: 5
+    )
   }
 
   @MainActor
@@ -116,9 +122,10 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private func helpTag(labeled label: String) -> XCUIElement {
-    app.descendants(matching: .helpTag)
-      .matching(NSPredicate(format: "label == %@", label))
+  private func tabRow(identifier: String, exposing status: String) -> XCUIElement {
+    app.buttons
+      .matching(identifier: identifier)
+      .matching(NSPredicate(format: "label CONTAINS %@", status))
       .firstMatch
   }
 }
