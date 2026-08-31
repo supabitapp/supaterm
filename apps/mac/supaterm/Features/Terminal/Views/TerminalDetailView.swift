@@ -91,14 +91,19 @@ private struct TerminalDetailTopBar: View {
       )
       .help(isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar")
 
-      Text(title)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(palette.primaryText)
-        .lineLimit(1)
-        .truncationMode(.middle)
-        .padding(.leading, 8)
+      HStack(spacing: 0) {
+        Text(title)
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(palette.primaryText)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .padding(.leading, 8)
 
-      Spacer(minLength: 8)
+        Spacer(minLength: 8)
+      }
+      .contentShape(Rectangle())
+      .onTapGesture(count: 2, perform: togglePaneZoom)
+
       HStack(spacing: 4) {
         ToolbarIconButton(
           symbol: "square.split.2x1",
