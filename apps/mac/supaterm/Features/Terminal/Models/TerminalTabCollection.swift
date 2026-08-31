@@ -498,11 +498,12 @@ final class TerminalTabCollection {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return [] }
     let nextIndex = tabs.index(after: index)
     guard nextIndex < tabs.endIndex else { return [] }
-    return tabs[nextIndex...].map(\.id)
+    return bulkCloseTabIDs(tabs[nextIndex...].map(\.id))
   }
 
-  func otherTabIDs(_ id: TerminalTabID) -> [TerminalTabID] {
-    tabs.map(\.id).filter { $0 != id }
+  func otherTabIDs(keeping retainedTabIDs: [TerminalTabID]) -> [TerminalTabID] {
+    let retainedTabIDs = Set(retainedTabIDs)
+    return bulkCloseTabIDs(tabs.map(\.id).filter { !retainedTabIDs.contains($0) })
   }
 
   func groupID(containing tabID: TerminalTabID) -> TerminalTabGroupID? {
@@ -595,6 +596,10 @@ final class TerminalTabCollection {
     guard var tab = topology.tabsByID[id] else { return }
     update(&tab)
     topology.tabsByID[id] = tab
+  }
+
+  private func bulkCloseTabIDs(_ tabIDs: [TerminalTabID]) -> [TerminalTabID] {
+    tabIDs.filter { isPinned($0) != true }
   }
 
   private func groupInsertion(

@@ -371,7 +371,21 @@ struct TerminalTabCollectionTests {
 
     #expect(manager.tabs.map(\.id) == [first, groupedA, groupedB, last])
     #expect(manager.tabIDsBelow(groupedA) == [groupedB, last])
-    #expect(manager.otherTabIDs(groupedB) == [first, groupedA, last])
+    #expect(manager.otherTabIDs(keeping: [groupedB]) == [first, groupedA, last])
+  }
+
+  @Test
+  func bulkCloseTargetsExcludeRootPinnedTabs() {
+    let manager = TerminalTabCollection()
+    let source = manager.createTab(title: "Source")
+    let pinned = manager.createTab(title: "Pinned")
+    let regular = manager.createTab(title: "Regular")
+    #expect(manager.setTabPinned(source, isPinned: true) != nil)
+    #expect(manager.setTabPinned(pinned, isPinned: true) != nil)
+
+    #expect(manager.tabs.map(\.id) == [source, pinned, regular])
+    #expect(manager.tabIDsBelow(source) == [regular])
+    #expect(manager.otherTabIDs(keeping: [source]) == [regular])
   }
 
   @Test
