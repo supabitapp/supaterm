@@ -13,7 +13,6 @@ struct ShortcutSearchMatcherTests {
     "command+option+p",
     "⌘⌥P",
     "⌘ ⌥ P",
-    "⌥ + ⌘ + p",
   ])
   func equivalentBindingSpellingsMatch(_ query: String) {
     #expect(

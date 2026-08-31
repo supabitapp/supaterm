@@ -11,7 +11,6 @@ struct ShortcutSearchMatcher {
     "ctrl": "⌃",
     "shift": "⇧",
   ]
-  private static let modifierOrder: [Character] = ["⌘", "⇧", "⌥", "⌃"]
 
   private let nameQuery: String
   private let bindingQuery: String
@@ -38,14 +37,10 @@ struct ShortcutSearchMatcher {
   }
 
   private static func normalizedBindingQuery(_ query: String) -> String {
-    let compact =
-      query
+    query
       .lowercased()
       .split { $0.isWhitespace || $0 == "+" }
       .map { aliases[String($0)] ?? String($0) }
       .joined()
-    let modifiers = Set(compact.filter(modifierOrder.contains))
-    let key = compact.filter { !modifierOrder.contains($0) }
-    return String(modifierOrder.filter(modifiers.contains)) + key
   }
 }
