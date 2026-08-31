@@ -31,6 +31,8 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
+      - if: github.event_name == 'pull_request'
+        run: python3 -m unittest discover -s .github/scripts -p '*_test.py'
       - id: changes
         shell: bash
         env:
@@ -44,27 +46,9 @@ jobs:
             exit 0
           fi
 
-          ios=false
-          mac=false
-          while IFS= read -r path; do
-            case "$path" in
-              *.md)
-                continue
-                ;;
-              .github/actions/setup-macos/* | .github/actions/setup-mise/* | .github/workflows/ci.yml | apps/.swift-format.json | apps/.swiftlint.yml | apps/Configurations/* | apps/shared/* | apps/Tuist.mk | apps/Tuist.swift | apps/Tuist/* | apps/Workspace.swift | Makefile | mise.toml)
-                ios=true
-                mac=true
-                ;;
-              apps/ios/*)
-                ios=true
-                ;;
-              .gitmodules | apps/mac/* | integrations/supaterm-skills)
-                mac=true
-                ;;
-            esac
-          done < <(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA")
-          echo "ios=$ios" >> "$GITHUB_OUTPUT"
-          echo "mac=$mac" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/affected_projects.py \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
   swiftlint:
     name: swiftlint

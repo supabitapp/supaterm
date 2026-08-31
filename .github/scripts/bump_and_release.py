@@ -13,13 +13,14 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Literal, TextIO
 
+from pre_push import PushUpdate, is_zero_object_name, parse_push_updates
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XCCONFIG_PATH = REPO_ROOT / "apps/Configurations/Versions.xcconfig"
 VERSION_STATE_PATH = XCCONFIG_PATH.relative_to(REPO_ROOT).as_posix()
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)$")
-ZERO_OID_PATTERN = re.compile(r"^0+$")
 BUILDS_PER_VERSION = 1_000_000
 RELEASE_KINDS = ("regular", "hotfix")
 ReleaseKind = Literal["regular", "hotfix"]
@@ -29,14 +30,6 @@ ReleaseKind = Literal["regular", "hotfix"]
 class VersionState:
   marketing_version: str
   build_number: int
-
-
-@dataclass(frozen=True)
-class PushUpdate:
-  local_ref: str
-  local_object_name: str
-  remote_ref: str
-  remote_object_name: str
 
 
 @dataclass(frozen=True)
@@ -332,10 +325,6 @@ def release_tag_version(tag: str) -> str:
   return match.group(1)
 
 
-def is_zero_object_name(object_name: str) -> bool:
-  return ZERO_OID_PATTERN.fullmatch(object_name) is not None
-
-
 def read_object_type(reference: str) -> str:
   try:
     return run(["git", "cat-file", "-t", reference])
@@ -356,13 +345,6 @@ def validate_release_tag(tag: str, reference: str | None = None) -> None:
     raise ValueError(f"{tag} does not match MARKETING_VERSION {actual_version}")
 
 
-def parse_push_update(line: str) -> PushUpdate:
-  parts = line.rstrip("\n").split(" ")
-  if len(parts) != 4:
-    raise ValueError("invalid pre-push input")
-  return PushUpdate(*parts)
-
-
 def pushed_tag(update: PushUpdate) -> tuple[str, str] | None:
   if update.local_ref == "(delete)" or is_zero_object_name(update.local_object_name):
     return None
@@ -376,10 +358,7 @@ def pushed_tag(update: PushUpdate) -> tuple[str, str] | None:
 
 def validate_pre_push(stdin: TextIO) -> None:
   errors: list[str] = []
-  for line in stdin:
-    if not line.strip():
-      continue
-    update = parse_push_update(line)
+  for update in parse_push_updates(stdin):
     release_tag = pushed_tag(update)
     if release_tag is None:
       continue

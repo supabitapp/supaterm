@@ -1,14 +1,21 @@
 amends "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Builtins.pkl"
 
-local prePushMainCheck = """
-repo_root=$(git rev-parse --show-toplevel)
-cd "$repo_root"
-[ -d apps/mac ] || exit 0
-if ! awk 'NF && $3 == "refs/heads/main" { found = 1 } END { exit found ? 0 : 1 }'; then
-  exit 0
-fi
-"""
+local affectedProjectStep = new Step {
+  stdin = "{{ hook_stdin }}"
+}
+
+local function affectedProjectCheck(project: String): String =
+  "repo_root=$(git rev-parse --show-toplevel)\n" +
+  "cd \"$repo_root\"\n" +
+  "[ -d apps/mac ] || exit 0\n" +
+  "decision=$(python3 .github/scripts/affected_projects.py \(project)) || exit $?\n" +
+  "[ \"$decision\" = run ] || exit 0"
+
+local webProjectCheck = affectedProjectCheck("web")
+local docsProjectCheck = affectedProjectCheck("docs")
+local macProjectCheck = affectedProjectCheck("mac")
+local iosProjectCheck = affectedProjectCheck("ios")
 
 hooks {
   ["pre-commit"] {
@@ -53,60 +60,29 @@ hooks {
         stdin = "{{ hook_stdin }}"
         depends = "validate-submodule-branches"
       }
-      ["web-install"] {
-        check = "\(prePushMainCheck)\nmake web-install"
-        stdin = "{{ hook_stdin }}"
+      ["test-affected-projects"] {
+        check = """
+          repo_root=$(git rev-parse --show-toplevel)
+          cd "$repo_root"
+          python3 -m unittest discover -s .github/scripts -p '*_test.py'
+          """
         depends = "validate-release-tags"
       }
-      ["web-check"] {
-        check = "\(prePushMainCheck)\nmake web-check"
-        stdin = "{{ hook_stdin }}"
-        depends = "web-install"
+      ["web-checks"] = (affectedProjectStep) {
+        check = "\(webProjectCheck)\nmake web-install && make -j2 web-check web-test"
+        depends = "test-affected-projects"
       }
-      ["web-test"] {
-        check = "\(prePushMainCheck)\nmake web-test"
-        stdin = "{{ hook_stdin }}"
-        depends = "web-install"
+      ["docs-checks"] = (affectedProjectStep) {
+        check = "\(docsProjectCheck)\nmake docs-install docs-check docs-validate docs-build"
+        depends = "test-affected-projects"
       }
-      ["docs-install"] {
-        check = "\(prePushMainCheck)\nmake docs-install"
-        stdin = "{{ hook_stdin }}"
-        depends = "validate-release-tags"
+      ["mac-checks"] = (affectedProjectStep) {
+        check = "\(macProjectCheck)\nmake mac-inspect-dependencies mac-scan-dead-code mac-test mac-test-e2e"
+        depends = "test-affected-projects"
       }
-      ["docs-check"] {
-        check = "\(prePushMainCheck)\nmake docs-check"
-        stdin = "{{ hook_stdin }}"
-        depends = "docs-install"
-      }
-      ["docs-validate"] {
-        check = "\(prePushMainCheck)\nmake docs-validate"
-        stdin = "{{ hook_stdin }}"
-        depends = "docs-check"
-      }
-      ["docs-build"] {
-        check = "\(prePushMainCheck)\nmake docs-build"
-        stdin = "{{ hook_stdin }}"
-        depends = "docs-validate"
-      }
-      ["mac-inspect-dependencies"] {
-        check = "\(prePushMainCheck)\nmake mac-inspect-dependencies"
-        stdin = "{{ hook_stdin }}"
-        depends = "validate-release-tags"
-      }
-      ["mac-scan-dead-code"] {
-        check = "\(prePushMainCheck)\nmake mac-scan-dead-code"
-        stdin = "{{ hook_stdin }}"
-        depends = "mac-inspect-dependencies"
-      }
-      ["mac-test"] {
-        check = "\(prePushMainCheck)\nmake mac-test"
-        stdin = "{{ hook_stdin }}"
-        depends = "mac-scan-dead-code"
-      }
-      ["mac-test-e2e"] {
-        check = "\(prePushMainCheck)\nmake mac-test-e2e"
-        stdin = "{{ hook_stdin }}"
-        depends = "mac-test"
+      ["ios-checks"] = (affectedProjectStep) {
+        check = "\(iosProjectCheck)\nmake ios-build"
+        depends = "test-affected-projects"
       }
     }
   }

@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
+from pre_push import MAIN_REF, PrePushError, is_zero_object_name, parse_push_updates
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MAIN_REF = "refs/heads/main"
 
 
 class ValidationError(Exception):
@@ -20,34 +21,10 @@ class ValidationError(Exception):
 
 
 @dataclass(frozen=True)
-class PushUpdate:
-  local_ref: str
-  local_object_name: str
-  remote_ref: str
-  remote_object_name: str
-
-
-@dataclass(frozen=True)
 class SubmoduleRule:
   path: Path
   url: str
   branch: str
-
-
-def parse_push_updates(stream: TextIO) -> list[PushUpdate]:
-  updates = []
-  for line_number, line in enumerate(stream, start=1):
-    fields = line.split()
-    if not fields:
-      continue
-    if len(fields) != 4:
-      raise ValidationError(f"invalid pre-push input on line {line_number}")
-    updates.append(PushUpdate(*fields))
-  return updates
-
-
-def is_zero_object_name(object_name: str) -> bool:
-  return bool(object_name) and not object_name.strip("0")
 
 
 def submodule_rules(repository: Path, revision: str) -> list[SubmoduleRule]:
@@ -173,7 +150,7 @@ def main() -> int:
   arguments = parser.parse_args()
   try:
     validate_push(arguments.repo.resolve(), sys.stdin)
-  except (ValidationError, configparser.Error) as error:
+  except (ValidationError, PrePushError, configparser.Error) as error:
     print(f"error: {error}", file=sys.stderr)
     return 1
   return 0
