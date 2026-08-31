@@ -128,14 +128,20 @@ extension PiInvocationCapture where Value == PiPackageMutation {
 nonisolated final class PiPackageMutationRunner: @unchecked Sendable {
   private let homeDirectoryURL: URL
   private let isAvailable: Bool
+  private let failedMutationIndex: Int?
   private let lock = NSLock()
   private var availabilityCheckValue = 0
   private var mutationValue: [PiPackageMutation] = []
   private var timeoutValue: [TimeInterval] = []
 
-  init(homeDirectoryURL: URL, isAvailable: Bool = true) {
+  init(
+    homeDirectoryURL: URL,
+    isAvailable: Bool = true,
+    failedMutationIndex: Int? = nil
+  ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.isAvailable = isAvailable
+    self.failedMutationIndex = failedMutationIndex
   }
 
   func checkAvailability() -> Bool {
@@ -153,6 +159,9 @@ nonisolated final class PiPackageMutationRunner: @unchecked Sendable {
     defer { lock.unlock() }
     mutationValue.append(mutation)
     timeoutValue.append(timeout)
+    if mutationValue.count == failedMutationIndex {
+      return PiSettingsInstaller.CommandResult(status: 1, standardError: "failed")
+    }
     var settings = try piSettingsObject(homeDirectoryURL: homeDirectoryURL)
     guard var packages = settings["packages"] as? [String] else {
       return PiSettingsInstaller.CommandResult(status: 1)

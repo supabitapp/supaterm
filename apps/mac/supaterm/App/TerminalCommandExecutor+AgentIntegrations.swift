@@ -20,10 +20,9 @@ extension TerminalCommandExecutor {
     manager: CodingAgentIntegrationManager = .live
   ) async throws -> SupatermAgentIntegrationResult {
     try await Task.detached(priority: .utility) {
-      try manager.remove(request.agent)
       return SupatermAgentIntegrationResult(
         agent: request.agent,
-        health: try manager.health(request.agent)
+        health: try manager.remove(request.agent)
       )
     }.value
   }

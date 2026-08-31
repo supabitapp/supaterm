@@ -9,8 +9,6 @@ public struct CodexSettingsInstaller {
     case integration
   }
 
-  private static let operationLock = NSLock()
-
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let runEnableHooksCommand: @Sendable () throws -> CommandResult
@@ -47,8 +45,6 @@ public struct CodexSettingsInstaller {
   }
 
   public func installSupatermHooks() throws {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
     switch try codexAvailability() {
     case .unavailable:
       throw CodexSettingsInstallerError.codexUnavailable
@@ -60,8 +56,6 @@ public struct CodexSettingsInstaller {
   }
 
   public func setup() throws -> CodingAgentIntegrationHealth {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
     switch try codexAvailability() {
     case .unavailable:
       return .unavailable
@@ -147,8 +141,6 @@ public struct CodexSettingsInstaller {
   }
 
   public func integrationHealth() throws -> CodingAgentIntegrationHealth {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
     return try integrationHealthLocked()
   }
 
@@ -191,8 +183,6 @@ public struct CodexSettingsInstaller {
   }
 
   public func removeSupatermHooks() throws {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
     try removeSupatermHooksLocked()
   }
 
