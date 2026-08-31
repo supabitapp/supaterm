@@ -559,7 +559,7 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
-  func copyAndServicesReadAccessibilitySelection() {
+  func copyPasteSelectionAndServicesValidateTheirSources() {
     initializeGhosttyForTests()
 
     let selection = SelectionTextSource()
@@ -576,6 +576,14 @@ struct GhosttySurfaceViewTests {
       action: #selector(GhosttySurfaceView.copy(_:)),
       keyEquivalent: ""
     )
+    let pasteSelectionItem = NSMenuItem(
+      title: "Paste Selection",
+      action: #selector(GhosttySurfaceView.pasteSelection(_:)),
+      keyEquivalent: ""
+    )
+    let selectionPasteboard = NSPasteboard.ghosttySelection
+    selectionPasteboard.clearContents()
+    defer { selectionPasteboard.clearContents() }
 
     #expect(!surfaceView.validateMenuItem(copyItem))
     selection.value = ""
@@ -583,6 +591,9 @@ struct GhosttySurfaceViewTests {
     selection.value = "selected text"
     #expect(surfaceView.validateMenuItem(copyItem))
     #expect(surfaceView.accessibilitySelectedText() == "selected text")
+    #expect(!surfaceView.validateMenuItem(pasteSelectionItem))
+    #expect(selectionPasteboard.setString("selected text", forType: .string))
+    #expect(surfaceView.validateMenuItem(pasteSelectionItem))
 
     let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
     #expect(surfaceView.writeSelection(to: pasteboard, types: [.string]))

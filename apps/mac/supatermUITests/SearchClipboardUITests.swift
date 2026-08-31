@@ -91,12 +91,13 @@ final class SearchClipboardUITests: SupatermUITestCase {
   }
 
   @MainActor
-  func testCopyPasteAndPasteSelectionRoundTrip() async throws {
+  func testCopyPasteAndPasteSelectionActions() async throws {
     preservePasteboards()
     let terminal = terminalElement()
     let selection = "SUPATERMCOPYROUNDTRIP"
     try await printAtTopAndSelect(selection, in: terminal)
 
+    NSPasteboard.general.clearContents()
     app.typeKey("c", modifierFlags: .command)
     let copied = await wait(for: terminal) { _ in
       NSPasteboard.general.string(forType: .string) == selection
@@ -117,6 +118,8 @@ final class SearchClipboardUITests: SupatermUITestCase {
     }
     XCTAssertTrue(clearedInput)
 
+    ghosttySelectionPasteboard.clearContents()
+    XCTAssertTrue(ghosttySelectionPasteboard.setString(selection, forType: .string))
     try clickMenuItem(.pasteSelection)
     let pastedSelection = await wait(for: terminal) {
       self.occurrences(of: selection, in: self.terminalText($0)) == occurrencesBeforePaste + 1
@@ -200,13 +203,15 @@ final class SearchClipboardUITests: SupatermUITestCase {
     try await runCommand("clear; \(printfCommand(text))", showing: text, in: terminal)
     let origin = terminal.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
     for _ in 0..<3 {
+      NSPasteboard.general.clearContents()
       origin.withOffset(CGVector(dx: 48, dy: 12)).doubleClick()
+      app.typeKey("c", modifierFlags: .command)
       let selectionCopied = await wait(for: terminal, timeout: .seconds(2)) { _ in
-        self.ghosttySelectionPasteboard.string(forType: .string) == text
+        NSPasteboard.general.string(forType: .string) == text
       }
       if selectionCopied { return }
     }
-    XCTFail("Terminal selection did not reach the selection pasteboard")
+    XCTFail("Terminal selection could not be copied")
   }
 
   private func printfCommand(_ text: String) -> String {

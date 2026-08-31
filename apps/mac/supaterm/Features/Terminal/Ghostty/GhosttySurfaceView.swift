@@ -2228,8 +2228,17 @@ extension GhosttySurfaceView: NSServicesMenuRequestor {
 
 extension GhosttySurfaceView: NSMenuItemValidation {
   func validateMenuItem(_ item: NSMenuItem) -> Bool {
-    guard item.action == #selector(copy(_:)) else { return true }
-    return accessibilitySelectedText() != nil
+    switch item.action {
+    case #selector(copy(_:)):
+      return accessibilitySelectedText() != nil
+    case #selector(pasteSelection(_:)):
+      guard let contents = NSPasteboard.ghosttySelection.getOpinionatedStringContents() else {
+        return false
+      }
+      return !contents.isEmpty
+    default:
+      return true
+    }
   }
 }
 
