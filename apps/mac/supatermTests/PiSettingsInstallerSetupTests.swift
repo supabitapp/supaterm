@@ -27,7 +27,7 @@ struct PiSettingsInstallerSetupTests {
         PiPackageMutationExecutor.commandArguments(for: .install(canonicalSource))
       ]
     )
-    #expect(capture.timeouts == [PiSettingsInstaller.mutationTimeout])
+    #expect(capture.timeouts == [SupatermAgentIntegrationTiming.mutationTimeout])
   }
 
   @Test
@@ -56,7 +56,7 @@ struct PiSettingsInstallerSetupTests {
         PiPackageMutationExecutor.commandArguments(for: .update(canonicalSource))
       ]
     )
-    #expect(capture.timeouts == [PiSettingsInstaller.mutationTimeout])
+    #expect(capture.timeouts == [SupatermAgentIntegrationTiming.mutationTimeout])
   }
 
   @Test
@@ -256,6 +256,141 @@ struct PiSettingsInstallerSetupTests {
   }
 
   @Test
+  func setupRestoresRemovedSourcesWhenInstallFails() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let officialValue = "https://github.com/supabitapp/supaterm-skills"
+    let forkValue = "git:github.com/example/supaterm-skills"
+    let unrelated = "git:github.com/example/other-package"
+    try writePiPackageSources(
+      [officialValue, forkValue, unrelated],
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let runner = PiPackageMutationRunner(
+      homeDirectoryURL: homeDirectoryURL,
+      failedMutationIndex: 3
+    )
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: runner.checkAvailability,
+      runPiMutation: runner.run
+    )
+    let officialSource = piPackageSource(officialValue, homeDirectoryURL: homeDirectoryURL)
+    let forkSource = piPackageSource(forkValue, homeDirectoryURL: homeDirectoryURL)
+    let canonicalSource = canonicalPiPackageSource(homeDirectoryURL: homeDirectoryURL)
+
+    #expect(throws: PiSettingsInstallerError.installFailed("failed")) {
+      try installer.setup()
+    }
+    #expect(
+      runner.mutations == [
+        .remove(officialSource),
+        .remove(forkSource),
+        .install(canonicalSource),
+        .install(forkSource),
+        .install(officialSource),
+      ]
+    )
+    let packages = try #require(
+      piSettingsObject(homeDirectoryURL: homeDirectoryURL)["packages"] as? [String]
+    )
+    #expect(Set(packages) == Set([officialValue, forkValue, unrelated]))
+  }
+
+  @Test
+  func setupRunsEveryRollbackAndRestoresExactSettingsAfterRollbackFailure() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let officialValue = "../../official/supaterm-skills"
+    let forkValue = "../../fork/supaterm-skills"
+    let original =
+      """
+      {
+        "theme": "night",
+        "packages": [
+          { "extensions": ["one", "two"], "source": "\(officialValue)" },
+          "\(officialValue)",
+          { "source": "\(forkValue)", "options": { "enabled": true } },
+          "npm:@example/other-package"
+        ],
+        "custom": { "spacing": 2 }
+      }
+      """
+    try writePiSettings(original, homeDirectoryURL: homeDirectoryURL)
+    let originalData = try Data(
+      contentsOf: PiSettingsInstaller.settingsURL(
+        homeDirectoryURL: homeDirectoryURL
+      ))
+    let runner = PiPackageMutationRunner(
+      homeDirectoryURL: homeDirectoryURL,
+      failedMutationDetails: [
+        3: "primary failed",
+        4: "first rollback failed",
+      ]
+    )
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: runner.checkAvailability,
+      runPiMutation: runner.run
+    )
+    let officialSource = piPackageSource(officialValue, homeDirectoryURL: homeDirectoryURL)
+    let forkSource = piPackageSource(forkValue, homeDirectoryURL: homeDirectoryURL)
+    let canonicalSource = canonicalPiPackageSource(homeDirectoryURL: homeDirectoryURL)
+
+    #expect(
+      throws: PiSettingsInstallerError.rollbackFailed(
+        primary: "Supaterm could not install the Pi package: primary failed",
+        failures: ["first rollback failed"]
+      )
+    ) {
+      try installer.setup()
+    }
+    #expect(
+      runner.mutations == [
+        .remove(officialSource),
+        .remove(forkSource),
+        .install(canonicalSource),
+        .install(forkSource),
+        .install(officialSource),
+      ]
+    )
+    let restoredData = try Data(
+      contentsOf: PiSettingsInstaller.settingsURL(
+        homeDirectoryURL: homeDirectoryURL
+      ))
+    #expect(restoredData == originalData)
+    let restored = try piSettingsObject(homeDirectoryURL: homeDirectoryURL)
+    let packages = try #require(restored["packages"] as? [Any])
+    #expect(packages.count == 4)
+    #expect((packages[0] as? [String: Any])?["source"] as? String == officialValue)
+    #expect(packages[1] as? String == officialValue)
+    #expect(restored["theme"] as? String == "night")
+  }
+
+  @Test
+  func failedInstallRestoresAbsentSettingsFile() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let settingsURL = PiSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: { true },
+      runPiMutation: { _, _ in
+        try writePiPackageSources(
+          [PiSettingsInstaller.canonicalPackageSource],
+          homeDirectoryURL: homeDirectoryURL
+        )
+        return PiSettingsInstaller.CommandResult(status: 1, standardError: "failed")
+      }
+    )
+
+    #expect(throws: PiSettingsInstallerError.installFailed("failed")) {
+      try installer.installSupatermPackage()
+    }
+    #expect(!FileManager.default.fileExists(atPath: settingsURL.path))
+  }
+
+  @Test
   func setupReplacesNpmPackage() throws {
     let homeDirectoryURL = try temporaryPiHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
@@ -437,18 +572,22 @@ struct PiSettingsInstallerSetupTests {
 
   @Test
   func integrationTimeoutsCoverPiSetup() {
-    #expect(PiSettingsInstaller.availabilityTimeout == 10)
-    #expect(PiSettingsInstaller.mutationTimeout == 60)
-    #expect(PiSettingsInstaller.maximumMutationsPerRequest == 3)
+    #expect(SupatermAgentIntegrationTiming.availabilityTimeout == 10)
+    #expect(SupatermAgentIntegrationTiming.mutationTimeout == 60)
+    #expect(SupatermAgentIntegrationTiming.maximumMutationsPerRequest == 3)
     #expect(
-      PiSettingsInstaller.maximumSetupDuration
-        == PiSettingsInstaller.availabilityTimeout
-        + PiSettingsInstaller.mutationTimeout
-        * TimeInterval(PiSettingsInstaller.maximumMutationsPerRequest)
+      SupatermAgentIntegrationTiming.setupBudget
+        == SupatermAgentIntegrationTiming.availabilityTimeout
+        + SupatermAgentIntegrationTiming.mutationTimeout
+        * TimeInterval(SupatermAgentIntegrationTiming.maximumMutationsPerRequest * 2 - 1)
     )
     #expect(
-      PiSettingsInstaller.maximumSetupDuration
+      SupatermAgentIntegrationTiming.setupBudget
         < SupatermAgentIntegrationTiming.serverReplyTimeout
+    )
+    #expect(
+      SupatermAgentIntegrationTiming.serverReplyTimeout
+        < SupatermAgentIntegrationTiming.clientResponseTimeout
     )
   }
 }

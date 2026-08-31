@@ -12,13 +12,13 @@ struct ClaudeSettingsClient: Sendable {
 extension ClaudeSettingsClient: DependencyKey {
   static let liveValue = Self(
     integrationHealth: {
-      try ClaudeSettingsInstaller().integrationHealth()
+      try CodingAgentIntegrationManager.live.health(.claude)
     },
     installSupatermHooks: {
-      try ClaudeSettingsInstaller().installSupatermHooks()
+      try CodingAgentIntegrationManager.live.repair(.claude)
     },
     removeSupatermHooks: {
-      try ClaudeSettingsInstaller().removeSupatermHooks()
+      _ = try CodingAgentIntegrationManager.live.remove(.claude)
     }
   )
 

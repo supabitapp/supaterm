@@ -12,7 +12,7 @@ func temporaryPiHomeDirectory() throws -> URL {
   )
 }
 
-func writePiSettings(
+nonisolated func writePiSettings(
   _ contents: String,
   homeDirectoryURL: URL
 ) throws {
@@ -24,7 +24,7 @@ func writePiSettings(
   try Data(contents.utf8).write(to: settingsURL)
 }
 
-func writePiPackageSources(
+nonisolated func writePiPackageSources(
   _ sources: [String],
   homeDirectoryURL: URL
 ) throws {
@@ -128,14 +128,25 @@ extension PiInvocationCapture where Value == PiPackageMutation {
 nonisolated final class PiPackageMutationRunner: @unchecked Sendable {
   private let homeDirectoryURL: URL
   private let isAvailable: Bool
+  private let failedMutationDetails: [Int: String]
   private let lock = NSLock()
   private var availabilityCheckValue = 0
   private var mutationValue: [PiPackageMutation] = []
   private var timeoutValue: [TimeInterval] = []
 
-  init(homeDirectoryURL: URL, isAvailable: Bool = true) {
+  init(
+    homeDirectoryURL: URL,
+    isAvailable: Bool = true,
+    failedMutationIndex: Int? = nil,
+    failedMutationDetails: [Int: String] = [:]
+  ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.isAvailable = isAvailable
+    var failures = failedMutationDetails
+    if let failedMutationIndex {
+      failures[failedMutationIndex] = "failed"
+    }
+    self.failedMutationDetails = failures
   }
 
   func checkAvailability() -> Bool {
@@ -153,14 +164,17 @@ nonisolated final class PiPackageMutationRunner: @unchecked Sendable {
     defer { lock.unlock() }
     mutationValue.append(mutation)
     timeoutValue.append(timeout)
+    if let details = failedMutationDetails[mutationValue.count] {
+      return PiSettingsInstaller.CommandResult(status: 1, standardError: details)
+    }
     var settings = try piSettingsObject(homeDirectoryURL: homeDirectoryURL)
-    guard var packages = settings["packages"] as? [String] else {
+    guard var packages = settings["packages"] as? [Any] else {
       return PiSettingsInstaller.CommandResult(status: 1)
     }
 
     switch mutation {
     case .install(let source):
-      if let index = packages.firstIndex(where: { packageSource($0).identity == source.identity }) {
+      if let index = packages.firstIndex(where: { packageSource($0)?.identity == source.identity }) {
         packages[index] = source.installedValue
       } else {
         packages.append(source.installedValue)
@@ -169,11 +183,11 @@ nonisolated final class PiPackageMutationRunner: @unchecked Sendable {
       try writePiSettingsObject(settings, homeDirectoryURL: homeDirectoryURL)
       try writeInstalledPiPackage(version: "0.2.0", homeDirectoryURL: homeDirectoryURL)
     case .remove(let source):
-      packages.removeAll { packageSource($0).identity == source.identity }
+      packages.removeAll { packageSource($0)?.identity == source.identity }
       settings["packages"] = packages
       try writePiSettingsObject(settings, homeDirectoryURL: homeDirectoryURL)
     case .update(let source):
-      guard packages.contains(where: { packageSource($0).identity == source.identity }) else {
+      guard packages.contains(where: { packageSource($0)?.identity == source.identity }) else {
         return PiSettingsInstaller.CommandResult(status: 1)
       }
       try writeInstalledPiPackage(version: "0.2.0", homeDirectoryURL: homeDirectoryURL)
@@ -181,8 +195,18 @@ nonisolated final class PiPackageMutationRunner: @unchecked Sendable {
     return PiSettingsInstaller.CommandResult(status: 0)
   }
 
-  private func packageSource(_ value: String) -> PiPackageSource {
-    PiPackageSource(value, homeDirectoryURL: homeDirectoryURL)
+  private func packageSource(_ value: Any) -> PiPackageSource? {
+    let source: String? =
+      if let source = value as? String {
+        source
+      } else if let package = value as? [String: Any],
+        let source = package["source"] as? String
+      {
+        source
+      } else {
+        nil
+      }
+    return source.map { PiPackageSource($0, homeDirectoryURL: homeDirectoryURL) }
   }
 
   var availabilityChecks: Int {

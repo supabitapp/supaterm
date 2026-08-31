@@ -1,4 +1,3 @@
-import Dispatch
 import Foundation
 import Synchronization
 import Testing
@@ -134,83 +133,6 @@ struct ClaudeSettingsInstallerTests {
     #expect(object["hooks"] != nil)
     #expect(object["terminalProgressBarEnabled"] as? Bool == true)
     #expect(availabilityChecks.withLock { $0 } == 1)
-  }
-
-  @Test
-  func concurrentHookRepairCannotRaceSetupSettingsMutation() throws {
-    let homeDirectoryURL = try temporaryHomeDirectory()
-    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let repairMutationEntered = DispatchSemaphore(value: 0)
-    let releaseRepairMutation = DispatchSemaphore(value: 0)
-    let setupAvailabilityChecked = DispatchSemaphore(value: 0)
-    let setupMutationEntered = DispatchSemaphore(value: 0)
-    let availabilityChecks = Mutex(0)
-    let failures = Mutex<[String]>([])
-    let repairInstaller = Mutex(
-      ClaudeSettingsInstaller(
-        homeDirectoryURL: homeDirectoryURL,
-        runAvailabilityCommand: { CodingAgentCommandResult(status: 0) },
-        beforeSettingsMutation: {
-          repairMutationEntered.signal()
-          releaseRepairMutation.wait()
-        }
-      )
-    )
-    let setupInstaller = Mutex(
-      ClaudeSettingsInstaller(
-        homeDirectoryURL: homeDirectoryURL,
-        runAvailabilityCommand: {
-          availabilityChecks.withLock { $0 += 1 }
-          setupAvailabilityChecked.signal()
-          return CodingAgentCommandResult(status: 0)
-        },
-        beforeSettingsMutation: {
-          setupMutationEntered.signal()
-        }
-      )
-    )
-    let operations = DispatchGroup()
-
-    operations.enter()
-    DispatchQueue.global().async {
-      defer { operations.leave() }
-      do {
-        try repairInstaller.withLock { try $0.installSupatermHooks() }
-      } catch {
-        failures.withLock { $0.append(error.localizedDescription) }
-      }
-    }
-    repairMutationEntered.wait()
-
-    operations.enter()
-    DispatchQueue.global().async {
-      defer { operations.leave() }
-      do {
-        let health = try setupInstaller.withLock { try $0.setup() }
-        guard health == .healthy else {
-          failures.withLock { $0.append("Unexpected setup health: \(health)") }
-          return
-        }
-      } catch {
-        failures.withLock { $0.append(error.localizedDescription) }
-      }
-    }
-    setupAvailabilityChecked.wait()
-
-    let setupEnteredBeforeRelease =
-      setupMutationEntered.wait(timeout: .now() + .milliseconds(100)) == .success
-    releaseRepairMutation.signal()
-    operations.wait()
-    let setupEntered =
-      setupEnteredBeforeRelease || setupMutationEntered.wait(timeout: .now()) == .success
-
-    #expect(!setupEnteredBeforeRelease)
-    #expect(setupEntered)
-    #expect(failures.withLock { $0 }.isEmpty)
-    #expect(availabilityChecks.withLock { $0 } == 1)
-    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
-    #expect(object["hooks"] != nil)
-    #expect(object["terminalProgressBarEnabled"] as? Bool == true)
   }
 
   @Test

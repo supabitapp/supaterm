@@ -1,7 +1,7 @@
 import Foundation
 import SupatermCLIShared
 
-public struct CodexSettingsInstaller {
+struct CodexSettingsInstaller {
   typealias CommandResult = CodingAgentCommandResult
 
   private enum SetupScope {
@@ -9,15 +9,13 @@ public struct CodexSettingsInstaller {
     case integration
   }
 
-  private static let operationLock = NSLock()
-
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let runEnableHooksCommand: @Sendable () throws -> CommandResult
   let runVersionCommand: @Sendable () throws -> CodingAgentCommandResult
   let appServerClient: CodexAppServerClient
 
-  public init(
+  init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
@@ -46,9 +44,7 @@ public struct CodexSettingsInstaller {
     self.appServerClient = appServerClient ?? CodexAppServerClient(homeDirectoryURL: homeDirectoryURL)
   }
 
-  public func installSupatermHooks() throws {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
+  func installSupatermHooks() throws {
     switch try codexAvailability() {
     case .unavailable:
       throw CodexSettingsInstallerError.codexUnavailable
@@ -59,9 +55,7 @@ public struct CodexSettingsInstaller {
     }
   }
 
-  public func setup() throws -> CodingAgentIntegrationHealth {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
+  func setup() throws -> CodingAgentIntegrationHealth {
     switch try codexAvailability() {
     case .unavailable:
       return .unavailable
@@ -146,9 +140,7 @@ public struct CodexSettingsInstaller {
     }
   }
 
-  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
+  func integrationHealth() throws -> CodingAgentIntegrationHealth {
     return try integrationHealthLocked()
   }
 
@@ -190,9 +182,7 @@ public struct CodexSettingsInstaller {
     return .healthy
   }
 
-  public func removeSupatermHooks() throws {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
+  func removeSupatermHooks() throws {
     try removeSupatermHooksLocked()
   }
 
@@ -242,13 +232,13 @@ public struct CodexSettingsInstaller {
     }
   }
 
-  public static func settingsURL(homeDirectoryURL: URL) -> URL {
+  static func settingsURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".codex", isDirectory: true)
       .appendingPathComponent("hooks.json", isDirectory: false)
   }
 
-  public static func configURL(homeDirectoryURL: URL) -> URL {
+  static func configURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".codex", isDirectory: true)
       .appendingPathComponent("config.toml", isDirectory: false)

@@ -88,7 +88,7 @@ struct PiSettingsInstallerHealthRemovalTests {
     )
     #expect(
       capture.timeouts
-        == Array(repeating: PiSettingsInstaller.mutationTimeout, count: 2)
+        == Array(repeating: SupatermAgentIntegrationTiming.mutationTimeout, count: 2)
     )
   }
 
@@ -123,9 +123,30 @@ struct PiSettingsInstallerHealthRemovalTests {
     try installer.removeSupatermPackage()
 
     #expect(runner.mutations == [.remove(source)])
-    #expect(source.removalValue == absoluteSource)
+    #expect(source.mutationValue == absoluteSource)
     #expect(
       try piSettingsObject(homeDirectoryURL: homeDirectoryURL)["packages"] as? [String] == []
+    )
+  }
+
+  @Test
+  func rollbackInstallUsesAbsolutePathForSettingsRelativeLocalSource() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let sourceValue = "packages/supaterm-skills"
+    let source = piPackageSource(sourceValue, homeDirectoryURL: homeDirectoryURL)
+    let rollback = try #require(PiPackageMutation.remove(source).rollback)
+    let absoluteSource =
+      PiSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+      .deletingLastPathComponent()
+      .appendingPathComponent(sourceValue, isDirectory: true)
+      .standardizedFileURL.path
+
+    #expect(
+      PiPackageMutationExecutor.commandArguments(for: rollback)
+        == LoginShellCommandAvailability.interactiveCommandArguments(
+          for: "pi install '\(absoluteSource)'"
+        )
     )
   }
 
@@ -168,7 +189,7 @@ struct PiSettingsInstallerHealthRemovalTests {
     try installer.removeSupatermPackage()
 
     #expect(runner.mutations == [.remove(source)])
-    #expect(source.removalValue == sourceValue)
+    #expect(source.mutationValue == sourceValue)
     #expect(
       PiPackageMutationExecutor.commandArguments(for: .remove(source))
         == LoginShellCommandAvailability.interactiveCommandArguments(
@@ -178,6 +199,41 @@ struct PiSettingsInstallerHealthRemovalTests {
     #expect(
       try piSettingsObject(homeDirectoryURL: homeDirectoryURL)["packages"] as? [String] == []
     )
+  }
+
+  @Test
+  func removeRestoresEarlierSourceWhenLaterRemovalFails() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let officialValue = "git:github.com/supabitapp/supaterm-skills"
+    let forkValue = "git:github.com/example/supaterm-skills"
+    try writePiPackageSources([officialValue, forkValue], homeDirectoryURL: homeDirectoryURL)
+    let runner = PiPackageMutationRunner(
+      homeDirectoryURL: homeDirectoryURL,
+      failedMutationIndex: 2
+    )
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: runner.checkAvailability,
+      runPiMutation: runner.run
+    )
+    let officialSource = piPackageSource(officialValue, homeDirectoryURL: homeDirectoryURL)
+    let forkSource = piPackageSource(forkValue, homeDirectoryURL: homeDirectoryURL)
+
+    #expect(throws: PiSettingsInstallerError.removeFailed("failed")) {
+      try installer.removeSupatermPackage()
+    }
+    #expect(
+      runner.mutations == [
+        .remove(officialSource),
+        .remove(forkSource),
+        .install(officialSource),
+      ]
+    )
+    let packages = try #require(
+      piSettingsObject(homeDirectoryURL: homeDirectoryURL)["packages"] as? [String]
+    )
+    #expect(Set(packages) == Set([officialValue, forkValue]))
   }
 
   @Test
