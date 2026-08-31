@@ -93,8 +93,7 @@ extension TerminalHostState {
     else {
       return
     }
-    let retained = Set(tabIDs)
-    requestCloseTabs(tabCollection.tabs.map(\.id).filter { !retained.contains($0) })
+    requestCloseTabs(tabCollection.otherTabIDs(keeping: tabIDs))
   }
 
   func requestCloseTabs(_ tabIDs: [TerminalTabID]) {
