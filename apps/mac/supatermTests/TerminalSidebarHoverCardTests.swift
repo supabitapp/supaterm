@@ -5,6 +5,68 @@ import Testing
 @testable import supaterm
 
 struct TerminalSidebarHoverCardTests {
+  @Test
+  func pullRequestModelPreservesURL() throws {
+    let url = try #require(URL(string: "https://github.com/supabitapp/supaterm/pull/128"))
+    let status = PaneAgentPullRequestStatus(
+      kind: .open,
+      title: "#128",
+      url: url,
+      addedLineCount: nil,
+      removedLineCount: nil,
+      checks: nil
+    )
+
+    let pullRequest = try #require(TerminalTabAgentWorkspace.PullRequest(status))
+
+    #expect(pullRequest.url == url)
+  }
+
+  @Test @MainActor
+  func pullRequestActionOpensURL() throws {
+    let url = try #require(URL(string: "https://github.com/supabitapp/supaterm/pull/128"))
+    let pullRequest = TerminalTabAgentWorkspace.PullRequest(
+      kind: .open,
+      title: "#128",
+      url: url
+    )
+    var openedURLs: [URL] = []
+    var copiedValues: [String] = []
+
+    TerminalSidebarHoverCardRowAction.pullRequest(pullRequest).perform(
+      clipboardClient: ClipboardClient { copiedValues.append($0) },
+      externalNavigationClient: ExternalNavigationClient { url in
+        openedURLs.append(url)
+        return true
+      }
+    )
+
+    #expect(openedURLs == [url])
+    #expect(copiedValues.isEmpty)
+  }
+
+  @Test @MainActor
+  func pullRequestActionCopiesTitleWithoutURL() {
+    let pullRequest = TerminalTabAgentWorkspace.PullRequest(
+      kind: .open,
+      title: "#128",
+      url: nil
+    )
+    var copiedValues: [String] = []
+    var openedURLs: [URL] = []
+
+    TerminalSidebarHoverCardRowAction.pullRequest(pullRequest).perform(
+      clipboardClient: ClipboardClient { copiedValues.append($0) },
+      externalNavigationClient: ExternalNavigationClient {
+        openedURLs.append($0)
+        return true
+      }
+    )
+
+    #expect(copiedValues == ["#128"])
+    #expect(openedURLs.isEmpty)
+  }
+
   @Test @MainActor
   func shortResponseUsesItsContentHeight() {
     let content = TerminalSidebarHoverCardContent(
@@ -71,7 +133,8 @@ struct TerminalSidebarHoverCardTests {
           name: "feature/sidebar-hover-card",
           pullRequest: TerminalTabAgentWorkspace.PullRequest(
             kind: .open,
-            title: "#128"
+            title: "#128",
+            url: URL(string: "https://github.com/supabitapp/supaterm/pull/128")
           )
         )
       ),
