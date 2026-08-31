@@ -415,29 +415,36 @@ struct TerminalWindowFeature {
             preferredWidth: state.sidebarWidth,
             totalWidth: totalWidth
           )
+          return .none
         case .changed(let delta):
           state.sidebarResizeState?.delta = delta
+          return .none
         case .ended:
           guard let resizeState = state.sidebarResizeState else { return .none }
           state.sidebarResizeState = nil
-          if TerminalSidebarWidthPolicy.shouldCollapse(
-            resizeState: resizeState,
-            totalWidth: totalWidth
-          ) {
-            state.isSidebarCollapsed = true
-          } else {
-            state.sidebarWidth = TerminalSidebarWidthPolicy.settledWidth(
-              for: resizeState,
+          guard
+            !TerminalSidebarWidthPolicy.shouldCollapse(
+              resizeState: resizeState,
               totalWidth: totalWidth
             )
-            return .run { [terminalClient] _ in
-              await terminalClient.host().sessionDidChange()
-            }
+          else {
+            state.isSidebarCollapsed = true
+            return .none
           }
+          state.sidebarWidth = TerminalSidebarWidthPolicy.settledWidth(
+            for: resizeState,
+            totalWidth: totalWidth
+          )
         case .failed:
           state.sidebarResizeState = nil
+          return .none
+        case .reset:
+          state.sidebarResizeState = nil
+          state.sidebarWidth = nil
         }
-        return .none
+        return .run { [terminalClient] _ in
+          await terminalClient.host().sessionDidChange()
+        }
 
       case .task:
         let windowControllerID = state.windowControllerID

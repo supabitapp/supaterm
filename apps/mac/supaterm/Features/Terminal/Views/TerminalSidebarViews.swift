@@ -138,6 +138,9 @@ final class SidebarResizeInteractionNSView: NSView {
     setAccessibilityLabel("Resize Sidebar")
     let pan = NSPanGestureRecognizer(target: self, action: #selector(handlePan))
     addGestureRecognizer(pan)
+    let doubleClick = NSClickGestureRecognizer(target: self, action: #selector(handleDoubleClick))
+    doubleClick.numberOfClicksRequired = 2
+    addGestureRecognizer(doubleClick)
   }
 
   @available(*, unavailable)
@@ -205,6 +208,10 @@ final class SidebarResizeInteractionNSView: NSView {
     for input in inputs {
       onInput?(input)
     }
+  }
+
+  @objc private func handleDoubleClick() {
+    onInput?(.reset)
   }
 
   private func resize(by delta: CGFloat) {

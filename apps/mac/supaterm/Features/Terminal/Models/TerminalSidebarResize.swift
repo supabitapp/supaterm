@@ -10,6 +10,7 @@ enum TerminalSidebarResizeInput: Equatable {
   case changed(delta: CGFloat)
   case ended
   case failed
+  case reset
 }
 
 enum TerminalSidebarWidthPolicy {
