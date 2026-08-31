@@ -102,7 +102,6 @@ struct TerminalSidebarTabRow: View {
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
-  @State private var isHoveringIndicator = false
   @State private var isPressed = false
 
   private var selectionStyle: SelectableRowSelection {
@@ -113,8 +112,12 @@ struct TerminalSidebarTabRow: View {
     selectionStyle != .none
   }
 
+  private var hasStatusIndicator: Bool {
+    panes.contains { $0.indicator != nil }
+  }
+
   private var showsCloseButton: Bool {
-    isHovering && !isHoveringIndicator
+    isHovering && !hasStatusIndicator
   }
 
   private var rowFill: Color {
@@ -152,8 +155,7 @@ struct TerminalSidebarTabRow: View {
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
-      isRowHovering: showsCloseButton,
-      onIndicatorHover: { isHoveringIndicator = $0 }
+      isRowHovering: showsCloseButton
     )
     .help(TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes))
     .padding(.leading, contentInsets.leading)
@@ -195,12 +197,7 @@ struct TerminalSidebarTabRow: View {
         )
       }
     }
-    .onHover { isHovering in
-      self.isHovering = isHovering
-      if !isHovering {
-        isHoveringIndicator = false
-      }
-    }
+    .onHover { isHovering = $0 }
     .contextMenu {
       let contextualTabIDs = selectionState.contextualTabIDs(
         for: tab.id,

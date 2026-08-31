@@ -11,6 +11,8 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didShowAgentStatus)
 
+    hoverTitle(in: tab)
+    XCTAssertTrue(tab.label.contains("Agent working"))
     hoverTrailingIndicator(in: tab)
     try require(helpTag(labeled: "Agent working"), timeout: 5)
   }
@@ -47,6 +49,8 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didShowAttention)
 
+    hoverTitle(in: tab, lineIndex: 1, lineCount: 2)
+    XCTAssertTrue(tab.label.contains("Terminal attention"))
     hoverTrailingIndicator(in: tab, lineIndex: 1, lineCount: 2)
     try require(helpTag(labeled: "Terminal attention"), timeout: 5)
   }
@@ -69,15 +73,46 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
   }
 
   @MainActor
+  private func hoverTitle(
+    in tab: XCUIElement,
+    lineIndex: Int = 0,
+    lineCount: Int = 1
+  ) {
+    coordinate(
+      in: tab,
+      horizontalPosition: 0.25,
+      lineIndex: lineIndex,
+      lineCount: lineCount
+    ).hover()
+  }
+
+  @MainActor
   private func hoverTrailingIndicator(
     in tab: XCUIElement,
     lineIndex: Int = 0,
     lineCount: Int = 1
   ) {
+    coordinate(
+      in: tab,
+      horizontalPosition: 1,
+      lineIndex: lineIndex,
+      lineCount: lineCount
+    )
+    .withOffset(CGVector(dx: -22, dy: 0))
+    .hover()
+  }
+
+  @MainActor
+  private func coordinate(
+    in tab: XCUIElement,
+    horizontalPosition: CGFloat,
+    lineIndex: Int,
+    lineCount: Int
+  ) -> XCUICoordinate {
     let lineMidpoint = (CGFloat(lineIndex) + 0.5) / CGFloat(lineCount)
-    tab.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: lineMidpoint))
-      .withOffset(CGVector(dx: -22, dy: 0))
-      .hover()
+    return tab.coordinate(
+      withNormalizedOffset: CGVector(dx: horizontalPosition, dy: lineMidpoint)
+    )
   }
 
   @MainActor
