@@ -360,16 +360,15 @@ struct SocketControlFeatureNotificationsTests {
   func agentHookCandidateRequestRepliesWithCandidateResponse() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "5C109774-F5A2-41F0-BB7F-96BB4842D9BD")!
-    let requestPayload = SupatermAgentHookRequest(
-      agent: .codex,
+    let requestPayload = SupatermAgentHookCandidateQuery(
       event: SupatermAgentHookEvent(
         cwd: "/tmp/workspace",
         hookEventName: .sessionStart,
         sessionID: "session-1",
-        source: "startup",
+        source: SupatermCodexRootSessionStart.Source.startup.rawValue,
         transcriptPath: "/tmp/session-1.jsonl"
       ),
-      processID: 42
+      emitterProcessID: 42
     )
     let request = SocketControlClient.Request(
       handle: handle,

@@ -65,56 +65,51 @@ struct CodexHookEventTests {
     #expect(actual == expected)
   }
 
-  @Test(arguments: ["startup", "resume", "clear", "compact"])
-  func durableRootSessionStartAcceptsKnownSources(source: String) throws {
+  @Test(arguments: SupatermCodexRootSessionStart.Source.allCases)
+  func codexRootSessionStartAcceptsDurableSources(
+    source: SupatermCodexRootSessionStart.Source
+  ) throws {
     let event = SupatermAgentHookEvent(
       cwd: CodexHookFixtures.cwd,
       hookEventName: .sessionStart,
       sessionID: CodexHookFixtures.sessionID,
-      source: source,
+      source: source.rawValue,
       transcriptPath: "/tmp/transcript.jsonl"
     )
     let roundTrip = try JSONDecoder().decode(
       SupatermAgentHookEvent.self,
       from: JSONEncoder().encode(event)
     )
+    let sessionStart = try #require(event.codexRootSessionStart)
 
+    #expect(sessionStart.cwd == CodexHookFixtures.cwd)
+    #expect(sessionStart.sessionID == CodexHookFixtures.sessionID)
+    #expect(sessionStart.source == source)
     #expect(event.transcriptPath == "/tmp/transcript.jsonl")
-    #expect(event.isDurableCodexRootSessionStart)
+    #expect(roundTrip.codexRootSessionStart == sessionStart)
     #expect(roundTrip == event)
   }
 
-  @Test
-  func durableRootSessionStartRejectsIncompleteSubagentAndUnknownSource() {
-    let incomplete = SupatermAgentHookEvent(
-      cwd: CodexHookFixtures.cwd,
-      hookEventName: .sessionStart,
-      sessionID: CodexHookFixtures.sessionID,
-      source: "resume"
-    )
-    let subagent = SupatermAgentHookEvent(
-      cwd: CodexHookFixtures.cwd,
-      hookEventName: .sessionStart,
-      sessionID: CodexHookFixtures.sessionID,
-      source: "resume",
-      transcriptPath: "/tmp/transcript.jsonl",
-      agentID: "agent-123"
-    )
-    let unknownSource = SupatermAgentHookEvent(
-      cwd: CodexHookFixtures.cwd,
-      hookEventName: .sessionStart,
-      sessionID: CodexHookFixtures.sessionID,
-      source: "future",
-      transcriptPath: "/tmp/transcript.jsonl"
+  @Test(arguments: ["cwd", "session_id", "source", "transcript_path"])
+  func codexRootSessionStartRejectsMissingDurableField(field: String) throws {
+    var payload: JSONObject = [
+      "cwd": .string(CodexHookFixtures.cwd),
+      "hook_event_name": .string(SupatermAgentHookEventName.sessionStart.rawValue),
+      "session_id": .string(CodexHookFixtures.sessionID),
+      "source": .string(SupatermCodexRootSessionStart.Source.resume.rawValue),
+      "transcript_path": .string("/tmp/transcript.jsonl"),
+    ]
+    payload.removeValue(forKey: field)
+    let event = try JSONDecoder().decode(
+      SupatermAgentHookEvent.self,
+      from: JSONEncoder().encode(JSONValue.object(payload))
     )
 
-    #expect(!incomplete.isDurableCodexRootSessionStart)
-    #expect(!subagent.isDurableCodexRootSessionStart)
-    #expect(!unknownSource.isDurableCodexRootSessionStart)
+    #expect(event.codexRootSessionStart == nil)
   }
 
-  @Test(arguments: [#""""#, "null"])
-  func durableRootSessionStartRejectsPresentAgentID(agentID: String) throws {
+  @Test(arguments: [#""""#, "null", #""agent-123""#])
+  func codexRootSessionStartRequiresAbsentAgentID(agentID: String) throws {
     let event = try CodexHookFixtures.event(
       """
       {
@@ -129,7 +124,28 @@ struct CodexHookEventTests {
     )
 
     #expect(event.payload["agent_id"] != nil)
-    #expect(!event.isDurableCodexRootSessionStart)
+    #expect(event.codexRootSessionStart == nil)
+  }
+
+  @Test
+  func codexRootSessionStartRejectsOtherEventsAndSources() {
+    let wrongEvent = SupatermAgentHookEvent(
+      cwd: CodexHookFixtures.cwd,
+      hookEventName: .sessionEnd,
+      sessionID: CodexHookFixtures.sessionID,
+      source: SupatermCodexRootSessionStart.Source.resume.rawValue,
+      transcriptPath: "/tmp/transcript.jsonl"
+    )
+    let unknownSource = SupatermAgentHookEvent(
+      cwd: CodexHookFixtures.cwd,
+      hookEventName: .sessionStart,
+      sessionID: CodexHookFixtures.sessionID,
+      source: "future",
+      transcriptPath: "/tmp/transcript.jsonl"
+    )
+
+    #expect(wrongEvent.codexRootSessionStart == nil)
+    #expect(unknownSource.codexRootSessionStart == nil)
   }
 
   @Test

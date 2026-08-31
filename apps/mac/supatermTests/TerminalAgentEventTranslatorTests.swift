@@ -6,10 +6,16 @@ import Testing
 
 struct TerminalAgentEventTranslatorTests {
   @Test(arguments: [SupatermAgentKind.claude, .codex])
-  func sessionStartReportsIdentity(agent: SupatermAgentKind) throws {
-    let request = try request(
+  func sessionStartReportsIdentity(agent: SupatermAgentKind) {
+    let request = SupatermAgentHookRequest(
       agent: agent,
-      json: #"{"session_id":"session-1","cwd":"/tmp/workspace","hook_event_name":"SessionStart"}"#
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        source: agent == .codex ? SupatermCodexRootSessionStart.Source.startup.rawValue : nil,
+        transcriptPath: agent == .codex ? "/tmp/session-1.jsonl" : nil
+      )
     )
 
     #expect(
@@ -21,6 +27,49 @@ struct TerminalAgentEventTranslatorTests {
         )
       ]
     )
+  }
+
+  @Test
+  func codexSessionStartRejectsMissingAndInvalidIdentity() {
+    let missingSession = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        source: SupatermCodexRootSessionStart.Source.startup.rawValue,
+        transcriptPath: "/tmp/session-1.jsonl"
+      )
+    )
+    let invalidStart = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        source: "internal",
+        transcriptPath: "/tmp/session-1.jsonl"
+      )
+    )
+
+    #expect(TerminalAgentEventTranslator.events(for: missingSession).isEmpty)
+    #expect(TerminalAgentEventTranslator.events(for: invalidStart).isEmpty)
+  }
+
+  @Test
+  func codexSessionStartRejectsMismatchedInheritedSession() {
+    let request = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "nested-session",
+        source: SupatermCodexRootSessionStart.Source.startup.rawValue,
+        transcriptPath: "/tmp/nested-session.jsonl"
+      ),
+      inheritedSessionID: "root-session"
+    )
+
+    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
   }
 
   @Test(
@@ -47,35 +96,12 @@ struct TerminalAgentEventTranslatorTests {
     #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
   }
 
-  @Test(
-    arguments: [
-      SupatermAgentHookEventName.notification,
-      .permissionRequest,
-      .postToolUse,
-      .preToolUse,
-      .sessionEnd,
-      .stop,
-      .subagentStart,
-      .subagentStop,
-      .userPromptSubmit,
-    ])
-  func codexIgnoresNonIdentityEvents(eventName: SupatermAgentHookEventName) {
+  @Test
+  func claudeSubagentSessionStartIsIgnored() {
     let request = SupatermAgentHookRequest(
-      agent: .codex,
+      agent: .claude,
       event: SupatermAgentHookEvent(
-        hookEventName: eventName,
-        sessionID: "session-1"
-      )
-    )
-
-    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
-  }
-
-  @Test(arguments: [SupatermAgentKind.claude, .codex])
-  func subagentSessionStartIsIgnored(agent: SupatermAgentKind) {
-    let request = SupatermAgentHookRequest(
-      agent: agent,
-      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
         hookEventName: .sessionStart,
         sessionID: "session-1",
         agentID: "child-1"

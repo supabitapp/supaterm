@@ -70,12 +70,9 @@ struct TerminalCommandExecutorAgentHookTests {
     }
 
     let response = harness.commandExecutor.agentHookCandidates(
-      for: agentHookRequest(
-        agent: .codex,
+      for: codexCandidateQuery(
         sessionID: sessionID,
-        hookEventName: .sessionStart,
-        cwd: FileManager.default.currentDirectoryPath,
-        context: harness.context
+        cwd: FileManager.default.currentDirectoryPath
       )
     )
 
@@ -114,12 +111,7 @@ struct TerminalCommandExecutorAgentHookTests {
     surface.bridge.state.title = rawTitle
 
     let response = harness.commandExecutor.agentHookCandidates(
-      for: agentHookRequest(
-        agent: .codex,
-        sessionID: sessionID,
-        hookEventName: .sessionStart,
-        context: harness.context
-      )
+      for: codexCandidateQuery(sessionID: sessionID)
     )
 
     let candidate = try #require(response.candidates.first)
@@ -143,12 +135,7 @@ struct TerminalCommandExecutorAgentHookTests {
     surface.bridge.state.title = rawTitle
 
     let response = harness.commandExecutor.agentHookCandidates(
-      for: agentHookRequest(
-        agent: .codex,
-        sessionID: sessionID,
-        hookEventName: .sessionStart,
-        context: harness.context
-      )
+      for: codexCandidateQuery(sessionID: sessionID)
     )
 
     let candidate = try #require(response.candidates.first)
@@ -173,12 +160,7 @@ struct TerminalCommandExecutorAgentHookTests {
     surface.bridge.state.title = "Ready | other-session"
 
     let response = harness.commandExecutor.agentHookCandidates(
-      for: agentHookRequest(
-        agent: .codex,
-        sessionID: "other-session",
-        hookEventName: .sessionStart,
-        context: harness.context
-      )
+      for: codexCandidateQuery(sessionID: "other-session")
     )
 
     let candidate = try #require(response.candidates.first)
@@ -206,11 +188,7 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     let response = harness.commandExecutor.agentHookCandidates(
-      for: agentHookRequest(
-        agent: .codex,
-        sessionID: "session-1",
-        hookEventName: .sessionStart
-      )
+      for: codexCandidateQuery(sessionID: "session-1")
     )
 
     #expect(response.candidates.isEmpty)
@@ -221,8 +199,7 @@ struct TerminalCommandExecutorAgentHookTests {
   func codexCandidateQueryRejectsNonRootEvent() throws {
     let harness = try makeClaudeHookHarness()
     try applyCurrentCodexDetection(to: harness)
-    let request = SupatermAgentHookRequest(
-      agent: .codex,
+    let query = SupatermAgentHookCandidateQuery(
       event: SupatermAgentHookEvent(
         cwd: FileManager.default.currentDirectoryPath,
         hookEventName: .sessionStart,
@@ -232,7 +209,7 @@ struct TerminalCommandExecutorAgentHookTests {
       )
     )
 
-    #expect(harness.commandExecutor.agentHookCandidates(for: request).candidates.isEmpty)
+    #expect(harness.commandExecutor.agentHookCandidates(for: query).candidates.isEmpty)
   }
 
   @Test
@@ -249,21 +226,17 @@ struct TerminalCommandExecutorAgentHookTests {
       }
       process.waitUntilExit()
     }
-    let request = agentHookRequest(
-      agent: .codex,
+    let query = codexCandidateQuery(
       sessionID: "session-1",
-      hookEventName: .sessionStart,
-      processID: process.processIdentifier
+      emitterProcessID: process.processIdentifier
     )
 
-    #expect(harness.commandExecutor.agentHookCandidates(for: request).sharedCodexHost)
+    #expect(harness.commandExecutor.agentHookCandidates(for: query).sharedCodexHost)
     #expect(
       !harness.commandExecutor.agentHookCandidates(
-        for: agentHookRequest(
-          agent: .codex,
+        for: codexCandidateQuery(
           sessionID: "session-1",
-          hookEventName: .sessionStart,
-          processID: Int32.max
+          emitterProcessID: Int32.max
         )
       ).sharedCodexHost
     )
@@ -339,7 +312,7 @@ struct TerminalCommandExecutorAgentHookTests {
         cwd: "/tmp/codex/memories",
         hookEventName: .sessionStart,
         sessionID: "nested-session",
-        source: "startup",
+        source: SupatermCodexRootSessionStart.Source.startup.rawValue,
         transcriptPath: "/tmp/codex/memories/nested-session.jsonl"
       ),
       inheritedSessionID: "root-session",
@@ -550,6 +523,23 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(!harness.host.hasAgentSession(agent: .pi, sessionID: sessionID))
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
   }
+}
+
+private func codexCandidateQuery(
+  sessionID: String,
+  cwd: String = CodexHookFixtures.cwd,
+  emitterProcessID: Int32? = nil
+) -> SupatermAgentHookCandidateQuery {
+  SupatermAgentHookCandidateQuery(
+    event: SupatermAgentHookEvent(
+      cwd: cwd,
+      hookEventName: .sessionStart,
+      sessionID: sessionID,
+      source: SupatermCodexRootSessionStart.Source.startup.rawValue,
+      transcriptPath: "\(cwd)/\(sessionID).jsonl"
+    ),
+    emitterProcessID: emitterProcessID
+  )
 }
 
 @MainActor

@@ -5,8 +5,15 @@ nonisolated enum TerminalAgentEventTranslator {
   static func events(for request: SupatermAgentHookRequest) -> [TerminalAgentEvent] {
     guard let scope = scope(for: request) else { return [] }
     switch request.agent {
-    case .claude, .codex:
+    case .claude:
       guard request.event.hookEventName == .sessionStart, scope.subagentID == nil else { return [] }
+      return [event(request, scope: scope, action: .sessionStarted)]
+    case .codex:
+      guard let sessionStart = request.codexRootSessionStart,
+        request.inheritedSessionID == nil || request.inheritedSessionID == sessionStart.sessionID
+      else {
+        return []
+      }
       return [event(request, scope: scope, action: .sessionStarted)]
     case .pi:
       return piEvents(for: request, scope: scope)

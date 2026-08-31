@@ -38,7 +38,7 @@ struct SPAgentHookRouter {
       try send(request, path: connection.explicitSocketPath, instance: connection.instance)
       return
     }
-    guard request.event.isDurableCodexRootSessionStart else { return }
+    guard request.codexRootSessionStart != nil else { return }
 
     let startedAt = Date()
     let selectionDeadline = startedAt.addingTimeInterval(Self.candidateSelectionTimeout)
@@ -46,11 +46,14 @@ struct SPAgentHookRouter {
     var socketPaths = candidateSocketPaths(deadline: routingDeadline)
     guard !socketPaths.isEmpty else { return }
 
-    let candidateRequest = agentHookCandidateQueryRequest(request)
+    let candidateQuery = SupatermAgentHookCandidateQuery(
+      event: request.event,
+      emitterProcessID: request.processID
+    )
     while true {
       let round = candidateRound(
         socketPaths: socketPaths,
-        request: candidateRequest,
+        query: candidateQuery,
         deadline: routingDeadline
       )
       socketPaths.removeAll { round.staleSocketPaths.contains($0) }
@@ -150,7 +153,7 @@ struct SPAgentHookRouter {
 
   private func candidateRound(
     socketPaths: [String],
-    request: SupatermAgentHookRequest,
+    query: SupatermAgentHookCandidateQuery,
     deadline: Date
   ) -> SPAgentHookCandidateRound {
     var destinations: [SPAgentHookCandidateDestination] = []
@@ -171,7 +174,7 @@ struct SPAgentHookRouter {
           responseTimeout: Self.candidateResponseTimeout,
           deadline: deadline
         )
-        let response = try client.send(.agentHookCandidates(request))
+        let response = try client.send(.agentHookCandidates(query))
         guard response.ok else {
           isComplete = false
           continue
@@ -230,45 +233,29 @@ struct SPAgentHookRouter {
   }
 }
 
-func agentHookCandidateQueryRequest(
-  _ request: SupatermAgentHookRequest
-) -> SupatermAgentHookRequest {
-  SupatermAgentHookRequest(
-    agent: request.agent,
-    event: request.event,
-    inheritedSessionID: normalizedAgentHookSessionID(request.inheritedSessionID),
-    processID: request.processID
-  )
-}
-
 func selectedAgentHookCandidate(
   request: SupatermAgentHookRequest,
   destinations: [SPAgentHookCandidateDestination],
   roundComplete: Bool,
   deadlineReached: Bool
 ) -> SPAgentHookCandidateDestination? {
-  guard
-    request.agent == .codex,
-    request.event.isDurableCodexRootSessionStart
-  else {
-    return nil
-  }
+  guard let sessionStart = request.codexRootSessionStart else { return nil }
   let destinations = destinations.filter {
     $0.candidate.processID > 0 && $0.candidate.processStartTimeMicroseconds > 0
   }
 
-  if let processID = request.processID, processID > 0 {
+  if let emitterProcessID = request.processID, emitterProcessID > 0 {
     let processMatches = destinations.filter {
-      !$0.sharedCodexHost && $0.candidate.processID == processID
+      !$0.sharedCodexHost && $0.candidate.processID == emitterProcessID
     }
     guard processMatches.count < 2 else { return nil }
     if let processMatch = processMatches.first { return processMatch }
   }
 
   guard roundComplete else { return nil }
-  if request.event.source == "compact" {
+  if sessionStart.source == .compact {
     let owners = destinations.filter {
-      normalizedAgentHookSessionID($0.candidate.ownedSessionID) == request.event.sessionID
+      normalizedAgentHookSessionID($0.candidate.ownedSessionID) == sessionStart.sessionID
     }
     guard owners.count < 2 else { return nil }
     if let owner = owners.first { return owner }
@@ -279,18 +266,12 @@ func selectedAgentHookCandidate(
   guard titleMatches.count < 2 else { return nil }
   if let titleMatch = titleMatches.first { return titleMatch }
 
-  let ownerlessWorkspaceMatches = destinations.filter {
-    $0.candidate.workingDirectoryMatches
-      && normalizedAgentHookSessionID($0.candidate.ownedSessionID) == nil
-  }
-  guard ownerlessWorkspaceMatches.count < 2 else { return nil }
-  if let ownerlessWorkspaceMatch = ownerlessWorkspaceMatches.first {
-    return ownerlessWorkspaceMatch
-  }
-
   let workspaceMatches = destinations.filter(\.candidate.workingDirectoryMatches)
   guard workspaceMatches.count == 1 else { return nil }
-  return workspaceMatches[0]
+  let workspaceMatch = workspaceMatches[0]
+  let ownedSessionID = normalizedAgentHookSessionID(workspaceMatch.candidate.ownedSessionID)
+  guard ownedSessionID == nil || ownedSessionID == sessionStart.sessionID else { return nil }
+  return workspaceMatch
 }
 
 func routedAgentHookRequest(
@@ -298,9 +279,7 @@ func routedAgentHookRequest(
   to destination: SPAgentHookCandidateDestination
 ) -> SupatermAgentHookRequest? {
   guard
-    request.agent == .codex,
-    request.event.isDurableCodexRootSessionStart,
-    let sessionID = request.event.sessionID,
+    let sessionStart = request.codexRootSessionStart,
     destination.candidate.processID > 0,
     destination.candidate.processStartTimeMicroseconds > 0
   else {
@@ -308,11 +287,11 @@ func routedAgentHookRequest(
   }
   let inheritedSessionID = normalizedAgentHookSessionID(request.inheritedSessionID)
   let ownedSessionID = normalizedAgentHookSessionID(destination.candidate.ownedSessionID)
-  let ownsIncomingSession = ownedSessionID == sessionID
-  let replacesOwnedSession = ownedSessionID != nil && ownedSessionID != sessionID
+  let ownsIncomingSession = ownedSessionID == sessionStart.sessionID
+  let replacesOwnedSession = ownedSessionID != nil && !ownsIncomingSession
   if !destination.sharedCodexHost,
     let inheritedSessionID,
-    inheritedSessionID != sessionID
+    inheritedSessionID != sessionStart.sessionID
   {
     return nil
   }
@@ -335,7 +314,8 @@ func routedAgentHookRequest(
     agent: request.agent,
     context: destination.candidate.context,
     event: request.event,
-    inheritedSessionID: !destination.sharedCodexHost && inheritedSessionID == sessionID
+    inheritedSessionID: !destination.sharedCodexHost
+      && inheritedSessionID == sessionStart.sessionID
       ? inheritedSessionID : nil,
     processID: destination.candidate.processID,
     processStartTimeMicroseconds: destination.candidate.processStartTimeMicroseconds

@@ -56,6 +56,19 @@ extension SupatermAgentHookEventName: Codable {
   }
 }
 
+public struct SupatermCodexRootSessionStart: Equatable, Sendable {
+  public enum Source: String, CaseIterable, Equatable, Sendable {
+    case startup
+    case resume
+    case clear
+    case compact
+  }
+
+  public let cwd: String
+  public let sessionID: String
+  public let source: Source
+}
+
 public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public let payload: JSONObject
 
@@ -65,18 +78,22 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public var hookEventName: SupatermAgentHookEventName {
     SupatermAgentHookEventName(rawValue: payload["hook_event_name"]?.stringValue ?? "")
   }
-  public var isDurableCodexRootSessionStart: Bool {
+  public var codexRootSessionStart: SupatermCodexRootSessionStart? {
     guard
       hookEventName == .sessionStart,
       payload["agent_id"] == nil,
-      sessionID != nil,
-      cwd != nil,
-      transcriptPath != nil,
-      let source
+      let cwd,
+      let sessionID,
+      let source = source.flatMap(SupatermCodexRootSessionStart.Source.init(rawValue:)),
+      transcriptPath != nil
     else {
-      return false
+      return nil
     }
-    return source == "startup" || source == "resume" || source == "clear" || source == "compact"
+    return SupatermCodexRootSessionStart(
+      cwd: cwd,
+      sessionID: sessionID,
+      source: source
+    )
   }
   public var lastAssistantMessage: String? { string("last_assistant_message") }
   public var message: String? { string("message") }
@@ -173,6 +190,11 @@ public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
   public let processID: Int32?
   public let processStartTimeMicroseconds: UInt64?
 
+  public var codexRootSessionStart: SupatermCodexRootSessionStart? {
+    guard agent == .codex else { return nil }
+    return event.codexRootSessionStart
+  }
+
   public init(
     agent: SupatermAgentKind,
     context: SupatermCLIContext? = nil,
@@ -187,6 +209,19 @@ public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
     self.inheritedSessionID = inheritedSessionID
     self.processID = processID
     self.processStartTimeMicroseconds = processStartTimeMicroseconds
+  }
+}
+
+public struct SupatermAgentHookCandidateQuery: Equatable, Sendable, Codable {
+  public let emitterProcessID: Int32?
+  public let event: SupatermAgentHookEvent
+
+  public init(
+    event: SupatermAgentHookEvent,
+    emitterProcessID: Int32? = nil
+  ) {
+    self.emitterProcessID = emitterProcessID
+    self.event = event
   }
 }
 

@@ -47,6 +47,14 @@ extension SocketControlFeature {
       }
       return .ok(id: request.id)
 
+    case SupatermSocketMethod.terminalAgentHookCandidates:
+      let payload = try request.decodeParams(SupatermAgentHookCandidateQuery.self)
+      let execution = try await socketRequestExecutor.executeApp(.agentHookCandidates(payload))
+      guard case .agentHookCandidates(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
     default:
       return nil
     }
