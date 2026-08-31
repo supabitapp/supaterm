@@ -226,9 +226,20 @@ public struct SupatermAgentHookCandidateQuery: Equatable, Sendable, Codable {
 }
 
 public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
+  private enum CodingKeys: String, CodingKey {
+    case context
+    case forksOwnedSession
+    case ownedSessionID
+    case processID
+    case processStartTimeMicroseconds
+    case sessionIDMatchesTitle
+    case workingDirectoryMatches
+  }
+
   public let context: SupatermCLIContext
   public let processID: Int32
   public let processStartTimeMicroseconds: UInt64
+  public let forksOwnedSession: Bool
   public let sessionIDMatchesTitle: Bool
   public let workingDirectoryMatches: Bool
   public let ownedSessionID: String?
@@ -237,6 +248,7 @@ public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
     context: SupatermCLIContext,
     processID: Int32,
     processStartTimeMicroseconds: UInt64,
+    forksOwnedSession: Bool = false,
     sessionIDMatchesTitle: Bool,
     workingDirectoryMatches: Bool,
     ownedSessionID: String? = nil
@@ -244,9 +256,24 @@ public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
     self.context = context
     self.processID = processID
     self.processStartTimeMicroseconds = processStartTimeMicroseconds
+    self.forksOwnedSession = forksOwnedSession
     self.sessionIDMatchesTitle = sessionIDMatchesTitle
     self.workingDirectoryMatches = workingDirectoryMatches
     self.ownedSessionID = ownedSessionID
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    context = try container.decode(SupatermCLIContext.self, forKey: .context)
+    processID = try container.decode(Int32.self, forKey: .processID)
+    processStartTimeMicroseconds = try container.decode(
+      UInt64.self,
+      forKey: .processStartTimeMicroseconds
+    )
+    forksOwnedSession = try container.decodeIfPresent(Bool.self, forKey: .forksOwnedSession) ?? false
+    sessionIDMatchesTitle = try container.decode(Bool.self, forKey: .sessionIDMatchesTitle)
+    workingDirectoryMatches = try container.decode(Bool.self, forKey: .workingDirectoryMatches)
+    ownedSessionID = try container.decodeIfPresent(String.self, forKey: .ownedSessionID)
   }
 }
 

@@ -46,6 +46,7 @@ struct SupatermAgentHookSocketProtocolTests {
           context: context,
           processID: 456,
           processStartTimeMicroseconds: 456_000,
+          forksOwnedSession: true,
           sessionIDMatchesTitle: true,
           workingDirectoryMatches: true,
           ownedSessionID: "session-123"
@@ -66,5 +67,54 @@ struct SupatermAgentHookSocketProtocolTests {
     #expect(request.method == SupatermSocketMethod.terminalAgentHookCandidates)
     #expect(try request.decodeParams(SupatermAgentHookCandidateQuery.self) == query)
     #expect(try response.decodeResult(SupatermAgentHookCandidatesResponse.self) == result)
+  }
+
+  @Test
+  func legacyAgentHookCandidateDefaultsForkLineageToFalse() throws {
+    let result = SupatermAgentHookCandidatesResponse(
+      candidates: [
+        SupatermAgentHookCandidate(
+          context: SupatermCLIContext(
+            surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
+            tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
+          ),
+          processID: 456,
+          processStartTimeMicroseconds: 456_000,
+          forksOwnedSession: true,
+          sessionIDMatchesTitle: true,
+          workingDirectoryMatches: true,
+          ownedSessionID: "session-123"
+        )
+      ],
+      sharedCodexHost: true
+    )
+    let response = try SupatermSocketResponse.ok(
+      id: "legacy-agent-hook-candidates",
+      encodableResult: result
+    )
+    var responseResult = try #require(response.result)
+    var candidates = try #require(responseResult["candidates"]?.arrayValue)
+    var candidate = try #require(candidates.first?.objectValue)
+    candidate.removeValue(forKey: "forksOwnedSession")
+    candidates[0] = .object(candidate)
+    responseResult["candidates"] = .array(candidates)
+    let legacyResponse = SupatermSocketResponse.ok(
+      id: "legacy-agent-hook-candidates",
+      result: responseResult
+    )
+
+    let decoded = try legacyResponse.decodeResult(SupatermAgentHookCandidatesResponse.self)
+
+    #expect(decoded.candidates.count == 1)
+    #expect(decoded.candidates[0].forksOwnedSession == false)
+    #expect(decoded.candidates[0].context == result.candidates[0].context)
+    #expect(decoded.candidates[0].processID == result.candidates[0].processID)
+    #expect(
+      decoded.candidates[0].processStartTimeMicroseconds
+        == result.candidates[0].processStartTimeMicroseconds
+    )
+    #expect(decoded.candidates[0].sessionIDMatchesTitle)
+    #expect(decoded.candidates[0].workingDirectoryMatches)
+    #expect(decoded.candidates[0].ownedSessionID == result.candidates[0].ownedSessionID)
   }
 }

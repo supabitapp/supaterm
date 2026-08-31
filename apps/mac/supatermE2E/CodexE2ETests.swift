@@ -53,7 +53,7 @@ private enum CodexE2EMode {
   }
 }
 
-private struct CodexE2EEnvironment {
+struct CodexE2EEnvironment {
   let executable: URL
 
   init() throws {
@@ -108,11 +108,11 @@ private final class CodexE2EFixture {
       let space = try await makeTestSpace(app)
       let startedServer = try FakeModelServer(script: script(space))
       server = startedServer
-      try writeConfig(
+      try writeCodexConfig(
         baseURL: startedServer.responsesBaseURL,
         hooksEnabled: mode.hooksEnabled,
         home: app.cliHome,
-        workspace: space.directory,
+        trustedWorkspaces: [space.directory],
         terminalTitleItems: terminalTitleItems,
         streamMaxRetries: streamMaxRetries
       )
@@ -215,79 +215,79 @@ private final class CodexE2EFixture {
       throw SupatermE2EError(failure)
     }
   }
-
-  static func writeConfig(
-    baseURL: String,
-    hooksEnabled: Bool,
-    home: URL,
-    workspace: URL,
-    trustsWorkspace: Bool = true,
-    terminalTitleItems: [String]? = nil,
-    streamMaxRetries: Int = 0
-  ) throws {
-    let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
-    try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
-    let config = """
-      approval_policy = "on-request"
-      model = "gpt-5.6-luna"
-      model_provider = "e2e"
-      model_reasoning_effort = "low"
-      model_verbosity = "low"
-      sandbox_mode = "read-only"
-      suppress_unstable_features_warning = true
-      web_search = "disabled"
-
-      [analytics]
-      enabled = false
-
-      [features]
-      apps = false
-      default_mode_request_user_input = true
-      goals = false
-      hooks = \(hooksEnabled)
-      memories = false
-      multi_agent_v2 = false
-      prevent_idle_sleep = false
-
-      [feedback]
-      enabled = false
-
-      [model_providers.e2e]
-      base_url = \(tomlString(baseURL))
-      env_key = "CODEX_E2E_API_KEY"
-      name = "E2E"
-      request_max_retries = 0
-      stream_idle_timeout_ms = 120000
-      stream_max_retries = \(streamMaxRetries)
-      supports_websockets = false
-
-      [shell_environment_policy]
-      inherit = "all"
-      """
-      + (terminalTitleItems.map { items in
-        """
-
-
-        [tui]
-        terminal_title = [\(items.map(tomlString).joined(separator: ", "))]
-        """
-      } ?? "")
-      + (trustsWorkspace
-        ? """
-
-
-        [projects.\(tomlString(workspace.path))]
-        trust_level = "trusted"
-        """ : "")
-    try config.write(
-      to: codexHome.appendingPathComponent("config.toml", isDirectory: false),
-      atomically: true,
-      encoding: .utf8
-    )
-  }
 }
 
-private enum CodexRuleID {
+func writeCodexConfig(
+  baseURL: String,
+  hooksEnabled: Bool,
+  home: URL,
+  trustedWorkspaces: [URL],
+  terminalTitleItems: [String]? = nil,
+  streamMaxRetries: Int = 0
+) throws {
+  let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
+  try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+  let config = """
+    approval_policy = "on-request"
+    model = "gpt-5.6-luna"
+    model_provider = "e2e"
+    model_reasoning_effort = "low"
+    model_verbosity = "low"
+    sandbox_mode = "read-only"
+    suppress_unstable_features_warning = true
+    web_search = "disabled"
+
+    [analytics]
+    enabled = false
+
+    [features]
+    apps = false
+    default_mode_request_user_input = true
+    goals = false
+    hooks = \(hooksEnabled)
+    memories = false
+    multi_agent_v2 = false
+    prevent_idle_sleep = false
+
+    [feedback]
+    enabled = false
+
+    [model_providers.e2e]
+    base_url = \(tomlString(baseURL))
+    env_key = "CODEX_E2E_API_KEY"
+    name = "E2E"
+    request_max_retries = 0
+    stream_idle_timeout_ms = 120000
+    stream_max_retries = \(streamMaxRetries)
+    supports_websockets = false
+
+    [shell_environment_policy]
+    inherit = "all"
+    """
+    + (terminalTitleItems.map { items in
+      """
+
+
+      [tui]
+      terminal_title = [\(items.map(tomlString).joined(separator: ", "))]
+      """
+    } ?? "")
+    + trustedWorkspaces.map { workspace in
+      """
+
+
+      [projects.\(tomlString(workspace.path))]
+      trust_level = "trusted"
+      """
+    }.joined()
+  try config.write(
+    to: codexHome.appendingPathComponent("config.toml", isDirectory: false),
+    atomically: true,
+    encoding: .utf8
+  )
+}
+
+enum CodexRuleID {
   static let blockers: Set<String> = ["osc_title_blocked", "live_strong_blocker"]
   static let idleTitle: Set<String> = ["osc_title_idle"]
   static let trustPrompt: Set<String> = ["trust_directory"]
@@ -312,11 +312,11 @@ func makeCodexNarrowTabFixture(
     )
   ])
   do {
-    try CodexE2EFixture.writeConfig(
+    try writeCodexConfig(
       baseURL: server.responsesBaseURL,
       hooksEnabled: false,
       home: app.cliHome,
-      workspace: space.directory,
+      trustedWorkspaces: [space.directory],
       terminalTitleItems: ["project"],
       streamMaxRetries: 3
     )
@@ -371,12 +371,11 @@ private func runCodexTrustPrompt() async throws {
   spaceID = space.spaceID
   let startedServer = try FakeModelServer(script: [])
   server = startedServer
-  try CodexE2EFixture.writeConfig(
+  try writeCodexConfig(
     baseURL: startedServer.responsesBaseURL,
     hooksEnabled: false,
     home: app.cliHome,
-    workspace: space.directory,
-    trustsWorkspace: false
+    trustedWorkspaces: []
   )
   let command = makeCodexCommand(
     app: app,
@@ -460,21 +459,35 @@ private func runCodexStaticTitleLifecycle() async throws {
   try await stopCodex(fixture)
   try fixture.server.verifyComplete()
 }
-
-private func makeCodexCommand(
+func makeCodexCommand(
   app: SupatermE2EApp,
   executable: URL,
-  workspace: URL
+  workspace: URL,
+  inheritedContext: SupatermCLIContext? = nil,
+  inheritedSessionID: String? = nil,
+  strictConfig: Bool = true
 ) -> String {
-  SupatermShellCommand.escapedCommand([
-    "/usr/bin/env",
-    "CODEX_HOME=\(app.cliHome.appendingPathComponent(".codex").path)",
-    executable.path,
-    "--strict-config",
-    "--no-alt-screen",
-    "--cd",
-    workspace.path,
-  ])
+  let inheritedEnvironment =
+    (inheritedContext?.environmentVariables ?? [])
+    + (inheritedSessionID.map {
+      [SupatermCLIEnvironmentVariable(key: SupatermCodexEnvironment.threadIDKey, value: $0)]
+    } ?? [])
+  let codexArguments =
+    (strictConfig ? ["--strict-config"] : [])
+    + [
+      "--no-alt-screen",
+      "--cd",
+      workspace.path,
+    ]
+  return SupatermShellCommand.escapedCommand(
+    ["/usr/bin/env"]
+      + inheritedEnvironment.map { "\($0.key)=\($0.value)" }
+      + [
+        "CODEX_HOME=\(app.cliHome.appendingPathComponent(".codex").path)",
+        executable.path,
+      ]
+      + codexArguments
+  )
 }
 
 private func runCompletedTurn(_ fixture: CodexE2EFixture) async throws {

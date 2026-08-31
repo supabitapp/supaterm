@@ -29,6 +29,21 @@ nonisolated enum TerminalAgentLaunchOptions {
     .path(percentEncoded: false)
   }
 
+  static func codexForkParentSessionID(
+    commandLineArguments: [String]
+  ) -> String? {
+    let positionals = Schema.codex.positionalValues(from: commandLineArguments)
+    guard
+      positionals.first == Codex.forkCommand,
+      positionals.count > 1,
+      let parentSessionID = UUID(uuidString: positionals[1]),
+      parentSessionID.uuidString.caseInsensitiveCompare(positionals[1]) == .orderedSame
+    else {
+      return nil
+    }
+    return parentSessionID.uuidString.lowercased()
+  }
+
   static func inherited(
     from commandLineArguments: [String],
     agent: SupatermAgentKind
@@ -102,10 +117,26 @@ nonisolated enum TerminalAgentLaunchOptions {
       }
       return value
     }
+
+    var positionalValues: [String]? {
+      var positionals: [String] = []
+      for value in values {
+        switch value {
+        case .discarded, .inherited:
+          continue
+        case .positional(let argument):
+          positionals.append(argument)
+        case .reject, .stop, .unknownOption:
+          return nil
+        }
+      }
+      return positionals
+    }
   }
 
   private enum Codex {
     static let appServerCommand = "app-server"
+    static let forkCommand = "fork"
     static let longWorkingDirectoryOption = "--cd"
     static let shortWorkingDirectoryOption = "-C"
     static let workingDirectoryOptions: Set<String> = [
@@ -200,6 +231,10 @@ nonisolated enum TerminalAgentLaunchOptions {
 
     func firstPositional(from commandLineArguments: [String]) -> String? {
       parsedArguments(from: commandLineArguments).firstPositional
+    }
+
+    func positionalValues(from commandLineArguments: [String]) -> [String] {
+      parsedArguments(from: commandLineArguments).positionalValues ?? []
     }
 
     func lastOptionValue(
@@ -530,7 +565,7 @@ nonisolated enum TerminalAgentLaunchOptions {
         "exec",
         "exec-server",
         "features",
-        "fork",
+        Codex.forkCommand,
         "help",
         "login",
         "logout",
@@ -539,7 +574,7 @@ nonisolated enum TerminalAgentLaunchOptions {
         "review",
         "sandbox",
       ],
-      sessionCommands: ["fork", "resume"]
+      sessionCommands: [Codex.forkCommand, "resume"]
     )
 
     static let pi = Self(

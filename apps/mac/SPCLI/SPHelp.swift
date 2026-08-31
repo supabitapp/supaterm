@@ -521,7 +521,11 @@ enum SPHelp {
     #"printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}'"#
 
   static let receiveAgentHookDiscussion = """
-    Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
+    Reads one agent hook event JSON object from stdin and sends eligible events to Supaterm.
+
+    The hook receiver sends a valid Codex SessionStart after it resolves one pane.
+    Without --socket or --instance, this route ignores inherited socket and pane context.
+    It checks each managed Supaterm app socket and drops invalid or ambiguous starts.
 
     Manage coding-agent integrations from Supaterm Settings > Coding Agents.
     Use `sp skills install` to install Supaterm's bundled discovery skill.

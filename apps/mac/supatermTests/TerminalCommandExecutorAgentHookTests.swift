@@ -92,6 +92,96 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(response.candidates.compactMap(\.ownedSessionID).isEmpty)
   }
 
+  @Test
+  func codexForkCandidateRequiresParentOwnedByTheSameHost() throws {
+    let fixture = try makeCodexForkCandidateFixture()
+    defer { fixture.stop() }
+    let harness = fixture.harness
+    let parentSurface = fixture.parentSurface
+    let parentIdentity = fixture.parentIdentity
+    let parentSessionID = fixture.parentSessionID
+    let forkIdentity = fixture.forkIdentity
+
+    let unowned = try fixture.candidate()
+    #expect(!unowned.forksOwnedSession)
+
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: forkIdentity,
+          sequence: 3
+        ),
+        for: parentSurface.id
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      agentHookRequest(
+        agent: .codex,
+        sessionID: parentSessionID,
+        hookEventName: .sessionStart,
+        context: harness.context,
+        processID: forkIdentity.processID,
+        processStartTimeMicroseconds: forkIdentity.startTimeMicroseconds
+      )
+    )
+    let duplicateProcess = try fixture.candidate()
+    #expect(!duplicateProcess.forksOwnedSession)
+
+    #expect(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: parentIdentity,
+          sequence: 4
+        ),
+        for: parentSurface.id
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      agentHookRequest(
+        agent: .codex,
+        sessionID: parentSessionID,
+        hookEventName: .sessionStart,
+        context: harness.context,
+        processID: parentIdentity.processID,
+        processStartTimeMicroseconds: parentIdentity.startTimeMicroseconds
+      )
+    )
+
+    let forkArguments = try #require(
+      TerminalAgentProcessInspector.commandLineArguments(for: forkIdentity)
+    )
+    #expect(
+      TerminalAgentLaunchOptions.codexForkParentSessionID(
+        commandLineArguments: forkArguments
+      ) == parentSessionID
+    )
+    #expect(parentIdentity != forkIdentity)
+    #expect(
+      harness.host.agentStateStore.surfaceID(
+        agent: .codex,
+        sessionID: parentSessionID
+      ) == parentSurface.id
+    )
+    #expect(
+      harness.host.agentStateStore.foregroundSessionID(
+        for: parentSurface.id,
+        agent: .codex
+      ) == parentSessionID
+    )
+    let parent = try #require(
+      harness.host.agentStateStore.snapshots(for: parentSurface.id).first {
+        $0.agent == .codex && $0.sessionID == parentSessionID
+      }
+    )
+    #expect(parent.processes == [parentIdentity])
+    let owned = try fixture.candidate()
+    #expect(owned.forksOwnedSession)
+    let sameSession = try fixture.candidate(sessionID: parentSessionID)
+    #expect(!sameSession.forksOwnedSession)
+  }
+
   @Test(
     arguments: [
       "019c8ad3-4601-70d9-b980-311e16d7a44c",
@@ -522,6 +612,97 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     #expect(!harness.host.hasAgentSession(agent: .pi, sessionID: sessionID))
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+  }
+}
+
+@MainActor
+private struct CodexForkCandidateFixture {
+  let forkIdentity: TerminalAgentProcessIdentity
+  let forkSurface: GhosttySurfaceView
+  let harness: ClaudeHookHarness
+  let incomingSessionID: String
+  let parentIdentity: TerminalAgentProcessIdentity
+  let parentSessionID: String
+  let parentSurface: GhosttySurfaceView
+  let process: Process
+
+  func candidate(sessionID: String? = nil) throws -> SupatermAgentHookCandidate {
+    try #require(
+      harness.commandExecutor.agentHookCandidates(
+        for: codexCandidateQuery(
+          sessionID: sessionID ?? incomingSessionID,
+          cwd: FileManager.default.currentDirectoryPath
+        )
+      ).candidates.first {
+        $0.context.surfaceID == forkSurface.id
+      }
+    )
+  }
+
+  func stop() {
+    if process.isRunning {
+      process.terminate()
+    }
+    process.waitUntilExit()
+  }
+}
+
+@MainActor
+private func makeCodexForkCandidateFixture() throws -> CodexForkCandidateFixture {
+  let harness = try makeClaudeHookHarness()
+  let parentSurface = try #require(harness.host.selectedSurfaceView)
+  let parentIdentity = try applyCurrentCodexDetection(to: harness)
+  let parentSessionID = "019c8ad3-4601-70d9-b980-311e16d7a44c"
+  let incomingSessionID = "019c8ad3-4601-70d9-b980-311e16d7a44d"
+  let forkPane = try harness.host.createPane(
+    TerminalCreatePaneRequest(
+      startupCommand: nil,
+      direction: .right,
+      focus: false,
+      equalize: true,
+      target: .pane(parentSurface.id)
+    )
+  )
+  let forkSurface = try #require(harness.host.surfaces[forkPane.paneID])
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/bin/sh")
+  process.arguments = ["-c", "while :; do sleep 60; done", "fork", parentSessionID]
+  process.currentDirectoryURL = URL(
+    fileURLWithPath: FileManager.default.currentDirectoryPath,
+    isDirectory: true
+  )
+  process.standardOutput = FileHandle.nullDevice
+  try process.run()
+  do {
+    let forkIdentity = try #require(
+      TerminalAgentProcessInspector.identity(for: process.processIdentifier)
+    )
+    try #require(
+      harness.host.applyAgentDetection(
+        agentDetectionObservation(
+          phase: .idle,
+          processIdentity: forkIdentity,
+          sequence: 2
+        ),
+        for: forkSurface.id
+      )
+    )
+    return CodexForkCandidateFixture(
+      forkIdentity: forkIdentity,
+      forkSurface: forkSurface,
+      harness: harness,
+      incomingSessionID: incomingSessionID,
+      parentIdentity: parentIdentity,
+      parentSessionID: parentSessionID,
+      parentSurface: parentSurface,
+      process: process
+    )
+  } catch {
+    if process.isRunning {
+      process.terminate()
+    }
+    process.waitUntilExit()
+    throw error
   }
 }
 

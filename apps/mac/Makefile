@@ -30,7 +30,7 @@ XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
 E2E_AGENT ?= none
-CODEX_E2E_TOOL := codex@0.150.1
+CODEX_E2E_TOOL := codex@0.151.0
 CLAUDE_E2E_TOOL := npm:@anthropic-ai/claude-code-darwin-arm64@2.1.235
 PI_E2E_TOOL := npm:@mariozechner/pi-coding-agent@0.73.1
 SUPATERM_SKILLS_DIR := $(abspath $(CURRENT_MAKEFILE_DIR)/../../integrations/supaterm-skills)
@@ -218,8 +218,14 @@ test-e2e-xcodebuild:
 	xcodebuild_command=(xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" PI_E2E_PACKAGE="$$pi_package" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
 	if [ -t 1 ]; then \
 		"$${xcodebuild_command[@]}" 2>&1 | mise exec -- xcbeautify --disable-logging; \
+		xcodebuild_status="$${PIPESTATUS[0]}"; \
 	else \
 		"$${xcodebuild_command[@]}"; \
+		xcodebuild_status="$$?"; \
+	fi; \
+	if [ "$$xcodebuild_status" -ne 0 ]; then exit "$$xcodebuild_status"; fi; \
+	if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then \
+		xcrun xcresulttool get test-results summary --path "$(E2E_RESULT_BUNDLE_PATH)" --compact | jq -e '.result == "Passed"' >/dev/null; \
 	fi
 
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.

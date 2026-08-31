@@ -27,10 +27,20 @@ extension TerminalHostState {
         for: surface.id,
         agent: .codex
       )
+      let commandLineArguments =
+        TerminalAgentProcessInspector.commandLineArguments(
+          for: observation.processIdentity
+        ) ?? []
       return SupatermAgentHookCandidate(
         context: SupatermCLIContext(surfaceID: surface.id, tabID: tabID.rawValue),
         processID: observation.processIdentity.processID,
         processStartTimeMicroseconds: observation.processIdentity.startTimeMicroseconds,
+        forksOwnedSession: agentHookForksOwnedSession(
+          incomingSessionID: sessionID,
+          processIdentity: observation.processIdentity,
+          surfaceID: surface.id,
+          commandLineArguments: commandLineArguments
+        ),
         sessionIDMatchesTitle: Self.agentHookSessionIDMatchesTitle(
           sessionID,
           rawTitle: surface.rawTitle
@@ -38,6 +48,7 @@ extension TerminalHostState {
         workingDirectoryMatches: codexAgentHookWorkingDirectoryMatches(
           requestedWorkspace: requestedWorkspace,
           processIdentity: observation.processIdentity,
+          commandLineArguments: commandLineArguments,
           terminalWorkingDirectoryPath: surface.bridge.state.pwd
         ),
         ownedSessionID: ownedSessionID
@@ -80,11 +91,44 @@ extension TerminalHostState {
     guard sessionID.count > 32 else { return sessionID }
     return "\(sessionID.prefix(29))..."
   }
+
+  private func agentHookForksOwnedSession(
+    incomingSessionID: String,
+    processIdentity: TerminalAgentProcessIdentity,
+    surfaceID: UUID,
+    commandLineArguments: [String]
+  ) -> Bool {
+    guard
+      let parentSessionID = TerminalAgentLaunchOptions.codexForkParentSessionID(
+        commandLineArguments: commandLineArguments
+      ),
+      let parentSessionUUID = UUID(uuidString: parentSessionID),
+      let incomingSessionUUID = UUID(uuidString: incomingSessionID),
+      parentSessionUUID != incomingSessionUUID,
+      let parentSurfaceID = agentStateStore.surfaceID(
+        agent: .codex,
+        sessionID: parentSessionID
+      ),
+      parentSurfaceID != surfaceID,
+      agentStateStore.foregroundSessionID(
+        for: parentSurfaceID,
+        agent: .codex
+      ) == parentSessionID,
+      let parent = agentStateStore.snapshots(for: parentSurfaceID).first(where: {
+        $0.agent == .codex && $0.sessionID == parentSessionID
+      }),
+      !parent.processes.contains(processIdentity)
+    else {
+      return false
+    }
+    return true
+  }
 }
 
 func codexAgentHookWorkingDirectoryMatches(
   requestedWorkspace: TerminalAgentPanelWorkspaceKey,
   processIdentity: TerminalAgentProcessIdentity,
+  commandLineArguments: [String],
   terminalWorkingDirectoryPath: String?
 ) -> Bool {
   let processWorkingDirectoryPath = TerminalAgentProcessInspector.workingDirectoryPath(
@@ -92,9 +136,7 @@ func codexAgentHookWorkingDirectoryMatches(
   )
   let effectiveWorkingDirectoryPath = codexAgentHookWorkingDirectoryPath(
     processWorkingDirectoryPath: processWorkingDirectoryPath,
-    commandLineArguments: TerminalAgentProcessInspector.commandLineArguments(
-      for: processIdentity
-    ) ?? [],
+    commandLineArguments: commandLineArguments,
     terminalWorkingDirectoryPath: terminalWorkingDirectoryPath
   )
   return TerminalAgentPanelWorkspaceKey(

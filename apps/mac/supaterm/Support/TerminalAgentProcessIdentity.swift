@@ -60,6 +60,32 @@ public enum TerminalAgentProcessInspector {
     return arguments
   }
 
+  public static func workingDirectoryPath(
+    for identity: TerminalAgentProcessIdentity
+  ) -> String? {
+    guard isCurrent(identity) else { return nil }
+    var info = proc_vnodepathinfo()
+    let size = MemoryLayout<proc_vnodepathinfo>.size
+    guard
+      proc_pidinfo(
+        identity.processID,
+        PROC_PIDVNODEPATHINFO,
+        0,
+        &info,
+        Int32(size)
+      ) == Int32(size),
+      isCurrent(identity)
+    else {
+      return nil
+    }
+    let path = withUnsafePointer(to: &info.pvi_cdir.vip_path) { pointer in
+      pointer.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) {
+        String(cString: $0)
+      }
+    }
+    return path.isEmpty ? nil : path
+  }
+
   public static func foregroundProcessGroupID(for processID: Int32) -> Int32? {
     guard
       let processGroupID = process(for: processID)?.kp_eproc.e_tpgid,

@@ -281,7 +281,7 @@ struct SPHelpTests {
   }
 
   @Test
-  func claudeHookHelpMentionsSettingsInstallation() {
+  func agentHookHelpExplainsSettingsInstallationAndCodexRouting() {
     let help = SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100)
 
     #expect(help.contains("Settings > Coding Agents"))
@@ -290,6 +290,11 @@ struct SPHelpTests {
     #expect(!help.contains("sp agent install-hook "))
     #expect(!help.contains("sp agent remove-hook "))
     #expect(help.contains("receive-agent-hook --agent claude"))
+    #expect(
+      help.contains("The hook receiver sends a valid Codex SessionStart after it resolves one pane.")
+    )
+    #expect(help.contains("It checks each managed Supaterm app socket"))
+    #expect(!help.contains("[default: $SUPATERM_SOCKET_PATH]"))
   }
 
   @Test

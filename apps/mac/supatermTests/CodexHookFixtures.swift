@@ -11,7 +11,8 @@ enum CodexHookFixtures {
       "session_id": "\(sessionID)",
       "cwd": "\(cwd)",
       "hook_event_name": "SessionStart",
-      "source": "resume"
+      "source": "resume",
+      "transcript_path": "\(cwd)/\(sessionID).jsonl"
     }
     """
 

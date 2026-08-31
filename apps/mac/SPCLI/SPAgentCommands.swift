@@ -62,7 +62,7 @@ extension SP {
   struct ReceiveAgentHook: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "receive-agent-hook",
-      abstract: "Forward one agent hook event to Supaterm.",
+      abstract: "Process one agent hook event for Supaterm.",
       discussion: SPHelp.receiveAgentHookDiscussion,
       shouldDisplay: false
     )
@@ -79,23 +79,19 @@ extension SP {
     mutating func run() throws {
       let rawInput = FileHandle.standardInput.readDataToEndOfFile()
       let event = try agentHookEvent(from: rawInput)
-      let client = try socketClient(
-        path: connection.explicitSocketPath,
-        instance: connection.instance
-      )
-      let response = try client.send(
-        .agentHook(
-          SupatermAgentHookRequest(
-            agent: agent,
-            context: SupatermCLIContext.current,
-            event: event,
-            processID: pid
-          )
+      let inheritedSessionID =
+        agent == .codex
+        ? ProcessInfo.processInfo.environment[SupatermCodexEnvironment.threadIDKey]
+        : nil
+      try SPAgentHookRouter(connection: connection).receive(
+        SupatermAgentHookRequest(
+          agent: agent,
+          context: SupatermCLIContext.current,
+          event: event,
+          inheritedSessionID: inheritedSessionID,
+          processID: pid
         )
       )
-      guard response.ok else {
-        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
-      }
     }
   }
 

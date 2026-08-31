@@ -134,6 +134,64 @@ struct TerminalAgentLaunchOptionsTests {
     )
   }
 
+  @Test(
+    arguments: [
+      CodexForkParentTestCase(
+        arguments: ["codex", "fork", "019c8ad3-4601-70d9-b980-311e16d7a44c"],
+        expectedSessionID: "019c8ad3-4601-70d9-b980-311e16d7a44c"
+      ),
+      CodexForkParentTestCase(
+        arguments: [
+          "codex", "--no-alt-screen", "--cd", "/tmp/agent", "fork",
+          "019c8ad3-4601-70d9-b980-311e16d7a44c",
+        ],
+        expectedSessionID: "019c8ad3-4601-70d9-b980-311e16d7a44c"
+      ),
+      CodexForkParentTestCase(
+        arguments: [
+          "node", "/tmp/codex.js", "-C/tmp/agent", "fork",
+          "019C8AD3-4601-70D9-B980-311E16D7A44C", "Prompt",
+        ],
+        expectedSessionID: "019c8ad3-4601-70d9-b980-311e16d7a44c"
+      ),
+      CodexForkParentTestCase(
+        arguments: ["codex", "resume", "parent-session"],
+        expectedSessionID: nil
+      ),
+      CodexForkParentTestCase(
+        arguments: ["codex", "fork", "parent-session"],
+        expectedSessionID: nil
+      ),
+      CodexForkParentTestCase(
+        arguments: ["codex", "fork"],
+        expectedSessionID: nil
+      ),
+      CodexForkParentTestCase(
+        arguments: ["codex", "fork", "--last"],
+        expectedSessionID: nil
+      ),
+      CodexForkParentTestCase(
+        arguments: ["codex", "--cd", "fork", "parent-session"],
+        expectedSessionID: nil
+      ),
+      CodexForkParentTestCase(
+        arguments: ["codex", "--", "fork", "parent-session"],
+        expectedSessionID: nil
+      ),
+      CodexForkParentTestCase(
+        arguments: ["codex", "--future-option", "fork", "parent-session"],
+        expectedSessionID: nil
+      ),
+    ]
+  )
+  private func codexForkParentUsesParsedCommandLine(testCase: CodexForkParentTestCase) {
+    #expect(
+      TerminalAgentLaunchOptions.codexForkParentSessionID(
+        commandLineArguments: testCase.arguments
+      ) == testCase.expectedSessionID
+    )
+  }
+
   @Test
   func relativeCodexWorkingDirectoryUsesTerminalPathWhenProcPathIsUnreadable() {
     #expect(
@@ -165,4 +223,9 @@ private struct CodexWorkingDirectoryTestCase: Sendable {
 private struct CodexAppServerTestCase: Sendable {
   let arguments: [String]
   let expected: Bool
+}
+
+private struct CodexForkParentTestCase: Sendable {
+  let arguments: [String]
+  let expectedSessionID: String?
 }

@@ -260,18 +260,34 @@ func selectedAgentHookCandidate(
     guard owners.count < 2 else { return nil }
     if let owner = owners.first { return owner }
   }
-
   guard deadlineReached else { return nil }
   let titleMatches = destinations.filter(\.candidate.sessionIDMatchesTitle)
   guard titleMatches.count < 2 else { return nil }
   if let titleMatch = titleMatches.first { return titleMatch }
 
-  let workspaceMatches = destinations.filter(\.candidate.workingDirectoryMatches)
-  guard workspaceMatches.count == 1 else { return nil }
-  let workspaceMatch = workspaceMatches[0]
-  let ownedSessionID = normalizedAgentHookSessionID(workspaceMatch.candidate.ownedSessionID)
-  guard ownedSessionID == nil || ownedSessionID == sessionStart.sessionID else { return nil }
-  return workspaceMatch
+  if sessionStart.source == .startup {
+    let eligibleWorkspaceMatches = destinations.filter {
+      $0.candidate.workingDirectoryMatches
+        && agentHookCandidateCanOwnSession($0.candidate, sessionID: sessionStart.sessionID)
+    }
+    if eligibleWorkspaceMatches.count == 1,
+      let fork = eligibleWorkspaceMatches.first,
+      fork.sharedCodexHost,
+      fork.candidate.forksOwnedSession
+    {
+      let otherIncomingOwner = destinations.contains {
+        $0 != fork
+          && normalizedAgentHookSessionID($0.candidate.ownedSessionID) == sessionStart.sessionID
+      }
+      guard !otherIncomingOwner else { return nil }
+      return fork
+    }
+  }
+
+  return uniqueAgentHookWorkspaceCandidate(
+    destinations: destinations,
+    sessionID: sessionStart.sessionID
+  )
 }
 
 func routedAgentHookRequest(
@@ -320,6 +336,25 @@ func routedAgentHookRequest(
     processID: destination.candidate.processID,
     processStartTimeMicroseconds: destination.candidate.processStartTimeMicroseconds
   )
+}
+
+private func agentHookCandidateCanOwnSession(
+  _ candidate: SupatermAgentHookCandidate,
+  sessionID: String
+) -> Bool {
+  let ownedSessionID = normalizedAgentHookSessionID(candidate.ownedSessionID)
+  return ownedSessionID == nil || ownedSessionID == sessionID
+}
+
+private func uniqueAgentHookWorkspaceCandidate(
+  destinations: [SPAgentHookCandidateDestination],
+  sessionID: String
+) -> SPAgentHookCandidateDestination? {
+  let matches = destinations.filter(\.candidate.workingDirectoryMatches)
+  guard matches.count == 1 else { return nil }
+  let match = matches[0]
+  guard agentHookCandidateCanOwnSession(match.candidate, sessionID: sessionID) else { return nil }
+  return match
 }
 
 private func normalizedAgentHookSessionID(_ value: String?) -> String? {

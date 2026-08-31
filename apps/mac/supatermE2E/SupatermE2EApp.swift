@@ -17,6 +17,7 @@ final class SupatermE2EApp: @unchecked Sendable {
   let instanceName: String
   let stateHome: URL
   let cliHome: URL
+  var testSocketRoot: URL { stateHome }
   private(set) var socketPath: String
   private let environment: [String: String]
   private let executable: URL
@@ -30,14 +31,16 @@ final class SupatermE2EApp: @unchecked Sendable {
     zmxSessionsEnabled: Bool = false,
     inheritedEnvironmentKeys: Set<String> = [],
     environment: [String: String] = [:],
-    pathDirectories: [URL] = []
+    pathDirectories: [URL] = [],
+    temporaryDirectory: URL = FileManager.default.temporaryDirectory
   ) async throws -> SupatermE2EApp {
     let app = try SupatermE2EApp(
       shadowsBundledCLIAtShellStartup: shadowsBundledCLIAtShellStartup,
       zmxSessionsEnabled: zmxSessionsEnabled,
       inheritedEnvironmentKeys: inheritedEnvironmentKeys,
       explicitEnvironment: environment,
-      pathDirectories: pathDirectories
+      pathDirectories: pathDirectories,
+      temporaryDirectory: temporaryDirectory
     )
     try await app.waitUntil("the app socket accepts ping", timeout: 90) {
       (try? app.client.send(.ping()))?.ok == true
@@ -50,7 +53,8 @@ final class SupatermE2EApp: @unchecked Sendable {
     zmxSessionsEnabled: Bool,
     inheritedEnvironmentKeys: Set<String>,
     explicitEnvironment: [String: String],
-    pathDirectories: [URL]
+    pathDirectories: [URL],
+    temporaryDirectory: URL
   ) throws {
     executable = Self.productsDirectory
       .appendingPathComponent("supaterm.app/Contents/MacOS/supaterm")
@@ -60,7 +64,6 @@ final class SupatermE2EApp: @unchecked Sendable {
       )
     }
 
-    let temporaryDirectory = FileManager.default.temporaryDirectory
     try ZmxTestWorkspace.reapAbandoned(
       in: temporaryDirectory,
       stateHomePrefix: "supaterm-e2e-",
@@ -102,6 +105,7 @@ final class SupatermE2EApp: @unchecked Sendable {
       SupatermCLIEnvironment.instanceNameKey: instanceName,
       SupatermCLIEnvironment.stateHomeKey: stateHome.path,
       SupatermCLIEnvironment.testHomeKey: cliHome.path,
+      SupatermCLIEnvironment.testSocketRootKey: stateHome.path,
     ]
     let processEnvironment = ProcessInfo.processInfo.environment
     for key in inheritedEnvironmentKeys {
@@ -179,7 +183,6 @@ final class SupatermE2EApp: @unchecked Sendable {
     result[SupatermCLIEnvironment.socketPathKey] = socketPath
     result[SupatermCLIEnvironment.cliPathKey] = spExecutable.path
     result[SupatermCLIEnvironment.testCodexEnableHooksKey] = "1"
-    result[SupatermCLIEnvironment.testHomeKey] = cliHome.path
     if let context {
       result[SupatermCLIEnvironment.surfaceIDKey] = context.surfaceID.uuidString
       result[SupatermCLIEnvironment.tabIDKey] = context.tabID.uuidString
