@@ -21,7 +21,7 @@ A terminal for ur coding agents.
 
 There are other amazing open-source apps like Supaterm. Check them out:
 
-- [SupaCode](https://github.com/supabitapp/supacode)
+- [Supacode](https://github.com/supabitapp/supacode)
 - [cmux](https://github.com/manaflow-ai/cmux)
 - [Termio](https://github.com/termio-sh/termio)
 - [Pane](https://github.com/dcouple/Pane)
