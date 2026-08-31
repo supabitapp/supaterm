@@ -62,6 +62,10 @@ final class SupatermMenuController: NSObject {
         modifiers: event.modifierFlags
       )
     }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+      lhs.identity == rhs.identity && lhs.modifierMask == rhs.modifierMask
+    }
   }
 
   private struct GhosttyBindingMenuItem {

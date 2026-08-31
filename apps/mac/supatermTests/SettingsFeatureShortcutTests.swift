@@ -9,6 +9,25 @@ import Testing
 @MainActor
 struct SettingsFeatureShortcutTests {
   @Test
+  func keyboardLayoutChangeRefreshesTerminalShortcuts() async {
+    var state = SettingsFeature.State()
+    state.terminalShortcutDisplays = ["old"]
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      $0.shortcutSettingsClient.terminalReservedDisplays = { ["new"] }
+    } operation: {
+      let store = TestStore(initialState: state) {
+        SettingsFeature()
+      }
+
+      await store.send(.keyboardLayoutChanged) {
+        $0.terminalShortcutDisplays = ["new"]
+      }
+    }
+  }
+
+  @Test
   func recordingShortcutPersistsAndRefreshesMenus() async {
     let recorder = ShortcutChangeRecorder()
     let override = SupatermShortcutOverride(

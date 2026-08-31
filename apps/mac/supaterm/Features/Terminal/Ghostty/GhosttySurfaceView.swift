@@ -2006,7 +2006,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private func keyboardLayoutId() -> String? {
-    guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue() else {
+    guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
       return nil
     }
     guard let raw = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else {

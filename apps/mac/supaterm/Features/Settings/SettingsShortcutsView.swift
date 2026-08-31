@@ -146,6 +146,7 @@ struct SettingsShortcutsView: View {
         for: NSTextInputContext.keyboardSelectionDidChangeNotification
       )
     ) { _ in
+      _ = store.send(.keyboardLayoutChanged)
       keyboardLayoutRefreshID = UUID()
     }
   }

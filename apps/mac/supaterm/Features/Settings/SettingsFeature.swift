@@ -167,6 +167,7 @@ public struct SettingsFeature {
     case codingAgentsShowPanelChanged(Bool)
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
+    case keyboardLayoutChanged
     case restoreTerminalLayoutEnabledChanged(Bool)
     case restoreShortcutDefaultsButtonTapped
     case shortcutEnabledChanged(SupatermShortcutID, Bool)
@@ -276,6 +277,10 @@ public struct SettingsFeature {
         state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
         SupatermLog.setVerboseLoggingEnabled(state.verboseLoggingEnabled)
         return startTasks()
+
+      case .keyboardLayoutChanged:
+        state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
+        return .none
 
       case .updateClientSnapshotReceived(let snapshot):
         state.about.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
