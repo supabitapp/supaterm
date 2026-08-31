@@ -13,6 +13,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
   - `SUPATERM_STATE_HOME` when the app is launched with a state root
   - `SUPATERM_SURFACE_ID`
   - `SUPATERM_TAB_ID`
+- A new pane clears any inherited `CODEX_THREAD_ID` before it starts its shell or command.
 - For login-shell panes, Supaterm prepends the app's `Contents/MacOS` directory to `PATH`. The directory ships `sp`, `ap`, and `wt`. The app builds `ap` from `ThirdParty/coding-agents-session-picker` and embeds `wt` from `ThirdParty/git-wt`. Direct launches keep the caller's `PATH` unchanged.
 - Structured agent events go through the `sp` CLI and then through the socket control boundary into the app process.
 - The app process is the only place that decides tab activity, pending input state, and desktop notification delivery.
@@ -135,7 +136,7 @@ sp skills path core
 sp skills get coding-agents
 ```
 
-Install every supported hook bridge with:
+Install hooks for every supported agent with:
 
 ```bash
 sp agent install-hooks
@@ -147,25 +148,27 @@ The app also exposes setup commands through:
 sp onboard
 ```
 
-## Hook Bridge
+## Managed Hooks
 
-Claude and Codex share the settings-file hook bridge, but each installer uses the agent's public configuration surface.
+Claude and Codex use settings files, but each installer uses the agent's public configuration surface.
 
 - Settings > Coding Agents exposes a toggle per agent. Turning it on installs hooks; turning it off removes them.
 - `sp agent install-hooks` and `sp agent remove-hooks` reach every supported installer over the socket. A Settings toggle only operates on its selected agent. Both use the same installer code in the app process and fail when no app is reachable.
 - On open, Settings reports each integration as unavailable, unavailable but installed, absent, partial, drifted, or healthy.
 - Claude must be available through the user's login shell. Codex must be version 0.144.1 or newer, have its hooks feature enabled, and have canonical trust state.
-- A hook is Supaterm-managed only when its command exactly matches one of Supaterm's canonical hook commands.
+- A hook is Supaterm-managed when its command matches a canonical command. Codex installs an exact marked command with the bundled `sp` executable's canonical absolute path. It also recognizes the prior environment-based command and marked commands with stale paths so install, repair, and removal work after an app move.
 - Install preserves unrelated settings, removes any existing Supaterm-managed hooks anywhere in the file, and then installs the canonical Supaterm hooks.
-- The installed hook command uses `SUPATERM_CLI_PATH` so the hook bridge targets the bundled `sp` binary injected into Supaterm panes, and passes `--pid "$PPID"` so Supaterm can track live agent processes.
+- Claude's installed command uses `SUPATERM_CLI_PATH` and passes `--pid "$PPID"`.
+- Codex's canonical command invokes the bundled `sp` by its absolute path through `exec /bin/sh`, passes `--pid "$PPID"`, and drains stdin when the CLI is missing or fails. It does not depend on runtime `HOME`, `PATH`, or `SUPATERM_CLI_PATH`.
 - The canonical hook fragment is also available from `sp internal agent-settings <agent>`.
 - On app launch, Supaterm repairs partial and drifted integrations. It leaves absent and healthy integrations unchanged.
 
 Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 
 - It reads one agent hook event JSON object from stdin; the caller must declare the agent explicitly with `--agent`.
-- It forwards that payload to the app over the socket method `terminal.agent_hook`.
-- The forwarded request carries the decoded event, the explicit agent kind, and the ambient `SupatermCLIContext` from the current pane.
+- Eligible events reach the app over the socket method `terminal.agent_hook`.
+- Claude, Pi, and non-session-start Codex traffic carry the ambient `SupatermCLIContext` and use normal socket targeting.
+- A durable Codex root `SessionStart` uses candidate routing instead of ambient pane and socket targeting.
 - Root session-start payloads should include the agent's absolute `cwd`. Supaterm uses it for the Workspace row, Git status, and forked session working directory.
 
 ## Claude
@@ -184,12 +187,12 @@ The app uses Claude hooks only for root session identity.
 
 ## Codex
 
-Codex uses the same session-identity bridge. The terminal reader alone owns the root phase.
+Codex hooks supply root session identity. The terminal reader alone owns the root phase.
 
-- Settings file: `~/.codex/hooks.json`.
+- Managed file: `~/.codex/hooks.json`.
 - Installed hook events: `PermissionRequest`, `PostToolUse`, `PreToolUse`, `SessionStart`, `Stop`, `SubagentStart`, `SubagentStop`, `UserPromptSubmit`.
 - Supaterm keeps the full managed hook set installed, but the app ignores every event except root `SessionStart`.
-- Install enables the Codex hooks feature through the user's login shell, writes the canonical `hooks.json` fragment, then uses `codex app-server --stdio` to discover native hooks and update trust.
+- Install enables the Codex hooks feature through the user's login shell, writes the canonical `hooks.json` fragment with the bundled `sp` path, then uses `codex app-server --stdio` to discover native hooks and update trust.
 - Hook discovery uses `hooks/list`. User-layer version and trust state come from `config/read`; atomic trust replacement uses `config/batchWrite` with that version.
 - Supaterm does not parse Codex source, reproduce Codex's hook hashing, edit TOML trust state directly, vendor Codex, or depend on its internal modules.
 - Remove rewrites `~/.codex/hooks.json` and removes the matching native trust entries through the same app-server API. It does not disable the hooks feature flag.
@@ -197,15 +200,22 @@ Codex uses the same session-identity bridge. The terminal reader alone owns the 
 
 ### App Behavior
 
-The app uses Codex hooks only for root session identity.
+The app uses Codex hooks for durable root session identity.
 
-- `SessionStart` binds the session ID, process, workspace, and pane surface.
+- An eligible `SessionStart` omits `agent_id`, has nonempty `session_id`, `cwd`, and `transcript_path` fields, and has source `startup`, `resume`, `clear`, or `compact`. An empty `agent_id` still makes the event ineligible. Other Codex session starts are ignored.
+- Unless the caller passes `--socket` or `--instance`, `sp` ignores inherited pane and socket targeting and queries every discovered app instance through `terminal.agent_hook_candidates`.
+- Managed app sockets share the fixed per-user `/tmp/supaterm-<uid>` namespace, so discovery does not depend on the hook host's `XDG_RUNTIME_DIR` or `TMPDIR`.
+- The CLI polls each managed app socket within one routing budget and removes stale socket nodes as it finds them. Candidate order is one direct process match from a nonshared hook host, the current owner for a `compact` event with the same session ID, one exact full or Codex-rendered session-title token, then one workspace match. The workspace step requires a single cwd match across the full candidate set. A second pane with the same cwd blocks the route, regardless of session ownership. Direct process evidence can route during an incomplete round. Current-owner evidence needs a complete round. Title and workspace evidence wait for the detection window and a complete round. Missing, incomplete, or ambiguous candidates fail closed.
+- The delivered request uses the candidate pane's context and full detected process identity: PID and process start time. It never binds the Codex app-server process ID.
+- A same-ID `compact` event keeps the current owner. The workspace match can deliver when the pane has no owner or owns the incoming session; it cannot replace another session. A nonshared host rejects a nested route when its inherited session ID differs from the incoming ID. A shared Codex app-server host ignores inherited session state. Replacing another owned session needs a direct process match from a nonshared host or an exact session-title token. The router requires an exact title to replace an owner under a shared host; a `clear` or session-switch `resume` without that proof fails closed.
+- Routing checks whether `transcript_path` is nonempty. Supaterm never opens the transcript or sends transcript content beyond the hook JSON it received.
+- A routed `SessionStart` binds the session ID, process, workspace, and pane surface.
 - Every other Codex hook event is ignored by the app.
 - The terminal reader alone sets Codex's root `unknown`, `idle`, `running`, or `needs input` phase.
 
 ## Pi
 
-Pi uses the extension package from `supaterm-skills`, not the Claude and Codex settings-file bridge.
+Pi uses the extension package from `supaterm-skills` instead of a settings file.
 
 Settings > Coding Agents can install or remove the package by invoking `pi` through the user's login shell.
 The socket methods `app.hooks.install` and `app.hooks.remove` accept `pi` and run that same package install or removal. The aggregate CLI commands include Pi.

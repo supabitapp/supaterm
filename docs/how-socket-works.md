@@ -35,7 +35,7 @@ One instance name belongs to one live app process.
 
 Socket selection and terminal object targeting are separate.
 
-Socket selection order:
+Socket selection order for public commands and ordinary hook events:
 
 1. `--socket <path>`
 2. `SUPATERM_SOCKET_PATH`
@@ -45,6 +45,7 @@ Socket selection order:
 Terminal object targeting happens after socket selection:
 
 - Pane context comes from `SUPATERM_SURFACE_ID` and `SUPATERM_TAB_ID`.
+- New panes clear inherited `CODEX_THREAD_ID` values before launching their shell or command.
 - Inside Supaterm, commands can omit targets such as `sp tab new`, `sp pane split`, `sp tab focus`, and `sp pane focus`.
 - Outside Supaterm, pass selectors, typed short refs, UUIDs, or `--in` targets.
 - The CLI resolves public selectors from a fresh tree and sends stable object IDs.
@@ -229,13 +230,12 @@ sp project icon ~/code/project --json
 - Without a reachable app, `sp config` and `sp agent` exit 64 and `sp skills` exits 1. All three print `Error: No reachable Supaterm instance was found.`
 - `sp agent install-hooks` checks every supported agent, reports every failure, and fails when no supported agent is available.
 - `sp agent remove-hooks` checks every supported agent and succeeds when an agent is absent or unavailable.
-- `sp agent receive-agent-hook` forwards hook payloads and is unaffected by these rules.
+- The hidden hook receiver uses normal resolution for ordinary traffic. An invalid, incomplete, unmatched, or ambiguous durable Codex root `SessionStart` exits without delivery.
 
 ## Runtime Guarantees
 
-- Managed socket paths are created under `XDG_RUNTIME_DIR` when it fits the Unix socket path limit.
-- If `XDG_RUNTIME_DIR` is unavailable or too long, Supaterm falls back through `TMPDIR` and then `/tmp`.
-- Managed socket directories are per-user.
+- Managed socket paths use the fixed per-user `/tmp/supaterm-<uid>` directory, canonicalized on the host.
+- The fixed namespace lets panes, app servers, and CLI processes find the same app sockets even when they inherit different runtime environments.
 - Stale managed sockets can be removed.
 - Path resolution is canonicalized so endpoint creation, discovery, and identity agree on the same location.
 - Incoming requests can be buffered briefly until the app starts consuming the stream.
@@ -249,6 +249,7 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `license.*` — status, activation, refresh, deactivation, purchase, and renewal
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
+- `terminal.agent_hook_candidates` — Codex pane candidates for a durable root session start
 - `terminal.*` — space, tab, and pane control, one method per CLI verb
 
 `terminal.capture_pane` returns terminal text. `terminal.screenshot_pane` returns PNG data for a
@@ -263,6 +264,17 @@ Hook methods own the agent settings files:
 
 - `app.hooks.install` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
 - The app writes `~/.claude/settings.json` and `~/.codex/hooks.json`, and talks to Codex app-server. The CLI never touches those files.
+
+Durable Codex root session starts use a separate route:
+
+- The payload must omit `agent_id`, contain nonempty `session_id`, `cwd`, and `transcript_path` fields, and use source `startup`, `resume`, `clear`, or `compact`. An empty `agent_id` still makes the event ineligible.
+- Without an explicit `--socket` or `--instance`, the CLI discards inherited pane and socket targeting and sends `terminal.agent_hook_candidates` to every discovered app instance.
+- The CLI polls managed app sockets within one routing budget and removes stale nodes as it finds them. Candidate order is a unique direct process match from a nonshared host, the current owner for a `compact` event with the same session ID, an exact full or Codex-rendered session-title token, then one workspace match. The workspace step requires a single cwd match across the full candidate set. A second pane with the same cwd blocks the route, regardless of session ownership. A direct match can win an incomplete round. The current owner needs a complete round. Title and workspace matches wait for the detection window and a complete round. Other missing, incomplete, or ambiguous results fail closed.
+- The final `terminal.agent_hook` request uses the selected pane's context and full detected process identity: PID and process start time. It never binds the Codex app-server process ID.
+- A same-ID `compact` event keeps the current owner. The workspace match can deliver when the pane has no owner or owns the incoming session; it cannot replace another session. A nonshared host rejects a nested route when its inherited session ID differs from the incoming ID. A shared Codex app-server host ignores inherited session state. Replacing another owned session needs a direct process match from a nonshared host or an exact session-title token. The router requires an exact title to replace an owner under a shared host; a `clear` or session-switch `resume` without that proof fails closed.
+- The router checks whether `transcript_path` is nonempty. Supaterm never opens the transcript or sends transcript content beyond the existing hook JSON.
+
+All other agent hook traffic keeps normal ambient context and socket resolution.
 
 `app.agent_detection.reload` atomically reloads local manifests from the app's state root and
 returns the active generation and source of each manifest.
