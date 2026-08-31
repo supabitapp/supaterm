@@ -362,6 +362,38 @@ struct SPSocketClientTests {
   }
 
   @Test
+  func managedEndpointDiscoveryReportsAnUnresolvedCandidateAtItsDeadline() throws {
+    let rootURL = try makeSocketClientTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
+    try FileManager.default.createDirectory(
+      at: managedDirectoryURL,
+      withIntermediateDirectories: true,
+      attributes: [.posixPermissions: 0o700]
+    )
+    let socketURL = managedDirectoryURL.appendingPathComponent(
+      "instance-test-hash-pid-\(getpid())",
+      isDirectory: false
+    )
+    try createStaleSocket(at: socketURL)
+    let startedAt = Date()
+
+    let discovery = SPSocketSelection.discoverManagedEndpoints(
+      connectRetryInterval: 0.02,
+      connectRetryTimeout: 5,
+      responseTimeout: 5,
+      deadline: startedAt.addingTimeInterval(0.15),
+      rootDirectory: rootURL
+    )
+
+    #expect(discovery.endpoints.isEmpty)
+    #expect(discovery.removedStalePaths.isEmpty)
+    #expect(!discovery.isComplete)
+    #expect(Date().timeIntervalSince(startedAt) < 1)
+    #expect(FileManager.default.fileExists(atPath: socketURL.path))
+  }
+
+  @Test
   func staleRemovalRejectsSocketOutsideManagedDirectory() throws {
     let rootURL = try makeSocketClientTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }

@@ -49,6 +49,11 @@ struct SPAgentHookCandidateRound {
   let isComplete: Bool
 }
 
+private struct SPAgentHookSocketTargets {
+  let paths: [String]
+  let isComplete: Bool
+}
+
 struct SPAgentHookRouter {
   private static let candidateConnectRetryInterval: TimeInterval = 0.02
   private static let candidateConnectRetryTimeout: TimeInterval = 0.1
@@ -84,15 +89,12 @@ struct SPAgentHookRouter {
       emitterProcessID: request.process?.emitterProcessID
     )
     while true {
-      let socketPaths = candidateSocketPaths(deadline: routingDeadline)
-      let round =
-        socketPaths.isEmpty
-        ? SPAgentHookCandidateRound(destinations: [], isComplete: false)
-        : candidateRound(
-          socketPaths: socketPaths,
-          query: candidateQuery,
-          deadline: routingDeadline
-        )
+      let targets = candidateSocketTargets(deadline: routingDeadline)
+      let round = candidateRound(
+        targets: targets,
+        query: candidateQuery,
+        deadline: routingDeadline
+      )
       let now = Date()
       let selectionDeadlineReached = now >= selectionDeadline
       if let route = selectedAgentHookRoute(
@@ -117,82 +119,63 @@ struct SPAgentHookRouter {
     }
   }
 
-  private func candidateSocketPaths(deadline: Date) -> [String] {
+  private func candidateSocketTargets(deadline: Date) -> SPAgentHookSocketTargets {
     let explicitSocketPath = connection.explicitSocketPath
     let explicitInstance = connection.instance
-    guard explicitSocketPath == nil || explicitInstance == nil else { return [] }
-    if let explicitSocketPath,
-      SupatermSocketPath.normalized(explicitSocketPath) == nil
-    {
-      return []
+    guard explicitSocketPath == nil || explicitInstance == nil else {
+      return SPAgentHookSocketTargets(paths: [], isComplete: false)
     }
-    if let explicitInstance,
-      SupatermSocketPath.normalized(explicitInstance) == nil
-    {
-      return []
+    let normalizedSocketPath = SupatermSocketPath.normalized(explicitSocketPath)
+    guard explicitSocketPath == nil || normalizedSocketPath != nil else {
+      return SPAgentHookSocketTargets(paths: [], isComplete: false)
+    }
+    let normalizedInstance = SupatermSocketPath.normalized(explicitInstance)
+    guard explicitInstance == nil || normalizedInstance != nil else {
+      return SPAgentHookSocketTargets(paths: [], isComplete: false)
     }
 
     var discoveryEnvironment = environment
     discoveryEnvironment.removeValue(forKey: SupatermCLIEnvironment.socketPathKey)
-    if let explicitSocketPath {
-      return SupatermSocketPath.normalized(explicitSocketPath).map { [$0] } ?? []
+    if let normalizedSocketPath {
+      return SPAgentHookSocketTargets(paths: [normalizedSocketPath], isComplete: true)
     }
-    if let explicitInstance {
-      return resolvedInstanceSocketPath(
-        explicitInstance,
-        environment: discoveryEnvironment,
-        deadline: deadline
-      ).map { [$0] } ?? []
-    }
-    return SupatermSocketPath.discoverManagedSocketPaths(
+    let discovery = SPSocketSelection.discoverManagedEndpoints(
+      connectRetryInterval: Self.candidateConnectRetryInterval,
+      connectRetryTimeout: Self.candidateConnectRetryTimeout,
+      responseTimeout: Self.candidateResponseTimeout,
+      deadline: deadline,
       environment: discoveryEnvironment
     )
-  }
-
-  private func resolvedInstanceSocketPath(
-    _ instance: String,
-    environment: [String: String],
-    deadline: Date
-  ) -> String? {
-    var endpoints: [SupatermSocketEndpoint] = []
-    for socketPath in SupatermSocketPath.discoverManagedSocketPaths(environment: environment) {
-      guard Date() < deadline,
-        let client = try? SPSocketClient(
-          path: socketPath,
-          connectRetryInterval: Self.candidateConnectRetryInterval,
-          connectRetryTimeout: Self.candidateConnectRetryTimeout,
-          responseTimeout: Self.candidateResponseTimeout,
-          deadline: deadline
-        )
-      else {
-        return nil
-      }
-      switch client.probeIdentity() {
-      case .reachable(let endpoint):
-        endpoints.append(endpoint)
-      case .stale:
-        removeDeadManagedSocketPath(socketPath)
-        continue
-      case .ignored:
-        return nil
-      }
+    guard let normalizedInstance else {
+      return SPAgentHookSocketTargets(
+        paths: discovery.endpoints.map(\.path),
+        isComplete: discovery.isComplete
+      )
     }
-    return try? SupatermSocketTargetResolver.resolve(
-      explicitPath: nil,
-      environmentPath: nil,
-      instance: instance,
-      discoveredEndpoints: endpoints
-    ).path
+    guard discovery.isComplete,
+      let target = try? SupatermSocketTargetResolver.resolve(
+        explicitPath: nil,
+        environmentPath: nil,
+        instance: normalizedInstance,
+        discoveredEndpoints: discovery.endpoints
+      )
+    else {
+      return SPAgentHookSocketTargets(paths: [], isComplete: false)
+    }
+    return SPAgentHookSocketTargets(paths: [target.path], isComplete: true)
   }
 
   private func candidateRound(
-    socketPaths: [String],
+    targets: SPAgentHookSocketTargets,
     query: SupatermAgentHookCandidateQuery,
     deadline: Date
   ) -> SPAgentHookCandidateRound {
+    guard !targets.paths.isEmpty else {
+      return SPAgentHookCandidateRound(destinations: [], isComplete: false)
+    }
     var destinations: [SPAgentHookCandidateDestination] = []
-    var isComplete = true
-    for socketPath in socketPaths {
+    var isComplete = targets.isComplete
+    for socketPath in targets.paths {
       guard Date() < deadline else {
         isComplete = false
         break

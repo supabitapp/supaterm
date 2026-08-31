@@ -1,14 +1,9 @@
 import Darwin
+@_exported import SupatermCLIShared
 
-public struct TerminalAgentProcessIdentity: Codable, Equatable, Hashable, Sendable {
-  public let processID: Int32
-  public let startTimeMicroseconds: UInt64
+public typealias TerminalAgentProcessIdentity = SupatermAgentProcessIdentity
 
-  public init(processID: Int32, startTimeMicroseconds: UInt64) {
-    self.processID = processID
-    self.startTimeMicroseconds = startTimeMicroseconds
-  }
-
+extension SupatermAgentProcessIdentity {
   init?<Seconds: BinaryInteger, Microseconds: BinaryInteger>(
     processID: Int32,
     seconds: Seconds,

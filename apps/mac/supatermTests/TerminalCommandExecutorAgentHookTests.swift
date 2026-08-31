@@ -79,13 +79,9 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(firstSurface.effectiveTitle() == "Custom title")
     #expect(response.candidates.count == 2)
     #expect(Set(response.candidates.map(\.context.surfaceID)) == [firstSurface.id, secondSurface.id])
-    let sharedProcessIdentity = SupatermAgentProcessIdentity(
-      processID: processIdentity.processID,
-      startTimeMicroseconds: processIdentity.startTimeMicroseconds
-    )
     #expect(
       response.candidates.map(\.processIdentity)
-        == Array(repeating: sharedProcessIdentity, count: 2)
+        == Array(repeating: processIdentity, count: 2)
     )
     #expect(response.candidates.map(\.sessionIDMatchesTitle) == [true, true])
     #expect(response.candidates.map(\.workingDirectoryMatches) == [true, true])

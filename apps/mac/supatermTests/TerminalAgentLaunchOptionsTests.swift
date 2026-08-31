@@ -79,10 +79,10 @@ struct TerminalAgentLaunchOptionsTests {
   )
   private func codexWorkingDirectoryFollowsCommandLine(testCase: CodexWorkingDirectoryTestCase) {
     #expect(
-      TerminalAgentLaunchOptions.codexWorkingDirectoryPath(
+      TerminalAgentLaunchOptions.codexInvocation(
         processWorkingDirectoryPath: testCase.processWorkingDirectoryPath,
         commandLineArguments: testCase.arguments
-      ) == testCase.expectedPath
+      ).effectiveWorkingDirectoryPath == testCase.expectedPath
     )
   }
 
@@ -128,9 +128,10 @@ struct TerminalAgentLaunchOptionsTests {
   )
   private func codexAppServerUsesParsedSubcommand(testCase: CodexAppServerTestCase) {
     #expect(
-      TerminalAgentLaunchOptions.codexAppServerRuns(
+      (TerminalAgentLaunchOptions.codexInvocation(
+        processWorkingDirectoryPath: nil,
         commandLineArguments: testCase.arguments
-      ) == testCase.expected
+      ).command == .appServer) == testCase.expected
     )
   }
 
@@ -194,20 +195,20 @@ struct TerminalAgentLaunchOptionsTests {
   )
   private func codexForkParentUsesParsedCommandLine(testCase: CodexForkParentTestCase) {
     #expect(
-      TerminalAgentLaunchOptions.codexForkParentSessionID(
+      TerminalAgentLaunchOptions.codexInvocation(
+        processWorkingDirectoryPath: nil,
         commandLineArguments: testCase.arguments
-      ) == testCase.expectedSessionID
+      ).forkParentSessionID == testCase.expectedSessionID
     )
   }
 
   @Test
-  func relativeCodexWorkingDirectoryUsesTerminalPathWhenProcPathIsUnreadable() {
+  func relativeCodexWorkingDirectoryUsesEffectiveBasePath() {
     #expect(
-      codexAgentHookWorkingDirectoryPath(
-        processWorkingDirectoryPath: nil,
+      TerminalAgentLaunchOptions.codexInvocation(
+        processWorkingDirectoryPath: "/tmp/shell",
         commandLineArguments: ["codex", "--cd", "project"],
-        terminalWorkingDirectoryPath: "/tmp/shell"
-      ) == "/tmp/shell/project"
+      ).effectiveWorkingDirectoryPath == "/tmp/shell/project"
     )
   }
 }

@@ -364,6 +364,12 @@ struct SPSocketSelectionDiagnostics {
   let errorMessage: String?
 }
 
+struct SPSocketEndpointDiscoveryResult {
+  let endpoints: [SupatermSocketEndpoint]
+  let removedStalePaths: [String]
+  let isComplete: Bool
+}
+
 enum SPSocketDiscoveryPolicy {
   case whenNeeded
   case always
@@ -460,34 +466,22 @@ enum SPSocketSelection {
       discoveryPolicy: discoveryPolicy
     )
 
-    let discovery: SupatermManagedSocketDiscoveryResult
+    let discovery: SPSocketEndpointDiscoveryResult
     if strategy.discoversManagedSockets {
-      let candidatePaths = SupatermSocketPath.discoverManagedSocketPaths(
-        rootDirectory: rootDirectory,
+      discovery = discoverManagedEndpoints(
+        connectRetryInterval: discoveryConnectRetryInterval,
+        connectRetryTimeout: discoveryConnectRetryTimeout,
+        responseTimeout: discoveryResponseTimeout,
+        deadline: nil,
         environment: environment,
+        rootDirectory: rootDirectory,
         fileManager: fileManager
       )
-      discovery = SupatermManagedSocketDiscovery.discover(
-        candidatePaths: candidatePaths,
-        probe: {
-          probeEndpoint(
-            at: $0,
-            connectRetryTimeout: discoveryConnectRetryTimeout,
-            responseTimeout: discoveryResponseTimeout
-          )
-        },
-        removeStalePath: { path in
-          removeManagedSocketPath(
-            path,
-            rootDirectory: rootDirectory,
-            environment: environment
-          )
-        }
-      )
     } else {
-      discovery = SupatermManagedSocketDiscoveryResult(
-        reachableEndpoints: [],
-        removedStalePaths: []
+      discovery = SPSocketEndpointDiscoveryResult(
+        endpoints: [],
+        removedStalePaths: [],
+        isComplete: true
       )
     }
 
@@ -496,13 +490,13 @@ enum SPSocketSelection {
         explicitPath: explicitSocketPath,
         environmentPath: strategy.environmentPath,
         instance: instance,
-        discoveredEndpoints: discovery.reachableEndpoints
+        discoveredEndpoints: discovery.endpoints
       )
       return SPSocketSelectionDiagnostics(
         explicitSocketPath: explicitSocketPath,
         environmentSocketPath: environmentSocketPath,
         requestedInstance: SupatermSocketPath.normalized(instance),
-        discoveredEndpoints: discovery.reachableEndpoints,
+        discoveredEndpoints: discovery.endpoints,
         removedStalePaths: discovery.removedStalePaths,
         resolvedTarget: resolvedTarget,
         errorMessage: nil
@@ -512,15 +506,68 @@ enum SPSocketSelection {
         explicitSocketPath: explicitSocketPath,
         environmentSocketPath: environmentSocketPath,
         requestedInstance: SupatermSocketPath.normalized(instance),
-        discoveredEndpoints: discovery.reachableEndpoints,
+        discoveredEndpoints: discovery.endpoints,
         removedStalePaths: discovery.removedStalePaths,
         resolvedTarget: nil,
         errorMessage: formatResolutionError(
           error,
-          discoveredEndpoints: discovery.reachableEndpoints
+          discoveredEndpoints: discovery.endpoints
         )
       )
     }
+  }
+
+  static func discoverManagedEndpoints(
+    connectRetryInterval: TimeInterval,
+    connectRetryTimeout: TimeInterval,
+    responseTimeout: TimeInterval,
+    deadline: Date?,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    rootDirectory: URL? = nil,
+    fileManager: FileManager = .default
+  ) -> SPSocketEndpointDiscoveryResult {
+    guard deadline.map({ Date() < $0 }) != false else {
+      return SPSocketEndpointDiscoveryResult(
+        endpoints: [],
+        removedStalePaths: [],
+        isComplete: false
+      )
+    }
+
+    let candidatePaths = SupatermSocketPath.discoverManagedSocketPaths(
+      rootDirectory: rootDirectory,
+      environment: environment,
+      fileManager: fileManager
+    )
+    var isComplete = true
+    let discovery = SupatermManagedSocketDiscovery.discover(
+      candidatePaths: candidatePaths,
+      probe: { path in
+        let status = probeEndpoint(
+          at: path,
+          connectRetryInterval: connectRetryInterval,
+          connectRetryTimeout: connectRetryTimeout,
+          responseTimeout: responseTimeout,
+          deadline: deadline
+        )
+        if case .ignored = status {
+          isComplete = false
+        }
+        return status
+      },
+      removeStalePath: { path in
+        removeManagedSocketPath(
+          path,
+          rootDirectory: rootDirectory,
+          environment: environment
+        )
+      }
+    )
+    return SPSocketEndpointDiscoveryResult(
+      endpoints: discovery.reachableEndpoints,
+      removedStalePaths: discovery.removedStalePaths,
+      isComplete: isComplete
+    )
   }
 
   static func selectionSourceDescription(_ source: SupatermSocketSelectionSource?) -> String? {
@@ -544,15 +591,18 @@ enum SPSocketSelection {
 
   private static func probeEndpoint(
     at path: String,
+    connectRetryInterval: TimeInterval = discoveryConnectRetryInterval,
     connectRetryTimeout: TimeInterval,
-    responseTimeout: TimeInterval
+    responseTimeout: TimeInterval,
+    deadline: Date? = nil
   ) -> SupatermManagedSocketCandidateStatus {
     guard
       let client = try? SPSocketClient(
         path: path,
-        connectRetryInterval: discoveryConnectRetryInterval,
+        connectRetryInterval: connectRetryInterval,
         connectRetryTimeout: connectRetryTimeout,
-        responseTimeout: responseTimeout
+        responseTimeout: responseTimeout,
+        deadline: deadline
       )
     else {
       return .ignored

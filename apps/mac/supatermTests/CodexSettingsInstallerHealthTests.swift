@@ -31,7 +31,7 @@ extension CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writeCodexSettings(
-      try SupatermCodexHookSettings.jsonString(),
+      try canonicalCodexHookSettings(homeDirectoryURL: homeDirectoryURL),
       homeDirectoryURL: homeDirectoryURL
     )
     let installer = testCodexSettingsInstaller(

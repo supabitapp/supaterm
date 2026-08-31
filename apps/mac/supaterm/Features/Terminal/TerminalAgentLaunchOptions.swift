@@ -2,46 +2,40 @@ import Foundation
 import SupatermCLIShared
 
 nonisolated enum TerminalAgentLaunchOptions {
+  enum CodexCommand: Equatable, Sendable {
+    case appServer
+    case fork(parentSessionID: String?)
+    case other(String)
+  }
+
+  struct CodexInvocation: Equatable, Sendable {
+    let command: CodexCommand?
+    let effectiveWorkingDirectoryPath: String?
+
+    var forkParentSessionID: String? {
+      guard case .fork(let parentSessionID) = command else { return nil }
+      return parentSessionID
+    }
+  }
+
+  static func codexInvocation(
+    processWorkingDirectoryPath: String?,
+    commandLineArguments: [String]
+  ) -> CodexInvocation {
+    Schema.codex.codexInvocation(
+      processWorkingDirectoryPath: processWorkingDirectoryPath,
+      commandLineArguments: commandLineArguments
+    )
+  }
+
   static func codexAppServerRuns(
     commandLineArguments: [String]
   ) -> Bool {
-    Schema.codex.firstPositional(from: commandLineArguments) == Codex.appServerCommand
-  }
-
-  static func codexWorkingDirectoryPath(
-    processWorkingDirectoryPath: String?,
-    commandLineArguments: [String]
-  ) -> String? {
-    let declaredPath = Schema.codex.lastOptionValue(
-      named: Codex.workingDirectoryOptions,
-      from: commandLineArguments
+    codexInvocation(
+      processWorkingDirectoryPath: nil,
+      commandLineArguments: commandLineArguments
     )
-    guard let declaredPath else { return processWorkingDirectoryPath }
-    if declaredPath.hasPrefix("/") {
-      return URL(fileURLWithPath: declaredPath).standardizedFileURL.path(percentEncoded: false)
-    }
-    guard let processWorkingDirectoryPath else { return nil }
-    return URL(
-      fileURLWithPath: declaredPath,
-      relativeTo: URL(fileURLWithPath: processWorkingDirectoryPath, isDirectory: true)
-    )
-    .standardizedFileURL
-    .path(percentEncoded: false)
-  }
-
-  static func codexForkParentSessionID(
-    commandLineArguments: [String]
-  ) -> String? {
-    let positionals = Schema.codex.positionalValues(from: commandLineArguments)
-    guard
-      positionals.first == Codex.forkCommand,
-      positionals.count > 1,
-      let parentSessionID = UUID(uuidString: positionals[1]),
-      parentSessionID.uuidString.caseInsensitiveCompare(positionals[1]) == .orderedSame
-    else {
-      return nil
-    }
-    return parentSessionID.uuidString.lowercased()
+    .command == .appServer
   }
 
   static func inherited(
@@ -57,15 +51,6 @@ nonisolated enum TerminalAgentLaunchOptions {
     case .codex: .codex
     case .pi: .pi
     }
-  }
-
-  private enum ArgumentResolution {
-    case discard(until: Int)
-    case inherit(until: Int)
-    case positional
-    case reject
-    case stop
-    case unknownOption
   }
 
   private enum ParsedArgument {
@@ -231,19 +216,42 @@ nonisolated enum TerminalAgentLaunchOptions {
       return inherited
     }
 
-    func firstPositional(from commandLineArguments: [String]) -> String? {
-      parsedArguments(from: commandLineArguments).firstPositional
-    }
-
-    func positionalValues(from commandLineArguments: [String]) -> [String] {
-      parsedArguments(from: commandLineArguments).positionalValues ?? []
-    }
-
-    func lastOptionValue(
-      named names: Set<String>,
-      from commandLineArguments: [String]
-    ) -> String? {
-      parsedArguments(from: commandLineArguments).lastOptionValue(named: names)
+    func codexInvocation(
+      processWorkingDirectoryPath: String?,
+      commandLineArguments: [String]
+    ) -> CodexInvocation {
+      let parsed = parsedArguments(from: commandLineArguments)
+      let command: CodexCommand?
+      switch parsed.firstPositional {
+      case Codex.appServerCommand:
+        command = .appServer
+      case Codex.forkCommand:
+        command = .fork(parentSessionID: codexForkParentSessionID(from: parsed.positionalValues))
+      case .some(let value):
+        command = .other(value)
+      case nil:
+        command = nil
+      }
+      let declaredPath = parsed.lastOptionValue(named: Codex.workingDirectoryOptions)
+      let effectiveWorkingDirectoryPath: String?
+      if let declaredPath, declaredPath.hasPrefix("/") {
+        effectiveWorkingDirectoryPath = URL(fileURLWithPath: declaredPath)
+          .standardizedFileURL
+          .path(percentEncoded: false)
+      } else if let declaredPath, let processWorkingDirectoryPath {
+        effectiveWorkingDirectoryPath = URL(
+          fileURLWithPath: declaredPath,
+          relativeTo: URL(fileURLWithPath: processWorkingDirectoryPath, isDirectory: true)
+        )
+        .standardizedFileURL
+        .path(percentEncoded: false)
+      } else {
+        effectiveWorkingDirectoryPath = processWorkingDirectoryPath
+      }
+      return CodexInvocation(
+        command: command,
+        effectiveWorkingDirectoryPath: effectiveWorkingDirectoryPath
+      )
     }
 
     private func parsedArguments(from commandLineArguments: [String]) -> ParsedArguments {
@@ -251,45 +259,58 @@ nonisolated enum TerminalAgentLaunchOptions {
       var parsed: [ParsedArgument] = []
       var index = arguments.startIndex
       while index < arguments.endIndex {
-        switch resolution(in: arguments, at: index) {
-        case .discard(let end):
-          parsed.append(.discarded)
-          index = end
-        case .inherit(let end):
-          parsed.append(.inherited(parsedOption(in: arguments, from: index, until: end)))
-          index = end
-        case .positional:
-          parsed.append(.positional(arguments[index]))
-          index += 1
-        case .reject:
-          parsed.append(.reject)
-          index += 1
-        case .stop:
-          parsed.append(.stop)
+        let result = parsedArgument(in: arguments, at: index)
+        parsed.append(result.argument)
+        if case .stop = result.argument {
           return ParsedArguments(values: parsed)
-        case .unknownOption:
-          parsed.append(.unknownOption)
-          index += 1
         }
+        index = result.end
       }
       return ParsedArguments(values: parsed)
     }
 
-    private func resolution(in arguments: [String], at index: Int) -> ArgumentResolution {
+    private func parsedArgument(
+      in arguments: [String],
+      at index: Int
+    ) -> (argument: ParsedArgument, end: Int) {
       let argument = arguments[index]
       if argument == "--" {
-        return .stop
+        return (.stop, index + 1)
       }
       if rejectedOptions.contains(optionName(argument)) {
-        return .reject
+        return (.reject, index + 1)
       }
       if let end = inheritedOptionEnd(in: arguments, at: index) {
-        return .inherit(until: end)
+        return (.inherited(parsedOption(in: arguments, from: index, until: end)), end)
       }
       if let end = discardedOptionEnd(in: arguments, at: index) {
-        return .discard(until: end)
+        return (.discarded, end)
       }
-      return argument.hasPrefix("-") ? .unknownOption : .positional
+      return argument.hasPrefix("-")
+        ? (.unknownOption, index + 1)
+        : (.positional(argument), index + 1)
+    }
+
+    private func codexForkParentSessionID(from positionals: [String]?) -> String? {
+      guard
+        let positionals,
+        positionals.first == Codex.forkCommand,
+        positionals.count > 1,
+        let parentSessionID = UUID(uuidString: positionals[1]),
+        parentSessionID.uuidString.caseInsensitiveCompare(positionals[1]) == .orderedSame
+      else {
+        return nil
+      }
+      return parentSessionID.uuidString.lowercased()
+    }
+
+    private func agentArguments(from commandLineArguments: [String]) -> [String] {
+      guard let executable = commandLineArguments.first else { return [] }
+      let executableName = URL(fileURLWithPath: executable).lastPathComponent
+      if ["node", "nodejs"].contains(executableName), commandLineArguments.count > 1 {
+        return Array(commandLineArguments.dropFirst(2))
+      }
+      return Array(commandLineArguments.dropFirst())
     }
 
     private func inheritedOptionEnd(in arguments: [String], at index: Int) -> Int? {

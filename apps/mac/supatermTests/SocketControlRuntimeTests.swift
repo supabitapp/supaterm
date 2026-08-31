@@ -112,8 +112,7 @@ struct SocketControlRuntimeTests {
       endpointID: UUID(uuidString: "804AD5E3-9956-4E82-BD6B-C40F4EF27F90")!,
       processID: 1,
       startedAt: Date(timeIntervalSince1970: 0),
-      rootDirectory: rootURL,
-      userID: getuid()
+      rootDirectory: rootURL
     )!
     let runtime = SocketControlRuntime(endpointProvider: { endpoint })
 
@@ -143,8 +142,7 @@ struct SocketControlRuntimeTests {
       environment: environment,
       endpointID: UUID(uuidString: "11AA053B-4A30-4C39-9A88-97250768746E")!,
       processID: 1,
-      startedAt: Date(timeIntervalSince1970: 0),
-      userID: getuid()
+      startedAt: Date(timeIntervalSince1970: 0)
     )!
     let runtime = SocketControlRuntime(endpointProvider: { endpoint })
 
@@ -163,7 +161,6 @@ struct SocketControlRuntimeTests {
     let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
-    let userID = getuid()
     let longRuntimeRoot = rootURL.appendingPathComponent(
       String(repeating: "x", count: 80),
       isDirectory: true
@@ -178,8 +175,7 @@ struct SocketControlRuntimeTests {
       environment: environment,
       endpointID: UUID(uuidString: "5E6A9FDD-B5D8-4F46-BDA7-79C20AC2A61F")!,
       processID: 1,
-      startedAt: Date(timeIntervalSince1970: 0),
-      userID: userID
+      startedAt: Date(timeIntervalSince1970: 0)
     )!
     let runtime = SocketControlRuntime(endpointProvider: { endpoint })
 

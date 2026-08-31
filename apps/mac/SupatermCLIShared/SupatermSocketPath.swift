@@ -60,8 +60,7 @@ public enum SupatermSocketPath {
 
   public static func managedDirectoryURL(
     rootDirectory: URL? = nil,
-    environment: [String: String] = ProcessInfo.processInfo.environment,
-    userID: uid_t = getuid()
+    environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> URL {
     if let rootDirectory {
       return managedDirectoryURL(
@@ -89,13 +88,11 @@ public enum SupatermSocketPath {
     instanceName: String,
     processID: Int32,
     rootDirectory: URL? = nil,
-    environment: [String: String] = ProcessInfo.processInfo.environment,
-    userID: uid_t = getuid()
+    environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> URL {
     let directoryURL = managedDirectoryURL(
       rootDirectory: rootDirectory,
-      environment: environment,
-      userID: userID
+      environment: environment
     )
     return directoryURL.appendingPathComponent(
       managedSocketFileName(
@@ -129,8 +126,7 @@ public enum SupatermSocketPath {
   ) -> [String] {
     let managedDirectoryURL = managedDirectoryURL(
       rootDirectory: rootDirectory,
-      environment: environment,
-      userID: userID
+      environment: environment
     )
     guard isPrivateDirectory(at: managedDirectoryURL.path, userID: userID) else {
       return []
@@ -155,8 +151,7 @@ public enum SupatermSocketPath {
   public static func isManagedSocketPath(
     _ path: String,
     rootDirectory: URL? = nil,
-    environment: [String: String] = ProcessInfo.processInfo.environment,
-    userID: uid_t = getuid()
+    environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Bool {
     guard
       let canonicalPath = canonicalized(path)
@@ -166,8 +161,7 @@ public enum SupatermSocketPath {
 
     let managedDirectoryURL = managedDirectoryURL(
       rootDirectory: rootDirectory,
-      environment: environment,
-      userID: userID
+      environment: environment
     )
     let canonicalManagedDirectoryPath =
       canonicalized(managedDirectoryURL.path) ?? managedDirectoryURL.path
@@ -185,8 +179,7 @@ public enum SupatermSocketPath {
   ) -> Bool {
     let managedDirectoryURL = managedDirectoryURL(
       rootDirectory: rootDirectory,
-      environment: environment,
-      userID: userID
+      environment: environment
     )
     guard isPrivateDirectory(at: managedDirectoryURL.path, userID: userID) else {
       return false
@@ -195,8 +188,7 @@ public enum SupatermSocketPath {
       isManagedSocketPath(
         path,
         rootDirectory: rootDirectory,
-        environment: environment,
-        userID: userID
+        environment: environment
       )
     else {
       return false
@@ -362,8 +354,7 @@ public enum SupatermProcessSocketEndpoint {
     endpointID: UUID = UUID(),
     processID: Int32,
     startedAt: Date,
-    rootDirectory: URL? = nil,
-    userID: uid_t = getuid()
+    rootDirectory: URL? = nil
   ) -> SupatermSocketEndpoint? {
     let name =
       SupatermSocketPath.normalized(environment[SupatermCLIEnvironment.instanceNameKey])
@@ -375,8 +366,7 @@ public enum SupatermProcessSocketEndpoint {
         instanceName: name,
         processID: processID,
         rootDirectory: rootDirectory,
-        environment: environment,
-        userID: userID
+        environment: environment
       ).path,
       pid: processID,
       startedAt: startedAt

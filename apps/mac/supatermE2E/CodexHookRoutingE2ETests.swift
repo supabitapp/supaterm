@@ -207,7 +207,7 @@ private func runCodexHookOwnership() async throws {
     prompts: prompts
   )
   server = startedServer
-  try await installCodexHooks(app: app, space: space)
+  try installCodexHooks(app: app, space: space)
 
   let startedAppServer = try CodexSharedAppServer(
     executable: environment.executable,
@@ -335,16 +335,15 @@ private func makeCodexHookModelServer(
 private func installCodexHooks(
   app: SupatermE2EApp,
   space: TestSpace
-) async throws {
-  try await installAgentHooks(
+) throws {
+  try setupAgentIntegrations(
     runner: SPBinaryRunner(
       app: app,
       tabID: space.tab.tabID,
       paneID: space.tab.paneID
     ),
     socketPath: app.socketPath,
-    workspace: space.directory,
-    app: app
+    workspace: space.directory
   )
 }
 

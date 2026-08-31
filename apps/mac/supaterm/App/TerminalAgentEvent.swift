@@ -14,11 +14,6 @@ nonisolated enum TerminalAgentProgressMutation: Equatable, Sendable {
 }
 
 nonisolated struct TerminalAgentEvent: Equatable, Sendable {
-  enum Process: Equatable, Sendable {
-    case detected(TerminalAgentProcessIdentity)
-    case emitter(Int32)
-  }
-
   struct Scope: Equatable, Hashable, Sendable {
     let agent: SupatermAgentKind
     let sessionID: String
@@ -70,14 +65,14 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
 
   let scope: Scope
   let context: SupatermCLIContext?
-  let process: Process?
+  let process: SupatermAgentHookProcess?
   let workingDirectoryPath: String?
   let action: Action
 
   init(
     scope: Scope,
     context: SupatermCLIContext? = nil,
-    process: Process?,
+    process: SupatermAgentHookProcess?,
     workingDirectoryPath: String? = nil,
     action: Action
   ) {
@@ -98,7 +93,7 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
     self.init(
       scope: scope,
       context: context,
-      process: processID.map(Process.emitter),
+      process: processID.map(SupatermAgentHookProcess.emitter),
       workingDirectoryPath: workingDirectoryPath,
       action: action
     )
