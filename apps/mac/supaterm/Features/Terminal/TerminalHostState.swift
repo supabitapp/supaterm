@@ -469,6 +469,10 @@ final class TerminalHostState {
     return true
   }
 
+  func clearScreenOnFocusedSurface() {
+    selectedSurfaceView?.bridge.sendKey(.ctrlL)
+  }
+
   func updateWindowActivity(_ activity: WindowActivityState) {
     let selectedTabID = selectedTabID
     let focusedSurfaceID = selectedTabID.flatMap { focusHistoryByTab[$0]?.current }
