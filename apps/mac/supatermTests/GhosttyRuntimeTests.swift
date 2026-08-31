@@ -293,6 +293,47 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func clipboardReadsRawAndNativePlainTextRepresentations() {
+    let representations = [
+      (NSPasteboard.PasteboardType("text/plain"), Data("raw".utf8)),
+      (NSPasteboard.PasteboardType(UTType.plainText.identifier), Data("native".utf8)),
+    ]
+
+    for (type, data) in representations {
+      let pasteboard = makePasteboard()
+      pasteboard.declareTypes([type], owner: nil)
+      pasteboard.setData(data, forType: type)
+
+      #expect(
+        pasteboard.ghosttyData(
+          forMime: "text/plain",
+          request: GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ
+        ) == data
+      )
+    }
+  }
+
+  @Test
+  func clipboardURIListWriteCanBeListedAndReadBack() {
+    let pasteboard = makePasteboard()
+    let data = Data("file:///tmp/first\r\nfile:///tmp/second\r\n".utf8)
+
+    #expect(
+      GhosttyClipboard.write(
+        [GhosttyClipboardContent(mime: "text/uri-list", data: data)],
+        to: pasteboard
+      )
+    )
+    #expect(pasteboard.ghosttyAvailableMimes() == ["text/uri-list"])
+    #expect(
+      pasteboard.ghosttyData(
+        forMime: "text/uri-list",
+        request: GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ
+      ) == data
+    )
+  }
+
+  @Test
   func clipboardReadsCopiedFilesAsURIList() throws {
     let pasteboard = makePasteboard()
     let first = URL(fileURLWithPath: "/tmp/first file") as NSURL
@@ -396,7 +437,8 @@ struct GhosttyRuntimeTests {
   func clipboardTextAliasesUseOneNativeStringRepresentation() {
     let aliases = ["text/plain", "text/plain;charset=utf-8", "UTF8_STRING", "TEXT", "STRING"]
     let expected = GhosttyClipboardContent(mime: "text/plain", data: Data("safe".utf8))
-    let contents = [expected]
+    let contents =
+      [expected]
       + aliases.dropFirst().map {
         GhosttyClipboardContent(mime: $0, data: Data("different".utf8))
       }

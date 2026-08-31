@@ -31,7 +31,7 @@ When zmx persistence is enabled, shell and agent processes may continue after th
 
 ## Clipboard and notifications
 
-Supaterm asks before pasting unsafe multiline text and before allowing a terminal application to write to the clipboard through OSC52.
+Supaterm asks before pasting unsafe multiline text and before allowing a terminal application to read from or write to the clipboard through OSC52 or the Kitty clipboard protocol. When a terminal application supports it, you can remember an approval for the rest of that terminal session.
 
 Terminal and agent notification text can be delivered through macOS. Configure lock-screen visibility in macOS System Settings and avoid placing secrets in notification text.
 

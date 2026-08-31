@@ -130,6 +130,34 @@ struct GhosttyClipboardConfirmationTests {
   }
 
   @Test
+  func clipboardPreviewDecodesValidImage() throws {
+    let representation = try #require(
+      NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: 2,
+        pixelsHigh: 1,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 8,
+        bitsPerPixel: 32
+      )
+    )
+    let data = try #require(representation.representation(using: .png, properties: [:]))
+    let payload = GhosttyClipboardConfirmationPayload(
+      contents: [GhosttyClipboardContent(mime: "image/png", data: data)],
+      available: [],
+      programName: nil,
+      canRemember: false
+    )
+
+    let image = try #require(payload.previewImage)
+    #expect(image.size.width > image.size.height)
+  }
+
+  @Test
   func boundedScrollbackCapturePreservesTrailingBlankLines() async throws {
     let fixture = try await ClipboardSurfaceFixture(
       command: "/bin/sh -c 'printf \"SUPATERM_READY\\nSUPATERM_TAIL_READY\\none\\ntwo\\n\\n\\n\"; stty -echo; cat'"

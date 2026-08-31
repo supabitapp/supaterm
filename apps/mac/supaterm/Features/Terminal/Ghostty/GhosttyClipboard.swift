@@ -419,7 +419,7 @@ final class GhosttyClipboard {
   ) -> [GhosttyClipboardContent] {
     var seen = Set<String>()
     return contents.filter { content in
-      guard let type = NSPasteboard.PasteboardType(mimeType: content.mime) else { return false }
+      let type = NSPasteboard.PasteboardType(mimeType: content.mime)
       return seen.insert(type.rawValue).inserted
     }
   }
@@ -491,9 +491,8 @@ final class GhosttyClipboard {
     to pasteboard: NSPasteboard,
     setData: ((Data, NSPasteboard.PasteboardType) -> Bool)? = nil
   ) -> Bool {
-    let values = items.compactMap { item -> (NSPasteboard.PasteboardType, Data)? in
-      guard let type = NSPasteboard.PasteboardType(mimeType: item.mime) else { return nil }
-      return (type, item.data)
+    let values = items.map { item in
+      (NSPasteboard.PasteboardType(mimeType: item.mime), item.data)
     }
     let types = values.reduce(into: [NSPasteboard.PasteboardType]()) { result, value in
       if !result.contains(value.0) {
@@ -515,7 +514,7 @@ extension NSPasteboard.PasteboardType {
   static let supatermPNGImage = NSPasteboard.PasteboardType("public.png")
   static let supatermTIFFImage = NSPasteboard.PasteboardType("public.tiff")
 
-  init?(mimeType: String) {
+  init(mimeType: String) {
     switch mimeType {
     case "text/plain", "text/plain;charset=utf-8", "UTF8_STRING", "TEXT", "STRING":
       self = .string
@@ -567,50 +566,60 @@ extension NSPasteboard {
     forMime mime: String,
     request: ghostty_clipboard_request_e
   ) -> Data? {
-    switch mime {
-    case "text/plain" where request == GHOSTTY_CLIPBOARD_REQUEST_PASTE:
-      return getOpinionatedStringContents().map { Data($0.utf8) }
-    case "text/plain":
-      return data(forType: .string)
-    case "text/uri-list":
+    if mime == "text/plain",
+      request == GHOSTTY_CLIPBOARD_REQUEST_PASTE,
+      let contents = getOpinionatedStringContents()
+    {
+      return Data(contents.utf8)
+    }
+    if let data = ghosttyDeclaredData(forMime: mime) {
+      return data
+    }
+    if mime == "text/uri-list" {
       let urls = ghosttyFileURLs
       return urls.isEmpty ? nil : Data(urls.map { "\($0.absoluteString)\r\n" }.joined().utf8)
-    default:
-      let directType = NSPasteboard.PasteboardType(mime)
-      if types?.contains(directType) == true,
-        let data = data(forType: directType)
-      {
-        return data
-      }
-      return NSPasteboard.PasteboardType(mimeType: mime).flatMap { data(forType: $0) }
     }
+    return nil
   }
 
   func ghosttyAvailableMimes() -> [String] {
-    var availableTypes = (pasteboardItems ?? []).flatMap(\.types)
-    for type in types ?? []
-    where type.rawValue.contains("/") && !availableTypes.contains(type) {
-      availableTypes.append(type)
-    }
     var result: [String] = []
     var seen = Set<String>()
-    for type in availableTypes {
-      let mime: String?
-      if type == .fileURL {
-        mime = "text/uri-list"
-      } else if type.rawValue == UTType.data.identifier {
-        mime = "application/octet-stream"
-      } else if let preferred = UTType(type.rawValue)?.preferredMIMEType {
-        mime = preferred == "text/plain;charset=utf-8" ? "text/plain" : preferred
-      } else if type.rawValue.contains("/") {
-        mime = type.rawValue
-      } else {
-        mime = nil
-      }
+    for type in ghosttyDeclaredTypes {
+      let mime = type.ghosttyMIMEType
       guard let mime, seen.insert(mime).inserted else { continue }
       result.append(mime)
     }
     return result
+  }
+
+  private var ghosttyDeclaredTypes: [NSPasteboard.PasteboardType] {
+    var result = (pasteboardItems ?? []).flatMap(\.types)
+    for type in types ?? []
+    where type.rawValue.contains("/") && !result.contains(type) {
+      result.append(type)
+    }
+    return result
+  }
+
+  private func ghosttyDeclaredData(forMime mime: String) -> Data? {
+    let declaredTypes = ghosttyDeclaredTypes
+    let directType = NSPasteboard.PasteboardType(mime)
+    let mappedType = NSPasteboard.PasteboardType(mimeType: mime)
+    var candidates = [directType]
+    if mappedType != directType {
+      candidates.append(mappedType)
+    }
+    let matchingTypes = declaredTypes.filter {
+      $0 != .fileURL && $0.ghosttyMIMEType == mime && !candidates.contains($0)
+    }
+    candidates.append(contentsOf: matchingTypes)
+    for type in candidates where declaredTypes.contains(type) {
+      if let data = data(forType: type) {
+        return data
+      }
+    }
+    return nil
   }
 
   func writeImageToTempFile() -> String? {
@@ -663,5 +672,20 @@ extension NSPasteboard {
       else { return nil }
       return url
     }
+  }
+}
+
+extension NSPasteboard.PasteboardType {
+  fileprivate var ghosttyMIMEType: String? {
+    if self == .fileURL {
+      return "text/uri-list"
+    }
+    if rawValue == UTType.data.identifier {
+      return "application/octet-stream"
+    }
+    if let preferred = UTType(rawValue)?.preferredMIMEType {
+      return preferred == "text/plain;charset=utf-8" ? "text/plain" : preferred
+    }
+    return rawValue.contains("/") ? rawValue : nil
   }
 }
