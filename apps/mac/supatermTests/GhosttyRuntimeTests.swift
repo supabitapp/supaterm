@@ -2,7 +2,6 @@ import AppKit
 import Carbon.HIToolbox
 import Foundation
 import GhosttyKit
-import SupatermSettingsFeature
 import SwiftUI
 import Synchronization
 import Testing
@@ -13,17 +12,20 @@ import Testing
 struct GhosttyRuntimeTests {
   @Test
   func runtimeUsesInitialEffectiveAppearance() throws {
-    let darkAppearance = try #require(NSAppearance(named: .darkAqua))
-    for appearanceMode in AppearanceMode.allCases {
+    let cases: [(NSAppearance.Name, ColorScheme)] = [
+      (.aqua, .light),
+      (.darkAqua, .dark),
+    ]
+    for (appearanceName, expectedColorScheme) in cases {
       let source = EffectiveAppearanceSource(
-        initialAppearance: appearanceMode.appearance ?? darkAppearance
+        initialAppearance: try #require(NSAppearance(named: appearanceName))
       )
       let runtime = try makeGhosttyRuntime(
         "",
         effectiveAppearanceObserver: source.observe
       )
 
-      #expect(runtime.colorSchemeForTesting() == (appearanceMode == .light ? .light : .dark))
+      #expect(runtime.colorSchemeForTesting() == expectedColorScheme)
     }
   }
 

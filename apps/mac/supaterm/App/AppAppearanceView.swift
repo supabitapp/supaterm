@@ -21,6 +21,14 @@ struct AppAppearanceView<Content: View>: View {
   }
 }
 
+enum ApplicationAppearance {
+  static func apply(_ appearanceMode: AppearanceMode) {
+    let appearance = appearanceMode.appearance
+    guard NSApp.appearance?.name != appearance?.name else { return }
+    NSApp.appearance = appearance
+  }
+}
+
 private struct ApplicationAppearanceSetter: NSViewRepresentable {
   let appearanceMode: AppearanceMode
 
@@ -38,13 +46,7 @@ private struct ApplicationAppearanceSetter: NSViewRepresentable {
 private final class ApplicationAppearanceView: NSView {
   var appearanceMode: AppearanceMode = .system {
     didSet {
-      applyAppearance()
+      ApplicationAppearance.apply(appearanceMode)
     }
-  }
-
-  private func applyAppearance() {
-    let appearance = appearanceMode.appearance
-    guard NSApp.appearance?.name != appearance?.name else { return }
-    NSApp.appearance = appearance
   }
 }
