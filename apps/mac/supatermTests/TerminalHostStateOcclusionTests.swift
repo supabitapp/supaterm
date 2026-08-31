@@ -49,8 +49,9 @@ struct TerminalHostStateOcclusionTests {
         )
       )
       #expect(
-        Array(recorder.events.prefix(5)) == [
+        Array(recorder.events.prefix(6)) == [
           .creation,
+          .visibility(displayedSurfaceID, true),
           .creation,
           .visibility(displayedHiddenSurfaceIDs[0], false),
           .creation,
