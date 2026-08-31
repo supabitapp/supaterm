@@ -1,19 +1,13 @@
 // @vitest-environment jsdom
 
 import { RouterProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { docsHref } from "@/components/layout";
-import { downloadHref } from "@/lib/downloads";
-import { homebrewInstallCommand, purchaseAction } from "@/routes/home";
+import { docsHref, githubHref } from "@/components/layout";
 import { routeTree } from "./router";
 
 const { capture } = vi.hoisted(() => ({
   capture: vi.fn(),
-}));
-
-const { clipboardWriteText } = vi.hoisted(() => ({
-  clipboardWriteText: vi.fn(),
 }));
 
 vi.mock("posthog-js", () => ({
@@ -21,22 +15,6 @@ vi.mock("posthog-js", () => ({
     capture,
   },
 }));
-
-class MockIntersectionObserver {
-  readonly root = null;
-  readonly rootMargin = "";
-  readonly thresholds = [];
-
-  disconnect() {}
-
-  observe() {}
-
-  takeRecords() {
-    return [];
-  }
-
-  unobserve() {}
-}
 
 const renderRoute = async (initialPath: string) => {
   const history = createMemoryHistory({
@@ -55,12 +33,7 @@ const renderRoute = async (initialPath: string) => {
 };
 
 beforeEach(() => {
-  vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
   vi.stubGlobal("scrollTo", vi.fn());
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText: clipboardWriteText },
-  });
 });
 
 afterEach(() => {
@@ -70,46 +43,13 @@ afterEach(() => {
 });
 
 describe("router", () => {
-  it("clicking download keeps the SPA on the current page", async () => {
-    const { history, router } = await renderRoute("/");
+  it("shows the temporary coming soon page", async () => {
+    await renderRoute("/");
 
-    const downloadLinks = screen.getAllByRole("link", {
-      name: /^download/i,
-    });
-
-    expect(downloadLinks.length).toBeGreaterThan(0);
-
-    for (const link of downloadLinks) {
-      expect(link.getAttribute("href")).toBe(downloadHref);
-      expect(link.hasAttribute("download")).toBe(true);
-    }
-
-    const downloadLink = screen.getByRole("link", {
-      name: /^download$/i,
-    });
-
-    let defaultPrevented = false;
-    const preventDocumentNavigation = (event: MouseEvent) => {
-      if (event.target !== downloadLink) {
-        return;
-      }
-
-      defaultPrevented = event.defaultPrevented;
-      event.preventDefault();
-    };
-
-    document.addEventListener("click", preventDocumentNavigation);
-    fireEvent.click(downloadLink);
-    document.removeEventListener("click", preventDocumentNavigation);
-
-    await waitFor(() => {
-      expect(history.location.pathname).toBe("/");
-      expect(router.state.location.pathname).toBe("/");
-    });
-
-    expect(defaultPrevented).toBe(false);
-    expect(screen.getByRole("heading", { name: /The terminal with/i })).toBeTruthy();
-    expect(capture).toHaveBeenCalledWith("nav_download_clicked");
+    expect(screen.getByRole("heading", { name: "Coming soon." })).toBeTruthy();
+    expect(screen.getByText("Site refresh in progress")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /download/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /buy/i })).toBeNull();
   });
 
   it("renders the transparent brand mark before the site title", async () => {
@@ -122,56 +62,27 @@ describe("router", () => {
     expect(brandMark?.getAttribute("alt")).toBe("");
   });
 
-  it("links to the documentation site", async () => {
+  it("links to GitHub and the documentation site", async () => {
     await renderRoute("/");
 
     const docsLink = screen.getByRole("link", { name: "Docs" });
+    const githubLink = screen.getByRole("link", { name: "GitHub" });
 
     expect(docsLink.getAttribute("href")).toBe(docsHref);
-    expect(screen.queryByText("WIP")).toBeNull();
+    expect(githubLink.getAttribute("href")).toBe(githubHref);
+
+    docsLink.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(docsLink);
+    expect(capture).toHaveBeenCalledWith("coming_soon_docs_clicked");
+
+    githubLink.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(githubLink);
+    expect(capture).toHaveBeenCalledWith("coming_soon_github_clicked");
   });
 
-  it("renders a copyable Homebrew install command", async () => {
+  it("links to the legal policies", async () => {
     await renderRoute("/");
 
-    expect(homebrewInstallCommand).toBe("brew install supaterm");
-    expect(screen.getByText(`$ ${homebrewInstallCommand}`)).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: `Copy ${homebrewInstallCommand}` }));
-
-    expect(clipboardWriteText).toHaveBeenCalledWith(homebrewInstallCommand);
-  });
-
-  it("offers a trial and a perpetual license through the purchase checkout", async () => {
-    await renderRoute("/");
-
-    expect(screen.getByRole("heading", { name: "Pay once, use Supaterm forever." })).toBeTruthy();
-    expect(screen.getByText("Trial")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Download trial" })).toBeTruthy();
-    expect(screen.queryByText("Free")).toBeNull();
-    expect(
-      screen.getByText("No recurring charge. Tax may apply. Seven-day refund period."),
-    ).toBeTruthy();
-
-    const purchaseButtons = screen.getAllByRole("button", {
-      name: /^(Buy now|Buy license for \$99)$/,
-    });
-
-    expect(purchaseButtons).toHaveLength(3);
-    for (const button of purchaseButtons) {
-      const form = button.closest("form");
-
-      expect(form?.getAttribute("action")).toBe(purchaseAction);
-      expect(form?.getAttribute("method")).toBe("post");
-    }
-  });
-
-  it("links to license management and the legal policies", async () => {
-    await renderRoute("/");
-
-    expect(
-      screen.getByRole("link", { name: "License Management Portal" }).getAttribute("href"),
-    ).toBe("https://license.supaterm.com");
     expect(screen.getByRole("link", { name: "Terms" }).getAttribute("href")).toBe("/terms");
     expect(screen.getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe("/privacy");
     expect(screen.getByRole("link", { name: "Refunds" }).getAttribute("href")).toBe("/refunds");

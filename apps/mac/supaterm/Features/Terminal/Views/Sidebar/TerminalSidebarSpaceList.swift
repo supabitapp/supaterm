@@ -130,7 +130,7 @@ struct TerminalSidebarSpaceList: View {
     chromePresentation: TerminalTabChromePresentation,
     shortcutHints: [TerminalTabID: String]
   ) -> TerminalSidebarTabRowPresentation {
-    return TerminalSidebarTabRowPresentation(
+    TerminalSidebarTabRowPresentation(
       tab: tab,
       groupID: groupID,
       rootIsPinned: rootIsPinned,

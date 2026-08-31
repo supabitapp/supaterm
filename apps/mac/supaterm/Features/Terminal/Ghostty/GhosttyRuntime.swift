@@ -86,6 +86,7 @@ final class GhosttyRuntime {
   private let callbackState = CallbackState()
   private let clipboard: GhosttyClipboard
   private(set) var app: ghostty_app_t?
+  private var stopObservingEffectiveAppearance: (() -> Void)?
   private var observers: [NSObjectProtocol] = []
   private var surfaceRefs: [SurfaceReference] = []
   private var lastColorScheme: ghostty_color_scheme_e?
@@ -98,7 +99,8 @@ final class GhosttyRuntime {
     applicationIsActive: () -> Bool = { NSApp.isActive },
     pasteboardProvider: @escaping (ghostty_clipboard_e) -> NSPasteboard? = {
       NSPasteboard.ghostty($0)
-    }
+    },
+    effectiveAppearanceObserver: GhosttyEffectiveAppearance.Observer? = nil
   ) {
     guard let config = Self.loadConfig(includeCLIArgs: true) else {
       preconditionFailure("ghostty_config_new failed")
@@ -108,7 +110,8 @@ final class GhosttyRuntime {
       configPath: nil,
       includeCLIArgs: true,
       applicationIsActive: applicationIsActive,
-      pasteboardProvider: pasteboardProvider
+      pasteboardProvider: pasteboardProvider,
+      effectiveAppearanceObserver: effectiveAppearanceObserver
     )
   }
 
@@ -117,7 +120,8 @@ final class GhosttyRuntime {
     applicationIsActive: () -> Bool = { NSApp.isActive },
     pasteboardProvider: @escaping (ghostty_clipboard_e) -> NSPasteboard? = {
       NSPasteboard.ghostty($0)
-    }
+    },
+    effectiveAppearanceObserver: GhosttyEffectiveAppearance.Observer? = nil
   ) {
     guard let config = Self.loadConfig(at: configPath, includeCLIArgs: false) else {
       preconditionFailure("ghostty_config_new failed")
@@ -127,7 +131,8 @@ final class GhosttyRuntime {
       configPath: configPath,
       includeCLIArgs: false,
       applicationIsActive: applicationIsActive,
-      pasteboardProvider: pasteboardProvider
+      pasteboardProvider: pasteboardProvider,
+      effectiveAppearanceObserver: effectiveAppearanceObserver
     )
   }
 
@@ -136,7 +141,8 @@ final class GhosttyRuntime {
     configPath: String?,
     includeCLIArgs: Bool,
     applicationIsActive: () -> Bool,
-    pasteboardProvider: @escaping (ghostty_clipboard_e) -> NSPasteboard?
+    pasteboardProvider: @escaping (ghostty_clipboard_e) -> NSPasteboard?,
+    effectiveAppearanceObserver: GhosttyEffectiveAppearance.Observer?
   ) {
     self.config = config
     self.configPath = configPath
@@ -172,6 +178,11 @@ final class GhosttyRuntime {
     }
     self.app = app
     ghostty_app_set_focus(app, applicationIsActive())
+    let observeEffectiveAppearance =
+      effectiveAppearanceObserver ?? GhosttyEffectiveAppearance.observe
+    stopObservingEffectiveAppearance = observeEffectiveAppearance { [weak self] appearance in
+      self?.setColorScheme(GhosttyEffectiveAppearance.colorScheme(for: appearance))
+    }
 
     let center = NotificationCenter.default
     observers.append(
@@ -220,6 +231,7 @@ final class GhosttyRuntime {
 
   isolated deinit {
     clipboard.cancelAll()
+    stopObservingEffectiveAppearance?()
     let center = NotificationCenter.default
     for observer in observers {
       center.removeObserver(observer)
@@ -265,6 +277,11 @@ final class GhosttyRuntime {
     lastColorScheme = ghosttyScheme
     ghostty_app_set_color_scheme(app, ghosttyScheme)
     applyColorSchemeToSurfaces(ghosttyScheme)
+  }
+
+  func colorSchemeForTesting() -> ColorScheme? {
+    guard let lastColorScheme else { return nil }
+    return lastColorScheme == GHOSTTY_COLOR_SCHEME_DARK ? .dark : .light
   }
 
   func registerSurface(_ surface: ghostty_surface_t) -> SurfaceReference {

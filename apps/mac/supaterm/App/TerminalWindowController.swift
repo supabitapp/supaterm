@@ -114,7 +114,6 @@ final class TerminalWindowController: NSWindowController {
     let commandPaletteClient: TerminalCommandPaletteClient
     let ghosttyShortcuts: GhosttyShortcutManager
     let licenseStore: StoreOf<LicenseFeature>
-    let runtime: GhosttyRuntime
     let store: StoreOf<AppFeature>
     let tabDragRegistry: TerminalTabDragRegistry
     let terminal: TerminalHostState
@@ -203,7 +202,6 @@ final class TerminalWindowController: NSWindowController {
         commandPaletteClient: commandPaletteClient,
         ghosttyShortcuts: ghosttyShortcuts,
         licenseStore: registry.licenseStore,
-        runtime: runtime,
         store: store,
         tabDragRegistry: registry.tabDragRegistry,
         terminal: terminal,
@@ -389,23 +387,21 @@ final class TerminalWindowController: NSWindowController {
   ) -> NSViewController {
     NSHostingController(
       rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          ContentView(
-            commandHoldObserver: input.commandHoldObserver,
-            ghosttyShortcuts: input.ghosttyShortcuts,
-            commandPaletteClient: input.commandPaletteClient,
-            paneDragClient: TerminalPaneDragClient(
-              terminal: input.terminal,
-              windowControllerID: input.windowControllerID,
-              registry: input.tabDragRegistry
-            ),
-            updateWindowShell: { [weak shellController] presentation in
-              shellController?.apply(presentation)
-            },
-            store: input.store,
-            terminal: input.terminal
-          )
-        }
+        ContentView(
+          commandHoldObserver: input.commandHoldObserver,
+          ghosttyShortcuts: input.ghosttyShortcuts,
+          commandPaletteClient: input.commandPaletteClient,
+          paneDragClient: TerminalPaneDragClient(
+            terminal: input.terminal,
+            windowControllerID: input.windowControllerID,
+            registry: input.tabDragRegistry
+          ),
+          updateWindowShell: { [weak shellController] presentation in
+            shellController?.apply(presentation)
+          },
+          store: input.store,
+          terminal: input.terminal
+        )
       }
     )
   }
@@ -418,22 +414,20 @@ final class TerminalWindowController: NSWindowController {
     guard let shellController else { return AnyView(EmptyView()) }
     return AnyView(
       AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          TerminalSidebarContentView(
-            commandHoldObserver: input.commandHoldObserver,
-            ghosttyShortcuts: input.ghosttyShortcuts,
-            groupIconStore: groupIconStore,
-            licenseStore: input.licenseStore,
-            shellState: shellController.state,
-            store: input.store,
-            terminal: input.terminal,
-            sidebarControllerCache: shellController.sidebarControllerCache,
-            spacePagingDidEnd: { [weak shellController] in
-              shellController?.spacePagingDidEnd()
-            },
-            updateStore: input.updateStore
-          )
-        }
+        TerminalSidebarContentView(
+          commandHoldObserver: input.commandHoldObserver,
+          ghosttyShortcuts: input.ghosttyShortcuts,
+          groupIconStore: groupIconStore,
+          licenseStore: input.licenseStore,
+          shellState: shellController.state,
+          store: input.store,
+          terminal: input.terminal,
+          sidebarControllerCache: shellController.sidebarControllerCache,
+          spacePagingDidEnd: { [weak shellController] in
+            shellController?.spacePagingDidEnd()
+          },
+          updateStore: input.updateStore
+        )
       }
     )
   }
@@ -446,19 +440,17 @@ final class TerminalWindowController: NSWindowController {
   ) -> AnyView {
     AnyView(
       AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          TerminalHorizontalTabsContentView(
-            store: input.store,
-            groupIconStore: groupIconStore,
-            tabDragRegistry: input.tabDragRegistry,
-            terminal: input.terminal,
-            windowControllerID: input.windowControllerID,
-            captureRequest: {
-              shellController?.tabDragCaptureRequest()
-            },
-            controllerReference: controllerReference
-          )
-        }
+        TerminalHorizontalTabsContentView(
+          store: input.store,
+          groupIconStore: groupIconStore,
+          tabDragRegistry: input.tabDragRegistry,
+          terminal: input.terminal,
+          windowControllerID: input.windowControllerID,
+          captureRequest: {
+            shellController?.tabDragCaptureRequest()
+          },
+          controllerReference: controllerReference
+        )
       }
     )
   }

@@ -7,16 +7,18 @@ struct TerminalSidebarTabSummaryView: View {
     let panes: [TerminalTabPanePresentation]
   }
 
-  enum StatusAccessory: Equatable {
+  enum TrailingAccessory: Equatable {
+    case reserved
+    case shortcut(String)
+    case agent(TerminalHostState.TabAgentStatus)
     case attention
     case pinned
     case terminalProgress(TerminalTabProgress)
-  }
 
-  enum TrailingSlot: Equatable {
-    case reserved
-    case shortcut(String)
-    case status(StatusAccessory)
+    fileprivate var usesVariableWidth: Bool {
+      if case .agent = self { return true }
+      return false
+    }
   }
 
   let tab: TerminalTabItem
@@ -29,36 +31,35 @@ struct TerminalSidebarTabSummaryView: View {
   let showsShortcutHint: Bool
   let isRowHovering: Bool
 
-  static func statusAccessory(
-    isPinned: Bool,
-    terminalProgress: TerminalTabProgress?,
+  static func trailingAccessory(
+    shortcutHint: String? = nil,
+    showsShortcutHint: Bool = false,
+    isRowHovering: Bool = false,
+    isPinned: Bool = false,
+    terminalProgress: TerminalTabProgress? = nil,
     paneIndicator: TerminalTabPanePresentation.Indicator? = nil
-  ) -> StatusAccessory? {
+  ) -> TrailingAccessory? {
+    if isRowHovering {
+      return .reserved
+    }
+    if showsShortcutHint {
+      return shortcutHint.map(TrailingAccessory.shortcut)
+    }
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
     }
-    if paneIndicator == .attention {
+    switch paneIndicator {
+    case .agent(let status):
+      return .agent(status)
+    case .attention:
       return .attention
+    case nil:
+      break
     }
     if isPinned {
       return .pinned
     }
     return nil
-  }
-
-  static func trailingSlot(
-    shortcutHint: String?,
-    showsShortcutHint: Bool,
-    isRowHovering: Bool,
-    statusAccessory: StatusAccessory?
-  ) -> TrailingSlot? {
-    if showsShortcutHint {
-      return shortcutHint.map(TrailingSlot.shortcut)
-    }
-    if isRowHovering {
-      return .reserved
-    }
-    return statusAccessory.map(TrailingSlot.status)
   }
 
   static func titleTruncationMode(_ title: String) -> Text.TruncationMode {
@@ -72,7 +73,9 @@ struct TerminalSidebarTabSummaryView: View {
     let summary = summary(tab: tab, panes: panes)
     var titles = tab.isTitleLocked ? [tab.title] : []
     titles.append(contentsOf: summary.panes.map(\.title))
-    return titles.isEmpty ? tab.title : titles.joined(separator: "\n")
+    var seen = Set<String>()
+    let uniqueTitles = titles.filter { seen.insert($0).inserted }
+    return uniqueTitles.isEmpty ? tab.title : uniqueTitles.joined(separator: "\n")
   }
 
   static func summary(
@@ -97,8 +100,7 @@ struct TerminalSidebarTabSummaryView: View {
       if showsTitleHeader {
         TerminalSidebarTabLineView(
           title: tab.title,
-          indicator: summary.headerIndicator,
-          trailingSlot: tabTrailingSlot(paneIndicator: summary.headerIndicator),
+          trailingAccessory: tabTrailingAccessory(paneIndicator: summary.headerIndicator),
           palette: palette,
           isSelected: isSelected
         )
@@ -108,8 +110,10 @@ struct TerminalSidebarTabSummaryView: View {
         let ownsTabAccessories = !showsTitleHeader && pane.id == summary.panes.first?.id
         TerminalSidebarTabLineView(
           title: pane.title,
-          indicator: pane.indicator,
-          trailingSlot: paneTrailingSlot(pane, ownsTabAccessories: ownsTabAccessories),
+          trailingAccessory: paneTrailingAccessory(
+            pane.indicator,
+            ownsTabAccessories: ownsTabAccessories
+          ),
           palette: palette,
           isSelected: isSelected
         )
@@ -118,42 +122,38 @@ struct TerminalSidebarTabSummaryView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func tabTrailingSlot(
+  private func tabTrailingAccessory(
     paneIndicator: TerminalTabPanePresentation.Indicator?
-  ) -> TrailingSlot? {
-    Self.trailingSlot(
+  ) -> TrailingAccessory? {
+    Self.trailingAccessory(
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
       isRowHovering: isRowHovering,
-      statusAccessory: Self.statusAccessory(
-        isPinned: isPinned,
-        terminalProgress: terminalProgress,
-        paneIndicator: paneIndicator
-      )
+      isPinned: isPinned,
+      terminalProgress: terminalProgress,
+      paneIndicator: paneIndicator
     )
   }
 
-  private func paneTrailingSlot(
-    _ pane: TerminalTabPanePresentation,
+  private func paneTrailingAccessory(
+    _ indicator: TerminalTabPanePresentation.Indicator?,
     ownsTabAccessories: Bool
-  ) -> TrailingSlot? {
-    Self.trailingSlot(
+  ) -> TrailingAccessory? {
+    guard ownsTabAccessories || !isRowHovering else { return nil }
+    return Self.trailingAccessory(
       shortcutHint: ownsTabAccessories ? shortcutHint : nil,
-      showsShortcutHint: ownsTabAccessories && showsShortcutHint,
+      showsShortcutHint: showsShortcutHint,
       isRowHovering: ownsTabAccessories && isRowHovering,
-      statusAccessory: Self.statusAccessory(
-        isPinned: ownsTabAccessories && isPinned,
-        terminalProgress: ownsTabAccessories ? terminalProgress : nil,
-        paneIndicator: pane.indicator
-      )
+      isPinned: ownsTabAccessories && isPinned,
+      terminalProgress: ownsTabAccessories ? terminalProgress : nil,
+      paneIndicator: indicator
     )
   }
 }
 
 private struct TerminalSidebarTabLineView: View {
   let title: String
-  let indicator: TerminalTabPanePresentation.Indicator?
-  let trailingSlot: TerminalSidebarTabSummaryView.TrailingSlot?
+  let trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory?
   let palette: Palette
   let isSelected: Bool
 
@@ -171,18 +171,12 @@ private struct TerminalSidebarTabLineView: View {
           .truncationMode(TerminalSidebarTabSummaryView.titleTruncationMode(title))
           .frame(maxWidth: .infinity, alignment: .leading)
 
-        if case .agent(let agentStatus) = indicator {
-          TerminalSidebarAgentStatusView(
-            status: agentStatus,
-            showsText: showsAgentStatusText,
-            palette: palette
+        if let trailingAccessory {
+          trailingAccessoryView(
+            trailingAccessory,
+            showsAgentStatusText: showsAgentStatusText
           )
-          .layoutPriority(1)
-        }
-
-        if let trailingSlot {
-          trailingAccessory(trailingSlot)
-            .layoutPriority(2)
+          .layoutPriority(2)
         }
       }
       .terminalAnimation(
@@ -199,11 +193,12 @@ private struct TerminalSidebarTabLineView: View {
     isSelected ? palette.selectedText : palette.selectableRow.title
   }
 
-  private func trailingAccessory(
-    _ trailingSlot: TerminalSidebarTabSummaryView.TrailingSlot
+  private func trailingAccessoryView(
+    _ trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory,
+    showsAgentStatusText: Bool
   ) -> some View {
-    ZStack {
-      switch trailingSlot {
+    Group {
+      switch trailingAccessory {
       case .reserved:
         Color.clear
 
@@ -215,41 +210,47 @@ private struct TerminalSidebarTabLineView: View {
               ? palette.selectedSecondaryText
               : palette.secondaryText
           )
-      case .status(let statusAccessory):
-        statusAccessoryView(statusAccessory)
+      case .agent(let status):
+        TerminalSidebarAgentStatusView(
+          status: status,
+          showsText: showsAgentStatusText,
+          palette: palette
+        )
+
+      case .attention:
+        TerminalSidebarBellIndicatorView(
+          isSelected: isSelected,
+          palette: palette
+        )
+
+      case .pinned:
+        Image(systemName: "pin.fill")
+          .font(.system(size: 9, weight: .semibold))
+          .foregroundStyle(
+            isSelected
+              ? palette.selectedSecondaryText
+              : palette.secondaryText
+          )
+          .accessibilityLabel("Pinned")
+
+      case .terminalProgress(let terminalProgress):
+        TerminalSidebarProgressIndicatorView(
+          progress: terminalProgress,
+          isSelected: isSelected,
+          palette: palette
+        )
       }
     }
-    .frame(minWidth: TerminalSidebarLayout.tabTrailingAccessorySize)
+    .frame(
+      width: trailingAccessory.usesVariableWidth
+        ? nil
+        : TerminalSidebarLayout.tabTrailingAccessorySize
+    )
+    .frame(
+      minWidth: trailingAccessory.usesVariableWidth
+        ? TerminalSidebarLayout.tabTrailingAccessorySize
+        : nil
+    )
     .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
-  }
-
-  @ViewBuilder
-  private func statusAccessoryView(
-    _ statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory
-  ) -> some View {
-    switch statusAccessory {
-    case .attention:
-      TerminalSidebarBellIndicatorView(
-        isSelected: isSelected,
-        palette: palette
-      )
-
-    case .pinned:
-      Image(systemName: "pin.fill")
-        .font(.system(size: 9, weight: .semibold))
-        .foregroundStyle(
-          isSelected
-            ? palette.selectedSecondaryText
-            : palette.secondaryText
-        )
-        .accessibilityLabel("Pinned")
-
-    case .terminalProgress(let terminalProgress):
-      TerminalSidebarProgressIndicatorView(
-        progress: terminalProgress,
-        isSelected: isSelected,
-        palette: palette
-      )
-    }
   }
 }

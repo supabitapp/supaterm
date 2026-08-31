@@ -146,7 +146,7 @@ struct TerminalAgentPanelTests {
     }
     defer { try? FileManager.default.removeItem(at: root) }
 
-    let host = TerminalHostState.test()
+    let host = TerminalHostState.test(createsLiveTerminalSurfaces: true)
     host.ensureInitialTab(
       focusing: false,
       workingDirectoryPath: paneDirectory.path(percentEncoded: false)

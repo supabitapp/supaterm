@@ -15,7 +15,7 @@ from typing import Literal, TextIO
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-XCCONFIG_PATH = REPO_ROOT / "apps/mac/Configurations/Project.xcconfig"
+XCCONFIG_PATH = REPO_ROOT / "apps/Configurations/Versions.xcconfig"
 VERSION_STATE_PATH = XCCONFIG_PATH.relative_to(REPO_ROOT).as_posix()
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)$")

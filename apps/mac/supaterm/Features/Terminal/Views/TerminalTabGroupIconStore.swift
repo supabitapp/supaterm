@@ -12,10 +12,10 @@ nonisolated struct TerminalTabGroupIconRequest: Hashable, Sendable {
 
   func resolve() -> URL? {
     for path in workingDirectoryPaths {
+      let projectPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path) ?? path
       guard
-        let rootPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path),
         let iconURL = SupatermProjectIconResolver.resolve(
-          in: URL(fileURLWithPath: rootPath, isDirectory: true)
+          in: URL(fileURLWithPath: projectPath, isDirectory: true)
         )
       else {
         continue

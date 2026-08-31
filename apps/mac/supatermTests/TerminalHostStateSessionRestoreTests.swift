@@ -565,7 +565,10 @@ struct TerminalHostStateSessionRestoreTests {
         ]
       )
 
-      let host = TerminalHostState.test(spaceID: spaces[0].id)
+      let host = TerminalHostState.test(
+        createsLiveTerminalSurfaces: true,
+        spaceID: spaces[0].id
+      )
       #expect(host.restore(from: session))
       #expect(host.displaySpace(spaces[1].id))
       #expect(host.displaySpace(spaces[0].id))

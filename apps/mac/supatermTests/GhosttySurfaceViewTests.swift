@@ -683,7 +683,12 @@ struct GhosttySurfaceViewTests {
   func liveProcessIdentityTracksShellForegroundChildAndExit() async throws {
     initializeGhosttyForTests()
 
-    let host = TerminalHostState.test(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    let host = TerminalHostState.test(
+      runtime: GhosttyRuntime(),
+      createsLiveTerminalSurfaces: true,
+      zmxClient: .noop,
+      zmxSessionsEnabled: false
+    )
     host.ensureInitialTab(focusing: false)
     let surface = try #require(host.selectedSurfaceView)
     defer { surface.closeSurface() }

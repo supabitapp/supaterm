@@ -849,7 +849,7 @@ struct TerminalSidebarLayoutPlanTests {
       )
     )
 
-    #expect(geometry.dropGapHeight == 82)
+    #expect(geometry.dropGapHeight == 80 + TerminalSidebarLayout.tabRowSpacing)
   }
 
   @Test
@@ -912,6 +912,24 @@ struct TerminalSidebarLayoutPlanTests {
         $0.path == .rootBoundary(lane: .pinned, index: 1)
       }
     )
+  }
+
+  @Test
+  func inlineNewTabMatchesRegularTabGeometry() throws {
+    let tab = TerminalTabID()
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: TerminalSidebarTestFixture.outline(
+        roots: [TerminalSidebarOutline.Root(content: .tab(tab), isPinned: false)],
+        revision: 1
+      ),
+      preferredHeights: [:]
+    )
+    let tabFrame = try #require(plan.items.first { $0.id == .tab(tab) }?.frame)
+    let newTabFrame = try #require(plan.items.first { $0.id == .newTab }?.frame)
+
+    #expect(tabFrame.height == 34)
+    #expect(newTabFrame.height == tabFrame.height)
+    #expect(newTabFrame.minY - tabFrame.maxY == TerminalSidebarLayout.tabRowSpacing)
   }
 
   @Test

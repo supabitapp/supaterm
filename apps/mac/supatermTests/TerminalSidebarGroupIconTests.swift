@@ -7,6 +7,18 @@ import Testing
 @MainActor
 struct TerminalTabGroupIconTests {
   @Test
+  func resolvesIconFromAWorkingDirectoryWithoutARepository() throws {
+    let fixture = try RepositoryIconFixture(name: "standalone", createsRepository: false)
+    defer { fixture.remove() }
+    let iconURL = try fixture.writeIcon()
+    let request = TerminalTabGroupIconRequest(
+      workingDirectoryPaths: [fixture.rootURL.path]
+    )
+
+    #expect(request.resolve() == iconURL)
+  }
+
+  @Test
   func resolvesIconFromTheGroupSharedRepository() throws {
     let fixture = try RepositoryIconFixture(name: "supaterm")
     defer { fixture.remove() }
@@ -123,16 +135,17 @@ private struct RepositoryIconFixture {
   let containerURL: URL
   let rootURL: URL
 
-  init(name: String) throws {
+  init(name: String, createsRepository: Bool = true) throws {
     containerURL = FileManager.default.temporaryDirectory.appending(
       path: UUID().uuidString,
       directoryHint: .isDirectory
     )
     rootURL = containerURL.appending(path: name, directoryHint: .isDirectory)
-    try FileManager.default.createDirectory(
-      at: rootURL.appending(path: ".git", directoryHint: .isDirectory),
-      withIntermediateDirectories: true
-    )
+    let directoryURL =
+      createsRepository
+      ? rootURL.appending(path: ".git", directoryHint: .isDirectory)
+      : rootURL
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
   }
 
   func createDirectory(_ path: String) throws -> URL {

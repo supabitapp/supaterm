@@ -13,6 +13,16 @@ extension TerminalHostState {
   struct WindowAgentPresentationID: Hashable {
     let surfaceID: UUID
     let completionIdentity: TerminalAgentCompletionIdentity
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+      lhs.surfaceID == rhs.surfaceID
+        && lhs.completionIdentity == rhs.completionIdentity
+    }
+
+    func hash(into hasher: inout Hasher) {
+      hasher.combine(surfaceID)
+      hasher.combine(completionIdentity)
+    }
   }
 
   struct WindowAgentPresentation: Identifiable, Equatable {
