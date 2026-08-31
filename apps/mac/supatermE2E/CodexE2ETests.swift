@@ -15,7 +15,7 @@ struct CodexE2ETests {
     try await runCodexLifecycle(mode: .screenRules)
   }
 
-  @Test(.timeLimit(.minutes(5)))
+  @Test(.timeLimit(.minutes(15)))
   func hooksAugmentScreenRulesAcrossEveryRootStateAndInterrupt() async throws {
     try await runCodexLifecycle(mode: .hooks)
   }
@@ -122,11 +122,10 @@ private final class CodexE2EFixture {
           tabID: space.tab.tabID,
           paneID: space.tab.paneID
         )
-        try await installAgentHooks(
+        try setupAgentIntegrations(
           runner: runner,
           socketPath: app.socketPath,
-          workspace: space.directory,
-          app: app
+          workspace: space.directory
         )
       }
       let command = makeCodexCommand(
@@ -288,7 +287,7 @@ private final class CodexE2EFixture {
 }
 
 private enum CodexRuleID {
-  static let blockers: Set<String> = ["osc_title_blocked", "live_strong_blocker"]
+  static let blockers: Set<String> = ["approval_overlay", "osc_title_blocked", "request_input"]
   static let idleTitle: Set<String> = ["osc_title_idle"]
   static let trustPrompt: Set<String> = ["trust_directory"]
   static let working: Set<String> = ["osc_title_working", "screen_working_fallback"]

@@ -77,10 +77,10 @@ final class TerminalCommandExecutor {
     switch request {
     case .detectionReload:
       return .detectionReload(try await agentDetectionReload())
-    case .hooksInstall(let request):
-      return .hooksInstall(try await hooksInstall(request))
+    case .agentIntegrationSetup(let request):
+      return .agentIntegrationSetup(try await setupAgentIntegration(request))
     case .hooksRemove(let request):
-      return .hooksRemove(try await hooksRemove(request))
+      return .hooksRemove(try await removeAgentIntegration(request))
     case .skillsGet(let request):
       return .skillsGet(try skillsGet(request))
     case .skillsInstall:

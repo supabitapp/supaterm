@@ -3,16 +3,13 @@ import Foundation
 
 public struct AgentDetectionProcessRule: Equatable, Hashable, Sendable {
   public let executable: String
-  public let scriptSuffix: String?
   public let processTitle: String?
 
   public init(
     executable: String,
-    scriptSuffix: String? = nil,
     processTitle: String? = nil
   ) {
     self.executable = executable
-    self.scriptSuffix = scriptSuffix
     self.processTitle = processTitle
   }
 }
@@ -165,41 +162,40 @@ enum AgentDetectionProcessRecognizer {
     invocation: ProcessInvocation,
     manifest: AgentDetectionProcessManifest
   ) -> Candidate? {
-    let executables = Set([
-      URL(fileURLWithPath: invocation.executablePath).lastPathComponent,
-      entry.name,
-    ]).subtracting([""])
-    guard !executables.isEmpty else { return nil }
+    let executable = URL(fileURLWithPath: invocation.executablePath).lastPathComponent
     if manifest.processes.contains(where: {
-      $0.scriptSuffix == nil && $0.processTitle == nil && executables.contains($0.executable)
+      $0.processTitle == nil && $0.executable == executable
     }) {
       return Candidate(
         agentID: manifest.agentID,
         process: entry,
-        strength: .exact
+        strength: .executable
+      )
+    }
+    if manifest.processes.contains(where: { rule in
+      guard
+        rule.executable == executable,
+        let processTitle = rule.processTitle,
+        !processTitle.isEmpty
+      else { return false }
+      return invocation.arguments.first == processTitle
+    }) {
+      return Candidate(
+        agentID: manifest.agentID,
+        process: entry,
+        strength: .processTitle
       )
     }
     guard
-      manifest.processes.contains(where: { rule in
-        guard executables.contains(rule.executable) else { return false }
-        if let processTitle = rule.processTitle {
-          guard !processTitle.isEmpty, invocation.arguments.first == processTitle else {
-            return false
-          }
-        }
-        if let scriptSuffix = rule.scriptSuffix {
-          guard !scriptSuffix.isEmpty else { return false }
-          return invocation.arguments.dropFirst().contains { $0.hasSuffix(scriptSuffix) }
-        }
-        return rule.processTitle != nil
+      !entry.name.isEmpty,
+      manifest.processes.contains(where: {
+        $0.processTitle == nil && $0.executable == entry.name
       })
-    else {
-      return nil
-    }
+    else { return nil }
     return Candidate(
       agentID: manifest.agentID,
       process: entry,
-      strength: .wrapper
+      strength: .processName
     )
   }
 
@@ -225,8 +221,9 @@ enum AgentDetectionProcessRecognizer {
   }
 
   private enum Strength: Int, Comparable {
-    case exact
-    case wrapper
+    case executable
+    case processTitle
+    case processName
 
     static func < (left: Strength, right: Strength) -> Bool {
       left.rawValue < right.rawValue

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 
 @testable import SupatermCLIShared
@@ -95,6 +96,7 @@ struct ClaudeSettingsInstallerTests {
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
         "SubagentStart", "SubagentStop", "UserPromptSubmit",
       ])
+    #expect(object["terminalProgressBarEnabled"] == nil)
   }
 
   @Test
@@ -110,6 +112,152 @@ struct ClaudeSettingsInstallerTests {
     let secondInstall = try Data(contentsOf: settingsURL)
 
     #expect(secondInstall == firstInstall)
+  }
+
+  @Test
+  func setupCreatesMissingSettingsFileAndChecksAvailabilityOnce() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let availabilityChecks = Mutex(0)
+    let installer = ClaudeSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runAvailabilityCommand: {
+        availabilityChecks.withLock { $0 += 1 }
+        return CodingAgentCommandResult(status: 0)
+      }
+    )
+
+    #expect(try installer.setup() == .healthy)
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    #expect(object["hooks"] != nil)
+    #expect(object["terminalProgressBarEnabled"] as? Bool == true)
+    #expect(availabilityChecks.withLock { $0 } == 1)
+  }
+
+  @Test
+  func setupReturnsUnavailableWithoutWritingSettings() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let availabilityChecks = Mutex(0)
+    let installer = ClaudeSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runAvailabilityCommand: {
+        availabilityChecks.withLock { $0 += 1 }
+        return CodingAgentCommandResult(status: 127)
+      }
+    )
+
+    #expect(try installer.setup() == .unavailable)
+    #expect(availabilityChecks.withLock { $0 } == 1)
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL).path
+      )
+    )
+  }
+
+  @Test
+  func setupPreservesUnrelatedSettings() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeSettings(
+      """
+      {
+        "env": {
+          "SUPATERM_TEST": "keep"
+        },
+        "theme": "dark"
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    #expect(try availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL).setup() == .healthy)
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    let environment = try #require(object["env"] as? [String: Any])
+    #expect(environment["SUPATERM_TEST"] as? String == "keep")
+    #expect(object["theme"] as? String == "dark")
+    #expect(object["terminalProgressBarEnabled"] as? Bool == true)
+  }
+
+  @Test
+  func setupPreservesDisabledProgressSetting() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeSettings(
+      """
+      { "theme": "dark", "terminalProgressBarEnabled": false }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    #expect(try availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL).setup() == .healthy)
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    #expect(object["terminalProgressBarEnabled"] as? Bool == false)
+  }
+
+  @Test
+  func setupPreservesNullProgressSetting() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeSettings(
+      """
+      { "theme": "dark", "terminalProgressBarEnabled": null }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    #expect(try availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL).setup() == .healthy)
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    #expect(object["terminalProgressBarEnabled"] is NSNull)
+  }
+
+  @Test
+  func setupIsIdempotent() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL)
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+
+    #expect(try installer.setup() == .healthy)
+    let firstSetup = try Data(contentsOf: settingsURL)
+    #expect(try installer.setup() == .healthy)
+
+    #expect(try Data(contentsOf: settingsURL) == firstSetup)
+  }
+
+  @Test
+  func setupFailsWithoutOverwritingInvalidJSON() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let invalidJSON = #"{ "terminalProgressBarEnabled":"#
+    try writeSettings(invalidJSON, homeDirectoryURL: homeDirectoryURL)
+
+    #expect(throws: ClaudeSettingsInstallerError.invalidJSON) {
+      try availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL).setup()
+    }
+
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    #expect(try String(contentsOf: settingsURL, encoding: .utf8) == invalidJSON)
+  }
+
+  @Test
+  func setupFailsWithoutOverwritingNonObjectRoot() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let nonObjectRoot = "[]"
+    try writeSettings(nonObjectRoot, homeDirectoryURL: homeDirectoryURL)
+
+    #expect(throws: ClaudeSettingsInstallerError.invalidRootObject) {
+      try availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL).setup()
+    }
+
+    let settingsURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    #expect(try String(contentsOf: settingsURL, encoding: .utf8) == nonObjectRoot)
   }
 
   @Test
@@ -448,10 +596,10 @@ struct ClaudeSettingsInstallerTests {
   }
 
   @Test
-  func availabilityCommandArgumentsCheckBothClaudeExecutables() {
+  func availabilityCommandArgumentsCheckClaudeExecutable() {
     #expect(
       ClaudeSettingsInstaller.availabilityCommandArguments()
-        == ["-l", "-i", "-c", "command -v claude >/dev/null 2>&1 || command -v claude-code >/dev/null 2>&1"]
+        == ["-l", "-i", "-c", "command -v claude >/dev/null 2>&1"]
     )
   }
 }

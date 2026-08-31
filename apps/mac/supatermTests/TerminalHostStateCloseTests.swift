@@ -88,6 +88,70 @@ struct TerminalHostStateCloseTests {
   }
 
   @Test
+  func closeBelowRequestsOnlyUnpinnedRootTargets() {
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let manager = host.spaceManager.tabCollection
+    let source = manager.createTab(title: "Source")
+    let pinned = manager.createTab(title: "Pinned")
+    let regular = manager.createTab(title: "Regular")
+    #expect(manager.setTabPinned(source, isPinned: true) != nil)
+    #expect(manager.setTabPinned(pinned, isPinned: true) != nil)
+    manager.selectTab(source)
+
+    host.requestCloseTabsBelow(source)
+
+    #expect(manager.selectedTabID == source)
+    #expect(
+      host.pendingEvents
+        == [
+          .closeRequested(
+            TerminalCloseRequest(target: .tabs([regular]), needsConfirmation: false)
+          )
+        ]
+    )
+  }
+
+  @Test
+  func closeOthersRequestsOnlyUnpinnedRootTargets() {
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let manager = host.spaceManager.tabCollection
+    let pinned = manager.createTab(title: "Pinned")
+    let source = manager.createTab(title: "Source")
+    let regular = manager.createTab(title: "Regular")
+    #expect(manager.setTabPinned(pinned, isPinned: true) != nil)
+    manager.selectTab(source)
+
+    host.requestCloseOtherTabs(keeping: [source])
+
+    #expect(manager.selectedTabID == source)
+    #expect(
+      host.pendingEvents
+        == [
+          .closeRequested(
+            TerminalCloseRequest(target: .tabs([regular]), needsConfirmation: false)
+          )
+        ]
+    )
+  }
+
+  @Test
+  func bulkCloseRequestsNoOpWhenOnlyPinnedTargetsRemain() {
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let manager = host.spaceManager.tabCollection
+    let source = manager.createTab(title: "Source")
+    let pinned = manager.createTab(title: "Pinned")
+    #expect(manager.setTabPinned(source, isPinned: true) != nil)
+    #expect(manager.setTabPinned(pinned, isPinned: true) != nil)
+    manager.selectTab(source)
+
+    host.requestCloseTabsBelow(source)
+    host.requestCloseOtherTabs(keeping: [source])
+
+    #expect(manager.selectedTabID == source)
+    #expect(host.pendingEvents.isEmpty)
+  }
+
+  @Test
   func coldSpaceKeepsTheWindowOpenAndCountsTowardsItsSessions() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

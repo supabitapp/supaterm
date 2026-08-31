@@ -8,10 +8,7 @@ enum AgentDetectionRuleSetParser {
       displayName: "Claude Code",
       processes: [
         AgentDetectionProcessRule(executable: "claude"),
-        AgentDetectionProcessRule(
-          executable: "node",
-          scriptSuffix: "/@anthropic-ai/claude-code/cli.js"
-        ),
+        AgentDetectionProcessRule(executable: "claude.exe"),
       ]
     ),
     Definition(
@@ -19,10 +16,8 @@ enum AgentDetectionRuleSetParser {
       displayName: "Codex",
       processes: [
         AgentDetectionProcessRule(executable: "codex"),
-        AgentDetectionProcessRule(
-          executable: "node",
-          scriptSuffix: "/@openai/codex/bin/codex.js"
-        ),
+        AgentDetectionProcessRule(executable: "codex-aarch64-apple-darwin"),
+        AgentDetectionProcessRule(executable: "codex-x86_64-apple-darwin"),
       ]
     ),
     Definition(
@@ -31,14 +26,6 @@ enum AgentDetectionRuleSetParser {
       processes: [
         AgentDetectionProcessRule(executable: "pi"),
         AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
-        AgentDetectionProcessRule(
-          executable: "node",
-          scriptSuffix: "/@mariozechner/pi-coding-agent/dist/cli.js"
-        ),
-        AgentDetectionProcessRule(
-          executable: "node",
-          scriptSuffix: "/@earendil-works/pi-coding-agent/dist/cli.js"
-        ),
       ]
     ),
   ]

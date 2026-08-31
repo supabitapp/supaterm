@@ -266,8 +266,8 @@ actor SocketControlRuntime {
     let sleep = self.sleep
     let replyTimeout =
       switch request.method {
-      case SupatermSocketMethod.appHooksInstall, SupatermSocketMethod.appHooksRemove:
-        Duration.seconds(SupatermAgentHookManagementTiming.serverReplyTimeout)
+      case SupatermSocketMethod.appAgentIntegrationSetup, SupatermSocketMethod.appHooksRemove:
+        Duration.seconds(SupatermAgentIntegrationTiming.serverReplyTimeout)
       case SupatermSocketMethod.licenseActivate,
         SupatermSocketMethod.licenseDeactivate,
         SupatermSocketMethod.licenseRefresh:

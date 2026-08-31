@@ -12,13 +12,13 @@ struct CodexSettingsClient: Sendable {
 extension CodexSettingsClient: DependencyKey {
   static let liveValue = Self(
     integrationHealth: {
-      try CodexSettingsInstaller().integrationHealth()
+      try CodingAgentIntegrationManager.live.health(.codex)
     },
     installSupatermHooks: {
-      try CodexSettingsInstaller().installSupatermHooks()
+      try CodingAgentIntegrationManager.live.repair(.codex)
     },
     removeSupatermHooks: {
-      try CodexSettingsInstaller().removeSupatermHooks()
+      _ = try CodingAgentIntegrationManager.live.remove(.codex)
     }
   )
 

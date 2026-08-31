@@ -422,28 +422,25 @@ struct TerminalWindowFeature {
         case .ended:
           guard let resizeState = state.sidebarResizeState else { return .none }
           state.sidebarResizeState = nil
-          guard
-            !TerminalSidebarWidthPolicy.shouldCollapse(
-              resizeState: resizeState,
-              totalWidth: totalWidth
-            )
-          else {
+          if TerminalSidebarWidthPolicy.shouldCollapse(
+            resizeState: resizeState,
+            totalWidth: totalWidth
+          ) {
             state.isSidebarCollapsed = true
-            return .none
+            return notifySessionChange()
           }
           state.sidebarWidth = TerminalSidebarWidthPolicy.settledWidth(
             for: resizeState,
             totalWidth: totalWidth
           )
+          return notifySessionChange()
         case .failed:
           state.sidebarResizeState = nil
           return .none
         case .reset:
           state.sidebarResizeState = nil
           state.sidebarWidth = nil
-        }
-        return .run { [terminalClient] _ in
-          await terminalClient.host().sessionDidChange()
+          return notifySessionChange()
         }
 
       case .task:
@@ -518,8 +515,7 @@ struct TerminalWindowFeature {
         return .none
 
       case .toggleSidebarButtonTapped:
-        toggleSidebar(state: &state)
-        return .none
+        return toggleSidebar(state: &state)
 
       case .confirmationCancelButtonTapped:
         guard let confirmation = state.windowCloseConfirmation else { return .none }
@@ -693,8 +689,7 @@ struct TerminalWindowFeature {
         await terminalCommandPaletteClient.performUpdateAction(windowID, action)
       }
     case .toggleSidebar:
-      toggleSidebar(state: &state)
-      return .none
+      return toggleSidebar(state: &state)
     case .createSpace:
       return .send(.spaceCreateButtonTapped)
     case .renameSpace(let space):
@@ -708,9 +703,16 @@ struct TerminalWindowFeature {
     }
   }
 
-  private func toggleSidebar(state: inout State) {
+  private func toggleSidebar(state: inout State) -> Effect<Action> {
     state.isSidebarCollapsed.toggle()
     state.sidebarResizeState = nil
+    return notifySessionChange()
+  }
+
+  private func notifySessionChange() -> Effect<Action> {
+    .run { [terminalClient] _ in
+      await terminalClient.host().sessionDidChange()
+    }
   }
 
   private func executeClose(for target: TerminalCloseTarget) -> Effect<Action> {

@@ -108,6 +108,7 @@ struct TerminalSidebarAgentStatusView: View {
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilityLabel)
+    .help(accessibilityLabel)
   }
 
   private var indicator: some View {
@@ -240,6 +241,9 @@ struct TerminalSidebarBellIndicatorView: View {
           .accessibilityHidden(true)
       }
       .accessibilityElement(children: .ignore)
-      .accessibilityLabel("Terminal attention")
+      .accessibilityLabel(accessibilityLabel)
+      .help(accessibilityLabel)
   }
+
+  private var accessibilityLabel: String { "Terminal attention" }
 }

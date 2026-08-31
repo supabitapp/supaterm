@@ -256,6 +256,11 @@ extension String {
       value.last == "\r" ? String(value.dropLast()) : String(value)
     }
   }
+
+  fileprivate var agentDetectionIsCodexPromptMarker: Bool {
+    self == "›" || hasPrefix("› ") || self == "»" || hasPrefix("» ")
+  }
+
 }
 
 extension Array where Element == String {
@@ -282,7 +287,7 @@ extension Array where Element == String {
   }
 
   fileprivate var agentDetectionAfterLastPromptMarker: String {
-    guard let prompt = lastIndex(where: { $0 == "›" || $0.hasPrefix("› ") }) else {
+    guard let prompt = lastIndex(where: \.agentDetectionIsCodexPromptMarker) else {
       return joined(separator: "\n")
     }
     return dropFirst(prompt + 1).joined(separator: "\n")

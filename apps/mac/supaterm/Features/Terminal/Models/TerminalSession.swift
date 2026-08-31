@@ -122,17 +122,20 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
   var displayedSpaceID: TerminalSpaceID
   var spaces: [TerminalSpaceSession]
   var frame: TerminalWindowFrame?
+  var isSidebarCollapsed: Bool?
   var sidebarWidth: Double?
 
   init(
     displayedSpaceID: TerminalSpaceID,
     spaces: [TerminalSpaceSession],
     frame: TerminalWindowFrame? = nil,
+    isSidebarCollapsed: Bool? = nil,
     sidebarWidth: Double? = nil
   ) {
     self.displayedSpaceID = displayedSpaceID
     self.spaces = spaces
     self.frame = frame
+    self.isSidebarCollapsed = isSidebarCollapsed
     self.sidebarWidth = sidebarWidth
   }
 
@@ -197,6 +200,7 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
       displayedSpaceID: seenSpaceIDs.contains(displayedSpaceID) ? displayedSpaceID : firstSpaceID,
       spaces: prunedSpaces,
       frame: frame,
+      isSidebarCollapsed: isSidebarCollapsed,
       sidebarWidth: sidebarWidth
     )
   }

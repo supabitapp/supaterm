@@ -1,22 +1,18 @@
 id = "codex"
-version = "2026.08.20.3"
-min_engine_version = 3
-updated_at = "2026-08-20T00:00:00Z"
+version = "2026.08.31.2"
 
 [[rules]]
 id = "osc_title_blocked"
 state = "blocked"
 priority = 1100
 region = "osc_title"
-visible_blocker = true
-contains = ["Action Required"]
+regex = ['^\[ [!.] \] Action Required(?: \| |$)']
 
 [[rules]]
 id = "osc_title_working"
 state = "working"
 priority = 1050
 region = "osc_title"
-visible_working = true
 regex = ['(?:^| )[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?: |$)']
 
 [[rules]]
@@ -25,7 +21,7 @@ state = "unknown"
 priority = 1000
 region = "after_last_prompt_marker"
 skip_state_update = true
-contains = ["↑/↓ to scroll", "pgup/pgdn to", "home/end to jump", "q to quit"]
+contains = ["↑/↓ to scroll", "pgup/pgdn to", "home/end to", "q to quit"]
 any = [
   { contains = ["esc to edit prev"] },
   { contains = ["esc/← to edit prev"] },
@@ -37,57 +33,181 @@ id = "trust_directory"
 state = "blocked"
 priority = 950
 region = "top_non_empty_lines(30)"
-visible_blocker = true
 all = [
   { regex = ['(?m)^> You are in [^\r\n]+$'] },
   { regex = ['(?s)Do\s+you\s+trust\s+the\s+contents\s+of\s+this\s+directory\?'] },
 ]
 
 [[rules]]
-id = "live_strong_blocker"
+id = "approval_overlay"
 state = "blocked"
 priority = 900
-region = "after_last_prompt_marker"
-visible_blocker = true
+region = "whole_recent"
+line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Yes\b']
 any = [
-  { contains = ["press enter to confirm or esc to cancel"] },
-  { contains = ["enter to submit answer"] },
-  { contains = ["enter to submit all"] },
-  { contains = ["allow command?"] },
+  { line_regex = ['^\s*Would\s+you\s+like\s+to\s+run\b'] },
+  { line_regex = ['^\s*Would\s+you\s+like\s+to\s+send\b'] },
+  { line_regex = ['^\s*Do\s+you\s+want\s+to\s+approve\s+network\b'] },
+  { line_regex = ['^\s*Would\s+you\s+like\s+to\s+grant\b'] },
+  { line_regex = ['^\s*Would\s+you\s+like\s+to\s+make\b'] },
+  { line_regex = ['^\s*Server:\s+\S'] },
 ]
 
 [[rules]]
-id = "weak_blocker"
+id = "request_input"
 state = "blocked"
-priority = 600
+priority = 900
 region = "whole_recent"
-any = [
-  { contains = ["[y/n]"] },
-  { contains = ["yes (y)"] },
-  { contains = ["do you want to"], any = [{ contains = ["yes"] }, { contains = ["❯"] }] },
-  { contains = ["would you like to"], any = [{ contains = ["yes"] }, { contains = ["❯"] }] },
+regex = ['(?is)\bto\s+submit\s+(?:answer|all)\b']
+line_regex = ['^\s*Question [1-9]\d*/[1-9]\d*\b']
+
+[[rules]]
+id = "mcp_form"
+state = "blocked"
+priority = 900
+region = "whole_recent"
+regex = ['(?is)\bto\s+submit(?:\s+(?:all|answer))?\b', '(?is)\bto\s+cancel\b']
+line_regex = ['^\s*Field [1-9]\d*/[1-9]\d*\b']
+
+[[rules]]
+id = "unanswered_confirmation"
+state = "blocked"
+priority = 900
+region = "whole_recent"
+line_regex = [
+  '^\s*Submit\s+with\s+unanswered\b',
+  '^\s*[1-9]\d*\s+unanswered\s+questions?\b',
 ]
 
-# The header can be any text, the bullet vanishes without animations, and the
-# interrupt key is remappable, so anchor on the elapsed+interrupt suffix instead.
+[[rules]]
+id = "app_link_blocker"
+state = "blocked"
+priority = 900
+region = "whole_recent"
+line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+(?:Open sign-in URL|Open link|Manage on ChatGPT|Install on ChatGPT|I already signed in|I finished|I already Installed it)\b']
+any = [
+  { line_regex = ['^\s*(?:\x{203A}\s+)?\d+\.\s+Open sign-in URL\s*$'] },
+  { all = [{ line_regex = ['^\s*Action required\s*$'] }, { line_regex = ['^\s*(?:\x{203A}\s+)?\d+\.\s+Open link\s*$'] }] },
+  { regex = ['(?m)^[ \t]*Install\s+this\s+app\s+in\s+your\s+browser,\s+then\s+return\s+here\.[ \t]*$'] },
+  { regex = ['(?m)^[ \t]*Enable\s+this\s+app\s+to\s+use\s+it\s+for\s+the\s+current\s+request\.[ \t]*$'] },
+  { line_regex = ['^\s*Finish (?:App Sign In|Authentication|in Browser|App Setup)\s*$'] },
+]
+
+[[rules]]
+id = "raw_session_confirmation"
+state = "blocked"
+priority = 850
+region = "bottom_non_empty_lines(3)"
+regex = ['(?is)(?:^|\n)\s*Continue(?: anyway)?\? \[y/n\]:\s*$']
+not = [{ line_regex = ['^\s*[\x{203A}\x{00BB}](?:\s|$)'] }]
+
+[[rules]]
+id = "rate_limit_prompt"
+state = "blocked"
+priority = 850
+region = "whole_recent"
+any = [
+  { all = [
+    { any = [
+      { line_regex = ['^\s*Usage\s+limit\b'] },
+      { line_regex = ['^\s*You\x{27}ve\s+reached\b'] },
+    ] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Yes\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?2\.\s+No\b'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*Approaching\s+rate\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Switch\s+to\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?2\.\s+Keep\s+current\b'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*Usage\s+limit\s+reset'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?[1-9]\d*\.\s+(?:Cancel|Close)\b'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*Use\s+this\s+reset'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Yes,\s+use\s+reset\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?2\.\s+No,\s+go\s+back\b'] },
+  ] },
+]
+
+[[rules]]
+id = "startup_prompt"
+state = "blocked"
+priority = 850
+region = "whole_recent"
+any = [
+  { all = [
+    { line_regex = ['^\s*\S*\s*Update\s+avail'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Update now\b'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*>\s+Codex\s+just\s+got\b'] },
+    { any = [
+      { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Try\s+new\s+model\b'] },
+      { line_regex = ['^\s*Press\s+\S+\s+to\s+continue'] },
+    ] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*Choose\s+how\s+you'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Try\s+new\s+model\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?2\.\s+Use\s+existing\s+model\b'] },
+  ] },
+  { all = [
+    { regex = ['(?is)\bis\s+no\s+longer\s+available\b'] },
+    { regex = ['(?is)\bto\s+continue\b'] },
+    { not = [{ line_regex = ['^\s*[\x{203A}\x{00BB}](?:\s|$)'] }] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*Choose\s+working\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Use\s+session\s+directory\b'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*This\s+conversation\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Unarchive\b'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*Choose\s+an\s+import\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+\S'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*>\s+Import setup\s*$'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Import\s+selected\b'] },
+  ] },
+]
+
+[[rules]]
+id = "feedback_prompt"
+state = "blocked"
+priority = 850
+region = "whole_recent"
+any = [
+  { all = [
+    { line_regex = ['^\s*How\s+was\s+this'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+bug\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?2\.\s+bad\s+result\b'] },
+  ] },
+  { all = [
+    { line_regex = ['^\s*Upload\s+logs\?'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?1\.\s+Yes\b'] },
+    { line_regex = ['^\s*(?:\x{203A}\s+)?2\.\s+No\b'] },
+  ] },
+  { line_regex = ['^\s*\x{258C}\s+Tell\s+us\s+more\b'] },
+]
+
 [[rules]]
 id = "screen_working_fallback"
 state = "working"
 priority = 500
 region = "bottom_non_empty_lines(8)"
-visible_working = true
-line_regex = ['^[•◦]?\s*\S.*\((?:(?:\d+h )?(?:\d+m )?\d+s [•·] [^)]+ to interrupt\)(?: · .*)?|[^)]*…)$']
-not = [{ contains = ["■ Conversation interrupted"] }]
+regex = ['(?m)^(?![›»])(?:[•◦][ \t]+)?\S.*\((?:(?:\d+h )?(?:\d+m )?\d+s [•·] [^)]+ to interrupt\)(?: · .*)?|[^)]*…)[ \t]*$(?![\s\S]*^[ \t]*■ Conversation interrupted)']
 
-# Streaming answers hide the status row; a pending-steer preview still means running.
 [[rules]]
 id = "queued_messages_working"
 state = "working"
 priority = 450
 region = "bottom_non_empty_lines(8)"
-visible_working = true
-contains = ["to interrupt and send immediately"]
-not = [{ contains = ["■ Conversation interrupted"] }]
+regex = ['(?m)^[•◦][ \t]+Messages to be submitted\s+after next tool call \([^)]*to interrupt and send immediately\)[ \t]*$(?![\s\S]*^[ \t]*■ Conversation interrupted)']
 
 [[rules]]
 id = "osc_title_idle"
@@ -98,5 +218,5 @@ visible_idle = true
 regex = ['\S']
 not = [
   { regex = ['(?:^| )[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?: |$)'] },
-  { contains = ["Action Required"] },
+  { regex = ['^\[ [!.] \] Action Required(?: \| |$)'] },
 ]

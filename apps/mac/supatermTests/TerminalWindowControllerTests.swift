@@ -221,6 +221,7 @@ struct TerminalWindowControllerTests {
           ),
         ],
         frame: TerminalWindowFrame(frame),
+        isSidebarCollapsed: true,
         sidebarWidth: 336
       )
       let controller = TerminalWindowController(
@@ -241,6 +242,7 @@ struct TerminalWindowControllerTests {
       #expect(controller.terminal.visibleTabs.count == 1)
       #expect(controller.terminal.spaceManager.rootItems(in: spaceID).first?.id == .group(groupID))
       #expect(controller.terminal.spaceManager.instance(for: hiddenSpaceID) != nil)
+      #expect(controller.store.terminal.isSidebarCollapsed)
       #expect(controller.store.terminal.sidebarWidth == 336)
     }
   }
