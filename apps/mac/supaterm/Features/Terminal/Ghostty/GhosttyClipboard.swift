@@ -100,15 +100,57 @@ nonisolated struct GhosttyClipboardContent: Equatable, Sendable {
   }
 
   init?(copying content: ghostty_clipboard_content_s, maximumBytes: Int? = nil) {
+    self.init(
+      copying: content,
+      maximumBytes: maximumBytes,
+      copyData: { pointer, count in Data(bytes: pointer, count: count) }
+    )
+  }
+
+  static func copying(
+    _ contents: UnsafeBufferPointer<ghostty_clipboard_content_s>,
+    copyData: (UnsafePointer<CChar>, Int) -> Data = {
+      Data(bytes: $0, count: $1)
+    }
+  ) -> [Self]? {
+    var copiedData: [UInt: [Int: Data]] = [:]
+    var result: [Self] = []
+    result.reserveCapacity(contents.count)
+    for content in contents {
+      guard
+        let item = Self(
+          copying: content,
+          copyData: { pointer, count in
+            let address = UInt(bitPattern: UnsafeRawPointer(pointer))
+            if let data = copiedData[address]?[count] {
+              return data
+            }
+            let data = copyData(pointer, count)
+            copiedData[address, default: [:]][count] = data
+            return data
+          }
+        )
+      else { return nil }
+      result.append(item)
+    }
+    return result
+  }
+
+  private init?(
+    copying content: ghostty_clipboard_content_s,
+    maximumBytes: Int? = nil,
+    copyData: (UnsafePointer<CChar>, Int) -> Data
+  ) {
     guard
       let mimePointer = content.mime,
       let mime = String(validatingCString: mimePointer),
+      content.len >= 0,
       content.len == 0 || content.data != nil
     else { return nil }
     let copiedByteCount = min(content.len, max(maximumBytes ?? content.len, 0))
     self.init(
       mime: mime,
-      data: content.data.map { Data(bytes: $0, count: copiedByteCount) } ?? Data(),
+      data: content.data.map { copyData($0, copiedByteCount) } ?? Data(),
       originalByteCount: content.len
     )
   }
@@ -147,6 +189,25 @@ nonisolated struct GhosttyClipboardContent: Equatable, Sendable {
       }
     }
     return nil
+  }
+}
+
+private nonisolated final class GhosttyClipboardDataProvider: NSObject,
+  NSPasteboardItemDataProvider
+{
+  private let dataByType: [NSPasteboard.PasteboardType: Data]
+
+  init(dataByType: [NSPasteboard.PasteboardType: Data]) {
+    self.dataByType = dataByType
+  }
+
+  func pasteboard(
+    _ pasteboard: NSPasteboard?,
+    item: NSPasteboardItem,
+    provideDataForType type: NSPasteboard.PasteboardType
+  ) {
+    guard let data = dataByType[type] else { return }
+    item.setData(data, forType: type)
   }
 }
 
@@ -489,24 +550,20 @@ final class GhosttyClipboard {
   static func write(
     _ items: [GhosttyClipboardContent],
     to pasteboard: NSPasteboard,
-    setData: ((Data, NSPasteboard.PasteboardType) -> Bool)? = nil
+    dataProvider: (any NSPasteboardItemDataProvider)? = nil
   ) -> Bool {
-    let values = items.map { item in
-      (NSPasteboard.PasteboardType(mimeType: item.mime), item.data)
-    }
-    let types = values.reduce(into: [NSPasteboard.PasteboardType]()) { result, value in
-      if !result.contains(value.0) {
-        result.append(value.0)
-      }
-    }
+    let items = normalizedWriteContents(items)
+    let types = items.map { NSPasteboard.PasteboardType(mimeType: $0.mime) }
     guard !types.isEmpty else { return false }
-    pasteboard.declareTypes(types, owner: nil)
-    var wroteAll = true
-    for (type, data) in values {
-      let wrote = setData?(data, type) ?? pasteboard.setData(data, forType: type)
-      wroteAll = wrote && wroteAll
-    }
-    return wroteAll
+    let dataByType = Dictionary(uniqueKeysWithValues: zip(types, items.map(\.data)))
+    let item = NSPasteboardItem()
+    guard
+      item.setDataProvider(
+        dataProvider ?? GhosttyClipboardDataProvider(dataByType: dataByType),
+        forTypes: types
+      )
+    else { return false }
+    return pasteboard.writeObjects([item])
   }
 }
 

@@ -574,14 +574,14 @@ final class GhosttyRuntime {
     _ len: Int,
     _ confirm: Bool
   ) -> Bool {
-    guard let content, len > 0 else { return false }
+    guard
+      let content,
+      len > 0,
+      let items = GhosttyClipboardContent.copying(
+        UnsafeBufferPointer(start: content, count: len)
+      )
+    else { return false }
     let userdataBits = userdata.map { UInt(bitPattern: $0) }
-    var items: [GhosttyClipboardContent] = []
-    items.reserveCapacity(len)
-    for index in 0..<len {
-      guard let item = GhosttyClipboardContent(copying: content[index]) else { return false }
-      items.append(item)
-    }
     if Thread.isMainThread {
       return MainActor.assumeIsolated {
         writeClipboard(
