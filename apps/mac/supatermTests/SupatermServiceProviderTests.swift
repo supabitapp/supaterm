@@ -61,6 +61,28 @@ struct SupatermServiceProviderTests {
   }
 
   @Test
+  func equivalentDottedPathsAreDeduped() throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let parent = root.appendingPathComponent("parent", isDirectory: true)
+    let directory = root.appendingPathComponent("directory", isDirectory: true)
+    try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let dotted = URL(
+      fileURLWithPath: "\(parent.path)/../\(directory.lastPathComponent)",
+      isDirectory: true
+    )
+
+    let pasteboard = makePasteboard([dotted, directory])
+
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(directory)
+      ]
+    )
+  }
+
+  @Test
   func openTabDispatchesTabPaths() throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }

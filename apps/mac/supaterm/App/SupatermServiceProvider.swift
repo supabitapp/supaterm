@@ -52,7 +52,7 @@ final class SupatermServiceProvider: NSObject {
       guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
         return nil
       }
-      return SupatermWorkingDirectory.normalizedPath(url)
+      return SupatermWorkingDirectory.normalizedPath(url.standardizedFileURL)
     }
     return Array(Set(directoryPaths)).sorted()
   }

@@ -10,13 +10,12 @@ public nonisolated enum SupatermWorkingDirectory {
     normalizedPath(url.path(percentEncoded: false))
   }
 
-  public static func existingDirectoryURL(
-    for path: String,
-    fileManager: FileManager = .default
-  ) -> URL? {
+  public static func existingDirectoryURL(for path: String) -> URL? {
     let path = normalizedPath(path)
     var isDirectory = ObjCBool(false)
-    guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+      isDirectory.boolValue
+    else {
       return nil
     }
     return URL(fileURLWithPath: path, isDirectory: true)

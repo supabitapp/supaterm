@@ -553,7 +553,10 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.workingDirectoryPath == workingDirectoryPath)
+    #expect(
+      presentation.workingDirectoryPath
+        == SupatermWorkingDirectory.normalizedPath(workingDirectoryPath)
+    )
     #expect(presentation.session == nil)
   }
 
@@ -661,7 +664,9 @@ struct TerminalAgentPanelTests {
         == PaneAgentPanelSession.supported(
           agent: .codex,
           sessionID: "session-1",
-          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+          workingDirectoryPath: SupatermWorkingDirectory.normalizedPath(
+            FileManager.default.temporaryDirectory
+          )
         )
     )
     #expect(
@@ -699,7 +704,9 @@ struct TerminalAgentPanelTests {
         == PaneAgentPanelSession.supported(
           agent: .codex,
           sessionID: "session-1",
-          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+          workingDirectoryPath: SupatermWorkingDirectory.normalizedPath(
+            FileManager.default.temporaryDirectory
+          )
         )
     )
     #expect(presentation.progressRows.isEmpty)
@@ -742,7 +749,9 @@ struct TerminalAgentPanelTests {
         == PaneAgentPanelSession.supported(
           agent: .pi,
           sessionID: "session-1",
-          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+          workingDirectoryPath: SupatermWorkingDirectory.normalizedPath(
+            FileManager.default.temporaryDirectory
+          )
         )
     )
     #expect(presentation.progressRows.map(\.title) == ["Run tests"])
