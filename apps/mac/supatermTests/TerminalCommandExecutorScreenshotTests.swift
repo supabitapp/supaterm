@@ -32,9 +32,9 @@ struct TerminalCommandExecutorScreenshotTests {
   func hiddenCaptureReleasesResourcesAfterForcedDraw() {
     var events: [PaneCaptureEvent] = []
 
-    TerminalPaneCaptureClient.preservingOcclusion(
+    TerminalPaneCaptureClient.preservingRendererVisibility(
       isOccluded: true,
-      setOcclusion: { events.append($0 ? .show : .release) },
+      setRendererVisibility: { events.append($0 ? .show : .release) },
       capture: {
         events.append(.forceDraw)
         events.append(.readImage)
@@ -48,9 +48,9 @@ struct TerminalCommandExecutorScreenshotTests {
   func visibleCaptureLeavesOcclusionUnchanged() {
     var events: [PaneCaptureEvent] = []
 
-    TerminalPaneCaptureClient.preservingOcclusion(
+    TerminalPaneCaptureClient.preservingRendererVisibility(
       isOccluded: false,
-      setOcclusion: { events.append($0 ? .show : .release) },
+      setRendererVisibility: { events.append($0 ? .show : .release) },
       capture: {
         events.append(.forceDraw)
         events.append(.readImage)

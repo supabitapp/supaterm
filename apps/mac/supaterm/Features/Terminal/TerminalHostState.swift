@@ -301,7 +301,7 @@ final class TerminalHostState {
   var spaceCatalog = TerminalSpaceCatalog.default
   @ObservationIgnored
   var spaceCatalogObservationTask: Task<Void, Never>?
-  var runtimeConfigObservers: [NSObjectProtocol] = []
+  var runtimeConfigObserver: NSObjectProtocol?
   var onSessionChange: @MainActor () -> Void = {}
   var onSpaceAction: @MainActor (SpaceAction) -> Void = { _ in }
   @ObservationIgnored
@@ -319,7 +319,20 @@ final class TerminalHostState {
   let spaceManager: TerminalSpaceManager
 
   var pendingEvents: [TerminalClient.Event] = []
-  var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
+  var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:] {
+    didSet {
+      let selectedTabID = spaceManager.selectedTabID
+      let previousVisiblePaneIDs =
+        selectedTabID.flatMap { oldValue[$0] }.map {
+          Self.visiblePaneIDs(in: $0)
+        } ?? []
+      guard
+        previousVisiblePaneIDs != visiblePaneIDs
+          || Self.paneIDs(in: oldValue) != Self.paneIDs(in: trees)
+      else { return }
+      syncFocus(windowActivity)
+    }
+  }
   var surfaces: [UUID: GhosttySurfaceView] = [:]
   var focusHistoryByTab: [TerminalTabID: FocusHistory] = [:]
   var notificationStore = TerminalNotificationStore()
@@ -340,6 +353,12 @@ final class TerminalHostState {
 
   static func visiblePaneIDs(in tree: SplitTree<GhosttySurfaceView>) -> Set<UUID> {
     Set((tree.zoomed ?? tree.root)?.leaves().map(\.id) ?? [])
+  }
+
+  static func paneIDs(
+    in trees: [TerminalTabID: SplitTree<GhosttySurfaceView>]
+  ) -> Set<UUID> {
+    Set(trees.values.flatMap { $0.leaves().map(\.id) })
   }
 
   init(
@@ -427,37 +446,25 @@ final class TerminalHostState {
     spaceCatalogObservationTask?.cancel()
     agentDetectionController?.stop()
     agentPanelController?.stop()
-    for observer in runtimeConfigObservers {
-      NotificationCenter.default.removeObserver(observer)
+    if let runtimeConfigObserver {
+      NotificationCenter.default.removeObserver(runtimeConfigObserver)
     }
   }
 
   func observeRuntimeConfig() {
     guard let runtime else { return }
-    let center = NotificationCenter.default
-    for observer in runtimeConfigObservers {
-      center.removeObserver(observer)
+    if let runtimeConfigObserver {
+      NotificationCenter.default.removeObserver(runtimeConfigObserver)
     }
-    runtimeConfigObservers = [
-      center.addObserver(
-        forName: .ghosttyRuntimeConfigDidChange,
-        object: runtime,
-        queue: .main
-      ) { [weak self] _ in
-        MainActor.assumeIsolated {
-          self?.runtimeConfigGeneration &+= 1
-        }
-      },
-      center.addObserver(
-        forName: NSTextInputContext.keyboardSelectionDidChangeNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        MainActor.assumeIsolated {
-          self?.runtimeConfigGeneration &+= 1
-        }
-      },
-    ]
+    runtimeConfigObserver = NotificationCenter.default.addObserver(
+      forName: .ghosttyRuntimeConfigDidChange,
+      object: runtime,
+      queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.runtimeConfigGeneration &+= 1
+      }
+    }
   }
 
   func eventStream() -> AsyncStream<TerminalClient.Event> {
@@ -627,7 +634,6 @@ final class TerminalHostState {
         )
         trees[tabID] = newTree
         focusSurface(newSurface, in: tabID)
-        syncFocus(windowActivity)
         sessionDidChange()
         return true
       } catch {
@@ -651,7 +657,6 @@ final class TerminalHostState {
         trees[tabID] = tree
       }
       focusSurface(nextSurface, in: tabID)
-      syncFocus(windowActivity)
       sessionDidChange()
       return true
 
@@ -665,7 +670,6 @@ final class TerminalHostState {
           with: CGRect(origin: .zero, size: tree.viewBounds())
         )
         trees[tabID] = newTree
-        syncFocus(windowActivity)
         sessionDidChange()
         return true
       } catch {
@@ -682,7 +686,6 @@ final class TerminalHostState {
       let newZoomed = tree.zoomed == targetNode ? nil : targetNode
       trees[tabID] = tree.settingZoomed(newZoomed)
       focusSurface(targetSurface, in: tabID)
-      syncFocus(windowActivity)
       return true
     }
   }
@@ -741,7 +744,6 @@ final class TerminalHostState {
     }
     trees[tabID] = tree
     focusSurface(surface, in: tabID)
-    syncFocus(windowActivity)
     sessionDidChange()
     return true
   }
@@ -1072,19 +1074,20 @@ final class TerminalHostState {
     _ surfaceID: UUID,
     in tabID: TerminalTabID
   ) {
+    let previousSurfaceID = focusHistoryByTab[tabID]?.current
     focusHistoryByTab[tabID, default: FocusHistory(current: surfaceID)].updateCurrent(surfaceID)
     clearAgentCompletionAttention(in: tabID)
+    if previousSurfaceID != surfaceID, tabID == spaceManager.selectedTabID {
+      syncFocus(windowActivity)
+    }
   }
 
   func focusSurface(_ surface: GhosttySurfaceView, in tabID: TerminalTabID) {
     let previousSurface = focusHistoryByTab[tabID].flatMap { surfaces[$0.current] }
-    let didRevealSurface = revealSurfaceIfNeeded(surface.id, in: tabID)
+    revealSurfaceIfNeeded(surface.id, in: tabID)
     applyFocusedSurface(surface.id, in: tabID)
     updateTabTitle(for: tabID)
     clearNotificationAttention(for: surface.id)
-    if didRevealSurface {
-      syncFocus(windowActivity)
-    }
     guard tabID == spaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
     GhosttySurfaceView.moveFocus(to: surface, from: fromSurface) { [weak self, weak surface] in
@@ -1093,16 +1096,15 @@ final class TerminalHostState {
     }
   }
 
-  private func revealSurfaceIfNeeded(_ surfaceID: UUID, in tabID: TerminalTabID) -> Bool {
+  private func revealSurfaceIfNeeded(_ surfaceID: UUID, in tabID: TerminalTabID) {
     guard
       let tree = trees[tabID],
       tree.zoomed != nil,
       !Self.visiblePaneIDs(in: tree).contains(surfaceID)
     else {
-      return false
+      return
     }
     trees[tabID] = tree.settingZoomed(nil)
-    return true
   }
 
   static func selectedTabID(

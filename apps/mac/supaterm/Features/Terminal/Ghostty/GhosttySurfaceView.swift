@@ -52,11 +52,13 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  private let runtime: GhosttyRuntime
+  let runtime: GhosttyRuntime
   let id: UUID
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
+
+  var surfaceReference: GhosttyRuntime.SurfaceReference? { surfaceRef }
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
   private let launch: GhosttySurfaceLaunch
   private let commandWrapper: [String]
@@ -467,47 +469,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     guard let pointer = value.ptr else { return "" }
     let data = Data(bytes: pointer, count: Int(value.len))
     return String(data: data, encoding: .utf8) ?? ""
-  }
-
-  func confirmClipboardRead(
-    payload: GhosttyClipboardConfirmationPayload?,
-    state: UnsafeMutableRawPointer?,
-    request: ghostty_clipboard_request_e
-  ) {
-    runtime.confirmClipboardRead(
-      from: self,
-      surfaceReference: surfaceRef,
-      payload: payload,
-      state: state,
-      request: request
-    )
-  }
-
-  func readClipboard(
-    location: ghostty_clipboard_e,
-    state: UnsafeMutableRawPointer?,
-    request: GhosttyClipboardReadRequest
-  ) -> ghostty_clipboard_read_result_e {
-    runtime.readClipboard(
-      from: self,
-      location: location,
-      state: state,
-      request: request
-    )
-  }
-
-  func writeClipboard(
-    location: ghostty_clipboard_e,
-    items: [GhosttyClipboardContent],
-    confirm: Bool
-  ) -> Bool {
-    runtime.writeClipboard(
-      from: self,
-      surfaceReference: surfaceRef,
-      location: location,
-      items: items,
-      confirm: confirm
-    )
   }
 
   private func updateScreenObservers() {

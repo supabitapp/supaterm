@@ -67,7 +67,6 @@ extension TerminalHostState {
     }
     if isZoomed {
       trees[tabID] = tree.settingZoomed(nil)
-      syncFocus(windowActivity)
     }
     emit(resolvedCloseRequest)
   }

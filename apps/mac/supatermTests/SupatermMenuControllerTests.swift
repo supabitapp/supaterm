@@ -518,7 +518,7 @@ struct SupatermMenuControllerTests {
         physicalKeyCode: UInt16(kVK_ANSI_A)
       )
       NotificationCenter.default.post(
-        name: NSTextInputContext.keyboardSelectionDidChangeNotification,
+        name: .ghosttyRuntimeConfigDidChange,
         object: nil
       )
 

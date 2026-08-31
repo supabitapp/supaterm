@@ -155,7 +155,6 @@ struct TerminalHostStateOcclusionTests {
       }
 
       setup.host.trees[setup.tabID] = tree.settingZoomed(rootSplit.right)
-      setup.host.syncFocus(setup.host.windowActivity)
 
       #expect(setup.host.visiblePaneIDs == Set([setup.middleSurfaceID, setup.lastSurfaceID]))
       #expect(setup.recorder.transitions(for: setup.firstSurfaceID) == [false])

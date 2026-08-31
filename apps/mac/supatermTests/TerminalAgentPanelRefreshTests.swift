@@ -194,7 +194,7 @@ extension TerminalAgentPanelTests {
       #expect(firstDetails == secondDetails)
       #expect(firstDetails.addedLineCount == 34)
       #expect(firstDetails.removedLineCount == 5)
-      #expect(await recorder.gitPaths() == [repoRoot.path(percentEncoded: false)])
+      #expect(await recorder.gitPaths() == [SupatermWorkingDirectory.normalizedPath(repoRoot)])
       #expect(await recorder.pullRequestBranches() == ["main"])
     }
   }
@@ -268,7 +268,7 @@ extension TerminalAgentPanelTests {
       )
       #expect(
         host.agentPanelPresentation(for: surfaceID)?.workingDirectoryPath
-          == agentRoot.path(percentEncoded: false)
+          == SupatermWorkingDirectory.normalizedPath(agentRoot)
       )
 
       #expect(
@@ -283,7 +283,7 @@ extension TerminalAgentPanelTests {
       #expect(host.agentPanelPresentation(for: surfaceID)?.branchDetails == nil)
       #expect(
         host.agentPanelPresentation(for: surfaceID)?.workingDirectoryPath
-          == nextAgentRoot.path(percentEncoded: false)
+          == SupatermWorkingDirectory.normalizedPath(nextAgentRoot)
       )
       #expect(
         await waitForBranchDetails(
@@ -294,8 +294,8 @@ extension TerminalAgentPanelTests {
       )
       #expect(
         await recorder.gitPaths() == [
-          agentRoot.path(percentEncoded: false),
-          nextAgentRoot.path(percentEncoded: false),
+          SupatermWorkingDirectory.normalizedPath(agentRoot),
+          SupatermWorkingDirectory.normalizedPath(nextAgentRoot),
         ]
       )
     }

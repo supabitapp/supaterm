@@ -226,7 +226,8 @@ struct GhosttyRuntimeTests {
           copying: ghostty_clipboard_content_s(
             mime: mime,
             data: bytes.baseAddress?.assumingMemoryBound(to: CChar.self),
-            len: bytes.count
+            len: bytes.count,
+            payload_id: 0
           )
         )
       }
@@ -249,15 +250,27 @@ struct GhosttyRuntimeTests {
     }
     let expected = Data((0..<4_096).map { UInt8(truncatingIfNeeded: $0) })
     let source = UnsafeMutableRawPointer.allocate(byteCount: expected.count, alignment: 1)
-    defer { source.deallocate() }
-    expected.copyBytes(to: source.assumingMemoryBound(to: UInt8.self), count: expected.count)
-    let contents = mimePointers.map {
-      ghostty_clipboard_content_s(
-        mime: $0,
-        data: source.assumingMemoryBound(to: CChar.self),
-        len: expected.count
-      )
+    let aliasSource = UnsafeMutableRawPointer.allocate(byteCount: expected.count, alignment: 1)
+    defer {
+      source.deallocate()
+      aliasSource.deallocate()
     }
+    expected.copyBytes(to: source.assumingMemoryBound(to: UInt8.self), count: expected.count)
+    expected.copyBytes(to: aliasSource.assumingMemoryBound(to: UInt8.self), count: expected.count)
+    let contents = [
+      ghostty_clipboard_content_s(
+        mime: mimePointers[0],
+        data: source.assumingMemoryBound(to: CChar.self),
+        len: expected.count,
+        payload_id: 7
+      ),
+      ghostty_clipboard_content_s(
+        mime: mimePointers[1],
+        data: aliasSource.assumingMemoryBound(to: CChar.self),
+        len: expected.count,
+        payload_id: 7
+      ),
+    ]
 
     var copyCount = 0
     let copied = try #require(
@@ -268,6 +281,7 @@ struct GhosttyRuntimeTests {
         }
       })
     source.initializeMemory(as: UInt8.self, repeating: 0, count: expected.count)
+    aliasSource.initializeMemory(as: UInt8.self, repeating: 0, count: expected.count)
 
     #expect(copyCount == 1)
     #expect(copied.map(\.mime) == mimes)
@@ -355,7 +369,7 @@ struct GhosttyRuntimeTests {
     let data = Data("file:///tmp/first\r\nfile:///tmp/second\r\n".utf8)
 
     #expect(
-      GhosttyClipboard.write(
+      GhosttyPasteboard.write(
         [GhosttyClipboardContent(mime: "text/uri-list", data: data)],
         to: pasteboard
       )
@@ -464,7 +478,7 @@ struct GhosttyRuntimeTests {
     let provider = PasteboardDataProviderSpy(dataByType: dataByType)
 
     #expect(
-      GhosttyClipboard.write(
+      GhosttyPasteboard.write(
         contents,
         to: pasteboard,
         dataProvider: provider
@@ -491,7 +505,7 @@ struct GhosttyRuntimeTests {
     let data = Data([0x41, 0x00, 0x42, 0xFF])
 
     #expect(
-      GhosttyClipboard.write(
+      GhosttyPasteboard.write(
         [GhosttyClipboardContent(mime: mime, data: data)],
         to: pasteboard
       )
@@ -502,6 +516,20 @@ struct GhosttyRuntimeTests {
         request: GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ
       ) == data
     )
+  }
+
+  @Test
+  func clipboardWriteReplacesExistingContents() {
+    let pasteboard = makePasteboard()
+    pasteboard.setString("stale", forType: .string)
+
+    #expect(
+      GhosttyPasteboard.write(
+        [GhosttyClipboardContent(mime: "text/plain", data: Data("current".utf8))],
+        to: pasteboard
+      )
+    )
+    #expect(pasteboard.string(forType: .string) == "current")
   }
 
   @Test
@@ -520,7 +548,7 @@ struct GhosttyRuntimeTests {
       }
     )
 
-    #expect(GhosttyClipboard.normalizedWriteContents(contents) == [expected])
+    #expect(GhosttyPasteboard.normalizedContents(contents) == [expected])
   }
 
   @Test
@@ -989,7 +1017,8 @@ struct GhosttyRuntimeTests {
       ghostty_clipboard_content_s(
         mime: mimePointers[index],
         data: dataPointers[index].assumingMemoryBound(to: CChar.self),
-        len: contents[index].data.count
+        len: contents[index].data.count,
+        payload_id: index
       )
     }
     return copiedContents.withUnsafeBufferPointer { buffer in

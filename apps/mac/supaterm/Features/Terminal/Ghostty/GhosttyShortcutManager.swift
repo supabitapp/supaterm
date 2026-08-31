@@ -7,7 +7,6 @@ import SwiftUI
 final class GhosttyShortcutManager {
   private let runtime: GhosttyRuntime?
   @ObservationIgnored private var configObserver: NSObjectProtocol?
-  @ObservationIgnored private var keyboardLayoutObserver: NSObjectProtocol?
   private var generation = 0
 
   init(runtime: GhosttyRuntime?) {
@@ -22,23 +21,11 @@ final class GhosttyShortcutManager {
         self?.refresh()
       }
     }
-    keyboardLayoutObserver = NotificationCenter.default.addObserver(
-      forName: NSTextInputContext.keyboardSelectionDidChangeNotification,
-      object: nil,
-      queue: .main
-    ) { [weak self] _ in
-      MainActor.assumeIsolated {
-        self?.refresh()
-      }
-    }
   }
 
   isolated deinit {
     if let configObserver {
       NotificationCenter.default.removeObserver(configObserver)
-    }
-    if let keyboardLayoutObserver {
-      NotificationCenter.default.removeObserver(keyboardLayoutObserver)
     }
   }
 

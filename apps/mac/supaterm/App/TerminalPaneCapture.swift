@@ -11,9 +11,9 @@ struct TerminalPaneCaptureClient {
   static var live: Self {
     Self { surfaceView in
       guard let surface = surfaceView.surface else { return nil }
-      return preservingOcclusion(
+      return preservingRendererVisibility(
         isOccluded: surfaceView.isOccluded,
-        setOcclusion: { surfaceView.setOcclusion($0) },
+        setRendererVisibility: { ghostty_surface_set_renderer_visibility(surface, $0) },
         capture: {
           ghostty_surface_draw(surface)
           guard let ioSurface = surfaceView.layer?.contents as? IOSurface else { return nil }
@@ -23,14 +23,14 @@ struct TerminalPaneCaptureClient {
     }
   }
 
-  static func preservingOcclusion<Result>(
+  static func preservingRendererVisibility<Result>(
     isOccluded: Bool,
-    setOcclusion: (Bool) -> Void,
+    setRendererVisibility: (Bool) -> Void,
     capture: () -> Result
   ) -> Result {
     guard isOccluded else { return capture() }
-    setOcclusion(true)
-    defer { setOcclusion(false) }
+    setRendererVisibility(true)
+    defer { setRendererVisibility(false) }
     return capture()
   }
 }

@@ -1418,17 +1418,6 @@ final class SupatermMenuController: NSObject {
         }
       }
     )
-    observers.append(
-      center.addObserver(
-        forName: NSTextInputContext.keyboardSelectionDidChangeNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        MainActor.assumeIsolated {
-          self?.refresh()
-        }
-      }
-    )
   }
 
   private func observeFirstResponder(in window: NSWindow?) {

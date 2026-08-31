@@ -604,7 +604,6 @@ extension TerminalHostState {
       with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
     )
     trees[resolvedTarget.tabID] = newTree
-    syncFocus(windowActivity)
     sessionDidChange()
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
@@ -627,7 +626,6 @@ extension TerminalHostState {
       with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
     )
     trees[resolvedTarget.tabID] = newTree
-    syncFocus(windowActivity)
     sessionDidChange()
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
@@ -675,7 +673,6 @@ extension TerminalHostState {
   func tilePanes(_ request: TerminalTilePanesRequest) throws -> SupatermTilePanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.tiled()
-    syncFocus(windowActivity)
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
@@ -685,7 +682,6 @@ extension TerminalHostState {
   ) throws -> SupatermMainVerticalPanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.mainVertical()
-    syncFocus(windowActivity)
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
