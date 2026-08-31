@@ -304,6 +304,9 @@ public struct SettingsFeature {
 
       case .tabSelected(let tab):
         state.selectedTab = tab
+        if tab == .shortcuts {
+          state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
+        }
         return .none
 
       case .shortcutRecorded(let id, let override):

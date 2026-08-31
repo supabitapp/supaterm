@@ -28,6 +28,29 @@ struct SettingsFeatureShortcutTests {
   }
 
   @Test
+  func selectingShortcutsRefreshesTerminalShortcuts() async {
+    let terminalShortcutDisplays = LockIsolated<Set<String>>(["old"])
+    var state = SettingsFeature.State()
+    state.selectedTab = .general
+    state.terminalShortcutDisplays = terminalShortcutDisplays.value
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      $0.shortcutSettingsClient.terminalReservedDisplays = { terminalShortcutDisplays.value }
+    } operation: {
+      let store = TestStore(initialState: state) {
+        SettingsFeature()
+      }
+      terminalShortcutDisplays.withValue { $0 = ["new"] }
+
+      await store.send(.tabSelected(.shortcuts)) {
+        $0.selectedTab = .shortcuts
+        $0.terminalShortcutDisplays = ["new"]
+      }
+    }
+  }
+
+  @Test
   func recordingShortcutPersistsAndRefreshesMenus() async {
     let recorder = ShortcutChangeRecorder()
     let override = SupatermShortcutOverride(
