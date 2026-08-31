@@ -1,7 +1,7 @@
 import Foundation
 import SupatermCLIShared
 
-struct AgentHookSettingsFileInstaller {
+struct AgentSettingsFileInstaller {
   struct Mutation {
     let url: URL
     let previousData: Data?

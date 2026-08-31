@@ -4,6 +4,11 @@ import SupatermCLIShared
 public struct CodexSettingsInstaller {
   typealias CommandResult = CodingAgentCommandResult
 
+  private enum SetupScope {
+    case hooksOnly
+    case integration
+  }
+
   private static let operationLock = NSLock()
 
   let homeDirectoryURL: URL
@@ -50,7 +55,7 @@ public struct CodexSettingsInstaller {
     case .unsupported:
       throw CodexSettingsInstallerError.unsupportedCodexVersion
     case .supported:
-      _ = try installSupatermHooksLocked(seedTerminalTitle: false)
+      try setupLocked(scope: .hooksOnly)
     }
   }
 
@@ -63,20 +68,22 @@ public struct CodexSettingsInstaller {
     case .unsupported:
       throw CodexSettingsInstallerError.unsupportedCodexVersion
     case .supported:
-      return try installSupatermHooksLocked(seedTerminalTitle: true)
+      try setupLocked(scope: .integration)
+      return try integrationHealthLocked(
+        availability: .supported,
+        hooksFeatureEnabled: true
+      )
     }
   }
 
-  private func installSupatermHooksLocked(
-    seedTerminalTitle: Bool
-  ) throws -> CodingAgentIntegrationHealth {
+  private func setupLocked(scope: SetupScope) throws {
     let commandResult = try runEnableHooksCommand()
     guard commandResult.status == 0 else {
       throw CodexSettingsInstallerError.enableHooksFailed(commandResult.standardError)
     }
 
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    var fileMutation: AgentHookSettingsFileInstaller.Mutation?
+    var fileMutation: AgentSettingsFileInstaller.Mutation?
     do {
       let config = try readUserConfig()
       guard config.hooksFeatureEnabled else {
@@ -112,13 +119,18 @@ public struct CodexSettingsInstaller {
             )
           )
         }
-        if seedTerminalTitle, !currentConfig.hasTerminalTitle {
+        switch scope {
+        case .hooksOnly:
+          break
+        case .integration where !currentConfig.hasTerminalTitle:
           edits.append(
             CodexAppServerConfigEdit(
               keyPath: "tui.terminal_title",
               value: ["activity", "thread-title", "task-progress"]
             )
           )
+        case .integration:
+          break
         }
         return edits
       }
@@ -132,10 +144,6 @@ public struct CodexSettingsInstaller {
       }
       throw error
     }
-    return try integrationHealthLocked(
-      availability: .supported,
-      hooksFeatureEnabled: true
-    )
   }
 
   public func integrationHealth() throws -> CodingAgentIntegrationHealth {
@@ -449,10 +457,10 @@ public struct CodexSettingsInstaller {
       && environment[SupatermCLIEnvironment.testCodexEnableHooksKey] == "1"
   }
 
-  private var fileInstaller: AgentHookSettingsFileInstaller {
-    AgentHookSettingsFileInstaller(
+  private var fileInstaller: AgentSettingsFileInstaller {
+    AgentSettingsFileInstaller(
       fileManager: fileManager,
-      errors: AgentHookSettingsFileInstaller.Errors(
+      errors: AgentSettingsFileInstaller.Errors(
         invalidEventHooks: { CodexSettingsInstallerError.invalidEventHooks($0) },
         invalidHooksObject: { CodexSettingsInstallerError.invalidHooksObject },
         invalidJSON: { CodexSettingsInstallerError.invalidJSON },
