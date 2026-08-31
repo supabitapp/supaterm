@@ -1,12 +1,12 @@
 import Foundation
 import SupatermCLIShared
 
-public struct ClaudeSettingsInstaller {
+struct ClaudeSettingsInstaller {
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let runAvailabilityCommand: @Sendable () throws -> CodingAgentCommandResult
 
-  public init(
+  init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
@@ -29,11 +29,11 @@ public struct ClaudeSettingsInstaller {
     self.runAvailabilityCommand = runAvailabilityCommand
   }
 
-  public func installSupatermHooks() throws {
+  func installSupatermHooks() throws {
     try installSettings()
   }
 
-  public func setup() throws -> CodingAgentIntegrationHealth {
+  func setup() throws -> CodingAgentIntegrationHealth {
     guard try isAvailable() else {
       return .unavailable
     }
@@ -57,7 +57,7 @@ public struct ClaudeSettingsInstaller {
     try runAvailabilityCommand().status == 0
   }
 
-  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
+  func integrationHealth() throws -> CodingAgentIntegrationHealth {
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL),
       hookGroupsByEvent: SupatermClaudeHookSettings.hookGroupsByEvent()
@@ -68,13 +68,13 @@ public struct ClaudeSettingsInstaller {
     return settingsHealth
   }
 
-  public func removeSupatermHooks() throws {
+  func removeSupatermHooks() throws {
     try fileInstaller.removeSupatermHooks(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     )
   }
 
-  public static func settingsURL(homeDirectoryURL: URL) -> URL {
+  static func settingsURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".claude", isDirectory: true)
       .appendingPathComponent("settings.json", isDirectory: false)

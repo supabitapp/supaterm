@@ -1,6 +1,17 @@
 import Foundation
 import SupatermCLIShared
 
+public enum CodingAgentIntegrationManagerError: Error, Equatable, LocalizedError, Sendable {
+  case busy(SupatermAgentKind)
+
+  public var errorDescription: String? {
+    switch self {
+    case .busy(let agent):
+      return "Supaterm is already working on the \(agent.notificationTitle) integration. Try again in a moment."
+    }
+  }
+}
+
 nonisolated public struct CodingAgentIntegrationManager: Sendable {
   struct Integration: Sendable {
     let setup: @Sendable () throws -> CodingAgentIntegrationHealth
@@ -16,16 +27,19 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
 
   private let claude: Entry
   private let codex: Entry
+  private let coordinationTimeout: TimeInterval
   private let pi: Entry
 
   init(
     claude: Integration,
     codex: Integration,
-    pi: Integration
+    pi: Integration,
+    coordinationTimeout: TimeInterval = SupatermAgentIntegrationTiming.coordinationTimeout
   ) {
     self.claude = Entry(integration: claude, lock: NSLock())
     self.codex = Entry(integration: codex, lock: NSLock())
     self.pi = Entry(integration: pi, lock: NSLock())
+    self.coordinationTimeout = coordinationTimeout
   }
 
   public func setup(_ agent: SupatermAgentKind) throws -> CodingAgentIntegrationHealth {
@@ -112,11 +126,13 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
   private func withIntegration<Result>(
     for agent: SupatermAgentKind,
     _ operation: (Integration) throws -> Result
-  ) rethrows -> Result {
+  ) throws -> Result {
     let entry = entry(for: agent)
-    return try entry.lock.withLock {
-      try operation(entry.integration)
+    guard entry.lock.lock(before: Date(timeIntervalSinceNow: coordinationTimeout)) else {
+      throw CodingAgentIntegrationManagerError.busy(agent)
     }
+    defer { entry.lock.unlock() }
+    return try operation(entry.integration)
   }
 
   private func entry(for agent: SupatermAgentKind) -> Entry {

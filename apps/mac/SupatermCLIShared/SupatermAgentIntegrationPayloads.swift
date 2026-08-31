@@ -2,6 +2,7 @@ import Foundation
 
 public enum SupatermAgentIntegrationTiming {
   public static let availabilityTimeout: TimeInterval = 10
+  public static let coordinationTimeout: TimeInterval = 5
   public static let mutationTimeout: TimeInterval = 60
   public static let maximumMutationsPerRequest = 3
   private static let serverReplyGracePeriod: TimeInterval = 50

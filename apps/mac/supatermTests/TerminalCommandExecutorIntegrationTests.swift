@@ -157,30 +157,24 @@ struct TerminalCommandExecutorIntegrationTests {
   }
 
   @Test
-  func managerSerializesConcurrentPiMutationPlans() throws {
+  func managerBoundsConcurrentPiMutationPlans() throws {
     let homeDirectoryURL = try temporaryPiHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     try writePiPackageSources([], homeDirectoryURL: homeDirectoryURL)
     let firstMutationEntered = DispatchSemaphore(value: 0)
     let releaseFirstMutation = DispatchSemaphore(value: 0)
-    let secondSetupStarted = DispatchSemaphore(value: 0)
-    let secondAvailabilityChecked = DispatchSemaphore(value: 0)
+    let secondSetupFinished = DispatchSemaphore(value: 0)
     let claudeSetupFinished = DispatchSemaphore(value: 0)
     let availabilityChecks = Mutex(0)
     let mutationCount = Mutex(0)
-    let results = Mutex<[CodingAgentIntegrationHealth]>([])
-    let failures = Mutex<[String]>([])
+    let successfulAgents = Mutex<[SupatermAgentKind]>([])
+    let secondPiError = Mutex<CodingAgentIntegrationManagerError?>(nil)
+    let unexpectedFailures = Mutex<[String]>([])
     let setupPi: @Sendable () throws -> CodingAgentIntegrationHealth = {
       try PiSettingsInstaller(
         homeDirectoryURL: homeDirectoryURL,
         checkPiAvailable: {
-          let count = availabilityChecks.withLock {
-            $0 += 1
-            return $0
-          }
-          if count == 2 {
-            secondAvailabilityChecked.signal()
-          }
+          availabilityChecks.withLock { $0 += 1 }
           return true
         },
         runPiMutation: { _, _ in
@@ -210,57 +204,64 @@ struct TerminalCommandExecutorIntegrationTests {
         health: { .absent },
         repair: {},
         remove: {}
-      )
+      ),
+      coordinationTimeout: 0.05
     )
     let operations = DispatchGroup()
-    let runSetup: @Sendable () -> Void = {
-      do {
-        let health = try manager.setup(.pi)
-        results.withLock { $0.append(health) }
-      } catch {
-        failures.withLock { $0.append(error.localizedDescription) }
-      }
-    }
 
     operations.enter()
     DispatchQueue.global().async {
       defer { operations.leave() }
-      runSetup()
+      do {
+        _ = try manager.setup(.pi)
+        successfulAgents.withLock { $0.append(.pi) }
+      } catch {
+        unexpectedFailures.withLock { $0.append(error.localizedDescription) }
+      }
     }
     #expect(firstMutationEntered.wait(timeout: .now() + 1) == .success)
 
     operations.enter()
     DispatchQueue.global().async {
       defer { operations.leave() }
-      secondSetupStarted.signal()
-      runSetup()
+      do {
+        _ = try manager.setup(.pi)
+        unexpectedFailures.withLock { $0.append("Second same-agent setup succeeded") }
+      } catch let error as CodingAgentIntegrationManagerError {
+        secondPiError.withLock { $0 = error }
+      } catch {
+        unexpectedFailures.withLock { $0.append(error.localizedDescription) }
+      }
+      secondSetupFinished.signal()
     }
 
-    #expect(secondSetupStarted.wait(timeout: .now() + 1) == .success)
     operations.enter()
     DispatchQueue.global().async {
       defer { operations.leave() }
       do {
-        let health = try manager.setup(.claude)
-        results.withLock { $0.append(health) }
+        _ = try manager.setup(.claude)
+        successfulAgents.withLock { $0.append(.claude) }
       } catch {
-        failures.withLock { $0.append(error.localizedDescription) }
+        unexpectedFailures.withLock { $0.append(error.localizedDescription) }
       }
       claudeSetupFinished.signal()
     }
 
+    #expect(secondSetupFinished.wait(timeout: .now() + 1) == .success)
     #expect(claudeSetupFinished.wait(timeout: .now() + 1) == .success)
-    let secondAvailabilityCheckedBeforeRelease =
-      secondAvailabilityChecked.wait(timeout: .now() + .milliseconds(200)) == .success
+    #expect(secondPiError.withLock { $0 } == .busy(.pi))
+    #expect(availabilityChecks.withLock { $0 } == 1)
+    #expect(mutationCount.withLock { $0 } == 1)
+    #expect(
+      SupatermAgentIntegrationTiming.setupBudget
+        + SupatermAgentIntegrationTiming.coordinationTimeout
+        < SupatermAgentIntegrationTiming.serverReplyTimeout
+    )
     releaseFirstMutation.signal()
     #expect(operations.wait(timeout: .now() + 2) == .success)
 
-    #expect(!secondAvailabilityCheckedBeforeRelease)
-    #expect(failures.withLock { $0 }.isEmpty)
-    #expect(results.withLock { $0 }.count == 3)
-    #expect(results.withLock { $0 }.allSatisfy { $0 == .absent })
-    #expect(availabilityChecks.withLock { $0 } == 2)
-    #expect(mutationCount.withLock { $0 } == 2)
+    #expect(unexpectedFailures.withLock { $0 }.isEmpty)
+    #expect(Set(successfulAgents.withLock { $0 }) == [.claude, .pi])
   }
 }
 

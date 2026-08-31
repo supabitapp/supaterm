@@ -215,7 +215,7 @@ struct PiPackageMutationExecutor: Sendable {
   }
 }
 
-public struct PiSettingsInstaller {
+struct PiSettingsInstaller {
   typealias CommandResult = CodingAgentCommandResult
 
   private enum SettingsSnapshot {
@@ -230,7 +230,7 @@ public struct PiSettingsInstaller {
   static let canonicalPackageSource = "git:github.com/supabitapp/supaterm-skills"
   private static let minimumPackageVersion = PiIntegrationVersion(major: 0, minor: 2, patch: 0)
 
-  public static var canonicalInstallDisplayCommand: String {
+  static var canonicalInstallDisplayCommand: String {
     installDisplayCommand(source: canonicalPackageSource)
   }
 
@@ -239,7 +239,7 @@ public struct PiSettingsInstaller {
   let checkPiAvailable: @Sendable () throws -> Bool
   let runPiMutation: @Sendable (PiPackageMutation, TimeInterval) throws -> CommandResult
 
-  public init(
+  init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
@@ -278,15 +278,15 @@ public struct PiSettingsInstaller {
     self.runPiMutation = runPiMutation
   }
 
-  public func isPiAvailable() throws -> Bool {
+  func isPiAvailable() throws -> Bool {
     try checkPiAvailable()
   }
 
-  public func hasSupatermPackageInstalled() throws -> Bool {
+  func hasSupatermPackageInstalled() throws -> Bool {
     try !installedSupatermPackageSources().isEmpty
   }
 
-  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
+  func integrationHealth() throws -> CodingAgentIntegrationHealth {
     let sources = try installedSupatermPackageSources()
     return try integrationHealth(for: sources, isPiAvailable: isPiAvailable())
   }
@@ -311,7 +311,7 @@ public struct PiSettingsInstaller {
     return .healthy
   }
 
-  public func setup() throws -> CodingAgentIntegrationHealth {
+  func setup() throws -> CodingAgentIntegrationHealth {
     guard try isPiAvailable() else { return .unavailable }
     let sources = try installedSupatermPackageSources()
     let plan = try setupMutationPlan(for: sources)
@@ -322,7 +322,7 @@ public struct PiSettingsInstaller {
     )
   }
 
-  public func installSupatermPackage() throws {
+  func installSupatermPackage() throws {
     let sources = try installedSupatermPackageSources()
     let plan = try installMutationPlan(for: sources)
     guard try isPiAvailable() else {
@@ -331,7 +331,7 @@ public struct PiSettingsInstaller {
     try runInstallPlan(plan)
   }
 
-  public func removeSupatermPackage() throws {
+  func removeSupatermPackage() throws {
     let sources = try installedSupatermPackageSources()
     let sourcesToRemove = uniquePackageSourcesByIdentity(sources)
     guard !sourcesToRemove.isEmpty else { return }
@@ -346,7 +346,7 @@ public struct PiSettingsInstaller {
     )
   }
 
-  public static func settingsURL(homeDirectoryURL: URL) -> URL {
+  static func settingsURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".pi", isDirectory: true)
       .appendingPathComponent("agent", isDirectory: true)
@@ -371,7 +371,7 @@ public struct PiSettingsInstaller {
     LoginShellCommandAvailability.commandArguments(for: ["pi"])
   }
 
-  public static func installDisplayCommand(source: String) -> String {
+  static func installDisplayCommand(source: String) -> String {
     "pi install \(source)"
   }
 
