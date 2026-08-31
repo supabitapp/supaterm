@@ -126,7 +126,9 @@ nonisolated enum TerminalAgentLaunchOptions {
           continue
         case .positional(let argument):
           positionals.append(argument)
-        case .reject, .stop, .unknownOption:
+        case .stop:
+          return positionals
+        case .reject, .unknownOption:
           return nil
         }
       }

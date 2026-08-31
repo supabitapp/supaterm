@@ -26,7 +26,7 @@ public enum SupatermManagedHookCommandError: Error, Equatable {
 
 public enum SupatermManagedHookCommand {
   private static let codexCommandPrefix =
-    #"exec /bin/sh -c 'if [ -x "$1" ]; then "$1" agent receive-agent-hook --agent codex "#
+    #"exec /bin/sh -c 'if [ -x "$1" ]; then unset SUPATERM_CLI_PATH; "$1" agent receive-agent-hook --agent codex "#
     + #"--pid "$PPID" && exit 0; fi; /bin/cat >/dev/null' supaterm-codex-hook-v1 "#
 
   public static func policy(for agent: SupatermAgentKind) -> SupatermManagedHookCommandPolicy {

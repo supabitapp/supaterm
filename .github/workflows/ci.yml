@@ -138,6 +138,7 @@ jobs:
           -parallel-testing-enabled NO
           -only-testing:supatermE2E/AgentNarrowTabE2ETests
           -only-testing:supatermE2E/CodexE2ETests
+          -only-testing:supatermE2E/CodexHookRoutingE2ETests
           -only-testing:supatermE2E/CodexZmxE2ETests
           -only-testing:supatermE2E/ClaudeE2ETests
           -only-testing:supatermE2E/ClaudeZmxE2ETests

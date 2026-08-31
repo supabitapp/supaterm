@@ -33,12 +33,30 @@ public enum SupatermInstanceIdentity {
 }
 
 public enum SupatermSocketPath {
-  public static let managedDirectoryPrefix = "supaterm-"
+  static let managedDirectoryName = "supaterm"
   private static let socketPathByteLimit: Int = {
     let address = sockaddr_un()
     return MemoryLayout.size(ofValue: address.sun_path) - 1
   }()
-  private static let tmpPath = "/tmp"
+  private static let darwinUserTemporaryRootPath: String = {
+    let byteCount = confstr(_CS_DARWIN_USER_TEMP_DIR, nil, 0)
+    guard byteCount > 0 else {
+      fatalError("Could not resolve the Darwin user temporary directory")
+    }
+    var buffer = [CChar](repeating: 0, count: byteCount)
+    guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, byteCount) > 0 else {
+      fatalError("Could not resolve the Darwin user temporary directory")
+    }
+    guard
+      let path = String(
+        bytes: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+        encoding: .utf8
+      )
+    else {
+      fatalError("Could not decode the Darwin user temporary directory")
+    }
+    return path
+  }()
 
   public static func managedDirectoryURL(
     rootDirectory: URL? = nil,
@@ -48,7 +66,7 @@ public enum SupatermSocketPath {
     if let rootDirectory {
       return managedDirectoryURL(
         rootPath: rootDirectory.path,
-        directoryName: tempManagedDirectoryName(userID: userID)
+        directoryName: managedDirectoryName
       )
     }
 
@@ -57,13 +75,13 @@ public enum SupatermSocketPath {
     {
       return managedDirectoryURL(
         rootPath: testSocketRoot,
-        directoryName: tempManagedDirectoryName(userID: userID)
+        directoryName: managedDirectoryName
       )
     }
 
     return managedDirectoryURL(
-      rootPath: tmpPath,
-      directoryName: tempManagedDirectoryName(userID: userID)
+      rootPath: darwinUserTemporaryRootPath,
+      directoryName: managedDirectoryName
     )
   }
 
@@ -228,10 +246,6 @@ public enum SupatermSocketPath {
     .appendingPathComponent(directoryName, isDirectory: true)
   }
 
-  private static func tempManagedDirectoryName(userID: uid_t) -> String {
-    return "\(managedDirectoryPrefix)\(userID)"
-  }
-
   private static func managedSocketFileName(
     forInstanceName instanceName: String,
     processID: Int32,
@@ -247,7 +261,7 @@ public enum SupatermSocketPath {
       return fullName
     }
 
-    let prefix = "instance-"
+    let prefix = "i-"
     let minimumName = "\(prefix)\(hash)\(processSuffix)"
     let reservedByteCount = prefix.utf8.count + hash.utf8.count + processSuffix.utf8.count + 1
     let maxStemByteCount = maxFileNameByteCount - reservedByteCount

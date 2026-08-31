@@ -6,7 +6,7 @@ import Testing
 
 struct SPAgentHookRouterTests {
   @Test
-  func candidateContextAndProcessIdentityAreDelivered() throws {
+  func routeCarriesTitleReasonAndDeliversCandidateIdentity() throws {
     let request = routerRequest(context: RouterFixtures.staleContext)
     let destination = routerDestination(
       context: RouterFixtures.titleContext,
@@ -14,404 +14,432 @@ struct SPAgentHookRouterTests {
       sessionIDMatchesTitle: true
     )
 
-    let selected = try #require(
-      selectedAgentHookCandidate(
+    let route = try #require(
+      selectedAgentHookRoute(
         request: request,
         destinations: [destination],
         roundComplete: true,
         deadlineReached: true
       )
     )
-    let routed = try #require(routedAgentHookRequest(request, to: selected))
+    let routed = try #require(routedAgentHookRequest(request, route: route))
 
+    #expect(route.destination == destination)
+    #expect(route.reason == .title)
     #expect(routed.context == RouterFixtures.titleContext)
-    #expect(routed.processID == 101)
-    #expect(routed.processStartTimeMicroseconds == 101_000)
+    #expect(
+      routed.process
+        == .detected(
+          SupatermAgentProcessIdentity(
+            processID: 101,
+            startTimeMicroseconds: 101_000
+          )
+        )
+    )
   }
 
   @Test
-  func deadlineFallbackPrefersTitleThenUniqueEligibleWorkspace() {
+  func deadlineFallbackPrefersTitleThenUniqueEligibleWorkspace() throws {
     let request = routerRequest()
     let title = routerDestination(
       context: RouterFixtures.titleContext,
       processID: 101,
       sessionIDMatchesTitle: true
     )
-    let ownerlessWorkspace = routerDestination(
+    let workspace = routerDestination(
       context: RouterFixtures.workspaceContext,
       processID: 202,
       workingDirectoryMatches: true
     )
-    let ownedWorkspace = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 303,
-      workingDirectoryMatches: true,
-      ownedSessionID: RouterFixtures.sessionID
-    )
-    let otherOwnedWorkspace = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 404,
-      workingDirectoryMatches: true,
-      ownedSessionID: "other-session"
-    )
 
     #expect(
-      selectedAgentHookCandidate(
+      selectedAgentHookRoute(
         request: request,
-        destinations: [title, ownerlessWorkspace, ownedWorkspace],
+        destinations: [title, workspace],
         roundComplete: true,
         deadlineReached: false
       ) == nil
     )
     #expect(
-      selectedAgentHookCandidate(
+      selectedAgentHookRoute(
         request: request,
-        destinations: [title, ownerlessWorkspace, ownedWorkspace],
+        destinations: [title, workspace],
         roundComplete: false,
         deadlineReached: true
       ) == nil
     )
-    #expect(
-      selectedAgentHookCandidate(
+    let titleRoute = try #require(
+      selectedAgentHookRoute(
         request: request,
-        destinations: [ownedWorkspace, ownerlessWorkspace, title],
+        destinations: [workspace, title],
         roundComplete: true,
         deadlineReached: true
-      ) == title
+      )
     )
-    #expect(
-      selectedAgentHookCandidate(
+    let workspaceRoute = try #require(
+      selectedAgentHookRoute(
         request: request,
-        destinations: [ownerlessWorkspace],
+        destinations: [workspace],
         roundComplete: true,
         deadlineReached: true
-      ) == ownerlessWorkspace
+      )
     )
-    #expect(
-      selectedAgentHookCandidate(
-        request: request,
-        destinations: [ownedWorkspace],
-        roundComplete: true,
-        deadlineReached: true
-      ) == ownedWorkspace
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: request,
-        destinations: [otherOwnedWorkspace],
-        roundComplete: true,
-        deadlineReached: true
-      ) == nil
-    )
+
+    #expect(titleRoute.destination == title)
+    #expect(titleRoute.reason == .title)
+    #expect(workspaceRoute.destination == workspace)
+    #expect(workspaceRoute.reason == .workspace)
   }
 
   @Test
-  func workspaceCollisionRejectsOwnerlessCandidateBesideOtherOwner() {
+  func workspaceFallbackRequiresOneUnownedOrCurrentOwner() throws {
     let ownerless = routerDestination(
       context: RouterFixtures.titleContext,
       processID: 101,
       workingDirectoryMatches: true
     )
-    let otherOwner = routerDestination(
-      context: RouterFixtures.workspaceContext,
+    let currentOwner = routerDestination(
+      context: RouterFixtures.ownerContext,
       processID: 202,
       workingDirectoryMatches: true,
-      ownedSessionID: "other-session"
+      ownedSessionID: RouterFixtures.sessionID
+    )
+    let otherOwner = routerDestination(
+      context: RouterFixtures.workspaceContext,
+      processID: 303,
+      workingDirectoryMatches: true,
+      ownedSessionID: RouterFixtures.otherSessionID
     )
 
     #expect(
-      selectedAgentHookCandidate(
+      selectedAgentHookRoute(
         request: routerRequest(source: .clear),
         destinations: [otherOwner, ownerless],
         roundComplete: true,
         deadlineReached: true
       ) == nil
     )
+    let currentOwnerRoute = try #require(
+      selectedAgentHookRoute(
+        request: routerRequest(source: .clear),
+        destinations: [currentOwner],
+        roundComplete: true,
+        deadlineReached: true
+      )
+    )
+    #expect(currentOwnerRoute.reason == .workspace)
+    #expect(routedAgentHookRequest(routerRequest(source: .clear), route: currentOwnerRoute) != nil)
   }
 
   @Test
-  func compactOwnerRoutesOnFirstCompleteRoundWhileResumeWaitsForDeadline() {
+  func compactOwnerRoutesOnFirstCompleteRoundWhileResumeWaitsForDeadline() throws {
     let owner = routerDestination(
       context: RouterFixtures.ownerContext,
       processID: 303,
       ownedSessionID: RouterFixtures.sessionID
     )
-    let title = routerDestination(
-      context: RouterFixtures.titleContext,
-      processID: 101,
-      sessionIDMatchesTitle: true
-    )
 
     #expect(
-      selectedAgentHookCandidate(
+      selectedAgentHookRoute(
         request: routerRequest(source: .compact),
-        destinations: [title, owner],
+        destinations: [owner],
         roundComplete: false,
         deadlineReached: false
       ) == nil
     )
-    #expect(
-      selectedAgentHookCandidate(
+    let route = try #require(
+      selectedAgentHookRoute(
         request: routerRequest(source: .compact),
-        destinations: [title, owner],
+        destinations: [owner],
         roundComplete: true,
         deadlineReached: false
-      ) == owner
+      )
+    )
+    #expect(route.destination == owner)
+    #expect(route.reason == .compactOwner)
+    #expect(
+      selectedAgentHookRoute(
+        request: routerRequest(source: .resume),
+        destinations: [owner],
+        roundComplete: true,
+        deadlineReached: false
+      ) == nil
+    )
+  }
+
+  @Test
+  func directEmitterRoutesOnIncompleteRoundAndRejectsDuplicates() throws {
+    let process = routerDestination(
+      context: RouterFixtures.ownerContext,
+      processID: 303
+    )
+    let duplicate = routerDestination(
+      context: RouterFixtures.workspaceContext,
+      processID: 303,
+      socketPath: "/tmp/supaterm-other.sock"
+    )
+
+    let route = try #require(
+      selectedAgentHookRoute(
+        request: routerRequest(processID: 303),
+        destinations: [process],
+        roundComplete: false,
+        deadlineReached: false
+      )
+    )
+    #expect(route.reason == .emitterProcess)
+    #expect(route.destination == process)
+    #expect(
+      selectedAgentHookRoute(
+        request: routerRequest(processID: 303),
+        destinations: [process, duplicate],
+        roundComplete: false,
+        deadlineReached: false
+      ) == nil
+    )
+  }
+
+  @Test
+  func startupForkUsesGlobalParentOwnerAcrossAppInstances() throws {
+    let fork = routerDestination(
+      context: RouterFixtures.workspaceContext,
+      processID: 202,
+      forkParentSessionID: RouterFixtures.parentSessionID,
+      workingDirectoryMatches: true,
+      sharedCodexHost: true,
+      socketPath: "/tmp/supaterm-fork.sock"
+    )
+    let parent = routerDestination(
+      context: RouterFixtures.ownerContext,
+      processID: 303,
+      ownedSessionID: RouterFixtures.parentSessionID,
+      sharedCodexHost: true,
+      socketPath: "/tmp/supaterm-parent.sock"
+    )
+
+    #expect(
+      selectedAgentHookRoute(
+        request: routerRequest(source: .startup),
+        destinations: [parent, fork],
+        roundComplete: false,
+        deadlineReached: true
+      ) == nil
     )
     #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .resume),
-        destinations: [title, owner],
+      selectedAgentHookRoute(
+        request: routerRequest(source: .startup),
+        destinations: [parent, fork],
         roundComplete: true,
         deadlineReached: false
       ) == nil
     )
     #expect(
-      selectedAgentHookCandidate(
+      selectedAgentHookRoute(
         request: routerRequest(source: .resume),
-        destinations: [title, owner],
+        destinations: [parent, fork],
         roundComplete: true,
         deadlineReached: true
-      ) == title
+      ) == nil
     )
+    let route = try #require(
+      selectedAgentHookRoute(
+        request: routerRequest(source: .startup),
+        destinations: [parent, fork],
+        roundComplete: true,
+        deadlineReached: true
+      )
+    )
+
+    #expect(route.destination == fork)
+    #expect(route.reason == .startupFork)
   }
 
   @Test
-  func startupForkLineageWaitsForCompleteDeadlineAndLosesToTitle() {
+  func startupForkRejectsMissingWrongOrSameProcessParent() {
     let fork = routerDestination(
       context: RouterFixtures.workspaceContext,
       processID: 202,
-      forksOwnedSession: true,
+      forkParentSessionID: RouterFixtures.parentSessionID,
+      workingDirectoryMatches: true,
+      sharedCodexHost: true
+    )
+    let wrongParent = routerDestination(
+      context: RouterFixtures.ownerContext,
+      processID: 303,
+      ownedSessionID: RouterFixtures.otherSessionID,
+      sharedCodexHost: true
+    )
+    let sameProcessParent = routerDestination(
+      context: RouterFixtures.ownerContext,
+      processID: 202,
+      ownedSessionID: RouterFixtures.parentSessionID,
+      sharedCodexHost: true
+    )
+
+    for destinations in [[fork], [wrongParent, fork], [sameProcessParent, fork]] {
+      #expect(
+        selectedAgentHookRoute(
+          request: routerRequest(source: .startup),
+          destinations: destinations,
+          roundComplete: true,
+          deadlineReached: true
+        ) == nil
+      )
+    }
+  }
+
+  @Test
+  func startupForkRejectsWorkspaceCollisionAndIncomingOwner() {
+    let fork = routerDestination(
+      context: RouterFixtures.workspaceContext,
+      processID: 202,
+      forkParentSessionID: RouterFixtures.parentSessionID,
       workingDirectoryMatches: true,
       sharedCodexHost: true
     )
     let parent = routerDestination(
       context: RouterFixtures.ownerContext,
       processID: 303,
-      workingDirectoryMatches: true,
-      ownedSessionID: "parent-session",
-      sharedCodexHost: true
-    )
-    let title = routerDestination(
-      context: RouterFixtures.titleContext,
-      processID: 101,
-      sessionIDMatchesTitle: true,
-      sharedCodexHost: true
-    )
-    let directFork = routerDestination(
-      context: RouterFixtures.workspaceContext,
-      processID: 404,
-      forksOwnedSession: true,
-      workingDirectoryMatches: true,
-      sharedCodexHost: false
-    )
-
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [parent, fork],
-        roundComplete: false,
-        deadlineReached: true
-      ) == nil
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [parent, fork],
-        roundComplete: true,
-        deadlineReached: false
-      ) == nil
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .resume),
-        destinations: [parent, fork],
-        roundComplete: true,
-        deadlineReached: true
-      ) == nil
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [parent, directFork],
-        roundComplete: true,
-        deadlineReached: true
-      ) == nil
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [parent, fork],
-        roundComplete: true,
-        deadlineReached: true
-      ) == fork
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [parent, fork, title],
-        roundComplete: true,
-        deadlineReached: true
-      ) == title
-    )
-  }
-
-  @Test
-  func startupForkLineageRequiresOneEligibleWorkspaceAndOneIncomingOwner() {
-    let fork = routerDestination(
-      context: RouterFixtures.workspaceContext,
-      processID: 202,
-      forksOwnedSession: true,
-      workingDirectoryMatches: true,
-      sharedCodexHost: true
-    )
-    let otherFork = routerDestination(
-      context: RouterFixtures.titleContext,
-      processID: 101,
-      forksOwnedSession: true,
-      workingDirectoryMatches: true,
-      sharedCodexHost: true
-    )
-    let ordinaryWorkspace = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 303,
-      workingDirectoryMatches: true,
-      sharedCodexHost: true
-    )
-    let currentOwnerElsewhere = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 404,
-      ownedSessionID: RouterFixtures.sessionID,
-      sharedCodexHost: true
-    )
-    let retry = routerDestination(
-      context: RouterFixtures.workspaceContext,
-      processID: 505,
-      forksOwnedSession: true,
-      workingDirectoryMatches: true,
-      ownedSessionID: RouterFixtures.sessionID,
-      sharedCodexHost: true
-    )
-
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [fork, otherFork],
-        roundComplete: true,
-        deadlineReached: true
-      ) == nil
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [fork, ordinaryWorkspace],
-        roundComplete: true,
-        deadlineReached: true
-      ) == nil
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [fork, currentOwnerElsewhere],
-        roundComplete: true,
-        deadlineReached: true
-      ) == nil
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [retry],
-        roundComplete: true,
-        deadlineReached: true
-      ) == retry
-    )
-  }
-
-  @Test
-  func ordinaryStartupStillUsesTitleThenUniqueWorkspaceAtDeadline() {
-    let title = routerDestination(
-      context: RouterFixtures.titleContext,
-      processID: 101,
-      sessionIDMatchesTitle: true,
+      ownedSessionID: RouterFixtures.parentSessionID,
       sharedCodexHost: true
     )
     let workspace = routerDestination(
-      context: RouterFixtures.workspaceContext,
-      processID: 202,
+      context: RouterFixtures.titleContext,
+      processID: 404,
       workingDirectoryMatches: true,
+      sharedCodexHost: true
+    )
+    let incomingOwner = routerDestination(
+      context: RouterFixtures.staleContext,
+      processID: 505,
+      ownedSessionID: RouterFixtures.sessionID,
       sharedCodexHost: true
     )
 
     #expect(
-      selectedAgentHookCandidate(
+      selectedAgentHookRoute(
         request: routerRequest(source: .startup),
-        destinations: [workspace, title],
+        destinations: [parent, fork, workspace],
         roundComplete: true,
-        deadlineReached: false
+        deadlineReached: true
       ) == nil
     )
     #expect(
-      selectedAgentHookCandidate(
+      selectedAgentHookRoute(
         request: routerRequest(source: .startup),
-        destinations: [workspace, title],
+        destinations: [parent, fork, incomingOwner],
         roundComplete: true,
         deadlineReached: true
-      ) == title
-    )
-    #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .startup),
-        destinations: [workspace],
-        roundComplete: true,
-        deadlineReached: true
-      ) == workspace
+      ) == nil
     )
   }
 
   @Test
-  func directEmitterProcessRoutesOnIncompleteRoundBeforeTitleOrCompactOwner() {
-    let process = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 303
-    )
+  func sharedNestedTitleCannotReplaceOwnedSessionWithoutGlobalForkLineage() throws {
     let title = routerDestination(
-      context: RouterFixtures.titleContext,
-      processID: 101,
-      sessionIDMatchesTitle: true
-    )
-    let owner = routerDestination(
       context: RouterFixtures.workspaceContext,
       processID: 202,
-      ownedSessionID: RouterFixtures.sessionID
+      ownedSessionMatchesProcess: false,
+      sessionIDMatchesTitle: true,
+      workingDirectoryMatches: true,
+      ownedSessionID: RouterFixtures.parentSessionID,
+      sharedCodexHost: true
     )
+    let titleRoute = SPAgentHookRoute(destination: title, reason: .title)
 
     #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(source: .compact, processID: 303),
-        destinations: [owner, title, process],
-        roundComplete: false,
-        deadlineReached: false
-      ) == process
+      selectedAgentHookRoute(
+        request: routerRequest(source: .startup),
+        destinations: [title],
+        roundComplete: true,
+        deadlineReached: true
+      ) == nil
     )
+    #expect(routedAgentHookRequest(routerRequest(source: .startup), route: titleRoute) == nil)
+
+    let fork = routerDestination(
+      context: RouterFixtures.workspaceContext,
+      processID: 202,
+      forkParentSessionID: RouterFixtures.parentSessionID,
+      sessionIDMatchesTitle: true,
+      workingDirectoryMatches: true,
+      ownedSessionID: RouterFixtures.parentSessionID,
+      sharedCodexHost: true
+    )
+    let parent = routerDestination(
+      context: RouterFixtures.ownerContext,
+      processID: 303,
+      ownedSessionID: RouterFixtures.parentSessionID,
+      sharedCodexHost: true,
+      socketPath: "/tmp/supaterm-parent.sock"
+    )
+    let forkRoute = try #require(
+      selectedAgentHookRoute(
+        request: routerRequest(source: .startup),
+        destinations: [parent, fork],
+        roundComplete: true,
+        deadlineReached: true
+      )
+    )
+
+    #expect(forkRoute.reason == .startupFork)
+    #expect(routedAgentHookRequest(routerRequest(source: .startup), route: forkRoute) != nil)
   }
 
   @Test
-  func duplicateDirectEmitterProcessesAreRejectedOnAnIncompleteRound() {
-    let first = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 303
-    )
-    let second = routerDestination(
+  func sharedTitleMayReplaceOwnedSessionFromTheSameProcess() throws {
+    let title = routerDestination(
       context: RouterFixtures.workspaceContext,
-      processID: 303
+      processID: 202,
+      ownedSessionMatchesProcess: true,
+      sessionIDMatchesTitle: true,
+      workingDirectoryMatches: true,
+      ownedSessionID: RouterFixtures.parentSessionID,
+      sharedCodexHost: true
+    )
+    let route = try #require(
+      selectedAgentHookRoute(
+        request: routerRequest(source: .clear),
+        destinations: [title],
+        roundComplete: true,
+        deadlineReached: true
+      )
+    )
+
+    #expect(route.reason == .title)
+    #expect(routedAgentHookRequest(routerRequest(source: .clear), route: route) != nil)
+  }
+
+  @Test
+  func directTitleAndEmitterReasonsMayReplaceOwnedSession() {
+    let title = routerDestination(
+      context: RouterFixtures.titleContext,
+      processID: 202,
+      sessionIDMatchesTitle: true,
+      ownedSessionID: RouterFixtures.otherSessionID
+    )
+    let emitter = routerDestination(
+      context: RouterFixtures.ownerContext,
+      processID: 303,
+      ownedSessionID: RouterFixtures.otherSessionID
     )
 
     #expect(
-      selectedAgentHookCandidate(
-        request: routerRequest(processID: 303),
-        destinations: [first, second],
-        roundComplete: false,
-        deadlineReached: false
+      routedAgentHookRequest(
+        routerRequest(),
+        route: SPAgentHookRoute(destination: title, reason: .title)
+      ) != nil
+    )
+    #expect(
+      routedAgentHookRequest(
+        routerRequest(processID: 303),
+        route: SPAgentHookRoute(destination: emitter, reason: .emitterProcess)
+      ) != nil
+    )
+    #expect(
+      routedAgentHookRequest(
+        routerRequest(),
+        route: SPAgentHookRoute(destination: title, reason: .workspace)
       ) == nil
     )
   }
@@ -424,114 +452,69 @@ struct SPAgentHookRouterTests {
       sessionIDMatchesTitle: true
     )
     let shared = routerDestination(
-      context: RouterFixtures.titleContext,
-      processID: 101,
-      sessionIDMatchesTitle: true,
+      context: RouterFixtures.workspaceContext,
+      processID: 202,
+      workingDirectoryMatches: true,
       sharedCodexHost: true
     )
+    let directRoute = SPAgentHookRoute(destination: direct, reason: .title)
+    let sharedRoute = SPAgentHookRoute(destination: shared, reason: .workspace)
     let matching = try #require(
       routedAgentHookRequest(
         routerRequest(inheritedSessionID: RouterFixtures.sessionID),
-        to: direct
+        route: directRoute
       )
     )
     let sharedMismatch = try #require(
       routedAgentHookRequest(
-        routerRequest(inheritedSessionID: "outer-session"),
-        to: shared
+        routerRequest(inheritedSessionID: RouterFixtures.otherSessionID),
+        route: sharedRoute
       )
     )
 
-    #expect(routedAgentHookRequest(routerRequest(), to: direct)?.inheritedSessionID == nil)
     #expect(matching.inheritedSessionID == RouterFixtures.sessionID)
     #expect(
       routedAgentHookRequest(
-        routerRequest(inheritedSessionID: "outer-session"),
-        to: direct
+        routerRequest(inheritedSessionID: RouterFixtures.otherSessionID),
+        route: directRoute
       ) == nil
     )
     #expect(sharedMismatch.inheritedSessionID == nil)
   }
 
   @Test
-  func workspaceFallbackDeliversOnlyToUnownedOrCurrentOwner() {
-    let unowned = routerDestination(
-      context: RouterFixtures.workspaceContext,
-      processID: 101,
-      workingDirectoryMatches: true,
-      sharedCodexHost: true
-    )
-    let currentOwner = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 202,
-      workingDirectoryMatches: true,
-      ownedSessionID: RouterFixtures.sessionID,
-      sharedCodexHost: true
-    )
-    let otherOwner = routerDestination(
+  func invalidProcessIdentityCannotRoute() {
+    let invalid = routerDestination(
       context: RouterFixtures.titleContext,
-      processID: 303,
-      workingDirectoryMatches: true,
-      ownedSessionID: "owned-session",
-      sharedCodexHost: true
+      processID: 0,
+      startTimeMicroseconds: 0,
+      sessionIDMatchesTitle: true
     )
 
-    #expect(routedAgentHookRequest(routerRequest(), to: unowned) != nil)
-    #expect(routedAgentHookRequest(routerRequest(), to: currentOwner) != nil)
-    #expect(routedAgentHookRequest(routerRequest(), to: otherOwner) == nil)
+    #expect(
+      selectedAgentHookRoute(
+        request: routerRequest(),
+        destinations: [invalid],
+        roundComplete: true,
+        deadlineReached: true
+      ) == nil
+    )
   }
 
   @Test
-  func sharedStartupForkLineageRoutesButCannotReplaceAnotherOwner() {
-    let fork = routerDestination(
-      context: RouterFixtures.workspaceContext,
-      processID: 101,
-      forksOwnedSession: true,
-      workingDirectoryMatches: true,
-      sharedCodexHost: true
-    )
-    let otherOwner = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 202,
-      forksOwnedSession: true,
-      workingDirectoryMatches: true,
-      ownedSessionID: "owned-session",
-      sharedCodexHost: true
-    )
-
-    #expect(routedAgentHookRequest(routerRequest(source: .startup), to: fork) != nil)
-    #expect(routedAgentHookRequest(routerRequest(source: .startup), to: otherOwner) == nil)
-  }
-
-  @Test
-  func ownedSessionReplacementRequiresTitleOrDirectEmitterProcess() {
-    let workspace = routerDestination(
-      context: RouterFixtures.workspaceContext,
-      processID: 101,
-      workingDirectoryMatches: true,
-      ownedSessionID: "owned-session"
-    )
-    let title = routerDestination(
-      context: RouterFixtures.titleContext,
-      processID: 202,
-      sessionIDMatchesTitle: true,
-      ownedSessionID: "owned-session",
-      sharedCodexHost: true
-    )
-    let direct = routerDestination(
-      context: RouterFixtures.ownerContext,
-      processID: 303,
-      ownedSessionID: "owned-session"
-    )
-
-    #expect(routedAgentHookRequest(routerRequest(), to: workspace) == nil)
-    #expect(routedAgentHookRequest(routerRequest(), to: title) != nil)
-    #expect(routedAgentHookRequest(routerRequest(processID: 303), to: direct) != nil)
+  func managedSocketOwnerRequiresPositiveNumericSuffix() {
+    #expect(managedSocketOwnerProcessID("/tmp/instance-default-hash-pid-42") == 42)
+    #expect(managedSocketOwnerProcessID("/tmp/instance-pid-42-tail") == nil)
+    #expect(managedSocketOwnerProcessID("/tmp/instance-pid-name") == nil)
+    #expect(managedSocketOwnerProcessID("/tmp/instance-pid-0") == nil)
+    #expect(managedSocketOwnerProcessID("/tmp/instance") == nil)
   }
 }
 
 private enum RouterFixtures {
-  static let sessionID = "session-123"
+  static let sessionID = "019c8ad3-4601-70d9-b980-311e16d7a44d"
+  static let parentSessionID = "019c8ad3-4601-70d9-b980-311e16d7a44c"
+  static let otherSessionID = "019c8ad3-4601-70d9-b980-311e16d7a44b"
   static let ownerContext = SupatermCLIContext(
     surfaceID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
     tabID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAB")!
@@ -554,7 +537,6 @@ private func routerRequest(
   source: SupatermCodexRootSessionStart.Source = .resume,
   inheritedSessionID: String? = nil,
   processID: Int32? = nil,
-  processStartTimeMicroseconds: UInt64? = nil,
   context: SupatermCLIContext? = nil
 ) -> SupatermAgentHookRequest {
   SupatermAgentHookRequest(
@@ -568,27 +550,33 @@ private func routerRequest(
       transcriptPath: "/tmp/transcript.jsonl"
     ),
     inheritedSessionID: inheritedSessionID,
-    processID: processID,
-    processStartTimeMicroseconds: processStartTimeMicroseconds
+    process: processID.map(SupatermAgentHookProcess.emitter)
   )
 }
 
 private func routerDestination(
   context: SupatermCLIContext,
   processID: Int32,
-  forksOwnedSession: Bool = false,
+  startTimeMicroseconds: UInt64? = nil,
+  forkParentSessionID: String? = nil,
+  ownedSessionMatchesProcess: Bool = false,
   sessionIDMatchesTitle: Bool = false,
   workingDirectoryMatches: Bool = false,
   ownedSessionID: String? = nil,
-  sharedCodexHost: Bool = false
+  sharedCodexHost: Bool = false,
+  socketPath: String = "/tmp/supaterm.sock"
 ) -> SPAgentHookCandidateDestination {
   SPAgentHookCandidateDestination(
-    socketPath: "/tmp/supaterm.sock",
+    socketPath: socketPath,
     candidate: SupatermAgentHookCandidate(
       context: context,
-      processID: processID,
-      processStartTimeMicroseconds: UInt64(processID) * 1_000,
-      forksOwnedSession: forksOwnedSession,
+      processIdentity: SupatermAgentProcessIdentity(
+        processID: processID,
+        startTimeMicroseconds: startTimeMicroseconds
+          ?? UInt64(max(0, processID)) * 1_000
+      ),
+      forkParentSessionID: forkParentSessionID,
+      ownedSessionMatchesProcess: ownedSessionMatchesProcess,
       sessionIDMatchesTitle: sessionIDMatchesTitle,
       workingDirectoryMatches: workingDirectoryMatches,
       ownedSessionID: ownedSessionID

@@ -53,10 +53,28 @@ nonisolated enum TerminalAgentEventTranslator {
     TerminalAgentEvent(
       scope: scope,
       context: request.context,
-      processID: request.processID,
+      process: process(for: request),
       workingDirectoryPath: request.event.cwd,
       action: action
     )
+  }
+
+  private static func process(
+    for request: SupatermAgentHookRequest
+  ) -> TerminalAgentEvent.Process? {
+    switch request.process {
+    case .detected(let processIdentity)?:
+      return .detected(
+        TerminalAgentProcessIdentity(
+          processID: processIdentity.processID,
+          startTimeMicroseconds: processIdentity.startTimeMicroseconds
+        )
+      )
+    case .emitter(let processID)?:
+      return .emitter(processID)
+    case nil:
+      return nil
+    }
   }
 
   private static func scope(

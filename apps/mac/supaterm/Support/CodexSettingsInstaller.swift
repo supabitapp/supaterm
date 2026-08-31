@@ -130,7 +130,10 @@ public struct CodexSettingsInstaller {
   private func integrationHealthLocked() throws -> CodingAgentIntegrationHealth {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     guard hasValidCLIPath else {
-      return .drifted
+      return try fileInstaller.integrationHealth(
+        settingsURL: settingsURL,
+        hookGroupsByEvent: [:]
+      ) == .absent ? .absent : .drifted
     }
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: settingsURL,

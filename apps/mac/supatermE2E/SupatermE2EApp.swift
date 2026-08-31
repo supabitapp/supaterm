@@ -17,7 +17,7 @@ final class SupatermE2EApp: @unchecked Sendable {
   let instanceName: String
   let stateHome: URL
   let cliHome: URL
-  var testSocketRoot: URL { stateHome }
+  let testSocketRoot: URL
   private(set) var socketPath: String
   private let environment: [String: String]
   private let executable: URL
@@ -77,11 +77,11 @@ final class SupatermE2EApp: @unchecked Sendable {
       .appendingPathComponent("supaterm-\(instanceName)", isDirectory: true)
     workspace = try ZmxTestWorkspace(stateHome: stateHome, instanceName: instanceName)
     cliHome = stateHome.appendingPathComponent("home", isDirectory: true)
-    let runtimeHome = URL(fileURLWithPath: "/tmp/\(instanceName)", isDirectory: true)
+    testSocketRoot = URL(fileURLWithPath: "/tmp/\(instanceName)", isDirectory: true)
     logURL = stateHome.appendingPathComponent("app.log", isDirectory: false)
 
     try FileManager.default.createDirectory(at: cliHome, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: runtimeHome, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: testSocketRoot, withIntermediateDirectories: true)
     let shellPath = SupatermShellCommand.loginShellPath()
     if shadowsBundledCLIAtShellStartup {
       try Self.installShadowCLI(shellPath: shellPath, home: cliHome)
@@ -99,13 +99,13 @@ final class SupatermE2EApp: @unchecked Sendable {
       "SUPATERM_TEST_MODE": "1",
       "SUPATERM_VERBOSE_LOGGING": "1",
       "USER": NSUserName(),
-      "XDG_RUNTIME_DIR": runtimeHome.path,
+      "XDG_RUNTIME_DIR": testSocketRoot.path,
       "ZDOTDIR": cliHome.path,
       ZmxEnvironment.directoryKey: workspace.zmxDirectory.path,
       SupatermCLIEnvironment.instanceNameKey: instanceName,
       SupatermCLIEnvironment.stateHomeKey: stateHome.path,
       SupatermCLIEnvironment.testHomeKey: cliHome.path,
-      SupatermCLIEnvironment.testSocketRootKey: stateHome.path,
+      SupatermCLIEnvironment.testSocketRootKey: testSocketRoot.path,
     ]
     let processEnvironment = ProcessInfo.processInfo.environment
     for key in inheritedEnvironmentKeys {
@@ -455,6 +455,7 @@ final class SupatermE2EApp: @unchecked Sendable {
 
     guard !preservingState else { return }
     try? workspace.cleanup()
+    try? FileManager.default.removeItem(at: testSocketRoot)
   }
 
   private func waitForProcessExit(timeout: TimeInterval) async throws {

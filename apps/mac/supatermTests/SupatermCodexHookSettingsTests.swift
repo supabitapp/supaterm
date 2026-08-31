@@ -9,7 +9,7 @@ struct SupatermCodexHookSettingsTests {
     let cliPath = "/Applications/Supaterm user's app/Contents/MacOS/sp"
     let path = #"'/Applications/Supaterm user'"'"'s app/Contents/MacOS/sp'"#
     let command =
-      #"exec /bin/sh -c 'if [ -x "$1" ]; then "$1" agent receive-agent-hook --agent codex "#
+      #"exec /bin/sh -c 'if [ -x "$1" ]; then unset SUPATERM_CLI_PATH; "$1" agent receive-agent-hook --agent codex "#
       + #"--pid "$PPID" && exit 0; fi; /bin/cat >/dev/null' supaterm-codex-hook-v1 \#(path)"#
 
     #expect(try SupatermCodexHookSettings.command(cliPath: cliPath) == command)

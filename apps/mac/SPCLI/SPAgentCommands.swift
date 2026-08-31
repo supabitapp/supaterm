@@ -89,7 +89,7 @@ extension SP {
           context: SupatermCLIContext.current,
           event: event,
           inheritedSessionID: inheritedSessionID,
-          processID: pid
+          process: pid.map(SupatermAgentHookProcess.emitter)
         )
       )
     }

@@ -87,14 +87,21 @@ private final class CodexSharedAppServer {
     while Date() < deadline {
       guard process.isRunning else {
         process.waitUntilExit()
-        throw failure("The shared Codex app-server exited before its control socket appeared.")
+        throw failure("The shared Codex app-server exited before accepting control connections.")
       }
-      if FileManager.default.fileExists(atPath: controlSocket.path) {
+      if canConnectToControlSocket() {
         return
       }
       try await Task.sleep(for: .milliseconds(100))
     }
-    throw failure("Timed out waiting for the shared Codex app-server control socket.")
+    throw failure("Timed out waiting for the shared Codex app-server to accept control connections.")
+  }
+
+  func assertRunning(after launches: String) throws {
+    guard process.isRunning else {
+      process.waitUntilExit()
+      throw failure("The shared Codex app-server exited after \(launches).")
+    }
   }
 
   func failure(_ error: Error) -> SupatermE2EError {
@@ -132,6 +139,29 @@ private final class CodexSharedAppServer {
       \(output.isEmpty ? "<empty>" : output)
       """
     )
+  }
+
+  private func canConnectToControlSocket() -> Bool {
+    let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+    guard socket >= 0 else { return false }
+    defer { Darwin.close(socket) }
+
+    var address = sockaddr_un()
+    memset(&address, 0, MemoryLayout<sockaddr_un>.size)
+    address.sun_family = sa_family_t(AF_UNIX)
+    let maxLength = MemoryLayout.size(ofValue: address.sun_path)
+    guard controlSocket.path.utf8.count < maxLength else { return false }
+    controlSocket.path.withCString { pointer in
+      withUnsafeMutablePointer(to: &address.sun_path) { pathPointer in
+        let buffer = UnsafeMutableRawPointer(pathPointer).assumingMemoryBound(to: CChar.self)
+        strncpy(buffer, pointer, maxLength - 1)
+      }
+    }
+    return withUnsafePointer(to: &address) { pointer in
+      pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+        Darwin.connect(socket, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
+      }
+    }
   }
 
   private func waitForExit(timeout: TimeInterval) {
@@ -243,6 +273,7 @@ private func runCodexHookOwnership() async throws {
       competingBinding: competingBinding,
       fork: (executable: environment.executable, prompt: prompts.fork)
     )
+    try startedAppServer.assertRunning(after: "all Codex launches")
     try startedServer.verifyComplete()
   } catch {
     throw startedAppServer.failure(error)

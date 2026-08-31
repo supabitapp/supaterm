@@ -189,4 +189,17 @@ extension CodexSettingsInstallerTests {
 
     #expect(try missingCLIInstaller.integrationHealth() == .drifted)
   }
+
+  @Test
+  func integrationHealthIsAbsentWithoutHooksOrCLIPath() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = testCodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      cliPath: "",
+      runEnableHooksCommand: { CodingAgentCommandResult(status: 0) }
+    )
+
+    #expect(try installer.integrationHealth() == .absent)
+  }
 }

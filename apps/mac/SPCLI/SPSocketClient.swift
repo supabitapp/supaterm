@@ -95,7 +95,8 @@ struct SPSocketClient {
       }
       return .reachable(endpoint)
     } catch SocketClientError.connectFailed {
-      return .stale
+      return managedSocketOwnerProcessID(path).map(processIsProvablyDead) == true
+        ? .stale : .ignored
     } catch {
       return .ignored
     }
@@ -117,6 +118,19 @@ struct SPSocketClient {
       let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
       guard socket >= 0 else {
         throw SocketClientError.socketCreationFailed
+      }
+      var noSigPipe: Int32 = 1
+      guard
+        setsockopt(
+          socket,
+          SOL_SOCKET,
+          SO_NOSIGPIPE,
+          &noSigPipe,
+          socklen_t(MemoryLayout<Int32>.size)
+        ) == 0
+      else {
+        Darwin.close(socket)
+        throw SocketClientError.socketConfigurationFailed
       }
 
       let address: sockaddr_un
@@ -325,6 +339,19 @@ struct SPSocketClient {
       throw SocketClientError.deadlineExceeded
     }
   }
+}
+
+func managedSocketOwnerProcessID(_ path: String) -> Int32? {
+  let fileName = URL(fileURLWithPath: path).lastPathComponent
+  guard let marker = fileName.range(of: "-pid-", options: .backwards) else { return nil }
+  let suffix = fileName[marker.upperBound...]
+  guard !suffix.isEmpty, suffix.allSatisfy(\.isNumber) else { return nil }
+  return Int32(String(suffix)).flatMap { $0 > 0 ? $0 : nil }
+}
+
+func processIsProvablyDead(_ processID: Int32) -> Bool {
+  guard kill(processID, 0) != 0 else { return false }
+  return errno == ESRCH
 }
 
 struct SPSocketSelectionDiagnostics {
@@ -541,6 +568,8 @@ enum SPSocketSelection {
     userID: uid_t = getuid()
   ) -> Bool {
     guard
+      let processID = managedSocketOwnerProcessID(path),
+      processIsProvablyDead(processID),
       SupatermSocketPath.isOwnedManagedSocketPath(
         path,
         rootDirectory: rootDirectory,

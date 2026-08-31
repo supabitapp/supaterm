@@ -72,6 +72,36 @@ struct TerminalAgentEventTranslatorTests {
     #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
   }
 
+  @Test
+  func routedCodexSessionStartKeepsDetectedProcessIdentity() {
+    let request = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        source: SupatermCodexRootSessionStart.Source.startup.rawValue,
+        transcriptPath: "/tmp/session-1.jsonl"
+      ),
+      process: .detected(
+        SupatermAgentProcessIdentity(
+          processID: 42,
+          startTimeMicroseconds: 123
+        )
+      )
+    )
+
+    #expect(
+      TerminalAgentEventTranslator.events(for: request).first?.process
+        == .detected(
+          TerminalAgentProcessIdentity(
+            processID: 42,
+            startTimeMicroseconds: 123
+          )
+        )
+    )
+  }
+
   @Test(
     arguments: [
       SupatermAgentHookEventName.notification,

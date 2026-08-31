@@ -54,7 +54,7 @@ Terminal object targeting happens after socket selection:
 Discovery rules:
 
 - Managed socket discovery stays scoped to the current user.
-- Discovery probes managed socket files and removes stale managed sockets.
+- Discovery probes managed socket files and removes failed managed sockets only when their PIDs are dead.
 - Reachable sockets are never silently replaced.
 - If multiple reachable endpoints exist, the CLI requires `--instance` or `--socket`.
 - If more than one endpoint has the requested name, pass the endpoint ID or `--socket`.
@@ -234,8 +234,8 @@ sp project icon ~/code/project --json
 
 ## Runtime Guarantees
 
-- Managed socket paths use the fixed per-user `/tmp/supaterm-<uid>` directory, canonicalized on the host.
-- The fixed namespace lets panes, app servers, and CLI processes find the same app sockets even when they inherit different runtime environments.
+- Managed socket paths use the `supaterm` directory inside Darwin's per-user temporary root, resolved through `_CS_DARWIN_USER_TEMP_DIR` and canonicalized on the host.
+- The OS-owned namespace lets panes, app servers, and CLI processes find the same app sockets even when they inherit different runtime environments.
 - Stale managed sockets can be removed.
 - Path resolution is canonicalized so endpoint creation, discovery, and identity agree on the same location.
 - Incoming requests can be buffered briefly until the app starts consuming the stream.
@@ -269,7 +269,7 @@ Durable Codex root session starts use a separate route:
 
 - The payload must omit `agent_id`, contain nonempty `session_id`, `cwd`, and `transcript_path` fields, and use source `startup`, `resume`, `clear`, or `compact`. An empty `agent_id` still makes the event ineligible.
 - Without an explicit `--socket` or `--instance`, the CLI discards inherited pane and socket targeting and sends `terminal.agent_hook_candidates` to every discovered app instance.
-- The CLI polls managed app sockets within one routing budget and removes stale nodes as it finds them. Candidate order is a unique direct process match from a nonshared host; on a complete round, the current owner for a same-ID `compact`; after the detection deadline, an exact full or Codex-rendered session ID token in the raw terminal title; for `startup`, one guarded fork; otherwise one workspace match. A custom display title does not replace the raw title used for matching.
+- The CLI polls managed app sockets within one routing budget and removes a failed node only when its PID is dead. Candidate order is a unique direct process match from a nonshared host; on a complete round, the current owner for a same-ID `compact`; after the detection deadline, an exact full or Codex-rendered session ID token in the raw terminal title; for `startup`, one guarded fork; otherwise one workspace match. A custom display title does not replace the raw title used for matching.
 - A guarded fork requires exactly one same-workspace candidate that can own the incoming session. It must come from the shared Codex host and run `codex fork <canonical-parent-session-UUID>`. Another pane must own that live foreground parent session, the fork process identity must differ from the parent's recorded identities, and no other destination may own the incoming session.
 - The final workspace step requires one cwd match across all live candidates from all compatible app instances. It does not discard matches that own another session before checking uniqueness. The selected pane must have no owner or own the incoming session.
 - A direct match can win an incomplete round. Every later step needs a complete round; title, fork, and workspace matches also wait for the detection deadline. A missing or incompatible instance reply keeps the round incomplete. Missing, incomplete, or ambiguous results fail closed.

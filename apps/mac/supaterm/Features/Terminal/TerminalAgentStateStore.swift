@@ -267,9 +267,14 @@ nonisolated struct TerminalAgentStateStore {
     {
       state.workingDirectoryPath = workingDirectoryPath
     }
-    if let processID = event.processID,
-      let identity = processIdentity(processID)
-    {
+    let identity: TerminalAgentProcessIdentity? =
+      switch event.process {
+      case .detected(let identity): identity
+      case .emitter(let processID): processIdentity(processID)
+      case nil: nil
+      }
+    if let identity {
+      let processID = identity.processID
       state.processes = state.processes.filter { $0.processID != processID }
       state.processes.insert(identity)
       if event.scope.subagentID == nil {
@@ -605,6 +610,15 @@ nonisolated struct TerminalAgentStateStore {
     agent: SupatermAgentKind
   ) -> String? {
     foregroundSessions[ForegroundKey(surfaceID: surfaceID, agent: agent)]
+  }
+
+  func sessionContainsProcessIdentity(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    processIdentity: TerminalAgentProcessIdentity
+  ) -> Bool {
+    sessions[SessionKey(agent: agent, sessionID: sessionID)]?.processes.contains(processIdentity)
+      == true
   }
 
   func isForeground(

@@ -79,6 +79,42 @@ struct SupatermManagedHookCommandTests {
       payload: Data(repeating: 0x7b, count: 1024 * 1024)
     )
   }
+
+  @Test
+  func codexCommandDoesNotRedirectToInheritedCLIPath() throws {
+    let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    let bundledCLI = temporaryDirectory.appendingPathComponent("bundled/sp")
+    let bundledMarker = temporaryDirectory.appendingPathComponent("bundled-ran")
+    let inheritedCLI = temporaryDirectory.appendingPathComponent("inherited/sp")
+    let inheritedMarker = temporaryDirectory.appendingPathComponent("inherited-ran")
+    try writeExecutable(
+      at: bundledCLI,
+      script: """
+        #!/bin/sh
+        if [ -n "${SUPATERM_CLI_PATH:-}" ]; then
+          exec "$SUPATERM_CLI_PATH" "$@"
+        fi
+        /usr/bin/touch \(SupatermShellCommand.escapedToken(bundledMarker.path))
+        """
+    )
+    try writeExecutable(
+      at: inheritedCLI,
+      script: """
+        #!/bin/sh
+        /usr/bin/touch \(SupatermShellCommand.escapedToken(inheritedMarker.path))
+        """
+    )
+
+    try runHookCommand(
+      SupatermCodexHookSettings.command(cliPath: bundledCLI.path),
+      environment: [SupatermCLIEnvironment.cliPathKey: inheritedCLI.path],
+      payload: Data("{}".utf8)
+    )
+
+    #expect(FileManager.default.fileExists(atPath: bundledMarker.path))
+    #expect(!FileManager.default.fileExists(atPath: inheritedMarker.path))
+  }
 }
 
 func runHookCommand(

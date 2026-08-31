@@ -62,19 +62,11 @@ extension TerminalCommandExecutor {
     for query: SupatermAgentHookCandidateQuery
   ) -> SupatermAgentHookCandidatesResponse {
     let sharedCodexHost = query.emitterProcessID.map(codexAppServerRuns) == true
-    guard
-      let sessionStart = query.event.codexRootSessionStart
-    else {
-      return SupatermAgentHookCandidatesResponse(
-        candidates: [],
-        sharedCodexHost: sharedCodexHost
-      )
-    }
     pruneDeadAgentProcesses()
     let candidates = registry.activeEntries().flatMap { entry in
       entry.terminal.agentHookCandidates(
-        sessionID: sessionStart.sessionID,
-        workingDirectoryPath: sessionStart.cwd
+        sessionID: query.sessionID,
+        workingDirectoryPath: query.cwd
       )
     }
     return SupatermAgentHookCandidatesResponse(
@@ -167,14 +159,12 @@ extension TerminalCommandExecutor {
     guard request.agent == .codex else { return true }
     guard
       let surfaceID = request.context?.surfaceID,
-      let processID = request.processID,
-      let processStartTimeMicroseconds = request.processStartTimeMicroseconds
+      case .detected(let processIdentity)? = request.process
     else {
       return false
     }
     return terminal.hasLiveCodexDetection(
-      processID: processID,
-      processStartTimeMicroseconds: processStartTimeMicroseconds,
+      processIdentity,
       for: surfaceID
     )
   }

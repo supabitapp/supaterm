@@ -7,9 +7,9 @@ import Testing
 
 struct SupatermSocketProtocolTests {
   @Test
-  func managedDirectoryURLIgnoresOrdinaryRuntimeEnvironment() {
-    let expected = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
-      .appendingPathComponent("supaterm-501", isDirectory: true)
+  func managedDirectoryURLUsesDarwinUserTemporaryDirectory() throws {
+    let expected = try darwinUserTemporaryDirectoryURL()
+      .appendingPathComponent(SupatermSocketPath.managedDirectoryName, isDirectory: true)
     let appEnvironment = [
       "XDG_RUNTIME_DIR": "/run/app/501",
       "TMPDIR": "/tmp/app",
@@ -34,11 +34,11 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func managedDirectoryURLRequiresTestHomeForTestSocketRoot() {
-    let productionURL = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
-      .appendingPathComponent("supaterm-501", isDirectory: true)
+  func managedDirectoryURLRequiresTestHomeForTestSocketRoot() throws {
+    let productionURL = try darwinUserTemporaryDirectoryURL()
+      .appendingPathComponent(SupatermSocketPath.managedDirectoryName, isDirectory: true)
     let testURL = URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
-      .appendingPathComponent("supaterm-501", isDirectory: true)
+      .appendingPathComponent(SupatermSocketPath.managedDirectoryName, isDirectory: true)
 
     #expect(
       SupatermSocketPath.managedDirectoryURL(
@@ -86,12 +86,12 @@ struct SupatermSocketProtocolTests {
   func managedSocketURLFitsDarwinSocketLimit() {
     let path = SupatermSocketPath.managedSocketURL(
       instanceName: String(repeating: "very-long-instance-name", count: 12),
-      processID: 99,
+      processID: Int32.max,
       userID: 501
     ).path
 
     #expect(path.utf8.count < darwinSocketPathByteLimit())
-    #expect(URL(fileURLWithPath: path).lastPathComponent.hasSuffix("-pid-99"))
+    #expect(URL(fileURLWithPath: path).lastPathComponent.hasSuffix("-pid-\(Int32.max)"))
   }
 
   @Test
@@ -99,7 +99,7 @@ struct SupatermSocketProtocolTests {
     let rootPrefix = "/private/tmp/"
     let rootByteCount =
       darwinSocketPathByteLimit()
-      - "/supaterm-501".utf8.count
+      - "/supaterm".utf8.count
       - "instance-0123456789abcdef-pid-99".utf8.count
       - 8
     let rootDirectory = URL(
@@ -136,7 +136,7 @@ struct SupatermSocketProtocolTests {
     #expect(
       socketURL.deletingLastPathComponent()
         == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
-        .appendingPathComponent("supaterm-501", isDirectory: true)
+        .appendingPathComponent(SupatermSocketPath.managedDirectoryName, isDirectory: true)
     )
     #expect(socketURL.lastPathComponent.hasPrefix("instance-main-"))
   }
@@ -192,7 +192,11 @@ struct SupatermSocketProtocolTests {
         rootDirectory: symlinkURL,
         environment: [:],
         userID: 501
-      ) == actualURL.appendingPathComponent("supaterm-501", isDirectory: true)
+      )
+        == actualURL.appendingPathComponent(
+          SupatermSocketPath.managedDirectoryName,
+          isDirectory: true
+        )
     )
   }
 
@@ -229,7 +233,7 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func processSocketEndpointUsesFixedManagedPathAndInstanceName() {
+  func processSocketEndpointUsesManagedPathAndInstanceName() throws {
     let endpointID = UUID(uuidString: "C46492BD-5A6E-4C73-8D0F-71AFBA7EF1DE")!
     let startedAt = Date(timeIntervalSince1970: 123)
     let environment = [
@@ -260,7 +264,13 @@ struct SupatermSocketProtocolTests {
           startedAt: startedAt
         )
     )
-    #expect(endpoint?.path.hasPrefix("/private/tmp/supaterm-501/") == true)
+    #expect(
+      endpoint?.path.hasPrefix(
+        try darwinUserTemporaryDirectoryURL()
+          .appendingPathComponent(SupatermSocketPath.managedDirectoryName, isDirectory: true)
+          .path + "/"
+      ) == true
+    )
   }
 
   @Test
@@ -332,16 +342,23 @@ struct SupatermSocketProtocolTests {
 
   @Test
   func isManagedSocketPathRecognizesOnlyTheResolvedManagedDirectory() {
+    let productionSocketPath = SupatermSocketPath.managedDirectoryURL(
+      environment: ["XDG_RUNTIME_DIR": "/run/user/501"],
+      userID: 501
+    )
+    .appendingPathComponent("control.sock", isDirectory: false)
+    .path
+
     #expect(
       SupatermSocketPath.isManagedSocketPath(
-        "/private/tmp/supaterm-501/control.sock",
+        productionSocketPath,
         environment: ["XDG_RUNTIME_DIR": "/run/user/501"],
         userID: 501
       )
     )
     #expect(
       SupatermSocketPath.isManagedSocketPath(
-        "/private/tmp/SupatermTests/supaterm-501/control.sock",
+        "/private/tmp/SupatermTests/supaterm/control.sock",
         environment: [
           SupatermCLIEnvironment.testHomeKey: "/tmp/test-home",
           SupatermCLIEnvironment.testSocketRootKey: "/tmp/SupatermTests",
@@ -403,7 +420,7 @@ struct SupatermSocketProtocolTests {
     let symlinkDirectory = rootURL.appendingPathComponent("link", isDirectory: true)
     let managedDirectory =
       actualDirectory
-      .appendingPathComponent("supaterm-\(getuid())", isDirectory: true)
+      .appendingPathComponent(SupatermSocketPath.managedDirectoryName, isDirectory: true)
     try createPrivateSocketDirectory(at: managedDirectory)
     try FileManager.default.createSymbolicLink(
       at: symlinkDirectory, withDestinationURL: actualDirectory)
@@ -1259,6 +1276,22 @@ private func makeSocketProtocolTemporaryDirectory() throws -> URL {
   }
   let path = SupatermSocketPath.canonicalized(String(cString: pointer)) ?? String(cString: pointer)
   return URL(fileURLWithPath: path, isDirectory: true)
+}
+
+private func darwinUserTemporaryDirectoryURL() throws -> URL {
+  let byteCount = confstr(_CS_DARWIN_USER_TEMP_DIR, nil, 0)
+  guard byteCount > 0 else {
+    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+  }
+  var buffer = [CChar](repeating: 0, count: byteCount)
+  guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, byteCount) > 0 else {
+    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+  }
+  let path = String(cString: buffer)
+  return URL(
+    fileURLWithPath: SupatermSocketPath.canonicalized(path) ?? path,
+    isDirectory: true
+  )
 }
 
 private func darwinSocketPathByteLimit() -> Int {

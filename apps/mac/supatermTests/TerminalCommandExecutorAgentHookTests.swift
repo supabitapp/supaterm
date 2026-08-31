@@ -79,107 +79,36 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(firstSurface.effectiveTitle() == "Custom title")
     #expect(response.candidates.count == 2)
     #expect(Set(response.candidates.map(\.context.surfaceID)) == [firstSurface.id, secondSurface.id])
-    #expect(
-      response.candidates.map(\.processID)
-        == Array(repeating: processIdentity.processID, count: 2)
+    let sharedProcessIdentity = SupatermAgentProcessIdentity(
+      processID: processIdentity.processID,
+      startTimeMicroseconds: processIdentity.startTimeMicroseconds
     )
     #expect(
-      response.candidates.map(\.processStartTimeMicroseconds)
-        == Array(repeating: processIdentity.startTimeMicroseconds, count: 2)
+      response.candidates.map(\.processIdentity)
+        == Array(repeating: sharedProcessIdentity, count: 2)
     )
     #expect(response.candidates.map(\.sessionIDMatchesTitle) == [true, true])
     #expect(response.candidates.map(\.workingDirectoryMatches) == [true, true])
+    #expect(response.candidates.compactMap(\.forkParentSessionID).isEmpty)
     #expect(response.candidates.compactMap(\.ownedSessionID).isEmpty)
   }
 
   @Test
-  func codexForkCandidateRequiresParentOwnedByTheSameHost() throws {
+  func codexForkCandidateExposesParsedParentWithoutLocalOwnership() throws {
     let fixture = try makeCodexForkCandidateFixture()
     defer { fixture.stop() }
-    let harness = fixture.harness
-    let parentSurface = fixture.parentSurface
-    let parentIdentity = fixture.parentIdentity
-    let parentSessionID = fixture.parentSessionID
-    let forkIdentity = fixture.forkIdentity
-
-    let unowned = try fixture.candidate()
-    #expect(!unowned.forksOwnedSession)
 
     #expect(
-      harness.host.applyAgentDetection(
-        agentDetectionObservation(
-          phase: .idle,
-          processIdentity: forkIdentity,
-          sequence: 3
-        ),
-        for: parentSurface.id
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      agentHookRequest(
+      fixture.harness.host.agentStateStore.surfaceID(
         agent: .codex,
-        sessionID: parentSessionID,
-        hookEventName: .sessionStart,
-        context: harness.context,
-        processID: forkIdentity.processID,
-        processStartTimeMicroseconds: forkIdentity.startTimeMicroseconds
-      )
+        sessionID: fixture.parentSessionID
+      ) == nil
     )
-    let duplicateProcess = try fixture.candidate()
-    #expect(!duplicateProcess.forksOwnedSession)
-
+    #expect(try fixture.candidate().forkParentSessionID == fixture.parentSessionID)
     #expect(
-      harness.host.applyAgentDetection(
-        agentDetectionObservation(
-          phase: .idle,
-          processIdentity: parentIdentity,
-          sequence: 4
-        ),
-        for: parentSurface.id
-      )
+      try fixture.candidate(sessionID: fixture.parentSessionID).forkParentSessionID
+        == fixture.parentSessionID
     )
-    _ = try harness.commandExecutor.handleAgentHook(
-      agentHookRequest(
-        agent: .codex,
-        sessionID: parentSessionID,
-        hookEventName: .sessionStart,
-        context: harness.context,
-        processID: parentIdentity.processID,
-        processStartTimeMicroseconds: parentIdentity.startTimeMicroseconds
-      )
-    )
-
-    let forkArguments = try #require(
-      TerminalAgentProcessInspector.commandLineArguments(for: forkIdentity)
-    )
-    #expect(
-      TerminalAgentLaunchOptions.codexForkParentSessionID(
-        commandLineArguments: forkArguments
-      ) == parentSessionID
-    )
-    #expect(parentIdentity != forkIdentity)
-    #expect(
-      harness.host.agentStateStore.surfaceID(
-        agent: .codex,
-        sessionID: parentSessionID
-      ) == parentSurface.id
-    )
-    #expect(
-      harness.host.agentStateStore.foregroundSessionID(
-        for: parentSurface.id,
-        agent: .codex
-      ) == parentSessionID
-    )
-    let parent = try #require(
-      harness.host.agentStateStore.snapshots(for: parentSurface.id).first {
-        $0.agent == .codex && $0.sessionID == parentSessionID
-      }
-    )
-    #expect(parent.processes == [parentIdentity])
-    let owned = try fixture.candidate()
-    #expect(owned.forksOwnedSession)
-    let sameSession = try fixture.candidate(sessionID: parentSessionID)
-    #expect(!sameSession.forksOwnedSession)
   }
 
   @Test(
@@ -256,6 +185,7 @@ struct TerminalCommandExecutorAgentHookTests {
     let candidate = try #require(response.candidates.first)
     #expect(response.candidates.count == 1)
     #expect(candidate.ownedSessionID == "owned-session")
+    #expect(candidate.ownedSessionMatchesProcess)
     #expect(candidate.sessionIDMatchesTitle)
   }
 
@@ -283,23 +213,6 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(response.candidates.isEmpty)
     #expect(harness.host.agentDetectionStore.observation(for: surface.id) == nil)
-  }
-
-  @Test
-  func codexCandidateQueryRejectsNonRootEvent() throws {
-    let harness = try makeClaudeHookHarness()
-    try applyCurrentCodexDetection(to: harness)
-    let query = SupatermAgentHookCandidateQuery(
-      event: SupatermAgentHookEvent(
-        cwd: FileManager.default.currentDirectoryPath,
-        hookEventName: .sessionStart,
-        sessionID: "session-1",
-        source: "internal",
-        transcriptPath: "/tmp/session-1.jsonl"
-      )
-    )
-
-    #expect(harness.commandExecutor.agentHookCandidates(for: query).candidates.isEmpty)
   }
 
   @Test
@@ -384,7 +297,7 @@ struct TerminalCommandExecutorAgentHookTests {
         hookEventName: .sessionStart,
         context: harness.context,
         processID: processIdentity.processID,
-        processStartTimeMicroseconds: processIdentity.startTimeMicroseconds + 1
+        startTimeMicroseconds: processIdentity.startTimeMicroseconds + 1
       )
     )
 
@@ -406,7 +319,7 @@ struct TerminalCommandExecutorAgentHookTests {
         transcriptPath: "/tmp/codex/memories/nested-session.jsonl"
       ),
       inheritedSessionID: "root-session",
-      processID: processIdentity.processID
+      process: .emitter(processIdentity.processID)
     )
 
     _ = try harness.commandExecutor.handleAgentHook(request)
@@ -514,7 +427,7 @@ struct TerminalCommandExecutorAgentHookTests {
           hookEventName: .sessionStart,
           sessionID: "internal-session"
         ),
-        processID: processID
+        process: .emitter(processID)
       )
     )
 
@@ -562,7 +475,7 @@ struct TerminalCommandExecutorAgentHookTests {
           sessionID: sessionID,
           source: "pi-notify-supaterm"
         ),
-        processID: processID
+        process: .emitter(processID)
       )
     )
     _ = try harness.commandExecutor.handleAgentHook(
@@ -574,7 +487,7 @@ struct TerminalCommandExecutorAgentHookTests {
           sessionID: sessionID,
           turnID: "turn-1"
         ),
-        processID: processID
+        process: .emitter(processID)
       )
     )
     #expect(harness.host.agentActivity(for: harness.tabID) == .pi(.running))
@@ -590,7 +503,7 @@ struct TerminalCommandExecutorAgentHookTests {
           stopReason: "error",
           turnID: "turn-1"
         ),
-        processID: processID
+        process: .emitter(processID)
       )
     )
     #expect(
@@ -607,7 +520,7 @@ struct TerminalCommandExecutorAgentHookTests {
           hookEventName: .sessionShutdown,
           sessionID: sessionID
         ),
-        processID: processID
+        process: .emitter(processID)
       )
     )
     #expect(!harness.host.hasAgentSession(agent: .pi, sessionID: sessionID))
@@ -621,9 +534,7 @@ private struct CodexForkCandidateFixture {
   let forkSurface: GhosttySurfaceView
   let harness: ClaudeHookHarness
   let incomingSessionID: String
-  let parentIdentity: TerminalAgentProcessIdentity
   let parentSessionID: String
-  let parentSurface: GhosttySurfaceView
   let process: Process
 
   func candidate(sessionID: String? = nil) throws -> SupatermAgentHookCandidate {
@@ -651,7 +562,7 @@ private struct CodexForkCandidateFixture {
 private func makeCodexForkCandidateFixture() throws -> CodexForkCandidateFixture {
   let harness = try makeClaudeHookHarness()
   let parentSurface = try #require(harness.host.selectedSurfaceView)
-  let parentIdentity = try applyCurrentCodexDetection(to: harness)
+  try applyCurrentCodexDetection(to: harness)
   let parentSessionID = "019c8ad3-4601-70d9-b980-311e16d7a44c"
   let incomingSessionID = "019c8ad3-4601-70d9-b980-311e16d7a44d"
   let forkPane = try harness.host.createPane(
@@ -692,9 +603,7 @@ private func makeCodexForkCandidateFixture() throws -> CodexForkCandidateFixture
       forkSurface: forkSurface,
       harness: harness,
       incomingSessionID: incomingSessionID,
-      parentIdentity: parentIdentity,
       parentSessionID: parentSessionID,
-      parentSurface: parentSurface,
       process: process
     )
   } catch {
@@ -712,13 +621,8 @@ private func codexCandidateQuery(
   emitterProcessID: Int32? = nil
 ) -> SupatermAgentHookCandidateQuery {
   SupatermAgentHookCandidateQuery(
-    event: SupatermAgentHookEvent(
-      cwd: cwd,
-      hookEventName: .sessionStart,
-      sessionID: sessionID,
-      source: SupatermCodexRootSessionStart.Source.startup.rawValue,
-      transcriptPath: "\(cwd)/\(sessionID).jsonl"
-    ),
+    sessionID: sessionID,
+    cwd: cwd,
     emitterProcessID: emitterProcessID
   )
 }

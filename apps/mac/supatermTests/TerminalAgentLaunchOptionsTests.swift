@@ -155,6 +155,12 @@ struct TerminalAgentLaunchOptionsTests {
         expectedSessionID: "019c8ad3-4601-70d9-b980-311e16d7a44c"
       ),
       CodexForkParentTestCase(
+        arguments: [
+          "codex", "fork", "019c8ad3-4601-70d9-b980-311e16d7a44c", "--", "Prompt",
+        ],
+        expectedSessionID: "019c8ad3-4601-70d9-b980-311e16d7a44c"
+      ),
+      CodexForkParentTestCase(
         arguments: ["codex", "resume", "parent-session"],
         expectedSessionID: nil
       ),
@@ -175,7 +181,9 @@ struct TerminalAgentLaunchOptionsTests {
         expectedSessionID: nil
       ),
       CodexForkParentTestCase(
-        arguments: ["codex", "--", "fork", "parent-session"],
+        arguments: [
+          "codex", "--", "fork", "019c8ad3-4601-70d9-b980-311e16d7a44c",
+        ],
         expectedSessionID: nil
       ),
       CodexForkParentTestCase(

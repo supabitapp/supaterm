@@ -361,13 +361,8 @@ struct SocketControlFeatureNotificationsTests {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "5C109774-F5A2-41F0-BB7F-96BB4842D9BD")!
     let requestPayload = SupatermAgentHookCandidateQuery(
-      event: SupatermAgentHookEvent(
-        cwd: "/tmp/workspace",
-        hookEventName: .sessionStart,
-        sessionID: "session-1",
-        source: SupatermCodexRootSessionStart.Source.startup.rawValue,
-        transcriptPath: "/tmp/session-1.jsonl"
-      ),
+      sessionID: "session-1",
+      cwd: "/tmp/workspace",
       emitterProcessID: 42
     )
     let request = SocketControlClient.Request(
@@ -378,8 +373,10 @@ struct SocketControlFeatureNotificationsTests {
       candidates: [
         SupatermAgentHookCandidate(
           context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
-          processID: 84,
-          processStartTimeMicroseconds: 84_000,
+          processIdentity: SupatermAgentProcessIdentity(
+            processID: 84,
+            startTimeMicroseconds: 84_000
+          ),
           sessionIDMatchesTitle: true,
           workingDirectoryMatches: true,
           ownedSessionID: "session-1"

@@ -197,16 +197,31 @@ struct SPSocketClientTests {
   }
 
   @Test
-  func probeIdentityReturnsStaleWhenConnectRefused() throws {
+  func probeIdentityReturnsStaleOnlyForDeadManagedOwner() throws {
     let rootURL = try makeSocketClientTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+    try process.run()
+    process.waitUntilExit()
 
-    let socketURL = rootURL.appendingPathComponent("control.sock", isDirectory: false)
-    try createStaleSocket(at: socketURL)
+    let deadSocketURL = rootURL.appendingPathComponent(
+      "instance-test-hash-pid-\(process.processIdentifier)",
+      isDirectory: false
+    )
+    let liveSocketURL = rootURL.appendingPathComponent(
+      "instance-test-hash-pid-\(getpid())",
+      isDirectory: false
+    )
+    try createStaleSocket(at: deadSocketURL)
+    try createStaleSocket(at: liveSocketURL)
 
-    let client = try socketClient(path: socketURL.path)
+    let deadClient = try socketClient(path: deadSocketURL.path)
+    let liveClient = try socketClient(path: liveSocketURL.path)
 
-    #expect(client.probeIdentity() == .stale)
+    #expect(processIsProvablyDead(process.processIdentifier))
+    #expect(deadClient.probeIdentity() == .stale)
+    #expect(liveClient.probeIdentity() == .ignored)
   }
 
   @Test
@@ -350,13 +365,17 @@ struct SPSocketClientTests {
   func staleRemovalRejectsSocketOutsideManagedDirectory() throws {
     let rootURL = try makeSocketClientTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
+    let processID = try exitedProcessID()
     let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
     try FileManager.default.createDirectory(
       at: managedDirectoryURL,
       withIntermediateDirectories: true,
       attributes: [.posixPermissions: 0o700]
     )
-    let socketURL = rootURL.appendingPathComponent("outside.sock", isDirectory: false)
+    let socketURL = rootURL.appendingPathComponent(
+      "instance-test-hash-pid-\(processID)",
+      isDirectory: false
+    )
     try createStaleSocket(at: socketURL)
 
     #expect(
@@ -372,13 +391,17 @@ struct SPSocketClientTests {
   func staleRemovalRemovesOwnedSocketInsidePrivateManagedDirectory() throws {
     let rootURL = try makeSocketClientTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
+    let processID = try exitedProcessID()
     let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
     try FileManager.default.createDirectory(
       at: managedDirectoryURL,
       withIntermediateDirectories: true,
       attributes: [.posixPermissions: 0o700]
     )
-    let socketURL = managedDirectoryURL.appendingPathComponent("stale.sock", isDirectory: false)
+    let socketURL = managedDirectoryURL.appendingPathComponent(
+      "instance-test-hash-pid-\(processID)",
+      isDirectory: false
+    )
     try createStaleSocket(at: socketURL)
 
     #expect(
@@ -394,18 +417,47 @@ struct SPSocketClientTests {
   func staleRemovalRejectsSocketInSharedManagedDirectory() throws {
     let rootURL = try makeSocketClientTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
+    let processID = try exitedProcessID()
     let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
     try FileManager.default.createDirectory(
       at: managedDirectoryURL,
       withIntermediateDirectories: true,
       attributes: [.posixPermissions: 0o700]
     )
-    let socketURL = managedDirectoryURL.appendingPathComponent("stale.sock", isDirectory: false)
+    let socketURL = managedDirectoryURL.appendingPathComponent(
+      "instance-test-hash-pid-\(processID)",
+      isDirectory: false
+    )
     try createStaleSocket(at: socketURL)
     try FileManager.default.setAttributes(
       [.posixPermissions: 0o755],
       ofItemAtPath: managedDirectoryURL.path
     )
+
+    #expect(
+      !SPSocketSelection.removeManagedSocketPath(
+        socketURL.path,
+        rootDirectory: rootURL
+      )
+    )
+    #expect(FileManager.default.fileExists(atPath: socketURL.path))
+  }
+
+  @Test
+  func staleRemovalKeepsOwnedSocketForLiveProcess() throws {
+    let rootURL = try makeSocketClientTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let managedDirectoryURL = SupatermSocketPath.managedDirectoryURL(rootDirectory: rootURL)
+    try FileManager.default.createDirectory(
+      at: managedDirectoryURL,
+      withIntermediateDirectories: true,
+      attributes: [.posixPermissions: 0o700]
+    )
+    let socketURL = managedDirectoryURL.appendingPathComponent(
+      "instance-test-hash-pid-\(getpid())",
+      isDirectory: false
+    )
+    try createStaleSocket(at: socketURL)
 
     #expect(
       !SPSocketSelection.removeManagedSocketPath(
@@ -526,4 +578,12 @@ private func createStaleSocket(at url: URL) throws {
   guard bindResult == 0 else {
     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
   }
+}
+
+private func exitedProcessID() throws -> Int32 {
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+  try process.run()
+  process.waitUntilExit()
+  return process.processIdentifier
 }

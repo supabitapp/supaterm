@@ -165,6 +165,75 @@ struct TerminalAgentStateStoreTests {
   }
 
   @Test
+  func detectedProcessIdentityIsNotRebuiltFromItsProcessID() throws {
+    let surfaceID = UUID()
+    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let identity = TerminalAgentProcessIdentity(
+      processID: 42,
+      startTimeMicroseconds: 123
+    )
+    var resolutionCount = 0
+    var store = TerminalAgentStateStore { processID in
+      resolutionCount += 1
+      return TerminalAgentProcessIdentity(
+        processID: processID,
+        startTimeMicroseconds: 456
+      )
+    }
+
+    store.apply(
+      TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
+        context: context,
+        process: .detected(identity),
+        action: .sessionStarted
+      )
+    )
+
+    #expect(try #require(store.snapshots(for: surfaceID).first).processes == [identity])
+    #expect(resolutionCount == 0)
+  }
+
+  @Test
+  func restoredSessionRetainsExactProcessOwnership() {
+    let surfaceID = UUID()
+    let sessionID = "session-1"
+    let identity = TerminalAgentProcessIdentity(
+      processID: 42,
+      startTimeMicroseconds: 123
+    )
+    var store = TerminalAgentStateStore()
+    store.apply(
+      TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: sessionID),
+        context: SupatermCLIContext(surfaceID: surfaceID, tabID: UUID()),
+        process: .detected(identity),
+        action: .sessionStarted
+      )
+    )
+    var restored = TerminalAgentStateStore()
+    restored.restore(store.snapshots(for: surfaceID))
+
+    #expect(
+      restored.sessionContainsProcessIdentity(
+        agent: .codex,
+        sessionID: sessionID,
+        processIdentity: identity
+      )
+    )
+    #expect(
+      !restored.sessionContainsProcessIdentity(
+        agent: .codex,
+        sessionID: sessionID,
+        processIdentity: TerminalAgentProcessIdentity(
+          processID: identity.processID,
+          startTimeMicroseconds: identity.startTimeMicroseconds + 1
+        )
+      )
+    )
+  }
+
+  @Test
   func foregroundTurnCompletionBecomesIdle() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())

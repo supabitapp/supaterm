@@ -27,20 +27,28 @@ extension TerminalHostState {
         for: surface.id,
         agent: .codex
       )
+      let ownedSessionMatchesProcess =
+        ownedSessionID.map {
+          agentStateStore.sessionContainsProcessIdentity(
+            agent: .codex,
+            sessionID: $0,
+            processIdentity: observation.processIdentity
+          )
+        } == true
       let commandLineArguments =
         TerminalAgentProcessInspector.commandLineArguments(
           for: observation.processIdentity
         ) ?? []
       return SupatermAgentHookCandidate(
         context: SupatermCLIContext(surfaceID: surface.id, tabID: tabID.rawValue),
-        processID: observation.processIdentity.processID,
-        processStartTimeMicroseconds: observation.processIdentity.startTimeMicroseconds,
-        forksOwnedSession: agentHookForksOwnedSession(
-          incomingSessionID: sessionID,
-          processIdentity: observation.processIdentity,
-          surfaceID: surface.id,
+        processIdentity: SupatermAgentProcessIdentity(
+          processID: observation.processIdentity.processID,
+          startTimeMicroseconds: observation.processIdentity.startTimeMicroseconds
+        ),
+        forkParentSessionID: TerminalAgentLaunchOptions.codexForkParentSessionID(
           commandLineArguments: commandLineArguments
         ),
+        ownedSessionMatchesProcess: ownedSessionMatchesProcess,
         sessionIDMatchesTitle: Self.agentHookSessionIDMatchesTitle(
           sessionID,
           rawTitle: surface.rawTitle
@@ -58,22 +66,21 @@ extension TerminalHostState {
   }
 
   func hasLiveCodexDetection(
-    processID: Int32,
-    processStartTimeMicroseconds: UInt64,
+    _ processIdentity: SupatermAgentProcessIdentity,
     for surfaceID: UUID
   ) -> Bool {
-    let processIdentity = TerminalAgentProcessIdentity(
-      processID: processID,
-      startTimeMicroseconds: processStartTimeMicroseconds
+    let terminalProcessIdentity = TerminalAgentProcessIdentity(
+      processID: processIdentity.processID,
+      startTimeMicroseconds: processIdentity.startTimeMicroseconds
     )
     guard
       let observation = agentDetectionStore.observation(for: surfaceID),
       observation.agent == AgentDetectionAgentIdentity(SupatermAgentKind.codex),
-      observation.processIdentity == processIdentity
+      observation.processIdentity == terminalProcessIdentity
     else {
       return false
     }
-    return TerminalAgentProcessInspector.isCurrent(processIdentity)
+    return TerminalAgentProcessInspector.isCurrent(terminalProcessIdentity)
   }
 
   private static func agentHookSessionIDMatchesTitle(
@@ -90,38 +97,6 @@ extension TerminalHostState {
   private static func codexTerminalTitleSessionID(_ sessionID: String) -> String {
     guard sessionID.count > 32 else { return sessionID }
     return "\(sessionID.prefix(29))..."
-  }
-
-  private func agentHookForksOwnedSession(
-    incomingSessionID: String,
-    processIdentity: TerminalAgentProcessIdentity,
-    surfaceID: UUID,
-    commandLineArguments: [String]
-  ) -> Bool {
-    guard
-      let parentSessionID = TerminalAgentLaunchOptions.codexForkParentSessionID(
-        commandLineArguments: commandLineArguments
-      ),
-      let parentSessionUUID = UUID(uuidString: parentSessionID),
-      let incomingSessionUUID = UUID(uuidString: incomingSessionID),
-      parentSessionUUID != incomingSessionUUID,
-      let parentSurfaceID = agentStateStore.surfaceID(
-        agent: .codex,
-        sessionID: parentSessionID
-      ),
-      parentSurfaceID != surfaceID,
-      agentStateStore.foregroundSessionID(
-        for: parentSurfaceID,
-        agent: .codex
-      ) == parentSessionID,
-      let parent = agentStateStore.snapshots(for: parentSurfaceID).first(where: {
-        $0.agent == .codex && $0.sessionID == parentSessionID
-      }),
-      !parent.processes.contains(processIdentity)
-    else {
-      return false
-    }
-    return true
   }
 }
 

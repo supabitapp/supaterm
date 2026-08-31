@@ -182,13 +182,32 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   }
 }
 
+public struct SupatermAgentProcessIdentity: Equatable, Hashable, Sendable, Codable {
+  public let processID: Int32
+  public let startTimeMicroseconds: UInt64
+
+  public init(processID: Int32, startTimeMicroseconds: UInt64) {
+    self.processID = processID
+    self.startTimeMicroseconds = startTimeMicroseconds
+  }
+}
+
+public enum SupatermAgentHookProcess: Equatable, Sendable, Codable {
+  case detected(SupatermAgentProcessIdentity)
+  case emitter(Int32)
+
+  public var emitterProcessID: Int32? {
+    guard case .emitter(let processID) = self else { return nil }
+    return processID
+  }
+}
+
 public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
   public let agent: SupatermAgentKind
   public let context: SupatermCLIContext?
   public let event: SupatermAgentHookEvent
   public let inheritedSessionID: String?
-  public let processID: Int32?
-  public let processStartTimeMicroseconds: UInt64?
+  public let process: SupatermAgentHookProcess?
 
   public var codexRootSessionStart: SupatermCodexRootSessionStart? {
     guard agent == .codex else { return nil }
@@ -200,80 +219,57 @@ public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
     context: SupatermCLIContext? = nil,
     event: SupatermAgentHookEvent,
     inheritedSessionID: String? = nil,
-    processID: Int32? = nil,
-    processStartTimeMicroseconds: UInt64? = nil
+    process: SupatermAgentHookProcess? = nil
   ) {
     self.agent = agent
     self.context = context
     self.event = event
     self.inheritedSessionID = inheritedSessionID
-    self.processID = processID
-    self.processStartTimeMicroseconds = processStartTimeMicroseconds
+    self.process = process
   }
 }
 
 public struct SupatermAgentHookCandidateQuery: Equatable, Sendable, Codable {
+  public let cwd: String
   public let emitterProcessID: Int32?
-  public let event: SupatermAgentHookEvent
+  public let sessionID: String
 
   public init(
-    event: SupatermAgentHookEvent,
+    sessionID: String,
+    cwd: String,
     emitterProcessID: Int32? = nil
   ) {
+    self.cwd = cwd
     self.emitterProcessID = emitterProcessID
-    self.event = event
+    self.sessionID = sessionID
   }
 }
 
 public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
-  private enum CodingKeys: String, CodingKey {
-    case context
-    case forksOwnedSession
-    case ownedSessionID
-    case processID
-    case processStartTimeMicroseconds
-    case sessionIDMatchesTitle
-    case workingDirectoryMatches
-  }
-
   public let context: SupatermCLIContext
-  public let processID: Int32
-  public let processStartTimeMicroseconds: UInt64
-  public let forksOwnedSession: Bool
+  public let processIdentity: SupatermAgentProcessIdentity
+  public let forkParentSessionID: String?
+  public let ownedSessionMatchesProcess: Bool
   public let sessionIDMatchesTitle: Bool
   public let workingDirectoryMatches: Bool
   public let ownedSessionID: String?
 
   public init(
     context: SupatermCLIContext,
-    processID: Int32,
-    processStartTimeMicroseconds: UInt64,
-    forksOwnedSession: Bool = false,
+    processIdentity: SupatermAgentProcessIdentity,
+    forkParentSessionID: String? = nil,
+    ownedSessionMatchesProcess: Bool = false,
     sessionIDMatchesTitle: Bool,
     workingDirectoryMatches: Bool,
     ownedSessionID: String? = nil
   ) {
     self.context = context
-    self.processID = processID
-    self.processStartTimeMicroseconds = processStartTimeMicroseconds
-    self.forksOwnedSession = forksOwnedSession
+    self.processIdentity = processIdentity
+    self.forkParentSessionID = forkParentSessionID
+    self.ownedSessionMatchesProcess = ownedSessionMatchesProcess
     self.sessionIDMatchesTitle = sessionIDMatchesTitle
     self.workingDirectoryMatches = workingDirectoryMatches
     self.ownedSessionID = ownedSessionID
-  }
-
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    context = try container.decode(SupatermCLIContext.self, forKey: .context)
-    processID = try container.decode(Int32.self, forKey: .processID)
-    processStartTimeMicroseconds = try container.decode(
-      UInt64.self,
-      forKey: .processStartTimeMicroseconds
-    )
-    forksOwnedSession = try container.decodeIfPresent(Bool.self, forKey: .forksOwnedSession) ?? false
-    sessionIDMatchesTitle = try container.decode(Bool.self, forKey: .sessionIDMatchesTitle)
-    workingDirectoryMatches = try container.decode(Bool.self, forKey: .workingDirectoryMatches)
-    ownedSessionID = try container.decodeIfPresent(String.self, forKey: .ownedSessionID)
   }
 }
 
