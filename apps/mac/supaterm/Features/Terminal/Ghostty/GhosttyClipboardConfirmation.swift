@@ -181,7 +181,7 @@ final class GhosttyClipboardConfirmationCoordinator {
     let rememberButton: NSButton?
     if canRemember {
       let button = NSButton(
-        checkboxWithTitle: "Remember this choice for the session",
+        checkboxWithTitle: "Allow for the rest of this terminal session",
         target: nil,
         action: nil
       )

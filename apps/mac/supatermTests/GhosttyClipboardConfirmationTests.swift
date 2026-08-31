@@ -58,7 +58,7 @@ struct GhosttyClipboardConfirmationTests {
     #expect(text.contains("text/plain (6 bytes)\nsecret"))
     #expect(text.contains("application/octet-stream (2 bytes)"))
     let remember = try button(
-      titled: "Remember this choice for the session",
+      titled: "Allow for the rest of this terminal session",
       in: sheet
     )
     remember.state = .on
@@ -66,6 +66,43 @@ struct GhosttyClipboardConfirmationTests {
     try await waitForSheetDismissal(from: fixture.window)
     #expect(decision?.allowed == true)
     #expect(decision?.remember == true)
+  }
+
+  @Test
+  func denyingKittyPromptDoesNotRememberCheckedApproval() async throws {
+    let fixture = try await ClipboardSurfaceFixture()
+    defer { fixture.close() }
+    let surface = try #require(fixture.surface.surface)
+    let coordinator = GhosttyClipboardConfirmationCoordinator()
+    var decision: (allowed: Bool, remember: Bool)?
+
+    let presented = coordinator.present(
+      payload: GhosttyClipboardConfirmationPayload(
+        contents: [
+          GhosttyClipboardContent(mime: "text/plain", data: Data("secret".utf8))
+        ],
+        available: [],
+        programName: nil,
+        canRemember: true
+      ),
+      request: .kittyRead,
+      surface: GhosttyRuntime.SurfaceReference(surface),
+      view: fixture.surface
+    ) { allowed, remember in
+      decision = (allowed, remember)
+    }
+    #expect(presented)
+
+    let sheet = try await attachedSheet(of: fixture.window)
+    let remember = try button(
+      titled: "Allow for the rest of this terminal session",
+      in: sheet
+    )
+    remember.state = .on
+    try button(titled: "Deny", in: sheet).performClick(nil)
+    try await waitForSheetDismissal(from: fixture.window)
+    #expect(decision?.allowed == false)
+    #expect(decision?.remember == false)
   }
 
   @Test

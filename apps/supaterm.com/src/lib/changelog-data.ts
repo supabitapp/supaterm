@@ -91,7 +91,7 @@ const changelogData: ChangelogEntry[] = [
         items: [
           "Normal quits now consistently offer choices for handling running terminal sessions",
           "Refined sidebar colors, selection states, indicators, and notification previews",
-          "Clipboard reads, writes, and unsafe pastes now require confirmation from the originating terminal",
+          "Clipboard permission prompts and unsafe-paste confirmation now stay with the terminal that triggered them",
         ],
       },
       {
