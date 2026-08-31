@@ -8,6 +8,29 @@ import Testing
 @MainActor
 struct HorizontalTabStripControllerTests {
   @Test
+  func optionClickMergesTabIntoPrimaryAndClearsBatchSelection() throws {
+    let fixture = Fixture()
+    fixture.selectionState.toggle(
+      fixture.trailingTabID,
+      primaryTabID: fixture.selectedTabID
+    )
+    let entryID = TerminalSidebarEntryID.tab(fixture.trailingTabID)
+    let frame = try #require(fixture.controller.dragSourceFrame(for: entryID))
+    let point = CGPoint(x: frame.midX, y: frame.midY)
+
+    fixture.controller.beginPointerInteraction(
+      entryID: entryID,
+      at: point,
+      modifiers: .option
+    )
+
+    #expect(fixture.actions.mergedTabIDs == [fixture.trailingTabID])
+    #expect(fixture.selectionState.secondaryTabIDs.isEmpty)
+    #expect(fixture.controller.dragSourcePhase == .idle)
+    #expect(fixture.captureRequests.isEmpty)
+  }
+
+  @Test
   func commandPressTogglesSecondarySelectionWithoutChangingPrimary() throws {
     let fixture = Fixture()
     let entryID = TerminalSidebarEntryID.tab(fixture.trailingTabID)
@@ -148,6 +171,59 @@ struct HorizontalTabStripControllerTests {
       fixture.controller.dragSourceHoldScreenFrame
         == TerminalHorizontalTabDragPresentation.expandedSourceHoldFrame(frame)
     )
+    fixture.controller.cancelInteractions()
+  }
+
+  @Test
+  func keepsCompactLiftAcrossStripAndShowsSharedPreviewAfterLeaving() throws {
+    let fixture = Fixture()
+    let window = NSWindow(contentViewController: fixture.controller)
+    defer { window.close() }
+    fixture.controller.view.frame = CGRect(
+      x: 0,
+      y: 0,
+      width: 900,
+      height: TerminalHorizontalTabMetrics.height
+    )
+    fixture.controller.view.layoutSubtreeIfNeeded()
+    let sourceEntryID = TerminalSidebarEntryID.tab(fixture.trailingTabID)
+    let sourceFrame = try #require(fixture.controller.dragSourceFrame(for: sourceEntryID))
+    let targetFrame = try #require(
+      fixture.controller.dragSourceFrame(for: .tab(fixture.selectedTabID))
+    )
+    let sourcePoint = CGPoint(x: sourceFrame.midX, y: sourceFrame.midY)
+    let sourceScreenPoint = window.convertPoint(
+      toScreen:
+        fixture.controller.view.convert(sourcePoint, to: nil)
+    )
+
+    fixture.controller.beginPointerInteraction(entryID: sourceEntryID, at: sourcePoint)
+    #expect(
+      fixture.controller.continuePointerInteraction(
+        entryID: sourceEntryID,
+        to: CGPoint(x: sourcePoint.x + 8, y: sourcePoint.y),
+        screenPoint: CGPoint(x: sourceScreenPoint.x + 8, y: sourceScreenPoint.y)
+      )
+    )
+    let lift = try #require(
+      fixture.controller.view.subviews.compactMap { $0 as? NSImageView }.first
+    )
+    #expect(!lift.isHidden)
+
+    let targetScreenPoint = window.convertPoint(
+      toScreen:
+        fixture.controller.view.convert(
+          CGPoint(x: targetFrame.midX, y: targetFrame.midY),
+          to: nil
+        )
+    )
+    fixture.controller.sourceSessionMoved(to: targetScreenPoint)
+    #expect(!lift.isHidden)
+
+    fixture.controller.sourceSessionMoved(
+      to: CGPoint(x: targetScreenPoint.x, y: targetScreenPoint.y + 100)
+    )
+    #expect(lift.isHidden)
     fixture.controller.cancelInteractions()
   }
 
@@ -356,10 +432,13 @@ struct HorizontalTabStripControllerTests {
 
 @MainActor
 private final class HorizontalCaptureRequestRecorder {
-  private(set) var count = 0
+  private(set) var requests: [Void] = []
+
+  var count: Int { requests.count }
+  var isEmpty: Bool { requests.isEmpty }
 
   func request() -> TerminalWindowCaptureRequest? {
-    count += 1
+    requests.append(())
     return nil
   }
 }
@@ -403,6 +482,7 @@ private final class HorizontalNativeStartRecorder {
 private final class HorizontalActionsRecorder {
   var closedGroupIDs: [TerminalTabGroupID] = []
   var commands: [TerminalSidebarDropCommand] = []
+  var mergedTabIDs: [TerminalTabID] = []
   var selectedTabID: TerminalTabID?
   var selections: [TerminalTabID] = []
 
@@ -432,6 +512,10 @@ private final class HorizontalActionsRecorder {
             topologyRevision: command.topologyStamp.revision + 1
           )
         )
+      },
+      mergeTabIntoSelectedTab: { [weak self] tabID in
+        self?.mergedTabIDs.append(tabID)
+        return true
       }
     )
   }

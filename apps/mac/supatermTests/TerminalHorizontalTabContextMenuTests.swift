@@ -201,8 +201,8 @@ struct TerminalHorizontalTabContextMenuTests {
   }
 
   @Test
-  func newTabInheritsTheContextualTabSurface() throws {
-    try withDependencies {
+  func newTabInheritsTheContextualTabSurface() async throws {
+    try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -224,6 +224,7 @@ struct TerminalHorizontalTabContextMenuTests {
 
       let terminal = TerminalHostState.test(
         runtime: try makeGhosttyRuntime("confirm-close-surface = false"),
+        createsLiveTerminalSurfaces: true,
         zmxSessionsEnabled: false
       )
       terminal.ensureInitialTab(
@@ -251,12 +252,10 @@ struct TerminalHorizontalTabContextMenuTests {
       #expect(try perform(menu, title: "New Tab"))
       #expect(terminal.selectedTabID != contextualTabID)
       #expect(terminal.selectedTabID != selectedTabID)
-      #expect(
-        terminal.selectedSurfaceState?.pwd
-          == GhosttySurfaceView.normalizedWorkingDirectoryPath(
-            contextualDirectory.path(percentEncoded: false)
-          )
+      let contextualPath = GhosttySurfaceView.normalizedWorkingDirectoryPath(
+        contextualDirectory.path(percentEncoded: false)
       )
+      #expect(await waitUntil { terminal.selectedSurfaceState?.pwd == contextualPath })
     }
   }
 

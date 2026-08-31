@@ -10,6 +10,7 @@ enum SupatermUITestIdentifier {
     static let sidebarTabOutline = "sidebar.tab-outline"
     static let sidebarResizeHandle = "sidebar.resize-handle"
     static let sidebarSpaceDotPrefix = "sidebar.space-dot."
+    static let horizontalTabPrefix = "horizontal-tabs.tab."
     static let paletteInput = "palette.input"
     static let paletteResultRow = "palette.result-row"
     static let dialogSurface = "dialog.surface"

@@ -216,16 +216,6 @@ enum TerminalSidebarPinnedDropRouting {
   }
 }
 
-enum TerminalSidebarOptionTabClick {
-  static func accepts(
-    modifiers: NSEvent.ModifierFlags,
-    clickCount: Int
-  ) -> Bool {
-    let selectionModifiers = modifiers.intersection([.command, .shift, .option, .control])
-    return clickCount == 1 && selectionModifiers == .option
-  }
-}
-
 enum TerminalSidebarDragSelection {
   static func selectPressedTab(
     _ entryID: TerminalSidebarEntryID,

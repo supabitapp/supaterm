@@ -216,8 +216,7 @@ struct TerminalTabChromePresentationTests {
           trailingStatus: .dirty
         ),
         isSelected: true,
-        selectedTint: nil,
-        selectedTopExtension: 2
+        selectedTint: nil
       ),
       palette: Palette(colorScheme: .dark),
       reduceMotion: true
@@ -251,8 +250,7 @@ struct TerminalTabChromePresentationTests {
           tabCount: 3
         ),
         isSelected: false,
-        selectedTint: .purple,
-        selectedTopExtension: 0
+        selectedTint: .purple
       ),
       palette: Palette(colorScheme: .dark),
       reduceMotion: true

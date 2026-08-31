@@ -3,47 +3,6 @@ import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarTabRow: View {
-  enum ContextMenuItem: Equatable {
-    case newTab
-    case divider
-    case togglePinned(Bool)
-    case moveAllPanesToNewTabs
-    case moveToNewGroup
-    case moveToGroup
-    case removeFromGroup
-    case changeTabTitle
-    case closeTabsBelow(Bool)
-    case closeOtherTabs(Bool)
-    case close
-
-    var title: String? {
-      switch self {
-      case .newTab:
-        "New Tab"
-      case .divider:
-        nil
-      case .togglePinned(let isPinned):
-        isPinned ? "Unpin Tab" : "Pin Tab"
-      case .moveAllPanesToNewTabs:
-        "Move All Panes to New Tabs"
-      case .moveToNewGroup:
-        "Move to New Group"
-      case .moveToGroup:
-        "Move to Group..."
-      case .removeFromGroup:
-        "Remove from Group"
-      case .changeTabTitle:
-        "Change Tab Title..."
-      case .closeTabsBelow:
-        "Close All Below"
-      case .closeOtherTabs:
-        "Close Others"
-      case .close:
-        "Close"
-      }
-    }
-  }
-
   private struct AnimatedPresentation: Equatable {
     let panes: [TerminalTabPanePresentation]
     let terminalProgress: TerminalTabProgress?
@@ -61,39 +20,6 @@ struct TerminalSidebarTabRow: View {
   let palette: Palette
   let shortcutHint: String?
   let showsShortcutHint: Bool
-
-  static func contextMenuItems(
-    isPinned: Bool,
-    hasTabsBelow: Bool,
-    hasOtherTabs: Bool,
-    isGrouped: Bool = false,
-    paneCount: Int = 1
-  ) -> [ContextMenuItem] {
-    var items: [ContextMenuItem] = [
-      .newTab,
-      .divider,
-    ]
-    items.append(contentsOf: [
-      .togglePinned(isPinned),
-      .moveToNewGroup,
-      .moveToGroup,
-    ])
-    if paneCount > 1 {
-      items.append(.moveAllPanesToNewTabs)
-    }
-    if isGrouped {
-      items.append(.removeFromGroup)
-    }
-    items.append(.changeTabTitle)
-    items.append(contentsOf: [
-      .divider,
-      .closeTabsBelow(hasTabsBelow),
-      .closeOtherTabs(hasOtherTabs),
-      .divider,
-      .close,
-    ])
-    return items
-  }
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
@@ -114,19 +40,6 @@ struct TerminalSidebarTabRow: View {
       isPressed: isPressed,
       isHovering: isHovering
     )
-  }
-
-  private var contextSurfaceID: UUID? {
-    terminal.contextSurfaceID(for: tab.id)
-  }
-
-  private var hasTabsBelow: Bool {
-    guard let index = terminal.tabs.firstIndex(where: { $0.id == tab.id }) else { return false }
-    return terminal.tabs.index(after: index) < terminal.tabs.endIndex
-  }
-
-  private var hasOtherTabs: Bool {
-    terminal.tabs.contains { $0.id != tab.id }
   }
 
   var body: some View {
@@ -191,119 +104,23 @@ struct TerminalSidebarTabRow: View {
         primaryTabID: terminal.selectedTabID,
         visibleTabIDs: visibleTabIDs
       )
-      if contextualTabIDs.count > 1 {
-        TerminalSidebarBatchTabMenu(
-          terminal: terminal,
-          tabIDs: contextualTabIDs,
-          contextualTabID: tab.id,
-          renameState: renameState
-        )
-      } else {
-        ForEach(
-          Array(
-            Self.contextMenuItems(
-              isPinned: groupID == nil && rootIsPinned,
-              hasTabsBelow: hasTabsBelow,
-              hasOtherTabs: hasOtherTabs,
-              isGrouped: groupID != nil,
-              paneCount: terminal.trees[tab.id]?.leaves().count ?? 0
-            ).enumerated()
+      if let model = TerminalTabContextMenuModel.menu(
+        for: .tab(tab.id),
+        contextualTabIDs: contextualTabIDs,
+        snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot,
+        paneCount: terminal.trees[tab.id]?.leaves().count ?? 0,
+        layout: .sidebar
+      ) {
+        TerminalSidebarContextMenu(
+          model: model,
+          dispatcher: TerminalTabContextMenuDispatcher(
+            terminal: terminal,
+            beginGroupRename: { groupID, title in
+              renameState?.begin(groupID: groupID, title: title)
+            }
           ),
-          id: \.offset
-        ) { _, item in
-          switch item {
-          case .newTab:
-            Button {
-              AppPostHog.capture("terminal_tab_created")
-              _ = terminal.createTab(inheritingFromSurfaceID: contextSurfaceID)
-            } label: {
-              Label("New Tab", systemImage: "plus")
-            }
-
-          case .divider:
-            Divider()
-
-          case .togglePinned(let isPinned):
-            Button {
-              terminal.togglePinned(tab.id)
-            } label: {
-              Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
-            }
-
-          case .moveAllPanesToNewTabs:
-            Button {
-              terminal.moveAllPanesToNewTabs(tab.id)
-            } label: {
-              Label("Move All Panes to New Tabs", systemImage: "rectangle.stack.badge.plus")
-            }
-
-          case .moveToNewGroup:
-            Button {
-              createSidebarGroup(
-                terminal: terminal,
-                tabIDs: [tab.id],
-                renameState: renameState
-              )
-            } label: {
-              Label("Move to New Group", systemImage: "rectangle.3.group")
-            }
-
-          case .moveToGroup:
-            Menu {
-              ForEach(availableGroups) { group in
-                Button(group.title) {
-                  _ = try? terminal.move(
-                    TerminalTabMoveRequest(
-                      expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
-                      itemIDs: [.tab(tab.id)],
-                      destination: .group(group.id, index: group.tabs.count)
-                    )
-                  )
-                }
-              }
-            } label: {
-              Label("Move to Group...", systemImage: "arrow.right")
-            }
-            .disabled(availableGroups.isEmpty)
-
-          case .removeFromGroup:
-            Button {
-              terminal.removeTabFromGroup(tab.id)
-            } label: {
-              Label("Remove from Group", systemImage: "arrow.up.backward")
-            }
-
-          case .changeTabTitle:
-            Button {
-              terminal.promptTabTitle(tab.id)
-            } label: {
-              Label("Change Tab Title...", systemImage: "pencil")
-            }
-
-          case .closeTabsBelow(let isEnabled):
-            Button {
-              terminal.requestCloseTabsBelow(tab.id)
-            } label: {
-              Label("Close All Below", systemImage: "arrow.down.to.line")
-            }
-            .disabled(!isEnabled)
-
-          case .closeOtherTabs(let isEnabled):
-            Button {
-              terminal.requestCloseOtherTabs(keeping: [tab.id])
-            } label: {
-              Label("Close Others", systemImage: "xmark.circle")
-            }
-            .disabled(!isEnabled)
-
-          case .close:
-            Button(role: .destructive) {
-              terminal.requestCloseTab(tab.id)
-            } label: {
-              Label("Close", systemImage: "xmark")
-            }
-          }
-        }
+          newTabInGroupShortcut: nil
+        )
       }
     }
     .accessibilityElement(children: .combine)
@@ -323,13 +140,6 @@ struct TerminalSidebarTabRow: View {
       panes: panes,
       terminalProgress: terminalProgress
     )
-  }
-
-  private var availableGroups: [TerminalTabGroupItem] {
-    terminal.rootItems.compactMap { root in
-      guard case .group(let group) = root, group.id != groupID else { return nil }
-      return group
-    }
   }
 
   private var accessibilityIdentifier: String {
@@ -380,169 +190,82 @@ struct TerminalSidebarTabCloseButton: View {
   }
 }
 
-private func createSidebarGroup(
-  terminal: TerminalHostState,
-  tabIDs: [TerminalTabID],
-  renameState: TerminalSidebarRenameState?
-) {
-  guard let title = terminal.suggestedGroupTitle(containing: tabIDs) else { return }
-  let result = terminal.createGroup(
-    title: title,
-    color: .neutral,
-    containing: tabIDs
-  )
-  if let result {
-    renameState?.begin(groupID: result.groupID, title: title)
+struct TerminalSidebarContextMenu: View {
+  let model: TerminalTabContextMenuModel
+  let dispatcher: TerminalTabContextMenuDispatcher
+  let newTabInGroupShortcut: KeyboardShortcut?
+
+  var body: some View {
+    ForEach(Array(model.items.enumerated()), id: \.offset) { _, item in
+      switch item {
+      case .action(let action):
+        TerminalSidebarContextMenuButton(
+          action: action,
+          dispatcher: dispatcher,
+          newTabInGroupShortcut: newTabInGroupShortcut
+        )
+      case .submenu(let submenu):
+        TerminalSidebarContextSubmenu(
+          submenu: submenu,
+          dispatcher: dispatcher,
+          newTabInGroupShortcut: newTabInGroupShortcut
+        )
+      case .separator:
+        Divider()
+      }
+    }
   }
 }
 
-struct TerminalSidebarBatchTabMenu: View {
-  enum PinAction: Equatable {
-    case pin
-    case unpin
-    case disabled
-  }
-
-  let terminal: TerminalHostState
-  let tabIDs: [TerminalTabID]
-  let contextualTabID: TerminalTabID
-  let renameState: TerminalSidebarRenameState?
+private struct TerminalSidebarContextSubmenu: View {
+  let submenu: TerminalTabContextSubmenu
+  let dispatcher: TerminalTabContextMenuDispatcher
+  let newTabInGroupShortcut: KeyboardShortcut?
 
   var body: some View {
-    Button(pinTitle, systemImage: pinAction == .unpin ? "pin.slash" : "pin") {
-      togglePinned()
-    }
-    .disabled(pinAction == .disabled)
-
-    Button("New Group with \(tabIDs.count) Tabs", systemImage: "rectangle.3.group") {
-      createGroup()
-    }
-
-    Menu("Move to Group", systemImage: "arrow.right") {
-      ForEach(groups) { group in
-        Button(group.title) {
-          moveToGroup(group)
-        }
-        .disabled(moveToGroupIsNoOp(group))
-      }
-    }
-    .disabled(groups.isEmpty)
-
-    if let sharedGroup {
-      Button("Remove from Group", systemImage: "arrow.up.backward") {
-        removeFromGroup(sharedGroup)
-      }
-    }
-
-    Divider()
-
-    Button(role: .destructive) {
-      terminal.requestCloseTabs(tabIDs)
-    } label: {
-      Label("Close \(tabIDs.count) Tabs", systemImage: "xmark")
-    }
-
-    Button("Close Other Tabs", systemImage: "xmark.circle") {
-      terminal.requestCloseOtherTabs(keeping: tabIDs)
-    }
-    .disabled(!hasOtherTabs)
-
-    Button("Close Tabs Below", systemImage: "arrow.down.to.line") {
-      terminal.requestCloseTabsBelow(contextualTabID)
-    }
-    .disabled(!hasTabsBelow)
-  }
-
-  var pinAction: PinAction {
-    let pinStates = Set(tabIDs.map { terminal.isPinned($0) })
-    guard pinStates.count == 1, let isPinned = pinStates.first else { return .disabled }
-    return isPinned ? .unpin : .pin
-  }
-
-  private var pinTitle: String {
-    "\(pinAction == .unpin ? "Unpin" : "Pin") \(tabIDs.count) Tabs"
-  }
-
-  private var groups: [TerminalTabGroupItem] {
-    terminal.rootItems.compactMap { root in
-      guard case .group(let group) = root else { return nil }
-      return group
-    }
-  }
-
-  private var sharedGroup: TerminalTabGroupItem? {
-    let selected = Set(tabIDs)
-    return groups.first { group in
-      selected.isSubset(of: Set(group.tabs.map(\.id))) && selected.count == tabIDs.count
-    }
-  }
-
-  private var hasOtherTabs: Bool {
-    let selected = Set(tabIDs)
-    return terminal.tabs.contains { !selected.contains($0.id) }
-  }
-
-  private var hasTabsBelow: Bool {
-    guard let index = terminal.tabs.firstIndex(where: { $0.id == contextualTabID }) else {
-      return false
-    }
-    return terminal.tabs.index(after: index) < terminal.tabs.endIndex
-  }
-
-  private func togglePinned() {
-    guard pinAction != .disabled else { return }
-    let isPinned = pinAction == .pin
-    let destinationIndex = terminal.rootItems.count { $0.isPinned == isPinned }
-    move(
-      tabIDs,
-      to: .root(TerminalRootPlacement(isPinned: isPinned, index: destinationIndex))
-    )
-  }
-
-  private func createGroup() {
-    createSidebarGroup(
-      terminal: terminal,
-      tabIDs: tabIDs,
-      renameState: renameState
-    )
-  }
-
-  private func moveToGroup(_ group: TerminalTabGroupItem) {
-    let selected = Set(tabIDs)
-    let destinationIndex = group.tabs.count { !selected.contains($0.id) }
-    move(tabIDs, to: .group(group.id, index: destinationIndex))
-  }
-
-  private func moveToGroupIsNoOp(_ group: TerminalTabGroupItem) -> Bool {
-    let selected = Set(tabIDs)
-    return group.tabs.map(\.id).filter { !selected.contains($0) } + tabIDs
-      == group.tabs.map(\.id)
-  }
-
-  private func removeFromGroup(_ group: TerminalTabGroupItem) {
-    let lane = terminal.rootItems.filter { $0.isPinned == group.isPinned }
-    guard let index = lane.firstIndex(where: { $0.id == .group(group.id) }) else { return }
-    let groupIsDeleted =
-      group.lifetime == .automatic && Set(group.tabs.map(\.id)).isSubset(of: Set(tabIDs))
-    move(
-      tabIDs,
-      to: .root(
-        TerminalRootPlacement(
-          isPinned: group.isPinned,
-          index: index + (groupIsDeleted ? 0 : 1)
+    Menu {
+      ForEach(Array(submenu.items.enumerated()), id: \.offset) { _, action in
+        TerminalSidebarContextMenuButton(
+          action: action,
+          dispatcher: dispatcher,
+          newTabInGroupShortcut: newTabInGroupShortcut
         )
-      )
-    )
+      }
+    } label: {
+      Label(submenu.title, systemImage: submenu.symbol)
+    }
+    .disabled(!submenu.isEnabled)
+  }
+}
+
+private struct TerminalSidebarContextMenuButton: View {
+  let action: TerminalTabContextMenuActionItem
+  let dispatcher: TerminalTabContextMenuDispatcher
+  let newTabInGroupShortcut: KeyboardShortcut?
+
+  private var role: ButtonRole? {
+    action.role == .destructive ? .destructive : nil
   }
 
-  private func move(_ tabIDs: [TerminalTabID], to destination: TerminalTabPlacement) {
-    _ = try? terminal.move(
-      TerminalTabMoveRequest(
-        expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
-        itemIDs: tabIDs.map(TerminalTabRootItemID.tab),
-        destination: destination
-      )
-    )
+  private var keyboardShortcut: KeyboardShortcut? {
+    guard case .createTabInGroup = action.action else { return nil }
+    return newTabInGroupShortcut
+  }
+
+  var body: some View {
+    Button(role: role) {
+      dispatcher.perform(action.action)
+    } label: {
+      if action.symbol == nil, action.state == .on {
+        Label(action.title, systemImage: "checkmark")
+      } else if let symbol = action.symbol {
+        Label(action.title, systemImage: symbol)
+      } else {
+        Text(action.title)
+      }
+    }
+    .disabled(!action.isEnabled)
+    .supatermKeyboardShortcut(keyboardShortcut)
   }
 }
 

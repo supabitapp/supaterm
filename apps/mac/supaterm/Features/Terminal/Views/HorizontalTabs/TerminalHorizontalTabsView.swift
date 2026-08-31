@@ -84,6 +84,7 @@ struct TerminalHorizontalTabsView: View {
           selectTab: { terminal.selectTab($0) },
           toggleGroup: { _ = terminal.toggleGroupCollapsed($0) },
           performDrop: { TerminalSidebarDropTransaction.commit($0, to: terminal) },
+          mergeTabIntoSelectedTab: { terminal.mergeTabIntoSelectedTab($0) },
           contextMenu: {
             TerminalHorizontalTabContextMenu.menu(
               for: $0,

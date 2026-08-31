@@ -33,31 +33,26 @@ struct TerminalHorizontalTabItemPresentation: Equatable {
   let content: Content
   let selection: SelectableRowSelection
   let selectedTint: ThemeTint?
-  let selectedTopExtension: CGFloat
 
   init(
     content: Content,
     selection: SelectableRowSelection,
-    selectedTint: ThemeTint?,
-    selectedTopExtension: CGFloat
+    selectedTint: ThemeTint?
   ) {
     self.content = content
     self.selection = selection
     self.selectedTint = selectedTint
-    self.selectedTopExtension = selectedTopExtension
   }
 
   init(
     content: Content,
     isSelected: Bool,
-    selectedTint: ThemeTint?,
-    selectedTopExtension: CGFloat
+    selectedTint: ThemeTint?
   ) {
     self.init(
       content: content,
       selection: isSelected ? .primary : .none,
-      selectedTint: selectedTint,
-      selectedTopExtension: selectedTopExtension
+      selectedTint: selectedTint
     )
   }
 
@@ -385,6 +380,7 @@ final class TerminalHorizontalTabGroupView: NSView {
   private let expandedLayer = CAShapeLayer()
   private let expandedMaskLayer = CAShapeLayer()
   private let innerShadowLayer = CAShapeLayer()
+  private let innerShadowMaskLayer = CAShapeLayer()
   private let titleSeparatorLayer = CALayer()
   private var presentation: HorizontalTabGroupChrome?
 
@@ -398,6 +394,7 @@ final class TerminalHorizontalTabGroupView: NSView {
     layer?.addSublayer(bridgeLayer)
     layer?.addSublayer(titleSeparatorLayer)
     expandedLayer.mask = expandedMaskLayer
+    innerShadowLayer.mask = innerShadowMaskLayer
     expandedLayer.fillColor = NSColor.clear.cgColor
     collapsedLayer.fillColor = NSColor.clear.cgColor
     innerShadowLayer.fillRule = .evenOdd
@@ -446,6 +443,9 @@ final class TerminalHorizontalTabGroupView: NSView {
     expandedMaskLayer.path = expandedPath
     expandedMaskLayer.fillColor = NSColor.white.cgColor
     innerShadowLayer.frame = bounds
+    innerShadowMaskLayer.frame = bounds
+    innerShadowMaskLayer.path = expandedPath
+    innerShadowMaskLayer.fillColor = NSColor.white.cgColor
     let shadowPath = CGMutablePath()
     shadowPath.addRect(bounds.insetBy(dx: -8, dy: -8))
     shadowPath.addPath(expandedPath)

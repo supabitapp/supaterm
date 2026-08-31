@@ -7,6 +7,16 @@ struct TerminalTabSelectionPress: Equatable {
   static let empty = Self(selectedTabIDs: [], defersSelection: false)
 }
 
+enum TerminalTabOptionClick {
+  static func accepts(
+    modifiers: NSEvent.ModifierFlags,
+    clickCount: Int
+  ) -> Bool {
+    let selectionModifiers = modifiers.intersection([.command, .shift, .option, .control])
+    return clickCount == 1 && selectionModifiers == .option
+  }
+}
+
 @MainActor
 struct TerminalTabSelectionContext {
   let primaryTabID: TerminalTabID?

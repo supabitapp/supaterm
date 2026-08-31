@@ -14,101 +14,6 @@ struct SidebarExternalDropControllerTests {
   }
 
   @Test
-  func commandRequiresTheHoveredTopology() throws {
-    let existingTabID = TerminalTabID()
-    let draggedTabID = TerminalTabID()
-    let operationID = TerminalTabMoveOperationID()
-    let outline = TerminalSidebarTestFixture.outline(
-      roots: [
-        TerminalSidebarOutline.Root(content: .tab(existingTabID), isPinned: false)
-      ],
-      revision: 4
-    )
-    let plannedPayload = TerminalSidebarTestFixture.payload(
-      source: .tabs([draggedTabID]),
-      revision: 4,
-      operationID: operationID
-    )
-    let payload = try #require(
-      TerminalTabDragPayload(
-        operationID: operationID,
-        sourceWindowID: UUID(),
-        sourceSpaceID: TerminalSidebarTestFixture.secondarySpaceID,
-        sourceTopologyRevision: 2,
-        itemIDs: [.tab(draggedTabID)]
-      )
-    )
-    let target = try #require(
-      TerminalSidebarDropPlanner.plan(
-        payload: plannedPayload,
-        path: .rootBoundary(lane: .regular, index: 1),
-        outline: outline
-      )
-    )
-    let drop = TerminalSidebarExternalDrop(
-      payload: payload,
-      topologyStamp: plannedPayload.topologyStamp,
-      target: target
-    )
-    let changedOutline = TerminalSidebarTestFixture.outline(
-      roots: outline.roots,
-      revision: 5
-    )
-
-    #expect(
-      drop.command(in: outline)
-        == TerminalSidebarDropCommand(
-          operationID: plannedPayload.operationID,
-          topologyStamp: plannedPayload.topologyStamp,
-          itemIDs: [.tab(draggedTabID)],
-          destination: .root(TerminalRootPlacement(isPinned: false, index: 1))
-        )
-    )
-    #expect(drop.command(in: changedOutline) == nil)
-  }
-
-  @Test
-  func paneDropPlansWithItsReservedTabIdentity() throws {
-    let existingTabID = TerminalTabID()
-    let destinationTabID = TerminalTabID()
-    let operationID = TerminalTabMoveOperationID()
-    let outline = TerminalSidebarTestFixture.outline(
-      roots: [
-        TerminalSidebarOutline.Root(content: .tab(existingTabID), isPinned: false)
-      ],
-      revision: 4
-    )
-    let sidebarPayload = TerminalSidebarTestFixture.payload(
-      source: .tabs([destinationTabID]),
-      revision: 4,
-      operationID: operationID
-    )
-    let payload = TerminalTabDragPayload(
-      operationID: operationID,
-      sourceWindowID: UUID(),
-      sourceSpaceID: TerminalSidebarTestFixture.secondarySpaceID,
-      sourceTopologyRevision: 2,
-      surfaceID: UUID(),
-      destinationTabID: destinationTabID
-    )
-    let target = try #require(
-      TerminalSidebarDropPlanner.plan(
-        payload: sidebarPayload,
-        path: .rootBoundary(lane: .regular, index: 1),
-        outline: outline
-      )
-    )
-
-    #expect(
-      TerminalSidebarExternalDrop(
-        payload: payload,
-        topologyStamp: sidebarPayload.topologyStamp,
-        target: target
-      ).command(in: outline)?.itemIDs == [.tab(destinationTabID)]
-    )
-  }
-
-  @Test
   func provisionalTabSessionBuildsTabSourceTargetsBeforeAcceptance() throws {
     let childID = TerminalTabID()
     let tailID = TerminalTabID()
@@ -149,8 +54,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       !harness.controller.updateTarget(
         payload: payload,
-        sidebarPayload: sidebarPayload,
-        resolution: miss
+        path: miss.path,
+        outline: outline
       )
     )
     #expect(harness.layout.dropTargetMap.targets.contains { $0.path == .groupEntry(groupID) })
@@ -179,8 +84,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       !harness.controller.updateTarget(
         payload: fixture.payload,
-        sidebarPayload: fixture.sidebarPayload,
-        resolution: rejected
+        path: rejected.path,
+        outline: fixture.outline
       )
     )
     #expect(harness.controller.isActive)
@@ -197,8 +102,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       harness.controller.updateTarget(
         payload: fixture.payload,
-        sidebarPayload: fixture.sidebarPayload,
-        resolution: first
+        path: first.path,
+        outline: fixture.outline
       )
     )
     let retainedState = try #require(harness.layout.dragDropState)
@@ -209,8 +114,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       harness.controller.updateTarget(
         payload: fixture.payload,
-        sidebarPayload: fixture.sidebarPayload,
-        resolution: rejected
+        path: rejected.path,
+        outline: fixture.outline
       )
     )
     #expect(harness.controller.isActive)
@@ -226,8 +131,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       harness.controller.updateTarget(
         payload: fixture.payload,
-        sidebarPayload: fixture.sidebarPayload,
-        resolution: miss
+        path: miss.path,
+        outline: fixture.outline
       )
     )
     #expect(harness.layout.dragDropState == retainedState)
@@ -237,8 +142,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       harness.controller.updateTarget(
         payload: fixture.payload,
-        sidebarPayload: fixture.sidebarPayload,
-        resolution: first
+        path: first.path,
+        outline: fixture.outline
       )
     )
     #expect(harness.layout.dragDropState == retainedState)
@@ -254,8 +159,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       harness.controller.updateTarget(
         payload: fixture.payload,
-        sidebarPayload: fixture.sidebarPayload,
-        resolution: second
+        path: second.path,
+        outline: fixture.outline
       )
     )
     #expect(harness.layout.dragDropState?.target == secondPlan)
@@ -291,8 +196,8 @@ struct SidebarExternalDropControllerTests {
     #expect(
       harness.controller.updateTarget(
         payload: fixture.payload,
-        sidebarPayload: fixture.sidebarPayload,
-        resolution: resolution
+        path: resolution.path,
+        outline: fixture.outline
       )
     )
     #expect(harness.layout.dragDropState?.dropGapHeight == 64)

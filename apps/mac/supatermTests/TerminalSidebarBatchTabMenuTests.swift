@@ -8,26 +8,73 @@ struct TerminalSidebarBatchTabMenuTests {
   @Test
   func groupedSelectionCanBePinned() throws {
     let fixture = try makeFixture()
+    let item = try fixture.pinItem(for: fixture.groupedTabIDs)
 
-    #expect(fixture.pinAction(for: fixture.groupedTabIDs) == .pin)
+    #expect(item.title == "Pin 2 Tabs")
+    #expect(item.isEnabled)
+    #expect(item.state == .off)
   }
 
   @Test
   func regularRootAndGroupedSelectionCanBePinned() throws {
     let fixture = try makeFixture()
-
-    #expect(
-      fixture.pinAction(for: [fixture.regularRootTabID, fixture.groupedTabID]) == .pin
+    let item = try fixture.pinItem(
+      for: [fixture.regularRootTabID, fixture.groupedTabID]
     )
+
+    #expect(item.title == "Pin 2 Tabs")
+    #expect(item.isEnabled)
+    #expect(item.state == .off)
   }
 
   @Test
   func pinnedRootAndGroupedSelectionCannotTogglePinStateTogether() throws {
     let fixture = try makeFixture()
-
-    #expect(
-      fixture.pinAction(for: [fixture.pinnedRootTabID, fixture.groupedTabID]) == .disabled
+    let item = try fixture.pinItem(
+      for: [fixture.pinnedRootTabID, fixture.groupedTabID]
     )
+
+    #expect(item.title == "Pin 2 Tabs")
+    #expect(!item.isEnabled)
+    #expect(item.state == .mixed)
+  }
+
+  @Test
+  func horizontalAndSidebarMenusShareBatchMutationActions() throws {
+    let fixture = try makeFixture()
+    let snapshot = fixture.terminal.spaceManager.displayedInstance.tabSurfaceSnapshot
+    let horizontal = try #require(
+      TerminalTabContextMenuModel.menu(
+        for: .tab(fixture.groupedTabID),
+        contextualTabIDs: fixture.groupedTabIDs,
+        snapshot: snapshot,
+        paneCount: 1,
+        layout: .horizontal
+      )
+    )
+    let sidebar = try #require(
+      TerminalTabContextMenuModel.menu(
+        for: .tab(fixture.groupedTabID),
+        contextualTabIDs: fixture.groupedTabIDs,
+        snapshot: snapshot,
+        paneCount: 1,
+        layout: .sidebar
+      )
+    )
+
+    #expect(Array(actions(in: horizontal).prefix(6)) == Array(actions(in: sidebar).prefix(6)))
+  }
+
+  private func actions(
+    in model: TerminalTabContextMenuModel
+  ) -> [TerminalTabContextMenuAction] {
+    model.items.flatMap { item -> [TerminalTabContextMenuAction] in
+      switch item {
+      case .action(let action): return [action.action]
+      case .submenu(let submenu): return submenu.items.map(\.action)
+      case .separator: return []
+      }
+    }
   }
 
   private func makeFixture() throws -> Fixture {
@@ -61,13 +108,25 @@ struct TerminalSidebarBatchTabMenuTests {
     let groupedTabID: TerminalTabID
     let groupedTabIDs: [TerminalTabID]
 
-    func pinAction(for tabIDs: [TerminalTabID]) -> TerminalSidebarBatchTabMenu.PinAction {
-      TerminalSidebarBatchTabMenu(
-        terminal: terminal,
-        tabIDs: tabIDs,
-        contextualTabID: groupedTabID,
-        renameState: nil
-      ).pinAction
+    func pinItem(
+      for tabIDs: [TerminalTabID]
+    ) throws -> TerminalTabContextMenuActionItem {
+      let model = try #require(
+        TerminalTabContextMenuModel.menu(
+          for: .tab(groupedTabID),
+          contextualTabIDs: tabIDs,
+          snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot,
+          paneCount: 1,
+          layout: .sidebar
+        )
+      )
+      guard case .action(let item) = model.items.first else {
+        Issue.record("Expected the pin action first")
+        throw MissingPinAction()
+      }
+      return item
     }
   }
+
+  private struct MissingPinAction: Error {}
 }

@@ -2,17 +2,16 @@ import Testing
 
 @testable import supaterm
 
+@MainActor
 struct TerminalSidebarTabRowTests {
   @Test
-  func contextMenuIncludesChangeTabTitle() {
-    let titles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: false,
-      hasTabsBelow: true,
-      hasOtherTabs: true
-    ).compactMap(\.title)
+  func contextMenuIncludesChangeTabTitle() throws {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let tabID = terminal.spaceManager.tabCollection.createTab(title: "First")
+    _ = terminal.spaceManager.tabCollection.createTab(title: "Second")
 
     #expect(
-      titles == [
+      try titles(for: tabID, terminal: terminal) == [
         "New Tab",
         "Pin Tab",
         "Move to New Group",
@@ -26,15 +25,14 @@ struct TerminalSidebarTabRowTests {
   }
 
   @Test
-  func pinnedContextMenuOmitsManualSaveLayout() {
-    let titles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: true,
-      hasTabsBelow: true,
-      hasOtherTabs: true
-    ).compactMap(\.title)
+  func pinnedContextMenuOmitsManualSaveLayout() throws {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let tabID = terminal.spaceManager.tabCollection.createTab(title: "Pinned")
+    _ = terminal.spaceManager.tabCollection.createTab(title: "Second")
+    #expect(terminal.setTabPinned(tabID, isPinned: true) != nil)
 
     #expect(
-      titles == [
+      try titles(for: tabID, terminal: terminal) == [
         "New Tab",
         "Unpin Tab",
         "Move to New Group",
@@ -48,16 +46,14 @@ struct TerminalSidebarTabRowTests {
   }
 
   @Test
-  func groupedContextMenuSupportsExtractionAndRegrouping() {
-    let titles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: false,
-      hasTabsBelow: true,
-      hasOtherTabs: true,
-      isGrouped: true
-    ).compactMap(\.title)
+  func groupedContextMenuSupportsExtractionAndRegrouping() throws {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let tabID = terminal.spaceManager.tabCollection.createTab(title: "Grouped")
+    _ = try #require(terminal.createGroup(title: "Group", containing: [tabID]))
+    _ = terminal.spaceManager.tabCollection.createTab(title: "Second")
 
     #expect(
-      titles == [
+      try titles(for: tabID, terminal: terminal) == [
         "New Tab",
         "Pin Tab",
         "Move to New Group",
@@ -72,20 +68,31 @@ struct TerminalSidebarTabRowTests {
   }
 
   @Test
-  func splitContextMenuIncludesMoveAllPanes() {
-    let splitTabTitles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: false,
-      hasTabsBelow: false,
-      hasOtherTabs: false,
-      paneCount: 2
-    ).compactMap(\.title)
-    let singlePaneTabTitles = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: false,
-      hasTabsBelow: false,
-      hasOtherTabs: false
-    ).compactMap(\.title)
+  func splitContextMenuIncludesMoveAllPanes() throws {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let tabID = terminal.spaceManager.tabCollection.createTab(title: "Split")
 
-    #expect(splitTabTitles.contains("Move All Panes to New Tabs"))
-    #expect(!singlePaneTabTitles.contains("Move All Panes to New Tabs"))
+    let splitTitles = try titles(for: tabID, terminal: terminal, paneCount: 2)
+    let singlePaneTitles = try titles(for: tabID, terminal: terminal, paneCount: 1)
+
+    #expect(splitTitles.contains("Move All Panes to New Tabs"))
+    #expect(!singlePaneTitles.contains("Move All Panes to New Tabs"))
+  }
+
+  private func titles(
+    for tabID: TerminalTabID,
+    terminal: TerminalHostState,
+    paneCount: Int = 1
+  ) throws -> [String] {
+    let model = try #require(
+      TerminalTabContextMenuModel.menu(
+        for: .tab(tabID),
+        contextualTabIDs: [tabID],
+        snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot,
+        paneCount: paneCount,
+        layout: .sidebar
+      )
+    )
+    return model.items.compactMap(\.title)
   }
 }

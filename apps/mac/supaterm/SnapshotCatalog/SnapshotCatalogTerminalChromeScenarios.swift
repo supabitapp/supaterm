@@ -160,6 +160,7 @@ private struct HorizontalTabStripSnapshotBridge: NSViewControllerRepresentable {
     )
     controller.apply(
       snapshot: snapshot,
+      tabSelectionState: TerminalTabSelectionState(),
       surfacePresentation: surface,
       palette: palette,
       reduceMotion: true,

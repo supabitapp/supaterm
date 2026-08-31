@@ -17,9 +17,13 @@ Each tab row can show:
 
 Root tabs and groups share one outline. Pinned root items remain before regular root items, while tabs within a group follow the group's order. Group cards show their name and color and can be collapsed without changing tab selection order. Spaces sit at the bottom. Update and release cards appear above the space bar when relevant.
 
-Click a row to focus it, middle-click a tab to close it, or right-click for tab and group actions. Drag a root tab onto another root tab to create a group, onto a group to append it, or out of a group to promote it to the root. Drag a group to reorder it as one item. Pinning a grouped tab extracts it as a pinned root tab.
+Click a row to focus it, middle-click a tab to close it, or right-click for tab and group actions. Command-click tabs to add or remove them from a selection. Shift-click selects a range from the focused tab, and Command-Shift-click adds that range. Right-click or drag any selected tab to act on the ordered selection.
 
-Choose **View > Show Tabs in Sidebar** or run **Toggle Tab Layout** from the command palette to switch between the sidebar and horizontal tab bar. Supaterm saves the choice for each window. Both layouts show the same tab order, group colors, collapse state, and drag targets.
+Drag a root tab onto another root tab to create a group, onto a group to append it, or out of a group to promote it to the root. Drag a group to reorder it as one item. Pinning a grouped tab extracts it as a pinned root tab.
+
+Choose **View > Show Tabs in Sidebar** or run **Toggle Tab Layout** from the command palette to switch between the sidebar and horizontal tab bar. Supaterm saves the choice for each window. Both layouts show the same tab order, group colors, and collapse state, and use the same drop rules for visible tabs and groups.
+
+When the horizontal bar runs out of room, **More Tabs** lists the remaining tabs and groups in order. Choosing one selects it without moving the visible prefix.
 
 ![Supaterm horizontal tab bar with an expanded blue Development group.](/images/horizontal-tabs-dark.png)
 

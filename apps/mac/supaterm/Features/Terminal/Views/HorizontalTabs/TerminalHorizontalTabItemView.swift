@@ -36,10 +36,12 @@ final class TerminalHorizontalTabItemView: NSView {
   private var palette: Palette?
   private var reduceMotion = false
   private var selectedTint: NSColor?
-  private var selectedTopExtension: CGFloat = 0
   private var trackingArea: NSTrackingArea?
 
   private var isSelected: Bool { selection != .none }
+  private var selectedTopExtension: CGFloat {
+    selection == .primary ? TerminalHorizontalTabLayoutMetrics.selectedTopExtension : 0
+  }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -214,7 +216,6 @@ final class TerminalHorizontalTabItemView: NSView {
     self.reduceMotion = reduceMotion
     selection = presentation.selection
     selectedTint = presentation.selectedTint?.sidebarNSColor(palette: palette)
-    selectedTopExtension = presentation.selectedTopExtension
     switch presentation.content {
     case .group(
       let id,

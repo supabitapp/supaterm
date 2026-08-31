@@ -7,7 +7,6 @@ enum HorizontalTabPresentationBuilder {
     let selectedTabID: TerminalTabID?
     let selectionState: TerminalTabSelectionState?
     let selectedTint: ThemeTint?
-    let selectedTopExtension: CGFloat
     let surface: TerminalHorizontalTabSurfacePresentation
   }
 
@@ -28,7 +27,6 @@ enum HorizontalTabPresentationBuilder {
             selectedTabID: selectedTabID,
             selectionState: selectionState,
             selectedTint: nil,
-            selectedTopExtension: item.tab.id == selectedTabID ? 2 : 0,
             surface: surface
           )
         )
@@ -49,8 +47,7 @@ enum HorizontalTabPresentationBuilder {
             tabCount: group.tabs.count
           ),
           selection: .none,
-          selectedTint: group.color,
-          selectedTopExtension: 0
+          selectedTint: group.color
         )
         for tab in group.tabs {
           result[.tab(tab.id)] = tabPresentation(
@@ -60,7 +57,6 @@ enum HorizontalTabPresentationBuilder {
               selectedTabID: selectedTabID,
               selectionState: selectionState,
               selectedTint: group.color,
-              selectedTopExtension: tab.id == selectedTabID ? 2 : 0,
               surface: surface
             )
           )
@@ -114,8 +110,7 @@ enum HorizontalTabPresentationBuilder {
       ),
       selection: context.selectionState?.style(for: tab.id, primaryTabID: context.selectedTabID)
         ?? (tab.id == context.selectedTabID ? .primary : .none),
-      selectedTint: context.selectedTint,
-      selectedTopExtension: context.selectedTopExtension
+      selectedTint: context.selectedTint
     )
   }
 

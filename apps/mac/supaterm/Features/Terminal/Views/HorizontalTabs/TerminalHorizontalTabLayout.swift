@@ -15,6 +15,7 @@ enum TerminalHorizontalTabLayoutMetrics {
   static let leadingInset: CGFloat = 2
   static let sectionSeparatorFollowingGap: CGFloat = 2
   static let sectionSeparatorWidth: CGFloat = 8
+  static let selectedTopExtension: CGFloat = 2
   static let tabLabelLeadingInset: CGFloat = 9
   static let tabLabelTrailingGap: CGFloat = 4
   static let tabLabelTrailingInset: CGFloat =
@@ -44,14 +45,12 @@ enum TerminalHorizontalTabLayoutMetrics {
 struct TerminalHorizontalTabLayout: Equatable {
   enum ItemKind: Equatable {
     case group(
-      id: TerminalTabGroupID,
       lane: TerminalSidebarRootLane,
       rootIndex: Int,
       isCollapsed: Bool
     )
-    case groupedTab(id: TerminalTabID, groupID: TerminalTabGroupID, index: Int)
+    case groupedTab(groupID: TerminalTabGroupID, index: Int)
     case rootTab(
-      id: TerminalTabID,
       lane: TerminalSidebarRootLane,
       rootIndex: Int
     )
@@ -189,7 +188,7 @@ struct TerminalHorizontalTabLayout: Equatable {
       let index =
         items.compactMap { item -> Int? in
           switch item.kind {
-          case .rootTab(_, .pinned, let rootIndex), .group(_, .pinned, let rootIndex, _):
+          case .rootTab(.pinned, let rootIndex), .group(.pinned, let rootIndex, _):
             rootIndex + 1
           case .groupedTab, .rootTab, .group:
             nil
@@ -200,7 +199,7 @@ struct TerminalHorizontalTabLayout: Equatable {
     if case .group = source,
       let group = groups.first(where: { $0.frame.contains(point) }),
       let header = items.first(where: { $0.entryID == .group(group.id) }),
-      case .group(_, let lane, let rootIndex, _) = header.kind
+      case .group(let lane, let rootIndex, _) = header.kind
     {
       return .rootBoundary(
         lane: lane,
@@ -217,15 +216,16 @@ struct TerminalHorizontalTabLayout: Equatable {
     let previous = items.last { $0.frame.maxX < point.x }
     let next = items.first { $0.frame.minX > point.x }
     if let previous, let next,
-      case .group(let groupID, _, _, _) = previous.kind,
-      case .groupedTab(_, let childGroupID, let index) = next.kind,
+      case .group(let groupID) = previous.entryID,
+      case .group = previous.kind,
+      case .groupedTab(let childGroupID, let index) = next.kind,
       groupID == childGroupID
     {
       return .groupBoundary(groupID, index: index)
     }
     if let previous, let next,
-      case .groupedTab(_, let groupID, _) = previous.kind,
-      case .groupedTab(_, let childGroupID, let index) = next.kind,
+      case .groupedTab(let groupID, _) = previous.kind,
+      case .groupedTab(let childGroupID, let index) = next.kind,
       groupID == childGroupID
     {
       return .groupBoundary(groupID, index: index)
@@ -253,20 +253,23 @@ struct TerminalHorizontalTabLayout: Equatable {
   ) -> TerminalSidebarSemanticPath {
     let fraction = item.frame.width > 0 ? (x - item.frame.minX) / item.frame.width : 0.5
     switch item.kind {
-    case .rootTab(_, let lane, let rootIndex):
+    case .rootTab(let lane, let rootIndex):
       if fraction < 0.5 {
         return .rootBoundary(lane: lane, index: rootIndex)
       }
       return .rootBoundary(lane: lane, index: rootIndex + 1)
-    case .group(let id, let lane, let rootIndex, _):
+    case .group(let lane, let rootIndex, _):
       if fraction < 0.25 {
         return .rootBoundary(lane: lane, index: rootIndex)
       }
       if fraction > 0.75 {
         return .rootBoundary(lane: lane, index: rootIndex + 1)
       }
-      return .groupEntry(id)
-    case .groupedTab(_, let groupID, let index):
+      guard case .group(let groupID) = item.entryID else {
+        preconditionFailure("Group item requires group entry")
+      }
+      return .groupEntry(groupID)
+    case .groupedTab(let groupID, let index):
       return .groupBoundary(groupID, index: fraction < 0.5 ? index : index + 1)
     }
   }
@@ -277,12 +280,12 @@ struct TerminalHorizontalTabLayout: Equatable {
     case .rootBoundary(let lane, let index):
       let laneItems = items.compactMap { item -> (Int, CGRect)? in
         switch item.kind {
-        case .rootTab(_, let itemLane, let rootIndex):
+        case .rootTab(let itemLane, let rootIndex):
           guard itemLane == lane else { return nil }
           return (rootIndex, item.frame)
-        case .group(let id, let itemLane, let rootIndex, _):
-          guard itemLane == lane else { return nil }
-          let frame = groups.first { $0.id == id }?.frame ?? item.frame
+        case .group(let itemLane, let rootIndex, _):
+          guard itemLane == lane, case .group(let groupID) = item.entryID else { return nil }
+          let frame = groups.first { $0.id == groupID }?.frame ?? item.frame
           return (rootIndex, frame)
         case .groupedTab:
           return nil
@@ -293,7 +296,7 @@ struct TerminalHorizontalTabLayout: Equatable {
         ?? laneItems.last.map { $0.1.maxX }
     case .groupBoundary(let groupID, let index):
       let groupItems = items.compactMap { item -> (Int, CGRect)? in
-        guard case .groupedTab(_, let itemGroupID, let itemIndex) = item.kind,
+        guard case .groupedTab(let itemGroupID, let itemIndex) = item.kind,
           itemGroupID == groupID
         else { return nil }
         return (itemIndex, item.frame)
@@ -304,8 +307,8 @@ struct TerminalHorizontalTabLayout: Equatable {
     case .groupEntry(let groupID):
       x =
         items.first {
-          guard case .group(let id, _, _, _) = $0.kind else { return false }
-          return id == groupID
+          guard case .group = $0.kind else { return false }
+          return $0.entryID == .group(groupID)
         }?.frame.midX
     case .rootItem, .groupItem:
       x = nil
@@ -348,12 +351,14 @@ struct TerminalHorizontalTabLayout: Equatable {
     closeButtonFrames: [TerminalTabGroupID: CGRect]
   ) -> [Group] {
     items.compactMap { item in
-      guard case .group(let id, _, _, let isCollapsed) = item.kind else { return nil }
+      guard case .group(let id) = item.entryID,
+        case .group(_, _, let isCollapsed) = item.kind
+      else { return nil }
       let frames = items.compactMap { candidate -> CGRect? in
         switch candidate.kind {
-        case .group(let candidateID, _, _, _) where candidateID == id:
+        case .group where candidate.entryID == .group(id):
           candidate.frame
-        case .groupedTab(_, let groupID, _) where groupID == id:
+        case .groupedTab(let groupID, _) where groupID == id:
           candidate.frame
         default:
           nil
@@ -398,7 +403,7 @@ struct TerminalHorizontalTabLayout: Equatable {
           Candidate(
             content: .item(
               entryID,
-              .rootTab(id: item.tab.id, lane: lane, rootIndex: rootIndex)
+              .rootTab(lane: lane, rootIndex: rootIndex)
             ),
             lane: lane,
             minimumWidth: TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
@@ -420,7 +425,6 @@ struct TerminalHorizontalTabLayout: Equatable {
             content: .item(
               entryID,
               .group(
-                id: group.id,
                 lane: lane,
                 rootIndex: rootIndex,
                 isCollapsed: isCollapsed
@@ -445,7 +449,7 @@ struct TerminalHorizontalTabLayout: Equatable {
             Candidate(
               content: .item(
                 entryID,
-                .groupedTab(id: tab.id, groupID: group.id, index: index)
+                .groupedTab(groupID: group.id, index: index)
               ),
               lane: lane,
               minimumWidth: TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
@@ -511,7 +515,7 @@ struct TerminalHorizontalTabLayout: Equatable {
     var index = candidates.startIndex
     while candidates.indices.contains(index) {
       let candidate = candidates[index]
-      if case .item(_, .group(let groupID, _, _, false)) = candidate.content,
+      if case .item(.group(let groupID), .group(_, _, false)) = candidate.content,
         let closeIndex = candidates[index...].firstIndex(where: {
           guard case .groupClose(let candidateGroupID) = $0.content else { return false }
           return candidateGroupID == groupID

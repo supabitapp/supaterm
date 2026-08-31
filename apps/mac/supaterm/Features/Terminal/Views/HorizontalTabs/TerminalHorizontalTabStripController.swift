@@ -1,5 +1,4 @@
 import AppKit
-import QuartzCore
 import SupaTheme
 import SwiftUI
 
@@ -14,6 +13,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
     let toggleGroup: (TerminalTabGroupID) -> Void
     let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
     let contextMenu: (TerminalSidebarEntryID) -> NSMenu?
+    let mergeTabIntoSelectedTab: (TerminalTabID) -> Bool
 
     init(
       closeGroup: @escaping (TerminalTabGroupID) -> Void = { _ in },
@@ -23,6 +23,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
       selectTab: @escaping (TerminalTabID) -> Void,
       toggleGroup: @escaping (TerminalTabGroupID) -> Void,
       performDrop: @escaping (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?,
+      mergeTabIntoSelectedTab: @escaping (TerminalTabID) -> Bool = { _ in false },
       contextMenu: @escaping (TerminalSidebarEntryID) -> NSMenu? = { _ in nil }
     ) {
       self.closeGroup = closeGroup
@@ -32,6 +33,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
       self.selectTab = selectTab
       self.toggleGroup = toggleGroup
       self.performDrop = performDrop
+      self.mergeTabIntoSelectedTab = mergeTabIntoSelectedTab
       self.contextMenu = contextMenu
     }
   }
@@ -41,11 +43,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
     let surface: TerminalHorizontalTabSurfacePresentation
   }
 
-  private enum LayoutTransition: Equatable {
-    case none
-    case ordinary
-    case groupExpansion
-  }
+  private typealias LayoutTransition = TerminalHorizontalTabLayoutAnimator.Transition
 
   private let windowControllerID: UUID
   private let tabDragRegistry: TerminalTabDragRegistry
@@ -57,7 +55,6 @@ final class TerminalHorizontalTabStripController: NSViewController {
   private let sectionSeparator = HorizontalTabSectionSeparator()
   private let insertionIndicator = NSView()
   private var actions: Actions?
-  private var frameAnimationIDs: [ObjectIdentifier: UUID] = [:]
   private var groupCloseButtons: [TerminalTabGroupID: TerminalHorizontalTabGroupCloseButton] = [:]
   private var groupViews: [TerminalTabGroupID: TerminalHorizontalTabGroupView] = [:]
   private var itemViews: [TerminalSidebarEntryID: TerminalHorizontalTabItemView] = [:]
@@ -76,6 +73,10 @@ final class TerminalHorizontalTabStripController: NSViewController {
   private var dropPlan: TerminalSidebarDropPlan?
   private var liveSelectedTabID: TerminalTabID?
 
+  private lazy var layoutAnimator = TerminalHorizontalTabLayoutAnimator(
+    reduceMotion: { [weak self] in self?.reduceMotion == true }
+  )
+
   private lazy var dragController = TerminalHorizontalTabDragController(
     configuration: TerminalHorizontalTabDragController.Configuration(
       sourceView: stripView,
@@ -90,6 +91,9 @@ final class TerminalHorizontalTabStripController: NSViewController {
       shouldPlayTabMoveHaptics: { [weak self] in self?.shouldPlayTabMoveHaptics == true },
       liveSelectedTabID: { [weak self] in self?.liveSelectedTabID },
       tabSelectionState: { [weak self] in self?.tabSelectionState },
+      mergeTabIntoSelectedTab: { [weak self] tabID in
+        self?.actions?.mergeTabIntoSelectedTab(tabID) == true
+      },
       selectTab: { [weak self] tabID in self?.selectLiveTab(tabID) },
       toggleGroup: { [weak self] groupID in self?.actions?.toggleGroup(groupID) },
       performDrop: { [weak self] command in self?.actions?.performDrop(command) },
@@ -161,7 +165,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
 
   func apply(
     snapshot: TerminalTabSurfaceSnapshot,
-    tabSelectionState: TerminalTabSelectionState? = nil,
+    tabSelectionState: TerminalTabSelectionState,
     surfacePresentation: TerminalHorizontalTabSurfacePresentation =
       TerminalHorizontalTabSurfacePresentation(tabsByID: [:], groupIconURLs: [:]),
     palette: Palette,
@@ -173,9 +177,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
     self.palette = palette
     self.reduceMotion = reduceMotion
     self.shouldPlayTabMoveHaptics = shouldPlayTabMoveHaptics
-    if let tabSelectionState {
-      self.tabSelectionState = tabSelectionState
-    }
+    self.tabSelectionState = tabSelectionState
     liveSelectedTabID = snapshot.collection.selectedTabID
     let visibleTabIDs = TerminalSidebarOutline(snapshot: snapshot).visibleTabIDs
     self.tabSelectionState?.retainVisible(
@@ -337,7 +339,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
     let nextLayout = makeLayout(snapshot: snapshot, presentations: presentations)
     let visibleGroupIDs = Set(nextLayout.groups.map(\.id))
     for groupID in groupViews.keys.filter({ !visibleGroupIDs.contains($0) }) {
-      remove(groupViews.removeValue(forKey: groupID), transition: transition)
+      layoutAnimator.remove(groupViews.removeValue(forKey: groupID), transition: transition)
     }
     for group in nextLayout.groups {
       guard
@@ -349,46 +351,46 @@ final class TerminalHorizontalTabStripController: NSViewController {
       else { continue }
       let isNew = groupViews[group.id] == nil
       let groupView = groupViews[group.id] ?? makeGroupView(for: group.id)
-      setFrame(group.frame, of: groupView, transition: isNew ? .none : transition)
+      layoutAnimator.setFrame(group.frame, of: groupView, transition: isNew ? .none : transition)
       groupView.apply(groupPresentation, palette: palette, reduceMotion: reduceMotion)
-      if isNew { animateInsertion(groupView, transition: transition) }
+      if isNew { layoutAnimator.animateInsertion(groupView, transition: transition) }
     }
     let visibleIDs = Set(nextLayout.items.map(\.entryID))
     for entryID in itemViews.keys.filter({ !visibleIDs.contains($0) }) {
-      remove(itemViews.removeValue(forKey: entryID), transition: transition)
+      layoutAnimator.remove(itemViews.removeValue(forKey: entryID), transition: transition)
     }
     for item in nextLayout.items {
       guard let presentation = presentations[item.entryID] else { continue }
       let isNew = itemViews[item.entryID] == nil
       let itemView = itemViews[item.entryID] ?? makeItemView(for: item.entryID)
-      setFrame(item.frame, of: itemView, transition: isNew ? .none : transition)
+      layoutAnimator.setFrame(item.frame, of: itemView, transition: isNew ? .none : transition)
       itemView.apply(presentation, palette: palette, reduceMotion: reduceMotion)
-      if isNew { animateInsertion(itemView, transition: transition) }
+      if isNew { layoutAnimator.animateInsertion(itemView, transition: transition) }
     }
     let visibleGroupCloseIDs = Set(
       nextLayout.groups.compactMap { $0.closeButtonFrame == nil ? nil : $0.id }
     )
     for groupID in groupCloseButtons.keys.filter({ !visibleGroupCloseIDs.contains($0) }) {
-      remove(groupCloseButtons.removeValue(forKey: groupID), transition: transition)
+      layoutAnimator.remove(groupCloseButtons.removeValue(forKey: groupID), transition: transition)
     }
     for group in nextLayout.groups {
       guard let frame = group.closeButtonFrame else { continue }
       let isNew = groupCloseButtons[group.id] == nil
       let button = groupCloseButtons[group.id] ?? makeGroupCloseButton(for: group.id)
-      setFrame(frame, of: button, transition: isNew ? .none : transition)
+      layoutAnimator.setFrame(frame, of: button, transition: isNew ? .none : transition)
       button.apply(palette: palette)
-      if isNew { animateInsertion(button, transition: transition) }
+      if isNew { layoutAnimator.animateInsertion(button, transition: transition) }
     }
     layout = nextLayout
-    setFrame(nextLayout.newTabFrame, of: newTabButton, transition: transition)
+    layoutAnimator.setFrame(nextLayout.newTabFrame, of: newTabButton, transition: transition)
     newTabButton.apply(palette: palette)
     overflowButton.isHidden = nextLayout.overflowFrame == nil
     if let overflowFrame = nextLayout.overflowFrame {
-      setFrame(overflowFrame, of: overflowButton, transition: transition)
+      layoutAnimator.setFrame(overflowFrame, of: overflowButton, transition: transition)
     }
     overflowButton.apply(palette: palette)
     if let separatorFrame = nextLayout.sectionSeparatorFrame {
-      setFrame(separatorFrame, of: sectionSeparator, transition: transition)
+      layoutAnimator.setFrame(separatorFrame, of: sectionSeparator, transition: transition)
       sectionSeparator.apply(palette: palette)
       sectionSeparator.isHidden = false
     } else {
@@ -410,7 +412,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
       let header = layout.items.first(where: { $0.entryID == .group(group.id) })
     else { return nil }
     let firstChild = layout.items.first { item in
-      guard case .groupedTab(_, let groupID, let index) = item.kind else { return false }
+      guard case .groupedTab(let groupID, let index) = item.kind else { return false }
       return groupID == group.id && index == 0
     }
     let localHeader = header.frame.offsetBy(dx: -group.frame.minX, dy: -group.frame.minY)
@@ -724,146 +726,7 @@ final class TerminalHorizontalTabStripController: NSViewController {
     updateDropIndicator()
   }
 
-  private func remove(_ view: NSView?, transition: LayoutTransition) {
-    guard let view else { return }
-    view.setAccessibilityElement(false)
-    let key = ObjectIdentifier(view)
-    frameAnimationIDs.removeValue(forKey: key)
-    guard transition != .none, !reduceMotion, view.window != nil, let layer = view.layer else {
-      view.removeFromSuperview()
-      return
-    }
-    let animationID = UUID()
-    frameAnimationIDs[key] = animationID
-    let animation = frameAnimation(
-      keyPath: "opacity",
-      from: layer.presentation()?.opacity ?? layer.opacity,
-      to: 0,
-      transition: transition
-    )
-    layerWithoutActions { layer.opacity = 0 }
-    layer.add(animation, forKey: "horizontalTabRemoval")
-    DispatchQueue.main.asyncAfter(deadline: .now() + animation.duration) { [weak self, weak view] in
-      guard
-        let self,
-        let view,
-        frameAnimationIDs[key] == animationID
-      else { return }
-      frameAnimationIDs.removeValue(forKey: key)
-      view.removeFromSuperview()
-    }
-  }
-
-  private func animateInsertion(_ view: NSView, transition: LayoutTransition) {
-    guard transition != .none, !reduceMotion, view.window != nil, let layer = view.layer else {
-      return
-    }
-    let opacity = frameAnimation(
-      keyPath: "opacity",
-      from: 0,
-      to: layer.opacity,
-      transition: transition
-    )
-    let scale = frameAnimation(
-      keyPath: "transform.scale",
-      from: 0.98,
-      to: 1,
-      transition: transition
-    )
-    layer.add(opacity, forKey: "horizontalTabInsertionOpacity")
-    layer.add(scale, forKey: "horizontalTabInsertionScale")
-  }
-
-  private func setFrame(
-    _ frame: CGRect,
-    of view: NSView,
-    transition: LayoutTransition
-  ) {
-    let key = ObjectIdentifier(view)
-    let animationID = UUID()
-    frameAnimationIDs[key] = animationID
-    guard transition != .none, !reduceMotion, view.window != nil, let layer = view.layer else {
-      layerWithoutActions { view.frame = frame }
-      view.layer?.removeAnimation(forKey: "horizontalTabPosition")
-      view.layer?.removeAnimation(forKey: "horizontalTabBounds")
-      return
-    }
-    let oldPosition = layer.presentation()?.position ?? layer.position
-    let oldBounds = layer.presentation()?.bounds ?? layer.bounds
-    layerWithoutActions { view.frame = frame }
-    let animationDuration: TimeInterval
-    if oldPosition != layer.position {
-      let animation = frameAnimation(
-        keyPath: "position",
-        from: NSValue(point: oldPosition),
-        to: NSValue(point: layer.position),
-        transition: transition
-      )
-      layer.add(animation, forKey: "horizontalTabPosition")
-      animationDuration = animation.duration
-    } else {
-      animationDuration = 0
-    }
-    var completionDelay = animationDuration
-    if oldBounds != layer.bounds {
-      let animation = frameAnimation(
-        keyPath: "bounds",
-        from: NSValue(rect: oldBounds),
-        to: NSValue(rect: layer.bounds),
-        transition: transition
-      )
-      layer.add(animation, forKey: "horizontalTabBounds")
-      completionDelay = max(completionDelay, animation.duration)
-    }
-    DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay) { [weak self, weak view] in
-      guard
-        let self,
-        let view,
-        frameAnimationIDs[key] == animationID
-      else { return }
-      view.layer?.removeAnimation(forKey: "horizontalTabPosition")
-      view.layer?.removeAnimation(forKey: "horizontalTabBounds")
-      frameAnimationIDs.removeValue(forKey: key)
-    }
-  }
-
-  private func frameAnimation(
-    keyPath: String,
-    from: Any,
-    to: Any,
-    transition: LayoutTransition
-  ) -> CAAnimation {
-    switch transition {
-    case .none:
-      preconditionFailure()
-    case .ordinary:
-      let animation = CABasicAnimation(keyPath: keyPath)
-      animation.fromValue = from
-      animation.toValue = to
-      animation.duration = 0.12
-      animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
-      return animation
-    case .groupExpansion:
-      let animation = CASpringAnimation(keyPath: keyPath)
-      animation.fromValue = from
-      animation.toValue = to
-      animation.mass = 1
-      animation.stiffness = pow(2 * Double.pi / 0.3, 2)
-      animation.damping = 4 * Double.pi * 0.82 / 0.3
-      animation.duration = animation.settlingDuration
-      return animation
-    }
-  }
-
   private func animateSelectedEntrance(_ tabID: TerminalTabID) {
     itemViews[.tab(tabID)]?.animateSelectedEntrance()
   }
-
-  private func layerWithoutActions(_ apply: () -> Void) {
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    apply()
-    CATransaction.commit()
-  }
-
 }

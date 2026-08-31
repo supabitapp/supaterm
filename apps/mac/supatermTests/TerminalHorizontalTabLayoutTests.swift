@@ -50,9 +50,9 @@ struct TerminalHorizontalTabLayoutTests {
     let group = try #require(layout.groups.first)
     let groupItems = layout.items.filter { item in
       switch item.kind {
-      case .group(let id, _, _, _):
-        id == fixture.groupID
-      case .groupedTab(_, let groupID, _):
+      case .group:
+        item.entryID == .group(fixture.groupID)
+      case .groupedTab(let groupID, _):
         groupID == fixture.groupID
       case .rootTab:
         false
@@ -122,6 +122,7 @@ struct TerminalHorizontalTabLayoutTests {
     )
     controller.apply(
       snapshot: fixture.snapshot,
+      tabSelectionState: TerminalTabSelectionState(),
       palette: Palette(colorScheme: .dark),
       reduceMotion: false,
       actions: actions
@@ -142,6 +143,7 @@ struct TerminalHorizontalTabLayoutTests {
 
     controller.apply(
       snapshot: collapsedSnapshot,
+      tabSelectionState: TerminalTabSelectionState(),
       palette: Palette(colorScheme: .dark),
       reduceMotion: false,
       actions: actions
@@ -182,8 +184,7 @@ struct TerminalHorizontalTabLayoutTests {
           trailingStatus: nil
         ),
         isSelected: false,
-        selectedTint: nil,
-        selectedTopExtension: 0
+        selectedTint: nil
       ),
       palette: Palette(colorScheme: .dark),
       reduceMotion: true
@@ -222,8 +223,7 @@ struct TerminalHorizontalTabLayoutTests {
           trailingStatus: nil
         ),
         selection: .secondary,
-        selectedTint: nil,
-        selectedTopExtension: 0
+        selectedTint: nil
       ),
       palette: Palette(colorScheme: .dark),
       reduceMotion: true
@@ -251,8 +251,7 @@ struct TerminalHorizontalTabLayoutTests {
           trailingStatus: nil
         ),
         selection: .primary,
-        selectedTint: nil,
-        selectedTopExtension: 2
+        selectedTint: nil
       ),
       palette: Palette(colorScheme: .dark),
       reduceMotion: true
@@ -290,6 +289,7 @@ struct TerminalHorizontalTabLayoutTests {
     var committedCommand: TerminalSidebarDropCommand?
     controller.apply(
       snapshot: fixture.snapshot,
+      tabSelectionState: TerminalTabSelectionState(),
       palette: Palette(colorScheme: .dark),
       reduceMotion: true,
       actions: TerminalHorizontalTabStripController.Actions(

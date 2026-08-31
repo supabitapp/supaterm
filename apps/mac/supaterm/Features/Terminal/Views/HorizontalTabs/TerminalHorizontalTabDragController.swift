@@ -22,6 +22,7 @@ final class TerminalHorizontalTabDragController {
     let shouldPlayTabMoveHaptics: () -> Bool
     let liveSelectedTabID: () -> TerminalTabID?
     let tabSelectionState: () -> TerminalTabSelectionState?
+    let mergeTabIntoSelectedTab: (TerminalTabID) -> Bool
     let selectTab: (TerminalTabID) -> Void
     let toggleGroup: (TerminalTabGroupID) -> Void
     let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
@@ -40,7 +41,6 @@ final class TerminalHorizontalTabDragController {
     var shared: TerminalSidebarActiveDrag
     let payload: TerminalTabDragPayload
     let anchorEntryID: TerminalSidebarEntryID
-    var frozenPlan: TerminalSidebarDropPlan?
     var isCommitting = false
     var cleanupStarted = false
     var velocityTracker: TerminalSidebarDragVelocityTracker
@@ -57,35 +57,10 @@ final class TerminalHorizontalTabDragController {
     case failed(TerminalSidebarEntryID)
   }
 
-  private enum DestinationSource {
-    case local(TerminalSidebarDragPayload)
-    case external(TerminalSidebarTopologyStamp)
-  }
-
-  private struct DestinationSession {
-    let payload: TerminalTabDragPayload
-    let source: DestinationSource
-    var dropTarget = TerminalSidebarDragTargetState.none
-    var frozenPlan: TerminalSidebarDropPlan?
-
-    func matches(
-      payload: TerminalTabDragPayload,
-      topologyStamp: TerminalSidebarTopologyStamp
-    ) -> Bool {
-      guard self.payload == payload else { return false }
-      switch source {
-      case .local(let sourcePayload):
-        return sourcePayload.topologyStamp == topologyStamp
-      case .external(let sourceTopologyStamp):
-        return sourceTopologyStamp == topologyStamp
-      }
-    }
-  }
-
   private let configuration: Configuration
   private let presentation: TerminalHorizontalTabDragPresentation
   private var sourceState = SourceState.idle
-  private var destinationSession: DestinationSession?
+  private var destinationModel: TerminalTabDropDestinationModel
   private var hapticTracker = TerminalSidebarHapticTargetTracker()
 
   private lazy var nativeDragSession = TerminalTabNativeDragSession(
@@ -100,6 +75,13 @@ final class TerminalHorizontalTabDragController {
 
   init(configuration: Configuration) {
     self.configuration = configuration
+    destinationModel = TerminalTabDropDestinationModel(
+      configuration: TerminalTabDropDestinationModel.Configuration(
+        windowControllerID: configuration.windowControllerID,
+        tabDragRegistry: configuration.tabDragRegistry,
+        performLocalDrop: configuration.performDrop
+      )
+    )
     presentation = TerminalHorizontalTabDragPresentation(
       containerView: configuration.sourceView
     )
@@ -153,6 +135,15 @@ final class TerminalHorizontalTabDragController {
     guard clickCount == 1 else { return }
     if case .active = sourceState { return }
     cancelPendingSource(restoringSelection: false)
+    if case .tab(let tabID) = entryID,
+      TerminalTabOptionClick.accepts(modifiers: modifiers, clickCount: clickCount)
+    {
+      nativeDragSession.cancelSourceCapture()
+      if configuration.mergeTabIntoSelectedTab(tabID) {
+        configuration.tabSelectionState()?.clear()
+      }
+      return
+    }
     beginPendingSource(
       entryID: entryID,
       location: location,
@@ -304,17 +295,10 @@ final class TerminalHorizontalTabDragController {
         let plan = source.shared.dropTarget.plan,
         source.shared.coordinator.freeze(plan) != nil
       else { return false }
-      source.frozenPlan = plan
       sourceState = .active(source)
       return true
     }
-    guard var destinationSession,
-      destinationSession.payload == payload,
-      let plan = destinationSession.dropTarget.plan
-    else { return false }
-    destinationSession.frozenPlan = plan
-    self.destinationSession = destinationSession
-    return true
+    return destinationModel.prepare(payload)
   }
 
   func performDrop(_ payload: TerminalTabDragPayload) -> Bool {
@@ -339,49 +323,14 @@ final class TerminalHorizontalTabDragController {
       sourceState = .active(completedSource)
       return completed && receipt != nil
     }
-    guard var destinationSession, destinationSession.payload == payload else { return false }
-    if destinationSession.frozenPlan == nil {
-      guard prepareDrop(payload), let prepared = self.destinationSession else { return false }
-      destinationSession = prepared
+    guard destinationModel.accepts(payload), let snapshot = configuration.snapshot() else {
+      return false
     }
-    guard
-      let plan = destinationSession.frozenPlan,
-      let snapshot = configuration.snapshot()
-    else { return false }
-    let outline = TerminalSidebarOutline(snapshot: snapshot)
-    let accepted: Bool
-    switch destinationSession.source {
-    case .local(let sourcePayload):
-      guard sourcePayload.topologyStamp == outline.topologyStamp,
-        let command = plan.command(for: sourcePayload)
-      else {
-        clearDestination()
-        return false
-      }
-      accepted = configuration.performDrop(command) != nil
-    case .external(let topologyStamp):
-      let drop = TerminalSidebarExternalDrop(
-        payload: payload,
-        topologyStamp: topologyStamp,
-        target: plan
-      )
-      guard let command = drop.command(in: outline) else {
-        clearDestination()
-        return false
-      }
-      accepted =
-        configuration.tabDragRegistry.performTransfer(
-          payload,
-          to: TerminalTabDragRegistry.Destination(
-            windowControllerID: configuration.windowControllerID,
-            spaceID: command.topologyStamp.spaceID,
-            expectedTopologyRevision: command.topologyStamp.revision,
-            placement: command.destination
-          )
-        ) != nil
-    }
-    clearDestination()
-    return accepted
+    defer { clearDestination() }
+    return destinationModel.perform(
+      payload,
+      in: TerminalSidebarOutline(snapshot: snapshot)
+    )
   }
 
   func sourceSessionMoved(to screenPoint: CGPoint) {
@@ -397,10 +346,7 @@ final class TerminalHorizontalTabDragController {
       timestamp: ProcessInfo.processInfo.systemUptime
     )
     sourceState = .active(source)
-    let presentationState = nativeDragSession.move(
-      to: screenPoint,
-      sourceSurfaceFrame: presentation.sourceHoldScreenFrame()
-    )
+    let presentationState = nativeDragSession.move(to: screenPoint)
     guard case .active(let current) = sourceState else { return }
     switch current.shared.coordinator.phase {
     case .cancelled, .settling, .finished:
@@ -614,17 +560,13 @@ final class TerminalHorizontalTabDragController {
         ),
         payload: payload,
         anchorEntryID: pending.interaction.entryID,
-        frozenPlan: nil,
         velocityTracker: velocityTracker(
           point: screenPoint,
           timestamp: ProcessInfo.processInfo.systemUptime
         )
       )
     )
-    let state = nativeDragSession.move(
-      to: screenPoint,
-      sourceSurfaceFrame: presentation.sourceHoldScreenFrame()
-    )
+    let state = nativeDragSession.move(to: screenPoint)
     guard case .active(let current) = sourceState,
       current.shared.payload.operationID == pending.payload.operationID,
       configuration.tabDragRegistry.activePayload == payload
@@ -654,54 +596,24 @@ final class TerminalHorizontalTabDragController {
     layout: TerminalHorizontalTabLayout
   ) -> NSDragOperation {
     let outline = TerminalSidebarOutline(snapshot: snapshot)
-    guard let topologyStamp = outline.topologyStamp else {
+    guard
+      let update = destinationModel.update(
+        payload,
+        in: outline,
+        path: { layout.semanticPath(at: point, source: $0) }
+      )
+    else {
       clearDestination()
       return []
     }
-    let source: DestinationSource
-    let sidebarPayload: TerminalSidebarDragPayload
-    if case .rootItems = payload.source,
-      payload.sourceWindowID == configuration.windowControllerID,
-      payload.sourceSpaceID == topologyStamp.spaceID,
-      payload.sourceTopologyRevision == topologyStamp.revision,
-      let localPayload = payload.sidebarPayload(
-        topologyStamp: TerminalSidebarTopologyStamp(
-          spaceID: payload.sourceSpaceID,
-          revision: payload.sourceTopologyRevision
-        )
-      )
-    {
-      source = .local(localPayload)
-      sidebarPayload = localPayload
-    } else {
-      guard let externalPayload = payload.sidebarPayload(topologyStamp: topologyStamp) else {
-        clearDestination()
-        return []
-      }
-      source = .external(topologyStamp)
-      sidebarPayload = externalPayload
+    if update.replacedSession {
+      hapticTracker.reset()
+      configuration.setDropPlan(nil)
     }
-    if destinationSession?.matches(payload: payload, topologyStamp: topologyStamp) != true {
-      clearDestination()
-      destinationSession = DestinationSession(payload: payload, source: source)
+    if let decision = update.decision {
+      applyTargetDecision(decision)
     }
-    guard var destinationSession, destinationSession.frozenPlan == nil else { return [] }
-    let resolution = TerminalSidebarDropResolution(
-      payload: sidebarPayload,
-      path: layout.semanticPath(at: point, source: sidebarPayload.source),
-      outline: outline
-    )
-    let decision = destinationSession.dropTarget.transition(
-      TerminalSidebarDragTargetEvent(resolution)
-    )
-    self.destinationSession = destinationSession
-    configuration.tabDragRegistry.setSidebarDestination(
-      payload,
-      windowControllerID: configuration.windowControllerID,
-      isActive: true
-    )
-    applyTargetDecision(decision)
-    return destinationSession.dropTarget.acceptsDrop ? .move : []
+    return update.acceptsDrop ? .move : []
   }
 
   private func transitionSourceTarget(
@@ -750,14 +662,7 @@ final class TerminalHorizontalTabDragController {
   }
 
   private func clearDestination() {
-    if let payload = destinationSession?.payload {
-      configuration.tabDragRegistry.setSidebarDestination(
-        payload,
-        windowControllerID: configuration.windowControllerID,
-        isActive: false
-      )
-    }
-    destinationSession = nil
+    destinationModel.clear()
     hapticTracker.reset()
     configuration.setDropPlan(nil)
   }

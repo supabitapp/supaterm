@@ -8,6 +8,28 @@ import Testing
 @MainActor
 struct TerminalHostStateTabGroupTests {
   @Test
+  func localTabCreationClearsSecondarySelection() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
+      let host = TerminalHostState.test(runtime: runtime, zmxSessionsEnabled: false)
+      host.ensureInitialTab(focusing: false)
+      let primaryTabID = try #require(host.selectedTabID)
+      let secondaryTabID = try #require(host.createTab(focusing: false))
+      host.selectTab(primaryTabID)
+      let selectionState = host.spaceManager.displayedInstance.tabSelectionState
+      selectionState.toggle(secondaryTabID, primaryTabID: primaryTabID)
+
+      let createdTabID = try #require(host.createTab(focusing: false))
+
+      #expect(host.selectedTabID == createdTabID)
+      #expect(selectionState.secondaryTabIDs.isEmpty)
+    }
+  }
+
+  @Test
   func newTabCreatesRootUnlessGroupIsExplicit() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

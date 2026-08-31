@@ -10,13 +10,13 @@ struct TerminalSidebarMotionTests {
   @Test
   func optionTabClickRequiresOptionOnlyOnTheFirstClick() {
     #expect(
-      TerminalSidebarOptionTabClick.accepts(
+      TerminalTabOptionClick.accepts(
         modifiers: .option,
         clickCount: 1
       )
     )
     #expect(
-      TerminalSidebarOptionTabClick.accepts(
+      TerminalTabOptionClick.accepts(
         modifiers: [.option, .capsLock],
         clickCount: 1
       )
@@ -29,14 +29,14 @@ struct TerminalSidebarMotionTests {
       [.control, .option],
     ] {
       #expect(
-        !TerminalSidebarOptionTabClick.accepts(
+        !TerminalTabOptionClick.accepts(
           modifiers: modifiers,
           clickCount: 1
         )
       )
     }
     #expect(
-      !TerminalSidebarOptionTabClick.accepts(
+      !TerminalTabOptionClick.accepts(
         modifiers: .option,
         clickCount: 2
       )

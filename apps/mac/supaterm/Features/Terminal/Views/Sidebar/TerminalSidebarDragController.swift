@@ -177,7 +177,7 @@ final class TerminalSidebarDragController {
     guard let content = host.content() else { return false }
     let consumesClick = if case .tab = entryID { true } else { false }
     if case .tab(let tabID) = entryID,
-      TerminalSidebarOptionTabClick.accepts(
+      TerminalTabOptionClick.accepts(
         modifiers: event.modifierFlags,
         clickCount: event.clickCount
       )

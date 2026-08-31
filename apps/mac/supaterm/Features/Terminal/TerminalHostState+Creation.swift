@@ -81,7 +81,8 @@ extension TerminalHostState {
   ) throws -> TerminalTabID? {
     warmInstance(for: spaceID)
     try requireTabCapacity(1, reason: reason)
-    guard let tabCollection = spaceManager.tabCollection(for: spaceID) else { return nil }
+    guard let instance = spaceManager.instance(for: spaceID) else { return nil }
+    let tabCollection = instance.tabCollection
     let context: ghostty_surface_context_e =
       tabCollection.tabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
@@ -99,6 +100,9 @@ extension TerminalHostState {
       )
     else {
       return nil
+    }
+    if reason == .user {
+      instance.tabSelectionState.clear()
     }
     if focusing, case .group(let groupID, _) = resolvedPlacement {
       spaceManager.instance(for: spaceID)?.collapsedTabGroupIDs.remove(groupID)

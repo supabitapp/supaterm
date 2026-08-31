@@ -563,10 +563,6 @@ struct TerminalSidebarPointerTests {
       toggleGroupCollapsed: { _ in },
       createTabInGroup: { _ in },
       renameGroup: { _, _ in false },
-      setGroupColor: { _, _ in },
-      toggleGroupPinned: { _ in },
-      ungroup: { _ in },
-      closeGroup: { _ in },
       newTab: {}
     )
   }

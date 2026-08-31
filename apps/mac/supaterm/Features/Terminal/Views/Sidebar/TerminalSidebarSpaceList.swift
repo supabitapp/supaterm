@@ -146,10 +146,6 @@ struct TerminalSidebarSpaceList: View {
       toggleGroupCollapsed: { terminal.toggleGroupCollapsed($0) },
       createTabInGroup: createTab,
       renameGroup: { terminal.renameGroup($0, title: $1) },
-      setGroupColor: { terminal.setGroupColor($0, color: $1) },
-      toggleGroupPinned: { terminal.togglePinned(.group($0)) },
-      ungroup: { terminal.ungroup($0) },
-      closeGroup: { terminal.requestCloseGroup($0) },
       newTab: newTab
     )
   }

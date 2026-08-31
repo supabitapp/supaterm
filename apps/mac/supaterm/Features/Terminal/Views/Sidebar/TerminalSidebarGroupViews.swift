@@ -247,10 +247,6 @@ struct TerminalSidebarRowActions {
   let toggleGroupCollapsed: (TerminalTabGroupID) -> Void
   let createTabInGroup: (TerminalTabGroupID) -> Void
   let renameGroup: (TerminalTabGroupID, String) -> Bool
-  let setGroupColor: (TerminalTabGroupID, ThemeTint) -> Void
-  let toggleGroupPinned: (TerminalTabGroupID) -> Void
-  let ungroup: (TerminalTabGroupID) -> Void
-  let closeGroup: (TerminalTabGroupID) -> Void
   let newTab: () -> Void
 }
 
@@ -288,6 +284,7 @@ struct TerminalSidebarHostedRow: View {
       )
     case .group(let presentation):
       TerminalSidebarGroupHeader(
+        terminal: context.terminal,
         presentation: presentation,
         palette: context.palette,
         renameState: context.renameState,
@@ -362,6 +359,7 @@ private struct TerminalSidebarGroupHeaderButtonStyle: PrimitiveButtonStyle {
 }
 
 private struct TerminalSidebarGroupHeader: View {
+  let terminal: TerminalHostState
   let presentation: TerminalSidebarGroupRowPresentation
   let palette: Palette
   let renameState: TerminalSidebarRenameState
@@ -514,46 +512,23 @@ private struct TerminalSidebarGroupHeader: View {
       reduceMotion: reduceMotion
     )
     .contextMenu {
-      Button("New Tab in Group", systemImage: "plus") {
-        actions.createTabInGroup(presentation.id)
-      }
-      .supatermKeyboardShortcut(newTabShortcut?.keyboardShortcut)
-      Button("Rename Group", systemImage: "pencil") {
-        renameState.begin(groupID: presentation.id, title: presentation.title)
-      }
-      Menu("Color", systemImage: "paintpalette") {
-        ForEach(ThemeTint.allCases, id: \.self) { color in
-          Button {
-            actions.setGroupColor(presentation.id, color)
-          } label: {
-            if color == presentation.color {
-              Label(color.displayName, systemImage: "checkmark")
-            } else {
-              Text(color.displayName)
+      if let model = TerminalTabContextMenuModel.menu(
+        for: .group(presentation.id),
+        contextualTabIDs: [],
+        snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot,
+        paneCount: 0,
+        layout: .sidebar
+      ) {
+        TerminalSidebarContextMenu(
+          model: model,
+          dispatcher: TerminalTabContextMenuDispatcher(
+            terminal: terminal,
+            beginGroupRename: { groupID, title in
+              renameState.begin(groupID: groupID, title: title)
             }
-          }
-        }
-      }
-      Button(
-        presentation.isPinned ? "Unpin Group" : "Pin Group",
-        systemImage: presentation.isPinned ? "pin.slash" : "pin"
-      ) {
-        actions.toggleGroupPinned(presentation.id)
-      }
-      Button(
-        presentation.isCollapsed ? "Expand Group" : "Collapse Group",
-        systemImage: presentation.isCollapsed ? "chevron.down" : "chevron.right"
-      ) {
-        actions.toggleGroupCollapsed(presentation.id)
-      }
-      Divider()
-      Button("Ungroup", systemImage: "rectangle.3.group.bubble.left") {
-        actions.ungroup(presentation.id)
-      }
-      Button(role: .destructive) {
-        actions.closeGroup(presentation.id)
-      } label: {
-        Label("Close Group", systemImage: "xmark")
+          ),
+          newTabInGroupShortcut: newTabShortcut?.keyboardShortcut
+        )
       }
     }
     .accessibilityElement(children: .contain)
