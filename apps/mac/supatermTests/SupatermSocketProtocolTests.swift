@@ -1068,13 +1068,62 @@ struct SupatermSocketProtocolTests {
         tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
       ),
       event: event,
-      processID: 123
+      inheritedSessionID: "parent-session",
+      processID: 123,
+      processStartTimeMicroseconds: 123_000
     )
 
     let request = try SupatermSocketRequest.agentHook(requestPayload, id: "agent-hook-1")
 
     #expect(request.method == SupatermSocketMethod.terminalAgentHook)
     #expect(try request.decodeParams(SupatermAgentHookRequest.self) == requestPayload)
+  }
+
+  @Test
+  func agentHookCandidateRequestAndResponseRoundTrip() throws {
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
+      tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
+    )
+    let requestPayload = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-123",
+        source: "resume",
+        transcriptPath: "/tmp/transcript.jsonl"
+      ),
+      inheritedSessionID: "session-123",
+      processID: 123,
+      processStartTimeMicroseconds: 123_000
+    )
+    let result = SupatermAgentHookCandidatesResponse(
+      candidates: [
+        SupatermAgentHookCandidate(
+          context: context,
+          processID: 456,
+          processStartTimeMicroseconds: 456_000,
+          sessionIDMatchesTitle: true,
+          workingDirectoryMatches: true,
+          ownedSessionID: "session-123"
+        )
+      ],
+      sharedCodexHost: true
+    )
+
+    let request = try SupatermSocketRequest.agentHookCandidates(
+      requestPayload,
+      id: "agent-hook-candidates-1"
+    )
+    let response = try SupatermSocketResponse.ok(
+      id: "agent-hook-candidates-1",
+      encodableResult: result
+    )
+
+    #expect(request.method == SupatermSocketMethod.terminalAgentHookCandidates)
+    #expect(try request.decodeParams(SupatermAgentHookRequest.self) == requestPayload)
+    #expect(try response.decodeResult(SupatermAgentHookCandidatesResponse.self) == result)
   }
 
   @Test

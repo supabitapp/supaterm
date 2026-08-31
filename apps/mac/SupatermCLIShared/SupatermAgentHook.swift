@@ -1,5 +1,9 @@
 import Foundation
 
+public enum SupatermCodexEnvironment {
+  public static let threadIDKey = "CODEX_THREAD_ID"
+}
+
 public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
   case claude
   case codex
@@ -61,6 +65,19 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public var hookEventName: SupatermAgentHookEventName {
     SupatermAgentHookEventName(rawValue: payload["hook_event_name"]?.stringValue ?? "")
   }
+  public var isDurableCodexRootSessionStart: Bool {
+    guard
+      hookEventName == .sessionStart,
+      payload["agent_id"] == nil,
+      sessionID != nil,
+      cwd != nil,
+      transcriptPath != nil,
+      let source
+    else {
+      return false
+    }
+    return source == "startup" || source == "resume" || source == "clear" || source == "compact"
+  }
   public var lastAssistantMessage: String? { string("last_assistant_message") }
   public var message: String? { string("message") }
   public var notificationType: String? { string("notification_type") }
@@ -68,6 +85,7 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public var source: String? { string("source") }
   public var stopReason: String? { string("stop_reason") }
   public var title: String? { string("title") }
+  public var transcriptPath: String? { string("transcript_path") }
   public var toolInput: JSONValue? { payload["tool_input"] }
   public var toolName: String? { string("tool_name") }
   public var toolUseID: String? { string("tool_use_id") }
@@ -85,6 +103,7 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     source: String? = nil,
     stopReason: String? = nil,
     title: String? = nil,
+    transcriptPath: String? = nil,
     toolInput: JSONValue? = nil,
     toolName: String? = nil,
     toolUseID: String? = nil,
@@ -103,6 +122,7 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     Self.insert(source, key: "source", into: &payload)
     Self.insert(stopReason, key: "stop_reason", into: &payload)
     Self.insert(title, key: "title", into: &payload)
+    Self.insert(transcriptPath, key: "transcript_path", into: &payload)
     Self.insert(toolName, key: "tool_name", into: &payload)
     Self.insert(toolUseID, key: "tool_use_id", into: &payload)
     Self.insert(turnID, key: "turn_id", into: &payload)
@@ -149,18 +169,62 @@ public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
   public let agent: SupatermAgentKind
   public let context: SupatermCLIContext?
   public let event: SupatermAgentHookEvent
+  public let inheritedSessionID: String?
   public let processID: Int32?
+  public let processStartTimeMicroseconds: UInt64?
 
   public init(
     agent: SupatermAgentKind,
     context: SupatermCLIContext? = nil,
     event: SupatermAgentHookEvent,
-    processID: Int32? = nil
+    inheritedSessionID: String? = nil,
+    processID: Int32? = nil,
+    processStartTimeMicroseconds: UInt64? = nil
   ) {
     self.agent = agent
     self.context = context
     self.event = event
+    self.inheritedSessionID = inheritedSessionID
     self.processID = processID
+    self.processStartTimeMicroseconds = processStartTimeMicroseconds
+  }
+}
+
+public struct SupatermAgentHookCandidate: Equatable, Sendable, Codable {
+  public let context: SupatermCLIContext
+  public let processID: Int32
+  public let processStartTimeMicroseconds: UInt64
+  public let sessionIDMatchesTitle: Bool
+  public let workingDirectoryMatches: Bool
+  public let ownedSessionID: String?
+
+  public init(
+    context: SupatermCLIContext,
+    processID: Int32,
+    processStartTimeMicroseconds: UInt64,
+    sessionIDMatchesTitle: Bool,
+    workingDirectoryMatches: Bool,
+    ownedSessionID: String? = nil
+  ) {
+    self.context = context
+    self.processID = processID
+    self.processStartTimeMicroseconds = processStartTimeMicroseconds
+    self.sessionIDMatchesTitle = sessionIDMatchesTitle
+    self.workingDirectoryMatches = workingDirectoryMatches
+    self.ownedSessionID = ownedSessionID
+  }
+}
+
+public struct SupatermAgentHookCandidatesResponse: Equatable, Sendable, Codable {
+  public let candidates: [SupatermAgentHookCandidate]
+  public let sharedCodexHost: Bool
+
+  public init(
+    candidates: [SupatermAgentHookCandidate],
+    sharedCodexHost: Bool
+  ) {
+    self.candidates = candidates
+    self.sharedCodexHost = sharedCodexHost
   }
 }
 

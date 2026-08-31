@@ -7,12 +7,14 @@ struct SPSocketClient {
 
   private enum SocketClientError: LocalizedError {
     case connectFailed(String)
+    case deadlineExceeded
     case invalidResponse
     case pathIsNotSocket(String)
     case pathNotOwnedByCurrentUser(String)
     case pathTooLong(String)
     case readFailed
     case requestTooLarge
+    case socketConfigurationFailed
     case socketCreationFailed
     case writeFailed
 
@@ -20,6 +22,8 @@ struct SPSocketClient {
       switch self {
       case .connectFailed(let path):
         return "Failed to connect to Supaterm at \(path)."
+      case .deadlineExceeded:
+        return "Supaterm socket request timed out."
       case .invalidResponse:
         return "Supaterm returned an invalid socket response."
       case .pathIsNotSocket(let path):
@@ -32,6 +36,8 @@ struct SPSocketClient {
         return "Failed to read a response from Supaterm."
       case .requestTooLarge:
         return "Supaterm socket request exceeds \(SupatermSocketRequest.maximumEncodedBytes) bytes."
+      case .socketConfigurationFailed:
+        return "Failed to configure a local socket client."
       case .socketCreationFailed:
         return "Failed to create a local socket client."
       case .writeFailed:
@@ -45,13 +51,15 @@ struct SPSocketClient {
   private let encoder = JSONEncoder()
   private let connectRetryInterval: TimeInterval
   private let connectRetryTimeout: TimeInterval
+  private let deadline: Date?
   private let responseTimeout: TimeInterval
 
   init(
     path: String,
     connectRetryInterval: TimeInterval = 0.1,
     connectRetryTimeout: TimeInterval = SPSocketClient.defaultConnectRetryTimeout,
-    responseTimeout: TimeInterval = 5
+    responseTimeout: TimeInterval = 5,
+    deadline: Date? = nil
   ) throws {
     guard let normalized = SupatermSocketPath.normalized(path) else {
       throw SocketClientError.connectFailed(path)
@@ -59,10 +67,12 @@ struct SPSocketClient {
     self.path = normalized
     self.connectRetryInterval = connectRetryInterval
     self.connectRetryTimeout = connectRetryTimeout
+    self.deadline = deadline
     self.responseTimeout = responseTimeout
   }
 
   func send(_ request: SupatermSocketRequest) throws -> SupatermSocketResponse {
+    try validateDeadline()
     let requestData = try encodedRequest(request)
     let socket = try openSocket()
     defer { Darwin.close(socket) }
@@ -91,10 +101,17 @@ struct SPSocketClient {
     }
   }
 
+  static func isConnectionFailure(_ error: any Error) -> Bool {
+    guard let error = error as? SocketClientError else { return false }
+    guard case .connectFailed = error else { return false }
+    return true
+  }
+
   private func openSocket() throws -> Int32 {
-    let deadline = Date().addingTimeInterval(connectRetryTimeout)
+    let retryDeadline = Date().addingTimeInterval(connectRetryTimeout)
 
     while true {
+      try validateDeadline()
       try validateTargetPath()
 
       let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
@@ -123,11 +140,21 @@ struct SPSocketClient {
       let connectError = errno
       Darwin.close(socket)
 
-      guard shouldRetryConnect(after: connectError), Date() < deadline else {
+      let now = Date()
+      try validateDeadline(now: now)
+      guard shouldRetryConnect(after: connectError), now < retryDeadline else {
         throw SocketClientError.connectFailed(path)
       }
 
-      Thread.sleep(forTimeInterval: connectRetryInterval)
+      Thread.sleep(
+        forTimeInterval: min(
+          connectRetryInterval,
+          min(
+            retryDeadline.timeIntervalSince(now),
+            deadline?.timeIntervalSince(now) ?? connectRetryInterval
+          )
+        )
+      )
     }
   }
 
@@ -135,18 +162,11 @@ struct SPSocketClient {
     _ requestData: Data,
     over socket: Int32
   ) throws -> SupatermSocketResponse {
-    var receiveTimeout = socketTimeout(responseTimeout)
-    _ = setsockopt(
-      socket,
-      SOL_SOCKET,
-      SO_RCVTIMEO,
-      &receiveTimeout,
-      socklen_t(MemoryLayout<timeval>.size)
-    )
+    let responseDeadline = try operationDeadline(after: responseTimeout)
 
-    try writeAll(requestData, to: socket)
+    try writeAll(requestData, to: socket, deadline: responseDeadline)
 
-    guard let responseLine = readLine(from: socket) else {
+    guard let responseLine = try readLine(from: socket, deadline: responseDeadline) else {
       throw SocketClientError.readFailed
     }
     guard let responseData = responseLine.data(using: .utf8) else {
@@ -183,11 +203,16 @@ struct SPSocketClient {
     return address
   }
 
-  private func writeAll(_ data: Data, to socket: Int32) throws {
+  private func writeAll(
+    _ data: Data,
+    to socket: Int32,
+    deadline: Date
+  ) throws {
     try data.withUnsafeBytes { buffer in
       guard let baseAddress = buffer.baseAddress else { return }
       var offset = 0
       while offset < buffer.count {
+        try setSocketTimeout(SO_SNDTIMEO, on: socket, deadline: deadline)
         let bytesWritten = Darwin.write(
           socket,
           baseAddress.advanced(by: offset),
@@ -233,19 +258,21 @@ struct SPSocketClient {
   }
 
   private func socketTimeout(_ interval: TimeInterval) -> timeval {
-    let clampedInterval = max(0, interval)
-    let seconds = __darwin_time_t(clampedInterval.rounded(.down))
-    let microseconds = __darwin_suseconds_t(((clampedInterval - Double(seconds)) * 1_000_000).rounded())
-    return timeval(tv_sec: seconds, tv_usec: microseconds)
+    let totalMicroseconds = max(1, Int64((interval * 1_000_000).rounded(.up)))
+    return timeval(
+      tv_sec: __darwin_time_t(totalMicroseconds / 1_000_000),
+      tv_usec: __darwin_suseconds_t(totalMicroseconds % 1_000_000)
+    )
   }
 
-  private func readLine(from socket: Int32) -> String? {
+  private func readLine(from socket: Int32, deadline: Date) throws -> String? {
     var data = Data()
     var buffer = [UInt8](repeating: 0, count: 1024)
 
     while true {
+      try setSocketTimeout(SO_RCVTIMEO, on: socket, deadline: deadline)
       let bytesRead = Darwin.read(socket, &buffer, buffer.count)
-      guard bytesRead >= 0 else { return nil }
+      guard bytesRead >= 0 else { throw SocketClientError.readFailed }
       guard bytesRead > 0 else { break }
 
       data.append(buffer, count: bytesRead)
@@ -257,6 +284,40 @@ struct SPSocketClient {
 
     guard !data.isEmpty else { return nil }
     return String(data: data, encoding: .utf8)
+  }
+
+  private func operationDeadline(after timeout: TimeInterval) throws -> Date {
+    let now = Date()
+    try validateDeadline(now: now)
+    let timeoutDeadline = now.addingTimeInterval(max(0, timeout))
+    return deadline.map { min($0, timeoutDeadline) } ?? timeoutDeadline
+  }
+
+  private func setSocketTimeout(
+    _ option: Int32,
+    on socket: Int32,
+    deadline: Date
+  ) throws {
+    let remainingTime = deadline.timeIntervalSinceNow
+    guard remainingTime > 0 else { throw SocketClientError.deadlineExceeded }
+    var timeout = socketTimeout(remainingTime)
+    guard
+      setsockopt(
+        socket,
+        SOL_SOCKET,
+        option,
+        &timeout,
+        socklen_t(MemoryLayout<timeval>.size)
+      ) == 0
+    else {
+      throw SocketClientError.socketConfigurationFailed
+    }
+  }
+
+  private func validateDeadline(now: Date = Date()) throws {
+    guard deadline.map({ now < $0 }) != false else {
+      throw SocketClientError.deadlineExceeded
+    }
   }
 }
 

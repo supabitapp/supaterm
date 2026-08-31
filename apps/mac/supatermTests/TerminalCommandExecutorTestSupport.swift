@@ -123,20 +123,27 @@ func agentHookRequest(
   agent: SupatermAgentKind,
   sessionID: String,
   hookEventName: SupatermAgentHookEventName,
+  cwd: String = CodexHookFixtures.cwd,
   context: SupatermCLIContext? = nil,
   lastAssistantMessage: String? = nil,
-  processID: Int32? = nil
+  processID: Int32? = nil,
+  processStartTimeMicroseconds: UInt64? = nil
 ) -> SupatermAgentHookRequest {
-  SupatermAgentHookRequest(
+  let durableCodexStart = agent == .codex && hookEventName == .sessionStart
+  return SupatermAgentHookRequest(
     agent: agent,
     context: context,
     event: SupatermAgentHookEvent(
-      cwd: CodexHookFixtures.cwd,
+      cwd: cwd,
       hookEventName: hookEventName,
       lastAssistantMessage: lastAssistantMessage,
-      sessionID: sessionID
+      sessionID: sessionID,
+      source: durableCodexStart ? "startup" : nil,
+      transcriptPath: durableCodexStart ? "\(cwd)/\(sessionID).jsonl" : nil
     ),
-    processID: processID
+    processID: processID,
+    processStartTimeMicroseconds: processStartTimeMicroseconds
+      ?? processID.flatMap(TerminalAgentProcessInspector.identity(for:))?.startTimeMicroseconds
   )
 }
 

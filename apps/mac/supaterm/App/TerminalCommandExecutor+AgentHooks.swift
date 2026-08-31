@@ -15,7 +15,12 @@ extension TerminalCommandExecutor {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
     pruneDeadAgentProcesses()
-    guard let terminal = agentTerminal(for: request),
+    guard
+      let terminal = agentTerminal(
+        agent: request.agent,
+        sessionID: request.event.sessionID,
+        context: request.context
+      ),
       shouldHandleAgentHook(request, in: terminal)
     else {
       return TerminalAgentHookResult(desktopNotification: nil)
@@ -51,6 +56,34 @@ extension TerminalCommandExecutor {
       terminal.sessionDidChange()
     }
     return result
+  }
+
+  func agentHookCandidates(
+    for request: SupatermAgentHookRequest
+  ) -> SupatermAgentHookCandidatesResponse {
+    let sharedCodexHost = request.processID.map(codexAppServerRuns) == true
+    guard
+      request.agent == .codex,
+      request.event.isDurableCodexRootSessionStart,
+      let sessionID = request.event.sessionID,
+      let workingDirectoryPath = request.event.cwd
+    else {
+      return SupatermAgentHookCandidatesResponse(
+        candidates: [],
+        sharedCodexHost: sharedCodexHost
+      )
+    }
+    pruneDeadAgentProcesses()
+    let candidates = registry.activeEntries().flatMap { entry in
+      entry.terminal.agentHookCandidates(
+        sessionID: sessionID,
+        workingDirectoryPath: workingDirectoryPath
+      )
+    }
+    return SupatermAgentHookCandidatesResponse(
+      candidates: candidates,
+      sharedCodexHost: sharedCodexHost
+    )
   }
 
   func handleAgentEventNotification(
@@ -130,45 +163,23 @@ extension TerminalCommandExecutor {
     _ = terminal.clearRecentStructuredNotification(for: surfaceID)
   }
 
-  private func agentTerminal(
-    for request: SupatermAgentHookRequest
-  ) -> TerminalHostState? {
-    agentTerminal(
-      agent: request.agent,
-      sessionID: request.event.sessionID,
-      context: request.context
-    )
-  }
-
   private func shouldHandleAgentHook(
     _ request: SupatermAgentHookRequest,
     in terminal: TerminalHostState
   ) -> Bool {
-    guard request.agent == .codex,
-      let sessionID = request.event.sessionID,
-      !terminal.hasAgentSession(agent: .codex, sessionID: sessionID),
+    guard request.agent == .codex else { return true }
+    guard
       let surfaceID = request.context?.surfaceID,
-      let processID = request.processID
-    else {
-      return true
-    }
-    guard
-      let foregroundWorkingDirectoryPath = terminal.foregroundAgentWorkingDirectoryPath(
-        agent: .codex,
-        processID: processID,
-        for: surfaceID
-      )
-    else {
-      return true
-    }
-    guard
-      let workingDirectoryPath = TerminalAgentPanelWorkspaceKey(
-        workingDirectoryPath: request.event.cwd
-      )?.workingDirectoryPath
+      let processID = request.processID,
+      let processStartTimeMicroseconds = request.processStartTimeMicroseconds
     else {
       return false
     }
-    return workingDirectoryPath == foregroundWorkingDirectoryPath
+    return terminal.hasLiveCodexDetection(
+      processID: processID,
+      processStartTimeMicroseconds: processStartTimeMicroseconds,
+      for: surfaceID
+    )
   }
 
   private func agentTerminal(
@@ -212,5 +223,15 @@ extension TerminalCommandExecutor {
     where entry.terminal.pruneDeadAgentProcesses() {
       entry.terminal.sessionDidChange()
     }
+  }
+
+  private func codexAppServerRuns(_ processID: Int32) -> Bool {
+    guard
+      let identity = TerminalAgentProcessInspector.identity(for: processID),
+      let arguments = TerminalAgentProcessInspector.commandLineArguments(for: identity)
+    else {
+      return false
+    }
+    return TerminalAgentLaunchOptions.codexAppServerRuns(commandLineArguments: arguments)
   }
 }

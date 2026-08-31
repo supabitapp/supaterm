@@ -75,6 +75,29 @@ struct SPSocketClientTests {
   }
 
   @Test
+  func absoluteDeadlineCapsTheResponseTimeout() async throws {
+    try await withSocketRuntime(
+      replying: { _, _ in nil },
+      run: { endpoint in
+        let deadline = Date().addingTimeInterval(0.2)
+        let client = try socketClient(
+          path: endpoint.path,
+          responseTimeout: 5,
+          deadline: deadline
+        )
+        let start = Date()
+
+        do {
+          _ = try client.send(.ping(id: "ping-1"))
+          Issue.record("Expected send to reach its deadline.")
+        } catch {
+          #expect(Date().timeIntervalSince(start) < 1)
+        }
+      }
+    )
+  }
+
+  @Test
   func connectFailsFastWhenNothingListens() throws {
     let rootURL = try makeSocketClientTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
@@ -434,13 +457,15 @@ struct SPSocketClientTests {
 nonisolated private func socketClient(
   path: String,
   connectRetryTimeout: TimeInterval = 0.3,
-  responseTimeout: TimeInterval = 0.3
+  responseTimeout: TimeInterval = 0.3,
+  deadline: Date? = nil
 ) throws -> SPSocketClient {
   try SPSocketClient(
     path: path,
     connectRetryInterval: 0.02,
     connectRetryTimeout: connectRetryTimeout,
-    responseTimeout: responseTimeout
+    responseTimeout: responseTimeout,
+    deadline: deadline
   )
 }
 

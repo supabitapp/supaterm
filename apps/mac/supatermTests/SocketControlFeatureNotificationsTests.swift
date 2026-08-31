@@ -357,6 +357,63 @@ struct SocketControlFeatureNotificationsTests {
     }
   }
   @Test
+  func agentHookCandidateRequestRepliesWithCandidateResponse() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "5C109774-F5A2-41F0-BB7F-96BB4842D9BD")!
+    let requestPayload = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        cwd: "/tmp/workspace",
+        hookEventName: .sessionStart,
+        sessionID: "session-1",
+        source: "startup",
+        transcriptPath: "/tmp/session-1.jsonl"
+      ),
+      processID: 42
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .agentHookCandidates(requestPayload, id: "agent-hook-candidates-1")
+    )
+    let expectedResponse = SupatermAgentHookCandidatesResponse(
+      candidates: [
+        SupatermAgentHookCandidate(
+          context: SupatermCLIContext(surfaceID: UUID(), tabID: UUID()),
+          processID: 84,
+          processStartTimeMicroseconds: 84_000,
+          sessionIDMatchesTitle: true,
+          workingDirectoryMatches: true,
+          ownedSessionID: "session-1"
+        )
+      ],
+      sharedCodexHost: true
+    )
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.socketRequestExecutor.executeApp = { execution in
+        guard case .agentHookCandidates(let payload) = execution else {
+          Issue.record("Expected agent hook candidate request")
+          throw CancellationError()
+        }
+        #expect(payload == requestPayload)
+        return .agentHookCandidates(expectedResponse)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    let record = try #require(records.first)
+    #expect(records.count == 1)
+    #expect(record.handle == handle)
+    #expect(
+      try record.response.decodeResult(SupatermAgentHookCandidatesResponse.self)
+        == expectedResponse
+    )
+  }
+  @Test
   func agentHookRequestSkipsDesktopNotificationWhenDisabledInPrefs() async throws {
     let recorder = SocketReplyRecorder()
     let desktopNotificationRecorder = DesktopNotificationRecorder()

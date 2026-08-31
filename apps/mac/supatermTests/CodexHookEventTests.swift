@@ -5,6 +5,11 @@ import Testing
 
 struct CodexHookEventTests {
   @Test
+  func codexEnvironmentKeyStaysStable() {
+    #expect(SupatermCodexEnvironment.threadIDKey == "CODEX_THREAD_ID")
+  }
+
+  @Test
   func sessionStartFixtureDecodes() throws {
     let event = try CodexHookFixtures.event(CodexHookFixtures.sessionStart)
 
@@ -58,6 +63,73 @@ struct CodexHookEventTests {
     let actual = try JSONDecoder().decode(JSONValue.self, from: encoded)
 
     #expect(actual == expected)
+  }
+
+  @Test(arguments: ["startup", "resume", "clear", "compact"])
+  func durableRootSessionStartAcceptsKnownSources(source: String) throws {
+    let event = SupatermAgentHookEvent(
+      cwd: CodexHookFixtures.cwd,
+      hookEventName: .sessionStart,
+      sessionID: CodexHookFixtures.sessionID,
+      source: source,
+      transcriptPath: "/tmp/transcript.jsonl"
+    )
+    let roundTrip = try JSONDecoder().decode(
+      SupatermAgentHookEvent.self,
+      from: JSONEncoder().encode(event)
+    )
+
+    #expect(event.transcriptPath == "/tmp/transcript.jsonl")
+    #expect(event.isDurableCodexRootSessionStart)
+    #expect(roundTrip == event)
+  }
+
+  @Test
+  func durableRootSessionStartRejectsIncompleteSubagentAndUnknownSource() {
+    let incomplete = SupatermAgentHookEvent(
+      cwd: CodexHookFixtures.cwd,
+      hookEventName: .sessionStart,
+      sessionID: CodexHookFixtures.sessionID,
+      source: "resume"
+    )
+    let subagent = SupatermAgentHookEvent(
+      cwd: CodexHookFixtures.cwd,
+      hookEventName: .sessionStart,
+      sessionID: CodexHookFixtures.sessionID,
+      source: "resume",
+      transcriptPath: "/tmp/transcript.jsonl",
+      agentID: "agent-123"
+    )
+    let unknownSource = SupatermAgentHookEvent(
+      cwd: CodexHookFixtures.cwd,
+      hookEventName: .sessionStart,
+      sessionID: CodexHookFixtures.sessionID,
+      source: "future",
+      transcriptPath: "/tmp/transcript.jsonl"
+    )
+
+    #expect(!incomplete.isDurableCodexRootSessionStart)
+    #expect(!subagent.isDurableCodexRootSessionStart)
+    #expect(!unknownSource.isDurableCodexRootSessionStart)
+  }
+
+  @Test(arguments: [#""""#, "null"])
+  func durableRootSessionStartRejectsPresentAgentID(agentID: String) throws {
+    let event = try CodexHookFixtures.event(
+      """
+      {
+        "agent_id": \(agentID),
+        "cwd": "\(CodexHookFixtures.cwd)",
+        "hook_event_name": "SessionStart",
+        "session_id": "\(CodexHookFixtures.sessionID)",
+        "source": "startup",
+        "transcript_path": "/tmp/transcript.jsonl"
+      }
+      """
+    )
+
+    #expect(event.payload["agent_id"] != nil)
+    #expect(!event.isDurableCodexRootSessionStart)
   }
 
   @Test
