@@ -116,7 +116,7 @@ extension TerminalHostState {
       focusSurface(surface, in: tabID)
     }
     if synchronizesFocus {
-      syncFocus(windowActivity)
+      syncFocus()
     }
     if sessionChangesEnabled {
       sessionDidChange()

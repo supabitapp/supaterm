@@ -101,7 +101,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let terminalWindowRegistry = TerminalWindowRegistry(
       zmxClient: zmxClient,
       licenseStore: licenseSystem.licenseStore,
-      updateStore: licenseSystem.updateStore
+      updateStore: licenseSystem.updateStore,
+      ghosttyShortcutForAction: ghosttyRuntime.shortcut(forAction:)
     )
     let tabNewWindowDropController = TerminalTabNewWindowDropController(
       tabDragRegistry: terminalWindowRegistry.tabDragRegistry
@@ -215,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSWindow.allowsAutomaticWindowTabbing = false
+    _ = NSPasteboard.ghosttySelection
     installConfigurationDiagnosticsObserver()
     NSApp.servicesProvider = serviceProvider
     UNUserNotificationCenter.current().delegate = self

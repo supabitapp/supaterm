@@ -224,9 +224,6 @@ final class TerminalWindowController: NSWindowController {
 
     window.delegate = self
     registry.register(
-      ghosttyShortcutForAction: { [ghosttyShortcuts] action in
-        ghosttyShortcuts.shortcut(forAction: action)
-      },
       windowControllerID: windowControllerID,
       store: store,
       terminal: terminal,

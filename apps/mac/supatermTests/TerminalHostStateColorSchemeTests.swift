@@ -1,6 +1,7 @@
 import Foundation
 import GhosttyKit
 import Observation
+import SupatermSupport
 import SwiftUI
 import Synchronization
 import Testing

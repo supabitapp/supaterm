@@ -30,7 +30,7 @@ struct SupatermServiceProviderTests {
   }
 
   @Test
-  func fileSelectionDoesNotProduceDirectoryPath() throws {
+  func fileSelectionUsesParentDirectoryPath() throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
     let fileURL = root.appendingPathComponent("file.txt")
@@ -38,7 +38,27 @@ struct SupatermServiceProviderTests {
 
     let pasteboard = makePasteboard([fileURL])
 
-    #expect(SupatermServiceProvider.directoryPaths(from: pasteboard).isEmpty)
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(root)
+      ]
+    )
+  }
+
+  @Test
+  func plainTextFileSelectionUsesParentDirectoryPath() throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let fileURL = root.appendingPathComponent("file.txt")
+    try "x".write(to: fileURL, atomically: true, encoding: .utf8)
+    let pasteboard = makePasteboard()
+    #expect(pasteboard.setString(fileURL.path, forType: .string))
+
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(root)
+      ]
+    )
   }
 
   @Test

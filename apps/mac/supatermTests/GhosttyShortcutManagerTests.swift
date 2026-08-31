@@ -26,12 +26,12 @@ struct GhosttyShortcutManagerTests {
     let secondInvalidationCount = Mutex(0)
 
     let firstShortcut = withObservationTracking {
-      firstManager.keyboardShortcut(forAction: "new_tab")
+      firstManager.shortcut(forAction: "new_tab")?.keyboardShortcut
     } onChange: {
       firstInvalidationCount.withLock { $0 += 1 }
     }
     let secondShortcut = withObservationTracking {
-      secondManager.keyboardShortcut(forAction: "new_tab")
+      secondManager.shortcut(forAction: "new_tab")?.keyboardShortcut
     } onChange: {
       secondInvalidationCount.withLock { $0 += 1 }
     }
@@ -50,8 +50,8 @@ struct GhosttyShortcutManagerTests {
 
     #expect(firstInvalidationCount.withLock { $0 } == 1)
     #expect(secondInvalidationCount.withLock { $0 } == 1)
-    #expect(firstManager.keyboardShortcut(forAction: "new_tab")?.display == "⌘Y")
-    #expect(secondManager.keyboardShortcut(forAction: "new_tab")?.display == "⌘Y")
+    #expect(firstManager.shortcut(forAction: "new_tab")?.keyboardShortcut.display == "⌘Y")
+    #expect(secondManager.shortcut(forAction: "new_tab")?.keyboardShortcut.display == "⌘Y")
   }
 
   @Test
@@ -66,7 +66,7 @@ struct GhosttyShortcutManagerTests {
     let invalidationCount = Mutex(0)
 
     _ = withObservationTracking {
-      manager.keyboardShortcut(forAction: "new_tab")
+      manager.shortcut(forAction: "new_tab")?.keyboardShortcut
     } onChange: {
       invalidationCount.withLock { $0 += 1 }
     }

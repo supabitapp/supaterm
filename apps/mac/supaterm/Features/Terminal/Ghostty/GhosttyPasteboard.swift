@@ -32,12 +32,11 @@ nonisolated enum GhosttyPasteboard {
     }
   }
 
-  @MainActor static func write(
+  @MainActor static func writeNormalized(
     _ contents: [GhosttyClipboardContent],
     to pasteboard: NSPasteboard,
     dataProvider: (any NSPasteboardItemDataProvider)? = nil
   ) -> Bool {
-    let contents = normalizedContents(contents)
     let types = contents.map { NSPasteboard.PasteboardType(mimeType: $0.mime) }
     guard !types.isEmpty else { return false }
     let dataByType = Dictionary(uniqueKeysWithValues: zip(types, contents.map(\.data)))
@@ -85,7 +84,9 @@ extension NSPasteboard {
   }
 
   @MainActor static let ghosttySelection: NSPasteboard = {
-    NSPasteboard(name: NSPasteboard.Name("com.mitchellh.ghostty.selection"))
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("app.supabit.supaterm.selection"))
+    pasteboard.clearContents()
+    return pasteboard
   }()
 
   func getOpinionatedStringContents() -> String? {

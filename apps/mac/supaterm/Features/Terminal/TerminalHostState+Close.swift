@@ -155,7 +155,7 @@ extension TerminalHostState {
           didCloseSelectedTab: wasSelectedTab
         )
       }
-      syncFocus(windowActivity)
+      syncFocus()
       sessionDidChange()
       return
     }
@@ -170,7 +170,7 @@ extension TerminalHostState {
         focusHistoryByTab.removeValue(forKey: tabID)
       }
     }
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
   }
 

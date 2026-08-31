@@ -250,7 +250,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
 extension SupatermUITestCase {
   @MainActor
   var ghosttySelectionPasteboard: NSPasteboard {
-    NSPasteboard(name: NSPasteboard.Name("com.mitchellh.ghostty.selection"))
+    NSPasteboard(name: NSPasteboard.Name("app.supabit.supaterm.selection"))
   }
 
   @MainActor

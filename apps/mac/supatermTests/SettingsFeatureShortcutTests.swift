@@ -9,7 +9,7 @@ import Testing
 @MainActor
 struct SettingsFeatureShortcutTests {
   @Test
-  func keyboardLayoutChangeRefreshesTerminalShortcuts() async {
+  func terminalShortcutSourceChangeRefreshesTerminalShortcuts() async {
     var state = SettingsFeature.State()
     state.terminalShortcutDisplays = ["old"]
 
@@ -21,7 +21,7 @@ struct SettingsFeatureShortcutTests {
         SettingsFeature()
       }
 
-      await store.send(.keyboardLayoutChanged) {
+      await store.send(.terminalShortcutSourceChanged) {
         $0.terminalShortcutDisplays = ["new"]
       }
     }

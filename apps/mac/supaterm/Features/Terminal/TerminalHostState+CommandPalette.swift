@@ -7,7 +7,7 @@ extension TerminalHostState {
 
     var displays: [String: String] = [:]
     for action in TerminalCommandPalettePresentation.shortcutBindingActions {
-      if let shortcut = runtime?.keyboardShortcut(forAction: action)?.display {
+      if let shortcut = runtime?.shortcut(forAction: action)?.keyboardShortcut.display {
         displays[action] = shortcut
       }
     }

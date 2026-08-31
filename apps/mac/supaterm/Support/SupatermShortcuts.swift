@@ -298,6 +298,16 @@ public enum SupatermShortcuts {
 
 @MainActor
 public enum SupatermKeyboardLayout {
+  public static var identifier: String? {
+    guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
+      return nil
+    }
+    guard let raw = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else {
+      return nil
+    }
+    return Unmanaged<CFString>.fromOpaque(raw).takeUnretainedValue() as String
+  }
+
   public static func character(
     for keyCode: UInt16,
     modifiers: NSEvent.ModifierFlags

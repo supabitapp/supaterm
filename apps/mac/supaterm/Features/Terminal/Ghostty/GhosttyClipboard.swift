@@ -19,7 +19,7 @@ final class GhosttyClipboard {
   ) -> ghostty_clipboard_read_result_e {
     guard
       location != GHOSTTY_CLIPBOARD_PRIMARY,
-      view.surface != nil,
+      let surface = view.surface,
       state != nil
     else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
     guard let pasteboard = pasteboardProvider(location) else {
@@ -38,8 +38,7 @@ final class GhosttyClipboard {
     guard !contents.isEmpty || request.listsAvailableTypes else {
       return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE
     }
-    guard let surface = view.surface else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
-    complete(surface: surface, contents: contents, available: available, state: state)
+    Self.complete(surface: surface, contents: contents, available: available, state: state)
     return GHOSTTY_CLIPBOARD_READ_STARTED
   }
 
@@ -79,7 +78,7 @@ final class GhosttyClipboard {
     ) { [weak view] allowed, remember in
       guard surfaceReference.isValid else { return }
       if allowed {
-        self.complete(
+        Self.complete(
           surface: surfaceReference.surface,
           contents: request == .kittyWrite ? [] : confirmedPayload.contents,
           available: confirmedPayload.available,
@@ -106,7 +105,7 @@ final class GhosttyClipboard {
     let items = GhosttyPasteboard.normalizedContents(items)
     guard let pasteboard = pasteboardProvider(location), !items.isEmpty else { return false }
     guard confirm else {
-      return GhosttyPasteboard.write(items, to: pasteboard)
+      return GhosttyPasteboard.writeNormalized(items, to: pasteboard)
     }
     guard let surfaceReference, surfaceReference.isValid else { return false }
     let payload = GhosttyClipboardConfirmationPayload(
@@ -120,10 +119,9 @@ final class GhosttyClipboard {
       request: .osc52Write,
       surface: surfaceReference,
       view: view
-    ) { [weak self] allowed, _ in
+    ) { allowed, _ in
       guard allowed, surfaceReference.isValid else { return }
-      guard self != nil else { return }
-      _ = GhosttyPasteboard.write(items, to: pasteboard)
+      _ = GhosttyPasteboard.writeNormalized(items, to: pasteboard)
     }
   }
 
@@ -140,7 +138,7 @@ final class GhosttyClipboard {
     ghostty_surface_deny_clipboard_request(surface, state)
   }
 
-  private func complete(
+  private static func complete(
     surface: ghostty_surface_t,
     contents: [GhosttyClipboardContent],
     available: [String],
@@ -159,8 +157,7 @@ final class GhosttyClipboard {
       }
     }
 
-    let cContents = contents.enumerated().compactMap {
-      payloadID, entry -> ghostty_clipboard_content_s? in
+    let cContents = contents.compactMap { entry -> ghostty_clipboard_content_s? in
       guard let mime = strdup(entry.mime) else { return nil }
       strings.append(mime)
       let buffer = UnsafeMutableRawPointer.allocate(
@@ -175,8 +172,7 @@ final class GhosttyClipboard {
       return ghostty_clipboard_content_s(
         mime: mime,
         data: buffer.assumingMemoryBound(to: CChar.self),
-        len: entry.data.count,
-        payload_id: payloadID
+        len: entry.data.count
       )
     }
     let cAvailable: [UnsafePointer<CChar>?] = available.compactMap { mime in

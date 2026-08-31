@@ -14,6 +14,7 @@ struct TerminalPaneCaptureClient {
       return preservingRendererVisibility(
         isOccluded: surfaceView.isOccluded,
         setRendererVisibility: { ghostty_surface_set_renderer_visibility(surface, $0) },
+        synchronizeRenderer: { ghostty_surface_renderer_barrier(surface) },
         capture: {
           ghostty_surface_draw(surface)
           guard let ioSurface = surfaceView.layer?.contents as? IOSurface else { return nil }
@@ -26,10 +27,12 @@ struct TerminalPaneCaptureClient {
   static func preservingRendererVisibility<Result>(
     isOccluded: Bool,
     setRendererVisibility: (Bool) -> Void,
+    synchronizeRenderer: () -> Void,
     capture: () -> Result
   ) -> Result {
     guard isOccluded else { return capture() }
     setRendererVisibility(true)
+    synchronizeRenderer()
     defer { setRendererVisibility(false) }
     return capture()
   }

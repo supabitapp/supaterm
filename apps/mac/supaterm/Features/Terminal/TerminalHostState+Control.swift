@@ -262,7 +262,7 @@ extension TerminalHostState {
         focusSurface(newSurface, in: resolvedTarget.tabID)
       }
 
-      syncFocus(windowActivity)
+      syncFocus()
       sessionDidChange()
 
       let paneLocation = try resolvedPaneLocation(
@@ -346,7 +346,7 @@ extension TerminalHostState {
         )
       )
 
-      syncFocus(windowActivity)
+      syncFocus()
       sessionDidChange()
 
       guard
@@ -432,7 +432,7 @@ extension TerminalHostState {
     switchSpace(to: resolvedTarget.spaceID)
     applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
     focusSurface(resolvedTarget.anchorSurface, in: resolvedTarget.tabID)
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
     return try focusPaneResult(
       spaceID: resolvedTarget.spaceID,
@@ -453,7 +453,7 @@ extension TerminalHostState {
     switchSpace(to: resolvedTarget.spaceID)
     applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
     focusSurface(lastSurface, in: resolvedTarget.tabID)
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
     return try focusPaneResult(
       spaceID: resolvedTarget.spaceID,
@@ -474,7 +474,7 @@ extension TerminalHostState {
     switchSpace(to: resolvedTarget.spaceID)
     applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
     focusSurface(in: resolvedTarget.tabID)
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
     return try selectTabResult(for: resolvedTarget.tabID)
   }
@@ -699,7 +699,7 @@ extension TerminalHostState {
     let nextIndex = (currentIndex + 1) % tabs.count
     applySelectedTab(tabs[nextIndex].id, in: spaceID)
     focusSurface(in: tabs[nextIndex].id)
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
     return try selectTabResult(for: tabs[nextIndex].id)
   }
@@ -717,7 +717,7 @@ extension TerminalHostState {
     let previousIndex = (currentIndex - 1 + tabs.count) % tabs.count
     applySelectedTab(tabs[previousIndex].id, in: spaceID)
     focusSurface(in: tabs[previousIndex].id)
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
     return try selectTabResult(for: tabs[previousIndex].id)
   }
@@ -729,7 +729,7 @@ extension TerminalHostState {
     }
     applySelectedTab(tabID, in: spaceID)
     focusSurface(in: tabID)
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
     return try selectTabResult(for: tabID)
   }

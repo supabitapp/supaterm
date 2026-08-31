@@ -25,7 +25,7 @@ extension TerminalHostState {
     guard let instance = spaceManager.instance(for: tabID) else { return }
     applySelectedTab(tabID, in: instance.spaceID)
     focusSurfaceIfNeeded(in: tabID)
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
   }
 

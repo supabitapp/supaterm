@@ -563,6 +563,64 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func processShortcutSourceWorksWithoutTerminalWindows() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry.test(
+        ghosttyShortcutForAction: { action in
+          guard action == "new_window" else { return nil }
+          return GhosttyShortcut(
+            keyboardShortcut: KeyboardShortcut("n", modifiers: [.command, .option])
+          )
+        }
+      )
+      let controller = SupatermMenuController(registry: registry)
+      var newWindowCount = 0
+      var settingsCount = 0
+      controller.setNewWindowAction {
+        newWindowCount += 1
+        return true
+      }
+      controller.setShowSettingsAction { _ in
+        settingsCount += 1
+        return true
+      }
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+
+      let fileMenu = try #require(app.mainMenu?.items.first { $0.title == "File" }?.submenu)
+      let item = try #require(fileMenu.items.first { $0.title == "New Window" })
+      #expect(item.keyEquivalent == "n")
+      #expect(item.keyEquivalentModifierMask == [.command, .option])
+      #expect(controller.terminalReservedShortcutDisplays().contains("⌘⌥N"))
+
+      let event = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command, .option],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "n",
+          charactersIgnoringModifiers: "n",
+          isARepeat: false,
+          keyCode: UInt16(kVK_ANSI_N)
+        )
+      )
+      #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
+      #expect(newWindowCount == 1)
+      #expect(settingsCount == 0)
+    }
+  }
+
+  @Test
   func performGhosttyBindingMenuKeyEquivalentIgnoresSystemMenuItems() throws {
     let app = NSApplication.shared
     let previousMainMenu = app.mainMenu

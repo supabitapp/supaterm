@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import GhosttyKit
+import SupatermSupport
 import SwiftUI
 
 struct GhosttySurfaceConfig: Equatable {
@@ -84,7 +85,7 @@ final class GhosttyRuntime {
   private let configPath: String?
   private let includeCLIArgs: Bool
   private let callbackState = CallbackState()
-  let clipboard: GhosttyClipboard
+  private let clipboard: GhosttyClipboard
   private(set) var app: ghostty_app_t?
   private var stopObservingEffectiveAppearance: (() -> Void)?
   private var observers: [NSObjectProtocol] = []
@@ -316,6 +317,52 @@ final class GhosttyRuntime {
     surfaceRefs.removeAll { $0 === ref }
   }
 
+  func clipboardRead(
+    from view: GhosttySurfaceView,
+    location: ghostty_clipboard_e,
+    state: UnsafeMutableRawPointer?,
+    request: GhosttyClipboardReadRequest
+  ) -> ghostty_clipboard_read_result_e {
+    clipboard.read(
+      from: view,
+      location: location,
+      state: state,
+      request: request
+    )
+  }
+
+  func confirmClipboardRead(
+    from view: GhosttySurfaceView,
+    surfaceReference: SurfaceReference?,
+    payload: GhosttyClipboardConfirmationPayload?,
+    state: UnsafeMutableRawPointer?,
+    request: ghostty_clipboard_request_e
+  ) {
+    clipboard.confirmRead(
+      from: view,
+      surfaceReference: surfaceReference,
+      payload: payload,
+      state: state,
+      request: request
+    )
+  }
+
+  func clipboardWrite(
+    from view: GhosttySurfaceView,
+    surfaceReference: SurfaceReference?,
+    location: ghostty_clipboard_e,
+    items: [GhosttyClipboardContent],
+    confirm: Bool
+  ) -> Bool {
+    clipboard.write(
+      from: view,
+      surfaceReference: surfaceReference,
+      location: location,
+      items: items,
+      confirm: confirm
+    )
+  }
+
   func cancelClipboardConfirmation(for surfaceReference: SurfaceReference?) {
     guard let surfaceReference else { return }
     clipboard.cancel(surface: surfaceReference)
@@ -323,12 +370,11 @@ final class GhosttyRuntime {
 
   func reloadConfig(soft: Bool, target: ghostty_target_s) -> Bool {
     guard let app else { return false }
-    let reloadedConfig: ghostty_config_t?
-    if soft, let config {
-      reloadedConfig = ghostty_config_clone(config)
-    } else {
-      reloadedConfig = Self.loadConfig(at: configPath, includeCLIArgs: includeCLIArgs)
+    if soft {
+      guard let config else { return false }
+      return applyConfig(config, target: target, app: app)
     }
+    let reloadedConfig = Self.loadConfig(at: configPath, includeCLIArgs: includeCLIArgs)
     guard let reloadedConfig else { return false }
     defer { ghostty_config_free(reloadedConfig) }
     return applyConfig(reloadedConfig, target: target, app: app)
@@ -555,10 +601,6 @@ final class GhosttyRuntime {
     return config
   }
 
-  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
-    shortcut(forAction: action)?.keyboardShortcut
-  }
-
   func shortcut(forAction action: String) -> GhosttyShortcut? {
     guard let config else { return nil }
     let trigger = ghostty_config_trigger(config, action, UInt(action.lengthOfBytes(using: .utf8)))
@@ -711,10 +753,6 @@ final class GhosttyRuntime {
     ghosttyConfigColor(config, key: key)
   }
 
-}
-
-extension Notification.Name {
-  static let ghosttyRuntimeConfigDidChange = Notification.Name("ghosttyRuntimeConfigDidChange")
 }
 
 extension NSColor {

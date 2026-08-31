@@ -330,7 +330,7 @@ final class TerminalHostState {
         previousVisiblePaneIDs != visiblePaneIDs
           || Self.paneIDs(in: oldValue) != Self.paneIDs(in: trees)
       else { return }
-      syncFocus(windowActivity)
+      syncFocus()
     }
   }
   var surfaces: [UUID: GhosttySurfaceView] = [:]
@@ -528,11 +528,12 @@ final class TerminalHostState {
       ]
     )
     windowActivity = activity
-    syncFocus(activity)
+    syncFocus()
     clearUnreadOnFocusedSurfaceIfNeeded()
   }
 
-  func syncFocus(_ activity: WindowActivityState) {
+  func syncFocus() {
+    let activity = windowActivity
     let selectedTabID = spaceManager.selectedTabID
     let visiblePaneIDs = self.visiblePaneIDs
     var surfaceToFocus: GhosttySurfaceView?
@@ -782,7 +783,7 @@ final class TerminalHostState {
       in: instance.spaceID,
       didCloseSelectedTab: wasSelectedTab
     )
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
   }
 
@@ -1078,7 +1079,7 @@ final class TerminalHostState {
     focusHistoryByTab[tabID, default: FocusHistory(current: surfaceID)].updateCurrent(surfaceID)
     clearAgentCompletionAttention(in: tabID)
     if previousSurfaceID != surfaceID, tabID == spaceManager.selectedTabID {
-      syncFocus(windowActivity)
+      syncFocus()
     }
   }
 

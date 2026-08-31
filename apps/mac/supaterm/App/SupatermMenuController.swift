@@ -7,12 +7,12 @@ import SwiftUI
 
 @MainActor
 final class SupatermMenuController: NSObject {
-  private enum MenuShortcutIdentity: Equatable {
+  private enum MenuShortcutIdentity: Hashable {
     case keyEquivalent(String)
     case physicalKeyCode(UInt16)
   }
 
-  private struct MenuShortcutKey: Equatable {
+  private struct MenuShortcutKey: Hashable {
     private static let shortcutModifiers: NSEvent.ModifierFlags = [
       .shift,
       .control,
@@ -21,25 +21,29 @@ final class SupatermMenuController: NSObject {
     ]
 
     private let identity: MenuShortcutIdentity
-    let modifierMask: NSEvent.ModifierFlags
+    private let modifiersRawValue: UInt
 
     init(
       shortcut: KeyboardShortcut,
       physicalKeyCode: UInt16? = nil
     ) {
-      let normalizedShortcut = shortcut.normalizedForAppKit
+      let modifiers: EventModifiers
       if let physicalKeyCode {
         identity = .physicalKeyCode(physicalKeyCode)
+        modifiers = shortcut.modifiers
       } else {
+        let normalizedShortcut = shortcut.normalizedForAppKit
         identity = .keyEquivalent(normalizedShortcut.key.character.description)
+        modifiers = normalizedShortcut.modifiers
       }
-      self.modifierMask = NSEvent.ModifierFlags(swiftUIFlags: normalizedShortcut.modifiers)
-        .intersection(Self.shortcutModifiers)
+      modifiersRawValue =
+        NSEvent.ModifierFlags(swiftUIFlags: modifiers)
+        .intersection(Self.shortcutModifiers).rawValue
     }
 
     init(physicalKeyCode: UInt16, modifiers: NSEvent.ModifierFlags) {
       identity = .physicalKeyCode(physicalKeyCode)
-      modifierMask = modifiers.intersection(Self.shortcutModifiers)
+      modifiersRawValue = modifiers.intersection(Self.shortcutModifiers).rawValue
     }
 
     init?(keyEquivalent: String, modifiers: NSEvent.ModifierFlags) {
@@ -52,7 +56,7 @@ final class SupatermMenuController: NSObject {
         normalizedModifiers.insert(.shift)
       }
       identity = .keyEquivalent(normalized)
-      modifierMask = normalizedModifiers
+      modifiersRawValue = normalizedModifiers.rawValue
     }
 
     init?(event: NSEvent) {
@@ -64,13 +68,13 @@ final class SupatermMenuController: NSObject {
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.identity == rhs.identity && lhs.modifierMask == rhs.modifierMask
+      lhs.identity == rhs.identity && lhs.modifiersRawValue == rhs.modifiersRawValue
     }
-  }
 
-  private struct GhosttyBindingMenuItem {
-    let shortcut: MenuShortcutKey
-    let item: NSMenuItem
+    func hash(into hasher: inout Hasher) {
+      hasher.combine(identity)
+      hasher.combine(modifiersRawValue)
+    }
   }
 
   private enum MenuItemIdentifier {
@@ -147,7 +151,7 @@ final class SupatermMenuController: NSObject {
   private var requestSubmitGitHubIssue: @MainActor () -> Bool = {
     ExternalNavigationClient.liveValue.open(SupatermExternalURL.submitGitHubIssue)
   }
-  private var ghosttyBindingItems: [GhosttyBindingMenuItem] = []
+  private var ghosttyBindingItems: [MenuShortcutKey: NSMenuItem] = [:]
 
   private var appName: String {
     if let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
@@ -925,7 +929,7 @@ final class SupatermMenuController: NSObject {
       NSApp.helpMenu = helpMenu
     }
 
-    ghosttyBindingItems = []
+    ghosttyBindingItems.removeAll(keepingCapacity: true)
     for entry in menuEntries {
       switch entry.spec.shortcut {
       case .command(let command):
@@ -957,18 +961,19 @@ final class SupatermMenuController: NSObject {
   }
 
   private func performGhosttyBindingMenuItem(for shortcut: MenuShortcutKey) -> Bool? {
-    guard let item = ghosttyBindingItems.first(where: { $0.shortcut == shortcut })?.item else {
-      return nil
-    }
+    guard let item = ghosttyBindingItems[shortcut] else { return nil }
     if item.identifier == MenuItemIdentifier.settings,
-      registry.keyboardShortcut(forAction: "open_config") != nil
+      ghosttyShortcut(forAction: "open_config") != nil
     {
       return performShowSettings(.terminal)
     }
-    item.menu?.update()
+    guard let menu = item.menu else { return false }
+    menu.update()
     guard item.isEnabled else { return false }
-    guard let action = item.action else { return false }
-    return NSApp.sendAction(action, to: item.target, from: item)
+    let index = menu.index(of: item)
+    guard index >= 0 else { return false }
+    menu.performActionForItem(at: index)
+    return true
   }
 
   func terminalReservedShortcutDisplays() -> Set<String> {
@@ -1278,7 +1283,7 @@ final class SupatermMenuController: NSObject {
     defaultShortcut: KeyboardShortcut? = nil
   ) {
     guard let item else { return }
-    let runtimeShortcut = registry.ghosttyShortcut(forAction: action)
+    let runtimeShortcut = ghosttyShortcut(forAction: action)
     let shortcut =
       runtimeShortcut?.keyboardShortcut
       ?? fallbackTerminalShortcut(
@@ -1322,7 +1327,7 @@ final class SupatermMenuController: NSObject {
     action: String,
     defaultShortcut: KeyboardShortcut?
   ) -> KeyboardShortcut? {
-    registry.keyboardShortcut(forAction: action)
+    ghosttyShortcut(forAction: action)?.keyboardShortcut
       ?? fallbackTerminalShortcut(action: action, defaultShortcut: defaultShortcut)
   }
 
@@ -1347,9 +1352,9 @@ final class SupatermMenuController: NSObject {
       case .command(let command):
         menuShortcut =
           firstResponderShortcut(for: command)
-          ?? registry.ghosttyShortcut(forAction: command.ghosttyBindingAction)?.keyboardShortcut
+          ?? ghosttyShortcut(forAction: command.ghosttyBindingAction)?.keyboardShortcut
       case .ghosttyAction(let ghosttyAction, _):
-        menuShortcut = registry.ghosttyShortcut(forAction: ghosttyAction)?.keyboardShortcut
+        menuShortcut = ghosttyShortcut(forAction: ghosttyAction)?.keyboardShortcut
       case .app(let id), .appRouted(let id):
         menuShortcut = appShortcut(id)?.keyboardShortcut
       case .none:
@@ -1370,6 +1375,10 @@ final class SupatermMenuController: NSObject {
     }
   }
 
+  private func ghosttyShortcut(forAction action: String) -> GhosttyShortcut? {
+    registry.ghosttyShortcut(forAction: action)
+  }
+
   private func appShortcut(_ id: SupatermShortcutID) -> SupatermShortcutBinding? {
     SupatermShortcuts.binding(
       for: id,
@@ -1388,15 +1397,12 @@ final class SupatermMenuController: NSObject {
     physicalKeyCode: UInt16?
   ) {
     guard let shortcut else { return }
-    ghosttyBindingItems.append(
-      GhosttyBindingMenuItem(
-        shortcut: MenuShortcutKey(
-          shortcut: shortcut,
-          physicalKeyCode: physicalKeyCode
-        ),
-        item: item
+    ghosttyBindingItems[
+      MenuShortcutKey(
+        shortcut: shortcut,
+        physicalKeyCode: physicalKeyCode
       )
-    )
+    ] = item
   }
 
   private func installObservers() {

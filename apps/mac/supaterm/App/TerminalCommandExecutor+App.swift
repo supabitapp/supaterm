@@ -18,9 +18,9 @@ extension TerminalCommandExecutor {
   }
 
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
-    guard let entry = registry.shortcutEntry() else { return nil }
+    guard registry.hasShortcutSource else { return nil }
     return SupatermOnboardingSnapshotBuilder.snapshot(hasShortcutSource: true) { action in
-      entry.keyboardShortcutForAction(action)
+      registry.ghosttyShortcut(forAction: action)?.keyboardShortcut
     }
   }
 

@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import SupatermSupport
 
 protocol GhosttyGlobalEventTapRegistration: AnyObject {
   func invalidate()

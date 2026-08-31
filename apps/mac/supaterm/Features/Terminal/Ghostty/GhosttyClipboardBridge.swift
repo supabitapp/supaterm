@@ -13,7 +13,12 @@ nonisolated enum GhosttyClipboardBridge {
   }
 
   static func read(_ callback: ReadCallback) -> ghostty_clipboard_read_result_e {
-    guard let mimes = copiedMIMEs(callback.mimes, count: callback.mimesCount) else {
+    guard
+      let mimes = GhosttyClipboardCStringArray.copying(
+        callback.mimes,
+        count: callback.mimesCount
+      )
+    else {
       return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
     }
     let userdataBits = callback.userdata.map { UInt(bitPattern: $0) }
@@ -24,25 +29,13 @@ nonisolated enum GhosttyClipboardBridge {
       mimes: mimes,
       listsAvailableTypes: callback.listsAvailableTypes
     )
-    if Thread.isMainThread {
-      return MainActor.assumeIsolated {
-        read(
-          userdataBits: userdataBits,
-          location: location,
-          stateBits: stateBits,
-          request: readRequest
-        )
-      }
-    }
-    return DispatchQueue.main.sync {
-      MainActor.assumeIsolated {
-        read(
-          userdataBits: userdataBits,
-          location: location,
-          stateBits: stateBits,
-          request: readRequest
-        )
-      }
+    return onMainActor {
+      read(
+        userdataBits: userdataBits,
+        location: location,
+        stateBits: stateBits,
+        request: readRequest
+      )
     }
   }
 
@@ -55,26 +48,13 @@ nonisolated enum GhosttyClipboardBridge {
     let payload = GhosttyClipboardConfirmationPayload(copying: payload, request: request)
     let userdataBits = userdata.map { UInt(bitPattern: $0) }
     let stateBits = state.map { UInt(bitPattern: $0) }
-    if Thread.isMainThread {
-      MainActor.assumeIsolated {
-        confirm(
-          userdataBits: userdataBits,
-          payload: payload,
-          stateBits: stateBits,
-          request: request
-        )
-      }
-      return
-    }
-    DispatchQueue.main.sync {
-      MainActor.assumeIsolated {
-        confirm(
-          userdataBits: userdataBits,
-          payload: payload,
-          stateBits: stateBits,
-          request: request
-        )
-      }
+    onMainActor {
+      confirm(
+        userdataBits: userdataBits,
+        payload: payload,
+        stateBits: stateBits,
+        request: request
+      )
     }
   }
 
@@ -93,44 +73,25 @@ nonisolated enum GhosttyClipboardBridge {
       )
     else { return false }
     let userdataBits = userdata.map { UInt(bitPattern: $0) }
-    if Thread.isMainThread {
-      return MainActor.assumeIsolated {
-        write(
-          userdataBits: userdataBits,
-          location: location,
-          contents: contents,
-          confirm: confirm
-        )
-      }
-    }
-    return DispatchQueue.main.sync {
-      MainActor.assumeIsolated {
-        write(
-          userdataBits: userdataBits,
-          location: location,
-          contents: contents,
-          confirm: confirm
-        )
-      }
+    return onMainActor {
+      write(
+        userdataBits: userdataBits,
+        location: location,
+        contents: contents,
+        confirm: confirm
+      )
     }
   }
 
-  private static func copiedMIMEs(
-    _ mimes: UnsafePointer<UnsafePointer<CChar>?>?,
-    count: Int
-  ) -> [String]? {
-    guard count >= 0, count == 0 || mimes != nil else { return nil }
-    guard let mimes else { return [] }
-    var result: [String] = []
-    result.reserveCapacity(count)
-    for index in 0..<count {
-      guard
-        let pointer = mimes[index],
-        let mime = String(validatingCString: pointer)
-      else { return nil }
-      result.append(mime)
+  private static func onMainActor<Result: Sendable>(
+    _ operation: @MainActor () -> Result
+  ) -> Result {
+    if Thread.isMainThread {
+      return MainActor.assumeIsolated(operation)
     }
-    return result
+    return DispatchQueue.main.sync {
+      MainActor.assumeIsolated(operation)
+    }
   }
 
   @MainActor private static func read(
@@ -143,8 +104,7 @@ nonisolated enum GhosttyClipboardBridge {
       return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
     }
     let state = stateBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
-    return view.runtime.clipboard.read(
-      from: view,
+    return view.readClipboard(
       location: location,
       state: state,
       request: request
@@ -165,9 +125,7 @@ nonisolated enum GhosttyClipboardBridge {
       ghostty_surface_deny_clipboard_request(surface, state)
       return
     }
-    view.runtime.clipboard.confirmRead(
-      from: view,
-      surfaceReference: view.surfaceReference,
+    view.confirmClipboardRead(
       payload: payload,
       state: state,
       request: request
@@ -181,9 +139,7 @@ nonisolated enum GhosttyClipboardBridge {
     confirm: Bool
   ) -> Bool {
     guard let view = surfaceBridge(userdataBits: userdataBits)?.surfaceView else { return false }
-    return view.runtime.clipboard.write(
-      from: view,
-      surfaceReference: view.surfaceReference,
+    return view.writeClipboard(
       location: location,
       items: contents,
       confirm: confirm

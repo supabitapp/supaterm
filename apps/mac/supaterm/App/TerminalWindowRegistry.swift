@@ -66,19 +66,12 @@ final class TerminalWindowRegistry {
   }
 
   struct Entry {
-    let ghosttyShortcutForAction: (String) -> GhosttyShortcut?
     let requestConfirmedWindowClose: @MainActor () -> Void
     let setTerminatesTerminalSessionsOnClose: @MainActor (Bool) -> Void
     let windowControllerID: UUID
     let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
     let windowReference: WindowReference
-
-    var keyboardShortcutForAction: (String) -> KeyboardShortcut? {
-      { action in
-        ghosttyShortcutForAction(action)?.keyboardShortcut
-      }
-    }
   }
 
   private struct SelectedAgentPanel {
@@ -92,6 +85,7 @@ final class TerminalWindowRegistry {
   private let performLicenseTabLimitAction: @MainActor (LicenseTabLimitAction) -> Void
   let updateStore: StoreOf<UpdateFeature>
   private let zmxClient: ZmxClient
+  private var ghosttyShortcutForAction: ((String) -> GhosttyShortcut?)?
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
   var onChange: @MainActor () -> Void = {}
@@ -100,6 +94,7 @@ final class TerminalWindowRegistry {
     zmxClient: ZmxClient = .live,
     licenseStore: StoreOf<LicenseFeature>,
     updateStore: StoreOf<UpdateFeature>,
+    ghosttyShortcutForAction: ((String) -> GhosttyShortcut?)? = nil,
     performLicenseTabLimitAction: @escaping @MainActor (LicenseTabLimitAction) -> Void = {
       action in
       switch action {
@@ -116,6 +111,7 @@ final class TerminalWindowRegistry {
     self.performLicenseTabLimitAction = performLicenseTabLimitAction
     self.updateStore = updateStore
     self.zmxClient = zmxClient
+    self.ghosttyShortcutForAction = ghosttyShortcutForAction
     tabDragRegistry.transfer = { [weak self] payload, destination in
       self?.transferTab(payload, to: destination)
     }
@@ -128,11 +124,18 @@ final class TerminalWindowRegistry {
   }
 
   #if DEBUG
+    func setShortcutSourceForTesting(
+      _ ghosttyShortcutForAction: @escaping (String) -> GhosttyShortcut?
+    ) {
+      self.ghosttyShortcutForAction = ghosttyShortcutForAction
+    }
+
     static func test(
       zmxClient: ZmxClient = .live,
       licenseStore: StoreOf<LicenseFeature>? = nil,
       updateClient: UpdateClient = .inert,
       updateStore: StoreOf<UpdateFeature>? = nil,
+      ghosttyShortcutForAction: ((String) -> GhosttyShortcut?)? = nil,
       performLicenseTabLimitAction: @escaping @MainActor (LicenseTabLimitAction) -> Void = { _ in }
     ) -> TerminalWindowRegistry {
       let licenseStore =
@@ -154,13 +157,14 @@ final class TerminalWindowRegistry {
         zmxClient: zmxClient,
         licenseStore: licenseStore,
         updateStore: updateStore,
+        ghosttyShortcutForAction: ghosttyShortcutForAction,
         performLicenseTabLimitAction: performLicenseTabLimitAction
       )
     }
   #endif
 
   var hasShortcutSource: Bool {
-    !entries.isEmpty
+    ghosttyShortcutForAction != nil
   }
 
   var bypassesQuitConfirmation: Bool {
@@ -175,27 +179,6 @@ final class TerminalWindowRegistry {
   }
 
   func register(
-    keyboardShortcutForAction: @escaping (String) -> KeyboardShortcut?,
-    windowControllerID: UUID,
-    store: StoreOf<AppFeature>,
-    terminal: TerminalHostState,
-    requestConfirmedWindowClose: @escaping @MainActor () -> Void,
-    setTerminatesTerminalSessionsOnClose: @escaping @MainActor (Bool) -> Void = { _ in }
-  ) {
-    register(
-      ghosttyShortcutForAction: { action in
-        keyboardShortcutForAction(action).map { GhosttyShortcut(keyboardShortcut: $0) }
-      },
-      windowControllerID: windowControllerID,
-      store: store,
-      terminal: terminal,
-      requestConfirmedWindowClose: requestConfirmedWindowClose,
-      setTerminatesTerminalSessionsOnClose: setTerminatesTerminalSessionsOnClose
-    )
-  }
-
-  func register(
-    ghosttyShortcutForAction: @escaping (String) -> GhosttyShortcut?,
     windowControllerID: UUID,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState,
@@ -214,7 +197,6 @@ final class TerminalWindowRegistry {
       self?.paneCount(inSpace: spaceID) ?? 0
     }
     let entry = Entry(
-      ghosttyShortcutForAction: ghosttyShortcutForAction,
       requestConfirmedWindowClose: requestConfirmedWindowClose,
       setTerminatesTerminalSessionsOnClose: setTerminatesTerminalSessionsOnClose,
       windowControllerID: windowControllerID,
@@ -521,12 +503,8 @@ final class TerminalWindowRegistry {
     )
   }
 
-  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
-    shortcutEntry()?.keyboardShortcutForAction(action)
-  }
-
   func ghosttyShortcut(forAction action: String) -> GhosttyShortcut? {
-    shortcutEntry()?.ghosttyShortcutForAction(action)
+    ghosttyShortcutForAction?(action)
   }
 
   func requestNewTabInKeyWindow() {
@@ -910,10 +888,6 @@ final class TerminalWindowRegistry {
     }
     return activeEntries().last(where: { $0.terminal.windowActivity.isKeyWindow })
       ?? activeEntries().last
-  }
-
-  func shortcutEntry() -> Entry? {
-    preferredActiveEntry() ?? entries.first
   }
 
   private func selectedAgentPanel(in entry: Entry) -> SelectedAgentPanel? {

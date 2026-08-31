@@ -2,6 +2,26 @@ import AppKit
 import GhosttyKit
 import ImageIO
 
+nonisolated enum GhosttyClipboardCStringArray {
+  static func copying(
+    _ source: UnsafePointer<UnsafePointer<CChar>?>?,
+    count: Int
+  ) -> [String]? {
+    guard count >= 0, count == 0 || source != nil else { return nil }
+    guard let source else { return [] }
+    var result: [String] = []
+    result.reserveCapacity(count)
+    for index in 0..<count {
+      guard
+        let pointer = source[index],
+        let value = String(validatingCString: pointer)
+      else { return nil }
+      result.append(value)
+    }
+    return result
+  }
+}
+
 nonisolated enum GhosttyClipboardDisplay {
   static let maximumPreviewBytes = 16_384
   static let maximumPromptCopyBytes = 16_384
@@ -107,25 +127,32 @@ nonisolated struct GhosttyClipboardContent: Equatable, Sendable {
 
   static func copying(
     _ contents: UnsafeBufferPointer<ghostty_clipboard_content_s>,
+    maximumTotalBytes: Int? = nil,
     copyData: (UnsafePointer<CChar>, Int) -> Data = {
       Data(bytes: $0, count: $1)
     }
   ) -> [Self]? {
     struct Payload: Hashable {
-      let id: Int
+      let address: Int
       let count: Int
     }
 
     var copiedData: [Payload: Data] = [:]
+    var remainingBytes = max(maximumTotalBytes ?? 0, 0)
     var result: [Self] = []
     result.reserveCapacity(contents.count)
     for content in contents {
+      let payload = Payload(
+        address: content.data.map { Int(bitPattern: $0) } ?? 0,
+        count: content.len
+      )
+      let cachedData = copiedData[payload]
       guard
         let item = Self(
           copying: content,
+          maximumBytes: cachedData?.count ?? maximumTotalBytes.map { _ in remainingBytes },
           copyData: { pointer, count in
-            let payload = Payload(id: content.payload_id, count: count)
-            if let data = copiedData[payload] {
+            if let data = cachedData {
               return data
             }
             let data = copyData(pointer, count)
@@ -135,6 +162,9 @@ nonisolated struct GhosttyClipboardContent: Equatable, Sendable {
         )
       else { return nil }
       result.append(item)
+      if maximumTotalBytes != nil, cachedData == nil {
+        remainingBytes -= item.data.count
+      }
     }
     return result
   }
@@ -226,38 +256,28 @@ nonisolated struct GhosttyClipboardConfirmationPayload: Sendable {
     guard let pointer else { return nil }
     let value = pointer.pointee
     guard
+      value.contents_len >= 0,
+      value.available_len >= 0,
       value.contents_len == 0 || value.contents != nil,
       value.available_len == 0 || value.available != nil
     else { return nil }
-    var copiedContents: [GhosttyClipboardContent] = []
-    var remainingBytes =
+    let maximumTotalBytes =
       request == GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE
       ? GhosttyClipboardDisplay.maximumPromptCopyBytes
-      : Int.max
-    if let source = value.contents {
-      copiedContents.reserveCapacity(value.contents_len)
-      for index in 0..<value.contents_len {
-        guard
-          let content = GhosttyClipboardContent(
-            copying: source[index],
-            maximumBytes: remainingBytes
-          )
-        else { return nil }
-        copiedContents.append(content)
-        remainingBytes -= content.data.count
-      }
-    }
-    var copiedAvailable: [String] = []
-    if let source = value.available {
-      copiedAvailable.reserveCapacity(value.available_len)
-      for index in 0..<value.available_len {
-        guard
-          let pointer = source[index],
-          let mime = String(validatingCString: pointer)
-        else { return nil }
-        copiedAvailable.append(mime)
-      }
-    }
+      : nil
+    let source = UnsafeBufferPointer(start: value.contents, count: value.contents_len)
+    guard
+      let copiedContents = GhosttyClipboardContent.copying(
+        source,
+        maximumTotalBytes: maximumTotalBytes
+      )
+    else { return nil }
+    guard
+      let copiedAvailable = GhosttyClipboardCStringArray.copying(
+        value.available,
+        count: value.available_len
+      )
+    else { return nil }
     contents = copiedContents
     available = copiedAvailable
     programName = value.name.flatMap(String.init(validatingCString:))

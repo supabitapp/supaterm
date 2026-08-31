@@ -29,19 +29,20 @@ struct TerminalCommandExecutorScreenshotTests {
   }
 
   @Test
-  func hiddenCaptureReleasesResourcesAfterForcedDraw() {
+  func hiddenCaptureWaitsForRendererBeforeForcedDraw() {
     var events: [PaneCaptureEvent] = []
 
     TerminalPaneCaptureClient.preservingRendererVisibility(
       isOccluded: true,
       setRendererVisibility: { events.append($0 ? .show : .release) },
+      synchronizeRenderer: { events.append(.synchronizeRenderer) },
       capture: {
         events.append(.forceDraw)
         events.append(.readImage)
       }
     )
 
-    #expect(events == [.show, .forceDraw, .readImage, .release])
+    #expect(events == [.show, .synchronizeRenderer, .forceDraw, .readImage, .release])
   }
 
   @Test
@@ -51,6 +52,7 @@ struct TerminalCommandExecutorScreenshotTests {
     TerminalPaneCaptureClient.preservingRendererVisibility(
       isOccluded: false,
       setRendererVisibility: { events.append($0 ? .show : .release) },
+      synchronizeRenderer: { events.append(.synchronizeRenderer) },
       capture: {
         events.append(.forceDraw)
         events.append(.readImage)
@@ -141,6 +143,7 @@ private enum PaneCaptureEvent: Equatable {
   case readImage
   case release
   case show
+  case synchronizeRenderer
 }
 
 @MainActor

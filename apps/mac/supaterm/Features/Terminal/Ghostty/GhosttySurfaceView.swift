@@ -52,13 +52,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  let runtime: GhosttyRuntime
+  private let runtime: GhosttyRuntime
   let id: UUID
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
 
-  var surfaceReference: GhosttyRuntime.SurfaceReference? { surfaceRef }
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
   private let launch: GhosttySurfaceLaunch
   private let commandWrapper: [String]
@@ -411,6 +410,47 @@ final class GhosttySurfaceView: NSView, Identifiable {
       lastOcclusion = nil
       lastSurfaceFocus = nil
     }
+  }
+
+  func readClipboard(
+    location: ghostty_clipboard_e,
+    state: UnsafeMutableRawPointer?,
+    request: GhosttyClipboardReadRequest
+  ) -> ghostty_clipboard_read_result_e {
+    runtime.clipboardRead(
+      from: self,
+      location: location,
+      state: state,
+      request: request
+    )
+  }
+
+  func confirmClipboardRead(
+    payload: GhosttyClipboardConfirmationPayload?,
+    state: UnsafeMutableRawPointer?,
+    request: ghostty_clipboard_request_e
+  ) {
+    runtime.confirmClipboardRead(
+      from: self,
+      surfaceReference: surfaceRef,
+      payload: payload,
+      state: state,
+      request: request
+    )
+  }
+
+  func writeClipboard(
+    location: ghostty_clipboard_e,
+    items: [GhosttyClipboardContent],
+    confirm: Bool
+  ) -> Bool {
+    runtime.clipboardWrite(
+      from: self,
+      surfaceReference: surfaceRef,
+      location: location,
+      items: items,
+      confirm: confirm
+    )
   }
 
   func shellDidBecomeReady() {
@@ -881,10 +921,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     keyTextAccumulator = []
     defer { keyTextAccumulator = nil }
     let markedTextBefore = markedText.length > 0
-    let keyboardIdBefore = markedTextBefore ? nil : keyboardLayoutId()
+    let keyboardIdBefore = markedTextBefore ? nil : SupatermKeyboardLayout.identifier
     lastPerformKeyEvent = nil
     interpretKeyEvents([translationEvent])
-    if !markedTextBefore, keyboardIdBefore != keyboardLayoutId() {
+    if !markedTextBefore, keyboardIdBefore != SupatermKeyboardLayout.identifier {
       return
     }
     syncPreedit(clearIfNeeded: markedTextBefore)
@@ -1966,17 +2006,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     value |= (momentum << 1)
     return ghostty_input_scroll_mods_t(value)
-  }
-
-  private func keyboardLayoutId() -> String? {
-    guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
-      return nil
-    }
-    guard let raw = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else {
-      return nil
-    }
-    let value = Unmanaged<CFString>.fromOpaque(raw).takeUnretainedValue()
-    return value as String
   }
 
   private func sendMousePosition(_ event: NSEvent) {

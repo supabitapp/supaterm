@@ -262,7 +262,7 @@ extension TerminalHostState {
     if let selectedTabID {
       focusSurface(in: selectedTabID)
     }
-    syncFocus(windowActivity)
+    syncFocus()
   }
 
   func logRestoreFailed(reason: String) {
