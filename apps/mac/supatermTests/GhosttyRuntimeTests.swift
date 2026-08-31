@@ -289,6 +289,93 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func clipboardBridgeRejectsMalformedCallbackPayloads() {
+    let readResult = GhosttyClipboardBridge.read(
+      GhosttyClipboardBridge.ReadCallback(
+        userdata: nil,
+        location: GHOSTTY_CLIPBOARD_STANDARD,
+        state: nil,
+        request: GHOSTTY_CLIPBOARD_REQUEST_PASTE,
+        mimes: nil,
+        mimesCount: 1,
+        listsAvailableTypes: false
+      )
+    )
+    var content = ghostty_clipboard_content_s(
+      mime: nil,
+      data: nil,
+      len: 0,
+      payload_id: 0
+    )
+    let writeResult = withUnsafePointer(to: &content) {
+      GhosttyClipboardBridge.write(
+        nil,
+        location: GHOSTTY_CLIPBOARD_STANDARD,
+        content: $0,
+        count: 1,
+        confirm: false
+      )
+    }
+
+    #expect(readResult == GHOSTTY_CLIPBOARD_READ_UNSUPPORTED)
+    #expect(!writeResult)
+  }
+
+  @Test
+  func clipboardBridgeReturnsFromBackgroundCallbacks() async {
+    let readResult = await Task.detached {
+      "text/plain".withCString { mime in
+        var mimePointer: UnsafePointer<CChar>? = mime
+        return withUnsafePointer(to: &mimePointer) {
+          GhosttyClipboardBridge.read(
+            GhosttyClipboardBridge.ReadCallback(
+              userdata: nil,
+              location: GHOSTTY_CLIPBOARD_STANDARD,
+              state: nil,
+              request: GHOSTTY_CLIPBOARD_REQUEST_PASTE,
+              mimes: $0,
+              mimesCount: 1,
+              listsAvailableTypes: false
+            )
+          )
+        }
+      }
+    }.value
+    let writeResult = await Task.detached {
+      "application/octet-stream".withCString { mime in
+        [CChar](arrayLiteral: 0x41, 0, 0x42).withUnsafeBufferPointer { data in
+          var content = ghostty_clipboard_content_s(
+            mime: mime,
+            data: data.baseAddress,
+            len: data.count,
+            payload_id: 0
+          )
+          return withUnsafePointer(to: &content) {
+            GhosttyClipboardBridge.write(
+              nil,
+              location: GHOSTTY_CLIPBOARD_STANDARD,
+              content: $0,
+              count: 1,
+              confirm: false
+            )
+          }
+        }
+      }
+    }.value
+    await Task.detached {
+      GhosttyClipboardBridge.confirm(
+        nil,
+        payload: nil,
+        state: nil,
+        request: GHOSTTY_CLIPBOARD_REQUEST_PASTE
+      )
+    }.value
+
+    #expect(readResult == GHOSTTY_CLIPBOARD_READ_UNSUPPORTED)
+    #expect(!writeResult)
+  }
+
+  @Test
   func kittyWriteConfirmationCapsItsTotalPromptCopy() throws {
     let first = Data(repeating: 0x41, count: 12_000)
     let second = Data(repeating: 0x42, count: 12_000)
