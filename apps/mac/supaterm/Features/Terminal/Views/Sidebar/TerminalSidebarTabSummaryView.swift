@@ -61,6 +61,28 @@ struct TerminalSidebarTabSummaryView: View {
     title.contains("/") ? .middle : .tail
   }
 
+  static func hasVisibleStatusIndicator(
+    tab: TerminalTabItem,
+    panes: [TerminalSidebarPanePresentation],
+    terminalProgress: TerminalSidebarTerminalProgress?,
+    showsShortcutHint: Bool
+  ) -> Bool {
+    let showsTitleHeader = tab.isTitleLocked || panes.isEmpty
+    return panes.contains { pane in
+      let ownsTabAccessories = !showsTitleHeader && pane.id == panes.first?.id
+      switch Self.trailingAccessory(
+        showsShortcutHint: showsShortcutHint,
+        terminalProgress: ownsTabAccessories ? terminalProgress : nil,
+        paneIndicator: pane.indicator
+      ) {
+      case .agent, .attention:
+        return true
+      default:
+        return false
+      }
+    }
+  }
+
   static func helpText(
     tab: TerminalTabItem,
     panes: [TerminalSidebarPanePresentation]
