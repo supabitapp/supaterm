@@ -287,7 +287,7 @@ private final class CodexE2EFixture {
 }
 
 private enum CodexRuleID {
-  static let blockers: Set<String> = ["osc_title_blocked", "live_strong_blocker"]
+  static let blockers: Set<String> = ["approval_overlay", "osc_title_blocked", "request_input"]
   static let idleTitle: Set<String> = ["osc_title_idle"]
   static let trustPrompt: Set<String> = ["trust_directory"]
   static let working: Set<String> = ["osc_title_working", "screen_working_fallback"]
