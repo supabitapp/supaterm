@@ -94,6 +94,24 @@ struct TerminalSidebarResizeTests {
   }
 
   @Test
+  func resizeHandleRecognizesDoubleClickAlongsidePan() throws {
+    let handle = SidebarResizeInteractionNSView()
+    var inputs: [TerminalSidebarResizeInput] = []
+    handle.onInput = { inputs.append($0) }
+    let doubleClick = try #require(
+      handle.gestureRecognizers.first { $0 is NSClickGestureRecognizer }
+        as? NSClickGestureRecognizer
+    )
+    let action = try #require(doubleClick.action)
+
+    #expect(handle.gestureRecognizers.contains { $0 is NSPanGestureRecognizer })
+    #expect(doubleClick.numberOfClicksRequired == 2)
+    #expect(doubleClick.target === handle)
+    _ = handle.perform(action)
+    #expect(inputs == [.reset])
+  }
+
+  @Test
   func accessibilityActionsResizeFromCurrentWidth() {
     let handle = SidebarResizeInteractionNSView()
     var inputs: [TerminalSidebarResizeInput] = []
@@ -160,6 +178,36 @@ struct TerminalSidebarResizeTests {
       $0.sidebarWidth = 360
     }
     await store.finish()
+    #expect(sessionChangeCount.value == 1)
+  }
+
+  @Test
+  func resetClearsSavedWidthAndPersistsDerivedDefault() async {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let sessionChangeCount = LockIsolated(0)
+    terminal.onSessionChange = {
+      sessionChangeCount.withValue { $0 += 1 }
+    }
+    var initialState = TerminalWindowFeature.State()
+    initialState.sidebarResizeState = TerminalSidebarResizeState(startingWidth: 360, delta: 12)
+    initialState.sidebarWidth = 360
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.host = { terminal }
+    }
+
+    await store.send(.sidebarResizeInput(.reset, totalWidth: 1_440)) {
+      $0.sidebarResizeState = nil
+      $0.sidebarWidth = nil
+    }
+    await store.finish()
+    #expect(
+      TerminalSidebarWidthPolicy.resolvedWidth(
+        preferredWidth: store.state.sidebarWidth,
+        totalWidth: 1_440
+      ) == 288
+    )
     #expect(sessionChangeCount.value == 1)
   }
 

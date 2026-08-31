@@ -415,8 +415,10 @@ struct TerminalWindowFeature {
             preferredWidth: state.sidebarWidth,
             totalWidth: totalWidth
           )
+          return .none
         case .changed(let delta):
           state.sidebarResizeState?.delta = delta
+          return .none
         case .ended:
           guard let resizeState = state.sidebarResizeState else { return .none }
           state.sidebarResizeState = nil
@@ -434,8 +436,12 @@ struct TerminalWindowFeature {
           return notifySessionChange()
         case .failed:
           state.sidebarResizeState = nil
+          return .none
+        case .reset:
+          state.sidebarResizeState = nil
+          state.sidebarWidth = nil
+          return notifySessionChange()
         }
-        return .none
 
       case .task:
         let windowControllerID = state.windowControllerID
