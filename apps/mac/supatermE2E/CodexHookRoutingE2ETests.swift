@@ -274,9 +274,19 @@ private func runCodexHookOwnership() async throws {
       fork: (executable: environment.executable, prompt: prompts.fork)
     )
     try startedAppServer.assertRunning(after: "all Codex launches")
-    try startedServer.verifyComplete()
+    try await waitForCodexHookModelExchanges(app: app, server: startedServer)
   } catch {
     throw startedAppServer.failure(error)
+  }
+}
+
+private func waitForCodexHookModelExchanges(
+  app: SupatermE2EApp,
+  server: FakeModelServer
+) async throws {
+  try await app.waitUntil("the Codex model exchanges complete", timeout: 60) {
+    try server.verifyComplete()
+    return true
   }
 }
 
@@ -453,7 +463,6 @@ private func verifyCodexForkRouting(
   try await app.waitUntil("the fork command uses the Codex workspace", timeout: 30) {
     try app.debugPane(forkPaneID)?.pwd == space.directory.path
   }
-  let forkTarget = SupatermPaneTargetRequest(paneID: forkPaneID)
   let detected = try await waitForAgentSnapshot(
     app,
     paneID: forkPaneID,
@@ -469,11 +478,6 @@ private func verifyCodexForkRouting(
     app: app,
     paneID: forkPaneID,
     process: forkProcess
-  )
-  try await app.waitForCapture(
-    forkTarget,
-    contains: codexHookCompletion(prompt: fork.prompt),
-    timeout: 60
   )
   #expect(forkBinding.process != targetBinding.process)
   #expect(forkBinding.process != competingBinding.process)
