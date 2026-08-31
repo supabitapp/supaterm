@@ -145,14 +145,9 @@ struct CodexAppServerClient: Sendable {
     filePath: String,
     expectedVersion: String?
   ) throws {
-    try batchWrite(
-      [
-        [
-          "keyPath": "hooks.state",
-          "value": .object(hookState),
-          "mergeStrategy": "replace",
-        ]
-      ],
+    try replaceConfigValue(
+      .object(hookState),
+      at: "hooks.state",
       filePath: filePath,
       expectedVersion: expectedVersion
     )
@@ -162,26 +157,28 @@ struct CodexAppServerClient: Sendable {
     filePath: String,
     expectedVersion: String?
   ) throws {
-    try batchWrite(
-      [
-        [
-          "keyPath": "tui.terminal_title",
-          "value": ["activity", "thread-title", "task-progress"],
-          "mergeStrategy": "replace",
-        ]
-      ],
+    try replaceConfigValue(
+      ["activity", "thread-title", "task-progress"],
+      at: "tui.terminal_title",
       filePath: filePath,
       expectedVersion: expectedVersion
     )
   }
 
-  private func batchWrite(
-    _ edits: [JSONValue],
+  private func replaceConfigValue(
+    _ value: JSONValue,
+    at keyPath: String,
     filePath: String,
     expectedVersion: String?
   ) throws {
     var params: JSONObject = [
-      "edits": .array(edits),
+      "edits": [
+        [
+          "keyPath": .string(keyPath),
+          "value": value,
+          "mergeStrategy": "replace",
+        ]
+      ],
       "filePath": .string(filePath),
       "reloadUserConfig": true,
     ]
