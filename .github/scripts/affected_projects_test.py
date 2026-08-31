@@ -6,8 +6,30 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from affected_projects import affected_projects, diff_paths, git_environment, pushed_paths
+from affected_projects import (
+  REPO_ROOT,
+  affected_projects,
+  diff_paths,
+  git_environment,
+  project_patterns,
+  pushed_paths,
+)
 from pre_push import PrePushError, is_zero_object_name, parse_push_updates
+
+
+def workflow_path_groups(path: Path) -> list[set[str]]:
+  lines = path.read_text().splitlines()
+  groups = []
+  for index, line in enumerate(lines):
+    if line != "    paths:":
+      continue
+    group = set()
+    for entry in lines[index + 1 :]:
+      if not entry.startswith("      - "):
+        break
+      group.add(entry.removeprefix("      - ").strip('"'))
+    groups.append(group)
+  return groups
 
 
 class PrePushTests(unittest.TestCase):
@@ -41,6 +63,7 @@ class AffectedProjectsTests(unittest.TestCase):
       "Makefile": {"docs", "ios", "mac", "web"},
       "integrations/supaterm-skills": {"docs", "mac"},
       "apps/supaterm.com/public/logo-mark.svg": {"docs", "web"},
+      "apps/supaterm.com/public/logo.svg": {"docs", "web"},
       "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png": {
         "docs",
         "mac",
@@ -49,6 +72,13 @@ class AffectedProjectsTests(unittest.TestCase):
     for path, expected in cases.items():
       with self.subTest(path=path):
         self.assertEqual(affected_projects({path}), expected)
+
+  def test_deploy_workflow_paths_match_project_paths(self) -> None:
+    for project in ("docs", "web"):
+      groups = workflow_path_groups(REPO_ROOT / f".github/workflows/deploy-{project}.yml")
+      self.assertEqual(len(groups), 2)
+      for paths in groups:
+        self.assertEqual(paths, project_patterns(project))
 
 
 class GitChangesTests(unittest.TestCase):

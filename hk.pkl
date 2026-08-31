@@ -1,10 +1,6 @@
 amends "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Builtins.pkl"
 
-local affectedProjectStep = new Step {
-  stdin = "{{ hook_stdin }}"
-}
-
 local function affectedProjectCheck(project: String): String =
   "repo_root=$(git rev-parse --show-toplevel)\n" +
   "cd \"$repo_root\"\n" +
@@ -12,10 +8,11 @@ local function affectedProjectCheck(project: String): String =
   "decision=$(python3 .github/scripts/affected_projects.py \(project)) || exit $?\n" +
   "[ \"$decision\" = run ] || exit 0"
 
-local webProjectCheck = affectedProjectCheck("web")
-local docsProjectCheck = affectedProjectCheck("docs")
-local macProjectCheck = affectedProjectCheck("mac")
-local iosProjectCheck = affectedProjectCheck("ios")
+local function affectedProjectStep(project: String, command: String): Step = new Step {
+  check = "\(affectedProjectCheck(project))\n\(command)"
+  stdin = "{{ hook_stdin }}"
+  depends = "test-affected-projects"
+}
 
 hooks {
   ["pre-commit"] {
@@ -68,21 +65,20 @@ hooks {
           """
         depends = "validate-release-tags"
       }
-      ["web-checks"] = (affectedProjectStep) {
-        check = "\(webProjectCheck)\nmake web-install && make -j2 web-check web-test"
-        depends = "test-affected-projects"
-      }
-      ["docs-checks"] = (affectedProjectStep) {
-        check = "\(docsProjectCheck)\nmake docs-install docs-check docs-validate docs-build"
-        depends = "test-affected-projects"
-      }
-      ["mac-checks"] = (affectedProjectStep) {
-        check = "\(macProjectCheck)\nmake mac-inspect-dependencies mac-scan-dead-code mac-test mac-test-e2e"
-        depends = "test-affected-projects"
-      }
-      ["ios-checks"] = (affectedProjectStep) {
-        check = "\(iosProjectCheck)\nmake ios-build"
-        depends = "test-affected-projects"
+      ["web-checks"] = affectedProjectStep(
+        "web",
+        "make web-install && make -j2 web-check web-test"
+      )
+      ["docs-checks"] = affectedProjectStep(
+        "docs",
+        "make docs-install docs-check docs-validate docs-build"
+      )
+      ["mac-checks"] = affectedProjectStep(
+        "mac",
+        "make mac-inspect-dependencies mac-scan-dead-code mac-test mac-test-e2e"
+      )
+      ["ios-checks"] = (affectedProjectStep("ios", "make ios-build")) {
+        depends = "mac-checks"
       }
     }
   }

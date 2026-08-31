@@ -31,6 +31,9 @@ class PathSet:
       path == directory or path.startswith(f"{directory}/") for directory in self.directories
     )
 
+  def patterns(self) -> set[str]:
+    return set(self.files) | {f"{directory}/**" for directory in self.directories}
+
 
 GLOBAL_PATHS = PathSet(files=frozenset({"Makefile", "mise.toml"}))
 SHARED_APPLE_PATHS = PathSet(
@@ -69,6 +72,7 @@ DOCS_PATHS = PathSet(
       ".github/workflows/deploy-docs.yml",
       ".gitmodules",
       "apps/supaterm.com/public/logo-mark.svg",
+      "apps/supaterm.com/public/logo.svg",
       "integrations/supaterm-skills",
     }
   )
@@ -91,6 +95,13 @@ PROJECT_PATHS = {
   "web": (GLOBAL_PATHS, WEB_PATHS),
 }
 PROJECTS = tuple(PROJECT_PATHS)
+
+
+def project_patterns(project: str) -> set[str]:
+  patterns = set()
+  for path_set in PROJECT_PATHS[project]:
+    patterns.update(path_set.patterns())
+  return patterns
 
 
 def affected_projects(paths: set[str]) -> set[str]:
