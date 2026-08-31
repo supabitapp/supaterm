@@ -26,6 +26,15 @@ struct SettingsWindowControllerTests {
   }
 
   @Test
+  func windowFollowsTheActiveSpaceAndFullScreenWindow() throws {
+    let controller = makeSettingsWindowController()
+    let window = try #require(controller.window)
+
+    #expect(window.collectionBehavior.contains(.moveToActiveSpace))
+    #expect(window.collectionBehavior.contains(.fullScreenAuxiliary))
+  }
+
+  @Test
   func initialWindowCentersRelativeToSourceWindowAndConstrainsToVisibleFrameWhenNoSavedFrameExists() throws {
     NSWindow.removeFrame(usingName: "SupatermSettingsWindow")
     defer { NSWindow.removeFrame(usingName: "SupatermSettingsWindow") }
