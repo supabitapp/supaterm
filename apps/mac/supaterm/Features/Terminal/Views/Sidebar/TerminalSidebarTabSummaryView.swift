@@ -25,6 +25,7 @@ struct TerminalSidebarTabSummaryView: View {
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
+  var onIndicatorHover: (Bool) -> Void = { _ in }
 
   static func trailingAccessory(
     shortcutHint: String? = nil,
@@ -79,7 +80,8 @@ struct TerminalSidebarTabSummaryView: View {
           title: tab.title,
           trailingAccessory: tabTrailingAccessory,
           palette: palette,
-          isSelected: isSelected
+          isSelected: isSelected,
+          onIndicatorHover: onIndicatorHover
         )
       }
 
@@ -92,7 +94,8 @@ struct TerminalSidebarTabSummaryView: View {
             ownsTabAccessories: ownsTabAccessories
           ),
           palette: palette,
-          isSelected: isSelected
+          isSelected: isSelected,
+          onIndicatorHover: onIndicatorHover
         )
       }
     }
@@ -130,6 +133,7 @@ private struct TerminalSidebarTabLineView: View {
   let trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory?
   let palette: Palette
   let isSelected: Bool
+  let onIndicatorHover: (Bool) -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -226,5 +230,13 @@ private struct TerminalSidebarTabLineView: View {
         : nil
     )
     .frame(height: TerminalSidebarLayout.tabTrailingAccessorySize)
+    .onHover { isHovering in
+      switch trailingAccessory {
+      case .agent, .attention:
+        onIndicatorHover(isHovering)
+      default:
+        break
+      }
+    }
   }
 }

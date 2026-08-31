@@ -5,7 +5,7 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
   func testAgentIndicatorHelpOverridesTabTitleHelp() async throws {
     let tab = await requireFirstTab()
 
-    try await startClaudeSession()
+    startAgentTurn()
     let didShowAgentStatus = await wait(for: tab, timeout: AgentUITest.coldStartTimeout) {
       $0.label.contains("Agent working")
     }
@@ -17,12 +17,16 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
 
   @MainActor
   func testAttentionIndicatorHelpOverridesTabTitleHelp() async throws {
-    let panes = try await requireVisiblePanes(count: 1)
-    let firstPane = panes[0]
+    let firstPaneIdentifier = try await requireVisiblePanes(count: 1)[0].identifier
 
     try clickMenuItem(.splitRight)
     let splitPanes = try await requireVisiblePanes(count: 2)
-    let secondPane = try XCTUnwrap(splitPanes.first { $0.identifier != firstPane.identifier })
+    let firstPane = try XCTUnwrap(
+      splitPanes.first { $0.identifier == firstPaneIdentifier }
+    )
+    let secondPane = try XCTUnwrap(
+      splitPanes.first { $0.identifier != firstPaneIdentifier }
+    )
     let paneID = String(
       secondPane.identifier.dropFirst(
         SupatermUITestIdentifier.Accessibility.terminalPanePrefix.count
@@ -30,6 +34,7 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
     )
 
     firstPane.click()
+    try await requireFocus(on: firstPane)
     firstPane.typeText(
       "\"$SUPATERM_CLI_PATH\" pane notify \(paneID) --body indicator-help"
         + " --socket \"$SUPATERM_SOCKET_PATH\""
@@ -42,13 +47,35 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didShowAttention)
 
-    hoverTrailingIndicator(in: tab)
+    hoverTrailingIndicator(in: tab, lineIndex: 1, lineCount: 2)
     try require(helpTag(labeled: "Terminal attention"), timeout: 5)
   }
 
   @MainActor
-  private func hoverTrailingIndicator(in tab: XCUIElement) {
-    tab.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
+  private func startAgentTurn() {
+    let sessionStart = #"{"session_id":"indicator-tooltip","hook_event_name":"session_start"}"#
+    let agentStart = #"{"session_id":"indicator-tooltip","hook_event_name":"agent_start"}"#
+    let receiveHook =
+      "\"$SUPATERM_CLI_PATH\" agent receive-agent-hook --agent pi"
+      + " --socket \"$SUPATERM_SOCKET_PATH\""
+    let terminal = mainTerminal
+
+    terminal.click()
+    terminal.typeText(
+      "printf '%s' '\(sessionStart)' | \(receiveHook)"
+        + " && printf '%s' '\(agentStart)' | \(receiveHook)"
+    )
+    terminal.typeKey(.return, modifierFlags: [])
+  }
+
+  @MainActor
+  private func hoverTrailingIndicator(
+    in tab: XCUIElement,
+    lineIndex: Int = 0,
+    lineCount: Int = 1
+  ) {
+    let lineMidpoint = (CGFloat(lineIndex) + 0.5) / CGFloat(lineCount)
+    tab.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: lineMidpoint))
       .withOffset(CGVector(dx: -22, dy: 0))
       .hover()
   }
