@@ -197,8 +197,8 @@ final class TerminalSidebarWindowHarness {
         palette: Palette(colorScheme: .dark),
         renameState: controller.renameState,
         groupHeaderHoverState: controller.groupHeaderHoverState,
-        tabSelectionState: controller.tabSelectionState,
-        outline: outline,
+        tabSelectionState: terminal.spaceManager.displayedInstance.tabSelectionState,
+        visibleTabIDs: outline.visibleTabIDs,
         fixedHoveredGroupID: nil,
         actions: Self.rowActions
       ),

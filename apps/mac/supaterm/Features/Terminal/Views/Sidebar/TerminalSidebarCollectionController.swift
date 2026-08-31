@@ -25,6 +25,10 @@ final class TerminalSidebarControllerCache {
     controllersBySpaceID.count
   }
 
+  var isEmpty: Bool {
+    controllersBySpaceID.isEmpty
+  }
+
   var isHoverCardPresented: Bool {
     controllersBySpaceID.values.contains(where: \.isHoverCardPresented)
   }
@@ -102,7 +106,6 @@ final class TerminalSidebarListController: NSViewController {
   let renameState = TerminalSidebarRenameState()
   let groupHoverState = TerminalSidebarGroupHoverState()
   let groupHeaderHoverState = TerminalSidebarGroupHoverState()
-  let tabSelectionState = TerminalSidebarTabSelectionState()
   var hoverCardPresentationChanged: (() -> Void)?
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)? {
     get { dragController.performDrop }
@@ -279,11 +282,13 @@ final class TerminalSidebarListController: NSViewController {
     }
 
     if selectedTabID != self.selectedTabID {
-      tabSelectionState.clear()
       self.selectedTabID = selectedTabID
       pendingRevealTabID = selectedTabID
     }
-    tabSelectionState.retainVisible(in: outline, primaryTabID: selectedTabID)
+    context.tabSelectionState.retainVisible(
+      in: context.visibleTabIDs,
+      primaryTabID: selectedTabID
+    )
 
     refreshVisibleRows(ids: Set(rows.keys))
     let update = Update(outline: outline, reduceMotion: interactionPolicy.reduceMotion)

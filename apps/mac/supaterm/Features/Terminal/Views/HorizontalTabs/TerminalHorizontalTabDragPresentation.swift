@@ -9,6 +9,7 @@ final class TerminalHorizontalTabDragPresentation {
   }
 
   static let sourceHoldInset: CGFloat = 8
+  static let liftDistance: CGFloat = 2
 
   private weak var containerView: NSView?
   private var hiddenViews: [HiddenView] = []
@@ -32,7 +33,8 @@ final class TerminalHorizontalTabDragPresentation {
   func begin(
     sourceFrame: CGRect,
     hotspot: CGPoint,
-    hiddenViews: [NSView]
+    hiddenViews: [NSView],
+    reduceMotion: Bool
   ) -> Bool {
     cleanup()
     guard
@@ -41,11 +43,31 @@ final class TerminalHorizontalTabDragPresentation {
       let containerView,
       let image = sourceImage(in: sourceFrame, containerView: containerView)
     else { return false }
-    let liftView = NSImageView(frame: sourceFrame)
+    let liftView = NSImageView(frame: sourceFrame.offsetBy(dx: 0, dy: Self.liftDistance))
     liftView.image = image
     liftView.imageScaling = .scaleAxesIndependently
     liftView.wantsLayer = true
     liftView.setAccessibilityElement(false)
+    if let layer = liftView.layer {
+      layer.shadowColor = NSColor.black.cgColor
+      layer.shadowOpacity = 0.30
+      layer.shadowRadius = 8
+      layer.shadowOffset = CGSize(width: 0, height: 4)
+      layer.shadowPath = CGPath(
+        roundedRect: liftView.bounds,
+        cornerWidth: 7,
+        cornerHeight: 7,
+        transform: nil
+      )
+      if !reduceMotion {
+        let animation = CABasicAnimation(keyPath: "shadowOpacity")
+        animation.fromValue = 0
+        animation.toValue = 0.30
+        animation.duration = 0.2
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(animation, forKey: "horizontalTabDragShadow")
+      }
+    }
     self.hiddenViews = hiddenViews.map {
       HiddenView(view: $0, alpha: $0.alphaValue)
     }
@@ -69,7 +91,7 @@ final class TerminalHorizontalTabDragPresentation {
       let point = localPoint(for: screenPoint, in: containerView)
       liftView.frame.origin = CGPoint(
         x: point.x - hotspot.x,
-        y: point.y - hotspot.y
+        y: point.y - hotspot.y + Self.liftDistance
       )
       liftView.isHidden = false
     case .sharedPreview:

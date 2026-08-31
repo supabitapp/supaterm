@@ -38,10 +38,16 @@ struct TerminalSidebarChromeViewTests {
       let colors = palette.selectableRow
 
       expectSameColor(row.fill(selection: .none, isPressed: false, isHovering: false), .clear)
-      expectSameColor(row.fill(selection: .none, isPressed: false, isHovering: true), colors.hoverFill)
-      expectSameColor(row.fill(selection: .none, isPressed: true, isHovering: true), colors.pressedFill)
-      expectSameColor(row.fill(selection: .primary, isPressed: true, isHovering: true), colors.primarySelectionFill)
-      expectSameColor(row.fill(selection: .secondary, isPressed: true, isHovering: true), colors.secondarySelectionFill)
+      expectSameColor(
+        row.fill(selection: .none, isPressed: false, isHovering: true), colors.hoverFill)
+      expectSameColor(
+        row.fill(selection: .none, isPressed: true, isHovering: true), colors.pressedFill)
+      expectSameColor(
+        row.fill(selection: .primary, isPressed: true, isHovering: true),
+        colors.primarySelectionFill)
+      expectSameColor(
+        row.fill(selection: .secondary, isPressed: true, isHovering: true),
+        colors.secondarySelectionFill)
     }
   }
 
@@ -131,8 +137,11 @@ struct TerminalSidebarChromeViewTests {
       height: cornerSize
     )
 
-    #expect(raster.peakBrightness(in: visualTopLeft) > raster.peakBrightness(in: visualTopRight) * 2)
-    #expect(raster.peakBrightness(in: visualBottomRight) > raster.peakBrightness(in: visualBottomLeft) * 2)
+    #expect(
+      raster.peakBrightness(in: visualTopLeft) > raster.peakBrightness(in: visualTopRight) * 2)
+    #expect(
+      raster.peakBrightness(in: visualBottomRight) > raster.peakBrightness(in: visualBottomLeft) * 2
+    )
   }
 
   @MainActor
@@ -277,7 +286,61 @@ struct TerminalSidebarChromeViewTests {
     let raster = try #require(SelectionGlowRaster(view: container))
 
     #expect(raster.ink(columns: sidebarWidth..<(sidebarWidth + gutterWidth)) > 0)
-    #expect(raster.ink(columns: (sidebarWidth + gutterWidth)..<(sidebarWidth + gutterWidth + 4)) == 0)
+    #expect(
+      raster.ink(columns: (sidebarWidth + gutterWidth)..<(sidebarWidth + gutterWidth + 4)) == 0)
+  }
+
+  @MainActor
+  @Test
+  func singleLineTabContentCentersInRowBounds() throws {
+    let rowHeight = TerminalSidebarLayout.tabRowMinHeight
+    let width: CGFloat = 180
+    let container = NSHostingView(
+      rootView: TerminalSidebarTabSummaryView(
+        tab: TerminalTabItem(title: "Tab", isTitleLocked: true),
+        palette: Palette(colorScheme: .dark),
+        isSelected: true,
+        isPinned: false,
+        panes: [
+          TerminalTabPanePresentation(
+            id: UUID(),
+            title: "Tab",
+            indicator: .attention
+          )
+        ],
+        terminalProgress: nil,
+        shortcutHint: nil,
+        showsShortcutHint: false,
+        isRowHovering: false
+      )
+      .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+      .frame(minHeight: rowHeight)
+      .frame(width: width, height: rowHeight)
+    )
+    container.frame = CGRect(x: 0, y: 0, width: width, height: rowHeight)
+    let window = NSWindow(
+      contentRect: container.frame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = container
+    container.layoutSubtreeIfNeeded()
+
+    let raster = try #require(SelectionGlowRaster(view: container, scale: 2))
+    let accessoryBounds = try #require(
+      raster.inkBounds(
+        in: CGRect(
+          x: width - TerminalSidebarLayout.tabTrailingAccessorySize,
+          y: 0,
+          width: TerminalSidebarLayout.tabTrailingAccessorySize,
+          height: rowHeight
+        )
+      )
+    )
+
+    #expect(abs(accessoryBounds.height - 16) <= 0.5)
+    #expect(abs(accessoryBounds.midY - rowHeight / 2) <= 0.5)
   }
 
   @Test
@@ -321,7 +384,8 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func selectedWarningBadgeForegroundMeetsContrast() {
     for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
-      let foreground = TerminalSidebarWarningBadgeStyle.foregroundValue(isSelected: true, palette: palette)
+      let foreground = TerminalSidebarWarningBadgeStyle.foregroundValue(
+        isSelected: true, palette: palette)
       let background = TerminalSidebarWarningBadgeStyle.selectedBackgroundValue(palette: palette)
       #expect(ColorMath.contrastRatio(foreground, background) >= 4.5)
     }
@@ -466,8 +530,12 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func pathLikeTabTitlesTruncateInTheMiddle() {
-    #expect(TerminalSidebarTabSummaryView.titleTruncationMode("~/code/github.com/supabitapp/supaterm") == .middle)
-    #expect(TerminalSidebarTabSummaryView.titleTruncationMode("/Users/Developer/code/github.com") == .middle)
+    #expect(
+      TerminalSidebarTabSummaryView.titleTruncationMode("~/code/github.com/supabitapp/supaterm")
+        == .middle)
+    #expect(
+      TerminalSidebarTabSummaryView.titleTruncationMode("/Users/Developer/code/github.com")
+        == .middle)
     #expect(TerminalSidebarTabSummaryView.titleTruncationMode("ping 1.1.1.1") == .tail)
   }
 
@@ -491,6 +559,28 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes)
         == "Release\nCodex\nReview agent"
     )
+  }
+
+  @Test
+  func lockedTitleAbsorbsOneMatchingPaneAndItsStatus() {
+    let matching = TerminalTabPanePresentation(
+      id: UUID(),
+      title: "Release",
+      indicator: .agent(.working)
+    )
+    let shell = TerminalTabPanePresentation(
+      id: UUID(),
+      title: "shell",
+      indicator: nil
+    )
+
+    let summary = TerminalSidebarTabSummaryView.summary(
+      tab: TerminalTabItem(title: "Release", isTitleLocked: true),
+      panes: [matching, shell]
+    )
+
+    #expect(summary.headerIndicator == .agent(.working))
+    #expect(summary.panes == [shell])
   }
 
   @Test
@@ -724,6 +814,35 @@ private struct SelectionGlowRaster {
     }
   }
 
+  func inkBounds(in rect: CGRect) -> CGRect? {
+    let xRange =
+      max(
+        0, Int(floor(rect.minX * scale)))..<min(
+        raster.pixelsWide,
+        Int(ceil(rect.maxX * scale))
+      )
+    let yRange =
+      max(
+        0, Int(floor(rect.minY * scale)))..<min(
+        raster.pixelsHigh,
+        Int(ceil(rect.maxY * scale))
+      )
+    var bounds = CGRect.null
+    for y in yRange {
+      for x in xRange where (raster.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.01 {
+        bounds = bounds.union(
+          CGRect(
+            x: CGFloat(x) / scale,
+            y: CGFloat(y) / scale,
+            width: 1 / scale,
+            height: 1 / scale
+          )
+        )
+      }
+    }
+    return bounds.isNull ? nil : bounds
+  }
+
   func color(at point: CGPoint) -> NSColor? {
     raster.colorAt(x: Int(point.x * scale), y: Int(point.y * scale))
   }
@@ -742,7 +861,8 @@ private struct SelectionGlowRaster {
   }
 
   func maximumColorDifference(from other: Self) -> CGFloat {
-    guard raster.pixelsWide == other.raster.pixelsWide, raster.pixelsHigh == other.raster.pixelsHigh else {
+    guard raster.pixelsWide == other.raster.pixelsWide, raster.pixelsHigh == other.raster.pixelsHigh
+    else {
       return .infinity
     }
     return (0..<raster.pixelsHigh).reduce(0) { rowMaximum, y in

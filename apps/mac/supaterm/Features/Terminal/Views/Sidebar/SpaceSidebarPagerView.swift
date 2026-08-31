@@ -5,6 +5,7 @@ import SwiftUI
 struct SpaceSidebarPagerView: View {
   let terminal: TerminalHostState
   let palette: Palette
+  let groupIconStore: TerminalTabGroupIconStore
   let isActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
@@ -56,6 +57,7 @@ struct SpaceSidebarPagerView: View {
     if let instance = terminal.spaceManager.instance(for: page.space.id) {
       TerminalSidebarSpaceList(
         terminal: terminal,
+        groupIconStore: groupIconStore,
         instance: instance,
         palette: pagePalette,
         swipe: swipe,
@@ -181,9 +183,20 @@ private struct SpaceSidebarPlaceholderView: View {
   }
 }
 
-private struct SpaceSwipeGestureView: NSViewRepresentable {
+struct SpaceSwipeGestureView: NSViewRepresentable {
   let swipe: SpaceSwipeController
   let isActive: Bool
+  let isRowDragActive: () -> Bool
+
+  init(
+    swipe: SpaceSwipeController,
+    isActive: Bool,
+    isRowDragActive: @escaping () -> Bool = { false }
+  ) {
+    self.swipe = swipe
+    self.isActive = isActive
+    self.isRowDragActive = isRowDragActive
+  }
 
   func makeNSView(context: Context) -> SpaceSwipeGestureNSView {
     SpaceSwipeGestureNSView()
@@ -191,13 +204,15 @@ private struct SpaceSwipeGestureView: NSViewRepresentable {
 
   func updateNSView(_ nsView: SpaceSwipeGestureNSView, context: Context) {
     nsView.swipe = isActive ? swipe : nil
+    nsView.isRowDragActive = isRowDragActive
   }
 }
 
-private final class SpaceSwipeGestureNSView: NSView {
+final class SpaceSwipeGestureNSView: NSView {
   var swipe: SpaceSwipeController? {
     didSet { swipe?.pageWidth = bounds.width }
   }
+  var isRowDragActive: () -> Bool = { false }
 
   private var scrollMonitor: Any?
 
@@ -233,6 +248,7 @@ private final class SpaceSwipeGestureNSView: NSView {
     guard swipe.isTracking || bounds.contains(convert(event.locationInWindow, from: nil)) else {
       return false
     }
+    swipe.isRowDragActive = isRowDragActive()
     return swipe.handle(event)
   }
 }

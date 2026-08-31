@@ -400,17 +400,7 @@ final class TerminalWindowShellController: NSViewController {
     }
   }
 
-  private(set) lazy var sidebarControllerCache: TerminalSidebarControllerCache = {
-    let cache = TerminalSidebarControllerCache(
-      windowControllerID: windowControllerID,
-      tabDragRegistry: tabDragRegistry,
-      captureRequest: { [weak self] in self?.tabDragCaptureRequest() }
-    )
-    cache.hoverCardRetentionChanged = { [weak self] in
-      self?.revealCoordinator.releaseRetention()
-    }
-    return cache
-  }()
+  private(set) lazy var sidebarControllerCache = makeSidebarControllerCache()
   let state = TerminalWindowShellState()
   private let sidebarResizeView = SidebarResizeInteractionNSView()
   var onSidebarResizeInput: ((TerminalSidebarResizeInput) -> Void)? {
@@ -420,6 +410,19 @@ final class TerminalWindowShellController: NSViewController {
   var isSpacePaging: () -> Bool = { false }
   var splitDestination: () -> TerminalTabSplitDropDestination? = { nil }
   var cancelTabSurfaceInteractions: (TerminalTabLayoutStyle) -> Void = { _ in }
+  var setTabSurfaceMounted: (TerminalTabLayoutStyle, Bool) -> Void = { _, _ in }
+
+  private func makeSidebarControllerCache() -> TerminalSidebarControllerCache {
+    let cache = TerminalSidebarControllerCache(
+      windowControllerID: windowControllerID,
+      tabDragRegistry: tabDragRegistry,
+      captureRequest: { [weak self] in self?.tabDragCaptureRequest() }
+    )
+    cache.hoverCardRetentionChanged = { [weak self] in
+      self?.revealCoordinator.releaseRetention()
+    }
+    return cache
+  }
 
   private var detailController: NSViewController?
   private var presentation = TerminalWindowShellPresentation(
@@ -570,11 +573,17 @@ final class TerminalWindowShellController: NSViewController {
     let collapseChanged = presentation.isSidebarCollapsed != self.presentation.isSidebarCollapsed
     let styleChanged = presentation.tabLayoutStyle != self.presentation.tabLayoutStyle
     if styleChanged {
-      cancelTabSurfaceInteractions(self.presentation.tabLayoutStyle)
+      let previousStyle = self.presentation.tabLayoutStyle
+      cancelTabSurfaceInteractions(previousStyle)
       dragDestinationExited()
       if let payload = tabDragRegistry.activePayload {
         tabDragRegistry.finish(operationID: payload.moveOperationID, outcome: .cancelled)
       }
+      if previousStyle == .vertical {
+        sidebarControllerCache.retain([])
+        sidebarControllerCache = makeSidebarControllerCache()
+      }
+      setTabSurfaceMounted(previousStyle, false)
     }
     self.presentation = presentation
     if collapseChanged || styleChanged {
@@ -582,6 +591,7 @@ final class TerminalWindowShellController: NSViewController {
     }
     if styleChanged {
       surfaceTransitionID = UUID()
+      setTabSurfaceMounted(presentation.tabLayoutStyle, true)
     }
     applyLayout(motion: motion)
   }

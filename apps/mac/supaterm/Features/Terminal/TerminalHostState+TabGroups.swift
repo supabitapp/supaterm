@@ -2,6 +2,17 @@ import Foundation
 import SupaTheme
 
 extension TerminalHostState {
+  func contextSurfaceID(for groupID: TerminalTabGroupID) -> UUID? {
+    guard
+      let group = rootItems.compactMap({ root -> TerminalTabGroupItem? in
+        guard case .group(let group) = root, group.id == groupID else { return nil }
+        return group
+      }).first,
+      let tab = group.tabs.first(where: { $0.id == selectedTabID }) ?? group.tabs.first
+    else { return nil }
+    return contextSurfaceID(for: tab.id)
+  }
+
   func suggestedGroupTitle(containing tabIDs: [TerminalTabID]) -> String? {
     guard let manager = instance(containing: tabIDs)?.tabCollection else { return nil }
     let tabs = tabIDs.compactMap(spaceManager.tab(for:))
@@ -57,9 +68,22 @@ extension TerminalHostState {
     return true
   }
 
+  func promptGroupTitle(_ id: TerminalTabGroupID) {
+    guard
+      let group = spaceManager.instance(for: id)?.tabCollection.group(for: id),
+      let view = selectedSurfaceView
+        ?? group.tabs.lazy.compactMap({ self.titleSurface(for: $0.id) }).first
+    else { return }
+    view.promptTitle(messageText: "Rename Group", initialValue: group.title) { [weak self] title in
+      guard let title = Self.trimmedNonEmpty(title) else { return }
+      _ = self?.renameGroup(id, title: title)
+    }
+  }
+
   @discardableResult
   func setGroupColor(_ id: TerminalTabGroupID, color: ThemeTint) -> Bool {
-    guard spaceManager.instance(for: id)?.tabCollection.setGroupColor(id, color: color) == true else {
+    guard spaceManager.instance(for: id)?.tabCollection.setGroupColor(id, color: color) == true
+    else {
       return false
     }
     sessionDidChange()
@@ -147,7 +171,9 @@ extension TerminalHostState {
   func setTabPinned(_ id: TerminalTabID, isPinned: Bool) -> TerminalTabMoveResult? {
     guard let instance = spaceManager.instance(for: id) else { return nil }
     let previousRevision = instance.tabCollection.topologyRevision
-    guard let result = instance.tabCollection.setTabPinned(id, isPinned: isPinned) else { return nil }
+    guard let result = instance.tabCollection.setTabPinned(id, isPinned: isPinned) else {
+      return nil
+    }
     finishMove(result, previousRevision: previousRevision, spaceID: instance.spaceID)
     return result
   }

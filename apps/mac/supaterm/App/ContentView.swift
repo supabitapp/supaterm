@@ -54,6 +54,7 @@ struct ContentView: View {
 struct TerminalSidebarContentView: View {
   let commandHoldObserver: CommandHoldObserver
   let ghosttyShortcuts: GhosttyShortcutManager
+  let groupIconStore: TerminalTabGroupIconStore
   let licenseStore: StoreOf<LicenseFeature>
   let shellState: TerminalWindowShellState
   let store: StoreOf<AppFeature>
@@ -73,6 +74,7 @@ struct TerminalSidebarContentView: View {
       updateStore: updateStore,
       releaseAnnouncement: store.releaseAnnouncement,
       terminal: terminal,
+      groupIconStore: groupIconStore,
       shellState: shellState,
       sidebarControllerCache: sidebarControllerCache,
       spacePagingDidEnd: spacePagingDidEnd
@@ -86,16 +88,22 @@ struct TerminalSidebarContentView: View {
 
 struct TerminalHorizontalTabsContentView: View {
   let store: StoreOf<AppFeature>
+  let groupIconStore: TerminalTabGroupIconStore
   let tabDragRegistry: TerminalTabDragRegistry
   let terminal: TerminalHostState
   let windowControllerID: UUID
+  let captureRequest: () -> TerminalWindowCaptureRequest?
+  let controllerReference: HorizontalTabControllerReference
 
   var body: some View {
     TerminalHorizontalTabsView(
       store: store.scope(state: \.terminal, action: \.terminal),
+      groupIconStore: groupIconStore,
       tabDragRegistry: tabDragRegistry,
       terminal: terminal,
-      windowControllerID: windowControllerID
+      windowControllerID: windowControllerID,
+      captureRequest: captureRequest,
+      controllerReference: controllerReference
     )
   }
 }

@@ -738,6 +738,7 @@ private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
   let fixedHoveredGroupID: TerminalTabGroupID?
   var terminal = SidebarChromeSnapshotContext.terminal
+  @State private var groupIconStore = TerminalTabGroupIconStore()
   @State private var sidebarControllerCache = TerminalSidebarControllerCache(
     windowControllerID: UUID(),
     tabDragRegistry: TerminalTabDragRegistry(),
@@ -756,6 +757,7 @@ private struct SidebarChromeSnapshotFixture: View {
       releaseAnnouncement: nil,
       palette: palette,
       terminal: terminal,
+      groupIconStore: groupIconStore,
       isPagingActive: false,
       sidebarControllerCache: sidebarControllerCache,
       fixedHoveredGroupID: fixedHoveredGroupID,
@@ -773,6 +775,7 @@ private struct SidebarChromeSnapshotFixture: View {
 private struct SidebarWindowControlsSnapshotFixture: View {
   let appearance: SnapshotAppearance
   var terminal = SidebarChromeSnapshotContext.selectedBeforeNewTabTerminal
+  @State private var groupIconStore = TerminalTabGroupIconStore()
   @State private var sidebarControllerCache = TerminalSidebarControllerCache(
     windowControllerID: UUID(),
     tabDragRegistry: TerminalTabDragRegistry(),
@@ -791,6 +794,7 @@ private struct SidebarWindowControlsSnapshotFixture: View {
       releaseAnnouncement: nil,
       palette: palette,
       terminal: terminal,
+      groupIconStore: groupIconStore,
       isPagingActive: false,
       sidebarControllerCache: sidebarControllerCache,
       shouldPlayTabMoveHaptics: true,

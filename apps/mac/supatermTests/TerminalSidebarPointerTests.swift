@@ -19,7 +19,7 @@ struct TerminalSidebarPointerTests {
     let secondTabID: TerminalTabID
     let secondTab: TerminalTabItem
     let terminal: TerminalHostState
-    let selectionState: TerminalSidebarTabSelectionState
+    let selectionState: TerminalTabSelectionState
     let outline: TerminalSidebarOutline
     let context: TerminalSidebarRowContext
     let item: TerminalSidebarCollectionItem
@@ -79,13 +79,14 @@ struct TerminalSidebarPointerTests {
         }
       )
       rows[.newTab] = .newTab(.inline)
+      let selectionState = terminal.spaceManager.displayedInstance.tabSelectionState
       let context = TerminalSidebarRowContext(
         terminal: terminal,
         palette: Palette(colorScheme: .dark),
         renameState: controller.renameState,
         groupHeaderHoverState: controller.groupHeaderHoverState,
-        tabSelectionState: controller.tabSelectionState,
-        outline: outline,
+        tabSelectionState: selectionState,
+        visibleTabIDs: outline.visibleTabIDs,
         fixedHoveredGroupID: nil,
         actions: rowActions
       )
@@ -99,7 +100,7 @@ struct TerminalSidebarPointerTests {
           shouldPlayTabMoveHaptics: true
         )
       )
-      controller.tabSelectionState.toggle(sourceTabID, primaryTabID: destinationTabID)
+      selectionState.toggle(sourceTabID, primaryTabID: destinationTabID)
       let scrollView = try #require(
         controller.view.subviews.compactMap { $0 as? TerminalSidebarScrollView }.first
       )
@@ -128,7 +129,60 @@ struct TerminalSidebarPointerTests {
           destinationSurface.id,
           sourceSurface.id,
         ])
-      #expect(controller.tabSelectionState.secondaryTabIDs.isEmpty)
+      #expect(selectionState.secondaryTabIDs.isEmpty)
+    }
+  }
+
+  @Test
+  func replacingVerticalControllersRetainsSharedSelection() {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let collection = terminal.spaceManager.tabCollection
+    let primary = collection.createTab(title: "Primary")
+    let secondary = collection.createTab(title: "Secondary")
+    collection.selectTab(primary)
+    let state = terminal.spaceManager.displayedInstance.tabSelectionState
+    state.toggle(secondary, primaryTabID: primary)
+    let outline = TerminalSidebarOutline(
+      snapshot: terminal.spaceManager.displayedInstance.tabSurfaceSnapshot
+    )
+    var rows = Dictionary(
+      uniqueKeysWithValues: terminal.tabs.map {
+        (
+          TerminalSidebarEntryID.tab($0.id),
+          TerminalSidebarRowPresentation.tab(presentation($0))
+        )
+      }
+    )
+    rows[.newTab] = .newTab(.inline)
+
+    for _ in 0..<2 {
+      let controller = TerminalSidebarListController(
+        windowControllerID: UUID(),
+        tabDragRegistry: TerminalTabDragRegistry(),
+        captureRequest: { nil }
+      )
+      controller.view.frame = NSRect(x: 0, y: 0, width: 240, height: 160)
+      controller.apply(
+        outline: outline,
+        rows: rows,
+        context: TerminalSidebarRowContext(
+          terminal: terminal,
+          palette: Palette(colorScheme: .dark),
+          renameState: controller.renameState,
+          groupHeaderHoverState: controller.groupHeaderHoverState,
+          tabSelectionState: state,
+          visibleTabIDs: outline.visibleTabIDs,
+          fixedHoveredGroupID: nil,
+          actions: rowActions
+        ),
+        selectedTabID: primary,
+        interactionPolicy: TerminalSidebarInteractionPolicy(
+          reduceMotion: true,
+          shouldPlayTabMoveHaptics: false
+        )
+      )
+
+      #expect(state.secondaryTabIDs == [secondary])
     }
   }
 
@@ -151,7 +205,7 @@ struct TerminalSidebarPointerTests {
     #expect(
       fixture.selectionState.orderedTabIDs(
         primaryTabID: fixture.secondTabID,
-        outline: fixture.outline
+        visibleTabIDs: fixture.outline.visibleTabIDs
       ) == [fixture.firstTabID, fixture.secondTabID]
     )
 
@@ -406,7 +460,7 @@ struct TerminalSidebarPointerTests {
       topologyRevision: 1,
       spaceID: TerminalSidebarTestFixture.primarySpaceID
     )
-    let selectionState = TerminalSidebarTabSelectionState()
+    let selectionState = host.spaceManager.displayedInstance.tabSelectionState
     let collectionView = TerminalSidebarCollectionView(
       frame: NSRect(x: 0, y: 0, width: 240, height: 100)
     )
@@ -435,7 +489,7 @@ struct TerminalSidebarPointerTests {
       renameState: TerminalSidebarRenameState(),
       groupHeaderHoverState: TerminalSidebarGroupHoverState(),
       tabSelectionState: selectionState,
-      outline: outline,
+      visibleTabIDs: outline.visibleTabIDs,
       fixedHoveredGroupID: nil,
       actions: rowActions
     )

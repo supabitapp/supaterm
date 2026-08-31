@@ -2,6 +2,11 @@ import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarTabSummaryView: View {
+  struct Summary: Equatable {
+    let headerIndicator: TerminalTabPanePresentation.Indicator?
+    let panes: [TerminalTabPanePresentation]
+  }
+
   enum StatusAccessory: Equatable {
     case attention
     case pinned
@@ -64,27 +69,43 @@ struct TerminalSidebarTabSummaryView: View {
     tab: TerminalTabItem,
     panes: [TerminalTabPanePresentation]
   ) -> String {
+    let summary = summary(tab: tab, panes: panes)
     var titles = tab.isTitleLocked ? [tab.title] : []
-    titles.append(contentsOf: panes.map(\.title))
+    titles.append(contentsOf: summary.panes.map(\.title))
     return titles.isEmpty ? tab.title : titles.joined(separator: "\n")
   }
 
+  static func summary(
+    tab: TerminalTabItem,
+    panes: [TerminalTabPanePresentation]
+  ) -> Summary {
+    guard tab.isTitleLocked,
+      let matchingIndex = panes.firstIndex(where: { $0.title == tab.title })
+    else {
+      return Summary(headerIndicator: nil, panes: panes)
+    }
+    var displayedPanes = panes
+    let headerIndicator = displayedPanes.remove(at: matchingIndex).indicator
+    return Summary(headerIndicator: headerIndicator, panes: displayedPanes)
+  }
+
   var body: some View {
-    let showsTitleHeader = tab.isTitleLocked || panes.isEmpty
+    let summary = Self.summary(tab: tab, panes: panes)
+    let showsTitleHeader = tab.isTitleLocked || summary.panes.isEmpty
 
     VStack(alignment: .leading, spacing: TerminalSidebarLayout.tabPaneLineSpacing) {
       if showsTitleHeader {
         TerminalSidebarTabLineView(
           title: tab.title,
-          indicator: nil,
-          trailingSlot: tabTrailingSlot,
+          indicator: summary.headerIndicator,
+          trailingSlot: tabTrailingSlot(paneIndicator: summary.headerIndicator),
           palette: palette,
           isSelected: isSelected
         )
       }
 
-      ForEach(panes) { pane in
-        let ownsTabAccessories = !showsTitleHeader && pane.id == panes.first?.id
+      ForEach(summary.panes) { pane in
+        let ownsTabAccessories = !showsTitleHeader && pane.id == summary.panes.first?.id
         TerminalSidebarTabLineView(
           title: pane.title,
           indicator: pane.indicator,
@@ -97,14 +118,17 @@ struct TerminalSidebarTabSummaryView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private var tabTrailingSlot: TrailingSlot? {
+  private func tabTrailingSlot(
+    paneIndicator: TerminalTabPanePresentation.Indicator?
+  ) -> TrailingSlot? {
     Self.trailingSlot(
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
       isRowHovering: isRowHovering,
       statusAccessory: Self.statusAccessory(
         isPinned: isPinned,
-        terminalProgress: terminalProgress
+        terminalProgress: terminalProgress,
+        paneIndicator: paneIndicator
       )
     )
   }
@@ -166,6 +190,7 @@ private struct TerminalSidebarTabLineView: View {
         value: showsAgentStatusText,
         reduceMotion: reduceMotion
       )
+      .frame(width: geometry.size.width, height: geometry.size.height)
     }
     .frame(height: TerminalSidebarLayout.tabPaneLineHeight)
   }

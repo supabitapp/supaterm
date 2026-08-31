@@ -19,11 +19,14 @@ final class TerminalHorizontalTabDragController {
     let snapshot: () -> TerminalTabSurfaceSnapshot?
     let layout: () -> TerminalHorizontalTabLayout?
     let reduceMotion: () -> Bool
+    let shouldPlayTabMoveHaptics: () -> Bool
     let liveSelectedTabID: () -> TerminalTabID?
+    let tabSelectionState: () -> TerminalTabSelectionState?
     let selectTab: (TerminalTabID) -> Void
     let toggleGroup: (TerminalTabGroupID) -> Void
     let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
     let sourceViews: (TerminalSidebarDragSource) -> [NSView]
+    let settlementFrame: (TerminalSidebarEntryID) -> CGRect?
     let setDropPlan: (TerminalSidebarDropPlan?) -> Void
     let projectionReleased: () -> Void
   }
@@ -36,19 +39,14 @@ final class TerminalHorizontalTabDragController {
   private struct ActiveSource {
     var shared: TerminalSidebarActiveDrag
     let payload: TerminalTabDragPayload
+    let anchorEntryID: TerminalSidebarEntryID
     var frozenPlan: TerminalSidebarDropPlan?
     var isCommitting = false
     var cleanupStarted = false
     var velocityTracker: TerminalSidebarDragVelocityTracker
 
     var entryID: TerminalSidebarEntryID {
-      switch shared.payload.source {
-      case .group(let groupID):
-        return .group(groupID)
-      case .tabs(let tabIDs):
-        precondition(tabIDs.count == 1)
-        return .tab(tabIDs[0])
-      }
+      anchorEntryID
     }
   }
 
@@ -88,6 +86,7 @@ final class TerminalHorizontalTabDragController {
   private let presentation: TerminalHorizontalTabDragPresentation
   private var sourceState = SourceState.idle
   private var destinationSession: DestinationSession?
+  private var hapticTracker = TerminalSidebarHapticTargetTracker()
 
   private lazy var nativeDragSession = TerminalTabNativeDragSession(
     sourceView: configuration.sourceView,
@@ -195,11 +194,17 @@ final class TerminalHorizontalTabDragController {
     case .pending(let source) where source.interaction.entryID == entryID:
       nativeDragSession.cancelSourceCapture()
       sourceState = .idle
-      if case .group(let groupID) = entryID,
-        configuration.layout()?.items.first(where: { $0.entryID == entryID })?.frame
+      switch entryID {
+      case .group(let groupID):
+        if configuration.layout()?.items.first(where: { $0.entryID == entryID })?.frame
           .contains(location) == true
-      {
-        configuration.toggleGroup(groupID)
+        {
+          configuration.toggleGroup(groupID)
+        }
+      case .tab:
+        resolveDeferredSelection(source.interaction)
+      case .newTab, .pinDivider:
+        break
       }
     case .failed(let failedEntryID) where failedEntryID == entryID:
       sourceState = .idle
@@ -267,7 +272,7 @@ final class TerminalHorizontalTabDragController {
       guard case .tracking = source.shared.coordinator.phase else { return [] }
       let resolution = TerminalSidebarDropResolution(
         payload: source.shared.payload,
-        path: layout.semanticPath(at: point),
+        path: layout.semanticPath(at: point, source: source.shared.payload.source),
         outline: TerminalSidebarOutline(snapshot: snapshot)
       )
       let accepted = transitionSourceTarget(&source, resolution: resolution)
@@ -425,19 +430,19 @@ final class TerminalHorizontalTabDragController {
     sourceState = .active(source)
     switch settlement {
     case .accepted:
-      let destination = source.frozenPlan.flatMap {
-        configuration.layout()?.indicatorFrame(for: $0.path)
-      }.map { CGPoint(x: $0.midX, y: sourceFrameMidY) }
+      let destination = configuration.settlementFrame(source.entryID).map {
+        CGPoint(x: $0.midX, y: $0.midY)
+      }
       settleSource(
         operationID: source.shared.payload.operationID,
         outcome: .moved,
         destination: destination
       )
-    case .rejected(let topologyChanged):
+    case .rejected:
       settleSource(
         operationID: source.shared.payload.operationID,
         outcome: .cancelled,
-        destination: topologyChanged ? nil : sourceCenter
+        destination: nil
       )
     case nil:
       break
@@ -465,15 +470,6 @@ final class TerminalHorizontalTabDragController {
     }
   }
 
-  private var sourceCenter: CGPoint {
-    guard let sourceFrame = presentation.sourceFrame else { return .zero }
-    return CGPoint(x: sourceFrame.midX, y: sourceFrame.midY)
-  }
-
-  private var sourceFrameMidY: CGFloat {
-    presentation.sourceFrame?.midY ?? 0
-  }
-
   private func beginPendingSource(
     entryID: TerminalSidebarEntryID,
     location: CGPoint,
@@ -482,31 +478,58 @@ final class TerminalHorizontalTabDragController {
     guard
       let snapshot = configuration.snapshot(),
       let layout = configuration.layout(),
-      layout.dragSourceFrame(for: entryID) != nil,
-      let payload = TerminalSidebarOutline(snapshot: snapshot).dragPayload(for: entryID)
+      layout.dragSourceFrame(for: entryID) != nil
     else {
       sourceState = .failed(entryID)
       return
     }
-    let tabID: TerminalTabID? =
-      if case .tab(let tabID) = entryID {
-        tabID
-      } else {
-        nil
+    let outline = TerminalSidebarOutline(snapshot: snapshot)
+    let primaryTabID = configuration.liveSelectedTabID()
+    let selection: TerminalTabSelectionPress
+    switch entryID {
+    case .tab(let tabID):
+      guard let selectionState = configuration.tabSelectionState() else {
+        sourceState = .failed(entryID)
+        return
       }
-    let selectedTabIDs = tabID.map { [$0] } ?? []
+      selection = TerminalTabSelectionInteraction.press(
+        tabID: tabID,
+        modifiers: modifiers,
+        context: TerminalTabSelectionContext(
+          primaryTabID: primaryTabID,
+          visibleTabIDs: outline.visibleTabIDs,
+          state: selectionState
+        ),
+        selectPrimary: configuration.selectTab
+      )
+    case .group:
+      configuration.tabSelectionState()?.clear()
+      selection = .empty
+    case .newTab, .pinDivider:
+      sourceState = .failed(entryID)
+      return
+    }
+    guard
+      let payload = outline.dragPayload(
+        for: entryID,
+        selectedTabIDs: selection.selectedTabIDs
+      )
+    else {
+      sourceState = .failed(entryID)
+      return
+    }
     let handoff = TerminalSidebarTabDragSelectionHandoff.resolve(
       entryID: entryID,
-      primaryTabID: configuration.liveSelectedTabID(),
+      primaryTabID: primaryTabID,
       modifiers: modifiers,
-      selectedTabIDs: selectedTabIDs
+      selectedTabIDs: selection.selectedTabIDs
     )
     let pending = PendingSource(
       interaction: TerminalSidebarPendingDrag(
         entryID: entryID,
         origin: location,
-        selectedTabIDs: selectedTabIDs,
-        defersSelection: false,
+        selectedTabIDs: selection.selectedTabIDs,
+        defersSelection: selection.defersSelection,
         selectionHandoff: handoff
       ),
       payload: payload
@@ -524,9 +547,6 @@ final class TerminalHorizontalTabDragController {
       return
     }
     sourceState = .pending(pending)
-    if let tabID {
-      configuration.selectTab(tabID)
-    }
   }
 
   private func beginActiveSource(
@@ -536,6 +556,7 @@ final class TerminalHorizontalTabDragController {
     nativeEvent: NSEvent?
   ) {
     restoreSelectionHandoff(pending.interaction)
+    hapticTracker.reset()
     guard
       case .pending(let current) = sourceState,
       current.payload.operationID == pending.payload.operationID,
@@ -552,6 +573,7 @@ final class TerminalHorizontalTabDragController {
       )
     else {
       nativeDragSession.cancelSourceCapture()
+      resolveDeferredSelection(pending.interaction)
       sourceState = .failed(pending.interaction.entryID)
       return
     }
@@ -566,6 +588,7 @@ final class TerminalHorizontalTabDragController {
         }
       )
     else {
+      resolveDeferredSelection(pending.interaction)
       sourceState = .failed(pending.interaction.entryID)
       return
     }
@@ -573,10 +596,12 @@ final class TerminalHorizontalTabDragController {
       presentation.begin(
         sourceFrame: sourceFrame,
         hotspot: CGPoint(x: pointer.x - sourceFrame.minX, y: pointer.y - sourceFrame.minY),
-        hiddenViews: configuration.sourceViews(pending.payload.source)
+        hiddenViews: configuration.sourceViews(pending.payload.source),
+        reduceMotion: configuration.reduceMotion()
       )
     else {
       nativeDragSession.finish(operationID: pending.payload.operationID, outcome: .cancelled)
+      resolveDeferredSelection(pending.interaction)
       sourceState = .failed(pending.interaction.entryID)
       return
     }
@@ -588,6 +613,7 @@ final class TerminalHorizontalTabDragController {
           coordinator: TerminalSidebarDragCoordinator(payload: pending.payload)
         ),
         payload: payload,
+        anchorEntryID: pending.interaction.entryID,
         frozenPlan: nil,
         velocityTracker: velocityTracker(
           point: screenPoint,
@@ -611,6 +637,7 @@ final class TerminalHorizontalTabDragController {
         event: nativeEvent
       )
     else {
+      resolveDeferredSelection(pending.interaction)
       finishSource(
         operationID: pending.payload.operationID,
         outcome: .cancelled,
@@ -661,7 +688,7 @@ final class TerminalHorizontalTabDragController {
     guard var destinationSession, destinationSession.frozenPlan == nil else { return [] }
     let resolution = TerminalSidebarDropResolution(
       payload: sidebarPayload,
-      path: layout.semanticPath(at: point),
+      path: layout.semanticPath(at: point, source: sidebarPayload.source),
       outline: outline
     )
     let decision = destinationSession.dropTarget.transition(
@@ -692,6 +719,16 @@ final class TerminalHorizontalTabDragController {
   }
 
   private func applyTargetDecision(_ decision: TerminalSidebarDragTargetDecision) {
+    switch decision.haptic {
+    case .none:
+      break
+    case .update(let path):
+      if hapticTracker.shouldPerform(for: path), configuration.shouldPlayTabMoveHaptics() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+      }
+    case .reset:
+      hapticTracker.reset()
+    }
     switch decision.target {
     case .retain, .unchanged:
       break
@@ -721,6 +758,7 @@ final class TerminalHorizontalTabDragController {
       )
     }
     destinationSession = nil
+    hapticTracker.reset()
     configuration.setDropPlan(nil)
   }
 
@@ -786,6 +824,7 @@ final class TerminalHorizontalTabDragController {
     presentation.cleanup()
     nativeDragSession.finish(operationID: operationID, outcome: outcome)
     sourceState = failedEntryID.map(SourceState.failed) ?? .idle
+    hapticTracker.reset()
     configuration.setDropPlan(nil)
     configuration.projectionReleased()
   }
@@ -812,6 +851,19 @@ final class TerminalHorizontalTabDragController {
       )
     else { return }
     configuration.selectTab(tabID)
+  }
+
+  private func resolveDeferredSelection(_ pending: TerminalSidebarPendingDrag) {
+    guard
+      pending.defersSelection,
+      case .tab(let tabID) = pending.entryID,
+      let selectionState = configuration.tabSelectionState()
+    else { return }
+    TerminalTabSelectionInteraction.resolveDeferred(
+      tabID: tabID,
+      selectionState: selectionState,
+      selectPrimary: configuration.selectTab
+    )
   }
 
   private func velocityTracker(

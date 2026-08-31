@@ -6,17 +6,19 @@ enum TerminalHorizontalTabLayoutMetrics {
   static let controlWidth: CGFloat = 32
   static let groupSurfaceHorizontalInset: CGFloat = 2
   static let groupSurfaceVerticalInset: CGFloat = 2
-  static let groupLabelLeadingInset: CGFloat = 23
-  static let groupLabelTrailingInset: CGFloat = 7
-  static let groupMaximumWidth: CGFloat = 128
-  static let groupMinimumWidth: CGFloat = 56
+  static let groupLabelLeadingInset: CGFloat = 27
+  static let groupLabelTrailingInset: CGFloat = 37
+  static let groupMaximumWidth: CGFloat = 172
+  static let groupMinimumWidth: CGFloat = 42
   static let itemHeight: CGFloat = 30
   static let itemSpacing: CGFloat = 4
   static let leadingInset: CGFloat = 2
   static let sectionSeparatorFollowingGap: CGFloat = 2
   static let sectionSeparatorWidth: CGFloat = 8
   static let tabLabelLeadingInset: CGFloat = 9
-  static let tabLabelTrailingInset: CGFloat = closeButtonSize + closeButtonTrailingInset
+  static let tabLabelTrailingGap: CGFloat = 4
+  static let tabLabelTrailingInset: CGFloat =
+    tabLabelTrailingGap + closeButtonSize + closeButtonTrailingInset
   static let tabMaximumWidth: CGFloat = 172
   static let tabMinimumWidth: CGFloat = 64
   static let trailingInset: CGFloat = 2
@@ -64,6 +66,7 @@ struct TerminalHorizontalTabLayout: Equatable {
   struct Group: Equatable {
     let id: TerminalTabGroupID
     let frame: CGRect
+    let closeButtonFrame: CGRect?
     let isCollapsed: Bool
   }
 
@@ -77,9 +80,14 @@ struct TerminalHorizontalTabLayout: Equatable {
   init(
     snapshot: TerminalTabSurfaceSnapshot,
     availableWidth: CGFloat,
-    measureTitle: (String) -> CGFloat
+    titleForEntry: (TerminalSidebarEntryID, String) -> String = { _, title in title },
+    measureContent: (TerminalSidebarEntryID, String) -> CGFloat
   ) {
-    let candidates = Self.candidates(snapshot: snapshot, measureTitle: measureTitle)
+    let candidates = Self.candidates(
+      snapshot: snapshot,
+      titleForEntry: titleForEntry,
+      measureContent: measureContent
+    )
     let controlsWidth =
       TerminalHorizontalTabLayoutMetrics.controlWidth
       + TerminalHorizontalTabLayoutMetrics.itemSpacing
@@ -96,12 +104,12 @@ struct TerminalHorizontalTabLayout: Equatable {
         + TerminalHorizontalTabLayoutMetrics.itemSpacing
       : 0
     let itemBudget = max(0, initialBudget - overflowWidth)
-    let visibleCount = Self.visiblePrefixCount(candidates, budget: itemBudget)
-    let visibleCandidates = Array(candidates.prefix(visibleCount))
+    let visibleCandidates = Self.visibleCandidates(candidates, budget: itemBudget)
     let widths = Self.resolvedWidths(visibleCandidates, budget: itemBudget)
 
     var x = TerminalHorizontalTabLayoutMetrics.leadingInset
     var items: [Item] = []
+    var groupCloseButtonFrames: [TerminalTabGroupID: CGRect] = [:]
     var sectionSeparatorFrame: CGRect?
     for (index, element) in zip(visibleCandidates, widths).enumerated() {
       let (candidate, width) = element
@@ -121,19 +129,32 @@ struct TerminalHorizontalTabLayout: Equatable {
           x = frame.maxX + TerminalHorizontalTabLayoutMetrics.sectionSeparatorFollowingGap
         }
       }
-      let frame = CGRect(
-        x: x,
-        y: (TerminalHorizontalTabMetrics.height - TerminalHorizontalTabLayoutMetrics.itemHeight) / 2,
-        width: width,
-        height: TerminalHorizontalTabLayoutMetrics.itemHeight
-      )
-      items.append(Item(entryID: candidate.entryID, frame: frame, kind: candidate.kind))
-      x = frame.maxX
+      switch candidate.content {
+      case .item(let entryID, let kind):
+        let frame = CGRect(
+          x: x,
+          y: (TerminalHorizontalTabMetrics.height
+            - TerminalHorizontalTabLayoutMetrics.itemHeight) / 2,
+          width: width,
+          height: TerminalHorizontalTabLayoutMetrics.itemHeight
+        )
+        items.append(Item(entryID: entryID, frame: frame, kind: kind))
+      case .groupClose(let groupID):
+        groupCloseButtonFrames[groupID] = CGRect(
+          x: x,
+          y: (TerminalHorizontalTabMetrics.height
+            - TerminalHorizontalTabLayoutMetrics.closeButtonSize) / 2,
+          width: width,
+          height: TerminalHorizontalTabLayoutMetrics.closeButtonSize
+        )
+      }
+      x += width
     }
     self.items = items
     self.sectionSeparatorFrame = sectionSeparatorFrame
-    groups = Self.groups(items: items)
-    hiddenEntryIDs = candidates.dropFirst(visibleCount).map(\.entryID)
+    groups = Self.groups(items: items, closeButtonFrames: groupCloseButtonFrames)
+    let visibleEntryIDs = Set(visibleCandidates.compactMap(\.entryID))
+    hiddenEntryIDs = candidates.compactMap(\.entryID).filter { !visibleEntryIDs.contains($0) }
     if !items.isEmpty {
       x += TerminalHorizontalTabLayoutMetrics.itemSpacing
     }
@@ -142,7 +163,8 @@ struct TerminalHorizontalTabLayout: Equatable {
     } else {
       overflowFrame = CGRect(
         x: max(x, availableWidth - controlsWidth - overflowWidth),
-        y: (TerminalHorizontalTabMetrics.height - TerminalHorizontalTabLayoutMetrics.controlWidth) / 2,
+        y: (TerminalHorizontalTabMetrics.height - TerminalHorizontalTabLayoutMetrics.controlWidth)
+          / 2,
         width: TerminalHorizontalTabLayoutMetrics.controlWidth,
         height: TerminalHorizontalTabLayoutMetrics.controlWidth
       )
@@ -150,26 +172,86 @@ struct TerminalHorizontalTabLayout: Equatable {
     }
     newTabFrame = CGRect(
       x: min(x, max(0, availableWidth - TerminalHorizontalTabLayoutMetrics.controlWidth)),
-      y: (TerminalHorizontalTabMetrics.height - TerminalHorizontalTabLayoutMetrics.controlWidth) / 2,
+      y: (TerminalHorizontalTabMetrics.height - TerminalHorizontalTabLayoutMetrics.controlWidth)
+        / 2,
       width: TerminalHorizontalTabLayoutMetrics.controlWidth,
       height: TerminalHorizontalTabLayoutMetrics.controlWidth
     )
   }
 
-  func semanticPath(at point: CGPoint) -> TerminalSidebarSemanticPath? {
+  func semanticPath(
+    at point: CGPoint,
+    source: TerminalSidebarDragSource
+  ) -> TerminalSidebarSemanticPath? {
+    guard point.y >= 0, point.y <= TerminalHorizontalTabMetrics.height else { return nil }
+    if newTabFrame.contains(point) || overflowFrame?.contains(point) == true { return nil }
     if sectionSeparatorFrame?.contains(point) == true {
-      let index = items.compactMap { item -> Int? in
-        switch item.kind {
-        case .rootTab(_, .pinned, let rootIndex), .group(_, .pinned, let rootIndex, _):
-          rootIndex + 1
-        case .groupedTab, .rootTab, .group:
-          nil
-        }
-      }.max() ?? 0
+      let index =
+        items.compactMap { item -> Int? in
+          switch item.kind {
+          case .rootTab(_, .pinned, let rootIndex), .group(_, .pinned, let rootIndex, _):
+            rootIndex + 1
+          case .groupedTab, .rootTab, .group:
+            nil
+          }
+        }.max() ?? 0
       return .rootBoundary(lane: .pinned, index: index)
     }
-    guard let item = items.first(where: { $0.frame.contains(point) }) else { return nil }
-    let fraction = item.frame.width > 0 ? (point.x - item.frame.minX) / item.frame.width : 0.5
+    if case .group = source,
+      let group = groups.first(where: { $0.frame.contains(point) }),
+      let header = items.first(where: { $0.entryID == .group(group.id) }),
+      case .group(_, let lane, let rootIndex, _) = header.kind
+    {
+      return .rootBoundary(
+        lane: lane,
+        index: point.x < header.frame.midX ? rootIndex : rootIndex + 1
+      )
+    }
+    if let item = items.first(where: { $0.frame.contains(point) }) {
+      return semanticPath(for: item, x: point.x)
+    }
+    guard
+      point.x >= TerminalHorizontalTabLayoutMetrics.leadingInset,
+      point.x < (overflowFrame ?? newTabFrame).minX
+    else { return nil }
+    let previous = items.last { $0.frame.maxX < point.x }
+    let next = items.first { $0.frame.minX > point.x }
+    if let previous, let next,
+      case .group(let groupID, _, _, _) = previous.kind,
+      case .groupedTab(_, let childGroupID, let index) = next.kind,
+      groupID == childGroupID
+    {
+      return .groupBoundary(groupID, index: index)
+    }
+    if let previous, let next,
+      case .groupedTab(_, let groupID, _) = previous.kind,
+      case .groupedTab(_, let childGroupID, let index) = next.kind,
+      groupID == childGroupID
+    {
+      return .groupBoundary(groupID, index: index)
+    }
+    switch (previous, next) {
+    case (.some(let previous), .some(let next)):
+      let usePrevious = point.x <= (previous.frame.maxX + next.frame.minX) / 2
+      let item = usePrevious ? previous : next
+      return semanticPath(
+        for: item,
+        x: usePrevious ? item.frame.maxX : item.frame.minX
+      )
+    case (.some(let previous), nil):
+      return semanticPath(for: previous, x: previous.frame.maxX)
+    case (nil, .some(let next)):
+      return semanticPath(for: next, x: next.frame.minX)
+    case (nil, nil):
+      return nil
+    }
+  }
+
+  private func semanticPath(
+    for item: Item,
+    x: CGFloat
+  ) -> TerminalSidebarSemanticPath {
+    let fraction = item.frame.width > 0 ? (x - item.frame.minX) / item.frame.width : 0.5
     switch item.kind {
     case .rootTab(_, let lane, let rootIndex):
       if fraction < 0.5 {
@@ -198,9 +280,10 @@ struct TerminalHorizontalTabLayout: Equatable {
         case .rootTab(_, let itemLane, let rootIndex):
           guard itemLane == lane else { return nil }
           return (rootIndex, item.frame)
-        case .group(_, let itemLane, let rootIndex, _):
+        case .group(let id, let itemLane, let rootIndex, _):
           guard itemLane == lane else { return nil }
-          return (rootIndex, item.frame)
+          let frame = groups.first { $0.id == id }?.frame ?? item.frame
+          return (rootIndex, frame)
         case .groupedTab:
           return nil
         }
@@ -243,15 +326,27 @@ struct TerminalHorizontalTabLayout: Equatable {
     }
   }
 
+  private enum CandidateContent {
+    case item(TerminalSidebarEntryID, ItemKind)
+    case groupClose(TerminalTabGroupID)
+  }
+
   private struct Candidate {
-    let entryID: TerminalSidebarEntryID
-    let kind: ItemKind
+    let content: CandidateContent
     let lane: TerminalSidebarRootLane
     let minimumWidth: CGFloat
     let preferredWidth: CGFloat
+
+    var entryID: TerminalSidebarEntryID? {
+      guard case .item(let entryID, _) = content else { return nil }
+      return entryID
+    }
   }
 
-  private static func groups(items: [Item]) -> [Group] {
+  private static func groups(
+    items: [Item],
+    closeButtonFrames: [TerminalTabGroupID: CGRect]
+  ) -> [Group] {
     items.compactMap { item in
       guard case .group(let id, _, _, let isCollapsed) = item.kind else { return nil }
       let frames = items.compactMap { candidate -> CGRect? in
@@ -264,8 +359,11 @@ struct TerminalHorizontalTabLayout: Equatable {
           nil
         }
       }
-      guard let frame = frames.reduce(Optional<CGRect>.none, { $0?.union($1) ?? $1 }) else {
+      guard var frame = frames.reduce(Optional<CGRect>.none, { $0?.union($1) ?? $1 }) else {
         return nil
+      }
+      if let closeButtonFrame = closeButtonFrames[id] {
+        frame = frame.union(closeButtonFrame)
       }
       return Group(
         id: id,
@@ -276,6 +374,7 @@ struct TerminalHorizontalTabLayout: Equatable {
           height: TerminalHorizontalTabMetrics.height
             - TerminalHorizontalTabLayoutMetrics.groupSurfaceVerticalInset * 2
         ),
+        closeButtonFrame: closeButtonFrames[id],
         isCollapsed: isCollapsed
       )
     }
@@ -283,7 +382,8 @@ struct TerminalHorizontalTabLayout: Equatable {
 
   private static func candidates(
     snapshot: TerminalTabSurfaceSnapshot,
-    measureTitle: (String) -> CGFloat
+    titleForEntry: (TerminalSidebarEntryID, String) -> String,
+    measureContent: (TerminalSidebarEntryID, String) -> CGFloat
   ) -> [Candidate] {
     var result: [Candidate] = []
     var laneIndices: [TerminalSidebarRootLane: Int] = [:]
@@ -293,17 +393,20 @@ struct TerminalHorizontalTabLayout: Equatable {
       laneIndices[lane] = rootIndex + 1
       switch root {
       case .tab(let item):
+        let entryID = TerminalSidebarEntryID.tab(item.tab.id)
         result.append(
           Candidate(
-            entryID: .tab(item.tab.id),
-            kind: .rootTab(id: item.tab.id, lane: lane, rootIndex: rootIndex),
+            content: .item(
+              entryID,
+              .rootTab(id: item.tab.id, lane: lane, rootIndex: rootIndex)
+            ),
             lane: lane,
             minimumWidth: TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
             preferredWidth: min(
               TerminalHorizontalTabLayoutMetrics.tabMaximumWidth,
               max(
                 TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
-                measureTitle(item.tab.title)
+                measureContent(entryID, titleForEntry(entryID, item.tab.title))
                   + TerminalHorizontalTabLayoutMetrics.tabTitleHorizontalInset
               )
             )
@@ -311,14 +414,17 @@ struct TerminalHorizontalTabLayout: Equatable {
         )
       case .group(let group):
         let isCollapsed = snapshot.collapsedGroupIDs.contains(group.id)
+        let entryID = TerminalSidebarEntryID.group(group.id)
         result.append(
           Candidate(
-            entryID: .group(group.id),
-            kind: .group(
-              id: group.id,
-              lane: lane,
-              rootIndex: rootIndex,
-              isCollapsed: isCollapsed
+            content: .item(
+              entryID,
+              .group(
+                id: group.id,
+                lane: lane,
+                rootIndex: rootIndex,
+                isCollapsed: isCollapsed
+              )
             ),
             lane: lane,
             minimumWidth: TerminalHorizontalTabLayoutMetrics.groupMinimumWidth,
@@ -326,7 +432,7 @@ struct TerminalHorizontalTabLayout: Equatable {
               TerminalHorizontalTabLayoutMetrics.groupMaximumWidth,
               max(
                 TerminalHorizontalTabLayoutMetrics.groupMinimumWidth,
-                measureTitle(group.title)
+                measureContent(entryID, titleForEntry(entryID, group.title))
                   + TerminalHorizontalTabLayoutMetrics.groupTitleHorizontalInset
               )
             )
@@ -334,23 +440,34 @@ struct TerminalHorizontalTabLayout: Equatable {
         )
         guard !isCollapsed else { continue }
         for (index, tab) in group.tabs.enumerated() {
+          let entryID = TerminalSidebarEntryID.tab(tab.id)
           result.append(
             Candidate(
-              entryID: .tab(tab.id),
-              kind: .groupedTab(id: tab.id, groupID: group.id, index: index),
+              content: .item(
+                entryID,
+                .groupedTab(id: tab.id, groupID: group.id, index: index)
+              ),
               lane: lane,
               minimumWidth: TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
               preferredWidth: min(
                 TerminalHorizontalTabLayoutMetrics.tabMaximumWidth,
                 max(
                   TerminalHorizontalTabLayoutMetrics.tabMinimumWidth,
-                  measureTitle(tab.title)
+                  measureContent(entryID, titleForEntry(entryID, tab.title))
                     + TerminalHorizontalTabLayoutMetrics.tabTitleHorizontalInset
                 )
               )
             )
           )
         }
+        result.append(
+          Candidate(
+            content: .groupClose(group.id),
+            lane: lane,
+            minimumWidth: TerminalHorizontalTabLayoutMetrics.closeButtonSize,
+            preferredWidth: TerminalHorizontalTabLayoutMetrics.closeButtonSize
+          )
+        )
       }
     }
     return result
@@ -381,24 +498,65 @@ struct TerminalHorizontalTabLayout: Equatable {
     widths.reduce(0, +) + spacingWidth(candidates)
   }
 
-  private static func visiblePrefixCount(_ candidates: [Candidate], budget: CGFloat) -> Int {
+  private static func visibleCandidates(
+    _ candidates: [Candidate],
+    budget: CGFloat
+  ) -> [Candidate] {
     let minimumWidths = candidates.map(\.minimumWidth)
     guard consumedWidth(candidates, widths: minimumWidths) > budget else {
-      return candidates.count
+      return candidates
     }
-    var count = 0
+    var result: [Candidate] = []
     var consumed: CGFloat = 0
-    for index in candidates.indices {
-      let addition =
-        candidates[index].minimumWidth
-        + (index == candidates.startIndex
-          ? 0
-          : spacing(from: candidates[index - 1], to: candidates[index]))
+    var index = candidates.startIndex
+    while candidates.indices.contains(index) {
+      let candidate = candidates[index]
+      if case .item(_, .group(let groupID, _, _, false)) = candidate.content,
+        let closeIndex = candidates[index...].firstIndex(where: {
+          guard case .groupClose(let candidateGroupID) = $0.content else { return false }
+          return candidateGroupID == groupID
+        })
+      {
+        let close = candidates[closeIndex]
+        let headerAddition = addition(candidate, after: result.last)
+        let required =
+          headerAddition
+          + spacing(from: candidate, to: close)
+          + close.minimumWidth
+        guard consumed + required <= budget else { break }
+        result.append(candidate)
+        consumed += headerAddition
+        var childIndex = candidates.index(after: index)
+        while childIndex < closeIndex {
+          let child = candidates[childIndex]
+          let childRequired =
+            addition(child, after: result.last)
+            + spacing(from: child, to: close)
+            + close.minimumWidth
+          guard consumed + childRequired <= budget else {
+            result.append(close)
+            return result
+          }
+          consumed += addition(child, after: result.last)
+          result.append(child)
+          childIndex = candidates.index(after: childIndex)
+        }
+        consumed += addition(close, after: result.last)
+        result.append(close)
+        index = candidates.index(after: closeIndex)
+        continue
+      }
+      let addition = addition(candidate, after: result.last)
       guard consumed + addition <= budget else { break }
-      count += 1
+      result.append(candidate)
       consumed += addition
+      index = candidates.index(after: index)
     }
-    return count
+    return result
+  }
+
+  private static func addition(_ candidate: Candidate, after previous: Candidate?) -> CGFloat {
+    candidate.minimumWidth + (previous.map { spacing(from: $0, to: candidate) } ?? 0)
   }
 
   private static func spacingWidth(_ candidates: [Candidate]) -> CGFloat {

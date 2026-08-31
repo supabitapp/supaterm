@@ -11,6 +11,7 @@ extension TerminalHostState {
     in spaceID: TerminalSpaceID
   ) {
     guard let instance = spaceManager.instance(for: spaceID) else { return }
+    instance.tabSelectionState.clear()
     let currentSelectedTabID = instance.selectedTabID
     if currentSelectedTabID != tabID, let currentSelectedTabID {
       instance.previousSelectedTabID = currentSelectedTabID

@@ -7,6 +7,7 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
   let swipe: SpaceSwipeController
   let controllerCache: TerminalSidebarControllerCache
   let spaceID: TerminalSpaceID
+  let tabSelectionState: TerminalTabSelectionState
   let outline: TerminalSidebarOutline
   let rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation]
   let selectedTabID: TerminalTabID?
@@ -34,8 +35,8 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
         palette: palette,
         renameState: controller.renameState,
         groupHeaderHoverState: controller.groupHeaderHoverState,
-        tabSelectionState: controller.tabSelectionState,
-        outline: outline,
+        tabSelectionState: tabSelectionState,
+        visibleTabIDs: outline.visibleTabIDs,
         fixedHoveredGroupID: fixedHoveredGroupID,
         actions: actions
       ),

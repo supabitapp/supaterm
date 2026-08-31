@@ -8,6 +8,116 @@ import Testing
 @MainActor
 struct HorizontalTabStripControllerTests {
   @Test
+  func commandPressTogglesSecondarySelectionWithoutChangingPrimary() throws {
+    let fixture = Fixture()
+    let entryID = TerminalSidebarEntryID.tab(fixture.trailingTabID)
+    let frame = try #require(fixture.controller.dragSourceFrame(for: entryID))
+    let point = CGPoint(x: frame.midX, y: frame.midY)
+
+    fixture.controller.beginPointerInteraction(
+      entryID: entryID,
+      at: point,
+      modifiers: .command
+    )
+    fixture.controller.endPointerInteraction(entryID: entryID, at: point)
+
+    #expect(fixture.selectionState.secondaryTabIDs == [fixture.trailingTabID])
+    #expect(fixture.actions.selections.isEmpty)
+
+    fixture.controller.beginPointerInteraction(
+      entryID: entryID,
+      at: point,
+      modifiers: .command
+    )
+    fixture.controller.endPointerInteraction(entryID: entryID, at: point)
+
+    #expect(fixture.selectionState.secondaryTabIDs.isEmpty)
+    #expect(fixture.actions.selections.isEmpty)
+  }
+
+  @Test
+  func shiftPressSelectsTheVisibleRange() throws {
+    let fixture = Fixture()
+    let entryID = TerminalSidebarEntryID.tab(fixture.trailingTabID)
+    let frame = try #require(fixture.controller.dragSourceFrame(for: entryID))
+    let point = CGPoint(x: frame.midX, y: frame.midY)
+
+    fixture.controller.beginPointerInteraction(
+      entryID: entryID,
+      at: point,
+      modifiers: .shift
+    )
+    fixture.controller.endPointerInteraction(entryID: entryID, at: point)
+
+    let visibleTabIDs = TerminalSidebarOutline(snapshot: fixture.snapshot).visibleTabIDs
+    #expect(fixture.selectionState.secondaryTabIDs == Set(visibleTabIDs.dropFirst()))
+    #expect(fixture.actions.selections.isEmpty)
+  }
+
+  @Test
+  func plainReleaseOnSelectedBatchDefersThenCollapsesSelection() throws {
+    let fixture = Fixture()
+    fixture.selectionState.toggle(
+      fixture.trailingTabID,
+      primaryTabID: fixture.selectedTabID
+    )
+    let entryID = TerminalSidebarEntryID.tab(fixture.trailingTabID)
+    let frame = try #require(fixture.controller.dragSourceFrame(for: entryID))
+    let point = CGPoint(x: frame.midX, y: frame.midY)
+
+    fixture.controller.beginPointerInteraction(entryID: entryID, at: point)
+
+    #expect(fixture.controller.dragSourcePhase == .pending(entryID))
+    #expect(fixture.selectionState.secondaryTabIDs == [fixture.trailingTabID])
+
+    fixture.controller.endPointerInteraction(entryID: entryID, at: point)
+
+    #expect(fixture.selectionState.secondaryTabIDs.isEmpty)
+    #expect(fixture.actions.selections == [fixture.trailingTabID])
+  }
+
+  @Test
+  func selectedBatchProducesOneOrderedMultiTabPayloadAndHidesEachSource() throws {
+    let fixture = Fixture()
+    fixture.selectionState.toggle(
+      fixture.trailingTabID,
+      primaryTabID: fixture.selectedTabID
+    )
+
+    try fixture.startDrag(.tab(fixture.trailingTabID))
+
+    let invocation = try #require(fixture.nativeStart.invocations.first)
+    #expect(
+      invocation.payload.itemIDs == [
+        .tab(fixture.selectedTabID),
+        .tab(fixture.trailingTabID),
+      ]
+    )
+    #expect(fixture.controller.dragHiddenSourceViewCount == 2)
+    #expect(fixture.actions.selections.isEmpty)
+    fixture.controller.cancelInteractions()
+  }
+
+  @Test
+  func groupPressClearsOrdinaryMultiSelection() throws {
+    let fixture = Fixture()
+    fixture.selectionState.toggle(
+      fixture.trailingTabID,
+      primaryTabID: fixture.selectedTabID
+    )
+    let entryID = TerminalSidebarEntryID.group(fixture.groupID)
+    let frame = try #require(fixture.controller.dragSourceFrame(for: entryID))
+
+    fixture.controller.beginPointerInteraction(
+      entryID: entryID,
+      at: CGPoint(x: frame.midX, y: frame.midY)
+    )
+
+    #expect(fixture.selectionState.secondaryTabIDs.isEmpty)
+    fixture.controller.cancelInteractions()
+  }
+
+  @Test
   func activatesAtEightEuclideanPointsAndExpandsTheSourceHoldFrame() throws {
     let fixture = Fixture()
     let entryID = TerminalSidebarEntryID.tab(fixture.trailingTabID)
@@ -68,7 +178,7 @@ struct HorizontalTabStripControllerTests {
     #expect(invocation.payload.itemIDs == [.group(fixture.groupID)])
     #expect(invocation.frame == sourceFrame)
     #expect(fixture.controller.hasDragSourcePlaceholder)
-    #expect(fixture.controller.dragHiddenSourceViewCount == 4)
+    #expect(fixture.controller.dragHiddenSourceViewCount == 5)
     #expect(fixture.controller.dragCleanupCount == 0)
 
     fixture.controller.sourceSessionEnded(operation: [])
@@ -227,6 +337,21 @@ struct HorizontalTabStripControllerTests {
 
     #expect(fixture.controller.sourceOperationMask() == [.copy, .move])
   }
+
+  @Test
+  func expandedGroupCloseButtonOwnsItsAction() throws {
+    let fixture = Fixture()
+    let button = try #require(
+      fixture.controller.view.subviews.compactMap {
+        $0 as? TerminalHorizontalTabGroupCloseButton
+      }.first
+    )
+
+    button.performClick(nil)
+
+    #expect(fixture.actions.closedGroupIDs == [fixture.groupID])
+    #expect(button.frame.size == CGSize(width: 22, height: 22))
+  }
 }
 
 @MainActor
@@ -276,6 +401,7 @@ private final class HorizontalNativeStartRecorder {
 
 @MainActor
 private final class HorizontalActionsRecorder {
+  var closedGroupIDs: [TerminalTabGroupID] = []
   var commands: [TerminalSidebarDropCommand] = []
   var selectedTabID: TerminalTabID?
   var selections: [TerminalTabID] = []
@@ -286,6 +412,7 @@ private final class HorizontalActionsRecorder {
 
   var actions: TerminalHorizontalTabStripController.Actions {
     TerminalHorizontalTabStripController.Actions(
+      closeGroup: { [weak self] in self?.closedGroupIDs.append($0) },
       closeTab: { _ in },
       newTab: {},
       selectTab: { [weak self] tabID in
@@ -318,6 +445,7 @@ private final class Fixture {
   let groupID = TerminalTabGroupID()
   let nativeStart: HorizontalNativeStartRecorder
   let registry = TerminalTabDragRegistry()
+  let selectionState = TerminalTabSelectionState()
   let selectedTabID: TerminalTabID
   let trailingTabID: TerminalTabID
   let windowControllerID = UUID()
@@ -372,6 +500,7 @@ private final class Fixture {
   func apply(snapshot: TerminalTabSurfaceSnapshot) {
     controller.apply(
       snapshot: snapshot,
+      tabSelectionState: selectionState,
       palette: Palette(colorScheme: .dark),
       reduceMotion: true,
       actions: actions.actions

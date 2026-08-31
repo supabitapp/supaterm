@@ -833,6 +833,42 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test @MainActor
+  func switchingLayoutReplacesTheVerticalCacheBeforeUnmountingItsSurface() {
+    let shell = TerminalWindowShellController(
+      windowControllerID: UUID(),
+      tabDragRegistry: TerminalTabDragRegistry()
+    )
+    let verticalCache = shell.sidebarControllerCache
+    _ = verticalCache.controller(for: TerminalSpaceID())
+    var events: [String] = []
+    shell.cancelTabSurfaceInteractions = { events.append("cancel-\($0)") }
+    shell.setTabSurfaceMounted = { style, isMounted in
+      events.append("\(isMounted ? "mount" : "unmount")-\(style)")
+      if style == .vertical, !isMounted {
+        #expect(verticalCache.isEmpty)
+        #expect(shell.sidebarControllerCache !== verticalCache)
+      }
+    }
+
+    shell.apply(
+      TerminalWindowShellPresentation(
+        isSidebarCollapsed: false,
+        sidebarResizeState: nil,
+        sidebarWidth: 240,
+        tabLayoutStyle: .horizontal
+      )
+    )
+
+    #expect(
+      events == [
+        "cancel-vertical",
+        "unmount-vertical",
+        "mount-horizontal",
+      ]
+    )
+  }
+
+  @Test @MainActor
   func switchingLayoutLetsTheSourceFinishAnActiveTabDragOnce() throws {
     let registry = TerminalTabDragRegistry()
     let operationID = TerminalTabMoveOperationID()

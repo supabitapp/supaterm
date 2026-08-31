@@ -9,6 +9,19 @@ struct TerminalTabPanePresentation: Equatable, Identifiable, Sendable {
   let id: UUID
   let title: String
   let indicator: Indicator?
+  let isFocused: Bool
+
+  init(
+    id: UUID,
+    title: String,
+    indicator: Indicator?,
+    isFocused: Bool = false
+  ) {
+    self.id = id
+    self.title = title
+    self.indicator = indicator
+    self.isFocused = isFocused
+  }
 }
 
 extension TerminalHostState {
@@ -39,7 +52,8 @@ extension TerminalHostState {
           pwd: surface.bridge.state.pwd,
           defaultValue: "Pane \(index + 1)"
         ),
-        indicator: indicator
+        indicator: indicator,
+        isFocused: surface.id == focusedSurfaceID
       )
     }
   }

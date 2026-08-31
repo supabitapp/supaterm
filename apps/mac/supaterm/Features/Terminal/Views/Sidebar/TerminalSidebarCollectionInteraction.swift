@@ -226,24 +226,6 @@ enum TerminalSidebarOptionTabClick {
   }
 }
 
-enum TerminalSidebarTabPressDecision: Equatable {
-  case applySelection
-  case deferSelection([TerminalTabID])
-
-  static func resolve(
-    tabID: TerminalTabID,
-    modifiers: NSEvent.ModifierFlags,
-    selectedTabIDs: [TerminalTabID]
-  ) -> Self {
-    guard
-      modifiers.isDisjoint(with: [.command, .shift]),
-      selectedTabIDs.count > 1,
-      selectedTabIDs.contains(tabID)
-    else { return .applySelection }
-    return .deferSelection(selectedTabIDs)
-  }
-}
-
 enum TerminalSidebarDragSelection {
   static func selectPressedTab(
     _ entryID: TerminalSidebarEntryID,
@@ -258,30 +240,14 @@ enum TerminalSidebarDragSelection {
     entryID: TerminalSidebarEntryID,
     modifiers: NSEvent.ModifierFlags,
     content: TerminalSidebarDragContent
-  ) -> (selectedTabIDs: [TerminalTabID], defersSelection: Bool) {
-    guard case .tab(let tabID) = entryID else { return ([], false) }
-    let selectedTabIDs = content.context.tabSelectionState.orderedTabIDs(
-      primaryTabID: content.selectedTabID,
-      outline: content.outline
-    )
-    switch TerminalSidebarTabPressDecision.resolve(
+  ) -> TerminalTabSelectionPress {
+    guard case .tab(let tabID) = entryID else { return .empty }
+    return TerminalTabSelectionInteraction.press(
       tabID: tabID,
       modifiers: modifiers,
-      selectedTabIDs: selectedTabIDs
-    ) {
-    case .applySelection:
-      selectTab(tabID, modifiers: modifiers, content: content)
-      return (
-        content.context.tabSelectionState.contextualTabIDs(
-          for: tabID,
-          primaryTabID: content.selectedTabID,
-          outline: content.outline
-        ),
-        false
-      )
-    case .deferSelection(let selectedTabIDs):
-      return (selectedTabIDs, true)
-    }
+      context: selectionContext(content),
+      selectPrimary: content.context.terminal.selectTab
+    )
   }
 
   static func resolveDeferred(
@@ -289,7 +255,11 @@ enum TerminalSidebarDragSelection {
     content: TerminalSidebarDragContent
   ) {
     guard pendingDrag.defersSelection, case .tab(let tabID) = pendingDrag.entryID else { return }
-    selectTab(tabID, modifiers: [], content: content)
+    TerminalTabSelectionInteraction.resolveDeferred(
+      tabID: tabID,
+      selectionState: content.context.tabSelectionState,
+      selectPrimary: content.context.terminal.selectTab
+    )
   }
 
   static func selectTab(
@@ -297,27 +267,22 @@ enum TerminalSidebarDragSelection {
     modifiers: NSEvent.ModifierFlags,
     content: TerminalSidebarDragContent
   ) {
-    let modifiers = modifiers.intersection([.command, .shift])
-    guard !modifiers.isEmpty else {
-      content.context.tabSelectionState.clear()
-      content.context.terminal.selectTab(tabID)
-      return
-    }
-    guard let selectedTabID = content.selectedTabID else {
-      content.context.tabSelectionState.clear()
-      content.context.terminal.selectTab(tabID)
-      return
-    }
-    if modifiers.contains(.shift) {
-      content.context.tabSelectionState.selectRange(
-        to: tabID,
-        primaryTabID: selectedTabID,
-        outline: content.outline,
-        additive: modifiers.contains(.command)
-      )
-    } else {
-      content.context.tabSelectionState.toggle(tabID, primaryTabID: selectedTabID)
-    }
+    TerminalTabSelectionInteraction.select(
+      tabID: tabID,
+      modifiers: modifiers,
+      context: selectionContext(content),
+      selectPrimary: content.context.terminal.selectTab
+    )
+  }
+
+  private static func selectionContext(
+    _ content: TerminalSidebarDragContent
+  ) -> TerminalTabSelectionContext {
+    TerminalTabSelectionContext(
+      primaryTabID: content.selectedTabID,
+      visibleTabIDs: content.outline.visibleTabIDs,
+      state: content.context.tabSelectionState
+    )
   }
 }
 

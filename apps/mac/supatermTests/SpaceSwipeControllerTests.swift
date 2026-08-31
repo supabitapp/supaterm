@@ -1,5 +1,7 @@
 import AppKit
+import ComposableArchitecture
 import Foundation
+import Sharing
 import Testing
 
 @testable import supaterm
@@ -184,7 +186,8 @@ struct SpaceSwipeControllerTests {
     let host = SpaceSwipeHost(pageCount: 4)
     let controller = host.controller
 
-    #expect(controller.handle(SpaceScrollSample(phase: .wheel, deltaX: -1, isPrecise: false, time: 500)))
+    #expect(
+      controller.handle(SpaceScrollSample(phase: .wheel, deltaX: -1, isPrecise: false, time: 500)))
     #expect(host.selectedIndices.isEmpty)
 
     controller.handle(SpaceScrollSample(phase: .wheel, deltaX: -1, isPrecise: false, time: 500.05))
@@ -255,5 +258,51 @@ struct SpaceSwipeControllerTests {
     #expect(SpaceScrollSample.Phase(scroll: [], momentum: .ended) == .momentumEnded)
     #expect(SpaceScrollSample.Phase(scroll: [], momentum: []) == .wheel)
     #expect(SpaceScrollSample.Phase(scroll: .mayBegin, momentum: []) == .ignored)
+  }
+}
+
+@MainActor
+struct TerminalHorizontalSpacePagingTests {
+  @Test
+  func forwardsWheelAndLiveSwipeSelectionThroughTheHost() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let spaces = [TerminalSpaceItem(name: "A"), TerminalSpaceItem(name: "B")]
+      @Shared(.terminalSpaceCatalog) var catalog = TerminalSpaceCatalog.default
+      $catalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+      let terminal = TerminalHostState.test(
+        managesTerminalSurfaces: false,
+        spaceID: spaces[0].id
+      )
+      let swipe = SpaceSwipeController()
+      var actions: [TerminalHostState.SpaceAction] = []
+      terminal.onSpaceAction = { actions.append($0) }
+      TerminalHorizontalSpacePaging.connect(swipe, to: terminal)
+      swipe.pageWidth = 200
+      swipe.isSwipeTrackingEnabled = { true }
+
+      #expect(
+        swipe.handle(
+          SpaceScrollSample(
+            phase: .wheel,
+            deltaX: -3,
+            isPrecise: false,
+            time: 500
+          )
+        )
+      )
+      swipe.handle(SpaceScrollSample(phase: .began, deltaX: -120, time: 501))
+      swipe.handle(SpaceScrollSample(phase: .ended, deltaX: 0, time: 501.2))
+
+      #expect(actions == [.select(spaces[1].id), .select(spaces[1].id)])
+      #expect(terminal.spacePager === swipe)
+
+      TerminalHorizontalSpacePaging.disconnect(swipe, from: terminal)
+
+      #expect(terminal.spacePager == nil)
+    }
   }
 }

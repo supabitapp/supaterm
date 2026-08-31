@@ -127,6 +127,7 @@ final class TerminalWindowController: NSWindowController {
     let session: TerminalWindowSession?
     let shellController: NSViewController
     let store: StoreOf<AppFeature>
+    let tabDragRegistry: TerminalTabDragRegistry
     let terminal: TerminalHostState
     let windowControllerID: UUID
   }
@@ -217,6 +218,7 @@ final class TerminalWindowController: NSWindowController {
         session: session,
         shellController: shellController,
         store: store,
+        tabDragRegistry: registry.tabDragRegistry,
         terminal: terminal,
         windowControllerID: windowControllerID
       )
@@ -254,7 +256,8 @@ final class TerminalWindowController: NSWindowController {
     window.contentMinSize = NSSize(width: 1_080, height: 720)
     window.setContentSize(NSSize(width: 1_440, height: 900))
     window.identifier = NSUserInterfaceItemIdentifier(
-      "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(input.windowControllerID.uuidString)")
+      "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(input.windowControllerID.uuidString)"
+    )
     window.isReleasedWhenClosed = false
     window.tabbingMode = .disallowed
     window.titleVisibility = .hidden
@@ -298,7 +301,10 @@ final class TerminalWindowController: NSWindowController {
       windowControllerID: input.windowControllerID,
       tabDragRegistry: input.tabDragRegistry
     )
-    shellController.onSidebarResizeInput = { [weak shellController, store = input.store] resizeInput in
+    let horizontalTabStripControllerReference = HorizontalTabControllerReference()
+    let tabGroupIconStore = TerminalTabGroupIconStore()
+    shellController.onSidebarResizeInput = {
+      [weak shellController, store = input.store] resizeInput in
       guard let shellController else { return }
       _ = store.send(
         .terminal(
@@ -306,27 +312,7 @@ final class TerminalWindowController: NSWindowController {
         )
       )
     }
-    let detailController = NSHostingController(
-      rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          ContentView(
-            commandHoldObserver: input.commandHoldObserver,
-            ghosttyShortcuts: input.ghosttyShortcuts,
-            commandPaletteClient: input.commandPaletteClient,
-            paneDragClient: TerminalPaneDragClient(
-              terminal: input.terminal,
-              windowControllerID: input.windowControllerID,
-              registry: input.tabDragRegistry
-            ),
-            updateWindowShell: { [weak shellController] presentation in
-              shellController?.apply(presentation)
-            },
-            store: input.store,
-            terminal: input.terminal
-          )
-        }
-      }
-    )
+    let detailController = makeDetailController(input, shellController: shellController)
     let dialogController = TerminalWindowDialogController(
       store: input.store.scope(state: \.terminal, action: \.terminal),
       terminal: input.terminal
@@ -334,37 +320,38 @@ final class TerminalWindowController: NSWindowController {
     let backgroundController = NSHostingController(
       rootView: TerminalWindowChromeBackground(terminal: input.terminal)
     )
-    let sidebarController = NSHostingController(
-      rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          TerminalSidebarContentView(
-            commandHoldObserver: input.commandHoldObserver,
-            ghosttyShortcuts: input.ghosttyShortcuts,
-            licenseStore: input.licenseStore,
-            shellState: shellController.state,
-            store: input.store,
-            terminal: input.terminal,
-            sidebarControllerCache: shellController.sidebarControllerCache,
-            spacePagingDidEnd: { [weak shellController] in
-              shellController?.spacePagingDidEnd()
-            },
-            updateStore: input.updateStore
-          )
-        }
+    let sidebarRoot: () -> AnyView = { [weak shellController] in
+      makeSidebarRoot(
+        input,
+        shellController: shellController,
+        groupIconStore: tabGroupIconStore
+      )
+    }
+    let horizontalRoot: () -> AnyView = { [weak shellController] in
+      makeHorizontalRoot(
+        input,
+        shellController: shellController,
+        groupIconStore: tabGroupIconStore,
+        controllerReference: horizontalTabStripControllerReference
+      )
+    }
+    let sidebarController = NSHostingController(rootView: sidebarRoot())
+    let tabStripController = NSHostingController(rootView: AnyView(EmptyView()))
+    shellController.setTabSurfaceMounted = {
+      [weak sidebarController, weak tabStripController] style, isMounted in
+      switch style {
+      case .vertical:
+        sidebarController?.rootView = isMounted ? sidebarRoot() : AnyView(EmptyView())
+        sidebarController?.view.layoutSubtreeIfNeeded()
+      case .horizontal:
+        tabStripController?.rootView = isMounted ? horizontalRoot() : AnyView(EmptyView())
+        tabStripController?.view.layoutSubtreeIfNeeded()
       }
-    )
-    let tabStripController = NSHostingController(
-      rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
-          TerminalHorizontalTabsContentView(
-            store: input.store,
-            tabDragRegistry: input.tabDragRegistry,
-            terminal: input.terminal,
-            windowControllerID: input.windowControllerID
-          )
-        }
-      }
-    )
+    }
+    shellController.cancelTabSurfaceInteractions = { style in
+      guard style == .horizontal else { return }
+      horizontalTabStripControllerReference.cancelInteractions()
+    }
     shellController.isSpacePaging = { [weak terminal = input.terminal] in
       terminal?.spacePager?.isTracking == true
     }
@@ -394,6 +381,86 @@ final class TerminalWindowController: NSWindowController {
       dialogOverlay: dialogController
     )
     return shellController
+  }
+
+  private static func makeDetailController(
+    _ input: ShellInput,
+    shellController: TerminalWindowShellController
+  ) -> NSViewController {
+    NSHostingController(
+      rootView: AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
+          ContentView(
+            commandHoldObserver: input.commandHoldObserver,
+            ghosttyShortcuts: input.ghosttyShortcuts,
+            commandPaletteClient: input.commandPaletteClient,
+            paneDragClient: TerminalPaneDragClient(
+              terminal: input.terminal,
+              windowControllerID: input.windowControllerID,
+              registry: input.tabDragRegistry
+            ),
+            updateWindowShell: { [weak shellController] presentation in
+              shellController?.apply(presentation)
+            },
+            store: input.store,
+            terminal: input.terminal
+          )
+        }
+      }
+    )
+  }
+
+  private static func makeSidebarRoot(
+    _ input: ShellInput,
+    shellController: TerminalWindowShellController?,
+    groupIconStore: TerminalTabGroupIconStore
+  ) -> AnyView {
+    guard let shellController else { return AnyView(EmptyView()) }
+    return AnyView(
+      AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
+          TerminalSidebarContentView(
+            commandHoldObserver: input.commandHoldObserver,
+            ghosttyShortcuts: input.ghosttyShortcuts,
+            groupIconStore: groupIconStore,
+            licenseStore: input.licenseStore,
+            shellState: shellController.state,
+            store: input.store,
+            terminal: input.terminal,
+            sidebarControllerCache: shellController.sidebarControllerCache,
+            spacePagingDidEnd: { [weak shellController] in
+              shellController?.spacePagingDidEnd()
+            },
+            updateStore: input.updateStore
+          )
+        }
+      }
+    )
+  }
+
+  private static func makeHorizontalRoot(
+    _ input: ShellInput,
+    shellController: TerminalWindowShellController?,
+    groupIconStore: TerminalTabGroupIconStore,
+    controllerReference: HorizontalTabControllerReference
+  ) -> AnyView {
+    AnyView(
+      AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: input.runtime) {
+          TerminalHorizontalTabsContentView(
+            store: input.store,
+            groupIconStore: groupIconStore,
+            tabDragRegistry: input.tabDragRegistry,
+            terminal: input.terminal,
+            windowControllerID: input.windowControllerID,
+            captureRequest: {
+              shellController?.tabDragCaptureRequest()
+            },
+            controllerReference: controllerReference
+          )
+        }
+      }
+    )
   }
 
   private static func prepareTerminal(

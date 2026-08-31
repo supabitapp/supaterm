@@ -20,13 +20,13 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 900,
-      measureTitle: { CGFloat($0.count * 7) }
+      measureContent: { _, title in CGFloat(title.count * 7) }
     )
 
     #expect(layout.items.map(\.entryID) == fixture.allEntryIDs)
     #expect(layout.hiddenEntryIDs.isEmpty)
     #expect(layout.overflowFrame == nil)
-    #expect(layout.sectionSeparatorFrame == CGRect(x: 74, y: 6, width: 8, height: 30))
+    #expect(layout.sectionSeparatorFrame == CGRect(x: 78, y: 6, width: 8, height: 30))
     #expect(layout.items.allSatisfy { $0.frame.width <= 172 })
     #expect(layout.items.allSatisfy { $0.frame.height == 30 })
     #expect(layout.groups.count == 1)
@@ -34,9 +34,9 @@ struct TerminalHorizontalTabLayoutTests {
     let groupHeader = try #require(
       layout.items.first { $0.entryID == .group(fixture.groupID) }
     )
-    #expect(rootTab.frame.width == 72)
-    #expect(groupHeader.frame.width == 65)
-    #expect(layout.newTabFrame == CGRect(x: 457, y: 5, width: 32, height: 32))
+    #expect(rootTab.frame.width == 76)
+    #expect(groupHeader.frame.width == 99)
+    #expect(layout.newTabFrame == CGRect(x: 537, y: 5, width: 32, height: 32))
   }
 
   @Test
@@ -45,7 +45,7 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 900,
-      measureTitle: { CGFloat($0.count * 7) }
+      measureContent: { _, title in CGFloat(title.count * 7) }
     )
     let group = try #require(layout.groups.first)
     let groupItems = layout.items.filter { item in
@@ -61,11 +61,13 @@ struct TerminalHorizontalTabLayoutTests {
     let itemFrame = try #require(
       groupItems.map(\.frame).reduce(Optional<CGRect>.none) { $0?.union($1) ?? $1 }
     )
+    let closeButtonFrame = try #require(group.closeButtonFrame)
 
     #expect(group.id == fixture.groupID)
     #expect(group.isCollapsed == false)
     #expect(group.frame.minX == itemFrame.minX - 2)
-    #expect(group.frame.maxX == itemFrame.maxX + 2)
+    #expect(closeButtonFrame == CGRect(x: itemFrame.maxX + 4, y: 10, width: 22, height: 22))
+    #expect(group.frame.maxX == closeButtonFrame.maxX + 2)
     #expect(group.frame.minY == 2)
     #expect(group.frame.maxY == TerminalHorizontalTabMetrics.height - 2)
     #expect(layout.dragSourceFrame(for: .group(fixture.groupID)) == group.frame)
@@ -81,7 +83,7 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 900,
-      measureTitle: { CGFloat($0.count * 7) }
+      measureContent: { _, title in CGFloat(title.count * 7) }
     )
     let group = try #require(layout.groups.first)
     let header = try #require(
@@ -90,9 +92,64 @@ struct TerminalHorizontalTabLayoutTests {
 
     #expect(layout.items.map(\.entryID) == fixture.allEntryIDs)
     #expect(group.isCollapsed)
+    #expect(group.closeButtonFrame == nil)
     #expect(group.frame.minX == header.frame.minX - 2)
     #expect(group.frame.maxX == header.frame.maxX + 2)
     #expect(layout.dragSourceFrame(for: .group(fixture.groupID)) == group.frame)
+  }
+
+  @Test @MainActor
+  func collapsingGroupImmediatelyRemovesFadingChildrenFromAccessibility() throws {
+    let fixture = makeSnapshot()
+    let controller = TerminalHorizontalTabStripController(
+      windowControllerID: UUID(),
+      tabDragRegistry: TerminalTabDragRegistry(),
+      captureRequest: { nil }
+    )
+    controller.view.frame = CGRect(
+      x: 0,
+      y: 0,
+      width: 900,
+      height: TerminalHorizontalTabMetrics.height
+    )
+    let window = NSWindow(contentViewController: controller)
+    let actions = TerminalHorizontalTabStripController.Actions(
+      closeTab: { _ in },
+      newTab: {},
+      selectTab: { _ in },
+      toggleGroup: { _ in },
+      performDrop: { _ in nil }
+    )
+    controller.apply(
+      snapshot: fixture.snapshot,
+      palette: Palette(colorScheme: .dark),
+      reduceMotion: false,
+      actions: actions
+    )
+    let child = try #require(
+      controller.view.subviews.compactMap { $0 as? TerminalHorizontalTabItemView }
+        .first { $0.accessibilityLabel() == "Tab 2" }
+    )
+    let collapsedSnapshot = TerminalTabSurfaceSnapshot(
+      spaceID: fixture.snapshot.spaceID,
+      collection: TerminalTabCollectionSnapshot(
+        rootItems: fixture.snapshot.collection.rootItems,
+        selectedTabID: fixture.snapshot.collection.selectedTabID,
+        topologyRevision: fixture.snapshot.collection.topologyRevision
+      ),
+      collapsedGroupIDs: [fixture.groupID]
+    )
+
+    controller.apply(
+      snapshot: collapsedSnapshot,
+      palette: Palette(colorScheme: .dark),
+      reduceMotion: false,
+      actions: actions
+    )
+
+    #expect(child.superview != nil)
+    #expect(child.isAccessibilityElement() == false)
+    window.close()
   }
 
   @Test @MainActor
@@ -114,8 +171,26 @@ struct TerminalHorizontalTabLayoutTests {
   @Test @MainActor
   func tabChromeLeavesRoomForFittingTitle() throws {
     let view = TerminalHorizontalTabItemView()
-    let label = try #require(view.subviews.compactMap { $0 as? NSTextField }.first)
-    label.stringValue = "Shell"
+    view.apply(
+      TerminalHorizontalTabItemPresentation(
+        content: .tab(
+          id: TerminalTabID(),
+          title: "Shell",
+          subtitle: nil,
+          accessibilityTitle: "Shell",
+          agentStatus: nil,
+          trailingStatus: nil
+        ),
+        isSelected: false,
+        selectedTint: nil,
+        selectedTopExtension: 0
+      ),
+      palette: Palette(colorScheme: .dark),
+      reduceMotion: true
+    )
+    let label = try #require(
+      view.subviews.compactMap { $0 as? NSTextField }.first { $0.stringValue == "Shell" }
+    )
     view.frame = CGRect(
       x: 0,
       y: 0,
@@ -127,7 +202,69 @@ struct TerminalHorizontalTabLayoutTests {
 
     #expect(label.frame.width >= label.fittingSize.width)
     #expect(label.frame.height == ceil(label.fittingSize.height))
-    #expect(label.frame.midY == view.bounds.midY)
+    #expect(label.frame.midY == (view.bounds.height - 5) / 2)
+  }
+
+  @Test @MainActor
+  func secondarySelectionUsesRoundedChromeAndAccessibleSelectedState() throws {
+    let view = TerminalHorizontalTabItemView(
+      frame: CGRect(x: 0, y: 0, width: 120, height: 30)
+    )
+    let tabID = TerminalTabID()
+    view.apply(
+      TerminalHorizontalTabItemPresentation(
+        content: .tab(
+          id: tabID,
+          title: "Selected",
+          subtitle: nil,
+          accessibilityTitle: "Selected",
+          agentStatus: nil,
+          trailingStatus: nil
+        ),
+        selection: .secondary,
+        selectedTint: nil,
+        selectedTopExtension: 0
+      ),
+      palette: Palette(colorScheme: .dark),
+      reduceMotion: true
+    )
+    view.layoutSubtreeIfNeeded()
+    let bottomView = try #require(
+      view.subviews.compactMap { $0 as? TerminalHorizontalTabBottomView }.first
+    )
+    let secondaryPath = try #require(
+      bottomView.layer?.sublayers?.compactMap { $0 as? CAShapeLayer }
+        .compactMap(\.path).first
+    )
+
+    #expect(secondaryPath.boundingBoxOfPath == bottomView.bounds)
+    #expect((view.accessibilityValue() as? NSNumber)?.boolValue == true)
+
+    view.apply(
+      TerminalHorizontalTabItemPresentation(
+        content: .tab(
+          id: tabID,
+          title: "Selected",
+          subtitle: nil,
+          accessibilityTitle: "Selected",
+          agentStatus: nil,
+          trailingStatus: nil
+        ),
+        selection: .primary,
+        selectedTint: nil,
+        selectedTopExtension: 2
+      ),
+      palette: Palette(colorScheme: .dark),
+      reduceMotion: true
+    )
+    view.layoutSubtreeIfNeeded()
+    let primaryPath = try #require(
+      bottomView.layer?.sublayers?.compactMap { $0 as? CAShapeLayer }
+        .compactMap(\.path).first
+    )
+
+    #expect(primaryPath.boundingBoxOfPath.minX < bottomView.bounds.minX)
+    #expect(primaryPath.boundingBoxOfPath.maxX > bottomView.bounds.maxX)
   }
 
   @Test @MainActor
@@ -178,7 +315,7 @@ struct TerminalHorizontalTabLayoutTests {
     controller.view.layoutSubtreeIfNeeded()
     let groupView = try #require(
       controller.view.subviews.compactMap { $0 as? TerminalHorizontalTabItemView }
-        .first { $0.accessibilityLabel() == "Tab Group Build" }
+        .first { $0.accessibilityLabel() == "Build, Blue group, 3 tabs" }
     )
     let payload = try #require(
       TerminalTabDragPayload(
@@ -223,7 +360,7 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 250,
-      measureTitle: { CGFloat($0.count * 12) }
+      measureContent: { _, title in CGFloat(title.count * 12) }
     )
 
     #expect(layout.overflowFrame != nil)
@@ -236,6 +373,47 @@ struct TerminalHorizontalTabLayoutTests {
     #expect(layout.items.map(\.frame.maxX).max() ?? 0 <= layout.overflowFrame?.minX ?? 0)
     #expect(layout.overflowFrame?.size == CGSize(width: 32, height: 32))
     #expect(layout.newTabFrame.size == CGSize(width: 32, height: 32))
+  }
+
+  @Test
+  func expandedGroupCloseStaysVisibleWhenChildrenOverflow() throws {
+    let tabs = (0..<4).map { TerminalTabItem(title: "Tab \($0 + 1)") }
+    let groupID = TerminalTabGroupID()
+    let snapshot = TerminalTabSurfaceSnapshot(
+      spaceID: TerminalSpaceID(),
+      collection: TerminalTabCollectionSnapshot(
+        rootItems: [
+          .group(
+            TerminalTabGroupItem(
+              id: groupID,
+              title: "Build",
+              color: .blue,
+              isPinned: false,
+              tabs: tabs
+            )
+          )
+        ],
+        selectedTabID: tabs.first?.id,
+        topologyRevision: 7
+      ),
+      collapsedGroupIDs: []
+    )
+    let layout = TerminalHorizontalTabLayout(
+      snapshot: snapshot,
+      availableWidth: 280,
+      measureContent: { _, _ in 0 }
+    )
+    let group = try #require(layout.groups.first)
+    let close = try #require(group.closeButtonFrame)
+
+    #expect(
+      layout.items.map(\.entryID)
+        == [.group(groupID), .tab(tabs[0].id), .tab(tabs[1].id)]
+    )
+    #expect(layout.hiddenEntryIDs == [.tab(tabs[2].id), .tab(tabs[3].id)])
+    #expect(close == CGRect(x: 184, y: 10, width: 22, height: 22))
+    #expect(layout.overflowFrame == CGRect(x: 210, y: 5, width: 32, height: 32))
+    #expect(close.maxX < (layout.overflowFrame?.minX ?? 0))
   }
 
   @Test
@@ -273,7 +451,7 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: snapshot,
       availableWidth: 230,
-      measureTitle: { _ in 0 }
+      measureContent: { _, _ in 0 }
     )
 
     #expect(layout.items.map(\.entryID) == Array(entryIDs.prefix(2)))
@@ -289,17 +467,17 @@ struct TerminalHorizontalTabLayoutTests {
     let constrainedMixedLayout = TerminalHorizontalTabLayout(
       snapshot: mixed.snapshot,
       availableWidth: 172,
-      measureTitle: { _ in 0 }
+      measureContent: { _, _ in 0 }
     )
     let constrainedRegularLayout = TerminalHorizontalTabLayout(
       snapshot: regular.snapshot,
       availableWidth: 172,
-      measureTitle: { _ in 0 }
+      measureContent: { _, _ in 0 }
     )
     let exactMixedLayout = TerminalHorizontalTabLayout(
       snapshot: mixed.snapshot,
       availableWidth: 178,
-      measureTitle: { _ in 0 }
+      measureContent: { _, _ in 0 }
     )
 
     #expect(constrainedMixedLayout.items.map(\.entryID) == [mixed.entryIDs[0]])
@@ -323,7 +501,7 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 250,
-      measureTitle: { CGFloat($0.count * 12) }
+      measureContent: { _, title in CGFloat(title.count * 12) }
     )
     let overflowFrame = try #require(layout.overflowFrame)
 
@@ -343,7 +521,7 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 0,
-      measureTitle: { _ in 0 }
+      measureContent: { _, _ in 0 }
     )
 
     #expect(layout.items.isEmpty)
@@ -359,10 +537,26 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 500,
-      measureTitle: { _ in 1_000 }
+      measureContent: { _, _ in 1_000 }
     )
 
     #expect(layout.items.first?.frame.width == 172)
+  }
+
+  @Test
+  func renderedTitleDeterminesPreferredWidth() throws {
+    let fixture = makeSnapshot()
+    let firstEntryID = try #require(fixture.allEntryIDs.first)
+    let layout = TerminalHorizontalTabLayout(
+      snapshot: fixture.snapshot,
+      availableWidth: 900,
+      titleForEntry: { entryID, fallback in
+        entryID == firstEntryID ? String(repeating: "x", count: 30) : fallback
+      },
+      measureContent: { _, title in CGFloat(title.count * 7) }
+    )
+
+    #expect(layout.items.first?.frame.width == TerminalHorizontalTabLayoutMetrics.tabMaximumWidth)
   }
 
   @Test
@@ -371,7 +565,7 @@ struct TerminalHorizontalTabLayoutTests {
     let layout = TerminalHorizontalTabLayout(
       snapshot: fixture.snapshot,
       availableWidth: 900,
-      measureTitle: { CGFloat($0.count * 7) }
+      measureContent: { _, title in CGFloat(title.count * 7) }
     )
     let root = try #require(layout.items.first)
     let group = try #require(
@@ -384,21 +578,38 @@ struct TerminalHorizontalTabLayoutTests {
       }
     )
     let separator = try #require(layout.sectionSeparatorFrame)
+    guard case .tab(let sourceID) = root.entryID else {
+      Issue.record("Expected a tab source")
+      return
+    }
+    let source = TerminalSidebarDragSource.tabs([sourceID])
 
     #expect(
-      layout.semanticPath(at: CGPoint(x: root.frame.minX + 1, y: root.frame.midY))
+      layout.semanticPath(
+        at: CGPoint(x: root.frame.minX + 1, y: root.frame.midY),
+        source: source
+      )
         == .rootBoundary(lane: .pinned, index: 0)
     )
     #expect(
-      layout.semanticPath(at: CGPoint(x: group.frame.midX, y: group.frame.midY))
+      layout.semanticPath(
+        at: CGPoint(x: group.frame.midX, y: group.frame.midY),
+        source: source
+      )
         == .groupEntry(fixture.groupID)
     )
     #expect(
-      layout.semanticPath(at: CGPoint(x: groupedTab.frame.maxX - 1, y: groupedTab.frame.midY))
+      layout.semanticPath(
+        at: CGPoint(x: groupedTab.frame.maxX - 1, y: groupedTab.frame.midY),
+        source: source
+      )
         == .groupBoundary(fixture.groupID, index: 1)
     )
     #expect(
-      layout.semanticPath(at: CGPoint(x: separator.midX, y: separator.midY))
+      layout.semanticPath(
+        at: CGPoint(x: separator.midX, y: separator.midY),
+        source: source
+      )
         == .rootBoundary(lane: .pinned, index: 1)
     )
     #expect(
@@ -407,11 +618,94 @@ struct TerminalHorizontalTabLayoutTests {
     )
     #expect(
       layout.indicatorFrame(for: .groupEntry(fixture.groupID))
-        == CGRect(x: 115.5, y: 7, width: 2, height: 28)
+        == CGRect(x: 136.5, y: 7, width: 2, height: 28)
     )
     #expect(
       layout.indicatorFrame(for: .groupBoundary(fixture.groupID, index: 1))
-        == CGRect(x: 228, y: 7, width: 2, height: 28)
+        == CGRect(x: 270, y: 7, width: 2, height: 28)
+    )
+  }
+
+  @Test
+  func groupDragTargetsRootBoundariesAroundTheExpandedGroupUnit() throws {
+    let sourceChild = TerminalTabItem(title: "Source")
+    let targetChild = TerminalTabItem(title: "Target")
+    let sourceGroupID = TerminalTabGroupID()
+    let targetGroupID = TerminalTabGroupID()
+    let snapshot = TerminalTabSurfaceSnapshot(
+      spaceID: TerminalSpaceID(),
+      collection: TerminalTabCollectionSnapshot(
+        rootItems: [
+          .group(
+            TerminalTabGroupItem(
+              id: sourceGroupID,
+              title: "Source",
+              color: .blue,
+              isPinned: false,
+              tabs: [sourceChild]
+            )
+          ),
+          .group(
+            TerminalTabGroupItem(
+              id: targetGroupID,
+              title: "Target",
+              color: .green,
+              isPinned: false,
+              tabs: [targetChild]
+            )
+          ),
+        ],
+        selectedTabID: sourceChild.id,
+        topologyRevision: 7
+      ),
+      collapsedGroupIDs: []
+    )
+    let layout = TerminalHorizontalTabLayout(
+      snapshot: snapshot,
+      availableWidth: 900,
+      measureContent: { _, _ in 0 }
+    )
+    let targetHeader = try #require(
+      layout.items.first { $0.entryID == .group(targetGroupID) }
+    )
+    let targetGroup = try #require(layout.groups.first { $0.id == targetGroupID })
+    let targetClose = try #require(targetGroup.closeButtonFrame)
+    let outline = TerminalSidebarOutline(snapshot: snapshot)
+    let payload = try #require(outline.dragPayload(for: .group(sourceGroupID)))
+    let leadingPath = layout.semanticPath(
+      at: CGPoint(x: targetHeader.frame.midX - 1, y: targetHeader.frame.midY),
+      source: payload.source
+    )
+    let trailingPath = layout.semanticPath(
+      at: CGPoint(x: targetHeader.frame.midX + 1, y: targetHeader.frame.midY),
+      source: payload.source
+    )
+
+    #expect(leadingPath == .rootBoundary(lane: .regular, index: 1))
+    #expect(trailingPath == .rootBoundary(lane: .regular, index: 2))
+    #expect(
+      layout.semanticPath(
+        at: CGPoint(x: targetClose.midX, y: targetClose.midY),
+        source: payload.source
+      )
+        == .rootBoundary(lane: .regular, index: 2)
+    )
+    #expect(
+      TerminalSidebarDropResolution(
+        payload: payload,
+        path: trailingPath,
+        outline: outline
+      ).plan?.destination == .root(isPinned: false, index: 1)
+    )
+    #expect(targetGroup.frame.maxX > targetHeader.frame.maxX)
+    #expect(
+      layout.indicatorFrame(for: .rootBoundary(lane: .regular, index: 2))
+        == CGRect(
+          x: targetGroup.frame.maxX - 1,
+          y: 7,
+          width: 2,
+          height: TerminalHorizontalTabMetrics.height - 14
+        )
     )
   }
 

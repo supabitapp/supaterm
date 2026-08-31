@@ -17,6 +17,7 @@ struct TerminalSidebarChromeView: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  let groupIconStore: TerminalTabGroupIconStore
   let isPagingActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
   let fixedHoveredGroupID: TerminalTabGroupID?
@@ -30,6 +31,7 @@ struct TerminalSidebarChromeView: View {
       SpaceSidebarPagerView(
         terminal: terminal,
         palette: palette,
+        groupIconStore: groupIconStore,
         isActive: isPagingActive,
         sidebarControllerCache: sidebarControllerCache,
         fixedHoveredGroupID: fixedHoveredGroupID,

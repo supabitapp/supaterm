@@ -181,18 +181,18 @@ struct TerminalSidebarGroupSurfaceTests {
       ],
       revision: 1
     )
-    let selection = TerminalSidebarTabSelectionState()
+    let selection = TerminalTabSelectionState()
 
     selection.selectRange(
       to: secondChild,
       primaryTabID: primary,
-      outline: outline,
+      visibleTabIDs: outline.visibleTabIDs,
       additive: false
     )
     selection.toggle(trailing, primaryTabID: primary)
 
     #expect(
-      selection.orderedTabIDs(primaryTabID: primary, outline: outline)
+      selection.orderedTabIDs(primaryTabID: primary, visibleTabIDs: outline.visibleTabIDs)
         == [primary, firstChild, secondChild, trailing]
     )
     #expect(selection.style(for: primary, primaryTabID: primary) == .primary)
@@ -221,17 +221,17 @@ struct TerminalSidebarGroupSurfaceTests {
       revision: 2,
       collapsedGroupIDs: [groupID]
     )
-    let selection = TerminalSidebarTabSelectionState()
+    let selection = TerminalTabSelectionState()
 
     selection.toggle(child, primaryTabID: primary)
     #expect(
       selection.contextualTabIDs(
         for: unselected,
         primaryTabID: primary,
-        outline: expanded
+        visibleTabIDs: expanded.visibleTabIDs
       ) == [unselected]
     )
-    selection.retainVisible(in: collapsed, primaryTabID: primary)
+    selection.retainVisible(in: collapsed.visibleTabIDs, primaryTabID: primary)
 
     #expect(selection.secondaryTabIDs.isEmpty)
   }
@@ -247,7 +247,7 @@ struct TerminalSidebarGroupSurfaceTests {
       ],
       revision: 1
     )
-    let selection = TerminalSidebarTabSelectionState()
+    let selection = TerminalTabSelectionState()
     selection.toggle(secondary, primaryTabID: primary)
     let invalidationCount = Mutex(0)
 
@@ -257,7 +257,7 @@ struct TerminalSidebarGroupSurfaceTests {
       invalidationCount.withLock { $0 += 1 }
     }
 
-    selection.retainVisible(in: outline, primaryTabID: primary)
+    selection.retainVisible(in: outline.visibleTabIDs, primaryTabID: primary)
     for _ in 0..<5 { await Task.yield() }
 
     #expect(invalidationCount.withLock { $0 } == 0)

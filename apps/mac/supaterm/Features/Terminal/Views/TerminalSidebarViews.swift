@@ -14,6 +14,7 @@ struct TerminalWindowSidebarRoot: View {
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
   let terminal: TerminalHostState
+  let groupIconStore: TerminalTabGroupIconStore
   let shellState: TerminalWindowShellState
   let sidebarControllerCache: TerminalSidebarControllerCache
   let spacePagingDidEnd: () -> Void
@@ -57,6 +58,7 @@ struct TerminalWindowSidebarRoot: View {
       releaseAnnouncement: releaseAnnouncement,
       palette: palette,
       terminal: terminal,
+      groupIconStore: groupIconStore,
       isPagingActive: true,
       sidebarControllerCache: sidebarControllerCache,
       shouldPlayTabMoveHaptics: supatermSettings.tabMoveHapticsEnabled,
@@ -72,6 +74,7 @@ struct TerminalSidebarView: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  let groupIconStore: TerminalTabGroupIconStore
   let isPagingActive: Bool
   let sidebarControllerCache: TerminalSidebarControllerCache
   let shouldPlayTabMoveHaptics: Bool
@@ -85,6 +88,7 @@ struct TerminalSidebarView: View {
       releaseAnnouncement: releaseAnnouncement,
       palette: palette,
       terminal: terminal,
+      groupIconStore: groupIconStore,
       isPagingActive: isPagingActive,
       sidebarControllerCache: sidebarControllerCache,
       fixedHoveredGroupID: nil,

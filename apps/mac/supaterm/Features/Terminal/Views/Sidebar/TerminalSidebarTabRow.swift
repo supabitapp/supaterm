@@ -59,8 +59,8 @@ struct TerminalSidebarTabRow: View {
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
   let renameState: TerminalSidebarRenameState?
-  let selectionState: TerminalSidebarTabSelectionState
-  let outline: TerminalSidebarOutline
+  let selectionState: TerminalTabSelectionState
+  let visibleTabIDs: [TerminalTabID]
   let panes: [TerminalTabPanePresentation]
   let terminalProgress: TerminalTabProgress?
   let palette: Palette
@@ -229,7 +229,7 @@ struct TerminalSidebarTabRow: View {
       let contextualTabIDs = selectionState.contextualTabIDs(
         for: tab.id,
         primaryTabID: terminal.selectedTabID,
-        outline: outline
+        visibleTabIDs: visibleTabIDs
       )
       if contextualTabIDs.count > 1 {
         TerminalSidebarBatchTabMenu(

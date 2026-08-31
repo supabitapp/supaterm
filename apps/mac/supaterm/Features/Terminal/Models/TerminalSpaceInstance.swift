@@ -6,6 +6,7 @@ import Observation
 final class TerminalSpaceInstance {
   let spaceID: TerminalSpaceID
   let tabCollection = TerminalTabCollection()
+  let tabSelectionState = TerminalTabSelectionState()
   var previousSelectedTabID: TerminalTabID?
   var collapsedTabGroupIDs: Set<TerminalTabGroupID> = []
   var pendingSession: TerminalSpaceSession?

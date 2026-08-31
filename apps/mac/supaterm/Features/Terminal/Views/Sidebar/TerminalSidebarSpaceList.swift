@@ -1,25 +1,5 @@
 import SupaTheme
-import SupatermCLIShared
 import SwiftUI
-
-nonisolated struct TerminalSidebarGroupIconRequest: Hashable, Sendable {
-  let workingDirectoryPathsByTab: [[String]]
-
-  func resolve() -> URL? {
-    for path in workingDirectoryPathsByTab.joined() {
-      guard
-        let rootPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path),
-        let iconURL = SupatermProjectIconResolver.resolve(
-          in: URL(fileURLWithPath: rootPath, isDirectory: true)
-        )
-      else {
-        continue
-      }
-      return iconURL
-    }
-    return nil
-  }
-}
 
 enum TerminalSidebarTabShortcutHints {
   static let maxVisibleShortcutCount = 10
@@ -44,6 +24,7 @@ enum TerminalSidebarTabShortcutHints {
 
 struct TerminalSidebarSpaceList: View {
   let terminal: TerminalHostState
+  let groupIconStore: TerminalTabGroupIconStore
   let instance: TerminalSpaceInstance
   let palette: Palette
   let swipe: SpaceSwipeController
@@ -54,17 +35,20 @@ struct TerminalSidebarSpaceList: View {
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
-  @State private var groupIconURLs: [TerminalTabGroupID: URL] = [:]
 
   var body: some View {
+    let snapshot = snapshot
+    let groupIconRequests = terminal.tabGroupIconRequests(for: snapshot)
+    let groupIconURLs = groupIconStore.iconURLs(for: groupIconRequests)
     TerminalSidebarOutlineList(
       terminal: terminal,
       palette: palette,
       swipe: swipe,
       controllerCache: controllerCache,
       spaceID: instance.spaceID,
-      outline: outline,
-      rows: rows,
+      tabSelectionState: instance.tabSelectionState,
+      outline: TerminalSidebarOutline(snapshot: snapshot),
+      rows: rows(snapshot: snapshot, groupIconURLs: groupIconURLs),
       selectedTabID: snapshot.collection.selectedTabID,
       fixedHoveredGroupID: fixedHoveredGroupID,
       reduceMotion: reduceMotion,
@@ -74,15 +58,7 @@ struct TerminalSidebarSpaceList: View {
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .task(id: groupIconRequests) {
-      let requests = groupIconRequests
-      groupIconURLs = [:]
-      let icons = await Task.detached(priority: .utility) {
-        requests.reduce(into: [TerminalTabGroupID: URL]()) { icons, request in
-          icons[request.key] = request.value.resolve()
-        }
-      }.value
-      guard !Task.isCancelled else { return }
-      groupIconURLs = icons
+      await groupIconStore.load(groupIconRequests)
     }
   }
 
@@ -90,13 +66,17 @@ struct TerminalSidebarSpaceList: View {
     instance.tabSurfaceSnapshot
   }
 
-  private var outline: TerminalSidebarOutline {
-    TerminalSidebarOutline(snapshot: snapshot)
-  }
-
-  private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
+  private func rows(
+    snapshot: TerminalTabSurfaceSnapshot,
+    groupIconURLs: [TerminalTabGroupID: URL]
+  ) -> [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
     var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
-    let shortcutHints = tabShortcutHintsByID
+    let chromePresentations = terminal.tabChromePresentations(for: snapshot)
+    let shortcutHints = TerminalSidebarTabShortcutHints.byTabID(
+      for: snapshot.collection.tabs
+    ) { slot in
+      ghosttyShortcuts.keyboardShortcut(for: .goToTab(slot))
+    }
     for root in snapshot.collection.rootItems {
       switch root {
       case .tab(let item):
@@ -105,6 +85,7 @@ struct TerminalSidebarSpaceList: View {
             item.tab,
             groupID: nil,
             rootIsPinned: item.isPinned,
+            chromePresentation: chromePresentations[item.tab.id] ?? .empty,
             shortcutHints: shortcutHints
           )
         )
@@ -127,6 +108,7 @@ struct TerminalSidebarSpaceList: View {
               tab,
               groupID: group.id,
               rootIsPinned: group.isPinned,
+              chromePresentation: chromePresentations[tab.id] ?? .empty,
               shortcutHints: shortcutHints
             )
           )
@@ -141,34 +123,19 @@ struct TerminalSidebarSpaceList: View {
     return rows
   }
 
-  private var groupIconRequests: [TerminalTabGroupID: TerminalSidebarGroupIconRequest] {
-    Dictionary(
-      uniqueKeysWithValues: snapshot.collection.rootItems.compactMap { root in
-        guard case .group(let group) = root else { return nil }
-        return (
-          group.id,
-          TerminalSidebarGroupIconRequest(
-            workingDirectoryPathsByTab: group.tabs.map {
-              terminal.paneWorkingDirectoryPaths(for: $0.id)
-            }
-          )
-        )
-      }
-    )
-  }
-
   private func tabPresentation(
     _ tab: TerminalTabItem,
     groupID: TerminalTabGroupID?,
     rootIsPinned: Bool,
+    chromePresentation: TerminalTabChromePresentation,
     shortcutHints: [TerminalTabID: String]
   ) -> TerminalSidebarTabRowPresentation {
     return TerminalSidebarTabRowPresentation(
       tab: tab,
       groupID: groupID,
       rootIsPinned: rootIsPinned,
-      panes: terminal.tabPanePresentations(for: tab.id),
-      terminalProgress: terminal.tabProgress(for: tab.id),
+      panes: chromePresentation.panes,
+      terminalProgress: chromePresentation.progress,
       shortcutHint: shortcutHints[tab.id],
       showsShortcutHint: commandHoldObserver.isPressed
     )
@@ -185,12 +152,6 @@ struct TerminalSidebarSpaceList: View {
       closeGroup: { terminal.requestCloseGroup($0) },
       newTab: newTab
     )
-  }
-
-  private var tabShortcutHintsByID: [TerminalTabID: String] {
-    TerminalSidebarTabShortcutHints.byTabID(for: snapshot.collection.tabs) { slot in
-      ghosttyShortcuts.keyboardShortcut(for: .goToTab(slot))
-    }
   }
 
   private func createTab(in groupID: TerminalTabGroupID) {

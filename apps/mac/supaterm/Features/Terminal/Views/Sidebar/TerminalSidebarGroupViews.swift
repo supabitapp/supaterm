@@ -126,79 +126,9 @@ final class TerminalSidebarGroupHoverState {
   }
 }
 
-@MainActor
-@Observable
-final class TerminalSidebarTabSelectionState {
-  private(set) var secondaryTabIDs: Set<TerminalTabID> = []
-
-  func style(
-    for tabID: TerminalTabID,
-    primaryTabID: TerminalTabID?
-  ) -> SelectableRowSelection {
-    if tabID == primaryTabID { return .primary }
-    return secondaryTabIDs.contains(tabID) ? .secondary : .none
-  }
-
-  func orderedTabIDs(
-    primaryTabID: TerminalTabID?,
-    outline: TerminalSidebarOutline
-  ) -> [TerminalTabID] {
-    let selected = secondaryTabIDs.union(primaryTabID.map { Set([$0]) } ?? [])
-    return Self.visibleTabIDs(in: outline).filter(selected.contains)
-  }
-
-  func contextualTabIDs(
-    for tabID: TerminalTabID,
-    primaryTabID: TerminalTabID?,
-    outline: TerminalSidebarOutline
-  ) -> [TerminalTabID] {
-    guard style(for: tabID, primaryTabID: primaryTabID) != .none else { return [tabID] }
-    return orderedTabIDs(primaryTabID: primaryTabID, outline: outline)
-  }
-
-  func toggle(_ tabID: TerminalTabID, primaryTabID: TerminalTabID?) {
-    guard tabID != primaryTabID else { return }
-    if !secondaryTabIDs.insert(tabID).inserted {
-      secondaryTabIDs.remove(tabID)
-    }
-  }
-
-  func selectRange(
-    to tabID: TerminalTabID,
-    primaryTabID: TerminalTabID?,
-    outline: TerminalSidebarOutline,
-    additive: Bool
-  ) {
-    guard let primaryTabID else { return }
-    let visible = Self.visibleTabIDs(in: outline)
-    guard
-      let primaryIndex = visible.firstIndex(of: primaryTabID),
-      let targetIndex = visible.firstIndex(of: tabID)
-    else { return }
-    let bounds = min(primaryIndex, targetIndex)...max(primaryIndex, targetIndex)
-    let range = Set(visible[bounds]).subtracting([primaryTabID])
-    if additive {
-      secondaryTabIDs.formUnion(range)
-    } else {
-      secondaryTabIDs = range
-    }
-  }
-
-  func clear() {
-    guard !secondaryTabIDs.isEmpty else { return }
-    secondaryTabIDs = []
-  }
-
-  func retainVisible(in outline: TerminalSidebarOutline, primaryTabID: TerminalTabID?) {
-    let visible = Set(Self.visibleTabIDs(in: outline))
-    var retained = secondaryTabIDs.intersection(visible)
-    if let primaryTabID { retained.remove(primaryTabID) }
-    guard retained != secondaryTabIDs else { return }
-    secondaryTabIDs = retained
-  }
-
-  private static func visibleTabIDs(in outline: TerminalSidebarOutline) -> [TerminalTabID] {
-    outline.visibleEntries.compactMap { entry in
+extension TerminalSidebarOutline {
+  var visibleTabIDs: [TerminalTabID] {
+    visibleEntries.compactMap { entry in
       guard case .tab(let tabID, _, _) = entry.kind else { return nil }
       return tabID
     }
@@ -329,8 +259,8 @@ struct TerminalSidebarRowContext {
   let palette: Palette
   let renameState: TerminalSidebarRenameState
   let groupHeaderHoverState: TerminalSidebarGroupHoverState
-  let tabSelectionState: TerminalSidebarTabSelectionState
-  let outline: TerminalSidebarOutline
+  let tabSelectionState: TerminalTabSelectionState
+  let visibleTabIDs: [TerminalTabID]
   let fixedHoveredGroupID: TerminalTabGroupID?
   let actions: TerminalSidebarRowActions
 }
@@ -349,7 +279,7 @@ struct TerminalSidebarHostedRow: View {
         rootIsPinned: presentation.rootIsPinned,
         renameState: context.renameState,
         selectionState: context.tabSelectionState,
-        outline: context.outline,
+        visibleTabIDs: context.visibleTabIDs,
         panes: presentation.panes,
         terminalProgress: presentation.terminalProgress,
         palette: context.palette,
@@ -712,7 +642,8 @@ final class TerminalSidebarGroupBackgroundView: NSView {
       style.showsStroke
       ? NSColor(themeColor: palette.sidebarGroupStrokeValue)
       : NSColor.clear
-    let animated = !reduceMotion && renderedSurfaceState != nil && renderedSurfaceState != surfaceState
+    let animated =
+      !reduceMotion && renderedSurfaceState != nil && renderedSurfaceState != surfaceState
     setFillColor(fillColor.cgColor, animated: animated)
     setStrokeColor(strokeColor.cgColor, animated: animated)
     renderedSurfaceState = surfaceState

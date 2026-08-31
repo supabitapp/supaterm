@@ -1,9 +1,11 @@
 import Foundation
+import Synchronization
 import Testing
 
 @testable import supaterm
 
-struct TerminalSidebarGroupIconTests {
+@MainActor
+struct TerminalTabGroupIconTests {
   @Test
   func resolvesIconFromTheGroupSharedRepository() throws {
     let fixture = try RepositoryIconFixture(name: "supaterm")
@@ -11,8 +13,8 @@ struct TerminalSidebarGroupIconTests {
     let iconURL = try fixture.writeIcon()
     let macURL = try fixture.createDirectory("apps/mac")
     let docsURL = try fixture.createDirectory("docs")
-    let request = TerminalSidebarGroupIconRequest(
-      workingDirectoryPathsByTab: [[macURL.path], [docsURL.path]]
+    let request = TerminalTabGroupIconRequest(
+      workingDirectoryPaths: [macURL.path, docsURL.path]
     )
 
     #expect(request.resolve() == iconURL)
@@ -28,8 +30,8 @@ struct TerminalSidebarGroupIconTests {
     }
     let iconURL = try first.writeIcon()
     _ = try second.writeIcon()
-    let request = TerminalSidebarGroupIconRequest(
-      workingDirectoryPathsByTab: [[first.rootURL.path], [second.rootURL.path]]
+    let request = TerminalTabGroupIconRequest(
+      workingDirectoryPaths: [first.rootURL.path, second.rootURL.path]
     )
 
     #expect(request.resolve() == iconURL)
@@ -44,11 +46,76 @@ struct TerminalSidebarGroupIconTests {
       second.remove()
     }
     let iconURL = try second.writeIcon()
-    let request = TerminalSidebarGroupIconRequest(
-      workingDirectoryPathsByTab: [[first.rootURL.path], [second.rootURL.path]]
+    let request = TerminalTabGroupIconRequest(
+      workingDirectoryPaths: [first.rootURL.path, second.rootURL.path]
     )
 
     #expect(request.resolve() == iconURL)
+  }
+
+  @Test
+  func requestIdentityUsesItsOrderedUniqueSearchPaths() {
+    let request = TerminalTabGroupIconRequest(
+      workingDirectoryPaths: ["/repo", "/repo", "/other"]
+    )
+    let equivalent = TerminalTabGroupIconRequest(
+      workingDirectoryPaths: ["/repo", "/other"]
+    )
+    let reversed = TerminalTabGroupIconRequest(
+      workingDirectoryPaths: ["/other", "/repo"]
+    )
+
+    #expect(request == equivalent)
+    #expect(request != reversed)
+  }
+
+  @Test
+  func storeResolvesSharedRequestsOnce() async {
+    let resolveCount = Mutex(0)
+    let iconURL = URL(fileURLWithPath: "/tmp/icon.svg")
+    let request = TerminalTabGroupIconRequest(workingDirectoryPaths: ["/repo"])
+    let firstGroupID = TerminalTabGroupID()
+    let secondGroupID = TerminalTabGroupID()
+    let store = TerminalTabGroupIconStore { _ in
+      resolveCount.withLock { $0 += 1 }
+      return iconURL
+    }
+    let requests = [
+      firstGroupID: request,
+      secondGroupID: request,
+    ]
+
+    let firstLoad = Task { await store.load([firstGroupID: request]) }
+    let secondLoad = Task { await store.load([secondGroupID: request]) }
+    await firstLoad.value
+    await secondLoad.value
+    await store.load(requests)
+
+    #expect(resolveCount.withLock { $0 } == 1)
+    #expect(
+      store.iconURLs(for: requests) == [
+        firstGroupID: iconURL,
+        secondGroupID: iconURL,
+      ]
+    )
+  }
+
+  @Test
+  func storeCachesMissingIcons() async {
+    let resolveCount = Mutex(0)
+    let request = TerminalTabGroupIconRequest(workingDirectoryPaths: ["/repo"])
+    let groupID = TerminalTabGroupID()
+    let requests = [groupID: request]
+    let store = TerminalTabGroupIconStore { _ in
+      resolveCount.withLock { $0 += 1 }
+      return nil
+    }
+
+    await store.load(requests)
+    await store.load(requests)
+
+    #expect(resolveCount.withLock { $0 } == 1)
+    #expect(store.iconURLs(for: requests).isEmpty)
   }
 }
 
@@ -81,7 +148,8 @@ private struct RepositoryIconFixture {
       withIntermediateDirectories: true
     )
     try Data(
-      #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><path d="M0 0h1v1H0z"/></svg>"#.utf8
+      #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><path d="M0 0h1v1H0z"/></svg>"#
+        .utf8
     ).write(to: url)
     return url.standardizedFileURL.resolvingSymlinksInPath()
   }
