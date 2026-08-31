@@ -38,6 +38,7 @@ nonisolated enum TerminalCommandPaletteAppAction: Hashable, Sendable {
 
 enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case app(TerminalCommandPaletteAppAction)
+  case clearScreen
   case closeOtherTabs(keeping: [TerminalTabID])
   case closePane(UUID)
   case closeTab(TerminalTabID)
@@ -737,12 +738,23 @@ enum TerminalCommandPalettePresentation {
         ),
         snapshot: snapshot
       ),
+      TerminalCommandPaletteRow(
+        id: "terminal:clear-screen",
+        title: "Clear Screen",
+        subtitle: "Terminal",
+        description: "Clear the screen without deleting scrollback.",
+        leadingIcon: "rectangle",
+        badge: nil,
+        emphasis: false,
+        shortcut: nil,
+        command: .clearScreen
+      ),
       bindingRow(
         BindingRowDefinition(
-          id: "terminal:clear-screen",
+          id: "terminal:clear-screen-and-scrollback",
           title: "Clear Screen and Scrollback",
           subtitle: "Terminal",
-          description: nil,
+          description: "Clear the screen and delete scrollback.",
           icon: "eraser",
           action: clearScreenAction
         ),

@@ -300,6 +300,32 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func commandPaletteRoutesClearScreenThroughTerminalHost() async {
+    let host = TerminalHostState.test(managesTerminalSurfaces: false)
+    let snapshot = makeCommandPaletteSnapshot()
+    var hostRequestCount = 0
+    var initialState = TerminalWindowFeature.State()
+    initialState.destination = .commandPalette(
+      TerminalCommandPaletteState(selectedRowID: "terminal:clear-screen")
+    )
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
+      $0.terminalClient.host = {
+        hostRequestCount += 1
+        return host
+      }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.destination = nil
+    }
+
+    #expect(hostRequestCount == 1)
+  }
+
+  @Test
   func commandPaletteTogglesSidebarAndRequestsSessionSave() async {
     let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
     let sessionChangeCount = LockIsolated(0)

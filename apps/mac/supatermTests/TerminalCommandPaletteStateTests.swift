@@ -51,6 +51,7 @@ struct TerminalCommandPaletteStateTests {
         "Rename Pane",
         "Create Space",
         "Find in Terminal",
+        "Clear Screen",
         "Clear Screen and Scrollback",
         "Close Other Tabs",
         "Close Pane",
@@ -58,6 +59,25 @@ struct TerminalCommandPaletteStateTests {
         "Toggle Sidebar",
         "Open Settings",
       ]
+    )
+  }
+
+  @Test
+  func rowsRouteClearScreenActionsSeparately() throws {
+    let rows = TerminalCommandPalettePresentation.rows(from: makeSnapshot())
+    let clearScreen = try #require(rows.first { $0.id == "terminal:clear-screen" })
+    let clearScrollback = try #require(
+      rows.first { $0.id == "terminal:clear-screen-and-scrollback" }
+    )
+
+    #expect(clearScreen.title == "Clear Screen")
+    #expect(clearScreen.description == "Clear the screen without deleting scrollback.")
+    #expect(clearScreen.command == .clearScreen)
+    #expect(clearScrollback.title == "Clear Screen and Scrollback")
+    #expect(clearScrollback.description == "Clear the screen and delete scrollback.")
+    #expect(
+      clearScrollback.command
+        == .ghosttyBindingAction(TerminalCommandPalettePresentation.clearScreenAction)
     )
   }
 

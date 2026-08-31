@@ -670,6 +670,8 @@ struct TerminalWindowFeature {
       return .run { [terminalCommandPaletteClient, windowID] _ in
         await terminalCommandPaletteClient.performAppAction(windowID, action)
       }
+    case .clearScreen:
+      return perform { $0.clearScreenOnFocusedSurface() }
     case .closeOtherTabs(let tabIDs):
       return perform { $0.requestCloseOtherTabs(keeping: tabIDs) }
     case .closePane(let surfaceID):
