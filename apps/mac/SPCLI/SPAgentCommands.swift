@@ -183,10 +183,10 @@ private enum AgentIntegrationManagementOperation {
   case setupDetected
   case removeAll
 
-  func request(for target: SupatermAgentHookTargetRequest) throws -> SupatermSocketRequest {
+  func request(for target: SupatermAgentIntegrationRequest) throws -> SupatermSocketRequest {
     switch self {
     case .setupDetected:
-      try .hooksInstall(target)
+      try .agentIntegrationSetup(target)
     case .removeAll:
       try .hooksRemove(target)
     }
@@ -201,7 +201,7 @@ private enum AgentIntegrationManagementOperation {
       case .unavailable:
         return .notDetected
       case .unavailableInstalled, .absent, .partial, .drifted:
-        return .failure("Expected a healthy hook integration, got \(health.rawValue).")
+        return .failure("Expected a healthy integration, got \(health.rawValue).")
       }
     case .removeAll:
       switch health {
@@ -235,7 +235,7 @@ private enum AgentIntegrationManagementOperation {
   }
 }
 
-private enum AgentIntegrationDisposition: Equatable {
+private enum AgentIntegrationDisposition {
   case success
   case notDetected
   case failure(String)
@@ -249,10 +249,10 @@ private func manageAgentIntegrations(
   let client = try socketClient(
     path: connection.explicitSocketPath,
     instance: connection.instance,
-    responseTimeout: SupatermAgentHookManagementTiming.clientResponseTimeout
+    responseTimeout: SupatermAgentIntegrationTiming.clientResponseTimeout
   )
   var failures: [String] = []
-  var dispositions: [AgentIntegrationDisposition] = []
+  var didSucceed = false
   for agent in agents {
     operation.emitProgress(for: agent)
     let disposition = agentIntegrationDisposition(
@@ -261,17 +261,21 @@ private func manageAgentIntegrations(
       client: client
     )
     operation.emitProgress(for: agent, disposition: disposition)
-    dispositions.append(disposition)
-    if case .failure(let message) = disposition {
+    switch disposition {
+    case .success:
+      didSucceed = true
+    case .failure(let message):
       failures.append("\(agent.notificationTitle): \(message)")
+    case .notDetected:
+      break
     }
   }
   guard failures.isEmpty else {
     throw ValidationError(failures.joined(separator: "\n"))
   }
   if case .setupDetected = operation,
-    !dispositions.isEmpty,
-    dispositions.allSatisfy({ $0 == .notDetected })
+    !agents.isEmpty,
+    !didSucceed
   {
     throw ValidationError("No supported coding agent was detected.")
   }
@@ -283,12 +287,12 @@ private func agentIntegrationDisposition(
   client: SPSocketClient
 ) -> AgentIntegrationDisposition {
   do {
-    let target = SupatermAgentHookTargetRequest(agent: agent)
+    let target = SupatermAgentIntegrationRequest(agent: agent)
     let response = try client.send(try operation.request(for: target))
     guard response.ok else {
       return .failure(response.error?.message ?? "Supaterm socket request failed.")
     }
-    let result = try response.decodeResult(SupatermAgentHookHealth.self)
+    let result = try response.decodeResult(SupatermAgentIntegrationResult.self)
     guard result.agent == agent else {
       return .failure(
         "Supaterm returned status for \(result.agent.notificationTitle), expected \(agent.notificationTitle)."

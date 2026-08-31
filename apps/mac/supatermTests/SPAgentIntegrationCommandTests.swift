@@ -4,7 +4,7 @@ import Testing
 
 @testable import SPCLI
 
-struct SPAgentHookCommandTests {
+struct SPAgentIntegrationCommandTests {
   @Test
   func aggregateCommandsSendOneRequestPerSupportedAgent() async throws {
     let cli = try SPCLIHarness()
@@ -14,12 +14,12 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth =
-          request.method == SupatermSocketMethod.appHooksInstall ? .healthy : .absent
+          request.method == SupatermSocketMethod.appAgentIntegrationSetup ? .healthy : .absent
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: health)
         )
       },
       run: { endpoint in
@@ -40,7 +40,7 @@ struct SPAgentHookCommandTests {
 
     #expect(
       log.requests.map(\.method) == Array(
-        repeating: SupatermSocketMethod.appHooksInstall,
+        repeating: SupatermSocketMethod.appAgentIntegrationSetup,
         count: SupatermAgentKind.allCases.count
       )
         + Array(
@@ -49,7 +49,7 @@ struct SPAgentHookCommandTests {
         )
     )
     #expect(
-      try log.requests.map { try $0.decodeParams(SupatermAgentHookTargetRequest.self).agent }
+      try log.requests.map { try $0.decodeParams(SupatermAgentIntegrationRequest.self).agent }
         == SupatermAgentKind.allCases + SupatermAgentKind.allCases
     )
   }
@@ -72,10 +72,10 @@ struct SPAgentHookCommandTests {
           )
           try await Task.sleep(for: .seconds(6))
         }
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .healthy)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .healthy)
         )
       },
       run: { endpoint in
@@ -106,11 +106,11 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         if payload.agent == .pi {
           return try .ok(
             id: request.id,
-            encodableResult: SupatermAgentHookHealth(agent: .pi, health: .healthy)
+            encodableResult: SupatermAgentIntegrationResult(agent: .pi, health: .healthy)
           )
         }
         return .error(
@@ -144,10 +144,10 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .unavailable)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .unavailable)
         )
       },
       run: { endpoint in
@@ -172,11 +172,11 @@ struct SPAgentHookCommandTests {
 
     try await withSocketRuntime(
       replying: { request, _ in
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth = payload.agent == .claude ? .unavailable : .healthy
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: health)
         )
       },
       run: { endpoint in
@@ -203,10 +203,10 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .partial)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .partial)
         )
       },
       run: { endpoint in
@@ -217,9 +217,9 @@ struct SPAgentHookCommandTests {
           result.stdout
             == expectedSetupOutput(states: ["failed", "failed", "failed"])
         )
-        #expect(result.stderr.contains("Claude Code: Expected a healthy hook integration, got partial."))
-        #expect(result.stderr.contains("Codex: Expected a healthy hook integration, got partial."))
-        #expect(result.stderr.contains("Pi: Expected a healthy hook integration, got partial."))
+        #expect(result.stderr.contains("Claude Code: Expected a healthy integration, got partial."))
+        #expect(result.stderr.contains("Codex: Expected a healthy integration, got partial."))
+        #expect(result.stderr.contains("Pi: Expected a healthy integration, got partial."))
       }
     )
 
@@ -235,11 +235,11 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let responseAgent: SupatermAgentKind = payload.agent == .codex ? .claude : payload.agent
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: responseAgent, health: .healthy)
+          encodableResult: SupatermAgentIntegrationResult(agent: responseAgent, health: .healthy)
         )
       },
       run: { endpoint in
@@ -292,11 +292,11 @@ struct SPAgentHookCommandTests {
 
     try await withSocketRuntime(
       replying: { request, _ in
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth = payload.agent == .pi ? .unavailable : .absent
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: health)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: health)
         )
       },
       run: { endpoint in
@@ -316,10 +316,10 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentHookHealth(agent: payload.agent, health: .healthy)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .healthy)
         )
       },
       run: { endpoint in
@@ -345,11 +345,11 @@ struct SPAgentHookCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         log.record(request)
-        let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+        let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         if payload.agent == .pi {
           return try .ok(
             id: request.id,
-            encodableResult: SupatermAgentHookHealth(agent: .pi, health: .absent)
+            encodableResult: SupatermAgentIntegrationResult(agent: .pi, health: .absent)
           )
         }
         return .error(

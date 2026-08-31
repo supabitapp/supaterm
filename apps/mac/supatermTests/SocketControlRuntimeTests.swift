@@ -356,10 +356,10 @@ struct SocketControlRuntimeTests {
   }
 
   @Test(arguments: [
-    SupatermSocketMethod.appHooksInstall,
+    SupatermSocketMethod.appAgentIntegrationSetup,
     SupatermSocketMethod.appHooksRemove,
   ])
-  func hookManagementRequestsUseExtendedReplyTimeout(method: String) async throws {
+  func agentIntegrationRequestsUseExtendedReplyTimeout(method: String) async throws {
     let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -380,14 +380,14 @@ struct SocketControlRuntimeTests {
 
     do {
       try writeRequest(
-        SupatermSocketRequest(id: "hook-timeout", method: method),
+        SupatermSocketRequest(id: "agent-integration-timeout", method: method),
         to: socketDescriptor
       )
 
       #expect(try readByte(from: socketDescriptor) == 0)
       #expect(
         await sleepRecorder.durations()
-          == [.seconds(SupatermAgentHookManagementTiming.serverReplyTimeout)]
+          == [.seconds(SupatermAgentIntegrationTiming.serverReplyTimeout)]
       )
       await runtime.stop()
     } catch {

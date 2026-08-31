@@ -6,14 +6,14 @@ import Testing
 @testable import supaterm
 
 @MainActor
-struct TerminalCommandExecutorHookTests {
+struct TerminalCommandExecutorIntegrationTests {
   @Test
-  func liveInstallerUsesIsolatedHomeOnlyInTestMode() {
+  func liveManagerUsesIsolatedHomeOnlyInTestMode() {
     let defaultHome = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
     let isolatedHome = URL(fileURLWithPath: "/tmp/supaterm-e2e-home", isDirectory: true)
 
     #expect(
-      CodingAgentHookInstaller.homeDirectoryURL(
+      CodingAgentIntegrationManager.homeDirectoryURL(
         environment: [
           "SUPATERM_TEST_MODE": "1",
           SupatermCLIEnvironment.testHomeKey: isolatedHome.path,
@@ -22,7 +22,7 @@ struct TerminalCommandExecutorHookTests {
       ) == isolatedHome
     )
     #expect(
-      CodingAgentHookInstaller.homeDirectoryURL(
+      CodingAgentIntegrationManager.homeDirectoryURL(
         environment: [SupatermCLIEnvironment.testHomeKey: isolatedHome.path],
         defaultHomeDirectoryURL: defaultHome
       ) == defaultHome
@@ -30,18 +30,18 @@ struct TerminalCommandExecutorHookTests {
   }
 
   @Test
-  func installWritesManagedClaudeHooksAndReportsHealth() async throws {
+  func setupWritesManagedClaudeHooksAndReportsHealth() async throws {
     let homeDirectoryURL = try temporaryHookHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
-    let result = try await commandExecutor.hooksInstall(
-      SupatermAgentHookTargetRequest(agent: .claude),
-      installer: claudeHookInstaller(homeDirectoryURL: homeDirectoryURL)
+    let result = try await commandExecutor.setupAgentIntegration(
+      SupatermAgentIntegrationRequest(agent: .claude),
+      manager: claudeIntegrationManager(homeDirectoryURL: homeDirectoryURL)
     )
 
-    #expect(result == SupatermAgentHookHealth(agent: .claude, health: .healthy))
+    #expect(result == SupatermAgentIntegrationResult(agent: .claude, health: .healthy))
     #expect(
       try claudeHookEventNames(homeDirectoryURL: homeDirectoryURL) == [
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
@@ -51,18 +51,18 @@ struct TerminalCommandExecutorHookTests {
   }
 
   @Test
-  func installSkipsUnavailableClaude() async throws {
+  func setupSkipsUnavailableClaude() async throws {
     let homeDirectoryURL = try temporaryHookHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
 
-    let result = try await commandExecutor.hooksInstall(
-      SupatermAgentHookTargetRequest(agent: .claude),
-      installer: claudeHookInstaller(homeDirectoryURL: homeDirectoryURL, isAvailable: false)
+    let result = try await commandExecutor.setupAgentIntegration(
+      SupatermAgentIntegrationRequest(agent: .claude),
+      manager: claudeIntegrationManager(homeDirectoryURL: homeDirectoryURL, isAvailable: false)
     )
 
-    #expect(result == SupatermAgentHookHealth(agent: .claude, health: .unavailable))
+    #expect(result == SupatermAgentIntegrationResult(agent: .claude, health: .unavailable))
     #expect(
       !FileManager.default.fileExists(
         atPath: ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL).path
@@ -71,7 +71,7 @@ struct TerminalCommandExecutorHookTests {
   }
 
   @Test
-  func installFailsWithoutOverwritingInvalidClaudeSettings() async throws {
+  func setupFailsWithoutOverwritingInvalidClaudeSettings() async throws {
     let homeDirectoryURL = try temporaryHookHome()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let invalidJSON = #"{ "hooks":"#
@@ -80,9 +80,9 @@ struct TerminalCommandExecutorHookTests {
     let commandExecutor = makeCommandExecutor(registry: registry)
 
     await #expect(throws: ClaudeSettingsInstallerError.invalidJSON) {
-      try await commandExecutor.hooksInstall(
-        SupatermAgentHookTargetRequest(agent: .claude),
-        installer: claudeHookInstaller(homeDirectoryURL: homeDirectoryURL)
+      try await commandExecutor.setupAgentIntegration(
+        SupatermAgentIntegrationRequest(agent: .claude),
+        manager: claudeIntegrationManager(homeDirectoryURL: homeDirectoryURL)
       )
     }
 
@@ -112,67 +112,71 @@ struct TerminalCommandExecutorHookTests {
     )
     let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let installer = claudeHookInstaller(homeDirectoryURL: homeDirectoryURL)
-    _ = try await commandExecutor.hooksInstall(
-      SupatermAgentHookTargetRequest(agent: .claude),
-      installer: installer
+    let manager = claudeIntegrationManager(homeDirectoryURL: homeDirectoryURL)
+    _ = try await commandExecutor.setupAgentIntegration(
+      SupatermAgentIntegrationRequest(agent: .claude),
+      manager: manager
     )
 
-    let result = try await commandExecutor.hooksRemove(
-      SupatermAgentHookTargetRequest(agent: .claude),
-      installer: installer
+    let result = try await commandExecutor.removeAgentIntegration(
+      SupatermAgentIntegrationRequest(agent: .claude),
+      manager: manager
     )
 
-    #expect(result == SupatermAgentHookHealth(agent: .claude, health: .absent))
+    #expect(result == SupatermAgentIntegrationResult(agent: .claude, health: .absent))
     #expect(try claudeHookEventNames(homeDirectoryURL: homeDirectoryURL) == ["Notification"])
   }
 
   @Test
-  func installAndRemoveForwardTheRequestedAgent() async throws {
+  func setupAndRemovalForwardTheRequestedAgent() async throws {
     let registry = TerminalWindowRegistry.test()
     let commandExecutor = makeCommandExecutor(registry: registry)
-    let recorder = AgentHookInstallRecorder()
-    let installer = CodingAgentHookInstaller(
-      isAvailable: { _ in true },
-      integrationHealth: { _ in .absent },
-      installSupatermHooks: { recorder.recordInstall($0) },
-      configureForSupaterm: { recorder.recordConfiguration($0) },
-      removeSupatermHooks: { recorder.recordRemove($0) }
+    let recorder = AgentIntegrationRecorder()
+    let manager = CodingAgentIntegrationManager(
+      setup: {
+        recorder.recordSetup($0)
+        return .healthy
+      },
+      health: {
+        recorder.recordHealthCheck($0)
+        return .absent
+      },
+      repair: { _ in },
+      remove: { recorder.recordRemove($0) }
     )
 
     for agent in SupatermAgentKind.allCases {
-      _ = try await commandExecutor.hooksInstall(
-        SupatermAgentHookTargetRequest(agent: agent),
-        installer: installer
+      _ = try await commandExecutor.setupAgentIntegration(
+        SupatermAgentIntegrationRequest(agent: agent),
+        manager: manager
       )
-      _ = try await commandExecutor.hooksRemove(
-        SupatermAgentHookTargetRequest(agent: agent),
-        installer: installer
+      _ = try await commandExecutor.removeAgentIntegration(
+        SupatermAgentIntegrationRequest(agent: agent),
+        manager: manager
       )
     }
 
-    #expect(recorder.installedAgents() == SupatermAgentKind.allCases)
-    #expect(recorder.configuredAgents() == SupatermAgentKind.allCases)
+    #expect(recorder.setupAgents() == SupatermAgentKind.allCases)
+    #expect(recorder.healthCheckedAgents() == SupatermAgentKind.allCases)
     #expect(recorder.removedAgents() == SupatermAgentKind.allCases)
   }
 }
 
-private func claudeHookInstaller(
+private func claudeIntegrationManager(
   homeDirectoryURL: URL,
   isAvailable: Bool = true
-) -> CodingAgentHookInstaller {
+) -> CodingAgentIntegrationManager {
   let makeInstaller: @Sendable () -> ClaudeSettingsInstaller = {
     ClaudeSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
       runAvailabilityCommand: { CodingAgentCommandResult(status: isAvailable ? 0 : 127) }
     )
   }
-  return CodingAgentHookInstaller(
-    isAvailable: { _ in try makeInstaller().isAvailable() },
-    integrationHealth: { _ in try makeInstaller().integrationHealth() },
-    installSupatermHooks: { _ in try makeInstaller().installSupatermHooks() },
-    configureForSupaterm: { _ in try makeInstaller().configureForSupaterm() },
-    removeSupatermHooks: { _ in try makeInstaller().removeSupatermHooks() }
+  return CodingAgentIntegrationManager(
+    setup: { _ in try makeInstaller().setup() },
+    health: { _ in try makeInstaller().integrationHealth() },
+    repair: { _ in try makeInstaller().installSupatermHooks() },
+    remove: { _ in try makeInstaller().removeSupatermHooks() }
   )
 }
 
@@ -201,21 +205,21 @@ private func claudeHookEventNames(homeDirectoryURL: URL) throws -> [String] {
   return hooks.keys.sorted()
 }
 
-nonisolated private final class AgentHookInstallRecorder: @unchecked Sendable {
+nonisolated private final class AgentIntegrationRecorder: @unchecked Sendable {
   private let lock = NSLock()
-  private var installs: [SupatermAgentKind] = []
-  private var configurations: [SupatermAgentKind] = []
+  private var setups: [SupatermAgentKind] = []
+  private var healthChecks: [SupatermAgentKind] = []
   private var removes: [SupatermAgentKind] = []
 
-  func recordInstall(_ agent: SupatermAgentKind) {
+  func recordSetup(_ agent: SupatermAgentKind) {
     lock.lock()
-    installs.append(agent)
+    setups.append(agent)
     lock.unlock()
   }
 
-  func recordConfiguration(_ agent: SupatermAgentKind) {
+  func recordHealthCheck(_ agent: SupatermAgentKind) {
     lock.lock()
-    configurations.append(agent)
+    healthChecks.append(agent)
     lock.unlock()
   }
 
@@ -225,9 +229,9 @@ nonisolated private final class AgentHookInstallRecorder: @unchecked Sendable {
     lock.unlock()
   }
 
-  func installedAgents() -> [SupatermAgentKind] {
+  func setupAgents() -> [SupatermAgentKind] {
     lock.lock()
-    let snapshot = installs
+    let snapshot = setups
     lock.unlock()
     return snapshot
   }
@@ -239,9 +243,9 @@ nonisolated private final class AgentHookInstallRecorder: @unchecked Sendable {
     return snapshot
   }
 
-  func configuredAgents() -> [SupatermAgentKind] {
+  func healthCheckedAgents() -> [SupatermAgentKind] {
     lock.lock()
-    let snapshot = configurations
+    let snapshot = healthChecks
     lock.unlock()
     return snapshot
   }

@@ -38,6 +38,11 @@ struct CodexAppServerUserConfig: Equatable, Sendable {
   let hasTerminalTitle: Bool
 }
 
+struct CodexAppServerConfigEdit: Equatable, Sendable {
+  let keyPath: String
+  let value: JSONValue
+}
+
 struct CodexAppServerClient: Sendable {
   typealias Request = @Sendable (String, JSONObject) throws -> JSONValue
 
@@ -140,45 +145,21 @@ struct CodexAppServerClient: Sendable {
     )
   }
 
-  func replaceHookState(
-    _ hookState: JSONObject,
-    filePath: String,
-    expectedVersion: String?
-  ) throws {
-    try replaceConfigValue(
-      .object(hookState),
-      at: "hooks.state",
-      filePath: filePath,
-      expectedVersion: expectedVersion
-    )
-  }
-
-  func setTerminalTitle(
-    filePath: String,
-    expectedVersion: String?
-  ) throws {
-    try replaceConfigValue(
-      ["activity", "thread-title", "task-progress"],
-      at: "tui.terminal_title",
-      filePath: filePath,
-      expectedVersion: expectedVersion
-    )
-  }
-
-  private func replaceConfigValue(
-    _ value: JSONValue,
-    at keyPath: String,
+  func batchWrite(
+    _ edits: [CodexAppServerConfigEdit],
     filePath: String,
     expectedVersion: String?
   ) throws {
     var params: JSONObject = [
-      "edits": [
-        [
-          "keyPath": .string(keyPath),
-          "value": value,
-          "mergeStrategy": "replace",
-        ]
-      ],
+      "edits": .array(
+        edits.map { edit in
+          [
+            "keyPath": .string(edit.keyPath),
+            "value": edit.value,
+            "mergeStrategy": "replace",
+          ]
+        }
+      ),
       "filePath": .string(filePath),
       "reloadUserConfig": true,
     ]

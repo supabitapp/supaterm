@@ -30,21 +30,30 @@ public struct ClaudeSettingsInstaller {
   }
 
   public func installSupatermHooks() throws {
+    try installSettings()
+  }
+
+  public func setup() throws -> CodingAgentIntegrationHealth {
+    guard try isAvailable() else {
+      return .unavailable
+    }
+    try installSettings(
+      absentOnlyDefaults: ["terminalProgressBarEnabled": .bool(true)]
+    )
+    return .healthy
+  }
+
+  private func installSettings(
+    absentOnlyDefaults: [String: JSONValue] = [:]
+  ) throws {
     try fileInstaller.install(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL),
-      hookGroupsByEvent: try SupatermClaudeHookSettings.hookGroupsByEvent()
+      hookGroupsByEvent: try SupatermClaudeHookSettings.hookGroupsByEvent(),
+      absentOnlyDefaults: absentOnlyDefaults
     )
   }
 
-  public func configureForSupaterm() throws {
-    try fileInstaller.setDefault(
-      .bool(true),
-      forKey: "terminalProgressBarEnabled",
-      settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    )
-  }
-
-  public func isAvailable() throws -> Bool {
+  private func isAvailable() throws -> Bool {
     try runAvailabilityCommand().status == 0
   }
 

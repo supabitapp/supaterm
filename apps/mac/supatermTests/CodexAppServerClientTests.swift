@@ -170,8 +170,8 @@ struct CodexAppServerClientTests {
       "/tmp/home/.codex/hooks.json:stop:0:0": ["trusted_hash": "sha256:native"],
     ]
 
-    try client.replaceHookState(
-      state,
+    try client.batchWrite(
+      [CodexAppServerConfigEdit(keyPath: "hooks.state", value: .object(state))],
       filePath: "/tmp/home/.codex/config.toml",
       expectedVersion: "user-version"
     )
@@ -197,7 +197,7 @@ struct CodexAppServerClientTests {
   }
 
   @Test
-  func batchWriteSetsTerminalTitle() throws {
+  func batchWriteCombinesConfigEdits() throws {
     let recorder = CodexAppServerRequestRecorder { method, _ in
       #expect(method == "config/batchWrite")
       return [
@@ -208,8 +208,16 @@ struct CodexAppServerClientTests {
       ]
     }
     let client = CodexAppServerClient(request: recorder.request)
+    let state: JSONObject = ["external": ["enabled": false]]
 
-    try client.setTerminalTitle(
+    try client.batchWrite(
+      [
+        CodexAppServerConfigEdit(keyPath: "hooks.state", value: .object(state)),
+        CodexAppServerConfigEdit(
+          keyPath: "tui.terminal_title",
+          value: ["activity", "thread-title", "task-progress"]
+        ),
+      ],
       filePath: "/tmp/home/.codex/config.toml",
       expectedVersion: "user-version"
     )
@@ -221,10 +229,15 @@ struct CodexAppServerClientTests {
           params: [
             "edits": [
               [
+                "keyPath": "hooks.state",
+                "value": .object(state),
+                "mergeStrategy": "replace",
+              ],
+              [
                 "keyPath": "tui.terminal_title",
                 "value": ["activity", "thread-title", "task-progress"],
                 "mergeStrategy": "replace",
-              ]
+              ],
             ],
             "filePath": "/tmp/home/.codex/config.toml",
             "expectedVersion": "user-version",

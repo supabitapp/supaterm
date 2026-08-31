@@ -260,11 +260,11 @@ Settings methods read and write the running app:
 - `app.settings.get`, `app.settings.list`, `app.settings.set`, and `app.settings.reset` act on the live settings the app already holds. A write lands in the app and on disk at once.
 - `app.settings.validate` takes an optional absolute `path` and checks that file. Without a path it checks the app's own settings file.
 
-Hook methods own the agent settings files:
+Agent integration methods own each agent's settings or package:
 
-- `app.hooks.install` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
+- `app.agent_integration.setup` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
 - The app writes `~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.codex/config.toml`, and talks to Codex app-server. The CLI never touches those files.
-- Install adds Claude's `terminalProgressBarEnabled: true` and Codex's `[tui] terminal_title = ["activity", "thread-title", "task-progress"]` only when each key is absent.
+- Setup adds Claude's `terminalProgressBarEnabled: true` and Codex's `[tui] terminal_title = ["activity", "thread-title", "task-progress"]` only when each key is absent.
 
 `app.agent_detection.reload` atomically reloads local manifests from the app's state root and
 returns the active generation and source of each manifest.

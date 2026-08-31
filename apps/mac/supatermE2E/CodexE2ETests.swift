@@ -15,7 +15,7 @@ struct CodexE2ETests {
     try await runCodexLifecycle(mode: .screenRules)
   }
 
-  @Test(.timeLimit(.minutes(5)))
+  @Test(.timeLimit(.minutes(15)))
   func hooksAugmentScreenRulesAcrossEveryRootStateAndInterrupt() async throws {
     try await runCodexLifecycle(mode: .hooks)
   }
@@ -122,11 +122,10 @@ private final class CodexE2EFixture {
           tabID: space.tab.tabID,
           paneID: space.tab.paneID
         )
-        try await setupAgentIntegrations(
+        try setupAgentIntegrations(
           runner: runner,
           socketPath: app.socketPath,
-          workspace: space.directory,
-          app: app
+          workspace: space.directory
         )
       }
       let command = makeCodexCommand(

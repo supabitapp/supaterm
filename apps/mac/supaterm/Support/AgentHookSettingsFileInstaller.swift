@@ -35,12 +35,14 @@ struct AgentHookSettingsFileInstaller {
   @discardableResult
   func install(
     settingsURL: URL,
-    hookGroupsByEvent: @autoclosure () throws -> [String: [JSONValue]]
+    hookGroupsByEvent: @autoclosure () throws -> [String: [JSONValue]],
+    absentOnlyDefaults: [String: JSONValue] = [:]
   ) throws -> Mutation {
     let loadedSettings = try loadSettings(at: settingsURL)
     let mergedObject = try mergedSettingsObject(
       from: loadedSettings.object,
-      hookGroupsByEvent: try hookGroupsByEvent()
+      hookGroupsByEvent: try hookGroupsByEvent(),
+      absentOnlyDefaults: absentOnlyDefaults
     )
     let data = try writeSettingsObject(mergedObject, to: settingsURL)
     return Mutation(
@@ -48,19 +50,6 @@ struct AgentHookSettingsFileInstaller {
       previousData: loadedSettings.data,
       writtenData: data
     )
-  }
-
-  func setDefault(
-    _ value: JSONValue,
-    forKey key: String,
-    settingsURL: URL
-  ) throws {
-    let loadedSettings = try loadSettings(at: settingsURL)
-    guard loadedSettings.object[key] == nil else { return }
-
-    var settingsObject = loadedSettings.object
-    settingsObject[key] = value
-    try writeSettingsObject(settingsObject, to: settingsURL)
   }
 
   func integrationHealth(
@@ -159,11 +148,11 @@ struct AgentHookSettingsFileInstaller {
 
   private func mergedSettingsObject(
     from settingsObject: [String: JSONValue],
-    hookGroupsByEvent: [String: [JSONValue]]
+    hookGroupsByEvent: [String: [JSONValue]],
+    absentOnlyDefaults: [String: JSONValue]
   ) throws -> [String: JSONValue] {
     var mergedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
-    let hooksObject = mergedObject["hooks"]?.objectValue ?? [:]
-    var mergedHooksObject = hooksObject
+    var mergedHooksObject = mergedObject["hooks"]?.objectValue ?? [:]
 
     for (event, canonicalGroups) in hookGroupsByEvent {
       let existingGroups = try existingGroups(for: event, hooksObject: mergedHooksObject)
@@ -171,6 +160,9 @@ struct AgentHookSettingsFileInstaller {
     }
 
     mergedObject["hooks"] = .object(mergedHooksObject)
+    for (key, value) in absentOnlyDefaults where mergedObject[key] == nil {
+      mergedObject[key] = value
+    }
     return mergedObject
   }
 

@@ -160,7 +160,7 @@ sp onboard
 Claude and Codex share the settings-file hook bridge, but each installer uses the agent's public configuration surface.
 
 - Settings > Coding Agents exposes a toggle per agent. Turning it on sets up the integration; turning it off removes its hooks or package.
-- `sp agent setup` and `sp agent remove-hooks` reach every supported installer over the socket. A Settings toggle only operates on its selected agent. Both use the same installer code in the app process and fail when no app is reachable.
+- `sp agent setup` and `sp agent remove-hooks` reach the app's integration manager for every supported agent. A Settings toggle only operates on its selected agent. Both paths use the same concrete integration code in the app process and fail when no app is reachable.
 - On open, Settings reports each integration as unavailable, unavailable but installed, absent, partial, drifted, or healthy.
 - Claude must be available through the user's login shell. Codex must be version 0.144.1 or newer, have its hooks feature enabled, and have canonical trust state.
 - A hook is Supaterm-managed only when its command exactly matches one of Supaterm's canonical hook commands.
@@ -219,7 +219,7 @@ The app uses Codex hooks only for root session identity.
 Pi uses the extension package from `supaterm-skills`, not the Claude and Codex settings-file bridge.
 
 Settings > Coding Agents can install or remove the package by invoking `pi` through the user's login shell.
-The socket methods `app.hooks.install` and `app.hooks.remove` accept `pi` and run that same package install or removal. The aggregate CLI commands include Pi.
+The socket methods `app.agent_integration.setup` and `app.hooks.remove` accept `pi` and run that same package setup or removal. The aggregate CLI commands include Pi.
 When Pi is unavailable, removal edits Pi's settings file directly so the installed integration can still be disabled.
 Supaterm treats canonical package protocol `0.2.0` or newer as healthy, updates an existing canonical checkout with `pi update`, and replaces noncanonical remote sources during repair.
 

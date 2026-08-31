@@ -5,11 +5,11 @@ import Testing
 @testable import SupatermSupport
 @testable import supaterm
 
-struct StartupAgentHookRefresherTests {
+struct StartupAgentIntegrationRefresherTests {
   @Test
   func repairsOnlyPartialAndDriftedIntegrations() {
-    let capture = StartupAgentHookRefreshCapture()
-    let refresher = StartupAgentHookRefresher(
+    let capture = StartupAgentIntegrationRefreshCapture()
+    let refresher = StartupAgentIntegrationRefresher(
       operations: [
         operation(.claude, health: .partial, capture: capture),
         operation(.codex, health: .drifted, capture: capture),
@@ -24,22 +24,22 @@ struct StartupAgentHookRefresherTests {
       }
     )
 
-    refresher.refreshInstalledHooks()
+    refresher.repairIntegrations()
 
-    #expect(capture.installedAgents() == [.claude, .codex, .pi])
+    #expect(capture.repairedAgents() == [.claude, .codex, .pi])
     #expect(capture.failedAgents().isEmpty)
   }
 
   @Test
   func logsFailureAndContinues() {
-    let capture = StartupAgentHookRefreshCapture()
-    let refresher = StartupAgentHookRefresher(
+    let capture = StartupAgentIntegrationRefreshCapture()
+    let refresher = StartupAgentIntegrationRefresher(
       operations: [
         Operation(
           agent: .claude,
-          integrationHealth: { .partial },
-          installSupatermHooks: {
-            throw StartupAgentHookRefreshError()
+          health: { .partial },
+          repair: {
+            throw StartupAgentIntegrationRefreshError()
           }
         ),
         operation(.codex, health: .drifted, capture: capture),
@@ -49,10 +49,10 @@ struct StartupAgentHookRefresherTests {
       }
     )
 
-    refresher.refreshInstalledHooks()
+    refresher.repairIntegrations()
 
     #expect(capture.failedAgents() == [.claude])
-    #expect(capture.installedAgents() == [.codex])
+    #expect(capture.repairedAgents() == [.codex])
   }
 
   @Test
@@ -72,20 +72,20 @@ struct StartupAgentHookRefresherTests {
     try Data(
       #"{"packages":["../../code/supaterm/integrations/supaterm-skills"]}"#.utf8
     ).write(to: settingsURL)
-    let capture = StartupAgentHookRefreshCapture()
-    let refresher = StartupAgentHookRefresher(
+    let capture = StartupAgentIntegrationRefreshCapture()
+    let refresher = StartupAgentIntegrationRefresher(
       operations: [
         Operation(
           agent: .pi,
-          integrationHealth: {
+          health: {
             try PiSettingsInstaller(
               homeDirectoryURL: homeDirectoryURL,
               checkPiAvailable: { true },
               runPiCommand: { _, _ in PiSettingsInstaller.CommandResult(status: 0) }
             ).integrationHealth()
           },
-          installSupatermHooks: {
-            capture.recordInstall(.pi)
+          repair: {
+            capture.recordRepair(.pi)
           }
         )
       ],
@@ -94,39 +94,39 @@ struct StartupAgentHookRefresherTests {
       }
     )
 
-    refresher.refreshInstalledHooks()
+    refresher.repairIntegrations()
 
-    #expect(capture.installedAgents().isEmpty)
+    #expect(capture.repairedAgents().isEmpty)
     #expect(capture.failedAgents().isEmpty)
   }
 
   private func operation(
     _ agent: SupatermAgentKind,
     health: CodingAgentIntegrationHealth,
-    capture: StartupAgentHookRefreshCapture
+    capture: StartupAgentIntegrationRefreshCapture
   ) -> Operation {
     Operation(
       agent: agent,
-      integrationHealth: { health },
-      installSupatermHooks: {
-        capture.recordInstall(agent)
+      health: { health },
+      repair: {
+        capture.recordRepair(agent)
       }
     )
   }
 }
 
-private typealias Operation = StartupAgentHookRefresher.Operation
+private typealias Operation = StartupAgentIntegrationRefresher.Operation
 
-private struct StartupAgentHookRefreshError: Error {}
+private struct StartupAgentIntegrationRefreshError: Error {}
 
-nonisolated private final class StartupAgentHookRefreshCapture: @unchecked Sendable {
+nonisolated private final class StartupAgentIntegrationRefreshCapture: @unchecked Sendable {
   private let lock = NSLock()
-  private var installs: [SupatermAgentKind] = []
+  private var repairs: [SupatermAgentKind] = []
   private var failures: [SupatermAgentKind] = []
 
-  func recordInstall(_ agent: SupatermAgentKind) {
+  func recordRepair(_ agent: SupatermAgentKind) {
     lock.lock()
-    installs.append(agent)
+    repairs.append(agent)
     lock.unlock()
   }
 
@@ -136,9 +136,9 @@ nonisolated private final class StartupAgentHookRefreshCapture: @unchecked Senda
     lock.unlock()
   }
 
-  func installedAgents() -> [SupatermAgentKind] {
+  func repairedAgents() -> [SupatermAgentKind] {
     lock.lock()
-    let snapshot = installs
+    let snapshot = repairs
     lock.unlock()
     return snapshot
   }

@@ -11,21 +11,23 @@ import Testing
 @MainActor
 struct SocketControlFeatureIntegrationTests {
   @Test
-  func hooksInstallRoutesTheAgentAndRepliesWithHealth() async throws {
+  func agentIntegrationSetupRoutesTheAgentAndRepliesWithHealth() async throws {
     let response = try await socketResponse(
-      #"{"id":"hooks-install-1","method":"app.hooks.install","params":{"agent":"claude"}}"#,
+      #"{"id":"agent-integration-setup-1","method":"app.agent_integration.setup","params":{"agent":"claude"}}"#,
       executeAgentIntegration: { request in
-        guard case .hooksInstall(let payload) = request else {
+        guard case .agentIntegrationSetup(let payload) = request else {
           throw UnexpectedRequest()
         }
-        #expect(payload == SupatermAgentHookTargetRequest(agent: .claude))
-        return .hooksInstall(SupatermAgentHookHealth(agent: .claude, health: .healthy))
+        #expect(payload == SupatermAgentIntegrationRequest(agent: .claude))
+        return .agentIntegrationSetup(
+          SupatermAgentIntegrationResult(agent: .claude, health: .healthy)
+        )
       }
     )
 
     #expect(
       try jsonString(response)
-        == #"{"id":"hooks-install-1","ok":true,"result":{"agent":"claude","health":"healthy"}}"#
+        == #"{"id":"agent-integration-setup-1","ok":true,"result":{"agent":"claude","health":"healthy"}}"#
     )
   }
 
@@ -37,8 +39,8 @@ struct SocketControlFeatureIntegrationTests {
         guard case .hooksRemove(let payload) = request else {
           throw UnexpectedRequest()
         }
-        #expect(payload == SupatermAgentHookTargetRequest(agent: .codex))
-        return .hooksRemove(SupatermAgentHookHealth(agent: .codex, health: .absent))
+        #expect(payload == SupatermAgentIntegrationRequest(agent: .codex))
+        return .hooksRemove(SupatermAgentIntegrationResult(agent: .codex, health: .absent))
       }
     )
 
@@ -50,11 +52,11 @@ struct SocketControlFeatureIntegrationTests {
 
   @Test(
     arguments: [
-      #"{"id":"hooks-install-2","method":"app.hooks.install","params":{"agent":"gemini"}}"#,
-      #"{"id":"hooks-install-2","method":"app.hooks.install","params":{}}"#,
+      #"{"id":"agent-integration-setup-2","method":"app.agent_integration.setup","params":{"agent":"gemini"}}"#,
+      #"{"id":"agent-integration-setup-2","method":"app.agent_integration.setup","params":{}}"#,
     ]
   )
-  func hooksInstallRejectsAnUnusableAgentParameter(json: String) async throws {
+  func agentIntegrationSetupRejectsAnUnusableAgentParameter(json: String) async throws {
     let response = try await socketResponse(
       json,
       executeAgentIntegration: { _ in
@@ -64,14 +66,14 @@ struct SocketControlFeatureIntegrationTests {
     )
 
     #expect(response.ok == false)
-    #expect(response.id == "hooks-install-2")
+    #expect(response.id == "agent-integration-setup-2")
     #expect(response.error?.code == "invalid_request")
   }
 
   @Test
-  func hooksInstallRepliesWithTheInstallerMessage() async throws {
+  func agentIntegrationSetupRepliesWithTheInstallerMessage() async throws {
     let response = try await socketResponse(
-      #"{"id":"hooks-install-3","method":"app.hooks.install","params":{"agent":"claude"}}"#,
+      #"{"id":"agent-integration-setup-3","method":"app.agent_integration.setup","params":{"agent":"claude"}}"#,
       executeAgentIntegration: { _ in
         throw ClaudeSettingsInstallerError.invalidJSON
       }
@@ -81,7 +83,7 @@ struct SocketControlFeatureIntegrationTests {
       try jsonString(response) == """
         {"error":{"code":"internal_error","message":\
         "Claude settings must be valid JSON before Supaterm can install hooks."},\
-        "id":"hooks-install-3","ok":false}
+        "id":"agent-integration-setup-3","ok":false}
         """
     )
   }

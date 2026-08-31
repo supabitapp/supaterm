@@ -2,26 +2,25 @@ import Foundation
 import SupatermCLIShared
 import SupatermSupport
 
-nonisolated struct CodingAgentHookInstaller: Sendable {
-  let isAvailable: @Sendable (SupatermAgentKind) throws -> Bool
-  let integrationHealth: @Sendable (SupatermAgentKind) throws -> CodingAgentIntegrationHealth
-  let installSupatermHooks: @Sendable (SupatermAgentKind) throws -> Void
-  let configureForSupaterm: @Sendable (SupatermAgentKind) throws -> Void
-  let removeSupatermHooks: @Sendable (SupatermAgentKind) throws -> Void
+nonisolated struct CodingAgentIntegrationManager: Sendable {
+  let setup: @Sendable (SupatermAgentKind) throws -> CodingAgentIntegrationHealth
+  let health: @Sendable (SupatermAgentKind) throws -> CodingAgentIntegrationHealth
+  let repair: @Sendable (SupatermAgentKind) throws -> Void
+  let remove: @Sendable (SupatermAgentKind) throws -> Void
 
   static let live = Self(
-    isAvailable: { agent in
+    setup: { agent in
       let homeDirectoryURL = Self.homeDirectoryURL()
       switch agent {
       case .claude:
-        return try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).isAvailable()
+        return try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).setup()
       case .codex:
-        return try CodexSettingsInstaller(homeDirectoryURL: homeDirectoryURL).isAvailable()
+        return try CodexSettingsInstaller(homeDirectoryURL: homeDirectoryURL).setup()
       case .pi:
-        return try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL).isPiAvailable()
+        return try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL).setup()
       }
     },
-    integrationHealth: { agent in
+    health: { agent in
       let homeDirectoryURL = Self.homeDirectoryURL()
       switch agent {
       case .claude:
@@ -32,7 +31,7 @@ nonisolated struct CodingAgentHookInstaller: Sendable {
         return try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL).integrationHealth()
       }
     },
-    installSupatermHooks: { agent in
+    repair: { agent in
       let homeDirectoryURL = Self.homeDirectoryURL()
       switch agent {
       case .claude:
@@ -43,18 +42,7 @@ nonisolated struct CodingAgentHookInstaller: Sendable {
         try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL).installSupatermPackage()
       }
     },
-    configureForSupaterm: { agent in
-      let homeDirectoryURL = Self.homeDirectoryURL()
-      switch agent {
-      case .claude:
-        try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
-      case .codex:
-        try CodexSettingsInstaller(homeDirectoryURL: homeDirectoryURL).configureForSupaterm()
-      case .pi:
-        break
-      }
-    },
-    removeSupatermHooks: { agent in
+    remove: { agent in
       let homeDirectoryURL = Self.homeDirectoryURL()
       switch agent {
       case .claude:

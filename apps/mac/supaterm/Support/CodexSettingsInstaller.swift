@@ -44,38 +44,32 @@ public struct CodexSettingsInstaller {
   public func installSupatermHooks() throws {
     Self.operationLock.lock()
     defer { Self.operationLock.unlock() }
-    try installSupatermHooksLocked()
-  }
-
-  public func configureForSupaterm() throws {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
-    let configURL = Self.configURL(homeDirectoryURL: homeDirectoryURL)
-    let config = try appServerClient.readUserConfig(
-      cwd: homeDirectoryURL,
-      configURL: configURL
-    )
-    guard !config.hasTerminalTitle else { return }
-    try writeConfig(
-      write: {
-        try appServerClient.setTerminalTitle(
-          filePath: config.filePath,
-          expectedVersion: config.version
-        )
-      },
-      isApplied: { $0.hasTerminalTitle }
-    )
-  }
-
-  private func installSupatermHooksLocked() throws {
     switch try codexAvailability() {
     case .unavailable:
       throw CodexSettingsInstallerError.codexUnavailable
     case .unsupported:
       throw CodexSettingsInstallerError.unsupportedCodexVersion
     case .supported:
-      break
+      _ = try installSupatermHooksLocked(seedTerminalTitle: false)
     }
+  }
+
+  public func setup() throws -> CodingAgentIntegrationHealth {
+    Self.operationLock.lock()
+    defer { Self.operationLock.unlock() }
+    switch try codexAvailability() {
+    case .unavailable:
+      return .unavailable
+    case .unsupported:
+      throw CodexSettingsInstallerError.unsupportedCodexVersion
+    case .supported:
+      return try installSupatermHooksLocked(seedTerminalTitle: true)
+    }
+  }
+
+  private func installSupatermHooksLocked(
+    seedTerminalTitle: Bool
+  ) throws -> CodingAgentIntegrationHealth {
     let commandResult = try runEnableHooksCommand()
     guard commandResult.status == 0 else {
       throw CodexSettingsInstallerError.enableHooksFailed(commandResult.standardError)
@@ -84,10 +78,7 @@ public struct CodexSettingsInstaller {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     var fileMutation: AgentHookSettingsFileInstaller.Mutation?
     do {
-      let config = try appServerClient.readUserConfig(
-        cwd: homeDirectoryURL,
-        configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
-      )
+      let config = try readUserConfig()
       guard config.hooksFeatureEnabled else {
         throw CodexSettingsInstallerError.hooksFeatureDisabled
       }
@@ -101,19 +92,35 @@ public struct CodexSettingsInstaller {
         newHooks,
         settingsURL: settingsURL
       )
-      let hookState = try rebasedHookState(
-        existing: config.hookState,
-        oldHooks: oldHooks,
-        newHooks: newHooks,
-        managedHooks: managedHooks,
-        settingsURL: settingsURL
-      )
-      if hookState != config.hookState {
-        try replaceHookState(
-          hookState,
-          filePath: config.filePath,
-          expectedVersion: config.version
+      try writeConfig(startingAt: config) { currentConfig in
+        guard currentConfig.hooksFeatureEnabled else {
+          throw CodexSettingsInstallerError.hooksFeatureDisabled
+        }
+        let currentHookState = try rebasedHookState(
+          existing: currentConfig.hookState,
+          oldHooks: oldHooks,
+          newHooks: newHooks,
+          managedHooks: managedHooks,
+          settingsURL: settingsURL
         )
+        var edits: [CodexAppServerConfigEdit] = []
+        if currentHookState != currentConfig.hookState {
+          edits.append(
+            CodexAppServerConfigEdit(
+              keyPath: "hooks.state",
+              value: .object(currentHookState)
+            )
+          )
+        }
+        if seedTerminalTitle, !currentConfig.hasTerminalTitle {
+          edits.append(
+            CodexAppServerConfigEdit(
+              keyPath: "tui.terminal_title",
+              value: ["activity", "thread-title", "task-progress"]
+            )
+          )
+        }
+        return edits
       }
     } catch CodexSettingsInstallerError.configWriteOutcomeUnknown(let message) {
       throw CodexSettingsInstallerError.configWriteOutcomeUnknown(message)
@@ -125,6 +132,10 @@ public struct CodexSettingsInstaller {
       }
       throw error
     }
+    return try integrationHealthLocked(
+      availability: .supported,
+      hooksFeatureEnabled: true
+    )
   }
 
   public func integrationHealth() throws -> CodingAgentIntegrationHealth {
@@ -133,19 +144,17 @@ public struct CodexSettingsInstaller {
     return try integrationHealthLocked()
   }
 
-  public func isAvailable() throws -> Bool {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
-    return try codexAvailability() != .unavailable
-  }
-
-  private func integrationHealthLocked() throws -> CodingAgentIntegrationHealth {
+  private func integrationHealthLocked(
+    availability knownAvailability: CodexAvailability? = nil,
+    hooksFeatureEnabled knownHooksFeatureEnabled: Bool? = nil
+  ) throws -> CodingAgentIntegrationHealth {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: settingsURL,
       hookGroupsByEvent: SupatermCodexHookSettings.hookGroupsByEvent()
     )
-    guard try codexAvailability() == .supported else {
+    let availability = try knownAvailability ?? codexAvailability()
+    guard availability == .supported else {
       return settingsHealth == .absent ? .unavailable : .unavailableInstalled
     }
     guard settingsHealth == .healthy else {
@@ -161,11 +170,8 @@ public struct CodexSettingsInstaller {
     } catch CodexSettingsInstallerError.nativeHooksMismatch {
       return .drifted
     }
-    let config = try appServerClient.readUserConfig(
-      cwd: homeDirectoryURL,
-      configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
-    )
-    guard config.hooksFeatureEnabled else {
+    let hooksFeatureEnabled = try knownHooksFeatureEnabled ?? readUserConfig().hooksFeatureEnabled
+    guard hooksFeatureEnabled else {
       return .drifted
     }
     guard
@@ -192,10 +198,7 @@ public struct CodexSettingsInstaller {
     let config: CodexAppServerUserConfig
     let oldHooks: [CodexAppServerHook]
     do {
-      config = try appServerClient.readUserConfig(
-        cwd: homeDirectoryURL,
-        configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
-      )
+      config = try readUserConfig()
       oldHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
     } catch CodexAppServerClientError.userConfigLayerMissing {
       try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
@@ -208,19 +211,21 @@ public struct CodexSettingsInstaller {
     try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
     do {
       let newHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
-      let hookState = try rebasedHookState(
-        existing: config.hookState,
-        oldHooks: oldHooks,
-        newHooks: newHooks,
-        managedHooks: [],
-        settingsURL: settingsURL
-      )
-      if hookState != config.hookState {
-        try replaceHookState(
-          hookState,
-          filePath: config.filePath,
-          expectedVersion: config.version
+      try writeConfig(startingAt: config) { currentConfig in
+        let currentHookState = try rebasedHookState(
+          existing: currentConfig.hookState,
+          oldHooks: oldHooks,
+          newHooks: newHooks,
+          managedHooks: [],
+          settingsURL: settingsURL
         )
+        guard currentHookState != currentConfig.hookState else { return [] }
+        return [
+          CodexAppServerConfigEdit(
+            keyPath: "hooks.state",
+            value: .object(currentHookState)
+          )
+        ]
       }
     } catch CodexSettingsInstallerError.configWriteOutcomeUnknown(let message) {
       throw CodexSettingsInstallerError.trustCleanupOutcomeUnknown(message)
@@ -285,43 +290,47 @@ public struct CodexSettingsInstaller {
     return version >= .minimum ? .supported : .unsupported
   }
 
-  private func replaceHookState(
-    _ hookState: JSONObject,
-    filePath: String,
-    expectedVersion: String?
+  private func writeConfig(
+    startingAt initialConfig: CodexAppServerUserConfig,
+    edits: (CodexAppServerUserConfig) throws -> [CodexAppServerConfigEdit]
   ) throws {
-    try writeConfig(
-      write: {
-        try appServerClient.replaceHookState(
-          hookState,
-          filePath: filePath,
-          expectedVersion: expectedVersion
+    var config = initialConfig
+    var pendingEdits = try edits(config)
+    var canRetry = true
+    while !pendingEdits.isEmpty {
+      do {
+        try appServerClient.batchWrite(
+          pendingEdits,
+          filePath: config.filePath,
+          expectedVersion: config.version
         )
-      },
-      isApplied: { $0.hookState == hookState }
-    )
+        return
+      } catch let writeError {
+        let updatedConfig: CodexAppServerUserConfig
+        do {
+          updatedConfig = try readUserConfig()
+        } catch {
+          throw CodexSettingsInstallerError.configWriteOutcomeUnknown(
+            error.localizedDescription
+          )
+        }
+        let updatedEdits = try edits(updatedConfig)
+        guard !updatedEdits.isEmpty else { return }
+        guard canRetry, updatedConfig.version != config.version else {
+          throw writeError
+        }
+        config = updatedConfig
+        pendingEdits = updatedEdits
+        canRetry = false
+      }
+    }
   }
 
-  private func writeConfig(
-    write: () throws -> Void,
-    isApplied: (CodexAppServerUserConfig) -> Bool
-  ) throws {
-    do {
-      try write()
-    } catch let writeError {
-      let config: CodexAppServerUserConfig
-      do {
-        config = try appServerClient.readUserConfig(
-          cwd: homeDirectoryURL,
-          configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
-        )
-      } catch {
-        throw CodexSettingsInstallerError.configWriteOutcomeUnknown(
-          error.localizedDescription
-        )
-      }
-      guard isApplied(config) else { throw writeError }
-    }
+  private func readUserConfig() throws -> CodexAppServerUserConfig {
+    try appServerClient.readUserConfig(
+      cwd: homeDirectoryURL,
+      configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
+    )
   }
 
   private func canonicalNativeHooks(
