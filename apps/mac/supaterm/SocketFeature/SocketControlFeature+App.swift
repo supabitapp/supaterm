@@ -12,7 +12,7 @@ extension SocketControlFeature {
     ) {
       return response
     }
-    if let response = try await appHooksResponseResult(
+    if let response = try await appAgentIntegrationResponseResult(
       for: request,
       socketRequestExecutor: socketRequestExecutor
     ) {
@@ -120,21 +120,23 @@ extension SocketControlFeature {
     }
   }
 
-  private func appHooksResponseResult(
+  private func appAgentIntegrationResponseResult(
     for request: SupatermSocketRequest,
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
-    case SupatermSocketMethod.appHooksInstall:
-      let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
-      let result = try await socketRequestExecutor.executeAgentIntegration(.hooksInstall(payload))
-      guard case .hooksInstall(let health) = result else {
+    case SupatermSocketMethod.appAgentIntegrationSetup:
+      let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
+      let result = try await socketRequestExecutor.executeAgentIntegration(
+        .agentIntegrationSetup(payload)
+      )
+      guard case .agentIntegrationSetup(let health) = result else {
         throw SocketExecutorError.unexpectedResult
       }
       return try .ok(id: request.id, encodableResult: health)
 
     case SupatermSocketMethod.appHooksRemove:
-      let payload = try request.decodeParams(SupatermAgentHookTargetRequest.self)
+      let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
       let result = try await socketRequestExecutor.executeAgentIntegration(.hooksRemove(payload))
       guard case .hooksRemove(let health) = result else {
         throw SocketExecutorError.unexpectedResult

@@ -1,8 +1,227 @@
 import Foundation
 import SupatermCLIShared
 
-public struct PiSettingsInstaller {
+struct PiPackageSource: Hashable, Sendable {
+  enum Identity: Hashable, Sendable {
+    case git(host: String, path: String)
+    case local(String)
+    case npm(String)
+  }
+
+  let installedValue: String
+  let identity: Identity
+
+  init(_ installedValue: String, homeDirectoryURL: URL) {
+    self.installedValue = installedValue
+    if let packageName = Self.npmPackageName(for: installedValue) {
+      identity = .npm(packageName)
+    } else if let gitIdentity = Self.gitIdentity(for: installedValue) {
+      identity = gitIdentity
+    } else {
+      identity = .local(
+        Self.localPath(for: installedValue, homeDirectoryURL: homeDirectoryURL)
+      )
+    }
+  }
+
+  var isLocal: Bool {
+    if case .local = identity {
+      return true
+    }
+    return false
+  }
+
+  var isSupatermPackage: Bool {
+    guard !installedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      return false
+    }
+    let path =
+      switch identity {
+      case .git(_, let path), .local(let path): path
+      case .npm(let packageName): packageName
+      }
+    return Self.packageName(for: path) == "supaterm-skills"
+  }
+
+  var mutationValue: String {
+    if case .local(let path) = identity {
+      return path
+    }
+    return installedValue
+  }
+
+  private static func npmPackageName(for source: String) -> String? {
+    guard source.hasPrefix("npm:") else { return nil }
+    let spec = String(source.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let versionSeparator = spec.dropFirst().firstIndex(of: "@") else {
+      return spec
+    }
+    return String(spec[..<versionSeparator])
+  }
+
+  private static func gitIdentity(for source: String) -> Identity? {
+    let source = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    let hasGitPrefix = source.hasPrefix("git:")
+    let repository =
+      hasGitPrefix
+      ? String(source.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+      : source
+    let lowercasedRepository = repository.lowercased()
+    let hasExplicitProtocol = ["git://", "http://", "https://", "ssh://"]
+      .contains { lowercasedRepository.hasPrefix($0) }
+    guard hasGitPrefix || hasExplicitProtocol else { return nil }
+
+    if hasGitPrefix,
+      let separator = repository.firstIndex(of: ":"),
+      let host = hostedGitDomain(for: String(repository[..<separator]))
+    {
+      let path = String(repository[repository.index(after: separator)...])
+      return normalizedGitIdentity(host: host, path: path)
+    }
+
+    if repository.hasPrefix("git@"),
+      let separator = repository.firstIndex(of: ":")
+    {
+      let host = String(
+        repository[repository.index(repository.startIndex, offsetBy: 4)..<separator])
+      let path = String(repository[repository.index(after: separator)...])
+      return normalizedGitIdentity(host: host, path: path)
+    }
+
+    if hasExplicitProtocol,
+      let components = URLComponents(string: repository),
+      let host = components.host
+    {
+      return normalizedGitIdentity(host: host, path: components.path)
+    }
+
+    guard hasGitPrefix, let separator = repository.firstIndex(of: "/") else {
+      return nil
+    }
+    let host = String(repository[..<separator])
+    guard host.contains(".") || host == "localhost" else { return nil }
+    let path = String(repository[repository.index(after: separator)...])
+    return normalizedGitIdentity(host: host, path: path)
+  }
+
+  private static func hostedGitDomain(for shorthand: String) -> String? {
+    switch shorthand.lowercased() {
+    case "bitbucket": "bitbucket.org"
+    case "gist": "gist.github.com"
+    case "github": "github.com"
+    case "gitlab": "gitlab.com"
+    default: nil
+    }
+  }
+
+  private static func normalizedGitIdentity(host: String, path: String) -> Identity? {
+    let pathWithoutLeadingSlash = path.drop(while: { $0 == "/" })
+    guard
+      let pathWithoutRef = pathWithoutLeadingSlash.split(
+        maxSplits: 1,
+        whereSeparator: { $0 == "@" || $0 == "#" }
+      ).first
+    else { return nil }
+    let normalizedPath =
+      pathWithoutRef.hasSuffix(".git")
+      ? pathWithoutRef.dropLast(4)
+      : pathWithoutRef[...]
+    guard !host.isEmpty, normalizedPath.split(separator: "/").count >= 2 else {
+      return nil
+    }
+    return .git(host: host.lowercased(), path: String(normalizedPath))
+  }
+
+  private static func localPath(for source: String, homeDirectoryURL: URL) -> String {
+    let source = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    let path =
+      if let url = URL(string: source), url.isFileURL {
+        url.path
+      } else if source == "~" {
+        homeDirectoryURL.path
+      } else if source.hasPrefix("~/") {
+        homeDirectoryURL.appendingPathComponent(String(source.dropFirst(2))).path
+      } else {
+        source
+      }
+    let url =
+      NSString(string: path).isAbsolutePath
+      ? URL(fileURLWithPath: path, isDirectory: true)
+      : PiSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+        .deletingLastPathComponent()
+        .appendingPathComponent(path, isDirectory: true)
+    return url.standardizedFileURL.path
+  }
+
+  private static func packageName(for source: String) -> String {
+    let lastPathComponent = URL(fileURLWithPath: source).lastPathComponent
+    guard lastPathComponent.hasSuffix(".git") else {
+      return lastPathComponent
+    }
+    return String(lastPathComponent.dropLast(4))
+  }
+}
+
+enum PiPackageMutation: Equatable, Sendable {
+  case install(PiPackageSource)
+  case remove(PiPackageSource)
+  case update(PiPackageSource)
+
+  var rollback: Self? {
+    switch self {
+    case .install(let source):
+      .remove(source)
+    case .remove(let source):
+      .install(source)
+    case .update:
+      nil
+    }
+  }
+}
+
+struct PiPackageMutationExecutor: Sendable {
   typealias CommandResult = CodingAgentCommandResult
+
+  let runCommand: @Sendable ([String], TimeInterval) throws -> CommandResult
+
+  func run(
+    _ mutation: PiPackageMutation,
+    timeout: TimeInterval
+  ) throws -> CommandResult {
+    try runCommand(Self.commandArguments(for: mutation), timeout)
+  }
+
+  static func commandArguments(for mutation: PiPackageMutation) -> [String] {
+    let operation: String
+    let source: String
+    switch mutation {
+    case .install(let packageSource):
+      operation = "install"
+      source = packageSource.mutationValue
+    case .remove(let packageSource):
+      operation = "remove"
+      source = packageSource.mutationValue
+    case .update(let packageSource):
+      operation = "update"
+      source = packageSource.installedValue
+    }
+    return LoginShellCommandAvailability.interactiveCommandArguments(
+      for: "pi \(operation) \(shellEscaped(source))"
+    )
+  }
+
+  private static func shellEscaped(_ value: String) -> String {
+    "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+  }
+}
+
+struct PiSettingsInstaller {
+  typealias CommandResult = CodingAgentCommandResult
+
+  private enum SettingsSnapshot {
+    case absent
+    case contents(Data)
+  }
 
   private struct PackageFile: Decodable {
     let version: String
@@ -11,16 +230,16 @@ public struct PiSettingsInstaller {
   static let canonicalPackageSource = "git:github.com/supabitapp/supaterm-skills"
   private static let minimumPackageVersion = PiIntegrationVersion(major: 0, minor: 2, patch: 0)
 
-  public static var canonicalInstallDisplayCommand: String {
+  static var canonicalInstallDisplayCommand: String {
     installDisplayCommand(source: canonicalPackageSource)
   }
 
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let checkPiAvailable: @Sendable () throws -> Bool
-  let runPiCommand: @Sendable ([String]) throws -> CommandResult
+  let runPiMutation: @Sendable (PiPackageMutation, TimeInterval) throws -> CommandResult
 
-  public init(
+  init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
@@ -36,32 +255,54 @@ public struct PiSettingsInstaller {
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default,
     checkPiAvailable: @escaping @Sendable () throws -> Bool,
-    runPiCommand: @escaping @Sendable ([String]) throws -> CommandResult
+    runPiCommand: @escaping @Sendable ([String], TimeInterval) throws -> CommandResult
+  ) {
+    let executor = PiPackageMutationExecutor(runCommand: runPiCommand)
+    self.init(
+      homeDirectoryURL: homeDirectoryURL,
+      fileManager: fileManager,
+      checkPiAvailable: checkPiAvailable,
+      runPiMutation: executor.run
+    )
+  }
+
+  init(
+    homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+    fileManager: FileManager = .default,
+    checkPiAvailable: @escaping @Sendable () throws -> Bool,
+    runPiMutation: @escaping @Sendable (PiPackageMutation, TimeInterval) throws -> CommandResult
   ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
     self.checkPiAvailable = checkPiAvailable
-    self.runPiCommand = runPiCommand
+    self.runPiMutation = runPiMutation
   }
 
-  public func isPiAvailable() throws -> Bool {
+  func isPiAvailable() throws -> Bool {
     try checkPiAvailable()
   }
 
-  public func hasSupatermPackageInstalled() throws -> Bool {
+  func hasSupatermPackageInstalled() throws -> Bool {
     try !installedSupatermPackageSources().isEmpty
   }
 
-  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
+  func integrationHealth() throws -> CodingAgentIntegrationHealth {
     let sources = try installedSupatermPackageSources()
-    guard try isPiAvailable() else {
+    return try integrationHealth(for: sources, isPiAvailable: isPiAvailable())
+  }
+
+  private func integrationHealth(
+    for sources: [PiPackageSource],
+    isPiAvailable: Bool
+  ) throws -> CodingAgentIntegrationHealth {
+    guard isPiAvailable else {
       return sources.isEmpty ? .unavailable : .unavailableInstalled
     }
     guard !sources.isEmpty else { return .absent }
-    if sources.count == 1, Self.isLocalPackageSource(sources[0]) {
+    if sources.count == 1, sources[0].isLocal {
       return .healthy
     }
-    guard sources == [Self.canonicalPackageSource] else { return .drifted }
+    guard sources.map(\.installedValue) == [Self.canonicalPackageSource] else { return .drifted }
     guard let version = try? installedPackageVersion(),
       version >= Self.minimumPackageVersion
     else {
@@ -70,49 +311,42 @@ public struct PiSettingsInstaller {
     return .healthy
   }
 
-  public func installSupatermPackage() throws {
+  func setup() throws -> CodingAgentIntegrationHealth {
+    guard try isPiAvailable() else { return .unavailable }
+    let sources = try installedSupatermPackageSources()
+    let plan = try setupMutationPlan(for: sources)
+    try runInstallPlan(plan)
+    return try integrationHealth(
+      for: installedSupatermPackageSources(),
+      isPiAvailable: true
+    )
+  }
+
+  func installSupatermPackage() throws {
+    let sources = try installedSupatermPackageSources()
+    let plan = try installMutationPlan(for: sources)
     guard try isPiAvailable() else {
       throw PiSettingsInstallerError.piUnavailable
     }
-
-    let sources = try installedSupatermPackageSources()
-    var seenSources: Set<String> = []
-    let uniqueSources = sources.filter { seenSources.insert($0).inserted }
-    let canonicalSourceCount = sources.count { $0 == Self.canonicalPackageSource }
-    let sourcesToRemove =
-      canonicalSourceCount == 1
-      ? uniqueSources.filter { $0 != Self.canonicalPackageSource }
-      : uniqueSources
-    for source in sourcesToRemove {
-      try runInstallCommand(Self.removeCommandArguments(source: source))
-    }
-    let arguments =
-      canonicalSourceCount == 1
-      ? Self.updateCommandArguments(source: Self.canonicalPackageSource)
-      : Self.installCommandArguments(source: Self.canonicalPackageSource)
-    try runInstallCommand(arguments)
+    try runInstallPlan(plan)
   }
 
-  public func removeSupatermPackage() throws {
+  func removeSupatermPackage() throws {
     let sources = try installedSupatermPackageSources()
-    guard !sources.isEmpty else { return }
+    let sourcesToRemove = uniquePackageSourcesByIdentity(sources)
+    guard !sourcesToRemove.isEmpty else { return }
     guard try isPiAvailable() else {
       try removeSupatermPackagesFromSettings()
       return
     }
-    for source in sources {
-      let commandResult = try runPiCommand(
-        Self.removeCommandArguments(source: source)
-      )
-      guard commandResult.status == 0 else {
-        throw PiSettingsInstallerError.removeFailed(
-          Self.commandFailureDetails(from: commandResult)
-        )
-      }
-    }
+    try Self.validateMutationCount(sourcesToRemove.count)
+    try runMutationPlan(
+      sourcesToRemove.map(PiPackageMutation.remove),
+      failure: PiSettingsInstallerError.removeFailed
+    )
   }
 
-  public static func settingsURL(homeDirectoryURL: URL) -> URL {
+  static func settingsURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".pi", isDirectory: true)
       .appendingPathComponent("agent", isDirectory: true)
@@ -120,80 +354,87 @@ public struct PiSettingsInstaller {
   }
 
   static func checkPiAvailable() throws -> Bool {
-    try runShellCommand(commandArguments: piAvailabilityCommandArguments()).status == 0
+    try CodingAgentCommandRunner.run(
+      arguments: piAvailabilityCommandArguments(),
+      timeout: SupatermAgentIntegrationTiming.availabilityTimeout
+    ).status == 0
   }
 
-  static func runPiCommand(commandArguments: [String]) throws -> CommandResult {
-    try runShellCommand(commandArguments: commandArguments)
+  static func runPiCommand(
+    commandArguments: [String],
+    timeout: TimeInterval
+  ) throws -> CommandResult {
+    try CodingAgentCommandRunner.run(arguments: commandArguments, timeout: timeout)
   }
 
   static func piAvailabilityCommandArguments() -> [String] {
     LoginShellCommandAvailability.commandArguments(for: ["pi"])
   }
 
-  static func installCommandArguments(source: String) -> [String] {
-    LoginShellCommandAvailability.interactiveCommandArguments(
-      for: "pi install \(shellEscaped(source))"
-    )
-  }
-
-  static func updateCommandArguments(source: String) -> [String] {
-    LoginShellCommandAvailability.interactiveCommandArguments(
-      for: "pi update \(shellEscaped(source))"
-    )
-  }
-
-  public static func installDisplayCommand(source: String) -> String {
+  static func installDisplayCommand(source: String) -> String {
     "pi install \(source)"
   }
 
-  static func removeCommandArguments(source: String) -> [String] {
-    LoginShellCommandAvailability.interactiveCommandArguments(
-      for: "pi remove \(shellEscaped(source))"
-    )
-  }
-
-  static func isSupatermPackageSource(_ source: String) -> Bool {
-    let normalizedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalizedSource.isEmpty else {
-      return false
-    }
-    if normalizedSource.contains("github.com/supabitapp/supaterm-skills")
-      || normalizedSource.contains("github.com:supabitapp/supaterm-skills")
-    {
-      return true
-    }
-    guard
-      normalizedSource.contains("/")
-        || normalizedSource.hasPrefix(".")
-        || normalizedSource.hasPrefix("~")
-    else {
-      return false
-    }
-    return packageName(for: normalizedSource) == "supaterm-skills"
-  }
-
-  static func isLocalPackageSource(_ source: String) -> Bool {
-    let source = source.trimmingCharacters(in: .whitespacesAndNewlines)
-    return !["git:", "github:", "http:", "https:", "npm:", "ssh:"]
-      .contains { source.hasPrefix($0) }
-  }
-
-  private static func packageName(for source: String) -> String {
-    let lastPathComponent = URL(fileURLWithPath: source).lastPathComponent
-    guard lastPathComponent.hasSuffix(".git") else {
-      return lastPathComponent
-    }
-    return String(lastPathComponent.dropLast(4))
-  }
-
-  private func installedSupatermPackageSources() throws -> [String] {
+  private func installedSupatermPackageSources() throws -> [PiPackageSource] {
     let settingsObject = try loadSettingsObject()
     guard let packagesValue = settingsObject["packages"] else { return [] }
     guard let packages = packagesValue.arrayValue else {
       throw PiSettingsInstallerError.invalidSettings
     }
-    return packages.compactMap(Self.packageSource).filter(Self.isSupatermPackageSource)
+    return
+      packages
+      .compactMap(Self.packageSource)
+      .map { PiPackageSource($0, homeDirectoryURL: homeDirectoryURL) }
+      .filter(\.isSupatermPackage)
+  }
+
+  private func setupMutationPlan(for sources: [PiPackageSource]) throws -> [PiPackageMutation] {
+    if sources.count == 1 {
+      let source = sources[0]
+      if source.isLocal {
+        return []
+      }
+      if source.installedValue == Self.canonicalPackageSource,
+        let version = try? installedPackageVersion(),
+        version >= Self.minimumPackageVersion
+      {
+        return []
+      }
+    }
+    return try installMutationPlan(for: sources)
+  }
+
+  private func installMutationPlan(
+    for sources: [PiPackageSource]
+  ) throws -> [PiPackageMutation] {
+    let canonicalSource = PiPackageSource(
+      Self.canonicalPackageSource,
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let canonicalSources = sources.filter { $0.identity == canonicalSource.identity }
+    let plan: [PiPackageMutation]
+    if canonicalSources.map(\.installedValue) == [Self.canonicalPackageSource] {
+      let sourcesToRemove = uniquePackageSourcesByIdentity(
+        sources.filter { $0.identity != canonicalSource.identity }
+      )
+      plan = sourcesToRemove.map(PiPackageMutation.remove) + [.update(canonicalSource)]
+    } else {
+      plan =
+        uniquePackageSourcesByIdentity(sources).map(PiPackageMutation.remove)
+        + [.install(canonicalSource)]
+    }
+    try Self.validateMutationCount(plan.count)
+    return plan
+  }
+
+  private func uniquePackageSourcesByIdentity(
+    _ sources: [PiPackageSource]
+  ) -> [PiPackageSource] {
+    var identities: Set<PiPackageSource.Identity> = []
+    return sources.compactMap { source in
+      guard identities.insert(source.identity).inserted else { return nil }
+      return source
+    }
   }
 
   private func removeSupatermPackagesFromSettings() throws {
@@ -206,7 +447,7 @@ public struct PiSettingsInstaller {
     }
     let remainingPackages = packages.filter { package in
       guard let source = Self.packageSource(package) else { return true }
-      return !Self.isSupatermPackageSource(source)
+      return !PiPackageSource(source, homeDirectoryURL: homeDirectoryURL).isSupatermPackage
     }
     guard remainingPackages != packages else { return }
     settingsObject["packages"] = .array(remainingPackages)
@@ -244,17 +485,85 @@ public struct PiSettingsInstaller {
     return PiIntegrationVersion(package.version)
   }
 
-  private func runInstallCommand(_ arguments: [String]) throws {
-    let commandResult = try runPiCommand(arguments)
-    guard commandResult.status == 0 else {
-      throw PiSettingsInstallerError.installFailed(
-        Self.commandFailureDetails(from: commandResult)
+  private func runInstallPlan(_ plan: [PiPackageMutation]) throws {
+    try runMutationPlan(plan, failure: PiSettingsInstallerError.installFailed)
+  }
+
+  private func runMutationPlan(
+    _ plan: [PiPackageMutation],
+    failure: (String) -> PiSettingsInstallerError
+  ) throws {
+    let settingsSnapshot = try settingsSnapshot()
+    var rollbackPlan: [PiPackageMutation] = []
+    do {
+      for mutation in plan {
+        let commandResult = try runMutationCommand(mutation)
+        guard commandResult.status == 0 else {
+          throw failure(Self.commandFailureDetails(from: commandResult))
+        }
+        if let rollback = mutation.rollback {
+          rollbackPlan.append(rollback)
+        }
+      }
+    } catch let planError {
+      var rollbackFailures = runRollbackPlan(rollbackPlan)
+      do {
+        try restoreSettings(from: settingsSnapshot)
+      } catch {
+        rollbackFailures.append(error.localizedDescription)
+      }
+      guard !rollbackFailures.isEmpty else {
+        throw planError
+      }
+      throw PiSettingsInstallerError.rollbackFailed(
+        primary: planError.localizedDescription,
+        failures: rollbackFailures
       )
     }
   }
 
-  private static func runShellCommand(commandArguments: [String]) throws -> CommandResult {
-    try CodingAgentCommandRunner.run(arguments: commandArguments)
+  private func settingsSnapshot() throws -> SettingsSnapshot {
+    let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    guard fileManager.fileExists(atPath: settingsURL.path) else {
+      return .absent
+    }
+    return .contents(try Data(contentsOf: settingsURL))
+  }
+
+  private func restoreSettings(from snapshot: SettingsSnapshot) throws {
+    let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    switch snapshot {
+    case .absent:
+      guard fileManager.fileExists(atPath: settingsURL.path) else { return }
+      try fileManager.removeItem(at: settingsURL)
+    case .contents(let contents):
+      try contents.write(to: settingsURL, options: .atomic)
+    }
+  }
+
+  private func runRollbackPlan(_ plan: [PiPackageMutation]) -> [String] {
+    var failures: [String] = []
+    for mutation in plan.reversed() {
+      do {
+        let commandResult = try runMutationCommand(mutation)
+        guard commandResult.status == 0 else {
+          let details = Self.commandFailureDetails(from: commandResult)
+          failures.append(
+            details.isEmpty
+              ? "Pi rollback command exited with status \(commandResult.status)."
+              : details
+          )
+          continue
+        }
+      } catch {
+        failures.append(error.localizedDescription)
+      }
+    }
+    return failures
+  }
+
+  private func runMutationCommand(_ mutation: PiPackageMutation) throws -> CommandResult {
+    try runPiMutation(mutation, SupatermAgentIntegrationTiming.mutationTimeout)
   }
 
   private static func commandFailureDetails(from commandResult: CommandResult) -> String {
@@ -264,8 +573,10 @@ public struct PiSettingsInstaller {
     return details ?? ""
   }
 
-  private static func shellEscaped(_ value: String) -> String {
-    "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+  private static func validateMutationCount(_ count: Int) throws {
+    guard count <= SupatermAgentIntegrationTiming.maximumMutationsPerRequest else {
+      throw PiSettingsInstallerError.tooManyPackageSources
+    }
   }
 }
 
@@ -302,6 +613,8 @@ public enum PiSettingsInstallerError: Error, Equatable, LocalizedError {
   case invalidSettings
   case piUnavailable
   case removeFailed(String)
+  case rollbackFailed(primary: String, failures: [String])
+  case tooManyPackageSources
 
   public var errorDescription: String? {
     switch self {
@@ -313,12 +626,20 @@ public enum PiSettingsInstallerError: Error, Equatable, LocalizedError {
     case .invalidSettings:
       return "Pi settings must be valid JSON before Supaterm can manage the package."
     case .piUnavailable:
-      return "Pi must be installed and available in your login shell before Supaterm can install or update the package."
+      return
+        "Pi must be installed and available in your login shell before Supaterm can install or update the package."
     case .removeFailed(let details):
       if details.isEmpty {
         return "Supaterm could not remove the Pi package."
       }
       return "Supaterm could not remove the Pi package: \(details)"
+    case .rollbackFailed(let primary, let failures):
+      let details = failures.joined(separator: "; ")
+      return "\(primary) Supaterm could not restore the prior Pi settings: \(details)"
+    case .tooManyPackageSources:
+      let limit = SupatermAgentIntegrationTiming.maximumMutationsPerRequest
+      return
+        "Supaterm can run at most \(limit) Pi package changes at once. Remove package sources before trying again."
     }
   }
 }

@@ -737,25 +737,25 @@ struct TerminalSidebarHoverCardView: View {
         if let workspace = content.workspace {
           VStack(alignment: .leading, spacing: 8) {
             if let branch = workspace.branch {
-              TerminalSidebarHoverCardCopyRow(
+              TerminalSidebarHoverCardActionRow(
                 icon: .asset("git-branch"),
                 title: branch.name,
-                copyValue: branch.name,
+                action: .copy(branch.name),
                 accessibilityName: "branch"
               )
               if let pullRequest = branch.pullRequest {
-                TerminalSidebarHoverCardCopyRow(
+                TerminalSidebarHoverCardActionRow(
                   icon: pullRequest.icon,
                   title: pullRequest.title,
-                  copyValue: pullRequest.title,
+                  action: .pullRequest(pullRequest),
                   accessibilityName: "pull request"
                 )
               }
             }
-            TerminalSidebarHoverCardCopyRow(
+            TerminalSidebarHoverCardActionRow(
               icon: .system("folder"),
               title: (workspace.workingDirectoryPath as NSString).abbreviatingWithTildeInPath,
-              copyValue: workspace.workingDirectoryPath,
+              action: .copy(workspace.workingDirectoryPath),
               accessibilityName: "working directory",
               truncationMode: .middle
             )
@@ -786,13 +786,51 @@ struct TerminalSidebarHoverCardView: View {
   }
 }
 
-private struct TerminalSidebarHoverCardCopyRow: View {
+enum TerminalSidebarHoverCardRowAction {
+  case copy(String)
+  case open(URL)
+
+  static func pullRequest(_ pullRequest: TerminalTabAgentWorkspace.PullRequest) -> Self {
+    guard let url = pullRequest.url else { return .copy(pullRequest.title) }
+    return .open(url)
+  }
+
+  @MainActor
+  func perform(
+    clipboardClient: ClipboardClient,
+    externalNavigationClient: ExternalNavigationClient
+  ) {
+    switch self {
+    case .copy(let value):
+      clipboardClient.copyString(value)
+    case .open(let url):
+      _ = externalNavigationClient.open(url)
+    }
+  }
+
+  var verb: String {
+    switch self {
+    case .copy:
+      "Copy"
+    case .open:
+      "Open"
+    }
+  }
+
+  var copyValue: String? {
+    guard case .copy(let value) = self else { return nil }
+    return value
+  }
+}
+
+private struct TerminalSidebarHoverCardActionRow: View {
   @Dependency(ClipboardClient.self) private var clipboardClient
+  @Dependency(ExternalNavigationClient.self) private var externalNavigationClient
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   let icon: TerminalMetadataIcon
   let title: String
-  let copyValue: String
+  let action: TerminalSidebarHoverCardRowAction
   let accessibilityName: String
   var truncationMode: Text.TruncationMode = .tail
 
@@ -800,7 +838,7 @@ private struct TerminalSidebarHoverCardCopyRow: View {
   @State private var copyFeedbackID: UUID?
 
   var body: some View {
-    Button(action: copy) {
+    Button(action: perform) {
       HStack(spacing: 8) {
         iconView
         Text(copyFeedbackID == nil ? title : "Copied")
@@ -822,9 +860,11 @@ private struct TerminalSidebarHoverCardCopyRow: View {
     .buttonStyle(.plain)
     .foregroundStyle(isHovering ? .primary : .secondary)
     .onHover { isHovering = $0 }
-    .help("Copy \(accessibilityName)")
-    .accessibilityLabel(copyFeedbackID == nil ? "Copy \(accessibilityName)" : "Copied")
-    .accessibilityValue(copyFeedbackID == nil ? copyValue : "")
+    .help("\(action.verb) \(accessibilityName)")
+    .accessibilityLabel(
+      copyFeedbackID == nil ? "\(action.verb) \(accessibilityName)" : "Copied"
+    )
+    .accessibilityValue(copyFeedbackID == nil ? action.copyValue ?? title : "")
     .task(id: copyFeedbackID) {
       guard let feedbackID = copyFeedbackID else { return }
       do {
@@ -839,8 +879,12 @@ private struct TerminalSidebarHoverCardCopyRow: View {
     }
   }
 
-  private func copy() {
-    clipboardClient.copyString(copyValue)
+  private func perform() {
+    action.perform(
+      clipboardClient: clipboardClient,
+      externalNavigationClient: externalNavigationClient
+    )
+    guard action.copyValue != nil else { return }
     TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: reduceMotion) {
       copyFeedbackID = UUID()
     }
@@ -849,12 +893,19 @@ private struct TerminalSidebarHoverCardCopyRow: View {
   private var iconView: some View {
     Group {
       if isHovering {
-        Image("copy")
-          .renderingMode(.template)
-          .resizable()
-          .aspectRatio(contentMode: .fit)
-          .frame(width: 12, height: 12)
-          .accessibilityHidden(true)
+        switch action {
+        case .copy:
+          Image("copy")
+            .renderingMode(.template)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 12, height: 12)
+            .accessibilityHidden(true)
+        case .open:
+          Image(systemName: "arrow.up.right")
+            .font(.system(size: 9, weight: .bold))
+            .accessibilityHidden(true)
+        }
       } else {
         switch icon {
         case .asset(let name):

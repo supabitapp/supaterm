@@ -337,7 +337,7 @@ private func waitForPiAgent(
 private func piScreenRuleIDs(for phase: SupatermAppDebugSnapshot.AgentPhase) -> Set<String>? {
   switch phase {
   case .unknown: ["default_known_agent_unknown_fallback"]
-  case .running: ["working_literal"]
+  case .running: ["working_status"]
   case .idle: nil
   case .needsInput: nil
   }

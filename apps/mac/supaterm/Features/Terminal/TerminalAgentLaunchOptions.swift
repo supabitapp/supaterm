@@ -75,7 +75,7 @@ nonisolated enum TerminalAgentLaunchOptions {
     }
 
     func inherited(from commandLineArguments: [String]) -> [String]? {
-      let arguments = agentArguments(from: commandLineArguments)
+      let arguments = Array(commandLineArguments.dropFirst())
       var inherited: [String] = []
       var index = 0
       var sawPositional = false
@@ -190,17 +190,6 @@ nonisolated enum TerminalAgentLaunchOptions {
         .union(discardedValueOptions)
         .union(discardedOptionalValueOptions)
         .union(discardedVariadicOptions)
-    }
-
-    private func agentArguments(from commandLineArguments: [String]) -> [String] {
-      guard let executable = commandLineArguments.first else { return [] }
-      let executableName = URL(fileURLWithPath: executable).lastPathComponent
-      if ["node", "nodejs"].contains(executableName),
-        commandLineArguments.count > 1
-      {
-        return Array(commandLineArguments.dropFirst(2))
-      }
-      return Array(commandLineArguments.dropFirst())
     }
 
     private func optionName(_ argument: String) -> String {

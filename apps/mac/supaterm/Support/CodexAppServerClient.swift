@@ -35,6 +35,12 @@ struct CodexAppServerUserConfig: Equatable, Sendable {
   let filePath: String
   let version: String?
   let hookState: JSONObject
+  let hasTerminalTitle: Bool
+}
+
+struct CodexAppServerConfigEdit: Equatable, Sendable {
+  let keyPath: String
+  let value: JSONValue
 }
 
 struct CodexAppServerClient: Sendable {
@@ -117,7 +123,8 @@ struct CodexAppServerClient: Sendable {
         hooksFeatureEnabled: hooksFeatureEnabled,
         filePath: configPath,
         version: nil,
-        hookState: [:]
+        hookState: [:],
+        hasTerminalTitle: false
       )
     }
     guard
@@ -133,23 +140,26 @@ struct CodexAppServerClient: Sendable {
       hooksFeatureEnabled: hooksFeatureEnabled,
       filePath: filePath,
       version: version,
-      hookState: hookState
+      hookState: hookState,
+      hasTerminalTitle: layerConfig["tui"]?.objectValue?["terminal_title"] != nil
     )
   }
 
-  func replaceHookState(
-    _ hookState: JSONObject,
+  func batchWrite(
+    _ edits: [CodexAppServerConfigEdit],
     filePath: String,
     expectedVersion: String?
   ) throws {
     var params: JSONObject = [
-      "edits": [
-        [
-          "keyPath": "hooks.state",
-          "value": .object(hookState),
-          "mergeStrategy": "replace",
-        ]
-      ],
+      "edits": .array(
+        edits.map { edit in
+          [
+            "keyPath": .string(edit.keyPath),
+            "value": edit.value,
+            "mergeStrategy": "replace",
+          ]
+        }
+      ),
       "filePath": .string(filePath),
       "reloadUserConfig": true,
     ]
@@ -215,7 +225,7 @@ enum CodexAppServerClientError: Error, Equatable, LocalizedError {
   var errorDescription: String? {
     switch self {
     case .configWriteRejected:
-      return "Codex rejected the hook trust update."
+      return "Codex rejected the config update."
     case .hookDiscoveryFailed(let message):
       return message.isEmpty ? "Codex could not discover hooks." : message
     case .invalidResponse(let method):

@@ -1003,6 +1003,7 @@ struct TerminalWindowRegistryTests {
       _ = secondHost.createTab(inheritingFromSurfaceID: nil)
 
       var firstState = AppFeature.State()
+      firstState.terminal.isSidebarCollapsed = true
       firstState.terminal.sidebarWidth = 348
       let firstStore = Store(initialState: firstState) {
         AppFeature()
@@ -1044,9 +1045,11 @@ struct TerminalWindowRegistryTests {
           == [firstHost.displayedSpaceID, secondHost.displayedSpaceID]
       )
       #expect(snapshot.windows[0].frame == TerminalWindowFrame(firstFrame))
+      #expect(snapshot.windows[0].isSidebarCollapsed == true)
       #expect(snapshot.windows[0].sidebarWidth == 348)
       #expect(snapshot.windows[0].displayedSpace?.tabs.count == 1)
       #expect(snapshot.windows[1].frame == TerminalWindowFrame(secondFrame))
+      #expect(snapshot.windows[1].isSidebarCollapsed == false)
       #expect(snapshot.windows[1].displayedSpace?.tabs.count == 2)
     }
   }

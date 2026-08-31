@@ -1,12 +1,12 @@
 import Foundation
 import SupatermCLIShared
 
-public struct ClaudeSettingsInstaller {
+struct ClaudeSettingsInstaller {
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let runAvailabilityCommand: @Sendable () throws -> CodingAgentCommandResult
 
-  public init(
+  init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
@@ -29,18 +29,35 @@ public struct ClaudeSettingsInstaller {
     self.runAvailabilityCommand = runAvailabilityCommand
   }
 
-  public func installSupatermHooks() throws {
+  func installSupatermHooks() throws {
+    try installSettings()
+  }
+
+  func setup() throws -> CodingAgentIntegrationHealth {
+    guard try isAvailable() else {
+      return .unavailable
+    }
+    try installSettings(
+      absentOnlyDefaults: ["terminalProgressBarEnabled": .bool(true)]
+    )
+    return .healthy
+  }
+
+  private func installSettings(
+    absentOnlyDefaults: [String: JSONValue] = [:]
+  ) throws {
     try fileInstaller.install(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL),
-      hookGroupsByEvent: try SupatermClaudeHookSettings.hookGroupsByEvent()
+      hookGroupsByEvent: try SupatermClaudeHookSettings.hookGroupsByEvent(),
+      absentOnlyDefaults: absentOnlyDefaults
     )
   }
 
-  public func isAvailable() throws -> Bool {
+  private func isAvailable() throws -> Bool {
     try runAvailabilityCommand().status == 0
   }
 
-  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
+  func integrationHealth() throws -> CodingAgentIntegrationHealth {
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL),
       hookGroupsByEvent: SupatermClaudeHookSettings.hookGroupsByEvent()
@@ -51,26 +68,26 @@ public struct ClaudeSettingsInstaller {
     return settingsHealth
   }
 
-  public func removeSupatermHooks() throws {
+  func removeSupatermHooks() throws {
     try fileInstaller.removeSupatermHooks(
       settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     )
   }
 
-  public static func settingsURL(homeDirectoryURL: URL) -> URL {
+  static func settingsURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".claude", isDirectory: true)
       .appendingPathComponent("settings.json", isDirectory: false)
   }
 
   static func availabilityCommandArguments() -> [String] {
-    LoginShellCommandAvailability.commandArguments(for: ["claude", "claude-code"])
+    LoginShellCommandAvailability.commandArguments(for: ["claude"])
   }
 
-  private var fileInstaller: AgentHookSettingsFileInstaller {
-    AgentHookSettingsFileInstaller(
+  private var fileInstaller: AgentSettingsFileInstaller {
+    AgentSettingsFileInstaller(
       fileManager: fileManager,
-      errors: AgentHookSettingsFileInstaller.Errors(
+      errors: AgentSettingsFileInstaller.Errors(
         invalidEventHooks: { ClaudeSettingsInstallerError.invalidEventHooks($0) },
         invalidHooksObject: { ClaudeSettingsInstallerError.invalidHooksObject },
         invalidJSON: { ClaudeSettingsInstallerError.invalidJSON },

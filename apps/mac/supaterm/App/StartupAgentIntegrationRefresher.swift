@@ -1,51 +1,50 @@
 import Foundation
 import SupatermCLIShared
 
-nonisolated struct StartupAgentHookRefresher {
+nonisolated struct StartupAgentIntegrationRefresher {
   struct Operation: Sendable {
     let agent: SupatermAgentKind
-    let integrationHealth: @Sendable () throws -> CodingAgentIntegrationHealth
-    let installSupatermHooks: @Sendable () throws -> Void
+    let health: @Sendable () throws -> CodingAgentIntegrationHealth
+    let repair: @Sendable () throws -> Void
   }
 
   let operations: [Operation]
   let logFailure: @Sendable (SupatermAgentKind, Error) -> Void
 
-  static let live = StartupAgentHookRefresher(
+  static let live = StartupAgentIntegrationRefresher(
     operations: SupatermAgentKind.allCases.map { agent in
       Operation(
         agent: agent,
-        integrationHealth: {
-          try CodingAgentHookInstaller.live.integrationHealth(agent)
+        health: {
+          try CodingAgentIntegrationManager.live.health(agent)
         },
-        installSupatermHooks: {
-          try CodingAgentHookInstaller.live.installSupatermHooks(agent)
+        repair: {
+          try CodingAgentIntegrationManager.live.repair(agent)
         }
       )
     },
     logFailure: { agent, error in
-      let message = "Failed to refresh \(agent.notificationTitle) hooks at launch."
+      let message = "Failed to repair the \(agent.notificationTitle) integration at launch."
       AppPostHog.captureException(
         error,
         properties: [
           "agent": agent.rawValue,
-          "category": "agent-hooks",
+          "category": "agent-integration",
           "message": message,
         ]
       )
     }
   )
 
-  func refreshInstalledHooks() {
+  func repairIntegrations() {
     for operation in operations {
       do {
-        switch try operation.integrationHealth() {
+        switch try operation.health() {
         case .partial, .drifted:
-          break
+          try operation.repair()
         case .unavailable, .unavailableInstalled, .absent, .healthy:
           continue
         }
-        try operation.installSupatermHooks()
       } catch {
         logFailure(operation.agent, error)
       }

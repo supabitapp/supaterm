@@ -1,3 +1,7 @@
-project
+I will inspect the project.
 
-Working...
+⠋ Working...
+
+>
+~/code/project
+model · 42%

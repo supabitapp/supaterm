@@ -164,11 +164,18 @@ struct TerminalSidebarResizeTests {
   }
 
   @Test
-  func resizeEndCollapsesAtMinimumRelease() async {
+  func resizeEndCollapsesAtMinimumReleaseAndRequestsSessionSave() async {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let sessionChangeCount = LockIsolated(0)
+    terminal.onSessionChange = {
+      sessionChangeCount.withValue { $0 += 1 }
+    }
     var initialState = TerminalWindowFeature.State()
     initialState.sidebarWidth = 320
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.host = { terminal }
     }
 
     await store.send(.sidebarResizeInput(.began, totalWidth: 1_440)) {
@@ -181,5 +188,7 @@ struct TerminalSidebarResizeTests {
       $0.isSidebarCollapsed = true
       $0.sidebarResizeState = nil
     }
+    await store.finish()
+    #expect(sessionChangeCount.value == 1)
   }
 }

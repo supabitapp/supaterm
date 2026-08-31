@@ -9,6 +9,7 @@ on:
       - "apps/mac/supaterm/Resources/AgentDetection/**"
       - ".github/workflows/deploy-web.yml"
       - "Makefile"
+      - "mise.toml"
   pull_request:
     branches:
       - main
@@ -17,6 +18,7 @@ on:
       - "apps/mac/supaterm/Resources/AgentDetection/**"
       - ".github/workflows/deploy-web.yml"
       - "Makefile"
+      - "mise.toml"
   workflow_dispatch: {}
 
 concurrency:

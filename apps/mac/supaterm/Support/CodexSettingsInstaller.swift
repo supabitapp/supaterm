@@ -1,10 +1,13 @@
 import Foundation
 import SupatermCLIShared
 
-public struct CodexSettingsInstaller {
+struct CodexSettingsInstaller {
   typealias CommandResult = CodingAgentCommandResult
 
-  private static let operationLock = NSLock()
+  private enum SetupScope {
+    case hooksOnly
+    case integration
+  }
 
   let homeDirectoryURL: URL
   let fileManager: FileManager
@@ -12,7 +15,7 @@ public struct CodexSettingsInstaller {
   let runVersionCommand: @Sendable () throws -> CodingAgentCommandResult
   let appServerClient: CodexAppServerClient
 
-  public init(
+  init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
@@ -41,33 +44,42 @@ public struct CodexSettingsInstaller {
     self.appServerClient = appServerClient ?? CodexAppServerClient(homeDirectoryURL: homeDirectoryURL)
   }
 
-  public func installSupatermHooks() throws {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
-    try installSupatermHooksLocked()
-  }
-
-  private func installSupatermHooksLocked() throws {
+  func installSupatermHooks() throws {
     switch try codexAvailability() {
     case .unavailable:
       throw CodexSettingsInstallerError.codexUnavailable
     case .unsupported:
       throw CodexSettingsInstallerError.unsupportedCodexVersion
     case .supported:
-      break
+      try setupLocked(scope: .hooksOnly)
     }
+  }
+
+  func setup() throws -> CodingAgentIntegrationHealth {
+    switch try codexAvailability() {
+    case .unavailable:
+      return .unavailable
+    case .unsupported:
+      throw CodexSettingsInstallerError.unsupportedCodexVersion
+    case .supported:
+      try setupLocked(scope: .integration)
+      return try integrationHealthLocked(
+        availability: .supported,
+        hooksFeatureEnabled: true
+      )
+    }
+  }
+
+  private func setupLocked(scope: SetupScope) throws {
     let commandResult = try runEnableHooksCommand()
     guard commandResult.status == 0 else {
       throw CodexSettingsInstallerError.enableHooksFailed(commandResult.standardError)
     }
 
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    var fileMutation: AgentHookSettingsFileInstaller.Mutation?
+    var fileMutation: AgentSettingsFileInstaller.Mutation?
     do {
-      let config = try appServerClient.readUserConfig(
-        cwd: homeDirectoryURL,
-        configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
-      )
+      let config = try readUserConfig()
       guard config.hooksFeatureEnabled else {
         throw CodexSettingsInstallerError.hooksFeatureDisabled
       }
@@ -81,20 +93,40 @@ public struct CodexSettingsInstaller {
         newHooks,
         settingsURL: settingsURL
       )
-      let hookState = try rebasedHookState(
-        existing: config.hookState,
-        oldHooks: oldHooks,
-        newHooks: newHooks,
-        managedHooks: managedHooks,
-        settingsURL: settingsURL
-      )
-      if hookState != config.hookState {
-        try replaceHookState(
-          hookState,
-          filePath: config.filePath,
-          expectedVersion: config.version,
-          configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
+      try writeConfig(startingAt: config) { currentConfig in
+        guard currentConfig.hooksFeatureEnabled else {
+          throw CodexSettingsInstallerError.hooksFeatureDisabled
+        }
+        let currentHookState = try rebasedHookState(
+          existing: currentConfig.hookState,
+          oldHooks: oldHooks,
+          newHooks: newHooks,
+          managedHooks: managedHooks,
+          settingsURL: settingsURL
         )
+        var edits: [CodexAppServerConfigEdit] = []
+        if currentHookState != currentConfig.hookState {
+          edits.append(
+            CodexAppServerConfigEdit(
+              keyPath: "hooks.state",
+              value: .object(currentHookState)
+            )
+          )
+        }
+        switch scope {
+        case .hooksOnly:
+          break
+        case .integration where !currentConfig.hasTerminalTitle:
+          edits.append(
+            CodexAppServerConfigEdit(
+              keyPath: "tui.terminal_title",
+              value: ["activity", "thread-title", "task-progress"]
+            )
+          )
+        case .integration:
+          break
+        }
+        return edits
       }
     } catch CodexSettingsInstallerError.configWriteOutcomeUnknown(let message) {
       throw CodexSettingsInstallerError.configWriteOutcomeUnknown(message)
@@ -108,25 +140,21 @@ public struct CodexSettingsInstaller {
     }
   }
 
-  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
+  func integrationHealth() throws -> CodingAgentIntegrationHealth {
     return try integrationHealthLocked()
   }
 
-  public func isAvailable() throws -> Bool {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
-    return try codexAvailability() != .unavailable
-  }
-
-  private func integrationHealthLocked() throws -> CodingAgentIntegrationHealth {
+  private func integrationHealthLocked(
+    availability knownAvailability: CodexAvailability? = nil,
+    hooksFeatureEnabled knownHooksFeatureEnabled: Bool? = nil
+  ) throws -> CodingAgentIntegrationHealth {
     let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
     let settingsHealth = try fileInstaller.integrationHealth(
       settingsURL: settingsURL,
       hookGroupsByEvent: SupatermCodexHookSettings.hookGroupsByEvent()
     )
-    guard try codexAvailability() == .supported else {
+    let availability = try knownAvailability ?? codexAvailability()
+    guard availability == .supported else {
       return settingsHealth == .absent ? .unavailable : .unavailableInstalled
     }
     guard settingsHealth == .healthy else {
@@ -142,11 +170,8 @@ public struct CodexSettingsInstaller {
     } catch CodexSettingsInstallerError.nativeHooksMismatch {
       return .drifted
     }
-    let config = try appServerClient.readUserConfig(
-      cwd: homeDirectoryURL,
-      configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
-    )
-    guard config.hooksFeatureEnabled else {
+    let hooksFeatureEnabled = try knownHooksFeatureEnabled ?? readUserConfig().hooksFeatureEnabled
+    guard hooksFeatureEnabled else {
       return .drifted
     }
     guard
@@ -157,9 +182,7 @@ public struct CodexSettingsInstaller {
     return .healthy
   }
 
-  public func removeSupatermHooks() throws {
-    Self.operationLock.lock()
-    defer { Self.operationLock.unlock() }
+  func removeSupatermHooks() throws {
     try removeSupatermHooksLocked()
   }
 
@@ -173,10 +196,7 @@ public struct CodexSettingsInstaller {
     let config: CodexAppServerUserConfig
     let oldHooks: [CodexAppServerHook]
     do {
-      config = try appServerClient.readUserConfig(
-        cwd: homeDirectoryURL,
-        configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
-      )
+      config = try readUserConfig()
       oldHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
     } catch CodexAppServerClientError.userConfigLayerMissing {
       try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
@@ -189,20 +209,21 @@ public struct CodexSettingsInstaller {
     try fileInstaller.removeSupatermHooks(settingsURL: settingsURL)
     do {
       let newHooks = try appServerClient.hooksList(cwd: homeDirectoryURL)
-      let hookState = try rebasedHookState(
-        existing: config.hookState,
-        oldHooks: oldHooks,
-        newHooks: newHooks,
-        managedHooks: [],
-        settingsURL: settingsURL
-      )
-      if hookState != config.hookState {
-        try replaceHookState(
-          hookState,
-          filePath: config.filePath,
-          expectedVersion: config.version,
-          configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
+      try writeConfig(startingAt: config) { currentConfig in
+        let currentHookState = try rebasedHookState(
+          existing: currentConfig.hookState,
+          oldHooks: oldHooks,
+          newHooks: newHooks,
+          managedHooks: [],
+          settingsURL: settingsURL
         )
+        guard currentHookState != currentConfig.hookState else { return [] }
+        return [
+          CodexAppServerConfigEdit(
+            keyPath: "hooks.state",
+            value: .object(currentHookState)
+          )
+        ]
       }
     } catch CodexSettingsInstallerError.configWriteOutcomeUnknown(let message) {
       throw CodexSettingsInstallerError.trustCleanupOutcomeUnknown(message)
@@ -211,13 +232,13 @@ public struct CodexSettingsInstaller {
     }
   }
 
-  public static func settingsURL(homeDirectoryURL: URL) -> URL {
+  static func settingsURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".codex", isDirectory: true)
       .appendingPathComponent("hooks.json", isDirectory: false)
   }
 
-  public static func configURL(homeDirectoryURL: URL) -> URL {
+  static func configURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".codex", isDirectory: true)
       .appendingPathComponent("config.toml", isDirectory: false)
@@ -267,33 +288,47 @@ public struct CodexSettingsInstaller {
     return version >= .minimum ? .supported : .unsupported
   }
 
-  private func replaceHookState(
-    _ hookState: JSONObject,
-    filePath: String,
-    expectedVersion: String?,
-    configURL: URL
+  private func writeConfig(
+    startingAt initialConfig: CodexAppServerUserConfig,
+    edits: (CodexAppServerUserConfig) throws -> [CodexAppServerConfigEdit]
   ) throws {
-    do {
-      try appServerClient.replaceHookState(
-        hookState,
-        filePath: filePath,
-        expectedVersion: expectedVersion
-      )
-    } catch {
-      let config: CodexAppServerUserConfig
+    var config = initialConfig
+    var pendingEdits = try edits(config)
+    var canRetry = true
+    while !pendingEdits.isEmpty {
       do {
-        config = try appServerClient.readUserConfig(
-          cwd: homeDirectoryURL,
-          configURL: configURL
+        try appServerClient.batchWrite(
+          pendingEdits,
+          filePath: config.filePath,
+          expectedVersion: config.version
         )
-      } catch {
-        throw CodexSettingsInstallerError.configWriteOutcomeUnknown(
-          error.localizedDescription
-        )
+        return
+      } catch let writeError {
+        let updatedConfig: CodexAppServerUserConfig
+        do {
+          updatedConfig = try readUserConfig()
+        } catch {
+          throw CodexSettingsInstallerError.configWriteOutcomeUnknown(
+            error.localizedDescription
+          )
+        }
+        let updatedEdits = try edits(updatedConfig)
+        guard !updatedEdits.isEmpty else { return }
+        guard canRetry, updatedConfig.version != config.version else {
+          throw writeError
+        }
+        config = updatedConfig
+        pendingEdits = updatedEdits
+        canRetry = false
       }
-      guard config.hookState != hookState else { return }
-      throw error
     }
+  }
+
+  private func readUserConfig() throws -> CodexAppServerUserConfig {
+    try appServerClient.readUserConfig(
+      cwd: homeDirectoryURL,
+      configURL: Self.configURL(homeDirectoryURL: homeDirectoryURL)
+    )
   }
 
   private func canonicalNativeHooks(
@@ -412,10 +447,10 @@ public struct CodexSettingsInstaller {
       && environment[SupatermCLIEnvironment.testCodexEnableHooksKey] == "1"
   }
 
-  private var fileInstaller: AgentHookSettingsFileInstaller {
-    AgentHookSettingsFileInstaller(
+  private var fileInstaller: AgentSettingsFileInstaller {
+    AgentSettingsFileInstaller(
       fileManager: fileManager,
-      errors: AgentHookSettingsFileInstaller.Errors(
+      errors: AgentSettingsFileInstaller.Errors(
         invalidEventHooks: { CodexSettingsInstallerError.invalidEventHooks($0) },
         invalidHooksObject: { CodexSettingsInstallerError.invalidHooksObject },
         invalidJSON: { CodexSettingsInstallerError.invalidJSON },
@@ -502,7 +537,7 @@ enum CodexSettingsInstallerError: Error, Equatable, LocalizedError {
     case .codexUnavailable:
       return "Codex must be installed and available in your login shell before Supaterm can install hooks."
     case .configWriteOutcomeUnknown(let message):
-      return "Supaterm could not verify Codex's hook trust update: \(message)"
+      return "Supaterm could not verify Codex's config update: \(message)"
     case .enableHooksFailed(let details):
       if details.isEmpty {
         return "Supaterm could not enable the Codex hooks feature."

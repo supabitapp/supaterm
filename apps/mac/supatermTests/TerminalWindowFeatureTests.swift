@@ -326,7 +326,12 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func commandPaletteTogglesSidebar() async {
+  func commandPaletteTogglesSidebarAndRequestsSessionSave() async {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let sessionChangeCount = LockIsolated(0)
+    terminal.onSessionChange = {
+      sessionChangeCount.withValue { $0 += 1 }
+    }
     var initialState = TerminalWindowFeature.State()
     initialState.destination = .commandPalette(
       TerminalCommandPaletteState(selectedRowID: "supaterm:toggle-sidebar")
@@ -335,26 +340,38 @@ struct TerminalWindowFeatureTests {
       TerminalWindowFeature()
     } withDependencies: {
       $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
+      $0.terminalClient.host = { terminal }
     }
 
     await store.send(.commandPaletteActivateSelection) {
       $0.destination = nil
       $0.isSidebarCollapsed = true
     }
+    await store.finish()
+    #expect(sessionChangeCount.value == 1)
   }
 
   @Test
-  func toggleSidebarClearsResizeState() async {
+  func toggleSidebarClearsResizeStateAndRequestsSessionSave() async {
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let sessionChangeCount = LockIsolated(0)
+    terminal.onSessionChange = {
+      sessionChangeCount.withValue { $0 += 1 }
+    }
     var initialState = TerminalWindowFeature.State()
     initialState.sidebarResizeState = TerminalSidebarResizeState(startingWidth: 240, delta: 40)
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.host = { terminal }
     }
 
     await store.send(.toggleSidebarButtonTapped) {
       $0.isSidebarCollapsed = true
       $0.sidebarResizeState = nil
     }
+    await store.finish()
+    #expect(sessionChangeCount.value == 1)
   }
 
   @Test

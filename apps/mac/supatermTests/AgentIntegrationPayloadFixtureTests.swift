@@ -6,26 +6,29 @@ import Testing
 
 struct AgentIntegrationPayloadFixtureTests {
   @Test
-  func hookTargetRequestEncodesAgentOnly() throws {
-    try expectPayloadFixture(SupatermAgentHookTargetRequest(agent: .claude), #"{"agent":"claude"}"#)
-    try expectPayloadFixture(SupatermAgentHookTargetRequest(agent: .codex), #"{"agent":"codex"}"#)
-    try expectPayloadFixture(SupatermAgentHookTargetRequest(agent: .pi), #"{"agent":"pi"}"#)
+  func integrationRequestEncodesAgentOnly() throws {
+    try expectPayloadFixture(SupatermAgentIntegrationRequest(agent: .claude), #"{"agent":"claude"}"#)
+    try expectPayloadFixture(SupatermAgentIntegrationRequest(agent: .codex), #"{"agent":"codex"}"#)
+    try expectPayloadFixture(SupatermAgentIntegrationRequest(agent: .pi), #"{"agent":"pi"}"#)
     try expectMethodFixture(
-      .hooksInstall(SupatermAgentHookTargetRequest(agent: .claude), id: "hooks-install-1"),
-      method: SupatermSocketMethod.appHooksInstall,
+      .agentIntegrationSetup(
+        SupatermAgentIntegrationRequest(agent: .claude),
+        id: "agent-integration-setup-1"
+      ),
+      method: SupatermSocketMethod.appAgentIntegrationSetup,
       params: #"{"agent":"claude"}"#
     )
     try expectMethodFixture(
-      .hooksRemove(SupatermAgentHookTargetRequest(agent: .codex), id: "hooks-remove-1"),
+      .hooksRemove(SupatermAgentIntegrationRequest(agent: .codex), id: "hooks-remove-1"),
       method: SupatermSocketMethod.appHooksRemove,
       params: #"{"agent":"codex"}"#
     )
   }
 
   @Test
-  func hookHealthEncodesAgentAndHealth() throws {
+  func integrationResultEncodesAgentAndHealth() throws {
     try expectPayloadFixture(
-      SupatermAgentHookHealth(agent: .claude, health: .healthy),
+      SupatermAgentIntegrationResult(agent: .claude, health: .healthy),
       #"{"agent":"claude","health":"healthy"}"#
     )
   }
@@ -42,7 +45,7 @@ struct AgentIntegrationPayloadFixtureTests {
   )
   func everyHealthCaseEncodesItsRawValue(health: CodingAgentIntegrationHealth, raw: String) throws {
     try expectPayloadFixture(
-      SupatermAgentHookHealth(agent: .claude, health: health),
+      SupatermAgentIntegrationResult(agent: .claude, health: health),
       #"{"agent":"claude","health":"\#(raw)"}"#
     )
   }

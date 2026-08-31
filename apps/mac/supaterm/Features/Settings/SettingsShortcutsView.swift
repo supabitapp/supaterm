@@ -27,11 +27,10 @@ struct SettingsShortcutsView: View {
     guard !searchText.isEmpty else {
       return SupatermShortcuts.groups
     }
-    let query = searchText.lowercased()
+    let matcher = ShortcutSearchMatcher(query: searchText)
     return SupatermShortcuts.groups.compactMap { group in
       let shortcuts = group.shortcuts.filter { shortcut in
-        shortcut.displayName.lowercased().contains(query)
-          || shortcut.defaultBinding.display.lowercased().contains(query)
+        matcher.matches(shortcut, overrides: store.shortcutOverrides)
       }
       guard !shortcuts.isEmpty else {
         return nil

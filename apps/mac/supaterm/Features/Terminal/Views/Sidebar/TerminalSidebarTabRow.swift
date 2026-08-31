@@ -112,6 +112,19 @@ struct TerminalSidebarTabRow: View {
     selectionStyle != .none
   }
 
+  private var hasVisibleStatusIndicator: Bool {
+    TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
+      tab: tab,
+      panes: panes,
+      terminalProgress: terminalProgress,
+      showsShortcutHint: showsShortcutHint
+    )
+  }
+
+  private var showsCloseButton: Bool {
+    isHovering && !hasVisibleStatusIndicator
+  }
+
   private var rowFill: Color {
     guard selectionStyle != .primary else { return .clear }
     return rowAppearance.fill(
@@ -147,7 +160,7 @@ struct TerminalSidebarTabRow: View {
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
-      isRowHovering: isHovering
+      isRowHovering: showsCloseButton
     )
     .help(TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes))
     .padding(.leading, contentInsets.leading)
@@ -181,7 +194,7 @@ struct TerminalSidebarTabRow: View {
       TerminalSidebarMiddleClickActionView(action: close)
     )
     .overlay(alignment: .trailing) {
-      if isHovering {
+      if showsCloseButton {
         TerminalSidebarTabCloseButton(
           palette: palette,
           isSelected: isSelected,

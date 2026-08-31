@@ -171,6 +171,7 @@ final class TerminalWindowController: NSWindowController {
       initialState: AppFeature.State(
         process: process,
         terminal: TerminalWindowFeature.State(
+          isSidebarCollapsed: session?.isSidebarCollapsed ?? false,
           sidebarWidth: session?.sidebarWidth.map { CGFloat($0) },
           windowControllerID: windowControllerID
         )
