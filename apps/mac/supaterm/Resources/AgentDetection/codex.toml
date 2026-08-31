@@ -1,5 +1,5 @@
 id = "codex"
-version = "2026.08.31.1"
+version = "2026.08.31.2"
 
 [[rules]]
 id = "osc_title_blocked"
@@ -58,7 +58,7 @@ id = "request_input"
 state = "blocked"
 priority = 900
 region = "whole_recent"
-regex = ['(?is)\bto\s+submit\s+answer\b']
+regex = ['(?is)\bto\s+submit\s+(?:answer|all)\b']
 line_regex = ['^\s*Question [1-9]\d*/[1-9]\d*\b']
 
 [[rules]]

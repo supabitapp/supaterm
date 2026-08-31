@@ -763,6 +763,16 @@ struct AgentDetectionMatcherTests {
     ),
     (
       """
+      Question 2/2 (2 unanswered)
+      Share details.
+
+      › Type your answer (optional)
+      enter to submit all | ctrl + p / ctrl + n change question | esc to interrupt
+      """,
+      "request_input"
+    ),
+    (
+      """
       Field 1/1 (1 required unans
       Enter a name
 
