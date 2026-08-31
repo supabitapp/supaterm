@@ -393,6 +393,7 @@ final class TerminalHostState {
       runtime: GhosttyRuntime? = nil,
       managesTerminalSurfaces: Bool = true,
       createsLiveTerminalSurfaces: Bool = false,
+      surfaceFactory: GhosttySurfaceView.SurfaceFactory? = nil,
       surfaceActivityApplier: @escaping SurfaceActivityApplier = TerminalHostState
         .applySurfaceActivity,
       spaceID: TerminalSpaceID? = nil,
@@ -402,14 +403,15 @@ final class TerminalHostState {
       licenseTabGate: LicenseTabGate = .unrestricted,
       licenseOpenTabCount: @escaping @MainActor () -> Int = { 0 }
     ) -> TerminalHostState {
-      let surfaceFactory: GhosttySurfaceView.SurfaceFactory =
-        createsLiveTerminalSurfaces
-        ? { app, config in ghostty_surface_new(app, config) }
-        : { _, _ in nil }
+      let resolvedSurfaceFactory: GhosttySurfaceView.SurfaceFactory =
+        surfaceFactory
+        ?? (createsLiveTerminalSurfaces
+          ? { app, config in ghostty_surface_new(app, config) }
+          : { _, _ in nil })
       return TerminalHostState(
         runtime: runtime,
         managesTerminalSurfaces: managesTerminalSurfaces,
-        surfaceFactory: surfaceFactory,
+        surfaceFactory: resolvedSurfaceFactory,
         surfaceActivityApplier: surfaceActivityApplier,
         spaceID: spaceID,
         zmxClient: zmxClient,

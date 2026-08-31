@@ -11,10 +11,27 @@ struct TerminalPaneCaptureClient {
   static var live: Self {
     Self { surfaceView in
       guard let surface = surfaceView.surface else { return nil }
-      ghostty_surface_draw(surface)
-      guard let ioSurface = surfaceView.layer?.contents as? IOSurface else { return nil }
-      return TerminalPaneIOSurfaceCapture.image(for: ioSurface)
+      return preservingOcclusion(
+        isOccluded: surfaceView.isOccluded,
+        setOcclusion: { surfaceView.setOcclusion($0) },
+        capture: {
+          ghostty_surface_draw(surface)
+          guard let ioSurface = surfaceView.layer?.contents as? IOSurface else { return nil }
+          return TerminalPaneIOSurfaceCapture.image(for: ioSurface)
+        }
+      )
     }
+  }
+
+  static func preservingOcclusion<Result>(
+    isOccluded: Bool,
+    setOcclusion: (Bool) -> Void,
+    capture: () -> Result
+  ) -> Result {
+    guard isOccluded else { return capture() }
+    setOcclusion(true)
+    defer { setOcclusion(false) }
+    return capture()
   }
 }
 

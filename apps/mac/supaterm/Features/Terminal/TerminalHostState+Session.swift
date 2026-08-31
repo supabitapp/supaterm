@@ -398,6 +398,12 @@ extension TerminalHostState {
         restoreMode: leaf.restoreMode,
         zmxAttachMode: zmxAttachMode
       )
+      if tabID != spaceManager.selectedTabID || !windowActivity.isVisible {
+        surfaceActivityApplier(
+          surface,
+          SurfaceActivity(isVisible: false, isFocused: false)
+        )
+      }
       surface.bridge.state.titleOverride = leaf.titleOverride
       restoreAgentState(leaf.agents, for: surface.id)
       return .leaf(view: surface)

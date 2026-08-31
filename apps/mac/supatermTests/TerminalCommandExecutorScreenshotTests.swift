@@ -29,6 +29,38 @@ struct TerminalCommandExecutorScreenshotTests {
   }
 
   @Test
+  func hiddenCaptureReleasesResourcesAfterForcedDraw() {
+    var events: [PaneCaptureEvent] = []
+
+    TerminalPaneCaptureClient.preservingOcclusion(
+      isOccluded: true,
+      setOcclusion: { events.append($0 ? .show : .release) },
+      capture: {
+        events.append(.forceDraw)
+        events.append(.readImage)
+      }
+    )
+
+    #expect(events == [.show, .forceDraw, .readImage, .release])
+  }
+
+  @Test
+  func visibleCaptureLeavesOcclusionUnchanged() {
+    var events: [PaneCaptureEvent] = []
+
+    TerminalPaneCaptureClient.preservingOcclusion(
+      isOccluded: false,
+      setOcclusion: { events.append($0 ? .show : .release) },
+      capture: {
+        events.append(.forceDraw)
+        events.append(.readImage)
+      }
+    )
+
+    #expect(events == [.forceDraw, .readImage])
+  }
+
+  @Test
   func screenshotCapturesPaneWithoutChangingSelection() throws {
     initializeGhosttyForTests()
     let image = try #require(makeCaptureImage(width: 7, height: 5))
@@ -102,6 +134,13 @@ struct TerminalCommandExecutorScreenshotTests {
     return (host, surface)
   }
 
+}
+
+private enum PaneCaptureEvent: Equatable {
+  case forceDraw
+  case readImage
+  case release
+  case show
 }
 
 @MainActor

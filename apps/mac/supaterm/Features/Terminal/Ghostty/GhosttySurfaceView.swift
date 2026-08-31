@@ -1393,6 +1393,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return 2.0
   }
 
+  var isOccluded: Bool { lastOcclusion == false }
+
   func setOcclusion(_ visible: Bool) {
     guard let surface else { return }
     if lastOcclusion == visible {

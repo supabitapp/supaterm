@@ -11,6 +11,71 @@ import Testing
 @MainActor
 struct TerminalHostStateOcclusionTests {
   @Test
+  func restoreOccludesHiddenSurfacesBeforeCreatingTheNextSurface() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let spaces = [TerminalSpaceItem(name: "Displayed"), TerminalSpaceItem(name: "Cold")]
+      @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+      $spaceCatalog.withLock {
+        $0 = TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces)
+      }
+
+      let displayedSurfaceID = UUID()
+      let displayedHiddenSurfaceIDs = [UUID(), UUID()]
+      let coldSurfaceIDs = [UUID(), UUID(), UUID()]
+      let recorder = SurfaceActivityRecorder()
+      let host = TerminalHostState.test(
+        surfaceFactory: recorder.recordCreation,
+        surfaceActivityApplier: recorder.record,
+        spaceID: spaces[0].id
+      )
+      host.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
+
+      #expect(
+        host.restore(
+          from: TerminalWindowSession(
+            displayedSpaceID: spaces[0].id,
+            spaces: [
+              spaceSession(
+                spaceID: spaces[0].id,
+                tabSurfaceIDs: [[displayedSurfaceID], displayedHiddenSurfaceIDs]
+              ),
+              spaceSession(spaceID: spaces[1].id, tabSurfaceIDs: [coldSurfaceIDs]),
+            ]
+          )
+        )
+      )
+      #expect(
+        Array(recorder.events.prefix(5)) == [
+          .creation,
+          .creation,
+          .visibility(displayedHiddenSurfaceIDs[0], false),
+          .creation,
+          .visibility(displayedHiddenSurfaceIDs[1], false),
+        ]
+      )
+      #expect(recorder.currentVisibility(for: displayedSurfaceID) == true)
+
+      recorder.clearTransitions()
+      host.warmInstance(for: spaces[1].id)
+
+      #expect(
+        Array(recorder.events.prefix(6)) == [
+          .creation,
+          .visibility(coldSurfaceIDs[0], false),
+          .creation,
+          .visibility(coldSurfaceIDs[1], false),
+          .creation,
+          .visibility(coldSurfaceIDs[2], false),
+        ]
+      )
+    }
+  }
+
+  @Test
   func warmingHiddenSpacesOccludesRestoredAndNewPanesImmediately() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -427,37 +492,80 @@ struct TerminalHostStateOcclusionTests {
     spaceID: TerminalSpaceID,
     surfaceID: UUID
   ) -> TerminalSpaceSession {
-    let tabID = TerminalTabID()
+    spaceSession(spaceID: spaceID, tabSurfaceIDs: [[surfaceID]])
+  }
+
+  private func spaceSession(
+    spaceID: TerminalSpaceID,
+    tabSurfaceIDs: [[UUID]]
+  ) -> TerminalSpaceSession {
+    let tabs = tabSurfaceIDs.map { surfaceIDs in
+      (id: TerminalTabID(), root: paneNode(surfaceIDs: surfaceIDs))
+    }
     return TerminalSpaceSession(
       spaceID: spaceID,
-      selectedTabID: tabID,
-      nodes: [
+      selectedTabID: tabs.first?.id,
+      nodes: tabs.enumerated().map { order, tab in
         TerminalTabNodeSession(
-          item: .tab(tabID),
+          item: .tab(tab.id),
           parent: .root(isPinned: false),
-          order: 0
+          order: order
         )
-      ],
+      },
       groups: [],
       collapsedGroupIDs: [],
-      tabs: [
+      tabs: tabs.map { tab in
         TerminalTabSession(
-          id: tabID,
+          id: tab.id,
           lockedTitle: nil,
           focusedPaneIndex: 0,
-          root: .leaf(
+          root: tab.root
+        )
+      }
+    )
+  }
+
+  private func paneNode(surfaceIDs: [UUID]) -> TerminalPaneNodeSession {
+    surfaceIDs.dropFirst().reduce(
+      .leaf(
+        TerminalPaneLeafSession(
+          id: surfaceIDs[0],
+          workingDirectoryPath: nil
+        )
+      )
+    ) { left, surfaceID in
+      .split(
+        TerminalPaneSplitSession(
+          direction: .horizontal,
+          ratio: 0.5,
+          left: left,
+          right: .leaf(
             TerminalPaneLeafSession(id: surfaceID, workingDirectoryPath: nil)
           )
         )
-      ]
-    )
+      )
+    }
   }
 }
 
 @MainActor
 private final class SurfaceActivityRecorder {
+  enum Event: Equatable {
+    case creation
+    case visibility(UUID, Bool)
+  }
+
   private var currentVisibilityBySurfaceID: [UUID: Bool] = [:]
   private var transitionsBySurfaceID: [UUID: [Bool]] = [:]
+  private(set) var events: [Event] = []
+
+  func recordCreation(
+    _: ghostty_app_t,
+    _: UnsafePointer<ghostty_surface_config_s>
+  ) -> ghostty_surface_t? {
+    events.append(.creation)
+    return nil
+  }
 
   func record(
     _ surface: GhosttySurfaceView,
@@ -466,10 +574,12 @@ private final class SurfaceActivityRecorder {
     guard currentVisibilityBySurfaceID[surface.id] != activity.isVisible else { return }
     currentVisibilityBySurfaceID[surface.id] = activity.isVisible
     transitionsBySurfaceID[surface.id, default: []].append(activity.isVisible)
+    events.append(.visibility(surface.id, activity.isVisible))
   }
 
   func clearTransitions() {
     transitionsBySurfaceID.removeAll()
+    events.removeAll()
   }
 
   func currentVisibility(for surfaceID: UUID) -> Bool? {
