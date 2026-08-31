@@ -70,8 +70,7 @@ process ID and start time.
 Terminal detection proves the agent process before it reads terminal content:
 
 1. Read the pane's foreground process group.
-2. Match a declared executable, or a declared wrapper with one complete script argument whose
-   suffix is declared.
+2. Match a declared executable path, process name, or declared process title.
 3. Record the process ID and process start time as one process identity.
 4. Wait until the process has run for three seconds.
 5. Read at most 4 KiB from the start of the raw terminal title and the latest terminal progress
@@ -145,7 +144,7 @@ Setup installs the Claude and Codex hook bridges and the Pi package. It also see
 settings when their keys are absent:
 
 - `~/.claude/settings.json`: `terminalProgressBarEnabled: true`
-- `~/.codex/config.toml`: `[tui] terminal_title = ["thread-title", "task-progress"]`
+- `~/.codex/config.toml`: `[tui] terminal_title = ["activity", "thread-title", "task-progress"]`
 
 Setup preserves an existing value for either key. It reports progress for each agent and is safe to
 run again.
@@ -198,7 +197,7 @@ Codex uses the same session-identity bridge. The terminal reader alone owns the 
 
 - Hook settings file: `~/.codex/hooks.json`.
 - User config file: `~/.codex/config.toml`.
-- Setup writes `[tui] terminal_title = ["thread-title", "task-progress"]` only when the key is absent. It preserves any existing value.
+- Setup writes `[tui] terminal_title = ["activity", "thread-title", "task-progress"]` only when the key is absent. It preserves any existing value.
 - Installed hook events: `PermissionRequest`, `PostToolUse`, `PreToolUse`, `SessionStart`, `Stop`, `SubagentStart`, `SubagentStop`, `UserPromptSubmit`.
 - Supaterm keeps the full managed hook set installed, but the app ignores every event except root `SessionStart`.
 - Install enables the Codex hooks feature through the user's login shell, writes the canonical `hooks.json` fragment, then uses `codex app-server --stdio` to discover native hooks and update trust.

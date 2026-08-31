@@ -222,7 +222,7 @@ struct CodexAppServerClientTests {
             "edits": [
               [
                 "keyPath": "tui.terminal_title",
-                "value": ["thread-title", "task-progress"],
+                "value": ["activity", "thread-title", "task-progress"],
                 "mergeStrategy": "replace",
               ]
             ],

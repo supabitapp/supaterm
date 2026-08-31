@@ -72,7 +72,7 @@ public struct ClaudeSettingsInstaller {
   }
 
   static func availabilityCommandArguments() -> [String] {
-    LoginShellCommandAvailability.commandArguments(for: ["claude", "claude-code"])
+    LoginShellCommandAvailability.commandArguments(for: ["claude"])
   }
 
   private var fileInstaller: AgentHookSettingsFileInstaller {

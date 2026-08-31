@@ -270,8 +270,7 @@ struct TerminalAgentPanelTests {
   @Test
   func panelSessionKeepsCodexForkOptionsAndDropsPriorSessionArguments() throws {
     let commandLineArguments = [
-      "node",
-      "/opt/node_modules/@openai/codex/bin/codex.js",
+      "codex",
       "--search",
       "--config=model=codex-1",
       "resume",
@@ -319,8 +318,7 @@ struct TerminalAgentPanelTests {
         agent: .claude,
         sessionID: "new-session",
         commandLineArguments: [
-          "node",
-          "/opt/node_modules/@anthropic-ai/claude-code/cli.js",
+          "claude",
           "--permission-mode",
           "plan",
           "--fork-session",
@@ -346,8 +344,7 @@ struct TerminalAgentPanelTests {
         agent: .pi,
         sessionID: "new-session",
         commandLineArguments: [
-          "node",
-          "/opt/node_modules/@earendil-works/pi-coding-agent/dist/cli.js",
+          "pi",
           "--model",
           "openai/gpt-5.5",
           "--offline",

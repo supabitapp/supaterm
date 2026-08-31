@@ -4,7 +4,7 @@ import Testing
 @testable import SupatermCLIShared
 @testable import SupatermSupport
 
-private let expectedCodexTerminalTitle: JSONValue = ["thread-title", "task-progress"]
+private let expectedCodexTerminalTitle: JSONValue = ["activity", "thread-title", "task-progress"]
 
 extension CodexSettingsInstallerTests {
   @Test

@@ -546,10 +546,10 @@ struct ClaudeSettingsInstallerTests {
   }
 
   @Test
-  func availabilityCommandArgumentsCheckBothClaudeExecutables() {
+  func availabilityCommandArgumentsCheckClaudeExecutable() {
     #expect(
       ClaudeSettingsInstaller.availabilityCommandArguments()
-        == ["-l", "-i", "-c", "command -v claude >/dev/null 2>&1 || command -v claude-code >/dev/null 2>&1"]
+        == ["-l", "-i", "-c", "command -v claude >/dev/null 2>&1"]
     )
   }
 }

@@ -264,7 +264,7 @@ Hook methods own the agent settings files:
 
 - `app.hooks.install` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
 - The app writes `~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.codex/config.toml`, and talks to Codex app-server. The CLI never touches those files.
-- Install adds Claude's `terminalProgressBarEnabled: true` and Codex's `[tui] terminal_title = ["thread-title", "task-progress"]` only when each key is absent.
+- Install adds Claude's `terminalProgressBarEnabled: true` and Codex's `[tui] terminal_title = ["activity", "thread-title", "task-progress"]` only when each key is absent.
 
 `app.agent_detection.reload` atomically reloads local manifests from the app's state root and
 returns the active generation and source of each manifest.

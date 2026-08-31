@@ -49,7 +49,7 @@ Supaterm adds `terminalProgressBarEnabled` to `~/.claude/settings.json`.
 
 ```toml
 [tui]
-terminal_title = ["thread-title", "task-progress"]
+terminal_title = ["activity", "thread-title", "task-progress"]
 ```
 
 Supaterm adds `tui.terminal_title` to `~/.codex/config.toml`. It writes each default only when the
