@@ -378,7 +378,7 @@ private func launchHookedCodex(
     detected.process,
     "Codex detection has no process identity."
   )
-  try await app.waitForCapture(pane, contains: "gpt-5.6-luna low", timeout: 60)
+  try await waitForCodexInput(app: app, pane: pane)
   try await runCodexHookTurn(app: app, pane: pane, prompt: prompt)
   return try await waitForCodexHookBinding(
     app: app,
@@ -464,6 +464,7 @@ private func verifyCodexForkRouting(
     detected.process,
     "Forked Codex detection has no process identity."
   )
+  try await waitForCodexInput(app: app, pane: forkTarget)
   try await runCodexHookTurn(app: app, pane: forkTarget, prompt: fork.prompt)
   let forkBinding = try await waitForCodexHookBinding(
     app: app,
@@ -526,6 +527,13 @@ private func runCodexHookTurn(
     contains: codexHookCompletion(prompt: prompt),
     timeout: 60
   )
+}
+
+private func waitForCodexInput(
+  app: SupatermE2EApp,
+  pane: SupatermPaneTargetRequest
+) async throws {
+  try await app.waitForCapture(pane, contains: "gpt-5.6-luna low", timeout: 60)
 }
 
 private func codexHookCompletion(prompt: String) -> String {

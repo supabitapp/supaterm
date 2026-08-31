@@ -170,16 +170,11 @@ struct SPAgentHookRouter {
     query: SupatermAgentHookCandidateQuery,
     deadline: Date
   ) -> SPAgentHookCandidateRound {
-    guard !targets.paths.isEmpty else {
-      return SPAgentHookCandidateRound(destinations: [], isComplete: false)
-    }
-    var destinations: [SPAgentHookCandidateDestination] = []
-    var isComplete = targets.isComplete
-    for socketPath in targets.paths {
-      guard Date() < deadline else {
-        isComplete = false
-        break
-      }
+    loadAgentHookCandidateRound(
+      socketPaths: targets.paths,
+      discoveryComplete: targets.isComplete,
+      deadline: deadline
+    ) { socketPath, deadline in
       do {
         let client = try SPSocketClient(
           path: socketPath,
@@ -189,12 +184,9 @@ struct SPAgentHookRouter {
           deadline: deadline
         )
         let response = try client.send(.agentHookCandidates(query))
-        guard response.ok else {
-          isComplete = false
-          continue
-        }
+        guard response.ok else { return nil }
         let result = try response.decodeResult(SupatermAgentHookCandidatesResponse.self)
-        destinations += result.candidates.map {
+        return result.candidates.map {
           SPAgentHookCandidateDestination(
             socketPath: socketPath,
             candidate: $0,
@@ -202,16 +194,12 @@ struct SPAgentHookRouter {
           )
         }
       } catch {
-        isComplete = false
         if SPSocketClient.isConnectionFailure(error) {
           removeDeadManagedSocketPath(socketPath)
         }
+        return nil
       }
     }
-    return SPAgentHookCandidateRound(
-      destinations: destinations,
-      isComplete: isComplete
-    )
   }
 
   private func removeDeadManagedSocketPath(_ path: String) {
@@ -243,6 +231,34 @@ struct SPAgentHookRouter {
       throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
     }
   }
+}
+
+func loadAgentHookCandidateRound(
+  socketPaths: [String],
+  discoveryComplete: Bool,
+  deadline: Date,
+  load: (String, Date) -> [SPAgentHookCandidateDestination]?
+) -> SPAgentHookCandidateRound {
+  guard !socketPaths.isEmpty else {
+    return SPAgentHookCandidateRound(destinations: [], isComplete: false)
+  }
+  var destinations: [SPAgentHookCandidateDestination] = []
+  var isComplete = discoveryComplete
+  for socketPath in socketPaths {
+    guard Date() < deadline else {
+      isComplete = false
+      break
+    }
+    guard let loaded = load(socketPath, deadline) else {
+      isComplete = false
+      continue
+    }
+    destinations += loaded
+  }
+  return SPAgentHookCandidateRound(
+    destinations: destinations,
+    isComplete: isComplete
+  )
 }
 
 func selectedAgentHookRoute(

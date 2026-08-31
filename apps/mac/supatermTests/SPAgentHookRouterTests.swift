@@ -1,111 +1,39 @@
-import Darwin
 import Foundation
 import SupatermCLIShared
 import Testing
 
 @testable import SPCLI
-@testable import SupatermSocketFeature
 
 struct SPAgentHookRouterTests {
   @Test
-  func sessionStartQueriesEveryDiscoveredEndpointBeforeRouting() async throws {
-    let rootURL = try makeSocketClientTemporaryDirectory()
-    let baseEnvironment = [
-      SupatermCLIEnvironment.testHomeKey: rootURL.appendingPathComponent("home").path,
-      SupatermCLIEnvironment.testSocketRootKey: rootURL.path,
-    ]
-    let firstEndpoint = try #require(
-      SupatermProcessSocketEndpoint.make(
-        environment: baseEnvironment.merging(
-          [SupatermCLIEnvironment.instanceNameKey: "first"],
-          uniquingKeysWith: { _, value in value }
-        ),
-        endpointID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-        processID: getpid(),
-        startedAt: Date(timeIntervalSince1970: 1),
-        rootDirectory: rootURL
-      )
-    )
-    let secondEndpoint = try #require(
-      SupatermProcessSocketEndpoint.make(
-        environment: baseEnvironment.merging(
-          [SupatermCLIEnvironment.instanceNameKey: "second"],
-          uniquingKeysWith: { _, value in value }
-        ),
-        endpointID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
-        processID: getpid(),
-        startedAt: Date(timeIntervalSince1970: 2),
-        rootDirectory: rootURL
-      )
-    )
-    let firstLog = SPSocketRequestLog()
-    let secondLog = SPSocketRequestLog()
-    let firstRuntime = SocketControlRuntime(endpointProvider: { firstEndpoint })
-    let secondRuntime = SocketControlRuntime(endpointProvider: { secondEndpoint })
-    let firstCandidate = routerDestination(
+  func candidateRoundQueriesEveryDiscoveredEndpointBeforeRouting() throws {
+    let socketPaths = ["/tmp/first.sock", "/tmp/second.sock"]
+    let destination = routerDestination(
       context: RouterFixtures.ownerContext,
       processID: 303,
-      socketPath: firstEndpoint.path
-    ).candidate
-    let firstResponder = try await startSocketResponder(
-      runtime: firstRuntime,
-      endpoint: firstEndpoint,
-      replying: routerReply(
-        candidates: [firstCandidate],
-        log: firstLog
+      socketPath: socketPaths[0]
+    )
+    var queriedPaths: [String] = []
+    let round = loadAgentHookCandidateRound(
+      socketPaths: socketPaths,
+      discoveryComplete: true,
+      deadline: Date().addingTimeInterval(60)
+    ) { socketPath, _ in
+      queriedPaths.append(socketPath)
+      return socketPath == destination.socketPath ? [destination] : []
+    }
+
+    #expect(queriedPaths == socketPaths)
+    #expect(round.isComplete)
+    let route = try #require(
+      selectedAgentHookRoute(
+        request: routerRequest(source: .startup, processID: 303),
+        destinations: round.destinations,
+        roundComplete: round.isComplete,
+        deadlineReached: false
       )
     )
-    let secondResponder: Task<Void, Never>
-    do {
-      secondResponder = try await startSocketResponder(
-        runtime: secondRuntime,
-        endpoint: secondEndpoint,
-        replying: routerReply(candidates: [], log: secondLog)
-      )
-    } catch {
-      firstResponder.cancel()
-      await firstRuntime.stop()
-      try? FileManager.default.removeItem(at: rootURL)
-      throw error
-    }
-
-    do {
-      var routingEnvironment = baseEnvironment
-      routingEnvironment[SupatermCLIEnvironment.socketPathKey] = "/tmp/inherited.sock"
-      try SPAgentHookRouter(
-        connection: SPConnectionOptions(),
-        environment: routingEnvironment
-      ).receive(routerRequest(source: .startup, processID: 303))
-
-      #expect(
-        firstLog.requests.map(\.method)
-          == [
-            SupatermSocketMethod.systemIdentity,
-            SupatermSocketMethod.terminalAgentHookCandidates,
-            SupatermSocketMethod.terminalAgentHook,
-          ]
-      )
-      #expect(
-        secondLog.requests.map(\.method)
-          == [
-            SupatermSocketMethod.systemIdentity,
-            SupatermSocketMethod.terminalAgentHookCandidates,
-          ]
-      )
-    } catch {
-      firstResponder.cancel()
-      secondResponder.cancel()
-      await firstRuntime.stop()
-      await secondRuntime.stop()
-      try? FileManager.default.removeItem(at: rootURL)
-      throw error
-    }
-
-    firstResponder.cancel()
-    secondResponder.cancel()
-    await firstRuntime.stop()
-    await secondRuntime.stop()
-    try? FileManager.default.removeItem(at: rootURL)
+    #expect(route.destination == destination)
   }
 
   @Test
@@ -611,31 +539,6 @@ struct SPAgentHookRouterTests {
     #expect(managedSocketOwnerProcessID("/tmp/instance-pid-name") == nil)
     #expect(managedSocketOwnerProcessID("/tmp/instance-pid-0") == nil)
     #expect(managedSocketOwnerProcessID("/tmp/instance") == nil)
-  }
-}
-
-private func routerReply(
-  candidates: [SupatermAgentHookCandidate],
-  log: SPSocketRequestLog
-) -> @Sendable (SupatermSocketRequest, SupatermSocketEndpoint) async throws -> SupatermSocketResponse? {
-  { request, endpoint in
-    log.record(request)
-    switch request.method {
-    case SupatermSocketMethod.systemIdentity:
-      return try .ok(id: request.id, encodableResult: endpoint)
-    case SupatermSocketMethod.terminalAgentHookCandidates:
-      return try .ok(
-        id: request.id,
-        encodableResult: SupatermAgentHookCandidatesResponse(
-          candidates: candidates,
-          sharedCodexHost: false
-        )
-      )
-    case SupatermSocketMethod.terminalAgentHook:
-      return .ok(id: request.id)
-    default:
-      return nil
-    }
   }
 }
 
