@@ -123,9 +123,30 @@ struct PiSettingsInstallerHealthRemovalTests {
     try installer.removeSupatermPackage()
 
     #expect(runner.mutations == [.remove(source)])
-    #expect(source.removalValue == absoluteSource)
+    #expect(source.mutationValue == absoluteSource)
     #expect(
       try piSettingsObject(homeDirectoryURL: homeDirectoryURL)["packages"] as? [String] == []
+    )
+  }
+
+  @Test
+  func rollbackInstallUsesAbsolutePathForSettingsRelativeLocalSource() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let sourceValue = "packages/supaterm-skills"
+    let source = piPackageSource(sourceValue, homeDirectoryURL: homeDirectoryURL)
+    let rollback = try #require(PiPackageMutation.remove(source).rollback)
+    let absoluteSource =
+      PiSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+      .deletingLastPathComponent()
+      .appendingPathComponent(sourceValue, isDirectory: true)
+      .standardizedFileURL.path
+
+    #expect(
+      PiPackageMutationExecutor.commandArguments(for: rollback)
+        == LoginShellCommandAvailability.interactiveCommandArguments(
+          for: "pi install '\(absoluteSource)'"
+        )
     )
   }
 
@@ -168,7 +189,7 @@ struct PiSettingsInstallerHealthRemovalTests {
     try installer.removeSupatermPackage()
 
     #expect(runner.mutations == [.remove(source)])
-    #expect(source.removalValue == sourceValue)
+    #expect(source.mutationValue == sourceValue)
     #expect(
       PiPackageMutationExecutor.commandArguments(for: .remove(source))
         == LoginShellCommandAvailability.interactiveCommandArguments(

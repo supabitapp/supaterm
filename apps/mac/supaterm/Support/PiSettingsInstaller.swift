@@ -43,7 +43,7 @@ struct PiPackageSource: Hashable, Sendable {
     return Self.packageName(for: path) == "supaterm-skills"
   }
 
-  var removalValue: String {
+  var mutationValue: String {
     if case .local(let path) = identity {
       return path
     }
@@ -197,10 +197,10 @@ struct PiPackageMutationExecutor: Sendable {
     switch mutation {
     case .install(let packageSource):
       operation = "install"
-      source = packageSource.installedValue
+      source = packageSource.mutationValue
     case .remove(let packageSource):
       operation = "remove"
-      source = packageSource.removalValue
+      source = packageSource.mutationValue
     case .update(let packageSource):
       operation = "update"
       source = packageSource.installedValue
@@ -217,6 +217,11 @@ struct PiPackageMutationExecutor: Sendable {
 
 public struct PiSettingsInstaller {
   typealias CommandResult = CodingAgentCommandResult
+
+  private enum SettingsSnapshot {
+    case absent
+    case contents(Data)
+  }
 
   private struct PackageFile: Decodable {
     let version: String
@@ -488,6 +493,7 @@ public struct PiSettingsInstaller {
     _ plan: [PiPackageMutation],
     failure: (String) -> PiSettingsInstallerError
   ) throws {
+    let settingsSnapshot = try settingsSnapshot()
     var rollbackPlan: [PiPackageMutation] = []
     do {
       for mutation in plan {
@@ -500,25 +506,60 @@ public struct PiSettingsInstaller {
         }
       }
     } catch let planError {
-      try runRollbackPlan(rollbackPlan)
-      throw planError
+      var rollbackFailures = runRollbackPlan(rollbackPlan)
+      do {
+        try restoreSettings(from: settingsSnapshot)
+      } catch {
+        rollbackFailures.append(error.localizedDescription)
+      }
+      guard !rollbackFailures.isEmpty else {
+        throw planError
+      }
+      throw PiSettingsInstallerError.rollbackFailed(
+        primary: planError.localizedDescription,
+        failures: rollbackFailures
+      )
     }
   }
 
-  private func runRollbackPlan(_ plan: [PiPackageMutation]) throws {
+  private func settingsSnapshot() throws -> SettingsSnapshot {
+    let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    guard fileManager.fileExists(atPath: settingsURL.path) else {
+      return .absent
+    }
+    return .contents(try Data(contentsOf: settingsURL))
+  }
+
+  private func restoreSettings(from snapshot: SettingsSnapshot) throws {
+    let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    switch snapshot {
+    case .absent:
+      guard fileManager.fileExists(atPath: settingsURL.path) else { return }
+      try fileManager.removeItem(at: settingsURL)
+    case .contents(let contents):
+      try contents.write(to: settingsURL, options: .atomic)
+    }
+  }
+
+  private func runRollbackPlan(_ plan: [PiPackageMutation]) -> [String] {
+    var failures: [String] = []
     for mutation in plan.reversed() {
-      let commandResult: CommandResult
       do {
-        commandResult = try runMutationCommand(mutation)
+        let commandResult = try runMutationCommand(mutation)
+        guard commandResult.status == 0 else {
+          let details = Self.commandFailureDetails(from: commandResult)
+          failures.append(
+            details.isEmpty
+              ? "Pi rollback command exited with status \(commandResult.status)."
+              : details
+          )
+          continue
+        }
       } catch {
-        throw PiSettingsInstallerError.rollbackFailed(error.localizedDescription)
-      }
-      guard commandResult.status == 0 else {
-        throw PiSettingsInstallerError.rollbackFailed(
-          Self.commandFailureDetails(from: commandResult)
-        )
+        failures.append(error.localizedDescription)
       }
     }
+    return failures
   }
 
   private func runMutationCommand(_ mutation: PiPackageMutation) throws -> CommandResult {
@@ -572,7 +613,7 @@ public enum PiSettingsInstallerError: Error, Equatable, LocalizedError {
   case invalidSettings
   case piUnavailable
   case removeFailed(String)
-  case rollbackFailed(String)
+  case rollbackFailed(primary: String, failures: [String])
   case tooManyPackageSources
 
   public var errorDescription: String? {
@@ -592,11 +633,9 @@ public enum PiSettingsInstallerError: Error, Equatable, LocalizedError {
         return "Supaterm could not remove the Pi package."
       }
       return "Supaterm could not remove the Pi package: \(details)"
-    case .rollbackFailed(let details):
-      if details.isEmpty {
-        return "Supaterm could not restore the prior Pi packages."
-      }
-      return "Supaterm could not restore the prior Pi packages: \(details)"
+    case .rollbackFailed(let primary, let failures):
+      let details = failures.joined(separator: "; ")
+      return "\(primary) Supaterm could not restore the prior Pi settings: \(details)"
     case .tooManyPackageSources:
       let limit = SupatermAgentIntegrationTiming.maximumMutationsPerRequest
       return
