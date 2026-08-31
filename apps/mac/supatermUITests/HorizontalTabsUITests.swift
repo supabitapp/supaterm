@@ -7,7 +7,7 @@ final class HorizontalTabsUITests: SupatermUITestCase {
 
     try clickMenuItem(.toggleTabLayout)
 
-    let horizontalTabs = app.buttons.matching(
+    let horizontalTabs = app.radioButtons.matching(
       NSPredicate(
         format: "identifier BEGINSWITH %@",
         SupatermUITestIdentifier.Accessibility.horizontalTabPrefix
