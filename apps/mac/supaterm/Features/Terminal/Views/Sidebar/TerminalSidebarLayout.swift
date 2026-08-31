@@ -62,7 +62,7 @@ enum TerminalSidebarLayout {
   static let tabPaneLineHeight: CGFloat = 18
   static let tabPaneLineSpacing: CGFloat = 2
   static let tabTrailingAccessorySize: CGFloat = 24
-  static var tabCloseButtonOuterPadding: CGFloat {
+  static var tabHoverButtonOuterPadding: CGFloat {
     (tabRowMinHeight - tabTrailingAccessorySize) / 2
   }
   static let rowHorizontalPadding: CGFloat = 10

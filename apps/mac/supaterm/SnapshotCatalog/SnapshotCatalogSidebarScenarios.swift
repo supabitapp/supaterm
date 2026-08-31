@@ -588,7 +588,11 @@ private struct SidebarRowSnapshotFixture: View {
     )
     .overlay(alignment: .trailing) {
       if item.isRowHovering {
-        TerminalSidebarTabCloseButton(
+        TerminalSidebarTabHoverButton(
+          hoverAction: TerminalSidebarTabRow.hoverAction(
+            rootIsPinned: item.isPinned,
+            isGrouped: false
+          ),
           palette: palette,
           isSelected: item.isSelected,
           action: {}

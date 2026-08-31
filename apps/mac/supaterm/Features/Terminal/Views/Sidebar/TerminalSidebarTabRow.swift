@@ -3,6 +3,29 @@ import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarTabRow: View {
+  enum HoverAction: Equatable {
+    case close
+    case unpin
+
+    var title: String {
+      switch self {
+      case .close:
+        "Close"
+      case .unpin:
+        "Unpin Tab"
+      }
+    }
+
+    var systemImage: String {
+      switch self {
+      case .close:
+        "xmark"
+      case .unpin:
+        "pin.slash"
+      }
+    }
+  }
+
   enum ContextMenuItem: Equatable {
     case newTab
     case divider
@@ -100,6 +123,10 @@ struct TerminalSidebarTabRow: View {
     return items
   }
 
+  static func hoverAction(rootIsPinned: Bool, isGrouped: Bool) -> HoverAction {
+    rootIsPinned && !isGrouped ? .unpin : .close
+  }
+
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
   @State private var isPressed = false
@@ -182,10 +209,11 @@ struct TerminalSidebarTabRow: View {
     )
     .overlay(alignment: .trailing) {
       if isHovering {
-        TerminalSidebarTabCloseButton(
+        TerminalSidebarTabHoverButton(
+          hoverAction: hoverAction,
           palette: palette,
           isSelected: isSelected,
-          action: close
+          action: performHoverAction
         )
       }
     }
@@ -315,7 +343,7 @@ struct TerminalSidebarTabRow: View {
     .accessibilityAddTraits(.isButton)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityAction { select() }
-    .accessibilityAction(named: "Close") { close() }
+    .accessibilityAction(named: hoverAction.title) { performHoverAction() }
     .accessibilityIdentifier(accessibilityIdentifier)
   }
 
@@ -341,6 +369,10 @@ struct TerminalSidebarTabRow: View {
     TerminalSidebarAccessibilityIdentifier.tab(tab.id, groupID: groupID)
   }
 
+  private var hoverAction: HoverAction {
+    Self.hoverAction(rootIsPinned: rootIsPinned, isGrouped: groupID != nil)
+  }
+
   private func select() {
     selectionState.clear()
     terminal.selectTab(tab.id)
@@ -351,9 +383,19 @@ struct TerminalSidebarTabRow: View {
       terminal.requestCloseTab(tab.id)
     }
   }
+
+  private func performHoverAction() {
+    switch hoverAction {
+    case .close:
+      close()
+    case .unpin:
+      terminal.togglePinned(tab.id)
+    }
+  }
 }
 
-struct TerminalSidebarTabCloseButton: View {
+struct TerminalSidebarTabHoverButton: View {
+  let hoverAction: TerminalSidebarTabRow.HoverAction
   let palette: Palette
   let isSelected: Bool
   let action: () -> Void
@@ -362,7 +404,7 @@ struct TerminalSidebarTabCloseButton: View {
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: "xmark")
+      Image(systemName: hoverAction.systemImage)
         .font(.system(size: 12, weight: .heavy))
         .foregroundStyle(isSelected ? palette.selectedText : palette.selectableRow.title)
         .frame(
@@ -378,9 +420,9 @@ struct TerminalSidebarTabCloseButton: View {
         )
     }
     .buttonStyle(.plain)
-    .help("Close")
-    .accessibilityLabel("Close")
-    .padding(.trailing, TerminalSidebarLayout.tabCloseButtonOuterPadding)
+    .help(hoverAction.title)
+    .accessibilityLabel(hoverAction.title)
+    .padding(.trailing, TerminalSidebarLayout.tabHoverButtonOuterPadding)
     .onHover { isHovering = $0 }
   }
 }

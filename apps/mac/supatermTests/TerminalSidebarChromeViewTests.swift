@@ -346,8 +346,8 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func closeButtonUsesEqualOneRowOuterPadding() {
-    #expect(TerminalSidebarLayout.tabCloseButtonOuterPadding == 5)
+  func hoverButtonUsesEqualOneRowOuterPadding() {
+    #expect(TerminalSidebarLayout.tabHoverButtonOuterPadding == 5)
   }
 
   @Test
@@ -428,7 +428,7 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func rowHoverReservesTrailingAccessorySlotForCloseButton() {
+  func rowHoverReservesTrailingAccessorySlotForHoverButton() {
     #expect(
       TerminalSidebarTabSummaryView.trailingAccessory(
         isRowHovering: true
