@@ -437,7 +437,8 @@ private func verifyCodexForkRouting(
           app: app,
           executable: fork.executable,
           sessionID: targetBinding.sessionID,
-          workspace: space.directory
+          workspace: space.directory,
+          prompt: fork.prompt
         ),
         cwd: space.directory.path,
         direction: .right,
@@ -464,12 +465,15 @@ private func verifyCodexForkRouting(
     detected.process,
     "Forked Codex detection has no process identity."
   )
-  try await waitForCodexInput(app: app, pane: forkTarget)
-  try await runCodexHookTurn(app: app, pane: forkTarget, prompt: fork.prompt)
   let forkBinding = try await waitForCodexHookBinding(
     app: app,
     paneID: forkPaneID,
     process: forkProcess
+  )
+  try await app.waitForCapture(
+    forkTarget,
+    contains: codexHookCompletion(prompt: fork.prompt),
+    timeout: 60
   )
   #expect(forkBinding.process != targetBinding.process)
   #expect(forkBinding.process != competingBinding.process)
@@ -493,7 +497,8 @@ private func codexForkStartupCommand(
   app: SupatermE2EApp,
   executable: URL,
   sessionID: String,
-  workspace: URL
+  workspace: URL,
+  prompt: String
 ) -> SupatermTerminalStartup {
   .shell(
     SupatermShellCommand.escapedCommand([
@@ -505,6 +510,7 @@ private func codexForkStartupCommand(
       workspace.path,
       "fork",
       sessionID,
+      prompt,
     ])
   )
 }
