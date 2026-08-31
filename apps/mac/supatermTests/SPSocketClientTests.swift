@@ -26,6 +26,29 @@ struct SPSocketClientTests {
   }
 
   @Test
+  func sendReadsLargeResponseAfterServerCloses() async throws {
+    let name = String(repeating: "x", count: 2_048)
+    try await withSocketRuntime(
+      replying: { request, endpoint in
+        let largeEndpoint = SupatermSocketEndpoint(
+          id: endpoint.id,
+          name: name,
+          path: endpoint.path,
+          pid: endpoint.pid,
+          startedAt: endpoint.startedAt
+        )
+        return try .ok(id: request.id, encodableResult: largeEndpoint)
+      },
+      run: { endpoint in
+        let client = try socketClient(path: endpoint.path)
+        let response = try client.send(.identity(id: "identity-1"))
+
+        #expect(try response.decodeResult(SupatermSocketEndpoint.self).name == name)
+      }
+    )
+  }
+
+  @Test
   func sendRejectsEncodedRequestsBeforeConnecting() throws {
     let rootURL = try makeSocketClientTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }

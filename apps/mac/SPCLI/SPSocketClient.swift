@@ -164,6 +164,7 @@ struct SPSocketClient {
   ) throws -> SupatermSocketResponse {
     let responseDeadline = try operationDeadline(after: responseTimeout)
 
+    try setSocketTimeout(SO_RCVTIMEO, on: socket, deadline: responseDeadline)
     try writeAll(requestData, to: socket, deadline: responseDeadline)
 
     guard let responseLine = try readLine(from: socket, deadline: responseDeadline) else {
@@ -270,7 +271,12 @@ struct SPSocketClient {
     var buffer = [UInt8](repeating: 0, count: 1024)
 
     while true {
-      try setSocketTimeout(SO_RCVTIMEO, on: socket, deadline: deadline)
+      try setSocketTimeout(
+        SO_RCVTIMEO,
+        on: socket,
+        deadline: deadline,
+        toleratingClosedPeer: true
+      )
       let bytesRead = Darwin.read(socket, &buffer, buffer.count)
       guard bytesRead >= 0 else { throw SocketClientError.readFailed }
       guard bytesRead > 0 else { break }
@@ -296,20 +302,20 @@ struct SPSocketClient {
   private func setSocketTimeout(
     _ option: Int32,
     on socket: Int32,
-    deadline: Date
+    deadline: Date,
+    toleratingClosedPeer: Bool = false
   ) throws {
     let remainingTime = deadline.timeIntervalSinceNow
     guard remainingTime > 0 else { throw SocketClientError.deadlineExceeded }
     var timeout = socketTimeout(remainingTime)
-    guard
-      setsockopt(
-        socket,
-        SOL_SOCKET,
-        option,
-        &timeout,
-        socklen_t(MemoryLayout<timeval>.size)
-      ) == 0
-    else {
+    let result = setsockopt(
+      socket,
+      SOL_SOCKET,
+      option,
+      &timeout,
+      socklen_t(MemoryLayout<timeval>.size)
+    )
+    guard result == 0 || (toleratingClosedPeer && errno == EINVAL) else {
       throw SocketClientError.socketConfigurationFailed
     }
   }
