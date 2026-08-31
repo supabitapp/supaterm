@@ -510,6 +510,7 @@ struct TerminalSidebarChromeViewTests {
       let pullRequest = TerminalTabAgentWorkspace.PullRequest(
         kind: kind,
         title: "#128",
+        url: nil
       )
       #expect(pullRequest.icon == icon)
     }
