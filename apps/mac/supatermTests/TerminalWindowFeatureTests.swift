@@ -216,21 +216,20 @@ struct TerminalWindowFeatureTests {
 
       await store.send(.clientEvent(.notificationReceived(event)))
 
+      let deliveries = await recorder.snapshot()
       #expect(
-        await recorder.snapshot()
+        deliveries.map(\.request)
           == [
-            TerminalNotificationOutputRecorder.Delivery(
-              request: NotificationRequest(
-                body: "Build finished",
-                disposition: .deliver,
-                subtitle: "CI",
-                title: "Deploy complete",
-                sourceSurfaceID: sourceSurfaceID
-              ),
-              output: .system
+            NotificationRequest(
+              body: "Build finished",
+              disposition: .deliver,
+              subtitle: "CI",
+              title: "Deploy complete",
+              sourceSurfaceID: sourceSurfaceID
             )
           ]
       )
+      #expect(deliveries.map(\.output) == [.system])
     }
   }
 
@@ -597,7 +596,7 @@ private final class CommandPaletteClientRecorder {
 }
 
 private actor TerminalNotificationOutputRecorder {
-  struct Delivery: Equatable {
+  struct Delivery {
     let request: NotificationRequest
     let output: NotificationOutput
   }
