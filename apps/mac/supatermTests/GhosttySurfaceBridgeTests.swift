@@ -297,9 +297,35 @@ struct GhosttySurfaceBridgeTests {
 
     #expect(invalidationCount.withLock { $0 } == 0)
 
-    state.publishTitle()
+    #expect(state.publishTitle())
 
     #expect(invalidationCount.withLock { $0 } == 1)
+
+    #expect(!state.publishTitle())
+    #expect(invalidationCount.withLock { $0 } == 1)
+  }
+
+  @Test
+  func titlePublicationTracksEffectiveTitleWhilePreservingTerminalTitle() {
+    let state = GhosttySurfaceState()
+    state.title = "shell"
+
+    #expect(state.publishTitle())
+
+    state.titleOverride = "Pinned"
+
+    #expect(state.publishTitle())
+
+    state.title = "⠋ Working"
+
+    #expect(!state.publishTitle())
+    #expect(state.title == "⠋ Working")
+    #expect(state.effectiveTitle == "Pinned")
+
+    state.titleOverride = nil
+
+    #expect(state.publishTitle())
+    #expect(state.effectiveTitle == "⠋ Working")
   }
 
   @Test

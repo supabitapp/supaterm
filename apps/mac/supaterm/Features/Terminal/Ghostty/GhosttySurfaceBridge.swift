@@ -148,7 +148,7 @@ final class GhosttySurfaceBridge {
   }
 
   func publishTitle() {
-    state.publishTitle()
+    guard state.publishTitle() else { return }
     onTitleChange?()
     if let surfaceView {
       NSAccessibility.post(element: surfaceView, notification: .titleChanged)

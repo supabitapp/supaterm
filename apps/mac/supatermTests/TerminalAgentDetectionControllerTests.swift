@@ -43,7 +43,7 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
-  func publishesAndEvaluatesEveryPaneWhileRefreshingProcessProofsOnCadence() async {
+  func checksTitlesAndEvaluatesEveryPaneWhileRefreshingProcessProofsOnCadence() async {
     let fixture = makeFixture()
     let firstID = fixture.host.addSurface(processGroupID: 11)
     let secondID = fixture.host.addSurface(processGroupID: 22)
@@ -61,7 +61,7 @@ struct TerminalAgentDetectionControllerTests {
 
     #expect(await fixture.sampler.batches() == [[11, 22, 33]])
     #expect(await fixture.rules.evaluationBatches().map(\.count) == [2])
-    #expect(fixture.host.titlePublishCount == 3)
+    #expect(fixture.host.titleCheckCount == 3)
     #expect(fixture.host.observations[firstID]?.processIdentity == firstIdentity)
     #expect(fixture.host.observations[secondID]?.processIdentity == secondIdentity)
     #expect(fixture.host.observations[unmatchedID] == nil)
@@ -70,7 +70,7 @@ struct TerminalAgentDetectionControllerTests {
 
     #expect(await fixture.sampler.batches() == [[11, 22, 33]])
     #expect(await fixture.rules.evaluationBatches().map(\.count) == [2, 2])
-    #expect(fixture.host.titlePublishCount == 6)
+    #expect(fixture.host.titleCheckCount == 6)
   }
 
   @Test
@@ -781,7 +781,7 @@ private final class DetectionHostFixture {
   var authority: [UUID: Set<TerminalAgentProcessIdentity>] = [:]
   var applyCalls: [TerminalAgentDetectionObservation] = []
   var screenCaptureCount = 0
-  var titlePublishCount = 0
+  var titleCheckCount = 0
 
   var observations: [UUID: TerminalAgentDetectionObservation] {
     Dictionary(
@@ -794,7 +794,7 @@ private final class DetectionHostFixture {
   var access: TerminalAgentDetectionHostAccess {
     TerminalAgentDetectionHostAccess(
       surfaces: { [weak self] in self?.snapshots() ?? [] },
-      publishTitle: { [weak self] _ in self?.titlePublishCount += 1 },
+      publishTitle: { [weak self] _ in self?.titleCheckCount += 1 },
       signals: { [weak self] key in self?.signals(key) },
       screen: { [weak self] key in self?.screen(key) },
       nativeAuthority: { [weak self] surfaceID in self?.authority[surfaceID] ?? [] },
