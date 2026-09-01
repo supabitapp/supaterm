@@ -71,16 +71,11 @@ public struct SupatermSkills {
     }
 
     let skillDirectoryURL = Self.skillDirectoryURL(homeDirectoryURL: homeDirectoryURL)
-    try replaceItem(at: skillDirectoryURL) { stagingDirectoryURL in
-      try fileManager.copyItem(at: bundledSkillDirectoryURL, to: stagingDirectoryURL)
-    }
-    try replaceItem(at: Self.claudeSkillDirectoryURL(homeDirectoryURL: homeDirectoryURL)) {
-      stagingDirectoryURL in
-      try fileManager.createSymbolicLink(
-        at: stagingDirectoryURL,
-        withDestinationURL: skillDirectoryURL
-      )
-    }
+    try replaceDirectory(at: skillDirectoryURL, copying: bundledSkillDirectoryURL)
+    try replaceSymbolicLink(
+      at: Self.claudeSkillDirectoryURL(homeDirectoryURL: homeDirectoryURL),
+      pointingTo: skillDirectoryURL
+    )
     return SupatermSkillInstallResult(path: skillDirectoryURL.path)
   }
 
@@ -272,9 +267,9 @@ public struct SupatermSkills {
     try? fileManager.destinationOfSymbolicLink(atPath: url.path)
   }
 
-  private func replaceItem(
+  private func replaceDirectory(
     at destinationURL: URL,
-    stage: (URL) throws -> Void
+    copying sourceURL: URL
   ) throws {
     let parentDirectoryURL = destinationURL.deletingLastPathComponent()
     try fileManager.createDirectory(at: parentDirectoryURL, withIntermediateDirectories: true)
@@ -285,20 +280,29 @@ public struct SupatermSkills {
     defer {
       try? fileManager.removeItem(at: stagingURL)
     }
-    try stage(stagingURL)
+    try fileManager.copyItem(at: sourceURL, to: stagingURL)
 
-    let destinationIsSymbolicLink = symbolicLinkDestination(at: destinationURL) != nil
-    guard destinationIsSymbolicLink || fileManager.fileExists(atPath: destinationURL.path) else {
-      try fileManager.moveItem(at: stagingURL, to: destinationURL)
-      return
-    }
-
-    if destinationIsSymbolicLink || symbolicLinkDestination(at: stagingURL) != nil {
+    if symbolicLinkDestination(at: destinationURL) != nil {
       try fileManager.removeItem(at: destinationURL)
       try fileManager.moveItem(at: stagingURL, to: destinationURL)
-    } else {
+    } else if fileManager.fileExists(atPath: destinationURL.path) {
       _ = try fileManager.replaceItemAt(destinationURL, withItemAt: stagingURL)
+    } else {
+      try fileManager.moveItem(at: stagingURL, to: destinationURL)
     }
+  }
+
+  private func replaceSymbolicLink(at destinationURL: URL, pointingTo targetURL: URL) throws {
+    try fileManager.createDirectory(
+      at: destinationURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    if symbolicLinkDestination(at: destinationURL) != nil
+      || fileManager.fileExists(atPath: destinationURL.path)
+    {
+      try fileManager.removeItem(at: destinationURL)
+    }
+    try fileManager.createSymbolicLink(at: destinationURL, withDestinationURL: targetURL)
   }
 }
 

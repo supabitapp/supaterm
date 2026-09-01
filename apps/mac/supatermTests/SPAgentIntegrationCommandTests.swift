@@ -60,21 +60,21 @@ struct SPAgentIntegrationCommandTests {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let replyCount = LockedCounter()
-    let firstRequestOutput = LockedString()
+    let firstAgentRequestOutput = LockedString()
     let outputURL = cli.rootURL.appendingPathComponent("stdout", isDirectory: false)
 
     try await withSocketRuntime(
       replying: { request, _ in
+        if let response = try skillInstallResponse(for: request) {
+          return response
+        }
         if replyCount.increment() == 1 {
-          firstRequestOutput.set(
+          firstAgentRequestOutput.set(
             try #require(
               String(bytes: try Data(contentsOf: outputURL), encoding: .utf8)
             )
           )
           try await Task.sleep(for: .seconds(6))
-        }
-        if let response = try skillInstallResponse(for: request) {
-          return response
         }
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
@@ -98,7 +98,10 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(firstRequestOutput.get() == "Installing Supaterm skill...\n")
+    #expect(
+      firstAgentRequestOutput.get()
+        == "Installing Supaterm skill...\nSupaterm skill: ready\nSetting up Claude Code...\n"
+    )
   }
 
   @Test
