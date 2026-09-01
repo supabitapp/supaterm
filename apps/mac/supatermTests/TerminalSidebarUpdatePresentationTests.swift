@@ -11,8 +11,8 @@ struct TerminalSidebarUpdatePresentationTests {
       preservesSessionsOnRestart: true
     )
     let expected = [
-      "The update is ready. Restart Supaterm to complete installation.",
-      "Your terminal sessions will keep running after restart.",
+      "The update is ready.",
+      "Your terminal sessions will keep running.",
     ].joined(separator: " ")
 
     #expect(detail == expected)
@@ -25,7 +25,7 @@ struct TerminalSidebarUpdatePresentationTests {
       preservesSessionsOnRestart: false
     )
 
-    #expect(detail == "The update is ready. Restart Supaterm to complete installation.")
+    #expect(detail == "The update is ready.")
   }
 
   @Test
