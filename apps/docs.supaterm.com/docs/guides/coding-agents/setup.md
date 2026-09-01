@@ -1,6 +1,6 @@
 ---
 title: Set up coding agents
-description: Install Supaterm's agent skill and enable Claude or Codex hooks.
+description: Install Supaterm's agent skill and set up Claude or Codex hooks.
 ---
 
 Supaterm tracks Claude, Codex, and Pi when they run inside its panes. Basic activity works without hook setup when Supaterm can identify the foreground agent. This terminal-only state is temporary and read-only. It does not create notifications or session actions.
@@ -11,19 +11,29 @@ Claude and Codex hooks add session identity and workspace data. Pi uses terminal
 
 Install the agent and make sure its executable is available from your login shell. The native Codex integration requires version 0.144.1 or newer.
 
-## Install the discovery skill
+## Set up from the command line
 
-Install the same skill for every supported agent:
+Set up the skill and both managed hook integrations:
+
+```bash
+sp agent setup
+```
+
+Supaterm copies the skill to `~/.agents/skills/supaterm` and links
+`~/.claude/skills/supaterm` to that shared copy. It then sets up each installed agent. The command
+prints progress for the skill, Claude, and Codex. It is safe to run again.
+
+To install or refresh only the skill, run:
 
 ```bash
 sp skills install
 ```
 
-Supaterm copies it to `~/.agents/skills/supaterm`, which Pi and other agents that support the Agent Skills paths read directly.
-
 ## Enable Claude or Codex hooks
 
-Open **Supaterm > Settings > Coding Agents** and turn on the agent. Supaterm reports whether the integration is unavailable, incomplete, changed from its managed configuration, or healthy.
+Open **Supaterm > Settings > Coding Agents** and turn on the agent. Supaterm installs the skill
+before it enables the selected agent. It reports whether the integration is unavailable,
+incomplete, changed from its managed configuration, or healthy.
 
 - Claude installs managed hooks in `~/.claude/settings.json`.
 - Codex enables supported hooks, writes `~/.codex/hooks.json`, and registers the required trust through Codex's public app-server API.
@@ -31,14 +41,6 @@ Open **Supaterm > Settings > Coding Agents** and turn on the agent. Supaterm rep
 Supaterm preserves unrelated settings in those files. Turning an integration off removes only Supaterm-managed configuration.
 
 ![Supaterm coding-agent settings with Claude and Codex enabled.](/images/settings-coding-agents-enabled-dark.png)
-
-## Command-line setup
-
-Set up both managed hook integrations:
-
-```bash
-sp agent setup
-```
 
 Setup installs the Claude and Codex hook bridges. It also adds these defaults:
 

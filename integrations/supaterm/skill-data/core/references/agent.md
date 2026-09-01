@@ -22,7 +22,10 @@ Install Supaterm's bundled agent skill:
 sp skills install
 ```
 
-The running Supaterm app copies its bundled discovery skill to `~/.agents/skills/supaterm`. Claude, Codex, Pi, and other agents that support the Agent Skills paths read this same copy. Existing Supaterm skill directories or symlinks are replaced. Detailed instructions stay in the app bundle and are loaded through `sp skills get`.
+The running Supaterm app copies its bundled discovery skill to `~/.agents/skills/supaterm` and
+links `~/.claude/skills/supaterm` to that shared copy. Existing Supaterm skill directories or
+symlinks at either path are replaced. Detailed instructions stay in the app bundle and are loaded
+through `sp skills get`.
 
 ## Set Up Integrations
 
@@ -34,6 +37,7 @@ sp agent setup
 
 Effects:
 
+- `setup` installs or refreshes the discovery skill before it checks either agent
 - `setup` checks Claude and Codex, prints progress for each one, reports every failure, and fails when neither agent is available
 - Claude installs Supaterm hooks into `~/.claude/settings.json`
 - Claude adds `terminalProgressBarEnabled: true` only when that key is absent
@@ -80,7 +84,7 @@ Use this when wiring an external agent hook system into Supaterm. This is lower-
 
 `receive-agent-hook` forwards a payload and prints nothing.
 
-`setup` prints a start and result line for each agent. `remove-hooks` prints nothing on success.
+`setup` prints a start and result line for the skill and each agent. `remove-hooks` prints nothing on success.
 `reload-rules` prints detection details. `skills install` prints the installed path.
 
 Failures go to stderr with a non-zero exit status. With no reachable Supaterm instance:

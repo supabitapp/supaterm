@@ -251,6 +251,7 @@ struct GhosttySurfaceBridgeTests {
       titleChangeSleep: { try await clock.sleep(for: $0) }
     )
     bridge.state.titleOverride = "Pinned"
+    bridge.publishTitle()
     var titlePublishCount = 0
     bridge.onTitleChange = { titlePublishCount += 1 }
 
@@ -276,6 +277,8 @@ struct GhosttySurfaceBridgeTests {
     let bridge = GhosttySurfaceBridge(
       titleChangeSleep: { try await clock.sleep(for: $0) }
     )
+    var titlePublishCount = 0
+    bridge.onTitleChange = { titlePublishCount += 1 }
 
     bridge.setTitle("first")
     await advanceClock(clock, by: .milliseconds(50))
@@ -287,6 +290,7 @@ struct GhosttySurfaceBridgeTests {
     await advanceClock(clock, by: .milliseconds(1))
 
     #expect(bridge.state.title == "second")
+    #expect(titlePublishCount == 1)
   }
 
   @Test

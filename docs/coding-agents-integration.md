@@ -117,7 +117,8 @@ Install it with:
 sp skills install
 ```
 
-The install command copies a stable discovery skill to `~/.agents/skills/supaterm`, replacing any existing path.
+The install command copies a stable discovery skill to `~/.agents/skills/supaterm`, replacing any
+existing path. It also replaces `~/.claude/skills/supaterm` with a symlink to that shared copy.
 The discovery skill directs agents to version-matched content served by `sp skills get` from the app bundle.
 
 Every `sp skills` command asks the connected app, which reads its own bundle and does the copying. The catalog always matches the running app, and the commands fail when no app is reachable.
@@ -138,14 +139,14 @@ Set up the managed Claude and Codex hook integrations with:
 sp agent setup
 ```
 
-Setup installs the Claude and Codex hook bridges. It also seeds these display settings when their
-keys are absent:
+Setup first installs or refreshes the discovery skill and its Claude symlink. It then installs the
+Claude and Codex hook bridges and seeds these display settings when their keys are absent:
 
 - `~/.claude/settings.json`: `terminalProgressBarEnabled: true`
 - `~/.codex/config.toml`: `[tui] terminal_title = ["activity", "thread-title", "task-progress"]`
 
-Setup preserves an existing value for either key. It reports progress for each agent and is safe to
-run again.
+Setup preserves an existing value for either key. It reports progress for the skill and each agent
+and is safe to run again.
 
 The app also exposes setup commands through:
 
@@ -158,7 +159,7 @@ sp onboard
 Claude and Codex share the settings-file hook bridge, but each installer uses the agent's public configuration surface.
 
 - Settings > Coding Agents exposes Claude and Codex toggles. Turning one on sets up its integration; turning it off removes its hooks.
-- `sp agent setup` and `sp agent remove-hooks` reach the app's integration manager for Claude and Codex. A Settings toggle only operates on its selected agent. Both paths use the same concrete integration code in the app process and fail when no app is reachable.
+- `sp agent setup` installs the skill once, then reaches the app's integration manager for Claude and Codex. `sp agent remove-hooks` reaches the same manager. A Settings toggle installs the skill before enabling its selected agent. These paths use the same concrete integration code in the app process and fail when no app is reachable.
 - On open, Settings reports each integration as unavailable, unavailable but installed, absent, partial, drifted, or healthy.
 - Claude must be available through the user's login shell. Codex must be version 0.144.1 or newer, have its hooks feature enabled, and have canonical trust state.
 - A hook is Supaterm-managed only when its command exactly matches one of Supaterm's canonical hook commands.

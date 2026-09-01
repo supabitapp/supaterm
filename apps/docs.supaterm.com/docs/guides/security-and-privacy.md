@@ -20,7 +20,9 @@ Enabling a managed hook integration changes the agent's user configuration:
 
 Supaterm does not change Pi configuration. Supaterm-managed Claude and Codex hooks send session data and pane context to the local app. Supaterm builds agent status and panel state from those hook events and local terminal screen detection. It does not read agent conversation files.
 
-The discovery skill installed by `sp skills install` lives at `~/.agents/skills/supaterm`. Its detailed guides come from the installed Supaterm version through `sp skills get`.
+The discovery skill installed by `sp agent setup` or `sp skills install` lives at
+`~/.agents/skills/supaterm`. Claude reads it through the `~/.claude/skills/supaterm` symlink. Its
+detailed guides come from the installed Supaterm version through `sp skills get`.
 
 ## Saved state and persistent processes
 

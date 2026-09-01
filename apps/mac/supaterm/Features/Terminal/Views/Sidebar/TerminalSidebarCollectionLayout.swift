@@ -41,6 +41,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private struct StructuralUpdate {
     let sourceIdentifiers: [TerminalSidebarEntryID]
     let sourceItemsByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item]
+    let targetOutline: TerminalSidebarOutline
   }
 
   private(set) var outline = TerminalSidebarOutline(
@@ -79,15 +80,17 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   func setOutline(_ outline: TerminalSidebarOutline) {
     let currentIdentifiers = self.outline.visibleEntries.map(\.id)
     if currentIdentifiers != outline.visibleEntries.map(\.id) {
-      structuralUpdate = StructuralUpdate(
-        sourceIdentifiers: currentIdentifiers,
-        sourceItemsByID: Dictionary(uniqueKeysWithValues: plan.items.map { ($0.id, $0) })
-      )
+      structuralUpdate = structuralUpdate(to: outline)
     }
     self.outline = outline
   }
 
+  func stageOutline(_ outline: TerminalSidebarOutline) {
+    structuralUpdate = structuralUpdate(to: outline)
+  }
+
   func finishStructuralUpdate() {
+    commitStagedOutline()
     structuralUpdate = nil
   }
 
@@ -232,29 +235,28 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     attributesByIndexPath[indexPath]
   }
 
-  override func finalLayoutAttributesForDisappearingItem(
-    at itemIndexPath: IndexPath
-  ) -> NSCollectionViewLayoutAttributes? {
-    guard
-      let structuralUpdate,
-      structuralUpdate.sourceIdentifiers.indices.contains(itemIndexPath.item)
-    else {
-      return super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)
-    }
-    let id = structuralUpdate.sourceIdentifiers[itemIndexPath.item]
-    guard
-      !outline.visibleEntries.contains(where: { $0.id == id }),
-      let item = structuralUpdate.sourceItemsByID[id]
-    else {
-      return super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)
-    }
-    let attributes = NSCollectionViewLayoutAttributes(forItemWith: itemIndexPath)
-    attributes.frame = item.frame
-    attributes.alpha = 0
-    return attributes
+  override func prepare(forCollectionViewUpdates updateItems: [NSCollectionViewUpdateItem]) {
+    super.prepare(forCollectionViewUpdates: updateItems)
+    guard commitStagedOutline(), let collectionView else { return }
+    rebuild(width: collectionView.bounds.width, viewportHeight: collectionView.visibleRect.height)
   }
 
   override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
     newBounds.size != preparedBoundsSize
+  }
+
+  private func structuralUpdate(to targetOutline: TerminalSidebarOutline) -> StructuralUpdate {
+    StructuralUpdate(
+      sourceIdentifiers: outline.visibleEntries.map(\.id),
+      sourceItemsByID: Dictionary(uniqueKeysWithValues: plan.items.map { ($0.id, $0) }),
+      targetOutline: targetOutline
+    )
+  }
+
+  @discardableResult
+  private func commitStagedOutline() -> Bool {
+    guard let structuralUpdate, outline != structuralUpdate.targetOutline else { return false }
+    outline = structuralUpdate.targetOutline
+    return true
   }
 }

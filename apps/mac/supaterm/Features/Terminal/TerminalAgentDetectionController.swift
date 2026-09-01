@@ -84,7 +84,6 @@ nonisolated struct TerminalAgentDetectionSampler: Sendable {
 @MainActor
 struct TerminalAgentDetectionHostAccess {
   let surfaces: () -> [TerminalAgentDetectionSurfaceSnapshot]
-  let publishTitle: (TerminalAgentDetectionSurfaceKey) -> Void
   let signals: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionSignals?
   let screen: (TerminalAgentDetectionSurfaceKey) async -> String?
   let observation: (UUID) -> TerminalAgentDetectionObservation?
@@ -342,9 +341,6 @@ final class TerminalAgentDetectionController {
   func tick(now: ContinuousClock.Instant) async {
     guard !Task.isCancelled else { return }
     let surfaces = host.surfaces()
-    for surface in surfaces {
-      host.publishTitle(surface.key)
-    }
     let snapshot = await rules.snapshot()
     guard !Task.isCancelled else { return }
     activate(snapshot)
@@ -957,15 +953,6 @@ final class TerminalAgentDetectionController {
             )
           )
         }
-      },
-      publishTitle: { [weak terminal] key in
-        guard let surface = terminal?.surfaces[key.id],
-          ObjectIdentifier(surface) == key.instance,
-          surface.foregroundProcessGroupID == key.foregroundProcessGroupID
-        else {
-          return
-        }
-        surface.bridge.publishTitle()
       },
       signals: { [weak terminal] key in
         guard let surface = terminal?.surfaces[key.id],

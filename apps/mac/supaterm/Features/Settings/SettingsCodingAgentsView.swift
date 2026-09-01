@@ -53,7 +53,10 @@ struct SettingsCodingAgentsView: View {
         }
       } footer: {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Pi uses terminal detection. Claude, Codex, and Pi read the shared skill at ~/.agents/skills/supaterm.")
+          Text(
+            "Pi uses terminal detection. Codex and Pi read the shared skill at "
+              + "~/.agents/skills/supaterm. Claude uses the link at ~/.claude/skills/supaterm."
+          )
 
           Text("Install or refresh it with: sp skills install")
             .font(.caption.monospaced())

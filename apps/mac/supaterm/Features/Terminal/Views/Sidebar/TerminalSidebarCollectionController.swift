@@ -1,5 +1,4 @@
 import AppKit
-import QuartzCore
 import SupaTheme
 import SwiftUI
 
@@ -453,7 +452,10 @@ final class TerminalSidebarListController: NSViewController {
     )
     updateState = .applyingSnapshot(nil)
     collectionLayout.visibilityByEntryID = [:]
-    layoutAnimator.animate(enabled: animated, duration: animationDuration) {
+    layoutAnimator.finish()
+    if animated {
+      collectionLayout.stageOutline(update.outline)
+    } else {
       collectionLayout.setOutline(update.outline)
     }
     var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()
@@ -496,7 +498,7 @@ final class TerminalSidebarListController: NSViewController {
     }
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animationDuration
-      context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.46, 0.45, 0.94)
+      context.timingFunction = TerminalSidebarAnimationCurve.timingFunction
       dataSource.apply(snapshot, animatingDifferences: true, completion: completion)
     }
   }

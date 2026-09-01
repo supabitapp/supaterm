@@ -149,8 +149,12 @@ struct SupatermSkillsTests {
     ).install()
 
     let installedDirectoryURL = SupatermSkills.skillDirectoryURL(homeDirectoryURL: homeDirectoryURL)
+    let claudeDirectoryURL = SupatermSkills.claudeSkillDirectoryURL(
+      homeDirectoryURL: homeDirectoryURL
+    )
     #expect(result.path == installedDirectoryURL.path)
     #expect(symbolicLinkDestination(at: installedDirectoryURL) == nil)
+    #expect(symbolicLinkDestination(at: claudeDirectoryURL) == installedDirectoryURL.path)
     #expect(
       try String(
         contentsOf: SupatermSkills.skillDefinitionURL(skillDirectoryURL: installedDirectoryURL),
@@ -212,6 +216,34 @@ struct SupatermSkillsTests {
     #expect(
       FileManager.default.fileExists(
         atPath: installedDirectoryURL.appendingPathComponent("SKILL.md").path))
+  }
+
+  @Test
+  func installReplacesAnExistingClaudeSkillAndKeepsOtherClaudeSkills() throws {
+    let rootURL = try temporarySkillsRoot()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let bundledSkillsDirectoryURL = try bundledSkillsDirectory(in: rootURL)
+    let homeDirectoryURL = rootURL.appendingPathComponent("home", isDirectory: true)
+    let claudeSkillDirectoryURL = SupatermSkills.claudeSkillDirectoryURL(
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let otherSkillURL = claudeSkillDirectoryURL.deletingLastPathComponent()
+      .appendingPathComponent("other", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: claudeSkillDirectoryURL,
+      withIntermediateDirectories: true
+    )
+    try FileManager.default.createDirectory(at: otherSkillURL, withIntermediateDirectories: true)
+    try Data("old".utf8).write(to: claudeSkillDirectoryURL.appendingPathComponent("old.txt"))
+
+    try SupatermSkills(
+      homeDirectoryURL: homeDirectoryURL,
+      bundledSkillsDirectoryURL: bundledSkillsDirectoryURL
+    ).install()
+
+    let installedDirectoryURL = SupatermSkills.skillDirectoryURL(homeDirectoryURL: homeDirectoryURL)
+    #expect(symbolicLinkDestination(at: claudeSkillDirectoryURL) == installedDirectoryURL.path)
+    #expect(FileManager.default.fileExists(atPath: otherSkillURL.path))
   }
 
   @Test

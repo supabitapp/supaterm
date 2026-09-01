@@ -387,15 +387,15 @@ enum SPOnboardingRenderer {
     }
 
     lines.append("")
-    lines.append(SPTerminalStyle.bold("Coding Agents Integrations Setup:"))
+    lines.append(SPTerminalStyle.bold("Coding Agents Setup:"))
     lines.append("")
-    lines.append("Install the Supaterm skill:")
-    lines.append("")
-    lines.append("sp skills install")
-    lines.append("")
-    lines.append("Set up Claude and Codex hooks:")
+    lines.append("Install the Supaterm skill and set up Claude and Codex hooks:")
     lines.append("")
     lines.append("sp agent setup")
+    lines.append("")
+    lines.append("Using Pi only? Install the skill without hooks:")
+    lines.append("")
+    lines.append("sp skills install")
     lines.append("")
     lines.append(#"Run "sp" for the list of available commands."#)
 
