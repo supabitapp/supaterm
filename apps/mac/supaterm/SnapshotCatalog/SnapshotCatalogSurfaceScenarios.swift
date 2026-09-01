@@ -3,6 +3,8 @@ import SupatermUI
 import SwiftUI
 
 extension SnapshotCatalog {
+  static let keyboardShortcutPillGroup = "Keyboard Shortcut Pills"
+
   static let surfaceScenarios: [SnapshotScenario] =
     keyboardShortcutPillScenarios
     + dialogSurfaceScenarios
@@ -10,10 +12,10 @@ extension SnapshotCatalog {
     + searchPanelSurfaceScenarios
     + toastSurfaceScenarios
 
-  private static let keyboardShortcutPillScenarios: [SnapshotScenario] = [
+  static let keyboardShortcutPillScenarios: [SnapshotScenario] = [
     scenario(
       "variants",
-      group: "Keyboard Shortcut Pills",
+      group: keyboardShortcutPillGroup,
       title: "Shortcut variants",
       size: CGSize(width: 560, height: 180)
     ) { appearance in
