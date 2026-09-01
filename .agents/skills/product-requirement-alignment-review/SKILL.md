@@ -15,7 +15,7 @@ Read only the sources relevant to the changed files:
 - `docs/development.md`
 - `docs/coding-agents-integration.md`
 - `docs/how-socket-works.md`
-- `integrations/supaterm-skills/skills/supaterm`
+- `integrations/supaterm/skills/supaterm`
 - `apps/supaterm.com/src`
 - `apps/supaterm.com/public/changelog`
 - `apps/mac/supaterm`

@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import Testing
 
@@ -14,42 +13,17 @@ struct TerminalHostStateAgentDebugSnapshotTests {
   }
 
   @Test
-  func nativeOnlyAuthorityReportsItsSingleExactProcess() throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let surfaceID = fixture.surfaceID
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    let applied = host.applyTestAgentActivity(
-      .pi(.running),
-      for: surfaceID,
-      sessionID: "native-session",
-      processID: identity.processID
-    )
-
-    let result = host.debugAgentSnapshot(for: surfaceID, explanation: .disabled)
-
-    #expect(applied)
-    #expect(result.status == .nativeAuthority)
-    #expect(result.agent?.kind == .pi)
-    #expect(result.agent?.phaseSource == .native)
-    #expect(result.agent?.sessionID == "native-session")
-    #expect(result.agent?.process?.processID == identity.processID)
-    #expect(result.agent?.process?.startTimeMicroseconds == identity.startTimeMicroseconds)
-    #expect(result.agent?.ruleID == nil)
-  }
-
-  @Test
-  func newerAuthorityFreeCandidateStaysCurrentWithoutTerminalState() throws {
+  func newerSessionCandidateStaysCurrentWithoutTerminalState() throws {
     let fixture = try hostFixture()
     let host = fixture.host
     let surfaceID = fixture.surfaceID
     host.agentStateStore.restore([
-      authorityFreeSnapshot(
+      sessionSnapshot(
         agent: .codex,
         surfaceID: surfaceID,
         revision: 1
       ),
-      authorityFreeSnapshot(
+      sessionSnapshot(
         agent: .claude,
         surfaceID: surfaceID,
         revision: 10_000
@@ -69,138 +43,6 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     #expect(result.agent?.phaseSource == .native)
     #expect(result.status == .unrecognizedProcess)
     #expect(result.agent?.process == nil)
-  }
-
-  @Test
-  func exactNativeAuthorityReportsTheSameNativeWinnerAsTheUI() throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let surfaceID = fixture.surfaceID
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    let appliedNative = host.applyTestAgentActivity(
-      .pi(.running, detail: "Private native detail"),
-      for: surfaceID,
-      sessionID: "private-session",
-      processID: identity.processID
-    )
-    let appliedTerminal = host.applyAgentDetection(
-      observation(
-        agentID: "codex",
-        displayName: "Codex",
-        processIdentity: identity,
-        phase: .needsInput
-      ),
-      for: surfaceID
-    )
-    let explanation = trace(
-      status: .nativeAuthority,
-      processIdentity: identity,
-      agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
-      matchedRuleID: "private-rule"
-    )
-
-    let result = host.debugAgentSnapshot(for: surfaceID, explanation: explanation)
-
-    #expect(appliedNative)
-    #expect(appliedTerminal)
-    #expect(result.status == .nativeAuthority)
-    #expect(result.agent?.kind == .pi)
-    #expect(result.agent?.phase == .running)
-    #expect(result.agent?.phaseSource == .native)
-    #expect(result.agent?.sessionID == "private-session")
-    #expect(
-      result.agent?.process
-        == SupatermAppDebugSnapshot.AgentProcess(
-          processID: identity.processID,
-          startTimeMicroseconds: identity.startTimeMicroseconds
-        )
-    )
-    #expect(result.agent?.ruleID == nil)
-  }
-
-  @Test
-  func controllerProofSelectsNativeAuthorityBeforeTerminalStatePublishes() async throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let surfaceID = fixture.surfaceID
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    let applied = host.applyTestAgentActivity(
-      .pi(.running),
-      for: surfaceID,
-      sessionID: "native-session",
-      processID: identity.processID
-    )
-    host.agentStateStore.restore([
-      authorityFreeSnapshot(
-        agent: .claude,
-        surfaceID: surfaceID,
-        revision: 10_000
-      )
-    ])
-    let controller = try detectionController(
-      host: host,
-      surfaceID: surfaceID,
-      processIdentity: identity
-    )
-    host.agentDetectionController = controller
-
-    await controller.tick(now: .now)
-
-    let result = host.debugAgentSnapshot(
-      for: surfaceID,
-      explanation: controller.explanation(for: surfaceID)
-    )
-    #expect(applied)
-    #expect(terminalObservation(in: host, for: surfaceID) == nil)
-    #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "pi")
-    #expect(result.agent?.kind == .pi)
-    #expect(result.status == .nativeAuthority)
-    #expect(result.agent?.process?.processID == identity.processID)
-  }
-
-  @Test
-  func controllerProofKeepsNativeAuthorityAfterTerminalStateClears() async throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let surfaceID = fixture.surfaceID
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    let controller = try detectionController(
-      host: host,
-      surfaceID: surfaceID,
-      processIdentity: identity
-    )
-    host.agentDetectionController = controller
-    let now = ContinuousClock.now
-
-    await controller.tick(now: now)
-    let observation = try #require(terminalObservation(in: host, for: surfaceID))
-    let applied = host.applyTestAgentActivity(
-      .pi(.running),
-      for: surfaceID,
-      sessionID: "native-session",
-      processID: identity.processID
-    )
-    host.agentStateStore.restore([
-      authorityFreeSnapshot(
-        agent: .claude,
-        surfaceID: surfaceID,
-        revision: 10_000
-      )
-    ])
-
-    await controller.tick(now: now.advanced(by: .milliseconds(300)))
-
-    let result = host.debugAgentSnapshot(
-      for: surfaceID,
-      explanation: controller.explanation(for: surfaceID)
-    )
-    #expect(observation.processIdentity == identity)
-    #expect(applied)
-    #expect(terminalObservation(in: host, for: surfaceID) == nil)
-    #expect(host.resolvedAgentState(for: surfaceID).currentInstance?.activity.identity.id == "pi")
-    #expect(result.agent?.kind == .pi)
-    #expect(result.status == .nativeAuthority)
-    #expect(result.agent?.process?.processID == identity.processID)
   }
 
   @Test
@@ -286,7 +128,6 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     let cases: [(TerminalAgentDetectionExplanation.Status, SupatermAppDebugSnapshot.AgentDetectionStatus)] = [
       (.detected, .waiting),
       (.disabled, .detectionDisabled),
-      (.nativeAuthority, .nativeAuthority),
       (.noForegroundProcess, .noForegroundProcess),
       (.noRuleMatchOrSettling, .noRuleMatchOrSettling),
       (.protectedOrUnreadableScreen, .screenUnavailable),
@@ -338,14 +179,14 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     )
   }
 
-  private func authorityFreeSnapshot(
+  private func sessionSnapshot(
     agent: SupatermAgentKind,
     surfaceID: UUID,
     revision: Int
   ) -> TerminalAgentStateSnapshot {
     TerminalAgentStateSnapshot(
       agent: agent,
-      sessionID: "authority-free-\(agent.rawValue)",
+      sessionID: "session-\(agent.rawValue)",
       surfaceID: surfaceID,
       processes: [],
       turnLifecycle: .active(nil),
@@ -360,89 +201,6 @@ struct TerminalHostStateAgentDebugSnapshotTests {
       isForeground: true,
       revision: revision,
       workingDirectoryPath: nil
-    )
-  }
-
-  private func detectionController(
-    host: TerminalHostState,
-    surfaceID: UUID,
-    processIdentity: TerminalAgentProcessIdentity
-  ) throws -> TerminalAgentDetectionController {
-    let surface = try #require(host.surfaces[surfaceID])
-    let processGroupID: Int32 = 11
-    let generation: UInt64 = 7
-    let snapshot = AgentDetectionRuleSnapshot(
-      generation: generation,
-      manifests: [
-        AgentDetectionManifestSnapshot(
-          agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
-          version: "test.1",
-          source: AgentDetectionManifestSource(origin: .bundled, path: "codex.toml")
-        )
-      ],
-      processManifests: [
-        AgentDetectionProcessManifest(
-          agentID: "codex",
-          processes: [AgentDetectionProcessRule(executable: "codex")]
-        )
-      ]
-    )
-    let match = AgentDetectionProcessMatch(
-      agentID: "codex",
-      processIdentity: processIdentity
-    )
-    let evaluation = AgentDetectionEvaluation(
-      identity: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
-      generation: generation,
-      match: AgentDetectionMatch(result: .running, ruleID: "running")
-    )
-    return TerminalAgentDetectionController(
-      rules: TerminalAgentDetectionRuleAccess(
-        snapshot: { snapshot },
-        evaluate: { requests in
-          requests.map { $0.agentID == "codex" ? evaluation : nil }
-        }
-      ),
-      sampler: TerminalAgentDetectionSampler(
-        resolveForegroundProcessGroups: { $0 },
-        matches: { processGroupIDs, _ in
-          processGroupIDs.contains(processGroupID) ? [processGroupID: match] : [:]
-        },
-        current: { identities in
-          identities.contains(processIdentity) ? [processIdentity] : []
-        }
-      ),
-      host: TerminalAgentDetectionHostAccess(
-        surfaces: { [weak surface] in
-          guard let surface else { return [] }
-          return [
-            TerminalAgentDetectionSurfaceSnapshot(
-              key: TerminalAgentDetectionSurfaceKey(
-                id: surfaceID,
-                instance: ObjectIdentifier(surface),
-                foregroundProcessGroupID: processGroupID
-              )
-            )
-          ]
-        },
-        publishTitle: { _ in },
-        signals: { _ in TerminalAgentDetectionSignals(oscTitle: "") },
-        screen: { _ in "running" },
-        nativeAuthority: { [weak host] surfaceID in
-          host?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {
-            $0.formUnion($1.phaseAuthorityProcessIdentities)
-          } ?? []
-        },
-        observation: { [weak host] surfaceID in
-          host?.agentDetectionStore.observation(for: surfaceID)
-        },
-        apply: { [weak host] observation, surfaceID in
-          host?.applyAgentDetection(observation, for: surfaceID) == true
-        },
-        clear: { [weak host] surfaceID in
-          _ = host?.clearAgentDetection(for: surfaceID)
-        }
-      )
     )
   }
 

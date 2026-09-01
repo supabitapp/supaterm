@@ -44,7 +44,7 @@ extension SP {
   struct SetupAgentIntegrations: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "setup",
-      abstract: "Set up Supaterm for every supported coding agent.",
+      abstract: "Set up Supaterm's managed coding-agent hooks.",
       discussion: SPHelp.setupAgentIntegrationsDiscussion
     )
 
@@ -102,7 +102,7 @@ extension SP {
   struct RemoveAgentHooks: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "remove-hooks",
-      abstract: "Remove Supaterm's hook bridge from every supported coding agent.",
+      abstract: "Remove Supaterm's managed coding-agent hooks.",
       discussion: SPHelp.removeAgentHooksDiscussion
     )
 
@@ -243,7 +243,7 @@ private enum AgentIntegrationDisposition {
 
 private func manageAgentIntegrations(
   _ operation: AgentIntegrationManagementOperation,
-  agents: [SupatermAgentKind] = SupatermAgentKind.allCases,
+  agents: [SupatermAgentKind] = SupatermAgentKind.managedIntegrationCases,
   connection: SPConnectionOptions
 ) throws {
   let client = try socketClient(
@@ -277,7 +277,7 @@ private func manageAgentIntegrations(
     !agents.isEmpty,
     !didSucceed
   {
-    throw ValidationError("No supported coding agent was detected.")
+    throw ValidationError("Neither Claude nor Codex was detected.")
   }
 }
 

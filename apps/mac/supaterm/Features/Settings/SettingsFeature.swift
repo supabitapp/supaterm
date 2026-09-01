@@ -73,7 +73,7 @@ struct SettingsAgentIntegrationState: Equatable {
       case .codex:
         return "Codex 0.144.1 or newer is unavailable."
       case .pi:
-        return PiSettingsInstallerError.piUnavailable.localizedDescription
+        return nil
       }
     case .partial:
       return "\(agent.notificationTitle) integration is incomplete."
@@ -127,7 +127,6 @@ public struct SettingsFeature {
     var agentIntegrationInstallFailure: SettingsAgentIntegrationInstallFailure?
     var claudeIntegration = SettingsAgentIntegrationState()
     var codexIntegration = SettingsAgentIntegrationState()
-    var piIntegration = SettingsAgentIntegrationState()
     var pendingSystemNotificationsEnabled: Bool?
     public var selectedTab = Tab.general
     @Shared(.supatermSettings) var supatermSettings = .default
@@ -260,7 +259,6 @@ public struct SettingsFeature {
 
   @Dependency(ClaudeSettingsClient.self) var claudeSettingsClient
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
-  @Dependency(PiSettingsClient.self) var piSettingsClient
   @Dependency(ShortcutSettingsClient.self) var shortcutSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
@@ -398,7 +396,6 @@ public struct SettingsFeature {
       .send(.terminalSettingsLoadRequested),
       .send(.agentIntegrationStatusRefreshRequested(.claude)),
       .send(.agentIntegrationStatusRefreshRequested(.codex)),
-      .send(.agentIntegrationStatusRefreshRequested(.pi)),
       .run { [updateClient] send in
         await updateClient.start()
         let stream = await updateClient.observe()

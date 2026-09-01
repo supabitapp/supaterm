@@ -57,7 +57,6 @@ struct SettingsFeatureTests {
       let terminalGate = SettingsTestGate<GhosttyTerminalSettingsSnapshot>()
       let claudeGate = SettingsTestGate<CodingAgentIntegrationHealth>()
       let codexGate = SettingsTestGate<CodingAgentIntegrationHealth>()
-      let piGate = SettingsTestGate<CodingAgentIntegrationHealth>()
 
       let store = TestStore(initialState: SettingsFeature.State()) {
         SettingsFeature()
@@ -65,7 +64,6 @@ struct SettingsFeatureTests {
         $0.claudeSettingsClient.integrationHealth = { await claudeGate.next() }
         $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
         $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
-        $0.piSettingsClient.integrationHealth = { await piGate.next() }
         $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
         $0.updateClient.observe = { AsyncStream { $0.finish() } }
         $0.updateClient.start = {}
@@ -92,9 +90,6 @@ struct SettingsFeatureTests {
       await store.receive(\.agentIntegrationStatusRefreshRequested, .codex, timeout: Duration.zero) {
         $0.codexIntegration.operation = .refreshing
       }
-      await store.receive(\.agentIntegrationStatusRefreshRequested, .pi, timeout: Duration.zero) {
-        $0.piIntegration.operation = .refreshing
-      }
       await terminalGate.send(terminalSettingsSnapshot())
       await store.receive(\.terminalSettingsLoadResponse) {
         $0.terminal = terminalSettingsState()
@@ -107,10 +102,6 @@ struct SettingsFeatureTests {
       await store.receive(\.agentIntegrationStatusRefreshed) {
         $0.codexIntegration.operation = .idle
       }
-      await piGate.send(.absent)
-      await store.receive(\.agentIntegrationStatusRefreshed) {
-        $0.piIntegration.operation = .idle
-      }
     }
   }
 
@@ -120,7 +111,6 @@ struct SettingsFeatureTests {
     let terminalGate = SettingsTestGate<GhosttyTerminalSettingsSnapshot>()
     let claudeGate = SettingsTestGate<CodingAgentIntegrationHealth>()
     let codexGate = SettingsTestGate<CodingAgentIntegrationHealth>()
-    let piGate = SettingsTestGate<CodingAgentIntegrationHealth>()
 
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
@@ -128,7 +118,6 @@ struct SettingsFeatureTests {
       $0.claudeSettingsClient.integrationHealth = { await claudeGate.next() }
       $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
       $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
-      $0.piSettingsClient.integrationHealth = { await piGate.next() }
       $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
       $0.updateClient.observe = { stream }
       $0.updateClient.start = {}
@@ -144,9 +133,6 @@ struct SettingsFeatureTests {
     await store.receive(\.agentIntegrationStatusRefreshRequested, .codex, timeout: Duration.zero) {
       $0.codexIntegration.operation = .refreshing
     }
-    await store.receive(\.agentIntegrationStatusRefreshRequested, .pi, timeout: Duration.zero) {
-      $0.piIntegration.operation = .refreshing
-    }
     await terminalGate.send(terminalSettingsSnapshot())
     await store.receive(\.terminalSettingsLoadResponse) {
       $0.terminal = terminalSettingsState()
@@ -158,10 +144,6 @@ struct SettingsFeatureTests {
     await codexGate.send(.absent)
     await store.receive(\.agentIntegrationStatusRefreshed) {
       $0.codexIntegration.operation = .idle
-    }
-    await piGate.send(.absent)
-    await store.receive(\.agentIntegrationStatusRefreshed) {
-      $0.piIntegration.operation = .idle
     }
 
     continuation.yield(

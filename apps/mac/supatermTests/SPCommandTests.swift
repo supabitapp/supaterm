@@ -522,7 +522,7 @@ struct SPCommandTests {
 
         sp skills install
 
-        Set up every supported coding-agent integration:
+        Set up Claude and Codex hooks:
 
         sp agent setup
 

@@ -114,33 +114,38 @@ struct TerminalAgentsPopoverTests {
 
   @Test
   @MainActor
-  func completionKeepsTaskAndWorkspaceUntilItIsViewed() throws {
+  func terminalCompletionKeepsWorkspaceUntilItIsViewed() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState.test()
     let surfaceIDs = try restoreSplitHost(host, workingDirectoryPath: "/tmp/pane-workspace")
     let surfaceID = try #require(surfaceIDs.last)
-    #expect(
-      host.applyTestAgentActivity(
-        .pi(.running, detail: "Finish the audit"),
-        for: surfaceID,
-        sessionID: "completed-session",
-        processID: nil,
-        workingDirectoryPath: "/tmp/completed-workspace"
-      )
+    setWorkingDirectory("/tmp/pane-workspace", for: surfaceID, in: host)
+    expectDetection(
+      in: host,
+      surfaceID: surfaceID,
+      identity: AgentDetectionAgentIdentity(.pi),
+      phase: .running,
+      processID: 42
     )
 
     host.handleCommandFinished(for: surfaceID)
 
     let item = try #require(host.windowAgentPresentations().first)
-    #expect(item.task == "Finish the audit")
-    #expect(item.workspace == "completed-workspace")
+    #expect(item.task == "Terminal")
+    #expect(item.workspace == "pane-workspace")
     #expect(item.status == .done)
     #expect(
       item.id
         == TerminalHostState.WindowAgentPresentationID(
           surfaceID: surfaceID,
-          completionIdentity: .native(agent: .pi, sessionID: "completed-session")
+          completionIdentity: .screen(
+            agent: AgentDetectionAgentIdentity(.pi),
+            processIdentity: TerminalAgentProcessIdentity(
+              processID: 42,
+              startTimeMicroseconds: 1
+            )
+          )
         )
     )
 

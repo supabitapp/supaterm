@@ -97,10 +97,10 @@ struct CodexHookEventTests {
       ("PermissionRequest", .permissionRequest),
       ("SubagentStart", .subagentStart),
       ("SubagentStop", .subagentStop),
-      ("session_start", .nativeSessionStart),
-      ("agent_start", .agentStart),
-      ("agent_end", .agentEnd),
-      ("session_shutdown", .sessionShutdown),
+      ("session_start", SupatermAgentHookEventName(rawValue: "session_start")),
+      ("agent_start", SupatermAgentHookEventName(rawValue: "agent_start")),
+      ("agent_end", SupatermAgentHookEventName(rawValue: "agent_end")),
+      ("session_shutdown", SupatermAgentHookEventName(rawValue: "session_shutdown")),
       ("FutureLifecycle", SupatermAgentHookEventName(rawValue: "FutureLifecycle")),
     ]
 

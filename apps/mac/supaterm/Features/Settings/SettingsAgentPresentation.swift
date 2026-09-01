@@ -2,21 +2,7 @@ import SupatermCLIShared
 
 extension SupatermAgentKind {
   var settingsInstallDescription: String {
-    switch self {
-    case .claude, .codex:
-      return "\(notificationTitle) hooks: \(settingsPathDescription)"
-    case .pi:
-      return "\(notificationTitle) settings: \(settingsPathDescription)"
-    }
-  }
-
-  var settingsFooterText: String {
-    switch self {
-    case .claude, .codex:
-      return "Applied to `\(settingsPathDescription)`."
-    case .pi:
-      return "Managed in `\(settingsPathDescription)`."
-    }
+    "\(notificationTitle) hooks: \(settingsPathDescription)"
   }
 
   var settingsPathDescription: String {
@@ -26,11 +12,7 @@ extension SupatermAgentKind {
     case .codex:
       return "~/.codex/hooks.json"
     case .pi:
-      return "~/.pi/agent/settings.json"
+      preconditionFailure("Pi has no managed integration")
     }
-  }
-
-  var settingsSubtitle: String {
-    "Display agent activity in tabs and forward notifications to Supaterm."
   }
 }

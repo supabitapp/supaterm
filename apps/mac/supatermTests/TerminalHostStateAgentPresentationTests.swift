@@ -16,46 +16,6 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
-  func agentActivityStoresNormalizedDetail() throws {
-    let host = makeHost()
-    let tabID = try #require(host.selectedTabID)
-    let surface = try #require(host.selectedSurfaceView)
-
-    #expect(
-      host.setTestAgentActivity(
-        .pi(.running, detail: "  Bash · git status --short  "),
-        for: surface.id
-      )
-    )
-
-    #expect(
-      host.agentActivity(for: tabID)
-        == .pi(.running, detail: "Bash · git status --short")
-    )
-    #expect(host.showsAgentActivityDetail(for: tabID))
-  }
-
-  @Test
-  func latestAgentResponseUsesNewestCompletion() throws {
-    let host = makeHost()
-    let tabID = try #require(host.selectedTabID)
-    let surface = try #require(host.selectedSurfaceView)
-    #expect(
-      host.startTestAgentSession(
-        agent: .pi,
-        for: surface.id,
-        sessionID: "session-1",
-        processID: nil
-      )
-    )
-
-    #expect(host.setTestAgentResponse("First message", for: surface.id))
-    #expect(host.setTestAgentResponse("Final answer", for: surface.id))
-
-    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Final answer")
-  }
-
-  @Test
   func agentActivityDetailFollowsFocusedPane() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
@@ -72,7 +32,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(
       host.setTestAgentActivity(
-        .pi(.running, detail: "Bash · git status --short"),
+        .codex(.running, detail: "Bash · git status --short"),
         for: firstSurface.id
       )
     )
@@ -102,7 +62,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(
       host.setTestAgentActivity(
-        .pi(.running, detail: "Focused detail"),
+        .codex(.running, detail: "Focused detail"),
         for: firstSurface.id
       )
     )
@@ -130,14 +90,16 @@ struct TerminalHostStateAgentPresentationTests {
     _ = host.createTab(inheritingFromSurfaceID: nil)
 
     #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
-    #expect(host.setTestAgentActivity(.pi(.idle), for: secondPane.paneID))
-    _ = try host.notifyStructuredAgent(
-      TerminalNotifyRequest(
-        body: "Done.",
-        target: .pane(secondPane.paneID),
-        title: "Claude Code"
-      ),
-      semantic: .completion
+    #expect(
+      applyScreenPhases(
+        [.running, .idle],
+        to: host,
+        surfaceID: secondPane.paneID,
+        processIdentity: TerminalAgentProcessIdentity(
+          processID: 42,
+          startTimeMicroseconds: 1
+        )
+      )
     )
 
     #expect(host.tabAgentPresentation(for: tabID).status == .done)
@@ -200,20 +162,6 @@ struct TerminalHostStateAgentPresentationTests {
     host.selectTab(tabID)
 
     #expect(host.tabAgentPresentation(for: tabID).status == nil)
-    #expect(host.unreadNotificationCount(for: tabID) == 0)
-  }
-
-  @Test
-  func backgroundNativeCompletionShowsDoneWithoutNotification() throws {
-    let host = makeHost()
-    let tabID = try #require(host.selectedTabID)
-    let surface = try #require(host.selectedSurfaceView)
-
-    #expect(host.setTestAgentActivity(.pi(.running), for: surface.id))
-    _ = host.createTab(inheritingFromSurfaceID: nil)
-
-    #expect(host.setTestAgentActivity(.pi(.idle), for: surface.id))
-    #expect(host.tabAgentPresentation(for: tabID).status == .done)
     #expect(host.unreadNotificationCount(for: tabID) == 0)
   }
 
@@ -293,32 +241,6 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
-  func latestAgentResponseFollowsFocusedPaneOnly() throws {
-    let host = makeHost()
-    let tabID = try #require(host.selectedTabID)
-    let firstSurface = try #require(host.selectedSurfaceView)
-    let secondPane = try host.createPane(
-      TerminalCreatePaneRequest(
-        startupCommand: nil,
-        direction: .right,
-        focus: false,
-        equalize: true,
-        target: .pane(firstSurface.id)
-      )
-    )
-
-    #expect(host.setTestAgentActivity(.pi(.idle), for: firstSurface.id))
-    #expect(host.setTestAgentResponse("Focused response", for: firstSurface.id))
-    #expect(host.setTestAgentActivity(.pi(.idle), for: secondPane.paneID))
-    #expect(host.setTestAgentResponse("Background response", for: secondPane.paneID))
-    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Focused response")
-
-    _ = try host.focusPane(TerminalPaneTarget(paneID: secondPane.paneID))
-
-    #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == "Background response")
-  }
-
-  @Test
   func tabAgentPresentationShowsFocusedInputStatus() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
@@ -360,7 +282,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(
       host.setTestAgentActivity(
-        .pi(.running, detail: "Focused detail"),
+        .codex(.running, detail: "Focused detail"),
         for: firstSurface.id
       )
     )
@@ -369,7 +291,7 @@ struct TerminalHostStateAgentPresentationTests {
 
     host.performCloseSurface(secondPane.paneID)
 
-    #expect(host.agentActivity(for: tabID) == .pi(.running, detail: "Focused detail"))
+    #expect(host.agentActivity(for: tabID) == .codex(.running))
     #expect(host.showsAgentActivityDetail(for: tabID))
   }
 
@@ -378,12 +300,12 @@ struct TerminalHostStateAgentPresentationTests {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
-    #expect(host.setTestAgentActivity(.pi(.running, detail: "Thinking"), for: surface.id))
+    #expect(host.setTestAgentActivity(.codex(.running, detail: "Thinking"), for: surface.id))
     #expect(host.setTestAgentResponse("Thinking", for: surface.id))
 
     surface.bridge.onCommandFinished?()
 
-    #expect(host.agentActivity(for: tabID) == .pi(.idle))
+    #expect(host.agentActivity(for: tabID) == .codex(.idle))
     #expect(host.tabAgentPresentation(for: tabID).status == .done)
     #expect(host.tabAgentPresentation(for: tabID).latestResponse?.text == nil)
   }

@@ -13,8 +13,6 @@ struct StartupAgentIntegrationRefresherTests {
       operations: [
         operation(.claude, health: .partial, capture: capture),
         operation(.codex, health: .drifted, capture: capture),
-        operation(.pi, health: .drifted, capture: capture),
-        operation(.pi, health: .absent, capture: capture),
         operation(.claude, health: .healthy, capture: capture),
         operation(.codex, health: .unavailable, capture: capture),
         operation(.claude, health: .unavailableInstalled, capture: capture),
@@ -26,7 +24,7 @@ struct StartupAgentIntegrationRefresherTests {
 
     refresher.repairIntegrations()
 
-    #expect(capture.repairedAgents() == [.claude, .codex, .pi])
+    #expect(capture.repairedAgents() == [.claude, .codex])
     #expect(capture.failedAgents().isEmpty)
   }
 
@@ -53,51 +51,6 @@ struct StartupAgentIntegrationRefresherTests {
 
     #expect(capture.failedAgents() == [.claude])
     #expect(capture.repairedAgents() == [.codex])
-  }
-
-  @Test
-  func preservesLocalPiDevelopmentPackage() throws {
-    let homeDirectoryURL = try FileManager.default.url(
-      for: .itemReplacementDirectory,
-      in: .userDomainMask,
-      appropriateFor: FileManager.default.temporaryDirectory,
-      create: true
-    )
-    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let settingsURL = PiSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    try FileManager.default.createDirectory(
-      at: settingsURL.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try Data(
-      #"{"packages":["../../code/supaterm/integrations/supaterm-skills"]}"#.utf8
-    ).write(to: settingsURL)
-    let capture = StartupAgentIntegrationRefreshCapture()
-    let refresher = StartupAgentIntegrationRefresher(
-      operations: [
-        Operation(
-          agent: .pi,
-          health: {
-            try PiSettingsInstaller(
-              homeDirectoryURL: homeDirectoryURL,
-              checkPiAvailable: { true },
-              runPiCommand: { _, _ in PiSettingsInstaller.CommandResult(status: 0) }
-            ).integrationHealth()
-          },
-          repair: {
-            capture.recordRepair(.pi)
-          }
-        )
-      ],
-      logFailure: { agent, _ in
-        capture.recordFailure(agent)
-      }
-    )
-
-    refresher.repairIntegrations()
-
-    #expect(capture.repairedAgents().isEmpty)
-    #expect(capture.failedAgents().isEmpty)
   }
 
   private func operation(

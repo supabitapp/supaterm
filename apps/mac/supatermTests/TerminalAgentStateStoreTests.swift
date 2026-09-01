@@ -97,7 +97,6 @@ struct TerminalAgentStateStoreTests {
       )
     )
     let before = store.snapshots(for: boundSurfaceID)
-    let authority = store.phaseAuthorityProcessIdentities(for: boundSurfaceID)
 
     let acceptedRoot = store.apply(
       event(
@@ -126,8 +125,6 @@ struct TerminalAgentStateStoreTests {
     #expect(!acceptedChild)
     #expect(store.snapshots(for: boundSurfaceID) == before)
     #expect(store.snapshots(for: otherSurfaceID).isEmpty)
-    #expect(store.phaseAuthorityProcessIdentities(for: boundSurfaceID) == authority)
-    #expect(store.phaseAuthorityProcessIdentities(for: otherSurfaceID).isEmpty)
   }
 
   @Test
@@ -160,8 +157,6 @@ struct TerminalAgentStateStoreTests {
     #expect(store.snapshots(for: secondSurfaceID).count == 1)
     #expect(store.presentation(for: firstSurfaceID, agent: .codex) == nil)
     #expect(store.presentation(for: secondSurfaceID, agent: .codex)?.sessionID == "session-1")
-    #expect(store.phaseAuthorityProcessIdentities(for: firstSurfaceID).isEmpty)
-    #expect(store.phaseAuthorityProcessIdentities(for: secondSurfaceID).isEmpty)
   }
 
   @Test

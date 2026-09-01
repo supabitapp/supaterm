@@ -130,7 +130,6 @@ nonisolated struct TerminalAgentStateStore {
     var latestResponse: String?
     var hasPendingBackgroundWork = false
     var isActionable = false
-    var nativeHookProcessIdentity: TerminalAgentProcessIdentity?
     var phase = AgentActivityPhase.idle
     var processes: Set<TerminalAgentProcessIdentity> = []
     var progressRows: [PaneAgentProgressRow] = []
@@ -272,9 +271,6 @@ nonisolated struct TerminalAgentStateStore {
     {
       state.processes = state.processes.filter { $0.processID != processID }
       state.processes.insert(identity)
-      if event.scope.subagentID == nil {
-        state.nativeHookProcessIdentity = identity
-      }
     }
   }
 
@@ -309,7 +305,7 @@ nonisolated struct TerminalAgentStateStore {
         ] = event.scope.sessionID
       }
       if case .sessionStarted = event.action {
-        state.isActionable = event.scope.agent != .pi
+        state.isActionable = true
       }
     case .turnStarted:
       startTurn(event.scope.turnID, state: &state)
@@ -630,24 +626,6 @@ nonisolated struct TerminalAgentStateStore {
     sessions[SessionKey(agent: agent, sessionID: sessionID)]?.surfaceID
   }
 
-  func phaseAuthorityProcessIdentities(
-    for surfaceID: UUID,
-    agent: SupatermAgentKind? = nil,
-    sessionID: String? = nil
-  ) -> Set<TerminalAgentProcessIdentity> {
-    Set(
-      sessions.compactMap { key, state in
-        guard key.agent == .pi,
-          state.surfaceID == surfaceID,
-          agent == nil || key.agent == agent,
-          sessionID == nil || key.sessionID == sessionID
-        else {
-          return nil
-        }
-        return state.nativeHookProcessIdentity
-      })
-  }
-
   func snapshots(for surfaceID: UUID) -> [TerminalAgentStateSnapshot] {
     sessions.compactMap { key, state in
       guard state.surfaceID == surfaceID else { return nil }
@@ -722,13 +700,7 @@ nonisolated struct TerminalAgentStateStore {
     for key in keys {
       guard var state = sessions[key], !state.processes.isEmpty else { continue }
       let currentProcesses = Set(state.processes.filter(isProcessCurrent))
-      let currentNativeHookProcessIdentity = state.nativeHookProcessIdentity.flatMap {
-        currentProcesses.contains($0) ? $0 : nil
-      }
-      guard
-        currentProcesses != state.processes
-          || currentNativeHookProcessIdentity != state.nativeHookProcessIdentity
-      else {
+      guard currentProcesses != state.processes else {
         continue
       }
       if let surfaceID = state.surfaceID {
@@ -738,7 +710,6 @@ nonisolated struct TerminalAgentStateStore {
         clearSession(agent: key.agent, sessionID: key.sessionID)
       } else {
         state.processes = currentProcesses
-        state.nativeHookProcessIdentity = currentNativeHookProcessIdentity
         store(state, for: key)
       }
     }

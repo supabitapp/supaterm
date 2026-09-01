@@ -4,14 +4,9 @@ import Testing
 
 private let piE2EBinaryURL = ProcessInfo.processInfo.environment["PI_E2E_BINARY"]
   .flatMap { path in path.isEmpty ? nil : URL(fileURLWithPath: path) }
-private let piE2EPackageURL = ProcessInfo.processInfo.environment["PI_E2E_PACKAGE"]
-  .flatMap { path in path.isEmpty ? nil : URL(fileURLWithPath: path, isDirectory: true) }
 let piE2EEnabled =
   piE2EBinaryURL
   .map { FileManager.default.isExecutableFile(atPath: $0.path) } == true
-  && piE2EPackageURL
-    .map { FileManager.default.fileExists(atPath: $0.appendingPathComponent("package.json").path) }
-    == true
 
 @Suite(.enabled(if: piE2EEnabled, "Run through make mac-test-e2e."))
 struct PiE2ETests {
@@ -19,12 +14,6 @@ struct PiE2ETests {
   func screenRulesTrackLifecycleAndInterruptKeys() async throws {
     try await runPiLifecycle(mode: .screenRules)
   }
-
-  @Test(.timeLimit(.minutes(5)))
-  func nativeIntegrationOwnsLifecycleAndInterruptAttention() async throws {
-    try await runPiLifecycle(mode: .nativeIntegration)
-  }
-
 }
 
 @Suite(.enabled(if: piE2EEnabled, "Run through make mac-test-e2e."))
@@ -36,13 +25,8 @@ struct PiZmxE2ETests {
 }
 
 private enum PiE2EMode {
-  case nativeIntegration
   case screenRules
   case zmxScreenRules
-
-  var usesNativeIntegration: Bool {
-    self == .nativeIntegration
-  }
 
   var zmxSessionsEnabled: Bool {
     self == .zmxScreenRules
@@ -51,7 +35,6 @@ private enum PiE2EMode {
 
 private struct PiE2EEnvironment {
   let executable: URL
-  let package: URL
   let pathDirectories: [URL]
 
   init() throws {
@@ -61,18 +44,10 @@ private struct PiE2EEnvironment {
     guard FileManager.default.isExecutableFile(atPath: executable.path) else {
       throw SupatermE2EError("Pi is not executable at \(executable.path).")
     }
-    guard let package = piE2EPackageURL else {
-      throw SupatermE2EError("Missing PI_E2E_PACKAGE.")
-    }
-    guard FileManager.default.fileExists(atPath: package.appendingPathComponent("package.json").path)
-    else {
-      throw SupatermE2EError("Pi package is missing at \(package.path).")
-    }
     guard let nodeDirectory = Self.nodeDirectory() else {
       throw SupatermE2EError("Pi E2E requires node in PATH.")
     }
     self.executable = executable
-    self.package = package
     self.pathDirectories = [executable.deletingLastPathComponent(), nodeDirectory]
   }
 
@@ -91,24 +66,18 @@ private struct PiE2EEnvironment {
 private final class PiE2EFixture {
   let app: SupatermE2EApp
   let initialProcess: SupatermAppDebugSnapshot.AgentProcess
-  let mode: PiE2EMode
   let server: FakeModelServer
-  let sessionID: String?
   let space: TestSpace
 
   private init(
     app: SupatermE2EApp,
     initialProcess: SupatermAppDebugSnapshot.AgentProcess,
-    mode: PiE2EMode,
     server: FakeModelServer,
-    sessionID: String?,
     space: TestSpace
   ) {
     self.app = app
     self.initialProcess = initialProcess
-    self.mode = mode
     self.server = server
-    self.sessionID = sessionID
     self.space = space
   }
 
@@ -126,43 +95,29 @@ private final class PiE2EFixture {
       let agentDirectory = app.cliHome.appendingPathComponent(".pi/agent", isDirectory: true)
       try writePiConfig(
         agentDirectory: agentDirectory,
-        baseURL: startedServer.baseURL,
-        mode: mode,
-        package: environment.package
+        baseURL: startedServer.baseURL
       )
       try app.type(
         makePiCommand(
           agentDirectory: agentDirectory,
-          executable: environment.executable,
-          mode: mode
+          executable: environment.executable
         ) + "\n",
         into: space.pane
       )
       try await app.waitForCapture(space.pane, contains: "Pi can explain its own features", timeout: 60)
-      let initialPhase: SupatermAppDebugSnapshot.AgentPhase =
-        mode.usesNativeIntegration ? .idle : .unknown
       let initial = try await waitForPiAgent(
         app,
-        mode: mode,
-        phase: initialPhase,
+        phase: .unknown,
         paneID: space.tab.paneID
       )
       let initialProcess = try requireValue(
         initial.process,
         "Pi detection has no process identity."
       )
-      let sessionID = try await waitForPiSession(
-        app,
-        mode: mode,
-        paneID: space.tab.paneID,
-        phase: initialPhase
-      )
       return PiE2EFixture(
         app: app,
         initialProcess: initialProcess,
-        mode: mode,
         server: startedServer,
-        sessionID: sessionID,
         space: space
       )
     } catch {
@@ -187,20 +142,11 @@ private final class PiE2EFixture {
     }
     let agent = try await waitForPiAgent(
       app,
-      mode: mode,
       phase: phase,
       paneID: space.tab.paneID,
       timeout: timeout
     )
     #expect(agent.process == initialProcess)
-    let currentSessionID = try await waitForPiSession(
-      app,
-      mode: mode,
-      paneID: space.tab.paneID,
-      phase: phase,
-      timeout: timeout
-    )
-    #expect(currentSessionID == sessionID)
   }
 }
 
@@ -230,18 +176,11 @@ private func runPiCompletedTurn(_ fixture: PiE2EFixture) async throws {
     try fixture.app.capture(fixture.space.pane)
       .components(separatedBy: completion).count > echoedCompletionCount
   }
-  try await fixture.expect(fixture.mode.usesNativeIntegration ? .idle : .unknown)
-
-  if fixture.mode.usesNativeIntegration {
-    try await fixture.app.waitUntil("Pi publishes its exact completion", timeout: 30) {
-      try fixture.app.debugTab(fixture.space.tab.tabID)?.latestNotificationText == completion
-    }
-  }
+  try await fixture.expect(.unknown)
 }
 
 private func runPiEscapeTurn(_ fixture: PiE2EFixture) async throws {
   try await startPiBashTurn(fixture, name: "escape")
-  try await primePiInterruptNotification(fixture, name: "escape")
   try fixture.app.press(.escape, in: fixture.space.pane)
   try await expectPiInterruptedTurn(fixture)
 }
@@ -251,7 +190,6 @@ private func runPiCtrlCTurn(_ fixture: PiE2EFixture) async throws {
   let draft = "PI_CTRL_C_DRAFT_\(fixture.space.token)"
   try fixture.app.type(draft, into: fixture.space.pane)
   try await fixture.app.waitForCapture(fixture.space.pane, contains: draft, timeout: 5)
-  try await primePiInterruptNotification(fixture, name: "ctrl-c")
   try fixture.app.press(.ctrlC, in: fixture.space.pane)
   try await fixture.app.waitUntil("one Ctrl+C clears Pi's draft", timeout: 5) {
     try !fixture.app.capture(fixture.space.pane).contains(draft)
@@ -263,21 +201,6 @@ private func runPiCtrlCTurn(_ fixture: PiE2EFixture) async throws {
   try await fixture.expect(.running, timeout: 5)
   try fixture.app.press(.escape, in: fixture.space.pane)
   try await expectPiInterruptedTurn(fixture)
-}
-
-private func primePiInterruptNotification(
-  _ fixture: PiE2EFixture,
-  name: String
-) async throws {
-  guard fixture.mode.usesNativeIntegration else { return }
-  let baseline = "PI_\(name.uppercased())_BASELINE_\(fixture.space.token)"
-  _ = try fixture.app.send(
-    .notify(SupatermNotifyRequest(body: baseline, paneID: fixture.space.tab.paneID)),
-    as: SupatermNotifyResult.self
-  )
-  try await fixture.app.waitUntil("Pi's \(name) notification baseline is current", timeout: 5) {
-    try fixture.app.debugTab(fixture.space.tab.tabID)?.latestNotificationText == baseline
-  }
 }
 
 private func startPiBashTurn(_ fixture: PiE2EFixture, name: String) async throws {
@@ -296,28 +219,19 @@ private func startPiBashTurn(_ fixture: PiE2EFixture, name: String) async throws
 }
 
 private func expectPiInterruptedTurn(_ fixture: PiE2EFixture) async throws {
-  if fixture.mode.usesNativeIntegration {
-    try await fixture.expect(.needsInput, timeout: 15)
-    try await fixture.app.waitUntil("Pi publishes interruption attention", timeout: 15) {
-      try fixture.app.debugTab(fixture.space.tab.tabID)?.latestNotificationText
-        == "Operation aborted"
-    }
-  } else {
-    try await fixture.expect(.unknown, timeout: 15)
-  }
+  try await fixture.expect(.unknown, timeout: 15)
 }
 
 private func stopPi(_ fixture: PiE2EFixture) async throws {
   try fixture.app.press(.ctrlD, in: fixture.space.pane)
   try await fixture.app.waitForShellPrompt(fixture.space.pane)
-  try await fixture.app.waitUntil("Pi clears its process and native session", timeout: 15) {
+  try await fixture.app.waitUntil("Pi clears its process", timeout: 15) {
     try fixture.app.debugPane(fixture.space.tab.paneID)?.agent == nil
   }
 }
 
 private func waitForPiAgent(
   _ app: SupatermE2EApp,
-  mode: PiE2EMode,
   phase: SupatermAppDebugSnapshot.AgentPhase,
   paneID: UUID,
   timeout: TimeInterval = 90
@@ -327,9 +241,9 @@ private func waitForPiAgent(
     paneID: paneID,
     kind: .pi,
     phase: phase,
-    phaseSource: mode.usesNativeIntegration ? .native : .screen,
-    status: mode.usesNativeIntegration ? .nativeAuthority : .resolved,
-    ruleIDs: mode.usesNativeIntegration ? nil : piScreenRuleIDs(for: phase),
+    phaseSource: .screen,
+    status: .resolved,
+    ruleIDs: piScreenRuleIDs(for: phase),
     timeout: timeout
   )
 }
@@ -341,35 +255,6 @@ private func piScreenRuleIDs(for phase: SupatermAppDebugSnapshot.AgentPhase) -> 
   case .idle: nil
   case .needsInput: nil
   }
-}
-
-private func waitForPiSession(
-  _ app: SupatermE2EApp,
-  mode: PiE2EMode,
-  paneID: UUID,
-  phase: SupatermAppDebugSnapshot.AgentPhase,
-  timeout: TimeInterval = 90
-) async throws -> String? {
-  if !mode.usesNativeIntegration {
-    try await app.waitUntil("screen-only Pi has no native session", timeout: timeout) {
-      try app.debugPane(paneID)?.agent?.sessionID == nil
-    }
-    return nil
-  }
-
-  var sessionID: String?
-  try await app.waitUntil("native Pi session reaches \(phase.rawValue)", timeout: timeout) {
-    guard
-      let agent = try app.debugPane(paneID)?.agent,
-      let boundSessionID = agent.sessionID
-    else {
-      return false
-    }
-    guard agent.kind == .pi, agent.phase == phase else { return false }
-    sessionID = boundSessionID
-    return true
-  }
-  return try requireValue(sessionID, "Pi native integration produced no session ID.")
 }
 
 private enum PiFakeCallID {
@@ -407,9 +292,7 @@ private func makePiScript(_ space: TestSpace) -> [FakeModelExchange] {
 
 private func writePiConfig(
   agentDirectory: URL,
-  baseURL: String,
-  mode: PiE2EMode,
-  package: URL
+  baseURL: String
 ) throws {
   try FileManager.default.createDirectory(at: agentDirectory, withIntermediateDirectories: true)
   let models: [String: Any] = [
@@ -431,11 +314,7 @@ private func writePiConfig(
       ]
     ]
   ]
-  let settings: [String: Any] = [
-    "packages": mode.usesNativeIntegration ? [package.path] : []
-  ]
   try writePiJSON(models, to: agentDirectory.appendingPathComponent("models.json"))
-  try writePiJSON(settings, to: agentDirectory.appendingPathComponent("settings.json"))
 }
 
 func makePiNarrowTabFixture(
@@ -456,16 +335,13 @@ func makePiNarrowTabFixture(
     let agentDirectory = app.cliHome.appendingPathComponent(".pi/agent", isDirectory: true)
     try writePiConfig(
       agentDirectory: agentDirectory,
-      baseURL: server.baseURL,
-      mode: .screenRules,
-      package: environment.package
+      baseURL: server.baseURL
     )
     let pane = SupatermPaneTargetRequest(paneID: tab.paneID)
     try app.type(
       makePiCommand(
         agentDirectory: agentDirectory,
-        executable: environment.executable,
-        mode: .screenRules
+        executable: environment.executable
       ) + "\n",
       into: pane
     )
@@ -477,7 +353,6 @@ func makePiNarrowTabFixture(
     }
     _ = try await waitForPiAgent(
       app,
-      mode: .screenRules,
       phase: .unknown,
       paneID: tab.paneID
     )
@@ -504,10 +379,9 @@ func piE2EPathDirectories() throws -> [URL] {
 
 private func makePiCommand(
   agentDirectory: URL,
-  executable: URL,
-  mode: PiE2EMode
+  executable: URL
 ) -> String {
-  var arguments = [
+  let arguments = [
     "/usr/bin/env",
     "PI_CODING_AGENT_DIR=\(agentDirectory.path)",
     "PI_OFFLINE=1",
@@ -524,14 +398,12 @@ private func makePiCommand(
     "--tools",
     "bash",
     "--no-context-files",
+    "--no-extensions",
     "--no-prompt-templates",
     "--no-skills",
     "--no-themes",
     "--no-session",
   ]
-  if !mode.usesNativeIntegration {
-    arguments.append("--no-extensions")
-  }
   return SupatermShellCommand.escapedCommand(arguments)
 }
 

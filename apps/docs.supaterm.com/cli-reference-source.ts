@@ -3,7 +3,7 @@ import type { ContentSource, SourceEntry } from "blume/sources/types.ts";
 
 const titlePattern = /^# (?<title>[^\r\n]+)\r?\n(?:\r?\n)?/u;
 
-const prepareEntry = (entry: SourceEntry, skillsRef: string): SourceEntry => {
+const prepareEntry = (entry: SourceEntry, repositoryRef: string): SourceEntry => {
   const match = titlePattern.exec(entry.body.text);
   const title = match?.groups?.title;
   if (!match || !title) {
@@ -19,14 +19,14 @@ const prepareEntry = (entry: SourceEntry, skillsRef: string): SourceEntry => {
       text: body,
     },
     data: { ...entry.data, title },
-    editUrl: `https://github.com/supabitapp/supaterm-skills/edit/${skillsRef}/skill-data/core/references/${entry.ref}`,
+    editUrl: `https://github.com/supabitapp/supaterm/edit/${repositoryRef}/integrations/supaterm/skill-data/core/references/${entry.ref}`,
     raw: `---\ntitle: ${JSON.stringify(title)}\n---\n\n${body}`,
   };
 };
 
 export const makeCliReferenceSource = (
   repositoryRoot: string,
-  skillsRef: string,
+  repositoryRef: string,
 ): ContentSource => {
   const files = filesystemSource({
     exclude: [],
@@ -34,7 +34,7 @@ export const makeCliReferenceSource = (
     name: "cli-reference",
     prefix: "guides/cli/reference",
     projectRoot: repositoryRoot,
-    root: "integrations/supaterm-skills/skill-data/core/references",
+    root: "integrations/supaterm/skill-data/core/references",
   });
 
   return {
@@ -42,7 +42,7 @@ export const makeCliReferenceSource = (
       const result = await files.load();
       return {
         ...result,
-        entries: result.entries.map((entry) => prepareEntry(entry, skillsRef)),
+        entries: result.entries.map((entry) => prepareEntry(entry, repositoryRef)),
       };
     },
     name: files.name,

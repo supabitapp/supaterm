@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supaterm"
+  short_description: "Control Supaterm spaces, tabs, panes, and agents"
+  default_prompt: "Use $supaterm and load the bundled guide with `sp skills get core` before controlling Supaterm."

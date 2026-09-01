@@ -109,7 +109,6 @@ private func makeSettingsWindowController(
     $0.codexSettingsClient.integrationHealth = { .absent }
     $0.defaultFileStorage = .inMemory
     $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
-    $0.piSettingsClient.integrationHealth = { .absent }
     $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
   } operation: {
     let runtime = LicenseRuntime.preview()

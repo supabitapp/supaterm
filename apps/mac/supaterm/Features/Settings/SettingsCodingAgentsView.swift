@@ -14,7 +14,7 @@ struct SettingsCodingAgentsView: View {
     case .codex:
       return store.codexIntegration
     case .pi:
-      return store.piIntegration
+      preconditionFailure("Pi has no managed integration")
     }
   }
 
@@ -43,7 +43,7 @@ struct SettingsCodingAgentsView: View {
       }
 
       Section {
-        ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
+        ForEach(SupatermAgentKind.managedIntegrationCases, id: \.self) { agent in
           let integration = integration(for: agent)
           SettingsAgentListRow(
             agent: agent,
@@ -55,9 +55,16 @@ struct SettingsCodingAgentsView: View {
         }
       } footer: {
         VStack(alignment: .leading, spacing: 8) {
+          Text("Pi uses terminal detection. Claude, Codex, and Pi read the shared skill at ~/.agents/skills/supaterm.")
+
+          Text("Install or refresh it with: sp skills install")
+            .font(.caption.monospaced())
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+
           Text("Supaterm installs coding-agent hooks into these paths:")
 
-          ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
+          ForEach(SupatermAgentKind.managedIntegrationCases, id: \.self) { agent in
             Text(agent.settingsInstallDescription)
               .font(.caption.monospaced())
               .foregroundStyle(.secondary)

@@ -29,32 +29,14 @@ extension TerminalHostState {
           resolvedState.currentInstance.flatMap(debugCessationAgent)
         )
       }
-      let observation = agentDetectionStore.observation(for: surfaceID)
-      let phaseAuthority = candidate.phaseAuthorityProcessIdentities
-      let exactAuthorityProcess =
-        explanation.processIdentity.flatMap { processIdentity in
-          phaseAuthority.contains(processIdentity)
-            ? processIdentity
-            : nil
-        }
-        ?? observation.flatMap { observation in
-          phaseAuthority.contains(observation.processIdentity)
-            ? observation.processIdentity
-            : nil
-        }
-      let singleAuthorityProcess =
-        phaseAuthority.count == 1
-        ? phaseAuthority.first
-        : nil
-      let processIdentity = exactAuthorityProcess ?? singleAuthorityProcess
       return (
-        phaseAuthority.isEmpty ? screenStatus : .nativeAuthority,
+        screenStatus,
         SupatermAppDebugSnapshot.Agent(
           kind: candidate.presentation.agent,
           phase: debugAgentPhase(candidate.presentation.phase),
           phaseSource: .native,
           sessionID: candidate.presentation.sessionID,
-          process: processIdentity.map(debugAgentProcess)
+          process: nil
         )
       )
     case .terminal(let observation, let nativeDetails):
@@ -117,7 +99,6 @@ extension TerminalHostState {
     switch status {
     case .detected: .resolved
     case .disabled: .detectionDisabled
-    case .nativeAuthority: .nativeAuthority
     case .noForegroundProcess: .noForegroundProcess
     case .noRuleMatchOrSettling: .noRuleMatchOrSettling
     case .protectedOrUnreadableScreen: .screenUnavailable

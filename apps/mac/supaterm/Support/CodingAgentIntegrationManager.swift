@@ -3,11 +3,14 @@ import SupatermCLIShared
 
 public enum CodingAgentIntegrationManagerError: Error, Equatable, LocalizedError, Sendable {
   case busy(SupatermAgentKind)
+  case unsupported(SupatermAgentKind)
 
   public var errorDescription: String? {
     switch self {
     case .busy(let agent):
       return "Supaterm is already working on the \(agent.notificationTitle) integration. Try again in a moment."
+    case .unsupported(let agent):
+      return "Supaterm does not manage a \(agent.notificationTitle) integration."
     }
   }
 }
@@ -28,17 +31,14 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
   private let claude: Entry
   private let codex: Entry
   private let coordinationTimeout: TimeInterval
-  private let pi: Entry
 
   init(
     claude: Integration,
     codex: Integration,
-    pi: Integration,
     coordinationTimeout: TimeInterval = SupatermAgentIntegrationTiming.coordinationTimeout
   ) {
     self.claude = Entry(integration: claude, lock: NSLock())
     self.codex = Entry(integration: codex, lock: NSLock())
-    self.pi = Entry(integration: pi, lock: NSLock())
     self.coordinationTimeout = coordinationTimeout
   }
 
@@ -90,20 +90,6 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
         remove: {
           try CodexSettingsInstaller(homeDirectoryURL: homeDirectoryURL()).removeSupatermHooks()
         }
-      ),
-      pi: Integration(
-        setup: {
-          try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL()).setup()
-        },
-        health: {
-          try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL()).integrationHealth()
-        },
-        repair: {
-          try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL()).installSupatermPackage()
-        },
-        remove: {
-          try PiSettingsInstaller(homeDirectoryURL: homeDirectoryURL()).removeSupatermPackage()
-        }
       )
     )
   }()
@@ -127,7 +113,9 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
     for agent: SupatermAgentKind,
     _ operation: (Integration) throws -> Result
   ) throws -> Result {
-    let entry = entry(for: agent)
+    guard let entry = entry(for: agent) else {
+      throw CodingAgentIntegrationManagerError.unsupported(agent)
+    }
     guard entry.lock.lock(before: Date(timeIntervalSinceNow: coordinationTimeout)) else {
       throw CodingAgentIntegrationManagerError.busy(agent)
     }
@@ -135,14 +123,14 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
     return try operation(entry.integration)
   }
 
-  private func entry(for agent: SupatermAgentKind) -> Entry {
+  private func entry(for agent: SupatermAgentKind) -> Entry? {
     switch agent {
     case .claude:
       claude
     case .codex:
       codex
     case .pi:
-      pi
+      nil
     }
   }
 }

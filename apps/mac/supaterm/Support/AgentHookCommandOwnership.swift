@@ -7,7 +7,7 @@ enum AgentHookCommandOwnership {
       return false
     }
     let normalizedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
-    return SupatermAgentKind.allCases.contains {
+    return SupatermAgentKind.managedIntegrationCases.contains {
       normalizedCommand == SupatermManagedHookCommand.receiveHookCommand(for: $0)
     }
   }

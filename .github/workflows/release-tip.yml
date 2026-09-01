@@ -17,10 +17,10 @@ on:
       - "apps/Tuist.mk"
       - "apps/Tuist.swift"
       - "apps/Tuist/**"
-      - "integrations/supaterm-skills"
       - "Makefile"
       - "mise.toml"
       - "!**/*.md"
+      - "integrations/supaterm/**"
 
 concurrency:
   group: release-tip

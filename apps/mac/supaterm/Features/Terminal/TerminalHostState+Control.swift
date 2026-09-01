@@ -1051,9 +1051,7 @@ extension TerminalHostState {
         attentionState
       }
     let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(
-      allowDesktopNotificationWhenAgentActive: request.allowDesktopNotificationWhenAgentActive,
-      isFocused: selectionState.isFocused,
-      tabID: resolvedTarget.tabID
+      isFocused: selectionState.isFocused
     )
     let resolvedTitle = resolvedNotificationTitle(
       request.title,

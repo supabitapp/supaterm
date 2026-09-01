@@ -34,7 +34,6 @@ E2E_AGENT ?= none
 CODEX_E2E_TOOL := codex@0.150.1
 CLAUDE_E2E_TOOL := npm:@anthropic-ai/claude-code-darwin-arm64@2.1.235
 PI_E2E_TOOL := npm:@mariozechner/pi-coding-agent@0.73.1
-SUPATERM_SKILLS_DIR := $(abspath $(CURRENT_MAKEFILE_DIR)/../../integrations/supaterm-skills)
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 APP_RUN_ENV := SUPATERM_VERBOSE_LOGGING=1
 RUN_STATE_ROOT := $(CURRENT_MAKEFILE_DIR)/.build/run-state
@@ -175,7 +174,6 @@ test-e2e-xcodebuild:
 	codex_binary=""; \
 	claude_binary=""; \
 	pi_binary=""; \
-	pi_package=""; \
 	if includes_agent codex; then \
 		codex_binary="$${CODEX_E2E_BINARY:-$$(mise x "$(CODEX_E2E_TOOL)" -- which codex)}"; \
 		test -x "$$codex_binary" || exit 1; \
@@ -194,10 +192,8 @@ test-e2e-xcodebuild:
 	if includes_agent pi; then \
 		pi_binary="$${PI_E2E_BINARY:-$$(mise x "$(PI_E2E_TOOL)" -- which pi)}"; \
 		test -x "$$pi_binary" || exit 1; \
-		pi_package="$${PI_E2E_PACKAGE:-$(SUPATERM_SKILLS_DIR)}"; \
-		test -f "$$pi_package/extensions/pi-notify-supaterm/index.ts" || exit 1; \
 	fi; \
-	xcodebuild_command=(xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" PI_E2E_PACKAGE="$$pi_package" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
+	xcodebuild_command=(xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
 	if [ -t 1 ]; then \
 		"$${xcodebuild_command[@]}" 2>&1 | mise exec -- xcbeautify --disable-logging; \
 	else \
