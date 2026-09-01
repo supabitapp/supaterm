@@ -1,4 +1,5 @@
 import AppKit
+import Clocks
 import GhosttyKit
 import Observation
 import SupatermCLIShared
@@ -244,8 +245,11 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
-  func setTitleDebouncesWithoutClearingManualTitleOverride() async throws {
-    let bridge = GhosttySurfaceBridge()
+  func setTitleDebouncesWithoutClearingManualTitleOverride() async {
+    let clock = TestClock()
+    let bridge = GhosttySurfaceBridge(
+      titleChangeSleep: { try await clock.sleep(for: $0) }
+    )
     bridge.state.titleOverride = "Pinned"
     var titlePublishCount = 0
     bridge.onTitleChange = { titlePublishCount += 1 }
@@ -260,24 +264,27 @@ struct GhosttySurfaceBridgeTests {
 
     #expect(bridge.handleAction(target: target, action: action))
     #expect(bridge.state.title == nil)
-    try await Task.sleep(for: .milliseconds(100))
+    await advanceClock(clock, by: .milliseconds(75))
     #expect(bridge.state.title == "sleep 10")
     #expect(bridge.state.titleOverride == "Pinned")
     #expect(titlePublishCount == 0)
   }
 
   @Test
-  func titleDebounceKeepsOnlyTheLatestTerminalTitle() async throws {
-    let bridge = GhosttySurfaceBridge()
+  func titleDebounceKeepsOnlyTheLatestTerminalTitle() async {
+    let clock = TestClock()
+    let bridge = GhosttySurfaceBridge(
+      titleChangeSleep: { try await clock.sleep(for: $0) }
+    )
 
     bridge.setTitle("first")
-    try await Task.sleep(for: .milliseconds(50))
+    await advanceClock(clock, by: .milliseconds(50))
     bridge.setTitle("second")
-    try await Task.sleep(for: .milliseconds(50))
+    await advanceClock(clock, by: .milliseconds(74))
 
     #expect(bridge.state.title == nil)
 
-    try await Task.sleep(for: .milliseconds(50))
+    await advanceClock(clock, by: .milliseconds(1))
 
     #expect(bridge.state.title == "second")
   }

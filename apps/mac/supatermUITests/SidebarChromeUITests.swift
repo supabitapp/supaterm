@@ -42,16 +42,23 @@ final class SidebarChromeUITests: SupatermUITestCase {
       outline.swipeUp()
     }
 
-    let didRevealInlineNewTab = await wait(for: inlineNewTab) { $0.isHittable }
+    var selectedTabIDBeforeCreation: String?
+    let didRevealInlineNewTab = await wait(for: inlineNewTab) {
+      guard $0.isHittable,
+        let selectedTab = self.sidebarTabRows.allElementsBoundByIndex.first(where: \.isSelected)
+      else {
+        return false
+      }
+      selectedTabIDBeforeCreation = selectedTab.identifier
+      return true
+    }
     XCTAssertTrue(didRevealInlineNewTab)
 
-    let selectedTabID = try XCTUnwrap(
-      sidebarTabRows.allElementsBoundByIndex.first(where: \.isSelected)?.identifier
-    )
+    let previouslySelectedTabID = try XCTUnwrap(selectedTabIDBeforeCreation)
     inlineNewTab.click()
     let didCreateSelectedTab = await wait {
       self.sidebarTabRows.allElementsBoundByIndex.contains {
-        $0.isSelected && $0.identifier != selectedTabID
+        $0.isSelected && $0.identifier != previouslySelectedTabID
       }
     }
     XCTAssertTrue(didCreateSelectedTab)

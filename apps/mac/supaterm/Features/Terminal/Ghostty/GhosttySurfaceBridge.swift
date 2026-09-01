@@ -104,6 +104,7 @@ final class GhosttySurfaceBridge {
   private let findPasteboard: NSPasteboard
   private let sendAction: (Selector) -> Bool
   private let openURL: (URL) -> Bool
+  private let titleChangeSleep: @Sendable (Duration) async throws -> Void
   var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
   var onTitleChange: (() -> Void)?
@@ -135,11 +136,15 @@ final class GhosttySurfaceBridge {
     openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
     sendAction: @escaping (Selector) -> Bool = {
       NSApp.sendAction($0, to: nil, from: nil)
+    },
+    titleChangeSleep: @escaping @Sendable (Duration) async throws -> Void = {
+      try await ContinuousClock().sleep(for: $0)
     }
   ) {
     self.findPasteboard = findPasteboard
     self.openURL = openURL
     self.sendAction = sendAction
+    self.titleChangeSleep = titleChangeSleep
   }
 
   deinit {
@@ -157,9 +162,10 @@ final class GhosttySurfaceBridge {
 
   func setTitle(_ title: String) {
     titleChangeTask?.cancel()
+    let titleChangeSleep = self.titleChangeSleep
     titleChangeTask = Task { [weak self] in
       do {
-        try await Task.sleep(for: .milliseconds(75))
+        try await titleChangeSleep(.milliseconds(75))
       } catch {
         return
       }
