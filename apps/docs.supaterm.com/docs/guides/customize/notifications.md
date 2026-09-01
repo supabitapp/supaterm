@@ -15,14 +15,14 @@ System notifications request the default macOS notification sound. macOS control
 
 ## Notification sounds
 
-When system notifications are off, choose **Settings > Notifications > Notification Sound** to play a native macOS sound without showing a system notification. Choosing a sound previews it. **Never** is the default.
+When system notifications are off, choose **Settings > Notifications > Notification Sound** to play a native macOS sound or **Supaterm Classic** without showing a system notification. Choosing a sound previews it. **Never** is the default.
 
 Local sounds do not pass through Notification Center, so Focus does not silence them. Supaterm plays either a system notification or the selected local sound for an event, never both.
 
 Set the same value from the command line:
 
 ```bash
-sp config set notifications.sound glass
+sp config set notifications.sound supaterm
 ```
 
 ## Glowing Pane Ring

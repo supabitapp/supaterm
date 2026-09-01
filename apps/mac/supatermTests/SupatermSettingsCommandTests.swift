@@ -84,14 +84,14 @@ struct SupatermSettingsCommandTests {
   @Test
   func registrySetsAndResetsNotificationSound() throws {
     let setEdit = try SupatermSettingsRegistry.set(
-      SupatermSettingsSetRequest(key: "notifications.sound", value: "Glass"),
+      SupatermSettingsSetRequest(key: "notifications.sound", value: "Supaterm"),
       settings: .default,
       path: "/tmp/settings.toml"
     )
 
-    #expect(setEdit.settings.notificationSound == .glass)
+    #expect(setEdit.settings.notificationSound == .supatermClassic)
     #expect(setEdit.result.oldValue == "never")
-    #expect(setEdit.result.value == "glass")
+    #expect(setEdit.result.value == "supaterm")
     #expect(!setEdit.result.isDefault)
 
     let resetEdit = try SupatermSettingsRegistry.reset(
@@ -101,7 +101,7 @@ struct SupatermSettingsCommandTests {
     )
 
     #expect(resetEdit.settings.notificationSound == .never)
-    #expect(resetEdit.result.oldValue == "glass")
+    #expect(resetEdit.result.oldValue == "supaterm")
     #expect(resetEdit.result.value == "never")
     #expect(resetEdit.result.isDefault)
   }

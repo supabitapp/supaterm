@@ -366,6 +366,7 @@ let project = Project(
       resources: [
         "supaterm/Assets.xcassets",
         .folderReference(path: "supaterm/Resources/AgentDetection"),
+        "supaterm/Resources/notification.wav",
         "../shared/Resources/supaterm.icon",
       ],
       buildableFolders: [
@@ -724,6 +725,7 @@ let project = Project(
       ]),
       resources: [
         "supaterm/Assets.xcassets",
+        "supaterm/Resources/notification.wav",
         "../shared/Resources/supaterm.icon",
       ],
       buildableFolders: [

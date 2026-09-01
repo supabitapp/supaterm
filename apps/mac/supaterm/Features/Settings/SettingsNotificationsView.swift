@@ -52,9 +52,13 @@ struct SettingsNotificationsView: View {
         .accessibilityIdentifier("settings.notifications.system")
 
         Picker(selection: notificationSound) {
-          ForEach(NotificationSound.allCases) { sound in
+          Text(NotificationSound.never.title).tag(NotificationSound.never)
+          Divider()
+          ForEach(NotificationSound.systemCases) { sound in
             Text(sound.title).tag(sound)
           }
+          Divider()
+          Text(NotificationSound.supatermClassic.title).tag(NotificationSound.supatermClassic)
         } label: {
           SettingsRowLabel(
             title: "Notification Sound",

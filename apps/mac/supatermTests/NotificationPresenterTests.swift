@@ -1,8 +1,18 @@
-import SupatermSupport
 import Testing
+
+@testable import SupatermSupport
 
 @MainActor
 struct NotificationPresenterTests {
+  @Test
+  func bundledSoundHasExpectedSource() {
+    #expect(NotificationSound.supatermClassic.title == "Supaterm Classic")
+    #expect(
+      NotificationSound.supatermClassic.source
+        == .bundled(resource: "notification", fileExtension: "wav")
+    )
+  }
+
   @Test
   func selectsOneOutputForEachDeliveryPolicy() async {
     let recorder = NotificationOutputRecorder()
