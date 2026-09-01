@@ -56,4 +56,24 @@ struct TerminalHostStateSessionChangeTests {
 
     #expect(sessionChangeCount == 0)
   }
+
+  @Test
+  func animatedTitlesDoNotSaveSessionsButManualTitlesDo() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState.test()
+    host.ensureInitialTab(focusing: false, startupCommand: nil)
+    let surface = try #require(host.selectedSurfaceView)
+    var sessionChangeCount = 0
+    host.onSessionChange = { sessionChangeCount += 1 }
+
+    surface.bridge.state.title = "⠋ Working"
+    surface.bridge.publishTitle()
+
+    #expect(sessionChangeCount == 0)
+
+    surface.setTitleOverride("Pinned")
+
+    #expect(sessionChangeCount == 1)
+  }
 }

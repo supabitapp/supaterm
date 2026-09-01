@@ -41,6 +41,30 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
+  func resolvedPaneDisplayTitlePreservesAnimatedActivityIndicator() {
+    let title = TerminalHostState.resolvedPaneDisplayTitle(
+      titleOverride: nil,
+      title: "⠋ Working",
+      pwd: "/tmp/project",
+      defaultValue: "Pane 1"
+    )
+
+    #expect(title == "⠋ Working")
+  }
+
+  @Test
+  func resolvedPaneDisplayTitlePreservesManualActivityIndicator() {
+    let title = TerminalHostState.resolvedPaneDisplayTitle(
+      titleOverride: "⠋ Pinned",
+      title: "⠙ Working",
+      pwd: "/tmp/project",
+      defaultValue: "Pane 1"
+    )
+
+    #expect(title == "⠋ Pinned")
+  }
+
+  @Test
   func resolvedTabDisplayTitleStripsLeadingWorkingDirectoryPrefix() {
     let home = FileManager.default.homeDirectoryForCurrentUser.path
     let pwd = "\(home)/code/github.com/supabitapp/supaterm"

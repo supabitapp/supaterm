@@ -301,7 +301,9 @@ extension TerminalHostState {
     if let titleOverride {
       return titleOverride
     }
-    guard let title = trimmedNonEmpty(title) else { return nil }
+    guard let title = trimmedNonEmpty(title) else {
+      return nil
+    }
     var resolved = strippedLeadingWorkingDirectory(from: title, pwd: pwd) ?? title
     while let stripped = strippedDuplicatedTrailingCommandSuffix(from: resolved),
       stripped != resolved

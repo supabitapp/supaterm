@@ -142,7 +142,35 @@ struct GhosttyAgentDetectionTests {
   }
 
   @Test
-  func rawTitleIgnoresUserOverride() async throws {
+  func activeScreenTextReadsInBackground() async throws {
+    let fixture = try GhosttyAgentDetectionFixture(
+      command: #"/bin/sh -c 'printf "background-screen-marker"; cat'"#
+    )
+    defer { fixture.close() }
+
+    _ = try #require(
+      try await waitForValue {
+        fixture.surface.activeScreenText(maximumUTF8Bytes: 64 * 1_024)
+      } matching: {
+        $0.contains("background-screen-marker")
+      }
+    )
+
+    let text = await fixture.surface.activeScreenTextInBackground(
+      maximumUTF8Bytes: 64 * 1_024
+    )
+
+    #expect(text?.contains("background-screen-marker") == true)
+
+    fixture.surface.passwordInput = true
+
+    #expect(
+      await fixture.surface.activeScreenTextInBackground(maximumUTF8Bytes: 64 * 1_024) == nil
+    )
+  }
+
+  @Test
+  func terminalTitleIgnoresUserOverride() async throws {
     let fixture = try GhosttyAgentDetectionFixture(
       command: #"/bin/sh -c 'printf "\033]0;raw-agent-title\007title-ready"; cat'"#
     )
@@ -150,7 +178,7 @@ struct GhosttyAgentDetectionTests {
 
     let title = try #require(
       try await waitForValue {
-        fixture.surface.rawTitle
+        fixture.surface.bridge.state.title
       } matching: {
         $0 == "raw-agent-title"
       }
@@ -159,7 +187,7 @@ struct GhosttyAgentDetectionTests {
 
     fixture.surface.setTitleOverride("user-title")
 
-    #expect(fixture.surface.rawTitle == "raw-agent-title")
+    #expect(fixture.surface.bridge.state.title == "raw-agent-title")
     #expect(fixture.surface.effectiveTitle() == "user-title")
   }
 

@@ -1,6 +1,8 @@
 import AppKit
 import GhosttyKit
+import Observation
 import SupatermCLIShared
+import Synchronization
 import Testing
 
 @testable import supaterm
@@ -242,11 +244,11 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
-  func setTitleDoesNotClearManualTitleOverride() {
+  func setTitleDebouncesWithoutClearingManualTitleOverride() async throws {
     let bridge = GhosttySurfaceBridge()
     bridge.state.titleOverride = "Pinned"
-    var emittedTitles: [String] = []
-    bridge.onTitleChange = { emittedTitles.append($0) }
+    var titlePublishCount = 0
+    bridge.onTitleChange = { titlePublishCount += 1 }
 
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
     var action = ghostty_action_s(tag: GHOSTTY_ACTION_SET_TITLE, action: ghostty_action_u())
@@ -257,9 +259,83 @@ struct GhosttySurfaceBridgeTests {
     }
 
     #expect(bridge.handleAction(target: target, action: action))
+    #expect(bridge.state.title == nil)
+    try await Task.sleep(for: .milliseconds(100))
     #expect(bridge.state.title == "sleep 10")
     #expect(bridge.state.titleOverride == "Pinned")
-    #expect(emittedTitles.isEmpty)
+    #expect(titlePublishCount == 0)
+  }
+
+  @Test
+  func titleDebounceKeepsOnlyTheLatestTerminalTitle() async throws {
+    let bridge = GhosttySurfaceBridge()
+
+    bridge.setTitle("first")
+    try await Task.sleep(for: .milliseconds(50))
+    bridge.setTitle("second")
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(bridge.state.title == nil)
+
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(bridge.state.title == "second")
+  }
+
+  @Test
+  func terminalTitleInvalidatesObserversOnlyWhenPublished() {
+    let state = GhosttySurfaceState()
+    state.title = "⠋ Working"
+    let invalidationCount = Mutex(0)
+    withObservationTracking {
+      _ = state.title
+    } onChange: {
+      invalidationCount.withLock { $0 += 1 }
+    }
+
+    state.title = "⠙ Working"
+
+    #expect(invalidationCount.withLock { $0 } == 0)
+
+    #expect(state.publishTitle())
+
+    #expect(invalidationCount.withLock { $0 } == 1)
+
+    #expect(!state.publishTitle())
+    #expect(invalidationCount.withLock { $0 } == 1)
+  }
+
+  @Test
+  func titlePublicationTracksEffectiveTitleWhilePreservingTerminalTitle() {
+    let state = GhosttySurfaceState()
+    state.title = "shell"
+
+    #expect(state.publishTitle())
+
+    state.titleOverride = "Pinned"
+
+    #expect(state.publishTitle())
+
+    state.title = "⠋ Working"
+
+    #expect(!state.publishTitle())
+    #expect(state.title == "⠋ Working")
+    #expect(state.effectiveTitle == "Pinned")
+
+    state.titleOverride = nil
+
+    #expect(state.publishTitle())
+    #expect(state.effectiveTitle == "⠋ Working")
+  }
+
+  @Test
+  func terminalTitlePreservesActivityIndicatorFrames() {
+    let state = GhosttySurfaceState()
+
+    state.title = "⠋ Working"
+
+    #expect(state.title == "⠋ Working")
+    #expect(state.effectiveTitle == "⠋ Working")
   }
 
   @Test

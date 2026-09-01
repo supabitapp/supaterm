@@ -54,14 +54,10 @@ nonisolated struct TerminalAgentDetectionSignals: Equatable, Sendable {
 
 nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
   let snapshot: @Sendable () async -> AgentDetectionRuleSnapshot
-  let evaluateSignals: @Sendable ([AgentDetectionSignalRequest]) async -> [AgentDetectionSignalEvaluation?]
   let evaluate: @Sendable ([AgentDetectionEvaluationRequest]) async -> [AgentDetectionEvaluation?]
 
   init(repository: AgentDetectionRuleRepository) {
     snapshot = { await repository.snapshot() }
-    evaluateSignals = { requests in
-      await repository.evaluateSignals(requests)
-    }
     evaluate = { requests in
       await repository.evaluate(requests)
     }
@@ -69,15 +65,11 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
 
   init(
     snapshot: @escaping @Sendable () async -> AgentDetectionRuleSnapshot,
-    evaluateSignals:
-      @escaping @Sendable ([AgentDetectionSignalRequest]) async ->
-      [AgentDetectionSignalEvaluation?],
     evaluate:
       @escaping @Sendable ([AgentDetectionEvaluationRequest]) async ->
       [AgentDetectionEvaluation?]
   ) {
     self.snapshot = snapshot
-    self.evaluateSignals = evaluateSignals
     self.evaluate = evaluate
   }
 }
@@ -93,8 +85,9 @@ nonisolated struct TerminalAgentDetectionSampler: Sendable {
 @MainActor
 struct TerminalAgentDetectionHostAccess {
   let surfaces: () -> [TerminalAgentDetectionSurfaceSnapshot]
+  let publishTitle: (TerminalAgentDetectionSurfaceKey) -> Void
   let signals: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionSignals?
-  let screen: (TerminalAgentDetectionSurfaceKey) -> String?
+  let screen: (TerminalAgentDetectionSurfaceKey) async -> String?
   let nativeAuthority: (UUID) -> Set<TerminalAgentProcessIdentity>
   let observation: (UUID) -> TerminalAgentDetectionObservation?
   let apply: (TerminalAgentDetectionObservation, UUID) -> Bool
@@ -160,7 +153,6 @@ final class TerminalAgentDetectionController {
 
   private static let phaseDetectionMinimumAgeMicroseconds: UInt64 = 3_000_000
   private static let evaluationInterval: Duration = .milliseconds(300)
-  private static let idleConfirmationInterval: Duration = .milliseconds(100)
   private static let processAcquisitionInterval: Duration = .milliseconds(500)
   private static let processAcquisitionWindow: Duration = .milliseconds(1_500)
   private static let recognizedProcessInterval: Duration = .seconds(5)
@@ -181,6 +173,7 @@ final class TerminalAgentDetectionController {
     var proof: Proof?
     var nextScanAt: ContinuousClock.Instant
     var acquisitionStartedAt: ContinuousClock.Instant?
+    var missedProcessScans = 0
     var settler = AgentDetectionSettler<TerminalAgentProcessIdentity>()
     var matched: Matched?
     var status = TerminalAgentDetectionExplanation.Status.waiting
@@ -216,18 +209,13 @@ final class TerminalAgentDetectionController {
     }
   }
 
-  private struct ScreenEvaluationBatch: Sendable {
-    var attempts: [EvaluationAttempt] = []
-    var requests: [AgentDetectionEvaluationRequest] = []
-  }
-
   private struct EvaluationValidation: Sendable {
     let generation: UInt64
     let currentIdentities: Set<TerminalAgentProcessIdentity>
     let live: [UUID: TerminalAgentDetectionSurfaceKey]
   }
 
-  private struct DueScan: Sendable {
+  private struct ProcessScan: Sendable {
     let surface: TerminalAgentDetectionSurfaceSnapshot
     let nonce: UInt64
     let processGroupID: Int32
@@ -303,9 +291,7 @@ final class TerminalAgentDetectionController {
         await self?.tick(now: clock.now)
         guard !Task.isCancelled else { return }
         do {
-          try await clock.sleep(
-            for: self?.nextTickDelay(now: clock.now) ?? Self.evaluationInterval
-          )
+          try await clock.sleep(for: Self.evaluationInterval)
         } catch {
           return
         }
@@ -363,33 +349,36 @@ final class TerminalAgentDetectionController {
 
   func tick(now: ContinuousClock.Instant) async {
     guard !Task.isCancelled else { return }
+    let surfaces = host.surfaces()
+    for surface in surfaces {
+      host.publishTitle(surface.key)
+    }
     let snapshot = await rules.snapshot()
     guard !Task.isCancelled else { return }
     activate(snapshot)
-    let surfaces = host.surfaces()
     reconcile(surfaces, now: now)
     guard !surfaces.isEmpty else { return }
 
-    let due = surfaces.compactMap { surface -> DueScan? in
+    let scans = surfaces.compactMap { surface -> ProcessScan? in
       guard let processGroupID = surface.key.foregroundProcessGroupID, processGroupID > 0,
         let state = states[surface.key.id]
       else {
         return nil
       }
       guard state.nextScanAt <= now else { return nil }
-      return DueScan(
+      return ProcessScan(
         surface: surface,
         nonce: state.nonce,
         processGroupID: processGroupID
       )
     }
-    if !due.isEmpty {
+    if !scans.isEmpty {
       let directProcessGroups = Dictionary(
-        uniqueKeysWithValues: due.map { ($0.surface.key.id, $0.processGroupID) }
+        uniqueKeysWithValues: scans.map { ($0.surface.key.id, $0.processGroupID) }
       )
       let resolvedProcessGroups = await sampler.resolveForegroundProcessGroups(directProcessGroups)
       guard !Task.isCancelled else { return }
-      let resolved = due.map { scan in
+      let resolved = scans.map { scan in
         let processGroupID =
           if let resolvedProcessGroupID = resolvedProcessGroups[scan.surface.key.id],
             resolvedProcessGroupID > 0
@@ -398,7 +387,7 @@ final class TerminalAgentDetectionController {
           } else {
             scan.processGroupID
           }
-        return DueScan(
+        return ProcessScan(
           surface: scan.surface,
           nonce: scan.nonce,
           processGroupID: processGroupID
@@ -427,20 +416,6 @@ final class TerminalAgentDetectionController {
       generation: snapshot.generation,
       now: now
     )
-  }
-
-  func nextTickDelay(now: ContinuousClock.Instant) -> Duration {
-    var delay: Duration =
-      states.values.contains { $0.settler.isConfirmingIdle }
-      ? Self.idleConfirmationInterval
-      : Self.evaluationInterval
-    for state in states.values
-    where state.key.foregroundProcessGroupID.map({ $0 > 0 }) == true
-      && state.nextScanAt > now
-    {
-      delay = min(delay, now.duration(to: state.nextScanAt))
-    }
-    return delay
   }
 
   private func activate(_ snapshot: AgentDetectionRuleSnapshot) {
@@ -488,24 +463,29 @@ final class TerminalAgentDetectionController {
 
   private func applyProcessMatches(
     _ matches: [Int32: AgentDetectionProcessMatch],
-    to due: [DueScan],
+    to scans: [ProcessScan],
     generation: UInt64,
     now: ContinuousClock.Instant
   ) async {
-    let identities = Set(matches.values.map(\.processIdentity))
-    let currentIdentities = await sampler.current(identities)
+    let currentIdentities = await sampler.current(Set(matches.values.map(\.processIdentity)))
     guard !Task.isCancelled else { return }
     guard self.generation == generation else { return }
     let live = Dictionary(uniqueKeysWithValues: host.surfaces().map { ($0.key.id, $0.key) })
 
-    for dueScan in due {
-      let key = dueScan.surface.key
+    for scan in scans {
+      let key = scan.surface.key
       guard live[key.id] == key, var state = states[key.id], state.key == key,
-        state.nonce == dueScan.nonce
+        state.nonce == scan.nonce
       else {
         continue
       }
-      guard let match = matches[dueScan.processGroupID] else {
+      guard let match = matches[scan.processGroupID] else {
+        if state.proof != nil, state.missedProcessScans == 0 {
+          state.missedProcessScans = 1
+          state.nextScanAt = now.advanced(by: Self.processAcquisitionInterval)
+          states[key.id] = state
+          continue
+        }
         markUnrecognized(&state, now: now)
         states[key.id] = state
         continue
@@ -521,6 +501,7 @@ final class TerminalAgentDetectionController {
         state.settler = AgentDetectionSettler()
         state.matched = nil
       }
+      state.missedProcessScans = 0
       state.nextScanAt = now.advanced(by: Self.recognizedProcessInterval)
       state.acquisitionStartedAt = nil
       state.status = .waiting
@@ -577,80 +558,45 @@ final class TerminalAgentDetectionController {
     generation: UInt64,
     now: ContinuousClock.Instant
   ) async -> EvaluationBatch? {
-    let signalEvaluations = await rules.evaluateSignals(
-      attempts.map {
-        AgentDetectionSignalRequest(
-          agentID: $0.proof.agentID,
-          input: $0.signals
-        )
+    var evaluatedAttempts: [EvaluationAttempt] = []
+    var requests: [AgentDetectionEvaluationRequest] = []
+    for attempt in attempts {
+      let screen = await host.screen(attempt.state.key)
+      guard !Task.isCancelled else { return nil }
+      guard var state = states[attempt.surfaceID], state.nonce == attempt.state.nonce else {
+        continue
       }
-    )
+      guard let screen else {
+        resetEvaluation(&state, status: .protectedOrUnreadableScreen)
+        states[attempt.surfaceID] = state
+        continue
+      }
+      evaluatedAttempts.append(attempt)
+      requests.append(evaluationRequest(for: attempt, screen: screen))
+    }
+    guard !requests.isEmpty else { return EvaluationBatch(attempts: []) }
+
+    let evaluations = await rules.evaluate(requests)
     guard !Task.isCancelled else { return nil }
     guard self.generation == generation else { return nil }
-    precondition(signalEvaluations.count == attempts.count)
-    guard signalEvaluations.compactMap({ $0?.generation }).allSatisfy({ $0 == generation }) else {
+    precondition(evaluations.count == evaluatedAttempts.count)
+    guard evaluations.compactMap({ $0?.generation }).allSatisfy({ $0 == generation }) else {
       _ = await rulesAreCurrent(generation: generation, now: now)
       return nil
     }
 
-    var batch = EvaluationBatch(attempts: attempts)
-    var screenBatch = ScreenEvaluationBatch()
-    for (attempt, result) in zip(attempts, signalEvaluations) {
-      record(
-        result,
-        for: attempt,
-        evaluationBatch: &batch,
-        screenBatch: &screenBatch
-      )
-    }
-    guard !screenBatch.requests.isEmpty else { return batch }
-
-    let screenEvaluations = await rules.evaluate(screenBatch.requests)
-    guard !Task.isCancelled else { return nil }
-    guard self.generation == generation else { return nil }
-    precondition(screenEvaluations.count == screenBatch.attempts.count)
-    guard screenEvaluations.compactMap({ $0?.generation }).allSatisfy({ $0 == generation }) else {
-      _ = await rulesAreCurrent(generation: generation, now: now)
-      return nil
-    }
-    for (attempt, evaluation) in zip(screenBatch.attempts, screenEvaluations) {
+    var batch = EvaluationBatch(attempts: evaluatedAttempts)
+    for (attempt, evaluation) in zip(evaluatedAttempts, evaluations) {
       batch.record(evaluation, for: attempt)
     }
     return batch
   }
 
-  private func record(
-    _ result: AgentDetectionSignalEvaluation?,
+  private func evaluationRequest(
     for attempt: EvaluationAttempt,
-    evaluationBatch: inout EvaluationBatch,
-    screenBatch: inout ScreenEvaluationBatch
-  ) {
-    guard states[attempt.surfaceID]?.nonce == attempt.state.nonce else { return }
-    guard let result else {
-      evaluationBatch.record(nil, for: attempt)
-      return
-    }
-    switch result {
-    case .matched(let evaluation):
-      evaluationBatch.record(evaluation, for: attempt)
-    case .needsScreen:
-      guard let request = screenRequest(for: attempt) else { return }
-      screenBatch.attempts.append(attempt)
-      screenBatch.requests.append(request)
-    }
-  }
-
-  private func screenRequest(
-    for attempt: EvaluationAttempt
-  ) -> AgentDetectionEvaluationRequest? {
-    guard let screen = host.screen(attempt.state.key) else {
-      if var state = states[attempt.surfaceID], state.nonce == attempt.state.nonce {
-        resetEvaluation(&state, status: .protectedOrUnreadableScreen)
-        states[attempt.surfaceID] = state
-      }
-      return nil
-    }
-    return AgentDetectionEvaluationRequest(
+    screen: String
+  ) -> AgentDetectionEvaluationRequest {
+    AgentDetectionEvaluationRequest(
       agentID: attempt.proof.agentID,
       input: AgentDetectionInput(
         screen: Self.utf8Suffix(screen, maximumBytes: Self.screenByteLimit),
@@ -938,6 +884,7 @@ final class TerminalAgentDetectionController {
   private func resetProof(_ state: inout SurfaceState) {
     resetMatch(&state)
     state.proof = nil
+    state.missedProcessScans = 0
   }
 
   private func resetMatch(_ state: inout SurfaceState) {
@@ -1025,6 +972,15 @@ final class TerminalAgentDetectionController {
           )
         }
       },
+      publishTitle: { [weak terminal] key in
+        guard let surface = terminal?.surfaces[key.id],
+          ObjectIdentifier(surface) == key.instance,
+          surface.foregroundProcessGroupID == key.foregroundProcessGroupID
+        else {
+          return
+        }
+        surface.bridge.publishTitle()
+      },
       signals: { [weak terminal] key in
         guard let surface = terminal?.surfaces[key.id],
           ObjectIdentifier(surface) == key.instance,
@@ -1033,7 +989,7 @@ final class TerminalAgentDetectionController {
           return nil
         }
         return TerminalAgentDetectionSignals(
-          oscTitle: surface.rawTitle ?? "",
+          oscTitle: surface.bridge.state.title ?? "",
           oscProgress: surface.bridge.state.agentOSCProgressProcessGroupID
             == key.foregroundProcessGroupID
             ? surface.bridge.state.agentOSCProgress
@@ -1047,7 +1003,7 @@ final class TerminalAgentDetectionController {
         else {
           return nil
         }
-        return surface.activeScreenText(maximumUTF8Bytes: screenByteLimit)
+        return await surface.activeScreenTextInBackground(maximumUTF8Bytes: screenByteLimit)
       },
       nativeAuthority: { [weak terminal] surfaceID in
         terminal?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {
