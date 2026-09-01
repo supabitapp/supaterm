@@ -58,6 +58,7 @@ class AffectedProjectsTests(unittest.TestCase):
       "apps/docs.supaterm.com/content/guide.md": {"docs"},
       "apps/supaterm.com/src/app.ts": {"web"},
       "apps/mac/supaterm/App.swift": {"mac"},
+      "apps/mac/supaterm/Resources/AgentDetection/rules.json": {"mac"},
       "apps/ios/SupatermApp.swift": {"ios"},
       "apps/shared/Theme.swift": {"ios", "mac"},
       "Makefile": {"docs", "ios", "mac", "web"},

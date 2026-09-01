@@ -5,6 +5,10 @@ inputs:
   cache-native-builds:
     description: Restore and save native dependency build caches
     required: true
+  cache-tuist-packages:
+    description: Restore and save Tuist package dependencies
+    required: false
+    default: "true"
   github-token:
     description: Authenticate mise downloads
     required: true
@@ -21,26 +25,36 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
     - name: Xcode cache key
+      if: ${{ inputs.cache-tuist-packages == 'true' || inputs.cache-native-builds == 'true' }}
       shell: bash
       run: |
         XCODE_VERSION="$(xcodebuild -version | tr '\n' '-' | sed 's/[^A-Za-z0-9._-]/_/g; s/-$//')"
         printf '%s\n' "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
     - name: Tuist version
+      if: ${{ inputs.cache-tuist-packages == 'true' }}
       shell: bash
       run: |
         TUIST_VERSION="$(mise exec -- tuist version)"
         printf '%s\n' "TUIST_VERSION=$TUIST_VERSION" >> "$GITHUB_ENV"
     - name: Tuist package cache
+      id: tuist-package-cache
+      if: ${{ inputs.cache-tuist-packages == 'true' }}
       uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
         path: |
+          apps/.build/.tuist-installed
           apps/Tuist/.build/repositories
           apps/Tuist/.build/checkouts
           apps/Tuist/.build/artifacts
           apps/Tuist/.build/prebuilts
           apps/Tuist/.build/workspace-state.json
           apps/Tuist/.build/Derived
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v1-${{ hashFiles('apps/Tuist/Package.swift', 'apps/Tuist/Package.resolved') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v2-${{ hashFiles('mise.toml', 'apps/Tuist.mk', 'apps/Tuist.swift', 'apps/Tuist/Package.swift', 'apps/Tuist/Package.resolved') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v1-${{ hashFiles('apps/Tuist/Package.swift', 'apps/Tuist/Package.resolved') }}
+    - name: Refresh Tuist install stamp
+      if: ${{ inputs.cache-tuist-packages == 'true' && steps.tuist-package-cache.outputs.cache-hit == 'true' }}
+      shell: bash
+      run: touch apps/.build/.tuist-installed
     - name: Ghostty fingerprint
       if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash

@@ -183,7 +183,7 @@ jobs:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make -C apps/mac build-ghostty build-zmx build-ap
       - id: build
-        run: mise exec -- tuist test supatermUITests --build-only --configuration Debug --shard-total 12 --shard-granularity suite
+        run: mise exec -- tuist test supatermUITests --build-only --configuration Debug --shard-total 16 --shard-granularity suite
         working-directory: apps/mac
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
@@ -212,8 +212,9 @@ jobs:
       - uses: ./.github/actions/setup-macos
         with:
           cache-native-builds: false
+          cache-tuist-packages: false
           github-token: ${{ github.token }}
-      - run: mise exec -- tuist test --without-building --configuration Debug --inspect-mode off --result-bundle-path "$RUNNER_TEMP/supatermUITests.xcresult" -- -destination "platform=macOS"
+      - run: mise exec -- tuist test --no-upload --without-building --configuration Debug --inspect-mode off --result-bundle-path "$RUNNER_TEMP/supatermUITests.xcresult" -- -destination "platform=macOS"
         working-directory: apps/mac
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
@@ -241,6 +242,7 @@ jobs:
       - uses: ./.github/actions/setup-macos
         with:
           cache-native-builds: false
+          cache-tuist-packages: false
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
