@@ -170,7 +170,7 @@ struct GhosttyAgentDetectionTests {
   }
 
   @Test
-  func rawTitleIgnoresUserOverride() async throws {
+  func terminalTitleIgnoresUserOverride() async throws {
     let fixture = try GhosttyAgentDetectionFixture(
       command: #"/bin/sh -c 'printf "\033]0;raw-agent-title\007title-ready"; cat'"#
     )
@@ -178,7 +178,7 @@ struct GhosttyAgentDetectionTests {
 
     let title = try #require(
       try await waitForValue {
-        fixture.surface.rawTitle
+        fixture.surface.bridge.state.title
       } matching: {
         $0 == "raw-agent-title"
       }
@@ -187,7 +187,7 @@ struct GhosttyAgentDetectionTests {
 
     fixture.surface.setTitleOverride("user-title")
 
-    #expect(fixture.surface.rawTitle == "raw-agent-title")
+    #expect(fixture.surface.bridge.state.title == "raw-agent-title")
     #expect(fixture.surface.effectiveTitle() == "user-title")
   }
 

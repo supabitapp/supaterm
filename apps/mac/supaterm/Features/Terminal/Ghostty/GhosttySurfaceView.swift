@@ -1935,20 +1935,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
     bridge.state.effectiveTitle
   }
 
-  var rawTitle: String? {
-    bridge.state.title
-  }
-
   func setTitleOverride(_ title: String?) {
-    let previousTitle = bridge.state.effectiveDisplayTitle
     let previousOverride = bridge.state.titleOverride
+    guard previousOverride != title else { return }
     bridge.state.titleOverride = title
-    if previousTitle != bridge.state.effectiveDisplayTitle {
-      bridge.titleDidChange(from: previousTitle)
-    }
-    if previousOverride != title {
-      bridge.onTitleOverrideChange?()
-    }
+    bridge.publishTitle()
+    bridge.onTitleOverrideChange?()
   }
 
   func promptTitle(

@@ -12,7 +12,7 @@ enum GhosttySurfaceFailure: Equatable {
 @Observable
 final class GhosttySurfaceState {
   @ObservationIgnored
-  private var rawTitle: String?
+  private var titleStorage: String?
   var titleOverride: String?
   var pwd: String?
   var derivedConfig = GhosttySurfaceConfig()
@@ -41,19 +41,15 @@ final class GhosttySurfaceState {
   var title: String? {
     get {
       access(keyPath: \.title)
-      return rawTitle
+      return titleStorage
     }
     set {
-      let previousDisplayTitle = titleOverride ?? Self.displayTitle(from: rawTitle)
-      let nextDisplayTitle = titleOverride ?? Self.displayTitle(from: newValue)
-      guard previousDisplayTitle != nextDisplayTitle else {
-        rawTitle = newValue
-        return
-      }
-      withMutation(keyPath: \.title) {
-        rawTitle = newValue
-      }
+      titleStorage = newValue
     }
+  }
+
+  func publishTitle() {
+    withMutation(keyPath: \.title) {}
   }
 
   var effectiveTitle: String? {
@@ -62,24 +58,6 @@ final class GhosttySurfaceState {
     }
     guard let title, !title.isEmpty else { return nil }
     return title
-  }
-
-  var effectiveDisplayTitle: String? {
-    if let titleOverride {
-      return titleOverride
-    }
-    return Self.displayTitle(from: title)
-  }
-
-  nonisolated static func displayTitle(from title: String?) -> String? {
-    guard let title, let scalar = title.unicodeScalars.first,
-      "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏".unicodeScalars.contains(scalar)
-    else {
-      return title
-    }
-    let suffix = title.dropFirst()
-    guard suffix.isEmpty || suffix.first?.isWhitespace == true else { return title }
-    return String(suffix.drop(while: { $0.isWhitespace }))
   }
 
   var effectiveBackgroundColor: NSColor {

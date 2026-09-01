@@ -399,11 +399,6 @@ struct TerminalHostStateAgentDebugSnapshotTests {
     return TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
         snapshot: { snapshot },
-        evaluateSignals: { requests in
-          requests.map {
-            $0.agentID == "codex" ? .needsScreen(generation: generation) : nil
-          }
-        },
         evaluate: { requests in
           requests.map { $0.agentID == "codex" ? evaluation : nil }
         }
@@ -430,6 +425,7 @@ struct TerminalHostStateAgentDebugSnapshotTests {
             )
           ]
         },
+        publishTitle: { _ in },
         signals: { _ in TerminalAgentDetectionSignals(oscTitle: "") },
         screen: { _ in "running" },
         nativeAuthority: { [weak host] surfaceID in

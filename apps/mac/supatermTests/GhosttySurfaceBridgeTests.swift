@@ -244,11 +244,11 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
-  func setTitleDoesNotClearManualTitleOverride() {
+  func setTitleDebouncesWithoutClearingManualTitleOverride() async throws {
     let bridge = GhosttySurfaceBridge()
     bridge.state.titleOverride = "Pinned"
-    var emittedTitles: [String] = []
-    bridge.onTitleChange = { emittedTitles.append($0) }
+    var titlePublishCount = 0
+    bridge.onTitleChange = { titlePublishCount += 1 }
 
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
     var action = ghostty_action_s(tag: GHOSTTY_ACTION_SET_TITLE, action: ghostty_action_u())
@@ -259,30 +259,31 @@ struct GhosttySurfaceBridgeTests {
     }
 
     #expect(bridge.handleAction(target: target, action: action))
+    #expect(bridge.state.title == nil)
+    try await Task.sleep(for: .milliseconds(100))
     #expect(bridge.state.title == "sleep 10")
     #expect(bridge.state.titleOverride == "Pinned")
-    #expect(emittedTitles.isEmpty)
+    #expect(titlePublishCount == 0)
   }
 
   @Test
-  func animatedActivityIndicatorFramesEmitOneDisplayTitle() {
+  func titleDebounceKeepsOnlyTheLatestTerminalTitle() async throws {
     let bridge = GhosttySurfaceBridge()
-    var emittedTitles: [String] = []
-    bridge.onTitleChange = { emittedTitles.append($0) }
 
-    bridge.state.title = "⠋ Working"
-    bridge.titleDidChange(from: nil)
-    let previousDisplayTitle = bridge.state.effectiveDisplayTitle
-    bridge.state.title = "⠙ Working"
-    bridge.titleDidChange(from: previousDisplayTitle)
-    bridge.state.title = "⠙ Testing"
-    bridge.titleDidChange(from: previousDisplayTitle)
+    bridge.setTitle("first")
+    try await Task.sleep(for: .milliseconds(50))
+    bridge.setTitle("second")
+    try await Task.sleep(for: .milliseconds(50))
 
-    #expect(emittedTitles == ["Working", "Testing"])
+    #expect(bridge.state.title == nil)
+
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(bridge.state.title == "second")
   }
 
   @Test
-  func animatedActivityIndicatorFramesDoNotInvalidateTitleObservers() {
+  func terminalTitleInvalidatesObserversOnlyWhenPublished() {
     let state = GhosttySurfaceState()
     state.title = "⠋ Working"
     let invalidationCount = Mutex(0)
@@ -296,16 +297,19 @@ struct GhosttySurfaceBridgeTests {
 
     #expect(invalidationCount.withLock { $0 } == 0)
 
-    state.title = "⠙ Testing"
+    state.publishTitle()
 
     #expect(invalidationCount.withLock { $0 } == 1)
   }
 
   @Test
-  func displayTitleOnlyStripsKnownActivityIndicators() {
-    #expect(GhosttySurfaceState.displayTitle(from: "⠋")?.isEmpty == true)
-    #expect(GhosttySurfaceState.displayTitle(from: "⠋Braille") == "⠋Braille")
-    #expect(GhosttySurfaceState.displayTitle(from: "⡇ Braille") == "⡇ Braille")
+  func terminalTitlePreservesActivityIndicatorFrames() {
+    let state = GhosttySurfaceState()
+
+    state.title = "⠋ Working"
+
+    #expect(state.title == "⠋ Working")
+    #expect(state.effectiveTitle == "⠋ Working")
   }
 
   @Test

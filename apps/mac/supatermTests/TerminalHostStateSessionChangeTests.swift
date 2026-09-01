@@ -67,9 +67,8 @@ struct TerminalHostStateSessionChangeTests {
     var sessionChangeCount = 0
     host.onSessionChange = { sessionChangeCount += 1 }
 
-    let previousDisplayTitle = surface.bridge.state.effectiveDisplayTitle
     surface.bridge.state.title = "⠋ Working"
-    surface.bridge.titleDidChange(from: previousDisplayTitle)
+    surface.bridge.publishTitle()
 
     #expect(sessionChangeCount == 0)
 

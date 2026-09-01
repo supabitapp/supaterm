@@ -106,7 +106,7 @@ final class GhosttySurfaceBridge {
   private let openURL: (URL) -> Bool
   var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
-  var onTitleChange: ((String) -> Void)?
+  var onTitleChange: (() -> Void)?
   var onTitleOverrideChange: (() -> Void)?
   var onPromptSurfaceTitle: (() -> Void)?
   var onPromptTabTitle: (() -> Void)?
@@ -128,6 +128,7 @@ final class GhosttySurfaceBridge {
   var onDesktopNotification: ((String, String) -> Void)?
   var onStateChange: (() -> Void)?
   private var progressResetTask: Task<Void, Never>?
+  private var titleChangeTask: Task<Void, Never>?
 
   init(
     findPasteboard: NSPasteboard = NSPasteboard(name: .find),
@@ -143,14 +144,27 @@ final class GhosttySurfaceBridge {
 
   deinit {
     progressResetTask?.cancel()
+    titleChangeTask?.cancel()
   }
 
-  func titleDidChange(from previousDisplayTitle: String?) {
-    let title = state.effectiveDisplayTitle
-    guard title != previousDisplayTitle else { return }
-    onTitleChange?(title ?? "")
+  func publishTitle() {
+    state.publishTitle()
+    onTitleChange?()
     if let surfaceView {
       NSAccessibility.post(element: surfaceView, notification: .titleChanged)
+    }
+  }
+
+  func setTitle(_ title: String) {
+    titleChangeTask?.cancel()
+    titleChangeTask = Task { [weak self] in
+      do {
+        try await Task.sleep(for: .milliseconds(75))
+      } catch {
+        return
+      }
+      self?.state.title = title
+      self?.titleChangeTask = nil
     }
   }
 
@@ -470,10 +484,8 @@ final class GhosttySurfaceBridge {
   private func handleTitleAndPath(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
     case GHOSTTY_ACTION_SET_TITLE:
-      let previousTitle = state.effectiveDisplayTitle
       guard let title = string(from: action.action.set_title.title) else { return false }
-      state.title = title
-      titleDidChange(from: previousTitle)
+      setTitle(title)
       return true
 
     case GHOSTTY_ACTION_PROMPT_TITLE:

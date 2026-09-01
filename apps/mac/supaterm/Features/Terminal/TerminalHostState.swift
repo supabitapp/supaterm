@@ -824,7 +824,7 @@ final class TerminalHostState {
     for view: GhosttySurfaceView,
     tabID: TerminalTabID
   ) {
-    view.bridge.onTitleChange = { [weak self] _ in
+    view.bridge.onTitleChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
     }

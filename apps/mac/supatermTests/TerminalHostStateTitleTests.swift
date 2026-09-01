@@ -41,7 +41,7 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
-  func resolvedPaneDisplayTitleStripsAnimatedActivityIndicator() {
+  func resolvedPaneDisplayTitlePreservesAnimatedActivityIndicator() {
     let title = TerminalHostState.resolvedPaneDisplayTitle(
       titleOverride: nil,
       title: "⠋ Working",
@@ -49,7 +49,7 @@ struct TerminalHostStateTitleTests {
       defaultValue: "Pane 1"
     )
 
-    #expect(title == "Working")
+    #expect(title == "⠋ Working")
   }
 
   @Test
