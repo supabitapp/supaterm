@@ -79,7 +79,10 @@ struct TerminalWindowHeader: View {
 
       TerminalAgentsPopoverButton(
         items: terminal.windowAgentPresentations(),
-        palette: palette
+        palette: palette,
+        focusPane: { surfaceID in
+          _ = try? terminal.focusPane(TerminalPaneTarget(paneID: surfaceID))
+        }
       )
       .padding(.top, TerminalWindowHeaderMetrics.switcherTopPadding)
       .padding(.trailing, TerminalWindowHeaderMetrics.spacing)
