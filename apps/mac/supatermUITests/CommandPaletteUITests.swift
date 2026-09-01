@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class CommandPaletteUITests: SupatermUITestCase {
@@ -106,6 +107,7 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let didSelectFirstRow = await wait(for: firstRow) { $0.isSelected }
     XCTAssertTrue(didSelectFirstRow)
     XCTAssertFalse(secondRow.isSelected)
+    firstRow.hover()
 
     app.typeKey(.downArrow, modifierFlags: [])
 
@@ -113,6 +115,10 @@ final class CommandPaletteUITests: SupatermUITestCase {
       $0.isSelected && !firstRow.isSelected
     }
     XCTAssertTrue(didSelectSecondRow)
+    XCTAssertGreaterThan(
+      try backgroundLuminance(of: secondRow),
+      try backgroundLuminance(of: firstRow)
+    )
 
     app.typeKey(.upArrow, modifierFlags: [])
 
@@ -120,6 +126,21 @@ final class CommandPaletteUITests: SupatermUITestCase {
       $0.isSelected && !secondRow.isSelected
     }
     XCTAssertTrue(didReturnToFirstRow)
+  }
+
+  @MainActor
+  private func backgroundLuminance(of element: XCUIElement) throws -> CGFloat {
+    let image = element.screenshot().image
+    let data = try XCTUnwrap(image.tiffRepresentation)
+    let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+    let color = try XCTUnwrap(
+      bitmap.colorAt(x: bitmap.pixelsWide * 3 / 4, y: bitmap.pixelsHigh / 2)?
+        .usingColorSpace(.sRGB)
+    )
+    return
+      0.2126 * color.redComponent
+      + 0.7152 * color.greenComponent
+      + 0.0722 * color.blueComponent
   }
 
   @MainActor
