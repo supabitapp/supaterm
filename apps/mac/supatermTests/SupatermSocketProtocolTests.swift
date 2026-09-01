@@ -990,7 +990,7 @@ struct SupatermSocketProtocolTests {
     )
     let result = SupatermNotifyResult(
       attentionState: .unread,
-      desktopNotificationDisposition: .deliver,
+      notificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
       windowIndex: 1,
       spaceIndex: 2,
@@ -1006,6 +1006,8 @@ struct SupatermSocketProtocolTests {
 
     #expect(request.method == SupatermSocketMethod.terminalNotify)
     #expect(try request.decodeParams(SupatermNotifyRequest.self) == requestPayload)
+    #expect(response.result?["desktopNotificationDisposition"] == .string("deliver"))
+    #expect(response.result?["notificationDisposition"] == nil)
     #expect(try response.decodeResult(SupatermNotifyResult.self) == result)
   }
 

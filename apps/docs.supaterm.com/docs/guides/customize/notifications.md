@@ -7,7 +7,7 @@ Supaterm can surface terminal and coding-agent activity in the sidebar, inside t
 
 ## System notifications
 
-Enable **Settings > Notifications > System notifications** to deliver terminal and agent notifications through macOS. The first enablement can trigger a macOS permission prompt.
+System notifications are off by default. Enable **Settings > Notifications > System notifications** to deliver terminal and agent notifications through macOS. The first enablement can trigger a macOS permission prompt.
 
 If delivery is enabled but nothing appears, open **System Settings > Notifications > Supaterm** and verify macOS permission.
 

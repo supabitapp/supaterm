@@ -12,16 +12,16 @@ extension TerminalCommandExecutor {
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
     let events = TerminalAgentEventTranslator.events(for: request)
     guard !events.isEmpty else {
-      return TerminalAgentHookResult(desktopNotification: nil)
+      return TerminalAgentHookResult(notification: nil)
     }
     pruneDeadAgentProcesses()
     guard let terminal = agentTerminal(for: request),
       shouldHandleAgentHook(request, in: terminal)
     else {
-      return TerminalAgentHookResult(desktopNotification: nil)
+      return TerminalAgentHookResult(notification: nil)
     }
     var didChange = false
-    var result = TerminalAgentHookResult(desktopNotification: nil)
+    var result = TerminalAgentHookResult(notification: nil)
     for event in events {
       if event.action == .turnStarted, event.scope.subagentID == nil {
         clearRecentStructuredNotification(for: terminal, event: event)
@@ -74,20 +74,19 @@ extension TerminalCommandExecutor {
           semantic: notification.semantic
         )
         return TerminalAgentHookResult(
-          desktopNotification: result.desktopNotificationDisposition.shouldDeliver
-            ? DesktopNotificationRequest(
-              body: notification.body,
-              subtitle: notification.subtitle,
-              title: result.resolvedTitle,
-              sourceSurfaceID: result.paneID
-            )
-            : nil
+          notification: NotificationRequest(
+            body: notification.body,
+            disposition: result.notificationDisposition,
+            subtitle: notification.subtitle,
+            title: result.resolvedTitle,
+            sourceSurfaceID: result.paneID
+          )
         )
       } catch let error as TerminalCreatePaneError {
         guard case .contextPaneNotFound = error else { throw error }
       }
     }
-    return TerminalAgentHookResult(desktopNotification: nil)
+    return TerminalAgentHookResult(notification: nil)
   }
 
   private func notification(

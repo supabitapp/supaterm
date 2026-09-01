@@ -204,8 +204,7 @@ struct TerminalWindowFeature {
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(ClipboardClient.self) var clipboardClient
   @Dependency(ExternalNavigationClient.self) var externalNavigationClient
-  @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
-  @Dependency(NotificationSoundClient.self) var notificationSoundClient
+  @Dependency(NotificationOutputClient.self) var notificationOutputClient
   @Dependency(TerminalCommandPaletteClient.self) var terminalCommandPaletteClient
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(WindowCloseClient.self) var windowCloseClient
@@ -263,20 +262,17 @@ struct TerminalWindowFeature {
 
         case .notificationReceived(let event):
           @Shared(.supatermSettings) var supatermSettings = .default
-          let settings = supatermSettings
-          return .run { [desktopNotificationClient, notificationSoundClient] _ in
-            await NotificationPresenter(
-              desktopNotificationClient: desktopNotificationClient,
-              notificationSoundClient: notificationSoundClient
-            ).present(
-              DesktopNotificationRequest(
+          let output = supatermSettings.notificationOutput
+          return .run { [notificationOutputClient] _ in
+            await notificationOutputClient.deliver(
+              NotificationRequest(
                 body: event.body,
+                disposition: event.notificationDisposition,
                 subtitle: event.subtitle,
                 title: event.resolvedTitle,
                 sourceSurfaceID: event.sourceSurfaceID
               ),
-              shouldDeliver: event.desktopNotificationDisposition.shouldDeliver,
-              settings: settings
+              output
             )
           }
 

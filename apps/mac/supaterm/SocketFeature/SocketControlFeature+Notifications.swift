@@ -7,8 +7,7 @@ import SupatermTerminalCore
 extension SocketControlFeature {
   func notificationResponseResult(
     for request: SupatermSocketRequest,
-    desktopNotificationClient: DesktopNotificationClient,
-    notificationSoundClient: NotificationSoundClient,
+    notificationOutputClient: NotificationOutputClient,
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
@@ -20,18 +19,15 @@ extension SocketControlFeature {
         throw SocketExecutorError.unexpectedResult
       }
       @Shared(.supatermSettings) var supatermSettings = .default
-      await NotificationPresenter(
-        desktopNotificationClient: desktopNotificationClient,
-        notificationSoundClient: notificationSoundClient
-      ).present(
-        DesktopNotificationRequest(
+      await notificationOutputClient.deliver(
+        NotificationRequest(
           body: payload.body,
+          disposition: result.notificationDisposition,
           subtitle: payload.subtitle,
           title: result.resolvedTitle,
           sourceSurfaceID: result.paneID
         ),
-        shouldDeliver: result.desktopNotificationDisposition.shouldDeliver,
-        settings: supatermSettings
+        supatermSettings.notificationOutput
       )
       return try .ok(id: request.id, encodableResult: result)
 
@@ -42,14 +38,10 @@ extension SocketControlFeature {
         throw SocketExecutorError.unexpectedResult
       }
       @Shared(.supatermSettings) var supatermSettings = .default
-      if let desktopNotification = result.desktopNotification {
-        await NotificationPresenter(
-          desktopNotificationClient: desktopNotificationClient,
-          notificationSoundClient: notificationSoundClient
-        ).present(
-          desktopNotification,
-          shouldDeliver: true,
-          settings: supatermSettings
+      if let notification = result.notification {
+        await notificationOutputClient.deliver(
+          notification,
+          supatermSettings.notificationOutput
         )
       }
       return .ok(id: request.id)

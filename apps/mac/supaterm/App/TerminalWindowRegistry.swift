@@ -1351,7 +1351,7 @@ final class TerminalWindowRegistry {
   ) -> SupatermNotifyResult {
     SupatermNotifyResult(
       attentionState: result.attentionState,
-      desktopNotificationDisposition: result.desktopNotificationDisposition,
+      notificationDisposition: result.notificationDisposition,
       resolvedTitle: result.resolvedTitle,
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,

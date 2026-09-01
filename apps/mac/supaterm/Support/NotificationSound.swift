@@ -52,7 +52,7 @@ public enum NotificationSound: String, CaseIterable, Codable, Equatable, Hashabl
     case .supatermClassic:
       return .bundled(resource: "notification", fileExtension: "wav")
     default:
-      return .system(name: title)
+      return .system(name: rawValue.capitalized)
     }
   }
 }
@@ -85,7 +85,12 @@ private final class NotificationSoundPlayer {
   private func load(_ source: NotificationSound.Source) -> NSSound? {
     switch source {
     case .bundled(let resource, let fileExtension):
-      guard let url = Bundle.main.url(forResource: resource, withExtension: fileExtension) else {
+      guard
+        let url = SupatermSupportResources.bundle.url(
+          forResource: resource,
+          withExtension: fileExtension
+        )
+      else {
         return nil
       }
       return NSSound(contentsOf: url, byReference: true)
@@ -118,32 +123,5 @@ extension DependencyValues {
   public var notificationSoundClient: NotificationSoundClient {
     get { self[NotificationSoundClient.self] }
     set { self[NotificationSoundClient.self] = newValue }
-  }
-}
-
-public struct NotificationPresenter: Sendable {
-  private let desktopNotificationClient: DesktopNotificationClient
-  private let notificationSoundClient: NotificationSoundClient
-
-  public init(
-    desktopNotificationClient: DesktopNotificationClient,
-    notificationSoundClient: NotificationSoundClient
-  ) {
-    self.desktopNotificationClient = desktopNotificationClient
-    self.notificationSoundClient = notificationSoundClient
-  }
-
-  @MainActor
-  public func present(
-    _ request: DesktopNotificationRequest,
-    shouldDeliver: Bool,
-    settings: SupatermSettings
-  ) async {
-    guard shouldDeliver else { return }
-    if settings.systemNotificationsEnabled {
-      await desktopNotificationClient.deliver(request)
-    } else if settings.notificationSound != .never {
-      notificationSoundClient.play(settings.notificationSound)
-    }
   }
 }

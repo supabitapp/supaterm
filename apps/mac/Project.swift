@@ -164,6 +164,9 @@ let project = Project(
       bundleId: "app.supabit.supaterm.support",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
+      resources: [
+        "supaterm/Resources/notification.wav",
+      ],
       buildableFolders: [
         "supaterm/Support",
       ],
@@ -366,7 +369,6 @@ let project = Project(
       resources: [
         "supaterm/Assets.xcassets",
         .folderReference(path: "supaterm/Resources/AgentDetection"),
-        "supaterm/Resources/notification.wav",
         "../shared/Resources/supaterm.icon",
       ],
       buildableFolders: [
@@ -725,7 +727,6 @@ let project = Project(
       ]),
       resources: [
         "supaterm/Assets.xcassets",
-        "supaterm/Resources/notification.wav",
         "../shared/Resources/supaterm.icon",
       ],
       buildableFolders: [

@@ -1300,9 +1300,9 @@ final class TerminalHostState {
     Self.trimmedNonEmpty(title) ?? currentTabTitle(for: tabID)
   }
 
-  func resolvedDesktopNotificationDisposition(
+  func resolvedNotificationDisposition(
     isFocused: Bool
-  ) -> SupatermDesktopNotificationDisposition {
+  ) -> SupatermNotificationDisposition {
     isFocused ? .suppressFocused : .deliver
   }
 

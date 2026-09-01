@@ -411,10 +411,10 @@ public struct TerminalSetSpaceColorRequest: Equatable, Sendable {
 }
 
 public struct TerminalAgentHookResult: Equatable, Sendable {
-  public let desktopNotification: DesktopNotificationRequest?
+  public let notification: NotificationRequest?
 
-  public init(desktopNotification: DesktopNotificationRequest?) {
-    self.desktopNotification = desktopNotification
+  public init(notification: NotificationRequest?) {
+    self.notification = notification
   }
 }
 

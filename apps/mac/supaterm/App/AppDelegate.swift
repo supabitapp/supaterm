@@ -327,7 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   ) async {
     guard response.actionIdentifier != UNNotificationDismissActionIdentifier else { return }
     guard
-      let surfaceID = DesktopNotificationRequest.sourceSurfaceID(
+      let surfaceID = NotificationRequest.sourceSurfaceID(
         from: response.notification.request.content.userInfo
       )
     else {

@@ -76,12 +76,16 @@ sp config path
 sp config list
 sp config get updates.channel
 sp config set appearance.mode system
+sp config set notifications.sound supaterm
+sp config set notifications.system_notifications true
 sp config set notifications.tab_move_haptics false
 sp config reset privacy.analytics_enabled
 sp config validate
 ```
 
 `notifications.tab_move_haptics` controls feedback when a dragged tab enters a new drop target.
+
+Notifications start off. Set `notifications.sound` to `supaterm` for the bundled sound, or set `notifications.system_notifications` to `true` for macOS notifications. System notifications request permission only after that setting is enabled. Supaterm uses one output for each event, so system notifications take priority over the local sound.
 
 Validate another settings file:
 

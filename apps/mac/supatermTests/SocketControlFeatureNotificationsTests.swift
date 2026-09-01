@@ -14,7 +14,7 @@ struct SocketControlFeatureNotificationsTests {
   @Test
   func notifyRequestRepliesWithTargetedPaneAndDesktopNotification() async throws {
     let recorder = SocketReplyRecorder()
-    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let notificationRecorder = NotificationDeliveryRecorder()
     let handle = UUID(uuidString: "165EBD38-E4CC-4D2D-8C17-3EB953C0BE7B")!
     let requestPayload = SupatermNotifyRequest(
       body: "Build finished",
@@ -28,7 +28,7 @@ struct SocketControlFeatureNotificationsTests {
     )
     let expectedResult = SupatermNotifyResult(
       attentionState: .unread,
-      desktopNotificationDisposition: .deliver,
+      notificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
       windowIndex: 1,
       spaceIndex: 2,
@@ -48,8 +48,8 @@ struct SocketControlFeatureNotificationsTests {
       }
 
       let store = makeStore {
-        $0.desktopNotificationClient.deliver = { request in
-          await desktopNotificationRecorder.record(request)
+        $0.notificationOutputClient.deliver = { request, output in
+          await notificationRecorder.record(request: request, output: output)
         }
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
@@ -79,13 +79,17 @@ struct SocketControlFeatureNotificationsTests {
       let decodedResult = try? records.first?.response.decodeResult(SupatermNotifyResult.self)
       #expect(decodedResult == expectedResult)
       #expect(
-        await desktopNotificationRecorder.snapshot()
+        await notificationRecorder.snapshot()
           == [
-            DesktopNotificationRequest(
-              body: "Build finished",
-              subtitle: "CI",
-              title: "Deploy complete",
-              sourceSurfaceID: expectedResult.paneID
+            NotificationDeliveryRecorder.Delivery(
+              request: NotificationRequest(
+                body: "Build finished",
+                disposition: .deliver,
+                subtitle: "CI",
+                title: "Deploy complete",
+                sourceSurfaceID: expectedResult.paneID
+              ),
+              output: .system
             )
           ]
       )
@@ -94,7 +98,7 @@ struct SocketControlFeatureNotificationsTests {
   @Test
   func notifyRequestSkipsDesktopNotificationWhenPaneIsAlreadyFocused() async throws {
     let recorder = SocketReplyRecorder()
-    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let notificationRecorder = NotificationDeliveryRecorder()
     let handle = UUID(uuidString: "C2930565-97D3-4E3B-8745-3EC7AE53C284")!
     let request = SocketControlClient.Request(
       handle: handle,
@@ -110,7 +114,7 @@ struct SocketControlFeatureNotificationsTests {
     )
     let expectedResult = SupatermNotifyResult(
       attentionState: .unread,
-      desktopNotificationDisposition: .suppressFocused,
+      notificationDisposition: .suppressFocused,
       resolvedTitle: "Deploy complete",
       windowIndex: 1,
       spaceIndex: 1,
@@ -122,8 +126,8 @@ struct SocketControlFeatureNotificationsTests {
     )
 
     let store = makeStore {
-      $0.desktopNotificationClient.deliver = { request in
-        await desktopNotificationRecorder.record(request)
+      $0.notificationOutputClient.deliver = { request, output in
+        await notificationRecorder.record(request: request, output: output)
       }
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
@@ -151,12 +155,12 @@ struct SocketControlFeatureNotificationsTests {
     #expect(records.count == 1)
     #expect(records.first?.handle == handle)
     #expect(try records.first?.response.decodeResult(SupatermNotifyResult.self) == expectedResult)
-    #expect(await desktopNotificationRecorder.snapshot().isEmpty)
+    #expect(await notificationRecorder.snapshot().map(\.request.disposition) == [.suppressFocused])
   }
   @Test
   func notifyRequestSkipsDesktopNotificationWhenDisabledInPrefs() async throws {
     let recorder = SocketReplyRecorder()
-    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let notificationRecorder = NotificationDeliveryRecorder()
     let handle = UUID(uuidString: "A94E8C30-A0D7-46B3-8E68-87156E28EB1D")!
     let requestPayload = SupatermNotifyRequest(
       body: "Build finished",
@@ -170,7 +174,7 @@ struct SocketControlFeatureNotificationsTests {
     )
     let expectedResult = SupatermNotifyResult(
       attentionState: .unread,
-      desktopNotificationDisposition: .deliver,
+      notificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
       windowIndex: 1,
       spaceIndex: 2,
@@ -185,8 +189,8 @@ struct SocketControlFeatureNotificationsTests {
       $0.defaultFileStorage = .inMemory
     } operation: {
       let store = makeStore {
-        $0.desktopNotificationClient.deliver = { request in
-          await desktopNotificationRecorder.record(request)
+        $0.notificationOutputClient.deliver = { request, output in
+          await notificationRecorder.record(request: request, output: output)
         }
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
@@ -207,13 +211,13 @@ struct SocketControlFeatureNotificationsTests {
       #expect(records.first?.handle == handle)
       let decodedResult = try? records.first?.response.decodeResult(SupatermNotifyResult.self)
       #expect(decodedResult == expectedResult)
-      #expect(await desktopNotificationRecorder.snapshot().isEmpty)
+      #expect(await notificationRecorder.snapshot().map(\.output) == [.none])
     }
   }
   @Test
   func notifyRequestPlaysSelectedSoundWhenSystemNotificationsAreDisabled() async throws {
     let recorder = SocketReplyRecorder()
-    let soundRecorder = SocketNotificationSoundRecorder()
+    let notificationRecorder = NotificationDeliveryRecorder()
     let handle = UUID(uuidString: "A94E8C30-A0D7-46B3-8E68-87156E28EB1D")!
     let paneID = UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
     let request = SocketControlClient.Request(
@@ -225,7 +229,7 @@ struct SocketControlFeatureNotificationsTests {
     )
     let expectedResult = SupatermNotifyResult(
       attentionState: .unread,
-      desktopNotificationDisposition: .deliver,
+      notificationDisposition: .deliver,
       resolvedTitle: "Build",
       windowIndex: 1,
       spaceIndex: 1,
@@ -242,7 +246,9 @@ struct SocketControlFeatureNotificationsTests {
       @Shared(.supatermSettings) var supatermSettings = .default
       $supatermSettings.withLock { $0.notificationSound = .hero }
       let store = makeStore {
-        $0.notificationSoundClient.play = { soundRecorder.sounds.append($0) }
+        $0.notificationOutputClient.deliver = { request, output in
+          await notificationRecorder.record(request: request, output: output)
+        }
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
@@ -251,14 +257,14 @@ struct SocketControlFeatureNotificationsTests {
 
       await store.send(.requestReceived(request))
 
-      #expect(soundRecorder.sounds == [.hero])
+      #expect(await notificationRecorder.snapshot().map(\.output) == [.sound(.hero)])
       #expect(await recorder.snapshot().first?.response.id == "notify-sound")
     }
   }
   @Test
   func notifyRequestWithoutTitleUsesResolvedTitleForDesktopNotification() async throws {
     let recorder = SocketReplyRecorder()
-    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let notificationRecorder = NotificationDeliveryRecorder()
     let handle = UUID(uuidString: "EE8E0D84-181A-4A80-B3E7-2E3615969478")!
     let request = SocketControlClient.Request(
       handle: handle,
@@ -272,7 +278,7 @@ struct SocketControlFeatureNotificationsTests {
     )
     let expectedResult = SupatermNotifyResult(
       attentionState: .unread,
-      desktopNotificationDisposition: .deliver,
+      notificationDisposition: .deliver,
       resolvedTitle: "Build",
       windowIndex: 1,
       spaceIndex: 1,
@@ -292,8 +298,8 @@ struct SocketControlFeatureNotificationsTests {
       }
 
       let store = makeStore {
-        $0.desktopNotificationClient.deliver = { request in
-          await desktopNotificationRecorder.record(request)
+        $0.notificationOutputClient.deliver = { request, output in
+          await notificationRecorder.record(request: request, output: output)
         }
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
@@ -323,13 +329,17 @@ struct SocketControlFeatureNotificationsTests {
       let decodedResult = try? records.first?.response.decodeResult(SupatermNotifyResult.self)
       #expect(decodedResult == expectedResult)
       #expect(
-        await desktopNotificationRecorder.snapshot()
+        await notificationRecorder.snapshot()
           == [
-            DesktopNotificationRequest(
-              body: "Build finished",
-              subtitle: "",
-              title: "Build",
-              sourceSurfaceID: expectedResult.paneID
+            NotificationDeliveryRecorder.Delivery(
+              request: NotificationRequest(
+                body: "Build finished",
+                disposition: .deliver,
+                subtitle: "",
+                title: "Build",
+                sourceSurfaceID: expectedResult.paneID
+              ),
+              output: .system
             )
           ]
       )
@@ -338,7 +348,7 @@ struct SocketControlFeatureNotificationsTests {
   @Test
   func agentHookRequestRepliesWithOKAndDesktopNotification() async throws {
     let recorder = SocketReplyRecorder()
-    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let notificationRecorder = NotificationDeliveryRecorder()
     let handle = UUID(uuidString: "0BFA1E47-4704-4E8A-A33D-3D1742681A9E")!
     let requestPayload = try ClaudeHookFixtures.request(
       ClaudeHookFixtures.notification,
@@ -361,8 +371,8 @@ struct SocketControlFeatureNotificationsTests {
       }
 
       let store = makeStore {
-        $0.desktopNotificationClient.deliver = { request in
-          await desktopNotificationRecorder.record(request)
+        $0.notificationOutputClient.deliver = { request, output in
+          await notificationRecorder.record(request: request, output: output)
         }
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
@@ -375,8 +385,9 @@ struct SocketControlFeatureNotificationsTests {
           #expect(payload == requestPayload)
           return .agentHook(
             TerminalAgentHookResult(
-              desktopNotification: DesktopNotificationRequest(
+              notification: NotificationRequest(
                 body: "Claude needs your attention",
+                disposition: .deliver,
                 subtitle: "Needs input",
                 title: "Claude Code",
                 sourceSurfaceID: requestPayload.context?.surfaceID
@@ -389,23 +400,26 @@ struct SocketControlFeatureNotificationsTests {
       await store.send(.requestReceived(request))
 
       let records = await recorder.snapshot()
-      let expectedNotification = DesktopNotificationRequest(
-        body: "Claude needs your attention",
-        subtitle: "Needs input",
-        title: "Claude Code",
-        sourceSurfaceID: requestPayload.context?.surfaceID
+      let expectedNotification = NotificationDeliveryRecorder.Delivery(
+        request: NotificationRequest(
+          body: "Claude needs your attention",
+          disposition: .deliver,
+          subtitle: "Needs input",
+          title: "Claude Code",
+          sourceSurfaceID: requestPayload.context?.surfaceID
+        ),
+        output: .system
       )
       #expect(records.count == 1)
       #expect(records.first?.handle == handle)
       #expect(records.first?.response == .ok(id: "agent-hook-1"))
-      #expect(await desktopNotificationRecorder.snapshot() == [expectedNotification])
+      #expect(await notificationRecorder.snapshot() == [expectedNotification])
     }
   }
   @Test
   func agentHookRequestPlaysSelectedSoundWhenSystemNotificationsAreDisabled() async throws {
     let recorder = SocketReplyRecorder()
-    let desktopNotificationRecorder = DesktopNotificationRecorder()
-    let soundRecorder = SocketNotificationSoundRecorder()
+    let notificationRecorder = NotificationDeliveryRecorder()
     let handle = UUID(uuidString: "563E9698-BBCD-46C1-8C66-3B104D899CD7")!
     let requestPayload = try ClaudeHookFixtures.request(
       ClaudeHookFixtures.notification,
@@ -425,10 +439,9 @@ struct SocketControlFeatureNotificationsTests {
       @Shared(.supatermSettings) var supatermSettings = .default
       $supatermSettings.withLock { $0.notificationSound = .purr }
       let store = makeStore {
-        $0.desktopNotificationClient.deliver = { request in
-          await desktopNotificationRecorder.record(request)
+        $0.notificationOutputClient.deliver = { request, output in
+          await notificationRecorder.record(request: request, output: output)
         }
-        $0.notificationSoundClient.play = { soundRecorder.sounds.append($0) }
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
@@ -440,8 +453,9 @@ struct SocketControlFeatureNotificationsTests {
           #expect(payload == requestPayload)
           return .agentHook(
             TerminalAgentHookResult(
-              desktopNotification: DesktopNotificationRequest(
+              notification: NotificationRequest(
                 body: "Claude needs your attention",
+                disposition: .deliver,
                 subtitle: "Needs input",
                 title: "Claude Code"
               )
@@ -456,8 +470,7 @@ struct SocketControlFeatureNotificationsTests {
       #expect(records.count == 1)
       #expect(records.first?.handle == handle)
       #expect(records.first?.response == .ok(id: "agent-hook-disabled"))
-      #expect(await desktopNotificationRecorder.snapshot().isEmpty)
-      #expect(soundRecorder.sounds == [.purr])
+      #expect(await notificationRecorder.snapshot().map(\.output) == [.sound(.purr)])
     }
   }
   @Test
@@ -491,9 +504,4 @@ struct SocketControlFeatureNotificationsTests {
     #expect(response.error?.code == "invalid_request")
     #expect(try #require(response.error?.message).isEmpty == false)
   }
-}
-
-@MainActor
-private final class SocketNotificationSoundRecorder {
-  var sounds: [NotificationSound] = []
 }
