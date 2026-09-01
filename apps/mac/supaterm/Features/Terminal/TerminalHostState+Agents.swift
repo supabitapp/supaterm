@@ -8,6 +8,17 @@ extension TerminalHostState {
     let instances: [AgentStateInstance]
     let currentInstance: AgentStateInstance?
     let currentNativeCandidate: TerminalAgentDetectionNativeCandidate?
+
+    var hasLiveAgentProcess: Bool {
+      switch resolution {
+      case .native(let candidates):
+        candidates.contains { candidate in
+          candidate.processIdentities.contains(where: TerminalAgentProcessInspector.isCurrent)
+        }
+      case .terminal(let observation, _):
+        TerminalAgentProcessInspector.isCurrent(observation.processIdentity)
+      }
+    }
   }
 
   struct TabAgentContext {

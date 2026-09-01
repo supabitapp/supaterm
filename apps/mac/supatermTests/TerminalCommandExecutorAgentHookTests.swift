@@ -147,8 +147,7 @@ struct TerminalCommandExecutorAgentHookTests {
         agent: .claude,
         sessionID: sessionID,
         hookEventName: .sessionStart,
-        context: harness.context,
-        processID: getpid()
+        context: harness.context
       )
     )
 

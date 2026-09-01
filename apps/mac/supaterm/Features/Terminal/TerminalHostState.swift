@@ -904,10 +904,14 @@ final class TerminalHostState {
     #if SUPATERM_DEMO
       guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
     #endif
+    let pendingExit = agentCompletionStore.pendingExit(for: surfaceID)
+    let agentState = resolvedAgentState(for: surfaceID)
+    if pendingExit == nil, agentState.hasLiveAgentProcess {
+      return
+    }
     let exitingAgent =
       agentCompletionStore.cessation(for: surfaceID) == nil
-      ? resolvedAgentState(for: surfaceID).currentInstance.map(TerminalAgentExitContext.init)
-        ?? agentCompletionStore.pendingExit(for: surfaceID)
+      ? agentState.currentInstance.map(TerminalAgentExitContext.init) ?? pendingExit
       : nil
     let exitCode = surfaces[surfaceID]?.bridge.state.commandExitCode
     agentDetectionController?.surfaceCommandDidFinish(surfaceID)

@@ -143,6 +143,31 @@ struct TerminalHostStateAgentPersistenceTests {
     #expect(host.agentStateRecords(for: surfaceID).isEmpty)
   }
 
+  @Test
+  func commandFinishPreservesRestoredAgentWithCurrentProcess() throws {
+    let (host, surfaceID) = try hostFixture()
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    host.restoreAgentState(
+      [
+        TerminalPaneAgentRecord(
+          agent: .codex,
+          sessionID: "restored-session",
+          processes: [identity],
+          turnLifecycle: .active("turn-1"),
+          phase: .running,
+          isForeground: true,
+          revision: 1
+        )
+      ],
+      for: surfaceID
+    )
+
+    host.handleCommandFinished(for: surfaceID)
+
+    #expect(host.hasAgentSession(agent: .codex, sessionID: "restored-session"))
+    #expect(host.agentStateRecords(for: surfaceID).count == 1)
+  }
+
   private func observation(
     _ identity: TerminalAgentProcessIdentity
   ) -> TerminalAgentDetectionObservation {
