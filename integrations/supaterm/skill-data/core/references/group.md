@@ -2,6 +2,32 @@
 
 `sp group` creates and manages ordered tab groups inside spaces. A group target is a `g:` ref, full UUID, or exact untyped title within the relevant space.
 
+## Resolve an icon
+
+Icon lookup reads the local filesystem and needs no running Supaterm app.
+
+```bash
+sp group icon
+sp group icon ~/code/workspace
+sp group icon --plain
+sp group icon --json
+```
+
+The optional path is the directory to inspect. It defaults to the current directory.
+
+The resolver first reads icon links from common HTML and root route files. It follows linked local web manifests, prefers SVG icons, then selects the largest declared square image.
+
+If no declaration resolves, it checks these paths in order:
+
+1. `favicon.svg`, `favicon.ico`, and `favicon.png`
+2. The same favicon names under `public/`
+3. Favicons and icons under `app/`, `src/`, and `src/app/`
+4. `assets/icon.*`, `assets/logo.*`, then `.idea/icon.svg`
+
+An icon must stay inside the directory and use AVIF, GIF, ICO, JPEG, PNG, SVG, or WebP. A symlink outside the directory does not resolve.
+
+Human and plain output print the absolute icon path. JSON output returns `{"path":"..."}`. When no icon exists, human output says so, plain output is empty, and JSON returns `{"path":null}`.
+
 ## Create
 
 `sp group new <title>` creates an empty group in the current space. Use `--in` to select another space.

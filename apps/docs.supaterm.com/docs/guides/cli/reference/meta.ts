@@ -4,7 +4,7 @@ export default defineMeta({
   title: "Command reference",
   pages: [
     "connection-and-diagnostics",
-    "project",
+    "group",
     "targeting-and-selectors",
     "space",
     "tab",

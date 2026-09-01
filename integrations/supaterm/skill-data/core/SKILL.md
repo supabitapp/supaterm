@@ -35,11 +35,11 @@ sp ls
 
 Use `sp ls --json` when durable automation needs canonical UUIDs.
 
-Resolve the first project icon:
+Resolve the first group icon:
 
 ```bash
-sp project icon
-sp project icon ~/code/project --json
+sp group icon
+sp group icon ~/code/workspace --json
 ```
 
 Inspect the license without exposing its key:
@@ -128,7 +128,6 @@ sp skills path core
 ```
 
 - [Connection and diagnostics](references/connection-and-diagnostics.md)
-- [Project commands](references/project.md)
 - [Targeting and selectors](references/targeting-and-selectors.md)
 - [Space commands](references/space.md)
 - [Group commands](references/group.md)

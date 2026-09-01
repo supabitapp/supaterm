@@ -5,41 +5,41 @@ import Testing
 @testable import SPCLI
 @testable import SupatermCLIShared
 
-struct SPProjectIconTests {
+struct SPGroupIconTests {
   @Test
   func resolvesWellKnownIconsInOrder() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     let expectedURL = try fixture.write("public/favicon.svg")
     _ = try fixture.write("assets/logo.svg")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
   func resolvesDeclaredIconsBeforeWellKnownIcons() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     _ = try fixture.write("favicon.svg")
     try fixture.writeText("index.html", #"<link rel="icon" href="/brand/icon.svg">"#)
     let expectedURL = try fixture.write("public/brand/icon.svg")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
   func resolvesHTMLIconMetadataFromPublic() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     try fixture.writeText("index.html", #"<link href="/brand/logo.svg?v=1" rel="icon">"#)
     let expectedURL = try fixture.write("public/brand/logo.svg")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
   func resolvesRouteIconMetadataWithEitherFieldOrder() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     try fixture.writeText(
       "src/routes/__root.tsx",
@@ -47,12 +47,12 @@ struct SPProjectIconTests {
     )
     let expectedURL = try fixture.write("public/brand/logo.png")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
   func resolvesVectorIconsFromLinkedWebManifests() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     try fixture.writeText(
       "index.html",
@@ -65,12 +65,12 @@ struct SPProjectIconTests {
     _ = try fixture.write("public/icons/app.png")
     let expectedURL = try fixture.write("public/icons/mark.svg")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
   func resolvesLargestSquareRasterFromLinkedWebManifests() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     try fixture.writeText(
       "index.html",
@@ -83,12 +83,12 @@ struct SPProjectIconTests {
     _ = try fixture.write("public/icons/small.png")
     let expectedURL = try fixture.write("public/icons/large.png")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
-  func ignoresNestedProjectMetadata() throws {
-    let fixture = try SPProjectIconFixture()
+  func ignoresNestedMetadata() throws {
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     try fixture.writeText(
       "packages/app/index.html",
@@ -96,12 +96,12 @@ struct SPProjectIconTests {
     )
     _ = try fixture.write("packages/app/icon.svg")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == nil)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == nil)
   }
 
   @Test
   func ignoresRemoteIconDeclarations() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     try fixture.writeText(
       "index.html",
@@ -109,12 +109,12 @@ struct SPProjectIconTests {
     )
     let expectedURL = try fixture.write("favicon.svg")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
   func ignoresOversizedMetadata() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     var source = Data(#"<link rel="icon" href="/brand/icon.svg">"#.utf8)
     source.append(Data(repeating: 0x20, count: 1024 * 1024))
@@ -122,12 +122,12 @@ struct SPProjectIconTests {
     _ = try fixture.write("public/brand/icon.svg")
     let expectedURL = try fixture.write("favicon.svg")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == expectedURL)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == expectedURL)
   }
 
   @Test
-  func rejectsIconsOutsideTheProject() throws {
-    let fixture = try SPProjectIconFixture()
+  func rejectsIconsOutsideTheDirectory() throws {
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     let outsideURL = fixture.rootURL
       .deletingLastPathComponent()
@@ -141,46 +141,53 @@ struct SPProjectIconTests {
     )
     try FileManager.default.createSymbolicLink(at: iconURL, withDestinationURL: outsideURL)
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == nil)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == nil)
   }
 
   @Test
   func rejectsNonImageIconMetadata() throws {
-    let fixture = try SPProjectIconFixture()
+    let fixture = try SPGroupIconFixture()
     defer { fixture.remove() }
     try fixture.writeText("index.html", #"<link rel="icon" href="/secret.txt">"#)
     try fixture.writeText("public/secret.txt", "secret")
 
-    #expect(SupatermProjectIconResolver.resolve(in: fixture.rootURL) == nil)
+    #expect(SupatermGroupIconResolver.resolve(in: fixture.rootURL) == nil)
   }
 
   @Test
   func commandParsesDefaultPathAndJSONOutput() throws {
     let defaultCommand = try #require(
-      try SP.parseAsRoot(["project", "icon"]) as? SP.ProjectIcon
+      try SP.parseAsRoot(["group", "icon"]) as? SP.GroupIcon
     )
     let explicitCommand = try #require(
-      try SP.parseAsRoot(["project", "icon", "~/code/project", "--json"])
-        as? SP.ProjectIcon
+      try SP.parseAsRoot(["group", "icon", "~/code/workspace", "--json"])
+        as? SP.GroupIcon
     )
 
     #expect(defaultCommand.path == nil)
-    #expect(explicitCommand.path == "~/code/project")
+    #expect(explicitCommand.path == "~/code/workspace")
     #expect(explicitCommand.output.json)
   }
 
   @Test
+  func projectCommandIsUnavailable() {
+    #expect(throws: (any Error).self) {
+      try SP.parseAsRoot(["project", "icon"])
+    }
+  }
+
+  @Test
   func missingIconJSONIncludesNullPath() throws {
-    #expect(try jsonString(SPProjectIconResult(path: nil)) == #"{"path":null}"#)
+    #expect(try jsonString(SPGroupIconResult(path: nil)) == #"{"path":null}"#)
   }
 }
 
-private struct SPProjectIconFixture {
+private struct SPGroupIconFixture {
   let rootURL: URL
 
   init() throws {
     rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-      "supaterm-project-icon-\(UUID().uuidString)",
+      "supaterm-group-icon-\(UUID().uuidString)",
       isDirectory: true
     )
     try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: false)

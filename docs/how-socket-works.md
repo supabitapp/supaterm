@@ -216,14 +216,14 @@ sp skills get core
 sp skills install
 ```
 
-Local project metadata:
+Local group icon lookup:
 
 ```bash
-sp project icon
-sp project icon ~/code/project --json
+sp group icon
+sp group icon ~/code/workspace --json
 ```
 
-- `sp project icon` and `sp config path` need no running app.
+- `sp group icon` and `sp config path` need no running app.
 - Every other command in those two blocks needs a reachable app.
 - `sp config path` reads the local state root, so it can differ from the path the app reports when the two run with different `SUPATERM_STATE_HOME` values.
 - Without a reachable app, `sp config` and `sp agent` exit 64 and `sp skills` exits 1. All three print `Error: No reachable Supaterm instance was found.`

@@ -9,6 +9,7 @@ extension SP {
       abstract: "Create and manage tab groups.",
       discussion: SPHelp.groupDiscussion,
       subcommands: [
+        GroupIcon.self,
         GroupNew.self,
         GroupRename.self,
         GroupColor.self,

@@ -1,6 +1,6 @@
 import Foundation
 
-public nonisolated enum SupatermProjectIconResolver {
+public nonisolated enum SupatermGroupIconResolver {
   private static let maximumMetadataBytes = 1024 * 1024
 
   private static let candidates = [
