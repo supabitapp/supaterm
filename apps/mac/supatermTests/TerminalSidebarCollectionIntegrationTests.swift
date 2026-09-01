@@ -237,6 +237,30 @@ struct TerminalSidebarCollectionHarnessTests {
     }
   }
 
+  @Test
+  func deletedItemFadesFromItsSourceGeometry() throws {
+    let first = TerminalTabID()
+    let deleted = TerminalTabID()
+    let last = TerminalTabID()
+    let source = outline([first, deleted, last], revision: 1)
+    let target = outline([first, last], revision: 2)
+    let harness = CollectionHarness(size: CGSize(width: 220, height: 300))
+    defer { harness.close() }
+    harness.apply(outline: source)
+    let deletedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(deleted)))
+    let sourceAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: deletedIndexPath)
+    )
+
+    harness.layout.setOutline(target)
+
+    let finalAttributes = try #require(
+      harness.layout.finalLayoutAttributesForDisappearingItem(at: deletedIndexPath)
+    )
+    #expect(finalAttributes.frame == sourceAttributes.frame)
+    #expect(finalAttributes.alpha == 0)
+  }
+
   private func expectIdentityAlignment(
     in harness: CollectionHarness,
     expectedIDs: [TerminalSidebarEntryID]

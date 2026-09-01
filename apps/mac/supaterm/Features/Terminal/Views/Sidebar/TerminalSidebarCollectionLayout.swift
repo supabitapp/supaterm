@@ -232,6 +232,28 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     attributesByIndexPath[indexPath]
   }
 
+  override func finalLayoutAttributesForDisappearingItem(
+    at itemIndexPath: IndexPath
+  ) -> NSCollectionViewLayoutAttributes? {
+    guard
+      let structuralUpdate,
+      structuralUpdate.sourceIdentifiers.indices.contains(itemIndexPath.item)
+    else {
+      return super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)
+    }
+    let id = structuralUpdate.sourceIdentifiers[itemIndexPath.item]
+    guard
+      !outline.visibleEntries.contains(where: { $0.id == id }),
+      let item = structuralUpdate.sourceItemsByID[id]
+    else {
+      return super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)
+    }
+    let attributes = NSCollectionViewLayoutAttributes(forItemWith: itemIndexPath)
+    attributes.frame = item.frame
+    attributes.alpha = 0
+    return attributes
+  }
+
   override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
     newBounds.size != preparedBoundsSize
   }
