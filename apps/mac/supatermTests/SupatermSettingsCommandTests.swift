@@ -18,6 +18,7 @@ struct SupatermSettingsCommandTests {
         "terminal.zmx_sessions_enabled",
         "notifications.system_notifications",
         "notifications.glowing_pane_ring",
+        "notifications.sound",
         "notifications.tab_move_haptics",
         "coding_agents.show_panel",
         "privacy.analytics_enabled",
@@ -77,6 +78,31 @@ struct SupatermSettingsCommandTests {
     #expect(resetEdit.settings.tabMoveHapticsEnabled)
     #expect(resetEdit.result.oldValue == "false")
     #expect(resetEdit.result.value == "true")
+    #expect(resetEdit.result.isDefault)
+  }
+
+  @Test
+  func registrySetsAndResetsNotificationSound() throws {
+    let setEdit = try SupatermSettingsRegistry.set(
+      SupatermSettingsSetRequest(key: "notifications.sound", value: "Supaterm"),
+      settings: .default,
+      path: "/tmp/settings.toml"
+    )
+
+    #expect(setEdit.settings.notificationSound == .supatermClassic)
+    #expect(setEdit.result.oldValue == "never")
+    #expect(setEdit.result.value == "supaterm")
+    #expect(!setEdit.result.isDefault)
+
+    let resetEdit = try SupatermSettingsRegistry.reset(
+      SupatermSettingsResetRequest(key: "notifications.sound"),
+      settings: setEdit.settings,
+      path: "/tmp/settings.toml"
+    )
+
+    #expect(resetEdit.settings.notificationSound == .never)
+    #expect(resetEdit.result.oldValue == "supaterm")
+    #expect(resetEdit.result.value == "never")
     #expect(resetEdit.result.isDefault)
   }
 

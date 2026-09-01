@@ -1050,7 +1050,7 @@ extension TerminalHostState {
       } else {
         attentionState
       }
-    let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(
+    let notificationDisposition = resolvedNotificationDisposition(
       isFocused: selectionState.isFocused
     )
     let resolvedTitle = resolvedNotificationTitle(
@@ -1084,7 +1084,7 @@ extension TerminalHostState {
 
     return SupatermNotifyResult(
       attentionState: attentionState,
-      desktopNotificationDisposition: desktopNotificationDisposition,
+      notificationDisposition: notificationDisposition,
       resolvedTitle: resolvedTitle,
       windowIndex: 1,
       spaceIndex: paneLocation.spaceIndex,
@@ -1122,7 +1122,7 @@ extension TerminalHostState {
         TerminalNotificationEvent(
           attentionState: result.attentionState,
           body: body,
-          desktopNotificationDisposition: result.desktopNotificationDisposition,
+          notificationDisposition: result.notificationDisposition,
           resolvedTitle: result.resolvedTitle,
           sourceSurfaceID: surfaceID,
           subtitle: subtitle

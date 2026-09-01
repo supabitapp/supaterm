@@ -206,14 +206,19 @@ actor StopRecorder {
   }
 }
 
-actor DesktopNotificationRecorder {
-  private var requests: [DesktopNotificationRequest] = []
-
-  func record(_ request: DesktopNotificationRequest) {
-    requests.append(request)
+actor NotificationDeliveryRecorder {
+  struct Delivery: Equatable {
+    let request: NotificationRequest
+    let output: NotificationOutput
   }
 
-  func snapshot() -> [DesktopNotificationRequest] {
-    requests
+  private var deliveries: [Delivery] = []
+
+  func record(request: NotificationRequest, output: NotificationOutput) {
+    deliveries.append(Delivery(request: request, output: output))
+  }
+
+  func snapshot() -> [Delivery] {
+    deliveries
   }
 }

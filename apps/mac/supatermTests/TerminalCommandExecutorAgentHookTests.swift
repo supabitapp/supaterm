@@ -73,7 +73,7 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentStateStore.snapshots(for: harness.context.surfaceID) == before)
-    #expect(result.desktopNotification == nil)
+    #expect(result.notification == nil)
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
   }

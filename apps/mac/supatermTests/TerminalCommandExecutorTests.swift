@@ -694,7 +694,7 @@ struct TerminalCommandExecutorTests {
   func rewriteNotifyResultPreservesSpaceIndexAndUpdatesWindowIndex() {
     let result = SupatermNotifyResult(
       attentionState: .unread,
-      desktopNotificationDisposition: .deliver,
+      notificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
       windowIndex: 1,
       spaceIndex: 3,
@@ -709,7 +709,7 @@ struct TerminalCommandExecutorTests {
       TerminalWindowRegistry.rewrite(result, windowIndex: 2)
         == SupatermNotifyResult(
           attentionState: .unread,
-          desktopNotificationDisposition: .deliver,
+          notificationDisposition: .deliver,
           resolvedTitle: "Deploy complete",
           windowIndex: 2,
           spaceIndex: 3,

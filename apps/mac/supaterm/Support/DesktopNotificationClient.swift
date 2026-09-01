@@ -8,25 +8,8 @@ private func configuredNotificationCenter() -> UNUserNotificationCenter {
   UNUserNotificationCenter.current()
 }
 
-public struct DesktopNotificationRequest: Equatable, Sendable {
+extension NotificationRequest {
   public nonisolated static let sourceSurfaceIDUserInfoKey = "supatermSourceSurfaceID"
-
-  public let body: String
-  public let sourceSurfaceID: UUID?
-  public let subtitle: String
-  public let title: String
-
-  public init(
-    body: String,
-    subtitle: String,
-    title: String,
-    sourceSurfaceID: UUID? = nil
-  ) {
-    self.body = body
-    self.sourceSurfaceID = sourceSurfaceID
-    self.subtitle = subtitle
-    self.title = title
-  }
 
   public nonisolated var userInfo: [AnyHashable: Any] {
     guard let sourceSurfaceID else { return [:] }
@@ -64,13 +47,13 @@ public struct DesktopNotificationClient: Sendable {
   public var authorizationStatus: @MainActor @Sendable () async -> AuthorizationStatus
   public var requestAuthorization: @MainActor @Sendable () async -> AuthorizationRequestResult
   public var openSettings: @MainActor @Sendable () async -> Void
-  public var deliver: @MainActor @Sendable (DesktopNotificationRequest) async -> Void
+  public var deliver: @MainActor @Sendable (NotificationRequest) async -> Void
 
   public init(
     authorizationStatus: @escaping @MainActor @Sendable () async -> AuthorizationStatus,
     requestAuthorization: @escaping @MainActor @Sendable () async -> AuthorizationRequestResult,
     openSettings: @escaping @MainActor @Sendable () async -> Void,
-    deliver: @escaping @MainActor @Sendable (DesktopNotificationRequest) async -> Void
+    deliver: @escaping @MainActor @Sendable (NotificationRequest) async -> Void
   ) {
     self.authorizationStatus = authorizationStatus
     self.requestAuthorization = requestAuthorization
@@ -123,7 +106,15 @@ extension DesktopNotificationClient: DependencyKey {
         content: content,
         trigger: nil
       )
-      try? await center.add(notificationRequest)
+      do {
+        try await center.add(notificationRequest)
+      } catch {
+        SupatermLog.error(
+          SupatermLog.notifications,
+          "notification.delivery.failed",
+          fields: ["error=\(error.localizedDescription)"]
+        )
+      }
     }
   )
 

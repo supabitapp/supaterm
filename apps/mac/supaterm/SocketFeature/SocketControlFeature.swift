@@ -63,7 +63,7 @@ public struct SocketControlFeature {
   }
 
   @Dependency(SocketControlClient.self) var socketControlClient
-  @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
+  @Dependency(NotificationOutputClient.self) var notificationOutputClient
   @Dependency(SocketRequestExecutor.self) var socketRequestExecutor
 
   public init() {}
@@ -72,12 +72,13 @@ public struct SocketControlFeature {
     Reduce { _, action in
       switch action {
       case .requestReceived(let request):
-        return .run { [desktopNotificationClient, socketControlClient, socketRequestExecutor] _ in
+        return .run {
+          [notificationOutputClient, socketControlClient, socketRequestExecutor] _ in
           guard !Task.isCancelled else { return }
           guard await socketControlClient.isPending(request.handle) else { return }
           let response = await response(
             for: request.payload,
-            desktopNotificationClient: desktopNotificationClient,
+            notificationOutputClient: notificationOutputClient,
             socketControlClient: socketControlClient,
             socketRequestExecutor: socketRequestExecutor
           )
@@ -127,14 +128,14 @@ public struct SocketControlFeature {
 
   func response(
     for request: SupatermSocketRequest,
-    desktopNotificationClient: DesktopNotificationClient,
+    notificationOutputClient: NotificationOutputClient,
     socketControlClient: SocketControlClient,
     socketRequestExecutor: SocketRequestExecutor
   ) async -> SupatermSocketResponse {
     do {
       return try await responseResult(
         for: request,
-        desktopNotificationClient: desktopNotificationClient,
+        notificationOutputClient: notificationOutputClient,
         socketControlClient: socketControlClient,
         socketRequestExecutor: socketRequestExecutor
       )
@@ -187,7 +188,7 @@ public struct SocketControlFeature {
 
   func responseResult(
     for request: SupatermSocketRequest,
-    desktopNotificationClient: DesktopNotificationClient,
+    notificationOutputClient: NotificationOutputClient,
     socketControlClient: SocketControlClient,
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse {
@@ -211,7 +212,7 @@ public struct SocketControlFeature {
     }
     if let response = try await notificationResponseResult(
       for: request,
-      desktopNotificationClient: desktopNotificationClient,
+      notificationOutputClient: notificationOutputClient,
       socketRequestExecutor: socketRequestExecutor
     ) {
       return response

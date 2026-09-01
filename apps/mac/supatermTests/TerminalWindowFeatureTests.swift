@@ -12,17 +12,18 @@ import Testing
 @MainActor
 struct TerminalWindowFeatureTests {
   @Test
-  func desktopNotificationRequestEncodesSourceSurfaceIDInUserInfo() {
+  func notificationRequestEncodesSourceSurfaceIDInUserInfo() {
     let surfaceID = UUID()
-    let request = DesktopNotificationRequest(
+    let request = NotificationRequest(
       body: "Build finished",
+      disposition: .deliver,
       subtitle: "CI",
       title: "Deploy complete",
       sourceSurfaceID: surfaceID
     )
 
-    #expect(DesktopNotificationRequest.sourceSurfaceID(from: request.userInfo) == surfaceID)
-    #expect(DesktopNotificationRequest.sourceSurfaceID(from: [:]) == nil)
+    #expect(NotificationRequest.sourceSurfaceID(from: request.userInfo) == surfaceID)
+    #expect(NotificationRequest.sourceSurfaceID(from: [:]) == nil)
   }
 
   @Test
@@ -191,12 +192,12 @@ struct TerminalWindowFeatureTests {
 
   @Test
   func notificationReceivedDeliversDesktopNotification() async throws {
-    let recorder = TerminalDesktopNotificationRecorder()
+    let recorder = TerminalNotificationOutputRecorder()
     let sourceSurfaceID = UUID()
     let event = TerminalNotificationEvent(
       attentionState: .unread,
       body: "Build finished",
-      desktopNotificationDisposition: .deliver,
+      notificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
       sourceSurfaceID: sourceSurfaceID,
       subtitle: "CI"
@@ -210,7 +211,7 @@ struct TerminalWindowFeatureTests {
       let store = TestStore(initialState: TerminalWindowFeature.State()) {
         TerminalWindowFeature()
       } withDependencies: {
-        $0.desktopNotificationClient.deliver = { await recorder.record($0) }
+        $0.notificationOutputClient.deliver = { await recorder.record(request: $0, output: $1) }
       }
 
       await store.send(.clientEvent(.notificationReceived(event)))
@@ -218,14 +219,47 @@ struct TerminalWindowFeatureTests {
       #expect(
         await recorder.snapshot()
           == [
-            DesktopNotificationRequest(
-              body: "Build finished",
-              subtitle: "CI",
-              title: "Deploy complete",
-              sourceSurfaceID: sourceSurfaceID
+            TerminalNotificationOutputRecorder.Delivery(
+              request: NotificationRequest(
+                body: "Build finished",
+                disposition: .deliver,
+                subtitle: "CI",
+                title: "Deploy complete",
+                sourceSurfaceID: sourceSurfaceID
+              ),
+              output: .system
             )
           ]
       )
+    }
+  }
+
+  @Test
+  func notificationReceivedPlaysSelectedSoundWithoutSystemNotification() async throws {
+    let recorder = TerminalNotificationOutputRecorder()
+    let event = TerminalNotificationEvent(
+      attentionState: .unread,
+      body: "Build finished",
+      notificationDisposition: .deliver,
+      resolvedTitle: "Deploy complete",
+      sourceSurfaceID: UUID(),
+      subtitle: "CI"
+    )
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock { $0.notificationSound = .glass }
+      let store = TestStore(initialState: TerminalWindowFeature.State()) {
+        TerminalWindowFeature()
+      } withDependencies: {
+        $0.notificationOutputClient.deliver = { await recorder.record(request: $0, output: $1) }
+      }
+
+      await store.send(.clientEvent(.notificationReceived(event)))
+
+      #expect(await recorder.snapshot().map(\.output) == [.sound(.glass)])
     }
   }
 
@@ -562,15 +596,20 @@ private final class CommandPaletteClientRecorder {
   var focusTargets: [TerminalCommandPaletteFocusTarget] = []
 }
 
-private actor TerminalDesktopNotificationRecorder {
-  private var requests: [DesktopNotificationRequest] = []
-
-  func record(_ request: DesktopNotificationRequest) {
-    requests.append(request)
+private actor TerminalNotificationOutputRecorder {
+  struct Delivery: Equatable {
+    let request: NotificationRequest
+    let output: NotificationOutput
   }
 
-  func snapshot() -> [DesktopNotificationRequest] {
-    requests
+  private var deliveries: [Delivery] = []
+
+  func record(request: NotificationRequest, output: NotificationOutput) {
+    deliveries.append(Delivery(request: request, output: output))
+  }
+
+  func snapshot() -> [Delivery] {
+    deliveries
   }
 }
 

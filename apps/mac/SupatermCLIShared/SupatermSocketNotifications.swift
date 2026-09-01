@@ -4,7 +4,7 @@ public enum SupatermNotificationAttentionState: String, Equatable, Sendable, Cod
   case unread
 }
 
-public enum SupatermDesktopNotificationDisposition: String, Equatable, Sendable, Codable {
+public enum SupatermNotificationDisposition: String, Equatable, Sendable, Codable {
   case deliver
   case suppressFocused
 
@@ -39,7 +39,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
 
 public struct SupatermNotifyResult: Equatable, Sendable, Codable {
   public let attentionState: SupatermNotificationAttentionState
-  public let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
+  public let notificationDisposition: SupatermNotificationDisposition
   public let resolvedTitle: String
   public let windowIndex: Int
   public let spaceIndex: Int
@@ -51,7 +51,7 @@ public struct SupatermNotifyResult: Equatable, Sendable, Codable {
 
   public init(
     attentionState: SupatermNotificationAttentionState,
-    desktopNotificationDisposition: SupatermDesktopNotificationDisposition,
+    notificationDisposition: SupatermNotificationDisposition,
     resolvedTitle: String,
     windowIndex: Int,
     spaceIndex: Int,
@@ -62,7 +62,7 @@ public struct SupatermNotifyResult: Equatable, Sendable, Codable {
     paneID: UUID
   ) {
     self.attentionState = attentionState
-    self.desktopNotificationDisposition = desktopNotificationDisposition
+    self.notificationDisposition = notificationDisposition
     self.resolvedTitle = resolvedTitle
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
@@ -71,5 +71,18 @@ public struct SupatermNotifyResult: Equatable, Sendable, Codable {
     self.tabID = tabID
     self.paneIndex = paneIndex
     self.paneID = paneID
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case attentionState
+    case notificationDisposition = "desktopNotificationDisposition"
+    case resolvedTitle
+    case windowIndex
+    case spaceIndex
+    case spaceID
+    case tabIndex
+    case tabID
+    case paneIndex
+    case paneID
   }
 }

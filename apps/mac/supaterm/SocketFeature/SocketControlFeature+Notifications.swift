@@ -7,7 +7,7 @@ import SupatermTerminalCore
 extension SocketControlFeature {
   func notificationResponseResult(
     for request: SupatermSocketRequest,
-    desktopNotificationClient: DesktopNotificationClient,
+    notificationOutputClient: NotificationOutputClient,
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
@@ -19,18 +19,16 @@ extension SocketControlFeature {
         throw SocketExecutorError.unexpectedResult
       }
       @Shared(.supatermSettings) var supatermSettings = .default
-      if supatermSettings.systemNotificationsEnabled
-        && result.desktopNotificationDisposition.shouldDeliver
-      {
-        await desktopNotificationClient.deliver(
-          DesktopNotificationRequest(
-            body: payload.body,
-            subtitle: payload.subtitle,
-            title: result.resolvedTitle,
-            sourceSurfaceID: result.paneID
-          )
-        )
-      }
+      await notificationOutputClient.deliver(
+        NotificationRequest(
+          body: payload.body,
+          disposition: result.notificationDisposition,
+          subtitle: payload.subtitle,
+          title: result.resolvedTitle,
+          sourceSurfaceID: result.paneID
+        ),
+        supatermSettings.notificationOutput
+      )
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalAgentHook:
@@ -40,10 +38,11 @@ extension SocketControlFeature {
         throw SocketExecutorError.unexpectedResult
       }
       @Shared(.supatermSettings) var supatermSettings = .default
-      if supatermSettings.systemNotificationsEnabled,
-        let desktopNotification = result.desktopNotification
-      {
-        await desktopNotificationClient.deliver(desktopNotification)
+      if let notification = result.notification {
+        await notificationOutputClient.deliver(
+          notification,
+          supatermSettings.notificationOutput
+        )
       }
       return .ok(id: request.id)
 

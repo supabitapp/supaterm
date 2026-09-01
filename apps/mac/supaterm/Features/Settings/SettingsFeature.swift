@@ -136,6 +136,7 @@ public struct SettingsFeature {
     var codingAgentsShowPanel: Bool { supatermSettings.codingAgentsShowPanel }
     var crashReportsEnabled: Bool { supatermSettings.crashReportsEnabled }
     var glowingPaneRingEnabled: Bool { supatermSettings.glowingPaneRingEnabled }
+    var notificationSound: NotificationSound { supatermSettings.notificationSound }
     var restoreTerminalLayoutEnabled: Bool { supatermSettings.restoreTerminalLayoutEnabled }
     var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] {
       supatermSettings.shortcutOverrides
@@ -164,6 +165,7 @@ public struct SettingsFeature {
     case codingAgentsShowPanelChanged(Bool)
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
+    case notificationSoundSelected(NotificationSound)
     case terminalShortcutSourceChanged
     case restoreTerminalLayoutEnabledChanged(Bool)
     case restoreShortcutDefaultsButtonTapped
@@ -261,6 +263,7 @@ public struct SettingsFeature {
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
+  @Dependency(NotificationSoundClient.self) var notificationSoundClient
   @Dependency(SupatermSkillClient.self) var supatermSkillClient
   @Dependency(UpdateClient.self) var updateClient
 
@@ -359,6 +362,7 @@ public struct SettingsFeature {
       case .systemNotificationsEnabledChanged,
         .systemNotificationsAuthorizationChecked,
         .systemNotificationsAuthorizationResult,
+        .notificationSoundSelected,
         .tabMoveHapticsEnabledChanged:
         return reduceNotifications(&state, action: action)
 

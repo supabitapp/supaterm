@@ -65,6 +65,8 @@ Enable **Settings > Notifications > System notifications**, then verify permissi
 
 Unread badges can still appear when macOS delivery is disabled. The glowing pane ring has its own independent toggle.
 
+To hear activity without a macOS notification, turn off **System notifications** and choose a **Notification Sound**. Local sounds are not silenced by Focus.
+
 ## Sessions do not survive a relaunch
 
 Enable both **Restore Terminal Layout** and **Persist Sessions Using zmx** under **Settings > General**. Restart Supaterm after changing zmx persistence.

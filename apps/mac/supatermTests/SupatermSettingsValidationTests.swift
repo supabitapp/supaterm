@@ -93,6 +93,9 @@ struct SupatermSettingsValidationTests {
       analytics_enabled = true
       crash_reports_enabled = true
 
+      [notifications]
+      sound = "glass"
+
       [terminal]
       confirm_quit = "never"
       """#.utf8

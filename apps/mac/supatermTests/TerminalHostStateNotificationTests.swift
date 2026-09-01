@@ -165,7 +165,7 @@ struct TerminalHostStateNotificationTests {
 
     #expect(notification.attentionState == .unread)
     #expect(notification.body == "Build finished")
-    #expect(notification.desktopNotificationDisposition == .suppressFocused)
+    #expect(notification.notificationDisposition == .suppressFocused)
     #expect(notification.resolvedTitle == expectedTitle)
     #expect(notification.sourceSurfaceID == surface.id)
     #expect(notification.subtitle.isEmpty)
@@ -196,7 +196,7 @@ struct TerminalHostStateNotificationTests {
 
     #expect(notification.attentionState == .unread)
     #expect(notification.body.isEmpty)
-    #expect(notification.desktopNotificationDisposition == .deliver)
+    #expect(notification.notificationDisposition == .deliver)
     #expect(notification.resolvedTitle == "Deploy complete")
     #expect(notification.sourceSurfaceID == surface.id)
     #expect(notification.subtitle.isEmpty)
@@ -374,7 +374,7 @@ struct TerminalHostStateNotificationTests {
       )
     )
 
-    #expect(result.desktopNotificationDisposition == .deliver)
+    #expect(result.notificationDisposition == .deliver)
   }
 
   @Test

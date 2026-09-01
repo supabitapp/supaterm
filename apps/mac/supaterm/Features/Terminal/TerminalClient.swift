@@ -5,7 +5,7 @@ import SupatermCLIShared
 struct TerminalNotificationEvent: Equatable, Sendable {
   let attentionState: SupatermNotificationAttentionState
   let body: String
-  let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
+  let notificationDisposition: SupatermNotificationDisposition
   let resolvedTitle: String
   let sourceSurfaceID: UUID
   let subtitle: String

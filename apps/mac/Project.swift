@@ -164,6 +164,9 @@ let project = Project(
       bundleId: "app.supabit.supaterm.support",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
+      resources: [
+        "supaterm/Resources/notification.wav",
+      ],
       buildableFolders: [
         "supaterm/Support",
       ],

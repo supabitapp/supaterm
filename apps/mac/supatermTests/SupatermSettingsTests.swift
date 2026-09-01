@@ -49,6 +49,7 @@ struct SupatermSettingsTests {
     #expect(prefs.codingAgentsShowPanel)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
+    #expect(prefs.notificationSound == .never)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(prefs.shortcutOverrides.isEmpty)
     #expect(!prefs.systemNotificationsEnabled)
@@ -202,6 +203,25 @@ struct SupatermSettingsTests {
   }
 
   @Test
+  func prefsRoundTripNotificationSound() throws {
+    var settings = SupatermSettings.default
+    settings.notificationSound = .glass
+
+    let data = try SupatermSettingsCodec.encode(settings)
+    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
+    let decoded = try SupatermSettingsCodec.decode(data)
+
+    #expect(
+      string
+        == """
+        [notifications]
+        sound = "glass"
+        """
+    )
+    #expect(decoded.notificationSound == .glass)
+  }
+
+  @Test
   func prefsRoundTripShortcutOverrides() throws {
     var settings = SupatermSettings.default
     settings.shortcutOverrides[.toggleSidebar] = SupatermShortcutOverride(
@@ -288,6 +308,7 @@ struct SupatermSettingsTests {
         codingAgentsShowPanel: false,
         crashReportsEnabled: false,
         glowingPaneRingEnabled: false,
+        notificationSound: .hero,
         restoreTerminalLayoutEnabled: false,
         systemNotificationsEnabled: true,
         updateChannel: .tip,
@@ -305,6 +326,7 @@ struct SupatermSettingsTests {
           codingAgentsShowPanel: false,
           crashReportsEnabled: false,
           glowingPaneRingEnabled: false,
+          notificationSound: .hero,
           restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
           updateChannel: .tip,
@@ -330,6 +352,7 @@ struct SupatermSettingsTests {
     #expect(prefs.codingAgentsShowPanel)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
+    #expect(prefs.notificationSound == .never)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.tabMoveHapticsEnabled)

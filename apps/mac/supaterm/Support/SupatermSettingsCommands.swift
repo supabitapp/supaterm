@@ -21,6 +21,7 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
   case terminalZmxSessionsEnabled = "terminal.zmx_sessions_enabled"
   case notificationsSystemNotifications = "notifications.system_notifications"
   case notificationsGlowingPaneRing = "notifications.glowing_pane_ring"
+  case notificationsSound = "notifications.sound"
   case notificationsTabMoveHaptics = "notifications.tab_move_haptics"
   case codingAgentsShowPanel = "coding_agents.show_panel"
   case privacyAnalyticsEnabled = "privacy.analytics_enabled"
@@ -38,6 +39,7 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
   public var valueKind: SupatermSettingsValueKind {
     switch self {
     case .appearanceMode,
+      .notificationsSound,
       .updatesChannel:
       return .string
     case .terminalRestoreLayout,
@@ -59,6 +61,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       return AppearanceMode.allCases.map(\.rawValue)
     case .updatesChannel:
       return UpdateChannel.allCases.map(\.rawValue)
+    case .notificationsSound:
+      return NotificationSound.allCases.map(\.rawValue)
     case .terminalRestoreLayout,
       .terminalZmxSessionsEnabled,
       .notificationsSystemNotifications,
@@ -84,6 +88,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       return string(settings.systemNotificationsEnabled)
     case .notificationsGlowingPaneRing:
       return string(settings.glowingPaneRingEnabled)
+    case .notificationsSound:
+      return settings.notificationSound.rawValue
     case .notificationsTabMoveHaptics:
       return string(settings.tabMoveHapticsEnabled)
     case .codingAgentsShowPanel:
@@ -115,6 +121,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       settings.systemNotificationsEnabled = try parsedBool(rawValue)
     case .notificationsGlowingPaneRing:
       settings.glowingPaneRingEnabled = try parsedBool(rawValue)
+    case .notificationsSound:
+      settings.notificationSound = try parsedEnum(NotificationSound.self, rawValue: rawValue)
     case .notificationsTabMoveHaptics:
       settings.tabMoveHapticsEnabled = try parsedBool(rawValue)
     case .codingAgentsShowPanel:
@@ -142,6 +150,8 @@ public enum SupatermSettingsKey: String, CaseIterable, Codable, Equatable, Senda
       settings.systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
     case .notificationsGlowingPaneRing:
       settings.glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
+    case .notificationsSound:
+      settings.notificationSound = SupatermSettings.default.notificationSound
     case .notificationsTabMoveHaptics:
       settings.tabMoveHapticsEnabled = SupatermSettings.default.tabMoveHapticsEnabled
     case .codingAgentsShowPanel:

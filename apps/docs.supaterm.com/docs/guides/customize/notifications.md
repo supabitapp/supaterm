@@ -1,15 +1,29 @@
 ---
 title: Notifications
-description: Configure macOS delivery, pane attention, unread badges, terminal notifications, and tab-reorder haptics.
+description: Configure macOS delivery, sounds, pane attention, unread badges, terminal notifications, and tab-reorder haptics.
 ---
 
 Supaterm can surface terminal and coding-agent activity in the sidebar, inside the pane, and through macOS.
 
 ## System notifications
 
-Enable **Settings > Notifications > System notifications** to deliver terminal and agent notifications through macOS. The first enablement can trigger a macOS permission prompt.
+System notifications are off by default. Enable **Settings > Notifications > System notifications** to deliver terminal and agent notifications through macOS. The first enablement can trigger a macOS permission prompt.
 
 If delivery is enabled but nothing appears, open **System Settings > Notifications > Supaterm** and verify macOS permission.
+
+System notifications request the default macOS notification sound. macOS controls whether that sound plays.
+
+## Notification sounds
+
+When system notifications are off, choose **Settings > Notifications > Notification Sound** to play a native macOS sound or **Supaterm Classic** without showing a system notification. Choosing a sound previews it. **Never** is the default.
+
+Local sounds do not pass through Notification Center, so Focus does not silence them. Supaterm plays either a system notification or the selected local sound for an event, never both.
+
+Set the same value from the command line:
+
+```bash
+sp config set notifications.sound supaterm
+```
 
 ## Glowing Pane Ring
 
