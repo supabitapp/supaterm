@@ -1,6 +1,7 @@
 import AppKit
 import SupaTheme
 import SupatermCLIShared
+import SupatermUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -557,8 +558,8 @@ struct TerminalSplitTreeView: View {
       searchIsVisible ? GhosttySurfaceSearchOverlay.topReservedHeight : agentPanelEdgePadding
     }
 
-    static func agentPanelOverlayWidth(isCollapsed: Bool) -> CGFloat {
-      isCollapsed ? AgentPanelMetrics.collapsedLength : AgentPanelMetrics.expandedWidth
+    static func agentPanelOverlayWidth(isCollapsed: Bool) -> CGFloat? {
+      isCollapsed ? nil : AgentPanelMetrics.expandedWidth
     }
 
     static func visibleShortcutHint(
@@ -708,6 +709,7 @@ struct TerminalSplitTreeView: View {
         .scaleEffect(isEffectivelyCollapsed ? 0.96 : 1, anchor: .topTrailing)
         .allowsHitTesting(!isEffectivelyCollapsed)
         .accessibilityHidden(isEffectivelyCollapsed)
+        .frame(width: isEffectivelyCollapsed ? 0 : AgentPanelMetrics.expandedWidth)
 
         toggleButton
       }
@@ -846,7 +848,7 @@ struct TerminalSplitTreeView: View {
       )
     }
 
-    private var surfaceWidth: CGFloat {
+    private var surfaceWidth: CGFloat? {
       TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: isEffectivelyCollapsed)
     }
 
@@ -891,7 +893,10 @@ struct TerminalSplitTreeView: View {
       Button(action: action) {
         content
           .foregroundStyle(foregroundStyle)
-          .frame(width: AgentPanelMetrics.collapsedLength, height: AgentPanelMetrics.collapsedLength)
+          .frame(
+            minWidth: AgentPanelMetrics.collapsedLength,
+            minHeight: AgentPanelMetrics.collapsedLength
+          )
           .accessibilityHidden(true)
       }
       .buttonStyle(.plain)
@@ -907,9 +912,7 @@ struct TerminalSplitTreeView: View {
     @ViewBuilder
     private var content: some View {
       if let shortcutHint {
-        Text(shortcutHint)
-          .font(.system(size: 11, weight: .semibold, design: .rounded))
-          .monospacedDigit()
+        KeyboardShortcutPill(shortcutHint, color: foregroundStyle)
       } else {
         Image(systemName: "info.circle")
           .font(.system(size: 14, weight: .medium))

@@ -3,11 +3,42 @@ import SupatermUI
 import SwiftUI
 
 extension SnapshotCatalog {
+  static let keyboardShortcutPillGroup = "Keyboard Shortcut Pills"
+
   static let surfaceScenarios: [SnapshotScenario] =
-    dialogSurfaceScenarios
+    keyboardShortcutPillScenarios
+    + dialogSurfaceScenarios
     + popoverSurfaceScenarios
     + searchPanelSurfaceScenarios
     + toastSurfaceScenarios
+
+  static let keyboardShortcutPillScenarios: [SnapshotScenario] = [
+    scenario(
+      "variants",
+      group: keyboardShortcutPillGroup,
+      title: "Shortcut variants",
+      size: CGSize(width: 560, height: 180)
+    ) { appearance in
+      AnyView(
+        SurfaceSnapshotBackdrop(appearance: appearance) { palette in
+          VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+              KeyboardShortcutPill("⌘1", color: palette.secondaryText)
+              KeyboardShortcutPill("⌘⇧D", color: palette.primaryText)
+              KeyboardShortcutPill("↩", color: palette.accent)
+            }
+            HStack(spacing: 12) {
+              KeyboardShortcutPill("Cmd-G", color: palette.secondaryText)
+              KeyboardShortcutPill("Shift-Cmd-G", color: palette.primaryText)
+              KeyboardShortcutPill("Esc", color: palette.accent)
+            }
+          }
+          .padding(24)
+          .background(palette.detailBackground, in: .rect(cornerRadius: 12))
+        }
+      )
+    }
+  ]
 
   private static let dialogSurfaceScenarios: [SnapshotScenario] = [
     scenario(

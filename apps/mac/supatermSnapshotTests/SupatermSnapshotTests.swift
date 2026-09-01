@@ -9,7 +9,24 @@ import Testing
 @Suite
 struct SupatermSnapshotTests {
   @Test func catalogScenarios() {
-    for scenario in SnapshotCatalog.scenarios {
+    assertCatalogSnapshots(
+      SnapshotCatalog.scenarios.filter { $0.group != SnapshotCatalog.keyboardShortcutPillGroup },
+      testName: #function
+    )
+  }
+
+  @Test func keyboardShortcutPills() {
+    assertCatalogSnapshots(
+      SnapshotCatalog.keyboardShortcutPillScenarios,
+      testName: #function
+    )
+  }
+
+  private func assertCatalogSnapshots(
+    _ scenarios: [SnapshotScenario],
+    testName: String
+  ) {
+    for scenario in scenarios {
       for appearance in scenario.appearances {
         assertSnapshot(
           of: image(scenario: scenario, appearance: appearance),
@@ -17,7 +34,8 @@ struct SupatermSnapshotTests {
             precision: 0.99,
             perceptualPrecision: 0.99
           ),
-          named: scenario.snapshotName(appearance: appearance)
+          named: scenario.snapshotName(appearance: appearance),
+          testName: testName
         )
       }
     }

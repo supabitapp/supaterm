@@ -357,9 +357,9 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func collapsedAgentPanelKeepsOnlyToggleWidth() {
+  func collapsedAgentPanelUsesIntrinsicToggleWidth() {
     #expect(TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: false) == 306)
-    #expect(TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: true) == 30)
+    #expect(TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: true) == nil)
   }
 
   @Test

@@ -1,4 +1,5 @@
 import SupaTheme
+import SupatermUI
 import SwiftUI
 
 struct TerminalSidebarTabSummaryView: View {
@@ -11,8 +12,12 @@ struct TerminalSidebarTabSummaryView: View {
     case terminalProgress(TerminalSidebarTerminalProgress)
 
     fileprivate var usesVariableWidth: Bool {
-      if case .agent = self { return true }
-      return false
+      switch self {
+      case .agent, .shortcut:
+        true
+      default:
+        false
+      }
     }
   }
 
@@ -199,13 +204,12 @@ private struct TerminalSidebarTabLineView: View {
         Color.clear
 
       case .shortcut(let shortcutHint):
-        Text(shortcutHint)
-          .font(.system(size: 11, weight: .semibold))
-          .foregroundStyle(
-            isSelected
-              ? palette.selectedSecondaryText
-              : palette.secondaryText
-          )
+        KeyboardShortcutPill(
+          shortcutHint,
+          color: isSelected
+            ? palette.selectedSecondaryText
+            : palette.secondaryText
+        )
       case .agent(let status):
         TerminalSidebarAgentStatusView(
           status: status,
