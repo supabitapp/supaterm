@@ -97,7 +97,7 @@ struct SettingsFeatureCodingAgentsTests {
 
   @Test
   func enablingAgentIntegrationInstallsSupatermSkillFirst() async {
-    for agent in SupatermAgentKind.managedIntegrationCases {
+    for agent in SupatermManagedAgentKind.allCases {
       let keyPath = SettingsFeature().agentIntegrationKeyPath(for: agent)
       let recorder = SettingsAgentInstallRecorder()
       let store = TestStore(initialState: SettingsFeature.State()) {
@@ -121,7 +121,7 @@ struct SettingsFeatureCodingAgentsTests {
 
   @Test
   func disablingAgentIntegrationDoesNotInstallSupatermSkill() async {
-    for agent in SupatermAgentKind.managedIntegrationCases {
+    for agent in SupatermManagedAgentKind.allCases {
       let recorder = SettingsAgentInstallRecorder()
       var state = SettingsFeature.State()
       let keyPath = SettingsFeature().agentIntegrationKeyPath(for: agent)
@@ -270,7 +270,7 @@ struct SettingsFeatureCodingAgentsTests {
 }
 
 enum SettingsAgentInstallCommand: Equatable {
-  case integration(SupatermAgentKind)
+  case integration(SupatermManagedAgentKind)
   case skill
 }
 
@@ -288,7 +288,7 @@ actor SettingsAgentInstallRecorder {
 
 func configureEnableDependencies(
   _ dependencies: inout DependencyValues,
-  agent: SupatermAgentKind,
+  agent: SupatermManagedAgentKind,
   recorder: SettingsAgentInstallRecorder
 ) {
   dependencies.supatermSkillClient.installSupatermSkill = {
@@ -305,14 +305,12 @@ func configureEnableDependencies(
     dependencies.codexSettingsClient.installSupatermHooks = {
       await recorder.record(.integration(agent))
     }
-  case .pi:
-    preconditionFailure("Pi has no managed integration")
   }
 }
 
 func configureDisableDependencies(
   _ dependencies: inout DependencyValues,
-  agent: SupatermAgentKind,
+  agent: SupatermManagedAgentKind,
   recorder: SettingsAgentInstallRecorder
 ) {
   dependencies.supatermSkillClient.installSupatermSkill = {
@@ -329,7 +327,5 @@ func configureDisableDependencies(
     dependencies.codexSettingsClient.removeSupatermHooks = {
       await recorder.record(.integration(agent))
     }
-  case .pi:
-    preconditionFailure("Pi has no managed integration")
   }
 }

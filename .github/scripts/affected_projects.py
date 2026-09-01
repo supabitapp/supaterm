@@ -15,7 +15,8 @@ from pre_push import MAIN_REF, PrePushError, is_zero_object_name, parse_push_upd
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MARKDOWN_SUFFIXES = (".md", ".mdx")
-SKILLS_DIRECTORY = "integrations/supaterm"
+SKILL_DATA_DIRECTORY = "integrations/supaterm/skill-data"
+SKILL_STUB_DIRECTORY = "integrations/supaterm/skills/supaterm"
 
 
 class AffectedProjectsError(Exception):
@@ -37,6 +38,9 @@ class PathSet:
 
 
 GLOBAL_PATHS = PathSet(files=frozenset({"Makefile", "mise.toml"}))
+BUNDLED_SKILL_PATHS = PathSet(
+  directories=(SKILL_DATA_DIRECTORY, SKILL_STUB_DIRECTORY)
+)
 SHARED_APPLE_PATHS = PathSet(
   files=frozenset(
     {
@@ -76,12 +80,12 @@ DOCS_PATHS = PathSet(
     }
   )
   | DOCS_SNAPSHOT_PATHS,
-  directories=("apps/docs.supaterm.com", SKILLS_DIRECTORY),
+  directories=("apps/docs.supaterm.com", SKILL_DATA_DIRECTORY),
 )
 IOS_PATHS = PathSet(directories=("apps/ios",))
 MAC_PATHS = PathSet(
   files=frozenset({".gitmodules"}),
-  directories=("apps/mac", SKILLS_DIRECTORY),
+  directories=("apps/mac",),
 )
 WEB_PATHS = PathSet(
   files=frozenset({".github/workflows/deploy-web.yml"}),
@@ -90,7 +94,7 @@ WEB_PATHS = PathSet(
 PROJECT_PATHS = {
   "docs": (GLOBAL_PATHS, DOCS_PATHS),
   "ios": (GLOBAL_PATHS, SHARED_APPLE_PATHS, IOS_PATHS),
-  "mac": (GLOBAL_PATHS, SHARED_APPLE_PATHS, MAC_PATHS),
+  "mac": (GLOBAL_PATHS, SHARED_APPLE_PATHS, MAC_PATHS, BUNDLED_SKILL_PATHS),
   "web": (GLOBAL_PATHS, WEB_PATHS),
 }
 PROJECTS = tuple(PROJECT_PATHS)
@@ -110,7 +114,7 @@ def affected_projects(paths: set[str]) -> set[str]:
       if (
         project != "docs"
         and path.endswith(MARKDOWN_SUFFIXES)
-        and not path.startswith(f"{SKILLS_DIRECTORY}/")
+        and not BUNDLED_SKILL_PATHS.contains(path)
       ):
         continue
       if any(path_set.contains(path) for path_set in path_sets):

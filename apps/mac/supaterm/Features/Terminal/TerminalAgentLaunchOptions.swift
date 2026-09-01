@@ -1,19 +1,12 @@
 import Foundation
-import SupatermCLIShared
 
 nonisolated enum TerminalAgentLaunchOptions {
-  static func inherited(
-    from commandLineArguments: [String],
-    agent: SupatermAgentKind
-  ) -> [String]? {
-    switch agent {
-    case .claude:
-      Schema.claude.inherited(from: commandLineArguments)
-    case .codex:
-      Schema.codex.inherited(from: commandLineArguments)
-    case .pi:
-      nil
-    }
+  static func claudeInherited(from commandLineArguments: [String]) -> [String]? {
+    Schema.claude.inherited(from: commandLineArguments)
+  }
+
+  static func codexInherited(from commandLineArguments: [String]) -> [String]? {
+    Schema.codex.inherited(from: commandLineArguments)
   }
 
   private enum ArgumentResolution {

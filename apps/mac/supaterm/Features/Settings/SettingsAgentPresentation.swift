@@ -1,6 +1,6 @@
 import SupatermCLIShared
 
-extension SupatermAgentKind {
+extension SupatermManagedAgentKind {
   var settingsInstallDescription: String {
     "\(notificationTitle) hooks: \(settingsPathDescription)"
   }
@@ -11,8 +11,6 @@ extension SupatermAgentKind {
       return "~/.claude/settings.json"
     case .codex:
       return "~/.codex/hooks.json"
-    case .pi:
-      preconditionFailure("Pi has no managed integration")
     }
   }
 }

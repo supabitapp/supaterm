@@ -7,8 +7,8 @@ import Testing
 
 @MainActor
 struct TerminalCommandExecutorAgentHookTests {
-  @Test(arguments: [SupatermAgentKind.claude, .codex])
-  func sessionStartStoresActionableIdentityWithoutActivity(agent: SupatermAgentKind) throws {
+  @Test(arguments: [SupatermManagedAgentKind.claude, .codex])
+  func sessionStartStoresActionableIdentityWithoutActivity(agent: SupatermManagedAgentKind) throws {
     let harness = try makeClaudeHookHarness()
     let sessionID = "session-1"
 
@@ -22,7 +22,7 @@ struct TerminalCommandExecutorAgentHookTests {
       )
     )
 
-    #expect(harness.host.hasAgentSession(agent: agent, sessionID: sessionID))
+    #expect(harness.host.hasAgentSession(agent: agent.agentKind, sessionID: sessionID))
     #expect(
       harness.host.agentStateStore.snapshots(for: harness.context.surfaceID).first?.isActionable
         == true
@@ -32,7 +32,7 @@ struct TerminalCommandExecutorAgentHookTests {
   }
 
   @Test(
-    arguments: [SupatermAgentKind.claude, .codex],
+    arguments: [SupatermManagedAgentKind.claude, .codex],
     [
       SupatermAgentHookEventName.notification,
       .permissionRequest,
@@ -45,7 +45,7 @@ struct TerminalCommandExecutorAgentHookTests {
       .userPromptSubmit,
     ])
   func nonIdentityEventHasNoEffect(
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     eventName: SupatermAgentHookEventName
   ) throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)

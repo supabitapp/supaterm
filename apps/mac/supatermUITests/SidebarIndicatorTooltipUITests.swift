@@ -63,17 +63,11 @@ final class SidebarIndicatorTooltipUITests: SupatermUITestCase {
 
   @MainActor
   private func startAgentTurn() {
-    let sessionStart = #"{"session_id":"indicator-tooltip","hook_event_name":"session_start"}"#
-    let agentStart = #"{"session_id":"indicator-tooltip","hook_event_name":"agent_start"}"#
-    let receiveHook =
-      "\"$SUPATERM_CLI_PATH\" agent receive-agent-hook --agent pi"
-      + " --socket \"$SUPATERM_SOCKET_PATH\""
     let terminal = mainTerminal
 
     terminal.click()
     terminal.typeText(
-      "printf '%s' '\(sessionStart)' | \(receiveHook)"
-        + " && printf '%s' '\(agentStart)' | \(receiveHook)"
+      #"node -e 'process.title="pi"; console.log("Working..."); setInterval(() => {}, 1000)'"#
     )
     terminal.typeKey(.return, modifierFlags: [])
   }

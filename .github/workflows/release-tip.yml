@@ -20,7 +20,8 @@ on:
       - "Makefile"
       - "mise.toml"
       - "!**/*.md"
-      - "integrations/supaterm/**"
+      - "integrations/supaterm/skill-data/**"
+      - "integrations/supaterm/skills/supaterm/**"
 
 concurrency:
   group: release-tip

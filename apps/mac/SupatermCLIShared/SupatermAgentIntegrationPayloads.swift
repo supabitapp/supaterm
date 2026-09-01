@@ -23,18 +23,18 @@ public enum SupatermAgentIntegrationTiming {
 }
 
 public struct SupatermAgentIntegrationRequest: Codable, Equatable, Sendable {
-  public let agent: SupatermAgentKind
+  public let agent: SupatermManagedAgentKind
 
-  public init(agent: SupatermAgentKind) {
+  public init(agent: SupatermManagedAgentKind) {
     self.agent = agent
   }
 }
 
 public struct SupatermAgentIntegrationResult: Codable, Equatable, Sendable {
-  public let agent: SupatermAgentKind
+  public let agent: SupatermManagedAgentKind
   public let health: CodingAgentIntegrationHealth
 
-  public init(agent: SupatermAgentKind, health: CodingAgentIntegrationHealth) {
+  public init(agent: SupatermManagedAgentKind, health: CodingAgentIntegrationHealth) {
     self.agent = agent
     self.health = health
   }

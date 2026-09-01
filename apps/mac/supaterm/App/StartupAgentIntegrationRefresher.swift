@@ -3,16 +3,16 @@ import SupatermCLIShared
 
 nonisolated struct StartupAgentIntegrationRefresher {
   struct Operation: Sendable {
-    let agent: SupatermAgentKind
+    let agent: SupatermManagedAgentKind
     let health: @Sendable () throws -> CodingAgentIntegrationHealth
     let repair: @Sendable () throws -> Void
   }
 
   let operations: [Operation]
-  let logFailure: @Sendable (SupatermAgentKind, Error) -> Void
+  let logFailure: @Sendable (SupatermManagedAgentKind, Error) -> Void
 
   static let live = StartupAgentIntegrationRefresher(
-    operations: SupatermAgentKind.managedIntegrationCases.map { agent in
+    operations: SupatermManagedAgentKind.allCases.map { agent in
       Operation(
         agent: agent,
         health: {

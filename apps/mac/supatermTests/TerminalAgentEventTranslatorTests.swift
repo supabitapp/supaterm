@@ -5,8 +5,8 @@ import Testing
 @testable import supaterm
 
 struct TerminalAgentEventTranslatorTests {
-  @Test(arguments: [SupatermAgentKind.claude, .codex])
-  func sessionStartReportsIdentity(agent: SupatermAgentKind) throws {
+  @Test(arguments: [SupatermManagedAgentKind.claude, .codex])
+  func sessionStartReportsIdentity(agent: SupatermManagedAgentKind) throws {
     let request = try request(
       agent: agent,
       json: #"{"session_id":"session-1","cwd":"/tmp/workspace","hook_event_name":"SessionStart"}"#
@@ -15,7 +15,7 @@ struct TerminalAgentEventTranslatorTests {
     #expect(
       TerminalAgentEventTranslator.events(for: request) == [
         TerminalAgentEvent(
-          scope: TerminalAgentEvent.Scope(agent: agent, sessionID: "session-1"),
+          scope: TerminalAgentEvent.Scope(agent: agent.agentKind, sessionID: "session-1"),
           workingDirectoryPath: "/tmp/workspace",
           action: .sessionStarted
         )
@@ -71,8 +71,8 @@ struct TerminalAgentEventTranslatorTests {
     #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
   }
 
-  @Test(arguments: [SupatermAgentKind.claude, .codex])
-  func subagentSessionStartIsIgnored(agent: SupatermAgentKind) {
+  @Test(arguments: [SupatermManagedAgentKind.claude, .codex])
+  func subagentSessionStartIsIgnored(agent: SupatermManagedAgentKind) {
     let request = SupatermAgentHookRequest(
       agent: agent,
       event: SupatermAgentHookEvent(
@@ -85,21 +85,8 @@ struct TerminalAgentEventTranslatorTests {
     #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
   }
 
-  @Test
-  func piHookEventsAreIgnored() {
-    let request = SupatermAgentHookRequest(
-      agent: .pi,
-      event: SupatermAgentHookEvent(
-        hookEventName: .sessionStart,
-        sessionID: "session-1"
-      )
-    )
-
-    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
-  }
-
   private func request(
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     json: String
   ) throws -> SupatermAgentHookRequest {
     SupatermAgentHookRequest(

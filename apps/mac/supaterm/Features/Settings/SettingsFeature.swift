@@ -61,7 +61,7 @@ struct SettingsAgentIntegrationState: Equatable {
     operation != .idle
   }
 
-  func message(for agent: SupatermAgentKind) -> String? {
+  func message(for agent: SupatermManagedAgentKind) -> String? {
     if let errorMessage {
       return errorMessage
     }
@@ -72,8 +72,6 @@ struct SettingsAgentIntegrationState: Equatable {
         return "Claude Code is unavailable."
       case .codex:
         return "Codex 0.144.1 or newer is unavailable."
-      case .pi:
-        return nil
       }
     case .partial:
       return "\(agent.notificationTitle) integration is incomplete."
@@ -92,7 +90,7 @@ enum SettingsAgentIntegrationOperation: Equatable {
 }
 
 struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
-  let agent: SupatermAgentKind
+  let agent: SupatermManagedAgentKind
   let log: String
 
   var id: String {
@@ -154,11 +152,11 @@ public struct SettingsFeature {
   }
 
   public enum Action {
-    case agentIntegrationStatusRefreshRequested(SupatermAgentKind)
-    case agentIntegrationStatusRefreshed(SupatermAgentKind, SettingsAgentIntegrationResult)
+    case agentIntegrationStatusRefreshRequested(SupatermManagedAgentKind)
+    case agentIntegrationStatusRefreshed(SupatermManagedAgentKind, SettingsAgentIntegrationResult)
     case agentIntegrationInstallFailureDismissed
-    case agentIntegrationToggled(SupatermAgentKind, Bool)
-    case agentIntegrationToggleFinished(SupatermAgentKind, SettingsAgentIntegrationResult)
+    case agentIntegrationToggled(SupatermManagedAgentKind, Bool)
+    case agentIntegrationToggleFinished(SupatermManagedAgentKind, SettingsAgentIntegrationResult)
     case alert(PresentationAction<Alert>)
     case appearanceModeSelected(AppearanceMode)
     case analyticsEnabledChanged(Bool)

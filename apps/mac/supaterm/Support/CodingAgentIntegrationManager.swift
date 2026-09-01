@@ -1,16 +1,13 @@
 import Foundation
 import SupatermCLIShared
 
-public enum CodingAgentIntegrationManagerError: Error, Equatable, LocalizedError, Sendable {
-  case busy(SupatermAgentKind)
-  case unsupported(SupatermAgentKind)
+enum CodingAgentIntegrationManagerError: Error, Equatable, LocalizedError, Sendable {
+  case busy(SupatermManagedAgentKind)
 
-  public var errorDescription: String? {
+  var errorDescription: String? {
     switch self {
     case .busy(let agent):
       return "Supaterm is already working on the \(agent.notificationTitle) integration. Try again in a moment."
-    case .unsupported(let agent):
-      return "Supaterm does not manage a \(agent.notificationTitle) integration."
     }
   }
 }
@@ -42,19 +39,19 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
     self.coordinationTimeout = coordinationTimeout
   }
 
-  public func setup(_ agent: SupatermAgentKind) throws -> CodingAgentIntegrationHealth {
+  public func setup(_ agent: SupatermManagedAgentKind) throws -> CodingAgentIntegrationHealth {
     try withIntegration(for: agent) { try $0.setup() }
   }
 
-  public func health(_ agent: SupatermAgentKind) throws -> CodingAgentIntegrationHealth {
+  public func health(_ agent: SupatermManagedAgentKind) throws -> CodingAgentIntegrationHealth {
     try withIntegration(for: agent) { try $0.health() }
   }
 
-  public func repair(_ agent: SupatermAgentKind) throws {
+  public func repair(_ agent: SupatermManagedAgentKind) throws {
     try withIntegration(for: agent) { try $0.repair() }
   }
 
-  public func remove(_ agent: SupatermAgentKind) throws -> CodingAgentIntegrationHealth {
+  public func remove(_ agent: SupatermManagedAgentKind) throws -> CodingAgentIntegrationHealth {
     try withIntegration(for: agent) {
       try $0.remove()
       return try $0.health()
@@ -110,12 +107,10 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
   }
 
   private func withIntegration<Result>(
-    for agent: SupatermAgentKind,
+    for agent: SupatermManagedAgentKind,
     _ operation: (Integration) throws -> Result
   ) throws -> Result {
-    guard let entry = entry(for: agent) else {
-      throw CodingAgentIntegrationManagerError.unsupported(agent)
-    }
+    let entry = entry(for: agent)
     guard entry.lock.lock(before: Date(timeIntervalSinceNow: coordinationTimeout)) else {
       throw CodingAgentIntegrationManagerError.busy(agent)
     }
@@ -123,14 +118,12 @@ nonisolated public struct CodingAgentIntegrationManager: Sendable {
     return try operation(entry.integration)
   }
 
-  private func entry(for agent: SupatermAgentKind) -> Entry? {
+  private func entry(for agent: SupatermManagedAgentKind) -> Entry {
     switch agent {
     case .claude:
       claude
     case .codex:
       codex
-    case .pi:
-      nil
     }
   }
 }

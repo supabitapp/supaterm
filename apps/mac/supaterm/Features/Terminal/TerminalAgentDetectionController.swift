@@ -82,12 +82,12 @@ nonisolated struct TerminalAgentDetectionSampler: Sendable {
 }
 
 @MainActor
-  struct TerminalAgentDetectionHostAccess {
-    let surfaces: () -> [TerminalAgentDetectionSurfaceSnapshot]
-    let publishTitle: (TerminalAgentDetectionSurfaceKey) -> Void
-    let signals: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionSignals?
-    let screen: (TerminalAgentDetectionSurfaceKey) async -> String?
-    let observation: (UUID) -> TerminalAgentDetectionObservation?
+struct TerminalAgentDetectionHostAccess {
+  let surfaces: () -> [TerminalAgentDetectionSurfaceSnapshot]
+  let publishTitle: (TerminalAgentDetectionSurfaceKey) -> Void
+  let signals: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionSignals?
+  let screen: (TerminalAgentDetectionSurfaceKey) async -> String?
+  let observation: (UUID) -> TerminalAgentDetectionObservation?
   let apply: (TerminalAgentDetectionObservation, UUID) -> Bool
   let clear: (UUID) -> Void
   var pruneDeadAgentProcesses: () -> Void = {}

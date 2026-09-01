@@ -133,7 +133,7 @@ extension TerminalCommandExecutor {
     for request: SupatermAgentHookRequest
   ) -> TerminalHostState? {
     agentTerminal(
-      agent: request.agent,
+      agent: request.agent.agentKind,
       sessionID: request.event.sessionID,
       context: request.context
     )

@@ -622,18 +622,14 @@ struct SPCommandTests {
       try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"])
         as? SP.ReceiveAgentHook
     )
-    let receivePiCommand = try #require(
-      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "pi", "--pid", "123"])
-        as? SP.ReceiveAgentHook
-    )
-
     #expect(reloadCommand.options.output.plain)
     #expect(type(of: setupCommand) == SP.SetupAgentIntegrations.self)
     #expect(type(of: removeAllCommand) == SP.RemoveAgentHooks.self)
     #expect(receiveClaudeCommand.agent == .claude)
     #expect(receiveClaudeCommand.pid == nil)
-    #expect(receivePiCommand.agent == .pi)
-    #expect(receivePiCommand.pid == 123)
+    #expect(throws: (any Error).self) {
+      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "pi", "--pid", "123"])
+    }
   }
 
   @Test
