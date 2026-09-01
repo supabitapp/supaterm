@@ -169,8 +169,10 @@ final class GhosttySurfaceBridge {
       } catch {
         return
       }
-      self?.state.title = title
-      self?.titleChangeTask = nil
+      guard let self else { return }
+      state.title = title
+      titleChangeTask = nil
+      publishTitle()
     }
   }
 
