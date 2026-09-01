@@ -9,7 +9,7 @@ extension SettingsFeature {
       updateSettings(&state) {
         $0.notificationSound = sound
       }
-      guard sound != .never else { return .none }
+      guard !state.systemNotificationsEnabled, sound != .never else { return .none }
       return .run { [notificationSoundClient] _ in
         await notificationSoundClient.play(sound)
       }

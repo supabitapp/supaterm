@@ -33,6 +33,35 @@ struct SettingsFeatureNotificationsTests {
   }
 
   @Test
+  func notificationSoundPersistsWithoutPreviewingWhenSystemNotificationsEnabled() async throws {
+    let recorder = SettingsNotificationSoundRecorder()
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let state = SettingsFeature.State()
+      state.$supatermSettings.withLock {
+        $0.systemNotificationsEnabled = true
+      }
+      let store = TestStore(initialState: state) {
+        SettingsFeature()
+      } withDependencies: {
+        $0.notificationSoundClient.play = { recorder.sounds.append($0) }
+      }
+
+      await store.send(.notificationSoundSelected(.glass)) {
+        $0.$supatermSettings.withLock {
+          $0.notificationSound = .glass
+        }
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(supatermSettings.notificationSound == .glass)
+      #expect(recorder.sounds.isEmpty)
+    }
+  }
+
+  @Test
   func tabMoveHapticsSettingPersistsPrefs() async throws {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
