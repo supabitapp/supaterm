@@ -84,7 +84,7 @@ extension TerminalHostState {
     if focusHistoryByTab[tabID]?.current == surfaceID {
       focusSurface(replacementSurface, in: tabID)
     }
-    syncFocus(windowActivity)
+    syncFocus()
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.close.zmxReattach.finished",

@@ -160,8 +160,8 @@ extension TerminalHostState {
       tree: tree
     )
     let selectionState = Self.newPaneSelectionState(
-      selectedTabID: selectedTabID,
-      targetTabID: tabID,
+      isSelectedTab: selectedTabID == tabID,
+      isPaneVisible: visiblePaneIDs.contains(surface.id),
       windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surface: surface
@@ -332,7 +332,7 @@ extension TerminalHostState {
       source.instance.tabCollection.selectTab(previousSelectedTabID)
     }
 
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
   }
 
@@ -500,9 +500,9 @@ extension TerminalHostState {
       didCloseSelectedTab: plan.didMoveSelectedTab
     )
     destination.applySelectedTab(plan.destinationTabID, in: plan.destinationInstance.spaceID)
-    source.syncFocus(source.windowActivity)
+    source.syncFocus()
     if source !== destination {
-      destination.syncFocus(destination.windowActivity)
+      destination.syncFocus()
     }
     notifySessionChange(source: source, destination: destination)
   }
@@ -657,9 +657,9 @@ extension TerminalHostState {
     if let selectedTabID = result.tabIDs.first {
       destination.applySelectedTab(selectedTabID, in: plan.destinationInstance.spaceID)
     }
-    source.syncFocus(source.windowActivity)
+    source.syncFocus()
     if source !== destination {
-      destination.syncFocus(destination.windowActivity)
+      destination.syncFocus()
     }
   }
 

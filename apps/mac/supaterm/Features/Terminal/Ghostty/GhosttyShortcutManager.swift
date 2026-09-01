@@ -1,4 +1,6 @@
+import AppKit
 import Observation
+import SupatermSupport
 import SwiftUI
 
 @MainActor
@@ -33,11 +35,11 @@ final class GhosttyShortcutManager {
   }
 
   func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
-    keyboardShortcut(forAction: command.ghosttyBindingAction)
+    shortcut(forAction: command.ghosttyBindingAction)?.keyboardShortcut
   }
 
-  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
+  func shortcut(forAction action: String) -> GhosttyShortcut? {
     _ = generation
-    return runtime?.keyboardShortcut(forAction: action)
+    return runtime?.shortcut(forAction: action)
   }
 }

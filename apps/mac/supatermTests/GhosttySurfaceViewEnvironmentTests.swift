@@ -388,15 +388,6 @@ struct GhosttySurfaceViewEnvironmentTests {
   }
 
   @Test
-  func workingDirectoryPathNormalizesRepeatedAndTrailingSeparators() {
-    #expect(
-      GhosttySurfaceView.normalizedWorkingDirectoryPath("/tmp//project///src/")
-        == "/tmp/project/src"
-    )
-    #expect(GhosttySurfaceView.normalizedWorkingDirectoryPath("/") == "/")
-  }
-
-  @Test
   func scrollOnFocusedSurfaceCountsAsDirectInteraction() throws {
     initializeGhosttyForTests()
 

@@ -67,7 +67,7 @@ struct SPCommandRuntimeTests {
   }
 
   @Test
-  func resolvedWorkingDirectoryExpandsAndResolves() throws {
+  func resolvedWorkingDirectoryExpandsAndNormalizes() throws {
     #expect(try resolvedWorkingDirectory(nil) == nil)
 
     do {
@@ -79,7 +79,9 @@ struct SPCommandRuntimeTests {
 
     #expect(
       try resolvedWorkingDirectory("~")
-        == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        == SupatermWorkingDirectory.normalizedPath(
+          FileManager.default.homeDirectoryForCurrentUser
+        )
     )
 
     let currentDirectoryURL = URL(
@@ -88,14 +90,17 @@ struct SPCommandRuntimeTests {
     )
     #expect(
       try resolvedWorkingDirectory("sub/dir")
-        == currentDirectoryURL
-        .appendingPathComponent("sub/dir", isDirectory: true)
-        .standardizedFileURL
-        .path
+        == SupatermWorkingDirectory.normalizedPath(
+          currentDirectoryURL.appendingPathComponent("sub/dir", isDirectory: true)
+        )
     )
     #expect(
       try resolvedWorkingDirectory(currentDirectoryURL.path)
-        == currentDirectoryURL.standardizedFileURL.path
+        == SupatermWorkingDirectory.normalizedPath(currentDirectoryURL)
+    )
+    #expect(
+      try resolvedWorkingDirectory("sub/./directory/../")
+        == "\(SupatermWorkingDirectory.normalizedPath(currentDirectoryURL))/sub"
     )
   }
 

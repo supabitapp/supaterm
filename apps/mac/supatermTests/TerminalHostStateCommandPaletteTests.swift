@@ -1,5 +1,8 @@
+import AppKit
 import ComposableArchitecture
 import Foundation
+import Observation
+import Synchronization
 import Testing
 
 @testable import supaterm
@@ -22,6 +25,34 @@ struct TerminalHostStateCommandPaletteTests {
     #expect(shortcuts["new_split:right"] == "⌘⇧Y")
     #expect(shortcuts["new_tab"] == nil)
     #expect(shortcuts["open_config:os_open"] == nil)
+  }
+
+  @Test
+  func keyboardLayoutChangeInvalidatesCommandPaletteShortcutHints() async throws {
+    _ = NSApplication.shared
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = super+shift+y=new_split:right
+      """
+    )
+    let host = TerminalHostState.test(runtime: runtime, managesTerminalSurfaces: false)
+    let invalidationCount = Mutex(0)
+
+    _ = withObservationTracking {
+      host.commandPaletteGhosttyShortcutDisplayByAction()
+    } onChange: {
+      invalidationCount.withLock { $0 += 1 }
+    }
+
+    NotificationCenter.default.post(
+      name: NSTextInputContext.keyboardSelectionDidChangeNotification,
+      object: nil
+    )
+    for _ in 0..<5 {
+      await Task.yield()
+    }
+
+    #expect(invalidationCount.withLock { $0 } == 1)
   }
 
   @Test

@@ -94,7 +94,7 @@ extension TerminalAgentStateStoreTests {
     restored.restore(snapshots)
 
     #expect(snapshots.first?.processIDs == Set([42, 43]))
-    #expect(restored.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/workspace/")
+    #expect(restored.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/workspace")
     #expect(
       restored.presentation(for: surfaceID, agent: .codex)
         == store.presentation(for: surfaceID, agent: .codex)

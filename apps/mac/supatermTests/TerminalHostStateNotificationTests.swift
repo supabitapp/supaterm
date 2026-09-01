@@ -259,6 +259,92 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func zoomHiddenStructuredCompletionStaysUnread() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState.test()
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+    host.ensureInitialTab(focusing: false, startupCommand: nil)
+
+    let tabID = try #require(host.selectedTabID)
+    let visibleSurface = try #require(host.selectedSurfaceView)
+    let hiddenPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: false,
+        target: .pane(visibleSurface.id)
+      )
+    )
+    #expect(host.performSplitAction(.toggleSplitZoom, for: visibleSurface.id))
+
+    _ = try host.notifyStructuredAgent(
+      TerminalNotifyRequest(
+        body: "Done.",
+        target: .pane(hiddenPane.paneID),
+        title: "Codex",
+        allowDesktopNotificationWhenAgentActive: true
+      ),
+      semantic: .completion
+    )
+
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == [hiddenPane.paneID])
+  }
+
+  @Test
+  func viewingZoomedTabClearsOnlyVisibleAgentCompletions() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState.test()
+    host.windowActivity = .inactive
+    host.ensureInitialTab(focusing: false, startupCommand: nil)
+
+    let tabID = try #require(host.selectedTabID)
+    let visibleSurface = try #require(host.selectedSurfaceView)
+    let hiddenPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: false,
+        target: .pane(visibleSurface.id)
+      )
+    )
+    #expect(host.performSplitAction(.toggleSplitZoom, for: visibleSurface.id))
+
+    let visibleCompletion = TerminalAgentCompletionIdentity.native(
+      agent: .codex,
+      sessionID: "visible"
+    )
+    let hiddenCompletion = TerminalAgentCompletionIdentity.native(
+      agent: .codex,
+      sessionID: "hidden"
+    )
+    host.agentCompletionStore.record(visibleCompletion, for: visibleSurface.id)
+    host.agentCompletionStore.record(hiddenCompletion, for: hiddenPane.paneID)
+
+    for surfaceID in [visibleSurface.id, hiddenPane.paneID] {
+      _ = try host.notifyStructuredAgent(
+        TerminalNotifyRequest(
+          body: "Done.",
+          target: .pane(surfaceID),
+          title: "Codex",
+          allowDesktopNotificationWhenAgentActive: true
+        ),
+        semantic: .completion
+      )
+    }
+
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+    host.clearAgentCompletionAttention(in: tabID)
+
+    #expect(host.agentCompletionStore.identity(for: visibleSurface.id) == nil)
+    #expect(host.agentCompletionStore.identity(for: hiddenPane.paneID) == hiddenCompletion)
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == [hiddenPane.paneID])
+  }
+
+  @Test
   func notifySuppressesDesktopDeliveryWhenAgentIsRunning() throws {
     initializeGhosttyForTests()
 

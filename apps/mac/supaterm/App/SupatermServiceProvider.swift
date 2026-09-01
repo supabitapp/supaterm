@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SupatermCLIShared
 
 final class SupatermServiceProvider: NSObject {
   private enum OpenTarget {
@@ -38,20 +39,24 @@ final class SupatermServiceProvider: NSObject {
   }
 
   static func directoryPaths(from pasteboard: NSPasteboard) -> [String] {
-    guard
-      let urls = pasteboard.readObjects(
+    let objectURLs: [URL] =
+      pasteboard.readObjects(
         forClasses: [NSURL.self],
         options: [.urlReadingFileURLsOnly: true]
-      ) as? [URL]
-    else {
-      return []
-    }
+      ) as? [URL] ?? []
+    let textURLs: [URL] =
+      pasteboard.string(forType: .string)?.split(whereSeparator: \.isNewline).compactMap {
+        let path = String($0)
+        guard path.hasPrefix("/"), FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
+      } ?? []
 
-    let directoryPaths = urls.compactMap { url -> String? in
-      guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
-        return nil
-      }
-      return url.standardizedFileURL.path(percentEncoded: false)
+    let directoryPaths = (objectURLs + textURLs).map { url in
+      let isDirectory =
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory)
+        ?? url.hasDirectoryPath
+      let directory = isDirectory ? url : url.deletingLastPathComponent()
+      return SupatermWorkingDirectory.normalizedPath(directory.standardizedFileURL)
     }
     return Array(Set(directoryPaths)).sorted()
   }

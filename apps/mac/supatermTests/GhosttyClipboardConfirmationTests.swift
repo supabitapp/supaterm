@@ -9,6 +9,192 @@ import Testing
 @MainActor
 struct GhosttyClipboardConfirmationTests {
   @Test
+  func kittyClipboardRequestsMapToConfirmationKinds() {
+    #expect(
+      GhosttyClipboardConfirmationRequest(GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ)
+        == .kittyRead
+    )
+    #expect(
+      GhosttyClipboardConfirmationRequest(GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE)
+        == .kittyWrite
+    )
+    #expect(GhosttyClipboardConfirmationRequest(GHOSTTY_CLIPBOARD_REQUEST_LIST) == nil)
+  }
+
+  @Test
+  func kittyPromptShowsProgramAndReturnsRememberChoice() async throws {
+    let fixture = try await ClipboardSurfaceFixture()
+    defer { fixture.close() }
+    let surface = try #require(fixture.surface.surface)
+    let coordinator = GhosttyClipboardConfirmationCoordinator()
+    var decision: (allowed: Bool, remember: Bool)?
+
+    let presented = coordinator.present(
+      payload: GhosttyClipboardConfirmationPayload(
+        contents: [
+          GhosttyClipboardContent(mime: "text/plain", data: Data("secret".utf8)),
+          GhosttyClipboardContent(
+            mime: "application/octet-stream",
+            data: Data([0x00, 0xFF])
+          ),
+        ],
+        available: [],
+        programName: "clipboard-client\"\n\u{202E}spoofed",
+        canRemember: true
+      ),
+      request: .kittyRead,
+      surface: GhosttyRuntime.SurfaceReference(surface),
+      view: fixture.surface
+    ) { allowed, remember in
+      decision = (allowed, remember)
+    }
+    #expect(presented)
+
+    let sheet = try await attachedSheet(of: fixture.window)
+    let text = textPreview(in: sheet)
+    #expect(text.contains("clipboard-client"))
+    #expect(text.contains("202E"))
+    #expect(!text.contains("\u{202E}"))
+    #expect(text.contains("text/plain (6 bytes)\nsecret"))
+    #expect(text.contains("application/octet-stream (2 bytes)"))
+    let remember = try button(
+      titled: "Allow for the rest of this terminal session",
+      in: sheet
+    )
+    remember.state = .on
+    try button(titled: "Allow", in: sheet).performClick(nil)
+    try await waitForSheetDismissal(from: fixture.window)
+    #expect(decision?.allowed == true)
+    #expect(decision?.remember == true)
+  }
+
+  @Test
+  func denyingKittyPromptDoesNotRememberCheckedApproval() async throws {
+    let fixture = try await ClipboardSurfaceFixture()
+    defer { fixture.close() }
+    let surface = try #require(fixture.surface.surface)
+    let coordinator = GhosttyClipboardConfirmationCoordinator()
+    var decision: (allowed: Bool, remember: Bool)?
+
+    let presented = coordinator.present(
+      payload: GhosttyClipboardConfirmationPayload(
+        contents: [
+          GhosttyClipboardContent(mime: "text/plain", data: Data("secret".utf8))
+        ],
+        available: [],
+        programName: nil,
+        canRemember: true
+      ),
+      request: .kittyRead,
+      surface: GhosttyRuntime.SurfaceReference(surface),
+      view: fixture.surface
+    ) { allowed, remember in
+      decision = (allowed, remember)
+    }
+    #expect(presented)
+
+    let sheet = try await attachedSheet(of: fixture.window)
+    let remember = try button(
+      titled: "Allow for the rest of this terminal session",
+      in: sheet
+    )
+    remember.state = .on
+    try button(titled: "Deny", in: sheet).performClick(nil)
+    try await waitForSheetDismissal(from: fixture.window)
+    #expect(decision?.allowed == false)
+    #expect(decision?.remember == false)
+  }
+
+  @Test
+  func clipboardPreviewSanitizesControlsAndBidiWithoutChangingBytes() {
+    let data = Data("before\u{1B}\u{202E}\nafter".utf8)
+    let payload = GhosttyClipboardConfirmationPayload(
+      contents: [
+        GhosttyClipboardContent(
+          mime: "text/\u{202E}plain\nspoofed",
+          data: data
+        )
+      ],
+      available: ["image/\u{2066}png\u{7}"],
+      programName: nil,
+      canRemember: false
+    )
+
+    let preview = payload.preview
+
+    #expect(preview.contains("\\u{1B}"))
+    #expect(preview.contains("\\u{202E}"))
+    #expect(preview.contains("\\u{2066}"))
+    #expect(preview.contains("\\u{7}"))
+    #expect(preview.contains("\\n"))
+    #expect(payload.contents[0].data == data)
+  }
+
+  @Test
+  func clipboardPreviewCapsTextAndReportsExactByteCount() {
+    let data = Data(repeating: 0x41, count: 100_000)
+    let preview = GhosttyClipboardConfirmationPayload(
+      contents: [GhosttyClipboardContent(mime: "text/plain", data: data)],
+      available: [],
+      programName: nil,
+      canRemember: false
+    ).preview
+
+    #expect(preview.utf8.count <= GhosttyClipboardDisplay.maximumPreviewBytes)
+    #expect(preview.contains("text/plain (100000 bytes)"))
+    #expect(preview.contains("Preview truncated: showing"))
+    #expect(preview.contains("of 100000 bytes"))
+  }
+
+  @Test
+  func clipboardPreviewSkipsOversizedEncodedImage() {
+    let payload = GhosttyClipboardConfirmationPayload(
+      contents: [
+        GhosttyClipboardContent(
+          mime: "image/png",
+          data: Data(
+            repeating: 0,
+            count: GhosttyClipboardDisplay.maximumEncodedImageBytes + 1
+          )
+        )
+      ],
+      available: [],
+      programName: nil,
+      canRemember: false
+    )
+
+    #expect(payload.previewImage == nil)
+  }
+
+  @Test
+  func clipboardPreviewDecodesValidImage() throws {
+    let representation = try #require(
+      NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: 2,
+        pixelsHigh: 1,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 8,
+        bitsPerPixel: 32
+      )
+    )
+    let data = try #require(representation.representation(using: .png, properties: [:]))
+    let payload = GhosttyClipboardConfirmationPayload(
+      contents: [GhosttyClipboardContent(mime: "image/png", data: data)],
+      available: [],
+      programName: nil,
+      canRemember: false
+    )
+
+    let image = try #require(payload.previewImage)
+    #expect(image.size.width > image.size.height)
+  }
+
+  @Test
   func boundedScrollbackCapturePreservesTrailingBlankLines() async throws {
     let fixture = try await ClipboardSurfaceFixture(
       command: "/bin/sh -c 'printf \"SUPATERM_READY\\nSUPATERM_TAIL_READY\\none\\ntwo\\n\\n\\n\"; stty -echo; cat'"
@@ -95,7 +281,7 @@ struct GhosttyClipboardConfirmationTests {
   }
 
   @Test
-  func confirmationPreviewPreservesLongSelectableMonospacedTextInVerticalScroller() async throws {
+  func confirmationPreviewShowsCompleteSelectableMonospacedTextInVerticalScroller() async throws {
     let fixture = try await ClipboardSurfaceFixture()
     defer { fixture.close() }
     let contents = (0..<300).map { "line-\($0)" }.joined(separator: "\n")
@@ -112,7 +298,9 @@ struct GhosttyClipboardConfirmationTests {
     #expect(textView.isSelectable)
     #expect(!textView.isEditable)
     #expect(textView.font?.fontDescriptor.symbolicTraits.contains(.monoSpace) == true)
-    #expect(textView.string == contents)
+    #expect(textView.string.hasPrefix("text/plain (\(contents.utf8.count) bytes)\n"))
+    #expect(textView.string.contains("line-299"))
+    #expect(!textView.string.contains("Preview truncated"))
   }
 
   @Test
@@ -167,6 +355,28 @@ struct GhosttyClipboardConfirmationTests {
     let contents = try await capturedText(from: fixture.surface, containing: secondLine)
     #expect(occurrences(of: firstLine, in: contents) == 1)
     #expect(occurrences(of: secondLine, in: contents) == 1)
+  }
+
+  @Test
+  func allowingUnsafePasteUsesApprovedSnapshot() async throws {
+    let fixture = try await ClipboardSurfaceFixture()
+    defer { fixture.close() }
+    _ = try await capturedText(from: fixture.surface, containing: "SUPATERM_READY")
+    let approved = "SUPATERM_APPROVED_\(UUID().uuidString)"
+    let replacement = "SUPATERM_REPLACED_\(UUID().uuidString)"
+    let pasteboard = NSPasteboard.ghosttySelection
+    pasteboard.clearContents()
+    pasteboard.setString("\(approved)_A\n\(approved)_B\n", forType: .string)
+
+    fixture.surface.pasteSelection(nil)
+
+    let sheet = try await attachedSheet(of: fixture.window)
+    pasteboard.clearContents()
+    pasteboard.setString("\(replacement)_A\n\(replacement)_B\n", forType: .string)
+    try button(titled: "Paste", in: sheet).performClick(nil)
+    let contents = try await capturedText(from: fixture.surface, containing: "\(approved)_B")
+    #expect(contents.contains("\(approved)_A"))
+    #expect(!contents.contains(replacement))
   }
 
   @Test

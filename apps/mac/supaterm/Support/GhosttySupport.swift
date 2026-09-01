@@ -115,5 +115,8 @@ public enum GhosttySupport {
 }
 
 extension Notification.Name {
+  public static let ghosttyRuntimeConfigDidChange = Notification.Name(
+    "ghosttyRuntimeConfigDidChange"
+  )
   public static let ghosttyRuntimeReloadRequested = Notification.Name("ghosttyRuntimeReloadRequested")
 }

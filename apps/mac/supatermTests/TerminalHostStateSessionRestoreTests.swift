@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import SupaTheme
+import SupatermCLIShared
 import SupatermSupport
 import Testing
 
@@ -111,7 +112,7 @@ struct TerminalHostStateSessionRestoreTests {
       defer {
         try? FileManager.default.removeItem(at: directory)
       }
-      let path = GhosttySurfaceView.normalizedWorkingDirectoryPath(
+      let path = SupatermWorkingDirectory.normalizedPath(
         directory.path(percentEncoded: false)
       )
       let host = TerminalHostState.test()
@@ -136,7 +137,7 @@ struct TerminalHostStateSessionRestoreTests {
       let restoredPath = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
       try FileManager.default.createDirectory(at: restoredPath, withIntermediateDirectories: true)
-      let restoredPathString = GhosttySurfaceView.normalizedWorkingDirectoryPath(
+      let restoredPathString = SupatermWorkingDirectory.normalizedPath(
         restoredPath.path(percentEncoded: false)
       )
       defer {

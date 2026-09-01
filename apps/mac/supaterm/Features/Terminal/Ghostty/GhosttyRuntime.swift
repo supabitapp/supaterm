@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import GhosttyKit
+import SupatermSupport
 import SwiftUI
 
 struct GhosttySurfaceConfig: Equatable {
@@ -159,14 +160,30 @@ final class GhosttyRuntime {
       action_cb: { @Sendable app, target, action in
         GhosttyRuntime.actionCallback(app, target, action)
       },
-      read_clipboard_cb: { @Sendable userdata, location, state in
-        GhosttyRuntime.readClipboardCallback(userdata, location, state)
+      read_clipboard_cb: { @Sendable userdata, location, state, request, mimes, mimesLen, list in
+        GhosttyClipboardBridge.read(
+          GhosttyClipboardBridge.ReadCallback(
+            userdata: userdata,
+            location: location,
+            state: state,
+            request: request,
+            mimes: mimes,
+            mimesCount: mimesLen,
+            listsAvailableTypes: list
+          )
+        )
       },
-      confirm_read_clipboard_cb: { @Sendable userdata, string, state, request in
-        GhosttyRuntime.confirmReadClipboardCallback(userdata, string, state, request)
+      confirm_read_clipboard_cb: { @Sendable userdata, payload, state, request in
+        GhosttyClipboardBridge.confirm(userdata, payload: payload, state: state, request: request)
       },
       write_clipboard_cb: { @Sendable userdata, location, content, len, confirm in
-        GhosttyRuntime.writeClipboardCallback(userdata, location, content, len, confirm)
+        GhosttyClipboardBridge.write(
+          userdata,
+          location: location,
+          content: content,
+          count: len,
+          confirm: confirm
+        )
       },
       close_surface_cb: { @Sendable userdata, processAlive in
         GhosttyRuntime.closeSurfaceCallback(userdata, processAlive)
@@ -223,8 +240,9 @@ final class GhosttyRuntime {
         queue: .main
       ) { [weak self] _ in
         MainActor.assumeIsolated {
-          guard let app = self?.app else { return }
+          guard let self, let app = self.app else { return }
           ghostty_app_keyboard_changed(app)
+          NotificationCenter.default.post(name: .ghosttyRuntimeConfigDidChange, object: self)
         }
       })
   }
@@ -299,37 +317,43 @@ final class GhosttyRuntime {
     surfaceRefs.removeAll { $0 === ref }
   }
 
-  func readClipboard(
+  func clipboardRead(
     from view: GhosttySurfaceView,
     location: ghostty_clipboard_e,
-    state: UnsafeMutableRawPointer?
-  ) -> Bool {
-    clipboard.read(from: view, location: location, state: state)
+    state: UnsafeMutableRawPointer?,
+    request: GhosttyClipboardReadRequest
+  ) -> ghostty_clipboard_read_result_e {
+    clipboard.read(
+      from: view,
+      location: location,
+      state: state,
+      request: request
+    )
   }
 
   func confirmClipboardRead(
     from view: GhosttySurfaceView,
     surfaceReference: SurfaceReference?,
-    value: String?,
+    payload: GhosttyClipboardConfirmationPayload?,
     state: UnsafeMutableRawPointer?,
     request: ghostty_clipboard_request_e
   ) {
     clipboard.confirmRead(
       from: view,
       surfaceReference: surfaceReference,
-      value: value,
+      payload: payload,
       state: state,
       request: request
     )
   }
 
-  func writeClipboard(
+  func clipboardWrite(
     from view: GhosttySurfaceView,
     surfaceReference: SurfaceReference?,
     location: ghostty_clipboard_e,
-    items: [(mime: String, data: String)],
+    items: [GhosttyClipboardContent],
     confirm: Bool
-  ) {
+  ) -> Bool {
     clipboard.write(
       from: view,
       surfaceReference: surfaceReference,
@@ -346,12 +370,11 @@ final class GhosttyRuntime {
 
   func reloadConfig(soft: Bool, target: ghostty_target_s) -> Bool {
     guard let app else { return false }
-    let reloadedConfig: ghostty_config_t?
-    if soft, let config {
-      reloadedConfig = ghostty_config_clone(config)
-    } else {
-      reloadedConfig = Self.loadConfig(at: configPath, includeCLIArgs: includeCLIArgs)
+    if soft {
+      guard let config else { return false }
+      return applyConfig(config, target: target, app: app)
     }
+    let reloadedConfig = Self.loadConfig(at: configPath, includeCLIArgs: includeCLIArgs)
     guard let reloadedConfig else { return false }
     defer { ghostty_config_free(reloadedConfig) }
     return applyConfig(reloadedConfig, target: target, app: app)
@@ -471,95 +494,6 @@ final class GhosttyRuntime {
     closeSurfaceCallback(userdata, processAlive)
   }
 
-  private nonisolated static func readClipboardCallback(
-    _ userdata: UnsafeMutableRawPointer?,
-    _ location: ghostty_clipboard_e,
-    _ state: UnsafeMutableRawPointer?
-  ) -> Bool {
-    let userdataBits = userdata.map { UInt(bitPattern: $0) }
-    let stateBits = state.map { UInt(bitPattern: $0) }
-    if Thread.isMainThread {
-      return MainActor.assumeIsolated {
-        readClipboard(userdataBits: userdataBits, location: location, stateBits: stateBits)
-      }
-    }
-    return DispatchQueue.main.sync {
-      MainActor.assumeIsolated {
-        readClipboard(userdataBits: userdataBits, location: location, stateBits: stateBits)
-      }
-    }
-  }
-
-  private nonisolated static func confirmReadClipboardCallback(
-    _ userdata: UnsafeMutableRawPointer?,
-    _ string: UnsafePointer<CChar>?,
-    _ state: UnsafeMutableRawPointer?,
-    _ request: ghostty_clipboard_request_e
-  ) {
-    let value = string.flatMap(String.init(validatingCString:))
-    let userdataBits = userdata.map { UInt(bitPattern: $0) }
-    let stateBits = state.map { UInt(bitPattern: $0) }
-    if Thread.isMainThread {
-      MainActor.assumeIsolated {
-        confirmReadClipboard(
-          userdataBits: userdataBits,
-          value: value,
-          stateBits: stateBits,
-          request: request
-        )
-      }
-      return
-    }
-    DispatchQueue.main.sync {
-      MainActor.assumeIsolated {
-        confirmReadClipboard(
-          userdataBits: userdataBits,
-          value: value,
-          stateBits: stateBits,
-          request: request
-        )
-      }
-    }
-  }
-
-  private nonisolated static func writeClipboardCallback(
-    _ userdata: UnsafeMutableRawPointer?,
-    _ location: ghostty_clipboard_e,
-    _ content: UnsafePointer<ghostty_clipboard_content_s>?,
-    _ len: Int,
-    _ confirm: Bool
-  ) {
-    guard let content, len > 0 else { return }
-    let userdataBits = userdata.map { UInt(bitPattern: $0) }
-    let items: [(mime: String, data: String)] = (0..<len).compactMap { index in
-      let item = content.advanced(by: index).pointee
-      guard let mimePtr = item.mime, let dataPtr = item.data else { return nil }
-      return (mime: String(cString: mimePtr), data: String(cString: dataPtr))
-    }
-    guard !items.isEmpty else { return }
-    if Thread.isMainThread {
-      MainActor.assumeIsolated {
-        writeClipboard(
-          userdataBits: userdataBits,
-          location: location,
-          items: items,
-          confirm: confirm
-        )
-      }
-      return
-    }
-    DispatchQueue.main.sync {
-      MainActor.assumeIsolated {
-        writeClipboard(
-          userdataBits: userdataBits,
-          location: location,
-          items: items,
-          confirm: confirm
-        )
-      }
-    }
-  }
-
   private nonisolated static func closeSurfaceCallback(
     _ userdata: UnsafeMutableRawPointer?,
     _ processAlive: Bool
@@ -640,48 +574,6 @@ final class GhosttyRuntime {
     }
   }
 
-  private static func readClipboard(
-    userdataBits: UInt?,
-    location: ghostty_clipboard_e,
-    stateBits: UInt?
-  ) -> Bool {
-    let userdata = userdataBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
-    let state = stateBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
-    guard let view = surfaceBridge(fromUserdata: userdata)?.surfaceView else { return false }
-    return view.readClipboard(location: location, state: state)
-  }
-
-  private static func confirmReadClipboard(
-    userdataBits: UInt?,
-    value: String?,
-    stateBits: UInt?,
-    request: ghostty_clipboard_request_e
-  ) {
-    let userdata = userdataBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
-    let state = stateBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
-    guard let bridge = surfaceBridge(fromUserdata: userdata), let surface = bridge.surface else {
-      return
-    }
-    guard let view = bridge.surfaceView else {
-      "".withCString { pointer in
-        ghostty_surface_complete_clipboard_request(surface, pointer, state, true)
-      }
-      return
-    }
-    view.confirmClipboardRead(value: value, state: state, request: request)
-  }
-
-  private static func writeClipboard(
-    userdataBits: UInt?,
-    location: ghostty_clipboard_e,
-    items: [(mime: String, data: String)],
-    confirm: Bool
-  ) {
-    let userdata = userdataBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
-    guard let view = surfaceBridge(fromUserdata: userdata)?.surfaceView else { return }
-    view.writeClipboard(location: location, items: items, confirm: confirm)
-  }
-
   private func setConfig(_ config: ghostty_config_t) {
     if let existing = self.config {
       ghostty_config_free(existing)
@@ -709,10 +601,10 @@ final class GhosttyRuntime {
     return config
   }
 
-  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
+  func shortcut(forAction action: String) -> GhosttyShortcut? {
     guard let config else { return nil }
     let trigger = ghostty_config_trigger(config, action, UInt(action.lengthOfBytes(using: .utf8)))
-    return Self.keyboardShortcut(for: trigger)
+    return GhosttyShortcutResolver.shortcut(for: trigger)
   }
 
   func hasGlobalKeybinds() -> Bool {
@@ -861,55 +753,6 @@ final class GhosttyRuntime {
     ghosttyConfigColor(config, key: key)
   }
 
-  private static func keyboardShortcut(for trigger: ghostty_input_trigger_s) -> KeyboardShortcut? {
-    let key: KeyEquivalent
-    switch trigger.tag {
-    case GHOSTTY_TRIGGER_PHYSICAL:
-      guard let equiv = keyToEquivalent[trigger.key.physical] else { return nil }
-      key = equiv
-    case GHOSTTY_TRIGGER_UNICODE:
-      guard
-        let scalar = UnicodeScalar(trigger.key.unicode),
-        let normalized = Character(scalar).lowercased().first
-      else { return nil }
-      key = KeyEquivalent(normalized)
-    case GHOSTTY_TRIGGER_CATCH_ALL:
-      return nil
-    default:
-      return nil
-    }
-    return KeyboardShortcut(key, modifiers: eventModifiers(mods: trigger.mods))
-  }
-
-  private static func eventModifiers(mods: ghostty_input_mods_e) -> EventModifiers {
-    var flags: EventModifiers = []
-    if mods.rawValue & GHOSTTY_MODS_SHIFT.rawValue != 0 { flags.insert(.shift) }
-    if mods.rawValue & GHOSTTY_MODS_CTRL.rawValue != 0 { flags.insert(.control) }
-    if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 { flags.insert(.option) }
-    if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
-    return flags
-  }
-
-  private static let keyToEquivalent: [ghostty_input_key_e: KeyEquivalent] = [
-    GHOSTTY_KEY_ARROW_UP: .upArrow,
-    GHOSTTY_KEY_ARROW_DOWN: .downArrow,
-    GHOSTTY_KEY_ARROW_LEFT: .leftArrow,
-    GHOSTTY_KEY_ARROW_RIGHT: .rightArrow,
-    GHOSTTY_KEY_HOME: .home,
-    GHOSTTY_KEY_END: .end,
-    GHOSTTY_KEY_DELETE: .deleteForward,
-    GHOSTTY_KEY_PAGE_UP: .pageUp,
-    GHOSTTY_KEY_PAGE_DOWN: .pageDown,
-    GHOSTTY_KEY_ESCAPE: .escape,
-    GHOSTTY_KEY_ENTER: .return,
-    GHOSTTY_KEY_TAB: .tab,
-    GHOSTTY_KEY_BACKSPACE: .delete,
-    GHOSTTY_KEY_SPACE: .space,
-  ]
-}
-
-extension Notification.Name {
-  static let ghosttyRuntimeConfigDidChange = Notification.Name("ghosttyRuntimeConfigDidChange")
 }
 
 extension NSColor {

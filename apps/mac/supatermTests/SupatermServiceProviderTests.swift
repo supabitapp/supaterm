@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SupatermCLIShared
 import Testing
 
 @testable import supaterm
@@ -13,7 +14,11 @@ struct SupatermServiceProviderTests {
 
     let pasteboard = makePasteboard([root])
 
-    #expect(SupatermServiceProvider.directoryPaths(from: pasteboard) == [root.path(percentEncoded: false)])
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(root)
+      ]
+    )
   }
 
   @Test
@@ -25,7 +30,7 @@ struct SupatermServiceProviderTests {
   }
 
   @Test
-  func fileSelectionDoesNotProduceDirectoryPath() throws {
+  func fileSelectionUsesParentDirectoryPath() throws {
     let root = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
     let fileURL = root.appendingPathComponent("file.txt")
@@ -33,7 +38,27 @@ struct SupatermServiceProviderTests {
 
     let pasteboard = makePasteboard([fileURL])
 
-    #expect(SupatermServiceProvider.directoryPaths(from: pasteboard).isEmpty)
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(root)
+      ]
+    )
+  }
+
+  @Test
+  func plainTextFileSelectionUsesParentDirectoryPath() throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let fileURL = root.appendingPathComponent("file.txt")
+    try "x".write(to: fileURL, atomically: true, encoding: .utf8)
+    let pasteboard = makePasteboard()
+    #expect(pasteboard.setString(fileURL.path, forType: .string))
+
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(root)
+      ]
+    )
   }
 
   @Test
@@ -49,8 +74,30 @@ struct SupatermServiceProviderTests {
 
     #expect(
       SupatermServiceProvider.directoryPaths(from: pasteboard) == [
-        first.path(percentEncoded: false),
-        second.path(percentEncoded: false),
+        SupatermWorkingDirectory.normalizedPath(first),
+        SupatermWorkingDirectory.normalizedPath(second),
+      ]
+    )
+  }
+
+  @Test
+  func equivalentDottedPathsAreDeduped() throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let parent = root.appendingPathComponent("parent", isDirectory: true)
+    let directory = root.appendingPathComponent("directory", isDirectory: true)
+    try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let dotted = URL(
+      fileURLWithPath: "\(parent.path)/../\(directory.lastPathComponent)",
+      isDirectory: true
+    )
+
+    let pasteboard = makePasteboard([dotted, directory])
+
+    #expect(
+      SupatermServiceProvider.directoryPaths(from: pasteboard) == [
+        SupatermWorkingDirectory.normalizedPath(directory)
       ]
     )
   }
@@ -70,7 +117,7 @@ struct SupatermServiceProviderTests {
 
     provider.openTab(pasteboard, userData: nil, error: &error)
 
-    #expect(openedTabs == [[root.path(percentEncoded: false)]])
+    #expect(openedTabs == [[SupatermWorkingDirectory.normalizedPath(root)]])
     #expect(openedWindows.isEmpty)
     #expect(error.length == 0)
   }
@@ -91,7 +138,7 @@ struct SupatermServiceProviderTests {
     provider.openWindow(pasteboard, userData: nil, error: &error)
 
     #expect(openedTabs.isEmpty)
-    #expect(openedWindows == [[root.path(percentEncoded: false)]])
+    #expect(openedWindows == [[SupatermWorkingDirectory.normalizedPath(root)]])
     #expect(error.length == 0)
   }
 

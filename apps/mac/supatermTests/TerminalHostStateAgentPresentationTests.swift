@@ -521,7 +521,7 @@ struct TerminalHostStateAgentPresentationTests {
     )
     #expect(
       workspaces.map(\.workingDirectoryPath)
-        == ["/repo/docs/", "/other-repo/", "/repo/other/"]
+        == ["/repo/docs", "/other-repo", "/repo/other"]
     )
   }
 

@@ -27,6 +27,6 @@ let package = Package(
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", exact: "1.26.1"),
     .package(url: "https://github.com/pointfreeco/swift-sharing", exact: "2.9.1"),
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", exact: "1.19.4"),
-    .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.5"),
+    .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6"),
   ]
 )

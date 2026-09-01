@@ -26,12 +26,12 @@ struct GhosttyShortcutManagerTests {
     let secondInvalidationCount = Mutex(0)
 
     let firstShortcut = withObservationTracking {
-      firstManager.keyboardShortcut(forAction: "new_tab")
+      firstManager.shortcut(forAction: "new_tab")?.keyboardShortcut
     } onChange: {
       firstInvalidationCount.withLock { $0 += 1 }
     }
     let secondShortcut = withObservationTracking {
-      secondManager.keyboardShortcut(forAction: "new_tab")
+      secondManager.shortcut(forAction: "new_tab")?.keyboardShortcut
     } onChange: {
       secondInvalidationCount.withLock { $0 += 1 }
     }
@@ -50,7 +50,35 @@ struct GhosttyShortcutManagerTests {
 
     #expect(firstInvalidationCount.withLock { $0 } == 1)
     #expect(secondInvalidationCount.withLock { $0 } == 1)
-    #expect(firstManager.keyboardShortcut(forAction: "new_tab")?.display == "⌘Y")
-    #expect(secondManager.keyboardShortcut(forAction: "new_tab")?.display == "⌘Y")
+    #expect(firstManager.shortcut(forAction: "new_tab")?.keyboardShortcut.display == "⌘Y")
+    #expect(secondManager.shortcut(forAction: "new_tab")?.keyboardShortcut.display == "⌘Y")
+  }
+
+  @Test
+  func keyboardLayoutChangeInvalidatesShortcutHints() async throws {
+    _ = NSApplication.shared
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = super+backquote=new_tab
+      """
+    )
+    let manager = GhosttyShortcutManager(runtime: runtime)
+    let invalidationCount = Mutex(0)
+
+    _ = withObservationTracking {
+      manager.shortcut(forAction: "new_tab")?.keyboardShortcut
+    } onChange: {
+      invalidationCount.withLock { $0 += 1 }
+    }
+
+    NotificationCenter.default.post(
+      name: NSTextInputContext.keyboardSelectionDidChangeNotification,
+      object: nil
+    )
+    for _ in 0..<5 {
+      await Task.yield()
+    }
+
+    #expect(invalidationCount.withLock { $0 } == 1)
   }
 }

@@ -331,6 +331,7 @@ let project = Project(
             ],
             "NSSendTypes": [
               "NSFilenamesPboardType",
+              "public.plain-text",
             ],
           ],
           [
@@ -343,6 +344,7 @@ let project = Project(
             ],
             "NSSendTypes": [
               "NSFilenamesPboardType",
+              "public.plain-text",
             ],
           ],
         ],

@@ -346,9 +346,9 @@ struct LicenseTabGateTests {
   @Test
   func registryWiresBothRefusalActions() {
     var actions: [LicenseTabLimitAction] = []
-    let registry = TerminalWindowRegistry.test {
-      actions.append($0)
-    }
+    let registry = TerminalWindowRegistry.test(
+      performLicenseTabLimitAction: { actions.append($0) }
+    )
     let host = registerHost(
       in: registry,
       gate: .unrestricted,

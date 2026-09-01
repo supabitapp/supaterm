@@ -98,6 +98,12 @@ enum GhosttyKeyEvent {
     return characters
   }
 
+  static func keyEventText(_ text: String?) -> String? {
+    guard let text, let scalar = text.unicodeScalars.first else { return nil }
+    guard scalar.value >= 0x20, scalar.value != 0x7F else { return nil }
+    return text
+  }
+
   static func mods(_ flags: NSEvent.ModifierFlags) -> ghostty_input_mods_e {
     var mods: UInt32 = GHOSTTY_MODS_NONE.rawValue
     if flags.contains(.shift) { mods |= GHOSTTY_MODS_SHIFT.rawValue }

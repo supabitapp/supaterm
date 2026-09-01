@@ -578,8 +578,8 @@ extension TerminalHostState {
     guard let surface = surfaces[surfaceID] else { return false }
     return Self.surfaceActivity(
       isSelectedTab: tabID == spaceManager.selectedTabID,
-      windowIsVisible: windowActivity.isVisible,
-      windowIsKey: windowActivity.isKeyWindow,
+      isPaneVisible: visiblePaneIDs.contains(surfaceID),
+      windowActivity: windowActivity,
       focusedSurfaceID: focusedSurfaceID,
       surface: surface
     ).isFocused

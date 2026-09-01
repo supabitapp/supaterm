@@ -167,6 +167,7 @@ public struct SettingsFeature {
     case codingAgentsShowPanelChanged(Bool)
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
+    case terminalShortcutSourceChanged
     case restoreTerminalLayoutEnabledChanged(Bool)
     case restoreShortcutDefaultsButtonTapped
     case shortcutEnabledChanged(SupatermShortcutID, Bool)
@@ -277,6 +278,10 @@ public struct SettingsFeature {
         SupatermLog.setVerboseLoggingEnabled(state.verboseLoggingEnabled)
         return startTasks()
 
+      case .terminalShortcutSourceChanged:
+        state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
+        return .none
+
       case .updateClientSnapshotReceived(let snapshot):
         state.about.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
         state.about.updatesAutomaticallyDownloadUpdates = snapshot.automaticallyDownloadsUpdates
@@ -299,6 +304,9 @@ public struct SettingsFeature {
 
       case .tabSelected(let tab):
         state.selectedTab = tab
+        if tab == .shortcuts {
+          state.terminalShortcutDisplays = shortcutSettingsClient.terminalReservedDisplays()
+        }
         return .none
 
       case .shortcutRecorded(let id, let override):

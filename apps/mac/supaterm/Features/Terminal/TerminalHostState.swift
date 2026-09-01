@@ -70,6 +70,8 @@ final class TerminalHostState {
     let isFocused: Bool
   }
 
+  typealias SurfaceActivityApplier = @MainActor (GhosttySurfaceView, SurfaceActivity) -> Void
+
   enum ResolvedCloseRequest: Equatable {
     case request(TerminalCloseRequest)
     case window(needsConfirmation: Bool)
@@ -281,6 +283,8 @@ final class TerminalHostState {
   @ObservationIgnored
   let surfaceFactory: GhosttySurfaceView.SurfaceFactory
   @ObservationIgnored
+  let surfaceActivityApplier: SurfaceActivityApplier
+  @ObservationIgnored
   let zmxClient: ZmxClient
   @ObservationIgnored
   let zmxSessionsEnabled: Bool
@@ -315,7 +319,20 @@ final class TerminalHostState {
   let spaceManager: TerminalSpaceManager
 
   var pendingEvents: [TerminalClient.Event] = []
-  var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
+  var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:] {
+    didSet {
+      let selectedTabID = spaceManager.selectedTabID
+      let previousVisiblePaneIDs =
+        selectedTabID.flatMap { oldValue[$0] }.map {
+          Self.visiblePaneIDs(in: $0)
+        } ?? []
+      guard
+        previousVisiblePaneIDs != visiblePaneIDs
+          || Self.paneIDs(in: oldValue) != Self.paneIDs(in: trees)
+      else { return }
+      syncFocus()
+    }
+  }
   var surfaces: [UUID: GhosttySurfaceView] = [:]
   var focusHistoryByTab: [TerminalTabID: FocusHistory] = [:]
   var notificationStore = TerminalNotificationStore()
@@ -329,12 +346,29 @@ final class TerminalHostState {
 
   var windowActivity = WindowActivityState.inactive
 
+  var visiblePaneIDs: Set<UUID> {
+    guard let selectedTabID, let tree = trees[selectedTabID] else { return [] }
+    return Self.visiblePaneIDs(in: tree)
+  }
+
+  static func visiblePaneIDs(in tree: SplitTree<GhosttySurfaceView>) -> Set<UUID> {
+    Set((tree.zoomed ?? tree.root)?.leaves().map(\.id) ?? [])
+  }
+
+  static func paneIDs(
+    in trees: [TerminalTabID: SplitTree<GhosttySurfaceView>]
+  ) -> Set<UUID> {
+    Set(trees.values.flatMap { $0.leaves().map(\.id) })
+  }
+
   init(
     runtime: GhosttyRuntime? = nil,
     managesTerminalSurfaces: Bool = true,
     surfaceFactory: @escaping GhosttySurfaceView.SurfaceFactory = { app, config in
       ghostty_surface_new(app, config)
     },
+    surfaceActivityApplier: @escaping SurfaceActivityApplier = TerminalHostState
+      .applySurfaceActivity,
     spaceID: TerminalSpaceID? = nil,
     zmxClient: ZmxClient = .live,
     zmxSessionsEnabled: Bool = true,
@@ -346,6 +380,7 @@ final class TerminalHostState {
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(launchSpaceCatalog)
     self.managesTerminalSurfaces = managesTerminalSurfaces
     self.surfaceFactory = surfaceFactory
+    self.surfaceActivityApplier = surfaceActivityApplier
     self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
     self.spaceManager = TerminalSpaceManager(
       catalog: initialSpaceCatalog,
@@ -377,6 +412,9 @@ final class TerminalHostState {
       runtime: GhosttyRuntime? = nil,
       managesTerminalSurfaces: Bool = true,
       createsLiveTerminalSurfaces: Bool = false,
+      surfaceFactory: GhosttySurfaceView.SurfaceFactory? = nil,
+      surfaceActivityApplier: @escaping SurfaceActivityApplier = TerminalHostState
+        .applySurfaceActivity,
       spaceID: TerminalSpaceID? = nil,
       zmxClient: ZmxClient = .live,
       zmxSessionsEnabled: Bool = true,
@@ -384,14 +422,16 @@ final class TerminalHostState {
       licenseTabGate: LicenseTabGate = .unrestricted,
       licenseOpenTabCount: @escaping @MainActor () -> Int = { 0 }
     ) -> TerminalHostState {
-      let surfaceFactory: GhosttySurfaceView.SurfaceFactory =
-        createsLiveTerminalSurfaces
-        ? { app, config in ghostty_surface_new(app, config) }
-        : { _, _ in nil }
+      let resolvedSurfaceFactory: GhosttySurfaceView.SurfaceFactory =
+        surfaceFactory
+        ?? (createsLiveTerminalSurfaces
+          ? { app, config in ghostty_surface_new(app, config) }
+          : { _, _ in nil })
       return TerminalHostState(
         runtime: runtime,
         managesTerminalSurfaces: managesTerminalSurfaces,
-        surfaceFactory: surfaceFactory,
+        surfaceFactory: resolvedSurfaceFactory,
+        surfaceActivityApplier: surfaceActivityApplier,
         spaceID: spaceID,
         zmxClient: zmxClient,
         zmxSessionsEnabled: zmxSessionsEnabled,
@@ -488,12 +528,14 @@ final class TerminalHostState {
       ]
     )
     windowActivity = activity
-    syncFocus(activity)
+    syncFocus()
     clearUnreadOnFocusedSurfaceIfNeeded()
   }
 
-  func syncFocus(_ activity: WindowActivityState) {
+  func syncFocus() {
+    let activity = windowActivity
     let selectedTabID = spaceManager.selectedTabID
+    let visiblePaneIDs = self.visiblePaneIDs
     var surfaceToFocus: GhosttySurfaceView?
 
     for (tabID, tree) in trees {
@@ -502,14 +544,13 @@ final class TerminalHostState {
       for surface in tree.leaves() {
         let surfaceActivity = Self.surfaceActivity(
           isSelectedTab: isSelectedTab,
-          windowIsVisible: activity.isVisible,
-          windowIsKey: activity.isKeyWindow,
+          isPaneVisible: visiblePaneIDs.contains(surface.id),
+          windowActivity: activity,
           focusedSurfaceID: focusedSurfaceID,
           surface: surface
         )
-        surface.setOcclusion(surfaceActivity.isVisible)
-        surface.focusDidChange(surfaceActivity.isFocused)
-        if isSelectedTab && activity.isVisible && activity.isKeyWindow
+        surfaceActivityApplier(surface, surfaceActivity)
+        if surfaceActivity.isVisible && activity.isKeyWindow
           && focusedSurfaceID == surface.id
         {
           surfaceToFocus = surface
@@ -710,16 +751,24 @@ final class TerminalHostState {
 
   static func surfaceActivity(
     isSelectedTab: Bool,
-    windowIsVisible: Bool,
-    windowIsKey: Bool,
+    isPaneVisible: Bool,
+    windowActivity: WindowActivityState,
     focusedSurfaceID: UUID?,
     surface: GhosttySurfaceView
   ) -> SurfaceActivity {
-    let isVisible = isSelectedTab && windowIsVisible
+    let isVisible = isSelectedTab && isPaneVisible && windowActivity.isVisible
     let isFocused =
-      isVisible && windowIsKey && focusedSurfaceID == surface.id
+      isVisible && windowActivity.isKeyWindow && focusedSurfaceID == surface.id
       && surface.window?.firstResponder === surface
     return SurfaceActivity(isVisible: isVisible, isFocused: isFocused)
+  }
+
+  static func applySurfaceActivity(
+    _ surface: GhosttySurfaceView,
+    _ activity: SurfaceActivity
+  ) {
+    surface.setOcclusion(activity.isVisible)
+    surface.focusDidChange(activity.isFocused)
   }
 
   func performCloseTab(_ tabID: TerminalTabID) {
@@ -734,7 +783,7 @@ final class TerminalHostState {
       in: instance.spaceID,
       didCloseSelectedTab: wasSelectedTab
     )
-    syncFocus(windowActivity)
+    syncFocus()
     sessionDidChange()
   }
 
@@ -1026,12 +1075,17 @@ final class TerminalHostState {
     _ surfaceID: UUID,
     in tabID: TerminalTabID
   ) {
+    let previousSurfaceID = focusHistoryByTab[tabID]?.current
     focusHistoryByTab[tabID, default: FocusHistory(current: surfaceID)].updateCurrent(surfaceID)
     clearAgentCompletionAttention(in: tabID)
+    if previousSurfaceID != surfaceID, tabID == spaceManager.selectedTabID {
+      syncFocus()
+    }
   }
 
   func focusSurface(_ surface: GhosttySurfaceView, in tabID: TerminalTabID) {
     let previousSurface = focusHistoryByTab[tabID].flatMap { surfaces[$0.current] }
+    revealSurfaceIfNeeded(surface.id, in: tabID)
     applyFocusedSurface(surface.id, in: tabID)
     updateTabTitle(for: tabID)
     clearNotificationAttention(for: surface.id)
@@ -1041,6 +1095,17 @@ final class TerminalHostState {
       guard let self, let surface else { return false }
       return selectedSurfaceView === surface
     }
+  }
+
+  private func revealSurfaceIfNeeded(_ surfaceID: UUID, in tabID: TerminalTabID) {
+    guard
+      let tree = trees[tabID],
+      tree.zoomed != nil,
+      !Self.visiblePaneIDs(in: tree).contains(surfaceID)
+    else {
+      return
+    }
+    trees[tabID] = tree.settingZoomed(nil)
   }
 
   static func selectedTabID(
@@ -1061,17 +1126,16 @@ final class TerminalHostState {
   }
 
   static func newPaneSelectionState(
-    selectedTabID: TerminalTabID?,
-    targetTabID: TerminalTabID,
+    isSelectedTab: Bool,
+    isPaneVisible: Bool,
     windowActivity: WindowActivityState,
     focusedSurfaceID: UUID?,
     surface: GhosttySurfaceView
   ) -> NewPaneSelectionState {
-    let isSelectedTab = targetTabID == selectedTabID
     let activity = surfaceActivity(
       isSelectedTab: isSelectedTab,
-      windowIsVisible: windowActivity.isVisible,
-      windowIsKey: windowActivity.isKeyWindow,
+      isPaneVisible: isPaneVisible,
+      windowActivity: windowActivity,
       focusedSurfaceID: focusedSurfaceID,
       surface: surface
     )
@@ -1111,19 +1175,18 @@ final class TerminalHostState {
     guard
       tabID == spaceManager.selectedTabID,
       windowActivity.isVisible,
-      windowActivity.isKeyWindow,
-      let tree = trees[tabID]
+      windowActivity.isKeyWindow
     else {
       return
     }
-    for surface in tree.leaves() {
-      agentCompletionStore.clear(for: surface.id)
-      guard let notifications = notificationStore.notifications(for: surface.id) else {
+    for surfaceID in visiblePaneIDs {
+      agentCompletionStore.clear(for: surfaceID)
+      guard let notifications = notificationStore.notifications(for: surfaceID) else {
         continue
       }
       let updatedNotifications = Self.notificationsAfterViewingAgentCompletions(notifications)
       guard updatedNotifications != notifications else { continue }
-      notificationStore.replaceNotifications(updatedNotifications, for: surface.id)
+      notificationStore.replaceNotifications(updatedNotifications, for: surfaceID)
     }
   }
 
@@ -1133,8 +1196,8 @@ final class TerminalHostState {
     }
     let activity = Self.surfaceActivity(
       isSelectedTab: tabID == spaceManager.selectedTabID,
-      windowIsVisible: windowActivity.isVisible,
-      windowIsKey: windowActivity.isKeyWindow,
+      isPaneVisible: visiblePaneIDs.contains(surfaceID),
+      windowActivity: windowActivity,
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surface: surface
     )

@@ -90,7 +90,7 @@ struct TerminalAgentPanelTests {
 
     #expect(
       TerminalAgentPanelWorkspaceKey(workingDirectoryPath: " \(path) ")?
-        .workingDirectoryPath == root.path(percentEncoded: false)
+        .workingDirectoryPath == SupatermWorkingDirectory.normalizedPath(root.standardizedFileURL)
     )
     #expect(TerminalAgentPanelWorkspaceKey(workingDirectoryPath: " ") == nil)
   }
@@ -171,7 +171,7 @@ struct TerminalAgentPanelTests {
     #expect(inheritedSurface !== sourceSurface)
     #expect(
       inheritedSurface.bridge.state.pwd
-        == GhosttySurfaceView.normalizedWorkingDirectoryPath(
+        == SupatermWorkingDirectory.normalizedPath(
           agentWorkspace.path(percentEncoded: false)
         )
     )
@@ -553,7 +553,10 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.workingDirectoryPath == workingDirectoryPath)
+    #expect(
+      presentation.workingDirectoryPath
+        == SupatermWorkingDirectory.normalizedPath(workingDirectoryPath)
+    )
     #expect(presentation.session == nil)
   }
 
@@ -586,13 +589,13 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace/")
+    #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace")
     #expect(
       presentation.session
         == PaneAgentPanelSession.supported(
           agent: .pi,
           sessionID: "session-2",
-          workingDirectoryPath: "/tmp/pi-workspace/"
+          workingDirectoryPath: "/tmp/pi-workspace"
         )
     )
   }
@@ -661,7 +664,9 @@ struct TerminalAgentPanelTests {
         == PaneAgentPanelSession.supported(
           agent: .codex,
           sessionID: "session-1",
-          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+          workingDirectoryPath: SupatermWorkingDirectory.normalizedPath(
+            FileManager.default.temporaryDirectory
+          )
         )
     )
     #expect(
@@ -699,7 +704,9 @@ struct TerminalAgentPanelTests {
         == PaneAgentPanelSession.supported(
           agent: .codex,
           sessionID: "session-1",
-          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+          workingDirectoryPath: SupatermWorkingDirectory.normalizedPath(
+            FileManager.default.temporaryDirectory
+          )
         )
     )
     #expect(presentation.progressRows.isEmpty)
@@ -742,7 +749,9 @@ struct TerminalAgentPanelTests {
         == PaneAgentPanelSession.supported(
           agent: .pi,
           sessionID: "session-1",
-          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+          workingDirectoryPath: SupatermWorkingDirectory.normalizedPath(
+            FileManager.default.temporaryDirectory
+          )
         )
     )
     #expect(presentation.progressRows.map(\.title) == ["Run tests"])

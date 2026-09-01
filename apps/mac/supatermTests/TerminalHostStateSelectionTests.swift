@@ -78,7 +78,6 @@ struct TerminalHostStateSelectionTests {
 
   @Test
   func newPaneSelectionStateReportsFocusedOnlyForSelectedPaneInActiveWindow() {
-    let tabID = TerminalTabID()
     let (surface, window) = makeFirstResponderSurface()
     defer {
       surface.closeSurface()
@@ -86,8 +85,8 @@ struct TerminalHostStateSelectionTests {
     }
 
     let state = TerminalHostState.newPaneSelectionState(
-      selectedTabID: tabID,
-      targetTabID: tabID,
+      isSelectedTab: true,
+      isPaneVisible: true,
       windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
       focusedSurfaceID: surface.id,
       surface: surface
@@ -99,7 +98,6 @@ struct TerminalHostStateSelectionTests {
 
   @Test
   func newPaneSelectionStateReportsSelectedButUnfocusedForInactiveWindow() {
-    let tabID = TerminalTabID()
     let (surface, window) = makeFirstResponderSurface()
     defer {
       surface.closeSurface()
@@ -107,8 +105,8 @@ struct TerminalHostStateSelectionTests {
     }
 
     let state = TerminalHostState.newPaneSelectionState(
-      selectedTabID: tabID,
-      targetTabID: tabID,
+      isSelectedTab: true,
+      isPaneVisible: true,
       windowActivity: .inactive,
       focusedSurfaceID: surface.id,
       surface: surface
@@ -120,8 +118,6 @@ struct TerminalHostStateSelectionTests {
 
   @Test
   func newPaneSelectionStateReportsUnselectedWhenAnotherTabRemainsSelected() {
-    let selectedTabID = TerminalTabID()
-    let targetTabID = TerminalTabID()
     let (surface, window) = makeFirstResponderSurface()
     defer {
       surface.closeSurface()
@@ -129,8 +125,8 @@ struct TerminalHostStateSelectionTests {
     }
 
     let state = TerminalHostState.newPaneSelectionState(
-      selectedTabID: selectedTabID,
-      targetTabID: targetTabID,
+      isSelectedTab: false,
+      isPaneVisible: false,
       windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
       focusedSurfaceID: surface.id,
       surface: surface

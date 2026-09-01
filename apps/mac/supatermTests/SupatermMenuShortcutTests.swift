@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 import Testing
 
@@ -33,6 +34,28 @@ struct SupatermMenuShortcutTests {
   }
 
   @Test
+  func applyDisablesAutomaticTranslationForPhysicalShortcut() {
+    let item = NSMenuItem(title: "Open", action: nil, keyEquivalent: "")
+
+    SupatermMenuShortcut.apply(
+      KeyboardShortcut("q", modifiers: .command),
+      physicalKeyCode: UInt16(kVK_ANSI_A),
+      to: item
+    )
+
+    #expect(!item.allowsAutomaticKeyEquivalentLocalization)
+    #expect(!item.allowsAutomaticKeyEquivalentMirroring)
+
+    SupatermMenuShortcut.apply(
+      KeyboardShortcut("q", modifiers: .command),
+      to: item
+    )
+
+    #expect(item.allowsAutomaticKeyEquivalentLocalization)
+    #expect(item.allowsAutomaticKeyEquivalentMirroring)
+  }
+
+  @Test
   func displayUsesNormalizedShortcut() {
     let shortcut = KeyboardShortcut("Ä", modifiers: [.command])
 
@@ -48,11 +71,17 @@ struct SupatermMenuShortcutTests {
   @Test
   func applyClearsKeyEquivalentWhenShortcutIsMissing() {
     let item = NSMenuItem(title: "Close", action: nil, keyEquivalent: "w")
-    item.keyEquivalentModifierMask = [.command]
+    SupatermMenuShortcut.apply(
+      KeyboardShortcut("w", modifiers: .command),
+      physicalKeyCode: UInt16(kVK_ANSI_W),
+      to: item
+    )
 
     SupatermMenuShortcut.apply(nil, to: item)
 
     #expect(item.keyEquivalent.isEmpty)
     #expect(item.keyEquivalentModifierMask.isEmpty)
+    #expect(item.allowsAutomaticKeyEquivalentLocalization)
+    #expect(item.allowsAutomaticKeyEquivalentMirroring)
   }
 }

@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import GhosttyKit
+import SupatermCLIShared
 import SupatermSupport
 
 struct RestoredTerminalSpace {
@@ -261,7 +262,7 @@ extension TerminalHostState {
     if let selectedTabID {
       focusSurface(in: selectedTabID)
     }
-    syncFocus(windowActivity)
+    syncFocus()
   }
 
   func logRestoreFailed(reason: String) {
@@ -397,6 +398,12 @@ extension TerminalHostState {
         restoreMode: leaf.restoreMode,
         zmxAttachMode: zmxAttachMode
       )
+      if tabID != spaceManager.selectedTabID || !windowActivity.isVisible {
+        surfaceActivityApplier(
+          surface,
+          SurfaceActivity(isVisible: false, isFocused: false)
+        )
+      }
       surface.bridge.state.titleOverride = leaf.titleOverride
       restoreAgentState(leaf.agents, for: surface.id)
       return .leaf(view: surface)
@@ -487,17 +494,11 @@ extension TerminalHostState {
 
   func workingDirectoryPath(for surface: GhosttySurfaceView) -> String? {
     guard let path = Self.trimmedNonEmpty(surface.bridge.state.pwd) else { return nil }
-    return GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
+    return SupatermWorkingDirectory.normalizedPath(path)
   }
 
   func existingWorkingDirectoryURL(for path: String?) -> URL? {
     guard let path = Self.trimmedNonEmpty(path) else { return nil }
-    let normalizedPath = GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
-    var isDirectory = ObjCBool(false)
-    guard FileManager.default.fileExists(atPath: normalizedPath, isDirectory: &isDirectory) else {
-      return nil
-    }
-    guard isDirectory.boolValue else { return nil }
-    return URL(fileURLWithPath: normalizedPath, isDirectory: true)
+    return SupatermWorkingDirectory.existingDirectoryURL(for: path)
   }
 }
