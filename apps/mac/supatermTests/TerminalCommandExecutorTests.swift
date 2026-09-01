@@ -346,7 +346,7 @@ struct TerminalCommandExecutorTests {
     #expect(host.focusHistoryByTab[tabID]?.current == firstSurface.id)
   }
   @Test
-  func createTabAppendsAtEndForExplicitSpaceTarget() throws {
+  func createTabGroupsWithTheSelectedTabForExplicitSpaceTarget() throws {
     initializeGhosttyForTests()
 
     let registry = TerminalWindowRegistry.test()
@@ -382,15 +382,21 @@ struct TerminalCommandExecutorTests {
       )
     )
 
-    #expect(result.tabIndex == 3)
+    let groupID = try #require(host.spaceManager.tabCollection.groupID(containing: firstTabID))
+
+    #expect(result.tabIndex == 2)
+    #expect(
+      host.spaceManager.tabCollection.tabIDs(in: groupID).map(\.rawValue)
+        == [firstTabID.rawValue, result.tabID]
+    )
     #expect(
       host.spaceManager.tabs(in: host.spaces[0].id).map(\.id.rawValue)
-        == [firstTabID.rawValue, secondTabID.rawValue, result.tabID]
+        == [firstTabID.rawValue, result.tabID, secondTabID.rawValue]
     )
     #expect(host.selectedTabID == firstTabID)
   }
   @Test
-  func createTabAppendsAtEndForContextPaneTarget() throws {
+  func createTabGroupsWithTheParentForContextPaneTarget() throws {
     initializeGhosttyForTests()
 
     let registry = TerminalWindowRegistry.test()
@@ -426,12 +432,64 @@ struct TerminalCommandExecutorTests {
       )
     )
 
-    #expect(result.tabIndex == 3)
+    let groupID = try #require(host.spaceManager.tabCollection.groupID(containing: firstTabID))
+
+    #expect(result.tabIndex == 2)
+    #expect(
+      host.spaceManager.tabCollection.tabIDs(in: groupID).map(\.rawValue)
+        == [firstTabID.rawValue, result.tabID]
+    )
     #expect(
       host.spaceManager.tabs(in: host.spaces[0].id).map(\.id.rawValue)
-        == [firstTabID.rawValue, secondTabID.rawValue, result.tabID]
+        == [firstTabID.rawValue, result.tabID, secondTabID.rawValue]
     )
     #expect(host.selectedTabID == secondTabID)
+  }
+
+  @Test
+  func createTabJoinsTheParentsExistingGroup() throws {
+    initializeGhosttyForTests()
+
+    let registry = TerminalWindowRegistry.test()
+    let commandExecutor = makeCommandExecutor(registry: registry)
+    let host = TerminalHostState.test()
+    host.ensureInitialTab(focusing: false, startupCommand: nil)
+    let firstTabID = try #require(host.selectedTabID)
+    let firstPaneID = try #require(host.selectedSurfaceView?.id)
+    _ = host.createTab(inheritingFromSurfaceID: nil)
+    let secondTabID = try #require(host.selectedTabID)
+    let groupID = try #require(
+      host.createGroup(title: "Group", containing: [firstTabID, secondTabID])
+    ).groupID
+
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    let result = try commandExecutor.createTab(
+      TerminalCreateTabRequest(
+        startupCommand: nil,
+        cwd: nil,
+        focus: false,
+        target: .pane(firstPaneID)
+      )
+    )
+
+    #expect(
+      host.spaceManager.tabCollection.tabIDs(in: groupID).map(\.rawValue)
+        == [firstTabID.rawValue, result.tabID, secondTabID.rawValue]
+    )
+    #expect(host.spaceManager.tabCollection.rootItems.map(\.id) == [.group(groupID)])
   }
 
   @Test

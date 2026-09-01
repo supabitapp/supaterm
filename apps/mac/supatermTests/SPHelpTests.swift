@@ -200,6 +200,11 @@ struct SPHelpTests {
     #expect(normalizedNewTabHelp.contains("space target, including an s: ref"))
     #expect(
       normalizedNewTabHelp.contains(
+        "If the current tab is ungrouped, it creates a group containing the current and new tabs."
+      )
+    )
+    #expect(
+      normalizedNewTabHelp.contains(
         "Arguments after `--` remain exact. The first must name an executable."
       )
     )
