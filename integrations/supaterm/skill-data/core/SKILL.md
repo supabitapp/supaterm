@@ -100,7 +100,7 @@ Read JSON creation output for `tabID` and `paneID`. Capture the pane later with 
 
 Save any rendered pane as a PNG with `sp pane screenshot <pane-uuid> --output pane.png`.
 
-Split panes and send commands:
+Split panes and send shell commands:
 
 Splits leave focus unchanged by default. Add `--focus` when the new pane should become active.
 
@@ -110,6 +110,8 @@ sp pane split --layout keep right
 sp pane send --newline 'echo hello'
 sp pane key ctrl-c
 ```
+
+`--newline` is for shell input. For coding-agent prompts, load `sp skills get coding-agents` and use `--submit`.
 
 ## Deep-Dive References
 
