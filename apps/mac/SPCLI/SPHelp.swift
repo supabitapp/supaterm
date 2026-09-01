@@ -524,19 +524,19 @@ enum SPHelp {
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
     Manage coding-agent integrations from Supaterm Settings > Coding Agents.
-    Use `sp skills install` to install Supaterm's bundled discovery skill.
-    Use `sp agent setup` to set up the managed Claude and Codex hooks.
+    Use `sp agent setup` to install Supaterm's skill and managed Claude and Codex hooks.
+    Use `sp skills install` to refresh only the skill.
 
     Example:
-      sp skills install
       sp agent setup
       \(receiveAgentHookExample) | sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
 
   static let setupAgentIntegrationsDiscussion = """
-    Install hooks and add Supaterm defaults for Claude and Codex when found on this Mac.
-    Keep each existing configuration value unchanged.
+    Install the shared Supaterm skill, link it into Claude's skill directory, then install hooks
+    and add Supaterm defaults for Claude and Codex when found on this Mac. Keep each existing
+    configuration value unchanged.
 
     Example:
       sp agent reload-rules
@@ -741,7 +741,8 @@ enum SPHelp {
     """
 
   static let installSkillDiscussion = """
-    Copy Supaterm's stable discovery skill to ~/.agents/skills/supaterm.
+    Copy Supaterm's stable discovery skill to ~/.agents/skills/supaterm and link it at
+    ~/.claude/skills/supaterm.
 
     Example:
       sp skills install

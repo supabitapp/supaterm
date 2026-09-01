@@ -44,7 +44,7 @@ extension SP {
   struct SetupAgentIntegrations: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "setup",
-      abstract: "Set up Supaterm's managed coding-agent hooks.",
+      abstract: "Install Supaterm's skill and managed coding-agent hooks.",
       discussion: SPHelp.setupAgentIntegrationsDiscussion
     )
 
@@ -233,6 +233,22 @@ private enum AgentIntegrationManagementOperation {
       }
     FileHandle.standardOutput.write(Data("\(message)\n".utf8))
   }
+
+  func prepare(client: SPSocketClient) throws {
+    guard case .setupDetected = self else { return }
+    FileHandle.standardOutput.write(Data("Installing Supaterm skill...\n".utf8))
+    do {
+      let response = try client.send(.skillsInstall())
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+      _ = try response.decodeResult(SupatermSkillInstallResult.self)
+      FileHandle.standardOutput.write(Data("Supaterm skill: ready\n".utf8))
+    } catch {
+      FileHandle.standardOutput.write(Data("Supaterm skill: failed\n".utf8))
+      throw error
+    }
+  }
 }
 
 private enum AgentIntegrationDisposition {
@@ -251,6 +267,7 @@ private func manageAgentIntegrations(
     instance: connection.instance,
     responseTimeout: SupatermAgentIntegrationTiming.clientResponseTimeout
   )
+  try operation.prepare(client: client)
   var failures: [String] = []
   var didSucceed = false
   for agent in agents {

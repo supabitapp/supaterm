@@ -12,8 +12,7 @@ struct SPAgentIntegrationCommandTests {
     let log = SPSocketRequestLog()
 
     try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
+      replying: replyingAfterSkillInstall(logging: log) { request, _ in
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth =
           request.method == SupatermSocketMethod.appAgentIntegrationSetup ? .healthy : .absent
@@ -39,17 +38,19 @@ struct SPAgentIntegrationCommandTests {
     )
 
     #expect(
-      log.requests.map(\.method) == Array(
-        repeating: SupatermSocketMethod.appAgentIntegrationSetup,
-        count: SupatermManagedAgentKind.allCases.count
-      )
+      log.requests.map(\.method) == [SupatermSocketMethod.appSkillsInstall]
+        + Array(
+          repeating: SupatermSocketMethod.appAgentIntegrationSetup,
+          count: SupatermManagedAgentKind.allCases.count
+        )
         + Array(
           repeating: SupatermSocketMethod.appHooksRemove,
           count: SupatermManagedAgentKind.allCases.count
         )
     )
     #expect(
-      try log.requests.map { try $0.decodeParams(SupatermAgentIntegrationRequest.self).agent }
+      try log.requests.filter { $0.method != SupatermSocketMethod.appSkillsInstall }
+        .map { try $0.decodeParams(SupatermAgentIntegrationRequest.self).agent }
         == SupatermManagedAgentKind.allCases + SupatermManagedAgentKind.allCases
     )
   }
@@ -71,6 +72,9 @@ struct SPAgentIntegrationCommandTests {
             )
           )
           try await Task.sleep(for: .seconds(6))
+        }
+        if let response = try skillInstallResponse(for: request) {
+          return response
         }
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
@@ -94,7 +98,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(firstRequestOutput.get() == "Setting up Claude Code...\n")
+    #expect(firstRequestOutput.get() == "Installing Supaterm skill...\n")
   }
 
   @Test
@@ -104,8 +108,7 @@ struct SPAgentIntegrationCommandTests {
     let log = SPSocketRequestLog()
 
     try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
+      replying: replyingAfterSkillInstall(logging: log) { request, _ in
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return .error(
           id: request.id,
@@ -126,7 +129,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count + 1)
   }
 
   @Test
@@ -136,8 +139,7 @@ struct SPAgentIntegrationCommandTests {
     let log = SPSocketRequestLog()
 
     try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
+      replying: replyingAfterSkillInstall(logging: log) { request, _ in
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
@@ -156,7 +158,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count + 1)
   }
 
   @Test
@@ -165,7 +167,7 @@ struct SPAgentIntegrationCommandTests {
     defer { cli.remove() }
 
     try await withSocketRuntime(
-      replying: { request, _ in
+      replying: replyingAfterSkillInstall { request, _ in
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let health: CodingAgentIntegrationHealth = payload.agent == .claude ? .unavailable : .healthy
         return try .ok(
@@ -195,8 +197,7 @@ struct SPAgentIntegrationCommandTests {
     let log = SPSocketRequestLog()
 
     try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
+      replying: replyingAfterSkillInstall(logging: log) { request, _ in
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         return try .ok(
           id: request.id,
@@ -216,7 +217,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count + 1)
   }
 
   @Test
@@ -226,8 +227,7 @@ struct SPAgentIntegrationCommandTests {
     let log = SPSocketRequestLog()
 
     try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
+      replying: replyingAfterSkillInstall(logging: log) { request, _ in
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
         let responseAgent: SupatermManagedAgentKind =
           payload.agent == .codex ? .claude : payload.agent
@@ -248,7 +248,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count + 1)
   }
 
   @Test
@@ -258,8 +258,7 @@ struct SPAgentIntegrationCommandTests {
     let log = SPSocketRequestLog()
 
     try await withSocketRuntime(
-      replying: { request, _ in
-        log.record(request)
+      replying: replyingAfterSkillInstall(logging: log) { request, _ in
         return .ok(id: request.id)
       },
       run: { endpoint in
@@ -275,7 +274,36 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count + 1)
+  }
+
+  @Test
+  func setupStopsWhenSkillInstallationFails() async throws {
+    let cli = try SPCLIHarness()
+    defer { cli.remove() }
+    let log = SPSocketRequestLog()
+
+    try await withSocketRuntime(
+      replying: { request, _ in
+        log.record(request)
+        return .error(
+          id: request.id,
+          code: "internal_error",
+          message: "Supaterm bundled skills are missing."
+        )
+      },
+      run: { endpoint in
+        let result = try cli.run(["agent", "setup", "--socket", endpoint.path])
+
+        #expect(result.exitCode == 64)
+        #expect(
+          result.stdout == "Installing Supaterm skill...\nSupaterm skill: failed\n"
+        )
+        #expect(result.stderr.contains("Supaterm bundled skills are missing."))
+      }
+    )
+
+    #expect(log.requests.map(\.method) == [SupatermSocketMethod.appSkillsInstall])
   }
 
   @Test
@@ -390,11 +418,44 @@ struct SPAgentIntegrationCommandTests {
 }
 
 private func expectedSetupOutput(states: [String]) -> String {
-  zip(SupatermManagedAgentKind.allCases, states)
+  "Installing Supaterm skill...\nSupaterm skill: ready\n"
+    + zip(SupatermManagedAgentKind.allCases, states)
     .map { agent, state in
       "Setting up \(agent.notificationTitle)...\n\(agent.notificationTitle): \(state)"
     }
     .joined(separator: "\n") + "\n"
+}
+
+nonisolated private func skillInstallResponse(
+  for request: SupatermSocketRequest
+) throws -> SupatermSocketResponse? {
+  guard request.method == SupatermSocketMethod.appSkillsInstall else { return nil }
+  return try .ok(
+    id: request.id,
+    encodableResult: SupatermSkillInstallResult(path: "/Users/test/.agents/skills/supaterm")
+  )
+}
+
+nonisolated private func replyingAfterSkillInstall(
+  logging log: SPSocketRequestLog? = nil,
+  _ reply:
+    @escaping @Sendable (
+      SupatermSocketRequest,
+      SupatermSocketEndpoint
+    ) async throws -> SupatermSocketResponse?
+)
+  -> @Sendable (
+    SupatermSocketRequest,
+    SupatermSocketEndpoint
+  ) async throws -> SupatermSocketResponse?
+{
+  { request, endpoint in
+    log?.record(request)
+    if let response = try skillInstallResponse(for: request) {
+      return response
+    }
+    return try await reply(request, endpoint)
+  }
 }
 
 nonisolated private final class LockedCounter: @unchecked Sendable {
