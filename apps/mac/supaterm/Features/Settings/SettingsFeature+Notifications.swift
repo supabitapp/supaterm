@@ -5,6 +5,15 @@ import SupatermSupport
 extension SettingsFeature {
   func reduceNotifications(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
+    case .notificationSoundSelected(let sound):
+      updateSettings(&state) {
+        $0.notificationSound = sound
+      }
+      guard sound != .never else { return .none }
+      return .run { [notificationSoundClient] _ in
+        await notificationSoundClient.play(sound)
+      }
+
     case .systemNotificationsEnabledChanged(let isEnabled):
       state.alert = nil
       guard isEnabled else {

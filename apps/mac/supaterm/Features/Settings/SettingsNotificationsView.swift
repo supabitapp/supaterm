@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermSupport
 import SwiftUI
 
 struct SettingsNotificationsView: View {
@@ -22,6 +23,15 @@ struct SettingsNotificationsView: View {
     )
   }
 
+  private var notificationSound: Binding<NotificationSound> {
+    Binding(
+      get: { store.notificationSound },
+      set: { newValue in
+        _ = store.send(.notificationSoundSelected(newValue))
+      }
+    )
+  }
+
   private var tabMoveHapticsEnabled: Binding<Bool> {
     Binding(
       get: { store.tabMoveHapticsEnabled },
@@ -41,6 +51,19 @@ struct SettingsNotificationsView: View {
         )
         .accessibilityIdentifier("settings.notifications.system")
 
+        Picker(selection: notificationSound) {
+          ForEach(NotificationSound.allCases) { sound in
+            Text(sound.title).tag(sound)
+          }
+        } label: {
+          SettingsRowLabel(
+            title: "Notification Sound",
+            subtitle: "Play a sound for terminal and coding agent activity without a macOS notification."
+          )
+        }
+        .disabled(store.systemNotificationsEnabled)
+        .accessibilityIdentifier("settings.notifications.sound")
+
         SettingsToggleRow(
           title: "Glowing Pane Ring",
           subtitle: "Highlight panes with a glowing ring when terminal or coding agent activity needs attention.",
@@ -56,7 +79,7 @@ struct SettingsNotificationsView: View {
         .accessibilityIdentifier("settings.notifications.tab-move-haptics")
       } footer: {
         Text(
-          "Turning off system notifications only suppresses macOS delivery. "
+          "System notifications use the macOS default sound. Local sounds are not controlled by Focus. "
             + "Turning off the pane ring keeps unread attention and badges without the in-pane glow."
         )
       }

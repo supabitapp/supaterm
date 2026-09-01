@@ -6,6 +6,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var codingAgentsShowPanel: Bool
   public var crashReportsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
+  public var notificationSound: NotificationSound
   public var restoreTerminalLayoutEnabled: Bool
   public var shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride]
   public var systemNotificationsEnabled: Bool
@@ -20,6 +21,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     codingAgentsShowPanel: Bool = true,
     crashReportsEnabled: Bool,
     glowingPaneRingEnabled: Bool = true,
+    notificationSound: NotificationSound = .never,
     restoreTerminalLayoutEnabled: Bool = true,
     shortcutOverrides: [SupatermShortcutID: SupatermShortcutOverride] = [:],
     systemNotificationsEnabled: Bool = false,
@@ -33,6 +35,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.codingAgentsShowPanel = codingAgentsShowPanel
     self.crashReportsEnabled = crashReportsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
+    self.notificationSound = notificationSound
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
     self.shortcutOverrides = shortcutOverrides
     self.systemNotificationsEnabled = systemNotificationsEnabled
@@ -48,6 +51,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     codingAgentsShowPanel: true,
     crashReportsEnabled: true,
     glowingPaneRingEnabled: true,
+    notificationSound: .never,
     restoreTerminalLayoutEnabled: true,
     systemNotificationsEnabled: false,
     tabMoveHapticsEnabled: true,
@@ -78,6 +82,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       codingAgentsShowPanel: codingAgents?.showPanel ?? defaults.codingAgentsShowPanel,
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
       glowingPaneRingEnabled: notifications?.glowingPaneRing ?? defaults.glowingPaneRingEnabled,
+      notificationSound: notifications?.sound ?? defaults.notificationSound,
       restoreTerminalLayoutEnabled: terminal?.restoreLayout ?? defaults.restoreTerminalLayoutEnabled,
       shortcutOverrides: shortcuts ?? defaults.shortcutOverrides,
       systemNotificationsEnabled: notifications?.systemNotifications ?? defaults.systemNotificationsEnabled,
@@ -117,12 +122,14 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       )
     }
     if glowingPaneRingEnabled != defaults.glowingPaneRingEnabled
+      || notificationSound != defaults.notificationSound
       || systemNotificationsEnabled != defaults.systemNotificationsEnabled
       || tabMoveHapticsEnabled != defaults.tabMoveHapticsEnabled
     {
       try container.encode(
         PersistedNotifications(
           glowingPaneRing: glowingPaneRingEnabled,
+          sound: notificationSound,
           systemNotifications: systemNotificationsEnabled,
           tabMoveHaptics: tabMoveHapticsEnabled
         ),
@@ -180,6 +187,7 @@ extension SupatermSettings {
 
   enum NotificationKeys: String, CodingKey {
     case glowingPaneRing = "glowing_pane_ring"
+    case sound
     case systemNotifications = "system_notifications"
     case tabMoveHaptics = "tab_move_haptics"
   }
@@ -295,11 +303,18 @@ extension SupatermSettings {
 
   struct PersistedNotifications: Codable, Equatable, Sendable {
     let glowingPaneRing: Bool
+    let sound: NotificationSound
     let systemNotifications: Bool
     let tabMoveHaptics: Bool
 
-    init(glowingPaneRing: Bool, systemNotifications: Bool, tabMoveHaptics: Bool) {
+    init(
+      glowingPaneRing: Bool,
+      sound: NotificationSound,
+      systemNotifications: Bool,
+      tabMoveHaptics: Bool
+    ) {
       self.glowingPaneRing = glowingPaneRing
+      self.sound = sound
       self.systemNotifications = systemNotifications
       self.tabMoveHaptics = tabMoveHaptics
     }
@@ -310,6 +325,9 @@ extension SupatermSettings {
       glowingPaneRing =
         try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRing)
         ?? defaults.glowingPaneRingEnabled
+      sound =
+        try container.decodeIfPresent(NotificationSound.self, forKey: .sound)
+        ?? defaults.notificationSound
       systemNotifications =
         try container.decodeIfPresent(Bool.self, forKey: .systemNotifications)
         ?? defaults.systemNotificationsEnabled
@@ -324,6 +342,9 @@ extension SupatermSettings {
 
       if glowingPaneRing != defaults.glowingPaneRingEnabled {
         try container.encode(glowingPaneRing, forKey: .glowingPaneRing)
+      }
+      if sound != defaults.notificationSound {
+        try container.encode(sound, forKey: .sound)
       }
       if systemNotifications != defaults.systemNotificationsEnabled {
         try container.encode(systemNotifications, forKey: .systemNotifications)

@@ -8,6 +8,31 @@ import Testing
 @MainActor
 struct SettingsFeatureNotificationsTests {
   @Test
+  func notificationSoundPersistsAndPreviews() async throws {
+    let recorder = SettingsNotificationSoundRecorder()
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      } withDependencies: {
+        $0.notificationSoundClient.play = { recorder.sounds.append($0) }
+      }
+
+      await store.send(.notificationSoundSelected(.glass)) {
+        $0.$supatermSettings.withLock {
+          $0.notificationSound = .glass
+        }
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(supatermSettings.notificationSound == .glass)
+      #expect(recorder.sounds == [.glass])
+    }
+  }
+
+  @Test
   func tabMoveHapticsSettingPersistsPrefs() async throws {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -175,4 +200,9 @@ struct SettingsFeatureNotificationsTests {
 
     #expect(await recorder.openCount() == 1)
   }
+}
+
+@MainActor
+private final class SettingsNotificationSoundRecorder {
+  var sounds: [NotificationSound] = []
 }

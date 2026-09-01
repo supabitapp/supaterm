@@ -230,6 +230,35 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func notificationReceivedPlaysSelectedSoundWithoutSystemNotification() async throws {
+    let recorder = TerminalNotificationSoundRecorder()
+    let event = TerminalNotificationEvent(
+      attentionState: .unread,
+      body: "Build finished",
+      desktopNotificationDisposition: .deliver,
+      resolvedTitle: "Deploy complete",
+      sourceSurfaceID: UUID(),
+      subtitle: "CI"
+    )
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock { $0.notificationSound = .glass }
+      let store = TestStore(initialState: TerminalWindowFeature.State()) {
+        TerminalWindowFeature()
+      } withDependencies: {
+        $0.notificationSoundClient.play = { recorder.sounds.append($0) }
+      }
+
+      await store.send(.clientEvent(.notificationReceived(event)))
+
+      #expect(recorder.sounds == [.glass])
+    }
+  }
+
+  @Test
   func commandPaletteTogglePresentsAndDismissesPalette() async {
     let snapshot = makeCommandPaletteSnapshot()
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
@@ -572,6 +601,11 @@ private actor TerminalDesktopNotificationRecorder {
   func snapshot() -> [DesktopNotificationRequest] {
     requests
   }
+}
+
+@MainActor
+private final class TerminalNotificationSoundRecorder {
+  var sounds: [NotificationSound] = []
 }
 
 private nonisolated struct CountingRandomNumberGenerator: RandomNumberGenerator {

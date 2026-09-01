@@ -8,6 +8,7 @@ extension SocketControlFeature {
   func notificationResponseResult(
     for request: SupatermSocketRequest,
     desktopNotificationClient: DesktopNotificationClient,
+    notificationSoundClient: NotificationSoundClient,
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
@@ -19,18 +20,19 @@ extension SocketControlFeature {
         throw SocketExecutorError.unexpectedResult
       }
       @Shared(.supatermSettings) var supatermSettings = .default
-      if supatermSettings.systemNotificationsEnabled
-        && result.desktopNotificationDisposition.shouldDeliver
-      {
-        await desktopNotificationClient.deliver(
-          DesktopNotificationRequest(
-            body: payload.body,
-            subtitle: payload.subtitle,
-            title: result.resolvedTitle,
-            sourceSurfaceID: result.paneID
-          )
-        )
-      }
+      await NotificationPresenter(
+        desktopNotificationClient: desktopNotificationClient,
+        notificationSoundClient: notificationSoundClient
+      ).present(
+        DesktopNotificationRequest(
+          body: payload.body,
+          subtitle: payload.subtitle,
+          title: result.resolvedTitle,
+          sourceSurfaceID: result.paneID
+        ),
+        shouldDeliver: result.desktopNotificationDisposition.shouldDeliver,
+        settings: supatermSettings
+      )
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalAgentHook:
@@ -40,10 +42,15 @@ extension SocketControlFeature {
         throw SocketExecutorError.unexpectedResult
       }
       @Shared(.supatermSettings) var supatermSettings = .default
-      if supatermSettings.systemNotificationsEnabled,
-        let desktopNotification = result.desktopNotification
-      {
-        await desktopNotificationClient.deliver(desktopNotification)
+      if let desktopNotification = result.desktopNotification {
+        await NotificationPresenter(
+          desktopNotificationClient: desktopNotificationClient,
+          notificationSoundClient: notificationSoundClient
+        ).present(
+          desktopNotification,
+          shouldDeliver: true,
+          settings: supatermSettings
+        )
       }
       return .ok(id: request.id)
 

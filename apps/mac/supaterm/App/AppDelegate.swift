@@ -314,7 +314,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     willPresent notification: UNNotification
   ) async -> UNNotificationPresentationOptions {
     await Task.yield()
-    return [.badge, .sound, .banner]
+    var options: UNNotificationPresentationOptions = [.badge, .banner]
+    if notification.request.content.sound != nil {
+      options.insert(.sound)
+    }
+    return options
   }
 
   nonisolated func userNotificationCenter(

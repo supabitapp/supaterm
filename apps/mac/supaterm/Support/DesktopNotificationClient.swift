@@ -123,7 +123,15 @@ extension DesktopNotificationClient: DependencyKey {
         content: content,
         trigger: nil
       )
-      try? await center.add(notificationRequest)
+      do {
+        try await center.add(notificationRequest)
+      } catch {
+        SupatermLog.error(
+          SupatermLog.notifications,
+          "notification.delivery.failed",
+          fields: ["error=\(error.localizedDescription)"]
+        )
+      }
     }
   )
 

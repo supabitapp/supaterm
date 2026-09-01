@@ -211,6 +211,51 @@ struct SocketControlFeatureNotificationsTests {
     }
   }
   @Test
+  func notifyRequestPlaysSelectedSoundWhenSystemNotificationsAreDisabled() async throws {
+    let recorder = SocketReplyRecorder()
+    let soundRecorder = SocketNotificationSoundRecorder()
+    let handle = UUID(uuidString: "A94E8C30-A0D7-46B3-8E68-87156E28EB1D")!
+    let paneID = UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .notify(
+        SupatermNotifyRequest(body: "Build finished", paneID: paneID),
+        id: "notify-sound"
+      )
+    )
+    let expectedResult = SupatermNotifyResult(
+      attentionState: .unread,
+      desktopNotificationDisposition: .deliver,
+      resolvedTitle: "Build",
+      windowIndex: 1,
+      spaceIndex: 1,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 1,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 1,
+      paneID: paneID
+    )
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock { $0.notificationSound = .hero }
+      let store = makeStore {
+        $0.notificationSoundClient.play = { soundRecorder.sounds.append($0) }
+        $0.socketControlClient.reply = { handle, response in
+          await recorder.record(handle: handle, response: response)
+        }
+        $0.socketRequestExecutor.executeApp = { _ in .notify(expectedResult) }
+      }
+
+      await store.send(.requestReceived(request))
+
+      #expect(soundRecorder.sounds == [.hero])
+      #expect(await recorder.snapshot().first?.response.id == "notify-sound")
+    }
+  }
+  @Test
   func notifyRequestWithoutTitleUsesResolvedTitleForDesktopNotification() async throws {
     let recorder = SocketReplyRecorder()
     let desktopNotificationRecorder = DesktopNotificationRecorder()
@@ -357,9 +402,10 @@ struct SocketControlFeatureNotificationsTests {
     }
   }
   @Test
-  func agentHookRequestSkipsDesktopNotificationWhenDisabledInPrefs() async throws {
+  func agentHookRequestPlaysSelectedSoundWhenSystemNotificationsAreDisabled() async throws {
     let recorder = SocketReplyRecorder()
     let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let soundRecorder = SocketNotificationSoundRecorder()
     let handle = UUID(uuidString: "563E9698-BBCD-46C1-8C66-3B104D899CD7")!
     let requestPayload = try ClaudeHookFixtures.request(
       ClaudeHookFixtures.notification,
@@ -376,10 +422,13 @@ struct SocketControlFeatureNotificationsTests {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock { $0.notificationSound = .purr }
       let store = makeStore {
         $0.desktopNotificationClient.deliver = { request in
           await desktopNotificationRecorder.record(request)
         }
+        $0.notificationSoundClient.play = { soundRecorder.sounds.append($0) }
         $0.socketControlClient.reply = { handle, response in
           await recorder.record(handle: handle, response: response)
         }
@@ -408,6 +457,7 @@ struct SocketControlFeatureNotificationsTests {
       #expect(records.first?.handle == handle)
       #expect(records.first?.response == .ok(id: "agent-hook-disabled"))
       #expect(await desktopNotificationRecorder.snapshot().isEmpty)
+      #expect(soundRecorder.sounds == [.purr])
     }
   }
   @Test
@@ -441,4 +491,9 @@ struct SocketControlFeatureNotificationsTests {
     #expect(response.error?.code == "invalid_request")
     #expect(try #require(response.error?.message).isEmpty == false)
   }
+}
+
+@MainActor
+private final class SocketNotificationSoundRecorder {
+  var sounds: [NotificationSound] = []
 }

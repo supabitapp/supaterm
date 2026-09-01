@@ -38,6 +38,6 @@ Terminal detection supplies Claude and Codex identity and activity state. Their 
 
 ## Attention
 
-Enable **Settings > Notifications > Glowing Pane Ring** to highlight a pane that needs attention. Enable **System notifications** for macOS delivery.
+Enable **Settings > Notifications > Glowing Pane Ring** to highlight a pane that needs attention. Enable **System notifications** for macOS delivery, or keep them off and choose a **Notification Sound** for local audio only.
 
 Turning either presentation off does not discard unread state or badges. See [notifications](/guides/customize/notifications).
