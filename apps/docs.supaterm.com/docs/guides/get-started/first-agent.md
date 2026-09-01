@@ -5,15 +5,22 @@ description: Install Supaterm's skill, enable optional hooks, and verify agent s
 
 Supaterm supports Claude, Codex, and Pi. Install the agent first.
 
-## Install the discovery skill
+## Set up Supaterm
 
-Install the stable skill that teaches every supported agent how to discover the command guide bundled with your version of Supaterm:
+For Claude or Codex, install the skill and set up hooks with one command:
+
+```bash
+sp agent setup
+```
+
+For Pi, which needs no hooks, install only the skill:
 
 ```bash
 sp skills install
 ```
 
-The command copies the skill to `~/.agents/skills/supaterm`. Pi reads that path without a package or extension.
+Both commands copy the skill to `~/.agents/skills/supaterm` and link it at
+`~/.claude/skills/supaterm` for Claude.
 
 Inspect the current guides with:
 
@@ -30,7 +37,8 @@ sp skills get coding-agents
 3. Resolve any availability or version message shown below the agent.
 4. Start the agent in a Supaterm pane.
 
-The toggles install Supaterm-managed hooks in the agent's user configuration. Pi needs no hook setup and uses terminal detection only.
+The toggles install the skill before Supaterm-managed hooks in the agent's user configuration. Pi
+needs no hook setup and uses terminal detection only.
 
 ## Verify the connection
 

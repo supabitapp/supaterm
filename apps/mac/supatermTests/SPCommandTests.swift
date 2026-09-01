@@ -516,15 +516,15 @@ struct SPCommandTests {
         ⌘⇧D   Split down
         ⌘F    Find
 
-        Coding Agents Integrations Setup:
+        Coding Agents Setup:
 
-        Install the Supaterm skill:
-
-        sp skills install
-
-        Set up Claude and Codex hooks:
+        Install the Supaterm skill and set up Claude and Codex hooks:
 
         sp agent setup
+
+        Using Pi only? Install the skill without hooks:
+
+        sp skills install
 
         Run "sp" for the list of available commands.
         """

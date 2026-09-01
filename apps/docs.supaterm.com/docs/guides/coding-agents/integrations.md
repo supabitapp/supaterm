@@ -19,7 +19,8 @@ Codex 0.144.1 or newer is required. Codex sessions can be forked from the agent 
 
 ## Pi
 
-Pi uses terminal detection only. Install Supaterm's skill with `sp skills install`; Pi reads the same `~/.agents/skills/supaterm` copy as other agents. Supaterm does not install a Pi package or change Pi settings.
+Pi uses terminal detection only. Install Supaterm's skill with `sp skills install`; Pi reads
+`~/.agents/skills/supaterm` directly. Supaterm does not install a Pi package or change Pi settings.
 
 Pi state is temporary and read-only. Pi sessions cannot be forked from the agent panel, copied by session ID, or restored as saved agent sessions.
 
