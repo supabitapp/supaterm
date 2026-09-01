@@ -16,6 +16,15 @@ enum TerminalSidebarAnimationCurve {
   private static let firstControlPoint = CGPoint(x: 0.25, y: 0.46)
   private static let secondControlPoint = CGPoint(x: 0.45, y: 0.94)
 
+  static var timingFunction: CAMediaTimingFunction {
+    CAMediaTimingFunction(
+      controlPoints: Float(firstControlPoint.x),
+      Float(firstControlPoint.y),
+      Float(secondControlPoint.x),
+      Float(secondControlPoint.y)
+    )
+  }
+
   static func standard(
     from: CGFloat,
     to: CGFloat,
