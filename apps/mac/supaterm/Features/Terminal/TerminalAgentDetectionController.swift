@@ -191,38 +191,21 @@ final class TerminalAgentDetectionController {
     let signals: AgentDetectionSignalInput
   }
 
-  private struct EvaluationBatch: Sendable {
-    let attempts: [EvaluationAttempt]
-    var evaluations: [UUID: AgentDetectionEvaluation] = [:]
-    var unknownSurfaceIDs: Set<UUID> = []
+  private struct EvaluationResult: Sendable {
+    let attempt: EvaluationAttempt
+    let evaluation: AgentDetectionEvaluation?
+  }
 
-    var activeAttempts: [EvaluationAttempt] {
-      attempts.filter {
-        evaluations[$0.surfaceID] != nil || unknownSurfaceIDs.contains($0.surfaceID)
-      }
-    }
-
-    mutating func record(
-      _ evaluation: AgentDetectionEvaluation?,
-      for attempt: EvaluationAttempt
-    ) {
-      if let evaluation {
-        evaluations[attempt.surfaceID] = evaluation
-      } else {
-        unknownSurfaceIDs.insert(attempt.surfaceID)
-      }
-    }
+  private enum EvaluationState: Sendable {
+    case needsScreen(EvaluationAttempt)
+    case resolved(EvaluationResult)
+    case unavailable
   }
 
   private struct EvaluationValidation: Sendable {
     let generation: UInt64
     let currentIdentities: Set<TerminalAgentProcessIdentity>
     let live: [UUID: TerminalAgentDetectionSurfaceKey]
-  }
-
-  private struct SignalEvaluationResult: Sendable {
-    var batch: EvaluationBatch
-    var screenAttempts: [EvaluationAttempt]
   }
 
   private struct ProcessScan: Sendable {
@@ -558,55 +541,57 @@ final class TerminalAgentDetectionController {
     _ attempts: [EvaluationAttempt],
     generation: UInt64,
     now: ContinuousClock.Instant
-  ) async -> EvaluationBatch? {
-    guard
-      var result = await evaluateSignals(
-        attempts,
-        generation: generation,
-        now: now
-      )
-    else {
+  ) async -> [EvaluationState]? {
+    guard var work = await evaluateSignals(attempts, generation: generation, now: now) else {
       return nil
     }
 
-    var evaluatedAttempts: [EvaluationAttempt] = []
-    var requests: [AgentDetectionEvaluationRequest] = []
-    for attempt in result.screenAttempts {
+    var screenRequests: [(index: Int, request: AgentDetectionEvaluationRequest)] = []
+    for index in work.indices {
+      guard case .needsScreen(let attempt) = work[index] else { continue }
       let screen = await host.screen(attempt.state.key)
       guard !Task.isCancelled else { return nil }
       guard var state = states[attempt.surfaceID], state.nonce == attempt.state.nonce else {
+        work[index] = .unavailable
         continue
       }
       guard let screen else {
         resetEvaluation(&state, status: .protectedOrUnreadableScreen)
         states[attempt.surfaceID] = state
+        work[index] = .unavailable
         continue
       }
-      evaluatedAttempts.append(attempt)
-      requests.append(evaluationRequest(for: attempt, screen: screen))
+      screenRequests.append(
+        (index, evaluationRequest(for: attempt, screen: screen))
+      )
     }
-    guard !requests.isEmpty else { return result.batch }
+    guard !screenRequests.isEmpty else { return work }
 
-    let evaluations = await rules.evaluate(requests)
+    let evaluations = await rules.evaluate(screenRequests.map { $0.request })
     guard !Task.isCancelled else { return nil }
     guard self.generation == generation else { return nil }
-    precondition(evaluations.count == evaluatedAttempts.count)
+    precondition(evaluations.count == screenRequests.count)
     guard evaluations.compactMap({ $0?.generation }).allSatisfy({ $0 == generation }) else {
       _ = await rulesAreCurrent(generation: generation, now: now)
       return nil
     }
 
-    for (attempt, evaluation) in zip(evaluatedAttempts, evaluations) {
-      result.batch.record(evaluation, for: attempt)
+    for (screenRequest, evaluation) in zip(screenRequests, evaluations) {
+      guard case .needsScreen(let attempt) = work[screenRequest.index] else {
+        preconditionFailure()
+      }
+      work[screenRequest.index] = .resolved(
+        EvaluationResult(attempt: attempt, evaluation: evaluation)
+      )
     }
-    return result.batch
+    return work
   }
 
   private func evaluateSignals(
     _ attempts: [EvaluationAttempt],
     generation: UInt64,
     now: ContinuousClock.Instant
-  ) async -> SignalEvaluationResult? {
+  ) async -> [EvaluationState]? {
     let signalEvaluations = await rules.evaluateSignals(
       attempts.map {
         AgentDetectionSignalRequest(
@@ -623,21 +608,17 @@ final class TerminalAgentDetectionController {
       return nil
     }
 
-    var batch = EvaluationBatch(attempts: attempts)
-    var screenAttempts: [EvaluationAttempt] = []
-    for (attempt, result) in zip(attempts, signalEvaluations) {
-      guard states[attempt.surfaceID]?.nonce == attempt.state.nonce else { continue }
+    return zip(attempts, signalEvaluations).compactMap { attempt, result in
+      guard states[attempt.surfaceID]?.nonce == attempt.state.nonce else { return nil }
       switch result {
       case .matched(let evaluation):
-        batch.record(evaluation, for: attempt)
+        return .resolved(EvaluationResult(attempt: attempt, evaluation: evaluation))
       case .needsScreen:
-        screenAttempts.append(attempt)
+        return .needsScreen(attempt)
       case nil:
-        batch.record(nil, for: attempt)
+        return .resolved(EvaluationResult(attempt: attempt, evaluation: nil))
       }
     }
-
-    return SignalEvaluationResult(batch: batch, screenAttempts: screenAttempts)
   }
 
   private func evaluationRequest(
@@ -655,14 +636,17 @@ final class TerminalAgentDetectionController {
   }
 
   private func apply(
-    _ batch: EvaluationBatch,
+    _ work: [EvaluationState],
     generation: UInt64,
     now: ContinuousClock.Instant
   ) async {
-    let attempts = batch.activeAttempts
-    guard !attempts.isEmpty else { return }
+    let results = work.compactMap { state -> EvaluationResult? in
+      guard case .resolved(let result) = state else { return nil }
+      return result
+    }
+    guard !results.isEmpty else { return }
     let remainsCurrent = await sampler.current(
-      Set(attempts.map(\.proof.processIdentity))
+      Set(results.map(\.attempt.proof.processIdentity))
     )
     guard !Task.isCancelled else { return }
     guard self.generation == generation else { return }
@@ -672,10 +656,9 @@ final class TerminalAgentDetectionController {
       live: Dictionary(uniqueKeysWithValues: host.surfaces().map { ($0.key.id, $0.key) })
     )
 
-    for attempt in attempts {
+    for result in results {
       apply(
-        attempt,
-        from: batch,
+        result,
         validation: validation,
         now: now
       )
@@ -683,12 +666,12 @@ final class TerminalAgentDetectionController {
   }
 
   private func apply(
-    _ attempt: EvaluationAttempt,
-    from batch: EvaluationBatch,
+    _ result: EvaluationResult,
     validation: EvaluationValidation,
     now: ContinuousClock.Instant
   ) {
-    if batch.unknownSurfaceIDs.contains(attempt.surfaceID) {
+    let attempt = result.attempt
+    guard let evaluation = result.evaluation else {
       guard
         canPublish(attempt, validation: validation),
         var state = states[attempt.surfaceID]
@@ -699,8 +682,7 @@ final class TerminalAgentDetectionController {
       states[attempt.surfaceID] = state
       return
     }
-    guard let evaluation = batch.evaluations[attempt.surfaceID],
-      evaluation.generation == validation.generation,
+    guard evaluation.generation == validation.generation,
       canPublish(attempt, validation: validation)
     else {
       if self.generation == validation.generation {

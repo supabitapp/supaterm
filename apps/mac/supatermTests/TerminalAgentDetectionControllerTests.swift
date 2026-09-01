@@ -259,59 +259,79 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
-  func titleMatchStopsSubsequentScreenRead() async throws {
-    let fixture = try await makeRepositoryFixture(agentID: "codex")
+  func titleMatchStopsSubsequentScreenRead() async {
+    let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(
       processGroupID: 11,
       screen: nil,
-      signals: TerminalAgentDetectionSignals(oscTitle: "⠋ project")
+      signals: TerminalAgentDetectionSignals(oscTitle: "working")
     )
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.rules.setSignalMatch(
+      AgentDetectionMatch(result: .running, ruleID: "title-working")
+    )
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
 
     await fixture.controller.tick(now: ContinuousClock.now)
 
     #expect(fixture.host.screenCaptureCount == 0)
-    #expect(fixture.host.observations[surfaceID]?.ruleID == "osc_title_working")
+    #expect(await fixture.rules.inputs().isEmpty)
+    #expect(await fixture.rules.signalInputs().count == 1)
+    #expect(fixture.host.observations[surfaceID]?.ruleID == "title-working")
   }
 
   @Test
-  func titleAndScreenMatchesEvaluateOnlyTitle() async throws {
-    let fixture = try await makeRepositoryFixture(agentID: "codex")
-    let screen = "• Working (2s • esc to interrupt)"
-    let screenEvaluation = try #require(
-      await fixture.repository.evaluate([
-        AgentDetectionEvaluationRequest(
-          agentID: "codex",
-          input: AgentDetectionInput(screen: screen, oscTitle: "")
-        )
-      ])[0]
-    )
-    #expect(screenEvaluation.match.ruleID == "screen_working_fallback")
+  func titleAndScreenMatchesEvaluateOnlyTitle() async {
+    let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(
       processGroupID: 11,
-      screen: screen,
-      signals: TerminalAgentDetectionSignals(oscTitle: "⠋ project")
+      screen: "screen working",
+      signals: TerminalAgentDetectionSignals(oscTitle: "title working")
     )
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .running, ruleID: "screen-working")
+    )
+    await fixture.rules.setSignalMatch(
+      AgentDetectionMatch(result: .running, ruleID: "title-working")
+    )
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
 
     await fixture.controller.tick(now: ContinuousClock.now)
 
     #expect(fixture.host.screenCaptureCount == 0)
-    #expect(fixture.host.observations[surfaceID]?.ruleID == "osc_title_working")
+    #expect(await fixture.rules.inputs().isEmpty)
+    #expect(await fixture.rules.signalInputs().count == 1)
+    #expect(fixture.host.observations[surfaceID]?.ruleID == "title-working")
   }
 
   @Test
   func titleMissReadsAndEvaluatesScreen() async throws {
-    let fixture = try await makeRepositoryFixture(agentID: "pi")
+    let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(
       processGroupID: 11,
-      screen: "Working...",
+      screen: "screen working",
       signals: TerminalAgentDetectionSignals(oscTitle: "project", oscProgress: "50")
     )
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.rules.setMatch(
+      AgentDetectionMatch(result: .running, ruleID: "screen-working")
+    )
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
 
     await fixture.controller.tick(now: ContinuousClock.now)
 
     #expect(fixture.host.screenCaptureCount == 1)
+    #expect(await fixture.rules.signalInputs().count == 1)
+    let input = try #require(await fixture.rules.inputs().first)
+    #expect(input.screen == "screen working")
+    #expect(input.oscTitle == "project")
+    #expect(input.oscProgress == "50")
     #expect(fixture.host.observations[surfaceID]?.phase == .running)
-    #expect(fixture.host.observations[surfaceID]?.ruleID == "working_status")
+    #expect(fixture.host.observations[surfaceID]?.ruleID == "screen-working")
   }
 
   @Test
@@ -647,37 +667,13 @@ struct TerminalAgentDetectionControllerTests {
     )
   }
 
-  private func makeRepositoryFixture(
-    agentID: String
-  ) async throws -> RepositoryDetectionControllerFixture {
-    let host = DetectionHostFixture()
-    let sampler = DetectionSamplerFixture()
-    let repository = try AgentDetectionRuleRepository(bundle: SupatermResources.bundle)
-    let controller = makeController(
-      host: host,
-      rules: TerminalAgentDetectionRuleAccess(repository: repository),
-      sampler: sampler
-    )
-    let proof = identity(processID: 101, startTime: 1)
-    await sampler.setMatches([
-      11: AgentDetectionProcessMatch(agentID: agentID, processIdentity: proof)
-    ])
-    await sampler.setCurrent([proof])
-    return RepositoryDetectionControllerFixture(
-      host: host,
-      repository: repository,
-      controller: controller
-    )
-  }
-
   private func makeController(
     host: DetectionHostFixture,
     rules: DetectionRulesFixture,
     sampler: DetectionSamplerFixture,
     currentTimeMicroseconds: @escaping @MainActor () -> UInt64 = { .max }
   ) -> TerminalAgentDetectionController {
-    makeController(
-      host: host,
+    TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
         snapshot: { await rules.snapshot() },
         evaluateSignals: { requests in
@@ -687,19 +683,6 @@ struct TerminalAgentDetectionControllerTests {
           await rules.evaluate(requests)
         }
       ),
-      sampler: sampler,
-      currentTimeMicroseconds: currentTimeMicroseconds
-    )
-  }
-
-  private func makeController(
-    host: DetectionHostFixture,
-    rules: TerminalAgentDetectionRuleAccess,
-    sampler: DetectionSamplerFixture,
-    currentTimeMicroseconds: @escaping @MainActor () -> UInt64 = { .max }
-  ) -> TerminalAgentDetectionController {
-    TerminalAgentDetectionController(
-      rules: rules,
       sampler: TerminalAgentDetectionSampler(
         resolveForegroundProcessGroups: { processGroupIDs in
           await sampler.resolveForegroundProcessGroups(processGroupIDs)
@@ -801,13 +784,6 @@ private struct DetectionControllerFixture {
   let host: DetectionHostFixture
   let rules: DetectionRulesFixture
   let sampler: DetectionSamplerFixture
-  let controller: TerminalAgentDetectionController
-}
-
-@MainActor
-private struct RepositoryDetectionControllerFixture {
-  let host: DetectionHostFixture
-  let repository: AgentDetectionRuleRepository
   let controller: TerminalAgentDetectionController
 }
 
@@ -946,7 +922,9 @@ private actor DetectionRulesFixture {
     result: .running,
     ruleID: "running"
   )
+  private var signalMatch: AgentDetectionMatch?
   private var capturedInputBatches: [[AgentDetectionInput]] = []
+  private var capturedSignalInputBatches: [[AgentDetectionSignalInput]] = []
 
   init(gate: DetectionGate? = nil) {
     self.gate = gate
@@ -992,8 +970,18 @@ private actor DetectionRulesFixture {
   func evaluateSignals(
     _ requests: [AgentDetectionSignalRequest]
   ) -> [AgentDetectionSignalEvaluation?] {
-    requests.map { request in
+    capturedSignalInputBatches.append(requests.map(\.input))
+    return requests.map { request -> AgentDetectionSignalEvaluation? in
       guard request.agentID == identity.id else { return nil }
+      if let signalMatch {
+        return .matched(
+          AgentDetectionEvaluation(
+            identity: identity,
+            generation: generation,
+            match: signalMatch
+          )
+        )
+      }
       return .needsScreen(generation: generation)
     }
   }
@@ -1006,8 +994,16 @@ private actor DetectionRulesFixture {
     self.match = match
   }
 
+  func setSignalMatch(_ match: AgentDetectionMatch?) {
+    signalMatch = match
+  }
+
   func inputs() -> [AgentDetectionInput] {
     capturedInputBatches.flatMap { $0 }
+  }
+
+  func signalInputs() -> [AgentDetectionSignalInput] {
+    capturedSignalInputBatches.flatMap { $0 }
   }
 
   func evaluationBatches() -> [[AgentDetectionInput]] {
