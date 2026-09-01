@@ -1,6 +1,7 @@
 import AppKit
 import SupaTheme
 import SupatermCLIShared
+import SupatermUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -907,9 +908,7 @@ struct TerminalSplitTreeView: View {
     @ViewBuilder
     private var content: some View {
       if let shortcutHint {
-        Text(shortcutHint)
-          .font(.system(size: 11, weight: .semibold, design: .rounded))
-          .monospacedDigit()
+        KeyboardShortcutPill(shortcutHint, color: foregroundStyle)
       } else {
         Image(systemName: "info.circle")
           .font(.system(size: 14, weight: .medium))

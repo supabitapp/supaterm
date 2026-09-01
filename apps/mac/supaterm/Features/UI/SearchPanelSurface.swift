@@ -415,9 +415,11 @@ private struct SearchPanelRow<ID: Hashable>: View {
             .foregroundStyle(isSelected ? colors.selectedText.opacity(0.72) : colors.secondaryText)
             .accessibilityHidden(true)
         } else if let shortcut = item.shortcut {
-          Text(shortcut)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(isSelected ? colors.selectedText.opacity(0.72) : colors.secondaryText)
+          KeyboardShortcutPill(
+            shortcut,
+            color: isSelected ? colors.selectedText : colors.secondaryText,
+            textOpacity: isSelected ? 0.72 : 1
+          )
         }
       }
       .padding(.horizontal, 11)

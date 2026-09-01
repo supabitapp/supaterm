@@ -5,6 +5,7 @@ import QuartzCore
 import Sharing
 import SupaTheme
 import SupatermSupport
+import SupatermUI
 import SwiftUI
 
 extension ThemeTint {
@@ -545,8 +546,7 @@ private struct TerminalSidebarGroupHeader: View {
                   .font(.system(size: 11, weight: .semibold))
                   .accessibilityHidden(true)
               case .shortcut(let shortcut):
-                Text(shortcut)
-                  .font(.system(size: 10, weight: .semibold))
+                KeyboardShortcutPill(shortcut, color: palette.secondaryText)
               }
             }
             .frame(minWidth: 22, minHeight: 22)

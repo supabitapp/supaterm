@@ -295,11 +295,7 @@ struct AgentPanelView: View {
         iconColor: iconColor ?? palette.secondaryText
       ) {
         if let shortcutHint {
-          Text(shortcutHint)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(palette.secondaryText)
-            .monospacedDigit()
-            .lineLimit(1)
+          KeyboardShortcutPill(shortcutHint, color: palette.secondaryText)
         } else {
           Image(systemName: "arrow.up.right")
             .font(.system(size: 9, weight: .bold))
@@ -587,11 +583,7 @@ private struct AgentPanelActionRow: View {
         palette: palette,
         iconColor: palette.secondaryText
       ) {
-        Text(shortcutHint)
-          .font(.system(size: 11, weight: .semibold, design: .rounded))
-          .foregroundStyle(palette.secondaryText)
-          .monospacedDigit()
-          .lineLimit(1)
+        KeyboardShortcutPill(shortcutHint, color: palette.secondaryText)
       }
     } else {
       AgentPanelRowContent(

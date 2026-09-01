@@ -1,4 +1,5 @@
 import AppKit
+import SupatermUI
 import SwiftUI
 
 struct GhosttySurfaceSearchOverlay: View {
@@ -326,7 +327,10 @@ private struct SearchButtonLabel: View {
   var body: some View {
     Label {
       if let shortcut {
-        Text("\(title) \(Text("(\(shortcut))").foregroundColor(.secondary.opacity(0.7)))")
+        HStack(spacing: 6) {
+          Text(title)
+          KeyboardShortcutPill(shortcut)
+        }
       } else {
         Text(title)
       }

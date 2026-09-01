@@ -315,12 +315,11 @@ private struct DialogSurfaceActionButton: View {
             .fixedSize(horizontal: true, vertical: false)
 
           if let shortcut = action.shortcut {
-            Text(shortcut.label.lowercased())
-              .font(.system(size: 10, weight: .semibold))
-              .opacity(0.62)
-              .frame(minWidth: 18, minHeight: 18)
-              .padding(.horizontal, shortcut.label.count == 1 ? 0 : 4)
-              .background(foreground.opacity(0.12), in: .rect(cornerRadius: 4))
+            KeyboardShortcutPill(
+              shortcut.label.lowercased(),
+              color: foreground,
+              textOpacity: 0.62
+            )
           }
         }
         .foregroundStyle(foreground)
