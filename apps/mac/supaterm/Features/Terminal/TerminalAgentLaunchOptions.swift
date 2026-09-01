@@ -1,20 +1,12 @@
 import Foundation
-import SupatermCLIShared
 
 nonisolated enum TerminalAgentLaunchOptions {
-  static func inherited(
-    from commandLineArguments: [String],
-    agent: SupatermAgentKind
-  ) -> [String]? {
-    schema(for: agent).inherited(from: commandLineArguments)
+  static func claudeInherited(from commandLineArguments: [String]) -> [String]? {
+    Schema.claude.inherited(from: commandLineArguments)
   }
 
-  private static func schema(for agent: SupatermAgentKind) -> Schema {
-    switch agent {
-    case .claude: .claude
-    case .codex: .codex
-    case .pi: .pi
-    }
+  static func codexInherited(from commandLineArguments: [String]) -> [String]? {
+    Schema.codex.inherited(from: commandLineArguments)
   }
 
   private enum ArgumentResolution {
@@ -377,73 +369,5 @@ nonisolated enum TerminalAgentLaunchOptions {
       sessionCommands: ["fork", "resume"]
     )
 
-    static let pi = Self(
-      flagOptions: [
-        "--approve",
-        "--no-approve",
-        "--no-builtin-tools",
-        "--no-context-files",
-        "--no-extensions",
-        "--no-prompt-templates",
-        "--no-skills",
-        "--no-themes",
-        "--no-tools",
-        "--offline",
-        "--verbose",
-        "-a",
-        "-na",
-        "-nbt",
-        "-nc",
-        "-ne",
-        "-np",
-        "-ns",
-        "-nt",
-      ],
-      valueOptions: [
-        "--append-system-prompt",
-        "--exclude-tools",
-        "--extension",
-        "--model",
-        "--models",
-        "--name",
-        "--prompt-template",
-        "--provider",
-        "--session-dir",
-        "--skill",
-        "--system-prompt",
-        "--theme",
-        "--thinking",
-        "--tools",
-        "-e",
-        "-n",
-        "-t",
-        "-xt",
-      ],
-      optionalValueOptions: [],
-      discardedFlagOptions: [
-        "--continue", "-c",
-      ],
-      discardedValueOptions: [
-        "--api-key", "--fork", "--resume", "--session", "--session-id", "-r",
-      ],
-      discardedOptionalValueOptions: [],
-      attachedValueOptionPrefixes: ["-e", "-n", "-t", "-xt"],
-      rejectedOptions: [
-        "--export",
-        "--list-models",
-        "--mode",
-        "--no-session",
-        "--print",
-        "--prompt",
-        "--version",
-        "-h",
-        "-p",
-        "-v",
-      ],
-      nonRestorableCommands: [
-        "config", "help", "install", "list", "login", "logout", "remove", "uninstall",
-        "update",
-      ]
-    )
   }
 }

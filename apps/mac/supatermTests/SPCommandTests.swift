@@ -516,15 +516,15 @@ struct SPCommandTests {
         ⌘⇧D   Split down
         ⌘F    Find
 
-        Coding Agents Integrations Setup:
+        Coding Agents Setup:
 
-        Install the Supaterm skill:
-
-        sp skills install
-
-        Set up every supported coding-agent integration:
+        Install the Supaterm skill and set up Claude and Codex hooks:
 
         sp agent setup
+
+        Using Pi only? Install the skill without hooks:
+
+        sp skills install
 
         Run "sp" for the list of available commands.
         """
@@ -622,18 +622,14 @@ struct SPCommandTests {
       try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"])
         as? SP.ReceiveAgentHook
     )
-    let receivePiCommand = try #require(
-      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "pi", "--pid", "123"])
-        as? SP.ReceiveAgentHook
-    )
-
     #expect(reloadCommand.options.output.plain)
     #expect(type(of: setupCommand) == SP.SetupAgentIntegrations.self)
     #expect(type(of: removeAllCommand) == SP.RemoveAgentHooks.self)
     #expect(receiveClaudeCommand.agent == .claude)
     #expect(receiveClaudeCommand.pid == nil)
-    #expect(receivePiCommand.agent == .pi)
-    #expect(receivePiCommand.pid == 123)
+    #expect(throws: (any Error).self) {
+      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "pi", "--pid", "123"])
+    }
   }
 
   @Test

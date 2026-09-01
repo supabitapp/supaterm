@@ -43,7 +43,7 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
-  func batchesDuePanesAndUsesMatchedAndAcquisitionCadence() async {
+  func evaluatesEveryPaneWhileRefreshingProcessProofsOnCadence() async {
     let fixture = makeFixture()
     let firstID = fixture.host.addSurface(processGroupID: 11)
     let secondID = fixture.host.addSurface(processGroupID: 22)
@@ -60,31 +60,39 @@ struct TerminalAgentDetectionControllerTests {
     await fixture.controller.tick(now: now)
 
     #expect(await fixture.sampler.batches() == [[11, 22, 33]])
-    #expect(await fixture.rules.signalBatches().map(\.count) == [2])
     #expect(await fixture.rules.evaluationBatches().map(\.count) == [2])
     #expect(fixture.host.observations[firstID]?.processIdentity == firstIdentity)
     #expect(fixture.host.observations[secondID]?.processIdentity == secondIdentity)
     #expect(fixture.host.observations[unmatchedID] == nil)
 
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(499)))
-    #expect(await fixture.sampler.batches().count == 1)
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(300)))
 
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(500)))
-    #expect(await fixture.sampler.batches() == [[11, 22, 33], [33]])
+    #expect(await fixture.sampler.batches() == [[11, 22, 33]])
+    #expect(await fixture.rules.evaluationBatches().map(\.count) == [2, 2])
+  }
 
-    await fixture.controller.tick(now: now.advanced(by: .seconds(1)))
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(3_500)))
-    #expect(
-      await fixture.sampler.batches()
-        == [[11, 22, 33], [33], [33], [33], [33]]
-    )
+  @Test
+  func keepsDetectionAcrossOneMissingProcessScan() async {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+    let now = ContinuousClock.now
 
+    await fixture.controller.tick(now: now)
+    #expect(fixture.host.observations[surfaceID]?.phase == .running)
+
+    await fixture.sampler.setMatches([:])
     await fixture.controller.tick(now: now.advanced(by: .seconds(5)))
-    #expect(
-      await fixture.sampler.batches()
-        == [[11, 22, 33], [33], [33], [33], [33], [11, 22]]
-    )
+
+    #expect(fixture.host.observations[surfaceID]?.phase == .running)
+    #expect(fixture.controller.explanation(for: surfaceID).processIdentity == proof)
+
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(5_500)))
+
+    #expect(fixture.host.observations[surfaceID] == nil)
+    #expect(fixture.controller.explanation(for: surfaceID).status == .unrecognizedProcess)
   }
 
   @Test
@@ -233,28 +241,6 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
-  func exactNativeAuthoritySkipsCaptureWhileAReusedPIDDoesNot() async {
-    let fixture = makeFixture()
-    let surfaceID = fixture.host.addSurface(processGroupID: 11)
-    let proof = identity(processID: 101, startTime: 2)
-    await fixture.sampler.setMatches([11: match(identity: proof)])
-    await fixture.sampler.setCurrent([proof])
-    fixture.host.authority[surfaceID] = [proof]
-
-    await fixture.controller.tick(now: ContinuousClock.now)
-
-    #expect(fixture.host.screenCaptureCount == 0)
-    #expect(fixture.host.observations[surfaceID] == nil)
-    #expect(fixture.controller.explanation(for: surfaceID).status == .nativeAuthority)
-
-    fixture.host.authority[surfaceID] = [identity(processID: 101, startTime: 1)]
-    await fixture.controller.tick(now: ContinuousClock.now.advanced(by: .milliseconds(300)))
-
-    #expect(fixture.host.screenCaptureCount == 1)
-    #expect(fixture.host.observations[surfaceID]?.processIdentity == proof)
-  }
-
-  @Test
   func unreadableScreenClearsFallbackWithoutEvaluation() async {
     let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(processGroupID: 11, screen: nil)
@@ -273,15 +259,14 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
-  func decisiveSignalsPublishWithoutReadingProtectedScreen() async {
+  func oneEvaluationReadsScreenWithTitleAndProgress() async throws {
     let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(
       processGroupID: 11,
-      screen: nil,
-      signals: TerminalAgentDetectionSignals(oscTitle: "working")
+      signals: TerminalAgentDetectionSignals(oscTitle: "working", oscProgress: "50")
     )
     let proof = identity(processID: 101, startTime: 1)
-    await fixture.rules.setSignalMatch(
+    await fixture.rules.setMatch(
       AgentDetectionMatch(result: .running, ruleID: "title-working")
     )
     await fixture.sampler.setMatches([11: match(identity: proof)])
@@ -289,11 +274,39 @@ struct TerminalAgentDetectionControllerTests {
 
     await fixture.controller.tick(now: ContinuousClock.now)
 
-    #expect(fixture.host.screenCaptureCount == 0)
-    #expect(await fixture.rules.inputs().isEmpty)
+    #expect(fixture.host.screenCaptureCount == 1)
+    let input = try #require(await fixture.rules.inputs().first)
+    #expect(input.oscTitle == "working")
+    #expect(input.oscProgress == "50")
+    #expect(input.screen == "ready")
     #expect(fixture.host.observations[surfaceID]?.phase == .running)
     #expect(fixture.host.observations[surfaceID]?.ruleID == "title-working")
     #expect(fixture.controller.explanation(for: surfaceID).status == .detected)
+  }
+
+  @Test
+  func readsStableIdleScreenOnEveryTick() async {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.rules.setMatch(AgentDetectionMatch(result: .idle, ruleID: "idle"))
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+    let now = ContinuousClock.now
+
+    await fixture.controller.tick(now: now)
+
+    #expect(fixture.host.observations[surfaceID]?.phase == .idle)
+    #expect(fixture.host.screenCaptureCount == 1)
+
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(300)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(600)))
+
+    #expect(fixture.host.screenCaptureCount == 3)
+
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(900)))
+
+    #expect(fixture.host.screenCaptureCount == 4)
   }
 
   @Test
@@ -349,35 +362,25 @@ struct TerminalAgentDetectionControllerTests {
     #expect(fixture.host.observations[surfaceID]?.ruleID == "running")
     #expect(fixture.controller.explanation(for: surfaceID).matchedRuleID == "idle")
     #expect(fixture.controller.explanation(for: surfaceID).status == .noRuleMatchOrSettling)
-    #expect(
-      fixture.controller.nextTickDelay(now: now.advanced(by: .milliseconds(300)))
-        == .milliseconds(100)
-    )
-
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(400)))
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(500)))
-    #expect(fixture.host.observations[surfaceID]?.phase == .running)
     await fixture.controller.tick(now: now.advanced(by: .milliseconds(600)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(900)))
+    #expect(fixture.host.observations[surfaceID]?.phase == .running)
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_200)))
     let idle = try #require(fixture.host.observations[surfaceID])
     #expect(idle.phase == .idle)
     #expect(idle.ruleID == "idle")
     #expect(idle.sequence == 2)
-    #expect(
-      fixture.controller.nextTickDelay(now: now.advanced(by: .milliseconds(600)))
-        == .milliseconds(300)
-    )
-
     await fixture.rules.setMatch(
       AgentDetectionMatch(result: .hold, ruleID: "hold")
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(900)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
     #expect(fixture.host.applyCalls.count == 2)
     #expect(fixture.host.observations[surfaceID]?.ruleID == "idle")
 
     await fixture.rules.setMatch(
       AgentDetectionMatch(result: .needsInput, ruleID: "attention")
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_200)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_800)))
     #expect(fixture.host.observations[surfaceID]?.phase == .needsInput)
     #expect(fixture.host.observations[surfaceID]?.sequence == 3)
 
@@ -387,7 +390,7 @@ struct TerminalAgentDetectionControllerTests {
         ruleID: AgentDetectionMatcher.fallbackRuleID
       )
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(2_100)))
     #expect(fixture.host.observations[surfaceID]?.phase == .idle)
     #expect(
       fixture.host.observations[surfaceID]?.ruleID
@@ -623,9 +626,6 @@ struct TerminalAgentDetectionControllerTests {
     TerminalAgentDetectionController(
       rules: TerminalAgentDetectionRuleAccess(
         snapshot: { await rules.snapshot() },
-        evaluateSignals: { requests in
-          await rules.evaluateSignals(requests)
-        },
         evaluate: { requests in
           await rules.evaluate(requests)
         }
@@ -754,7 +754,6 @@ private final class DetectionHostFixture {
 
   private var surfaces: [UUID: Surface] = [:]
   private var detectionStore = TerminalAgentDetectionStore()
-  var authority: [UUID: Set<TerminalAgentProcessIdentity>] = [:]
   var applyCalls: [TerminalAgentDetectionObservation] = []
   var screenCaptureCount = 0
 
@@ -771,7 +770,6 @@ private final class DetectionHostFixture {
       surfaces: { [weak self] in self?.snapshots() ?? [] },
       signals: { [weak self] key in self?.signals(key) },
       screen: { [weak self] key in self?.screen(key) },
-      nativeAuthority: { [weak self] surfaceID in self?.authority[surfaceID] ?? [] },
       observation: { [weak self] surfaceID in self?.observation(for: surfaceID) },
       apply: { [weak self] observation, surfaceID in
         guard let self, self.surfaces[surfaceID] != nil else { return false }
@@ -871,8 +869,6 @@ private actor DetectionRulesFixture {
     result: .running,
     ruleID: "running"
   )
-  private var signalMatch: AgentDetectionMatch?
-  private var capturedSignalBatches: [[AgentDetectionSignalInput]] = []
   private var capturedInputBatches: [[AgentDetectionInput]] = []
 
   init(gate: DetectionGate? = nil) {
@@ -898,33 +894,11 @@ private actor DetectionRulesFixture {
     )
   }
 
-  func evaluateSignals(
-    _ requests: [AgentDetectionSignalRequest]
-  ) async -> [AgentDetectionSignalEvaluation?] {
-    capturedSignalBatches.append(requests.map(\.input))
-    let generation = generation
-    let evaluations = requests.map { request -> AgentDetectionSignalEvaluation? in
-      guard request.agentID == identity.id else { return nil }
-      guard let signalMatch else { return .needsScreen(generation: generation) }
-      return .matched(
-        AgentDetectionEvaluation(
-          identity: identity,
-          generation: generation,
-          match: signalMatch
-        )
-      )
-    }
-    if let gate {
-      await gate.suspend()
-    }
-    return evaluations
-  }
-
   func evaluate(
     _ requests: [AgentDetectionEvaluationRequest]
-  ) -> [AgentDetectionEvaluation?] {
+  ) async -> [AgentDetectionEvaluation?] {
     capturedInputBatches.append(requests.map(\.input))
-    return requests.map { request in
+    let evaluations: [AgentDetectionEvaluation?] = requests.map { request in
       guard request.agentID == identity.id else { return nil }
       return AgentDetectionEvaluation(
         identity: identity,
@@ -932,6 +906,10 @@ private actor DetectionRulesFixture {
         match: match
       )
     }
+    if let gate {
+      await gate.suspend()
+    }
+    return evaluations
   }
 
   func setGeneration(_ generation: UInt64) {
@@ -942,16 +920,8 @@ private actor DetectionRulesFixture {
     self.match = match
   }
 
-  func setSignalMatch(_ match: AgentDetectionMatch?) {
-    signalMatch = match
-  }
-
   func inputs() -> [AgentDetectionInput] {
     capturedInputBatches.flatMap { $0 }
-  }
-
-  func signalBatches() -> [[AgentDetectionSignalInput]] {
-    capturedSignalBatches
   }
 
   func evaluationBatches() -> [[AgentDetectionInput]] {

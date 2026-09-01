@@ -246,14 +246,6 @@ struct TerminalAgentPanelTests {
         commandLineArguments: ["claude", "--model", "opus"]
       )
     )
-    let pi = try #require(
-      PaneAgentPanelSession.supported(
-        agent: .pi,
-        sessionID: "session-1",
-        commandLineArguments: ["pi", "--provider", "openai"]
-      )
-    )
-
     #expect(
       codex.forkStartupCommand
         == .shell("codex --profile work fork 019c7714-3b77-74d1-9866-e1f484aae2ab")
@@ -262,7 +254,6 @@ struct TerminalAgentPanelTests {
       claude.forkStartupCommand
         == .shell("claude --model opus --fork-session --resume session_1")
     )
-    #expect(pi.forkStartupCommand == .shell("pi --provider openai --fork session-1"))
   }
 
   @Test
@@ -336,30 +327,6 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
-  func panelSessionKeepsPiOptionsAndDropsPriorSessionArguments() throws {
-    let session = try #require(
-      PaneAgentPanelSession.supported(
-        agent: .pi,
-        sessionID: "new-session",
-        commandLineArguments: [
-          "pi",
-          "--model",
-          "openai/gpt-5.5",
-          "--offline",
-          "--fork",
-          "old-session",
-          "old prompt",
-        ]
-      )
-    )
-
-    #expect(
-      session.forkStartupCommand
-        == .shell("pi --model openai/gpt-5.5 --offline --fork new-session")
-    )
-  }
-
-  @Test
   func panelSessionDropsUnsafeReplayOptions() throws {
     let claude = try #require(
       PaneAgentPanelSession.supported(
@@ -395,27 +362,11 @@ struct TerminalAgentPanelTests {
         ]
       )
     )
-    let pi = try #require(
-      PaneAgentPanelSession.supported(
-        agent: .pi,
-        sessionID: "new-session",
-        commandLineArguments: [
-          "pi",
-          "--api-key",
-          "secret",
-          "--api-key=second-secret",
-          "--model",
-          "openai/gpt-5.5",
-        ]
-      )
-    )
-
     #expect(
       claude.forkStartupCommand
         == .shell("claude --model opus --fork-session --resume new-session")
     )
     #expect(codex.forkStartupCommand == .shell("codex --profile work fork new-session"))
-    #expect(pi.forkStartupCommand == .shell("pi --model openai/gpt-5.5 --fork new-session"))
   }
 
   @Test
@@ -434,13 +385,7 @@ struct TerminalAgentPanelTests {
         commandLineArguments: ["codex", "exec", "make", "test"]
       ) == nil
     )
-    #expect(
-      PaneAgentPanelSession.supported(
-        agent: .pi,
-        sessionID: "new-session",
-        commandLineArguments: ["pi", "--mode", "rpc"]
-      ) == nil
-    )
+    #expect(PaneAgentPanelSession.supported(agent: .pi, sessionID: "new-session") == nil)
   }
 
   @Test
@@ -562,7 +507,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func nativeAuthoritySelectsCurrentAgentsSessionActions() throws {
+  func terminalOnlyPiDoesNotOverrideManagedSessionActions() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState.test()
@@ -589,13 +534,13 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace")
+    #expect(presentation.workingDirectoryPath == "/tmp/codex-workspace")
     #expect(
       presentation.session
         == PaneAgentPanelSession.supported(
-          agent: .pi,
-          sessionID: "session-2",
-          workingDirectoryPath: "/tmp/pi-workspace"
+          agent: .codex,
+          sessionID: "session-1",
+          workingDirectoryPath: "/tmp/codex-workspace"
         )
     )
   }
@@ -714,7 +659,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func actionablePiStateExposesSessionActions() throws {
+  func piStateDoesNotExposeSessionActionsOrProgress() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState.test()
@@ -744,17 +689,8 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(
-      presentation.session
-        == PaneAgentPanelSession.supported(
-          agent: .pi,
-          sessionID: "session-1",
-          workingDirectoryPath: SupatermWorkingDirectory.normalizedPath(
-            FileManager.default.temporaryDirectory
-          )
-        )
-    )
-    #expect(presentation.progressRows.map(\.title) == ["Run tests"])
+    #expect(presentation.session == nil)
+    #expect(presentation.progressRows.isEmpty)
   }
 
 }

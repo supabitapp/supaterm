@@ -21,7 +21,6 @@ nonisolated struct TerminalAgentDetectionNativeCandidate: Equatable, Sendable {
   let presentation: TerminalAgentStatePresentation
   let revision: Int
   let processIdentities: Set<TerminalAgentProcessIdentity>
-  let phaseAuthorityProcessIdentities: Set<TerminalAgentProcessIdentity>
 }
 
 nonisolated enum TerminalAgentDetectionResolution: Equatable, Sendable {
@@ -88,20 +87,9 @@ nonisolated struct TerminalAgentDetectionStore {
 
   func resolve(
     for surfaceID: UUID,
-    nativeCandidates: [TerminalAgentDetectionNativeCandidate],
-    provenProcessIdentity: TerminalAgentProcessIdentity? = nil
+    nativeCandidates: [TerminalAgentDetectionNativeCandidate]
   ) -> TerminalAgentDetectionResolution {
     let observation = observationsBySurfaceID[surfaceID]
-    let exactProcessIdentity = provenProcessIdentity ?? observation?.processIdentity
-    let authoritativeCandidates = nativeCandidates.filter { candidate in
-      guard let exactProcessIdentity else {
-        return !candidate.phaseAuthorityProcessIdentities.isEmpty
-      }
-      return candidate.phaseAuthorityProcessIdentities.contains(exactProcessIdentity)
-    }
-    if !authoritativeCandidates.isEmpty {
-      return .native(authoritativeCandidates)
-    }
     guard let observation else {
       return .native(nativeCandidates)
     }
@@ -110,7 +98,6 @@ nonisolated struct TerminalAgentDetectionStore {
       .filter {
         AgentDetectionAgentIdentity($0.presentation.agent).id == observation.agent.id
           && $0.processIdentities.contains(observation.processIdentity)
-          && $0.phaseAuthorityProcessIdentities.isEmpty
       }
       .max { $0.revision < $1.revision }
     return .terminal(observation, nativeDetails: nativeDetails)

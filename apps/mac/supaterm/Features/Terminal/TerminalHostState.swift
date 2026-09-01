@@ -177,13 +177,6 @@ final class TerminalHostState {
       AgentActivity(agent: .codex, phase: phase, detail: detail)
     }
 
-    static func pi(
-      _ phase: AgentActivityPhase,
-      detail: String? = nil
-    ) -> Self {
-      AgentActivity(agent: .pi, phase: phase, detail: detail)
-    }
-
   }
 
   struct PaneAgentMetadata: Equatable, Sendable {
@@ -824,9 +817,12 @@ final class TerminalHostState {
     for view: GhosttySurfaceView,
     tabID: TerminalTabID
   ) {
-    view.bridge.onTitleChange = { [weak self] _ in
+    view.bridge.onTitleChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+    }
+    view.bridge.onTitleOverrideChange = { [weak self] in
+      guard let self else { return }
       self.sessionDidChange()
     }
     view.bridge.onPathChange = { [weak self] in
@@ -1305,26 +1301,9 @@ final class TerminalHostState {
   }
 
   func resolvedDesktopNotificationDisposition(
-    allowDesktopNotificationWhenAgentActive: Bool,
-    isFocused: Bool,
-    tabID: TerminalTabID
+    isFocused: Bool
   ) -> SupatermDesktopNotificationDisposition {
-    if isFocused {
-      return .suppressFocused
-    }
-    if !allowDesktopNotificationWhenAgentActive && hasActiveAgentAttention(for: tabID) {
-      return .suppressAgent
-    }
-    return .deliver
-  }
-
-  func hasActiveAgentAttention(for tabID: TerminalTabID) -> Bool {
-    guard let tree = trees[tabID] else { return false }
-    return tree.leaves().contains { surface in
-      nativeAgentDetectionCandidates(for: surface.id).contains {
-        $0.presentation.phase == .needsInput || $0.presentation.phase == .running
-      }
-    }
+    isFocused ? .suppressFocused : .deliver
   }
 
   func titleSurface(for tabID: TerminalTabID) -> GhosttySurfaceView? {

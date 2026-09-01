@@ -17,11 +17,11 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func programmaticReorderInterpolatesRetainedRowGeometry() throws {
+  func programmaticReorderCommitsTargetGeometryForTheCollectionAnimation() throws {
     let frames = try programmaticReorderFrames(reduceMotion: false)
 
     #expect(frames.source != frames.target)
-    #expect(frames.transition == frames.source)
+    #expect(frames.transition == frames.target)
     #expect(frames.realizedIdentifiers == frames.targetIdentifiers)
   }
 

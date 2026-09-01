@@ -11,7 +11,10 @@ enum GhosttySurfaceFailure: Equatable {
 @MainActor
 @Observable
 final class GhosttySurfaceState {
-  var title: String?
+  @ObservationIgnored
+  private var titleStorage: String?
+  @ObservationIgnored
+  private var publishedEffectiveTitle: String?
   var titleOverride: String?
   var pwd: String?
   var derivedConfig = GhosttySurfaceConfig()
@@ -36,6 +39,23 @@ final class GhosttySurfaceState {
   var keyTableDepth: Int = 0
   var userInputGeneration = 0
   var bellCount: Int = 0
+
+  var title: String? {
+    get {
+      access(keyPath: \.title)
+      return titleStorage
+    }
+    set {
+      titleStorage = newValue
+    }
+  }
+
+  func publishTitle() -> Bool {
+    guard effectiveTitle != publishedEffectiveTitle else { return false }
+    publishedEffectiveTitle = effectiveTitle
+    withMutation(keyPath: \.title) {}
+    return true
+  }
 
   var effectiveTitle: String? {
     if let titleOverride {

@@ -219,8 +219,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Done.",
         target: .pane(surface.id),
-        title: "Codex",
-        allowDesktopNotificationWhenAgentActive: true
+        title: "Codex"
       ),
       semantic: .completion
     )
@@ -248,8 +247,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Done.",
         target: .pane(surface.id),
-        title: "Codex",
-        allowDesktopNotificationWhenAgentActive: true
+        title: "Codex"
       ),
       semantic: .completion
     )
@@ -283,8 +281,7 @@ struct TerminalHostStateNotificationTests {
       TerminalNotifyRequest(
         body: "Done.",
         target: .pane(hiddenPane.paneID),
-        title: "Codex",
-        allowDesktopNotificationWhenAgentActive: true
+        title: "Codex"
       ),
       semantic: .completion
     )
@@ -329,8 +326,7 @@ struct TerminalHostStateNotificationTests {
         TerminalNotifyRequest(
           body: "Done.",
           target: .pane(surfaceID),
-          title: "Codex",
-          allowDesktopNotificationWhenAgentActive: true
+          title: "Codex"
         ),
         semantic: .completion
       )
@@ -345,35 +341,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func notifySuppressesDesktopDeliveryWhenAgentIsRunning() throws {
-    initializeGhosttyForTests()
-
-    let host = TerminalHostState.test()
-    host.windowActivity = .inactive
-    host.ensureInitialTab(focusing: false, startupCommand: nil)
-
-    let tabID = try #require(host.selectedTabID)
-    let expectedTitle = try #require(host.tabs.first(where: { $0.id == tabID })?.title)
-    let surface = try #require(host.selectedSurfaceView)
-    #expect(host.setTestAgentActivity(.pi(.running), for: surface.id))
-
-    let result = try host.notify(
-      TerminalNotifyRequest(
-        body: "Build finished",
-        target: .pane(surface.id),
-        title: nil
-      )
-    )
-
-    #expect(result.attentionState == .unread)
-    #expect(result.desktopNotificationDisposition == .suppressAgent)
-    #expect(result.resolvedTitle == expectedTitle)
-    #expect(host.unreadNotificationCount(for: tabID) == 1)
-    #expect(host.latestNotificationText(for: tabID) == "Build finished")
-  }
-
-  @Test
-  func fallbackActivityDoesNotSuppressDesktopDelivery() throws {
+  func terminalActivityDoesNotSuppressDesktopDelivery() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState.test()
@@ -384,7 +352,7 @@ struct TerminalHostStateNotificationTests {
     #expect(
       host.applyAgentDetection(
         TerminalAgentDetectionObservation(
-          agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
+          agent: AgentDetectionAgentIdentity(.pi),
           phase: .running,
           processIdentity: TerminalAgentProcessIdentity(
             processID: 42,

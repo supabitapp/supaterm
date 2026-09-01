@@ -17,16 +17,30 @@ public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Hashabl
   }
 }
 
+public enum SupatermManagedAgentKind: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
+  case claude
+  case codex
+
+  public var agentKind: SupatermAgentKind {
+    switch self {
+    case .claude:
+      .claude
+    case .codex:
+      .codex
+    }
+  }
+
+  public var notificationTitle: String {
+    agentKind.notificationTitle
+  }
+}
+
 public struct SupatermAgentHookEventName: Equatable, Hashable, RawRepresentable, Sendable {
-  public static let agentEnd = Self(rawValue: "agent_end")
-  public static let agentStart = Self(rawValue: "agent_start")
-  public static let nativeSessionStart = Self(rawValue: "session_start")
   public static let notification = Self(rawValue: "Notification")
   public static let permissionRequest = Self(rawValue: "PermissionRequest")
   public static let postToolUse = Self(rawValue: "PostToolUse")
   public static let preToolUse = Self(rawValue: "PreToolUse")
   public static let sessionEnd = Self(rawValue: "SessionEnd")
-  public static let sessionShutdown = Self(rawValue: "session_shutdown")
   public static let sessionStart = Self(rawValue: "SessionStart")
   public static let stop = Self(rawValue: "Stop")
   public static let subagentStart = Self(rawValue: "SubagentStart")
@@ -66,7 +80,6 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public var notificationType: String? { string("notification_type") }
   public var sessionID: String? { string("session_id") }
   public var source: String? { string("source") }
-  public var stopReason: String? { string("stop_reason") }
   public var title: String? { string("title") }
   public var toolInput: JSONValue? { payload["tool_input"] }
   public var toolName: String? { string("tool_name") }
@@ -83,7 +96,6 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     notificationType: String? = nil,
     sessionID: String? = nil,
     source: String? = nil,
-    stopReason: String? = nil,
     title: String? = nil,
     toolInput: JSONValue? = nil,
     toolName: String? = nil,
@@ -101,7 +113,6 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     Self.insert(notificationType, key: "notification_type", into: &payload)
     Self.insert(sessionID, key: "session_id", into: &payload)
     Self.insert(source, key: "source", into: &payload)
-    Self.insert(stopReason, key: "stop_reason", into: &payload)
     Self.insert(title, key: "title", into: &payload)
     Self.insert(toolName, key: "tool_name", into: &payload)
     Self.insert(toolUseID, key: "tool_use_id", into: &payload)
@@ -146,13 +157,13 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
 }
 
 public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
-  public let agent: SupatermAgentKind
+  public let agent: SupatermManagedAgentKind
   public let context: SupatermCLIContext?
   public let event: SupatermAgentHookEvent
   public let processID: Int32?
 
   public init(
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     context: SupatermCLIContext? = nil,
     event: SupatermAgentHookEvent,
     processID: Int32? = nil

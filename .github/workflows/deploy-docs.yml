@@ -11,9 +11,8 @@ on:
       - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png"
       - "apps/supaterm.com/public/logo-mark.svg"
       - "apps/supaterm.com/public/logo.svg"
-      - "integrations/supaterm-skills"
+      - "integrations/supaterm/skill-data/**"
       - ".github/workflows/deploy-docs.yml"
-      - ".gitmodules"
       - "Makefile"
       - "mise.toml"
   pull_request:
@@ -26,9 +25,8 @@ on:
       - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png"
       - "apps/supaterm.com/public/logo-mark.svg"
       - "apps/supaterm.com/public/logo.svg"
-      - "integrations/supaterm-skills"
+      - "integrations/supaterm/skill-data/**"
       - ".github/workflows/deploy-docs.yml"
-      - ".gitmodules"
       - "Makefile"
       - "mise.toml"
   workflow_dispatch: {}
@@ -47,8 +45,6 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
-      - name: Initialize documentation content
-        run: git -c 'url.https://github.com/.insteadOf=git@github.com:' submodule update --init integrations/supaterm-skills
       - uses: actions/setup-node@v6
         with:
           node-version: 24

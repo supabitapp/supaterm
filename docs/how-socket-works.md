@@ -227,9 +227,9 @@ sp project icon ~/code/project --json
 - Every other command in those two blocks needs a reachable app.
 - `sp config path` reads the local state root, so it can differ from the path the app reports when the two run with different `SUPATERM_STATE_HOME` values.
 - Without a reachable app, `sp config` and `sp agent` exit 64 and `sp skills` exits 1. All three print `Error: No reachable Supaterm instance was found.`
-- `sp agent setup` checks every supported agent, prints progress for each one, reports every failure, and fails when no supported agent is available.
-- Setup installs the supported hooks or package. It seeds Claude's `terminalProgressBarEnabled` and Codex's `tui.terminal_title` only when each key is absent, preserves existing values, and is safe to rerun.
-- `sp agent remove-hooks` checks every supported agent and succeeds when an agent is absent or unavailable.
+- `sp agent setup` installs the skill, then checks Claude and Codex. It prints progress for each step, reports every failure, and fails when neither agent is available.
+- Setup installs the managed hooks. It seeds Claude's `terminalProgressBarEnabled` and Codex's `tui.terminal_title` only when each key is absent, preserves existing values, and is safe to rerun.
+- `sp agent remove-hooks` checks Claude and Codex and succeeds when an agent is absent or unavailable.
 - `sp agent receive-agent-hook` forwards hook payloads and is unaffected by these rules.
 
 ## Runtime Guarantees
@@ -260,9 +260,9 @@ Settings methods read and write the running app:
 - `app.settings.get`, `app.settings.list`, `app.settings.set`, and `app.settings.reset` act on the live settings the app already holds. A write lands in the app and on disk at once.
 - `app.settings.validate` takes an optional absolute `path` and checks that file. Without a path it checks the app's own settings file.
 
-Agent integration methods own each agent's settings or package:
+Agent integration methods own the managed Claude and Codex hooks:
 
-- `app.agent_integration.setup` and `app.hooks.remove` take `{"agent":"claude|codex|pi"}` and return that agent and its resulting health.
+- `app.agent_integration.setup` and `app.hooks.remove` take `{"agent":"claude|codex"}` and return that agent and its resulting health. Pi has no managed integration.
 - The app writes `~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.codex/config.toml`, and talks to Codex app-server. The CLI never touches those files.
 - Setup adds Claude's `terminalProgressBarEnabled: true` and Codex's `[tui] terminal_title = ["activity", "thread-title", "task-progress"]` only when each key is absent.
 
@@ -273,8 +273,7 @@ Debug snapshot panes carry coding agent detection. Each pane has `agentStatus` a
 resolves, an `agent` object.
 
 - `agentStatus` is `detection_disabled`, `waiting`, `no_foreground_process`,
-  `unrecognized_process`, `native_authority`, `screen_unavailable`,
-  `no_rule_match_or_settling`, or `resolved`.
+  `unrecognized_process`, `screen_unavailable`, `no_rule_match_or_settling`, or `resolved`.
 - `agent` contains `kind`, `phase` (`unknown`, `idle`, `running`, or `needs_input`), and `phaseSource`
   (`native` or `screen`), plus `sessionID`, `ruleID`, and `process` when those values exist.
 - `process` contains `processID` and `startTimeMicroseconds`.
@@ -285,7 +284,7 @@ rule patterns, and internal match weights.
 Skill methods serve the app bundle:
 
 - `app.skills.list`, `app.skills.get`, and `app.skills.path` read the skills bundled with the connected app, so their content matches that app's version.
-- `app.skills.install` copies the discovery skill to `~/.agents/skills/supaterm` and returns the path.
+- `app.skills.install` copies the discovery skill to `~/.agents/skills/supaterm`, links it at `~/.claude/skills/supaterm`, and returns the shared path.
 
 Space methods carry the ambient `context` instead of a window index:
 

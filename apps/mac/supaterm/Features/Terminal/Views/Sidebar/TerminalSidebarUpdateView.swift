@@ -17,7 +17,7 @@ enum TerminalSidebarUpdatePresentation {
     guard preservesSessionsOnRestart, preservesSessionCopyApplies(to: phase) else {
       return detail
     }
-    return "\(detail) Your terminal sessions will keep running after restart."
+    return "\(detail) Your terminal sessions will keep running."
   }
 
   static func usesSelectedRowStyle(

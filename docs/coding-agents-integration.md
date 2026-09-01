@@ -19,9 +19,9 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.
 - Foreground session routing prevents restored or background sessions from stealing the panel, fork, copy, and tab activity surface.
 - The foreground root agent's session-start `cwd` is the panel workspace source. The pane working directory is the fallback until the session starts.
-- Agent-panel forks start the account login shell in a new pane and enter the agent's native fork command visibly. Claude, Codex, and Pi forks keep supported launch options from the source process. Supaterm waits for shell readiness when the shell reports it. The pane returns to that same shell when the forked agent exits.
-- Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
-- Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
+- Agent-panel forks start the account login shell in a new pane and enter the agent's native fork command visibly. Claude and Codex forks keep supported launch options from the source process. Supaterm waits for shell readiness when the shell reports it. The pane returns to that same shell when the forked agent exits.
+- Claude and Codex hook events enter the same session domain before they reach UI state.
+- Restored hook-backed sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh hook event arrives.
 - The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.
 - The tab derives `needs input` and `working` from agent phase and focus. A per-surface, temporary completion marker derives `done` until the tab is viewed. Notifications remain separate.
 
@@ -61,11 +61,9 @@ Future agent integrations should keep that split. The wrapper or adapter should 
 
 ## Terminal Phase Detection
 
-Supaterm reads the terminal to classify the foreground root phase. Terminal output and OSC state
-own the Claude and Codex phase even when hooks are installed. Their hooks add only session identity
-and its workspace. Pi's native
-integration owns its phase, so terminal detection pauses when both sources identify the same exact
-process ID and start time.
+Supaterm reads the terminal to classify the foreground root phase for Claude, Codex, and Pi.
+Claude and Codex hooks add only session identity and its workspace. Pi has no managed hook
+integration.
 
 Terminal detection proves the agent process before it reads terminal content:
 
@@ -111,7 +109,7 @@ sp agent reload-rules
 
 ## Supaterm Skill
 
-Supaterm ships its agent skill from `supaterm-skills` inside the app bundle.
+Supaterm ships its agent skill from `integrations/supaterm` inside the app bundle.
 
 Install it with:
 
@@ -119,7 +117,8 @@ Install it with:
 sp skills install
 ```
 
-The install command copies a stable discovery skill to `~/.agents/skills/supaterm`, replacing any existing path.
+The install command copies a stable discovery skill to `~/.agents/skills/supaterm`, replacing any
+existing path. It also replaces `~/.claude/skills/supaterm` with a symlink to that shared copy.
 The discovery skill directs agents to version-matched content served by `sp skills get` from the app bundle.
 
 Every `sp skills` command asks the connected app, which reads its own bundle and does the copying. The catalog always matches the running app, and the commands fail when no app is reachable.
@@ -134,20 +133,20 @@ sp skills path core
 sp skills get coding-agents
 ```
 
-Set up every supported coding-agent integration with:
+Set up the managed Claude and Codex hook integrations with:
 
 ```bash
 sp agent setup
 ```
 
-Setup installs the Claude and Codex hook bridges and the Pi package. It also seeds these display
-settings when their keys are absent:
+Setup first installs or refreshes the discovery skill and its Claude symlink. It then installs the
+Claude and Codex hook bridges and seeds these display settings when their keys are absent:
 
 - `~/.claude/settings.json`: `terminalProgressBarEnabled: true`
 - `~/.codex/config.toml`: `[tui] terminal_title = ["activity", "thread-title", "task-progress"]`
 
-Setup preserves an existing value for either key. It reports progress for each agent and is safe to
-run again.
+Setup preserves an existing value for either key. It reports progress for the skill and each agent
+and is safe to run again.
 
 The app also exposes setup commands through:
 
@@ -159,8 +158,8 @@ sp onboard
 
 Claude and Codex share the settings-file hook bridge, but each installer uses the agent's public configuration surface.
 
-- Settings > Coding Agents exposes a toggle per agent. Turning it on sets up the integration; turning it off removes its hooks or package.
-- `sp agent setup` and `sp agent remove-hooks` reach the app's integration manager for every supported agent. A Settings toggle only operates on its selected agent. Both paths use the same concrete integration code in the app process and fail when no app is reachable.
+- Settings > Coding Agents exposes Claude and Codex toggles. Turning one on sets up its integration; turning it off removes its hooks.
+- `sp agent setup` installs the skill once, then reaches the app's integration manager for Claude and Codex. `sp agent remove-hooks` reaches the same manager. A Settings toggle installs the skill before enabling its selected agent. These paths use the same concrete integration code in the app process and fail when no app is reachable.
 - On open, Settings reports each integration as unavailable, unavailable but installed, absent, partial, drifted, or healthy.
 - Claude must be available through the user's login shell. Codex must be version 0.144.1 or newer, have its hooks feature enabled, and have canonical trust state.
 - A hook is Supaterm-managed only when its command exactly matches one of Supaterm's canonical hook commands.
@@ -216,29 +215,7 @@ The app uses Codex hooks only for root session identity.
 
 ## Pi
 
-Pi uses the extension package from `supaterm-skills`, not the Claude and Codex settings-file bridge.
-
-Settings > Coding Agents can install or remove the package by invoking `pi` through the user's login shell.
-The socket methods `app.agent_integration.setup` and `app.hooks.remove` accept `pi` and run that same package setup or removal. The aggregate CLI commands include Pi.
-When Pi is unavailable, removal edits Pi's settings file directly so the installed integration can still be disabled.
-Supaterm treats canonical package protocol `0.2.0` or newer as healthy, updates an existing canonical checkout with `pi update`, and replaces noncanonical remote sources during repair.
-
-Install it with:
-
-```bash
-pi install git:github.com/supabitapp/supaterm-skills
-```
-
-Install from a local checkout while developing:
-
-```bash
-pi install /absolute/path/to/supaterm/integrations/supaterm-skills
-```
-
-Local package sources are user-owned development configuration. Supaterm treats them as healthy and preserves them at startup without replacing or updating them.
-
-The Pi extension source lives in `integrations/supaterm-skills/extensions/pi-notify-supaterm`.
-
-The extension forwards events when `SUPATERM_CLI_PATH` is available. Ambient pane context still comes from the environment read by `sp`.
-
-It uses Pi's native `sessionManager.getSessionId()` for every callback, preserves native session start and shutdown reasons, and forwards `session_start`, `agent_start`, `agent_end`, and `session_shutdown` through `sp agent receive-agent-hook --agent pi --pid <pi-process-id>`. The app derives running, completion, truncation, error, and attention state from those lifecycle events without synthetic session IDs or heartbeats.
+Pi uses terminal phase detection and reads the same skill installed at
+`~/.agents/skills/supaterm`. Supaterm does not install a Pi package or change Pi settings. Pi state is
+temporary and read-only, so it does not create a saved session, an action session, child-agent state,
+or native event notifications.

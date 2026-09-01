@@ -526,8 +526,8 @@ let project = Project(
           script: """
             set -euo pipefail
 
-            stub_source_dir="${SRCROOT}/../../integrations/supaterm-skills/skills/supaterm"
-            data_source_dir="${SRCROOT}/../../integrations/supaterm-skills/skill-data"
+            stub_source_dir="${SRCROOT}/../../integrations/supaterm/skills/supaterm"
+            data_source_dir="${SRCROOT}/../../integrations/supaterm/skill-data"
             resources_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
             stub_destination_dir="${resources_dir}/skills/supaterm"
             data_destination_dir="${resources_dir}/skill-data"
@@ -548,9 +548,9 @@ let project = Project(
             """,
           name: "Embed Supaterm Skills",
           inputPaths: [
-            "$(SRCROOT)/../../integrations/supaterm-skills/skills/supaterm/SKILL.md",
-            "$(SRCROOT)/../../integrations/supaterm-skills/skill-data/core/SKILL.md",
-            "$(SRCROOT)/../../integrations/supaterm-skills/skill-data/coding-agents/SKILL.md",
+            "$(SRCROOT)/../../integrations/supaterm/skills/supaterm/SKILL.md",
+            "$(SRCROOT)/../../integrations/supaterm/skill-data/core/SKILL.md",
+            "$(SRCROOT)/../../integrations/supaterm/skill-data/coding-agents/SKILL.md",
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/skills/supaterm/SKILL.md",
@@ -882,7 +882,6 @@ let project = Project(
             "CLAUDE_E2E_BINARY": "$(CLAUDE_E2E_BINARY)",
             "CODEX_E2E_BINARY": "$(CODEX_E2E_BINARY)",
             "PI_E2E_BINARY": "$(PI_E2E_BINARY)",
-            "PI_E2E_PACKAGE": "$(PI_E2E_PACKAGE)",
           ]
         ),
         configuration: .debug,

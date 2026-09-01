@@ -134,7 +134,6 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     case waiting
     case noForegroundProcess = "no_foreground_process"
     case unrecognizedProcess = "unrecognized_process"
-    case nativeAuthority = "native_authority"
     case screenUnavailable = "screen_unavailable"
     case noRuleMatchOrSettling = "no_rule_match_or_settling"
     case resolved
@@ -142,8 +141,7 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public var namesAnAgentTheListingCannot: Bool {
       switch self {
       case .noRuleMatchOrSettling, .screenUnavailable: true
-      case .detectionDisabled, .nativeAuthority, .noForegroundProcess, .resolved,
-        .unrecognizedProcess, .waiting:
+      case .detectionDisabled, .noForegroundProcess, .resolved, .unrecognizedProcess, .waiting:
         false
       }
     }

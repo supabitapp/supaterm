@@ -47,6 +47,7 @@ runs:
       shell: bash
       env:
         MISE_GITHUB_TOKEN: ${{ inputs.github-token }}
+        MISE_NO_HOOKS: "1"
         MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
         MISE_YES: "1"
       run: |

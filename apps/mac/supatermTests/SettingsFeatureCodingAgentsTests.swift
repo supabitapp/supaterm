@@ -59,14 +59,12 @@ struct SettingsFeatureCodingAgentsTests {
     let terminalGate = SettingsTestGate<GhosttyTerminalSettingsSnapshot>()
     let claudeGate = SettingsTestGate<CodingAgentIntegrationHealth>()
     let codexGate = SettingsTestGate<CodingAgentIntegrationHealth>()
-    let piGate = SettingsTestGate<CodingAgentIntegrationHealth>()
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
       $0.claudeSettingsClient.integrationHealth = { await claudeGate.next() }
       $0.codexSettingsClient.integrationHealth = { await codexGate.next() }
       $0.ghosttyTerminalSettingsClient.load = { await terminalGate.next() }
-      $0.piSettingsClient.integrationHealth = { await piGate.next() }
       $0.shortcutSettingsClient.terminalReservedDisplays = { [] }
       $0.updateClient.observe = { AsyncStream { $0.finish() } }
       $0.updateClient.start = {}
@@ -82,9 +80,6 @@ struct SettingsFeatureCodingAgentsTests {
     await store.receive(\.agentIntegrationStatusRefreshRequested, .codex, timeout: Duration.zero) {
       $0.codexIntegration.operation = .refreshing
     }
-    await store.receive(\.agentIntegrationStatusRefreshRequested, .pi, timeout: Duration.zero) {
-      $0.piIntegration.operation = .refreshing
-    }
     await terminalGate.send(terminalSettingsSnapshot())
     await store.receive(\.terminalSettingsLoadResponse) {
       $0.terminal = terminalSettingsState()
@@ -98,16 +93,11 @@ struct SettingsFeatureCodingAgentsTests {
     await store.receive(\.agentIntegrationStatusRefreshed) {
       $0.codexIntegration.operation = .idle
     }
-    await piGate.send(.healthy)
-    await store.receive(\.agentIntegrationStatusRefreshed) {
-      $0.piIntegration.health = .healthy
-      $0.piIntegration.operation = .idle
-    }
   }
 
   @Test
   func enablingAgentIntegrationInstallsSupatermSkillFirst() async {
-    for agent in SupatermAgentKind.allCases {
+    for agent in SupatermManagedAgentKind.allCases {
       let keyPath = SettingsFeature().agentIntegrationKeyPath(for: agent)
       let recorder = SettingsAgentInstallRecorder()
       let store = TestStore(initialState: SettingsFeature.State()) {
@@ -131,7 +121,7 @@ struct SettingsFeatureCodingAgentsTests {
 
   @Test
   func disablingAgentIntegrationDoesNotInstallSupatermSkill() async {
-    for agent in SupatermAgentKind.allCases {
+    for agent in SupatermManagedAgentKind.allCases {
       let recorder = SettingsAgentInstallRecorder()
       var state = SettingsFeature.State()
       let keyPath = SettingsFeature().agentIntegrationKeyPath(for: agent)
@@ -277,103 +267,10 @@ struct SettingsFeatureCodingAgentsTests {
     }
   }
 
-  @Test
-  func piIntegrationUnavailableDisablesTheToggle() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
-      SettingsFeature()
-    } withDependencies: {
-      $0.piSettingsClient.integrationHealth = { .unavailable }
-    }
-
-    await store.send(.agentIntegrationStatusRefreshRequested(.pi)) {
-      $0.piIntegration.operation = .refreshing
-    }
-
-    await store.receive(
-      \.agentIntegrationStatusRefreshed
-    ) {
-      $0.piIntegration.health = .unavailable
-      $0.piIntegration.operation = .idle
-    }
-  }
-
-  @Test
-  func piUnavailableInstalledIntegrationCanBeRemoved() async {
-    var state = SettingsFeature.State()
-    state.piIntegration.health = .unavailableInstalled
-    let recorder = SettingsAgentInstallRecorder()
-    let store = TestStore(initialState: state) {
-      SettingsFeature()
-    } withDependencies: {
-      $0.piSettingsClient.integrationHealth = { .unavailable }
-      $0.piSettingsClient.removeSupatermIntegration = {
-        await recorder.record(.integration(.pi))
-      }
-    }
-
-    await store.send(.agentIntegrationToggled(.pi, false)) {
-      $0.piIntegration.operation = .settingEnabled(false)
-    }
-    await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
-      $0.piIntegration.health = .unavailable
-      $0.piIntegration.operation = .idle
-    }
-
-    #expect(await recorder.commands() == [.integration(.pi)])
-  }
-
-  @Test
-  func piIntegrationToggleOnShowsSuccessState() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
-      SettingsFeature()
-    } withDependencies: {
-      $0.piSettingsClient.integrationHealth = { .healthy }
-      $0.piSettingsClient.installSupatermIntegration = {}
-      $0.supatermSkillClient.installSupatermSkill = {}
-    }
-
-    await store.send(.agentIntegrationToggled(.pi, true)) {
-      $0.piIntegration.operation = .settingEnabled(true)
-    }
-
-    await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
-      $0.piIntegration.health = .healthy
-      $0.piIntegration.operation = .idle
-    }
-  }
-
-  @Test
-  func piIntegrationInstallFailureShowsErrorLogAlert() async {
-    let log = "clone failed\nfatal: repository not found"
-    let message = "Supaterm could not install the Pi package: \(log)"
-    let store = TestStore(initialState: SettingsFeature.State()) {
-      SettingsFeature()
-    } withDependencies: {
-      $0.piSettingsClient.integrationHealth = { .healthy }
-      $0.piSettingsClient.installSupatermIntegration = {
-        throw PiSettingsInstallerError.installFailed(log)
-      }
-      $0.supatermSkillClient.installSupatermSkill = {}
-    }
-
-    await store.send(.agentIntegrationToggled(.pi, true)) {
-      $0.piIntegration.operation = .settingEnabled(true)
-    }
-
-    await store.receive(\.agentIntegrationToggleFinished, timeout: Duration.zero) {
-      $0.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: .pi, log: message)
-      $0.piIntegration.errorMessage = message
-      $0.piIntegration.operation = .idle
-    }
-
-    await store.send(.agentIntegrationInstallFailureDismissed) {
-      $0.agentIntegrationInstallFailure = nil
-    }
-  }
 }
 
 enum SettingsAgentInstallCommand: Equatable {
-  case integration(SupatermAgentKind)
+  case integration(SupatermManagedAgentKind)
   case skill
 }
 
@@ -391,7 +288,7 @@ actor SettingsAgentInstallRecorder {
 
 func configureEnableDependencies(
   _ dependencies: inout DependencyValues,
-  agent: SupatermAgentKind,
+  agent: SupatermManagedAgentKind,
   recorder: SettingsAgentInstallRecorder
 ) {
   dependencies.supatermSkillClient.installSupatermSkill = {
@@ -408,17 +305,12 @@ func configureEnableDependencies(
     dependencies.codexSettingsClient.installSupatermHooks = {
       await recorder.record(.integration(agent))
     }
-  case .pi:
-    dependencies.piSettingsClient.integrationHealth = { .healthy }
-    dependencies.piSettingsClient.installSupatermIntegration = {
-      await recorder.record(.integration(agent))
-    }
   }
 }
 
 func configureDisableDependencies(
   _ dependencies: inout DependencyValues,
-  agent: SupatermAgentKind,
+  agent: SupatermManagedAgentKind,
   recorder: SettingsAgentInstallRecorder
 ) {
   dependencies.supatermSkillClient.installSupatermSkill = {
@@ -433,11 +325,6 @@ func configureDisableDependencies(
   case .codex:
     dependencies.codexSettingsClient.integrationHealth = { .absent }
     dependencies.codexSettingsClient.removeSupatermHooks = {
-      await recorder.record(.integration(agent))
-    }
-  case .pi:
-    dependencies.piSettingsClient.integrationHealth = { .absent }
-    dependencies.piSettingsClient.removeSupatermIntegration = {
       await recorder.record(.integration(agent))
     }
   }

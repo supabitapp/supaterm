@@ -67,7 +67,6 @@ public struct TerminalNotifyRequest: Equatable, Sendable {
     case tab(UUID)
   }
 
-  public let allowDesktopNotificationWhenAgentActive: Bool
   public let body: String
   public let target: Target
   public let title: String?
@@ -75,10 +74,8 @@ public struct TerminalNotifyRequest: Equatable, Sendable {
   public init(
     body: String,
     target: Target,
-    title: String?,
-    allowDesktopNotificationWhenAgentActive: Bool = false
+    title: String?
   ) {
-    self.allowDesktopNotificationWhenAgentActive = allowDesktopNotificationWhenAgentActive
     self.body = body
     self.target = target
     self.title = title

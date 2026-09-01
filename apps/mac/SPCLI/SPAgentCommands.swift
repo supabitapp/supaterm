@@ -44,7 +44,7 @@ extension SP {
   struct SetupAgentIntegrations: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "setup",
-      abstract: "Set up Supaterm for every supported coding agent.",
+      abstract: "Install Supaterm's skill and managed coding-agent hooks.",
       discussion: SPHelp.setupAgentIntegrationsDiscussion
     )
 
@@ -68,7 +68,7 @@ extension SP {
     )
 
     @Option(name: .long, help: "Agent that emitted the hook payload.")
-    var agent: SupatermAgentKind
+    var agent: SupatermManagedAgentKind
 
     @Option(name: .long, help: "Process ID that emitted the hook payload.")
     var pid: Int32?
@@ -102,7 +102,7 @@ extension SP {
   struct RemoveAgentHooks: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "remove-hooks",
-      abstract: "Remove Supaterm's hook bridge from every supported coding agent.",
+      abstract: "Remove Supaterm's managed coding-agent hooks.",
       discussion: SPHelp.removeAgentHooksDiscussion
     )
 
@@ -214,7 +214,7 @@ private enum AgentIntegrationManagementOperation {
   }
 
   func emitProgress(
-    for agent: SupatermAgentKind,
+    for agent: SupatermManagedAgentKind,
     disposition: AgentIntegrationDisposition? = nil
   ) {
     guard case .setupDetected = self else {
@@ -233,6 +233,22 @@ private enum AgentIntegrationManagementOperation {
       }
     FileHandle.standardOutput.write(Data("\(message)\n".utf8))
   }
+
+  func prepare(client: SPSocketClient) throws {
+    guard case .setupDetected = self else { return }
+    FileHandle.standardOutput.write(Data("Installing Supaterm skill...\n".utf8))
+    do {
+      let response = try client.send(.skillsInstall())
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+      _ = try response.decodeResult(SupatermSkillInstallResult.self)
+      FileHandle.standardOutput.write(Data("Supaterm skill: ready\n".utf8))
+    } catch {
+      FileHandle.standardOutput.write(Data("Supaterm skill: failed\n".utf8))
+      throw error
+    }
+  }
 }
 
 private enum AgentIntegrationDisposition {
@@ -243,7 +259,7 @@ private enum AgentIntegrationDisposition {
 
 private func manageAgentIntegrations(
   _ operation: AgentIntegrationManagementOperation,
-  agents: [SupatermAgentKind] = SupatermAgentKind.allCases,
+  agents: [SupatermManagedAgentKind] = SupatermManagedAgentKind.allCases,
   connection: SPConnectionOptions
 ) throws {
   let client = try socketClient(
@@ -251,6 +267,7 @@ private func manageAgentIntegrations(
     instance: connection.instance,
     responseTimeout: SupatermAgentIntegrationTiming.clientResponseTimeout
   )
+  try operation.prepare(client: client)
   var failures: [String] = []
   var didSucceed = false
   for agent in agents {
@@ -277,13 +294,13 @@ private func manageAgentIntegrations(
     !agents.isEmpty,
     !didSucceed
   {
-    throw ValidationError("No supported coding agent was detected.")
+    throw ValidationError("Neither Claude nor Codex was detected.")
   }
 }
 
 private func agentIntegrationDisposition(
   operation: AgentIntegrationManagementOperation,
-  agent: SupatermAgentKind,
+  agent: SupatermManagedAgentKind,
   client: SPSocketClient
 ) -> AgentIntegrationDisposition {
   do {
@@ -304,4 +321,4 @@ private func agentIntegrationDisposition(
   }
 }
 
-extension SupatermAgentKind: @retroactive ExpressibleByArgument {}
+extension SupatermManagedAgentKind: @retroactive ExpressibleByArgument {}

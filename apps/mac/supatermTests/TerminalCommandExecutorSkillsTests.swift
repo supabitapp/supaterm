@@ -82,6 +82,13 @@ struct TerminalCommandExecutorSkillsTests {
     )
     #expect(result == SupatermSkillInstallResult(path: installedDirectoryURL.path))
     #expect(
+      try FileManager.default.destinationOfSymbolicLink(
+        atPath: SupatermSkills.claudeSkillDirectoryURL(
+          homeDirectoryURL: harness.homeDirectoryURL
+        ).path
+      ) == installedDirectoryURL.path
+    )
+    #expect(
       FileManager.default.fileExists(
         atPath: SupatermSkills.skillDefinitionURL(skillDirectoryURL: installedDirectoryURL).path
       )

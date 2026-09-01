@@ -104,9 +104,11 @@ final class GhosttySurfaceBridge {
   private let findPasteboard: NSPasteboard
   private let sendAction: (Selector) -> Bool
   private let openURL: (URL) -> Bool
+  private let titleChangeSleep: @Sendable (Duration) async throws -> Void
   var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
-  var onTitleChange: ((String) -> Void)?
+  var onTitleChange: (() -> Void)?
+  var onTitleOverrideChange: (() -> Void)?
   var onPromptSurfaceTitle: (() -> Void)?
   var onPromptTabTitle: (() -> Void)?
   var onPathChange: (() -> Void)?
@@ -127,29 +129,50 @@ final class GhosttySurfaceBridge {
   var onDesktopNotification: ((String, String) -> Void)?
   var onStateChange: (() -> Void)?
   private var progressResetTask: Task<Void, Never>?
+  private var titleChangeTask: Task<Void, Never>?
 
   init(
     findPasteboard: NSPasteboard = NSPasteboard(name: .find),
     openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
     sendAction: @escaping (Selector) -> Bool = {
       NSApp.sendAction($0, to: nil, from: nil)
+    },
+    titleChangeSleep: @escaping @Sendable (Duration) async throws -> Void = {
+      try await ContinuousClock().sleep(for: $0)
     }
   ) {
     self.findPasteboard = findPasteboard
     self.openURL = openURL
     self.sendAction = sendAction
+    self.titleChangeSleep = titleChangeSleep
   }
 
   deinit {
     progressResetTask?.cancel()
+    titleChangeTask?.cancel()
   }
 
-  func titleDidChange(from previousTitle: String?) {
-    let title = state.effectiveTitle
-    guard title != previousTitle else { return }
-    onTitleChange?(title ?? "")
+  func publishTitle() {
+    guard state.publishTitle() else { return }
+    onTitleChange?()
     if let surfaceView {
       NSAccessibility.post(element: surfaceView, notification: .titleChanged)
+    }
+  }
+
+  func setTitle(_ title: String) {
+    titleChangeTask?.cancel()
+    let titleChangeSleep = self.titleChangeSleep
+    titleChangeTask = Task { [weak self] in
+      do {
+        try await titleChangeSleep(.milliseconds(75))
+      } catch {
+        return
+      }
+      guard let self else { return }
+      state.title = title
+      titleChangeTask = nil
+      publishTitle()
     }
   }
 
@@ -469,10 +492,8 @@ final class GhosttySurfaceBridge {
   private func handleTitleAndPath(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
     case GHOSTTY_ACTION_SET_TITLE:
-      let previousTitle = state.effectiveTitle
       guard let title = string(from: action.action.set_title.title) else { return false }
-      state.title = title
-      titleDidChange(from: previousTitle)
+      setTitle(title)
       return true
 
     case GHOSTTY_ACTION_PROMPT_TITLE:

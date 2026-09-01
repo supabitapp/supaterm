@@ -147,7 +147,7 @@ func setupAgentIntegrations(
         arguments,
         cwd: workspace,
         timeout: SupatermAgentIntegrationTiming.clientResponseTimeout
-          * TimeInterval(SupatermAgentKind.allCases.count) + 5
+          * TimeInterval(SupatermManagedAgentKind.allCases.count) + 5
       )
     )
   } catch {

@@ -224,7 +224,12 @@ private struct GroupedTopologyFixture {
     _ = try lockTabTitle(app, tabID: space.tabID, title: firstTitle(token))
     let second = try makeTab(app, in: space, cwd: directory)
     _ = try lockTabTitle(app, tabID: second.tabID, title: secondTitle(token))
-    let root = try makeTab(app, in: space, cwd: directory)
+    let root = try makeTab(
+      app,
+      in: space,
+      cwd: directory,
+      target: .root(space.target.spaceID)
+    )
     _ = try lockTabTitle(app, tabID: root.tabID, title: rootTitle(token))
     let group = try app.send(
       .createTabGroup(
@@ -369,6 +374,7 @@ private func makeTab(
   _ app: SupatermE2EApp,
   in space: SupatermCreateSpaceResult,
   cwd: URL,
+  target: SupatermNewTabTarget? = nil,
   startupCommand: SupatermTerminalStartup = hermeticShellStartup
 ) throws -> SupatermNewTabResult {
   try app.send(
@@ -377,7 +383,7 @@ private func makeTab(
         startupCommand: startupCommand,
         cwd: cwd.path,
         focus: true,
-        target: .space(space.target.spaceID)
+        target: target ?? .space(space.target.spaceID)
       )
     ),
     as: SupatermNewTabResult.self

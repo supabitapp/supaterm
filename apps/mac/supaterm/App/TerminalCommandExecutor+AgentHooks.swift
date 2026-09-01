@@ -69,8 +69,7 @@ extension TerminalCommandExecutor {
           TerminalNotifyRequest(
             body: notification.body,
             target: .pane(surfaceID),
-            title: agent.notificationTitle,
-            allowDesktopNotificationWhenAgentActive: true
+            title: agent.notificationTitle
           ),
           semantic: notification.semantic
         )
@@ -134,7 +133,7 @@ extension TerminalCommandExecutor {
     for request: SupatermAgentHookRequest
   ) -> TerminalHostState? {
     agentTerminal(
-      agent: request.agent,
+      agent: request.agent.agentKind,
       sessionID: request.event.sessionID,
       context: request.context
     )

@@ -91,7 +91,6 @@ public struct SearchPanelSurface<ID: Hashable, Preview: View>: View {
   private let preview: (SearchPanelItem<ID>) -> Preview
 
   @FocusState private var isQueryFocused: Bool
-  @State private var hoveredID: ID?
 
   @Environment(\.colorScheme) private var colorScheme
 
@@ -241,7 +240,6 @@ public struct SearchPanelSurface<ID: Hashable, Preview: View>: View {
                 SearchPanelRow(
                   item: item,
                   theme: theme,
-                  isHovered: hoveredID == item.id,
                   isSelected: selection.wrappedValue == item.id,
                   accessibilityIdentifier: "\(accessibilityNamespace).result-row"
                 ) {
@@ -250,7 +248,6 @@ public struct SearchPanelSurface<ID: Hashable, Preview: View>: View {
                 }
                 .id(item.id)
                 .onHover { isHovering in
-                  hoveredID = isHovering ? item.id : nil
                   if isHovering, item.isEnabled {
                     selection.wrappedValue = item.id
                   }
@@ -286,7 +283,6 @@ public struct SearchPanelSurface<ID: Hashable, Preview: View>: View {
             SearchPanelRow(
               item: child,
               theme: theme,
-              isHovered: false,
               isSelected: false,
               accessibilityIdentifier: "\(accessibilityNamespace).result-row",
               action: { onActivate(child) }
@@ -362,7 +358,6 @@ extension SearchPanelSurface where Preview == EmptyView {
 private struct SearchPanelRow<ID: Hashable>: View {
   let item: SearchPanelItem<ID>
   let theme: SurfaceTheme
-  let isHovered: Bool
   let isSelected: Bool
   let accessibilityIdentifier: String
   let action: () -> Void
@@ -437,7 +432,6 @@ private struct SearchPanelRow<ID: Hashable>: View {
 
   private func rowBackground(colors: SurfaceColors) -> Color {
     if isSelected { return colors.selectedBackground }
-    if isHovered { return colors.hoverBackground }
     if item.isEmphasized { return colors.mutedBackground }
     return .clear
   }

@@ -7,18 +7,16 @@ import SwiftUI
 struct SettingsCodingAgentsView: View {
   let store: StoreOf<SettingsFeature>
 
-  private func integration(for agent: SupatermAgentKind) -> SettingsAgentIntegrationState {
+  private func integration(for agent: SupatermManagedAgentKind) -> SettingsAgentIntegrationState {
     switch agent {
     case .claude:
       return store.claudeIntegration
     case .codex:
       return store.codexIntegration
-    case .pi:
-      return store.piIntegration
     }
   }
 
-  private func integrationToggle(for agent: SupatermAgentKind) -> Binding<Bool> {
+  private func integrationToggle(for agent: SupatermManagedAgentKind) -> Binding<Bool> {
     Binding(
       get: { integration(for: agent).isEnabled },
       set: { newValue in
@@ -43,7 +41,7 @@ struct SettingsCodingAgentsView: View {
       }
 
       Section {
-        ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
+        ForEach(SupatermManagedAgentKind.allCases, id: \.self) { agent in
           let integration = integration(for: agent)
           SettingsAgentListRow(
             agent: agent,
@@ -55,9 +53,19 @@ struct SettingsCodingAgentsView: View {
         }
       } footer: {
         VStack(alignment: .leading, spacing: 8) {
+          Text(
+            "Pi uses terminal detection. Codex and Pi read the shared skill at "
+              + "~/.agents/skills/supaterm. Claude uses the link at ~/.claude/skills/supaterm."
+          )
+
+          Text("Install or refresh it with: sp skills install")
+            .font(.caption.monospaced())
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+
           Text("Supaterm installs coding-agent hooks into these paths:")
 
-          ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
+          ForEach(SupatermManagedAgentKind.allCases, id: \.self) { agent in
             Text(agent.settingsInstallDescription)
               .font(.caption.monospaced())
               .foregroundStyle(.secondary)
@@ -72,7 +80,7 @@ struct SettingsCodingAgentsView: View {
 }
 
 private struct SettingsAgentListRow: View {
-  let agent: SupatermAgentKind
+  let agent: SupatermManagedAgentKind
   let errorMessage: String?
   let isAvailable: Bool
   let isOn: Binding<Bool>
@@ -86,7 +94,7 @@ private struct SettingsAgentListRow: View {
         Label {
           Text(agent.notificationTitle)
         } icon: {
-          Image(agent.markImageName)
+          Image(agent.agentKind.markImageName)
             .renderingMode(.template)
             .resizable()
             .aspectRatio(contentMode: .fit)

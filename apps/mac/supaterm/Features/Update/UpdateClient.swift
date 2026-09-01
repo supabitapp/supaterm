@@ -197,10 +197,10 @@ public enum UpdatePhase: Equatable, Sendable {
       return "Supaterm is preparing the downloaded update."
     case .installing(let installing):
       if let version = installing.formattedVersion {
-        return "Updated to \(version). Restart Supaterm to complete installation."
+        return "Updated to \(version)."
       }
       if installing.isAutoUpdate {
-        return "The update is ready. Restart Supaterm to complete installation."
+        return "The update is ready."
       }
       return "Supaterm is installing the update and preparing to restart."
     case .notFound:

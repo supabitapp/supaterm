@@ -9,7 +9,6 @@ struct AgentIntegrationPayloadFixtureTests {
   func integrationRequestEncodesAgentOnly() throws {
     try expectPayloadFixture(SupatermAgentIntegrationRequest(agent: .claude), #"{"agent":"claude"}"#)
     try expectPayloadFixture(SupatermAgentIntegrationRequest(agent: .codex), #"{"agent":"codex"}"#)
-    try expectPayloadFixture(SupatermAgentIntegrationRequest(agent: .pi), #"{"agent":"pi"}"#)
     try expectMethodFixture(
       .agentIntegrationSetup(
         SupatermAgentIntegrationRequest(agent: .claude),
@@ -23,6 +22,13 @@ struct AgentIntegrationPayloadFixtureTests {
       method: SupatermSocketMethod.appHooksRemove,
       params: #"{"agent":"codex"}"#
     )
+  }
+
+  @Test
+  func managedAgentKindRejectsPi() {
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(SupatermManagedAgentKind.self, from: Data(#""pi""#.utf8))
+    }
   }
 
   @Test

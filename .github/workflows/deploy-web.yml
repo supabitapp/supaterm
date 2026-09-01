@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "apps/supaterm.com/**"
-      - "apps/mac/supaterm/Resources/AgentDetection/**"
       - ".github/workflows/deploy-web.yml"
       - "Makefile"
       - "mise.toml"
@@ -15,7 +14,6 @@ on:
       - main
     paths:
       - "apps/supaterm.com/**"
-      - "apps/mac/supaterm/Resources/AgentDetection/**"
       - ".github/workflows/deploy-web.yml"
       - "Makefile"
       - "mise.toml"
@@ -23,7 +21,7 @@ on:
 
 concurrency:
   group: deploy-web-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   web:
@@ -33,18 +31,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
           lfs: true
       - uses: actions/setup-node@v6
         with:
           node-version: 24
       - uses: jdx/mise-action@v4
+        env:
+          MISE_NO_HOOKS: "1"
         with:
           version: 2026.3.0
           cache: true
-          install: false
-      - name: Install pnpm with mise
-        run: mise install pnpm
+          install_args: pnpm
       - name: Resolve Vite+ version
         id: vite_plus
         shell: bash

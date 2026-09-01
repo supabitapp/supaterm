@@ -83,7 +83,7 @@ struct UpdatePhaseTests {
     )
 
     #expect(phase.summaryText == "Restart to Complete Update")
-    #expect(phase.detailMessage == "Updated to 26.0.0 (35000). Restart Supaterm to complete installation.")
+    #expect(phase.detailMessage == "Updated to 26.0.0 (35000).")
     #expect(phase.bypassesQuitConfirmation)
     #expect(phase.debugIdentifier == "installing")
   }
@@ -122,7 +122,7 @@ struct UpdatePhaseTests {
   func installingFallsBackWhenUpdatedVersionIsUnavailable() {
     let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: true))
 
-    #expect(phase.detailMessage == "The update is ready. Restart Supaterm to complete installation.")
+    #expect(phase.detailMessage == "The update is ready.")
   }
 
   @Test

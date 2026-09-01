@@ -8,38 +8,6 @@ import Testing
 @MainActor
 struct TerminalHostStateAgentPersistenceTests {
   @Test
-  func nativeCandidatesUseOnlyTheForegroundSessionAuthority() throws {
-    let (host, surfaceID) = try hostFixture()
-    let tabID = try #require(host.selectedTabID?.rawValue)
-    let background = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 1)
-    let foreground = TerminalAgentProcessIdentity(processID: 43, startTimeMicroseconds: 2)
-    let identities = [background.processID: background, foreground.processID: foreground]
-    host.agentStateStore = TerminalAgentStateStore { identities[$0] }
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: tabID)
-
-    for (sessionID, identity) in [
-      ("background", background),
-      ("foreground", foreground),
-    ] {
-      _ = host.applyAgentEvent(
-        TerminalAgentEvent(
-          scope: TerminalAgentEvent.Scope(agent: .pi, sessionID: sessionID),
-          context: context,
-          processID: identity.processID,
-          action: .sessionStarted
-        )
-      )
-    }
-
-    let candidates = host.nativeAgentDetectionCandidates(for: surfaceID)
-    let candidate = try #require(candidates.only)
-
-    #expect(candidate.presentation.sessionID == "foreground")
-    #expect(candidate.phaseAuthorityProcessIdentities == [foreground])
-    #expect(!candidate.phaseAuthorityProcessIdentities.contains(background))
-  }
-
-  @Test
   func liveMismatchedContextDoesNotMutateOrReportAChange() throws {
     let (host, boundSurfaceID) = try hostFixture()
     let tabID = try #require(host.selectedTabID?.rawValue)
@@ -60,9 +28,6 @@ struct TerminalHostStateAgentPersistenceTests {
       processID: identity.processID
     )
     let before = host.agentStateStore.snapshots(for: boundSurfaceID)
-    let authority = host.agentStateStore.phaseAuthorityProcessIdentities(
-      for: boundSurfaceID
-    )
 
     let application = host.applyAgentEvent(
       TerminalAgentEvent(
@@ -78,13 +43,6 @@ struct TerminalHostStateAgentPersistenceTests {
     #expect(!application.changed)
     #expect(host.agentStateStore.snapshots(for: boundSurfaceID) == before)
     #expect(host.agentStateStore.snapshots(for: otherPane.paneID).isEmpty)
-    #expect(
-      host.agentStateStore.phaseAuthorityProcessIdentities(for: boundSurfaceID)
-        == authority
-    )
-    #expect(
-      host.agentStateStore.phaseAuthorityProcessIdentities(for: otherPane.paneID).isEmpty
-    )
   }
 
   @Test
@@ -99,7 +57,6 @@ struct TerminalHostStateAgentPersistenceTests {
       processID: identity.processID
     )
     let before = host.agentStateStore.snapshots(for: surfaceID)
-    let authority = host.agentStateStore.phaseAuthorityProcessIdentities(for: surfaceID)
     let deadSurfaceID = UUID()
 
     let application = host.applyAgentEvent(
@@ -117,10 +74,6 @@ struct TerminalHostStateAgentPersistenceTests {
     #expect(host.agentStateSurfaceID(agent: .codex, sessionID: "bound-session") == surfaceID)
     #expect(host.agentStateStore.snapshots(for: surfaceID) == before)
     #expect(host.agentStateStore.snapshots(for: deadSurfaceID).isEmpty)
-    #expect(
-      host.agentStateStore.phaseAuthorityProcessIdentities(for: surfaceID) == authority
-    )
-    #expect(host.agentStateStore.phaseAuthorityProcessIdentities(for: deadSurfaceID).isEmpty)
   }
 
   @Test
@@ -208,11 +161,5 @@ struct TerminalHostStateAgentPersistenceTests {
     let host = TerminalHostState.test()
     host.ensureInitialTab(focusing: false, startupCommand: nil)
     return (host, try #require(host.selectedSurfaceView?.id))
-  }
-}
-
-extension Collection {
-  fileprivate var only: Element? {
-    count == 1 ? first : nil
   }
 }

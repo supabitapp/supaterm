@@ -13,71 +13,6 @@ struct TerminalHostStateAgentDetectionTests {
   }
 
   @Test
-  func authorityResolutionMatrixUsesExactProcessIdentity() {
-    let surfaceID = UUID()
-    let observedIdentity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
-    let staleIdentity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 1)
-    let observation = observation(processIdentity: observedIdentity)
-    let codexWithoutAuthority = candidate(
-      agent: .codex,
-      processIdentities: [observedIdentity]
-    )
-    let codexWithAuthority = candidate(
-      agent: .codex,
-      processIdentities: [observedIdentity],
-      authority: [observedIdentity]
-    )
-    let claudeWithAuthority = candidate(
-      agent: .claude,
-      processIdentities: [observedIdentity],
-      authority: [observedIdentity]
-    )
-    let codexWithReusedPID = candidate(
-      agent: .codex,
-      processIdentities: [staleIdentity],
-      authority: [staleIdentity]
-    )
-    let claudeWithoutAuthority = candidate(
-      agent: .claude,
-      processIdentities: [observedIdentity]
-    )
-    var store = TerminalAgentDetectionStore()
-
-    #expect(
-      store.resolve(for: surfaceID, nativeCandidates: [codexWithoutAuthority])
-        == .native([codexWithoutAuthority])
-    )
-    let applied = store.apply(observation, for: surfaceID)
-    #expect(applied)
-    #expect(
-      store.resolve(for: surfaceID, nativeCandidates: [codexWithoutAuthority])
-        == .terminal(observation, nativeDetails: codexWithoutAuthority)
-    )
-    #expect(
-      store.resolve(for: surfaceID, nativeCandidates: [codexWithAuthority])
-        == .native([codexWithAuthority])
-    )
-    #expect(
-      store.resolve(for: surfaceID, nativeCandidates: [claudeWithAuthority])
-        == .native([claudeWithAuthority])
-    )
-    #expect(
-      store.resolve(
-        for: surfaceID,
-        nativeCandidates: [codexWithoutAuthority, claudeWithAuthority]
-      ) == .native([claudeWithAuthority])
-    )
-    #expect(
-      store.resolve(for: surfaceID, nativeCandidates: [codexWithReusedPID])
-        == .terminal(observation, nativeDetails: nil)
-    )
-    #expect(
-      store.resolve(for: surfaceID, nativeCandidates: [claudeWithoutAuthority])
-        == .terminal(observation, nativeDetails: nil)
-    )
-  }
-
-  @Test
   func terminalResolutionLendsNativeDetailsForTheExactProcessIdentity() {
     let surfaceID = UUID()
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
@@ -124,57 +59,6 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(
       store.resolve(for: surfaceID, nativeCandidates: [details])
         == .terminal(detection, nativeDetails: nil)
-    )
-  }
-
-  @Test
-  func provenProcessSelectsExactNativeAuthorityBeforeTerminalStatePublishes() {
-    let surfaceID = UUID()
-    let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
-    let exact = candidate(
-      agent: .codex,
-      processIdentities: [identity],
-      authority: [identity]
-    )
-    let competitor = candidate(agent: .claude, processIdentities: [identity])
-    let store = TerminalAgentDetectionStore()
-
-    #expect(
-      store.resolve(
-        for: surfaceID,
-        nativeCandidates: [competitor, exact],
-        provenProcessIdentity: identity
-      ) == .native([exact])
-    )
-  }
-
-  @Test
-  func provenProcessKeepsExactNativeAuthorityAfterTerminalStateClears() {
-    let surfaceID = UUID()
-    let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 2)
-    let detection = observation(processIdentity: identity)
-    let exact = candidate(
-      agent: .codex,
-      processIdentities: [identity],
-      authority: [identity]
-    )
-    let competitor = candidate(agent: .claude, processIdentities: [identity])
-    var store = TerminalAgentDetectionStore()
-    let applied = store.apply(detection, for: surfaceID)
-
-    #expect(applied)
-    #expect(
-      store.resolve(for: surfaceID, nativeCandidates: [competitor, exact])
-        == .native([exact])
-    )
-    let cleared = store.clear(for: surfaceID)
-    #expect(cleared)
-    #expect(
-      store.resolve(
-        for: surfaceID,
-        nativeCandidates: [competitor, exact],
-        provenProcessIdentity: identity
-      ) == .native([exact])
     )
   }
 
@@ -335,36 +219,6 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func exactNativeAuthorityWinsEvenWhenDetectionNamesAnotherAgent() throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let tabID = fixture.tabID
-    let surfaceID = fixture.surfaceID
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    let appliedNative = host.applyTestAgentActivity(
-      .pi(.running, detail: "Native detail"),
-      for: surfaceID,
-      sessionID: "native-session",
-      processID: identity.processID
-    )
-    let detection = observation(
-      agentID: "custom-agent",
-      displayName: "Custom Agent",
-      processIdentity: identity,
-      phase: .needsInput
-    )
-
-    let appliedDetection = host.applyAgentDetection(detection, for: surfaceID)
-
-    #expect(appliedNative)
-    #expect(appliedDetection)
-    #expect(host.agentActivity(for: tabID) == .pi(.running, detail: "Native detail"))
-    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.agent == .pi)
-    #expect(host.agentPanelPresentation(for: surfaceID)?.session?.sessionID == "native-session")
-  }
-
-  @Test
-  @MainActor
   func cleanCommandExitPersistsCompletionUntilSurfaceCleanup() throws {
     let fixture = try hostFixture()
     let host = fixture.host
@@ -419,60 +273,6 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func nativeAgentExitWithoutStatusRetainsCompletionWithoutItsLiveSessionState() throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    _ = host.applyTestAgentActivity(
-      .pi(.running),
-      for: fixture.surfaceID,
-      sessionID: "native-session",
-      processID: identity.processID
-    )
-    host.surfaces[fixture.surfaceID]?.bridge.state.commandExitCode = nil
-
-    host.handleCommandFinished(for: fixture.surfaceID)
-
-    #expect(host.agentStateRecords(for: fixture.surfaceID).isEmpty)
-    #expect(host.agentActivity(for: fixture.tabID) == .pi(.idle))
-    #expect(host.tabAgentPresentation(for: fixture.tabID).status == .done)
-  }
-
-  @Test
-  @MainActor
-  func piSessionShutdownPreservesIdentityUntilCommandExit() throws {
-    let fixture = try hostFixture()
-    let host = fixture.host
-    let sessionID = "native-session"
-    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
-    _ = host.applyTestAgentActivity(
-      .pi(.running),
-      for: fixture.surfaceID,
-      sessionID: sessionID,
-      processID: identity.processID
-    )
-
-    let ended = host.applyAgentEvent(
-      TerminalAgentEvent(
-        scope: TerminalAgentEvent.Scope(agent: .pi, sessionID: sessionID),
-        context: SupatermCLIContext(
-          surfaceID: fixture.surfaceID,
-          tabID: fixture.tabID.rawValue
-        ),
-        action: .sessionEnded
-      )
-    )
-    host.surfaces[fixture.surfaceID]?.bridge.state.commandExitCode = 0
-    host.handleCommandFinished(for: fixture.surfaceID)
-
-    #expect(ended.accepted)
-    #expect(host.agentStateRecords(for: fixture.surfaceID).isEmpty)
-    #expect(host.agentActivity(for: fixture.tabID) == .pi(.idle))
-    #expect(host.tabAgentPresentation(for: fixture.tabID).status == .done)
-  }
-
-  @Test
-  @MainActor
   func focusingPaneClearsRetainedExitState() throws {
     let fixture = try hostFixture()
     let host = fixture.host
@@ -514,8 +314,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   private func candidate(
     agent: SupatermAgentKind,
-    processIdentities: Set<TerminalAgentProcessIdentity>,
-    authority: Set<TerminalAgentProcessIdentity> = []
+    processIdentities: Set<TerminalAgentProcessIdentity>
   ) -> TerminalAgentDetectionNativeCandidate {
     TerminalAgentDetectionNativeCandidate(
       presentation: TerminalAgentStatePresentation(
@@ -531,8 +330,7 @@ struct TerminalHostStateAgentDetectionTests {
         workingDirectoryPath: nil
       ),
       revision: 1,
-      processIdentities: processIdentities,
-      phaseAuthorityProcessIdentities: authority
+      processIdentities: processIdentities
     )
   }
 

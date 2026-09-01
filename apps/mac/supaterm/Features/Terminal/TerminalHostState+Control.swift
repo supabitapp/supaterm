@@ -307,8 +307,15 @@ extension TerminalHostState {
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
     let resolvedTarget = try resolveCreateTabTarget(request.target)
     let currentSelectedTabID = spaceManager.selectedTabID(in: resolvedTarget.space.id)
-    let placement = resolvedTarget.placement
+    guard let tabCollection = spaceManager.tabCollection(for: resolvedTarget.space.id) else {
+      throw TerminalCreateTabError.creationFailed
+    }
+    let parentTabID = resolvedTarget.inheritedSurfaceID.flatMap(tabID(containing:))
+    let placement =
+      resolvedTarget.placement
+      ?? implicitTabPlacement(after: parentTabID, in: tabCollection)
     var createdTabID: TerminalTabID?
+    var createdGroupID: TerminalTabGroupID?
 
     do {
       let tabID =
@@ -332,6 +339,12 @@ extension TerminalHostState {
       }
       let surfaceID = surface.id
       createdTabID = tabID
+
+      createdGroupID = try createParentGroupIfNeeded(
+        for: tabID,
+        parentTabID: resolvedTarget.placement == nil ? parentTabID : nil,
+        in: tabCollection
+      )
 
       if request.focus {
         displaySpace(resolvedTarget.space.id)
@@ -378,19 +391,55 @@ extension TerminalHostState {
         paneIndex: paneIndex + 1,
         paneID: surfaceID
       )
-    } catch let error as TerminalCreateTabError {
-      if let createdTabID {
-        removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(createdTabID)
-      }
-      throw error
     } catch {
+      if let createdGroupID {
+        _ = tabCollection.ungroup(createdGroupID)
+      }
       if let createdTabID {
         removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabCollection(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+        tabCollection.closeTab(createdTabID)
+      }
+      if let error = error as? TerminalCreateTabError {
+        throw error
       }
       throw TerminalCreateTabError.creationFailed
     }
+  }
+
+  private func implicitTabPlacement(
+    after parentTabID: TerminalTabID?,
+    in tabCollection: TerminalTabCollection
+  ) -> TerminalTabPlacement? {
+    guard let parentTabID else { return nil }
+    if let groupID = tabCollection.groupID(containing: parentTabID),
+      let group = tabCollection.group(for: groupID)
+    {
+      return .group(groupID, index: group.tabs.count)
+    }
+    return tabCollection.placement(after: parentTabID)
+  }
+
+  private func createParentGroupIfNeeded(
+    for tabID: TerminalTabID,
+    parentTabID: TerminalTabID?,
+    in tabCollection: TerminalTabCollection
+  ) throws -> TerminalTabGroupID? {
+    guard
+      let parentTabID,
+      tabCollection.groupID(containing: parentTabID) == nil
+    else {
+      return nil
+    }
+    guard
+      let title = suggestedGroupTitle(containing: [parentTabID, tabID]),
+      let creation = tabCollection.createGroup(
+        title: title,
+        containing: [parentTabID, tabID]
+      )
+    else {
+      throw TerminalCreateTabError.creationFailed
+    }
+    return creation.groupID
   }
 
   private func applyTabCreationSelection(_ input: TabCreationSelectionInput) {
@@ -1002,9 +1051,7 @@ extension TerminalHostState {
         attentionState
       }
     let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(
-      allowDesktopNotificationWhenAgentActive: request.allowDesktopNotificationWhenAgentActive,
-      isFocused: selectionState.isFocused,
-      tabID: resolvedTarget.tabID
+      isFocused: selectionState.isFocused
     )
     let resolvedTitle = resolvedNotificationTitle(
       request.title,

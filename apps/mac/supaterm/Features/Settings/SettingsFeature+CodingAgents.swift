@@ -24,7 +24,7 @@ extension SettingsFeature {
 
   func refreshAgentIntegrationStatus(
     _ state: inout State,
-    agent: SupatermAgentKind
+    agent: SupatermManagedAgentKind
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
     guard state[keyPath: keyPath].operation == .idle else {
@@ -46,7 +46,7 @@ extension SettingsFeature {
 
   func handleAgentIntegrationStatusRefresh(
     _ state: inout State,
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     result: SettingsAgentIntegrationResult
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
@@ -64,7 +64,7 @@ extension SettingsFeature {
 
   func toggleAgentIntegration(
     _ state: inout State,
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     isEnabled: Bool
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
@@ -94,7 +94,7 @@ extension SettingsFeature {
 
   func handleAgentIntegrationToggleFinished(
     _ state: inout State,
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     result: SettingsAgentIntegrationResult
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
@@ -116,20 +116,18 @@ extension SettingsFeature {
   }
 
   func agentIntegrationKeyPath(
-    for agent: SupatermAgentKind
+    for agent: SupatermManagedAgentKind
   ) -> WritableKeyPath<State, SettingsAgentIntegrationState> {
     switch agent {
     case .claude:
       return \.claudeIntegration
     case .codex:
       return \.codexIntegration
-    case .pi:
-      return \.piIntegration
     }
   }
 
   func loadAgentIntegrationHealthOperation(
-    for agent: SupatermAgentKind
+    for agent: SupatermManagedAgentKind
   ) -> @Sendable () async throws -> CodingAgentIntegrationHealth {
     switch agent {
     case .claude:
@@ -138,14 +136,11 @@ extension SettingsFeature {
     case .codex:
       let client = codexSettingsClient
       return { try await client.integrationHealth() }
-    case .pi:
-      let client = piSettingsClient
-      return { try await client.integrationHealth() }
     }
   }
 
   func updateSupatermIntegrationOperation(
-    for agent: SupatermAgentKind,
+    for agent: SupatermManagedAgentKind,
     isEnabled: Bool
   ) -> @Sendable () async throws -> CodingAgentIntegrationHealth {
     switch agent {
@@ -170,18 +165,6 @@ extension SettingsFeature {
           try await client.installSupatermHooks()
         } else {
           try await client.removeSupatermHooks()
-        }
-        return try await client.integrationHealth()
-      }
-    case .pi:
-      let client = piSettingsClient
-      let skillClient = supatermSkillClient
-      return {
-        if isEnabled {
-          try await skillClient.installSupatermSkill()
-          try await client.installSupatermIntegration()
-        } else {
-          try await client.removeSupatermIntegration()
         }
         return try await client.integrationHealth()
       }

@@ -3,7 +3,7 @@ title: Claude, Codex, and Pi
 description: Understand supported agent behavior, setup differences, and session-fork boundaries.
 ---
 
-All supported agents share Supaterm's sidebar and panel model. Their native integration boundaries differ.
+All supported agents share Supaterm's sidebar and panel model. Their integration boundaries differ.
 
 ## Claude
 
@@ -19,9 +19,10 @@ Codex 0.144.1 or newer is required. Codex sessions can be forked from the agent 
 
 ## Pi
 
-Pi uses the extension package in `supaterm-skills`. The extension forwards Pi's native session and agent lifecycle while it runs inside a Supaterm pane.
+Pi uses terminal detection only. Install Supaterm's skill with `sp skills install`; Pi reads
+`~/.agents/skills/supaterm` directly. Supaterm does not install a Pi package or change Pi settings.
 
-Pi sessions cannot currently be forked from the agent panel. The copy-session-ID and fork actions only appear when the active agent supports them.
+Pi state is temporary and read-only. Pi sessions cannot be forked from the agent panel, copied by session ID, or restored as saved agent sessions.
 
 ## Fork direction
 

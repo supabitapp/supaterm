@@ -3,11 +3,6 @@
 	url = git@github.com:supabitapp/ghostty.git
 	pushurl = git@github.com:supabitapp/ghostty.git
 	branch = supaterm
-[submodule "integrations/supaterm-skills"]
-	path = integrations/supaterm-skills
-	url = git@github.com:supabitapp/supaterm-skills.git
-	pushurl = git@github.com:supabitapp/supaterm-skills.git
-	branch = main
 [submodule "ThirdParty/zmx"]
 	path = apps/mac/ThirdParty/zmx
 	url = git@github.com:supabitapp/zmx.git

@@ -7,8 +7,8 @@ import Testing
 
 @MainActor
 struct TerminalCommandExecutorAgentHookTests {
-  @Test(arguments: [SupatermAgentKind.claude, .codex])
-  func sessionStartStoresActionableIdentityWithoutActivity(agent: SupatermAgentKind) throws {
+  @Test(arguments: [SupatermManagedAgentKind.claude, .codex])
+  func sessionStartStoresActionableIdentityWithoutActivity(agent: SupatermManagedAgentKind) throws {
     let harness = try makeClaudeHookHarness()
     let sessionID = "session-1"
 
@@ -22,7 +22,7 @@ struct TerminalCommandExecutorAgentHookTests {
       )
     )
 
-    #expect(harness.host.hasAgentSession(agent: agent, sessionID: sessionID))
+    #expect(harness.host.hasAgentSession(agent: agent.agentKind, sessionID: sessionID))
     #expect(
       harness.host.agentStateStore.snapshots(for: harness.context.surfaceID).first?.isActionable
         == true
@@ -32,7 +32,7 @@ struct TerminalCommandExecutorAgentHookTests {
   }
 
   @Test(
-    arguments: [SupatermAgentKind.claude, .codex],
+    arguments: [SupatermManagedAgentKind.claude, .codex],
     [
       SupatermAgentHookEventName.notification,
       .permissionRequest,
@@ -45,7 +45,7 @@ struct TerminalCommandExecutorAgentHookTests {
       .userPromptSubmit,
     ])
   func nonIdentityEventHasNoEffect(
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     eventName: SupatermAgentHookEventName
   ) throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
@@ -158,70 +158,4 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(!harness.host.hasAgentSession(agent: .claude, sessionID: sessionID))
   }
 
-  @Test
-  func piNativeLifecycleRoutesNotifiesAndClearsState() throws {
-    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
-    let sessionID = "pi-session"
-    let processID = getpid()
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .pi,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .nativeSessionStart,
-          sessionID: sessionID,
-          source: "pi-notify-supaterm"
-        ),
-        processID: processID
-      )
-    )
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .pi,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .agentStart,
-          sessionID: sessionID,
-          turnID: "turn-1"
-        ),
-        processID: processID
-      )
-    )
-    #expect(harness.host.agentActivity(for: harness.tabID) == .pi(.running))
-
-    let result = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .pi,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .agentEnd,
-          message: "Pi run needs attention",
-          sessionID: sessionID,
-          stopReason: "error",
-          turnID: "turn-1"
-        ),
-        processID: processID
-      )
-    )
-    #expect(
-      harness.host.agentActivity(for: harness.tabID)
-        == .pi(.needsInput, detail: "Pi run needs attention")
-    )
-    #expect(result.desktopNotification?.title == "Pi")
-
-    _ = try harness.commandExecutor.handleAgentHook(
-      SupatermAgentHookRequest(
-        agent: .pi,
-        context: harness.context,
-        event: SupatermAgentHookEvent(
-          hookEventName: .sessionShutdown,
-          sessionID: sessionID
-        ),
-        processID: processID
-      )
-    )
-    #expect(!harness.host.hasAgentSession(agent: .pi, sessionID: sessionID))
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-  }
 }

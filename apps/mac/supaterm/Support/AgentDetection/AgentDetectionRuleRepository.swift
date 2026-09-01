@@ -71,15 +71,6 @@ public struct AgentDetectionSignalRequest: Equatable, Sendable {
 public enum AgentDetectionSignalEvaluation: Equatable, Sendable {
   case matched(AgentDetectionEvaluation)
   case needsScreen(generation: UInt64)
-
-  public var generation: UInt64 {
-    switch self {
-    case .matched(let evaluation):
-      evaluation.generation
-    case .needsScreen(let generation):
-      generation
-    }
-  }
 }
 
 public struct AgentDetectionEvaluationRequest: Equatable, Sendable {

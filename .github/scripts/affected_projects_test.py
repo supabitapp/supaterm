@@ -58,10 +58,14 @@ class AffectedProjectsTests(unittest.TestCase):
       "apps/docs.supaterm.com/content/guide.md": {"docs"},
       "apps/supaterm.com/src/app.ts": {"web"},
       "apps/mac/supaterm/App.swift": {"mac"},
+      "apps/mac/supaterm/Resources/AgentDetection/rules.json": {"mac"},
       "apps/ios/SupatermApp.swift": {"ios"},
       "apps/shared/Theme.swift": {"ios", "mac"},
       "Makefile": {"docs", "ios", "mac", "web"},
-      "integrations/supaterm-skills": {"docs", "mac"},
+      "integrations/supaterm/skill-data/core/SKILL.md": {"docs", "mac"},
+      "integrations/supaterm/skills/supaterm/SKILL.md": {"mac"},
+      "integrations/supaterm/README.md": set(),
+      "integrations/supaterm/LICENSE": set(),
       "apps/supaterm.com/public/logo-mark.svg": {"docs", "web"},
       "apps/supaterm.com/public/logo.svg": {"docs", "web"},
       "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png": {
@@ -119,18 +123,16 @@ class GitChangesTests(unittest.TestCase):
       {"apps/mac/source.swift"},
     )
 
-  def test_gitlink_is_affected(self) -> None:
-    self.git(
-      "update-index",
-      "--add",
-      "--cacheinfo",
-      f"160000,{self.initial_revision},integrations/supaterm-skills",
-    )
+  def test_integration_file_is_affected(self) -> None:
+    source = self.repository / "integrations/supaterm/skills/supaterm/SKILL.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Supaterm\n")
+    self.git("add", source.relative_to(self.repository).as_posix())
     self.git("commit", "--quiet", "-m", "add integration")
     revision = self.git("rev-parse", "HEAD")
     self.assertEqual(
       affected_projects(diff_paths(self.repository, self.initial_revision, revision)),
-      {"docs", "mac"},
+      {"mac"},
     )
 
   def test_only_remote_main_is_affected(self) -> None:

@@ -107,8 +107,8 @@ enum SPHelp {
     """
 
   static let newTabDiscussion = """
-    If you omit --in inside Supaterm, this command creates the tab in the current tab's group when it has one.
-    Otherwise it creates the tab in the current space.
+    By default, this command creates the tab in the current tab's group. If the current tab is
+    ungrouped, it creates a group containing the current and new tabs.
 
     Use --root to always create the tab at the space root.
 
@@ -524,19 +524,19 @@ enum SPHelp {
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
     Manage coding-agent integrations from Supaterm Settings > Coding Agents.
-    Use `sp skills install` to install Supaterm's bundled discovery skill.
-    Use `sp agent setup` to set up every supported coding-agent integration.
+    Use `sp agent setup` to install Supaterm's skill and managed Claude and Codex hooks.
+    Use `sp skills install` to refresh only the skill.
 
     Example:
-      sp skills install
       sp agent setup
       \(receiveAgentHookExample) | sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
 
   static let setupAgentIntegrationsDiscussion = """
-    Install hooks and add Supaterm defaults for each supported coding agent found on this Mac.
-    Keep each existing configuration value unchanged.
+    Install the shared Supaterm skill, link it into Claude's skill directory, then install hooks
+    and add Supaterm defaults for Claude and Codex when found on this Mac. Keep each existing
+    configuration value unchanged.
 
     Example:
       sp agent reload-rules
@@ -544,7 +544,7 @@ enum SPHelp {
     """
 
   static let removeAgentHooksDiscussion = """
-    Remove Supaterm's hook bridge from every supported agent user configuration.
+    Remove Supaterm's managed hooks from Claude and Codex user configuration.
 
     Example:
       sp agent remove-hooks
@@ -741,7 +741,8 @@ enum SPHelp {
     """
 
   static let installSkillDiscussion = """
-    Copy Supaterm's stable discovery skill to ~/.agents/skills/supaterm.
+    Copy Supaterm's stable discovery skill to ~/.agents/skills/supaterm and link it at
+    ~/.claude/skills/supaterm.
 
     Example:
       sp skills install

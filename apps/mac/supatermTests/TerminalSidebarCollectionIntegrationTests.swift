@@ -237,6 +237,42 @@ struct TerminalSidebarCollectionHarnessTests {
     }
   }
 
+  @Test
+  func animatedDeletionCommitsTargetLayoutAndFadesTheRemovedView() throws {
+    let first = TerminalTabID()
+    let deleted = TerminalTabID()
+    let last = TerminalTabID()
+    let source = outline([first, deleted, last], revision: 1)
+    let target = outline([first, last], revision: 2)
+    let harness = CollectionHarness(size: CGSize(width: 220, height: 300))
+    defer {
+      harness.window.orderOut(nil)
+      harness.close()
+    }
+    harness.window.orderFront(nil)
+    harness.apply(outline: source)
+    let deletedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(deleted)))
+    let deletedView = try #require(harness.collectionView.item(at: deletedIndexPath)?.view)
+    let sourceLastFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(last) }?.frame
+    )
+
+    harness.applyAnimated(outline: target, duration: 1)
+
+    let targetLastFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(last) }?.frame
+    )
+    let opacityAnimation = try #require(
+      deletedView.layer?.animation(forKey: "opacity") as? CABasicAnimation
+    )
+    #expect(harness.layout.outline == target)
+    #expect(targetLastFrame.minY < sourceLastFrame.minY)
+    #expect(harness.dataSource.snapshot().itemIdentifiers == target.visibleEntries.map(\.id))
+    #expect(opacityAnimation.fromValue as? Float == 1)
+    #expect(opacityAnimation.duration == 1)
+    #expect(deletedView.layer?.opacity == 0)
+  }
+
   private func expectIdentityAlignment(
     in harness: CollectionHarness,
     expectedIDs: [TerminalSidebarEntryID]
@@ -341,6 +377,22 @@ struct TerminalSidebarCollectionHarnessTests {
       }
     }
 
+    func applyAnimated(
+      outline: TerminalSidebarOutline,
+      duration: TimeInterval = TerminalSidebarLayoutMotion.defaultDuration
+    ) {
+      layout.stageOutline(outline)
+
+      var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()
+      snapshot.appendSections([0])
+      snapshot.appendItems(outline.visibleEntries.map(\.id))
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = duration
+        context.timingFunction = TerminalSidebarAnimationCurve.timingFunction
+        dataSource.apply(snapshot, animatingDifferences: true)
+      }
+    }
+
     func finishStructuralUpdate() {
       layout.finishStructuralUpdate()
     }
@@ -375,6 +427,7 @@ struct TerminalSidebarCollectionHarnessTests {
 
     override func loadView() {
       view = NSView()
+      view.wantsLayer = true
     }
   }
 }
