@@ -152,7 +152,7 @@ final class TerminalAgentDetectionController {
   static let titleByteLimit = 4 * 1_024
 
   private static let phaseDetectionMinimumAgeMicroseconds: UInt64 = 3_000_000
-  private static let evaluationInterval: Duration = .milliseconds(300)
+  private static let evaluationInterval: Duration = .seconds(1)
   private static let processAcquisitionInterval: Duration = .milliseconds(500)
   private static let processAcquisitionWindow: Duration = .milliseconds(1_500)
   private static let recognizedProcessInterval: Duration = .seconds(5)
