@@ -15,7 +15,7 @@ The tab row reflects the foreground agent sessions across its panes:
 
 Needs input takes priority over Done, and Done takes priority over Working. Viewing the tab clears Done. A turn that finishes in the tab you are viewing does not show Done. Wide rows show the symbol and word; narrow rows show only the symbol.
 
-Supaterm reads the terminal to set Claude and Codex phase. Their hooks add only session identity and workspace data. Pi reports its phase through its native integration. Terminal-only state is temporary and creates no session actions.
+Supaterm reads the terminal to set Claude, Codex, and Pi phase. Claude and Codex hooks add only session identity and workspace data. Terminal-only state is temporary and creates no session actions.
 
 Unread badges remain available after activity ends. Viewing a tab clears its completion state.
 
@@ -34,7 +34,7 @@ Click the directory or branch row to copy its full value. Pull requests, checks,
 
 The panel follows the foreground root agent. A child agent cannot replace its parent's workspace or session actions.
 
-Terminal detection supplies Claude and Codex identity and activity state. Their hooks add session actions without changing activity. Pi's native integration supplies its lifecycle and session data. Terminal-only data is not saved.
+Terminal detection supplies agent identity and activity state. Claude and Codex hooks add session actions without changing activity. Pi remains terminal-only, so its data is not saved.
 
 ## Attention
 

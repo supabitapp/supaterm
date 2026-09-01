@@ -45,7 +45,7 @@ struct SupatermSkillExamplesTests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-      .appendingPathComponent("integrations/supaterm-skills")
+      .appendingPathComponent("integrations/supaterm")
     return [
       root.appendingPathComponent("skills/supaterm"),
       root.appendingPathComponent("skill-data"),

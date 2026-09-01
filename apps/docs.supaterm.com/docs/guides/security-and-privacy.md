@@ -13,13 +13,12 @@ Each Supaterm process owns a Unix domain socket scoped to the current user. Pane
 
 ## Coding-agent integrations
 
-Enabling an integration changes the agent's user configuration:
+Enabling a managed hook integration changes the agent's user configuration:
 
 - Claude: `~/.claude/settings.json`
 - Codex: `~/.codex/hooks.json` and native hook trust
-- Pi: Pi's package configuration
 
-Supaterm-managed hooks send lifecycle data and pane context to the local app. Supaterm builds agent status and panel state from those hook events and local terminal screen detection. It does not read agent conversation files.
+Supaterm does not change Pi configuration. Supaterm-managed Claude and Codex hooks send session data and pane context to the local app. Supaterm builds agent status and panel state from those hook events and local terminal screen detection. It does not read agent conversation files.
 
 The discovery skill installed by `sp skills install` lives at `~/.agents/skills/supaterm`. Its detailed guides come from the installed Supaterm version through `sp skills get`.
 

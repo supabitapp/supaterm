@@ -6,7 +6,7 @@ import Testing
 
 struct SPAgentIntegrationCommandTests {
   @Test
-  func aggregateCommandsSendOneRequestPerSupportedAgent() async throws {
+  func aggregateCommandsSendOneRequestPerManagedAgent() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -30,7 +30,7 @@ struct SPAgentIntegrationCommandTests {
           setup
             == SPCLIResult(
               exitCode: 0,
-              stdout: expectedSetupOutput(states: ["ready", "ready", "ready"]),
+              stdout: expectedSetupOutput(states: ["ready", "ready"]),
               stderr: ""
             )
         )
@@ -41,16 +41,16 @@ struct SPAgentIntegrationCommandTests {
     #expect(
       log.requests.map(\.method) == Array(
         repeating: SupatermSocketMethod.appAgentIntegrationSetup,
-        count: SupatermAgentKind.allCases.count
+        count: SupatermAgentKind.managedIntegrationCases.count
       )
         + Array(
           repeating: SupatermSocketMethod.appHooksRemove,
-          count: SupatermAgentKind.allCases.count
+          count: SupatermAgentKind.managedIntegrationCases.count
         )
     )
     #expect(
       try log.requests.map { try $0.decodeParams(SupatermAgentIntegrationRequest.self).agent }
-        == SupatermAgentKind.allCases + SupatermAgentKind.allCases
+        == SupatermAgentKind.managedIntegrationCases + SupatermAgentKind.managedIntegrationCases
     )
   }
 
@@ -87,7 +87,7 @@ struct SPAgentIntegrationCommandTests {
           result
             == SPCLIResult(
               exitCode: 0,
-              stdout: expectedSetupOutput(states: ["ready", "ready", "ready"]),
+              stdout: expectedSetupOutput(states: ["ready", "ready"]),
               stderr: ""
             )
         )
@@ -98,7 +98,7 @@ struct SPAgentIntegrationCommandTests {
   }
 
   @Test
-  func setupTriesEveryAgentAndReportsEveryFailure() async throws {
+  func setupTriesEveryManagedAgentAndReportsEveryFailure() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -107,12 +107,6 @@ struct SPAgentIntegrationCommandTests {
       replying: { request, _ in
         log.record(request)
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
-        if payload.agent == .pi {
-          return try .ok(
-            id: request.id,
-            encodableResult: SupatermAgentIntegrationResult(agent: .pi, health: .healthy)
-          )
-        }
         return .error(
           id: request.id,
           code: "internal_error",
@@ -125,18 +119,18 @@ struct SPAgentIntegrationCommandTests {
         #expect(result.exitCode == 64)
         #expect(
           result.stdout
-            == expectedSetupOutput(states: ["failed", "failed", "ready"])
+            == expectedSetupOutput(states: ["failed", "failed"])
         )
         #expect(result.stderr.contains("Claude Code: Invalid Claude Code configuration."))
         #expect(result.stderr.contains("Codex: Invalid Codex configuration."))
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
   }
 
   @Test
-  func setupFailsWhenEveryAgentIsUnavailable() async throws {
+  func setupFailsWhenEveryManagedAgentIsUnavailable() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let log = SPSocketRequestLog()
@@ -156,13 +150,13 @@ struct SPAgentIntegrationCommandTests {
         #expect(result.exitCode == 64)
         #expect(
           result.stdout
-            == expectedSetupOutput(states: ["not detected", "not detected", "not detected"])
+            == expectedSetupOutput(states: ["not detected", "not detected"])
         )
-        #expect(result.stderr.contains("No supported coding agent was detected."))
+        #expect(result.stderr.contains("Neither Claude nor Codex was detected."))
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
   }
 
   @Test
@@ -186,7 +180,7 @@ struct SPAgentIntegrationCommandTests {
           result
             == SPCLIResult(
               exitCode: 0,
-              stdout: expectedSetupOutput(states: ["not detected", "ready", "ready"]),
+              stdout: expectedSetupOutput(states: ["not detected", "ready"]),
               stderr: ""
             )
         )
@@ -215,15 +209,14 @@ struct SPAgentIntegrationCommandTests {
         #expect(result.exitCode == 64)
         #expect(
           result.stdout
-            == expectedSetupOutput(states: ["failed", "failed", "failed"])
+            == expectedSetupOutput(states: ["failed", "failed"])
         )
         #expect(result.stderr.contains("Claude Code: Expected a healthy integration, got partial."))
         #expect(result.stderr.contains("Codex: Expected a healthy integration, got partial."))
-        #expect(result.stderr.contains("Pi: Expected a healthy integration, got partial."))
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
   }
 
   @Test
@@ -248,13 +241,13 @@ struct SPAgentIntegrationCommandTests {
         #expect(result.exitCode == 64)
         #expect(
           result.stdout
-            == expectedSetupOutput(states: ["ready", "failed", "ready"])
+            == expectedSetupOutput(states: ["ready", "failed"])
         )
         #expect(result.stderr.contains("Codex: Supaterm returned status for Claude Code, expected Codex."))
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
   }
 
   @Test
@@ -274,15 +267,14 @@ struct SPAgentIntegrationCommandTests {
         #expect(result.exitCode == 64)
         #expect(
           result.stdout
-            == expectedSetupOutput(states: ["failed", "failed", "failed"])
+            == expectedSetupOutput(states: ["failed", "failed"])
         )
         #expect(result.stderr.contains("Claude Code:"))
         #expect(result.stderr.contains("Codex:"))
-        #expect(result.stderr.contains("Pi:"))
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
   }
 
   @Test
@@ -293,10 +285,9 @@ struct SPAgentIntegrationCommandTests {
     try await withSocketRuntime(
       replying: { request, _ in
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
-        let health: CodingAgentIntegrationHealth = payload.agent == .pi ? .unavailable : .absent
         return try .ok(
           id: request.id,
-          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: health)
+          encodableResult: SupatermAgentIntegrationResult(agent: payload.agent, health: .absent)
         )
       },
       run: { endpoint in
@@ -329,11 +320,10 @@ struct SPAgentIntegrationCommandTests {
         #expect(result.stdout.isEmpty)
         #expect(result.stderr.contains("Claude Code: Expected hooks to be absent, got healthy."))
         #expect(result.stderr.contains("Codex: Expected hooks to be absent, got healthy."))
-        #expect(result.stderr.contains("Pi: Expected hooks to be absent, got healthy."))
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
   }
 
   @Test
@@ -346,12 +336,6 @@ struct SPAgentIntegrationCommandTests {
       replying: { request, _ in
         log.record(request)
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
-        if payload.agent == .pi {
-          return try .ok(
-            id: request.id,
-            encodableResult: SupatermAgentIntegrationResult(agent: .pi, health: .absent)
-          )
-        }
         return .error(
           id: request.id,
           code: "internal_error",
@@ -368,7 +352,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.allCases.count)
+    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
   }
 
   @Test(arguments: [["agent", "setup"], ["agent", "remove-hooks"]])
@@ -405,7 +389,7 @@ struct SPAgentIntegrationCommandTests {
 }
 
 private func expectedSetupOutput(states: [String]) -> String {
-  zip(SupatermAgentKind.allCases, states)
+  zip(SupatermAgentKind.managedIntegrationCases, states)
     .map { agent, state in
       "Setting up \(agent.notificationTitle)...\n\(agent.notificationTitle): \(state)"
     }

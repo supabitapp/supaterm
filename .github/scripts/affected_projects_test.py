@@ -61,7 +61,7 @@ class AffectedProjectsTests(unittest.TestCase):
       "apps/ios/SupatermApp.swift": {"ios"},
       "apps/shared/Theme.swift": {"ios", "mac"},
       "Makefile": {"docs", "ios", "mac", "web"},
-      "integrations/supaterm-skills": {"docs", "mac"},
+      "integrations/supaterm/skill-data/core/SKILL.md": {"docs", "mac"},
       "apps/supaterm.com/public/logo-mark.svg": {"docs", "web"},
       "apps/supaterm.com/public/logo.svg": {"docs", "web"},
       "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png": {
@@ -119,13 +119,11 @@ class GitChangesTests(unittest.TestCase):
       {"apps/mac/source.swift"},
     )
 
-  def test_gitlink_is_affected(self) -> None:
-    self.git(
-      "update-index",
-      "--add",
-      "--cacheinfo",
-      f"160000,{self.initial_revision},integrations/supaterm-skills",
-    )
+  def test_integration_file_is_affected(self) -> None:
+    source = self.repository / "integrations/supaterm/skills/supaterm/SKILL.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Supaterm\n")
+    self.git("add", source.relative_to(self.repository).as_posix())
     self.git("commit", "--quiet", "-m", "add integration")
     revision = self.git("rev-parse", "HEAD")
     self.assertEqual(

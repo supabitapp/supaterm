@@ -646,9 +646,8 @@ private struct SettingsSnapshotFixture: View {
       )
     case .codingAgentsEnabled:
       state.codexIntegration.health = .healthy
-      state.piIntegration.health = .healthy
     case .codingAgentsUnavailable:
-      state.piIntegration.health = .unavailable
+      state.codexIntegration.health = .unavailable
     case .codingAgentsInstallFailure:
       let message = "Unable to update hooks because the settings file is read-only."
       state.codexIntegration.errorMessage = message

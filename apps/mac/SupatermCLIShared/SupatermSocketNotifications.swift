@@ -6,7 +6,6 @@ public enum SupatermNotificationAttentionState: String, Equatable, Sendable, Cod
 
 public enum SupatermDesktopNotificationDisposition: String, Equatable, Sendable, Codable {
   case deliver
-  case suppressAgent
   case suppressFocused
 
   public var shouldDeliver: Bool {

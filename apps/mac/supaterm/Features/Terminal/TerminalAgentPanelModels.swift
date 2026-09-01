@@ -79,7 +79,7 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
     case .codex:
       return ["codex"] + launchOptions + ["fork", sessionID]
     case .pi:
-      return ["pi"] + launchOptions + ["--fork", sessionID]
+      preconditionFailure("Pi has no action sessions")
     }
   }
 

@@ -6,15 +6,19 @@ extension SettingsFeature {
   func reduceCodingAgents(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .agentIntegrationStatusRefreshRequested(let agent):
+      guard agent != .pi else { return .none }
       return refreshAgentIntegrationStatus(&state, agent: agent)
 
     case .agentIntegrationStatusRefreshed(let agent, let result):
+      guard agent != .pi else { return .none }
       return handleAgentIntegrationStatusRefresh(&state, agent: agent, result: result)
 
     case .agentIntegrationToggled(let agent, let isEnabled):
+      guard agent != .pi else { return .none }
       return toggleAgentIntegration(&state, agent: agent, isEnabled: isEnabled)
 
     case .agentIntegrationToggleFinished(let agent, let result):
+      guard agent != .pi else { return .none }
       return handleAgentIntegrationToggleFinished(&state, agent: agent, result: result)
 
     default:
@@ -124,7 +128,7 @@ extension SettingsFeature {
     case .codex:
       return \.codexIntegration
     case .pi:
-      return \.piIntegration
+      preconditionFailure("Pi has no managed integration")
     }
   }
 
@@ -139,8 +143,7 @@ extension SettingsFeature {
       let client = codexSettingsClient
       return { try await client.integrationHealth() }
     case .pi:
-      let client = piSettingsClient
-      return { try await client.integrationHealth() }
+      preconditionFailure("Pi has no managed integration")
     }
   }
 
@@ -174,17 +177,7 @@ extension SettingsFeature {
         return try await client.integrationHealth()
       }
     case .pi:
-      let client = piSettingsClient
-      let skillClient = supatermSkillClient
-      return {
-        if isEnabled {
-          try await skillClient.installSupatermSkill()
-          try await client.installSupatermIntegration()
-        } else {
-          try await client.removeSupatermIntegration()
-        }
-        return try await client.integrationHealth()
-      }
+      preconditionFailure("Pi has no managed integration")
     }
   }
 }

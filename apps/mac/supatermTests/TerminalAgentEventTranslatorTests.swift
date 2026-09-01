@@ -86,46 +86,16 @@ struct TerminalAgentEventTranslatorTests {
   }
 
   @Test
-  func piLifecycleHasSharedSemantics() throws {
-    let events = [
-      #"{"session_id":"pi-1","hook_event_name":"session_start"}"#,
-      #"{"session_id":"pi-1","hook_event_name":"agent_start"}"#,
-      #"{"session_id":"pi-1","hook_event_name":"agent_end","message":"Done","stop_reason":"stop"}"#,
-      #"{"session_id":"pi-1","hook_event_name":"session_shutdown","reason":"exit"}"#,
-    ]
-
-    #expect(
-      try events.flatMap { json in
-        TerminalAgentEventTranslator.events(for: try request(agent: .pi, json: json))
-          .map(\.action)
-      } == [
-        .sessionStarted,
-        .turnStarted,
-        .turnCompleted(message: "Done"),
-        .sessionEnded,
-      ]
-    )
-  }
-
-  @Test(arguments: ["length", "error", "aborted"])
-  func piIncompleteRunNeedsInput(stopReason: String) throws {
-    let request = try request(
+  func piHookEventsAreIgnored() {
+    let request = SupatermAgentHookRequest(
       agent: .pi,
-      json: #"""
-        {
-          "session_id": "pi-1",
-          "hook_event_name": "agent_end",
-          "message": "Run needs attention",
-          "stop_reason": "\#(stopReason)"
-        }
-        """#
+      event: SupatermAgentHookEvent(
+        hookEventName: .sessionStart,
+        sessionID: "session-1"
+      )
     )
 
-    #expect(
-      TerminalAgentEventTranslator.events(for: request).map(\.action) == [
-        .attentionRequested(requestID: nil, message: "Run needs attention")
-      ]
-    )
+    #expect(TerminalAgentEventTranslator.events(for: request).isEmpty)
   }
 
   private func request(

@@ -14,14 +14,6 @@ struct SupatermManagedHookCommandTests {
   }
 
   @Test
-  func receiveHookCommandBuildsPiCommand() {
-    #expect(
-      SupatermManagedHookCommand.receiveHookCommand(for: .pi)
-        == expectedSupatermHookCommand(agent: "pi")
-    )
-  }
-
-  @Test
   func managedCommandDetectionMatchesOnlyCanonicalCommands() {
     #expect(
       AgentHookCommandOwnership.isSupatermManagedCommand(

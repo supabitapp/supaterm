@@ -719,8 +719,7 @@ extension TerminalHostState {
     let nativeCandidates = nativeAgentDetectionCandidates(for: surfaceID)
     let resolution = agentDetectionStore.resolve(
       for: surfaceID,
-      nativeCandidates: nativeCandidates,
-      provenProcessIdentity: agentDetectionController?.provenProcessIdentity(for: surfaceID)
+      nativeCandidates: nativeCandidates
     )
     switch resolution {
     case .native(let candidates):
@@ -806,12 +805,7 @@ extension TerminalHostState {
       return TerminalAgentDetectionNativeCandidate(
         presentation: sessionIdentityPresentation(presentation),
         revision: snapshot.revision,
-        processIdentities: snapshot.processes,
-        phaseAuthorityProcessIdentities: agentStateStore.phaseAuthorityProcessIdentities(
-          for: surfaceID,
-          agent: snapshot.agent,
-          sessionID: presentation.sessionID
-        )
+        processIdentities: snapshot.processes
       )
     }
   }
@@ -819,7 +813,6 @@ extension TerminalHostState {
   private func sessionIdentityPresentation(
     _ presentation: TerminalAgentStatePresentation
   ) -> TerminalAgentStatePresentation {
-    guard presentation.agent != .pi else { return presentation }
     return TerminalAgentStatePresentation(
       agent: presentation.agent,
       sessionID: presentation.sessionID,

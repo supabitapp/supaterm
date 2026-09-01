@@ -5,7 +5,6 @@ nonisolated struct TerminalAgentDetectionExplanation: Equatable, Sendable {
   enum Status: String, Equatable, Sendable {
     case detected
     case disabled
-    case nativeAuthority
     case noForegroundProcess
     case noRuleMatchOrSettling
     case protectedOrUnreadableScreen
@@ -95,7 +94,6 @@ struct TerminalAgentDetectionHostAccess {
   let surfaces: () -> [TerminalAgentDetectionSurfaceSnapshot]
   let signals: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionSignals?
   let screen: (TerminalAgentDetectionSurfaceKey) -> String?
-  let nativeAuthority: (UUID) -> Set<TerminalAgentProcessIdentity>
   let observation: (UUID) -> TerminalAgentDetectionObservation?
   let apply: (TerminalAgentDetectionObservation, UUID) -> Bool
   let clear: (UUID) -> Void
@@ -353,12 +351,6 @@ final class TerminalAgentDetectionController {
       publishedPhase: observation?.phase,
       publishedRuleID: observation?.ruleID
     )
-  }
-
-  func provenProcessIdentity(
-    for surfaceID: UUID
-  ) -> TerminalAgentProcessIdentity? {
-    states[surfaceID]?.proof?.processIdentity
   }
 
   func tick(now: ContinuousClock.Instant) async {
@@ -745,11 +737,6 @@ final class TerminalAgentDetectionController {
       states[surfaceID] = state
       return nil
     }
-    guard host.nativeAuthority(surfaceID).contains(proof.processIdentity) == false else {
-      resetEvaluation(&state, status: .nativeAuthority)
-      states[surfaceID] = state
-      return nil
-    }
     guard let signals = host.signals(state.key) else {
       resetEvaluation(&state, status: .protectedOrUnreadableScreen)
       states[surfaceID] = state
@@ -788,7 +775,6 @@ final class TerminalAgentDetectionController {
       && states[attempt.surfaceID]?.nonce == attempt.state.nonce
       && validation.currentIdentities.contains(attempt.proof.processIdentity)
       && validation.live[attempt.surfaceID] == attempt.state.key
-      && host.nativeAuthority(attempt.surfaceID).contains(attempt.proof.processIdentity) == false
   }
 
   private func resetEvaluation(
@@ -1048,11 +1034,6 @@ final class TerminalAgentDetectionController {
           return nil
         }
         return surface.activeScreenText(maximumUTF8Bytes: screenByteLimit)
-      },
-      nativeAuthority: { [weak terminal] surfaceID in
-        terminal?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {
-          $0.formUnion($1.phaseAuthorityProcessIdentities)
-        } ?? []
       },
       observation: { [weak terminal] surfaceID in
         terminal?.agentDetectionStore.observation(for: surfaceID)

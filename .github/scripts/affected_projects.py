@@ -15,6 +15,7 @@ from pre_push import MAIN_REF, PrePushError, is_zero_object_name, parse_push_upd
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MARKDOWN_SUFFIXES = (".md", ".mdx")
+SKILLS_DIRECTORY = "integrations/supaterm"
 
 
 class AffectedProjectsError(Exception):
@@ -70,19 +71,17 @@ DOCS_PATHS = PathSet(
   files=frozenset(
     {
       ".github/workflows/deploy-docs.yml",
-      ".gitmodules",
       "apps/supaterm.com/public/logo-mark.svg",
       "apps/supaterm.com/public/logo.svg",
-      "integrations/supaterm-skills",
     }
   )
   | DOCS_SNAPSHOT_PATHS,
-  directories=("apps/docs.supaterm.com",),
+  directories=("apps/docs.supaterm.com", SKILLS_DIRECTORY),
 )
 IOS_PATHS = PathSet(directories=("apps/ios",))
 MAC_PATHS = PathSet(
-  files=frozenset({".gitmodules", "integrations/supaterm-skills"}),
-  directories=("apps/mac",),
+  files=frozenset({".gitmodules"}),
+  directories=("apps/mac", SKILLS_DIRECTORY),
 )
 WEB_PATHS = PathSet(
   files=frozenset({".github/workflows/deploy-web.yml"}),
@@ -108,7 +107,11 @@ def affected_projects(paths: set[str]) -> set[str]:
   affected = set()
   for path in paths:
     for project, path_sets in PROJECT_PATHS.items():
-      if project != "docs" and path.endswith(MARKDOWN_SUFFIXES):
+      if (
+        project != "docs"
+        and path.endswith(MARKDOWN_SUFFIXES)
+        and not path.startswith(f"{SKILLS_DIRECTORY}/")
+      ):
         continue
       if any(path_set.contains(path) for path_set in path_sets):
         affected.add(project)

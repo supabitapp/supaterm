@@ -9,33 +9,8 @@ nonisolated enum TerminalAgentEventTranslator {
       guard request.event.hookEventName == .sessionStart, scope.subagentID == nil else { return [] }
       return [event(request, scope: scope, action: .sessionStarted)]
     case .pi:
-      return piEvents(for: request, scope: scope)
-    }
-  }
-
-  private static func piEvents(
-    for request: SupatermAgentHookRequest,
-    scope: TerminalAgentEvent.Scope
-  ) -> [TerminalAgentEvent] {
-    let action: TerminalAgentEvent.Action
-    switch request.event.hookEventName {
-    case .nativeSessionStart:
-      action = request.event.source == "compact" ? .sessionResumed : .sessionStarted
-    case .agentStart:
-      action = .turnStarted
-    case .agentEnd:
-      switch request.event.stopReason {
-      case "aborted", "error", "length":
-        action = .attentionRequested(requestID: nil, message: request.event.message)
-      default:
-        action = .turnCompleted(message: request.event.message)
-      }
-    case .sessionShutdown:
-      action = .sessionEnded
-    default:
       return []
     }
-    return [event(request, scope: scope, action: action)]
   }
 
   private static func event(

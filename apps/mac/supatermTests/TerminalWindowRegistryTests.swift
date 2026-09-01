@@ -1419,7 +1419,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandAvailabilityEnablesSupportedAgentSessionActions() throws {
+  func commandAvailabilityDisablesPiSessionActions() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -1460,9 +1460,9 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(window, for: windowControllerID)
 
       let availability = registry.commandAvailability()
-      #expect(availability.hasAgentPanel)
+      #expect(!availability.hasAgentPanel)
       #expect(!availability.hasAgentPanelPullRequest)
-      #expect(availability.hasAgentPanelSession)
+      #expect(!availability.hasAgentPanelSession)
     }
   }
 

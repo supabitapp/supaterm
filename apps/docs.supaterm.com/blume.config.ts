@@ -4,11 +4,9 @@ import { defineConfig } from "blume";
 import { makeCliReferenceSource } from "./cli-reference-source";
 
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
-const skillsRef = execFileSync(
-  "git",
-  ["-C", repositoryRoot, "rev-parse", "HEAD:integrations/supaterm-skills"],
-  { encoding: "utf8" },
-).trim();
+const repositoryRef = execFileSync("git", ["-C", repositoryRoot, "rev-parse", "HEAD"], {
+  encoding: "utf8",
+}).trim();
 
 export default defineConfig({
   title: "Supaterm",
@@ -23,7 +21,7 @@ export default defineConfig({
       { type: "filesystem", root: "docs" },
       {
         type: "custom",
-        source: makeCliReferenceSource(repositoryRoot, skillsRef),
+        source: makeCliReferenceSource(repositoryRoot, repositoryRef),
       },
     ],
   },

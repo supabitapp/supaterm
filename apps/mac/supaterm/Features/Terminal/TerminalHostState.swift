@@ -1305,26 +1305,9 @@ final class TerminalHostState {
   }
 
   func resolvedDesktopNotificationDisposition(
-    allowDesktopNotificationWhenAgentActive: Bool,
-    isFocused: Bool,
-    tabID: TerminalTabID
+    isFocused: Bool
   ) -> SupatermDesktopNotificationDisposition {
-    if isFocused {
-      return .suppressFocused
-    }
-    if !allowDesktopNotificationWhenAgentActive && hasActiveAgentAttention(for: tabID) {
-      return .suppressAgent
-    }
-    return .deliver
-  }
-
-  func hasActiveAgentAttention(for tabID: TerminalTabID) -> Bool {
-    guard let tree = trees[tabID] else { return false }
-    return tree.leaves().contains { surface in
-      nativeAgentDetectionCandidates(for: surface.id).contains {
-        $0.presentation.phase == .needsInput || $0.presentation.phase == .running
-      }
-    }
+    isFocused ? .suppressFocused : .deliver
   }
 
   func titleSurface(for tabID: TerminalTabID) -> GhosttySurfaceView? {

@@ -233,28 +233,6 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
-  func exactNativeAuthoritySkipsCaptureWhileAReusedPIDDoesNot() async {
-    let fixture = makeFixture()
-    let surfaceID = fixture.host.addSurface(processGroupID: 11)
-    let proof = identity(processID: 101, startTime: 2)
-    await fixture.sampler.setMatches([11: match(identity: proof)])
-    await fixture.sampler.setCurrent([proof])
-    fixture.host.authority[surfaceID] = [proof]
-
-    await fixture.controller.tick(now: ContinuousClock.now)
-
-    #expect(fixture.host.screenCaptureCount == 0)
-    #expect(fixture.host.observations[surfaceID] == nil)
-    #expect(fixture.controller.explanation(for: surfaceID).status == .nativeAuthority)
-
-    fixture.host.authority[surfaceID] = [identity(processID: 101, startTime: 1)]
-    await fixture.controller.tick(now: ContinuousClock.now.advanced(by: .milliseconds(300)))
-
-    #expect(fixture.host.screenCaptureCount == 1)
-    #expect(fixture.host.observations[surfaceID]?.processIdentity == proof)
-  }
-
-  @Test
   func unreadableScreenClearsFallbackWithoutEvaluation() async {
     let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(processGroupID: 11, screen: nil)
@@ -754,7 +732,6 @@ private final class DetectionHostFixture {
 
   private var surfaces: [UUID: Surface] = [:]
   private var detectionStore = TerminalAgentDetectionStore()
-  var authority: [UUID: Set<TerminalAgentProcessIdentity>] = [:]
   var applyCalls: [TerminalAgentDetectionObservation] = []
   var screenCaptureCount = 0
 
@@ -771,7 +748,6 @@ private final class DetectionHostFixture {
       surfaces: { [weak self] in self?.snapshots() ?? [] },
       signals: { [weak self] key in self?.signals(key) },
       screen: { [weak self] key in self?.screen(key) },
-      nativeAuthority: { [weak self] surfaceID in self?.authority[surfaceID] ?? [] },
       observation: { [weak self] surfaceID in self?.observation(for: surfaceID) },
       apply: { [weak self] observation, surfaceID in
         guard let self, self.surfaces[surfaceID] != nil else { return false }

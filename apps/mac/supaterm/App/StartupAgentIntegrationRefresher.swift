@@ -12,7 +12,7 @@ nonisolated struct StartupAgentIntegrationRefresher {
   let logFailure: @Sendable (SupatermAgentKind, Error) -> Void
 
   static let live = StartupAgentIntegrationRefresher(
-    operations: SupatermAgentKind.allCases.map { agent in
+    operations: SupatermAgentKind.managedIntegrationCases.map { agent in
       Operation(
         agent: agent,
         health: {

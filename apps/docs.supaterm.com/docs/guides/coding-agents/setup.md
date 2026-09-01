@@ -1,43 +1,46 @@
 ---
 title: Set up coding agents
-description: Enable Claude, Codex, or Pi integration and install Supaterm's agent skill.
+description: Install Supaterm's agent skill and enable Claude or Codex hooks.
 ---
 
-Supaterm can track Claude, Codex, and Pi when they run inside its panes. Basic activity works without hook setup when Supaterm can identify the foreground agent. This terminal-only state is temporary and read-only. It does not create notifications or session actions.
+Supaterm tracks Claude, Codex, and Pi when they run inside its panes. Basic activity works without hook setup when Supaterm can identify the foreground agent. This terminal-only state is temporary and read-only. It does not create notifications or session actions.
 
-Enable the native integration for Claude and Codex session actions or Pi lifecycle state. The terminal sets Claude and Codex phase while their hooks add only session identity and workspace data. Pi reports its full lifecycle through its native integration.
+Claude and Codex hooks add session identity and workspace data. Pi uses terminal detection only and needs no managed integration.
 
 ## Before you begin
 
 Install the agent and make sure its executable is available from your login shell. The native Codex integration requires version 0.144.1 or newer.
 
-## Enable an integration
+## Install the discovery skill
 
-Open **Supaterm > Settings > Coding Agents** and turn on the agent. Supaterm reports whether the integration is unavailable, incomplete, changed from its managed configuration, or healthy.
-
-- Claude installs managed hooks in `~/.claude/settings.json`.
-- Codex enables supported hooks, writes `~/.codex/hooks.json`, and registers the required trust through Codex's public app-server API.
-- Pi installs the Supaterm package through Pi. It does not use the Claude and Codex settings-file bridge.
-
-Supaterm preserves unrelated settings in those files. Turning an integration off removes only Supaterm-managed configuration.
-
-![Supaterm coding-agent settings with Claude, Codex, and Pi enabled.](/images/settings-coding-agents-enabled-dark.png)
-
-## Command-line setup
-
-Install the discovery skill used by coding agents:
+Install the same skill for every supported agent:
 
 ```bash
 sp skills install
 ```
 
-Set up every supported integration:
+Supaterm copies it to `~/.agents/skills/supaterm`, which Pi and other agents that support the Agent Skills paths read directly.
+
+## Enable Claude or Codex hooks
+
+Open **Supaterm > Settings > Coding Agents** and turn on the agent. Supaterm reports whether the integration is unavailable, incomplete, changed from its managed configuration, or healthy.
+
+- Claude installs managed hooks in `~/.claude/settings.json`.
+- Codex enables supported hooks, writes `~/.codex/hooks.json`, and registers the required trust through Codex's public app-server API.
+
+Supaterm preserves unrelated settings in those files. Turning an integration off removes only Supaterm-managed configuration.
+
+![Supaterm coding-agent settings with Claude and Codex enabled.](/images/settings-coding-agents-enabled-dark.png)
+
+## Command-line setup
+
+Set up both managed hook integrations:
 
 ```bash
 sp agent setup
 ```
 
-Setup installs the Claude and Codex hook bridges and the Pi package. It also adds these defaults:
+Setup installs the Claude and Codex hook bridges. It also adds these defaults:
 
 ```json
 {
@@ -55,12 +58,6 @@ terminal_title = ["activity", "thread-title", "task-progress"]
 Supaterm adds `tui.terminal_title` to `~/.codex/config.toml`. It writes each default only when the
 key is absent, so existing values stay unchanged. The command prints progress for each agent and is
 safe to run again.
-
-Pi is normally managed from Settings. Its package can also be installed directly:
-
-```bash
-pi install git:github.com/supabitapp/supaterm-skills
-```
 
 ## Update existing scripts
 
@@ -80,4 +77,4 @@ no longer part of the public CLI.
 
 ## Verify
 
-Start the agent inside Supaterm and begin a task. The tab should show Working, then Done or Needs input as its state changes. If no status appears, see [troubleshooting](/guides/troubleshooting#coding-agent-status-does-not-appear).
+Start the agent inside Supaterm and begin a task. Claude and Codex can show Working, Done, or Needs input. Pi shows Working when Supaterm can match its terminal state. If no status appears, see [troubleshooting](/guides/troubleshooting#coding-agent-status-does-not-appear).
