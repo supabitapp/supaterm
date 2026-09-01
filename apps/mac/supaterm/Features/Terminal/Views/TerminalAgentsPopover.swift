@@ -92,7 +92,7 @@ extension TerminalHostState.WindowAgentPresentation {
       sessionID: "test-appearance",
       task: "Check light and dark modes",
       workspace: "supaterm",
-      status: .working
+      status: .idle
     ),
   ]
 
@@ -119,6 +119,7 @@ extension TerminalHostState.WindowAgentPresentation {
 struct TerminalAgentsPopoverButton: View {
   let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
+  let focusPane: (UUID) -> Void
 
   @State private var isHovered = false
   @State private var isPresented = false
@@ -153,7 +154,11 @@ struct TerminalAgentsPopoverButton: View {
       TerminalAgentsPopoverPresenter(
         isPresented: $isPresented,
         items: items,
-        palette: palette
+        palette: palette,
+        focusPane: { surfaceID in
+          isPresented = false
+          focusPane(surfaceID)
+        }
       )
     }
     .onHover { isHovered = $0 }
@@ -174,6 +179,7 @@ struct TerminalAgentsPopoverButton: View {
 struct TerminalAgentsPopoverView: View {
   let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
+  let focusPane: (UUID) -> Void
 
   @State private var acceptsInput = false
 
@@ -199,7 +205,11 @@ struct TerminalAgentsPopoverView: View {
         } else {
           LazyVStack(spacing: 0) {
             ForEach(items) { item in
-              TerminalAgentsPopoverRow(item: item, palette: palette)
+              TerminalAgentsPopoverRow(
+                item: item,
+                palette: palette,
+                focusPane: focusPane
+              )
             }
           }
         }
@@ -254,42 +264,49 @@ struct TerminalAgentsPopoverView: View {
 private struct TerminalAgentsPopoverRow: View {
   let item: TerminalHostState.WindowAgentPresentation
   let palette: Palette
+  let focusPane: (UUID) -> Void
 
   @State private var isHovered = false
 
   var body: some View {
-    HStack(spacing: 8) {
-      icon
+    Button {
+      focusPane(item.id.surfaceID)
+    } label: {
+      HStack(spacing: 8) {
+        icon
 
-      VStack(alignment: .leading, spacing: 0) {
-        Text(item.task)
-          .font(.system(size: 12))
-          .foregroundStyle(palette.primaryText)
-          .lineLimit(1)
-          .truncationMode(.tail)
+        VStack(alignment: .leading, spacing: 0) {
+          Text(item.task)
+            .font(.system(size: 12))
+            .foregroundStyle(palette.primaryText)
+            .lineLimit(1)
+            .truncationMode(.tail)
 
-        Text(item.subtitle)
-          .font(.system(size: 10))
-          .foregroundStyle(palette.secondaryText)
-          .lineLimit(1)
-          .truncationMode(.middle)
+          Text(item.subtitle)
+            .font(.system(size: 10))
+            .foregroundStyle(palette.secondaryText)
+            .lineLimit(1)
+            .truncationMode(.middle)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        statusIcon
+          .frame(width: 20, height: 20)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-
-      statusIcon
-        .frame(width: 20, height: 20)
+      .padding(.horizontal, 8)
+      .frame(height: TerminalAgentsPopoverMetrics.rowHeight)
+      .background {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+          .fill(isHovered ? Color.black.opacity(0.05) : .clear)
+          .padding(.horizontal, 4)
+      }
+      .contentShape(.rect)
     }
-    .padding(.horizontal, 8)
-    .frame(height: TerminalAgentsPopoverMetrics.rowHeight)
-    .background {
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .fill(isHovered ? Color.black.opacity(0.05) : .clear)
-        .padding(.horizontal, 4)
-    }
-    .contentShape(.rect)
+    .buttonStyle(.plain)
     .onHover { isHovered = $0 }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("\(item.task), \(item.subtitle), \(item.status.title)")
+    .accessibilityHint("Focus pane")
   }
 
   @ViewBuilder
@@ -325,10 +342,7 @@ private struct TerminalAgentsPopoverRow: View {
         .foregroundStyle(.secondary)
         .accessibilityHidden(true)
     case .idle:
-      Image(systemName: "pause.circle")
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(palette.secondaryText)
-        .accessibilityHidden(true)
+      EmptyView()
     case .done:
       Image(systemName: "checkmark.circle.fill")
         .font(.system(size: 13, weight: .medium))
@@ -351,6 +365,7 @@ private struct TerminalAgentsPopoverPresenter: NSViewRepresentable {
   @Binding var isPresented: Bool
   let items: [TerminalHostState.WindowAgentPresentation]
   let palette: Palette
+  let focusPane: (UUID) -> Void
 
   func makeNSView(context: Context) -> TerminalAgentsPopoverAnchorView {
     TerminalAgentsPopoverAnchorView()
@@ -361,6 +376,7 @@ private struct TerminalAgentsPopoverPresenter: NSViewRepresentable {
       isPresented: isPresented,
       items: items,
       palette: palette,
+      focusPane: focusPane,
       onDismiss: {
         isPresented = false
       }
@@ -379,6 +395,7 @@ private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
   private var hostingController: NSHostingController<TerminalAgentsPopoverView>?
   private var isPresented = false
   private var items = [TerminalHostState.WindowAgentPresentation]()
+  private var focusPane: ((UUID) -> Void)?
   private var onDismiss: (() -> Void)?
   private var palette = Palette(colorScheme: .light)
   private let popover: NSPopover
@@ -408,11 +425,13 @@ private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
     isPresented: Bool,
     items: [TerminalHostState.WindowAgentPresentation],
     palette: Palette,
+    focusPane: @escaping (UUID) -> Void,
     onDismiss: @escaping () -> Void
   ) {
     self.isPresented = isPresented
     self.items = items
     self.palette = palette
+    self.focusPane = focusPane
     self.onDismiss = onDismiss
     reconcilePresentation()
   }
@@ -441,7 +460,13 @@ private final class TerminalAgentsPopoverAnchorView: NSView, NSPopoverDelegate {
       return
     }
 
-    let content = TerminalAgentsPopoverView(items: items, palette: palette)
+    let content = TerminalAgentsPopoverView(
+      items: items,
+      palette: palette,
+      focusPane: { [weak self] surfaceID in
+        self?.focusPane?(surfaceID)
+      }
+    )
     let contentSize = CGSize(
       width: TerminalAgentsPopoverMetrics.width,
       height: TerminalAgentsPopoverMetrics.preferredHeight(itemCount: items.count)

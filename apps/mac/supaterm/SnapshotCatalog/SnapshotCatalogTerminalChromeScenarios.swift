@@ -64,7 +64,8 @@ private struct AgentsPopoverSnapshotFixture: View {
   var body: some View {
     TerminalAgentsPopoverView(
       items: TerminalHostState.WindowAgentPresentation.snapshotData,
-      palette: palette
+      palette: palette,
+      focusPane: { _ in }
     )
     .background {
       ChromeBackgroundView(
