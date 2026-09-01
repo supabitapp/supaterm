@@ -88,6 +88,24 @@ struct TerminalHostStateAgentDetectionTests {
   }
 
   @Test
+  func processMatchesClearOnlyWhenTheirExactProcessEnds() {
+    let surfaceID = UUID()
+    let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 1)
+    let match = AgentDetectionProcessMatch(agentID: "gemini", processIdentity: identity)
+    var store = TerminalAgentDetectionStore()
+
+    let applied = store.applyProcessMatch(match, for: surfaceID)
+    let appliedAgain = store.applyProcessMatch(match, for: surfaceID)
+    #expect(applied)
+    #expect(!appliedAgain)
+    #expect(store.processMatch(for: surfaceID) == match)
+    #expect(store.pruneDeadProcesses(isProcessCurrent: { $0 == identity }).isEmpty)
+    #expect(store.processMatch(for: surfaceID) == match)
+    #expect(store.pruneDeadProcesses(isProcessCurrent: { _ in false }) == [surfaceID])
+    #expect(store.processMatch(for: surfaceID) == nil)
+  }
+
+  @Test
   @MainActor
   func terminalDetectionFeedsSidebarPanelWorkspaceAndPortRootsWithoutNativeState() throws {
     let fixture = try hostFixture()
@@ -115,6 +133,27 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(host.agentPanelPresentation(for: surfaceID)?.progressRows.first?.title == "Starting session")
     #expect(host.agentPanelPresentation(for: surfaceID)?.session == nil)
     #expect(host.agentStateRecords(for: surfaceID).isEmpty)
+  }
+
+  @Test
+  @MainActor
+  func sidebarUsesProvenAgentMarkAndFallsBackToTerminal() throws {
+    let fixture = try hostFixture()
+    let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 1)
+    let match = AgentDetectionProcessMatch(agentID: "gemini", processIdentity: identity)
+
+    #expect(
+      fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon == .terminal
+    )
+    #expect(fixture.host.applyAgentProcessMatch(match, for: fixture.surfaceID))
+    #expect(
+      fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon
+        == .agent("geminicli-mark")
+    )
+    #expect(fixture.host.clearAgentProcessMatch(for: fixture.surfaceID))
+    #expect(
+      fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon == .terminal
+    )
   }
 
   @Test

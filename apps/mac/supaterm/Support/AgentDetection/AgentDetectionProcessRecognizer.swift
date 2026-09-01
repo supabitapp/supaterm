@@ -4,13 +4,22 @@ import Foundation
 public struct AgentDetectionProcessRule: Equatable, Hashable, Sendable {
   public let executable: String
   public let processTitle: String?
+  public let launchCommand: String?
+  public let argumentPathSuffix: String?
 
   public init(
     executable: String,
-    processTitle: String? = nil
+    processTitle: String? = nil,
+    launchCommand: String? = nil,
+    argumentPathSuffix: String? = nil
   ) {
+    precondition(
+      [processTitle, launchCommand, argumentPathSuffix].compactMap { $0 }.count <= 1
+    )
     self.executable = executable
     self.processTitle = processTitle
+    self.launchCommand = launchCommand
+    self.argumentPathSuffix = argumentPathSuffix
   }
 }
 
@@ -164,7 +173,8 @@ enum AgentDetectionProcessRecognizer {
   ) -> Candidate? {
     let executable = URL(fileURLWithPath: invocation.executablePath).lastPathComponent
     if manifest.processes.contains(where: {
-      $0.processTitle == nil && $0.executable == executable
+      $0.processTitle == nil && $0.launchCommand == nil && $0.argumentPathSuffix == nil
+        && $0.executable == executable
     }) {
       return Candidate(
         agentID: manifest.agentID,
@@ -186,10 +196,41 @@ enum AgentDetectionProcessRecognizer {
         strength: .processTitle
       )
     }
+    if manifest.processes.contains(where: { rule in
+      guard
+        rule.executable == executable,
+        let launchCommand = rule.launchCommand,
+        !launchCommand.isEmpty,
+        let argumentZero = invocation.arguments.first
+      else { return false }
+      return URL(fileURLWithPath: argumentZero).lastPathComponent == launchCommand
+    }) {
+      return Candidate(
+        agentID: manifest.agentID,
+        process: entry,
+        strength: .launchCommand
+      )
+    }
+    if manifest.processes.contains(where: { rule in
+      guard
+        rule.executable == executable,
+        let suffix = rule.argumentPathSuffix,
+        !suffix.isEmpty,
+        let script = invocation.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
+      else { return false }
+      return path(script, hasComponentSuffix: suffix)
+    }) {
+      return Candidate(
+        agentID: manifest.agentID,
+        process: entry,
+        strength: .argumentPath
+      )
+    }
     guard
       !entry.name.isEmpty,
       manifest.processes.contains(where: {
-        $0.processTitle == nil && $0.executable == entry.name
+        $0.processTitle == nil && $0.launchCommand == nil && $0.argumentPathSuffix == nil
+          && $0.executable == entry.name
       })
     else { return nil }
     return Candidate(
@@ -197,6 +238,15 @@ enum AgentDetectionProcessRecognizer {
       process: entry,
       strength: .processName
     )
+  }
+
+  private static func path(_ path: String, hasComponentSuffix suffix: String) -> Bool {
+    let components = path.split(separator: "/")
+    let suffixComponents = suffix.split(separator: "/")
+    guard !suffixComponents.isEmpty, components.count >= suffixComponents.count else {
+      return false
+    }
+    return components.suffix(suffixComponents.count).elementsEqual(suffixComponents)
   }
 
   private static func depth(
@@ -223,6 +273,8 @@ enum AgentDetectionProcessRecognizer {
   private enum Strength: Int, Comparable {
     case executable
     case processTitle
+    case launchCommand
+    case argumentPath
     case processName
 
     static func < (left: Strength, right: Strength) -> Bool {

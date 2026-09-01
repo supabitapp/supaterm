@@ -493,6 +493,7 @@ private struct SidebarRowSnapshotItem {
       return TerminalSidebarPanePresentation(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
         title: title,
+        icon: agentStatus == nil ? .terminal : .agent("codex-mark"),
         indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
           ?? (hasAttention ? .attention : nil)
       )

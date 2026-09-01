@@ -328,9 +328,10 @@ extension TerminalHostState {
   func clearAgentState(for surfaceID: UUID) -> Bool {
     let hadNativeState = !agentStateStore.snapshots(for: surfaceID).isEmpty
     let removedDetection = agentDetectionStore.clear(for: surfaceID)
+    let removedProcessMatch = agentDetectionStore.clearProcessMatch(for: surfaceID)
     agentCompletionStore.clear(for: surfaceID)
     agentStateStore.clearSessions(for: surfaceID)
-    if hadNativeState || removedDetection {
+    if hadNativeState || removedDetection || removedProcessMatch {
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
     }
     return hadNativeState
@@ -353,6 +354,20 @@ extension TerminalHostState {
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
     }
     return !nativeChangedSurfaceIDs.isEmpty
+  }
+
+  @discardableResult
+  func applyAgentProcessMatch(
+    _ match: AgentDetectionProcessMatch,
+    for surfaceID: UUID
+  ) -> Bool {
+    guard surfaces[surfaceID] != nil else { return false }
+    return agentDetectionStore.applyProcessMatch(match, for: surfaceID)
+  }
+
+  @discardableResult
+  func clearAgentProcessMatch(for surfaceID: UUID) -> Bool {
+    agentDetectionStore.clearProcessMatch(for: surfaceID)
   }
 
   @discardableResult

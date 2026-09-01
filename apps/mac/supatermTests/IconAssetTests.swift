@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 
+@testable import SupatermSupport
+
 struct IconAssetTests {
   @Test
   func lucideIconsUseTemplateVectorImagesets() throws {
@@ -49,7 +51,21 @@ struct IconAssetTests {
     }
   }
 
+  @Test
+  func everyDetectedCodingAgentHasAMark() throws {
+    for agent in TerminalCodingAgentCatalog.all {
+      _ = try vectorImagesetSVG(agent.markImageName, expectsTemplate: false)
+    }
+  }
+
   private func templateVectorImagesetSVG(_ iconName: String) throws -> String {
+    try vectorImagesetSVG(iconName, expectsTemplate: true)
+  }
+
+  private func vectorImagesetSVG(
+    _ iconName: String,
+    expectsTemplate: Bool
+  ) throws -> String {
     let imagesetURL = assetsURL().appendingPathComponent("\(iconName).imageset")
     let contentsURL = imagesetURL.appendingPathComponent("Contents.json")
     let svgURL = imagesetURL.appendingPathComponent("\(iconName).svg")
@@ -67,7 +83,9 @@ struct IconAssetTests {
       }
     )
     #expect(properties["preserves-vector-representation"] as? Bool == true)
-    #expect(properties["template-rendering-intent"] as? String == "template")
+    if expectsTemplate {
+      #expect(properties["template-rendering-intent"] as? String == "template")
+    }
 
     return try String(contentsOf: svgURL, encoding: .utf8)
   }

@@ -476,6 +476,38 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func lockedTabUsesItsSolePaneIcon() {
+    let pane = TerminalSidebarPanePresentation(
+      id: UUID(),
+      title: "Agent",
+      icon: .agent("codex-mark"),
+      indicator: nil
+    )
+
+    #expect(TerminalSidebarTabSummaryView.tabIcon(panes: [pane]) == .agent("codex-mark"))
+  }
+
+  @Test
+  func lockedTabUsesTerminalIconForMixedPanes() {
+    let panes = [
+      TerminalSidebarPanePresentation(
+        id: UUID(),
+        title: "Agent",
+        icon: .agent("codex-mark"),
+        indicator: nil
+      ),
+      TerminalSidebarPanePresentation(
+        id: UUID(),
+        title: "Shell",
+        indicator: nil
+      ),
+    ]
+
+    #expect(TerminalSidebarTabSummaryView.tabIcon(panes: panes) == .terminal)
+    #expect(TerminalSidebarTabSummaryView.tabIcon(panes: []) == .terminal)
+  }
+
+  @Test
   func helpTextListsLockedTitleAndPaneTitles() {
     let tab = TerminalTabItem(title: "Release", isTitleLocked: true)
     let panes = [

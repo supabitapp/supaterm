@@ -48,6 +48,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       return TerminalSidebarPanePresentation(
         id: Self.paneID(index),
         title: title,
+        icon: agentStatus == nil ? .terminal : .agent("codex-mark"),
         indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
           ?? (hasAttention ? .attention : nil)
       )
