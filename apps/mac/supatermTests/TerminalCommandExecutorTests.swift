@@ -487,7 +487,7 @@ struct TerminalCommandExecutorTests {
 
     #expect(
       host.spaceManager.tabCollection.tabIDs(in: groupID).map(\.rawValue)
-        == [firstTabID.rawValue, result.tabID, secondTabID.rawValue]
+        == [firstTabID.rawValue, secondTabID.rawValue, result.tabID]
     )
     #expect(host.spaceManager.tabCollection.rootItems.map(\.id) == [.group(groupID)])
   }

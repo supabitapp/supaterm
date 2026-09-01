@@ -313,7 +313,7 @@ extension TerminalHostState {
     let parentTabID = resolvedTarget.inheritedSurfaceID.flatMap(tabID(containing:))
     let placement =
       resolvedTarget.placement
-      ?? parentTabID.flatMap(tabCollection.placement(after:))
+      ?? implicitTabPlacement(after: parentTabID, in: tabCollection)
     var createdTabID: TerminalTabID?
     var createdGroupID: TerminalTabGroupID?
 
@@ -404,6 +404,19 @@ extension TerminalHostState {
       }
       throw TerminalCreateTabError.creationFailed
     }
+  }
+
+  private func implicitTabPlacement(
+    after parentTabID: TerminalTabID?,
+    in tabCollection: TerminalTabCollection
+  ) -> TerminalTabPlacement? {
+    guard let parentTabID else { return nil }
+    if let groupID = tabCollection.groupID(containing: parentTabID),
+      let group = tabCollection.group(for: groupID)
+    {
+      return .group(groupID, index: group.tabs.count)
+    }
+    return tabCollection.placement(after: parentTabID)
   }
 
   private func createParentGroupIfNeeded(
