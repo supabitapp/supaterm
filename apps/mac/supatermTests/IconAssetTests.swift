@@ -26,6 +26,29 @@ struct IconAssetTests {
     #expect(svg.contains(#"fill="currentColor""#))
   }
 
+  @Test
+  func commonCodingAgentMarksUseLobeTemplateVectorImagesets() throws {
+    for (iconName, title) in [
+      ("amp-mark", "Amp"),
+      ("antigravity-mark", "Antigravity"),
+      ("cline-mark", "Cline"),
+      ("copilot-mark", "Copilot"),
+      ("cursor-mark", "Cursor"),
+      ("geminicli-mark", "Gemini CLI"),
+      ("goose-mark", "Goose"),
+      ("grok-mark", "Grok"),
+      ("hermesagent-mark", "Hermes Agent"),
+      ("kimi-mark", "Kimi"),
+      ("opencode-mark", "opencode"),
+      ("qwen-mark", "Qwen"),
+    ] {
+      let svg = try templateVectorImagesetSVG(iconName)
+
+      #expect(svg.contains("<title>\(title)</title>"))
+      #expect(svg.contains(#"fill="currentColor""#))
+    }
+  }
+
   private func templateVectorImagesetSVG(_ iconName: String) throws -> String {
     let imagesetURL = assetsURL().appendingPathComponent("\(iconName).imageset")
     let contentsURL = imagesetURL.appendingPathComponent("Contents.json")

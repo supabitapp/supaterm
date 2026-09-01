@@ -307,7 +307,7 @@ For subagents models, use luna xhigh or opus xhigh latest whatever is available.
 
 ## Misc
 
-Icons can be pulled by using apps/mac/scripts/fetch-icon.sh if something is not available in SF Symbols. Sources: `lucide` for general glyphs, `simple-icons` for brand marks (padded so edge-to-edge glyphs survive template rasterization), e.g. `./scripts/fetch-icon.sh simple-icons github`
+Icons can be pulled by using apps/mac/scripts/fetch-icon.sh if something is not available in SF Symbols. Sources: `lucide` for general glyphs, `simple-icons` for brand marks, and `lobe-icons` for coding-agent marks. Simple Icons marks are padded so edge-to-edge glyphs survive template rasterization. Lobe Icons writes `<name>-mark` assets and defaults to `@lobehub/icons-static-svg` 1.94.0. Examples: `./scripts/fetch-icon.sh simple-icons github` and `./scripts/fetch-icon.sh lobe-icons amp`.
 
 ## Licensing
 
