@@ -17,7 +17,7 @@ extension SnapshotCatalog {
       "variants",
       group: keyboardShortcutPillGroup,
       title: "Shortcut variants",
-      size: CGSize(width: 560, height: 180)
+      size: CGSize(width: 560, height: 230)
     ) { appearance in
       AnyView(
         SurfaceSnapshotBackdrop(appearance: appearance) { palette in
@@ -32,6 +32,16 @@ extension SnapshotCatalog {
               KeyboardShortcutPill("Shift-Cmd-G", color: palette.primaryText)
               KeyboardShortcutPill("Esc", color: palette.accent)
             }
+            HStack {
+              Text("Selected tab")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(palette.selectedText)
+              Spacer()
+              KeyboardShortcutPill("⌘2", color: palette.selectedSecondaryText)
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 36)
+            .background(palette.selectableRow.primarySelectionFill, in: .rect(cornerRadius: 10))
           }
           .padding(24)
           .background(palette.detailBackground, in: .rect(cornerRadius: 12))

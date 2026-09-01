@@ -5,6 +5,8 @@ public struct KeyboardShortcutPill: View {
   private let color: Color
   private let textOpacity: Double
 
+  @Environment(\.colorScheme) private var colorScheme
+
   public init(
     _ shortcut: String,
     color: Color = .secondary,
@@ -23,7 +25,7 @@ public struct KeyboardShortcutPill: View {
       .padding(.horizontal, 7)
       .frame(minHeight: 20)
       .foregroundStyle(color.opacity(textOpacity))
-      .background(color.opacity(0.12), in: .capsule)
+      .background(color.opacity(colorScheme == .dark ? 0.24 : 0.12), in: .capsule)
       .fixedSize()
   }
 }
