@@ -30,6 +30,7 @@ extension SupatermUITestCase {
     let didEnableActivation = await wait(for: activate) { $0.exists && $0.isEnabled }
     _ = try XCTUnwrap(didEnableActivation ? activate : nil)
     activate.click()
+    app.activate()
 
     let deactivate = element(
       SupatermUITestIdentifier.Settings.licenseDeactivate,
