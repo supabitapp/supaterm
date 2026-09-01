@@ -15,11 +15,11 @@ sp instance ls
 
 `sp ls` prints one compact live snapshot with typed `s:`, `g:`, `t:`, and `p:` refs. Add `--json` for a flat item list with canonical UUIDs, parent IDs, cwd, and coding-agent state.
 
-Resolve a project icon from the current directory or a given project root:
+Resolve a group icon from the current directory or another directory:
 
 ```bash
-sp project icon
-sp project icon ~/code/project --json
+sp group icon
+sp group icon ~/code/workspace --json
 ```
 
 This command reads local icon declarations first, then common icon paths. It needs no running Supaterm app.

@@ -3,13 +3,13 @@ import Testing
 
 @testable import supaterm
 
-struct TerminalSidebarProjectIconTests {
+struct TerminalSidebarGroupIconTests {
   @Test
   func resolvesIconFromAWorkingDirectoryWithoutARepository() throws {
     let fixture = try RepositoryIconFixture(name: "standalone", createsRepository: false)
     defer { fixture.remove() }
     let iconURL = try fixture.writeIcon()
-    let request = TerminalSidebarProjectIconRequest(
+    let request = TerminalSidebarGroupIconRequest(
       workingDirectoryPaths: [fixture.rootURL.path]
     )
 
@@ -23,7 +23,7 @@ struct TerminalSidebarProjectIconTests {
     let iconURL = try fixture.writeIcon()
     let macURL = try fixture.createDirectory("apps/mac")
     let docsURL = try fixture.createDirectory("docs")
-    let request = TerminalSidebarProjectIconRequest(
+    let request = TerminalSidebarGroupIconRequest(
       workingDirectoryPaths: [macURL.path, docsURL.path]
     )
 
@@ -40,7 +40,7 @@ struct TerminalSidebarProjectIconTests {
     }
     let iconURL = try first.writeIcon()
     _ = try second.writeIcon()
-    let request = TerminalSidebarProjectIconRequest(
+    let request = TerminalSidebarGroupIconRequest(
       workingDirectoryPaths: [first.rootURL.path, second.rootURL.path]
     )
 
@@ -56,7 +56,7 @@ struct TerminalSidebarProjectIconTests {
       second.remove()
     }
     let iconURL = try second.writeIcon()
-    let request = TerminalSidebarProjectIconRequest(
+    let request = TerminalSidebarGroupIconRequest(
       workingDirectoryPaths: [first.rootURL.path, second.rootURL.path]
     )
 

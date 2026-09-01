@@ -2,15 +2,15 @@ import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 
-nonisolated struct TerminalSidebarProjectIconRequest: Hashable, Sendable {
+nonisolated struct TerminalSidebarGroupIconRequest: Hashable, Sendable {
   let workingDirectoryPaths: [String]
 
   func resolve() -> URL? {
     for path in workingDirectoryPaths {
-      let projectPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path) ?? path
+      let directoryPath = TerminalTabGroupTitleSuggester.repositoryRoot(for: path) ?? path
       guard
-        let iconURL = SupatermProjectIconResolver.resolve(
-          in: URL(fileURLWithPath: projectPath, isDirectory: true)
+        let iconURL = SupatermGroupIconResolver.resolve(
+          in: URL(fileURLWithPath: directoryPath, isDirectory: true)
         )
       else {
         continue
@@ -141,13 +141,13 @@ struct TerminalSidebarSpaceList: View {
     return rows
   }
 
-  private var groupIconRequests: [TerminalTabGroupID: TerminalSidebarProjectIconRequest] {
+  private var groupIconRequests: [TerminalTabGroupID: TerminalSidebarGroupIconRequest] {
     Dictionary(
       uniqueKeysWithValues: snapshot.collection.rootItems.compactMap { root in
         guard case .group(let group) = root else { return nil }
         return (
           group.id,
-          TerminalSidebarProjectIconRequest(
+          TerminalSidebarGroupIconRequest(
             workingDirectoryPaths: group.tabs.flatMap {
               terminal.paneWorkingDirectoryPaths(for: $0.id)
             }

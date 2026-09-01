@@ -30,7 +30,7 @@ enum SPHelp {
       sp group new Work --color blue
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
-      sp project icon
+      sp group icon
       sp license
       sp skills
       sp diagnostic
@@ -135,7 +135,10 @@ enum SPHelp {
   static let groupDiscussion = """
     Groups are addressed by g: ref, UUID, or exact title. A unique title is required.
 
+    Icon lookup reads the local filesystem and does not need a running Supaterm app.
+
     Example:
+      sp group icon
       sp group new Build
       sp group rename Deploy Build
       sp group color blue Deploy
@@ -430,15 +433,6 @@ enum SPHelp {
       sp config validate --json
     """
 
-  static let projectDiscussion = """
-    Project commands read the local filesystem and do not need a running Supaterm app.
-
-    Example:
-      sp project icon
-      sp project icon ~/code/project
-      sp project icon --json
-    """
-
   static let licenseDiscussion = """
     The running Supaterm app owns license storage and network access.
 
@@ -493,17 +487,17 @@ enum SPHelp {
       sp license renew
     """
 
-  static let projectIconDiscussion = """
+  static let groupIconDiscussion = """
     Reads icon declarations from common HTML and root route files, including
     linked local web manifests. If none resolve, it checks common icon paths.
 
-    The path must stay within the project directory and use a supported image extension.
+    The icon must stay within the directory and use a supported image extension.
 
     Example:
-      sp project icon
-      sp project icon ~/code/project
-      sp project icon --plain
-      sp project icon --json
+      sp group icon
+      sp group icon ~/code/workspace
+      sp group icon --plain
+      sp group icon --json
     """
 
   static let validateConfigDiscussion = """
