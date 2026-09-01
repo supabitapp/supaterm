@@ -1,5 +1,5 @@
 id = "codex"
-version = "2026.08.31.2"
+version = "2026.09.01.1"
 
 [[rules]]
 id = "osc_title_blocked"
@@ -214,7 +214,6 @@ id = "osc_title_idle"
 state = "idle"
 priority = 100
 region = "osc_title"
-visible_idle = true
 regex = ['\S']
 not = [
   { regex = ['(?:^| )[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?: |$)'] },

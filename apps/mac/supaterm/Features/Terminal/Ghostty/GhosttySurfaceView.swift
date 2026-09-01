@@ -5,6 +5,69 @@ import GhosttyKit
 import QuartzCore
 import SupatermCLIShared
 import SupatermSupport
+import Synchronization
+
+nonisolated private final class GhosttyActiveScreenReader: Sendable {
+  private struct State: Sendable {
+    var surfaceAddress: UInt?
+    var isProtected = false
+  }
+
+  private let state = Mutex(State())
+
+  func install(_ surface: ghostty_surface_t?) {
+    state.withLock { state in
+      state.surfaceAddress = surface.map(UInt.init(bitPattern:))
+    }
+  }
+
+  func remove(_ surface: ghostty_surface_t) {
+    let address = UInt(bitPattern: surface)
+    state.withLock { state in
+      guard state.surfaceAddress == address else { return }
+      state.surfaceAddress = nil
+    }
+  }
+
+  func setProtected(_ isProtected: Bool) {
+    state.withLock { state in
+      state.isProtected = isProtected
+    }
+  }
+
+  func read(maximumUTF8Bytes: Int) -> String? {
+    state.withLock { state in
+      guard !state.isProtected, let address = state.surfaceAddress,
+        let surface = UnsafeMutableRawPointer(bitPattern: address)
+      else {
+        return nil
+      }
+      var text = ghostty_text_s()
+      let selection = GhosttySurfaceView.textSelection(
+        topLeftTag: GHOSTTY_POINT_ACTIVE,
+        bottomRightTag: GHOSTTY_POINT_ACTIVE
+      )
+      guard
+        ghostty_surface_read_text_suffix(
+          surface,
+          selection,
+          max(0, maximumUTF8Bytes),
+          &text
+        )
+      else {
+        return nil
+      }
+      defer { ghostty_surface_free_text(surface, &text) }
+      guard let pointer = text.text else { return "" }
+      return String(cString: pointer)
+    }
+  }
+
+  @concurrent
+  func readInBackground(maximumUTF8Bytes: Int) async -> String? {
+    read(maximumUTF8Bytes: maximumUTF8Bytes)
+  }
+}
 
 final class GhosttySurfaceView: NSView, Identifiable {
   typealias SurfaceFactory = (
@@ -53,6 +116,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private let runtime: GhosttyRuntime
+  private let activeScreenReader = GhosttyActiveScreenReader()
   let id: UUID
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
@@ -95,6 +159,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
   var passwordInput: Bool = false {
     didSet {
+      activeScreenReader.setProtected(passwordInput)
       let input = SecureInput.shared
       let id = ObjectIdentifier(self)
       if passwordInput {
@@ -400,6 +465,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     accessibilitySelectionTask = nil
     clearNotificationObservers()
     if let surface {
+      activeScreenReader.remove(surface)
       if let surfaceRef {
         runtime.unregisterSurface(surfaceRef)
         self.surfaceRef = nil
@@ -805,23 +871,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   func activeScreenText(maximumUTF8Bytes: Int) -> String? {
-    guard !passwordInput, let surface else { return nil }
-    var text = ghostty_text_s()
-    let selection = Self.textSelection(
-      topLeftTag: GHOSTTY_POINT_ACTIVE,
-      bottomRightTag: GHOSTTY_POINT_ACTIVE
-    )
-    guard
-      ghostty_surface_read_text_suffix(
-        surface,
-        selection,
-        max(0, maximumUTF8Bytes),
-        &text
-      )
-    else { return nil }
-    defer { ghostty_surface_free_text(surface, &text) }
-    guard let pointer = text.text else { return "" }
-    return String(cString: pointer)
+    activeScreenReader.read(maximumUTF8Bytes: maximumUTF8Bytes)
+  }
+
+  func activeScreenTextInBackground(maximumUTF8Bytes: Int) async -> String? {
+    await activeScreenReader.readInBackground(maximumUTF8Bytes: maximumUTF8Bytes)
   }
 
   func captureText(
@@ -885,7 +939,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return transform(text)
   }
 
-  private static func textSelection(
+  nonisolated fileprivate static func textSelection(
     topLeftTag: ghostty_point_tag_e,
     bottomRightTag: ghostty_point_tag_e
   ) -> ghostty_selection_s {
@@ -1339,6 +1393,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       }
     }
     bridge.surface = surface
+    activeScreenReader.install(surface)
     guard surface != nil else {
       bridge.state.failure = .surfaceCreationFailed
       return
@@ -1885,13 +1940,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   func setTitleOverride(_ title: String?) {
-    let previousTitle = bridge.state.effectiveTitle
+    let previousTitle = bridge.state.effectiveDisplayTitle
     let previousOverride = bridge.state.titleOverride
     bridge.state.titleOverride = title
-    if previousTitle != bridge.state.effectiveTitle {
+    if previousTitle != bridge.state.effectiveDisplayTitle {
       bridge.titleDidChange(from: previousTitle)
-    } else if previousOverride != title {
-      bridge.onTitleChange?(bridge.state.effectiveTitle ?? "")
+    }
+    if previousOverride != title {
+      bridge.onTitleOverrideChange?()
     }
   }
 

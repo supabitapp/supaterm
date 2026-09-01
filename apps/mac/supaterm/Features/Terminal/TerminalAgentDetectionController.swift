@@ -94,7 +94,7 @@ nonisolated struct TerminalAgentDetectionSampler: Sendable {
 struct TerminalAgentDetectionHostAccess {
   let surfaces: () -> [TerminalAgentDetectionSurfaceSnapshot]
   let signals: (TerminalAgentDetectionSurfaceKey) -> TerminalAgentDetectionSignals?
-  let screen: (TerminalAgentDetectionSurfaceKey) -> String?
+  let screen: (TerminalAgentDetectionSurfaceKey) async -> String?
   let nativeAuthority: (UUID) -> Set<TerminalAgentProcessIdentity>
   let observation: (UUID) -> TerminalAgentDetectionObservation?
   let apply: (TerminalAgentDetectionObservation, UUID) -> Bool
@@ -161,6 +161,7 @@ final class TerminalAgentDetectionController {
   private static let phaseDetectionMinimumAgeMicroseconds: UInt64 = 3_000_000
   private static let evaluationInterval: Duration = .milliseconds(300)
   private static let idleConfirmationInterval: Duration = .milliseconds(100)
+  private static let stableIdleScreenInterval: Duration = .seconds(1)
   private static let processAcquisitionInterval: Duration = .milliseconds(500)
   private static let processAcquisitionWindow: Duration = .milliseconds(1_500)
   private static let recognizedProcessInterval: Duration = .seconds(5)
@@ -181,8 +182,11 @@ final class TerminalAgentDetectionController {
     var proof: Proof?
     var nextScanAt: ContinuousClock.Instant
     var acquisitionStartedAt: ContinuousClock.Instant?
+    var missedProcessScans = 0
     var settler = AgentDetectionSettler<TerminalAgentProcessIdentity>()
     var matched: Matched?
+    var lastScreenReadAt: ContinuousClock.Instant?
+    var lastScreenSignals: AgentDetectionSignalInput?
     var status = TerminalAgentDetectionExplanation.Status.waiting
   }
 
@@ -506,6 +510,12 @@ final class TerminalAgentDetectionController {
         continue
       }
       guard let match = matches[dueScan.processGroupID] else {
+        if state.proof != nil, state.missedProcessScans == 0 {
+          state.missedProcessScans = 1
+          state.nextScanAt = now.advanced(by: Self.processAcquisitionInterval)
+          states[key.id] = state
+          continue
+        }
         markUnrecognized(&state, now: now)
         states[key.id] = state
         continue
@@ -521,6 +531,7 @@ final class TerminalAgentDetectionController {
         state.settler = AgentDetectionSettler()
         state.matched = nil
       }
+      state.missedProcessScans = 0
       state.nextScanAt = now.advanced(by: Self.recognizedProcessInterval)
       state.acquisitionStartedAt = nil
       state.status = .waiting
@@ -594,14 +605,20 @@ final class TerminalAgentDetectionController {
     }
 
     var batch = EvaluationBatch(attempts: attempts)
-    var screenBatch = ScreenEvaluationBatch()
+    var screenAttempts: [EvaluationAttempt] = []
     for (attempt, result) in zip(attempts, signalEvaluations) {
       record(
         result,
         for: attempt,
         evaluationBatch: &batch,
-        screenBatch: &screenBatch
+        screenAttempts: &screenAttempts
       )
+    }
+    var screenBatch = ScreenEvaluationBatch()
+    for attempt in screenAttempts {
+      guard let request = await screenRequest(for: attempt, now: now) else { continue }
+      screenBatch.attempts.append(attempt)
+      screenBatch.requests.append(request)
     }
     guard !screenBatch.requests.isEmpty else { return batch }
 
@@ -623,7 +640,7 @@ final class TerminalAgentDetectionController {
     _ result: AgentDetectionSignalEvaluation?,
     for attempt: EvaluationAttempt,
     evaluationBatch: inout EvaluationBatch,
-    screenBatch: inout ScreenEvaluationBatch
+    screenAttempts: inout [EvaluationAttempt]
   ) {
     guard states[attempt.surfaceID]?.nonce == attempt.state.nonce else { return }
     guard let result else {
@@ -634,22 +651,28 @@ final class TerminalAgentDetectionController {
     case .matched(let evaluation):
       evaluationBatch.record(evaluation, for: attempt)
     case .needsScreen:
-      guard let request = screenRequest(for: attempt) else { return }
-      screenBatch.attempts.append(attempt)
-      screenBatch.requests.append(request)
+      screenAttempts.append(attempt)
     }
   }
 
   private func screenRequest(
-    for attempt: EvaluationAttempt
-  ) -> AgentDetectionEvaluationRequest? {
-    guard let screen = host.screen(attempt.state.key) else {
-      if var state = states[attempt.surfaceID], state.nonce == attempt.state.nonce {
-        resetEvaluation(&state, status: .protectedOrUnreadableScreen)
-        states[attempt.surfaceID] = state
-      }
+    for attempt: EvaluationAttempt,
+    now: ContinuousClock.Instant
+  ) async -> AgentDetectionEvaluationRequest? {
+    guard !shouldThrottleScreenRead(for: attempt, now: now) else { return nil }
+    let screen = await host.screen(attempt.state.key)
+    guard !Task.isCancelled else { return nil }
+    guard var state = states[attempt.surfaceID], state.nonce == attempt.state.nonce else {
       return nil
     }
+    state.lastScreenReadAt = now
+    state.lastScreenSignals = attempt.signals
+    guard let screen else {
+      resetEvaluation(&state, status: .protectedOrUnreadableScreen)
+      states[attempt.surfaceID] = state
+      return nil
+    }
+    states[attempt.surfaceID] = state
     return AgentDetectionEvaluationRequest(
       agentID: attempt.proof.agentID,
       input: AgentDetectionInput(
@@ -658,6 +681,20 @@ final class TerminalAgentDetectionController {
         oscProgress: attempt.signals.oscProgress
       )
     )
+  }
+
+  private func shouldThrottleScreenRead(
+    for attempt: EvaluationAttempt,
+    now: ContinuousClock.Instant
+  ) -> Bool {
+    guard let state = states[attempt.surfaceID], state.nonce == attempt.state.nonce,
+      host.observation(attempt.surfaceID)?.phase == .idle,
+      state.lastScreenSignals == attempt.signals,
+      let lastScreenReadAt = state.lastScreenReadAt
+    else {
+      return false
+    }
+    return lastScreenReadAt.duration(to: now) < Self.stableIdleScreenInterval
   }
 
   private func apply(
@@ -938,12 +975,15 @@ final class TerminalAgentDetectionController {
   private func resetProof(_ state: inout SurfaceState) {
     resetMatch(&state)
     state.proof = nil
+    state.missedProcessScans = 0
   }
 
   private func resetMatch(_ state: inout SurfaceState) {
     clearPublished(state.key.id)
     state.settler = AgentDetectionSettler()
     state.matched = nil
+    state.lastScreenReadAt = nil
+    state.lastScreenSignals = nil
   }
 
   private func clearPublished(_ surfaceID: UUID) {
@@ -1047,7 +1087,7 @@ final class TerminalAgentDetectionController {
         else {
           return nil
         }
-        return surface.activeScreenText(maximumUTF8Bytes: screenByteLimit)
+        return await surface.activeScreenTextInBackground(maximumUTF8Bytes: screenByteLimit)
       },
       nativeAuthority: { [weak terminal] surfaceID in
         terminal?.nativeAgentDetectionCandidates(for: surfaceID).reduce(into: []) {

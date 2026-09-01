@@ -246,7 +246,7 @@ extension TerminalHostState {
     if let titleOverride {
       return titleOverride
     }
-    if let title, !title.isEmpty {
+    if let title = GhosttySurfaceState.displayTitle(from: title), !title.isEmpty {
       return title
     }
     if let pwd = trimmedNonEmpty(pwd) {
@@ -301,7 +301,9 @@ extension TerminalHostState {
     if let titleOverride {
       return titleOverride
     }
-    guard let title = trimmedNonEmpty(title) else { return nil }
+    guard let title = trimmedNonEmpty(GhosttySurfaceState.displayTitle(from: title)) else {
+      return nil
+    }
     var resolved = strippedLeadingWorkingDirectory(from: title, pwd: pwd) ?? title
     while let stripped = strippedDuplicatedTrailingCommandSuffix(from: resolved),
       stripped != resolved

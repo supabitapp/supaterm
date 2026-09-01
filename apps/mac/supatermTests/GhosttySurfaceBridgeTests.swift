@@ -1,6 +1,8 @@
 import AppKit
 import GhosttyKit
+import Observation
 import SupatermCLIShared
+import Synchronization
 import Testing
 
 @testable import supaterm
@@ -260,6 +262,50 @@ struct GhosttySurfaceBridgeTests {
     #expect(bridge.state.title == "sleep 10")
     #expect(bridge.state.titleOverride == "Pinned")
     #expect(emittedTitles.isEmpty)
+  }
+
+  @Test
+  func animatedActivityIndicatorFramesEmitOneDisplayTitle() {
+    let bridge = GhosttySurfaceBridge()
+    var emittedTitles: [String] = []
+    bridge.onTitleChange = { emittedTitles.append($0) }
+
+    bridge.state.title = "⠋ Working"
+    bridge.titleDidChange(from: nil)
+    let previousDisplayTitle = bridge.state.effectiveDisplayTitle
+    bridge.state.title = "⠙ Working"
+    bridge.titleDidChange(from: previousDisplayTitle)
+    bridge.state.title = "⠙ Testing"
+    bridge.titleDidChange(from: previousDisplayTitle)
+
+    #expect(emittedTitles == ["Working", "Testing"])
+  }
+
+  @Test
+  func animatedActivityIndicatorFramesDoNotInvalidateTitleObservers() {
+    let state = GhosttySurfaceState()
+    state.title = "⠋ Working"
+    let invalidationCount = Mutex(0)
+    withObservationTracking {
+      _ = state.title
+    } onChange: {
+      invalidationCount.withLock { $0 += 1 }
+    }
+
+    state.title = "⠙ Working"
+
+    #expect(invalidationCount.withLock { $0 } == 0)
+
+    state.title = "⠙ Testing"
+
+    #expect(invalidationCount.withLock { $0 } == 1)
+  }
+
+  @Test
+  func displayTitleOnlyStripsKnownActivityIndicators() {
+    #expect(GhosttySurfaceState.displayTitle(from: "⠋")?.isEmpty == true)
+    #expect(GhosttySurfaceState.displayTitle(from: "⠋Braille") == "⠋Braille")
+    #expect(GhosttySurfaceState.displayTitle(from: "⡇ Braille") == "⡇ Braille")
   }
 
   @Test

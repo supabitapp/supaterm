@@ -107,6 +107,7 @@ final class GhosttySurfaceBridge {
   var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
   var onTitleChange: ((String) -> Void)?
+  var onTitleOverrideChange: (() -> Void)?
   var onPromptSurfaceTitle: (() -> Void)?
   var onPromptTabTitle: (() -> Void)?
   var onPathChange: (() -> Void)?
@@ -144,9 +145,9 @@ final class GhosttySurfaceBridge {
     progressResetTask?.cancel()
   }
 
-  func titleDidChange(from previousTitle: String?) {
-    let title = state.effectiveTitle
-    guard title != previousTitle else { return }
+  func titleDidChange(from previousDisplayTitle: String?) {
+    let title = state.effectiveDisplayTitle
+    guard title != previousDisplayTitle else { return }
     onTitleChange?(title ?? "")
     if let surfaceView {
       NSAccessibility.post(element: surfaceView, notification: .titleChanged)
@@ -469,7 +470,7 @@ final class GhosttySurfaceBridge {
   private func handleTitleAndPath(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
     case GHOSTTY_ACTION_SET_TITLE:
-      let previousTitle = state.effectiveTitle
+      let previousTitle = state.effectiveDisplayTitle
       guard let title = string(from: action.action.set_title.title) else { return false }
       state.title = title
       titleDidChange(from: previousTitle)

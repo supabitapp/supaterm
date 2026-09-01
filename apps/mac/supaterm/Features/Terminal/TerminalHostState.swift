@@ -827,6 +827,9 @@ final class TerminalHostState {
     view.bridge.onTitleChange = { [weak self] _ in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+    }
+    view.bridge.onTitleOverrideChange = { [weak self] in
+      guard let self else { return }
       self.sessionDidChange()
     }
     view.bridge.onPathChange = { [weak self] in

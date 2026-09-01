@@ -594,7 +594,9 @@ final class TerminalTabCollection {
 
   private func updateTab(_ id: TerminalTabID, update: (inout TerminalTabItem) -> Void) {
     guard var tab = topology.tabsByID[id] else { return }
+    let previous = tab
     update(&tab)
+    guard tab != previous else { return }
     topology.tabsByID[id] = tab
   }
 

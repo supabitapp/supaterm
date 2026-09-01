@@ -22,6 +22,7 @@ extension AgentDetectionMatcherTests {
 
     #expect(match.result == .idle)
     #expect(match.ruleID == "osc_title_idle")
+    #expect(!match.visibleIdle)
   }
 
   @Test

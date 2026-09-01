@@ -88,6 +88,30 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func keepsDetectionAcrossOneMissingProcessScan() async {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+    let now = ContinuousClock.now
+
+    await fixture.controller.tick(now: now)
+    #expect(fixture.host.observations[surfaceID]?.phase == .running)
+
+    await fixture.sampler.setMatches([:])
+    await fixture.controller.tick(now: now.advanced(by: .seconds(5)))
+
+    #expect(fixture.host.observations[surfaceID]?.phase == .running)
+    #expect(fixture.controller.explanation(for: surfaceID).processIdentity == proof)
+
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(5_500)))
+
+    #expect(fixture.host.observations[surfaceID] == nil)
+    #expect(fixture.controller.explanation(for: surfaceID).status == .unrecognizedProcess)
+  }
+
+  @Test
   func scansResolvedForegroundProcessGroupWithoutChangingSurfaceIdentity() async {
     let fixture = makeFixture()
     let surfaceID = fixture.host.addSurface(processGroupID: 11)
@@ -297,6 +321,31 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func stableIdleScreenReadsAtMostOncePerSecond() async {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    await fixture.rules.setMatch(AgentDetectionMatch(result: .idle, ruleID: "idle"))
+    await fixture.sampler.setMatches([11: match(identity: proof)])
+    await fixture.sampler.setCurrent([proof])
+    let now = ContinuousClock.now
+
+    await fixture.controller.tick(now: now)
+
+    #expect(fixture.host.observations[surfaceID]?.phase == .idle)
+    #expect(fixture.host.screenCaptureCount == 1)
+
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(300)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(999)))
+
+    #expect(fixture.host.screenCaptureCount == 1)
+
+    await fixture.controller.tick(now: now.advanced(by: .seconds(1)))
+
+    #expect(fixture.host.screenCaptureCount == 2)
+  }
+
+  @Test
   func matcherInputKeepsBoundedUTF8ScreenTailAndTitlePrefix() async throws {
     let fixture = makeFixture()
     let screenPrefix = "discard-me-"
@@ -377,7 +426,7 @@ struct TerminalAgentDetectionControllerTests {
     await fixture.rules.setMatch(
       AgentDetectionMatch(result: .needsInput, ruleID: "attention")
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_200)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_600)))
     #expect(fixture.host.observations[surfaceID]?.phase == .needsInput)
     #expect(fixture.host.observations[surfaceID]?.sequence == 3)
 
@@ -387,7 +436,7 @@ struct TerminalAgentDetectionControllerTests {
         ruleID: AgentDetectionMatcher.fallbackRuleID
       )
     )
-    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_500)))
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(1_900)))
     #expect(fixture.host.observations[surfaceID]?.phase == .idle)
     #expect(
       fixture.host.observations[surfaceID]?.ruleID
