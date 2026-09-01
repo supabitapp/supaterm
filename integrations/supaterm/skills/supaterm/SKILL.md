@@ -37,6 +37,14 @@ Load the coding-agent workflow before launching or prompting a coding agent:
 sp skills get coding-agents
 ```
 
+Submit coding-agent follow-up prompts with the paste-aware command from that guide:
+
+```bash
+sp pane send --submit <pane-uuid> - < "$prompt_file"
+```
+
+Do not use `--newline` for coding-agent prompts. An interactive agent can treat the appended newline as pasted content and leave the prompt in its composer.
+
 List every guide the running app offers:
 
 ```bash
