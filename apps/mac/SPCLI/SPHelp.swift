@@ -107,8 +107,8 @@ enum SPHelp {
     """
 
   static let newTabDiscussion = """
-    If you omit --in inside Supaterm, this command creates the tab in the current tab's group when it has one.
-    Otherwise it creates the tab in the current space.
+    By default, this command creates the tab in the current tab's group. If the current tab is
+    ungrouped, it creates a group containing the current and new tabs.
 
     Use --root to always create the tab at the space root.
 

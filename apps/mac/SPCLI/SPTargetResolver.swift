@@ -597,21 +597,10 @@ func resolvePublicNewTabTarget(
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     if let context {
-      let pane = try index.validatedContextLocation(context)
-      let tab = try index.requireTabLocation(
-        windowIndex: pane.windowIndex,
-        spaceIndex: pane.spaceIndex,
-        tabIndex: pane.tabIndex
-      )
-      if let group = index.groupLocation(containing: tab) {
-        return .group(group.groupID)
-      }
-      return .pane(pane.id)
+      return .pane(try index.validatedContextLocation(context).id)
     }
-    if let tab = try? index.ambientTabLocation(context: nil),
-      let group = index.groupLocation(containing: tab)
-    {
-      return .group(group.groupID)
+    if let pane = try? index.ambientPaneLocation(context: nil) {
+      return .pane(pane.id)
     }
     let space = try index.ambientSpaceLocation(context: nil)
     return .space(space.id)

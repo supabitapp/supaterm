@@ -144,7 +144,7 @@ struct SPTargetResolverTests {
   }
 
   @Test
-  func resolveNewTabPlacementDefaultsToAmbientGroupAndPreservesExplicitDestinations() throws {
+  func resolveNewTabPlacementUsesAmbientPaneAndPreservesExplicitDestinations() throws {
     let context = SupatermCLIContext(
       surfaceID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
@@ -157,8 +157,8 @@ struct SPTargetResolverTests {
         context: context,
         snapshot: treeSnapshot()
       )
-        == SupatermNewTabTarget.group(
-          UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
+        == SupatermNewTabTarget.pane(
+          UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
         )
     )
     #expect(
@@ -202,14 +202,14 @@ struct SPTargetResolverTests {
   }
 
   @Test
-  func resolveNewTabPlacementUsesSelectedGroupWithoutContext() throws {
+  func resolveNewTabPlacementUsesSelectedPaneWithoutContext() throws {
     #expect(
       try resolvePublicNewTabPlacement(
         space: nil,
         group: nil,
         context: nil,
         snapshot: treeSnapshot()
-      ) == .group(UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!)
+      ) == .pane(UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!)
     )
   }
 
