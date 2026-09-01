@@ -6,19 +6,15 @@ extension SettingsFeature {
   func reduceCodingAgents(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .agentIntegrationStatusRefreshRequested(let agent):
-      guard agent != .pi else { return .none }
       return refreshAgentIntegrationStatus(&state, agent: agent)
 
     case .agentIntegrationStatusRefreshed(let agent, let result):
-      guard agent != .pi else { return .none }
       return handleAgentIntegrationStatusRefresh(&state, agent: agent, result: result)
 
     case .agentIntegrationToggled(let agent, let isEnabled):
-      guard agent != .pi else { return .none }
       return toggleAgentIntegration(&state, agent: agent, isEnabled: isEnabled)
 
     case .agentIntegrationToggleFinished(let agent, let result):
-      guard agent != .pi else { return .none }
       return handleAgentIntegrationToggleFinished(&state, agent: agent, result: result)
 
     default:
@@ -28,7 +24,7 @@ extension SettingsFeature {
 
   func refreshAgentIntegrationStatus(
     _ state: inout State,
-    agent: SupatermAgentKind
+    agent: SupatermManagedAgentKind
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
     guard state[keyPath: keyPath].operation == .idle else {
@@ -50,7 +46,7 @@ extension SettingsFeature {
 
   func handleAgentIntegrationStatusRefresh(
     _ state: inout State,
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     result: SettingsAgentIntegrationResult
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
@@ -68,7 +64,7 @@ extension SettingsFeature {
 
   func toggleAgentIntegration(
     _ state: inout State,
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     isEnabled: Bool
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
@@ -98,7 +94,7 @@ extension SettingsFeature {
 
   func handleAgentIntegrationToggleFinished(
     _ state: inout State,
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     result: SettingsAgentIntegrationResult
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
@@ -120,20 +116,18 @@ extension SettingsFeature {
   }
 
   func agentIntegrationKeyPath(
-    for agent: SupatermAgentKind
+    for agent: SupatermManagedAgentKind
   ) -> WritableKeyPath<State, SettingsAgentIntegrationState> {
     switch agent {
     case .claude:
       return \.claudeIntegration
     case .codex:
       return \.codexIntegration
-    case .pi:
-      preconditionFailure("Pi has no managed integration")
     }
   }
 
   func loadAgentIntegrationHealthOperation(
-    for agent: SupatermAgentKind
+    for agent: SupatermManagedAgentKind
   ) -> @Sendable () async throws -> CodingAgentIntegrationHealth {
     switch agent {
     case .claude:
@@ -142,13 +136,11 @@ extension SettingsFeature {
     case .codex:
       let client = codexSettingsClient
       return { try await client.integrationHealth() }
-    case .pi:
-      preconditionFailure("Pi has no managed integration")
     }
   }
 
   func updateSupatermIntegrationOperation(
-    for agent: SupatermAgentKind,
+    for agent: SupatermManagedAgentKind,
     isEnabled: Bool
   ) -> @Sendable () async throws -> CodingAgentIntegrationHealth {
     switch agent {
@@ -176,8 +168,6 @@ extension SettingsFeature {
         }
         return try await client.integrationHealth()
       }
-    case .pi:
-      preconditionFailure("Pi has no managed integration")
     }
   }
 }

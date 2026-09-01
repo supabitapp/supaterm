@@ -137,7 +137,7 @@ struct TerminalCommandExecutorIntegrationTests {
       codex: recordingIntegration(.codex, recorder: recorder)
     )
 
-    for agent in SupatermAgentKind.managedIntegrationCases {
+    for agent in SupatermManagedAgentKind.allCases {
       _ = try await commandExecutor.setupAgentIntegration(
         SupatermAgentIntegrationRequest(agent: agent),
         manager: manager
@@ -148,23 +148,11 @@ struct TerminalCommandExecutorIntegrationTests {
       )
     }
 
-    #expect(recorder.setupAgents() == SupatermAgentKind.managedIntegrationCases)
-    #expect(recorder.healthCheckedAgents() == SupatermAgentKind.managedIntegrationCases)
-    #expect(recorder.removedAgents() == SupatermAgentKind.managedIntegrationCases)
+    #expect(recorder.setupAgents() == SupatermManagedAgentKind.allCases)
+    #expect(recorder.healthCheckedAgents() == SupatermManagedAgentKind.allCases)
+    #expect(recorder.removedAgents() == SupatermManagedAgentKind.allCases)
   }
 
-  @Test
-  func managerRejectsPiIntegrationManagement() {
-    let integration = recordingIntegration(.claude, recorder: AgentIntegrationRecorder())
-    let manager = CodingAgentIntegrationManager(
-      claude: integration,
-      codex: integration
-    )
-
-    #expect(throws: CodingAgentIntegrationManagerError.unsupported(.pi)) {
-      try manager.setup(.pi)
-    }
-  }
 }
 
 private func claudeIntegrationManager(
@@ -190,7 +178,7 @@ private func claudeIntegrationManager(
 }
 
 private func recordingIntegration(
-  _ agent: SupatermAgentKind,
+  _ agent: SupatermManagedAgentKind,
   recorder: AgentIntegrationRecorder
 ) -> CodingAgentIntegrationManager.Integration {
   CodingAgentIntegrationManager.Integration(
@@ -234,43 +222,43 @@ private func claudeHookEventNames(homeDirectoryURL: URL) throws -> [String] {
 
 nonisolated private final class AgentIntegrationRecorder: @unchecked Sendable {
   private let lock = NSLock()
-  private var setups: [SupatermAgentKind] = []
-  private var healthChecks: [SupatermAgentKind] = []
-  private var removes: [SupatermAgentKind] = []
+  private var setups: [SupatermManagedAgentKind] = []
+  private var healthChecks: [SupatermManagedAgentKind] = []
+  private var removes: [SupatermManagedAgentKind] = []
 
-  func recordSetup(_ agent: SupatermAgentKind) {
+  func recordSetup(_ agent: SupatermManagedAgentKind) {
     lock.lock()
     setups.append(agent)
     lock.unlock()
   }
 
-  func recordHealthCheck(_ agent: SupatermAgentKind) {
+  func recordHealthCheck(_ agent: SupatermManagedAgentKind) {
     lock.lock()
     healthChecks.append(agent)
     lock.unlock()
   }
 
-  func recordRemove(_ agent: SupatermAgentKind) {
+  func recordRemove(_ agent: SupatermManagedAgentKind) {
     lock.lock()
     removes.append(agent)
     lock.unlock()
   }
 
-  func setupAgents() -> [SupatermAgentKind] {
+  func setupAgents() -> [SupatermManagedAgentKind] {
     lock.lock()
     let snapshot = setups
     lock.unlock()
     return snapshot
   }
 
-  func removedAgents() -> [SupatermAgentKind] {
+  func removedAgents() -> [SupatermManagedAgentKind] {
     lock.lock()
     let snapshot = removes
     lock.unlock()
     return snapshot
   }
 
-  func healthCheckedAgents() -> [SupatermAgentKind] {
+  func healthCheckedAgents() -> [SupatermManagedAgentKind] {
     lock.lock()
     let snapshot = healthChecks
     lock.unlock()

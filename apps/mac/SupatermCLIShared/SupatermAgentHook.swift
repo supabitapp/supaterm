@@ -5,10 +5,6 @@ public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Hashabl
   case codex
   case pi
 
-  public static var managedIntegrationCases: [Self] {
-    allCases.filter { $0 != .pi }
-  }
-
   public var notificationTitle: String {
     switch self {
     case .claude:
@@ -18,6 +14,24 @@ public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Hashabl
     case .pi:
       return "Pi"
     }
+  }
+}
+
+public enum SupatermManagedAgentKind: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
+  case claude
+  case codex
+
+  public var agentKind: SupatermAgentKind {
+    switch self {
+    case .claude:
+      .claude
+    case .codex:
+      .codex
+    }
+  }
+
+  public var notificationTitle: String {
+    agentKind.notificationTitle
   }
 }
 
@@ -143,13 +157,13 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
 }
 
 public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
-  public let agent: SupatermAgentKind
+  public let agent: SupatermManagedAgentKind
   public let context: SupatermCLIContext?
   public let event: SupatermAgentHookEvent
   public let processID: Int32?
 
   public init(
-    agent: SupatermAgentKind,
+    agent: SupatermManagedAgentKind,
     context: SupatermCLIContext? = nil,
     event: SupatermAgentHookEvent,
     processID: Int32? = nil

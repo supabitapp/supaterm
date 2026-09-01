@@ -4,13 +4,8 @@ import SupatermCLIShared
 nonisolated enum TerminalAgentEventTranslator {
   static func events(for request: SupatermAgentHookRequest) -> [TerminalAgentEvent] {
     guard let scope = scope(for: request) else { return [] }
-    switch request.agent {
-    case .claude, .codex:
-      guard request.event.hookEventName == .sessionStart, scope.subagentID == nil else { return [] }
-      return [event(request, scope: scope, action: .sessionStarted)]
-    case .pi:
-      return []
-    }
+    guard request.event.hookEventName == .sessionStart, scope.subagentID == nil else { return [] }
+    return [event(request, scope: scope, action: .sessionStarted)]
   }
 
   private static func event(
@@ -32,7 +27,7 @@ nonisolated enum TerminalAgentEventTranslator {
   ) -> TerminalAgentEvent.Scope? {
     guard let sessionID = request.event.sessionID else { return nil }
     return TerminalAgentEvent.Scope(
-      agent: request.agent,
+      agent: request.agent.agentKind,
       sessionID: sessionID,
       turnID: request.event.turnID,
       subagentID: request.event.agentID

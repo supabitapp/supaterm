@@ -41,16 +41,16 @@ struct SPAgentIntegrationCommandTests {
     #expect(
       log.requests.map(\.method) == Array(
         repeating: SupatermSocketMethod.appAgentIntegrationSetup,
-        count: SupatermAgentKind.managedIntegrationCases.count
+        count: SupatermManagedAgentKind.allCases.count
       )
         + Array(
           repeating: SupatermSocketMethod.appHooksRemove,
-          count: SupatermAgentKind.managedIntegrationCases.count
+          count: SupatermManagedAgentKind.allCases.count
         )
     )
     #expect(
       try log.requests.map { try $0.decodeParams(SupatermAgentIntegrationRequest.self).agent }
-        == SupatermAgentKind.managedIntegrationCases + SupatermAgentKind.managedIntegrationCases
+        == SupatermManagedAgentKind.allCases + SupatermManagedAgentKind.allCases
     )
   }
 
@@ -126,7 +126,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
   }
 
   @Test
@@ -156,7 +156,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
   }
 
   @Test
@@ -216,7 +216,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
   }
 
   @Test
@@ -229,7 +229,8 @@ struct SPAgentIntegrationCommandTests {
       replying: { request, _ in
         log.record(request)
         let payload = try request.decodeParams(SupatermAgentIntegrationRequest.self)
-        let responseAgent: SupatermAgentKind = payload.agent == .codex ? .claude : payload.agent
+        let responseAgent: SupatermManagedAgentKind =
+          payload.agent == .codex ? .claude : payload.agent
         return try .ok(
           id: request.id,
           encodableResult: SupatermAgentIntegrationResult(agent: responseAgent, health: .healthy)
@@ -247,7 +248,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
   }
 
   @Test
@@ -274,7 +275,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
   }
 
   @Test
@@ -323,7 +324,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
   }
 
   @Test
@@ -352,7 +353,7 @@ struct SPAgentIntegrationCommandTests {
       }
     )
 
-    #expect(log.requests.count == SupatermAgentKind.managedIntegrationCases.count)
+    #expect(log.requests.count == SupatermManagedAgentKind.allCases.count)
   }
 
   @Test(arguments: [["agent", "setup"], ["agent", "remove-hooks"]])
@@ -389,7 +390,7 @@ struct SPAgentIntegrationCommandTests {
 }
 
 private func expectedSetupOutput(states: [String]) -> String {
-  zip(SupatermAgentKind.managedIntegrationCases, states)
+  zip(SupatermManagedAgentKind.allCases, states)
     .map { agent, state in
       "Setting up \(agent.notificationTitle)...\n\(agent.notificationTitle): \(state)"
     }

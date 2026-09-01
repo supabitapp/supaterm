@@ -273,8 +273,7 @@ Debug snapshot panes carry coding agent detection. Each pane has `agentStatus` a
 resolves, an `agent` object.
 
 - `agentStatus` is `detection_disabled`, `waiting`, `no_foreground_process`,
-  `unrecognized_process`, `native_authority`, `screen_unavailable`,
-  `no_rule_match_or_settling`, or `resolved`.
+  `unrecognized_process`, `screen_unavailable`, `no_rule_match_or_settling`, or `resolved`.
 - `agent` contains `kind`, `phase` (`unknown`, `idle`, `running`, or `needs_input`), and `phaseSource`
   (`native` or `screen`), plus `sessionID`, `ruleID`, and `process` when those values exist.
 - `process` contains `processID` and `startTimeMicroseconds`.

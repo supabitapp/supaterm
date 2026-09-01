@@ -62,6 +62,9 @@ class AffectedProjectsTests(unittest.TestCase):
       "apps/shared/Theme.swift": {"ios", "mac"},
       "Makefile": {"docs", "ios", "mac", "web"},
       "integrations/supaterm/skill-data/core/SKILL.md": {"docs", "mac"},
+      "integrations/supaterm/skills/supaterm/SKILL.md": {"mac"},
+      "integrations/supaterm/README.md": set(),
+      "integrations/supaterm/LICENSE": set(),
       "apps/supaterm.com/public/logo-mark.svg": {"docs", "web"},
       "apps/supaterm.com/public/logo.svg": {"docs", "web"},
       "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png": {
@@ -128,7 +131,7 @@ class GitChangesTests(unittest.TestCase):
     revision = self.git("rev-parse", "HEAD")
     self.assertEqual(
       affected_projects(diff_paths(self.repository, self.initial_revision, revision)),
-      {"docs", "mac"},
+      {"mac"},
     )
 
   def test_only_remote_main_is_affected(self) -> None:

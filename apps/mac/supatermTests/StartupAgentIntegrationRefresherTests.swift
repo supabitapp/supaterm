@@ -2,7 +2,6 @@ import Foundation
 import Testing
 
 @testable import SupatermCLIShared
-@testable import SupatermSupport
 @testable import supaterm
 
 struct StartupAgentIntegrationRefresherTests {
@@ -54,7 +53,7 @@ struct StartupAgentIntegrationRefresherTests {
   }
 
   private func operation(
-    _ agent: SupatermAgentKind,
+    _ agent: SupatermManagedAgentKind,
     health: CodingAgentIntegrationHealth,
     capture: StartupAgentIntegrationRefreshCapture
   ) -> Operation {
@@ -74,29 +73,29 @@ private struct StartupAgentIntegrationRefreshError: Error {}
 
 nonisolated private final class StartupAgentIntegrationRefreshCapture: @unchecked Sendable {
   private let lock = NSLock()
-  private var repairs: [SupatermAgentKind] = []
-  private var failures: [SupatermAgentKind] = []
+  private var repairs: [SupatermManagedAgentKind] = []
+  private var failures: [SupatermManagedAgentKind] = []
 
-  func recordRepair(_ agent: SupatermAgentKind) {
+  func recordRepair(_ agent: SupatermManagedAgentKind) {
     lock.lock()
     repairs.append(agent)
     lock.unlock()
   }
 
-  func recordFailure(_ agent: SupatermAgentKind) {
+  func recordFailure(_ agent: SupatermManagedAgentKind) {
     lock.lock()
     failures.append(agent)
     lock.unlock()
   }
 
-  func repairedAgents() -> [SupatermAgentKind] {
+  func repairedAgents() -> [SupatermManagedAgentKind] {
     lock.lock()
     let snapshot = repairs
     lock.unlock()
     return snapshot
   }
 
-  func failedAgents() -> [SupatermAgentKind] {
+  func failedAgents() -> [SupatermManagedAgentKind] {
     lock.lock()
     let snapshot = failures
     lock.unlock()

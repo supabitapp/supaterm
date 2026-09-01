@@ -22,30 +22,9 @@ nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
 }
 
 nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
-  let agent: SupatermAgentKind
   let sessionID: String
   let workingDirectoryPath: String?
-  private let launchOptions: [String]
-
-  private init?(
-    agent: SupatermAgentKind,
-    sessionID: String,
-    workingDirectoryPath: String?,
-    commandLineArguments: [String]
-  ) {
-    guard
-      let launchOptions = TerminalAgentLaunchOptions.inherited(
-        from: commandLineArguments,
-        agent: agent
-      )
-    else {
-      return nil
-    }
-    self.agent = agent
-    self.sessionID = sessionID
-    self.workingDirectoryPath = workingDirectoryPath
-    self.launchOptions = launchOptions
-  }
+  private let forkArguments: [String]
 
   static func supported(
     agent: SupatermAgentKind,
@@ -60,27 +39,34 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
     else {
       return nil
     }
+    let forkArguments: [String]
+    switch agent {
+    case .claude:
+      guard
+        let launchOptions = TerminalAgentLaunchOptions.claudeInherited(
+          from: commandLineArguments
+        )
+      else { return nil }
+      forkArguments = ["claude"] + launchOptions + ["--fork-session", "--resume", sessionID]
+    case .codex:
+      guard
+        let launchOptions = TerminalAgentLaunchOptions.codexInherited(
+          from: commandLineArguments
+        )
+      else { return nil }
+      forkArguments = ["codex"] + launchOptions + ["fork", sessionID]
+    case .pi:
+      return nil
+    }
     return Self(
-      agent: agent,
       sessionID: sessionID,
       workingDirectoryPath: workingDirectoryPath,
-      commandLineArguments: commandLineArguments
+      forkArguments: forkArguments
     )
   }
 
   var forkStartupCommand: SupatermTerminalStartup {
     .shell(SupatermShellCommand.escapedCommand(forkArguments))
-  }
-
-  private var forkArguments: [String] {
-    switch agent {
-    case .claude:
-      return ["claude"] + launchOptions + ["--fork-session", "--resume", sessionID]
-    case .codex:
-      return ["codex"] + launchOptions + ["fork", sessionID]
-    case .pi:
-      preconditionFailure("Pi has no action sessions")
-    }
   }
 
   private static let sessionIDCharacters = CharacterSet(

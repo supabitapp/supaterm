@@ -120,7 +120,7 @@ func terminalSpaceSession(
 }
 
 func agentHookRequest(
-  agent: SupatermAgentKind,
+  agent: SupatermManagedAgentKind,
   sessionID: String,
   hookEventName: SupatermAgentHookEventName,
   context: SupatermCLIContext? = nil,

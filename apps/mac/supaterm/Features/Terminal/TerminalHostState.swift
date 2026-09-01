@@ -177,13 +177,6 @@ final class TerminalHostState {
       AgentActivity(agent: .codex, phase: phase, detail: detail)
     }
 
-    static func pi(
-      _ phase: AgentActivityPhase,
-      detail: String? = nil
-    ) -> Self {
-      AgentActivity(agent: .pi, phase: phase, detail: detail)
-    }
-
   }
 
   struct PaneAgentMetadata: Equatable, Sendable {

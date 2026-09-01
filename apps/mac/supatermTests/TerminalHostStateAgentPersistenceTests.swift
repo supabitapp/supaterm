@@ -163,9 +163,3 @@ struct TerminalHostStateAgentPersistenceTests {
     return (host, try #require(host.selectedSurfaceView?.id))
   }
 }
-
-extension Collection {
-  fileprivate var only: Element? {
-    count == 1 ? first : nil
-  }
-}

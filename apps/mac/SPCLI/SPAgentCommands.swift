@@ -68,7 +68,7 @@ extension SP {
     )
 
     @Option(name: .long, help: "Agent that emitted the hook payload.")
-    var agent: SupatermAgentKind
+    var agent: SupatermManagedAgentKind
 
     @Option(name: .long, help: "Process ID that emitted the hook payload.")
     var pid: Int32?
@@ -214,7 +214,7 @@ private enum AgentIntegrationManagementOperation {
   }
 
   func emitProgress(
-    for agent: SupatermAgentKind,
+    for agent: SupatermManagedAgentKind,
     disposition: AgentIntegrationDisposition? = nil
   ) {
     guard case .setupDetected = self else {
@@ -243,7 +243,7 @@ private enum AgentIntegrationDisposition {
 
 private func manageAgentIntegrations(
   _ operation: AgentIntegrationManagementOperation,
-  agents: [SupatermAgentKind] = SupatermAgentKind.managedIntegrationCases,
+  agents: [SupatermManagedAgentKind] = SupatermManagedAgentKind.allCases,
   connection: SPConnectionOptions
 ) throws {
   let client = try socketClient(
@@ -283,7 +283,7 @@ private func manageAgentIntegrations(
 
 private func agentIntegrationDisposition(
   operation: AgentIntegrationManagementOperation,
-  agent: SupatermAgentKind,
+  agent: SupatermManagedAgentKind,
   client: SPSocketClient
 ) -> AgentIntegrationDisposition {
   do {
@@ -304,4 +304,4 @@ private func agentIntegrationDisposition(
   }
 }
 
-extension SupatermAgentKind: @retroactive ExpressibleByArgument {}
+extension SupatermManagedAgentKind: @retroactive ExpressibleByArgument {}
