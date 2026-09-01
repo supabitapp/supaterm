@@ -230,12 +230,7 @@ struct TerminalAgentsPopoverView: View {
         .allowsHitTesting(!acceptsInput)
     }
     .task {
-      acceptsInput = false
-      do {
-        try await Task.sleep(for: .seconds(1))
-      } catch {
-        return
-      }
+      await Task.yield()
       acceptsInput = true
     }
     .accessibilityElement(children: .contain)
