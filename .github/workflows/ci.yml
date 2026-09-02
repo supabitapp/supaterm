@@ -94,7 +94,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-          xcode-cache: true
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-test
@@ -115,7 +114,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-          xcode-cache: true
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: >-
@@ -144,7 +142,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-          xcode-cache: true
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
@@ -190,7 +187,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-          xcode-cache: true
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-tuist-install

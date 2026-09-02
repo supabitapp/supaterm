@@ -40,7 +40,6 @@ jobs:
         with:
           cache-native-builds: false
           github-token: ${{ github.token }}
-          xcode-cache: true
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-warm-cache TUIST_BINARY_CACHE_PROFILE=all-possible
