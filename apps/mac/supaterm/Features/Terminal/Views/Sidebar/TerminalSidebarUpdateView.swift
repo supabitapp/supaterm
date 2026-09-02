@@ -360,13 +360,13 @@ struct TerminalSidebarCompactUpdateButton: View {
     } label: {
       Image(systemName: "arrow.clockwise")
         .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(palette.primaryText)
         .accessibilityHidden(true)
     }
     .buttonStyle(
       TerminalSidebarButtonStyle(
         palette: palette,
-        layout: .icon
+        layout: .icon,
+        emphasizesForegroundOnHover: true
       )
     )
     .accessibilityLabel("Restart to Update")

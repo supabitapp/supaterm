@@ -9,6 +9,7 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
 
   let palette: Palette
   let layout: Layout
+  var emphasizesForegroundOnHover = false
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.isEnabled) private var isEnabled
@@ -37,14 +38,24 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
   private func content(_ configuration: Configuration) -> some View {
     switch layout {
     case .rect:
-      configuration.label
+      label(configuration)
         .background { fill(isPressed: configuration.isPressed) }
     case .icon:
       ZStack {
         fill(isPressed: configuration.isPressed)
-        configuration.label
+        label(configuration)
       }
       .frame(width: size, height: size)
+    }
+  }
+
+  @ViewBuilder
+  private func label(_ configuration: Configuration) -> some View {
+    if emphasizesForegroundOnHover {
+      configuration.label
+        .foregroundStyle(isHovering ? palette.primaryText : palette.secondaryText)
+    } else {
+      configuration.label
     }
   }
 
