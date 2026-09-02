@@ -1,6 +1,12 @@
 import Foundation
+import SupatermSupport
 
 struct TerminalSidebarPanePresentation: Equatable, Identifiable, Sendable {
+  enum Icon: Equatable, Sendable {
+    case terminal
+    case agent(String)
+  }
+
   enum Indicator: Equatable, Sendable {
     case agent(TerminalHostState.TabAgentStatus)
     case attention
@@ -8,7 +14,20 @@ struct TerminalSidebarPanePresentation: Equatable, Identifiable, Sendable {
 
   let id: UUID
   let title: String
+  let icon: Icon
   let indicator: Indicator?
+
+  init(
+    id: UUID,
+    title: String,
+    icon: Icon = .terminal,
+    indicator: Indicator?
+  ) {
+    self.id = id
+    self.title = title
+    self.icon = icon
+    self.indicator = indicator
+  }
 }
 
 extension TerminalHostState {
@@ -39,8 +58,27 @@ extension TerminalHostState {
           pwd: surface.bridge.state.pwd,
           defaultValue: "Pane \(index + 1)"
         ),
+        icon: sidebarPaneIcon(for: surface.id),
         indicator: indicator
       )
     }
+  }
+
+  private func sidebarPaneIcon(for surfaceID: UUID) -> TerminalSidebarPanePresentation.Icon {
+    let resolution = resolvedAgentState(for: surfaceID).resolution
+    let resolvedAgentID: String? =
+      switch resolution {
+      case .native(let candidates):
+        candidates.max { $0.revision < $1.revision }.map {
+          AgentDetectionAgentIdentity($0.presentation.agent).id
+        }
+      case .terminal(let observation, _):
+        observation.agent.id
+      }
+    let agentID = agentDetectionStore.processMatch(for: surfaceID)?.agentID ?? resolvedAgentID
+    guard let agentID, let imageName = TerminalCodingAgentCatalog.markImageName(for: agentID) else {
+      return .terminal
+    }
+    return .agent(imageName)
   }
 }

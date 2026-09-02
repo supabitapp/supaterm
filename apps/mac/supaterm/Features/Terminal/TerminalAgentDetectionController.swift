@@ -97,6 +97,8 @@ struct TerminalAgentDetectionHostAccess {
   let observation: (UUID) -> TerminalAgentDetectionObservation?
   let apply: (TerminalAgentDetectionObservation, UUID) -> Bool
   let clear: (UUID) -> Void
+  let applyProcessMatch: (AgentDetectionProcessMatch, UUID) -> Bool
+  let clearProcessMatch: (UUID) -> Void
   var pruneDeadAgentProcesses: () -> Void = {}
 }
 
@@ -222,6 +224,8 @@ final class TerminalAgentDetectionController {
   private var task: Task<Void, Never>?
   private var states: [UUID: SurfaceState] = [:]
   private var generation: UInt64?
+  private var processManifests = TerminalCodingAgentCatalog.processManifests
+  private var phaseAgentIDs = Set<String>()
   private var nextNonce: UInt64 = 0
   private var sequence: UInt64 = 0
 
@@ -378,7 +382,7 @@ final class TerminalAgentDetectionController {
         )
       }
       let processGroupIDs = Set(resolved.map(\.processGroupID))
-      let matches = await sampler.matches(processGroupIDs, snapshot.processManifests)
+      let matches = await sampler.matches(processGroupIDs, processManifests)
       guard !Task.isCancelled else { return }
       let currentSnapshot = await rules.snapshot()
       guard !Task.isCancelled else { return }
@@ -396,16 +400,15 @@ final class TerminalAgentDetectionController {
     }
 
     guard generation == snapshot.generation else { return }
-    await evaluateProvenSurfaces(
-      generation: snapshot.generation,
-      now: now
-    )
+    await evaluateProvenSurfaces(generation: snapshot.generation, now: now)
   }
 
   private func activate(_ snapshot: AgentDetectionRuleSnapshot) {
     guard generation != snapshot.generation else { return }
     invalidateAll()
     generation = snapshot.generation
+    processManifests = TerminalCodingAgentCatalog.merging(snapshot.processManifests)
+    phaseAgentIDs = Set(snapshot.processManifests.map(\.agentID))
   }
 
   private func reconcile(
@@ -485,6 +488,7 @@ final class TerminalAgentDetectionController {
         state.settler = AgentDetectionSettler()
         state.matched = nil
       }
+      _ = host.applyProcessMatch(match, key.id)
       state.missedProcessScans = 0
       state.nextScanAt = now.advanced(by: Self.recognizedProcessInterval)
       state.acquisitionStartedAt = nil
@@ -498,7 +502,9 @@ final class TerminalAgentDetectionController {
     now: ContinuousClock.Instant
   ) async {
     let currentTimeMicroseconds = currentTimeMicroseconds()
-    let identities = phaseDetectionIdentities(currentTimeMicroseconds: currentTimeMicroseconds)
+    let identities = phaseDetectionIdentities(
+      currentTimeMicroseconds: currentTimeMicroseconds
+    )
     guard !identities.isEmpty else { return }
     let currentIdentities = await sampler.current(identities)
     guard !Task.isCancelled else { return }
@@ -524,15 +530,16 @@ final class TerminalAgentDetectionController {
   ) -> Set<TerminalAgentProcessIdentity> {
     Set(
       states.values.compactMap { state in
-        guard let identity = state.proof?.processIdentity,
+        guard let proof = state.proof,
+          phaseAgentIDs.contains(proof.agentID),
           Self.canDetectPhase(
-            for: identity,
+            for: proof.processIdentity,
             currentTimeMicroseconds: currentTimeMicroseconds
           )
         else {
           return nil
         }
-        return identity
+        return proof.processIdentity
       }
     )
   }
@@ -678,7 +685,7 @@ final class TerminalAgentDetectionController {
       else {
         return
       }
-      markUnrecognized(&state, now: now)
+      resetEvaluation(&state, status: .noRuleMatchOrSettling)
       states[attempt.surfaceID] = state
       return
     }
@@ -708,6 +715,7 @@ final class TerminalAgentDetectionController {
     now: ContinuousClock.Instant
   ) -> EvaluationAttempt? {
     guard var state = states[surfaceID], let proof = state.proof else { return nil }
+    guard phaseAgentIDs.contains(proof.agentID) else { return nil }
     guard
       Self.canDetectPhase(
         for: proof.processIdentity,
@@ -907,6 +915,7 @@ final class TerminalAgentDetectionController {
 
   private func resetProof(_ state: inout SurfaceState) {
     resetMatch(&state)
+    host.clearProcessMatch(state.key.id)
     state.proof = nil
     state.missedProcessScans = 0
   }
@@ -924,11 +933,13 @@ final class TerminalAgentDetectionController {
   private func invalidate(_ surfaceID: UUID) {
     states.removeValue(forKey: surfaceID)
     clearPublished(surfaceID)
+    host.clearProcessMatch(surfaceID)
   }
 
   private func invalidateAll() {
     for surfaceID in states.keys {
       clearPublished(surfaceID)
+      host.clearProcessMatch(surfaceID)
     }
     states.removeAll()
   }
@@ -1028,6 +1039,12 @@ final class TerminalAgentDetectionController {
       },
       clear: { [weak terminal] surfaceID in
         _ = terminal?.clearAgentDetection(for: surfaceID)
+      },
+      applyProcessMatch: { [weak terminal] match, surfaceID in
+        terminal?.applyAgentProcessMatch(match, for: surfaceID) == true
+      },
+      clearProcessMatch: { [weak terminal] surfaceID in
+        _ = terminal?.clearAgentProcessMatch(for: surfaceID)
       },
       pruneDeadAgentProcesses: { [weak terminal] in
         guard let terminal, terminal.pruneDeadAgentProcesses() else { return }

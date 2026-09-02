@@ -66,6 +66,15 @@ struct TerminalSidebarTabSummaryView: View {
     title.contains("/") ? .middle : .tail
   }
 
+  static func tabIcon(
+    panes: [TerminalSidebarPanePresentation]
+  ) -> TerminalSidebarPanePresentation.Icon {
+    guard let icon = panes.first?.icon, panes.allSatisfy({ $0.icon == icon }) else {
+      return .terminal
+    }
+    return icon
+  }
+
   static func hasVisibleStatusIndicator(
     tab: TerminalTabItem,
     panes: [TerminalSidebarPanePresentation],
@@ -104,6 +113,7 @@ struct TerminalSidebarTabSummaryView: View {
       if showsTitleHeader {
         TerminalSidebarTabLineView(
           title: tab.title,
+          icon: Self.tabIcon(panes: panes),
           trailingAccessory: tabTrailingAccessory,
           palette: palette,
           isSelected: isSelected
@@ -114,6 +124,7 @@ struct TerminalSidebarTabSummaryView: View {
         let ownsTabAccessories = !showsTitleHeader && pane.id == panes.first?.id
         TerminalSidebarTabLineView(
           title: pane.title,
+          icon: pane.icon,
           trailingAccessory: paneTrailingAccessory(
             pane.indicator,
             ownsTabAccessories: ownsTabAccessories
@@ -154,6 +165,7 @@ struct TerminalSidebarTabSummaryView: View {
 
 private struct TerminalSidebarTabLineView: View {
   let title: String
+  let icon: TerminalSidebarPanePresentation.Icon
   let trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory?
   let palette: Palette
   let isSelected: Bool
@@ -165,6 +177,8 @@ private struct TerminalSidebarTabLineView: View {
       let showsAgentStatusText =
         geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
       HStack(spacing: 6) {
+        leadingIcon
+
         Text(title)
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(titleColor)
@@ -192,6 +206,30 @@ private struct TerminalSidebarTabLineView: View {
 
   private var titleColor: Color {
     isSelected ? palette.selectedText : palette.selectableRow.title
+  }
+
+  private var leadingIcon: some View {
+    Group {
+      switch icon {
+      case .terminal:
+        Image(systemName: "terminal.fill")
+          .renderingMode(.template)
+          .resizable()
+          .accessibilityHidden(true)
+      case .agent(let imageName):
+        Image(imageName)
+          .renderingMode(.template)
+          .resizable()
+          .accessibilityHidden(true)
+      }
+    }
+    .aspectRatio(contentMode: .fit)
+    .frame(width: 13, height: 13)
+    .foregroundStyle(
+      isSelected
+        ? palette.selectedSecondaryText
+        : palette.secondaryText
+    )
   }
 
   private func trailingAccessoryView(

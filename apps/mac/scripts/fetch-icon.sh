@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
-  echo "usage: $0 <lucide|simple-icons> <icon-name> [icon-name ...]" >&2
+  echo "usage: $0 <lobe-icons|lucide|simple-icons> <icon-name> [icon-name ...]" >&2
   exit 64
 fi
 
@@ -10,11 +10,17 @@ icon_source="$1"
 shift
 
 case "${icon_source}" in
+  lobe-icons)
+    base_url="https://unpkg.com/@lobehub/icons-static-svg@${LOBE_ICONS_VERSION:-1.94.0}/icons"
+    asset_suffix="-mark"
+    ;;
   lucide)
     base_url="https://unpkg.com/lucide-static@${LUCIDE_ICON_VERSION:-latest}/icons"
+    asset_suffix=""
     ;;
   simple-icons)
     base_url="https://unpkg.com/simple-icons@${SIMPLE_ICONS_VERSION:-latest}/icons"
+    asset_suffix=""
     ;;
   *)
     echo "error: unknown icon source: ${icon_source}" >&2
@@ -38,8 +44,9 @@ for icon_name in "$@"; do
       ;;
   esac
 
-  imageset_dir="${asset_root}/${icon_name}.imageset"
-  svg_path="${imageset_dir}/${icon_name}.svg"
+  asset_name="${icon_name}${asset_suffix}"
+  imageset_dir="${asset_root}/${asset_name}.imageset"
+  svg_path="${imageset_dir}/${asset_name}.svg"
   contents_path="${imageset_dir}/Contents.json"
   tmp="$(mktemp)"
   tmp_filtered="$(mktemp)"
@@ -47,6 +54,13 @@ for icon_name in "$@"; do
   curl -fsSL "${base_url}/${icon_name}.svg" -o "${tmp}"
 
   case "${icon_source}" in
+    lobe-icons)
+      if ! grep -q '<title>' "${tmp}" || ! grep -q 'fill="currentColor"' "${tmp}"; then
+        echo "error: fetched SVG does not look like ${icon_name}" >&2
+        exit 65
+      fi
+      cp "${tmp}" "${tmp_filtered}"
+      ;;
     lucide)
       awk '!/^<!-- @license /' "${tmp}" > "${tmp_filtered}"
       if ! grep -q "lucide-${icon_name}" "${tmp_filtered}"; then
@@ -71,7 +85,7 @@ for icon_name in "$@"; do
 {
   "images" : [
     {
-      "filename" : "${icon_name}.svg",
+      "filename" : "${asset_name}.svg",
       "idiom" : "universal"
     }
   ],

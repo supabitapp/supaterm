@@ -43,6 +43,23 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func publishesKnownAgentIdentityWithoutPhaseRules() async {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let proof = identity(processID: 101, startTime: 1)
+    let match = AgentDetectionProcessMatch(agentID: "gemini", processIdentity: proof)
+    await fixture.sampler.setMatches([11: match])
+    await fixture.sampler.setCurrent([proof])
+
+    await fixture.controller.tick(now: ContinuousClock.now)
+
+    #expect(fixture.host.processMatch(for: surfaceID) == match)
+    #expect(fixture.host.screenCaptureCount == 0)
+    #expect(await fixture.rules.inputs().isEmpty)
+    #expect(fixture.host.observations[surfaceID] == nil)
+  }
+
+  @Test
   func evaluatesEveryPaneWhileRefreshingProcessProofsOnCadence() async {
     let fixture = makeFixture()
     let firstID = fixture.host.addSurface(processGroupID: 11)
@@ -92,6 +109,7 @@ struct TerminalAgentDetectionControllerTests {
     await fixture.controller.tick(now: now.advanced(by: .milliseconds(5_500)))
 
     #expect(fixture.host.observations[surfaceID] == nil)
+    #expect(fixture.host.processMatch(for: surfaceID) == nil)
     #expect(fixture.controller.explanation(for: surfaceID).status == .unrecognizedProcess)
   }
 
@@ -832,12 +850,23 @@ private final class DetectionHostFixture {
       },
       clear: { [weak self] surfaceID in
         self?.detectionStore.clear(for: surfaceID)
+      },
+      applyProcessMatch: { [weak self] match, surfaceID in
+        guard let self, self.surfaces[surfaceID] != nil else { return false }
+        return self.detectionStore.applyProcessMatch(match, for: surfaceID)
+      },
+      clearProcessMatch: { [weak self] surfaceID in
+        self?.detectionStore.clearProcessMatch(for: surfaceID)
       }
     )
   }
 
   func observation(for surfaceID: UUID) -> TerminalAgentDetectionObservation? {
     detectionStore.observation(for: surfaceID)
+  }
+
+  func processMatch(for surfaceID: UUID) -> AgentDetectionProcessMatch? {
+    detectionStore.processMatch(for: surfaceID)
   }
 
   func store(

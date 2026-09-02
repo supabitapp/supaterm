@@ -236,7 +236,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     let manifest = AgentDetectionProcessManifest(
       agentID: "agent",
       processes: [
-        AgentDetectionProcessRule(executable: "node", processTitle: "pi")
+        AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi"))
       ]
     )
     let result = Self.match(
@@ -264,7 +264,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     let manifest = AgentDetectionProcessManifest(
       agentID: "agent",
       processes: [
-        AgentDetectionProcessRule(executable: "node", processTitle: "pi")
+        AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi"))
       ]
     )
     let cases = [
@@ -290,11 +290,119 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
+  func matchesAnAgentWrappedByANodeEntryPoint() {
+    let manifest = AgentDetectionProcessManifest(
+      agentID: "gemini",
+      processes: [
+        AgentDetectionProcessRule(
+          executable: "node",
+          selector: .argumentPathSuffix("@google/gemini-cli/bundle/gemini.js")
+        )
+      ]
+    )
+    let result = Self.match(
+      entries: [Self.process(100, name: "node")],
+      invocations: [
+        100: Self.invocation(
+          "/opt/homebrew/bin/node",
+          arguments: [
+            "node",
+            "/opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/gemini.js",
+          ]
+        )
+      ],
+      manifests: [manifest]
+    )
+
+    #expect(result?.agentID == "gemini")
+    #expect(result?.processIdentity.processID == 100)
+  }
+
+  @Test
+  func matchesAnInterpretedAgentByItsLaunchCommand() {
+    let manifest = AgentDetectionProcessManifest(
+      agentID: "kimi",
+      processes: [
+        AgentDetectionProcessRule(executable: "python3", selector: .launchCommand("kimi"))
+      ]
+    )
+    let result = Self.match(
+      entries: [Self.process(100, name: "python3")],
+      invocations: [
+        100: Self.invocation(
+          "/opt/homebrew/bin/python3",
+          arguments: ["/opt/homebrew/bin/kimi", "--continue"]
+        )
+      ],
+      manifests: [manifest]
+    )
+
+    #expect(result?.agentID == "kimi")
+    #expect(result?.processIdentity.processID == 100)
+  }
+
+  @Test
+  func wrappedAgentRequiresTheExactRuntimeAndEntryPointComponents() {
+    let manifest = AgentDetectionProcessManifest(
+      agentID: "gemini",
+      processes: [
+        AgentDetectionProcessRule(
+          executable: "node",
+          selector: .argumentPathSuffix("@google/gemini-cli/bundle/gemini.js")
+        )
+      ]
+    )
+    let cases = [
+      Self.invocation(
+        "/opt/homebrew/bin/bun",
+        arguments: ["bun", "/node_modules/@google/gemini-cli/bundle/gemini.js"]
+      ),
+      Self.invocation(
+        "/opt/homebrew/bin/node",
+        arguments: ["node", "/node_modules/@google/gemini-cli-copy/bundle/gemini.js"]
+      ),
+      Self.invocation(
+        "/opt/homebrew/bin/node",
+        arguments: [
+          "node",
+          "/tmp/server.js",
+          "/node_modules/@google/gemini-cli/bundle/gemini.js",
+        ]
+      ),
+    ]
+
+    for invocation in cases {
+      let result = Self.match(
+        entries: [Self.process(100, name: "node")],
+        invocations: [100: invocation],
+        manifests: [manifest]
+      )
+
+      #expect(result == nil)
+    }
+  }
+
+  @Test
+  func codingAgentCatalogHasOneMarkAndProcessManifestPerAgent() {
+    let expected = [
+      "amp", "antigravity", "claude", "cline", "codex", "copilot", "cursor", "gemini",
+      "goose", "grok", "hermes", "kimi", "opencode", "pi", "qwen",
+    ]
+
+    #expect(TerminalCodingAgentCatalog.all.map(\.id) == expected)
+    #expect(TerminalCodingAgentCatalog.processManifests.map(\.agentID) == expected)
+    #expect(Set(TerminalCodingAgentCatalog.all.map(\.markImageName)).count == expected.count)
+    #expect(TerminalCodingAgentCatalog.all.allSatisfy { !$0.processes.isEmpty })
+  }
+
+  @Test
   func exactExecutableOutranksARootProcessTitle() {
     let manifests = [
       AgentDetectionProcessManifest(
         agentID: "pi",
-        processes: [AgentDetectionProcessRule(executable: "node", processTitle: "pi")]
+        processes: [
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi"))
+        ]
       ),
       Self.codex,
     ]
@@ -324,7 +432,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
         agentID: "pi",
         processes: [
           AgentDetectionProcessRule(executable: "pi"),
-          AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi")),
         ]
       ),
       Self.codex,
@@ -367,13 +475,13 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       AgentDetectionProcessManifest(
         agentID: "first",
         processes: [
-          AgentDetectionProcessRule(executable: "node", processTitle: "agent")
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("agent"))
         ]
       ),
       AgentDetectionProcessManifest(
         agentID: "second",
         processes: [
-          AgentDetectionProcessRule(executable: "node", processTitle: "agent")
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("agent"))
         ]
       ),
     ]

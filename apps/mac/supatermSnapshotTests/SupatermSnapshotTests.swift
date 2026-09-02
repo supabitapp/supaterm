@@ -10,8 +10,17 @@ import Testing
 struct SupatermSnapshotTests {
   @Test func catalogScenarios() {
     assertCatalogSnapshots(
-      SnapshotCatalog.scenarios.filter { $0.group != SnapshotCatalog.keyboardShortcutPillGroup },
+      SnapshotCatalog.scenarios.filter {
+        $0.group != SnapshotCatalog.keyboardShortcutPillGroup && $0.group != "Sidebar Rows"
+      },
       testName: #function
+    )
+  }
+
+  @Test func sidebarRows() {
+    assertCatalogSnapshots(
+      SnapshotCatalog.scenarios.filter { $0.group == "Sidebar Rows" },
+      testName: "catalogScenarios()"
     )
   }
 

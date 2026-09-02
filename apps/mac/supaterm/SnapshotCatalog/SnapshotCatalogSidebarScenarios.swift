@@ -113,7 +113,7 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000008",
             title: "supaterm - fish",
-            paneTitles: ["fish"]
+            paneFixtures: [SidebarRowSnapshotPane(title: "fish")]
           )
         )
       )
@@ -132,7 +132,7 @@ extension SnapshotCatalog {
             title: "supaterm - fish",
             selection: .primary,
             isTitleLocked: true,
-            paneTitles: ["fish"]
+            paneFixtures: [SidebarRowSnapshotPane(title: "fish")]
           )
         )
       )
@@ -151,7 +151,7 @@ extension SnapshotCatalog {
             title: "release-check",
             isPinned: true,
             isRowHovering: true,
-            paneTitles: ["release-check"],
+            paneFixtures: [SidebarRowSnapshotPane(title: "release-check")],
             shortcutHint: "⌘2",
             showsShortcutHint: true
           )
@@ -171,8 +171,9 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000013",
             title: "Codex",
             isRowHovering: true,
-            paneTitles: ["khoi/routine-ui"],
-            paneAgentStatuses: [.working]
+            paneFixtures: [
+              .agent("khoi/routine-ui", status: .working)
+            ]
           )
         )
       )
@@ -190,8 +191,9 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000015",
             title: "khoi/routine-ui",
             selection: .primary,
-            paneTitles: ["khoi/routine-ui"],
-            paneAgentStatuses: [.working],
+            paneFixtures: [
+              .agent("khoi/routine-ui", status: .working)
+            ],
             shortcutHint: "⌘1",
             showsShortcutHint: true
           )
@@ -211,9 +213,10 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000014",
             title: "Review authentication",
             isRowHovering: true,
-            paneTitles: ["Codex auth", "swift test"],
-            paneAgentStatuses: [.working, nil],
-            paneHasAttention: [false, true]
+            paneFixtures: [
+              .agent("Codex auth", status: .working),
+              SidebarRowSnapshotPane(title: "swift test", hasAttention: true),
+            ]
           )
         )
       )
@@ -230,9 +233,10 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000016",
             title: "Review authentication",
-            paneTitles: ["Codex auth", "swift test"],
-            paneAgentStatuses: [.working, nil],
-            paneHasAttention: [false, true],
+            paneFixtures: [
+              .agent("Codex auth", status: .working),
+              SidebarRowSnapshotPane(title: "swift test", hasAttention: true),
+            ],
             shortcutHint: "⌘2",
             showsShortcutHint: true
           )
@@ -252,7 +256,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000007",
             title: "supaterm - fish",
             selection: .secondary,
-            paneTitles: ["fish"]
+            paneFixtures: [SidebarRowSnapshotPane(title: "fish")]
           )
         )
       )
@@ -270,7 +274,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000009",
             title: "supaterm - fish",
             isPressed: true,
-            paneTitles: ["fish"]
+            paneFixtures: [SidebarRowSnapshotPane(title: "fish")]
           )
         )
       )
@@ -287,11 +291,10 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000003",
             title: "Build failures",
-            paneTitles: [
-              "swift build",
-              "swift test",
-            ],
-            paneHasAttention: [true, true]
+            paneFixtures: [
+              SidebarRowSnapshotPane(title: "swift build", hasAttention: true),
+              SidebarRowSnapshotPane(title: "swift test", hasAttention: true),
+            ]
           )
         )
       )
@@ -308,9 +311,10 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000012",
             title: "Agent and shell attention",
-            paneTitles: ["Codex", "swift test"],
-            paneAgentStatuses: [.working, nil],
-            paneHasAttention: [true, true]
+            paneFixtures: [
+              .agent("Codex", status: .working, hasAttention: true),
+              SidebarRowSnapshotPane(title: "swift test", hasAttention: true),
+            ]
           )
         )
       )
@@ -431,7 +435,7 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000007",
             title: "Archive export",
-            paneTitles: ["tar -czf release.tar.gz"],
+            paneFixtures: [SidebarRowSnapshotPane(title: "tar -czf release.tar.gz")],
             terminalProgress: TerminalSidebarTerminalProgress(fraction: 0.68, tone: .paused)
           )
         )
@@ -449,16 +453,101 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000008",
             title: SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog"),
-            paneTitles: [
-              SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog"),
-              "swift run SnapshotCatalog",
-            ],
-            paneHasAttention: [false, true]
+            paneFixtures: [
+              SidebarRowSnapshotPane(
+                title: SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog")
+              ),
+              SidebarRowSnapshotPane(
+                title: "swift run SnapshotCatalog",
+                hasAttention: true
+              ),
+            ]
+          )
+        )
+      )
+    },
+    scenario(
+      "locked-mixed-icons",
+      group: "Sidebar Rows",
+      title: "Locked tab with mixed pane icons",
+      size: CGSize(width: 320, height: 72)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000017",
+            title: "Review authentication",
+            isTitleLocked: true,
+            paneFixtures: [
+              .agent("Agent"),
+              SidebarRowSnapshotPane(title: "Shell"),
+            ]
+          )
+        )
+      )
+    },
+    scenario(
+      "locked-agent-icons",
+      group: "Sidebar Rows",
+      title: "Locked tab with matching agent icons",
+      size: CGSize(width: 320, height: 94)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000018",
+            title: "Review authentication",
+            isTitleLocked: true,
+            paneFixtures: [
+              .agent("Agent one"),
+              .agent("Agent two"),
+            ]
           )
         )
       )
     },
   ]
+
+  static let codingAgentMarkScenarios =
+    TerminalCodingAgentCatalog.all.enumerated().map { index, agent in
+      scenario(
+        "agent-mark-\(agent.id)",
+        group: "Sidebar Rows",
+        title: "\(agent.id) agent mark",
+        size: CGSize(width: 320, height: 72)
+      ) { appearance in
+        AnyView(
+          SidebarRowSnapshotFixture(
+            appearance: appearance,
+            item: SidebarRowSnapshotItem(
+              id: String(format: "10000000-0000-0000-0000-%012X", index + 100),
+              title: agent.id,
+              paneFixtures: [
+                .agent(agent.id, mark: agent.markImageName)
+              ]
+            )
+          )
+        )
+      }
+    }
+}
+
+private struct SidebarRowSnapshotPane {
+  let title: String
+  var icon: TerminalSidebarPanePresentation.Icon = .terminal
+  var agentStatus: TerminalHostState.TabAgentStatus?
+  var hasAttention = false
+
+  static func agent(
+    _ title: String,
+    mark: String = "codex-mark",
+    status: TerminalHostState.TabAgentStatus? = nil,
+    hasAttention: Bool = false
+  ) -> Self {
+    Self(title: title, icon: .agent(mark), agentStatus: status, hasAttention: hasAttention)
+  }
 }
 
 private struct SidebarRowSnapshotItem {
@@ -469,9 +558,7 @@ private struct SidebarRowSnapshotItem {
   var isRowHovering = false
   var isPressed = false
   var isTitleLocked = false
-  var paneTitles: [String] = []
-  var paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = []
-  var paneHasAttention: [Bool] = []
+  var paneFixtures: [SidebarRowSnapshotPane] = []
   var terminalProgress: TerminalSidebarTerminalProgress?
   var shortcutHint: String?
   var showsShortcutHint = false
@@ -487,14 +574,13 @@ private struct SidebarRowSnapshotItem {
   var isSelected: Bool { selection != .none }
 
   var panes: [TerminalSidebarPanePresentation] {
-    paneTitles.enumerated().map { index, title in
-      let agentStatus = paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
-      let hasAttention = paneHasAttention.indices.contains(index) && paneHasAttention[index]
+    paneFixtures.enumerated().map { index, pane in
       return TerminalSidebarPanePresentation(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
-        title: title,
-        indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
-          ?? (hasAttention ? .attention : nil)
+        title: pane.title,
+        icon: pane.icon,
+        indicator: pane.agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
+          ?? (pane.hasAttention ? .attention : nil)
       )
     }
   }
@@ -503,8 +589,9 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000004",
       title: "Codex",
-      paneTitles: ["khoi/routine-ui-what-happened | Thinking | Tasks 5/5"],
-      paneAgentStatuses: [.working]
+      paneFixtures: [
+        .agent("khoi/routine-ui-what-happened | Thinking | Tasks 5/5", status: .working)
+      ]
     )
   }
 
@@ -512,8 +599,10 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000010",
       title: "Review authentication",
-      paneTitles: ["Codex auth", "Review token expiry"],
-      paneAgentStatuses: [.working, .done]
+      paneFixtures: [
+        .agent("Codex auth", status: .working),
+        .agent("Review token expiry", status: .done),
+      ]
     )
   }
 
@@ -521,8 +610,14 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000011",
       title: "Coding agents",
-      paneTitles: ["Codex 1", "Codex 2", "Codex 3", "Review 1", "Review 2", "Review 3"],
-      paneAgentStatuses: [.working, .done, .needsInput, .working, .done, .needsInput]
+      paneFixtures: [
+        .agent("Codex 1", status: .working),
+        .agent("Codex 2", status: .done),
+        .agent("Codex 3", status: .needsInput),
+        .agent("Review 1", status: .working),
+        .agent("Review 2", status: .done),
+        .agent("Review 3", status: .needsInput),
+      ]
     )
   }
 
@@ -530,8 +625,9 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000005",
       title: "Release note pass",
-      paneTitles: ["Review agent"],
-      paneAgentStatuses: [.needsInput]
+      paneFixtures: [
+        .agent("Review agent", status: .needsInput)
+      ]
     )
   }
 
@@ -539,8 +635,9 @@ private struct SidebarRowSnapshotItem {
     SidebarRowSnapshotItem(
       id: "10000000-0000-0000-0000-000000000006",
       title: "Docs audit",
-      paneTitles: ["Codex"],
-      paneAgentStatuses: [.done]
+      paneFixtures: [
+        .agent("Codex", status: .done)
+      ]
     )
   }
 }
