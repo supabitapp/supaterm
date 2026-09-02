@@ -6,6 +6,39 @@ import Testing
 
 struct TerminalSidebarHoverCardTests {
   @Test
+  func plainTabContentDoesNotNeedAgentMetadata() {
+    let content = TerminalSidebarHoverCardContent(
+      tabTitle: "fish",
+      workingDirectoryPath: "/Users/khoi/code/supaterm",
+      branch: nil,
+      response: nil
+    )
+
+    #expect(content.tabTitle == "fish")
+    #expect(content.workingDirectoryPath == "/Users/khoi/code/supaterm")
+    #expect(content.branch == nil)
+    #expect(content.response == nil)
+  }
+
+  @Test
+  func agentContentCarriesItsWorkingDirectoryAndBranch() {
+    let branch = TerminalTabAgentWorkspace.Branch(
+      repositoryRootPath: "/Users/khoi/code/agent",
+      name: "main",
+      pullRequest: nil
+    )
+    let content = TerminalSidebarHoverCardContent(
+      tabTitle: "Agent",
+      workingDirectoryPath: "/Users/khoi/code/agent",
+      branch: branch,
+      response: nil
+    )
+
+    #expect(content.workingDirectoryPath == "/Users/khoi/code/agent")
+    #expect(content.branch == branch)
+  }
+
+  @Test
   func pullRequestModelPreservesURL() throws {
     let url = try #require(URL(string: "https://github.com/supabitapp/supaterm/pull/128"))
     let status = PaneAgentPullRequestStatus(
@@ -71,7 +104,8 @@ struct TerminalSidebarHoverCardTests {
   func shortResponseUsesItsContentHeight() {
     let content = TerminalSidebarHoverCardContent(
       tabTitle: "Ready",
-      workspace: nil,
+      workingDirectoryPath: nil,
+      branch: nil,
       response: TerminalHostState.TabAgentResponse(
         agent: AgentDetectionAgentIdentity(id: "agent", displayName: "Agent"),
         text: "Hello, khoi."
@@ -90,13 +124,11 @@ struct TerminalSidebarHoverCardTests {
   func metadataCardDoesNotRequireAnAgentResponse() {
     let content = TerminalSidebarHoverCardContent(
       tabTitle: "Implement agent tab hover details",
-      workspace: TerminalTabAgentWorkspace(
-        workingDirectoryPath: "/Users/khoi/code/supaterm",
-        branch: TerminalTabAgentWorkspace.Branch(
-          repositoryRootPath: "/Users/khoi/code/supaterm",
-          name: "main",
-          pullRequest: nil
-        )
+      workingDirectoryPath: "/Users/khoi/code/supaterm",
+      branch: TerminalTabAgentWorkspace.Branch(
+        repositoryRootPath: "/Users/khoi/code/supaterm",
+        name: "main",
+        pullRequest: nil
       ),
       response: nil
     )
@@ -114,28 +146,24 @@ struct TerminalSidebarHoverCardTests {
   func metadataCardAddsPullRequestRowWhenAvailable() {
     let withoutPullRequest = TerminalSidebarHoverCardContent(
       tabTitle: "Agent tab",
-      workspace: TerminalTabAgentWorkspace(
-        workingDirectoryPath: "/Users/khoi/code/supaterm",
-        branch: TerminalTabAgentWorkspace.Branch(
-          repositoryRootPath: "/Users/khoi/code/supaterm",
-          name: "feature/sidebar-hover-card",
-          pullRequest: nil
-        )
+      workingDirectoryPath: "/Users/khoi/code/supaterm",
+      branch: TerminalTabAgentWorkspace.Branch(
+        repositoryRootPath: "/Users/khoi/code/supaterm",
+        name: "feature/sidebar-hover-card",
+        pullRequest: nil
       ),
       response: nil
     )
     let withPullRequest = TerminalSidebarHoverCardContent(
       tabTitle: "Agent tab",
-      workspace: TerminalTabAgentWorkspace(
-        workingDirectoryPath: "/Users/khoi/code/supaterm",
-        branch: TerminalTabAgentWorkspace.Branch(
-          repositoryRootPath: "/Users/khoi/code/supaterm",
-          name: "feature/sidebar-hover-card",
-          pullRequest: TerminalTabAgentWorkspace.PullRequest(
-            kind: .open,
-            title: "#128",
-            url: URL(string: "https://github.com/supabitapp/supaterm/pull/128")
-          )
+      workingDirectoryPath: "/Users/khoi/code/supaterm",
+      branch: TerminalTabAgentWorkspace.Branch(
+        repositoryRootPath: "/Users/khoi/code/supaterm",
+        name: "feature/sidebar-hover-card",
+        pullRequest: TerminalTabAgentWorkspace.PullRequest(
+          kind: .open,
+          title: "#128",
+          url: URL(string: "https://github.com/supabitapp/supaterm/pull/128")
         )
       ),
       response: nil
@@ -154,12 +182,14 @@ struct TerminalSidebarHoverCardTests {
   func fullTitleExpandsCardHeight() {
     let short = TerminalSidebarHoverCardContent(
       tabTitle: "Short title",
-      workspace: nil,
+      workingDirectoryPath: nil,
+      branch: nil,
       response: nil
     )
     let long = TerminalSidebarHoverCardContent(
       tabTitle: String(repeating: "A complete agent task title ", count: 12),
-      workspace: nil,
+      workingDirectoryPath: nil,
+      branch: nil,
       response: nil
     )
     let shortController = NSHostingController(
@@ -534,7 +564,8 @@ struct TerminalSidebarHoverCardTests {
       content: { _ in
         TerminalSidebarHoverCardContent(
           tabTitle: "Ready",
-          workspace: nil,
+          workingDirectoryPath: nil,
+          branch: nil,
           response: TerminalHostState.TabAgentResponse(
             agent: AgentDetectionAgentIdentity(id: "agent", displayName: "Agent"),
             text: "Done."

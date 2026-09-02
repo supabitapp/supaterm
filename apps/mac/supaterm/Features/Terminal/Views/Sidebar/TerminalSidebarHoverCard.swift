@@ -7,7 +7,8 @@ import SwiftUI
 
 struct TerminalSidebarHoverCardContent: Equatable {
   let tabTitle: String
-  let workspace: TerminalTabAgentWorkspace?
+  let workingDirectoryPath: String?
+  let branch: TerminalTabAgentWorkspace.Branch?
   let response: TerminalHostState.TabAgentResponse?
 }
 
@@ -459,7 +460,7 @@ final class TerminalSidebarHoverCardController {
         pointedTabID: pointedTabID,
         screenPoint: screenPoint,
         cardFrame: presenter.frame
-      ), pointedTabID != suppressedTabID, content(pointedTabID) != nil
+      ), pointedTabID != suppressedTabID
     else {
       return nil
     }
@@ -734,9 +735,9 @@ struct TerminalSidebarHoverCardView: View {
           .font(.system(size: 13, weight: .medium))
           .fixedSize(horizontal: false, vertical: true)
 
-        if let workspace = content.workspace {
+        if content.branch != nil || content.workingDirectoryPath != nil {
           VStack(alignment: .leading, spacing: 8) {
-            if let branch = workspace.branch {
+            if let branch = content.branch {
               TerminalSidebarHoverCardActionRow(
                 icon: .asset("git-branch"),
                 title: branch.name,
@@ -752,13 +753,15 @@ struct TerminalSidebarHoverCardView: View {
                 )
               }
             }
-            TerminalSidebarHoverCardActionRow(
-              icon: .system("folder"),
-              title: (workspace.workingDirectoryPath as NSString).abbreviatingWithTildeInPath,
-              action: .copy(workspace.workingDirectoryPath),
-              accessibilityName: "working directory",
-              truncationMode: .middle
-            )
+            if let workingDirectoryPath = content.workingDirectoryPath {
+              TerminalSidebarHoverCardActionRow(
+                icon: .system("folder"),
+                title: (workingDirectoryPath as NSString).abbreviatingWithTildeInPath,
+                action: .copy(workingDirectoryPath),
+                accessibilityName: "working directory",
+                truncationMode: .middle
+              )
+            }
           }
         }
 
@@ -782,7 +785,7 @@ struct TerminalSidebarHoverCardView: View {
       .frame(width: TerminalSidebarHoverCardMetrics.width, alignment: .leading)
     }
     .accessibilityElement(children: .contain)
-    .accessibilityLabel("Agent tab details for \(content.tabTitle)")
+    .accessibilityLabel("Tab details for \(content.tabTitle)")
   }
 }
 

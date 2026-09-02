@@ -26,6 +26,7 @@ struct TerminalHostStateTabGroupTests {
       #expect(host.spaceManager.tabCollection.tabIDs(in: groupID) == [anchorTabID])
       #expect(host.spaceManager.tabCollection.rootItemID(containing: rootTabID) == .tab(rootTabID))
       #expect(!host.collapsedTabGroupIDs.contains(groupID))
+      #expect(host.setGroupCollapsed(groupID, isCollapsed: true))
 
       let groupedTabID = try #require(
         host.createTab(
@@ -39,7 +40,7 @@ struct TerminalHostStateTabGroupTests {
         host.spaceManager.tabCollection.tabIDs(in: groupID)
           == [anchorTabID, groupedTabID]
       )
-      #expect(!host.collapsedTabGroupIDs.contains(groupID))
+      #expect(host.collapsedTabGroupIDs.contains(groupID))
 
       #expect(host.ungroup(groupID))
       #expect(host.setTabPinned(anchorTabID, isPinned: true) != nil)
@@ -54,7 +55,7 @@ struct TerminalHostStateTabGroupTests {
   }
 
   @Test
-  func selectingCollapsedGroupChildExpandsItsGroup() throws {
+  func selectingCollapsedGroupChildKeepsItsGroupCollapsed() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -70,7 +71,7 @@ struct TerminalHostStateTabGroupTests {
 
       host.selectTab(first)
 
-      #expect(!host.collapsedTabGroupIDs.contains(groupID))
+      #expect(host.collapsedTabGroupIDs.contains(groupID))
       #expect(host.selectedTabID == first)
     }
   }
@@ -96,13 +97,13 @@ struct TerminalHostStateTabGroupTests {
       host.selectTab(slot: 1)
 
       #expect(host.selectedTabID == first)
-      #expect(!host.collapsedTabGroupIDs.contains(firstGroupID))
+      #expect(host.collapsedTabGroupIDs.contains(firstGroupID))
       #expect(host.collapsedTabGroupIDs.contains(secondGroupID))
 
       host.selectTab(slot: 2)
 
       #expect(host.selectedTabID == second)
-      #expect(!host.collapsedTabGroupIDs.contains(secondGroupID))
+      #expect(host.collapsedTabGroupIDs.contains(secondGroupID))
     }
   }
 
@@ -127,7 +128,7 @@ struct TerminalHostStateTabGroupTests {
   }
 
   @Test
-  func movingSelectedTabIntoCollapsedGroupExpandsIt() throws {
+  func movingSelectedTabIntoCollapsedGroupKeepsItCollapsed() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -150,13 +151,13 @@ struct TerminalHostStateTabGroupTests {
       )
 
       #expect(manager.selectedTabID == source)
-      #expect(!host.collapsedTabGroupIDs.contains(groupID))
+      #expect(host.collapsedTabGroupIDs.contains(groupID))
       #expect(result.location == TerminalTabPlacement.group(groupID, index: 1))
     }
   }
 
   @Test
-  func closingSelectedTabExpandsCollapsedReplacementGroup() throws {
+  func closingSelectedTabKeepsReplacementGroupCollapsed() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -176,7 +177,7 @@ struct TerminalHostStateTabGroupTests {
       host.closeTab(first)
 
       #expect(host.selectedTabID == second)
-      #expect(!host.collapsedTabGroupIDs.contains(secondGroupID))
+      #expect(host.collapsedTabGroupIDs.contains(secondGroupID))
     }
   }
 

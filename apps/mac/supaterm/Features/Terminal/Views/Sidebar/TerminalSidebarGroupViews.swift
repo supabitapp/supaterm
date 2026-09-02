@@ -55,10 +55,11 @@ enum TerminalSidebarGroupNewTabAccessory: Equatable {
 
   static func resolve(
     isHovered: Bool,
+    isCollapsed: Bool,
     showsShortcutHint: Bool,
     shortcutHint: String?
   ) -> Self {
-    guard isHovered else { return .hidden }
+    guard isHovered, !isCollapsed else { return .hidden }
     guard showsShortcutHint, let shortcutHint else { return .icon }
     return .shortcut(shortcutHint)
   }
@@ -430,6 +431,7 @@ private struct TerminalSidebarGroupHeader: View {
   private var newTabAccessory: TerminalSidebarGroupNewTabAccessory {
     TerminalSidebarGroupNewTabAccessory.resolve(
       isHovered: hoverState.groupID == presentation.id,
+      isCollapsed: presentation.isCollapsed,
       showsShortcutHint: presentation.showsNewTabShortcutHint,
       shortcutHint: newTabShortcut?.display
     )
@@ -645,6 +647,9 @@ final class TerminalSidebarGroupBackgroundView: NSView {
 
   override func layout() {
     super.layout()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    defer { CATransaction.commit() }
     let lineWidth = 1 / (window?.backingScaleFactor ?? 1)
     let shapeBounds = bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
     let path = RoundedRectangle(

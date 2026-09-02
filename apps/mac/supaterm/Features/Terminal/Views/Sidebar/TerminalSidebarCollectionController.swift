@@ -121,6 +121,8 @@ final class TerminalSidebarListController: NSViewController {
   private var selectedTabID: TerminalTabID?
   private var fixedHoveredGroupID: TerminalTabGroupID?
   private var pendingRevealTabID: TerminalTabID?
+  private var trackingMenuIDs: Set<ObjectIdentifier> = []
+  private var pendingVisibleRowRefreshIDs: Set<TerminalSidebarEntryID> = []
   private var motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: false)
   private var shouldPlayTabMoveHaptics = true
   private var isLayingOut = false
@@ -205,11 +207,28 @@ final class TerminalSidebarListController: NSViewController {
     self.tabDragRegistry = tabDragRegistry
     self.captureRequest = captureRequest
     super.init(nibName: nil, bundle: nil)
+    let center = NotificationCenter.default
+    center.addObserver(
+      self,
+      selector: #selector(menuDidBeginTracking(_:)),
+      name: NSMenu.didBeginTrackingNotification,
+      object: nil
+    )
+    center.addObserver(
+      self,
+      selector: #selector(menuDidEndTracking(_:)),
+      name: NSMenu.didEndTrackingNotification,
+      object: nil
+    )
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is unavailable")
+  }
+
+  isolated deinit {
+    NotificationCenter.default.removeObserver(self)
   }
 
   override func loadView() {
@@ -387,8 +406,12 @@ final class TerminalSidebarListController: NSViewController {
     let newlyCollapsedGroupIDs = update.outline.collapsedGroupIDs.subtracting(
       appliedOutline.collapsedGroupIDs
     )
+    let targetEntryIDs = Set(update.outline.visibleEntries.map(\.id))
     let collapsing = appliedOutline.visibleEntries.compactMap { entry -> TerminalSidebarEntryID? in
-      guard let groupID = entry.parentGroupID, newlyCollapsedGroupIDs.contains(groupID) else {
+      guard let groupID = entry.parentGroupID,
+        newlyCollapsedGroupIDs.contains(groupID),
+        !targetEntryIDs.contains(entry.id)
+      else {
         return nil
       }
       return entry.id
@@ -396,6 +419,7 @@ final class TerminalSidebarListController: NSViewController {
     if !collapsing.isEmpty, motionPolicy.collapseStagger,
       !dataSource.snapshot().itemIdentifiers.isEmpty
     {
+      layoutAnimator.finish()
       updateState = .collapsing(update)
       collectionLayout.beginCollapse()
       collapseAnimator.start(rowIDs: collapsing)
@@ -434,18 +458,12 @@ final class TerminalSidebarListController: NSViewController {
     completion additionalCompletion: (() -> Void)? = nil
   ) {
     let isInitialSnapshot = !hasAppliedSnapshot
-    let animationDuration = TerminalSidebarLayoutMotion.animationDuration(
-      from: appliedOutline,
-      to: update.outline
-    )
+    let animatesExpansion =
+      animated
+      && !update.outline.expandedGroupIDs(from: appliedOutline).isEmpty
     updateState = .applyingSnapshot(nil)
     collectionLayout.visibilityByEntryID = [:]
     layoutAnimator.finish()
-    if animated {
-      collectionLayout.stageOutline(update.outline)
-    } else {
-      collectionLayout.setOutline(update.outline)
-    }
     var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()
     snapshot.appendSections([0])
     snapshot.appendItems(update.outline.visibleEntries.map(\.id))
@@ -476,16 +494,29 @@ final class TerminalSidebarListController: NSViewController {
       consumePendingUpdate()
     }
     if isInitialSnapshot {
+      collectionLayout.setOutline(update.outline)
       dataSource.apply(snapshot, animatingDifferences: false)
       completion()
       return
+    }
+    if animatesExpansion {
+      layoutAnimator.animate(enabled: true) {
+        collectionLayout.setOutline(update.outline)
+        dataSource.apply(snapshot, animatingDifferences: false, completion: completion)
+      }
+      return
+    }
+    if animated {
+      collectionLayout.stageOutline(update.outline)
+    } else {
+      collectionLayout.setOutline(update.outline)
     }
     guard animated else {
       dataSource.apply(snapshot, animatingDifferences: false, completion: completion)
       return
     }
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = animationDuration
+      context.duration = TerminalSidebarLayoutMotion.defaultDuration
       context.timingFunction = TerminalSidebarAnimationCurve.timingFunction
       dataSource.apply(snapshot, animatingDifferences: true, completion: completion)
     }
@@ -624,6 +655,11 @@ final class TerminalSidebarListController: NSViewController {
   }
 
   private func refreshVisibleRows(ids: Set<TerminalSidebarEntryID>) {
+    guard !ids.isEmpty else { return }
+    guard trackingMenuIDs.isEmpty else {
+      pendingVisibleRowRefreshIDs.formUnion(ids)
+      return
+    }
     guard let context else { return }
     for item in collectionView.visibleItems() {
       guard
@@ -743,11 +779,12 @@ final class TerminalSidebarListController: NSViewController {
       selectionGlowView.isHidden = true
       return
     }
+    let surfaceFrame = TerminalSidebarLayout.tabSurfaceFrame(
+      in: item.frame,
+      isGrouped: presentation.groupID != nil
+    )
     selectionGlowView.update(
-      surfaceFrame: TerminalSidebarLayout.tabSurfaceFrame(
-        in: item.frame,
-        isGrouped: presentation.groupID != nil
-      ),
+      surfaceFrame: surfaceFrame,
       style: .resolve(palette: context.palette),
       alpha: item.alpha,
       fadesAtContentTop: true
@@ -803,15 +840,14 @@ final class TerminalSidebarListController: NSViewController {
       case .tab(let presentation) = rows[.tab(tabID)]
     else { return nil }
     let agentContext = context.terminal.tabAgentContext(for: tabID)
-    guard
-      agentContext.presentation.status != nil
-        || agentContext.presentation.detailActivity != nil
-        || !agentContext.workspaces.isEmpty
-        || agentContext.presentation.latestResponse != nil
-    else { return nil }
+    let workingDirectoryPath = context.terminal.titleSurface(for: tabID).flatMap {
+      context.terminal.workingDirectoryPath(for: $0)
+    }
+    let workspace = agentContext.workspaces.first
     return TerminalSidebarHoverCardContent(
       tabTitle: presentation.tab.title,
-      workspace: agentContext.workspaces.first,
+      workingDirectoryPath: workspace?.workingDirectoryPath ?? workingDirectoryPath,
+      branch: workspace?.branch,
       response: agentContext.presentation.latestResponse
     )
   }
@@ -883,5 +919,19 @@ final class TerminalSidebarListController: NSViewController {
       return
     }
     invalidateLayout()
+  }
+
+  @objc private func menuDidBeginTracking(_ notification: Notification) {
+    guard let menu = notification.object as? NSMenu else { return }
+    trackingMenuIDs.insert(ObjectIdentifier(menu))
+  }
+
+  @objc private func menuDidEndTracking(_ notification: Notification) {
+    guard let menu = notification.object as? NSMenu else { return }
+    trackingMenuIDs.remove(ObjectIdentifier(menu))
+    guard trackingMenuIDs.isEmpty, !pendingVisibleRowRefreshIDs.isEmpty else { return }
+    let ids = pendingVisibleRowRefreshIDs
+    pendingVisibleRowRefreshIDs.removeAll()
+    refreshVisibleRows(ids: ids)
   }
 }

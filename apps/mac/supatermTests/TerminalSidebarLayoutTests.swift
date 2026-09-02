@@ -92,6 +92,116 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func groupExpansionKeepsItsHeaderAnchoredAndInterpolatesDecorations() throws {
+    let tabs = [
+      TerminalTabItem(title: "First"),
+      TerminalTabItem(title: "Second"),
+      TerminalTabItem(title: "Selected"),
+    ]
+    let selectedTabID = tabs[2].id
+    let groupID = TerminalTabGroupID()
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .blue, .automatic, tabs.map(\.id)),
+        isPinned: false
+      )
+    ]
+    let collapsed = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [groupID],
+      selectedTabID: selectedTabID,
+      topologyRevision: 1,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+    let expanded = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [],
+      selectedTabID: selectedTabID,
+      topologyRevision: 2,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let harness = try #require(TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300)))
+    defer { closeWindowHarness(harness) }
+    harness.window.orderFront(nil)
+
+    harness.apply(
+      outline: collapsed,
+      rows: groupRows(tabs: tabs, groupID: groupID, isCollapsed: true),
+      terminal: terminal,
+      selectedTabID: selectedTabID,
+      reduceMotion: false
+    )
+    harness.layoutNow()
+    let background = try #require(
+      harness.collectionView.subviews.compactMap {
+        $0 as? TerminalSidebarGroupBackgroundView
+      }.first
+    )
+    let glow = try #require(
+      harness.collectionView.subviews.compactMap {
+        $0 as? TerminalSidebarSelectionGlowView
+      }.first
+    )
+    let collapsedBackgroundFrame = background.frame
+    let collapsedGlowFrame = glow.frame
+
+    harness.apply(
+      outline: expanded,
+      rows: groupRows(tabs: tabs, groupID: groupID, isCollapsed: false),
+      terminal: terminal,
+      selectedTabID: selectedTabID,
+      reduceMotion: false
+    )
+    harness.layoutNow()
+    let targetBackgroundFrame = try #require(
+      harness.layout.targetPlan.groups.first { $0.id == groupID }?.frame
+    )
+    let targetTabFrame = try #require(
+      harness.layout.targetPlan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
+    let targetGlowFrame = TerminalSidebarSelectionGlowView.visualFrame(
+      for: TerminalSidebarLayout.tabSurfaceFrame(in: targetTabFrame, isGrouped: true)
+    )
+    let sourceHeaderFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .group(groupID) }?.frame
+    )
+    let targetHeaderFrame = try #require(
+      harness.layout.targetPlan.items.first { $0.id == .group(groupID) }?.frame
+    )
+
+    #expect(collapsedBackgroundFrame != targetBackgroundFrame)
+    #expect(collapsedGlowFrame != targetGlowFrame)
+    #expect(sourceHeaderFrame == targetHeaderFrame)
+    #expect(background.frame == collapsedBackgroundFrame)
+    #expect(glow.frame == collapsedGlowFrame)
+
+    harness.layout.updateTransition(progress: 0.5)
+    harness.controller.viewWillLayout()
+    let midpointBackgroundFrame = try #require(
+      harness.layout.plan.groups.first { $0.id == groupID }?.frame
+    )
+    let midpointTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
+    let midpointGlowFrame = TerminalSidebarSelectionGlowView.visualFrame(
+      for: TerminalSidebarLayout.tabSurfaceFrame(in: midpointTabFrame, isGrouped: true)
+    )
+
+    #expect(midpointBackgroundFrame.minY == collapsedBackgroundFrame.minY)
+    #expect(midpointBackgroundFrame.height > collapsedBackgroundFrame.height)
+    #expect(midpointBackgroundFrame.height < targetBackgroundFrame.height)
+    #expect(background.frame == midpointBackgroundFrame)
+    #expect(glow.frame == midpointGlowFrame)
+
+    harness.layout.finishTransition()
+    harness.controller.viewWillLayout()
+
+    #expect(background.frame == targetBackgroundFrame)
+    #expect(glow.frame == targetGlowFrame)
+  }
+
+  @Test
   func windowBackedResizeAppliesCurrentItemGeometryInOneLayoutPass() throws {
     let (harness, _) = try tabHarness(
       size: CGSize(width: 280, height: 640),
@@ -352,6 +462,11 @@ struct TerminalSidebarLayoutTests {
     #expect(harness.collectionView.visibleRect.minY == 0)
     #expect(harness.layout.collectionViewContentSize.height < expandedHeight)
     #expect(harness.layout.collectionViewContentSize.height == harness.layout.plan.contentSize.height)
+  }
+
+  private func closeWindowHarness(_ harness: TerminalSidebarWindowHarness) {
+    harness.window.orderOut(nil)
+    harness.close()
   }
 
   private func programmaticReorderFrames(
@@ -841,6 +956,36 @@ struct TerminalSidebarLayoutTests {
     harness.layoutNow()
     harness.layoutNow()
     return (harness, tabs)
+  }
+
+  private func groupRows(
+    tabs: [TerminalTabItem],
+    groupID: TerminalTabGroupID,
+    isCollapsed: Bool
+  ) -> [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
+    let tabRows = Dictionary(
+      uniqueKeysWithValues: tabs.map {
+        (
+          TerminalSidebarEntryID.tab($0.id),
+          TerminalSidebarRowPresentation.tab(tabPresentation($0, groupID: groupID))
+        )
+      }
+    )
+    return tabRows.merging([
+      .group(groupID): .group(
+        TerminalSidebarGroupRowPresentation(
+          id: groupID,
+          title: "Group",
+          color: .blue,
+          iconURL: nil,
+          isPinned: false,
+          isCollapsed: isCollapsed,
+          tabCount: tabs.count,
+          showsNewTabShortcutHint: false
+        )
+      ),
+      .newTab: .newTab(.inline),
+    ]) { current, _ in current }
   }
 
   private func tabPresentation(

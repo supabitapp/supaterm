@@ -163,23 +163,33 @@ struct TerminalSidebarMotionTests {
   @Test
   func collapsedGroupSelectionUpdateQueuesDuringDrag() throws {
     let groupID = TerminalTabGroupID()
+    let first = TerminalTabID()
+    let second = TerminalTabID()
     let roots = [
       TerminalSidebarOutline.Root(
-        content: .group(groupID, .red, .automatic, [TerminalTabID()]),
+        content: .group(groupID, .red, .automatic, [first, second]),
         isPinned: false
       )
     ]
-    let applied = TerminalSidebarTestFixture.outline(
+    let applied = TerminalSidebarOutline(
       roots: roots,
-      revision: 4,
-      collapsedGroupIDs: [groupID]
+      collapsedGroupIDs: [groupID],
+      selectedTabID: first,
+      topologyRevision: 4,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
     )
-    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 4)
+    let changedSelection = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [groupID],
+      selectedTabID: second,
+      topologyRevision: 4,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
     let sourceTopologyStamp = try #require(applied.topologyStamp)
 
     #expect(
       TerminalSidebarDragOutlineDisposition.tracking(
-        incoming: expanded,
+        incoming: changedSelection,
         applied: applied,
         sourceTopologyStamp: sourceTopologyStamp
       ) == .queue
@@ -294,34 +304,8 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
-  func groupExpansionUsesTheCollapseRowDuration() {
-    let groupID = TerminalTabGroupID()
-    let roots = [
-      TerminalSidebarOutline.Root(
-        content: .group(groupID, .red, .automatic, [TerminalTabID()]),
-        isPinned: false
-      )
-    ]
-    let collapsed = TerminalSidebarTestFixture.outline(
-      roots: roots,
-      revision: 1,
-      collapsedGroupIDs: [groupID]
-    )
-    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 1)
-    let removed = TerminalSidebarTestFixture.outline(roots: [], revision: 2)
-
-    #expect(
-      TerminalSidebarLayoutMotion.animationDuration(from: collapsed, to: expanded)
-        == TerminalSidebarCollapseMotion.rowDuration
-    )
-    #expect(
-      TerminalSidebarLayoutMotion.animationDuration(from: expanded, to: collapsed)
-        == TerminalSidebarLayoutMotion.defaultDuration
-    )
-    #expect(
-      TerminalSidebarLayoutMotion.animationDuration(from: collapsed, to: removed)
-        == TerminalSidebarLayoutMotion.defaultDuration
-    )
+  func layoutChangesUseTheRecoveredDuration() {
+    #expect(TerminalSidebarLayoutMotion.defaultDuration == 0.12)
   }
 
   @Test
