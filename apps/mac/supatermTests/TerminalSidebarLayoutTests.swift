@@ -121,13 +121,8 @@ struct TerminalSidebarLayoutTests {
       spaceID: TerminalSidebarTestFixture.primarySpaceID
     )
     let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
-    let harness = try #require(
-      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300))
-    )
-    defer {
-      harness.window.orderOut(nil)
-      harness.close()
-    }
+    let harness = try #require(TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300)))
+    defer { closeWindowHarness(harness) }
     harness.window.orderFront(nil)
 
     harness.apply(
@@ -467,6 +462,11 @@ struct TerminalSidebarLayoutTests {
     #expect(harness.collectionView.visibleRect.minY == 0)
     #expect(harness.layout.collectionViewContentSize.height < expandedHeight)
     #expect(harness.layout.collectionViewContentSize.height == harness.layout.plan.contentSize.height)
+  }
+
+  private func closeWindowHarness(_ harness: TerminalSidebarWindowHarness) {
+    harness.window.orderOut(nil)
+    harness.close()
   }
 
   private func programmaticReorderFrames(
