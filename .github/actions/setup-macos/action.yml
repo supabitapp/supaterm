@@ -9,6 +9,10 @@ inputs:
     description: Restore and save Tuist package dependencies
     required: false
     default: "true"
+  xcode-cache:
+    description: Enable Tuist's remote Xcode compilation cache
+    required: false
+    default: "false"
   github-token:
     description: Authenticate mise downloads
     required: true
@@ -24,6 +28,14 @@ runs:
     - uses: ./.github/actions/setup-mise
       with:
         github-token: ${{ inputs.github-token }}
+    - name: Tuist Xcode cache
+      if: ${{ inputs.xcode-cache == 'true' && env.TUIST_TOKEN != '' }}
+      shell: bash
+      env:
+        TUIST_XCODE_CACHE: "1"
+      run: |
+        mise exec -- tuist setup cache --path apps/mac
+        printf '%s\n' 'TUIST_XCODE_CACHE=1' >> "$GITHUB_ENV"
     - name: Xcode cache key
       if: ${{ inputs.cache-tuist-packages == 'true' || inputs.cache-native-builds == 'true' }}
       shell: bash

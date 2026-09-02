@@ -94,8 +94,12 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
+          xcode-cache: true
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-test
         env:
+          TUIST_BINARY_CACHE_PROFILE: all-possible
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 
   mac_test_e2e:
@@ -111,10 +115,14 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
+          xcode-cache: true
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: >-
           make mac-test-e2e
           E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
         env:
+          TUIST_BINARY_CACHE_PROFILE: all-possible
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -136,6 +144,9 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
+          xcode-cache: true
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: ~/.local/share/mise/installs
@@ -154,6 +165,7 @@ jobs:
           -only-testing:supatermE2E/PiE2ETests
           -only-testing:supatermE2E/PiZmxE2ETests"
         env:
+          TUIST_BINARY_CACHE_PROFILE: all-possible
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -178,6 +190,9 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
+          xcode-cache: true
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-tuist-install
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}

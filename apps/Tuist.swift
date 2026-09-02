@@ -5,15 +5,25 @@ let tuist = Tuist(
   inspectOptions: .options(
     redundantDependencies: .redundantDependencies(
       ignoreTagsMatching: [
-        "tag:build-artifact:sp",
+        "tag:build-artifact:sp"
       ]
     )
+  ),
+  xcodeCache: .xcodeCache(
+    upload: Environment.isCI
   ),
   project: .tuist(
     compatibleXcodeVersions: .upToNextMajor("26.0"),
     swiftVersion: "6.2",
     generationOptions: .options(
-      optionalAuthentication: true
+      optionalAuthentication: true,
+      enableCaching: Environment.xcodeCache.getBoolean(default: false)
+    ),
+    cacheOptions: .options(
+      keepSourceTargets: false,
+      profiles: .profiles(
+        default: Environment.isCI ? .allPossible : .onlyExternal
+      )
     )
   )
 )
