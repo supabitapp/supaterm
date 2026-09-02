@@ -96,9 +96,15 @@ nonisolated final class GhosttyHostManagedSession: Sendable {
     eventSink.finish()
   }
 
-  func configure(_ config: inout ghostty_surface_config_s) {
-    let didConfigure = calls.configure()
-    guard didConfigure else { fatalError("Host-managed session configured more than once") }
+  func configure(_ config: inout ghostty_surface_config_s) -> Bool {
+    switch calls.configure() {
+    case .configured:
+      break
+    case .detached:
+      return false
+    case .invalid:
+      fatalError("Host-managed session configured more than once")
+    }
     config.host_managed = true
     config.host_userdata = Unmanaged.passUnretained(eventSink).toOpaque()
     config.host_input_capacity = eventSink.byteCapacity
@@ -128,6 +134,7 @@ nonisolated final class GhosttyHostManagedSession: Sendable {
           heightPixels: heightPixels
         )
     }
+    return true
   }
 
   func attach(_ surface: ghostty_surface_t) -> Bool {
@@ -160,11 +167,11 @@ nonisolated final class GhosttyHostManagedSession: Sendable {
   }
 
   @discardableResult
-  func detach(onDrained: @escaping @Sendable () -> Void = {}) -> Bool {
+  func detach(onDrained: (@Sendable () -> Void)? = nil) -> Bool {
     switch calls.detach(onDrained: onDrained) {
     case .drain(let onDrained):
       eventSink.finish()
-      onDrained()
+      onDrained?()
       return true
     case .pending:
       eventSink.finish()
@@ -382,8 +389,8 @@ nonisolated private final class GhosttyHostManagedSurfaceCalls: Sendable {
     case waiting
     case configured
     case attached(UInt)
-    case detaching(@Sendable () -> Void)
-    case detached
+    case detaching((@Sendable () -> Void)?)
+    case detached(cleanupRegistered: Bool)
   }
 
   private struct State: Sendable {
@@ -393,13 +400,19 @@ nonisolated private final class GhosttyHostManagedSurfaceCalls: Sendable {
   }
 
   enum DetachAction: Sendable {
-    case drain(@Sendable () -> Void)
+    case drain((@Sendable () -> Void)?)
     case pending
     case unchanged
   }
 
   enum AttachAction: Sendable {
     case attached
+    case detached
+    case invalid
+  }
+
+  enum ConfigureAction: Sendable {
+    case configured
     case detached
     case invalid
   }
@@ -413,11 +426,17 @@ nonisolated private final class GhosttyHostManagedSurfaceCalls: Sendable {
     self.byteCapacity = byteCapacity
   }
 
-  func configure() -> Bool {
+  func configure() -> ConfigureAction {
     state.withLock { state in
-      guard case .waiting = state.attachment else { return false }
-      state.attachment = .configured
-      return true
+      switch state.attachment {
+      case .waiting:
+        state.attachment = .configured
+        return .configured
+      case .detached:
+        return .detached
+      case .configured, .attached, .detaching:
+        return .invalid
+      }
     }
   }
 
@@ -463,27 +482,33 @@ nonisolated private final class GhosttyHostManagedSurfaceCalls: Sendable {
       else {
         return nil
       }
-      state.attachment = .detached
+      state.attachment = .detached(cleanupRegistered: onDrained != nil)
       return onDrained
     }
     onDrained?()
   }
 
-  func detach(onDrained: @escaping @Sendable () -> Void) -> DetachAction {
+  func detach(onDrained: (@Sendable () -> Void)?) -> DetachAction {
     state.withLock { state in
       switch state.attachment {
       case .waiting, .configured:
-        state.attachment = .detached
+        state.attachment = .detached(cleanupRegistered: onDrained != nil)
         return .drain(onDrained)
       case .attached:
         if state.outstandingCallCount == 0 {
-          state.attachment = .detached
+          state.attachment = .detached(cleanupRegistered: onDrained != nil)
           return .drain(onDrained)
         }
         state.attachment = .detaching(onDrained)
         return .pending
-      case .detaching, .detached:
-        return .unchanged
+      case .detaching(let registered):
+        guard registered == nil, let onDrained else { return .unchanged }
+        state.attachment = .detaching(onDrained)
+        return .pending
+      case .detached(let cleanupRegistered):
+        guard !cleanupRegistered, let onDrained else { return .unchanged }
+        state.attachment = .detached(cleanupRegistered: true)
+        return .drain(onDrained)
       }
     }
   }

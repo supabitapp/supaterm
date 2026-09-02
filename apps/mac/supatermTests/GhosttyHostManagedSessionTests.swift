@@ -11,7 +11,7 @@ struct GhosttyHostManagedSessionTests {
   func callbacksCopyInputAndViewportBeforeReturning() async throws {
     let session = GhosttyHostManagedSession()
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     var iterator = session.events.makeAsyncIterator()
     var input = Array("hello".utf8)
 
@@ -57,7 +57,7 @@ struct GhosttyHostManagedSessionTests {
     )
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
 
     #expect(session.attach(surface))
     let wrote = await session.write(Data("later".utf8))
@@ -99,7 +99,7 @@ struct GhosttyHostManagedSessionTests {
     )
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     #expect(session.attach(surface))
 
     let wrote = await session.write(Data("output".utf8))
@@ -127,7 +127,7 @@ struct GhosttyHostManagedSessionTests {
     )
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     #expect(session.attach(surface))
 
     let restored = await session.restore(Data("snapshot".utf8))
@@ -166,7 +166,7 @@ struct GhosttyHostManagedSessionTests {
     )
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     #expect(session.attach(surface))
 
     let restoreTask = Task { await session.restore(Data("snapshot".utf8)) }
@@ -235,7 +235,7 @@ struct GhosttyHostManagedSessionTests {
     defer { sessionBox.withLock { $0 = nil } }
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     #expect(session.attach(surface))
 
     let firstResult = await session.write(payloads[0])
@@ -264,7 +264,7 @@ struct GhosttyHostManagedSessionTests {
       eventBufferByteCapacity: 2
     )
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     let input = Array("abcdef".utf8)
 
     let accepted = input.withUnsafeBufferPointer { buffer in
@@ -283,7 +283,7 @@ struct GhosttyHostManagedSessionTests {
   func staticInputCapacityRejectionFailsTheEventStream() async {
     let session = GhosttyHostManagedSession(eventBufferByteCapacity: 2)
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
 
     config.host_input_rejected?(config.host_userdata, 3)
 
@@ -300,7 +300,7 @@ struct GhosttyHostManagedSessionTests {
       eventBufferByteCapacity: 4
     )
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
 
     let results = [Array("ab".utf8), Array("cd".utf8), Array("ef".utf8)].map { input in
       input.withUnsafeBufferPointer { buffer in
@@ -324,7 +324,7 @@ struct GhosttyHostManagedSessionTests {
       eventBufferByteCapacity: 2
     )
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     var iterator = session.events.makeAsyncIterator()
     let first = Array("ab".utf8)
     let second = Array("cd".utf8)
@@ -345,7 +345,7 @@ struct GhosttyHostManagedSessionTests {
   func canceledConsumerRejectsLaterInputBeforeCopying() async {
     let session = GhosttyHostManagedSession()
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     let started = Mutex(false)
     let consumer = Task {
       var iterator = session.events.makeAsyncIterator()
@@ -370,6 +370,30 @@ struct GhosttyHostManagedSessionTests {
     session.detach()
     var iterator = session.events.makeAsyncIterator()
 
+    #expect(try await iterator.next() == nil)
+  }
+
+  @Test
+  func detachBeforeSurfaceConfigurationSkipsCreation() async throws {
+    initializeGhosttyForTests()
+    let session = GhosttyHostManagedSession()
+    let creationCount = Mutex(0)
+    #expect(session.detach())
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      hostManagedSession: session,
+      surfaceFactory: { _, _ in
+        creationCount.withLock { $0 += 1 }
+        return nil
+      }
+    )
+    var iterator = session.events.makeAsyncIterator()
+
+    #expect(creationCount.withLock { $0 } == 0)
+    #expect(surfaceView.surface == nil)
     #expect(try await iterator.next() == nil)
   }
 
@@ -410,7 +434,7 @@ struct GhosttyHostManagedSessionTests {
       }
     )
     var config = ghostty_surface_config_new()
-    session.configure(&config)
+    #expect(session.configure(&config))
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     #expect(session.attach(surface))
     let firstCall = Task {
@@ -475,6 +499,26 @@ struct GhosttyHostManagedSessionTests {
     allowCallToReturn.signal()
     #expect(await writeTask.value)
     #expect(await waitUntil { retainedView == nil })
+  }
+
+  @Test
+  func viewCloseRegistersCleanupAfterSessionDetach() {
+    initializeGhosttyForTests()
+    let session = GhosttyHostManagedSession()
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      hostManagedSession: session
+    )
+    #expect(surfaceView.surface != nil)
+
+    #expect(session.detach())
+    surfaceView.closeSurface()
+
+    #expect(surfaceView.surface == nil)
+    #expect(surfaceView.bridge.surface == nil)
   }
 
   @Test

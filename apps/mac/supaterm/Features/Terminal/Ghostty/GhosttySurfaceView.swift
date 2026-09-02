@@ -1403,7 +1403,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     var config = ghostty_surface_config_new()
     config.userdata = Unmanaged.passUnretained(bridge).toOpaque()
-    hostManagedSession?.configure(&config)
+    if let hostManagedSession, !hostManagedSession.configure(&config) {
+      return
+    }
     config.platform_tag = GHOSTTY_PLATFORM_MACOS
     config.platform = ghostty_platform_u(
       macos: ghostty_platform_macos_s(
