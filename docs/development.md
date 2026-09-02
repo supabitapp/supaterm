@@ -291,6 +291,14 @@ make docs-deploy
 
 For ghostty and zmx, we use `supaterm` branch only, rebase our changes on top of upstream cleanly if we need to update.
 
+### Host-managed terminal surfaces
+
+The Ghostty fork supports host-managed surfaces for the `supaterm-host` cutover. These surfaces launch no process. They send encoded key, paste, mouse, and resize data through callbacks, accept serialized host output, and restore exact native terminal snapshots.
+
+The client parser updates only renderer state. It drops terminal replies and surface effects because the host VT owns protocol replies and semantic terminal facts. Snapshot restore keeps program-set colours while applying each renderer's default theme, then joins live output through the saved parser continuation.
+
+This is the Phase 0 proof. Current product panes still use the existing process path until the host transport and terminal actor land.
+
 ## Testing
 
 Tests that exercise polling or timeout behavior should inject a clock and advance it instead of waiting on wall clock time.

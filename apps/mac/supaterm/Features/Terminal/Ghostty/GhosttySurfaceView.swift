@@ -126,6 +126,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let launch: GhosttySurfaceLaunch
   private let commandWrapper: [String]
   private let environmentVariables: [SupatermCLIEnvironmentVariable]
+  private let hostManagedSession: GhosttyHostManagedSession?
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
   private let managesWindowAppearance: Bool
@@ -368,6 +369,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       try await ContinuousClock().sleep(for: $0)
     },
     findPasteboard: NSPasteboard = NSPasteboard(name: .find),
+    hostManagedSession: GhosttyHostManagedSession? = nil,
     surfaceFactory: SurfaceFactory = { app, config in
       ghostty_surface_new(app, config)
     }
@@ -385,6 +387,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         zmxSessionsEnabled: zmxSessionsEnabled
       )
     self.commandWrapper = commandWrapper
+    self.hostManagedSession = hostManagedSession
     if let restoreMode {
       self.restoreMode = restoreMode
     } else {
@@ -470,6 +473,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         runtime.unregisterSurface(surfaceRef)
         self.surfaceRef = nil
       }
+      hostManagedSession?.detach(surface)
       ghostty_surface_free(surface)
       self.surface = nil
       bridge.surface = nil
@@ -1381,6 +1385,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     config.font_size = fontSize
     config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
     config.context = context
+    hostManagedSession?.configure(&config)
     Self.withEnvironmentVariables(environmentVariables) { envVars, count in
       config.env_vars = envVars
       config.env_var_count = count
@@ -1393,6 +1398,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
       }
     }
     bridge.surface = surface
+    if let surface {
+      hostManagedSession?.attach(surface)
+    }
     activeScreenReader.install(surface)
     guard surface != nil else {
       bridge.state.failure = .surfaceCreationFailed
