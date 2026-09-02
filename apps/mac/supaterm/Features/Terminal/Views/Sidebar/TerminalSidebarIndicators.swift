@@ -107,8 +107,8 @@ struct TerminalSidebarAgentStatusView: View {
       restartActivityAnimation(reduceMotion: reduceMotion)
     }
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel(accessibilityLabel)
-    .help(accessibilityLabel)
+    .accessibilityLabel(Self.accessibilityLabel(status))
+    .help(Self.accessibilityLabel(status))
   }
 
   private var indicator: some View {
@@ -143,7 +143,7 @@ struct TerminalSidebarAgentStatusView: View {
     }
   }
 
-  private var accessibilityLabel: String {
+  static func accessibilityLabel(_ status: TerminalHostState.TabAgentStatus) -> String {
     switch status {
     case .needsInput:
       "Agent needs input"

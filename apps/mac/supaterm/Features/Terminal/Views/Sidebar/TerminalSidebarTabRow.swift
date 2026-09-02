@@ -623,7 +623,8 @@ private struct TerminalSidebarAgentStatusButton: View {
     }
     .buttonStyle(.plain)
     .help(helpText)
-    .accessibilityLabel(helpText)
+    .accessibilityLabel(TerminalSidebarAgentStatusView.accessibilityLabel(agentStatus.status))
+    .accessibilityValue(helpText)
     .accessibilityHint("Focus pane")
   }
 }
