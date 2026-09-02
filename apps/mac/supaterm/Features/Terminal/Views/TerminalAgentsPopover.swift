@@ -53,6 +53,10 @@ private enum TerminalAgentsPopoverIcon {
 }
 
 extension TerminalHostState.WindowAgentPresentation {
+  fileprivate var subtitle: String {
+    "\(identity.displayName) · \(workspace)"
+  }
+
   fileprivate var icon: TerminalAgentsPopoverIcon {
     if let agent = SupatermAgentKind(rawValue: identity.id) {
       .asset(agent.markImageName)
@@ -273,7 +277,7 @@ private struct TerminalAgentsPopoverRow: View {
             .lineLimit(1)
             .truncationMode(.tail)
 
-          Text(item.workspace)
+          Text(item.subtitle)
             .font(.system(size: 10))
             .foregroundStyle(palette.secondaryText)
             .lineLimit(1)
@@ -296,7 +300,7 @@ private struct TerminalAgentsPopoverRow: View {
     .buttonStyle(.plain)
     .onHover { isHovered = $0 }
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(item.task), \(item.workspace), \(item.status.title)")
+    .accessibilityLabel("\(item.task), \(item.subtitle), \(item.status.title)")
     .accessibilityHint("Focus pane")
   }
 
