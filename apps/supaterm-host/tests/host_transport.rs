@@ -154,6 +154,44 @@ async fn invoke_stdio(socket: &Path, client_id: &str) -> std::process::Output {
         .unwrap()
 }
 
+fn isolated_sp(state: &Path, runtime: &Path, home: &Path) -> ProcessCommand {
+    let mut command = ProcessCommand::new(env!("CARGO_BIN_EXE_sp"));
+    command
+        .env("SUPATERM_STATE_HOME", state)
+        .env("XDG_RUNTIME_DIR", runtime)
+        .env("HOME", home);
+    command
+}
+
+async fn stop_isolated_sp(state: &Path, runtime: &Path, home: &Path) {
+    let shutdown = isolated_sp(state, runtime, home)
+        .arg("shutdown")
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        shutdown.status.success(),
+        "{}",
+        String::from_utf8_lossy(&shutdown.stderr)
+    );
+    assert!(shutdown.stderr.is_empty());
+    for _ in 0..300 {
+        let probe = isolated_sp(state, runtime, home)
+            .arg("--connect-only")
+            .arg("ping")
+            .output()
+            .await
+            .unwrap();
+        if !probe.status.success() {
+            assert!(probe.stdout.is_empty());
+            assert!(!probe.stderr.is_empty());
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("headless host remained available after shutdown");
+}
+
 fn stdio_shutdown_input(client_id: &str) -> Vec<u8> {
     let hello = Frame::from_json(
         FrameKind::ClientControl,
@@ -1228,6 +1266,70 @@ async fn default_bootstrap_preserves_the_resolved_state_root() {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     panic!("default host socket remained after shutdown");
+}
+
+#[tokio::test]
+async fn sp_ls_json_starts_headless_host_and_shuts_down_cleanly() {
+    let directory = TestDirectory::new("sp-ls-json");
+    let state = directory.0.join("state");
+    let runtime = directory.0.join("runtime");
+    let home = directory.0.join("home");
+    let listing = isolated_sp(&state, &runtime, &home)
+        .arg("ls")
+        .arg("--json")
+        .output()
+        .await
+        .unwrap();
+    stop_isolated_sp(&state, &runtime, &home).await;
+    assert!(
+        listing.status.success(),
+        "{}",
+        String::from_utf8_lossy(&listing.stderr)
+    );
+    assert!(listing.stderr.is_empty());
+    let listing: serde_json::Value = serde_json::from_slice(&listing.stdout).unwrap();
+    let listing = listing.as_object().unwrap();
+    assert_eq!(listing.len(), 2);
+    assert!(listing.get("revision").unwrap().is_string());
+    assert_eq!(listing.get("items").unwrap().as_array().unwrap().len(), 0);
+    assert!(!listing.contains_key("current"));
+}
+
+#[tokio::test]
+async fn sp_ls_empty_headless_output_modes_are_stable() {
+    let directory = TestDirectory::new("sp-ls-empty-output");
+    let state = directory.0.join("state");
+    let runtime = directory.0.join("runtime");
+    let home = directory.0.join("home");
+    let default = isolated_sp(&state, &runtime, &home)
+        .arg("ls")
+        .output()
+        .await
+        .unwrap();
+    let plain = isolated_sp(&state, &runtime, &home)
+        .arg("ls")
+        .arg("--plain")
+        .output()
+        .await
+        .unwrap();
+    let quiet = isolated_sp(&state, &runtime, &home)
+        .arg("ls")
+        .arg("--quiet")
+        .output()
+        .await
+        .unwrap();
+    stop_isolated_sp(&state, &runtime, &home).await;
+    for output in [&default, &plain, &quiet] {
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+    }
+    assert_eq!(default.stdout, b"\n");
+    assert_eq!(plain.stdout, b"\n");
+    assert!(quiet.stdout.is_empty());
 }
 
 #[tokio::test]
