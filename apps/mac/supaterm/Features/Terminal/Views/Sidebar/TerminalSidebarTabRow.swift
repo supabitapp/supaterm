@@ -206,20 +206,18 @@ struct TerminalSidebarTabRow: View {
     .overlay(alignment: .trailing) {
       if let visibleAgentStatus {
         GeometryReader { geometry in
-          HStack {
-            Spacer(minLength: 0)
-            TerminalSidebarAgentStatusButton(
-              agentStatus: visibleAgentStatus,
-              showsText: contentInsets.width(in: geometry.size.width)
-                >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth,
-              palette: palette,
-              helpText: TerminalSidebarTabSummaryView.agentStatusHelpText(
-                visibleAgentStatus,
-                panes: panes
-              ),
-              action: focusVisibleAgentStatus
-            )
-          }
+          TerminalSidebarAgentStatusButton(
+            agentStatus: visibleAgentStatus,
+            showsText: contentInsets.width(in: geometry.size.width)
+              >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth,
+            palette: palette,
+            helpText: TerminalSidebarTabSummaryView.agentStatusHelpText(
+              visibleAgentStatus,
+              panes: panes
+            ),
+            action: focusVisibleAgentStatus
+          )
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
           .padding(.trailing, contentInsets.trailing)
         }
       }
