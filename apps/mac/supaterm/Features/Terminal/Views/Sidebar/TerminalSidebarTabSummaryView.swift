@@ -178,6 +178,7 @@ private struct TerminalSidebarTabLineView: View {
           .lineLimit(1)
           .truncationMode(TerminalSidebarTabSummaryView.titleTruncationMode(title))
           .frame(maxWidth: .infinity, alignment: .leading)
+          .accessibilityLabel(titleAccessibilityLabel)
 
         if let trailingAccessory {
           trailingAccessoryView(
@@ -199,6 +200,13 @@ private struct TerminalSidebarTabLineView: View {
 
   private var titleColor: Color {
     isSelected ? palette.selectedText : palette.selectableRow.title
+  }
+
+  private var titleAccessibilityLabel: String {
+    guard !rendersAgentStatus,
+      case .agent(let agentStatus) = trailingAccessory
+    else { return title }
+    return "\(title), \(TerminalSidebarAgentStatusView.accessibilityLabel(agentStatus.status))"
   }
 
   private var leadingIcon: some View {
