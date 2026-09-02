@@ -15,11 +15,14 @@ path = "src/bin/sp.rs"
 
 [dependencies]
 anyhow = "1.0.103"
+base64 = "0.22.1"
 bytes = "1.11.1"
 clap = { version = "4.6.1", features = ["derive"] }
+ed25519-dalek = "2.2.0"
 fancy-regex = "0.17.0"
 include_dir = "0.7.4"
 libc = "0.2.183"
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 sha2 = "0.10.9"
@@ -27,6 +30,9 @@ thiserror = "2.0.18"
 toml = "0.9.8"
 tokio = { version = "1.49.0", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 uuid = { version = "1.22.0", features = ["serde", "v4"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7.0"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"

@@ -29,6 +29,7 @@ print_fingerprint() {
       mise exec -- cargo --version
       mise exec -- zig version
       printf '%s\n' "${rust_target}" "${zig_target}"
+      printf '%s\n' "${MARKETING_VERSION:-0.1.0}" "${SUPATERM_RELEASE_DATE:-}"
     } | shasum -a 256 | awk '{print $1}'
   )
 }
@@ -76,6 +77,8 @@ cd "${host_dir}"
 MACOSX_DEPLOYMENT_TARGET=26.0 \
 SUPATERM_GHOSTTY_VT_LIB_DIR="${vt_prefix}/lib" \
 SUPATERM_HOST_BUILD_FINGERPRINT="${fingerprint}" \
+SUPATERM_HOST_APP_VERSION="${MARKETING_VERSION:-0.1.0}" \
+SUPATERM_RELEASE_DATE="${SUPATERM_RELEASE_DATE:-}" \
   mise exec -- cargo build \
   --release \
   --locked \

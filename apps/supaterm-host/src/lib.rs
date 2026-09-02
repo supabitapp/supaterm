@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod client;
 pub mod host;
+pub mod license;
 pub mod protocol;
 pub mod runtime;
 pub mod server;

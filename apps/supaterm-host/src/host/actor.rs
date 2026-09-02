@@ -5,6 +5,7 @@ use crate::agent::machine::{MachineEnvironment, MachineServiceError, MachineServ
 use crate::agent::manifest::DetectionCatalog;
 use crate::agent::process::{ProcessScan, is_descendant, scan_process_group};
 use crate::host::cli::CliExecuteRequest;
+use crate::license::{LicenseEnvironment, LicenseError, LicenseService};
 use crate::protocol::control::{
     BuildIdentity, ClientId, ClientRole, CommandId, HostControl, HostId, ProtocolError,
     ProtocolErrorCode,
@@ -109,6 +110,20 @@ impl HostActor {
                 services.repair_installed().await;
             });
         }
+        let license = configuration
+            .machine_environment
+            .as_ref()
+            .and_then(|environment| {
+                LicenseService::new(LicenseEnvironment {
+                    state_root: environment.state_root.clone(),
+                    app_version: configuration.build.version.clone(),
+                    release_day: option_env!("SUPATERM_RELEASE_DATE").map(str::to_owned),
+                    instance_name: std::env::var("SUPATERM_INSTANCE_NAME").ok(),
+                })
+                .ok()
+            })
+            .unwrap_or_else(LicenseService::free);
+        license.start_refresh_loop();
         let state = ActorState {
             configuration,
             terminals: terminals.clone(),
@@ -126,6 +141,7 @@ impl HostActor {
             enrichment_subscriptions: BTreeMap::new(),
             enrichment_scans: BTreeMap::new(),
             active_ui_connections: BTreeMap::new(),
+            license,
         };
         tokio::spawn(run(state, revision_sender, receiver));
         Self {
@@ -321,6 +337,7 @@ struct ActorState {
     enrichment_subscriptions: BTreeMap<Uuid, EnrichmentSubscription>,
     enrichment_scans: BTreeMap<PaneId, EnrichmentScanState>,
     active_ui_connections: BTreeMap<Uuid, ClientId>,
+    license: LicenseService,
 }
 
 async fn run(
@@ -475,6 +492,11 @@ impl ActorState {
                                 ProtocolErrorCode::CapabilityUnavailable,
                                 Value::Null,
                             ),
+                            Err(ApplyWorkspaceError::LicenseRequired) => error(
+                                Some(command_id),
+                                ProtocolErrorCode::LicenseRequired,
+                                Value::Null,
+                            ),
                         },
                         Err(decode_error) => invalid_request(command_id, decode_error),
                     }
@@ -488,6 +510,33 @@ impl ActorState {
                         Err(decode_error) => invalid_request(command_id, decode_error),
                     }
                 }
+                "license.status" if params.is_null() => {
+                    result(command_id, self.license.status(self.tab_count()))
+                }
+                "license.activate" => {
+                    match serde_json::from_value::<LicenseActivationRequest>(params) {
+                        Ok(request) => match self.license.activate(request.key).await {
+                            Ok(_) => result(command_id, self.license.status(self.tab_count())),
+                            Err(license_error) => license_error_control(command_id, license_error),
+                        },
+                        Err(decode_error) => invalid_request(command_id, decode_error),
+                    }
+                }
+                "license.deactivate" if params.is_null() => match self.license.deactivate().await {
+                    Ok(_) => result(command_id, self.license.status(self.tab_count())),
+                    Err(license_error) => license_error_control(command_id, license_error),
+                },
+                "license.refresh" if params.is_null() => match self.license.refresh().await {
+                    Ok(_) => result(command_id, self.license.status(self.tab_count())),
+                    Err(license_error) => license_error_control(command_id, license_error),
+                },
+                "license.buy" if params.is_null() => {
+                    result(command_id, json!({"url": self.license.buy_url()}))
+                }
+                "license.renew" if params.is_null() => match self.license.renew_url() {
+                    Ok(url) => result(command_id, json!({"url": url})),
+                    Err(license_error) => license_error_control(command_id, license_error),
+                },
                 "state.snapshot" if params.is_null() => {
                     result(command_id, self.model.snapshot(client_id))
                 }
@@ -537,6 +586,11 @@ impl ActorState {
                         Err(ApplyWorkspaceError::Unsupported) => {
                             error(Some(command_id), ProtocolErrorCode::Internal, Value::Null)
                         }
+                        Err(ApplyWorkspaceError::LicenseRequired) => error(
+                            Some(command_id),
+                            ProtocolErrorCode::LicenseRequired,
+                            json!({"free_tab_limit": 5}),
+                        ),
                     },
                     Err(decode_error) => invalid_request(command_id, decode_error),
                 },
@@ -661,6 +715,11 @@ impl ActorState {
                         Err(ApplyWorkspaceError::Unsupported) => {
                             error(Some(command_id), ProtocolErrorCode::Internal, Value::Null)
                         }
+                        Err(ApplyWorkspaceError::LicenseRequired) => error(
+                            Some(command_id),
+                            ProtocolErrorCode::LicenseRequired,
+                            json!({"free_tab_limit": 5}),
+                        ),
                     },
                     Err(decode_error) => error(
                         Some(command_id),
@@ -1145,6 +1204,13 @@ impl ActorState {
         &mut self,
         mut request: ApplyRequest,
     ) -> Result<crate::workspace::replay::ApplyResult, ApplyWorkspaceError> {
+        if matches!(
+            &request.command,
+            Command::CreateTab { .. } | Command::MovePaneToNewTab { .. }
+        ) && !self.license.permits_new_tab(self.tab_count())
+        {
+            return Err(ApplyWorkspaceError::LicenseRequired);
+        }
         let expected: std::collections::BTreeSet<_> =
             request.command.created_pane_id().into_iter().collect();
         if request
@@ -1210,6 +1276,16 @@ impl ActorState {
         }
         self.persist().await;
         Ok(applied)
+    }
+
+    fn tab_count(&self) -> usize {
+        self.model
+            .workspace()
+            .windows
+            .values()
+            .flat_map(|window| window.spaces.values())
+            .map(|space| space.tabs.len())
+            .sum()
     }
 
     fn prepare_close(&mut self, command: &Command) -> Result<CloseConfirmation, ModelError> {
@@ -1588,6 +1664,12 @@ struct SessionStartRequest {
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+struct LicenseActivationRequest {
+    key: String,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct NotificationLeaseRequest {
     lease_id: Uuid,
 }
@@ -1644,6 +1726,7 @@ enum ApplyWorkspaceError {
     SpawnSpecs,
     ConfirmationRequired(Vec<PaneId>),
     Unsupported,
+    LicenseRequired,
 }
 
 impl From<ModelError> for ApplyWorkspaceError {
@@ -1746,6 +1829,24 @@ fn terminal_error(command_id: CommandId, terminal_error: TerminalError) -> HostC
         Some(command_id),
         code,
         json!({"reason": terminal_error.to_string()}),
+    )
+}
+
+fn license_error_control(command_id: CommandId, license_error: LicenseError) -> HostControl {
+    let code = match &license_error {
+        LicenseError::InvalidLicenseKey | LicenseError::MissingLicenseKey => {
+            ProtocolErrorCode::InvalidRequest
+        }
+        LicenseError::ConnectionRequired => ProtocolErrorCode::CapabilityUnavailable,
+        LicenseError::InvalidEntitlement
+        | LicenseError::Server { .. }
+        | LicenseError::Storage
+        | LicenseError::DeviceIdentity => ProtocolErrorCode::Internal,
+    };
+    error(
+        Some(command_id),
+        code,
+        json!({"reason": license_error.to_string()}),
     )
 }
 

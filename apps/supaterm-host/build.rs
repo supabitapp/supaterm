@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=SUPATERM_HOST_APP_VERSION");
+    println!("cargo:rerun-if-env-changed=SUPATERM_RELEASE_DATE");
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     link_terminal_library(&manifest);
     fingerprint_integrations(&manifest);

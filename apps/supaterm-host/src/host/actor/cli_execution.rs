@@ -1108,5 +1108,6 @@ fn apply_error_code(error: ApplyWorkspaceError) -> ProtocolErrorCode {
         ApplyWorkspaceError::SpawnSpecs => ProtocolErrorCode::InvalidRequest,
         ApplyWorkspaceError::ConfirmationRequired(_) => ProtocolErrorCode::ConfirmationRequired,
         ApplyWorkspaceError::Unsupported => ProtocolErrorCode::CapabilityUnavailable,
+        ApplyWorkspaceError::LicenseRequired => ProtocolErrorCode::LicenseRequired,
     }
 }

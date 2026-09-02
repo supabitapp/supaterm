@@ -13,7 +13,9 @@ pub const MAXIMUM_CONTINUATION_BYTES: u64 = 16 * 1024 * 1024;
 pub fn current_build_identity() -> BuildIdentity {
     let base = option_env!("SUPATERM_HOST_BUILD_FINGERPRINT").unwrap_or(env!("CARGO_PKG_VERSION"));
     BuildIdentity {
-        version: env!("CARGO_PKG_VERSION").into(),
+        version: option_env!("SUPATERM_HOST_APP_VERSION")
+            .unwrap_or(env!("CARGO_PKG_VERSION"))
+            .into(),
         fingerprint: format!("{base}-{}", env!("SUPATERM_HOST_EMBEDDED_FINGERPRINT")),
     }
 }
@@ -139,6 +141,7 @@ pub enum ProtocolErrorCode {
     AmbiguousTarget,
     NotFound,
     ConfirmationRequired,
+    LicenseRequired,
     CapabilityUnavailable,
     Internal,
 }

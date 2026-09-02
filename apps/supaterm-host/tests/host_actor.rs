@@ -1,4 +1,5 @@
 use serde_json::{Value, json};
+use std::path::PathBuf;
 use supaterm_host::host::actor::{HostActor, HostConfiguration};
 use supaterm_host::host::cli::{CliAction, CliExecuteRequest, CliTarget};
 use supaterm_host::protocol::connection::ConnectionSession;
@@ -221,4 +222,95 @@ async fn cli_targeting_and_settings_execute_inside_the_host_actor() {
         .await,
     );
     assert_eq!(tree["workspace"]["spaces"][0]["name"], "Host Owned");
+}
+
+#[tokio::test]
+async fn host_license_status_and_free_tab_gate_cover_every_client() {
+    let mut cli = session();
+    cli.receive(hello_for_role(PROTOCOL_VERSION, build(), ClientRole::Cli))
+        .await;
+    let status = result_value(
+        cli.receive(ClientControl::Request {
+            command_id: CommandId(Uuid::new_v4()),
+            method: "license.status".into(),
+            params: Value::Null,
+        })
+        .await,
+    );
+    assert_eq!(status["mode"], "free");
+    assert_eq!(status["free_tab_limit"], 5);
+
+    let mut panes = Vec::new();
+    for _ in 0..5 {
+        let created = result_value(
+            cli.receive(ClientControl::Request {
+                command_id: CommandId(Uuid::new_v4()),
+                method: "cli.execute".into(),
+                params: serde_json::to_value(CliExecuteRequest {
+                    context_pane_id: None,
+                    expected_structure_revision: None,
+                    action: CliAction::TabNew {
+                        space: CliTarget::Id {
+                            id: Uuid::from_u128(1),
+                        },
+                        title: None,
+                        cwd: Some(PathBuf::from("/tmp")),
+                        pinned: false,
+                        script: None,
+                        argv: vec!["/bin/sh".into()],
+                    },
+                })
+                .unwrap(),
+            })
+            .await,
+        );
+        panes.push(
+            created["pane_id"]
+                .as_str()
+                .unwrap()
+                .parse::<Uuid>()
+                .unwrap(),
+        );
+    }
+    let denied = cli
+        .receive(ClientControl::Request {
+            command_id: CommandId(Uuid::new_v4()),
+            method: "cli.execute".into(),
+            params: serde_json::to_value(CliExecuteRequest {
+                context_pane_id: None,
+                expected_structure_revision: None,
+                action: CliAction::TabNew {
+                    space: CliTarget::Id {
+                        id: Uuid::from_u128(1),
+                    },
+                    title: None,
+                    cwd: None,
+                    pinned: false,
+                    script: None,
+                    argv: Vec::new(),
+                },
+            })
+            .unwrap(),
+        })
+        .await;
+    assert_eq!(error_code(denied), ProtocolErrorCode::LicenseRequired);
+
+    for pane_id in panes {
+        result_value(
+            cli.receive(ClientControl::Request {
+                command_id: CommandId(Uuid::new_v4()),
+                method: "cli.execute".into(),
+                params: serde_json::to_value(CliExecuteRequest {
+                    context_pane_id: None,
+                    expected_structure_revision: None,
+                    action: CliAction::PaneClose {
+                        target: CliTarget::Id { id: pane_id },
+                        force: true,
+                    },
+                })
+                .unwrap(),
+            })
+            .await,
+        );
+    }
 }
