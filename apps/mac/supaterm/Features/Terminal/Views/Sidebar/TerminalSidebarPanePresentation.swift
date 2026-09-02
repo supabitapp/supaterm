@@ -2,7 +2,7 @@ import Foundation
 import SupatermSupport
 
 struct TerminalSidebarPanePresentation: Equatable, Identifiable, Sendable {
-  enum Icon: Equatable, Hashable, Sendable {
+  enum Icon: Equatable, Sendable {
     case terminal
     case agent(String)
   }

@@ -69,8 +69,10 @@ struct TerminalSidebarTabSummaryView: View {
   static func tabIcon(
     panes: [TerminalSidebarPanePresentation]
   ) -> TerminalSidebarPanePresentation.Icon {
-    let icons = Set(panes.map(\.icon))
-    return icons.count == 1 ? icons.first ?? .terminal : .terminal
+    guard let icon = panes.first?.icon, panes.allSatisfy({ $0.icon == icon }) else {
+      return .terminal
+    }
+    return icon
   }
 
   static func hasVisibleStatusIndicator(
