@@ -197,7 +197,6 @@ final class GhosttySurfaceBridge {
       return true
     }
     if action.tag == GHOSTTY_ACTION_SHELL_READY {
-      surfaceView?.shellDidBecomeReady()
       return true
     }
     if let handled = handleAppAction(action) { return handled }
@@ -540,7 +539,6 @@ final class GhosttySurfaceBridge {
     case GHOSTTY_ACTION_PROGRESS_REPORT:
       let report = action.action.progress_report
       state.agentOSCProgress = agentOSCProgress(report)
-      state.agentOSCProgressProcessGroupID = surfaceView?.foregroundProcessGroupID
       guard
         state.progressStyleEnabled,
         report.state != GHOSTTY_PROGRESS_STATE_REMOVE

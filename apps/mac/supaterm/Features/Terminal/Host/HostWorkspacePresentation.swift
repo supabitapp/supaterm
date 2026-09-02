@@ -1,6 +1,8 @@
 import AppKit
 import GhosttyKit
+import SupatermCLIShared
 import SupatermHostClient
+import SupatermSupport
 
 @MainActor
 final class HostWorkspaceApplicationController {
@@ -747,8 +749,7 @@ private final class HostWorkspaceContentView: NSView {
       renderers[paneID] = HostPaneRenderer(
         connection: connection,
         runtime: ghosttyRuntime,
-        paneID: paneID,
-        tabID: tabID
+        paneID: paneID
       )
     }
     let tree = makeTree(visibleRoot)
@@ -1042,17 +1043,13 @@ private final class HostPaneRenderer {
   init(
     connection: HostConnection,
     runtime: GhosttyRuntime,
-    paneID: HostPaneID,
-    tabID: HostTabID
+    paneID: HostPaneID
   ) {
     session = HostPaneRendererSession(connection: connection, paneID: paneID)
     view = GhosttySurfaceView(
       id: paneID,
       runtime: runtime,
-      tabID: tabID,
-      workingDirectory: nil,
       context: GHOSTTY_SURFACE_CONTEXT_TAB,
-      zmxSessionsEnabled: false,
       hostManagedSession: session.renderer
     )
     session.start()

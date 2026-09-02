@@ -122,11 +122,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
 
-  private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
-  private let launch: GhosttySurfaceLaunch
-  private let commandWrapper: [String]
-  private let environmentVariables: [SupatermCLIEnvironmentVariable]
-  private let hostManagedSession: GhosttyHostManagedSession?
+  private let hostManagedSession: GhosttyHostManagedSession
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
   private let managesWindowAppearance: Bool
@@ -134,8 +130,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let selectionReader: @MainActor (ghostty_surface_t) -> String?
   private let accessibilitySelectionNotifier: @MainActor (GhosttySurfaceView) -> Void
   private let accessibilitySelectionSleep: @Sendable (Duration) async throws -> Void
-  var usesZmx: Bool { !commandWrapper.isEmpty }
-  let restoreMode: TerminalPaneRestoreMode
   private var trackingArea: NSTrackingArea?
   private var lastPerformKeyEvent: TimeInterval?
   private var currentCursor: NSCursor = .iBeam
@@ -234,112 +228,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
-  static func cliDirectory(_ cliPath: String?) -> String? {
-    guard let cliPath else { return nil }
-    let trimmedPath = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedPath.isEmpty else { return nil }
-    return URL(fileURLWithPath: trimmedPath).deletingLastPathComponent().path
-  }
-
-  static func prependedPath(
-    _ directory: String,
-    currentPath: String?
-  ) -> String {
-    let trimmedDirectory = directory.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedDirectory.isEmpty else {
-      return currentPath ?? ""
-    }
-
-    var components =
-      currentPath?
-      .split(separator: ":", omittingEmptySubsequences: false)
-      .map { String($0) }
-      .filter { $0 != trimmedDirectory } ?? []
-    components.insert(trimmedDirectory, at: 0)
-    return components.joined(separator: ":")
-  }
-
   static func titleOverride(from title: String) -> String? {
     title.isEmpty ? nil : title
-  }
-
-  static func supatermEnvironmentVariables(
-    surfaceID: UUID,
-    tabID: UUID,
-    socketPath: String?,
-    cliPath: String?,
-    startup: SupatermTerminalStartup? = nil,
-    processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-    zmxSessionsEnabled: Bool = true
-  ) -> [SupatermCLIEnvironmentVariable] {
-    var environmentVariables = SupatermCLIContext(
-      surfaceID: surfaceID,
-      tabID: tabID
-    ).environmentVariables
-    if let socketPath {
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: SupatermCLIEnvironment.socketPathKey,
-          value: socketPath
-        )
-      )
-    }
-    if let cliPath {
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: SupatermCLIEnvironment.cliPathKey,
-          value: cliPath
-        )
-      )
-    }
-    if let stateHome = SupatermStateRoot.stateHomeURL(environment: processEnvironment) {
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: SupatermCLIEnvironment.stateHomeKey,
-          value: stateHome.path
-        )
-      )
-    }
-    if zmxSessionsEnabled {
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: ZmxEnvironment.directoryKey,
-          value: ZmxSocketBudget.socketDir()
-        )
-      )
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: ZmxEnvironment.sessionKey,
-          value: ""
-        )
-      )
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: ZmxEnvironment.sessionPrefixKey,
-          value: ""
-        )
-      )
-    }
-    let path: String?
-    switch startup {
-    case .exec(_, let searchPath):
-      path = searchPath
-    case .shell, nil:
-      let shellPath = prependedPath(
-        cliDirectory(cliPath) ?? "",
-        currentPath: processEnvironment["PATH"]
-      )
-      path = shellPath.isEmpty ? nil : shellPath
-    }
-    if let path {
-      environmentVariables.append(
-        SupatermCLIEnvironmentVariable(
-          key: "PATH",
-          value: path
-        )
-      )
-    }
-    return environmentVariables
   }
 
   override var acceptsFirstResponder: Bool { true }
@@ -347,17 +237,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
   init(
     id: UUID = UUID(),
     runtime: GhosttyRuntime,
-    tabID: UUID,
-    workingDirectory: URL?,
-    shellPath: String = SupatermShellCommand.loginShellPath(),
-    cliPath: String? = GhosttySupport.bundledCLIPath(executableURL: Bundle.main.executableURL),
-    startupCommand: SupatermTerminalStartup? = nil,
-    restoreMode: TerminalPaneRestoreMode? = nil,
-    commandWrapper: [String] = [],
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
     managesWindowAppearance: Bool = false,
-    zmxSessionsEnabled: Bool = true,
     applicationAndWindowAreActive: @escaping (NSWindow) -> Bool = {
       NSApp.isActive && $0.isKeyWindow
     },
@@ -369,7 +251,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       try await ContinuousClock().sleep(for: $0)
     },
     findPasteboard: NSPasteboard = NSPasteboard(name: .find),
-    hostManagedSession: GhosttyHostManagedSession? = nil,
+    hostManagedSession: GhosttyHostManagedSession,
     surfaceFactory: SurfaceFactory = { app, config in
       ghostty_surface_new(app, config)
     }
@@ -377,27 +259,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.runtime = runtime
     self.id = id
     self.bridge = GhosttySurfaceBridge(findPasteboard: findPasteboard)
-    self.environmentVariables =
-      Self.supatermEnvironmentVariables(
-        surfaceID: id,
-        tabID: tabID,
-        socketPath: SupatermProcessSocketEndpoint.current()?.path,
-        cliPath: cliPath,
-        startup: startupCommand,
-        zmxSessionsEnabled: zmxSessionsEnabled
-      )
-    self.commandWrapper = commandWrapper
     self.hostManagedSession = hostManagedSession
-    if let restoreMode {
-      self.restoreMode = restoreMode
-    } else {
-      switch startupCommand {
-      case .exec:
-        self.restoreMode = .existingSession
-      case .shell, nil:
-        self.restoreMode = .shell
-      }
-    }
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance
@@ -405,36 +267,15 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.selectionReader = selectionReader
     self.accessibilitySelectionNotifier = accessibilitySelectionNotifier
     self.accessibilitySelectionSleep = accessibilitySelectionSleep
-    let initialWorkingDirectoryPath: String?
-    if let workingDirectory {
-      let path = SupatermWorkingDirectory.normalizedPath(workingDirectory)
-      initialWorkingDirectoryPath = path
-      workingDirectoryCString = path.withCString { strdup($0) }
-    } else {
-      initialWorkingDirectoryPath = nil
-      workingDirectoryCString = nil
-    }
-    launch = GhosttySurfaceLaunch(
-      shellPath: shellPath,
-      startup: startupCommand,
-      defersInputUntilShellReady: runtime.defersInitialInputUntilShellReady(
-        shellPath: shellPath
-      )
-    )
     super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
-    bridge.state.pwd = initialWorkingDirectoryPath
     bridge.surfaceView = self
     bridge.onPromptSurfaceTitle = { [weak self] in
       self?.promptSurfaceTitle()
     }
     bridge.updateSurfaceConfig(runtime.surfaceConfig())
-    if startupCommand?.isValid == false || launch.preparationFailed {
-      bridge.state.failure = .startupConfigurationFailed
-    } else {
-      createSurface(using: surfaceFactory)
-      if let surface {
-        surfaceRef = runtime.registerSurface(surface)
-      }
+    createSurface(using: surfaceFactory)
+    if let surface {
+      surfaceRef = runtime.registerSurface(surface)
     }
     registerForDraggedTypes(Array(Self.dropTypes))
 
@@ -458,9 +299,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
       SecureInput.shared.removeScoped(id)
     }
     closeSurface()
-    if let workingDirectoryCString {
-      free(workingDirectoryCString)
-    }
   }
 
   func closeSurface() {
@@ -473,7 +311,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         runtime.unregisterSurface(surfaceRef)
         self.surfaceRef = nil
       }
-      hostManagedSession?.detach(surface)
+      hostManagedSession.detach(surface)
       ghostty_surface_free(surface)
       self.surface = nil
       bridge.surface = nil
@@ -521,64 +359,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
       items: items,
       confirm: confirm
     )
-  }
-
-  func shellDidBecomeReady() {
-    DispatchQueue.main.async { [weak self] in
-      self?.submitDeferredStartupInput()
-    }
-  }
-
-  private func submitDeferredStartupInput() {
-    guard
-      bridge.surface != nil,
-      let input = launch.takeDeferredInput()
-    else {
-      return
-    }
-    bridge.sendText(input)
-  }
-
-  var processIdentity: TerminalPaneProcessIdentity {
-    guard let surface else {
-      return TerminalPaneProcessIdentity(foregroundProcessGroupID: nil, ttyName: nil)
-    }
-    return Self.processIdentity(
-      foregroundProcessGroupID: { ghostty_surface_foreground_pid(surface) },
-      ttyName: { ghostty_surface_tty_name(surface) }
-    )
-  }
-
-  var foregroundProcessGroupID: Int32? {
-    guard let surface else { return nil }
-    return Self.processGroupID(from: ghostty_surface_foreground_pid(surface))
-  }
-
-  static func processIdentity(
-    foregroundProcessGroupID: () -> UInt64,
-    ttyName: () -> ghostty_string_s,
-    freeString: (ghostty_string_s) -> Void = ghostty_string_free
-  ) -> TerminalPaneProcessIdentity {
-    let rawProcessGroupID = foregroundProcessGroupID()
-    let rawTTYName = string(consuming: ttyName(), freeString: freeString)
-    return TerminalPaneProcessIdentity(
-      foregroundProcessGroupID: processGroupID(from: rawProcessGroupID),
-      ttyName: rawTTYName.isEmpty ? nil : rawTTYName
-    )
-  }
-
-  private static func processGroupID(from rawValue: UInt64) -> Int32? {
-    rawValue == 0 ? nil : Int32(exactly: rawValue)
-  }
-
-  private static func string(
-    consuming value: ghostty_string_s,
-    freeString: (ghostty_string_s) -> Void
-  ) -> String {
-    defer { freeString(value) }
-    guard let pointer = value.ptr else { return "" }
-    let data = Data(bytes: pointer, count: Int(value.len))
-    return String(data: data, encoding: .utf8) ?? ""
   }
 
   private func updateScreenObservers() {
@@ -880,42 +660,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   func activeScreenTextInBackground(maximumUTF8Bytes: Int) async -> String? {
     await activeScreenReader.readInBackground(maximumUTF8Bytes: maximumUTF8Bytes)
-  }
-
-  func captureText(
-    scope: SupatermCapturePaneScope,
-    lines: TerminalCapturePaneRequest.LineCount?
-  ) -> String? {
-    if scope == .scrollback, let lines {
-      return readTextTail(lines: lines.value)
-    }
-
-    let text =
-      switch scope {
-      case .scrollback:
-        readText(
-          topLeftTag: GHOSTTY_POINT_SURFACE,
-          bottomRightTag: GHOSTTY_POINT_SCREEN
-        )
-      case .visible:
-        readText(
-          topLeftTag: GHOSTTY_POINT_VIEWPORT,
-          bottomRightTag: GHOSTTY_POINT_VIEWPORT
-        )
-      }
-    guard let text, let lines else { return text }
-    let lineCount = Int(lines.value)
-    let components = text.components(separatedBy: .newlines)
-    guard components.count > lineCount else { return text }
-    return components.suffix(lineCount).joined(separator: "\n")
-  }
-
-  private func readTextTail(lines: UInt32) -> String? {
-    guard let surface else { return nil }
-    var text = ghostty_text_s()
-    guard ghostty_surface_read_text_tail(surface, lines, &text) else { return nil }
-    defer { ghostty_surface_free_text(surface, &text) }
-    return String(cString: text.text)
   }
 
   private func readText(
@@ -1383,23 +1127,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
       ))
     config.scale_factor = backingScaleFactor()
     config.font_size = fontSize
-    config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
     config.context = context
-    hostManagedSession?.configure(&config)
-    Self.withEnvironmentVariables(environmentVariables) { envVars, count in
-      config.env_vars = envVars
-      config.env_var_count = count
-      GhosttySurfaceLaunch.withCStringArray(commandWrapper) { wrapper, wrapperCount in
-        config.command_wrapper = wrapper
-        config.command_wrapper_count = wrapperCount
-        surface = launch.withConfiguration(&config) { config in
-          surfaceFactory(app, &config)
-        }
-      }
-    }
+    hostManagedSession.configure(&config)
+    surface = surfaceFactory(app, &config)
     bridge.surface = surface
     if let surface {
-      hostManagedSession?.attach(surface)
+      hostManagedSession.attach(surface)
     }
     activeScreenReader.install(surface)
     guard surface != nil else {
@@ -1409,36 +1142,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     lastOcclusion = nil
     lastSurfaceFocus = nil
     updateSurfaceSize()
-  }
-
-  private static func withEnvironmentVariables<Result>(
-    _ environmentVariables: [SupatermCLIEnvironmentVariable],
-    _ body: (UnsafeMutablePointer<ghostty_env_var_s>?, Int) -> Result
-  ) -> Result {
-    guard !environmentVariables.isEmpty else {
-      return body(nil, 0)
-    }
-
-    var envVars = environmentVariables.map { variable in
-      ghostty_env_var_s(
-        key: strdup(variable.key),
-        value: strdup(variable.value)
-      )
-    }
-    defer {
-      for envVar in envVars {
-        if let key = envVar.key {
-          free(UnsafeMutableRawPointer(mutating: key))
-        }
-        if let value = envVar.value {
-          free(UnsafeMutableRawPointer(mutating: value))
-        }
-      }
-    }
-
-    return envVars.withUnsafeMutableBufferPointer { buffer in
-      body(buffer.baseAddress, buffer.count)
-    }
   }
 
   private func updateContentScale() {
@@ -1782,7 +1485,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
         "windowIsKey=\(window?.isKeyWindow == true)",
         "firstResponderIsSurface=\(window?.firstResponder === self)",
         "menuTargetIsSurface=\(menuItem?.target === self)",
-        "needsConfirmation=\(needsCloseConfirmation)",
       ]
     )
     let accepted = performBindingAction(SupatermCommand.closeSurface.ghosttyBindingAction)
