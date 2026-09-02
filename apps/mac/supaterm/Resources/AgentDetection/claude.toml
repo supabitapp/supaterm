@@ -1,6 +1,11 @@
 id = "claude"
 version = "2026.08.31.1"
 
+[integration]
+settings_file = "settings.json"
+defaults = { terminalProgressBarEnabled = true }
+fork_arguments = ["--fork-session", "--resume", "{session_id}"]
+
 [[rules]]
 id = "osc_title_working"
 state = "working"

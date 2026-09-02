@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod client;
 pub mod host;
 pub mod protocol;

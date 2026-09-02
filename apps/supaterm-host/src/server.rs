@@ -1,3 +1,4 @@
+use crate::agent::machine::MachineEnvironment;
 use crate::host::actor::{HostActor, HostConfiguration};
 use crate::protocol::control::BuildIdentity;
 use crate::runtime::{ProcessRecord, RuntimePaths};
@@ -26,6 +27,10 @@ pub async fn serve(paths: RuntimePaths, build: BuildIdentity) -> io::Result<()> 
                 socket_path: paths.socket.clone(),
                 cli_path: std::env::current_exe()?.with_file_name("sp"),
                 state_home: Some(paths.state_root.clone()),
+            }),
+            machine_environment: Some(MachineEnvironment {
+                home_directory: paths.home_directory.clone(),
+                state_root: paths.state_root.clone(),
             }),
         },
         loaded.document,

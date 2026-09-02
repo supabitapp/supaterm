@@ -40,6 +40,7 @@ impl PathConfiguration {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RuntimePaths {
+    pub home_directory: PathBuf,
     pub state_root: PathBuf,
     pub durable_state: PathBuf,
     pub runtime_directory: PathBuf,
@@ -97,6 +98,7 @@ impl RuntimePaths {
             .ok_or_else(|| RuntimeError::UnsafeRuntimePath(state_root.clone()))?;
         ensure_private_directory(&runtime_directory, configuration.uid)?;
         Ok(Self {
+            home_directory: configuration.home_directory,
             durable_state: state_root.join("host-state.json"),
             state_root,
             socket: runtime_directory.join("host.sock"),

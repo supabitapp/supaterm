@@ -1,6 +1,10 @@
 id = "codex"
 version = "2026.09.01.1"
 
+[integration]
+settings_file = "hooks.json"
+fork_arguments = ["fork", "{session_id}"]
+
 [[rules]]
 id = "osc_title_blocked"
 state = "blocked"

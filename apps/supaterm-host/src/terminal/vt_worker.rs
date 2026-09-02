@@ -46,6 +46,15 @@ impl VtHandle {
             .map_err(|_| TerminalStateError::Stopped)?;
         response.await.map_err(|_| TerminalStateError::Stopped)?
     }
+
+    pub async fn plain_text(&self) -> Result<String, TerminalStateError> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(VtCommand::PlainText { reply })
+            .await
+            .map_err(|_| TerminalStateError::Stopped)?;
+        response.await.map_err(|_| TerminalStateError::Stopped)?
+    }
 }
 
 pub struct VtWrite {
@@ -64,6 +73,9 @@ enum VtCommand {
     },
     Snapshot {
         reply: oneshot::Sender<Result<Vec<u8>, TerminalStateError>>,
+    },
+    PlainText {
+        reply: oneshot::Sender<Result<String, TerminalStateError>>,
     },
 }
 
@@ -86,6 +98,9 @@ async fn run(mut terminal: HostTerminal, mut receiver: mpsc::Receiver<VtCommand>
             }
             VtCommand::Snapshot { reply } => {
                 let _ = reply.send(terminal.snapshot());
+            }
+            VtCommand::PlainText { reply } => {
+                let _ = reply.send(terminal.plain_text());
             }
         }
     }

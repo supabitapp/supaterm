@@ -6,6 +6,7 @@ const GHOSTTY_SUCCESS: i32 = 0;
 const GHOSTTY_OUT_OF_SPACE: i32 = -3;
 const GHOSTTY_TERMINAL_OPT_USERDATA: i32 = 0;
 const GHOSTTY_TERMINAL_OPT_WRITE_PTY: i32 = 1;
+const GHOSTTY_TERMINAL_OPT_BELL: i32 = 2;
 const GHOSTTY_TERMINAL_OPT_ENQUIRY: i32 = 3;
 const GHOSTTY_TERMINAL_OPT_XTVERSION: i32 = 4;
 const GHOSTTY_TERMINAL_OPT_TITLE_CHANGED: i32 = 5;
@@ -14,6 +15,7 @@ const GHOSTTY_TERMINAL_OPT_COLOR_SCHEME: i32 = 7;
 const GHOSTTY_TERMINAL_OPT_DEVICE_ATTRIBUTES: i32 = 8;
 const GHOSTTY_TERMINAL_OPT_PWD_CHANGED: i32 = 25;
 const GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_BYTES: i32 = 27;
+const GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION: i32 = 29;
 const GHOSTTY_TERMINAL_OPT_PROGRESS_REPORT: i32 = 30;
 const GHOSTTY_TERMINAL_OPT_CONTINUATION_MAX_BYTES: i32 = 31;
 const GHOSTTY_TERMINAL_OPT_TERMINFO_NAME: i32 = 37;
@@ -24,10 +26,13 @@ const GHOSTTY_TERMINAL_DATA_PWD: i32 = 13;
 const MAXIMUM_SNAPSHOT_BYTES: usize = 64 * 1024 * 1024;
 const MAXIMUM_CONTINUATION_BYTES: usize = 16 * 1024 * 1024;
 const MAXIMUM_SCROLLBACK_BYTES: usize = 64 * 1024 * 1024;
+const MAXIMUM_PLAIN_TEXT_BYTES: usize = 4 * 1024 * 1024;
 
 type GhosttyTerminal = *mut c_void;
 type GhosttySnapshotDecoder = *mut c_void;
+type GhosttyFormatter = *mut c_void;
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct GhosttyString {
     pointer: *const u8,
@@ -75,6 +80,49 @@ struct GhosttyProgressReport {
     progress: i8,
 }
 
+#[repr(C)]
+struct GhosttyDesktopNotification {
+    size: usize,
+    title: GhosttyString,
+    body: GhosttyString,
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct GhosttyFormatterScreenExtra {
+    size: usize,
+    cursor: bool,
+    style: bool,
+    hyperlink: bool,
+    protection: bool,
+    kitty_keyboard: bool,
+    charsets: bool,
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct GhosttyFormatterTerminalExtra {
+    size: usize,
+    palette: bool,
+    modes: bool,
+    scrolling_region: bool,
+    tabstops: bool,
+    pwd: bool,
+    keyboard: bool,
+    screen: GhosttyFormatterScreenExtra,
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct GhosttyFormatterTerminalOptions {
+    size: usize,
+    emit: i32,
+    unwrap: bool,
+    trim: bool,
+    extra: GhosttyFormatterTerminalExtra,
+    selection: *const c_void,
+}
+
 unsafe extern "C" {
     fn ghostty_terminal_new(
         allocator: *const c_void,
@@ -115,6 +163,19 @@ unsafe extern "C" {
         terminal: *mut GhosttyTerminal,
     ) -> i32;
     fn ghostty_snapshot_decoder_free(decoder: GhosttySnapshotDecoder);
+    fn ghostty_formatter_terminal_new(
+        allocator: *const c_void,
+        formatter: *mut GhosttyFormatter,
+        terminal: GhosttyTerminal,
+        options: GhosttyFormatterTerminalOptions,
+    ) -> i32;
+    fn ghostty_formatter_format_buf(
+        formatter: GhosttyFormatter,
+        buffer: *mut u8,
+        buffer_length: usize,
+        written: *mut usize,
+    ) -> i32;
+    fn ghostty_formatter_free(formatter: GhosttyFormatter);
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -127,9 +188,11 @@ pub struct TerminalViewport {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminalEffect {
+    Bell,
     Title(Option<String>),
     WorkingDirectory(Option<String>),
     Progress(Option<TerminalProgress>),
+    DesktopNotification { title: Option<String>, body: String },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -157,6 +220,8 @@ pub enum TerminalStateError {
     Ghostty(i32),
     #[error("terminal snapshot is {0} bytes, maximum is 64 MiB")]
     SnapshotTooLarge(usize),
+    #[error("plain terminal text is {0} bytes, maximum is 4 MiB")]
+    PlainTextTooLarge(usize),
     #[error("terminal state worker stopped")]
     Stopped,
 }
@@ -293,6 +358,66 @@ impl HostTerminal {
         Ok(snapshot)
     }
 
+    pub fn plain_text(&self) -> Result<String, TerminalStateError> {
+        let options = GhosttyFormatterTerminalOptions {
+            size: std::mem::size_of::<GhosttyFormatterTerminalOptions>(),
+            emit: 0,
+            unwrap: false,
+            trim: true,
+            extra: GhosttyFormatterTerminalExtra {
+                size: std::mem::size_of::<GhosttyFormatterTerminalExtra>(),
+                palette: false,
+                modes: false,
+                scrolling_region: false,
+                tabstops: false,
+                pwd: false,
+                keyboard: false,
+                screen: GhosttyFormatterScreenExtra {
+                    size: std::mem::size_of::<GhosttyFormatterScreenExtra>(),
+                    cursor: false,
+                    style: false,
+                    hyperlink: false,
+                    protection: false,
+                    kitty_keyboard: false,
+                    charsets: false,
+                },
+            },
+            selection: std::ptr::null(),
+        };
+        let mut formatter = std::ptr::null_mut();
+        check(unsafe {
+            ghostty_formatter_terminal_new(
+                std::ptr::null(),
+                &raw mut formatter,
+                self.terminal.as_ptr(),
+                options,
+            )
+        })?;
+        let formatter = Formatter(formatter);
+        let mut required = 0;
+        let queried = unsafe {
+            ghostty_formatter_format_buf(formatter.0, std::ptr::null_mut(), 0, &raw mut required)
+        };
+        if queried != GHOSTTY_OUT_OF_SPACE && queried != GHOSTTY_SUCCESS {
+            check(queried)?;
+        }
+        if required > MAXIMUM_PLAIN_TEXT_BYTES {
+            return Err(TerminalStateError::PlainTextTooLarge(required));
+        }
+        let mut bytes = vec![0_u8; required];
+        let mut written = 0;
+        check(unsafe {
+            ghostty_formatter_format_buf(
+                formatter.0,
+                bytes.as_mut_ptr(),
+                bytes.len(),
+                &raw mut written,
+            )
+        })?;
+        bytes.truncate(written);
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    }
+
     fn from_terminal(
         terminal: NonNull<c_void>,
         viewport: TerminalViewport,
@@ -318,6 +443,11 @@ impl HostTerminal {
             self.terminal,
             GHOSTTY_TERMINAL_OPT_WRITE_PTY,
             write_pty as *const () as *const c_void,
+        )?;
+        set(
+            self.terminal,
+            GHOSTTY_TERMINAL_OPT_BELL,
+            bell as *const () as *const c_void,
         )?;
         set(
             self.terminal,
@@ -361,6 +491,11 @@ impl HostTerminal {
         )?;
         set(
             self.terminal,
+            GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION,
+            desktop_notification as *const () as *const c_void,
+        )?;
+        set(
+            self.terminal,
             GHOSTTY_TERMINAL_OPT_CONTINUATION_MAX_BYTES,
             (&raw const continuation_limit).cast(),
         )?;
@@ -399,6 +534,16 @@ impl Drop for Decoder {
     }
 }
 
+struct Formatter(GhosttyFormatter);
+
+impl Drop for Formatter {
+    fn drop(&mut self) {
+        unsafe {
+            ghostty_formatter_free(self.0);
+        }
+    }
+}
+
 extern "C" fn write_pty(
     _terminal: GhosttyTerminal,
     userdata: *mut c_void,
@@ -409,6 +554,11 @@ extern "C" fn write_pty(
     context
         .replies
         .push(unsafe { std::slice::from_raw_parts(bytes, length) }.to_vec());
+}
+
+extern "C" fn bell(_terminal: GhosttyTerminal, userdata: *mut c_void) {
+    let context = unsafe { &mut *userdata.cast::<ReplyContext>() };
+    context.effects.push(TerminalEffect::Bell);
 }
 
 extern "C" fn title_changed(terminal: GhosttyTerminal, userdata: *mut c_void) {
@@ -464,6 +614,19 @@ extern "C" fn progress_report(
     context.effects.push(TerminalEffect::Progress(progress));
 }
 
+extern "C" fn desktop_notification(
+    _terminal: GhosttyTerminal,
+    userdata: *mut c_void,
+    notification: *const GhosttyDesktopNotification,
+) {
+    let context = unsafe { &mut *userdata.cast::<ReplyContext>() };
+    let notification = unsafe { &*notification };
+    context.effects.push(TerminalEffect::DesktopNotification {
+        title: ghostty_string(notification.title).filter(|value| !value.is_empty()),
+        body: ghostty_string(notification.body).unwrap_or_default(),
+    });
+}
+
 fn read_terminal_string(terminal: GhosttyTerminal, data: i32) -> Option<String> {
     let mut value = GhosttyString {
         pointer: std::ptr::null(),
@@ -472,6 +635,16 @@ fn read_terminal_string(terminal: GhosttyTerminal, data: i32) -> Option<String> 
     if unsafe { ghostty_terminal_get(terminal, data, (&raw mut value).cast()) } != GHOSTTY_SUCCESS
         || value.length == 0
     {
+        return None;
+    }
+    ghostty_string(value)
+}
+
+fn ghostty_string(value: GhosttyString) -> Option<String> {
+    if value.length == 0 {
+        return Some(String::new());
+    }
+    if value.pointer.is_null() {
         return None;
     }
     let bytes = unsafe { std::slice::from_raw_parts(value.pointer, value.length) };

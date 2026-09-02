@@ -146,6 +146,7 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
             format!("peer uid {actual_uid} does not match {expected_uid}"),
         ));
     }
+    let peer_process_id = peer_process_id(&stream)?;
     let (read_half, write_half) = stream.into_split();
     let mut reader = FrameReader::new(read_half, Direction::ClientToHost);
     let (control_sender, control_receiver) = mpsc::channel(CONTROL_QUEUE_CAPACITY);
@@ -162,7 +163,7 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
         control_receiver,
         terminal_receiver,
     ));
-    let mut session = ConnectionSession::new(actor.clone());
+    let mut session = ConnectionSession::new_with_peer(actor.clone(), peer_process_id);
     let mut streams = HashMap::new();
     while let Some(frame) = reader.read().await? {
         let should_close = match frame.kind {
@@ -656,6 +657,26 @@ pub fn peer_uid(stream: &UnixStream) -> io::Result<u32> {
     }
 }
 
+#[cfg(target_os = "macos")]
+pub fn peer_process_id(stream: &UnixStream) -> io::Result<Option<u32>> {
+    let mut process_id = 0_i32;
+    let mut length = std::mem::size_of::<i32>() as libc::socklen_t;
+    let result = unsafe {
+        libc::getsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_LOCAL,
+            libc::LOCAL_PEERPID,
+            (&raw mut process_id).cast(),
+            &raw mut length,
+        )
+    };
+    if result == 0 {
+        Ok(u32::try_from(process_id).ok())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
 #[cfg(target_os = "linux")]
 pub fn peer_uid(stream: &UnixStream) -> io::Result<u32> {
     let mut credentials = libc::ucred {
@@ -675,6 +696,30 @@ pub fn peer_uid(stream: &UnixStream) -> io::Result<u32> {
     };
     if result == 0 {
         Ok(credentials.uid)
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn peer_process_id(stream: &UnixStream) -> io::Result<Option<u32>> {
+    let mut credentials = libc::ucred {
+        pid: 0,
+        uid: 0,
+        gid: 0,
+    };
+    let mut length = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    let result = unsafe {
+        libc::getsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            (&raw mut credentials).cast(),
+            &raw mut length,
+        )
+    };
+    if result == 0 {
+        Ok(u32::try_from(credentials.pid).ok())
     } else {
         Err(io::Error::last_os_error())
     }

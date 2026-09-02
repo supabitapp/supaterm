@@ -32,6 +32,7 @@ async fn session(environment: Option<TerminalEnvironment>) -> ConnectionSession 
         capabilities: vec!["semantic_state".into()],
         command_cache_capacity: 32,
         terminal_environment: environment,
+        machine_environment: None,
     });
     let mut session = ConnectionSession::new(actor);
     assert!(matches!(
@@ -388,4 +389,106 @@ async fn moving_the_final_root_removes_its_window_without_restarting_the_termina
         }),
     )
     .await;
+}
+
+#[tokio::test]
+async fn one_notification_sink_delivers_once_and_a_late_sink_skips_history() {
+    let mut first = session(None).await;
+    let actor = first.actor().clone();
+    let lease = request(&mut first, "notification.claim_sink", Value::Null).await;
+    let lease_id = lease["lease_id"].clone();
+    let pane_id = PaneId(Uuid::from_u128(50));
+    create(
+        &mut first,
+        pane_id,
+        TabId(Uuid::from_u128(51)),
+        spec(vec![
+            "/bin/sh".into(),
+            "-c".into(),
+            "printf '\\a'; sleep 1".into(),
+        ]),
+    )
+    .await;
+    let notification = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let value = request(
+                &mut first,
+                "notification.next",
+                json!({"lease_id": lease_id}),
+            )
+            .await;
+            if !value.is_null() {
+                break value;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(notification["pane_id"], pane_id.to_string());
+    request(
+        &mut first,
+        "notification.ack",
+        json!({
+            "lease_id": lease_id,
+            "notification_id": notification["id"]
+        }),
+    )
+    .await;
+
+    let mut second = ConnectionSession::new(actor);
+    second
+        .receive(ClientControl::Hello {
+            protocol_version: PROTOCOL_VERSION,
+            build: build(),
+            role: ClientRole::Ui,
+            client_id: Some(ClientId(Uuid::from_u128(52))),
+            capabilities: vec!["semantic_state".into()],
+            limits: Limits::default(),
+        })
+        .await;
+    let refused = second
+        .receive(ClientControl::Request {
+            command_id: CommandId(Uuid::new_v4()),
+            method: "notification.claim_sink".into(),
+            params: Value::Null,
+        })
+        .await;
+    assert!(matches!(
+        refused,
+        HostControl::Error {
+            error: supaterm_host::protocol::control::ProtocolError {
+                code: ProtocolErrorCode::CapabilityUnavailable,
+                ..
+            },
+            ..
+        }
+    ));
+    drop(first);
+    let late_lease = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let response = second
+                .receive(ClientControl::Request {
+                    command_id: CommandId(Uuid::new_v4()),
+                    method: "notification.claim_sink".into(),
+                    params: Value::Null,
+                })
+                .await;
+            if let HostControl::Result { result, .. } = response {
+                break result;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(
+        request(
+            &mut second,
+            "notification.next",
+            json!({"lease_id": late_lease["lease_id"]}),
+        )
+        .await
+        .is_null()
+    );
 }

@@ -127,6 +127,16 @@ pub enum Command {
         tab_id: TabId,
         pane_id: PaneId,
     },
+    MarkAgentSeen {
+        client_id: ClientId,
+        pane_id: PaneId,
+        revision: u64,
+    },
+    MarkNotificationSeen {
+        client_id: ClientId,
+        pane_id: PaneId,
+        revision: u64,
+    },
     SetGroupCollapsed {
         client_id: ClientId,
         window_id: WindowId,
@@ -161,6 +171,8 @@ impl Command {
             Self::SelectSpace { client_id, .. }
             | Self::SelectTab { client_id, .. }
             | Self::FocusPane { client_id, .. }
+            | Self::MarkAgentSeen { client_id, .. }
+            | Self::MarkNotificationSeen { client_id, .. }
             | Self::SetGroupCollapsed { client_id, .. } => Some(*client_id),
             _ => None,
         }
@@ -174,6 +186,8 @@ impl Command {
                 | Self::SelectSpace { .. }
                 | Self::SelectTab { .. }
                 | Self::FocusPane { .. }
+                | Self::MarkAgentSeen { .. }
+                | Self::MarkNotificationSeen { .. }
                 | Self::SetGroupCollapsed { .. }
         )
     }
@@ -477,6 +491,30 @@ fn apply_inner(
             pane_id,
         } => focus_pane(
             workspace, clients, client_id, window_id, space_id, tab_id, pane_id,
+        )?,
+        Command::MarkAgentSeen {
+            client_id,
+            pane_id,
+            revision,
+        } => mark_seen(
+            workspace,
+            clients,
+            client_id,
+            pane_id,
+            revision,
+            SeenCursor::Agent,
+        )?,
+        Command::MarkNotificationSeen {
+            client_id,
+            pane_id,
+            revision,
+        } => mark_seen(
+            workspace,
+            clients,
+            client_id,
+            pane_id,
+            revision,
+            SeenCursor::Notification,
         )?,
         Command::SetGroupCollapsed {
             client_id,
@@ -1471,6 +1509,34 @@ fn set_group_collapsed(
     Ok(())
 }
 
+enum SeenCursor {
+    Agent,
+    Notification,
+}
+
+fn mark_seen(
+    workspace: &Workspace,
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    pane_id: PaneId,
+    revision: u64,
+    cursor: SeenCursor,
+) -> Result<(), ReducerError> {
+    if !workspace.pane_ids().any(|candidate| candidate == pane_id) {
+        return Err(ReducerError::NotFound);
+    }
+    let client = client_mut(clients, client_id)?;
+    let cursors = match cursor {
+        SeenCursor::Agent => &mut client.seen_agent_revision_by_pane,
+        SeenCursor::Notification => &mut client.seen_notification_revision_by_pane,
+    };
+    cursors
+        .entry(pane_id)
+        .and_modify(|current| *current = (*current).max(revision))
+        .or_insert(revision);
+    Ok(())
+}
+
 fn detach_to_window(
     workspace: &mut Workspace,
     clients: &mut [ClientState],
@@ -1596,6 +1662,13 @@ fn repair_clients(workspace: &Workspace, clients: &mut [ClientState]) {
     let valid_spaces: BTreeSet<_> = workspace.spaces.iter().map(|space| space.id).collect();
     let first_space = workspace.spaces[0].id;
     for client in clients {
+        let pane_ids: BTreeSet<_> = workspace.pane_ids().collect();
+        client
+            .seen_agent_revision_by_pane
+            .retain(|pane_id, _| pane_ids.contains(pane_id));
+        client
+            .seen_notification_revision_by_pane
+            .retain(|pane_id, _| pane_ids.contains(pane_id));
         client
             .windows
             .retain(|window_id, _| valid_windows.contains(window_id));

@@ -81,6 +81,23 @@ pub enum TerminalRuntimeEvent {
         current_directory: Option<Option<std::path::PathBuf>>,
         progress: Option<Option<ProgressReport>>,
     },
+    ProcessGroupObserved {
+        pane_id: PaneId,
+        process_group_id: Option<u32>,
+    },
+    Bell {
+        pane_id: PaneId,
+    },
+    DesktopNotification {
+        pane_id: PaneId,
+        title: Option<String>,
+        body: String,
+    },
+    ScreenChanged {
+        pane_id: PaneId,
+        source_revision: u64,
+        text: String,
+    },
     Exited {
         pane_id: PaneId,
         code: Option<i32>,
@@ -500,6 +517,10 @@ enum PaneMessage {
         snapshot_id: Uuid,
         delivered: bool,
     },
+    ScreenCaptured {
+        source_revision: u64,
+        result: Result<String, String>,
+    },
     Escalate,
     ChildExited(ExitStatus),
 }
@@ -559,6 +580,8 @@ struct PaneRuntime {
     writer: Option<(ClientId, u64)>,
     next_writer_generation: u64,
     output_sequence: u64,
+    screen_dirty: bool,
+    screen_capture_running: bool,
     closing: bool,
     close_replies: Vec<oneshot::Sender<Result<(), TerminalError>>>,
     exit_status: Option<(Option<i32>, Option<i32>)>,
@@ -596,6 +619,8 @@ impl PaneRuntime {
             writer: None,
             next_writer_generation: 1,
             output_sequence: 0,
+            screen_dirty: false,
+            screen_capture_running: false,
             closing: false,
             close_replies: Vec::new(),
             exit_status: None,
@@ -607,8 +632,22 @@ impl PaneRuntime {
     async fn run(mut self) {
         let mut buffer = vec![0_u8; MAXIMUM_INPUT_BYTES];
         let mut reading = true;
+        let mut process_observer = tokio::time::interval(Duration::from_secs(2));
+        process_observer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut screen_observer = tokio::time::interval(Duration::from_millis(300));
+        screen_observer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tokio::select! {
+                _ = process_observer.tick() => {
+                    let process_group_id = self.pty.foreground_process_group().unwrap_or(None);
+                    let _ = self.event_sender.send(TerminalRuntimeEvent::ProcessGroupObserved {
+                        pane_id: self.id,
+                        process_group_id,
+                    }).await;
+                }
+                _ = screen_observer.tick(), if self.screen_dirty && !self.screen_capture_running => {
+                    self.request_screen_capture();
+                }
                 result = self.pty.read(&mut buffer), if reading => {
                     match result {
                         Ok(0) | Err(_) => reading = false,
@@ -720,6 +759,22 @@ impl PaneRuntime {
                 snapshot_id,
                 delivered,
             } => self.flush_delivered(client_id, snapshot_id, delivered),
+            PaneMessage::ScreenCaptured {
+                source_revision,
+                result,
+            } => {
+                self.screen_capture_running = false;
+                if let Ok(text) = result {
+                    let _ = self
+                        .event_sender
+                        .send(TerminalRuntimeEvent::ScreenChanged {
+                            pane_id: self.id,
+                            source_revision,
+                            text,
+                        })
+                        .await;
+                }
+            }
             PaneMessage::Escalate => {
                 let _ = signal_process_group(self.pty.pid(), libc::SIGKILL);
             }
@@ -803,6 +858,7 @@ impl PaneRuntime {
         self.publish_effects(write.effects).await?;
         let sequence = self.output_sequence;
         self.output_sequence = self.output_sequence.saturating_add(bytes.len() as u64);
+        self.screen_dirty = true;
         let event = OutputEvent::Output { sequence, bytes };
         let mut restart = Vec::new();
         let mut detach = Vec::new();
@@ -839,12 +895,35 @@ impl PaneRuntime {
         Ok(())
     }
 
+    fn request_screen_capture(&mut self) {
+        self.screen_dirty = false;
+        self.screen_capture_running = true;
+        let source_revision = self.output_sequence;
+        let vt = self.vt.clone();
+        let sender = self.sender.clone();
+        tokio::spawn(async move {
+            let result = vt.plain_text().await.map_err(|error| error.to_string());
+            let _ = sender
+                .send(PaneMessage::ScreenCaptured {
+                    source_revision,
+                    result,
+                })
+                .await;
+        });
+    }
+
     async fn publish_effects(&self, effects: Vec<TerminalEffect>) -> Result<(), TerminalError> {
         let mut title = None;
         let mut current_directory = None;
         let mut progress = None;
         for effect in effects {
             match effect {
+                TerminalEffect::Bell => {
+                    self.event_sender
+                        .send(TerminalRuntimeEvent::Bell { pane_id: self.id })
+                        .await
+                        .map_err(|_| TerminalError::Stopped)?;
+                }
                 TerminalEffect::Title(value) => title = Some(value),
                 TerminalEffect::WorkingDirectory(value) => {
                     current_directory = Some(value.and_then(|value| working_directory(&value)))
@@ -859,6 +938,16 @@ impl PaneRuntime {
                         },
                         percent: value.percent,
                     }))
+                }
+                TerminalEffect::DesktopNotification { title, body } => {
+                    self.event_sender
+                        .send(TerminalRuntimeEvent::DesktopNotification {
+                            pane_id: self.id,
+                            title,
+                            body,
+                        })
+                        .await
+                        .map_err(|_| TerminalError::Stopped)?;
                 }
             }
         }

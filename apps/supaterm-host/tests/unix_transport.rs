@@ -9,7 +9,7 @@ use supaterm_host::protocol::terminal::TerminalControl;
 use supaterm_host::runtime::{PathConfiguration, RuntimePaths};
 use supaterm_host::terminal::actor::Viewport;
 use supaterm_host::terminal::pty::SpawnSpec;
-use supaterm_host::transport::unix::{UnixServer, peer_uid, serve_connection};
+use supaterm_host::transport::unix::{UnixServer, peer_process_id, peer_uid, serve_connection};
 use supaterm_host::workspace::model::SpaceId;
 use supaterm_host::workspace::reducer::Command;
 use tempfile::tempdir;
@@ -32,6 +32,7 @@ fn actor() -> HostActor {
         capabilities: vec!["semantic_state".into()],
         command_cache_capacity: 16,
         terminal_environment: None,
+        machine_environment: None,
     })
 }
 
@@ -101,6 +102,7 @@ async fn accepted_socket_reports_the_current_uid() {
     let (stream, _) = server.accept().await.unwrap();
 
     assert_eq!(peer_uid(&stream).unwrap(), unsafe { libc::geteuid() });
+    assert_eq!(peer_process_id(&stream).unwrap(), Some(std::process::id()));
     client.await.unwrap().unwrap();
 }
 

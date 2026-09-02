@@ -65,3 +65,33 @@ fn native_parser_reports_title_directory_and_progress_effects() {
         ]
     );
 }
+
+#[test]
+fn native_parser_reports_bell_and_desktop_notification_once() {
+    let mut terminal = HostTerminal::new(viewport()).unwrap();
+
+    let bell = terminal.write_with_effects(b"\x07");
+    let notification = terminal.write_with_effects(b"\x1b]777;notify;Build;Needs attention\x07");
+
+    assert_eq!(bell.effects, [TerminalEffect::Bell]);
+    assert_eq!(
+        notification.effects,
+        [TerminalEffect::DesktopNotification {
+            title: Some("Build".into()),
+            body: "Needs attention".into(),
+        }]
+    );
+    assert!(terminal.take_replies().is_empty());
+}
+
+#[test]
+fn native_formatter_reads_the_active_screen_without_escape_sequences() {
+    let mut terminal = HostTerminal::new(viewport()).unwrap();
+    terminal.write(b"first\r\n\x1b[31msecond\x1b[0m");
+
+    let text = terminal.plain_text().unwrap();
+
+    assert!(text.contains("first"));
+    assert!(text.contains("second"));
+    assert!(!text.contains('\x1b'));
+}

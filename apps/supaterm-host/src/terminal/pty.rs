@@ -174,6 +174,20 @@ impl Pty {
         self.pid
     }
 
+    pub fn foreground_process_group(&self) -> io::Result<Option<u32>> {
+        let process_group = unsafe { libc::tcgetpgrp(self.master.get_ref().as_raw_fd()) };
+        if process_group > 0 {
+            Ok(u32::try_from(process_group).ok())
+        } else {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::ENOTTY) {
+                Ok(None)
+            } else {
+                Err(error)
+            }
+        }
+    }
+
     pub(crate) fn writer(&self) -> io::Result<PtyWriter> {
         let fd =
             unsafe { libc::fcntl(self.master.get_ref().as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0) };

@@ -1,4 +1,4 @@
-use crate::host::actor::HostActor;
+use crate::host::actor::{HostActor, RequestContext};
 use crate::protocol::control::{
     ClientControl, ClientId, ClientRole, HostControl, Limits, PROTOCOL_VERSION, ProtocolError,
     ProtocolErrorCode,
@@ -16,14 +16,22 @@ pub struct ConnectionSession {
     actor: HostActor,
     client: Option<ClientIdentity>,
     closed: bool,
+    connection_id: Uuid,
+    peer_process_id: Option<u32>,
 }
 
 impl ConnectionSession {
     pub fn new(actor: HostActor) -> Self {
+        Self::new_with_peer(actor, None)
+    }
+
+    pub fn new_with_peer(actor: HostActor, peer_process_id: Option<u32>) -> Self {
         Self {
             actor,
             client: None,
             closed: false,
+            connection_id: Uuid::new_v4(),
+            peer_process_id,
         }
     }
 
@@ -77,7 +85,9 @@ impl ConnectionSession {
                     );
                 }
                 let client_id = client_id.unwrap_or_else(|| ClientId(Uuid::new_v4()));
-                if let Err(error) = self.actor.ensure_client(client_id).await {
+                if role != ClientRole::Hook
+                    && let Err(error) = self.actor.ensure_client(client_id).await
+                {
                     self.closed = true;
                     return HostControl::Error {
                         command_id: None,
@@ -131,10 +141,26 @@ impl ConnectionSession {
                 },
             ) => {
                 self.actor
-                    .execute(client.id, client.role, command_id, method, params)
+                    .execute(
+                        RequestContext {
+                            connection_id: self.connection_id,
+                            client_id: client.id,
+                            role: client.role,
+                            peer_process_id: self.peer_process_id,
+                        },
+                        command_id,
+                        method,
+                        params,
+                    )
                     .await
             }
         }
+    }
+}
+
+impl Drop for ConnectionSession {
+    fn drop(&mut self) {
+        self.actor.disconnect(self.connection_id);
     }
 }
 

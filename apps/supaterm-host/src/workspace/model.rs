@@ -474,6 +474,8 @@ pub enum SplitPlacement {
 pub struct ClientState {
     pub id: ClientId,
     pub windows: BTreeMap<WindowId, ClientWindowState>,
+    pub seen_agent_revision_by_pane: BTreeMap<PaneId, u64>,
+    pub seen_notification_revision_by_pane: BTreeMap<PaneId, u64>,
 }
 
 impl ClientState {
@@ -487,6 +489,8 @@ impl ClientState {
                     spaces: BTreeMap::from([(space_id, ClientSpaceState::default())]),
                 },
             )]),
+            seen_agent_revision_by_pane: BTreeMap::new(),
+            seen_notification_revision_by_pane: BTreeMap::new(),
         }
     }
 
@@ -509,7 +513,12 @@ impl ClientState {
                 )
             })
             .collect();
-        Self { id, windows }
+        Self {
+            id,
+            windows,
+            seen_agent_revision_by_pane: BTreeMap::new(),
+            seen_notification_revision_by_pane: BTreeMap::new(),
+        }
     }
 
     pub fn selected_tab(&self, window_id: WindowId, space_id: SpaceId) -> Option<TabId> {
@@ -521,6 +530,17 @@ impl ClientState {
     }
 
     fn validate(&self, workspace: &Workspace) -> Result<(), ValidationError> {
+        let pane_ids: BTreeSet<_> = workspace.pane_ids().collect();
+        if self
+            .seen_agent_revision_by_pane
+            .keys()
+            .chain(self.seen_notification_revision_by_pane.keys())
+            .any(|pane_id| !pane_ids.contains(pane_id))
+        {
+            return Err(ValidationError::Invalid(
+                "client cursor references missing pane".into(),
+            ));
+        }
         for (window_id, state) in &self.windows {
             let window = workspace.windows.get(window_id).ok_or_else(|| {
                 ValidationError::Invalid("client references missing window".into())
