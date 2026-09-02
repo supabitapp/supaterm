@@ -92,7 +92,7 @@ final class TabSplitDragUITests: SupatermUITestCase {
     _ = try await requireVisiblePanes(count: 2)
     let didMergeIntoGroup = await wait {
       header.exists
-        && (header.value as? String) == "Expanded"
+        && (header.value as? String) == "Collapsed"
         && host.exists
         && host.isSelected
         && !source.exists

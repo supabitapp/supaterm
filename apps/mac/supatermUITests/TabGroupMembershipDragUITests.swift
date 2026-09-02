@@ -67,7 +67,11 @@ final class TabGroupMembershipDragUITests: SupatermUITestCase {
       $0.label.contains("3 tabs") && ($0.value as? String) == "Collapsed"
     }
     XCTAssertTrue(didAddToCollapsedGroup)
-    XCTAssertFalse(sidebarStructuralTabRow(named: "Collapsed Join").exists)
+    let selectedChild = sidebarStructuralTabRow(named: "Collapsed Join")
+    XCTAssertTrue(selectedChild.exists)
+    XCTAssertTrue(selectedChild.isSelected)
+    XCTAssertFalse(sidebarStructuralTabRow(named: "Expanded Join").exists)
+    XCTAssertFalse(sidebarStructuralTabRow(named: "Seed").exists)
 
     sidebarGroupHeader(named: "Target").click()
     await requireSidebarStructure([
