@@ -1,8 +1,7 @@
-import Foundation
-
 public struct TerminalCodingAgent: Equatable, Sendable {
   public let id: String
   public let markImageName: String
+  public let activityDisplayName: String?
   public let processes: [AgentDetectionProcessRule]
 }
 
@@ -13,6 +12,7 @@ public enum TerminalCodingAgentCatalog {
     agent(
       "claude",
       mark: "claude-code-mark",
+      activityDisplayName: "Claude Code",
       commands: ["claude", "claude.exe"],
       scripts: ["@anthropic-ai/claude-code/cli.js"]
     ),
@@ -25,6 +25,7 @@ public enum TerminalCodingAgentCatalog {
     agent(
       "codex",
       mark: "codex-mark",
+      activityDisplayName: "Codex",
       commands: ["codex", "codex-aarch64-apple-darwin", "codex-x86_64-apple-darwin"]
     ),
     agent(
@@ -48,6 +49,7 @@ public enum TerminalCodingAgentCatalog {
     agent(
       "pi",
       mark: "pi-mark",
+      activityDisplayName: "Pi",
       commands: ["pi"],
       scripts: [
         "@mariozechner/pi-coding-agent/dist/cli.js",
@@ -68,6 +70,10 @@ public enum TerminalCodingAgentCatalog {
     }
   }
 
+  public static var activityAgents: [TerminalCodingAgent] {
+    all.filter { $0.activityDisplayName != nil }
+  }
+
   public static func markImageName(for agentID: String) -> String? {
     all.first { $0.id == agentID }?.markImageName
   }
@@ -80,14 +86,8 @@ public enum TerminalCodingAgentCatalog {
         AgentDetectionProcessManifest(
           agentID: agentID,
           processes: Array(Set(manifests.flatMap(\.processes))).sorted {
-            (
-              $0.executable, $0.processTitle ?? "", $0.launchCommand ?? "",
-              $0.argumentPathSuffix ?? ""
-            )
-              < (
-                $1.executable, $1.processTitle ?? "", $1.launchCommand ?? "",
-                $1.argumentPathSuffix ?? ""
-              )
+            ($0.executable, $0.selector.strength, $0.selector.value)
+              < ($1.executable, $1.selector.strength, $1.selector.value)
           }
         )
       }
@@ -102,21 +102,23 @@ public enum TerminalCodingAgentCatalog {
   private static func agent(
     _ id: String,
     mark: String,
+    activityDisplayName: String? = nil,
     commands: [String],
     scripts: [String] = []
   ) -> TerminalCodingAgent {
     TerminalCodingAgent(
       id: id,
       markImageName: mark,
+      activityDisplayName: activityDisplayName,
       processes: commands.map { AgentDetectionProcessRule(executable: $0) }
         + scriptExecutables.flatMap { executable in
           commands.map {
-            AgentDetectionProcessRule(executable: executable, launchCommand: $0)
+            AgentDetectionProcessRule(executable: executable, selector: .launchCommand($0))
           }
         }
         + scriptExecutables.flatMap { executable in
           scripts.map {
-            AgentDetectionProcessRule(executable: executable, argumentPathSuffix: $0)
+            AgentDetectionProcessRule(executable: executable, selector: .argumentPathSuffix($0))
           }
         }
     )

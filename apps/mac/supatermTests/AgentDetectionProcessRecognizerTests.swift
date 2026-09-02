@@ -236,7 +236,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     let manifest = AgentDetectionProcessManifest(
       agentID: "agent",
       processes: [
-        AgentDetectionProcessRule(executable: "node", processTitle: "pi")
+        AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi"))
       ]
     )
     let result = Self.match(
@@ -264,7 +264,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     let manifest = AgentDetectionProcessManifest(
       agentID: "agent",
       processes: [
-        AgentDetectionProcessRule(executable: "node", processTitle: "pi")
+        AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi"))
       ]
     )
     let cases = [
@@ -296,7 +296,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       processes: [
         AgentDetectionProcessRule(
           executable: "node",
-          argumentPathSuffix: "@google/gemini-cli/bundle/gemini.js"
+          selector: .argumentPathSuffix("@google/gemini-cli/bundle/gemini.js")
         )
       ]
     )
@@ -323,7 +323,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     let manifest = AgentDetectionProcessManifest(
       agentID: "kimi",
       processes: [
-        AgentDetectionProcessRule(executable: "python3", launchCommand: "kimi")
+        AgentDetectionProcessRule(executable: "python3", selector: .launchCommand("kimi"))
       ]
     )
     let result = Self.match(
@@ -348,7 +348,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       processes: [
         AgentDetectionProcessRule(
           executable: "node",
-          argumentPathSuffix: "@google/gemini-cli/bundle/gemini.js"
+          selector: .argumentPathSuffix("@google/gemini-cli/bundle/gemini.js")
         )
       ]
     )
@@ -400,7 +400,9 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
     let manifests = [
       AgentDetectionProcessManifest(
         agentID: "pi",
-        processes: [AgentDetectionProcessRule(executable: "node", processTitle: "pi")]
+        processes: [
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi"))
+        ]
       ),
       Self.codex,
     ]
@@ -430,7 +432,7 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
         agentID: "pi",
         processes: [
           AgentDetectionProcessRule(executable: "pi"),
-          AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("pi")),
         ]
       ),
       Self.codex,
@@ -473,13 +475,13 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       AgentDetectionProcessManifest(
         agentID: "first",
         processes: [
-          AgentDetectionProcessRule(executable: "node", processTitle: "agent")
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("agent"))
         ]
       ),
       AgentDetectionProcessManifest(
         agentID: "second",
         processes: [
-          AgentDetectionProcessRule(executable: "node", processTitle: "agent")
+          AgentDetectionProcessRule(executable: "node", selector: .processTitle("agent"))
         ]
       ),
     ]

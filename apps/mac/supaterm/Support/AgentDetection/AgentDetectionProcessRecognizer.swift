@@ -1,25 +1,69 @@
 import Darwin
 import Foundation
 
+public enum AgentDetectionProcessSelector: Equatable, Hashable, Sendable {
+  case executable
+  case processTitle(String)
+  case launchCommand(String)
+  case argumentPathSuffix(String)
+
+  static let processNameStrength = 4
+
+  var strength: Int {
+    switch self {
+    case .executable: 0
+    case .processTitle: 1
+    case .launchCommand: 2
+    case .argumentPathSuffix: 3
+    }
+  }
+
+  var value: String {
+    switch self {
+    case .executable: ""
+    case .processTitle(let value), .launchCommand(let value), .argumentPathSuffix(let value): value
+    }
+  }
+
+  func matches(_ invocation: ProcessInvocation) -> Bool {
+    switch self {
+    case .executable:
+      true
+    case .processTitle(let title):
+      invocation.arguments.first == title
+    case .launchCommand(let command):
+      invocation.arguments.first.map {
+        URL(fileURLWithPath: $0).lastPathComponent == command
+      } == true
+    case .argumentPathSuffix(let suffix):
+      invocation.arguments.dropFirst().first(where: { !$0.hasPrefix("-") }).map {
+        Self.path($0, hasComponentSuffix: suffix)
+      } == true
+    }
+  }
+
+  private static func path(_ path: String, hasComponentSuffix suffix: String) -> Bool {
+    let components = path.split(separator: "/")
+    let suffixComponents = suffix.split(separator: "/")
+    guard !suffixComponents.isEmpty, components.count >= suffixComponents.count else {
+      return false
+    }
+    return components.suffix(suffixComponents.count).elementsEqual(suffixComponents)
+  }
+}
+
 public struct AgentDetectionProcessRule: Equatable, Hashable, Sendable {
   public let executable: String
-  public let processTitle: String?
-  public let launchCommand: String?
-  public let argumentPathSuffix: String?
+  public let selector: AgentDetectionProcessSelector
 
   public init(
     executable: String,
-    processTitle: String? = nil,
-    launchCommand: String? = nil,
-    argumentPathSuffix: String? = nil
+    selector: AgentDetectionProcessSelector = .executable
   ) {
-    precondition(
-      [processTitle, launchCommand, argumentPathSuffix].compactMap { $0 }.count <= 1
-    )
+    precondition(!executable.isEmpty)
+    precondition(selector == .executable || !selector.value.isEmpty)
     self.executable = executable
-    self.processTitle = processTitle
-    self.launchCommand = launchCommand
-    self.argumentPathSuffix = argumentPathSuffix
+    self.selector = selector
   }
 }
 
@@ -172,81 +216,30 @@ enum AgentDetectionProcessRecognizer {
     manifest: AgentDetectionProcessManifest
   ) -> Candidate? {
     let executable = URL(fileURLWithPath: invocation.executablePath).lastPathComponent
-    if manifest.processes.contains(where: {
-      $0.processTitle == nil && $0.launchCommand == nil && $0.argumentPathSuffix == nil
-        && $0.executable == executable
-    }) {
+    let matchingStrength = manifest.processes.compactMap { rule -> Int? in
+      guard rule.executable == executable, rule.selector.matches(invocation) else {
+        return nil
+      }
+      return rule.selector.strength
+    }.min()
+    if let matchingStrength {
       return Candidate(
         agentID: manifest.agentID,
         process: entry,
-        strength: .executable
-      )
-    }
-    if manifest.processes.contains(where: { rule in
-      guard
-        rule.executable == executable,
-        let processTitle = rule.processTitle,
-        !processTitle.isEmpty
-      else { return false }
-      return invocation.arguments.first == processTitle
-    }) {
-      return Candidate(
-        agentID: manifest.agentID,
-        process: entry,
-        strength: .processTitle
-      )
-    }
-    if manifest.processes.contains(where: { rule in
-      guard
-        rule.executable == executable,
-        let launchCommand = rule.launchCommand,
-        !launchCommand.isEmpty,
-        let argumentZero = invocation.arguments.first
-      else { return false }
-      return URL(fileURLWithPath: argumentZero).lastPathComponent == launchCommand
-    }) {
-      return Candidate(
-        agentID: manifest.agentID,
-        process: entry,
-        strength: .launchCommand
-      )
-    }
-    if manifest.processes.contains(where: { rule in
-      guard
-        rule.executable == executable,
-        let suffix = rule.argumentPathSuffix,
-        !suffix.isEmpty,
-        let script = invocation.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
-      else { return false }
-      return path(script, hasComponentSuffix: suffix)
-    }) {
-      return Candidate(
-        agentID: manifest.agentID,
-        process: entry,
-        strength: .argumentPath
+        strength: matchingStrength
       )
     }
     guard
       !entry.name.isEmpty,
       manifest.processes.contains(where: {
-        $0.processTitle == nil && $0.launchCommand == nil && $0.argumentPathSuffix == nil
-          && $0.executable == entry.name
+        $0.selector == .executable && $0.executable == entry.name
       })
     else { return nil }
     return Candidate(
       agentID: manifest.agentID,
       process: entry,
-      strength: .processName
+      strength: AgentDetectionProcessSelector.processNameStrength
     )
-  }
-
-  private static func path(_ path: String, hasComponentSuffix suffix: String) -> Bool {
-    let components = path.split(separator: "/")
-    let suffixComponents = suffix.split(separator: "/")
-    guard !suffixComponents.isEmpty, components.count >= suffixComponents.count else {
-      return false
-    }
-    return components.suffix(suffixComponents.count).elementsEqual(suffixComponents)
   }
 
   private static func depth(
@@ -267,18 +260,6 @@ enum AgentDetectionProcessRecognizer {
   private struct Candidate {
     let agentID: String
     let process: ProcessEntry
-    let strength: Strength
-  }
-
-  private enum Strength: Int, Comparable {
-    case executable
-    case processTitle
-    case launchCommand
-    case argumentPath
-    case processName
-
-    static func < (left: Strength, right: Strength) -> Bool {
-      left.rawValue < right.rawValue
-    }
+    let strength: Int
   }
 }

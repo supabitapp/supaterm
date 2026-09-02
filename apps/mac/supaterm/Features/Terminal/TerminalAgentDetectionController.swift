@@ -228,6 +228,8 @@ final class TerminalAgentDetectionController {
   private var task: Task<Void, Never>?
   private var states: [UUID: SurfaceState] = [:]
   private var generation: UInt64?
+  private var processManifests = TerminalCodingAgentCatalog.processManifests
+  private var phaseAgentIDs = Set<String>()
   private var nextNonce: UInt64 = 0
   private var sequence: UInt64 = 0
 
@@ -384,10 +386,7 @@ final class TerminalAgentDetectionController {
         )
       }
       let processGroupIDs = Set(resolved.map(\.processGroupID))
-      let matches = await sampler.matches(
-        processGroupIDs,
-        TerminalCodingAgentCatalog.merging(snapshot.processManifests)
-      )
+      let matches = await sampler.matches(processGroupIDs, processManifests)
       guard !Task.isCancelled else { return }
       let currentSnapshot = await rules.snapshot()
       guard !Task.isCancelled else { return }
@@ -405,17 +404,15 @@ final class TerminalAgentDetectionController {
     }
 
     guard generation == snapshot.generation else { return }
-    await evaluateProvenSurfaces(
-      generation: snapshot.generation,
-      phaseAgentIDs: Set(snapshot.processManifests.map(\.agentID)),
-      now: now
-    )
+    await evaluateProvenSurfaces(generation: snapshot.generation, now: now)
   }
 
   private func activate(_ snapshot: AgentDetectionRuleSnapshot) {
     guard generation != snapshot.generation else { return }
     invalidateAll()
     generation = snapshot.generation
+    processManifests = TerminalCodingAgentCatalog.merging(snapshot.processManifests)
+    phaseAgentIDs = Set(snapshot.processManifests.map(\.agentID))
   }
 
   private func reconcile(
@@ -506,12 +503,10 @@ final class TerminalAgentDetectionController {
 
   private func evaluateProvenSurfaces(
     generation: UInt64,
-    phaseAgentIDs: Set<String>,
     now: ContinuousClock.Instant
   ) async {
     let currentTimeMicroseconds = currentTimeMicroseconds()
     let identities = phaseDetectionIdentities(
-      phaseAgentIDs: phaseAgentIDs,
       currentTimeMicroseconds: currentTimeMicroseconds
     )
     guard !identities.isEmpty else { return }
@@ -523,7 +518,6 @@ final class TerminalAgentDetectionController {
     let attempts = states.keys.sorted(by: { $0.uuidString < $1.uuidString }).compactMap {
       prepareEvaluation(
         for: $0,
-        phaseAgentIDs: phaseAgentIDs,
         currentIdentities: currentIdentities,
         currentTimeMicroseconds: currentTimeMicroseconds,
         now: now
@@ -536,7 +530,6 @@ final class TerminalAgentDetectionController {
   }
 
   private func phaseDetectionIdentities(
-    phaseAgentIDs: Set<String>,
     currentTimeMicroseconds: UInt64
   ) -> Set<TerminalAgentProcessIdentity> {
     Set(
@@ -675,7 +668,6 @@ final class TerminalAgentDetectionController {
 
   private func prepareEvaluation(
     for surfaceID: UUID,
-    phaseAgentIDs: Set<String>,
     currentIdentities: Set<TerminalAgentProcessIdentity>,
     currentTimeMicroseconds: UInt64,
     now: ContinuousClock.Instant

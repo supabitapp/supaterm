@@ -2,41 +2,14 @@ import Foundation
 import TOML
 
 enum AgentDetectionRuleSetParser {
-  private static let agents = [
-    Definition(
-      id: "claude",
-      displayName: "Claude Code",
-      processes: [
-        AgentDetectionProcessRule(executable: "claude"),
-        AgentDetectionProcessRule(executable: "claude.exe"),
-      ]
-    ),
-    Definition(
-      id: "codex",
-      displayName: "Codex",
-      processes: [
-        AgentDetectionProcessRule(executable: "codex"),
-        AgentDetectionProcessRule(executable: "codex-aarch64-apple-darwin"),
-        AgentDetectionProcessRule(executable: "codex-x86_64-apple-darwin"),
-      ]
-    ),
-    Definition(
-      id: "pi",
-      displayName: "Pi",
-      processes: [
-        AgentDetectionProcessRule(executable: "pi"),
-        AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
-      ]
-    ),
-  ]
-
   static func load(
     from bundle: Bundle,
     overrideDirectoryURL: URL? = nil
   ) throws -> AgentDetectionRuleSet {
     var documents: [Data] = []
     var loadedAgents: [AgentDetectionAgentRule] = []
-    for definition in agents {
+    for definition in TerminalCodingAgentCatalog.activityAgents {
+      guard let displayName = definition.activityDisplayName else { continue }
       guard
         let url = bundle.url(
           forResource: definition.id,
@@ -69,7 +42,7 @@ enum AgentDetectionRuleSetParser {
       loadedAgents.append(
         AgentDetectionAgentRule(
           id: manifest.id,
-          displayName: definition.displayName,
+          displayName: displayName,
           version: manifest.version,
           source: AgentDetectionManifestSource(
             origin: selectedURL == url ? .bundled : .local,
@@ -102,12 +75,6 @@ enum AgentDetectionRuleSetParser {
         (partial ^ UInt64(byte)) &* 1_099_511_628_211
       }
     }
-  }
-
-  private struct Definition {
-    let id: String
-    let displayName: String
-    let processes: [AgentDetectionProcessRule]
   }
 }
 

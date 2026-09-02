@@ -8,26 +8,11 @@ struct AgentDetectionRuleSetTests {
   @Test
   func bundledManifestsUseTheSupportedProcessForms() throws {
     let agents = try AgentDetectionRuleSetParser.load(from: SupatermResources.bundle).agents
+    let definitions = TerminalCodingAgentCatalog.activityAgents
 
-    #expect(
-      agents[0].processes == [
-        AgentDetectionProcessRule(executable: "claude"),
-        AgentDetectionProcessRule(executable: "claude.exe"),
-      ]
-    )
-    #expect(
-      agents[1].processes == [
-        AgentDetectionProcessRule(executable: "codex"),
-        AgentDetectionProcessRule(executable: "codex-aarch64-apple-darwin"),
-        AgentDetectionProcessRule(executable: "codex-x86_64-apple-darwin"),
-      ]
-    )
-    #expect(
-      agents[2].processes == [
-        AgentDetectionProcessRule(executable: "pi"),
-        AgentDetectionProcessRule(executable: "node", processTitle: "pi"),
-      ]
-    )
+    #expect(agents.map(\.id) == definitions.map(\.id))
+    #expect(agents.map(\.displayName) == definitions.compactMap(\.activityDisplayName))
+    #expect(agents.map(\.processes) == definitions.map(\.processes))
   }
 
   @Test
