@@ -45,6 +45,7 @@ apps/ios/SupatermIOS.xcworkspace/
 apps/shared/SupatermShared.xcodeproj/
 apps/shared/SupatermShared.xcworkspace/
 apps/Tuist/Dependencies/
+apps/supaterm-host/target/
 
 # CocoaPods
 #

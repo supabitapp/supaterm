@@ -1,0 +1,36 @@
+[package]
+name = "supaterm-host"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "supaterm-host"
+path = "src/bin/supaterm-host.rs"
+
+[[bin]]
+name = "sp"
+path = "src/bin/sp.rs"
+
+[dependencies]
+anyhow = "1.0.103"
+bytes = "1.11.1"
+clap = { version = "4.6.1", features = ["derive"] }
+libc = "0.2.183"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2 = "0.10.9"
+thiserror = "2.0.18"
+tokio = { version = "1.49.0", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+uuid = { version = "1.22.0", features = ["serde", "v4"] }
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+predicates = "3.1.4"
+tempfile = "3.27.0"
+
+[lints.clippy]
+all = "warn"
+
+[profile.release]
+lto = "thin"
