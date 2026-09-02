@@ -1,6 +1,6 @@
 ---
 name: supaterm-release
-description: Prepare and ship Supaterm CalVer stable releases. Use when the user asks to bump a Supaterm version, cut a stable release, write or publish release notes, update announcement cards, update the `supaterm.com` changelog, or run `make bump-and-release`. Always draft the changelog and confirm the announcement-card decision before editing `apps/supaterm.com`, creating GitHub release notes, or running the release command.
+description: Prepare and ship Supaterm CalVer stable releases. Use when the user asks to bump a Supaterm version, cut a stable release, write or publish release notes, update announcement cards, update the `supaterm.com` changelog, or run `make bump-and-release`.
 ---
 
 # Supaterm Release

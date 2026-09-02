@@ -10,42 +10,32 @@ Use this skill for a comprehensive security and correctness audit of a checked-o
 
 ## Prompt
 
-You are a security expert performing a comprehensive review of a checked out branch. Audit this branch and its changes extremely thoroughly for bugs, changes that break existing features/functionality, and security vulnerabilities. Be EXTREMELY thorough, rigorous, careful, ambitious, and attentive. NOTHING can slip through.
+You are reviewing a checked-out branch for bugs, regressions in existing behavior, and security vulnerabilities.
 
-# Scope
-ONLY report issues related to code that is being ADDED or MODIFIED in this PR.
-Focus on changes in the diff.
-DO NOT report vulnerabilities in existing code that is not being changed.
+### Scope
 
-# Guidelines
+Report only issues in code the branch adds or modifies. Problems in untouched code are out of scope.
 
-## Breaking Functionality Guidelines
-This is a complex codebase, with many cross-package/module dependencies. Often simple code changes in one place have subtle interactions that break functionality elsewhere. You MUST be extremely thorough in tracing through possible side effects of the changes.
+### Breaking functionality
 
-## Breaking Devex Guidelines
-It can be easy to break developers' ability to run / build the code locally. You MUST catch changes that will impact users' developer experience. Some examples (not exhaustive):
-- Modifying how secrets are read / where they are read from
-- Updating environment variable names / adding environment variables
-- Remapping ports / networking
-- Adding scripts that must be run for certain functionality to continue working. Broadly speaking these are changes that will modify the way developers currently run / build the code. This does not include changes that introduce new alternative ways to run/build things. Adding dependencies with package managers does not count as a devex breaking change, unless it requires the user to do some very new thing that is not part of their normal development workflow, like manually installing software off of a website / App Store.
+Supaterm is a monorepo. The macOS app, the `sp` CLI, the shared CLI payloads, socket IPC, and the Ghostty dependency cross module boundaries, so a small change in one place can break behavior elsewhere. Trace each change's side effects across those boundaries.
 
-## Feature Leak Guidelines
-The codebase might carefully gate features behind feature flags or internal-only checks. You MUST NOT allow any features that are meant to be behind a feature gate leak. These leaks are often subtle. Be VERY careful and thorough.
+### Breaking devex
 
-## Intended Breakage Guidelines
-If you identify a high risk finding, but the intent of the branch is to introduce that finding – e.g. break some functionality, remove a feature flag, remove a safeguard – AND the scope of the change is well constrained, you SHOULD NOT waste the author's time by reporting the issue to them. However, if you believe it is likely that they are not aware of the full implications of their change, or you are worried that they are under-weighting the negative impacts (extreme example: a developer pushes a PR titled "Delete the database"), or you are worried that the change is actually malicious, you should still report the finding.
+Changes that alter how developers run or build the code locally are findings: how or where secrets are read, environment variable names, ports and networking, new scripts that existing functionality now depends on. A new alternative way to run or build things is not a break. Adding a dependency through the package manager is not a break unless it needs a manual step outside the normal workflow, such as installing software from a website or the App Store.
 
-## Over-reporting Guidelines
-If you report issues as High priority when they are not in fact high priority / meaningful issues, devs will lose trust in you and stop listening to you over time.
-NEVER misreport the priority / importance of issues. Be extremely thorough in tracing issues end-to-end to gain complete, and total confidence before reporting.
+### Feature leaks
 
-# Final Response
-IF you have medium-to-high priority / risk findings, and there is a PR for this branch, then check the PR/MR discussion using gh/glab cli to see if there are comments from BugBot or others present.
-If so, take their findings into account. If they found issues you missed, evaluate them to determine if they are valid and include them in your report. If they found some of the same issues you did, see if there is anything from their findings that are worth incorporating into your response.
-Flag issues found by BugBot or others in the PR/MR discussion that you include in your report.
+Features gated behind flags or internal-only checks must stay gated. Leaks are usually subtle, so check every path that reaches gated code.
 
+### Intended breakage
 
-# Critical Rules
-- NEVER present issues with unfinished research. E.g. Never say something like, "The client has issue X, but if handled in the backend then this is ok." if you have access to the backend code and can check for yourself.
-- You MUST wait to check the PR/MR discussion until AFTER you have performed your audit. This way you have fresh eyes while you review.
-- Be EXTREMELY thorough, rigorous, careful, ambitious, and attentive. NOTHING can slip through.
+If a high-risk finding is the branch's stated intent, such as removing a flag or a safeguard, and the change is well constrained, do not report it. Report it anyway when the author seems unaware of the full implications, is under-weighting the downside (a PR titled "Delete the database"), or the change looks malicious.
+
+### Priority
+
+Report each issue at the priority it deserves. Trace every issue end to end and report only what you have confirmed. If you can check the other side yourself, for example the app side of a CLI change, check it instead of saying it is fine if handled elsewhere.
+
+### Final response
+
+If you have medium-to-high priority findings and the branch has a PR, read the PR discussion with `gh` only after your own audit is complete, so you review with fresh eyes. Include valid findings from other reviewers that you missed, merge anything useful from overlapping ones, and mark which came from the discussion.

@@ -22,17 +22,12 @@
 
 ## Terminology
 
-- Spaces are the top-level container in a window
-- Tabs belong to spaces and can be pinned
+- Spaces are the top-level container. Every window shares them and displays one at a time
+- Groups are ordered collections of tabs inside a space
+- Tabs belong to one space and one window and can be pinned
 - Panes belong to tabs, and a tab can have multiple panes
 
 ## Tools
 
-- Issues are tracked on: https://linear.app/supaterm
+- Issues and PRDs live in Linear, team `SUP`: https://linear.app/supaterm. Use the `linear` CLI.
 - Error reporting uses PostHog
-
-## Agent skills
-
-### Issue tracker
-
-Issues and PRDs are tracked in Linear under the `Supaterm` team through Linear MCP. See `docs/agents/issue-tracker.md`.

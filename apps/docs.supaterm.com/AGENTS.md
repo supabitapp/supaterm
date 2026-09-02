@@ -1,6 +1,6 @@
 # Supaterm documentation
 
-This app uses Blume 1.0.3, Vite+, pnpm, and Cloudflare Workers static assets.
+This app uses Blume, Vite+, pnpm, and Cloudflare Workers static assets. `package.json` pins the Blume version.
 
 ## Workflow
 
