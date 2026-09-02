@@ -1,7 +1,10 @@
+mod cli_execution;
+
 use crate::agent::enrichment::scan as scan_enrichment;
 use crate::agent::machine::{MachineEnvironment, MachineServiceError, MachineServices};
 use crate::agent::manifest::DetectionCatalog;
 use crate::agent::process::{ProcessScan, is_descendant, scan_process_group};
+use crate::host::cli::CliExecuteRequest;
 use crate::protocol::control::{
     BuildIdentity, ClientId, ClientRole, CommandId, HostControl, HostId, ProtocolError,
     ProtocolErrorCode,
@@ -122,6 +125,7 @@ impl HostActor {
             notification_sink: None,
             enrichment_subscriptions: BTreeMap::new(),
             enrichment_scans: BTreeMap::new(),
+            active_ui_connections: BTreeMap::new(),
         };
         tokio::spawn(run(state, revision_sender, receiver));
         Self {
@@ -316,6 +320,7 @@ struct ActorState {
     notification_sink: Option<NotificationLease>,
     enrichment_subscriptions: BTreeMap<Uuid, EnrichmentSubscription>,
     enrichment_scans: BTreeMap<PaneId, EnrichmentScanState>,
+    active_ui_connections: BTreeMap<Uuid, ClientId>,
 }
 
 async fn run(
@@ -424,6 +429,9 @@ impl ActorState {
             client_id,
             command_id,
         };
+        if role == ClientRole::Ui {
+            self.active_ui_connections.insert(connection_id, client_id);
+        }
         if let Some(result) = self.command_results.get(&key) {
             return result.clone();
         }
@@ -467,6 +475,15 @@ impl ActorState {
                                 ProtocolErrorCode::CapabilityUnavailable,
                                 Value::Null,
                             ),
+                        },
+                        Err(decode_error) => invalid_request(command_id, decode_error),
+                    }
+                }
+                "cli.execute" if role == ClientRole::Cli => {
+                    match serde_json::from_value::<CliExecuteRequest>(params) {
+                        Ok(request) => match self.execute_cli(client_id, request).await {
+                            Ok(value) => result(command_id, value),
+                            Err(code) => error(Some(command_id), code, Value::Null),
                         },
                         Err(decode_error) => invalid_request(command_id, decode_error),
                     }
@@ -1014,6 +1031,7 @@ impl ActorState {
     }
 
     fn disconnected(&mut self, connection_id: Uuid) {
+        self.active_ui_connections.remove(&connection_id);
         if self
             .notification_sink
             .as_ref()

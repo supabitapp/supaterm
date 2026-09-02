@@ -237,6 +237,10 @@ impl TerminalRegistry {
             .await
     }
 
+    pub async fn capture(&self, pane_id: PaneId) -> Result<String, TerminalError> {
+        self.handle(pane_id).await?.capture().await
+    }
+
     pub async fn close(&self, pane_id: PaneId) -> Result<(), TerminalError> {
         self.handle(pane_id).await?.close().await
     }
@@ -462,6 +466,12 @@ impl PaneHandle {
         response.await.map_err(|_| TerminalError::Stopped)?
     }
 
+    async fn capture(&self) -> Result<String, TerminalError> {
+        let (reply, response) = oneshot::channel();
+        self.send(PaneMessage::Capture { reply }).await?;
+        response.await.map_err(|_| TerminalError::Stopped)?
+    }
+
     async fn send(&self, message: PaneMessage) -> Result<(), TerminalError> {
         self.sender
             .send(message)
@@ -497,6 +507,9 @@ enum PaneMessage {
         generation: u64,
         viewport: Viewport,
         reply: oneshot::Sender<Result<(), TerminalError>>,
+    },
+    Capture {
+        reply: oneshot::Sender<Result<String, TerminalError>>,
     },
     Close {
         reply: oneshot::Sender<Result<(), TerminalError>>,
@@ -729,6 +742,14 @@ impl PaneRuntime {
                 reply,
             } => {
                 let result = self.resize(client_id, generation, viewport).await;
+                let _ = reply.send(result);
+            }
+            PaneMessage::Capture { reply } => {
+                let result = self
+                    .vt
+                    .plain_text()
+                    .await
+                    .map_err(|error| TerminalError::State(error.to_string()));
                 let _ = reply.send(result);
             }
             PaneMessage::Close { reply } => {

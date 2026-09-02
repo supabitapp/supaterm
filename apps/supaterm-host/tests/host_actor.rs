@@ -1,5 +1,6 @@
 use serde_json::{Value, json};
 use supaterm_host::host::actor::{HostActor, HostConfiguration};
+use supaterm_host::host::cli::{CliAction, CliExecuteRequest, CliTarget};
 use supaterm_host::protocol::connection::ConnectionSession;
 use supaterm_host::protocol::control::{
     BuildIdentity, ClientControl, ClientId, ClientRole, CommandId, HostControl, HostId, Limits,
@@ -15,15 +16,26 @@ fn build() -> BuildIdentity {
 }
 
 fn hello(protocol_version: u16, build: BuildIdentity) -> ClientControl {
+    hello_for_role(protocol_version, build, ClientRole::Ui)
+}
+
+fn hello_for_role(protocol_version: u16, build: BuildIdentity, role: ClientRole) -> ClientControl {
     ClientControl::Hello {
         protocol_version,
         build,
-        role: ClientRole::Ui,
+        role,
         client_id: Some(ClientId(
             Uuid::parse_str("11111111-1111-4111-8111-111111111111").unwrap(),
         )),
         capabilities: vec!["semantic_state".into(), "unsupported".into()],
         limits: Limits::default(),
+    }
+}
+
+fn result_value(control: HostControl) -> Value {
+    match control {
+        HostControl::Result { result, .. } => result,
+        other => panic!("expected result, got {other:?}"),
     }
 }
 
@@ -142,4 +154,71 @@ async fn duplicate_command_returns_the_first_result() {
         .await;
 
     assert_eq!(retry, first);
+}
+
+#[tokio::test]
+async fn cli_targeting_and_settings_execute_inside_the_host_actor() {
+    let mut ui = session();
+    ui.receive(hello(PROTOCOL_VERSION, build())).await;
+    let actor = ui.actor().clone();
+    result_value(
+        ui.receive(ClientControl::Request {
+            command_id: CommandId(Uuid::new_v4()),
+            method: "state.snapshot".into(),
+            params: Value::Null,
+        })
+        .await,
+    );
+    let mut cli = ConnectionSession::new(actor);
+    cli.receive(hello_for_role(PROTOCOL_VERSION, build(), ClientRole::Cli))
+        .await;
+
+    let renamed = result_value(
+        cli.receive(ClientControl::Request {
+            command_id: CommandId(Uuid::new_v4()),
+            method: "cli.execute".into(),
+            params: serde_json::to_value(CliExecuteRequest {
+                context_pane_id: None,
+                expected_structure_revision: Some(0),
+                action: CliAction::SpaceRename {
+                    target: CliTarget::Ambient,
+                    name: "Host Owned".into(),
+                },
+            })
+            .unwrap(),
+        })
+        .await,
+    );
+    assert_eq!(renamed["structure_revision"], 0);
+
+    result_value(
+        cli.receive(ClientControl::Request {
+            command_id: CommandId(Uuid::new_v4()),
+            method: "cli.execute".into(),
+            params: serde_json::to_value(CliExecuteRequest {
+                context_pane_id: None,
+                expected_structure_revision: None,
+                action: CliAction::SettingsSet {
+                    key: "terminal.scrollback_lines".into(),
+                    value: json!(50_000),
+                },
+            })
+            .unwrap(),
+        })
+        .await,
+    );
+    let tree = result_value(
+        cli.receive(ClientControl::Request {
+            command_id: CommandId(Uuid::new_v4()),
+            method: "cli.execute".into(),
+            params: serde_json::to_value(CliExecuteRequest {
+                context_pane_id: None,
+                expected_structure_revision: None,
+                action: CliAction::Tree,
+            })
+            .unwrap(),
+        })
+        .await,
+    );
+    assert_eq!(tree["workspace"]["spaces"][0]["name"], "Host Owned");
 }

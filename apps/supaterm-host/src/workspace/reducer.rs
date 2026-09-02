@@ -25,6 +25,10 @@ pub enum Command {
         space_id: SpaceId,
         name: String,
     },
+    SetSpaceColor {
+        space_id: SpaceId,
+        color: String,
+    },
     ReorderSpace {
         space_id: SpaceId,
         index: usize,
@@ -55,6 +59,10 @@ pub enum Command {
     RenameGroup {
         group_id: GroupId,
         title: String,
+    },
+    SetGroupColor {
+        group_id: GroupId,
+        color: String,
     },
     RenameTab {
         tab_id: TabId,
@@ -246,7 +254,9 @@ impl Command {
         !matches!(
             self,
             Self::RenameSpace { .. }
+                | Self::SetSpaceColor { .. }
                 | Self::RenameGroup { .. }
+                | Self::SetGroupColor { .. }
                 | Self::RenameTab { .. }
                 | Self::SelectSpace { .. }
                 | Self::SelectTab { .. }
@@ -396,6 +406,14 @@ fn apply_inner(
                 .ok_or(ReducerError::NotFound)?
                 .name = name;
         }
+        Command::SetSpaceColor { space_id, color } => {
+            workspace
+                .spaces
+                .iter_mut()
+                .find(|space| space.id == space_id)
+                .ok_or(ReducerError::NotFound)?
+                .color = normalized(color)?;
+        }
         Command::ReorderSpace { space_id, index } => {
             let source = workspace
                 .spaces
@@ -446,6 +464,9 @@ fn apply_inner(
         Command::RenameGroup { group_id, title } => {
             let title = normalized(title)?;
             find_group_mut(workspace, group_id)?.title = title;
+        }
+        Command::SetGroupColor { group_id, color } => {
+            find_group_mut(workspace, group_id)?.color = normalized(color)?;
         }
         Command::RenameTab { tab_id, title } => {
             let tab = workspace

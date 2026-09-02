@@ -187,6 +187,98 @@ fn rust_sp_reads_the_empty_host_snapshot() {
 }
 
 #[test]
+fn rust_sp_mutates_and_reads_host_owned_settings_and_workspace() {
+    let host = RunningHost::start();
+    let sp = assert_cmd::cargo::cargo_bin!("sp");
+    let environment = [
+        ("SUPATERM_STATE_HOME", host.root.path().join("state")),
+        ("XDG_RUNTIME_DIR", host.root.path().join("run")),
+    ];
+    let renamed = Command::new(sp)
+        .args([
+            "--socket",
+            host.socket.to_str().unwrap(),
+            "--json",
+            "space",
+            "rename",
+            "Headless",
+            "00000000-0000-0000-0000-000000000001",
+        ])
+        .envs(environment.clone())
+        .output()
+        .unwrap();
+    assert!(
+        renamed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&renamed.stderr)
+    );
+    let configured = Command::new(sp)
+        .args([
+            "--socket",
+            host.socket.to_str().unwrap(),
+            "config",
+            "set",
+            "terminal.scrollback_lines",
+            "60000",
+        ])
+        .envs(environment.clone())
+        .output()
+        .unwrap();
+    assert!(
+        configured.status.success(),
+        "{}",
+        String::from_utf8_lossy(&configured.stderr)
+    );
+    let snapshot = Command::new(sp)
+        .args(["--socket", host.socket.to_str().unwrap(), "snapshot"])
+        .envs(environment)
+        .output()
+        .unwrap();
+    let snapshot: serde_json::Value = serde_json::from_slice(&snapshot.stdout).unwrap();
+    assert_eq!(snapshot["workspace"]["spaces"][0]["name"], "Headless");
+}
+
+#[test]
+fn rust_sp_bootstraps_the_local_host() {
+    let root = tempfile::tempdir().unwrap();
+    let state = root.path().join("state");
+    let run = root.path().join("run");
+    let output = Command::new(assert_cmd::cargo::cargo_bin!("sp"))
+        .arg("snapshot")
+        .env("SUPATERM_STATE_HOME", &state)
+        .env("XDG_RUNTIME_DIR", &run)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let snapshot: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(snapshot["workspace"]["spaces"][0]["name"], "Space 1");
+
+    let paths = supaterm_host::runtime::RuntimePaths::initialize(
+        supaterm_host::runtime::PathConfiguration {
+            state_home: Some(state),
+            home_directory: root.path().join("home"),
+            xdg_runtime_directory: Some(run),
+            temporary_directory: root.path().join("tmp"),
+            uid: unsafe { libc::geteuid() },
+        },
+    )
+    .unwrap();
+    let record: supaterm_host::runtime::ProcessRecord =
+        serde_json::from_slice(&std::fs::read(&paths.process_record).unwrap()).unwrap();
+    assert!(record.still_matches());
+    assert_eq!(unsafe { libc::kill(record.pid as i32, libc::SIGTERM) }, 0);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while paths.socket.exists() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!paths.socket.exists());
+}
+
+#[test]
 fn stdio_stdout_contains_only_host_frames() {
     let host = RunningHost::start();
     let mut bridge = Command::new(assert_cmd::cargo::cargo_bin!("supaterm-host"))

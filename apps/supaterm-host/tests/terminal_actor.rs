@@ -112,3 +112,27 @@ async fn only_the_current_writer_generation_can_send_input() {
 
     registry.close(pane.id).await.unwrap();
 }
+
+#[tokio::test]
+async fn capture_reads_the_authoritative_terminal_screen() {
+    let registry = TerminalRegistry::spawn();
+    let pane = registry.create(shell()).await.unwrap();
+    let client_id = client(1);
+    let mut attachment = registry.attach(pane.id, client_id).await.unwrap();
+    let generation = registry.claim_writer(pane.id, client_id).await.unwrap();
+    registry
+        .input(pane.id, client_id, generation, b"captured\n".to_vec())
+        .await
+        .unwrap();
+    read_until(&mut attachment, b"captured DONE").await;
+
+    assert!(
+        registry
+            .capture(pane.id)
+            .await
+            .unwrap()
+            .contains("captured DONE")
+    );
+
+    registry.close(pane.id).await.unwrap();
+}

@@ -124,6 +124,54 @@ fn tabs_groups_moves_and_selection_repair_match_flattened_order() {
 }
 
 #[test]
+fn space_and_group_colors_change_without_replacing_identity() {
+    let (mut workspace, client) = state();
+    let mut clients = vec![client];
+    let (space_id, window_id, _) = ids();
+    create_tab(&mut workspace, &mut clients, 10, 20);
+    let tab_id = TabId(Uuid::from_u128(10));
+    let group_id = GroupId(Uuid::from_u128(30));
+    apply(
+        &mut workspace,
+        &mut clients,
+        Command::CreateGroup {
+            window_id,
+            space_id,
+            group_id,
+            title: "Build".into(),
+            color: "blue".into(),
+            tab_ids: vec![tab_id],
+        },
+    )
+    .unwrap();
+
+    apply(
+        &mut workspace,
+        &mut clients,
+        Command::SetSpaceColor {
+            space_id,
+            color: "red".into(),
+        },
+    )
+    .unwrap();
+    apply(
+        &mut workspace,
+        &mut clients,
+        Command::SetGroupColor {
+            group_id,
+            color: "green".into(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(workspace.spaces[0].color, "red");
+    assert_eq!(
+        workspace.content(window_id, space_id).unwrap().groups[&group_id].color,
+        "green"
+    );
+}
+
+#[test]
 fn split_close_and_ratio_use_stable_split_ids() {
     let (mut workspace, client) = state();
     let mut clients = vec![client];
