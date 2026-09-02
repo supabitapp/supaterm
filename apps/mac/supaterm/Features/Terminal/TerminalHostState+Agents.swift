@@ -85,7 +85,13 @@ extension TerminalHostState {
     }.max { $0.revision < $1.revision }?.response
 
     return TabAgentPresentation(
-      status: statusCandidate?.status,
+      statusPresentation: statusCandidate.map {
+        TabAgentStatusPresentation(
+          status: $0.status,
+          agent: $0.instance.activity.identity,
+          surfaceID: $0.instance.surfaceID
+        )
+      },
       detailActivity: detailActivity,
       latestResponse: latestResponse
     )
@@ -551,20 +557,6 @@ extension TerminalHostState {
 
       return lhs.instance.revision < rhs.instance.revision
     }
-  }
-
-  func paneAgentStatus(
-    for surfaceID: UUID,
-    in tabID: TerminalTabID,
-    focusedSurfaceID: UUID?
-  ) -> TabAgentStatus? {
-    let instances = resolvedAgentState(for: surfaceID).instances
-    let isFocused = agentSurfaceIsFocused(
-      surfaceID,
-      in: tabID,
-      focusedSurfaceID: focusedSurfaceID
-    )
-    return preferredTabAgentStatus(in: instances) { _ in isFocused }?.status
   }
 
   private static func preferredAgentActivityInstance(

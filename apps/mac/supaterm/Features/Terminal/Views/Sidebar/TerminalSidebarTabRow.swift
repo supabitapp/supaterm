@@ -46,12 +46,8 @@ struct TerminalSidebarTabRow: View {
 
   private struct AnimatedPresentation: Equatable {
     let panes: [TerminalSidebarPanePresentation]
+    let agentStatus: TerminalHostState.TabAgentStatusPresentation?
     let terminalProgress: TerminalSidebarTerminalProgress?
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.panes == rhs.panes
-        && lhs.terminalProgress == rhs.terminalProgress
-    }
   }
 
   let terminal: TerminalHostState
@@ -62,6 +58,7 @@ struct TerminalSidebarTabRow: View {
   let selectionState: TerminalSidebarTabSelectionState
   let outline: TerminalSidebarOutline
   let panes: [TerminalSidebarPanePresentation]
+  let agentStatus: TerminalHostState.TabAgentStatusPresentation?
   let terminalProgress: TerminalSidebarTerminalProgress?
   let palette: Palette
   let shortcutHint: String?
@@ -114,8 +111,8 @@ struct TerminalSidebarTabRow: View {
 
   private var hasVisibleStatusIndicator: Bool {
     TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
-      tab: tab,
-      panes: panes,
+      agentStatus: agentStatus,
+      hasAttention: panes.contains(where: \.hasAttention),
       terminalProgress: terminalProgress,
       showsShortcutHint: showsShortcutHint
     )
@@ -123,6 +120,11 @@ struct TerminalSidebarTabRow: View {
 
   private var showsCloseButton: Bool {
     isHovering && !hasVisibleStatusIndicator
+  }
+
+  private var visibleAgentStatus: TerminalHostState.TabAgentStatusPresentation? {
+    guard !showsShortcutHint, terminalProgress == nil, let agentStatus else { return nil }
+    return agentStatus
   }
 
   private var rowFill: Color {
@@ -157,10 +159,12 @@ struct TerminalSidebarTabRow: View {
       isSelected: isSelected,
       isPinned: groupID == nil && rootIsPinned,
       panes: panes,
+      agentStatus: agentStatus,
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
-      isRowHovering: showsCloseButton
+      isRowHovering: showsCloseButton,
+      rendersAgentStatus: visibleAgentStatus == nil
     )
     .help(TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes))
     .padding(.leading, contentInsets.leading)
@@ -193,6 +197,27 @@ struct TerminalSidebarTabRow: View {
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
+    .overlay(alignment: .trailing) {
+      if let visibleAgentStatus {
+        GeometryReader { geometry in
+          HStack {
+            Spacer(minLength: 0)
+            TerminalSidebarAgentStatusButton(
+              agentStatus: visibleAgentStatus,
+              showsText: contentInsets.width(in: geometry.size.width)
+                >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth,
+              palette: palette,
+              helpText: TerminalSidebarTabSummaryView.agentStatusHelpText(
+                visibleAgentStatus,
+                panes: panes
+              ),
+              action: focusVisibleAgentStatus
+            )
+          }
+          .padding(.trailing, contentInsets.trailing)
+        }
+      }
+    }
     .overlay(alignment: .trailing) {
       if showsCloseButton {
         TerminalSidebarTabCloseButton(
@@ -339,8 +364,14 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
       panes: panes,
+      agentStatus: agentStatus,
       terminalProgress: terminalProgress
     )
+  }
+
+  private func focusVisibleAgentStatus() {
+    guard let visibleAgentStatus else { return }
+    _ = try? terminal.focusPane(TerminalPaneTarget(paneID: visibleAgentStatus.surfaceID))
   }
 
   private var availableGroups: [TerminalTabGroupItem] {
@@ -561,6 +592,33 @@ struct TerminalSidebarBatchTabMenu: View {
         destination: destination
       )
     )
+  }
+}
+
+private struct TerminalSidebarAgentStatusButton: View {
+  let agentStatus: TerminalHostState.TabAgentStatusPresentation
+  let showsText: Bool
+  let palette: Palette
+  let helpText: String
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      TerminalSidebarAgentStatusView(
+        status: agentStatus.status,
+        showsText: showsText,
+        palette: palette
+      )
+      .frame(
+        minWidth: TerminalSidebarLayout.tabTrailingAccessorySize,
+        minHeight: TerminalSidebarLayout.tabTrailingAccessorySize
+      )
+      .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
+    .help(helpText)
+    .accessibilityLabel(helpText)
+    .accessibilityHint("Focus pane")
   }
 }
 

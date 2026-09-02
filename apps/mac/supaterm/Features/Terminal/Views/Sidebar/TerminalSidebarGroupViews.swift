@@ -206,21 +206,12 @@ final class TerminalSidebarTabSelectionState {
   }
 }
 
-private enum TerminalSidebarTabMeasurementKey: Hashable {
-  case tab(
-    id: TerminalTabID,
-    title: String,
-    paneIDs: [UUID],
-    showsTitleHeader: Bool,
-    isGrouped: Bool
-  )
-}
-
 struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
   let panes: [TerminalSidebarPanePresentation]
+  let agentStatus: TerminalHostState.TabAgentStatusPresentation?
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -236,25 +227,6 @@ enum TerminalSidebarRowPresentation: Equatable {
   case group(TerminalSidebarGroupRowPresentation)
   case pinDivider
   case newTab(TerminalSidebarNewTabPresentation)
-
-  var measurementKey: AnyHashable {
-    switch self {
-    case .tab(let presentation):
-      return AnyHashable(
-        TerminalSidebarTabMeasurementKey.tab(
-          id: presentation.tab.id,
-          title: presentation.tab.title,
-          paneIDs: presentation.panes.map(\.id),
-          showsTitleHeader: presentation.tab.isTitleLocked || presentation.panes.isEmpty,
-          isGrouped: presentation.groupID != nil
-        )
-      )
-    case .group(let presentation):
-      return AnyHashable("group:\(presentation.id.rawValue):\(presentation.title)")
-    case .pinDivider: return AnyHashable("pin-divider")
-    case .newTab: return AnyHashable("new-tab")
-    }
-  }
 }
 
 enum TerminalSidebarAccessibilityIdentifier {
@@ -352,6 +324,7 @@ struct TerminalSidebarHostedRow: View {
         selectionState: context.tabSelectionState,
         outline: context.outline,
         panes: presentation.panes,
+        agentStatus: presentation.agentStatus,
         terminalProgress: presentation.terminalProgress,
         palette: context.palette,
         shortcutHint: presentation.shortcutHint,

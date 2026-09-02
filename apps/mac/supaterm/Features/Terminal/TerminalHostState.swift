@@ -208,13 +208,23 @@ final class TerminalHostState {
     case working
   }
 
+  struct TabAgentStatusPresentation: Equatable, Sendable {
+    let status: TabAgentStatus
+    let agent: AgentDetectionAgentIdentity
+    let surfaceID: UUID
+  }
+
   struct TabAgentPresentation: Equatable, Sendable {
-    let status: TabAgentStatus?
+    let statusPresentation: TabAgentStatusPresentation?
     let detailActivity: AgentActivity?
     let latestResponse: TabAgentResponse?
 
+    var status: TabAgentStatus? {
+      statusPresentation?.status
+    }
+
     static let empty = Self(
-      status: nil,
+      statusPresentation: nil,
       detailActivity: nil,
       latestResponse: nil
     )

@@ -7,26 +7,24 @@ struct TerminalSidebarPanePresentation: Equatable, Identifiable, Sendable {
     case agent(String)
   }
 
-  enum Indicator: Equatable, Sendable {
-    case agent(TerminalHostState.TabAgentStatus)
-    case attention
-  }
-
   let id: UUID
   let title: String
   let icon: Icon
-  let indicator: Indicator?
+  let hasAttention: Bool
+  let isFocused: Bool
 
   init(
     id: UUID,
     title: String,
     icon: Icon = .terminal,
-    indicator: Indicator?
+    hasAttention: Bool = false,
+    isFocused: Bool = false
   ) {
     self.id = id
     self.title = title
     self.icon = icon
-    self.indicator = indicator
+    self.hasAttention = hasAttention
+    self.isFocused = isFocused
   }
 }
 
@@ -35,21 +33,7 @@ extension TerminalHostState {
     guard let tree = trees[tabID] else { return [] }
     let focusedSurfaceID = focusHistoryByTab[tabID]?.current
     return tree.leaves().enumerated().map { index, surface in
-      let agentStatus = paneAgentStatus(
-        for: surface.id,
-        in: tabID,
-        focusedSurfaceID: focusedSurfaceID
-      )
-      let indicator: TerminalSidebarPanePresentation.Indicator?
-      if let agentStatus {
-        indicator = .agent(agentStatus)
-      } else {
-        let notifications = notificationStore.notifications(for: surface.id) ?? []
-        let hasAttention =
-          Self.surfaceAttentionState(in: notifications) == .unread
-          || surface.bridge.state.bellCount > 0
-        indicator = hasAttention ? .attention : nil
-      }
+      let notifications = notificationStore.notifications(for: surface.id) ?? []
       return TerminalSidebarPanePresentation(
         id: surface.id,
         title: Self.resolvedSidebarPaneTitle(
@@ -59,7 +43,9 @@ extension TerminalHostState {
           defaultValue: "Pane \(index + 1)"
         ),
         icon: sidebarPaneIcon(for: surface.id),
-        indicator: indicator
+        hasAttention: Self.surfaceAttentionState(in: notifications) == .unread
+          || surface.bridge.state.bellCount > 0,
+        isFocused: surface.id == focusedSurfaceID
       )
     }
   }

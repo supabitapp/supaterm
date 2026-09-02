@@ -70,7 +70,42 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
     #expect(host.showsAgentActivityDetail(for: tabID))
-    #expect(host.tabAgentPresentation(for: tabID).status == .needsInput)
+    let status = try #require(host.tabAgentPresentation(for: tabID).statusPresentation)
+    #expect(status.status == .needsInput)
+    #expect(status.agent.id == "claude")
+    #expect(status.surfaceID == secondPane.paneID)
+  }
+
+  @Test
+  func tabStatusUsesFocusedPaneToBreakTies() throws {
+    let host = makeHost()
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      TerminalCreatePaneRequest(
+        startupCommand: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .pane(firstSurface.id)
+      )
+    )
+    let secondSurface = try #require(host.surfaces[secondPane.paneID])
+    let window = makeWindow()
+    attachTerminalSurfaces(
+      [firstSurface, secondSurface],
+      to: window,
+      focusing: firstSurface
+    )
+    defer { window.contentView = nil }
+
+    #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
+    #expect(host.setTestAgentActivity(.claude(.running), for: secondPane.paneID))
+    #expect(host.tabAgentPresentation(for: tabID).statusPresentation?.surfaceID == firstSurface.id)
+
+    _ = try host.focusPane(TerminalPaneTarget(paneID: secondPane.paneID))
+
+    #expect(host.tabAgentPresentation(for: tabID).statusPresentation?.surfaceID == secondPane.paneID)
   }
 
   @Test
@@ -310,7 +345,7 @@ struct TerminalHostStateAgentPresentationTests {
   }
 
   @Test
-  func sidebarPanePresentationsKeepSplitOrderAndResolveIndicators() throws {
+  func sidebarPanePresentationsKeepSplitOrderAndAttention() throws {
     let host = makeHost()
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
@@ -356,7 +391,8 @@ struct TerminalHostStateAgentPresentationTests {
 
     #expect(panes.map(\.id) == [firstSurface.id, secondSurface.id, thirdSurface.id])
     #expect(panes.map(\.title) == ["Codex 1", "Review agent 1", "Pane 3"])
-    #expect(panes.map(\.indicator) == [.agent(.working), .agent(.needsInput), .attention])
+    #expect(panes.map(\.hasAttention) == [true, true, true])
+    #expect(panes.map(\.isFocused) == [true, false, false])
   }
 
   @Test
