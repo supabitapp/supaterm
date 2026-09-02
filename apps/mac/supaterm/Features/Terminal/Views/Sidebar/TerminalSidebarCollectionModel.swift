@@ -46,17 +46,24 @@ struct TerminalSidebarOutline: Equatable {
 
   let roots: [Root]
   let collapsedGroupIDs: Set<TerminalTabGroupID>
+  let revealedTabID: TerminalTabID?
   let topologyStamp: TerminalSidebarTopologyStamp?
 
   init(
     roots: [Root],
     collapsedGroupIDs: Set<TerminalTabGroupID>,
+    selectedTabID: TerminalTabID? = nil,
     topologyRevision: UInt64,
     spaceID: TerminalSpaceID? = nil
   ) {
     precondition(spaceID != nil || roots.isEmpty)
     self.roots = roots
     self.collapsedGroupIDs = collapsedGroupIDs
+    revealedTabID = Self.revealedTabID(
+      roots: roots,
+      collapsedGroupIDs: collapsedGroupIDs,
+      selectedTabID: selectedTabID
+    )
     topologyStamp = spaceID.map {
       TerminalSidebarTopologyStamp(spaceID: $0, revision: topologyRevision)
     }
@@ -75,6 +82,11 @@ struct TerminalSidebarOutline: Equatable {
       }
     }
     collapsedGroupIDs = snapshot.collapsedGroupIDs
+    revealedTabID = Self.revealedTabID(
+      roots: roots,
+      collapsedGroupIDs: collapsedGroupIDs,
+      selectedTabID: snapshot.collection.selectedTabID
+    )
     topologyStamp = TerminalSidebarTopologyStamp(
       spaceID: snapshot.spaceID,
       revision: snapshot.collection.topologyRevision
@@ -95,16 +107,15 @@ struct TerminalSidebarOutline: Equatable {
         entries.append(
           TerminalSidebarEntry(kind: .tab(id, parentGroupID: nil, rootIsPinned: root.isPinned))
         )
-      case .group(let id, let color, _, let tabIDs):
+      case .group(let id, let color, _, _):
         let isCollapsed = collapsedGroupIDs.contains(id)
         entries.append(
           TerminalSidebarEntry(
             kind: .group(id, color: color, isPinned: root.isPinned, isCollapsed: isCollapsed)
           )
         )
-        guard !isCollapsed else { continue }
         entries.append(
-          contentsOf: tabIDs.map {
+          contentsOf: visibleTabIDs(in: id).map {
             TerminalSidebarEntry(kind: .tab($0, parentGroupID: id, rootIsPinned: root.isPinned))
           }
         )
@@ -128,6 +139,25 @@ struct TerminalSidebarOutline: Equatable {
       return []
     }
     return tabIDs
+  }
+
+  func visibleTabIDs(in groupID: TerminalTabGroupID) -> [TerminalTabID] {
+    let tabIDs = tabIDs(in: groupID)
+    guard collapsedGroupIDs.contains(groupID) else { return tabIDs }
+    guard let revealedTabID, tabIDs.contains(revealedTabID) else { return [] }
+    return [revealedTabID]
+  }
+
+  func expandedGroupIDs(from source: Self) -> Set<TerminalTabGroupID> {
+    let groupIDs = Set(
+      roots.compactMap { root -> TerminalTabGroupID? in
+        guard case .group(let groupID, _, _, _) = root.content else { return nil }
+        return groupID
+      }
+    )
+    return source.collapsedGroupIDs
+      .intersection(groupIDs)
+      .subtracting(collapsedGroupIDs)
   }
 
   func location(of itemID: TerminalTabRootItemID) -> TerminalTabPlacement? {
@@ -188,11 +218,25 @@ struct TerminalSidebarOutline: Equatable {
   }
 
   private func visibleEntryIDs(forGroup id: TerminalTabGroupID) -> [TerminalSidebarEntryID] {
-    guard let root = group(id), case .group(_, _, _, let tabIDs) = root.content else { return [] }
+    guard group(id) != nil else { return [] }
     var ids: [TerminalSidebarEntryID] = [.group(id)]
-    guard !collapsedGroupIDs.contains(id) else { return ids }
-    ids.append(contentsOf: tabIDs.map(TerminalSidebarEntryID.tab))
+    ids.append(contentsOf: visibleTabIDs(in: id).map(TerminalSidebarEntryID.tab))
     return ids
+  }
+
+  private static func revealedTabID(
+    roots: [Root],
+    collapsedGroupIDs: Set<TerminalTabGroupID>,
+    selectedTabID: TerminalTabID?
+  ) -> TerminalTabID? {
+    guard let selectedTabID else { return nil }
+    guard
+      roots.contains(where: { root in
+        guard case .group(let groupID, _, _, let tabIDs) = root.content else { return false }
+        return collapsedGroupIDs.contains(groupID) && tabIDs.contains(selectedTabID)
+      })
+    else { return nil }
+    return selectedTabID
   }
 }
 

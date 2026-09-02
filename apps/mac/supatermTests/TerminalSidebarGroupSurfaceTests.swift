@@ -14,6 +14,7 @@ struct TerminalSidebarGroupSurfaceTests {
     #expect(
       TerminalSidebarGroupNewTabAccessory.resolve(
         isHovered: false,
+        isCollapsed: false,
         showsShortcutHint: true,
         shortcutHint: shortcut
       ) == .hidden
@@ -21,6 +22,7 @@ struct TerminalSidebarGroupSurfaceTests {
     #expect(
       TerminalSidebarGroupNewTabAccessory.resolve(
         isHovered: true,
+        isCollapsed: false,
         showsShortcutHint: false,
         shortcutHint: shortcut
       ) == .icon
@@ -28,6 +30,7 @@ struct TerminalSidebarGroupSurfaceTests {
     #expect(
       TerminalSidebarGroupNewTabAccessory.resolve(
         isHovered: true,
+        isCollapsed: false,
         showsShortcutHint: true,
         shortcutHint: shortcut
       ) == .shortcut(shortcut)
@@ -35,9 +38,30 @@ struct TerminalSidebarGroupSurfaceTests {
     #expect(
       TerminalSidebarGroupNewTabAccessory.resolve(
         isHovered: true,
+        isCollapsed: false,
         showsShortcutHint: true,
         shortcutHint: nil
       ) == .icon
+    )
+  }
+
+  @Test
+  func collapsedGroupNeverShowsNewTabAccessory() {
+    #expect(
+      TerminalSidebarGroupNewTabAccessory.resolve(
+        isHovered: true,
+        isCollapsed: true,
+        showsShortcutHint: false,
+        shortcutHint: "⌘⌥T"
+      ) == .hidden
+    )
+    #expect(
+      TerminalSidebarGroupNewTabAccessory.resolve(
+        isHovered: true,
+        isCollapsed: true,
+        showsShortcutHint: true,
+        shortcutHint: "⌘⌥T"
+      ) == .hidden
     )
   }
 

@@ -100,9 +100,6 @@ extension TerminalHostState {
     else {
       return nil
     }
-    if focusing, case .group(let groupID, _) = resolvedPlacement {
-      spaceManager.instance(for: spaceID)?.collapsedTabGroupIDs.remove(groupID)
-    }
     let tree = splitTree(
       for: tabID,
       inheritingFromSurfaceID: inheritingFromSurfaceID,

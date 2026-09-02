@@ -294,7 +294,7 @@ struct TerminalSidebarChromeViewTests {
         ) == .terminalProgress(progress)
       )
       #expect(
-        !TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
+        !TerminalSidebarTabSummaryView.retainsTrailingAccessoryOnHover(
           agentStatus: agentStatus,
           hasAttention: hasAttention,
           terminalProgress: progress,
@@ -315,6 +315,52 @@ struct TerminalSidebarChromeViewTests {
         ) == .agent(presentation)
       )
     }
+  }
+
+  @Test
+  func activeAgentStatesRetainTheirTrailingAccessoryOnHover() {
+    for status in [TerminalHostState.TabAgentStatus.working, .needsInput] {
+      #expect(
+        TerminalSidebarTabSummaryView.retainsTrailingAccessoryOnHover(
+          agentStatus: agentStatus(status),
+          hasAttention: false,
+          terminalProgress: nil,
+          showsShortcutHint: false
+        )
+      )
+    }
+  }
+
+  @Test
+  func doneAgentYieldsItsTrailingAccessoryToTheCloseButton() {
+    let status = agentStatus(.done)
+
+    #expect(
+      !TerminalSidebarTabSummaryView.retainsTrailingAccessoryOnHover(
+        agentStatus: status,
+        hasAttention: false,
+        terminalProgress: nil,
+        showsShortcutHint: false
+      )
+    )
+    #expect(
+      TerminalSidebarTabSummaryView.trailingAccessory(
+        isRowHovering: true,
+        agentStatus: status
+      ) == .reserved
+    )
+  }
+
+  @Test
+  func attentionRetainsItsTrailingAccessoryOnHover() {
+    #expect(
+      TerminalSidebarTabSummaryView.retainsTrailingAccessoryOnHover(
+        agentStatus: nil,
+        hasAttention: true,
+        terminalProgress: nil,
+        showsShortcutHint: false
+      )
+    )
   }
 
   @Test

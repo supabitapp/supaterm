@@ -110,22 +110,6 @@ enum TerminalSidebarCollapseMotion {
 
 enum TerminalSidebarLayoutMotion {
   static let defaultDuration: TimeInterval = 0.12
-
-  static func animationDuration(
-    from previous: TerminalSidebarOutline,
-    to current: TerminalSidebarOutline
-  ) -> TimeInterval {
-    let currentGroupIDs = Set(
-      current.roots.compactMap { root -> TerminalTabGroupID? in
-        guard case .group(let id, _, _, _) = root.content else { return nil }
-        return id
-      }
-    )
-    let expandedGroupIDs = previous.collapsedGroupIDs
-      .subtracting(current.collapsedGroupIDs)
-      .intersection(currentGroupIDs)
-    return expandedGroupIDs.isEmpty ? defaultDuration : TerminalSidebarCollapseMotion.rowDuration
-  }
 }
 
 struct TerminalSidebarDragVelocityTracker {

@@ -103,19 +103,11 @@ extension TerminalHostState {
     }
     let manager = instance.tabCollection
     let previousRevision = manager.topologyRevision
-    let revealsGroup = request.itemIDs.contains { itemID in
-      guard case .tab(let tabID) = itemID else { return false }
-      return manager.selectedTabID == tabID
-    }
     let result = try manager.move(request)
-    var presentationChanged = removeCollapsedGroups(
+    let presentationChanged = removeCollapsedGroups(
       result.deletedEmptyGroupIDs,
       in: instance.spaceID
     )
-    if revealsGroup, case .group(let groupID, _) = request.destination {
-      presentationChanged =
-        removeCollapsedGroups([groupID], in: instance.spaceID) || presentationChanged
-    }
     if result.topologyRevision != previousRevision || presentationChanged {
       sessionDidChange()
     }
