@@ -60,6 +60,29 @@ struct TerminalAgentDetectionControllerTests {
   }
 
   @Test
+  func publishesOnlyCurrentProcessIconsAndClearsThemOnCommandFinish() async {
+    let fixture = makeFixture()
+    let surfaceID = fixture.host.addSurface(processGroupID: 11)
+    let processIdentity = identity(processID: 101, startTime: 1)
+    let processIcon = TerminalProcessIconMatch(icon: .btop, processIdentity: processIdentity)
+    await fixture.sampler.setProcessIcons([11: processIcon])
+    let now = ContinuousClock.now
+
+    await fixture.controller.tick(now: now)
+
+    #expect(fixture.host.processIcons[surfaceID] == nil)
+
+    await fixture.sampler.setCurrent([processIdentity])
+    await fixture.controller.tick(now: now.advanced(by: .milliseconds(500)))
+
+    #expect(fixture.host.processIcons[surfaceID] == .btop)
+
+    fixture.controller.surfaceCommandDidFinish(surfaceID)
+
+    #expect(fixture.host.processIcons[surfaceID] == nil)
+  }
+
+  @Test
   func evaluatesEveryPaneWhileRefreshingProcessProofsOnCadence() async {
     let fixture = makeFixture()
     let firstID = fixture.host.addSurface(processGroupID: 11)
@@ -705,8 +728,8 @@ struct TerminalAgentDetectionControllerTests {
         resolveForegroundProcessGroups: { processGroupIDs in
           await sampler.resolveForegroundProcessGroups(processGroupIDs)
         },
-        matches: { processGroupIDs, manifests in
-          await sampler.matches(processGroupIDs, manifests: manifests)
+        sample: { processGroupIDs, manifests in
+          await sampler.sample(processGroupIDs, manifests: manifests)
         },
         current: { identities in
           await sampler.current(identities)
@@ -826,6 +849,7 @@ private final class DetectionHostFixture {
   private var surfaces: [UUID: Surface] = [:]
   private var detectionStore = TerminalAgentDetectionStore()
   var applyCalls: [TerminalAgentDetectionObservation] = []
+  var processIcons: [UUID: TerminalProcessIcon] = [:]
   var screenCaptureCount = 0
 
   var observations: [UUID: TerminalAgentDetectionObservation] {
@@ -857,6 +881,14 @@ private final class DetectionHostFixture {
       },
       clearProcessMatch: { [weak self] surfaceID in
         self?.detectionStore.clearProcessMatch(for: surfaceID)
+      },
+      applyProcessIcon: { [weak self] icon, surfaceID in
+        guard let self, self.surfaces[surfaceID] != nil else { return }
+        if let icon {
+          self.processIcons[surfaceID] = icon
+        } else {
+          self.processIcons.removeValue(forKey: surfaceID)
+        }
       }
     )
   }
@@ -1043,6 +1075,7 @@ private actor DetectionRulesFixture {
 private actor DetectionSamplerFixture {
   private let gate: DetectionGate?
   private var processMatches: [Int32: AgentDetectionProcessMatch] = [:]
+  private var processIconMatches: [Int32: TerminalProcessIconMatch] = [:]
   private var currentIdentities: Set<TerminalAgentProcessIdentity> = []
   private var resolvedProcessGroups: [UUID: Int32]?
   private var capturedBatches: [Set<Int32>] = []
@@ -1055,15 +1088,18 @@ private actor DetectionSamplerFixture {
     resolvedProcessGroups ?? processGroupIDs
   }
 
-  func matches(
+  func sample(
     _ processGroupIDs: Set<Int32>,
     manifests _: [AgentDetectionProcessManifest]
-  ) async -> [Int32: AgentDetectionProcessMatch] {
+  ) async -> AgentDetectionProcessSample {
     capturedBatches.append(processGroupIDs)
     if let gate {
       await gate.suspend()
     }
-    return processMatches.filter { processGroupIDs.contains($0.key) }
+    return AgentDetectionProcessSample(
+      agentMatches: processMatches.filter { processGroupIDs.contains($0.key) },
+      processIcons: processIconMatches.filter { processGroupIDs.contains($0.key) }
+    )
   }
 
   func current(
@@ -1074,6 +1110,10 @@ private actor DetectionSamplerFixture {
 
   func setMatches(_ matches: [Int32: AgentDetectionProcessMatch]) {
     processMatches = matches
+  }
+
+  func setProcessIcons(_ icons: [Int32: TerminalProcessIconMatch]) {
+    processIconMatches = icons
   }
 
   func setCurrent(_ identities: Set<TerminalAgentProcessIdentity>) {

@@ -341,6 +341,7 @@ final class TerminalHostState {
   var notificationStore = TerminalNotificationStore()
   var agentCompletionStore = TerminalAgentCompletionStore()
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
+  var paneProcessIconsBySurfaceID: [UUID: TerminalProcessIcon] = [:]
   var agentDetectionStore = TerminalAgentDetectionStore()
   var agentStateStore = TerminalAgentStateStore()
   var runtimeConfigGeneration = 0

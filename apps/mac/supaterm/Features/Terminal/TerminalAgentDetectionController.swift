@@ -83,9 +83,9 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
 
 nonisolated struct TerminalAgentDetectionSampler: Sendable {
   let resolveForegroundProcessGroups: @Sendable ([UUID: Int32]) async -> [UUID: Int32]
-  let matches:
+  let sample:
     @Sendable (Set<Int32>, [AgentDetectionProcessManifest]) async ->
-      [Int32: AgentDetectionProcessMatch]
+      AgentDetectionProcessSample
   let current: @Sendable (Set<TerminalAgentProcessIdentity>) async -> Set<TerminalAgentProcessIdentity>
 }
 
@@ -99,6 +99,7 @@ struct TerminalAgentDetectionHostAccess {
   let clear: (UUID) -> Void
   let applyProcessMatch: (AgentDetectionProcessMatch, UUID) -> Bool
   let clearProcessMatch: (UUID) -> Void
+  let applyProcessIcon: (TerminalProcessIcon?, UUID) -> Void
   var pruneDeadAgentProcesses: () -> Void = {}
 }
 
@@ -136,11 +137,11 @@ private actor TerminalAgentDetectionLiveSampler {
     return resolved
   }
 
-  func matches(
+  func sample(
     foregroundProcessGroupIDs: Set<Int32>,
     manifests: [AgentDetectionProcessManifest]
-  ) async -> [Int32: AgentDetectionProcessMatch] {
-    await processSampler.matches(
+  ) async -> AgentDetectionProcessSample {
+    await processSampler.sample(
       foregroundProcessGroupIDs: foregroundProcessGroupIDs,
       manifests: manifests
     )
@@ -244,8 +245,8 @@ final class TerminalAgentDetectionController {
         resolveForegroundProcessGroups: { processGroupIDs in
           await liveSampler.resolveForegroundProcessGroups(processGroupIDs)
         },
-        matches: { processGroupIDs, manifests in
-          await liveSampler.matches(
+        sample: { processGroupIDs, manifests in
+          await liveSampler.sample(
             foregroundProcessGroupIDs: processGroupIDs,
             manifests: manifests
           )
@@ -382,7 +383,7 @@ final class TerminalAgentDetectionController {
         )
       }
       let processGroupIDs = Set(resolved.map(\.processGroupID))
-      let matches = await sampler.matches(processGroupIDs, processManifests)
+      let sampledProcesses = await sampler.sample(processGroupIDs, processManifests)
       guard !Task.isCancelled else { return }
       let currentSnapshot = await rules.snapshot()
       guard !Task.isCancelled else { return }
@@ -392,7 +393,8 @@ final class TerminalAgentDetectionController {
         return
       }
       await applyProcessMatches(
-        matches,
+        sampledProcesses.agentMatches,
+        processIcons: sampledProcesses.processIcons,
         to: resolved,
         generation: snapshot.generation,
         now: now
@@ -450,11 +452,14 @@ final class TerminalAgentDetectionController {
 
   private func applyProcessMatches(
     _ matches: [Int32: AgentDetectionProcessMatch],
+    processIcons: [Int32: TerminalProcessIconMatch],
     to scans: [ProcessScan],
     generation: UInt64,
     now: ContinuousClock.Instant
   ) async {
-    let currentIdentities = await sampler.current(Set(matches.values.map(\.processIdentity)))
+    let currentIdentities = await sampler.current(
+      Set(matches.values.map(\.processIdentity) + processIcons.values.map(\.processIdentity))
+    )
     guard !Task.isCancelled else { return }
     guard self.generation == generation else { return }
     let live = Dictionary(uniqueKeysWithValues: host.surfaces().map { ($0.key.id, $0.key) })
@@ -466,6 +471,10 @@ final class TerminalAgentDetectionController {
       else {
         continue
       }
+      let processIcon = processIcons[scan.processGroupID].flatMap {
+        currentIdentities.contains($0.processIdentity) ? $0.icon : nil
+      }
+      host.applyProcessIcon(processIcon, key.id)
       guard let match = matches[scan.processGroupID] else {
         if state.proof != nil, state.missedProcessScans == 0 {
           state.missedProcessScans = 1
@@ -934,12 +943,14 @@ final class TerminalAgentDetectionController {
     states.removeValue(forKey: surfaceID)
     clearPublished(surfaceID)
     host.clearProcessMatch(surfaceID)
+    host.applyProcessIcon(nil, surfaceID)
   }
 
   private func invalidateAll() {
     for surfaceID in states.keys {
       clearPublished(surfaceID)
       host.clearProcessMatch(surfaceID)
+      host.applyProcessIcon(nil, surfaceID)
     }
     states.removeAll()
   }
@@ -1045,6 +1056,9 @@ final class TerminalAgentDetectionController {
       },
       clearProcessMatch: { [weak terminal] surfaceID in
         _ = terminal?.clearAgentProcessMatch(for: surfaceID)
+      },
+      applyProcessIcon: { [weak terminal] icon, surfaceID in
+        terminal?.setProcessIcon(icon, for: surfaceID)
       },
       pruneDeadAgentProcesses: { [weak terminal] in
         guard let terminal, terminal.pruneDeadAgentProcesses() else { return }
