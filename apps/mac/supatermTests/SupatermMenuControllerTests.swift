@@ -818,7 +818,7 @@ struct SupatermMenuControllerTests {
         NSEvent.keyEvent(
           with: .keyDown,
           location: .zero,
-          modifierFlags: [.command, .control],
+          modifierFlags: [.command],
           timestamp: 0,
           windowNumber: 0,
           context: nil,
@@ -1321,7 +1321,7 @@ struct SupatermMenuControllerTests {
         "Last Tab",
       ])
     #expect(tabsMenu.items[0].keyEquivalent == "u")
-    #expect(tabsMenu.items[0].keyEquivalentModifierMask == [.command, .control])
+    #expect(tabsMenu.items[0].keyEquivalentModifierMask == [.command])
     #expect(tabsMenu.items[0].image != nil)
   }
 

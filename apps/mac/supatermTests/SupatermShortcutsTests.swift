@@ -35,7 +35,7 @@ struct SupatermShortcutsTests {
 
     #expect(SupatermShortcuts.all.count == 19)
     #expect(Set(SupatermShortcuts.all.map(\.id)).count == SupatermShortcuts.all.count)
-    #expect(SupatermShortcuts.jumpToLatestUnread.defaultBinding.display == "⌘⌃\(String(u).uppercased())")
+    #expect(SupatermShortcuts.jumpToLatestUnread.defaultBinding.display == "⌘\(String(u).uppercased())")
     #expect(SupatermShortcuts.newTabInGroup.defaultBinding.display == "⌘⌥\(String(t).uppercased())")
     #expect(SupatermShortcuts.nextSpace.defaultBinding.display == "⌘⌃→")
     #expect(SupatermShortcuts.openPullRequest.defaultBinding.display == "⌘⌥\(String(p).uppercased())")
