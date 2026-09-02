@@ -186,6 +186,40 @@ nonisolated struct TerminalTabSplitDropCoordinator {
   }
 }
 
+private final class TerminalSidebarFrameAnimationCurve: NSObject, NSAnimationDelegate {
+  nonisolated let duration: TimeInterval
+  private nonisolated let angularFrequency: Double
+  private nonisolated let finalValue: Double
+
+  init(spring: TerminalLayerSpring) {
+    precondition(spring.dampingRatio == 1)
+    angularFrequency = 2 * Double.pi / spring.response
+    let animation = TerminalLayerAnimation.spring(
+      keyPath: "bounds",
+      from: 0,
+      to: 1,
+      spring: spring
+    )
+    duration = animation.settlingDuration
+    finalValue = Self.value(at: duration, angularFrequency: angularFrequency)
+  }
+
+  nonisolated func animation(
+    _: NSAnimation,
+    valueForProgress progress: NSAnimation.Progress
+  ) -> Float {
+    let time = Double(progress) * duration
+    return Float(Self.value(at: time, angularFrequency: angularFrequency) / finalValue)
+  }
+
+  private nonisolated static func value(
+    at time: TimeInterval,
+    angularFrequency: Double
+  ) -> Double {
+    1 - (1 + angularFrequency * time) * exp(-angularFrequency * time)
+  }
+}
+
 @MainActor
 final class TerminalWindowShellView: NSView {
   var onRevealPointerEvent: ((TerminalSidebarRevealPointerEvent) -> Void)?
@@ -331,6 +365,8 @@ final class TerminalWindowShellView: NSView {
 
 @MainActor
 final class TerminalWindowShellController: NSViewController {
+  private static let sidebarSpring = TerminalLayerSpring(response: 0.2, dampingRatio: 1)
+
   private enum FrameMotion: Equatable {
     case immediate
     case sidebar
@@ -377,6 +413,11 @@ final class TerminalWindowShellController: NSViewController {
   var splitDestination: () -> TerminalTabSplitDropDestination? = { nil }
 
   private var detailController: NSViewController?
+  private var detailFrameAnimation: NSViewAnimation?
+  private var detailFrameAnimationTarget: CGRect?
+  private let detailFrameAnimationCurve = TerminalSidebarFrameAnimationCurve(
+    spring: TerminalWindowShellController.sidebarSpring
+  )
   private var presentation = TerminalWindowShellPresentation(
     isSidebarCollapsed: false,
     sidebarResizeState: nil,
@@ -469,9 +510,12 @@ final class TerminalWindowShellController: NSViewController {
     super.viewDidLayout()
     guard let sidebarController, let detailController else { return }
     let layout = currentLayout
+    let detailFrameMatches = detailController.view.frame == layout.detailFrame
+      || (detailFrameAnimation?.isAnimating == true
+        && detailFrameAnimationTarget == layout.detailFrame)
     guard
       sidebarController.view.frame != layout.sidebarFrame
-        || detailController.view.frame != layout.detailFrame
+        || !detailFrameMatches
         || sidebarResizeView.frame != layout.resizeFrame
     else { return }
     applyLayout(motion: .immediate)
@@ -565,7 +609,7 @@ final class TerminalWindowShellController: NSViewController {
       motion: motion,
       hidesSidebar: sidebarPresentation == .hidden
     )
-    setFrame(layout.detailFrame, of: detailController.view, motion: motion)
+    setDetailFrame(layout.detailFrame, of: detailController.view, motion: motion)
     splitDropOverlay.frame = TerminalTabSplitDropLayout.surfaceFrame(in: layout.detailFrame)
     sidebarResizeView.sidebarWidth = layout.sidebarFrame.width
     setFrame(layout.resizeFrame, of: sidebarResizeView, motion: .immediate)
@@ -617,6 +661,45 @@ final class TerminalWindowShellController: NSViewController {
       return .sidebar
     }
     return .immediate
+  }
+
+  private func setDetailFrame(
+    _ frame: CGRect,
+    of detailView: NSView,
+    motion: FrameMotion
+  ) {
+    let currentFrame = detailView.frame
+    if detailFrameAnimation?.isAnimating == true {
+      detailFrameAnimation?.stop()
+      detailView.frame = currentFrame
+    }
+    detailFrameAnimation = nil
+    detailFrameAnimationTarget = nil
+
+    guard motion == .sidebar, view.window != nil, currentFrame != frame else {
+      setFrame(frame, of: detailView, motion: .immediate)
+      return
+    }
+
+    // A backing-layer bounds animation lays out hosted content at its final size before
+    // the presentation layer arrives there. Animate the AppKit frame so both stay aligned.
+    removeFrameAnimations(from: detailView.layer)
+    let animation = NSViewAnimation(
+      viewAnimations: [
+        [
+          .target: detailView,
+          .startFrame: NSValue(rect: currentFrame),
+          .endFrame: NSValue(rect: frame),
+        ]
+      ]
+    )
+    animation.animationBlockingMode = .nonblocking
+    animation.animationCurve = .linear
+    animation.duration = detailFrameAnimationCurve.duration
+    animation.delegate = detailFrameAnimationCurve
+    detailFrameAnimation = animation
+    detailFrameAnimationTarget = frame
+    animation.start()
   }
 
   private func setFrame(_ frame: CGRect, of childView: NSView, motion: FrameMotion) {
@@ -679,7 +762,7 @@ final class TerminalWindowShellController: NSViewController {
         keyPath: property.keyPath,
         from: from,
         to: to,
-        spring: TerminalLayerSpring(response: 0.2, dampingRatio: 1)
+        spring: Self.sidebarSpring
       )
     case .floating:
       animation = TerminalLayerAnimation.basic(
