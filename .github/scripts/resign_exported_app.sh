@@ -31,11 +31,93 @@ code_roots=(
 )
 
 sp_path="$app_path/Contents/MacOS/sp"
+host_path="$app_path/Contents/Helpers/supaterm-host"
 helper_paths=(
   "$sp_path"
   "$app_path/Contents/MacOS/ap"
+  "$host_path"
   "$app_path/Contents/Helpers/zmx"
 )
+
+validate_system_dylibs() {
+  local dependency
+  local dependencies
+  local valid=1
+
+  if ! dependencies=$(otool -L "$1"); then
+    return 1
+  fi
+
+  while IFS= read -r dependency; do
+    case "$dependency" in
+      /System/Library/* | /usr/lib/*)
+        ;;
+      *)
+        echo "::error::Unbundled dynamic dependency in $1: $dependency"
+        valid=0
+        ;;
+    esac
+  done < <(awk 'NR > 1 { print $1 }' <<< "$dependencies")
+
+  [ "$valid" -eq 1 ]
+}
+
+validate_binary_shape() {
+  local path=$1
+  local name=$2
+  local architectures
+  local minos
+  local permissions
+  local valid=1
+
+  architectures=$(lipo -archs "$path" 2>/dev/null || true)
+  minos=$(xcrun vtool -show-build "$path" 2>/dev/null | awk '$1 == "minos" { print $2 }' | sort -u)
+  permissions=$(stat -f '%Lp' "$path" 2>/dev/null || true)
+
+  if [ "$architectures" != arm64 ]; then
+    echo "::error::$name architectures are '$architectures', expected 'arm64'"
+    valid=0
+  fi
+  if [ "$minos" != 26.0 ]; then
+    echo "::error::$name deployment target is '$minos', expected '26.0'"
+    valid=0
+  fi
+  if [ "$permissions" != 755 ]; then
+    echo "::error::$name permissions are '$permissions', expected '755'"
+    valid=0
+  fi
+  if ! validate_system_dylibs "$path"; then
+    valid=0
+  fi
+
+  [ "$valid" -eq 1 ]
+}
+
+validate_host_binary() {
+  local bundle_version
+  local host_version
+  local valid=1
+
+  bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Contents/Info.plist")
+
+  if ! validate_binary_shape "$host_path" supaterm-host; then
+    valid=0
+  fi
+  if ! nm -gU "$host_path" 2>/dev/null |
+    awk '$NF == "_ghostty_terminal_new" { found = 1 } END { exit(found ? 0 : 1) }'; then
+    echo "::error::supaterm-host does not contain _ghostty_terminal_new"
+    valid=0
+  fi
+  if ! host_version=$("$host_path" version); then
+    echo "::error::supaterm-host version command failed"
+    valid=0
+  elif [ "$host_version" != "supaterm-host $bundle_version" ]; then
+    echo "::error::supaterm-host version is '$host_version', expected 'supaterm-host $bundle_version'"
+    valid=0
+  fi
+
+  [ "$valid" -eq 1 ]
+}
 
 for path in "${helper_paths[@]}"; do
   if [ -L "$path" ]; then
@@ -90,4 +172,6 @@ for path in "${helper_paths[@]}"; do
 done
 
 codesign -vvv --deep --strict "$app_path"
+validate_host_binary
+validate_binary_shape "$sp_path" sp
 "$sp_path" --help > /dev/null

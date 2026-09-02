@@ -5,6 +5,9 @@ let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
+let supatermHostBinaryPath: Path = ".build/supaterm-host/bin/supaterm-host"
+let supatermHostBuildScriptPath: Path = "scripts/build-supaterm-host.sh"
+let supatermHostFingerprintPath: Path = ".build/supaterm-host/fingerprint"
 let zmxBinaryPath: Path = ".build/zmx/bin/zmx"
 let zmxBuildScriptPath: Path = "scripts/build-zmx.sh"
 let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
@@ -12,6 +15,53 @@ let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
 let supaThemeDependency = TargetDependency.project(target: "SupaTheme", path: "../shared")
+
+func embedExecutable(
+  name: String,
+  sourcePath: Path,
+  fingerprintPath: Path,
+  inHelpersDirectory: Bool
+) -> TargetScript {
+  let shellDirectory =
+    inHelpersDirectory
+    ? "${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
+    : "${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}"
+  let buildDirectory =
+    inHelpersDirectory
+    ? "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers"
+    : "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)"
+
+  return .post(
+    script: """
+      set -euo pipefail
+
+      destination_dir="\(shellDirectory)"
+      destination_path="${destination_dir}/\(name)"
+      source_path="${SRCROOT}/\(sourcePath.pathString)"
+
+      if [ ! -f "${source_path}" ] || [ -L "${source_path}" ] || [ ! -x "${source_path}" ]; then
+        echo "error: missing built \(name) executable" >&2
+        exit 1
+      fi
+
+      mkdir -p "${destination_dir}"
+      rm -f "${destination_path}"
+      /usr/bin/install -m 755 "${source_path}" "${destination_path}"
+      if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
+        identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+        /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
+      fi
+      """,
+    name: "Embed \(name)",
+    inputPaths: [
+      "$(SRCROOT)/\(sourcePath.pathString)",
+      "$(SRCROOT)/\(fingerprintPath.pathString)",
+    ],
+    outputPaths: [
+      "\(buildDirectory)/\(name)",
+    ]
+  )
+}
 
 let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
@@ -395,6 +445,13 @@ let project = Project(
       scripts: [
         .pre(
           script: """
+            "${SRCROOT}/\(supatermHostBuildScriptPath.pathString)"
+            """,
+          name: "Build supaterm-host",
+          basedOnDependencyAnalysis: false
+        ),
+        .pre(
+          script: """
             "${SRCROOT}/scripts/validate-release-day.sh"
             """,
           name: "Validate Release Day",
@@ -441,65 +498,23 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty-resources.fingerprint",
           ],
         ),
-        .post(
-          script: """
-            set -euo pipefail
-
-            destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
-            destination_path="${destination_dir}/zmx"
-            source_path="${SRCROOT}/\(zmxBinaryPath.pathString)"
-
-            if [ ! -x "${source_path}" ]; then
-              echo "error: missing built zmx executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            rm -f "${destination_path}"
-            /usr/bin/install -m 755 "${source_path}" "${destination_path}"
-            if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
-              identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
-              /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
-            fi
-            """,
-          name: "Embed zmx",
-          inputPaths: [
-            "$(SRCROOT)/\(zmxBinaryPath.pathString)",
-            "$(SRCROOT)/\(zmxFingerprintPath.pathString)",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/zmx",
-          ]
+        embedExecutable(
+          name: "supaterm-host",
+          sourcePath: supatermHostBinaryPath,
+          fingerprintPath: supatermHostFingerprintPath,
+          inHelpersDirectory: true
         ),
-        .post(
-          script: """
-            set -euo pipefail
-
-            destination_dir="${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}"
-            destination_path="${destination_dir}/ap"
-            source_path="${SRCROOT}/\(apBinaryPath.pathString)"
-
-            if [ ! -x "${source_path}" ]; then
-              echo "error: missing built ap executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            rm -f "${destination_path}"
-            /usr/bin/install -m 755 "${source_path}" "${destination_path}"
-            if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
-              identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
-              /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
-            fi
-            """,
-          name: "Embed ap",
-          inputPaths: [
-            "$(SRCROOT)/\(apBinaryPath.pathString)",
-            "$(SRCROOT)/\(apFingerprintPath.pathString)",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/ap",
-          ]
+        embedExecutable(
+          name: "zmx",
+          sourcePath: zmxBinaryPath,
+          fingerprintPath: zmxFingerprintPath,
+          inHelpersDirectory: true
+        ),
+        embedExecutable(
+          name: "ap",
+          sourcePath: apBinaryPath,
+          fingerprintPath: apFingerprintPath,
+          inHelpersDirectory: false
         ),
         .post(
           script: """

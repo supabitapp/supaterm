@@ -67,6 +67,18 @@ runs:
       with:
         path: apps/mac/.build/ghostty
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v3-${{ env.GHOSTTY_FINGERPRINT }}
+    - name: Supaterm host fingerprint
+      if: ${{ inputs.cache-native-builds == 'true' }}
+      shell: bash
+      run: |
+        SUPATERM_HOST_FINGERPRINT="$(apps/mac/scripts/build-supaterm-host.sh --print-fingerprint)"
+        printf '%s\n' "SUPATERM_HOST_FINGERPRINT=$SUPATERM_HOST_FINGERPRINT" >> "$GITHUB_ENV"
+    - name: Supaterm host cache
+      if: ${{ inputs.cache-native-builds == 'true' }}
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: apps/mac/.build/supaterm-host
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-supaterm-host-v1-${{ env.SUPATERM_HOST_FINGERPRINT }}
     - name: Zmx fingerprint
       if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash

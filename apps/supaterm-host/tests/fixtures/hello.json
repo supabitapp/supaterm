@@ -1,0 +1,1 @@
+{"type":"hello","protocol_version":1,"build_identity":"fixture-build","role":"ui","client_id":"fixture-client","capabilities":["terminal"],"limits":{"snapshot_bytes":268435456,"parser_continuation_bytes":16777216}}

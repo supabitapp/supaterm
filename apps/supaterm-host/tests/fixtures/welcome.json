@@ -1,0 +1,1 @@
+{"type":"welcome","protocol_version":1,"build_identity":"fixture-build","host_id":"fixture-host","epoch":"fixture-epoch","revision":7,"structure_revision":3,"capabilities":["terminal","host.shutdown"],"limits":{"snapshot_bytes":268435456,"parser_continuation_bytes":16777216}}

@@ -8,10 +8,16 @@ on:
       - ".github/actions/setup-macos/**"
       - ".github/actions/setup-mise/**"
       - ".github/workflows/warm-cache.yml"
+      - ".gitmodules"
       - "apps/Configurations/**"
+      - "apps/supaterm-host/**"
       - "apps/mac/Configurations/**"
       - "apps/mac/Makefile"
       - "apps/mac/Project.swift"
+      - "apps/mac/ThirdParty/ghostty"
+      - "apps/mac/ThirdParty/ghostty/**"
+      - "apps/mac/scripts/build-ghostty.sh"
+      - "apps/mac/scripts/build-supaterm-host.sh"
       - "apps/shared/**"
       - "apps/Tuist.mk"
       - "apps/Tuist.swift"
@@ -40,8 +46,9 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
         with:
-          cache-native-builds: false
+          cache-native-builds: true
           github-token: ${{ github.token }}
+      - run: make mac-build-supaterm-host
       - run: make mac-warm-cache
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}

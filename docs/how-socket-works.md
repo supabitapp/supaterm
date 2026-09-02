@@ -2,6 +2,10 @@
 
 This document captures the stable rules of Supaterm's socket IPC. The source remains authoritative for concrete APIs and current command surfaces.
 
+The current app and Swift `sp` use the JSON app socket described here. The embedded
+`supaterm-host` scaffold has a separate exact-version framed protocol. No app traffic uses that
+protocol yet.
+
 ## Model
 
 - Each running Supaterm app process owns one Unix domain socket endpoint.

@@ -73,6 +73,17 @@ make mac-check          # format + lint
 make mac-test           # full test suite
 ```
 
+Host scaffold gates:
+
+```bash
+make host-check         # format + lint + tests + release build and smoke test
+make host-build         # release build and smoke test
+```
+
+The host build links the vendored Ghostty VT archive into `supaterm-host` and stages the helper at
+`apps/mac/.build/supaterm-host/bin/supaterm-host`. App builds embed it under
+`Supaterm.app/Contents/Helpers`.
+
 Canonical iOS gates:
 
 ```bash

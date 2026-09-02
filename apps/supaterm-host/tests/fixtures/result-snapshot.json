@@ -1,0 +1,1 @@
+{"type":"result","request_id":"request-snapshot","command_id":"command-snapshot","result":{"type":"snapshot","snapshot":{"epoch":"fixture-epoch","revision":8,"structure_revision":4,"workspace":{"spaces":[],"windows":[]}}}}

@@ -73,10 +73,13 @@ hooks {
         "docs",
         "make docs-install docs-check docs-validate docs-build"
       )
-      ["mac-checks"] = affectedProjectStep(
+      ["host-checks"] = affectedProjectStep("host", "make host-check")
+      ["mac-checks"] = (affectedProjectStep(
         "mac",
         "make mac-inspect-dependencies mac-scan-dead-code mac-test mac-test-e2e"
-      )
+      )) {
+        depends = "host-checks"
+      }
       ["ios-checks"] = (affectedProjectStep("ios", "make ios-build")) {
         depends = "mac-checks"
       }

@@ -12,6 +12,7 @@ on:
       - ".github/workflows/release-tip.yml"
       - ".gitmodules"
       - "apps/Configurations/**"
+      - "apps/supaterm-host/**"
       - "apps/mac/**"
       - "apps/shared/**"
       - "apps/Tuist.mk"
@@ -93,6 +94,7 @@ jobs:
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-build-ghostty
+      - run: make mac-build-supaterm-host
       - run: make mac-build-zmx
       - run: make mac-build-ap
       - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_RELEASE_DATE=${{ env.RELEASE_DAY }}'

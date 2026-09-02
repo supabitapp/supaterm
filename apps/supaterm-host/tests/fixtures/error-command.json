@@ -1,0 +1,1 @@
+{"type":"error","request_id":"request-ping","command_id":"command-ping","error":{"code":"invalid_identifier","detail":"identifier is invalid","retryable":false}}

@@ -83,6 +83,27 @@ DOCS_PATHS = PathSet(
   directories=("apps/docs.supaterm.com", SKILL_DATA_DIRECTORY),
 )
 IOS_PATHS = PathSet(directories=("apps/ios",))
+HOST_PATHS = PathSet(
+  files=frozenset(
+    {
+      ".gitmodules",
+      ".github/scripts/resign_exported_app.sh",
+      ".github/workflows/ci.yml",
+      ".github/workflows/release-tip.yml",
+      ".github/workflows/release.yml",
+      ".github/workflows/warm-cache.yml",
+      "apps/Configurations/Versions.xcconfig",
+      "apps/mac/Makefile",
+      "apps/mac/scripts/build-ghostty.sh",
+      "apps/mac/scripts/build-supaterm-host.sh",
+    }
+  ),
+  directories=(
+    ".github/actions/setup-macos",
+    "apps/mac/ThirdParty/ghostty",
+    "apps/supaterm-host",
+  ),
+)
 MAC_PATHS = PathSet(
   files=frozenset({".gitmodules"}),
   directories=("apps/mac",),
@@ -93,8 +114,15 @@ WEB_PATHS = PathSet(
 )
 PROJECT_PATHS = {
   "docs": (GLOBAL_PATHS, DOCS_PATHS),
+  "host": (GLOBAL_PATHS, HOST_PATHS),
   "ios": (GLOBAL_PATHS, SHARED_APPLE_PATHS, IOS_PATHS),
-  "mac": (GLOBAL_PATHS, SHARED_APPLE_PATHS, MAC_PATHS, BUNDLED_SKILL_PATHS),
+  "mac": (
+    GLOBAL_PATHS,
+    SHARED_APPLE_PATHS,
+    HOST_PATHS,
+    MAC_PATHS,
+    BUNDLED_SKILL_PATHS,
+  ),
   "web": (GLOBAL_PATHS, WEB_PATHS),
 }
 PROJECTS = tuple(PROJECT_PATHS)
