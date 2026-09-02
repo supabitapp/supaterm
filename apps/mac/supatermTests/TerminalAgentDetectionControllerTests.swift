@@ -728,11 +728,8 @@ struct TerminalAgentDetectionControllerTests {
         resolveForegroundProcessGroups: { processGroupIDs in
           await sampler.resolveForegroundProcessGroups(processGroupIDs)
         },
-        matches: { processGroupIDs, manifests in
-          await sampler.matches(processGroupIDs, manifests: manifests)
-        },
-        processIcons: { processGroupIDs in
-          await sampler.processIcons(processGroupIDs)
+        sample: { processGroupIDs, manifests in
+          await sampler.sample(processGroupIDs, manifests: manifests)
         },
         current: { identities in
           await sampler.current(identities)
@@ -1091,27 +1088,24 @@ private actor DetectionSamplerFixture {
     resolvedProcessGroups ?? processGroupIDs
   }
 
-  func matches(
+  func sample(
     _ processGroupIDs: Set<Int32>,
     manifests _: [AgentDetectionProcessManifest]
-  ) async -> [Int32: AgentDetectionProcessMatch] {
+  ) async -> AgentDetectionProcessSample {
     capturedBatches.append(processGroupIDs)
     if let gate {
       await gate.suspend()
     }
-    return processMatches.filter { processGroupIDs.contains($0.key) }
+    return AgentDetectionProcessSample(
+      agentMatches: processMatches.filter { processGroupIDs.contains($0.key) },
+      processIcons: processIconMatches.filter { processGroupIDs.contains($0.key) }
+    )
   }
 
   func current(
     _ identities: Set<TerminalAgentProcessIdentity>
   ) -> Set<TerminalAgentProcessIdentity> {
     identities.intersection(currentIdentities)
-  }
-
-  func processIcons(
-    _ processGroupIDs: Set<Int32>
-  ) -> [Int32: TerminalProcessIconMatch] {
-    processIconMatches.filter { processGroupIDs.contains($0.key) }
   }
 
   func setMatches(_ matches: [Int32: AgentDetectionProcessMatch]) {

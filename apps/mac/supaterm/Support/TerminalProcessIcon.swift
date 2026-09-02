@@ -98,22 +98,29 @@ enum TerminalProcessIconRecognizer {
     table: ProcessTable,
     invocation: InvocationProvider
   ) -> [pid_t: TerminalProcessIconMatch] {
-    let processGroupIDs = foregroundProcessGroupIDs.filter { $0 > 0 }
-    guard !processGroupIDs.isEmpty else { return [:] }
-    return Dictionary(
-      grouping: table.entries.filter { processGroupIDs.contains($0.processGroupID) },
-      by: \.processGroupID
-    ).compactMapValues { entries in
-      match(entries: entries, invocation: invocation)
+    matches(
+      processGroups: ForegroundProcessGroupSnapshot.snapshots(
+        for: foregroundProcessGroupIDs,
+        in: table
+      ),
+      invocation: invocation
+    )
+  }
+
+  static func matches(
+    processGroups: [pid_t: ForegroundProcessGroupSnapshot],
+    invocation: InvocationProvider
+  ) -> [pid_t: TerminalProcessIconMatch] {
+    processGroups.compactMapValues { processGroup in
+      match(processGroup: processGroup, invocation: invocation)
     }
   }
 
   private static func match(
-    entries: [ProcessEntry],
+    processGroup: ForegroundProcessGroupSnapshot,
     invocation: InvocationProvider
   ) -> TerminalProcessIconMatch? {
-    let entriesByProcessID = Dictionary(uniqueKeysWithValues: entries.map { ($0.processID, $0) })
-    let candidates = entries.compactMap { entry -> Candidate? in
+    let candidates = processGroup.entries.compactMap { entry -> Candidate? in
       let icon =
         invocation(entry.processID).flatMap {
           TerminalProcessIcon.matching(executableName: $0.executablePath)
@@ -122,8 +129,8 @@ enum TerminalProcessIconRecognizer {
     }
     guard
       let candidate = candidates.max(by: {
-        let leftDepth = depth(of: $0.process, entriesByProcessID: entriesByProcessID)
-        let rightDepth = depth(of: $1.process, entriesByProcessID: entriesByProcessID)
+        let leftDepth = processGroup.depth(of: $0.process)
+        let rightDepth = processGroup.depth(of: $1.process)
         if leftDepth != rightDepth { return leftDepth < rightDepth }
         return $0.process.processID > $1.process.processID
       })
@@ -134,21 +141,6 @@ enum TerminalProcessIconRecognizer {
       icon: candidate.icon,
       processIdentity: candidate.process.identity
     )
-  }
-
-  private static func depth(
-    of process: ProcessEntry,
-    entriesByProcessID: [pid_t: ProcessEntry]
-  ) -> Int {
-    var process = process
-    var processIDs = Set([process.processID])
-    var depth = 0
-    while let parent = entriesByProcessID[process.parentProcessID] {
-      guard processIDs.insert(parent.processID).inserted else { return Int.max }
-      process = parent
-      depth += 1
-    }
-    return depth
   }
 
   private struct Candidate {

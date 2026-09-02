@@ -83,10 +83,9 @@ nonisolated struct TerminalAgentDetectionRuleAccess: Sendable {
 
 nonisolated struct TerminalAgentDetectionSampler: Sendable {
   let resolveForegroundProcessGroups: @Sendable ([UUID: Int32]) async -> [UUID: Int32]
-  let matches:
+  let sample:
     @Sendable (Set<Int32>, [AgentDetectionProcessManifest]) async ->
-      [Int32: AgentDetectionProcessMatch]
-  let processIcons: @Sendable (Set<Int32>) async -> [Int32: TerminalProcessIconMatch]
+      AgentDetectionProcessSample
   let current: @Sendable (Set<TerminalAgentProcessIdentity>) async -> Set<TerminalAgentProcessIdentity>
 }
 
@@ -138,21 +137,13 @@ private actor TerminalAgentDetectionLiveSampler {
     return resolved
   }
 
-  func matches(
+  func sample(
     foregroundProcessGroupIDs: Set<Int32>,
     manifests: [AgentDetectionProcessManifest]
-  ) async -> [Int32: AgentDetectionProcessMatch] {
-    await processSampler.matches(
+  ) async -> AgentDetectionProcessSample {
+    await processSampler.sample(
       foregroundProcessGroupIDs: foregroundProcessGroupIDs,
       manifests: manifests
-    )
-  }
-
-  func processIcons(
-    foregroundProcessGroupIDs: Set<Int32>
-  ) async -> [Int32: TerminalProcessIconMatch] {
-    await processSampler.processIcons(
-      foregroundProcessGroupIDs: foregroundProcessGroupIDs
     )
   }
 
@@ -254,15 +245,10 @@ final class TerminalAgentDetectionController {
         resolveForegroundProcessGroups: { processGroupIDs in
           await liveSampler.resolveForegroundProcessGroups(processGroupIDs)
         },
-        matches: { processGroupIDs, manifests in
-          await liveSampler.matches(
+        sample: { processGroupIDs, manifests in
+          await liveSampler.sample(
             foregroundProcessGroupIDs: processGroupIDs,
             manifests: manifests
-          )
-        },
-        processIcons: { processGroupIDs in
-          await liveSampler.processIcons(
-            foregroundProcessGroupIDs: processGroupIDs
           )
         },
         current: { identities in
@@ -397,9 +383,7 @@ final class TerminalAgentDetectionController {
         )
       }
       let processGroupIDs = Set(resolved.map(\.processGroupID))
-      async let matches = sampler.matches(processGroupIDs, processManifests)
-      async let processIcons = sampler.processIcons(processGroupIDs)
-      let sampledProcesses = await (matches, processIcons)
+      let sampledProcesses = await sampler.sample(processGroupIDs, processManifests)
       guard !Task.isCancelled else { return }
       let currentSnapshot = await rules.snapshot()
       guard !Task.isCancelled else { return }
@@ -409,8 +393,8 @@ final class TerminalAgentDetectionController {
         return
       }
       await applyProcessMatches(
-        sampledProcesses.0,
-        processIcons: sampledProcesses.1,
+        sampledProcesses.agentMatches,
+        processIcons: sampledProcesses.processIcons,
         to: resolved,
         generation: snapshot.generation,
         now: now
