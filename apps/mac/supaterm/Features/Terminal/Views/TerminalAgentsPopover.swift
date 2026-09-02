@@ -296,7 +296,9 @@ private struct TerminalAgentsPopoverRow: View {
     .buttonStyle(.plain)
     .onHover { isHovered = $0 }
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(item.task), \(item.workspace), \(item.status.title)")
+    .accessibilityLabel(
+      "\(item.task), \(item.identity.displayName), \(item.workspace), \(item.status.title)"
+    )
     .accessibilityHint("Focus pane")
   }
 
