@@ -1,9 +1,9 @@
 use crate::protocol::control::ClientId;
 use crate::protocol::terminal::PaneId;
 use crate::workspace::model::{
-    ClientSpaceState, ClientState, ClientWindowState, Group, GroupId, GroupLifetime, ItemId,
-    Placement, RootPlacement, Space, SpaceContent, SpaceId, SplitDirection, SplitId, SplitNode,
-    SplitPlacement, Tab, TabId, ValidationError, Window, WindowId, Workspace,
+    ClientState, ClientWindowState, Group, GroupId, GroupLifetime, ItemId, Placement,
+    PlatformWindowPlacement, RootPlacement, Space, SpaceContent, SpaceId, SplitDirection, SplitId,
+    SplitNode, SplitPlacement, Tab, TabId, ValidationError, Window, WindowId, Workspace,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -56,6 +56,10 @@ pub enum Command {
         group_id: GroupId,
         title: String,
     },
+    RenameTab {
+        tab_id: TabId,
+        title: Option<String>,
+    },
     MoveItems {
         source_window_id: WindowId,
         source_space_id: SpaceId,
@@ -89,6 +93,22 @@ pub enum Command {
         direction: SplitDirection,
         placement: SplitPlacement,
         restart_directory: Option<PathBuf>,
+    },
+    MovePaneToTab {
+        pane_id: PaneId,
+        destination_tab_id: TabId,
+        target_pane_id: PaneId,
+        split_id: SplitId,
+        direction: SplitDirection,
+        placement: SplitPlacement,
+    },
+    MovePaneToNewTab {
+        pane_id: PaneId,
+        tab_id: TabId,
+        destination_window_id: WindowId,
+        destination_space_id: SpaceId,
+        destination: Placement,
+        title: Option<String>,
     },
     ClosePane {
         pane_id: PaneId,
@@ -144,6 +164,43 @@ pub enum Command {
         group_id: GroupId,
         collapsed: bool,
     },
+    SetActiveWindow {
+        client_id: ClientId,
+        window_id: Option<WindowId>,
+    },
+    ReorderWindow {
+        client_id: ClientId,
+        window_id: WindowId,
+        index: usize,
+    },
+    SetWindowOpen {
+        client_id: ClientId,
+        window_id: WindowId,
+        is_open: bool,
+    },
+    SetZoomedPane {
+        client_id: ClientId,
+        window_id: WindowId,
+        tab_id: TabId,
+        pane_id: Option<PaneId>,
+    },
+    SetSidebar {
+        client_id: ClientId,
+        window_id: WindowId,
+        collapsed: bool,
+        width: Option<u16>,
+    },
+    SetAgentPanelHidden {
+        client_id: ClientId,
+        window_id: WindowId,
+        pane_id: PaneId,
+        hidden: bool,
+    },
+    SetPlatformPlacement {
+        client_id: ClientId,
+        window_id: WindowId,
+        placement: Option<PlatformWindowPlacement>,
+    },
     DetachToWindow {
         source_window_id: WindowId,
         source_space_id: SpaceId,
@@ -173,7 +230,14 @@ impl Command {
             | Self::FocusPane { client_id, .. }
             | Self::MarkAgentSeen { client_id, .. }
             | Self::MarkNotificationSeen { client_id, .. }
-            | Self::SetGroupCollapsed { client_id, .. } => Some(*client_id),
+            | Self::SetGroupCollapsed { client_id, .. }
+            | Self::SetActiveWindow { client_id, .. }
+            | Self::ReorderWindow { client_id, .. }
+            | Self::SetWindowOpen { client_id, .. }
+            | Self::SetZoomedPane { client_id, .. }
+            | Self::SetSidebar { client_id, .. }
+            | Self::SetAgentPanelHidden { client_id, .. }
+            | Self::SetPlatformPlacement { client_id, .. } => Some(*client_id),
             _ => None,
         }
     }
@@ -183,12 +247,20 @@ impl Command {
             self,
             Self::RenameSpace { .. }
                 | Self::RenameGroup { .. }
+                | Self::RenameTab { .. }
                 | Self::SelectSpace { .. }
                 | Self::SelectTab { .. }
                 | Self::FocusPane { .. }
                 | Self::MarkAgentSeen { .. }
                 | Self::MarkNotificationSeen { .. }
                 | Self::SetGroupCollapsed { .. }
+                | Self::SetActiveWindow { .. }
+                | Self::ReorderWindow { .. }
+                | Self::SetWindowOpen { .. }
+                | Self::SetZoomedPane { .. }
+                | Self::SetSidebar { .. }
+                | Self::SetAgentPanelHidden { .. }
+                | Self::SetPlatformPlacement { .. }
         )
     }
 }
@@ -375,6 +447,15 @@ fn apply_inner(
             let title = normalized(title)?;
             find_group_mut(workspace, group_id)?.title = title;
         }
+        Command::RenameTab { tab_id, title } => {
+            let tab = workspace
+                .windows
+                .values_mut()
+                .flat_map(|window| window.spaces.values_mut())
+                .find_map(|content| content.tabs.get_mut(&tab_id))
+                .ok_or(ReducerError::NotFound)?;
+            tab.title = title.map(normalized).transpose()?;
+        }
         Command::MoveItems {
             source_window_id,
             source_space_id,
@@ -428,6 +509,42 @@ fn apply_inner(
                 direction,
                 placement,
                 restart_directory,
+            },
+        )?,
+        Command::MovePaneToTab {
+            pane_id,
+            destination_tab_id,
+            target_pane_id,
+            split_id,
+            direction,
+            placement,
+        } => move_pane_to_tab(
+            workspace,
+            MovePaneToTabInput {
+                pane_id,
+                destination_tab_id,
+                target_pane_id,
+                split_id,
+                direction,
+                placement,
+            },
+        )?,
+        Command::MovePaneToNewTab {
+            pane_id,
+            tab_id,
+            destination_window_id,
+            destination_space_id,
+            destination,
+            title,
+        } => move_pane_to_new_tab(
+            workspace,
+            MovePaneToNewTabInput {
+                pane_id,
+                tab_id,
+                destination_window_id,
+                destination_space_id,
+                destination,
+                title,
             },
         )?,
         Command::ClosePane { pane_id } => {
@@ -525,6 +642,43 @@ fn apply_inner(
         } => set_group_collapsed(
             workspace, clients, client_id, window_id, space_id, group_id, collapsed,
         )?,
+        Command::SetActiveWindow {
+            client_id,
+            window_id,
+        } => set_active_window(clients, client_id, window_id)?,
+        Command::ReorderWindow {
+            client_id,
+            window_id,
+            index,
+        } => reorder_window(clients, client_id, window_id, index)?,
+        Command::SetWindowOpen {
+            client_id,
+            window_id,
+            is_open,
+        } => set_window_open(clients, client_id, window_id, is_open)?,
+        Command::SetZoomedPane {
+            client_id,
+            window_id,
+            tab_id,
+            pane_id,
+        } => set_zoomed_pane(workspace, clients, client_id, window_id, tab_id, pane_id)?,
+        Command::SetSidebar {
+            client_id,
+            window_id,
+            collapsed,
+            width,
+        } => set_sidebar(clients, client_id, window_id, collapsed, width)?,
+        Command::SetAgentPanelHidden {
+            client_id,
+            window_id,
+            pane_id,
+            hidden,
+        } => set_agent_panel_hidden(workspace, clients, client_id, window_id, pane_id, hidden)?,
+        Command::SetPlatformPlacement {
+            client_id,
+            window_id,
+            placement,
+        } => set_platform_placement(clients, client_id, window_id, placement)?,
         Command::DetachToWindow {
             source_window_id,
             source_space_id,
@@ -564,11 +718,7 @@ fn add_space(
     for window in workspace.windows.values_mut() {
         window.spaces.insert(space_id, SpaceContent::default());
     }
-    for client in clients {
-        for window in client.windows.values_mut() {
-            window.spaces.insert(space_id, ClientSpaceState::default());
-        }
-    }
+    let _ = clients;
     Ok(())
 }
 
@@ -592,8 +742,14 @@ fn delete_space(
     }
     for client in clients {
         for window in client.windows.values_mut() {
-            window.spaces.remove(&space_id);
+            window.selected_tab_by_space.remove(&space_id);
+            window.previous_tab_by_space.remove(&space_id);
+            window.collapsed_groups_by_space.remove(&space_id);
+            if window.previous_space_id == Some(space_id) {
+                window.previous_space_id = None;
+            }
             if window.displayed_space_id == space_id {
+                window.previous_space_id = None;
                 window.displayed_space_id = replacement;
             }
         }
@@ -623,17 +779,10 @@ fn add_window(
         },
     );
     for client in clients {
-        client.windows.insert(
-            window_id,
-            ClientWindowState {
-                displayed_space_id: first_space,
-                spaces: workspace
-                    .spaces
-                    .iter()
-                    .map(|space| (space.id, ClientSpaceState::default()))
-                    .collect(),
-            },
-        );
+        client.window_order.push(window_id);
+        client
+            .windows
+            .insert(window_id, ClientWindowState::new(first_space));
     }
     Ok(())
 }
@@ -652,6 +801,17 @@ fn close_window(
         .ok_or(ReducerError::NotFound)?;
     for client in clients {
         client.windows.remove(&window_id);
+        client
+            .window_order
+            .retain(|candidate| *candidate != window_id);
+        if client.active_window_id == Some(window_id) {
+            client.active_window_id = client.window_order.iter().copied().find(|candidate| {
+                client
+                    .windows
+                    .get(candidate)
+                    .is_some_and(|window| window.is_open)
+            });
+        }
     }
     Ok(())
 }
@@ -1095,12 +1255,19 @@ fn close_tab(
         .or_else(|| remaining.last().copied());
     for client in clients {
         if client.selected_tab(window_id, space_id) == Some(tab_id)
-            && let Some(space) = client
-                .windows
-                .get_mut(&window_id)
-                .and_then(|window| window.spaces.get_mut(&space_id))
+            && let Some(window) = client.windows.get_mut(&window_id)
         {
-            space.selected_tab_id = replacement;
+            if let Some(replacement) = replacement {
+                window.selected_tab_by_space.insert(space_id, replacement);
+            } else {
+                window.selected_tab_by_space.remove(&space_id);
+            }
+        }
+        if let Some(window) = client.windows.get_mut(&window_id) {
+            window.previous_tab_by_space.retain(|_, id| *id != tab_id);
+            window.focused_pane_by_tab.remove(&tab_id);
+            window.previous_pane_by_tab.remove(&tab_id);
+            window.zoomed_pane_by_tab.remove(&tab_id);
         }
     }
     Ok(())
@@ -1209,6 +1376,166 @@ fn insert_split(
     }
 }
 
+struct MovePaneToTabInput {
+    pane_id: PaneId,
+    destination_tab_id: TabId,
+    target_pane_id: PaneId,
+    split_id: SplitId,
+    direction: SplitDirection,
+    placement: SplitPlacement,
+}
+
+fn move_pane_to_tab(
+    workspace: &mut Workspace,
+    input: MovePaneToTabInput,
+) -> Result<(), ReducerError> {
+    let MovePaneToTabInput {
+        pane_id,
+        destination_tab_id,
+        target_pane_id,
+        split_id,
+        direction,
+        placement,
+    } = input;
+    if pane_id == target_pane_id || workspace.split(split_id).is_some() {
+        return Err(ReducerError::InvalidPlacement);
+    }
+    if !workspace
+        .tab(destination_tab_id)
+        .is_some_and(|tab| tab.root.contains_pane(target_pane_id))
+    {
+        return Err(ReducerError::NotFound);
+    }
+    let extracted = extract_pane(workspace, pane_id)?;
+    let tab = workspace
+        .windows
+        .values_mut()
+        .flat_map(|window| window.spaces.values_mut())
+        .find_map(|content| content.tabs.get_mut(&destination_tab_id))
+        .ok_or(ReducerError::NotFound)?;
+    if !insert_split(
+        &mut tab.root,
+        target_pane_id,
+        extracted.node,
+        split_id,
+        direction,
+        placement,
+    ) {
+        return Err(ReducerError::NotFound);
+    }
+    remove_empty_window(workspace, extracted.window_id);
+    Ok(())
+}
+
+struct MovePaneToNewTabInput {
+    pane_id: PaneId,
+    tab_id: TabId,
+    destination_window_id: WindowId,
+    destination_space_id: SpaceId,
+    destination: Placement,
+    title: Option<String>,
+}
+
+fn move_pane_to_new_tab(
+    workspace: &mut Workspace,
+    input: MovePaneToNewTabInput,
+) -> Result<(), ReducerError> {
+    let MovePaneToNewTabInput {
+        pane_id,
+        tab_id,
+        destination_window_id,
+        destination_space_id,
+        destination,
+        title,
+    } = input;
+    if workspace.tab(tab_id).is_some()
+        || workspace
+            .content(destination_window_id, destination_space_id)
+            .is_none()
+    {
+        return Err(ReducerError::AlreadyExists);
+    }
+    let title = title.map(normalized).transpose()?;
+    let extracted = extract_pane(workspace, pane_id)?;
+    let content = workspace
+        .content_mut(destination_window_id, destination_space_id)
+        .ok_or(ReducerError::NotFound)?;
+    insert_items(content, &[ItemId::Tab(tab_id)], destination)?;
+    content.tabs.insert(
+        tab_id,
+        Tab {
+            id: tab_id,
+            title,
+            root: extracted.node,
+        },
+    );
+    remove_empty_window(workspace, extracted.window_id);
+    Ok(())
+}
+
+struct ExtractedPane {
+    window_id: WindowId,
+    node: SplitNode,
+}
+
+fn extract_pane(workspace: &mut Workspace, pane_id: PaneId) -> Result<ExtractedPane, ReducerError> {
+    let (window_id, space_id, tab_id, leaves, node) = workspace
+        .windows
+        .iter()
+        .flat_map(|(window_id, window)| {
+            window.spaces.iter().flat_map(move |(space_id, content)| {
+                content.tabs.values().filter_map(move |tab| {
+                    tab.root.find_pane(pane_id).map(|node| {
+                        (
+                            *window_id,
+                            *space_id,
+                            tab.id,
+                            tab.root.leaves(),
+                            node.clone(),
+                        )
+                    })
+                })
+            })
+        })
+        .next()
+        .ok_or(ReducerError::NotFound)?;
+    let content = workspace
+        .content_mut(window_id, space_id)
+        .ok_or(ReducerError::NotFound)?;
+    if leaves.len() == 1 {
+        let source_group = match content.location(ItemId::Tab(tab_id)) {
+            Some(Placement::Group { group_id, .. }) => Some(group_id),
+            Some(Placement::Root(_)) => None,
+            None => return Err(ReducerError::NotFound),
+        };
+        remove_item(content, ItemId::Tab(tab_id));
+        content.tabs.remove(&tab_id);
+        if let Some(group_id) = source_group {
+            delete_empty_automatic_groups(content, &BTreeSet::from([group_id]));
+        }
+    } else {
+        let tab = content
+            .tabs
+            .get_mut(&tab_id)
+            .ok_or(ReducerError::NotFound)?;
+        tab.root = remove_pane(tab.root.clone(), pane_id).ok_or(ReducerError::NotFound)?;
+    }
+    Ok(ExtractedPane { window_id, node })
+}
+
+fn remove_empty_window(workspace: &mut Workspace, window_id: WindowId) {
+    if workspace.windows.len() > 1
+        && workspace.windows.get(&window_id).is_some_and(|window| {
+            window
+                .spaces
+                .values()
+                .all(|content| content.tabs.is_empty())
+        })
+    {
+        workspace.windows.remove(&window_id);
+    }
+}
+
 fn close_pane(
     workspace: &mut Workspace,
     clients: &mut [ClientState],
@@ -1251,17 +1578,23 @@ fn close_pane(
         .ok_or(ReducerError::NotFound)?;
     tab.root = remove_pane(tab.root.clone(), pane_id).ok_or(ReducerError::NotFound)?;
     for client in clients {
-        if let Some(space) = client
-            .windows
-            .get_mut(&window_id)
-            .and_then(|window| window.spaces.get_mut(&space_id))
-            && space.focused_panes.get(&tab_id) == Some(&pane_id)
+        if let Some(window) = client.windows.get_mut(&window_id)
+            && window.focused_pane_by_tab.get(&tab_id) == Some(&pane_id)
         {
             if let Some(focus) = focus {
-                space.focused_panes.insert(tab_id, focus);
+                window.focused_pane_by_tab.insert(tab_id, focus);
             } else {
-                space.focused_panes.remove(&tab_id);
+                window.focused_pane_by_tab.remove(&tab_id);
             }
+        }
+        if let Some(window) = client.windows.get_mut(&window_id) {
+            window
+                .previous_pane_by_tab
+                .retain(|_, candidate| *candidate != pane_id);
+            window
+                .zoomed_pane_by_tab
+                .retain(|_, candidate| *candidate != pane_id);
+            window.hidden_agent_panels.remove(&pane_id);
         }
     }
     Ok(ReducerResult {
@@ -1420,11 +1753,14 @@ fn select_space(
     if workspace.content(window_id, space_id).is_none() {
         return Err(ReducerError::NotFound);
     }
-    client_mut(clients, client_id)?
+    let window = client_mut(clients, client_id)?
         .windows
         .get_mut(&window_id)
-        .ok_or(ReducerError::NotFound)?
-        .displayed_space_id = space_id;
+        .ok_or(ReducerError::NotFound)?;
+    if window.displayed_space_id != space_id {
+        window.previous_space_id = Some(window.displayed_space_id);
+        window.displayed_space_id = space_id;
+    }
     Ok(())
 }
 
@@ -1442,14 +1778,21 @@ fn select_tab(
     if !content.tabs.contains_key(&tab_id) {
         return Err(ReducerError::NotFound);
     }
-    let state = client_mut(clients, client_id)?
+    let window = client_mut(clients, client_id)?
         .windows
         .get_mut(&window_id)
-        .and_then(|window| window.spaces.get_mut(&space_id))
         .ok_or(ReducerError::NotFound)?;
-    state.selected_tab_id = Some(tab_id);
+    if let Some(previous) = window.selected_tab_by_space.insert(space_id, tab_id)
+        && previous != tab_id
+    {
+        window.previous_tab_by_space.insert(space_id, previous);
+    }
     if let Some(Placement::Group { group_id, .. }) = content.location(ItemId::Tab(tab_id)) {
-        state.collapsed_group_ids.remove(&group_id);
+        window
+            .collapsed_groups_by_space
+            .entry(space_id)
+            .or_default()
+            .remove(&group_id);
     }
     Ok(())
 }
@@ -1470,13 +1813,15 @@ fn focus_pane(
     {
         return Err(ReducerError::NotFound);
     }
-    client_mut(clients, client_id)?
+    let window = client_mut(clients, client_id)?
         .windows
         .get_mut(&window_id)
-        .and_then(|window| window.spaces.get_mut(&space_id))
-        .ok_or(ReducerError::NotFound)?
-        .focused_panes
-        .insert(tab_id, pane_id);
+        .ok_or(ReducerError::NotFound)?;
+    if let Some(previous) = window.focused_pane_by_tab.insert(tab_id, pane_id)
+        && previous != pane_id
+    {
+        window.previous_pane_by_tab.insert(tab_id, previous);
+    }
     Ok(())
 }
 
@@ -1495,17 +1840,173 @@ fn set_group_collapsed(
     {
         return Err(ReducerError::NotFound);
     }
-    let groups = &mut client_mut(clients, client_id)?
+    let groups = client_mut(clients, client_id)?
         .windows
         .get_mut(&window_id)
-        .and_then(|window| window.spaces.get_mut(&space_id))
         .ok_or(ReducerError::NotFound)?
-        .collapsed_group_ids;
+        .collapsed_groups_by_space
+        .entry(space_id)
+        .or_default();
     if collapsed {
         groups.insert(group_id);
     } else {
         groups.remove(&group_id);
     }
+    Ok(())
+}
+
+fn set_active_window(
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    window_id: Option<WindowId>,
+) -> Result<(), ReducerError> {
+    let client = client_mut(clients, client_id)?;
+    if window_id.is_some_and(|window_id| {
+        !client
+            .windows
+            .get(&window_id)
+            .is_some_and(|window| window.is_open)
+    }) {
+        return Err(ReducerError::NotFound);
+    }
+    client.active_window_id = window_id;
+    Ok(())
+}
+
+fn reorder_window(
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    window_id: WindowId,
+    index: usize,
+) -> Result<(), ReducerError> {
+    let client = client_mut(clients, client_id)?;
+    let source = client
+        .window_order
+        .iter()
+        .position(|candidate| *candidate == window_id)
+        .ok_or(ReducerError::NotFound)?;
+    let window_id = client.window_order.remove(source);
+    let destination = index.min(client.window_order.len());
+    client.window_order.insert(destination, window_id);
+    Ok(())
+}
+
+fn set_window_open(
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    window_id: WindowId,
+    is_open: bool,
+) -> Result<(), ReducerError> {
+    let client = client_mut(clients, client_id)?;
+    client
+        .windows
+        .get_mut(&window_id)
+        .ok_or(ReducerError::NotFound)?
+        .is_open = is_open;
+    if is_open {
+        client.active_window_id = Some(window_id);
+    } else if client.active_window_id == Some(window_id) {
+        client.active_window_id = client.window_order.iter().copied().find(|candidate| {
+            client
+                .windows
+                .get(candidate)
+                .is_some_and(|window| window.is_open)
+        });
+    }
+    Ok(())
+}
+
+fn set_zoomed_pane(
+    workspace: &Workspace,
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    window_id: WindowId,
+    tab_id: TabId,
+    pane_id: Option<PaneId>,
+) -> Result<(), ReducerError> {
+    if !workspace.windows.get(&window_id).is_some_and(|window| {
+        window.spaces.values().any(|content| {
+            content
+                .tabs
+                .get(&tab_id)
+                .is_some_and(|tab| pane_id.is_none_or(|pane_id| tab.root.contains_pane(pane_id)))
+        })
+    }) {
+        return Err(ReducerError::NotFound);
+    }
+    let zoomed = &mut client_mut(clients, client_id)?
+        .windows
+        .get_mut(&window_id)
+        .ok_or(ReducerError::NotFound)?
+        .zoomed_pane_by_tab;
+    if let Some(pane_id) = pane_id {
+        zoomed.insert(tab_id, pane_id);
+    } else {
+        zoomed.remove(&tab_id);
+    }
+    Ok(())
+}
+
+fn set_sidebar(
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    window_id: WindowId,
+    collapsed: bool,
+    width: Option<u16>,
+) -> Result<(), ReducerError> {
+    if width == Some(0) {
+        return Err(ReducerError::InvalidPlacement);
+    }
+    let window = client_mut(clients, client_id)?
+        .windows
+        .get_mut(&window_id)
+        .ok_or(ReducerError::NotFound)?;
+    window.sidebar_collapsed = collapsed;
+    window.sidebar_width = width;
+    Ok(())
+}
+
+fn set_agent_panel_hidden(
+    workspace: &Workspace,
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    window_id: WindowId,
+    pane_id: PaneId,
+    hidden: bool,
+) -> Result<(), ReducerError> {
+    if !workspace.windows.get(&window_id).is_some_and(|window| {
+        window
+            .spaces
+            .values()
+            .flat_map(|content| content.tabs.values())
+            .any(|tab| tab.root.contains_pane(pane_id))
+    }) {
+        return Err(ReducerError::NotFound);
+    }
+    let panels = &mut client_mut(clients, client_id)?
+        .windows
+        .get_mut(&window_id)
+        .ok_or(ReducerError::NotFound)?
+        .hidden_agent_panels;
+    if hidden {
+        panels.insert(pane_id);
+    } else {
+        panels.remove(&pane_id);
+    }
+    Ok(())
+}
+
+fn set_platform_placement(
+    clients: &mut [ClientState],
+    client_id: ClientId,
+    window_id: WindowId,
+    placement: Option<PlatformWindowPlacement>,
+) -> Result<(), ReducerError> {
+    client_mut(clients, client_id)?
+        .windows
+        .get_mut(&window_id)
+        .ok_or(ReducerError::NotFound)?
+        .platform_placement = placement;
     Ok(())
 }
 
@@ -1661,6 +2162,44 @@ fn repair_clients(workspace: &Workspace, clients: &mut [ClientState]) {
     let valid_windows: BTreeSet<_> = workspace.windows.keys().copied().collect();
     let valid_spaces: BTreeSet<_> = workspace.spaces.iter().map(|space| space.id).collect();
     let first_space = workspace.spaces[0].id;
+    let tab_locations: BTreeMap<_, _> = workspace
+        .windows
+        .iter()
+        .flat_map(|(window_id, window)| {
+            window.spaces.iter().flat_map(move |(space_id, content)| {
+                content
+                    .tabs
+                    .keys()
+                    .map(move |tab_id| (*tab_id, (*window_id, *space_id)))
+            })
+        })
+        .collect();
+    let pane_locations: BTreeMap<_, _> = workspace
+        .windows
+        .iter()
+        .flat_map(|(window_id, window)| {
+            window.spaces.values().flat_map(move |content| {
+                content.tabs.iter().flat_map(move |(tab_id, tab)| {
+                    tab.root
+                        .leaves()
+                        .into_iter()
+                        .map(move |pane_id| (pane_id, (*window_id, *tab_id)))
+                })
+            })
+        })
+        .collect();
+    let group_locations: BTreeMap<_, _> = workspace
+        .windows
+        .iter()
+        .flat_map(|(window_id, window)| {
+            window.spaces.iter().flat_map(move |(space_id, content)| {
+                content
+                    .groups
+                    .keys()
+                    .map(move |group_id| (*group_id, (*window_id, *space_id)))
+            })
+        })
+        .collect();
     for client in clients {
         let pane_ids: BTreeSet<_> = workspace.pane_ids().collect();
         client
@@ -1672,34 +2211,191 @@ fn repair_clients(workspace: &Workspace, clients: &mut [ClientState]) {
         client
             .windows
             .retain(|window_id, _| valid_windows.contains(window_id));
-        for (window_id, window_state) in &mut client.windows {
-            window_state
-                .spaces
-                .retain(|space_id, _| valid_spaces.contains(space_id));
-            for space_id in &valid_spaces {
-                window_state.spaces.entry(*space_id).or_default();
+        client
+            .window_order
+            .retain(|window_id| valid_windows.contains(window_id));
+        for window_id in workspace.windows.keys() {
+            client
+                .windows
+                .entry(*window_id)
+                .or_insert_with(|| ClientWindowState::new(first_space));
+            if !client.window_order.contains(window_id) {
+                client.window_order.push(*window_id);
             }
+        }
+        let selected_tabs: Vec<_> = client
+            .windows
+            .values()
+            .flat_map(|state| state.selected_tab_by_space.values().copied())
+            .collect();
+        let previous_tabs: Vec<_> = client
+            .windows
+            .values()
+            .flat_map(|state| state.previous_tab_by_space.values().copied())
+            .collect();
+        let focused_panes: Vec<_> = client
+            .windows
+            .values()
+            .flat_map(|state| {
+                state
+                    .focused_pane_by_tab
+                    .iter()
+                    .map(|value| (*value.0, *value.1))
+            })
+            .collect();
+        let previous_panes: Vec<_> = client
+            .windows
+            .values()
+            .flat_map(|state| {
+                state
+                    .previous_pane_by_tab
+                    .iter()
+                    .map(|value| (*value.0, *value.1))
+            })
+            .collect();
+        let zoomed_panes: Vec<_> = client
+            .windows
+            .values()
+            .flat_map(|state| {
+                state
+                    .zoomed_pane_by_tab
+                    .iter()
+                    .map(|value| (*value.0, *value.1))
+            })
+            .collect();
+        let collapsed_groups: Vec<_> = client
+            .windows
+            .values()
+            .flat_map(|state| {
+                state
+                    .collapsed_groups_by_space
+                    .values()
+                    .flat_map(|groups| groups.iter().copied())
+            })
+            .collect();
+        let hidden_panels: Vec<_> = client
+            .windows
+            .values()
+            .flat_map(|state| state.hidden_agent_panels.iter().copied())
+            .collect();
+        for (window_id, window_state) in &mut client.windows {
             if !valid_spaces.contains(&window_state.displayed_space_id) {
                 window_state.displayed_space_id = first_space;
             }
-            for (space_id, space_state) in &mut window_state.spaces {
-                let content = &workspace.windows[window_id].spaces[space_id];
-                if space_state
-                    .selected_tab_id
-                    .is_some_and(|tab_id| !content.tabs.contains_key(&tab_id))
-                {
-                    space_state.selected_tab_id = content.flat_tabs().first().copied();
-                }
-                space_state
-                    .collapsed_group_ids
-                    .retain(|group_id| content.groups.contains_key(group_id));
-                space_state.focused_panes.retain(|tab_id, pane_id| {
-                    content
-                        .tabs
-                        .get(tab_id)
-                        .is_some_and(|tab| tab.root.contains_pane(*pane_id))
-                });
+            if window_state
+                .previous_space_id
+                .is_some_and(|space_id| !valid_spaces.contains(&space_id))
+            {
+                window_state.previous_space_id = None;
             }
+            window_state.selected_tab_by_space.clear();
+            window_state.previous_tab_by_space.clear();
+            window_state.focused_pane_by_tab.clear();
+            window_state.previous_pane_by_tab.clear();
+            window_state.zoomed_pane_by_tab.clear();
+            window_state.collapsed_groups_by_space.clear();
+            window_state.hidden_agent_panels.clear();
+            for space_id in &valid_spaces {
+                let content = &workspace.windows[window_id].spaces[space_id];
+                if let Some(tab_id) = content.flat_tabs().first().copied() {
+                    window_state.selected_tab_by_space.insert(*space_id, tab_id);
+                }
+                for tab in content.tabs.values() {
+                    if let Some(pane_id) = tab.root.leaves().first().copied() {
+                        window_state.focused_pane_by_tab.insert(tab.id, pane_id);
+                    }
+                }
+            }
+        }
+        for tab_id in selected_tabs {
+            if let Some((window_id, space_id)) = tab_locations.get(&tab_id) {
+                client
+                    .windows
+                    .get_mut(window_id)
+                    .unwrap()
+                    .selected_tab_by_space
+                    .insert(*space_id, tab_id);
+            }
+        }
+        for tab_id in previous_tabs {
+            if let Some((window_id, space_id)) = tab_locations.get(&tab_id) {
+                let state = client.windows.get_mut(window_id).unwrap();
+                if state.selected_tab_by_space.get(space_id) != Some(&tab_id) {
+                    state.previous_tab_by_space.insert(*space_id, tab_id);
+                }
+            }
+        }
+        for (tab_id, pane_id) in focused_panes {
+            if let Some((window_id, owner_tab_id)) = pane_locations.get(&pane_id)
+                && *owner_tab_id == tab_id
+            {
+                client
+                    .windows
+                    .get_mut(window_id)
+                    .unwrap()
+                    .focused_pane_by_tab
+                    .insert(tab_id, pane_id);
+            }
+        }
+        for (tab_id, pane_id) in previous_panes {
+            if let Some((window_id, owner_tab_id)) = pane_locations.get(&pane_id)
+                && *owner_tab_id == tab_id
+                && client.windows[window_id].focused_pane_by_tab.get(&tab_id) != Some(&pane_id)
+            {
+                client
+                    .windows
+                    .get_mut(window_id)
+                    .unwrap()
+                    .previous_pane_by_tab
+                    .insert(tab_id, pane_id);
+            }
+        }
+        for (tab_id, pane_id) in zoomed_panes {
+            if let Some((window_id, owner_tab_id)) = pane_locations.get(&pane_id)
+                && *owner_tab_id == tab_id
+            {
+                client
+                    .windows
+                    .get_mut(window_id)
+                    .unwrap()
+                    .zoomed_pane_by_tab
+                    .insert(tab_id, pane_id);
+            }
+        }
+        for group_id in collapsed_groups {
+            if let Some((window_id, space_id)) = group_locations.get(&group_id) {
+                client
+                    .windows
+                    .get_mut(window_id)
+                    .unwrap()
+                    .collapsed_groups_by_space
+                    .entry(*space_id)
+                    .or_default()
+                    .insert(group_id);
+            }
+        }
+        for pane_id in hidden_panels {
+            if let Some((window_id, _)) = pane_locations.get(&pane_id) {
+                client
+                    .windows
+                    .get_mut(window_id)
+                    .unwrap()
+                    .hidden_agent_panels
+                    .insert(pane_id);
+            }
+        }
+        if client.active_window_id.is_some_and(|window_id| {
+            !client
+                .windows
+                .get(&window_id)
+                .is_some_and(|window| window.is_open)
+        }) {
+            client.active_window_id = client.window_order.iter().copied().find(|window_id| {
+                client
+                    .windows
+                    .get(window_id)
+                    .is_some_and(|window| window.is_open)
+            });
         }
     }
 }

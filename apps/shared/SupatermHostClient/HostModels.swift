@@ -189,20 +189,77 @@ public enum HostSplitDirection: String, Codable, Equatable, Sendable {
 
 public struct HostClientState: Codable, Equatable, Sendable, Identifiable {
   public let id: HostClientID
+  public let activeWindowID: HostWindowID?
+  public let windowOrder: [HostWindowID]
   public let windows: [String: HostClientWindowState]
   public let seenAgentRevisionByPane: [String: UInt64]
   public let seenNotificationRevisionByPane: [String: UInt64]
+
+  public func window(_ id: HostWindowID) -> HostClientWindowState? {
+    windows[id.uuidString.lowercased()] ?? windows[id.uuidString.uppercased()]
+  }
 }
 
 public struct HostClientWindowState: Codable, Equatable, Sendable {
+  public let isOpen: Bool
   public let displayedSpaceID: HostSpaceID
-  public let spaces: [String: HostClientSpaceState]
+  public let previousSpaceID: HostSpaceID?
+  public let selectedTabBySpace: [String: HostTabID]
+  public let previousTabBySpace: [String: HostTabID]
+  public let focusedPaneByTab: [String: HostPaneID]
+  public let previousPaneByTab: [String: HostPaneID]
+  public let zoomedPaneByTab: [String: HostPaneID]
+  public let collapsedGroupsBySpace: [String: Set<HostGroupID>]
+  public let sidebarCollapsed: Bool
+  public let sidebarWidth: UInt16?
+  public let hiddenAgentPanels: Set<HostPaneID>
+  public let platformPlacement: HostPlatformWindowPlacement?
+
+  public func selectedTab(_ spaceID: HostSpaceID) -> HostTabID? {
+    selectedTabBySpace[spaceID.uuidString.lowercased()]
+      ?? selectedTabBySpace[spaceID.uuidString.uppercased()]
+  }
+
+  public func focusedPane(_ tabID: HostTabID) -> HostPaneID? {
+    focusedPaneByTab[tabID.uuidString.lowercased()]
+      ?? focusedPaneByTab[tabID.uuidString.uppercased()]
+  }
+
+  public func zoomedPane(_ tabID: HostTabID) -> HostPaneID? {
+    zoomedPaneByTab[tabID.uuidString.lowercased()]
+      ?? zoomedPaneByTab[tabID.uuidString.uppercased()]
+  }
+
+  public func collapsedGroups(_ spaceID: HostSpaceID) -> Set<HostGroupID> {
+    collapsedGroupsBySpace[spaceID.uuidString.lowercased()]
+      ?? collapsedGroupsBySpace[spaceID.uuidString.uppercased()]
+      ?? []
+  }
 }
 
-public struct HostClientSpaceState: Codable, Equatable, Sendable {
-  public let selectedTabID: HostTabID?
-  public let collapsedGroupIDs: Set<HostGroupID>
-  public let focusedPanes: [String: HostPaneID]
+public struct HostPlatformWindowPlacement: Codable, Equatable, Sendable {
+  public let platform: String
+  public let x: Int32
+  public let y: Int32
+  public let width: UInt32
+  public let height: UInt32
+  public let displayID: String?
+
+  public init(
+    platform: String,
+    x: Int32,
+    y: Int32,
+    width: UInt32,
+    height: UInt32,
+    displayID: String?
+  ) {
+    self.platform = platform
+    self.x = x
+    self.y = y
+    self.width = width
+    self.height = height
+    self.displayID = displayID
+  }
 }
 
 public struct HostProcessIdentity: Codable, Equatable, Sendable {

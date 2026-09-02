@@ -27,7 +27,12 @@ final class HostWindowReconciler {
       detachAll()
       return
     }
-    let windows = Dictionary(uniqueKeysWithValues: projection.workspace.windows.values.map { ($0.id, $0) })
+    let windows: [HostWindowID: HostWindow] = Dictionary(
+      uniqueKeysWithValues: projection.workspace.windows.values.compactMap { window in
+        guard client.window(window.id)?.isOpen == true else { return nil }
+        return Optional((window.id, window))
+      }
+    )
     let desired = Set(windows.keys)
     for windowID in presentations.keys where !desired.contains(windowID) {
       presentations.removeValue(forKey: windowID)?.detach()
@@ -57,6 +62,7 @@ final class HostWindowReconciler {
 final class HostClientRuntime {
   let connection: HostConnection
   let projection = HostProjection()
+  var onProjectionChange: ((HostProjectionState) -> Void)?
 
   private let windows: HostWindowReconciler
   private var eventsTask: Task<Void, Never>?
@@ -96,6 +102,9 @@ final class HostClientRuntime {
       do {
         try projection.apply(subscription)
         windows.reconcile(projection.state)
+        if let state = projection.state {
+          onProjectionChange?(state)
+        }
       } catch {
         projection.clear()
         windows.reconcile(nil)
@@ -113,11 +122,5 @@ final class HostClientRuntime {
 
   isolated deinit {
     eventsTask?.cancel()
-  }
-}
-
-extension HostClientState {
-  fileprivate func window(_ id: HostWindowID) -> HostClientWindowState? {
-    windows[id.uuidString.lowercased()] ?? windows[id.uuidString.uppercased()]
   }
 }

@@ -110,14 +110,14 @@ private actor HostPaneAttachment {
       if pendingInput.count + data.count <= 64 * 1024 {
         pendingInput.append(data)
       } else {
-        await fail(HostPaneAttachmentError.inputOverflow)
+        await disconnect(HostPaneAttachmentError.inputOverflow)
       }
       return
     }
     do {
       try await connection.input(streamID: streamID, bytes: data)
     } catch {
-      await fail(error)
+      await disconnect(error)
     }
   }
 
@@ -133,24 +133,29 @@ private actor HostPaneAttachment {
     do {
       try await connection.resize(streamID: streamID, viewport: viewport)
     } catch {
-      await fail(error)
+      await disconnect(error)
     }
   }
 
   private func run() async {
-    do {
-      let attachment = try await connection.attach(paneID)
-      streamID = attachment.streamID
-      for await event in attachment.events {
-        try Task.checkCancellation()
-        try await receive(event)
-      }
-      if !Task.isCancelled {
+    var delay = Duration.milliseconds(25)
+    while !Task.isCancelled {
+      do {
+        let attachment = try await connection.attach(paneID)
+        streamID = attachment.streamID
+        delay = .milliseconds(25)
+        for await event in attachment.events {
+          try Task.checkCancellation()
+          try await receive(event)
+        }
         throw HostPaneAttachmentError.closed
+      } catch is CancellationError {
+        return
+      } catch {
+        await disconnect(error)
+        try? await Task.sleep(for: delay)
+        delay = min(delay * 2, .seconds(1))
       }
-    } catch is CancellationError {
-    } catch {
-      await fail(error)
     }
   }
 
@@ -215,23 +220,24 @@ private actor HostPaneAttachment {
     }
   }
 
-  private func fail(_ error: any Error) async {
-    guard task != nil || streamID != nil else { return }
-    task?.cancel()
-    task = nil
+  private func disconnect(_ error: any Error) async {
     if let streamID {
       await connection.detach(streamID: streamID)
     }
-    reset()
+    resetConnection()
     onFailure(String(describing: error))
   }
 
   private func reset() {
-    streamID = nil
     restore = nil
     write = nil
     pendingInput.removeAll(keepingCapacity: false)
     latestViewport = nil
+    resetConnection()
+  }
+
+  private func resetConnection() {
+    streamID = nil
     nextSequence = nil
     resetSnapshot()
   }

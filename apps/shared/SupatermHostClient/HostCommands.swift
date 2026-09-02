@@ -125,6 +125,7 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
     tabIDs: [HostTabID]
   )
   case renameGroup(groupID: HostGroupID, title: String)
+  case renameTab(tabID: HostTabID, title: String?)
   case moveItems(
     sourceWindowID: HostWindowID,
     sourceSpaceID: HostSpaceID,
@@ -146,6 +147,22 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
     direction: HostSplitDirection,
     placement: HostSplitPlacement,
     restartDirectory: String?
+  )
+  case movePaneToTab(
+    paneID: HostPaneID,
+    destinationTabID: HostTabID,
+    targetPaneID: HostPaneID,
+    splitID: HostSplitID,
+    direction: HostSplitDirection,
+    placement: HostSplitPlacement
+  )
+  case movePaneToNewTab(
+    paneID: HostPaneID,
+    tabID: HostTabID,
+    destinationWindowID: HostWindowID,
+    destinationSpaceID: HostSpaceID,
+    destination: HostPlacement,
+    title: String?
   )
   case closePane(paneID: HostPaneID)
   case setSplitRatio(splitID: HostSplitID, ratio: Double)
@@ -183,6 +200,32 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
     groupID: HostGroupID,
     collapsed: Bool
   )
+  case setActiveWindow(clientID: HostClientID, windowID: HostWindowID?)
+  case reorderWindow(clientID: HostClientID, windowID: HostWindowID, index: Int)
+  case setWindowOpen(clientID: HostClientID, windowID: HostWindowID, isOpen: Bool)
+  case setZoomedPane(
+    clientID: HostClientID,
+    windowID: HostWindowID,
+    tabID: HostTabID,
+    paneID: HostPaneID?
+  )
+  case setSidebar(
+    clientID: HostClientID,
+    windowID: HostWindowID,
+    collapsed: Bool,
+    width: UInt16?
+  )
+  case setAgentPanelHidden(
+    clientID: HostClientID,
+    windowID: HostWindowID,
+    paneID: HostPaneID,
+    hidden: Bool
+  )
+  case setPlatformPlacement(
+    clientID: HostClientID,
+    windowID: HostWindowID,
+    placement: HostPlatformWindowPlacement?
+  )
   case detachToWindow(
     sourceWindowID: HostWindowID,
     sourceSpaceID: HostSpaceID,
@@ -211,6 +254,7 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
     case destinationWindowID
     case destinationSpaceID
     case destination
+    case destinationTabID
     case targetPaneID
     case splitID
     case direction
@@ -219,6 +263,9 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
     case clientID
     case revision
     case collapsed
+    case isOpen
+    case width
+    case hidden
   }
 
   private enum Kind: String, Encodable {
@@ -231,11 +278,14 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
     case createTab = "create_tab"
     case createGroup = "create_group"
     case renameGroup = "rename_group"
+    case renameTab = "rename_tab"
     case moveItems = "move_items"
     case ungroup
     case closeTab = "close_tab"
     case closeGroup = "close_group"
     case splitPane = "split_pane"
+    case movePaneToTab = "move_pane_to_tab"
+    case movePaneToNewTab = "move_pane_to_new_tab"
     case closePane = "close_pane"
     case setSplitRatio = "set_split_ratio"
     case tileTab = "tile_tab"
@@ -246,6 +296,13 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
     case markAgentSeen = "mark_agent_seen"
     case markNotificationSeen = "mark_notification_seen"
     case setGroupCollapsed = "set_group_collapsed"
+    case setActiveWindow = "set_active_window"
+    case reorderWindow = "reorder_window"
+    case setWindowOpen = "set_window_open"
+    case setZoomedPane = "set_zoomed_pane"
+    case setSidebar = "set_sidebar"
+    case setAgentPanelHidden = "set_agent_panel_hidden"
+    case setPlatformPlacement = "set_platform_placement"
     case detachToWindow = "detach_to_window"
     case mergeWindow = "merge_window"
   }
@@ -313,6 +370,10 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
       try container.encode(Kind.renameGroup, forKey: .type)
       try container.encode(groupID, forKey: .groupID)
       try container.encode(title, forKey: .title)
+    case .renameTab(let tabID, let title):
+      try container.encode(Kind.renameTab, forKey: .type)
+      try container.encode(tabID, forKey: .tabID)
+      try container.encode(title, forKey: .title)
     case .moveItems(
       let sourceWindowID,
       let sourceSpaceID,
@@ -374,6 +435,36 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
       try container.encode(direction, forKey: .direction)
       try container.encode(placement, forKey: .placement)
       try container.encodeIfPresent(restartDirectory, forKey: .restartDirectory)
+    case .movePaneToTab(
+      let paneID,
+      let destinationTabID,
+      let targetPaneID,
+      let splitID,
+      let direction,
+      let placement
+    ):
+      try container.encode(Kind.movePaneToTab, forKey: .type)
+      try container.encode(paneID, forKey: .paneID)
+      try container.encode(destinationTabID, forKey: .destinationTabID)
+      try container.encode(targetPaneID, forKey: .targetPaneID)
+      try container.encode(splitID, forKey: .splitID)
+      try container.encode(direction, forKey: .direction)
+      try container.encode(placement, forKey: .placement)
+    case .movePaneToNewTab(
+      let paneID,
+      let tabID,
+      let destinationWindowID,
+      let destinationSpaceID,
+      let destination,
+      let title
+    ):
+      try container.encode(Kind.movePaneToNewTab, forKey: .type)
+      try container.encode(paneID, forKey: .paneID)
+      try container.encode(tabID, forKey: .tabID)
+      try container.encode(destinationWindowID, forKey: .destinationWindowID)
+      try container.encode(destinationSpaceID, forKey: .destinationSpaceID)
+      try container.encode(destination, forKey: .destination)
+      try container.encode(title, forKey: .title)
     case .closePane(let paneID):
       try container.encode(Kind.closePane, forKey: .type)
       try container.encode(paneID, forKey: .paneID)
@@ -454,6 +545,43 @@ public enum HostWorkspaceCommand: Encodable, Equatable, Sendable {
       try container.encode(spaceID, forKey: .spaceID)
       try container.encode(groupID, forKey: .groupID)
       try container.encode(collapsed, forKey: .collapsed)
+    case .setActiveWindow(let clientID, let windowID):
+      try container.encode(Kind.setActiveWindow, forKey: .type)
+      try container.encode(clientID, forKey: .clientID)
+      try container.encode(windowID, forKey: .windowID)
+    case .reorderWindow(let clientID, let windowID, let index):
+      try container.encode(Kind.reorderWindow, forKey: .type)
+      try container.encode(clientID, forKey: .clientID)
+      try container.encode(windowID, forKey: .windowID)
+      try container.encode(index, forKey: .index)
+    case .setWindowOpen(let clientID, let windowID, let isOpen):
+      try container.encode(Kind.setWindowOpen, forKey: .type)
+      try container.encode(clientID, forKey: .clientID)
+      try container.encode(windowID, forKey: .windowID)
+      try container.encode(isOpen, forKey: .isOpen)
+    case .setZoomedPane(let clientID, let windowID, let tabID, let paneID):
+      try container.encode(Kind.setZoomedPane, forKey: .type)
+      try container.encode(clientID, forKey: .clientID)
+      try container.encode(windowID, forKey: .windowID)
+      try container.encode(tabID, forKey: .tabID)
+      try container.encode(paneID, forKey: .paneID)
+    case .setSidebar(let clientID, let windowID, let collapsed, let width):
+      try container.encode(Kind.setSidebar, forKey: .type)
+      try container.encode(clientID, forKey: .clientID)
+      try container.encode(windowID, forKey: .windowID)
+      try container.encode(collapsed, forKey: .collapsed)
+      try container.encode(width, forKey: .width)
+    case .setAgentPanelHidden(let clientID, let windowID, let paneID, let hidden):
+      try container.encode(Kind.setAgentPanelHidden, forKey: .type)
+      try container.encode(clientID, forKey: .clientID)
+      try container.encode(windowID, forKey: .windowID)
+      try container.encode(paneID, forKey: .paneID)
+      try container.encode(hidden, forKey: .hidden)
+    case .setPlatformPlacement(let clientID, let windowID, let placement):
+      try container.encode(Kind.setPlatformPlacement, forKey: .type)
+      try container.encode(clientID, forKey: .clientID)
+      try container.encode(windowID, forKey: .windowID)
+      try container.encode(placement, forKey: .placement)
     default:
       return false
     }

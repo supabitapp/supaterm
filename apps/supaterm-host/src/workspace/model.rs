@@ -403,6 +403,15 @@ impl SplitNode {
         }
     }
 
+    pub(crate) fn find_pane(&self, id: PaneId) -> Option<&Self> {
+        match self {
+            Self::Pane { pane_id, .. } => (*pane_id == id).then_some(self),
+            Self::Split { first, second, .. } => {
+                first.find_pane(id).or_else(|| second.find_pane(id))
+            }
+        }
+    }
+
     fn append_leaves(&self, leaves: &mut Vec<PaneId>) {
         match self {
             Self::Pane { pane_id, .. } => leaves.push(*pane_id),
@@ -473,6 +482,8 @@ pub enum SplitPlacement {
 #[serde(deny_unknown_fields)]
 pub struct ClientState {
     pub id: ClientId,
+    pub active_window_id: Option<WindowId>,
+    pub window_order: Vec<WindowId>,
     pub windows: BTreeMap<WindowId, ClientWindowState>,
     pub seen_agent_revision_by_pane: BTreeMap<PaneId, u64>,
     pub seen_notification_revision_by_pane: BTreeMap<PaneId, u64>,
@@ -482,13 +493,9 @@ impl ClientState {
     pub fn new(id: ClientId, window_id: WindowId, space_id: SpaceId) -> Self {
         Self {
             id,
-            windows: BTreeMap::from([(
-                window_id,
-                ClientWindowState {
-                    displayed_space_id: space_id,
-                    spaces: BTreeMap::from([(space_id, ClientSpaceState::default())]),
-                },
-            )]),
+            active_window_id: Some(window_id),
+            window_order: vec![window_id],
+            windows: BTreeMap::from([(window_id, ClientWindowState::new(space_id))]),
             seen_agent_revision_by_pane: BTreeMap::new(),
             seen_notification_revision_by_pane: BTreeMap::new(),
         }
@@ -496,25 +503,15 @@ impl ClientState {
 
     pub fn for_workspace(id: ClientId, workspace: &Workspace) -> Self {
         let first_space = workspace.spaces[0].id;
-        let windows = workspace
-            .windows
-            .keys()
-            .map(|window_id| {
-                (
-                    *window_id,
-                    ClientWindowState {
-                        displayed_space_id: first_space,
-                        spaces: workspace
-                            .spaces
-                            .iter()
-                            .map(|space| (space.id, ClientSpaceState::default()))
-                            .collect(),
-                    },
-                )
-            })
+        let window_order: Vec<_> = workspace.windows.keys().copied().collect();
+        let windows = window_order
+            .iter()
+            .map(|window_id| (*window_id, ClientWindowState::new(first_space)))
             .collect();
         Self {
             id,
+            active_window_id: window_order.first().copied(),
+            window_order,
             windows,
             seen_agent_revision_by_pane: BTreeMap::new(),
             seen_notification_revision_by_pane: BTreeMap::new(),
@@ -524,9 +521,9 @@ impl ClientState {
     pub fn selected_tab(&self, window_id: WindowId, space_id: SpaceId) -> Option<TabId> {
         self.windows
             .get(&window_id)?
-            .spaces
-            .get(&space_id)?
-            .selected_tab_id
+            .selected_tab_by_space
+            .get(&space_id)
+            .copied()
     }
 
     fn validate(&self, workspace: &Workspace) -> Result<(), ValidationError> {
@@ -541,6 +538,21 @@ impl ClientState {
                 "client cursor references missing pane".into(),
             ));
         }
+        let window_ids: BTreeSet<_> = workspace.windows.keys().copied().collect();
+        if self.windows.keys().copied().collect::<BTreeSet<_>>() != window_ids
+            || self.window_order.iter().copied().collect::<BTreeSet<_>>() != window_ids
+            || self.window_order.len() != window_ids.len()
+            || self.active_window_id.is_some_and(|window_id| {
+                !self
+                    .windows
+                    .get(&window_id)
+                    .is_some_and(|window| window.is_open)
+            })
+        {
+            return Err(ValidationError::Invalid(
+                "client window presentation is invalid".into(),
+            ));
+        }
         for (window_id, state) in &self.windows {
             let window = workspace.windows.get(window_id).ok_or_else(|| {
                 ValidationError::Invalid("client references missing window".into())
@@ -550,33 +562,71 @@ impl ClientState {
                     "client displays missing space".into(),
                 ));
             }
-            for (space_id, space_state) in &state.spaces {
-                let content = window.spaces.get(space_id).ok_or_else(|| {
-                    ValidationError::Invalid("client references missing space".into())
-                })?;
-                if space_state
-                    .selected_tab_id
-                    .is_some_and(|tab_id| !content.tabs.contains_key(&tab_id))
-                    || space_state
-                        .collapsed_group_ids
-                        .iter()
-                        .any(|group_id| !content.groups.contains_key(group_id))
-                {
-                    return Err(ValidationError::Invalid(
-                        "client selection is invalid".into(),
-                    ));
-                }
-                for (tab_id, pane_id) in &space_state.focused_panes {
-                    if !content
-                        .tabs
-                        .get(tab_id)
-                        .is_some_and(|tab| tab.root.contains_pane(*pane_id))
+            if state
+                .previous_space_id
+                .is_some_and(|space_id| !window.spaces.contains_key(&space_id))
+                || state.sidebar_width == Some(0)
+                || state
+                    .platform_placement
+                    .as_ref()
+                    .is_some_and(|placement| !placement.is_valid())
+            {
+                return Err(ValidationError::Invalid(
+                    "client window state is invalid".into(),
+                ));
+            }
+            for tabs in [&state.selected_tab_by_space, &state.previous_tab_by_space] {
+                for (space_id, tab_id) in tabs {
+                    if !window
+                        .spaces
+                        .get(space_id)
+                        .is_some_and(|content| content.tabs.contains_key(tab_id))
                     {
                         return Err(ValidationError::Invalid(
-                            "client pane focus is invalid".into(),
+                            "client tab selection is invalid".into(),
                         ));
                     }
                 }
+            }
+            for panes in [
+                &state.focused_pane_by_tab,
+                &state.previous_pane_by_tab,
+                &state.zoomed_pane_by_tab,
+            ] {
+                for (tab_id, pane_id) in panes {
+                    if !window.spaces.values().any(|content| {
+                        content
+                            .tabs
+                            .get(tab_id)
+                            .is_some_and(|tab| tab.root.contains_pane(*pane_id))
+                    }) {
+                        return Err(ValidationError::Invalid(
+                            "client pane selection is invalid".into(),
+                        ));
+                    }
+                }
+            }
+            for (space_id, groups) in &state.collapsed_groups_by_space {
+                if !window.spaces.get(space_id).is_some_and(|content| {
+                    groups
+                        .iter()
+                        .all(|group_id| content.groups.contains_key(group_id))
+                }) {
+                    return Err(ValidationError::Invalid(
+                        "client collapsed groups are invalid".into(),
+                    ));
+                }
+            }
+            if state.hidden_agent_panels.iter().any(|pane_id| {
+                !window
+                    .spaces
+                    .values()
+                    .flat_map(|content| content.tabs.values())
+                    .any(|tab| tab.root.contains_pane(*pane_id))
+            }) {
+                return Err(ValidationError::Invalid(
+                    "client hidden agent panel is invalid".into(),
+                ));
             }
         }
         Ok(())
@@ -586,16 +636,56 @@ impl ClientState {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientWindowState {
+    pub is_open: bool,
     pub displayed_space_id: SpaceId,
-    pub spaces: BTreeMap<SpaceId, ClientSpaceState>,
+    pub previous_space_id: Option<SpaceId>,
+    pub selected_tab_by_space: BTreeMap<SpaceId, TabId>,
+    pub previous_tab_by_space: BTreeMap<SpaceId, TabId>,
+    pub focused_pane_by_tab: BTreeMap<TabId, PaneId>,
+    pub previous_pane_by_tab: BTreeMap<TabId, PaneId>,
+    pub zoomed_pane_by_tab: BTreeMap<TabId, PaneId>,
+    pub collapsed_groups_by_space: BTreeMap<SpaceId, BTreeSet<GroupId>>,
+    pub sidebar_collapsed: bool,
+    pub sidebar_width: Option<u16>,
+    pub hidden_agent_panels: BTreeSet<PaneId>,
+    pub platform_placement: Option<PlatformWindowPlacement>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+impl ClientWindowState {
+    pub fn new(space_id: SpaceId) -> Self {
+        Self {
+            is_open: true,
+            displayed_space_id: space_id,
+            previous_space_id: None,
+            selected_tab_by_space: BTreeMap::new(),
+            previous_tab_by_space: BTreeMap::new(),
+            focused_pane_by_tab: BTreeMap::new(),
+            previous_pane_by_tab: BTreeMap::new(),
+            zoomed_pane_by_tab: BTreeMap::new(),
+            collapsed_groups_by_space: BTreeMap::new(),
+            sidebar_collapsed: false,
+            sidebar_width: None,
+            hidden_agent_panels: BTreeSet::new(),
+            platform_placement: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ClientSpaceState {
-    pub selected_tab_id: Option<TabId>,
-    pub collapsed_group_ids: BTreeSet<GroupId>,
-    pub focused_panes: BTreeMap<TabId, PaneId>,
+pub struct PlatformWindowPlacement {
+    pub platform: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub display_id: Option<String>,
+}
+
+impl PlatformWindowPlacement {
+    fn is_valid(&self) -> bool {
+        !self.platform.trim().is_empty() && self.width > 0 && self.height > 0
+    }
 }
 
 #[derive(Debug, Error, Eq, PartialEq)]

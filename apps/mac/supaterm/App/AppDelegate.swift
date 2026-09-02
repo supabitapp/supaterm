@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private let configurationDiagnosticsWindowController = ConfigurationDiagnosticsWindowController()
   private let globalKeybindManager: GhosttyGlobalKeybindManager
   private let ghosttyRuntime: GhosttyRuntime
+  private let hostWorkspaceController: HostWorkspaceApplicationController
   private let licenseStore: StoreOf<LicenseFeature>
   private let quitConfirmationPresenter: QuitConfirmationPresenter
   private let terminalWindowRegistry: TerminalWindowRegistry
@@ -127,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     self.menuController = menuController
     self.globalKeybindManager = globalKeybindManager
     self.ghosttyRuntime = ghosttyRuntime
+    hostWorkspaceController = HostWorkspaceApplicationController(ghosttyRuntime: ghosttyRuntime)
     self.licenseStore = licenseSystem.licenseStore
     self.quitConfirmationPresenter = quitConfirmationPresenter
     self.terminalWindowRegistry = terminalWindowRegistry
@@ -223,14 +225,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     menuController.install()
     licenseStore.send(.task)
     updateStore.send(.task)
-    appStore.send(.task)
-    repairAgentIntegrations()
-    restoreWindowsAtLaunch()
-    #if SUPATERM_DEMO
-      DemoSeed.decorate(windowControllers.values.map(\.terminal))
-    #endif
-    if zmxSessionsEnabledAtLaunch {
-      reapOrphanZmxSessions()
+    Task { [weak self] in
+      do {
+        try await self?.hostWorkspaceController.start()
+      } catch {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        NSAlert(error: error).beginSheetModal(for: window) { _ in }
+      }
     }
     $lastAppLaunchedDate.withLock {
       $0 = Date()
@@ -289,11 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   func applicationWillTerminate(_ notification: Notification) {
     AppPostHog.capture("app_quit")
-    persistSession(
-      sessionPersistenceState.catalogToPersist(
-        liveCatalog: terminalWindowRegistry.restorationSnapshot()
-      )
-    )
+    hostWorkspaceController.stop()
     globalKeybindManager.disable()
     licenseStore.send(.shutdown)
     updateStore.send(.shutdown)
@@ -339,46 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    if sessionPersistenceState.shortCircuitsTerminateReply {
-      return .terminateNow
-    }
-    let terminatesSessionsForNextQuit = self.terminatesSessionsForNextQuit
-    self.terminatesSessionsForNextQuit = false
-    let bypassesConfirmationForNextQuit = self.bypassesConfirmationForNextQuit
-    self.bypassesConfirmationForNextQuit = false
-    let terminatesSessionsOnQuit = terminatesSessionsForNextQuit || supatermSettings.terminatesSessionsOnQuit
-    let terminalWindow = terminalWindowRegistry.preferredTerminalWindow
-    let terminationPlan = Self.terminationPlan(
-      hasTerminalWindow: terminalWindow != nil,
-      bypassesQuitConfirmation: terminatesSessionsForNextQuit
-        || bypassesConfirmationForNextQuit
-        || terminalWindowRegistry.bypassesQuitConfirmation,
-      terminatesSessionsOnQuit: terminatesSessionsOnQuit
-    ) {
-      guard let terminalWindow else { return .cancel }
-      return quitConfirmationPresenter.confirmQuit(
-        parentWindow: terminalWindow,
-        terminatesSessions: terminatesSessionsOnQuit
-      )
-    }
-    let reply = terminationPlan.reply
-    sessionPersistenceState = .afterTerminationDecision(
-      reply: reply,
-      terminatesSessions: terminationPlan.terminatesSessions,
-      liveCatalog: terminalWindowRegistry.restorationSnapshot()
-    )
-    if reply == .terminateNow && terminationPlan.terminatesSessions {
-      Task { @MainActor in
-        await terminalWindowRegistry.terminateTerminalSessionsAndWait()
-        await terminalWindowRegistry.terminateAllZmxSessionsAndWait()
-        NSApp.reply(toApplicationShouldTerminate: true)
-      }
-      return .terminateLater
-    }
-    if reply == .terminateNow {
-      terminalWindowRegistry.setTerminatesTerminalSessionsOnWindowClose(terminationPlan.terminatesSessions)
-    }
-    return reply
+    .terminateNow
   }
 
   private func activateForWindowPresentation() {
@@ -395,21 +353,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   @discardableResult
   func performNewWindow() -> Bool {
-    let controller = createWindow(
-      launch: .newShell(
-        spaceID: terminalWindowRegistry.preferredSpaceID ?? spaceCatalog.defaultSelectedSpaceID,
-        startupCommand: nil
-      )
-    )
+    Task { [weak self] in
+      try? await self?.hostWorkspaceController.createWindow()
+    }
     AppPostHog.capture("window_created")
     activateForWindowPresentation()
-    controller.window?.makeKeyAndOrderFront(nil)
     return true
   }
 
   @discardableResult
   func performCloseAllWindows() -> Bool {
-    terminalWindowRegistry.requestCloseAllWindows()
+    hostWorkspaceController.closeAllWindows()
   }
 
   @discardableResult
@@ -581,32 +535,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   private func openServiceTabs(workingDirectoryPaths: [String]) {
-    guard let firstPath = workingDirectoryPaths.first else { return }
+    guard !workingDirectoryPaths.isEmpty else { return }
     activateForWindowPresentation()
-
-    guard terminalWindowRegistry.createTabInPreferredWindow(workingDirectoryPath: firstPath) else {
-      let controller = createWindow()
-      controller.terminal.ensureInitialTab(focusing: true, workingDirectoryPath: firstPath)
-      controller.window?.makeKeyAndOrderFront(nil)
-      for path in workingDirectoryPaths.dropFirst() {
-        controller.terminal.createTab(focusing: true, workingDirectoryPath: path)
+    Task { [weak self] in
+      for path in workingDirectoryPaths {
+        try? await self?.hostWorkspaceController.createTab(workingDirectory: path)
+        try? await Task.sleep(for: .milliseconds(25))
       }
-      return
-    }
-
-    for path in workingDirectoryPaths.dropFirst() {
-      terminalWindowRegistry.createTabInPreferredWindow(workingDirectoryPath: path)
     }
   }
 
   private func openServiceWindows(workingDirectoryPaths: [String]) {
     guard !workingDirectoryPaths.isEmpty else { return }
     activateForWindowPresentation()
-
-    for path in workingDirectoryPaths {
-      let controller = createWindow()
-      controller.terminal.ensureInitialTab(focusing: true, workingDirectoryPath: path)
-      controller.window?.makeKeyAndOrderFront(nil)
+    Task { [weak self] in
+      for _ in workingDirectoryPaths {
+        try? await self?.hostWorkspaceController.createWindow()
+        try? await Task.sleep(for: .milliseconds(25))
+      }
     }
   }
 
@@ -688,12 +634,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   private func showExistingWindowOrCreate() -> Bool {
-    if let window = windowControllers.values.compactMap(\.window).first {
-      if window.isMiniaturized {
-        window.deminiaturize(nil)
-      }
+    if hostWorkspaceController.showExistingWindow() {
       activateForWindowPresentation()
-      window.makeKeyAndOrderFront(nil)
       return true
     }
     return performNewWindow()
