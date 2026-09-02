@@ -211,7 +211,7 @@ struct SocketControlCreationTests {
           response: .error(
             id: "new-tab-limit",
             code: "license_required",
-            message: "Free mode allows 5 open tabs. Run `sp license activate` to unlock more."
+            message: "Free mode allows 5 open tabs."
           )
         )
     )

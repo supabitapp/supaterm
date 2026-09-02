@@ -435,7 +435,7 @@ public enum TerminalCreateTabError: Error, Equatable {
   case windowNotFound(Int)
 
   public static func tabLimitMessage(limit: Int) -> String {
-    "Free mode allows \(limit) open tabs. Run `sp license activate` to unlock more."
+    "Free mode allows \(limit) open tabs."
   }
 }
 

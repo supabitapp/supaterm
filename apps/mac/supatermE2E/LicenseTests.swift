@@ -32,7 +32,7 @@ extension SupatermE2ESuite {
         runner: runner,
         app: app
       )
-      #expect(blocked.stderr.contains("sp license activate"))
+      #expect(blocked.stderr.contains("Free mode allows 5 open tabs."))
 
       let activated = try decodeSPJSON(
         SupatermLicenseStatusResult.self,

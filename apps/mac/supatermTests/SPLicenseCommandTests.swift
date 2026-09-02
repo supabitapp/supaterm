@@ -135,7 +135,7 @@ struct SPLicenseCommandTests {
   }
 
   @Test
-  func tabLimitErrorTellsTheUserHowToActivate() async throws {
+  func tabLimitErrorReportsTheLimit() async throws {
     let cli = try SPCLIHarness()
     defer { cli.remove() }
     let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
@@ -167,7 +167,7 @@ struct SPLicenseCommandTests {
         return .error(
           id: request.id,
           code: "license_required",
-          message: "Free mode allows 5 open tabs. Run `sp license activate` to unlock more."
+          message: "Free mode allows 5 open tabs."
         )
       },
       run: { endpoint in
@@ -176,7 +176,7 @@ struct SPLicenseCommandTests {
         ])
 
         #expect(result.exitCode != 0)
-        #expect(result.stderr.contains("sp license activate"))
+        #expect(result.stderr.contains("Free mode allows 5 open tabs."))
       }
     )
   }
