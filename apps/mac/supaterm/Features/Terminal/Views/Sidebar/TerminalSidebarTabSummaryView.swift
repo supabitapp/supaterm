@@ -248,7 +248,6 @@ private struct TerminalSidebarTabLineView: View {
           palette: palette
         )
         .opacity(rendersAgentStatus ? 1 : 0)
-        .accessibilityHidden(!rendersAgentStatus)
 
       case .attention:
         TerminalSidebarBellIndicatorView(
