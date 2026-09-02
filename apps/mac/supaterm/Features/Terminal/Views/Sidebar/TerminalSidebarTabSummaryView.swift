@@ -3,21 +3,17 @@ import SupatermUI
 import SwiftUI
 
 struct TerminalSidebarTabSummaryView: View {
-  enum LeadingAccessory: Equatable {
-    case icon(TerminalSidebarPanePresentation.Icon)
-    case agent(TerminalHostState.TabAgentStatus)
-  }
-
   enum TrailingAccessory: Equatable {
     case reserved
     case shortcut(String)
+    case agent(TerminalHostState.TabAgentStatusPresentation)
     case attention
     case pinned
     case terminalProgress(TerminalSidebarTerminalProgress)
 
     fileprivate var usesVariableWidth: Bool {
       switch self {
-      case .shortcut:
+      case .agent, .shortcut:
         true
       default:
         false
@@ -35,6 +31,7 @@ struct TerminalSidebarTabSummaryView: View {
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
+  var rendersAgentStatus = true
 
   static func trailingAccessory(
     shortcutHint: String? = nil,
@@ -42,6 +39,7 @@ struct TerminalSidebarTabSummaryView: View {
     isRowHovering: Bool = false,
     isPinned: Bool = false,
     terminalProgress: TerminalSidebarTerminalProgress? = nil,
+    agentStatus: TerminalHostState.TabAgentStatusPresentation? = nil,
     hasAttention: Bool = false
   ) -> TrailingAccessory? {
     if isRowHovering {
@@ -52,6 +50,9 @@ struct TerminalSidebarTabSummaryView: View {
     }
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
+    }
+    if let agentStatus {
+      return .agent(agentStatus)
     }
     if hasAttention {
       return .attention
@@ -67,8 +68,14 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   static func tabIcon(
-    panes: [TerminalSidebarPanePresentation]
+    panes: [TerminalSidebarPanePresentation],
+    agentStatus: TerminalHostState.TabAgentStatusPresentation? = nil
   ) -> TerminalSidebarPanePresentation.Icon {
+    if let agentID = agentStatus?.agent.id,
+      let imageName = TerminalCodingAgentCatalog.markImageName(for: agentID)
+    {
+      return .agent(imageName)
+    }
     if let focusedIcon = panes.first(where: \.isFocused)?.icon {
       return focusedIcon
     }
@@ -78,26 +85,23 @@ struct TerminalSidebarTabSummaryView: View {
     return icon
   }
 
-  static func leadingAccessory(
-    panes: [TerminalSidebarPanePresentation],
-    agentStatus: TerminalHostState.TabAgentStatusPresentation?
-  ) -> LeadingAccessory {
-    if let agentStatus {
-      return .agent(agentStatus.status)
-    }
-    return .icon(tabIcon(panes: panes))
-  }
-
   static func hasVisibleStatusIndicator(
+    agentStatus: TerminalHostState.TabAgentStatusPresentation?,
     hasAttention: Bool,
     terminalProgress: TerminalSidebarTerminalProgress?,
     showsShortcutHint: Bool
   ) -> Bool {
-    Self.trailingAccessory(
+    switch Self.trailingAccessory(
       showsShortcutHint: showsShortcutHint,
       terminalProgress: terminalProgress,
+      agentStatus: agentStatus,
       hasAttention: hasAttention
-    ) == .attention
+    ) {
+    case .agent, .attention:
+      return true
+    default:
+      return false
+    }
   }
 
   static func helpText(
@@ -130,10 +134,11 @@ struct TerminalSidebarTabSummaryView: View {
   var body: some View {
     TerminalSidebarTabLineView(
       title: tab.title,
-      leadingAccessory: Self.leadingAccessory(panes: panes, agentStatus: agentStatus),
+      icon: Self.tabIcon(panes: panes, agentStatus: agentStatus),
       trailingAccessory: trailingAccessory,
       palette: palette,
-      isSelected: isSelected
+      isSelected: isSelected,
+      rendersAgentStatus: rendersAgentStatus
     )
   }
 
@@ -144,6 +149,7 @@ struct TerminalSidebarTabSummaryView: View {
       isRowHovering: isRowHovering,
       isPinned: isPinned,
       terminalProgress: terminalProgress,
+      agentStatus: agentStatus,
       hasAttention: panes.contains(where: \.hasAttention)
     )
   }
@@ -151,26 +157,42 @@ struct TerminalSidebarTabSummaryView: View {
 
 private struct TerminalSidebarTabLineView: View {
   let title: String
-  let leadingAccessory: TerminalSidebarTabSummaryView.LeadingAccessory
+  let icon: TerminalSidebarPanePresentation.Icon
   let trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory?
   let palette: Palette
   let isSelected: Bool
+  let rendersAgentStatus: Bool
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    HStack(spacing: 6) {
-      leadingAccessoryView
+    GeometryReader { geometry in
+      let showsAgentStatusText =
+        geometry.size.width >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth
+      HStack(spacing: 6) {
+        leadingIcon
 
-      Text(title)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(titleColor)
-        .lineLimit(1)
-        .truncationMode(TerminalSidebarTabSummaryView.titleTruncationMode(title))
-        .frame(maxWidth: .infinity, alignment: .leading)
+        Text(title)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(titleColor)
+          .lineLimit(1)
+          .truncationMode(TerminalSidebarTabSummaryView.titleTruncationMode(title))
+          .frame(maxWidth: .infinity, alignment: .leading)
 
-      if let trailingAccessory {
-        trailingAccessoryView(trailingAccessory)
+        if let trailingAccessory {
+          trailingAccessoryView(
+            trailingAccessory,
+            showsAgentStatusText: showsAgentStatusText
+          )
           .layoutPriority(2)
+        }
       }
+      .terminalAnimation(
+        .easeInOut(duration: 0.18),
+        value: showsAgentStatusText,
+        reduceMotion: reduceMotion
+      )
+      .frame(width: geometry.size.width, height: geometry.size.height)
     }
     .frame(height: TerminalSidebarLayout.tabLineHeight)
   }
@@ -179,42 +201,33 @@ private struct TerminalSidebarTabLineView: View {
     isSelected ? palette.selectedText : palette.selectableRow.title
   }
 
-  private var leadingAccessoryView: some View {
+  private var leadingIcon: some View {
     Group {
-      switch leadingAccessory {
-      case .icon(let icon):
-        Group {
-          switch icon {
-          case .terminal:
-            Image(systemName: "terminal.fill")
-              .renderingMode(.template)
-              .resizable()
-          case .agent(let imageName):
-            Image(imageName)
-              .renderingMode(.template)
-              .resizable()
-          }
-        }
-        .aspectRatio(contentMode: .fit)
-        .foregroundStyle(
-          isSelected
-            ? palette.selectedSecondaryText
-            : palette.secondaryText
-        )
-
-      case .agent(let status):
-        TerminalSidebarAgentStatusIconView(status: status, palette: palette)
+      switch icon {
+      case .terminal:
+        Image(systemName: "terminal.fill")
+          .renderingMode(.template)
+          .resizable()
+          .accessibilityHidden(true)
+      case .agent(let imageName):
+        Image(imageName)
+          .renderingMode(.template)
+          .resizable()
+          .accessibilityHidden(true)
       }
     }
-    .frame(
-      width: TerminalSidebarLayout.tabLeadingIconSize,
-      height: TerminalSidebarLayout.tabLeadingIconSize
+    .aspectRatio(contentMode: .fit)
+    .frame(width: 13, height: 13)
+    .foregroundStyle(
+      isSelected
+        ? palette.selectedSecondaryText
+        : palette.secondaryText
     )
-    .accessibilityHidden(true)
   }
 
   private func trailingAccessoryView(
-    _ trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory
+    _ trailingAccessory: TerminalSidebarTabSummaryView.TrailingAccessory,
+    showsAgentStatusText: Bool
   ) -> some View {
     Group {
       switch trailingAccessory {
@@ -228,6 +241,15 @@ private struct TerminalSidebarTabLineView: View {
             ? palette.selectedSecondaryText
             : palette.secondaryText
         )
+      case .agent(let agentStatus):
+        TerminalSidebarAgentStatusView(
+          status: agentStatus.status,
+          showsText: showsAgentStatusText,
+          palette: palette
+        )
+        .opacity(rendersAgentStatus ? 1 : 0)
+        .accessibilityHidden(!rendersAgentStatus)
+
       case .attention:
         TerminalSidebarBellIndicatorView(
           isSelected: isSelected,

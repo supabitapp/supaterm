@@ -281,56 +281,40 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func terminalProgressUsesTheTrailingSlotAlongsideSharedStatus() {
+  func terminalProgressTakesPrecedenceOverSharedStatus() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
     let status = agentStatus(.working)
 
-    #expect(
-      TerminalSidebarTabSummaryView.trailingAccessory(
-        terminalProgress: progress,
-        hasAttention: true
-      ) == .terminalProgress(progress)
-    )
-    #expect(
-      TerminalSidebarTabSummaryView.leadingAccessory(
-        panes: [],
-        agentStatus: status
-      ) == .agent(.working)
-    )
-    #expect(
-      !TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
-        hasAttention: true,
-        terminalProgress: progress,
-        showsShortcutHint: false
-      )
-    )
-  }
-
-  @Test
-  func agentStateReplacesTheLeadingIcon() {
-    let statuses: [TerminalHostState.TabAgentStatus] = [.working, .done, .needsInput]
-    for status in statuses {
+    for (agentStatus, hasAttention) in [(status, false), (nil, true)] {
       #expect(
-        TerminalSidebarTabSummaryView.leadingAccessory(
-          panes: [],
-          agentStatus: agentStatus(status)
-        ) == .agent(status)
+        TerminalSidebarTabSummaryView.trailingAccessory(
+          terminalProgress: progress,
+          agentStatus: agentStatus,
+          hasAttention: hasAttention
+        ) == .terminalProgress(progress)
+      )
+      #expect(
+        !TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
+          agentStatus: agentStatus,
+          hasAttention: hasAttention,
+          terminalProgress: progress,
+          showsShortcutHint: false
+        )
       )
     }
   }
 
   @Test
-  func agentStateAndPaneAttentionUseSeparateSlots() {
-    #expect(
-      TerminalSidebarTabSummaryView.leadingAccessory(
-        panes: [],
-        agentStatus: agentStatus(.working)
-      ) == .agent(.working)
-    )
-    #expect(
-      TerminalSidebarTabSummaryView.trailingAccessory(hasAttention: true)
-        == .attention
-    )
+  func agentStateUsesTheTrailingAccessory() {
+    let statuses: [TerminalHostState.TabAgentStatus] = [.working, .done, .needsInput]
+    for status in statuses {
+      let presentation = agentStatus(status)
+      #expect(
+        TerminalSidebarTabSummaryView.trailingAccessory(
+          agentStatus: presentation
+        ) == .agent(presentation)
+      )
+    }
   }
 
   @Test
@@ -364,9 +348,7 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func tabRowsUseFixedLeadingAndTrailingSlots() {
-    #expect(TerminalSidebarLayout.tabLeadingIconSize == 13)
-    #expect(TerminalSidebarLayout.tabLeadingActionSize == 24)
+  func tabRowsReserveOneTrailingAccessorySlot() {
     #expect(TerminalSidebarLayout.tabTrailingAccessorySize == 24)
   }
 
@@ -407,6 +389,7 @@ struct TerminalSidebarChromeViewTests {
     func expectShortcut(
       isPinned: Bool = false,
       terminalProgress: TerminalSidebarTerminalProgress? = nil,
+      agentStatus: TerminalHostState.TabAgentStatusPresentation? = nil,
       hasAttention: Bool = false
     ) {
       #expect(
@@ -415,21 +398,17 @@ struct TerminalSidebarChromeViewTests {
           showsShortcutHint: true,
           isPinned: isPinned,
           terminalProgress: terminalProgress,
+          agentStatus: agentStatus,
           hasAttention: hasAttention
         )
           == .shortcut("⌘1")
       )
     }
 
+    expectShortcut(agentStatus: agentStatus(.working))
     expectShortcut(hasAttention: true)
     expectShortcut(isPinned: true)
     expectShortcut(terminalProgress: progress)
-    #expect(
-      TerminalSidebarTabSummaryView.leadingAccessory(
-        panes: [],
-        agentStatus: agentStatus(.working)
-      ) == .agent(.working)
-    )
   }
 
   @Test
@@ -437,7 +416,8 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.trailingAccessory(
         shortcutHint: nil,
-        showsShortcutHint: true
+        showsShortcutHint: true,
+        agentStatus: agentStatus(.working)
       )
         == nil
     )
@@ -520,7 +500,7 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func activeAgentReplacesTheFocusedPaneIcon() {
+  func activeAgentSetsTheSharedTabIcon() {
     let status = agentStatus(.working)
     let panes = [
       TerminalSidebarPanePresentation(
@@ -536,10 +516,9 @@ struct TerminalSidebarChromeViewTests {
     ]
 
     #expect(
-      TerminalSidebarTabSummaryView.leadingAccessory(panes: panes, agentStatus: status)
-        == .agent(.working)
+      TerminalSidebarTabSummaryView.tabIcon(panes: panes, agentStatus: status)
+        == .agent("codex-mark")
     )
-    #expect(TerminalSidebarTabSummaryView.tabIcon(panes: panes) == .terminal)
   }
 
   @Test

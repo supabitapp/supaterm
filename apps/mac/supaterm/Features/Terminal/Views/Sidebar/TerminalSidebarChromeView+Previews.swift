@@ -227,7 +227,7 @@ private enum TerminalSidebarTabPreviewFixtures {
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,
-      scenario: "Agent state with tab attention",
+      scenario: "Agent state outranks tab attention",
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
       paneTitles: ["Codex", "swift test"],
