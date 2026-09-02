@@ -265,7 +265,6 @@ extension TerminalHostState {
     agentCompletionStore.clear(for: surface.id)
     notificationStore.removeSurface(surface.id)
     paneAgentMetadataBySurfaceID.removeValue(forKey: surface.id)
-    paneProcessIconsBySurfaceID.removeValue(forKey: surface.id)
     agentDetectionStore.clear(for: surface.id)
     agentDetectionStore.clearProcessMatch(for: surface.id)
     agentStateStore.clearSessions(for: surface.id)

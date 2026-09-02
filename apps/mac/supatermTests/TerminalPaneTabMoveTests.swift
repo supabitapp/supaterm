@@ -6,7 +6,6 @@ import Sharing
 import SupatermLicenseFeature
 import Testing
 
-@testable import SupatermSupport
 @testable import SupatermTerminalCore
 @testable import supaterm
 
@@ -123,8 +122,6 @@ struct TerminalPaneTabMoveTests {
       source.trees[sourceTabID] = sourceTree
       source.surfaces[retainedSurface.id] = retainedSurface
       source.surfaces[movedSurface.id] = movedSurface
-      source.setProcessIcon(.vim, for: retainedSurface.id)
-      source.setProcessIcon(.btop, for: movedSurface.id)
       source.focusHistoryByTab[sourceTabID] = TerminalHostState.FocusHistory(
         current: movedSurface.id
       )
@@ -176,8 +173,6 @@ struct TerminalPaneTabMoveTests {
       #expect(source.spaceManager.tabCollection.tabs.map(\.id) == [sourceTabID])
       #expect(source.trees[sourceTabID]?.leaves().map(\.id) == [retainedSurface.id])
       #expect(source.surfaces[movedSurface.id] == nil)
-      #expect(source.paneProcessIconsBySurfaceID[retainedSurface.id] == .vim)
-      #expect(source.paneProcessIconsBySurfaceID[movedSurface.id] == nil)
       #expect(
         destination.spaceManager.tabCollection.tabs.map(\.id) == [
           concurrentTabID,
@@ -185,7 +180,6 @@ struct TerminalPaneTabMoveTests {
         ])
       #expect(destination.trees[destinationTabID]?.leaves().map(\.id) == [movedSurface.id])
       #expect(destination.surfaces[movedSurface.id] === movedSurface)
-      #expect(destination.paneProcessIconsBySurfaceID[movedSurface.id] == .btop)
       withExtendedLifetime([sourceWindow, destinationWindow]) {}
     }
   }

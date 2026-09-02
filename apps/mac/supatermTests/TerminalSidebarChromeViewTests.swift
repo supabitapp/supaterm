@@ -479,14 +479,6 @@ struct TerminalSidebarChromeViewTests {
     )
 
     #expect(TerminalSidebarTabSummaryView.tabIcon(panes: [pane]) == .agent("codex-mark"))
-
-    let processPane = TerminalSidebarPanePresentation(
-      id: UUID(),
-      title: "btop",
-      icon: .process(.btop)
-    )
-
-    #expect(TerminalSidebarTabSummaryView.tabIcon(panes: [processPane]) == .process(.btop))
   }
 
   @Test

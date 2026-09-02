@@ -61,23 +61,19 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
   }
 
   @Test
-  func batchSnapshotsTheProcessTableOnce() async {
+  func batchSnapshotsTheProcessTableOnce() {
     let snapshotCount = Mutex(0)
-    let sampler = AgentDetectionProcessSampler(
-      currentTime: { ContinuousClock.now },
-      processTable: {
-        snapshotCount.withLock { $0 += 1 }
-        return ProcessTable(entries: [])
-      },
-      invocation: { _ in nil }
-    )
-
-    _ = await sampler.sample(
+    _ = AgentDetectionProcessRecognizer.matches(
       foregroundProcessGroupIDs: [
         Self.foregroundProcessGroupID,
         Self.foregroundProcessGroupID + 1,
       ],
-      manifests: [Self.codex]
+      manifests: [Self.codex],
+      table: {
+        snapshotCount.withLock { $0 += 1 }
+        return ProcessTable(entries: [])
+      },
+      invocation: { _ in nil }
     )
 
     #expect(snapshotCount.withLock { $0 } == 1)
@@ -105,55 +101,27 @@ nonisolated struct AgentDetectionProcessRecognizerTests {
       }
     )
 
-    async let first = sampler.sample(
+    async let first = sampler.matches(
       foregroundProcessGroupIDs: [Self.foregroundProcessGroupID],
       manifests: [Self.codex]
     )
-    async let second = sampler.sample(
+    async let second = sampler.matches(
       foregroundProcessGroupIDs: [secondProcessGroupID],
       manifests: [Self.codex]
     )
-    let samples = await (first, second)
+    let matches = await (first, second)
 
-    #expect(
-      samples.0.agentMatches[Self.foregroundProcessGroupID]?.processIdentity.processID == 100)
-    #expect(samples.1.agentMatches[secondProcessGroupID]?.processIdentity.processID == 200)
+    #expect(matches.0[Self.foregroundProcessGroupID]?.processIdentity.processID == 100)
+    #expect(matches.1[secondProcessGroupID]?.processIdentity.processID == 200)
     #expect(snapshotCount.withLock { $0 } == 1)
 
     currentTime.withLock { $0 = $0.advanced(by: .milliseconds(500)) }
-    _ = await sampler.sample(
+    _ = await sampler.matches(
       foregroundProcessGroupIDs: [Self.foregroundProcessGroupID],
       manifests: [Self.codex]
     )
 
     #expect(snapshotCount.withLock { $0 } == 2)
-  }
-
-  @Test
-  func batchReadsEachProcessInvocationOnce() async {
-    let invocationCounts = Mutex([pid_t: Int]())
-    let process = Self.process(100, name: "git")
-    let manifest = AgentDetectionProcessManifest(
-      agentID: "agent",
-      processes: [AgentDetectionProcessRule(executable: "git")]
-    )
-    let sampler = AgentDetectionProcessSampler(
-      currentTime: { ContinuousClock.now },
-      processTable: { ProcessTable(entries: [process]) },
-      invocation: { processID in
-        invocationCounts.withLock { $0[processID, default: 0] += 1 }
-        return Self.invocation("/opt/homebrew/bin/git", arguments: ["git"])
-      }
-    )
-
-    let sample = await sampler.sample(
-      foregroundProcessGroupIDs: [Self.foregroundProcessGroupID],
-      manifests: [manifest]
-    )
-
-    #expect(sample.agentMatches[Self.foregroundProcessGroupID]?.agentID == "agent")
-    #expect(sample.processIcons[Self.foregroundProcessGroupID]?.icon == .git)
-    #expect(invocationCounts.withLock { $0 } == [100: 1])
   }
 
   @Test

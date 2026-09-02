@@ -1,6 +1,5 @@
 import Foundation
 import SupaTheme
-import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -516,25 +515,6 @@ extension SnapshotCatalog {
             paneFixtures: [
               .agent("Agent one"),
               .agent("Agent two"),
-            ]
-          )
-        )
-      )
-    },
-    scenario(
-      "process-icon-btop",
-      group: "Sidebar Rows",
-      title: "btop process icon",
-      size: CGSize(width: 320, height: 72)
-    ) { appearance in
-      AnyView(
-        SidebarRowSnapshotFixture(
-          appearance: appearance,
-          item: SidebarRowSnapshotItem(
-            id: "10000000-0000-0000-0000-000000000019",
-            title: "btop",
-            paneFixtures: [
-              SidebarRowSnapshotPane(title: "btop", icon: .process(.btop))
             ]
           )
         )
