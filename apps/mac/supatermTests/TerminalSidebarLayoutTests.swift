@@ -143,63 +143,18 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func tabMeasurementKeyChangesWhenGroupingChanges() {
-    let tab = TerminalTabItem(title: "A long tab title")
-
-    #expect(
-      TerminalSidebarRowPresentation.tab(tabPresentation(tab)).measurementKey
-        != TerminalSidebarRowPresentation.tab(
-          tabPresentation(tab, groupID: TerminalTabGroupID())
-        ).measurementKey
-    )
-  }
-
-  @Test
-  func tabMeasurementKeyChangesWhenPanesChange() {
+  func tabAccessoriesKeepFixedRowHeight() throws {
     let tab = TerminalTabItem(title: "Tab")
-    let pane = TerminalSidebarPanePresentation(
-      id: UUID(),
-      title: "Pane 1",
-      indicator: nil
-    )
-
-    #expect(
-      TerminalSidebarRowPresentation.tab(tabPresentation(tab)).measurementKey
-        != TerminalSidebarRowPresentation.tab(tabPresentation(tab, panes: [pane])).measurementKey
-    )
-  }
-
-  @Test
-  func tabMeasurementKeyIgnoresHeightNeutralPaneIndicators() {
-    let tab = TerminalTabItem(title: "Tab")
-    let paneID = UUID()
-    let quietPane = TerminalSidebarPanePresentation(
-      id: paneID,
-      title: "Pane 1",
-      indicator: nil
-    )
-    let attentionPane = TerminalSidebarPanePresentation(
-      id: paneID,
-      title: "Pane 1",
-      indicator: .attention
-    )
-
-    #expect(
-      TerminalSidebarRowPresentation.tab(tabPresentation(tab, panes: [quietPane])).measurementKey
-        == TerminalSidebarRowPresentation.tab(
-          tabPresentation(tab, panes: [attentionPane])
-        ).measurementKey
-    )
-  }
-
-  @Test
-  func tabAccessoriesKeepMeasuredRowHeightStable() throws {
-    let tab = TerminalTabItem(title: "Tab")
-    let pane = TerminalSidebarPanePresentation(
-      id: UUID(),
-      title: "Pane 1",
-      indicator: nil
-    )
+    let panes = [
+      TerminalSidebarPanePresentation(
+        id: UUID(),
+        title: "Pane 1"
+      ),
+      TerminalSidebarPanePresentation(
+        id: UUID(),
+        title: "Pane 2"
+      ),
+    ]
     let outline = TerminalSidebarTestFixture.outline(
       roots: [TerminalSidebarOutline.Root(content: .tab(tab.id), isPinned: false)],
       revision: 1
@@ -212,11 +167,11 @@ struct TerminalSidebarLayoutTests {
     let tabEntryID = TerminalSidebarEntryID.tab(tab.id)
     let indexPath = IndexPath(item: 0, section: 0)
 
-    func apply(progress: TerminalSidebarTerminalProgress?) {
+    func apply(panes: [TerminalSidebarPanePresentation], progress: TerminalSidebarTerminalProgress? = nil) {
       harness.apply(
         outline: outline,
         rows: [
-          tabEntryID: .tab(tabPresentation(tab, panes: [pane], terminalProgress: progress)),
+          tabEntryID: .tab(tabPresentation(tab, panes: panes, terminalProgress: progress)),
           .newTab: .newTab(.inline),
         ],
         terminal: terminal,
@@ -226,17 +181,27 @@ struct TerminalSidebarLayoutTests {
       harness.layoutNow()
     }
 
-    apply(progress: nil)
-    let quietHeight = try #require(
+    apply(panes: [panes[0]])
+    let singlePaneHeight = try #require(
       harness.layout.layoutAttributesForItem(at: indexPath)
     ).frame.height
 
-    apply(progress: TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active))
+    apply(panes: panes)
+    let splitPaneHeight = try #require(
+      harness.layout.layoutAttributesForItem(at: indexPath)
+    ).frame.height
+
+    apply(
+      panes: panes,
+      progress: TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    )
     let progressHeight = try #require(
       harness.layout.layoutAttributesForItem(at: indexPath)
     ).frame.height
 
-    #expect(progressHeight == quietHeight)
+    #expect(singlePaneHeight == TerminalSidebarLayout.tabRowMinHeight)
+    #expect(splitPaneHeight == singlePaneHeight)
+    #expect(progressHeight == singlePaneHeight)
   }
 
   @Test
@@ -889,6 +854,7 @@ struct TerminalSidebarLayoutTests {
       groupID: groupID,
       rootIsPinned: false,
       panes: panes,
+      agentStatus: nil,
       terminalProgress: terminalProgress,
       shortcutHint: nil,
       showsShortcutHint: false

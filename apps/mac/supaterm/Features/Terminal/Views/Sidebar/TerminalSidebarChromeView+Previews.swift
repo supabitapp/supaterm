@@ -49,9 +49,24 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
         id: Self.paneID(index),
         title: title,
         icon: agentStatus == nil ? .terminal : .agent("codex-mark"),
-        indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
-          ?? (hasAttention ? .attention : nil)
+        hasAttention: hasAttention,
+        isFocused: index == 0
       )
+    }
+  }
+
+  var agentStatus: TerminalHostState.TabAgentStatusPresentation? {
+    paneAgentStatuses.enumerated().compactMap { index, status in
+      status.map {
+        TerminalHostState.TabAgentStatusPresentation(
+          status: $0,
+          agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
+          surfaceID: Self.paneID(index)
+        )
+      }
+    }.max {
+      TerminalHostState.tabAgentStatusPriority($0.status)
+        < TerminalHostState.tabAgentStatusPriority($1.status)
     }
   }
 
@@ -68,7 +83,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   }
 
   private var stateLabel: String? {
-    if let status = paneAgentStatuses.compactMap({ $0 }).first {
+    if let status = agentStatus?.status {
       return "Agent \(statusLabel(status))"
     }
     if paneHasAttention.contains(true) { return "Attention" }
@@ -212,7 +227,7 @@ private enum TerminalSidebarTabPreviewFixtures {
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,
-      scenario: "Agent state hides same-pane attention",
+      scenario: "Agent state outranks tab attention",
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
       paneTitles: ["Codex", "swift test"],
@@ -233,12 +248,12 @@ private struct TerminalSidebarTabPreviewRow: View {
       isSelected: item.isSelected,
       isPinned: false,
       panes: item.panes,
+      agentStatus: item.agentStatus,
       terminalProgress: item.terminalProgress,
       shortcutHint: nil,
       showsShortcutHint: false,
       isRowHovering: false
     )
-    .lineLimit(10)
     .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)

@@ -78,12 +78,6 @@ final class TerminalSidebarListController: NSViewController {
     let reduceMotion: Bool
   }
 
-  private struct RowMeasurement {
-    let width: CGFloat
-    let key: AnyHashable
-    let height: CGFloat
-  }
-
   private struct PendingDropHandoff {
     let requirement: TerminalSidebarDropHandoff
     let completion: TerminalSidebarDragController.DropHandoffCompletion
@@ -117,7 +111,6 @@ final class TerminalSidebarListController: NSViewController {
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
   private var context: TerminalSidebarRowContext?
-  private var measuredHeights: [TerminalSidebarEntryID: RowMeasurement] = [:]
   private var appliedOutline = TerminalSidebarOutline(
     roots: [],
     collapsedGroupIDs: [],
@@ -272,11 +265,6 @@ final class TerminalSidebarListController: NSViewController {
     {
       groupHoverState.set(fixedHoveredGroupID)
     }
-    measuredHeights = measuredHeights.filter { id, measurement in
-      guard let row = rows[id] else { return false }
-      return measurement.key == row.measurementKey
-    }
-
     if selectedTabID != self.selectedTabID {
       tabSelectionState.clear()
       self.selectedTabID = selectedTabID
@@ -630,31 +618,9 @@ final class TerminalSidebarListController: NSViewController {
     return nextStamp.revision >= currentStamp.revision ? next : current
   }
 
-  private func preferredHeight(for id: TerminalSidebarEntryID, width: CGFloat) -> CGFloat {
+  private func preferredHeight(for id: TerminalSidebarEntryID, width _: CGFloat) -> CGFloat {
     if case .pinDivider = id { return TerminalSidebarLayoutPlan.dividerHeight }
-    if case .newTab = id { return TerminalSidebarLayout.tabRowMinHeight }
-    guard let presentation = rows[id], let context else {
-      return TerminalSidebarLayout.tabRowMinHeight
-    }
-    if case .group = presentation { return TerminalSidebarLayout.tabRowMinHeight }
-    if let measurement = measuredHeights[id], measurement.width == width,
-      measurement.key == presentation.measurementKey
-    {
-      return measurement.height
-    }
-    let controller = NSHostingController(
-      rootView: TerminalSidebarHostedRow(presentation: presentation, context: context)
-    )
-    let height = max(
-      TerminalSidebarLayout.tabRowMinHeight,
-      ceil(controller.sizeThatFits(in: CGSize(width: width, height: 2_000)).height)
-    )
-    measuredHeights[id] = RowMeasurement(
-      width: width,
-      key: presentation.measurementKey,
-      height: height
-    )
-    return height
+    return TerminalSidebarLayout.tabRowMinHeight
   }
 
   private func refreshVisibleRows(ids: Set<TerminalSidebarEntryID>) {

@@ -281,30 +281,22 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func terminalProgressTakesPrecedenceOverPaneStatus() {
+  func terminalProgressTakesPrecedenceOverSharedStatus() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
-    let tab = TerminalTabItem(title: "Build")
-    let paneIndicators: [TerminalSidebarPanePresentation.Indicator] = [
-      .agent(.working),
-      .attention,
-    ]
+    let status = agentStatus(.working)
 
-    for paneIndicator in paneIndicators {
-      let pane = TerminalSidebarPanePresentation(
-        id: UUID(),
-        title: "Agent",
-        indicator: paneIndicator
-      )
+    for (agentStatus, hasAttention) in [(status, false), (nil, true)] {
       #expect(
         TerminalSidebarTabSummaryView.trailingAccessory(
           terminalProgress: progress,
-          paneIndicator: paneIndicator
+          agentStatus: agentStatus,
+          hasAttention: hasAttention
         ) == .terminalProgress(progress)
       )
       #expect(
         !TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
-          tab: tab,
-          panes: [pane],
+          agentStatus: agentStatus,
+          hasAttention: hasAttention,
           terminalProgress: progress,
           showsShortcutHint: false
         )
@@ -316,10 +308,11 @@ struct TerminalSidebarChromeViewTests {
   func agentStateUsesTheTrailingAccessory() {
     let statuses: [TerminalHostState.TabAgentStatus] = [.working, .done, .needsInput]
     for status in statuses {
+      let presentation = agentStatus(status)
       #expect(
         TerminalSidebarTabSummaryView.trailingAccessory(
-          paneIndicator: .agent(status)
-        ) == .agent(status)
+          agentStatus: presentation
+        ) == .agent(presentation)
       )
     }
   }
@@ -329,7 +322,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.trailingAccessory(
         isPinned: true,
-        paneIndicator: .attention
+        hasAttention: true
       ) == .attention
     )
   }
@@ -396,7 +389,8 @@ struct TerminalSidebarChromeViewTests {
     func expectShortcut(
       isPinned: Bool = false,
       terminalProgress: TerminalSidebarTerminalProgress? = nil,
-      paneIndicator: TerminalSidebarPanePresentation.Indicator? = nil
+      agentStatus: TerminalHostState.TabAgentStatusPresentation? = nil,
+      hasAttention: Bool = false
     ) {
       #expect(
         TerminalSidebarTabSummaryView.trailingAccessory(
@@ -404,14 +398,15 @@ struct TerminalSidebarChromeViewTests {
           showsShortcutHint: true,
           isPinned: isPinned,
           terminalProgress: terminalProgress,
-          paneIndicator: paneIndicator
+          agentStatus: agentStatus,
+          hasAttention: hasAttention
         )
           == .shortcut("⌘1")
       )
     }
 
-    expectShortcut(paneIndicator: .agent(.working))
-    expectShortcut(paneIndicator: .attention)
+    expectShortcut(agentStatus: agentStatus(.working))
+    expectShortcut(hasAttention: true)
     expectShortcut(isPinned: true)
     expectShortcut(terminalProgress: progress)
   }
@@ -422,7 +417,7 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarTabSummaryView.trailingAccessory(
         shortcutHint: nil,
         showsShortcutHint: true,
-        paneIndicator: .agent(.working)
+        agentStatus: agentStatus(.working)
       )
         == nil
     )
@@ -435,7 +430,7 @@ struct TerminalSidebarChromeViewTests {
         shortcutHint: "⌘1",
         showsShortcutHint: true,
         isRowHovering: true,
-        paneIndicator: .attention
+        hasAttention: true
       )
         == .reserved
     )
@@ -480,8 +475,7 @@ struct TerminalSidebarChromeViewTests {
     let pane = TerminalSidebarPanePresentation(
       id: UUID(),
       title: "Agent",
-      icon: .agent("codex-mark"),
-      indicator: nil
+      icon: .agent("codex-mark")
     )
 
     #expect(TerminalSidebarTabSummaryView.tabIcon(panes: [pane]) == .agent("codex-mark"))
@@ -493,13 +487,11 @@ struct TerminalSidebarChromeViewTests {
       TerminalSidebarPanePresentation(
         id: UUID(),
         title: "Agent",
-        icon: .agent("codex-mark"),
-        indicator: nil
+        icon: .agent("codex-mark")
       ),
       TerminalSidebarPanePresentation(
         id: UUID(),
-        title: "Shell",
-        indicator: nil
+        title: "Shell"
       ),
     ]
 
@@ -508,24 +500,58 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func activeAgentSetsTheSharedTabIcon() {
+    let status = agentStatus(.working)
+    let panes = [
+      TerminalSidebarPanePresentation(
+        id: UUID(),
+        title: "Shell",
+        isFocused: true
+      ),
+      TerminalSidebarPanePresentation(
+        id: status.surfaceID,
+        title: "Agent",
+        icon: .agent("codex-mark")
+      ),
+    ]
+
+    #expect(
+      TerminalSidebarTabSummaryView.tabIcon(panes: panes, agentStatus: status)
+        == .agent("codex-mark")
+    )
+  }
+
+  @Test
   func helpTextListsLockedTitleAndPaneTitles() {
     let tab = TerminalTabItem(title: "Release", isTitleLocked: true)
     let panes = [
       TerminalSidebarPanePresentation(
         id: UUID(),
-        title: "Codex",
-        indicator: .agent(.working)
+        title: "Codex"
       ),
       TerminalSidebarPanePresentation(
         id: UUID(),
-        title: "Review agent",
-        indicator: .agent(.done)
+        title: "Review agent"
       ),
     ]
 
     #expect(
       TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes)
         == "Release\nCodex\nReview agent"
+    )
+  }
+
+  @Test
+  func agentStatusHelpIdentifiesItsPane() {
+    let status = agentStatus(.needsInput)
+    let panes = [
+      TerminalSidebarPanePresentation(id: UUID(), title: "Shell"),
+      TerminalSidebarPanePresentation(id: status.surfaceID, title: "Review"),
+    ]
+
+    #expect(
+      TerminalSidebarTabSummaryView.agentStatusHelpText(status, panes: panes)
+        == "Codex needs input in pane 2: Review"
     )
   }
 
@@ -639,6 +665,17 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func missingFocusedPaneStateProducesNoProgressRing() {
     #expect(TerminalHostState.sidebarTerminalProgress(state: nil) == nil)
+  }
+
+  private func agentStatus(
+    _ status: TerminalHostState.TabAgentStatus,
+    surfaceID: UUID = UUID()
+  ) -> TerminalHostState.TabAgentStatusPresentation {
+    TerminalHostState.TabAgentStatusPresentation(
+      status: status,
+      agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
+      surfaceID: surfaceID
+    )
   }
 }
 

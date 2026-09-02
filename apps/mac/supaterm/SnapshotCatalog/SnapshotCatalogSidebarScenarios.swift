@@ -216,7 +216,7 @@ extension SnapshotCatalog {
       "two-panes-hover",
       group: "Sidebar Rows",
       title: "Hovered tab with two panes",
-      size: CGSize(width: 320, height: 94)
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -236,8 +236,8 @@ extension SnapshotCatalog {
     scenario(
       "two-panes-command",
       group: "Sidebar Rows",
-      title: "Command shortcut replaces two-pane statuses",
-      size: CGSize(width: 320, height: 94)
+      title: "Command shortcut replaces shared agent state",
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -294,8 +294,8 @@ extension SnapshotCatalog {
     scenario(
       "unread-text",
       group: "Sidebar Rows",
-      title: "Pane attention bells",
-      size: CGSize(width: 320, height: 94)
+      title: "Shared tab attention",
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -314,8 +314,8 @@ extension SnapshotCatalog {
     scenario(
       "agent-attention-priority",
       group: "Sidebar Rows",
-      title: "Agent state hides same-pane attention",
-      size: CGSize(width: 320, height: 94)
+      title: "Agent state outranks tab attention",
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -361,7 +361,7 @@ extension SnapshotCatalog {
       "agent-running-multiple",
       group: "Sidebar Rows",
       title: "Running coding agents on two branches",
-      size: CGSize(width: 320, height: 94)
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -374,7 +374,7 @@ extension SnapshotCatalog {
       "agent-six-panes",
       group: "Sidebar Rows",
       title: "Six coding agent panes",
-      size: CGSize(width: 320, height: 170)
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -457,7 +457,7 @@ extension SnapshotCatalog {
       "long-path-title",
       group: "Sidebar Rows",
       title: "Long path title",
-      size: CGSize(width: 320, height: 94)
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -481,7 +481,7 @@ extension SnapshotCatalog {
     scenario(
       "locked-mixed-icons",
       group: "Sidebar Rows",
-      title: "Locked tab with mixed pane icons",
+      title: "Locked tab uses focused shell icon",
       size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
@@ -492,8 +492,8 @@ extension SnapshotCatalog {
             title: "Review authentication",
             isTitleLocked: true,
             paneFixtures: [
-              .agent("Agent"),
               SidebarRowSnapshotPane(title: "Shell"),
+              .agent("Agent"),
             ]
           )
         )
@@ -502,8 +502,8 @@ extension SnapshotCatalog {
     scenario(
       "locked-agent-icons",
       group: "Sidebar Rows",
-      title: "Locked tab with matching agent icons",
-      size: CGSize(width: 320, height: 94)
+      title: "Locked tab uses focused agent icon",
+      size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
         SidebarRowSnapshotFixture(
@@ -588,13 +588,32 @@ private struct SidebarRowSnapshotItem {
   var panes: [TerminalSidebarPanePresentation] {
     paneFixtures.enumerated().map { index, pane in
       return TerminalSidebarPanePresentation(
-        id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
+        id: paneID(index),
         title: pane.title,
         icon: pane.icon,
-        indicator: pane.agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
-          ?? (pane.hasAttention ? .attention : nil)
+        hasAttention: pane.hasAttention,
+        isFocused: index == 0
       )
     }
+  }
+
+  var agentStatus: TerminalHostState.TabAgentStatusPresentation? {
+    paneFixtures.enumerated().compactMap { index, pane in
+      pane.agentStatus.map {
+        TerminalHostState.TabAgentStatusPresentation(
+          status: $0,
+          agent: AgentDetectionAgentIdentity(id: "codex", displayName: "Codex"),
+          surfaceID: paneID(index)
+        )
+      }
+    }.max {
+      TerminalHostState.tabAgentStatusPriority($0.status)
+        < TerminalHostState.tabAgentStatusPriority($1.status)
+    }
+  }
+
+  private func paneID(_ index: Int) -> UUID {
+    UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!
   }
 
   static var agentRunning: Self {
@@ -670,12 +689,12 @@ private struct SidebarRowSnapshotFixture: View {
       isSelected: item.isSelected,
       isPinned: item.isPinned,
       panes: item.panes,
+      agentStatus: item.agentStatus,
       terminalProgress: item.terminalProgress,
       shortcutHint: item.shortcutHint,
       showsShortcutHint: item.showsShortcutHint,
       isRowHovering: item.isRowHovering
     )
-    .lineLimit(10)
     .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
