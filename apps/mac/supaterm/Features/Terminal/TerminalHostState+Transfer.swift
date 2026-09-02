@@ -43,6 +43,7 @@ extension TerminalHostState {
     let focusHistories: [TerminalTabID: FocusHistory]
     let metadata: [UUID: PaneAgentMetadata]
     let notifications: TerminalNotificationStore
+    let processIcons: [UUID: TerminalProcessIcon]
     let surfaces: [UUID: GhosttySurfaceView]
     let trees: [TerminalTabID: SplitTree<GhosttySurfaceView>]
   }
@@ -579,6 +580,13 @@ extension TerminalHostState {
         }
       ),
       notifications: source.notificationStore.take(surfaceIDs),
+      processIcons: Dictionary(
+        uniqueKeysWithValues: surfaceIDs.compactMap { surfaceID in
+          source.paneProcessIconsBySurfaceID.removeValue(forKey: surfaceID).map {
+            (surfaceID, $0)
+          }
+        }
+      ),
       surfaces: Dictionary(
         uniqueKeysWithValues: surfaceIDs.compactMap { surfaceID in
           source.surfaces.removeValue(forKey: surfaceID).map { (surfaceID, $0) }
@@ -606,6 +614,9 @@ extension TerminalHostState {
     destination.agentCompletionStore.merge(ownership.agentCompletions)
     destination.agentDetectionStore.merge(ownership.agentDetections)
     destination.notificationStore.merge(ownership.notifications)
+    destination.paneProcessIconsBySurfaceID.merge(ownership.processIcons) { _, _ in
+      preconditionFailure()
+    }
     destination.paneAgentMetadataBySurfaceID.merge(ownership.metadata) { _, _ in
       preconditionFailure()
     }
