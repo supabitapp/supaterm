@@ -26,6 +26,7 @@ enum Command {
         socket: Option<PathBuf>,
     },
     Describe,
+    Replace,
     Version,
 }
 
@@ -88,6 +89,11 @@ async fn run(command: Command) -> Result<()> {
                     "process_record": paths.process_record
                 }))?
             );
+        }
+        Command::Replace => {
+            let paths = paths(None)?;
+            supaterm_host::launcher::replace_mismatched_host(&paths, &current_build_identity())
+                .await?;
         }
         Command::Serve { socket, .. } => {
             let paths = paths(socket)?;

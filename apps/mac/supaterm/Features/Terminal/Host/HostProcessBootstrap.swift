@@ -55,6 +55,7 @@ nonisolated struct HostProcessBootstrap: Sendable {
     if await isReady(description) {
       return description
     }
+    _ = try await run(["replace"])
     _ = try await run(["serve"])
     for delay in 0..<50 {
       if await isReady(description) {

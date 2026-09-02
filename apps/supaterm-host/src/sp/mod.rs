@@ -4,11 +4,12 @@ mod output;
 mod target;
 
 use crate::client::{ClientConfiguration, ClientError, HostClient};
+use crate::launcher::replace_mismatched_host;
 use crate::protocol::control::{
     ClientRole, HostControl, ProtocolErrorCode, current_build_identity,
 };
 use crate::protocol::terminal::PaneId;
-use crate::runtime::{PathConfiguration, ProcessRecord, RuntimePaths};
+use crate::runtime::{PathConfiguration, RuntimePaths};
 use anyhow::{Context, Result, bail};
 use arguments::{AgentCommand, Arguments, Command};
 use clap::Parser;
@@ -65,7 +66,9 @@ async fn connect(explicit_socket: Option<PathBuf>) -> Result<HostClient> {
     match HostClient::connect(configuration()).await {
         Ok(client) => return Ok(client),
         Err(error) if explicit_socket.is_some() => return Err(error.into()),
-        Err(error) if is_protocol_mismatch(&error) => stop_recorded_host(&paths).await?,
+        Err(error) if is_protocol_mismatch(&error) => {
+            replace_mismatched_host(&paths, &current_build_identity()).await?;
+        }
         Err(_) => {}
     }
     launch_host(&paths)?;
@@ -128,28 +131,6 @@ fn is_protocol_mismatch(error: &ClientError) -> bool {
                     if error.code == ProtocolErrorCode::ProtocolMismatch
             )
     )
-}
-
-async fn stop_recorded_host(paths: &RuntimePaths) -> Result<()> {
-    let bytes = tokio::fs::read(&paths.process_record)
-        .await
-        .context("read mismatched host process record")?;
-    let record: ProcessRecord = serde_json::from_slice(&bytes)?;
-    if !record.still_matches() {
-        bail!("mismatched host process record is stale");
-    }
-    let result = unsafe { libc::kill(record.pid as i32, libc::SIGTERM) };
-    if result != 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while paths.socket.exists() && Instant::now() < deadline {
-        tokio::time::sleep(Duration::from_millis(25)).await;
-    }
-    if paths.socket.exists() {
-        bail!("mismatched host did not stop");
-    }
-    Ok(())
 }
 
 async fn receive_agent_hook(socket: Option<PathBuf>, kind: String) -> Result<()> {

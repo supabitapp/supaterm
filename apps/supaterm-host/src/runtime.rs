@@ -184,12 +184,18 @@ pub struct ProcessRecord {
 
 impl ProcessRecord {
     pub fn current(build: crate::protocol::control::BuildIdentity) -> Result<Self, RuntimeError> {
-        let pid = std::process::id();
+        Self::for_process(std::process::id(), build)
+    }
+
+    pub fn for_process(
+        pid: u32,
+        build: crate::protocol::control::BuildIdentity,
+    ) -> Result<Self, RuntimeError> {
         Ok(Self {
             pid,
             uid: unsafe { libc::geteuid() },
             start_identity: process_start_identity(pid)?,
-            executable: std::env::current_exe()?.canonicalize()?,
+            executable: process_executable(pid)?,
             protocol_version: crate::protocol::control::PROTOCOL_VERSION,
             build,
         })

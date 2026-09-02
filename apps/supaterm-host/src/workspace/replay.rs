@@ -247,6 +247,52 @@ impl HostModel {
         })
     }
 
+    pub fn reset_workspace(
+        &mut self,
+        workspace: Workspace,
+    ) -> Vec<crate::protocol::terminal::PaneId> {
+        let closing_pane_ids = self.workspace.pane_ids().collect::<Vec<_>>();
+        let client_ids = self
+            .clients
+            .iter()
+            .map(|client| client.id)
+            .collect::<Vec<_>>();
+        self.workspace = workspace;
+        self.clients = client_ids
+            .into_iter()
+            .map(|client_id| ClientState::for_workspace(client_id, &self.workspace))
+            .collect();
+        self.pane_facts.clear();
+        self.agent_facts.clear();
+        self.notifications.clear();
+        self.enrichments.clear();
+        self.attention_revision = 0;
+        self.revision = self.revision.saturating_add(1);
+        self.structure_revision = self.structure_revision.saturating_add(1);
+        let clients = self
+            .clients
+            .iter()
+            .cloned()
+            .map(|client| (client.id, client))
+            .collect();
+        let mut mutation = StoredMutation {
+            revision: self.revision,
+            structure_revision: self.structure_revision,
+            workspace: Some(self.workspace.clone()),
+            clients,
+            pane_facts: Some(self.pane_facts.clone()),
+            agent_facts: Some(self.agent_facts.clone()),
+            notifications: Some(Vec::new()),
+            enrichments: Some(self.enrichments.clone()),
+            bytes: 0,
+        };
+        mutation.bytes = serde_json::to_vec(&mutation).map_or(0, |bytes| bytes.len());
+        self.replay_bytes = self.replay_bytes.saturating_add(mutation.bytes);
+        self.replay.push_back(mutation);
+        self.trim_replay();
+        closing_pane_ids
+    }
+
     pub fn terminal_running(
         &mut self,
         pane_id: crate::protocol::terminal::PaneId,

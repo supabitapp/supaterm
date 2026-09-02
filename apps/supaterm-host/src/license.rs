@@ -204,6 +204,7 @@ pub enum LicenseMode {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct LicenseStatus {
     pub mode: LicenseMode,
+    pub license_id: Option<String>,
     pub updates_through: Option<String>,
     pub device_name: String,
     pub open_tab_count: usize,
@@ -261,6 +262,10 @@ impl LicenseService {
         );
         LicenseStatus {
             mode,
+            license_id: state
+                .entitlement
+                .as_ref()
+                .map(|entitlement| entitlement.license_id.clone()),
             updates_through: state
                 .entitlement
                 .as_ref()

@@ -234,6 +234,70 @@ async fn graph_create_reports_runtime_facts_and_close_reaps_the_tombstone() {
 }
 
 #[tokio::test]
+async fn host_settings_configure_new_terminal_processes() {
+    let directory = tempdir().unwrap();
+    let output = directory.path().join("configured");
+    let mut session = session(None).await;
+    request(
+        &mut session,
+        "settings.set",
+        json!({"key": "terminal.environment", "value": {"HOST_CONFIG": "set"}}),
+    )
+    .await;
+    request(
+        &mut session,
+        "settings.set",
+        json!({
+            "key": "terminal.shell",
+            "value": [
+                "/bin/sh",
+                "-c",
+                format!(
+                    r#"printf "$HOST_CONFIG" > '{}'; while :; do sleep 1; done"#,
+                    output.display()
+                )
+            ]
+        }),
+    )
+    .await;
+    let pane_id = PaneId(Uuid::from_u128(12));
+    create(
+        &mut session,
+        pane_id,
+        TabId(Uuid::from_u128(13)),
+        spec(Vec::new()),
+    )
+    .await;
+
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if std::fs::read_to_string(&output).is_ok_and(|value| value == "set") {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+
+    let confirmation = request(
+        &mut session,
+        "workspace.prepare_close",
+        json!({"command": Command::ClosePane { pane_id }}),
+    )
+    .await;
+    request(
+        &mut session,
+        "terminal.close",
+        json!({
+            "pane_id": pane_id,
+            "confirmation_token": confirmation["tokens"][pane_id.to_string()]
+        }),
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn spawn_failure_stays_visible_without_a_hidden_runtime() {
     let mut session = session(None).await;
     let pane_id = PaneId(Uuid::from_u128(20));
@@ -389,6 +453,61 @@ async fn moving_the_final_root_removes_its_window_without_restarting_the_termina
         }),
     )
     .await;
+}
+
+#[tokio::test]
+async fn terminate_all_reaps_processes_and_resets_the_workspace() {
+    let mut session = session(None).await;
+    let pane_id = PaneId(Uuid::from_u128(70));
+    create(
+        &mut session,
+        pane_id,
+        TabId(Uuid::from_u128(71)),
+        spec(vec![
+            "/bin/sh".into(),
+            "-c".into(),
+            "while :; do sleep 1; done".into(),
+        ]),
+    )
+    .await;
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let panes: Vec<PaneInfo> =
+                serde_json::from_value(request(&mut session, "terminal.list", Value::Null).await)
+                    .unwrap();
+            if panes.iter().any(|pane| pane.id == pane_id) {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+
+    let response = request(
+        &mut session,
+        "host.terminate_all",
+        json!({"confirmed": true}),
+    )
+    .await;
+    assert_eq!(response["terminated_pane_count"], 1);
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let panes: Vec<PaneInfo> =
+                serde_json::from_value(request(&mut session, "terminal.list", Value::Null).await)
+                    .unwrap();
+            if panes.is_empty() {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    let state = snapshot(&mut session).await;
+    assert_eq!(state.workspace.windows.len(), 1);
+    assert_eq!(state.workspace.spaces.len(), 1);
+    assert_eq!(state.workspace.pane_ids().count(), 0);
 }
 
 #[tokio::test]

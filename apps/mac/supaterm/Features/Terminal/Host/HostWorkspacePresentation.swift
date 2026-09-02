@@ -45,7 +45,7 @@ final class HostWorkspaceApplicationController {
     runtime = nil
   }
 
-  func createWindow() async throws {
+  func createWindow(workingDirectory: String? = nil) async throws {
     guard let runtime, let state = runtime.projection.state,
       let spaceID = state.workspace.spaces.first?.id
     else {
@@ -60,7 +60,7 @@ final class HostWorkspaceApplicationController {
       windowID: windowID,
       spaceID: spaceID,
       structureRevision: added.structureRevision,
-      workingDirectory: nil
+      workingDirectory: workingDirectory
     )
   }
 
@@ -105,6 +105,133 @@ final class HostWorkspaceApplicationController {
       window.performClose(nil)
     }
     return !windows.isEmpty
+  }
+
+  func terminateAll() async throws {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    _ = try await runtime.connection.request(
+      method: "host.terminate_all",
+      params: HostTerminateAllRequest(confirmed: true),
+      as: HostTerminateAllResult.self
+    )
+  }
+
+  func licenseStatus() async throws -> HostLicenseStatus {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    return try await runtime.connection.request(
+      method: "license.status",
+      params: HostJSONValue.null
+    )
+  }
+
+  func activateLicense(_ key: String) async throws -> HostLicenseStatus {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    return try await runtime.connection.request(
+      method: "license.activate",
+      params: HostLicenseActivationRequest(key: key)
+    )
+  }
+
+  func deactivateLicense() async throws -> HostLicenseStatus {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    return try await runtime.connection.request(
+      method: "license.deactivate",
+      params: HostJSONValue.null
+    )
+  }
+
+  func refreshLicense() async throws -> HostLicenseStatus {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    return try await runtime.connection.request(
+      method: "license.refresh",
+      params: HostJSONValue.null
+    )
+  }
+
+  func licenseURL(renew: Bool) async throws -> URL {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    let response: HostURLResponse = try await runtime.connection.request(
+      method: renew ? "license.renew" : "license.buy",
+      params: HostJSONValue.null
+    )
+    guard let url = URL(string: response.url) else {
+      throw HostWorkspacePresentationError.invalidURL
+    }
+    return url
+  }
+
+  func settings() async throws -> [String: HostJSONValue] {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    return try await runtime.connection.request(
+      method: "settings.list",
+      params: HostJSONValue.null
+    )
+  }
+
+  func setSetting(_ key: String, value: HostJSONValue) async throws -> [String: HostJSONValue] {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    return try await runtime.connection.request(
+      method: "settings.set",
+      params: HostSettingRequest(key: key, value: value)
+    )
+  }
+
+  func integration(method: String, kind: String) async throws -> HostJSONValue {
+    guard let runtime else { throw HostWorkspacePresentationError.notReady }
+    return try await runtime.connection.request(
+      method: method,
+      params: HostIntegrationRequest(kind: kind)
+    )
+  }
+
+  func refreshNotificationDelivery() {
+    if HostClientPreferences.systemNotificationsEnabled {
+      notificationDelivery?.drain()
+    } else {
+      notificationDelivery?.stop()
+    }
+  }
+
+  func focus(paneID: HostPaneID) async throws {
+    guard let runtime, let state = runtime.projection.state else {
+      throw HostWorkspacePresentationError.notReady
+    }
+    guard let location = state.workspace.location(of: paneID) else {
+      throw HostWorkspacePresentationError.notFound
+    }
+    let commands: [HostWorkspaceCommand] = [
+      .selectSpace(
+        clientID: clientID,
+        windowID: location.windowID,
+        spaceID: location.spaceID
+      ),
+      .selectTab(
+        clientID: clientID,
+        windowID: location.windowID,
+        spaceID: location.spaceID,
+        tabID: location.tabID
+      ),
+      .focusPane(
+        clientID: clientID,
+        windowID: location.windowID,
+        spaceID: location.spaceID,
+        tabID: location.tabID,
+        paneID: paneID
+      ),
+      .setActiveWindow(clientID: clientID, windowID: location.windowID),
+    ]
+    for command in commands {
+      _ = try await runtime.connection.apply(
+        command: command,
+        expectedStructureRevision: nil
+      )
+    }
+    if let nativeWindow = NSApp.windows.first(where: {
+      $0.identifier?.rawValue.hasSuffix(location.windowID.uuidString) == true
+    }) {
+      NSApp.activate(ignoringOtherApps: true)
+      nativeWindow.makeKeyAndOrderFront(nil)
+    }
   }
 
   private func ensureInitialTab() async throws {
@@ -179,6 +306,7 @@ private final class HostNotificationDelivery {
   }
 
   func drain() {
+    guard HostClientPreferences.systemNotificationsEnabled else { return }
     guard task == nil else { return }
     task = Task { [weak self] in
       guard let self else { return }
@@ -944,8 +1072,70 @@ private nonisolated struct HostUnsubscribeResult: Decodable, Sendable {
   let unsubscribed: Bool
 }
 
+nonisolated struct HostLicenseStatus: Decodable, Equatable, Sendable {
+  enum Mode: String, Decodable, Sendable {
+    case free
+    case paid
+    case expired
+  }
+
+  let mode: Mode
+  let licenseID: String?
+  let updatesThrough: String?
+  let deviceName: String
+  let openTabCount: Int
+  let freeTabLimit: Int
+}
+
+private nonisolated struct HostLicenseActivationRequest: Encodable, Sendable {
+  let key: String
+}
+
+private nonisolated struct HostURLResponse: Decodable, Sendable {
+  let url: String
+}
+
+private nonisolated struct HostSettingRequest: Encodable, Sendable {
+  let key: String
+  let value: HostJSONValue
+}
+
+private nonisolated struct HostIntegrationRequest: Encodable, Sendable {
+  let kind: String
+}
+
+private nonisolated struct HostTerminateAllRequest: Encodable, Sendable {
+  let confirmed: Bool
+}
+
+private nonisolated struct HostTerminateAllResult: Decodable, Sendable {
+  let terminatedPaneCount: Int
+}
+
 private enum HostWorkspacePresentationError: Error {
+  case invalidURL
+  case notFound
   case notReady
+}
+
+private struct HostPaneLocation {
+  let windowID: HostWindowID
+  let spaceID: HostSpaceID
+  let tabID: HostTabID
+}
+
+extension HostWorkspace {
+  fileprivate func location(of paneID: HostPaneID) -> HostPaneLocation? {
+    for window in windows.values {
+      for (spaceKey, content) in window.spaces {
+        guard let spaceID = UUID(uuidString: spaceKey) else { continue }
+        for tab in content.tabs.values where tab.root.paneIDs.contains(paneID) {
+          return HostPaneLocation(windowID: window.id, spaceID: spaceID, tabID: tab.id)
+        }
+      }
+    }
+    return nil
+  }
 }
 
 extension HostProjectionState {

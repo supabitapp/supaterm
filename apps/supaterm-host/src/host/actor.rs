@@ -537,6 +537,71 @@ impl ActorState {
                     Ok(url) => result(command_id, json!({"url": url})),
                     Err(license_error) => license_error_control(command_id, license_error),
                 },
+                "settings.list" if params.is_null() => result(command_id, &self.settings),
+                "settings.get" => match serde_json::from_value::<SettingsKeyRequest>(params) {
+                    Ok(request) if cli_execution::validate_setting_key(&request.key).is_ok() => {
+                        let value = self.settings.get(&request.key).cloned();
+                        result(command_id, json!({"key": request.key, "value": value}))
+                    }
+                    Ok(_) => error(
+                        Some(command_id),
+                        ProtocolErrorCode::InvalidRequest,
+                        Value::Null,
+                    ),
+                    Err(decode_error) => invalid_request(command_id, decode_error),
+                },
+                "settings.set" => match serde_json::from_value::<SettingsSetRequest>(params) {
+                    Ok(request)
+                        if cli_execution::validate_setting(&request.key, &request.value)
+                            .is_ok() =>
+                    {
+                        self.settings.insert(request.key, request.value);
+                        self.persist().await;
+                        result(command_id, &self.settings)
+                    }
+                    Ok(_) => error(
+                        Some(command_id),
+                        ProtocolErrorCode::InvalidRequest,
+                        Value::Null,
+                    ),
+                    Err(decode_error) => invalid_request(command_id, decode_error),
+                },
+                "settings.reset" => match serde_json::from_value::<SettingsResetRequest>(params) {
+                    Ok(request)
+                        if request
+                            .key
+                            .as_deref()
+                            .is_none_or(|key| cli_execution::validate_setting_key(key).is_ok()) =>
+                    {
+                        if let Some(key) = request.key {
+                            self.settings.remove(&key);
+                        } else {
+                            self.settings.clear();
+                        }
+                        self.persist().await;
+                        result(command_id, &self.settings)
+                    }
+                    Ok(_) => error(
+                        Some(command_id),
+                        ProtocolErrorCode::InvalidRequest,
+                        Value::Null,
+                    ),
+                    Err(decode_error) => invalid_request(command_id, decode_error),
+                },
+                "host.terminate_all" => {
+                    match serde_json::from_value::<TerminateAllRequest>(params) {
+                        Ok(TerminateAllRequest { confirmed: true }) => {
+                            let count = self.terminate_all().await;
+                            result(command_id, json!({"terminated_pane_count": count}))
+                        }
+                        Ok(_) => error(
+                            Some(command_id),
+                            ProtocolErrorCode::ConfirmationRequired,
+                            Value::Null,
+                        ),
+                        Err(decode_error) => invalid_request(command_id, decode_error),
+                    }
+                }
                 "state.snapshot" if params.is_null() => {
                     result(command_id, self.model.snapshot(client_id))
                 }
@@ -1200,6 +1265,30 @@ impl ActorState {
         }
     }
 
+    async fn terminate_all(&mut self) -> usize {
+        let workspace = Workspace::new(
+            SpaceId(Uuid::new_v4()),
+            WindowId(Uuid::new_v4()),
+            "Space 1".into(),
+        );
+        let closing = self.model.reset_workspace(workspace);
+        self.close_grants.clear();
+        self.process_scans.clear();
+        self.screen_revisions.clear();
+        self.notification_sink = None;
+        self.enrichment_subscriptions.clear();
+        self.enrichment_scans.clear();
+        for pane_id in &closing {
+            let terminals = self.terminals.clone();
+            let pane_id = *pane_id;
+            tokio::spawn(async move {
+                let _ = terminals.close(pane_id).await;
+            });
+        }
+        self.persist().await;
+        closing.len()
+    }
+
     async fn apply_workspace(
         &mut self,
         mut request: ApplyRequest,
@@ -1261,10 +1350,11 @@ impl ActorState {
         self.close_grants
             .retain(|_, grant| grant.structure_revision == structure_revision);
         for pane_id in &applied.starting_pane_ids {
-            let spec = request
+            let mut spec = request
                 .spawn_specs
                 .remove(pane_id)
                 .ok_or(ApplyWorkspaceError::SpawnSpecs)?;
+            self.configure_spawn_spec(&mut spec);
             self.schedule_spawn(*pane_id, spec);
         }
         for pane_id in &applied.closing_pane_ids {
@@ -1286,6 +1376,30 @@ impl ActorState {
             .flat_map(|window| window.spaces.values())
             .map(|space| space.tabs.len())
             .sum()
+    }
+
+    fn configure_spawn_spec(&self, spec: &mut SpawnSpec) {
+        if spec.argv.is_empty()
+            && let Some(Value::Array(values)) = self.settings.get("terminal.shell")
+            && let Some(argv) = values
+                .iter()
+                .map(|value| value.as_str().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()
+            && !argv.is_empty()
+        {
+            spec.argv = argv;
+        }
+        let Some(Value::Object(values)) = self.settings.get("terminal.environment") else {
+            return;
+        };
+        let mut environment = values
+            .iter()
+            .filter_map(|(key, value)| value.as_str().map(|value| (key.clone(), value.to_owned())))
+            .collect::<BTreeMap<_, _>>();
+        for (key, value) in std::mem::take(&mut spec.environment) {
+            environment.entry(key).or_insert(value);
+        }
+        spec.environment = environment.into_iter().collect();
     }
 
     fn prepare_close(&mut self, command: &Command) -> Result<CloseConfirmation, ModelError> {
@@ -1666,6 +1780,31 @@ struct SessionStartRequest {
 #[serde(deny_unknown_fields)]
 struct LicenseActivationRequest {
     key: String,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SettingsKeyRequest {
+    key: String,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SettingsSetRequest {
+    key: String,
+    value: Value,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SettingsResetRequest {
+    key: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TerminateAllRequest {
+    confirmed: bool,
 }
 
 #[derive(serde::Deserialize)]

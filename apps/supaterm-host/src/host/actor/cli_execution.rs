@@ -963,21 +963,16 @@ impl ActorState {
         if !direct_argv.is_empty() && script.is_some() {
             return Err(ProtocolErrorCode::InvalidRequest);
         }
-        let configured_argv = match self.settings.get("terminal.shell") {
-            Some(Value::Array(values)) => values
-                .iter()
-                .map(|value| value.as_str().map(str::to_owned))
-                .collect::<Option<Vec<_>>>()
-                .ok_or(ProtocolErrorCode::InvalidRequest)?,
-            Some(_) => return Err(ProtocolErrorCode::InvalidRequest),
-            None => Vec::new(),
-        };
         let argv = if !direct_argv.is_empty() {
             direct_argv
         } else if let Some(script) = script {
-            let shell = configured_argv
-                .first()
-                .cloned()
+            let shell = self
+                .settings
+                .get("terminal.shell")
+                .and_then(Value::as_array)
+                .and_then(|values| values.first())
+                .and_then(Value::as_str)
+                .map(str::to_owned)
                 .or_else(|| std::env::var("SHELL").ok())
                 .unwrap_or_else(|| "/bin/sh".into());
             vec![
@@ -986,26 +981,19 @@ impl ActorState {
                 format!("{script}; exec \"$SHELL\" -l"),
             ]
         } else {
-            configured_argv
+            Vec::new()
         };
-        let environment = match self.settings.get("terminal.environment") {
-            Some(Value::Object(values)) => values
-                .iter()
-                .map(|(key, value)| value.as_str().map(|value| (key.clone(), value.to_owned())))
-                .collect::<Option<Vec<_>>>()
-                .ok_or(ProtocolErrorCode::InvalidRequest)?,
-            Some(_) => return Err(ProtocolErrorCode::InvalidRequest),
-            None => Vec::new(),
-        };
-        Ok(SpawnSpec {
+        let mut spec = SpawnSpec {
             argv,
             cwd,
-            environment,
+            environment: Vec::new(),
             rows: 24,
             columns: 80,
             pixel_width: 800,
             pixel_height: 480,
-        })
+        };
+        self.configure_spawn_spec(&mut spec);
+        Ok(spec)
     }
 }
 
@@ -1025,7 +1013,7 @@ fn collect_split_ids(node: &SplitNode, split_ids: &mut Vec<SplitId>) {
     }
 }
 
-fn validate_setting(key: &str, value: &Value) -> Result<(), ProtocolErrorCode> {
+pub(super) fn validate_setting(key: &str, value: &Value) -> Result<(), ProtocolErrorCode> {
     validate_setting_key(key)?;
     let valid = match key {
         "terminal.shell" => value.as_array().is_some_and(|values| {
@@ -1052,7 +1040,7 @@ fn validate_setting(key: &str, value: &Value) -> Result<(), ProtocolErrorCode> {
     valid.then_some(()).ok_or(ProtocolErrorCode::InvalidRequest)
 }
 
-fn validate_setting_key(key: &str) -> Result<(), ProtocolErrorCode> {
+pub(super) fn validate_setting_key(key: &str) -> Result<(), ProtocolErrorCode> {
     matches!(
         key,
         "terminal.shell"

@@ -100,3 +100,31 @@ fn revisions_are_atomic_private_gaps_are_valid_and_old_cursors_resync() {
         Subscription::Snapshot(_)
     ));
 }
+
+#[test]
+fn reset_replaces_every_client_projection_in_one_revision() {
+    let (mut model, first, second, _) = model();
+    let replacement_space = SpaceId(Uuid::from_u128(50));
+    let replacement_window = WindowId(Uuid::from_u128(51));
+    let before_revision = model.revision();
+    let before_structure_revision = model.structure_revision();
+
+    let closing = model.reset_workspace(Workspace::new(
+        replacement_space,
+        replacement_window,
+        "Fresh".into(),
+    ));
+
+    assert!(closing.is_empty());
+    assert_eq!(model.revision(), before_revision + 1);
+    assert_eq!(model.structure_revision(), before_structure_revision + 1);
+    assert_eq!(model.clients().len(), 2);
+    for client_id in [first, second] {
+        let snapshot = model.snapshot(client_id);
+        assert_eq!(snapshot.workspace.spaces[0].id, replacement_space);
+        assert_eq!(
+            snapshot.client_state.unwrap().active_window_id,
+            Some(replacement_window)
+        );
+    }
+}
