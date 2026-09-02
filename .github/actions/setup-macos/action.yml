@@ -30,7 +30,7 @@ runs:
       env:
         TUIST_XCODE_CACHE: "1"
       run: |
-        mise exec -- tuist setup cache --path apps/mac
+        make tuist-cache-setup
         printf '%s\n' 'TUIST_XCODE_CACHE=1' >> "$GITHUB_ENV"
     - name: Xcode cache key
       if: ${{ inputs.cache-tuist-packages == 'true' || inputs.cache-native-builds == 'true' }}
