@@ -66,13 +66,19 @@ nonisolated struct HostProcessBootstrap: Sendable {
     throw HostProcessBootstrapError.startFailed
   }
 
-  func connection(clientID: HostClientID) async throws -> HostConnection {
+  func connection(
+    clientID: HostClientID,
+    capabilities: [String],
+    capabilityHandler: @escaping HostConnectionConfiguration.CapabilityHandler
+  ) async throws -> HostConnection {
     let description = try await prepare()
     return HostConnection(
       transport: HostUnixTransport(socketPath: description.socket),
       configuration: HostConnectionConfiguration(
         build: description.build,
-        clientID: clientID
+        clientID: clientID,
+        capabilities: capabilities,
+        capabilityHandler: capabilityHandler
       )
     )
   }

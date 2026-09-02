@@ -87,6 +87,14 @@ pub enum ClientControl {
         #[serde(default)]
         params: Value,
     },
+    CapabilityResult {
+        request_id: Uuid,
+        result: Value,
+    },
+    CapabilityError {
+        request_id: Uuid,
+        error: ProtocolError,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -116,6 +124,12 @@ pub enum HostControl {
     },
     State {
         subscription: Subscription,
+    },
+    CapabilityRequest {
+        request_id: Uuid,
+        capability: String,
+        method: String,
+        params: Value,
     },
 }
 

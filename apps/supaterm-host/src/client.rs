@@ -393,6 +393,7 @@ async fn run_reader(
                         true
                     }
                     HostControl::Welcome { .. }
+                    | HostControl::CapabilityRequest { .. }
                     | HostControl::Error {
                         command_id: None, ..
                     } => false,

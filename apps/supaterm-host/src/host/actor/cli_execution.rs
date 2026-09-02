@@ -632,19 +632,31 @@ impl ActorState {
             CliAction::PaneFocus { target } => {
                 let location = self.resolve(context_pane_id, CliTargetKind::Pane, &target)?;
                 let client_id = self.active_client(location.window_id)?;
-                self.apply_value(
-                    Command::FocusPane {
-                        client_id,
-                        window_id: location.window_id,
-                        space_id: location.space_id,
-                        tab_id: location.tab_id.ok_or(ProtocolErrorCode::NotFound)?,
-                        pane_id: location.pane_id.ok_or(ProtocolErrorCode::NotFound)?,
-                    },
-                    expected,
-                    BTreeMap::new(),
-                    false,
-                )
-                .await
+                let pane_id = location.pane_id.ok_or(ProtocolErrorCode::NotFound)?;
+                let applied = self
+                    .apply_value(
+                        Command::FocusPane {
+                            client_id,
+                            window_id: location.window_id,
+                            space_id: location.space_id,
+                            tab_id: location.tab_id.ok_or(ProtocolErrorCode::NotFound)?,
+                            pane_id,
+                        },
+                        expected,
+                        BTreeMap::new(),
+                        false,
+                    )
+                    .await?;
+                self.capabilities
+                    .request_for(
+                        Some(client_id),
+                        "native_focus",
+                        "native.focus",
+                        json!({"pane_id": pane_id}),
+                    )
+                    .await
+                    .map_err(|error| error.code)?;
+                Ok(applied)
             }
             CliAction::PaneClose { target, force } => {
                 let pane_id = self.pane_id(context_pane_id, &target)?;
@@ -716,6 +728,21 @@ impl ActorState {
                     .await
                     .map_err(terminal_error_code)?;
                 Ok(json!({"pane_id": pane_id, "text": text}))
+            }
+            CliAction::PaneScreenshot {
+                target,
+                output_path,
+            } => {
+                let pane_id = self.pane_id(context_pane_id, &target)?;
+                self.capabilities
+                    .request(
+                        "native_screenshot",
+                        "native.screenshot",
+                        json!({"pane_id": pane_id, "output_path": output_path}),
+                    )
+                    .await
+                    .map_err(|error| error.code)?;
+                Ok(json!({"pane_id": pane_id, "path": output_path}))
             }
             CliAction::PaneHealth { target } => {
                 let pane_id = self.pane_id(context_pane_id, &target)?;

@@ -198,6 +198,65 @@ struct HostConnectionTests {
     await connection.stop()
   }
 
+  @Test
+  func answersHostCapabilityRequestsOnTheSameConnection() async throws {
+    let transport = TestHostTransport()
+    let build = HostBuildIdentity(version: "26.0.0", fingerprint: "test")
+    let connection = HostConnection(
+      transport: transport,
+      configuration: HostConnectionConfiguration(
+        build: build,
+        clientID: UUID(),
+        capabilities: ["semantic_state", "native_focus"],
+        capabilityHandler: { request in
+          #expect(request.capability == "native_focus")
+          #expect(request.method == "native.focus")
+          return request.params
+        }
+      )
+    )
+    var events = connection.events.makeAsyncIterator()
+
+    await connection.start()
+    _ = await events.next()
+    _ = try await transport.frame(link: 0, index: 0)
+    try await transport.receive(
+      link: 0,
+      payload: try encoded(welcome(build: build, epoch: UUID())),
+      includePreface: true
+    )
+    _ = await events.next()
+    let subscribe = try await transport.frame(link: 0, index: 1)
+    let subscribeID = try #require(try json(subscribe.payload)["command_id"] as? String)
+    let fixture = try stateFixture()
+    try await transport.receive(
+      link: 0,
+      payload: try encoded([
+        "type": "result", "command_id": subscribeID,
+        "result": fixture["subscription"] as Any,
+      ])
+    )
+    _ = await events.next()
+
+    let requestID = UUID()
+    try await transport.receive(
+      link: 0,
+      payload: try encoded([
+        "type": "capability_request",
+        "request_id": requestID.uuidString,
+        "capability": "native_focus",
+        "method": "native.focus",
+        "params": ["pane_id": "pane"],
+      ])
+    )
+    let response = try await transport.frame(link: 0, index: 2)
+    let responseJSON = try json(response.payload)
+    #expect(responseJSON["type"] as? String == "capability_result")
+    #expect(responseJSON["request_id"] as? String == requestID.uuidString)
+    #expect((responseJSON["result"] as? [String: String])?["pane_id"] == "pane")
+    await connection.stop()
+  }
+
   private func stateFixture() throws -> [String: Any] {
     let url = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()

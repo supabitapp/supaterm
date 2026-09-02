@@ -16,7 +16,25 @@ final class HostWorkspaceApplicationController {
 
   func start() async throws {
     guard runtime == nil else { return }
-    let connection = try await HostProcessBootstrap.bundled().connection(clientID: clientID)
+    let connection = try await HostProcessBootstrap.bundled().connection(
+      clientID: clientID,
+      capabilities: [
+        "semantic_state",
+        "terminal_snapshot",
+        "native_focus",
+        "native_screenshot",
+        "native_clipboard",
+        "native_open_url",
+        "native_notification",
+        "native_client_shutdown",
+      ],
+      capabilityHandler: { [weak self] request in
+        guard let self else {
+          throw HostProtocolError(code: .capabilityUnavailable)
+        }
+        return try await self.handle(request)
+      }
+    )
     let ghosttyRuntime = ghosttyRuntime
     let clientID = clientID
     let reconciler = HostWindowReconciler { windowID in
@@ -226,11 +244,92 @@ final class HostWorkspaceApplicationController {
         expectedStructureRevision: nil
       )
     }
-    if let nativeWindow = NSApp.windows.first(where: {
-      $0.identifier?.rawValue.hasSuffix(location.windowID.uuidString) == true
-    }) {
-      NSApp.activate(ignoringOtherApps: true)
-      nativeWindow.makeKeyAndOrderFront(nil)
+    try raise(paneID: paneID)
+  }
+
+  private func handle(_ request: HostCapabilityRequest) async throws -> HostJSONValue {
+    switch request.method {
+    case "native.focus":
+      let params = try request.params.decode(HostNativePaneRequest.self)
+      try raise(paneID: params.paneID)
+      return .object(["focused": .bool(true)])
+    case "native.screenshot":
+      let params = try request.params.decode(HostNativeScreenshotRequest.self)
+      let path = try screenshot(paneID: params.paneID, outputPath: params.outputPath)
+      return try HostJSONValue.encode(HostNativeScreenshotResponse(path: path))
+    case "native.clipboard.read":
+      return .object([
+        "text": .string(NSPasteboard.general.string(forType: .string) ?? "")
+      ])
+    case "native.clipboard.write":
+      let params = try request.params.decode(HostNativeClipboardWriteRequest.self)
+      NSPasteboard.general.clearContents()
+      guard NSPasteboard.general.setString(params.text, forType: .string) else {
+        throw HostProtocolError(code: .internal)
+      }
+      return .object(["written": .bool(true)])
+    case "native.open_url":
+      let params = try request.params.decode(HostNativeURLRequest.self)
+      try openURL(params.url)
+      return .object(["accepted": .bool(true)])
+    case "native.notification":
+      let params = try request.params.decode(HostNativeNotificationRequest.self)
+      await DesktopNotificationClient.liveValue.deliver(
+        NotificationRequest(
+          body: params.body ?? "",
+          disposition: .deliver,
+          subtitle: params.subtitle ?? "",
+          title: params.title ?? "Supaterm",
+          sourceSurfaceID: params.paneID
+        )
+      )
+      return .object(["delivered": .bool(true)])
+    case "native.client_shutdown":
+      let params = try request.params.decode(HostNativeShutdownRequest.self)
+      guard params.confirmed else {
+        throw HostProtocolError(code: .confirmationRequired)
+      }
+      DispatchQueue.main.async {
+        NSApp.terminate(nil)
+      }
+      return .object(["accepted": .bool(true)])
+    default:
+      throw HostProtocolError(code: .capabilityUnavailable)
+    }
+  }
+
+  private func raise(paneID: HostPaneID) throws {
+    guard let runtime, let state = runtime.projection.state,
+      let location = state.workspace.location(of: paneID),
+      let presentation = runtime.presentation(for: location.windowID)
+        as? HostWorkspaceWindowPresentation
+    else {
+      throw HostProtocolError(code: .capabilityUnavailable)
+    }
+    presentation.raise()
+  }
+
+  private func screenshot(paneID: HostPaneID, outputPath: String) throws -> String {
+    guard let runtime, let state = runtime.projection.state,
+      let location = state.workspace.location(of: paneID),
+      let presentation = runtime.presentation(for: location.windowID)
+        as? HostWorkspaceWindowPresentation
+    else {
+      throw HostProtocolError(code: .capabilityUnavailable)
+    }
+    return try presentation.screenshot(paneID: paneID, outputPath: outputPath)
+  }
+
+  private func openURL(_ value: String) throws {
+    let target = GhosttyUntrustedURL(value)
+    switch target.decision {
+    case .allow(let url):
+      guard NSWorkspace.shared.open(url) else { throw HostProtocolError(code: .internal) }
+    case .confirm(let url):
+      GhosttyUntrustedURLAlert.presentConfirmation(for: url, displayString: target.displayString)
+    case .deny(let reason):
+      GhosttyUntrustedURLAlert.presentBlock(reason: reason, displayString: target.displayString)
+      throw HostProtocolError(code: .permissionDenied)
     }
   }
 
@@ -448,6 +547,15 @@ private final class HostWorkspaceWindowPresentation: NSObject, HostWindowPresent
     windowController.close()
   }
 
+  func raise() {
+    NSApp.activate(ignoringOtherApps: true)
+    windowController.window?.makeKeyAndOrderFront(nil)
+  }
+
+  func screenshot(paneID: HostPaneID, outputPath: String) throws -> String {
+    try contentView.screenshot(paneID: paneID, outputPath: outputPath)
+  }
+
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     if detaching || approvedClose { return true }
     Task { [weak self, weak sender] in
@@ -663,6 +771,18 @@ private final class HostWorkspaceContentView: NSView {
   func detach() {
     stopEnrichment()
     removeRenderers(except: [])
+  }
+
+  func screenshot(paneID: HostPaneID, outputPath: String) throws -> String {
+    guard let view = renderers[paneID]?.view,
+      let image = TerminalPaneCaptureClient.live.capture(view),
+      let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+    else {
+      throw HostProtocolError(code: .capabilityUnavailable)
+    }
+    let url = URL(fileURLWithPath: outputPath).standardizedFileURL
+    try data.write(to: url, options: .atomic)
+    return url.path
   }
 
   private var windowControllerWindow: NSWindow? {
@@ -1110,6 +1230,38 @@ private nonisolated struct HostTerminateAllRequest: Encodable, Sendable {
 
 private nonisolated struct HostTerminateAllResult: Decodable, Sendable {
   let terminatedPaneCount: Int
+}
+
+private nonisolated struct HostNativePaneRequest: Decodable, Sendable {
+  let paneID: HostPaneID
+}
+
+private nonisolated struct HostNativeScreenshotRequest: Decodable, Sendable {
+  let paneID: HostPaneID
+  let outputPath: String
+}
+
+private nonisolated struct HostNativeScreenshotResponse: Encodable, Sendable {
+  let path: String
+}
+
+private nonisolated struct HostNativeClipboardWriteRequest: Decodable, Sendable {
+  let text: String
+}
+
+private nonisolated struct HostNativeURLRequest: Decodable, Sendable {
+  let url: String
+}
+
+private nonisolated struct HostNativeNotificationRequest: Decodable, Sendable {
+  let title: String?
+  let subtitle: String?
+  let body: String?
+  let paneID: HostPaneID?
+}
+
+private nonisolated struct HostNativeShutdownRequest: Decodable, Sendable {
+  let confirmed: Bool
 }
 
 private enum HostWorkspacePresentationError: Error {

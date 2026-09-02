@@ -157,6 +157,10 @@ pub enum CliAction {
     PaneCapture {
         target: CliTarget,
     },
+    PaneScreenshot {
+        target: CliTarget,
+        output_path: PathBuf,
+    },
     PaneHealth {
         target: CliTarget,
     },

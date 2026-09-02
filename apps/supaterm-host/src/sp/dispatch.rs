@@ -414,6 +414,13 @@ async fn pane(
                 result
             });
         }
+        PaneCommand::Screenshot { target, output } => (
+            CliAction::PaneScreenshot {
+                target: parse_target(target.as_deref(), CliTargetKind::Pane)?,
+                output_path: absolute_path(output)?,
+            },
+            Presentation::Text("path".into()),
+        ),
         PaneCommand::Health { target } => (
             CliAction::PaneHealth {
                 target: parse_target(target.as_deref(), CliTargetKind::Pane)?,
@@ -518,6 +525,14 @@ async fn pane(
         ),
     };
     cli(client, expected_structure_revision, action, presentation).await
+}
+
+fn absolute_path(path: std::path::PathBuf) -> Result<std::path::PathBuf> {
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(std::env::current_dir()?.join(path))
+    }
 }
 
 async fn config(

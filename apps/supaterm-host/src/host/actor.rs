@@ -4,6 +4,7 @@ use crate::agent::enrichment::scan as scan_enrichment;
 use crate::agent::machine::{MachineEnvironment, MachineServiceError, MachineServices};
 use crate::agent::manifest::DetectionCatalog;
 use crate::agent::process::{ProcessScan, is_descendant, scan_process_group};
+use crate::capability::CapabilityBroker;
 use crate::host::cli::CliExecuteRequest;
 use crate::license::{LicenseEnvironment, LicenseError, LicenseService};
 use crate::protocol::control::{
@@ -57,6 +58,7 @@ pub struct HostActor {
     terminals: TerminalRegistry,
     machine_services: Option<MachineServices>,
     revisions: watch::Receiver<u64>,
+    capabilities: CapabilityBroker,
 }
 
 #[derive(Clone, Copy)]
@@ -124,6 +126,7 @@ impl HostActor {
             })
             .unwrap_or_else(LicenseService::free);
         license.start_refresh_loop();
+        let capabilities = CapabilityBroker::new(std::time::Duration::from_secs(30));
         let state = ActorState {
             configuration,
             terminals: terminals.clone(),
@@ -141,6 +144,7 @@ impl HostActor {
             enrichment_subscriptions: BTreeMap::new(),
             enrichment_scans: BTreeMap::new(),
             active_ui_connections: BTreeMap::new(),
+            capabilities: capabilities.clone(),
             license,
         };
         tokio::spawn(run(state, revision_sender, receiver));
@@ -149,11 +153,16 @@ impl HostActor {
             terminals,
             machine_services,
             revisions,
+            capabilities,
         }
     }
 
     pub(crate) fn terminals(&self) -> &TerminalRegistry {
         &self.terminals
+    }
+
+    pub(crate) fn capabilities(&self) -> &CapabilityBroker {
+        &self.capabilities
     }
 
     pub async fn status(&self) -> Result<HostStatus, ProtocolError> {
@@ -267,6 +276,7 @@ impl HostActor {
     }
 
     pub fn disconnect(&self, connection_id: Uuid) {
+        self.capabilities.disconnect(connection_id);
         let _ = self
             .sender
             .try_send(ActorMessage::Disconnected { connection_id });
@@ -337,6 +347,7 @@ struct ActorState {
     enrichment_subscriptions: BTreeMap<Uuid, EnrichmentSubscription>,
     enrichment_scans: BTreeMap<PaneId, EnrichmentScanState>,
     active_ui_connections: BTreeMap<Uuid, ClientId>,
+    capabilities: CapabilityBroker,
     license: LicenseService,
 }
 

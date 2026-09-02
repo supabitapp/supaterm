@@ -4,6 +4,7 @@ use crate::protocol::control::{
     ProtocolErrorCode,
 };
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 use uuid::Uuid;
 
 #[derive(Clone, Copy)]
@@ -18,6 +19,7 @@ pub struct ConnectionSession {
     closed: bool,
     connection_id: Uuid,
     peer_process_id: Option<u32>,
+    capabilities: BTreeSet<String>,
 }
 
 impl ConnectionSession {
@@ -32,6 +34,7 @@ impl ConnectionSession {
             closed: false,
             connection_id: Uuid::new_v4(),
             peer_process_id,
+            capabilities: BTreeSet::new(),
         }
     }
 
@@ -45,6 +48,14 @@ impl ConnectionSession {
 
     pub fn client_id(&self) -> Option<ClientId> {
         self.client.map(|client| client.id)
+    }
+
+    pub fn connection_id(&self) -> Uuid {
+        self.connection_id
+    }
+
+    pub fn capabilities(&self) -> &BTreeSet<String> {
+        &self.capabilities
     }
 
     pub async fn receive(&mut self, control: ClientControl) -> HostControl {
@@ -94,7 +105,7 @@ impl ConnectionSession {
                         error,
                     };
                 }
-                let negotiated_capabilities = status
+                let negotiated_capabilities: Vec<String> = status
                     .capabilities
                     .iter()
                     .filter(|capability| capabilities.contains(capability))
@@ -108,6 +119,7 @@ impl ConnectionSession {
                         .maximum_continuation_bytes
                         .min(Limits::default().maximum_continuation_bytes),
                 };
+                self.capabilities = negotiated_capabilities.iter().cloned().collect();
                 self.client = Some(ClientIdentity {
                     id: client_id,
                     role,
@@ -128,6 +140,10 @@ impl ConnectionSession {
                 ProtocolErrorCode::HelloRequired,
                 Value::Null,
             ),
+            (
+                None,
+                ClientControl::CapabilityResult { .. } | ClientControl::CapabilityError { .. },
+            ) => protocol_error(None, ProtocolErrorCode::HelloRequired, Value::Null),
             (Some(_), ClientControl::Hello { .. }) => {
                 self.closed = true;
                 protocol_error(None, ProtocolErrorCode::UnexpectedHello, Value::Null)
@@ -154,6 +170,10 @@ impl ConnectionSession {
                     )
                     .await
             }
+            (
+                Some(_),
+                ClientControl::CapabilityResult { .. } | ClientControl::CapabilityError { .. },
+            ) => protocol_error(None, ProtocolErrorCode::InvalidRequest, Value::Null),
         }
     }
 }

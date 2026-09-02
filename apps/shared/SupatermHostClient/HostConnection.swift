@@ -29,24 +29,31 @@ public protocol HostTransport: Sendable {
 }
 
 public struct HostConnectionConfiguration: Sendable {
+  public typealias CapabilityHandler = @Sendable (HostCapabilityRequest) async throws -> HostJSONValue
+
   public let build: HostBuildIdentity
   public let role: HostClientRole
   public let clientID: HostClientID?
   public let capabilities: [String]
   public let limits: HostLimits
+  public let capabilityHandler: CapabilityHandler
 
   public init(
     build: HostBuildIdentity,
     role: HostClientRole = .ui,
     clientID: HostClientID?,
     capabilities: [String] = ["semantic_state", "terminal_snapshot"],
-    limits: HostLimits = HostLimits()
+    limits: HostLimits = HostLimits(),
+    capabilityHandler: @escaping CapabilityHandler = { _ in
+      throw HostProtocolError(code: .capabilityUnavailable)
+    }
   ) {
     self.build = build
     self.role = role
     self.clientID = clientID
     self.capabilities = capabilities
     self.limits = limits
+    self.capabilityHandler = capabilityHandler
   }
 }
 
@@ -357,7 +364,40 @@ public actor HostConnection {
       yield(.control(event), to: streamID)
     case .state(let subscription):
       received(subscription)
+    case .capabilityRequest(let request):
+      perform(request)
     }
+  }
+
+  private func perform(_ request: HostCapabilityRequest) {
+    let handler = configuration.capabilityHandler
+    Task { [weak self] in
+      let control: HostClientControl
+      do {
+        control = .capabilityResult(
+          requestID: request.requestID,
+          result: try await handler(request)
+        )
+      } catch let error as HostProtocolError {
+        control = .capabilityError(requestID: request.requestID, error: error)
+      } catch {
+        control = .capabilityError(
+          requestID: request.requestID,
+          error: HostProtocolError(code: .internal)
+        )
+      }
+      try? await self?.send(control)
+    }
+  }
+
+  private func send(_ control: HostClientControl) async throws {
+    guard let link else { throw HostConnectionFailure.notConnected }
+    let frame = try HostFrame(
+      kind: .clientControl,
+      streamID: 0,
+      payload: HostWireCodec.encode(control)
+    )
+    try await link.send(frame.encoded())
   }
 
   private func subscribe() {

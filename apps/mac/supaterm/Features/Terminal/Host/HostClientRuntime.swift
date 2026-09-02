@@ -56,6 +56,10 @@ final class HostWindowReconciler {
   var windowIDs: Set<HostWindowID> {
     Set(presentations.keys)
   }
+
+  func presentation(for windowID: HostWindowID) -> (any HostWindowPresentation)? {
+    presentations[windowID]
+  }
 }
 
 @MainActor
@@ -90,6 +94,10 @@ final class HostClientRuntime {
     windows.detachAll()
     projection.clear()
     Task { await connection.stop() }
+  }
+
+  func presentation(for windowID: HostWindowID) -> (any HostWindowPresentation)? {
+    windows.presentation(for: windowID)
   }
 
   private func receive(_ event: HostConnectionEvent) async {

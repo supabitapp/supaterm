@@ -214,6 +214,8 @@ public enum HostClientControl: Encodable, Equatable, Sendable {
     limits: HostLimits
   )
   case request(commandID: HostCommandID, method: String, params: HostJSONValue)
+  case capabilityResult(requestID: UUID, result: HostJSONValue)
+  case capabilityError(requestID: UUID, error: HostProtocolError)
 
   private enum CodingKeys: String, CodingKey {
     case type
@@ -226,11 +228,16 @@ public enum HostClientControl: Encodable, Equatable, Sendable {
     case commandID
     case method
     case params
+    case requestID
+    case result
+    case error
   }
 
   private enum Kind: String, Encodable {
     case hello
     case request
+    case capabilityResult = "capability_result"
+    case capabilityError = "capability_error"
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -249,6 +256,14 @@ public enum HostClientControl: Encodable, Equatable, Sendable {
       try container.encode(commandID, forKey: .commandID)
       try container.encode(method, forKey: .method)
       try container.encode(params, forKey: .params)
+    case .capabilityResult(let requestID, let result):
+      try container.encode(Kind.capabilityResult, forKey: .type)
+      try container.encode(requestID, forKey: .requestID)
+      try container.encode(result, forKey: .result)
+    case .capabilityError(let requestID, let error):
+      try container.encode(Kind.capabilityError, forKey: .type)
+      try container.encode(requestID, forKey: .requestID)
+      try container.encode(error, forKey: .error)
     }
   }
 }
@@ -276,6 +291,7 @@ public enum HostProtocolErrorCode: String, Codable, Equatable, Sendable {
   case ambiguousTarget = "ambiguous_target"
   case notFound = "not_found"
   case confirmationRequired = "confirmation_required"
+  case licenseRequired = "license_required"
   case capabilityUnavailable = "capability_unavailable"
   case `internal`
 }
@@ -284,6 +300,23 @@ public struct HostProtocolError: Codable, Equatable, Sendable, Error {
   public let code: HostProtocolErrorCode
   public let details: HostJSONValue
   public let retryable: Bool
+
+  public init(
+    code: HostProtocolErrorCode,
+    details: HostJSONValue = .null,
+    retryable: Bool = false
+  ) {
+    self.code = code
+    self.details = details
+    self.retryable = retryable
+  }
+}
+
+public struct HostCapabilityRequest: Equatable, Sendable {
+  public let requestID: UUID
+  public let capability: String
+  public let method: String
+  public let params: HostJSONValue
 }
 
 public enum HostControl: Decodable, Equatable, Sendable {
@@ -292,6 +325,7 @@ public enum HostControl: Decodable, Equatable, Sendable {
   case error(commandID: HostCommandID?, error: HostProtocolError)
   case terminal(streamID: UInt32, event: HostTerminalControl)
   case state(HostSubscription)
+  case capabilityRequest(HostCapabilityRequest)
 
   private enum CodingKeys: String, CodingKey {
     case type
@@ -309,6 +343,10 @@ public enum HostControl: Decodable, Equatable, Sendable {
     case streamID
     case event
     case subscription
+    case requestID
+    case capability
+    case method
+    case params
   }
 
   private enum Kind: String, Decodable {
@@ -317,6 +355,7 @@ public enum HostControl: Decodable, Equatable, Sendable {
     case error
     case terminal
     case state
+    case capabilityRequest = "capability_request"
   }
 
   public init(from decoder: any Decoder) throws {
@@ -352,6 +391,15 @@ public enum HostControl: Decodable, Equatable, Sendable {
       )
     case .state:
       self = .state(try container.decode(HostSubscription.self, forKey: .subscription))
+    case .capabilityRequest:
+      self = .capabilityRequest(
+        HostCapabilityRequest(
+          requestID: try container.decode(UUID.self, forKey: .requestID),
+          capability: try container.decode(String.self, forKey: .capability),
+          method: try container.decode(String.self, forKey: .method),
+          params: try container.decode(HostJSONValue.self, forKey: .params)
+        )
+      )
     }
   }
 }

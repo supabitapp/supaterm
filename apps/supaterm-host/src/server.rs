@@ -21,7 +21,16 @@ pub async fn serve(paths: RuntimePaths, build: BuildIdentity) -> io::Result<()> 
             host_id: loaded.document.host_id,
             epoch: Uuid::new_v4(),
             build: build.clone(),
-            capabilities: vec!["semantic_state".into(), "terminal_snapshot".into()],
+            capabilities: vec![
+                "semantic_state".into(),
+                "terminal_snapshot".into(),
+                "native_focus".into(),
+                "native_screenshot".into(),
+                "native_clipboard".into(),
+                "native_open_url".into(),
+                "native_notification".into(),
+                "native_client_shutdown".into(),
+            ],
             command_cache_capacity: 2048,
             terminal_environment: Some(TerminalEnvironment {
                 socket_path: paths.socket.clone(),

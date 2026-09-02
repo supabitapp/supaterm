@@ -265,6 +265,11 @@ pub enum PaneCommand {
         #[arg(long)]
         lines: Option<usize>,
     },
+    Screenshot {
+        target: Option<String>,
+        #[arg(short, long)]
+        output: PathBuf,
+    },
     Health {
         target: Option<String>,
     },

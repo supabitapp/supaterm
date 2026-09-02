@@ -1,3 +1,4 @@
+use crate::capability::{CapabilityClient, CapabilityResponse};
 use crate::host::actor::HostActor;
 use crate::protocol::connection::ConnectionSession;
 use crate::protocol::control::{
@@ -164,6 +165,9 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
         control_receiver,
         terminal_receiver,
     ));
+    let (capability_sender, capability_receiver) = mpsc::channel(CONTROL_QUEUE_CAPACITY);
+    let capability_forwarder =
+        tokio::spawn(forward_capabilities(capability_receiver, outbound.clone()));
     let mut session = ConnectionSession::new_with_peer(actor.clone(), peer_process_id);
     let mut streams = HashMap::new();
     let mut state_subscription = None;
@@ -176,6 +180,7 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
                     &outbound,
                     &mut streams,
                     &mut state_subscription,
+                    &capability_sender,
                     &frame.payload,
                 )
                 .await?
@@ -200,6 +205,7 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
         }
     }
     let client_id = session.client_id();
+    actor.capabilities().disconnect(session.connection_id());
     if let Some(subscription) = state_subscription {
         subscription.abort();
     }
@@ -213,6 +219,8 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
         }
     }
     drop(outbound);
+    drop(capability_sender);
+    capability_forwarder.abort();
     writer
         .await
         .map_err(io::Error::other)?
@@ -225,6 +233,7 @@ async fn receive_control(
     outbound: &Outbound,
     streams: &mut HashMap<u32, StreamAttachment>,
     state_subscription: &mut Option<JoinHandle<()>>,
+    capability_sender: &mpsc::Sender<HostControl>,
     payload: &[u8],
 ) -> io::Result<bool> {
     let control = match decode_client_control(payload) {
@@ -240,13 +249,72 @@ async fn receive_control(
             return Ok(false);
         }
     };
+    match &control {
+        ClientControl::CapabilityResult { request_id, result } => {
+            let accepted = session.client_id().is_some()
+                && actor.capabilities().complete(
+                    session.connection_id(),
+                    *request_id,
+                    CapabilityResponse::Result(result.clone()),
+                );
+            if !accepted {
+                outbound
+                    .control(protocol_error(
+                        None,
+                        if session.client_id().is_some() {
+                            ProtocolErrorCode::InvalidRequest
+                        } else {
+                            ProtocolErrorCode::HelloRequired
+                        },
+                        json!({"request_id": request_id}),
+                    ))
+                    .await?;
+            }
+            return Ok(false);
+        }
+        ClientControl::CapabilityError { request_id, error } => {
+            let accepted = session.client_id().is_some()
+                && actor.capabilities().complete(
+                    session.connection_id(),
+                    *request_id,
+                    CapabilityResponse::Error(error.clone()),
+                );
+            if !accepted {
+                outbound
+                    .control(protocol_error(
+                        None,
+                        if session.client_id().is_some() {
+                            ProtocolErrorCode::InvalidRequest
+                        } else {
+                            ProtocolErrorCode::HelloRequired
+                        },
+                        json!({"request_id": request_id}),
+                    ))
+                    .await?;
+            }
+            return Ok(false);
+        }
+        ClientControl::Hello { .. } | ClientControl::Request { .. } => {}
+    }
     let ClientControl::Request {
         command_id,
         method,
         params,
     } = control
     else {
+        let was_authenticated = session.client_id().is_some();
         let response = session.receive(control).await;
+        if !was_authenticated
+            && matches!(response, HostControl::Welcome { .. })
+            && let Some(client_id) = session.client_id()
+        {
+            actor.capabilities().register(CapabilityClient {
+                connection_id: session.connection_id(),
+                client_id,
+                capabilities: session.capabilities().clone(),
+                outbound: capability_sender.clone(),
+            });
+        }
         outbound.control(response).await?;
         return Ok(session.is_closed());
     };
@@ -423,6 +491,14 @@ async fn receive_control(
         }
     }
     Ok(false)
+}
+
+async fn forward_capabilities(mut receiver: mpsc::Receiver<HostControl>, outbound: Outbound) {
+    while let Some(control) = receiver.recv().await {
+        if outbound.control(control).await.is_err() {
+            break;
+        }
+    }
 }
 
 async fn forward_state(

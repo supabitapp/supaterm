@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod capability;
 pub mod client;
 pub mod host;
 pub mod launcher;
