@@ -27,11 +27,9 @@ runs:
     - name: Tuist Xcode cache
       if: ${{ env.TUIST_TOKEN != '' }}
       shell: bash
-      env:
-        TUIST_XCODE_CACHE: "1"
       run: |
         make tuist-cache-setup
-        printf '%s\n' 'TUIST_XCODE_CACHE=1' >> "$GITHUB_ENV"
+        printf '%s\n' 'TUIST_XCODE_CACHE_FORCE=1' >> "$GITHUB_ENV"
     - name: Xcode cache key
       if: ${{ inputs.cache-tuist-packages == 'true' || inputs.cache-native-builds == 'true' }}
       shell: bash
