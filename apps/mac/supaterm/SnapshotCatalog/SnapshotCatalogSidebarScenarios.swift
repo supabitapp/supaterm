@@ -193,7 +193,7 @@ extension SnapshotCatalog {
     scenario(
       "agent-running-command",
       group: "Sidebar Rows",
-      title: "Command shortcut replaces running coding agent",
+      title: "Command shortcut with running coding agent",
       size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
@@ -236,7 +236,7 @@ extension SnapshotCatalog {
     scenario(
       "two-panes-command",
       group: "Sidebar Rows",
-      title: "Command shortcut replaces shared agent state",
+      title: "Command shortcut with shared agent state",
       size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(
@@ -314,7 +314,7 @@ extension SnapshotCatalog {
     scenario(
       "agent-attention-priority",
       group: "Sidebar Rows",
-      title: "Agent state outranks tab attention",
+      title: "Agent state with tab attention",
       size: CGSize(width: 320, height: 72)
     ) { appearance in
       AnyView(

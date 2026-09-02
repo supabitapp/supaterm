@@ -111,7 +111,6 @@ struct TerminalSidebarTabRow: View {
 
   private var hasVisibleStatusIndicator: Bool {
     TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
-      agentStatus: agentStatus,
       hasAttention: panes.contains(where: \.hasAttention),
       terminalProgress: terminalProgress,
       showsShortcutHint: showsShortcutHint
@@ -120,11 +119,6 @@ struct TerminalSidebarTabRow: View {
 
   private var showsCloseButton: Bool {
     isHovering && !hasVisibleStatusIndicator
-  }
-
-  private var visibleAgentStatus: TerminalHostState.TabAgentStatusPresentation? {
-    guard !showsShortcutHint, terminalProgress == nil, let agentStatus else { return nil }
-    return agentStatus
   }
 
   private var rowFill: Color {
@@ -163,8 +157,7 @@ struct TerminalSidebarTabRow: View {
       terminalProgress: terminalProgress,
       shortcutHint: shortcutHint,
       showsShortcutHint: showsShortcutHint,
-      isRowHovering: showsCloseButton,
-      rendersAgentStatus: visibleAgentStatus == nil
+      isRowHovering: showsCloseButton
     )
     .help(TerminalSidebarTabSummaryView.helpText(tab: tab, panes: panes))
     .padding(.leading, contentInsets.leading)
@@ -197,25 +190,21 @@ struct TerminalSidebarTabRow: View {
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
-    .overlay(alignment: .trailing) {
-      if let visibleAgentStatus {
-        GeometryReader { geometry in
-          HStack {
-            Spacer(minLength: 0)
-            TerminalSidebarAgentStatusButton(
-              agentStatus: visibleAgentStatus,
-              showsText: contentInsets.width(in: geometry.size.width)
-                >= TerminalSidebarLayout.tabAgentStatusTextMinimumWidth,
-              palette: palette,
-              helpText: TerminalSidebarTabSummaryView.agentStatusHelpText(
-                visibleAgentStatus,
-                panes: panes
-              ),
-              action: focusVisibleAgentStatus
-            )
-          }
-          .padding(.trailing, contentInsets.trailing)
-        }
+    .overlay(alignment: .leading) {
+      if let agentStatus {
+        TerminalSidebarAgentStatusFocusButton(
+          helpText: TerminalSidebarTabSummaryView.agentStatusHelpText(
+            agentStatus,
+            panes: panes
+          ),
+          action: focusAgentStatus
+        )
+        .padding(
+          .leading,
+          contentInsets.leading
+            - (TerminalSidebarLayout.tabLeadingActionSize
+              - TerminalSidebarLayout.tabLeadingIconSize) / 2
+        )
       }
     }
     .overlay(alignment: .trailing) {
@@ -369,9 +358,9 @@ struct TerminalSidebarTabRow: View {
     )
   }
 
-  private func focusVisibleAgentStatus() {
-    guard let visibleAgentStatus else { return }
-    _ = try? terminal.focusPane(TerminalPaneTarget(paneID: visibleAgentStatus.surfaceID))
+  private func focusAgentStatus() {
+    guard let agentStatus else { return }
+    _ = try? terminal.focusPane(TerminalPaneTarget(paneID: agentStatus.surfaceID))
   }
 
   private var availableGroups: [TerminalTabGroupItem] {
@@ -595,25 +584,18 @@ struct TerminalSidebarBatchTabMenu: View {
   }
 }
 
-private struct TerminalSidebarAgentStatusButton: View {
-  let agentStatus: TerminalHostState.TabAgentStatusPresentation
-  let showsText: Bool
-  let palette: Palette
+private struct TerminalSidebarAgentStatusFocusButton: View {
   let helpText: String
   let action: () -> Void
 
   var body: some View {
     Button(action: action) {
-      TerminalSidebarAgentStatusView(
-        status: agentStatus.status,
-        showsText: showsText,
-        palette: palette
-      )
-      .frame(
-        minWidth: TerminalSidebarLayout.tabTrailingAccessorySize,
-        minHeight: TerminalSidebarLayout.tabTrailingAccessorySize
-      )
-      .contentShape(.rect)
+      Color.clear
+        .frame(
+          width: TerminalSidebarLayout.tabLeadingActionSize,
+          height: TerminalSidebarLayout.tabLeadingActionSize
+        )
+        .contentShape(.rect)
     }
     .buttonStyle(.plain)
     .help(helpText)

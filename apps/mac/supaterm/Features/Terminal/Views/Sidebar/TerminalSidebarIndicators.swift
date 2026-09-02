@@ -77,81 +77,27 @@ struct TerminalSidebarProgressIndicatorView: View {
   }
 }
 
-struct TerminalSidebarAgentStatusView: View {
+struct TerminalSidebarAgentStatusIconView: View {
   let status: TerminalHostState.TabAgentStatus
-  let showsText: Bool
   let palette: Palette
 
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var isAnimating = false
-
   var body: some View {
-    HStack(spacing: 4) {
-      indicator
-
-      if showsText {
-        Text(label)
-          .font(.system(size: 10, weight: .semibold))
-          .terminalTransition(.opacity, reduceMotion: reduceMotion)
-      }
-    }
-    .foregroundStyle(color)
-    .fixedSize()
-    .onAppear {
-      startActivityAnimation(reduceMotion: reduceMotion)
-    }
-    .onChange(of: status) { _, _ in
-      restartActivityAnimation(reduceMotion: reduceMotion)
-    }
-    .onChange(of: reduceMotion) { _, reduceMotion in
-      restartActivityAnimation(reduceMotion: reduceMotion)
-    }
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(accessibilityLabel)
-    .help(accessibilityLabel)
-  }
-
-  private var indicator: some View {
     Group {
       switch status {
       case .needsInput:
-        Image(systemName: "bell.fill")
-          .font(.system(size: 8, weight: .semibold))
-          .scaleEffect(scale)
-          .offset(y: verticalOffset)
+        Image(systemName: "exclamationmark.circle.fill")
+          .font(.system(size: 12, weight: .semibold))
 
       case .working:
-        DotsSpinner(size: 10, color: palette.working)
+        DotsSpinner(size: 12, color: color)
 
       case .done:
-        Image(systemName: "checkmark")
-          .font(.system(size: 9, weight: .bold))
+        Image(systemName: "checkmark.circle.fill")
+          .font(.system(size: 12, weight: .semibold))
       }
     }
-    .frame(height: 16)
+    .foregroundStyle(color)
     .accessibilityHidden(true)
-  }
-
-  private var label: String {
-    switch status {
-    case .needsInput:
-      "Input"
-    case .working:
-      "Working"
-    case .done:
-      "Done"
-    }
-  }
-
-  private var accessibilityLabel: String {
-    switch status {
-    case .needsInput:
-      "Agent needs input"
-    case .working:
-      "Agent working"
-    case .done:
-      "Agent done"
-    }
   }
 
   private var color: Color {
@@ -165,35 +111,6 @@ struct TerminalSidebarAgentStatusView: View {
     }
   }
 
-  private var animation: Animation? {
-    switch status {
-    case .needsInput:
-      return .easeInOut(duration: 0.65)
-        .repeatForever(autoreverses: true)
-    case .working, .done:
-      return nil
-    }
-  }
-
-  private func startActivityAnimation(reduceMotion: Bool) {
-    guard !reduceMotion, let animation else { return }
-    TerminalMotion.animate(animation, reduceMotion: reduceMotion) {
-      isAnimating = true
-    }
-  }
-
-  private func restartActivityAnimation(reduceMotion: Bool) {
-    isAnimating = false
-    startActivityAnimation(reduceMotion: reduceMotion)
-  }
-
-  private var scale: CGFloat {
-    status == .needsInput && isAnimating ? 1.14 : 1
-  }
-
-  private var verticalOffset: CGFloat {
-    status == .needsInput && isAnimating ? -1 : 0
-  }
 }
 
 enum TerminalSidebarWarningBadgeStyle {
