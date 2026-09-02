@@ -5,8 +5,12 @@ use crate::protocol::control::{
 use crate::protocol::terminal::PaneId;
 use crate::terminal::actor::{TerminalError, TerminalRegistry};
 use crate::terminal::pty::SpawnSpec;
+use crate::workspace::model::{SpaceId, WindowId, Workspace};
+use crate::workspace::persistence::{DurableDocument, PersistenceWorker};
+use crate::workspace::reducer::{Command, ReducerError};
+use crate::workspace::replay::{HostModel, ModelError};
 use serde_json::{Value, json};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
@@ -39,9 +43,32 @@ pub struct HostActor {
 
 impl HostActor {
     pub fn spawn(configuration: HostConfiguration) -> Self {
+        let workspace = Workspace::new(
+            SpaceId(Uuid::from_u128(1)),
+            WindowId(Uuid::from_u128(2)),
+            "Space 1".into(),
+        );
+        let document = DurableDocument::new(configuration.host_id, workspace, Vec::new());
+        Self::spawn_with_document(configuration, document, None)
+    }
+
+    pub fn spawn_with_document(
+        configuration: HostConfiguration,
+        document: DurableDocument,
+        persistence: Option<PersistenceWorker>,
+    ) -> Self {
         let (sender, receiver) = mpsc::channel(ACTOR_QUEUE_CAPACITY);
         let terminals = TerminalRegistry::spawn();
-        tokio::spawn(run(configuration, terminals.clone(), receiver));
+        let model = HostModel::new(document.workspace, document.clients, 2048, 16 * 1024 * 1024)
+            .with_epoch(configuration.epoch);
+        tokio::spawn(run(
+            configuration,
+            terminals.clone(),
+            model,
+            document.settings,
+            persistence,
+            receiver,
+        ));
         Self { sender, terminals }
     }
 
@@ -53,6 +80,15 @@ impl HostActor {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(ActorMessage::Status { reply })
+            .await
+            .map_err(|_| internal_error())?;
+        response.await.map_err(|_| internal_error())
+    }
+
+    pub async fn ensure_client(&self, client_id: ClientId) -> Result<(), ProtocolError> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(ActorMessage::EnsureClient { client_id, reply })
             .await
             .map_err(|_| internal_error())?;
         response.await.map_err(|_| internal_error())
@@ -96,6 +132,10 @@ enum ActorMessage {
     Status {
         reply: oneshot::Sender<HostStatus>,
     },
+    EnsureClient {
+        client_id: ClientId,
+        reply: oneshot::Sender<()>,
+    },
     Execute {
         client_id: ClientId,
         role: ClientRole,
@@ -115,8 +155,9 @@ struct CommandKey {
 struct ActorState {
     configuration: HostConfiguration,
     terminals: TerminalRegistry,
-    revision: u64,
-    structure_revision: u64,
+    model: HostModel,
+    settings: BTreeMap<String, Value>,
+    persistence: Option<PersistenceWorker>,
     command_results: HashMap<CommandKey, HostControl>,
     command_order: VecDeque<CommandKey>,
 }
@@ -124,13 +165,17 @@ struct ActorState {
 async fn run(
     configuration: HostConfiguration,
     terminals: TerminalRegistry,
+    model: HostModel,
+    settings: BTreeMap<String, Value>,
+    persistence: Option<PersistenceWorker>,
     mut receiver: mpsc::Receiver<ActorMessage>,
 ) {
     let mut state = ActorState {
         configuration,
         terminals,
-        revision: 0,
-        structure_revision: 0,
+        model,
+        settings,
+        persistence,
         command_results: HashMap::new(),
         command_order: VecDeque::new(),
     };
@@ -138,6 +183,12 @@ async fn run(
         match message {
             ActorMessage::Status { reply } => {
                 let _ = reply.send(state.status());
+            }
+            ActorMessage::EnsureClient { client_id, reply } => {
+                if state.model.ensure_client(client_id) {
+                    state.persist().await;
+                }
+                let _ = reply.send(());
             }
             ActorMessage::Execute {
                 client_id,
@@ -162,8 +213,8 @@ impl ActorState {
             host_id: self.configuration.host_id,
             epoch: self.configuration.epoch,
             build: self.configuration.build.clone(),
-            revision: self.revision,
-            structure_revision: self.structure_revision,
+            revision: self.model.revision(),
+            structure_revision: self.model.structure_revision(),
             capabilities: self.configuration.capabilities.clone(),
         }
     }
@@ -191,25 +242,48 @@ impl ActorState {
             )
         } else {
             match method.as_str() {
-                "state.snapshot" if params.is_null() => HostControl::Result {
-                    command_id,
-                    result: json!({
-                        "epoch": self.configuration.epoch,
-                        "revision": self.revision,
-                        "structure_revision": self.structure_revision,
-                        "workspace": {
-                            "spaces": [],
-                            "windows": []
-                        },
-                        "client_state": null,
-                        "pane_facts": []
-                    }),
-                },
+                "state.snapshot" if params.is_null() => {
+                    result(command_id, self.model.snapshot(client_id))
+                }
                 "state.snapshot" => error(
                     Some(command_id),
                     ProtocolErrorCode::InvalidRequest,
                     json!({"method": method}),
                 ),
+                "state.subscribe" => match serde_json::from_value::<SubscribeRequest>(params) {
+                    Ok(request) => result(
+                        command_id,
+                        self.model.subscribe(client_id, request.after_revision),
+                    ),
+                    Err(decode_error) => invalid_request(command_id, decode_error),
+                },
+                "workspace.apply" => match serde_json::from_value::<ApplyRequest>(params) {
+                    Ok(request)
+                        if request
+                            .command
+                            .client_id()
+                            .is_some_and(|target| target != client_id) =>
+                    {
+                        error(
+                            Some(command_id),
+                            ProtocolErrorCode::PermissionDenied,
+                            Value::Null,
+                        )
+                    }
+                    Ok(request) => {
+                        match self
+                            .model
+                            .apply(request.command, request.expected_structure_revision)
+                        {
+                            Ok(applied) => {
+                                self.persist().await;
+                                result(command_id, applied)
+                            }
+                            Err(model_error) => workspace_error(command_id, model_error),
+                        }
+                    }
+                    Err(decode_error) => invalid_request(command_id, decode_error),
+                },
                 "terminal.create" => match serde_json::from_value::<SpawnSpec>(params) {
                     Ok(spec) => match self.terminals.create(spec).await {
                         Ok(info) => result(command_id, info),
@@ -257,6 +331,29 @@ impl ActorState {
         self.command_order.push_back(key);
         self.command_results.insert(key, result);
     }
+
+    async fn persist(&self) {
+        if let Some(persistence) = &self.persistence {
+            let mut document = DurableDocument::new(
+                self.configuration.host_id,
+                self.model.workspace().clone(),
+                self.model.clients().to_vec(),
+            );
+            document.settings = self.settings.clone();
+            let _ = persistence.save(document).await;
+        }
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct SubscribeRequest {
+    after_revision: Option<u64>,
+}
+
+#[derive(serde::Deserialize)]
+struct ApplyRequest {
+    command: Command,
+    expected_structure_revision: Option<u64>,
 }
 
 #[derive(serde::Deserialize)]
@@ -275,10 +372,46 @@ fn result<T: serde::Serialize>(command_id: CommandId, value: T) -> HostControl {
     }
 }
 
+fn invalid_request(command_id: CommandId, decode_error: serde_json::Error) -> HostControl {
+    error(
+        Some(command_id),
+        ProtocolErrorCode::InvalidRequest,
+        json!({"reason": decode_error.to_string()}),
+    )
+}
+
+fn workspace_error(command_id: CommandId, model_error: ModelError) -> HostControl {
+    match model_error {
+        ModelError::StaleStructure { expected, actual } => error(
+            Some(command_id),
+            ProtocolErrorCode::StaleStructure,
+            json!({"expected_structure_revision": expected, "current_structure_revision": actual}),
+        ),
+        ModelError::Reducer(reducer_error) => {
+            let code = match reducer_error {
+                ReducerError::NotFound => ProtocolErrorCode::NotFound,
+                ReducerError::AlreadyExists
+                | ReducerError::InvalidName
+                | ReducerError::InvalidPlacement
+                | ReducerError::DuplicateItem
+                | ReducerError::AncestorAndDescendant
+                | ReducerError::LastContainer
+                | ReducerError::InvalidRatio
+                | ReducerError::InvalidState(_) => ProtocolErrorCode::InvalidRequest,
+            };
+            error(
+                Some(command_id),
+                code,
+                json!({"reason": reducer_error.to_string()}),
+            )
+        }
+    }
+}
+
 fn terminal_error(command_id: CommandId, terminal_error: TerminalError) -> HostControl {
     let code = match terminal_error {
         TerminalError::NotFound => ProtocolErrorCode::NotFound,
-        TerminalError::NotAttached | TerminalError::StaleWriter => {
+        TerminalError::AlreadyExists | TerminalError::NotAttached | TerminalError::StaleWriter => {
             ProtocolErrorCode::InvalidRequest
         }
         TerminalError::Spawn(_)

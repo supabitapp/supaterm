@@ -616,7 +616,7 @@ struct ResizeRequest {
 fn terminal_error(command_id: CommandId, error: TerminalError) -> HostControl {
     let code = match &error {
         TerminalError::NotFound => ProtocolErrorCode::NotFound,
-        TerminalError::NotAttached | TerminalError::StaleWriter => {
+        TerminalError::AlreadyExists | TerminalError::NotAttached | TerminalError::StaleWriter => {
             ProtocolErrorCode::InvalidRequest
         }
         TerminalError::Spawn(_)

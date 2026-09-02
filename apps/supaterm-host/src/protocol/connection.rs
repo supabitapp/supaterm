@@ -76,6 +76,14 @@ impl ConnectionSession {
                         }),
                     );
                 }
+                let client_id = client_id.unwrap_or_else(|| ClientId(Uuid::new_v4()));
+                if let Err(error) = self.actor.ensure_client(client_id).await {
+                    self.closed = true;
+                    return HostControl::Error {
+                        command_id: None,
+                        error,
+                    };
+                }
                 let negotiated_capabilities = status
                     .capabilities
                     .iter()
@@ -91,7 +99,7 @@ impl ConnectionSession {
                         .min(Limits::default().maximum_continuation_bytes),
                 };
                 self.client = Some(ClientIdentity {
-                    id: client_id.unwrap_or_else(|| ClientId(Uuid::new_v4())),
+                    id: client_id,
                     role,
                 });
                 HostControl::Welcome {

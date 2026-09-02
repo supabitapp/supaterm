@@ -4,11 +4,19 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+use supaterm_host::client::{ClientConfiguration, HostClient};
+use supaterm_host::protocol::control::HostId;
 use supaterm_host::protocol::control::{
     ClientControl, ClientRole, CommandId, Limits, PROTOCOL_VERSION, current_build_identity,
     decode_host_control, encode_control,
 };
 use supaterm_host::protocol::frame::{Direction, Frame, FrameDecoder, FrameKind, PREFACE};
+use supaterm_host::protocol::terminal::PaneId;
+use supaterm_host::workspace::model::{
+    Placement, RootPlacement, SpaceId, TabId, WindowId, Workspace,
+};
+use supaterm_host::workspace::persistence::DurableDocument;
+use supaterm_host::workspace::reducer::{Command as WorkspaceCommand, apply};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -20,7 +28,10 @@ struct RunningHost {
 
 impl RunningHost {
     fn start() -> Self {
-        let root = tempfile::tempdir().unwrap();
+        Self::start_at(tempfile::tempdir().unwrap())
+    }
+
+    fn start_at(root: TempDir) -> Self {
         let socket = root.path().join("host.sock");
         let child = Command::new(assert_cmd::cargo::cargo_bin!("supaterm-host"))
             .args(["serve", "--foreground", "--socket"])
@@ -43,6 +54,57 @@ impl RunningHost {
             socket,
         }
     }
+}
+
+#[test]
+fn cold_start_restores_logical_panes_as_safe_shells() {
+    let root = tempfile::tempdir().unwrap();
+    let state_directory = root.path().join("state");
+    std::fs::create_dir_all(&state_directory).unwrap();
+    let space_id = SpaceId(Uuid::from_u128(1));
+    let window_id = WindowId(Uuid::from_u128(2));
+    let tab_id = TabId(Uuid::from_u128(3));
+    let pane_id = PaneId(Uuid::from_u128(4));
+    let mut workspace = Workspace::new(space_id, window_id, "Space 1".into());
+    apply(
+        &mut workspace,
+        &mut [],
+        WorkspaceCommand::CreateTab {
+            window_id,
+            space_id,
+            tab_id,
+            pane_id,
+            placement: Placement::Root(RootPlacement {
+                pinned: false,
+                index: 0,
+            }),
+            title: Some("Saved".into()),
+            restart_directory: Some(root.path().to_path_buf()),
+        },
+    )
+    .unwrap();
+    let document = DurableDocument::new(HostId(Uuid::from_u128(5)), workspace, Vec::new());
+    std::fs::write(
+        state_directory.join("host-state.json"),
+        serde_json::to_vec(&document).unwrap(),
+    )
+    .unwrap();
+    let host = RunningHost::start_at(root);
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let panes = runtime.block_on(async {
+        let client = HostClient::connect(ClientConfiguration {
+            socket: host.socket.clone(),
+            build: current_build_identity(),
+            role: ClientRole::Cli,
+            client_id: None,
+            capabilities: vec!["terminal_snapshot".into()],
+        })
+        .await
+        .unwrap();
+        client.list_terminals().await.unwrap()
+    });
+    assert_eq!(panes.len(), 1);
+    assert_eq!(panes[0].id, pane_id);
 }
 
 impl Drop for RunningHost {

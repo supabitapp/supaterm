@@ -6,7 +6,7 @@ use uuid::Uuid;
 pub const OUTPUT_HEADER_LENGTH: usize = 8;
 pub const SNAPSHOT_HEADER_LENGTH: usize = 24;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct PaneId(pub Uuid);
 

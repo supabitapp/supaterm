@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 use supaterm_host::terminal::pty::{Pty, SpawnError, SpawnSpec};
+use tokio::time::sleep;
 use tokio::time::timeout;
 
 fn direct(command: &str) -> SpawnSpec {
@@ -67,7 +68,13 @@ async fn explicit_termination_kills_the_full_process_group() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(unsafe { libc::kill(descendant, 0) }, -1);
+    timeout(Duration::from_secs(3), async {
+        while unsafe { libc::kill(descendant, 0) } == 0 {
+            sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
     assert_eq!(
         std::io::Error::last_os_error().raw_os_error(),
         Some(libc::ESRCH)

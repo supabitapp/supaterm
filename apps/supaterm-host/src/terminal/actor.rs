@@ -76,6 +76,8 @@ pub enum TerminalError {
     Spawn(#[from] SpawnError),
     #[error("pane not found")]
     NotFound,
+    #[error("pane already exists")]
+    AlreadyExists,
     #[error("client is not attached")]
     NotAttached,
     #[error("writer generation is stale")]
@@ -106,9 +108,21 @@ impl TerminalRegistry {
     }
 
     pub async fn create(&self, spec: SpawnSpec) -> Result<PaneInfo, TerminalError> {
+        self.create_with_id(PaneId(Uuid::new_v4()), spec).await
+    }
+
+    pub async fn create_with_id(
+        &self,
+        pane_id: PaneId,
+        spec: SpawnSpec,
+    ) -> Result<PaneInfo, TerminalError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(RegistryMessage::Create { spec, reply })
+            .send(RegistryMessage::Create {
+                pane_id,
+                spec,
+                reply,
+            })
             .await
             .map_err(|_| TerminalError::Stopped)?;
         response.await.map_err(|_| TerminalError::Stopped)?
@@ -177,6 +191,15 @@ impl TerminalRegistry {
         self.handle(pane_id).await?.close().await
     }
 
+    pub async fn shutdown(&self) -> Result<(), TerminalError> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(RegistryMessage::Shutdown { reply })
+            .await
+            .map_err(|_| TerminalError::Stopped)?;
+        response.await.map_err(|_| TerminalError::Stopped)
+    }
+
     async fn handle(&self, pane_id: PaneId) -> Result<PaneHandle, TerminalError> {
         let (reply, response) = oneshot::channel();
         self.sender
@@ -219,6 +242,7 @@ impl From<&SpawnSpec> for Viewport {
 
 enum RegistryMessage {
     Create {
+        pane_id: PaneId,
         spec: SpawnSpec,
         reply: oneshot::Sender<Result<PaneInfo, TerminalError>>,
     },
@@ -228,6 +252,9 @@ enum RegistryMessage {
     Handle {
         pane_id: PaneId,
         reply: oneshot::Sender<Result<PaneHandle, TerminalError>>,
+    },
+    Shutdown {
+        reply: oneshot::Sender<()>,
     },
 }
 
@@ -242,11 +269,14 @@ async fn run_registry(
             message = receiver.recv() => {
                 let Some(message) = message else { break };
                 match message {
-                    RegistryMessage::Create { spec, reply } => {
-                        let id = PaneId(Uuid::new_v4());
-                        match PaneRuntime::prepare(id, spec, exit_sender.clone()) {
+                    RegistryMessage::Create { pane_id, spec, reply } => {
+                        if panes.contains_key(&pane_id) {
+                            let _ = reply.send(Err(TerminalError::AlreadyExists));
+                            continue;
+                        }
+                        match PaneRuntime::prepare(pane_id, spec, exit_sender.clone()) {
                             Ok((runtime, handle, info)) => {
-                                panes.insert(id, handle);
+                                panes.insert(pane_id, handle);
                                 tokio::spawn(runtime.run());
                                 let _ = reply.send(Ok(info));
                             }
@@ -267,6 +297,14 @@ async fn run_registry(
                     }
                     RegistryMessage::Handle { pane_id, reply } => {
                         let _ = reply.send(panes.get(&pane_id).cloned().ok_or(TerminalError::NotFound));
+                    }
+                    RegistryMessage::Shutdown { reply } => {
+                        let handles = std::mem::take(&mut panes);
+                        for handle in handles.into_values() {
+                            let _ = handle.close().await;
+                        }
+                        let _ = reply.send(());
+                        break;
                     }
                 }
             }

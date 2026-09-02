@@ -7,6 +7,8 @@ use crate::protocol::io::{FrameReader, FrameWriter};
 use crate::protocol::terminal::{PaneId, TerminalControl, decode_output, decode_snapshot_chunk};
 use crate::terminal::actor::{PaneInfo, Viewport};
 use crate::terminal::pty::SpawnSpec;
+use crate::workspace::reducer::Command;
+use crate::workspace::replay::{ApplyResult, Subscription};
 use bytes::Bytes;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -233,6 +235,33 @@ impl HostClient {
         self.request("terminal.close", json!({"pane_id": pane_id}))
             .await?;
         Ok(())
+    }
+
+    pub async fn apply_workspace(
+        &self,
+        command: Command,
+        expected_structure_revision: Option<u64>,
+    ) -> Result<ApplyResult, ClientError> {
+        decode_result(
+            self.request(
+                "workspace.apply",
+                json!({
+                    "command": command,
+                    "expected_structure_revision": expected_structure_revision
+                }),
+            )
+            .await?,
+        )
+    }
+
+    pub async fn subscribe(
+        &self,
+        after_revision: Option<u64>,
+    ) -> Result<Subscription, ClientError> {
+        decode_result(
+            self.request("state.subscribe", json!({"after_revision": after_revision}))
+                .await?,
+        )
     }
 }
 

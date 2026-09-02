@@ -5,3 +5,4 @@ pub mod runtime;
 pub mod server;
 pub mod terminal;
 pub mod transport;
+pub mod workspace;

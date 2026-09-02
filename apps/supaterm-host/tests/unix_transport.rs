@@ -10,6 +10,8 @@ use supaterm_host::runtime::{PathConfiguration, RuntimePaths};
 use supaterm_host::terminal::actor::Viewport;
 use supaterm_host::terminal::pty::SpawnSpec;
 use supaterm_host::transport::unix::{UnixServer, peer_uid, serve_connection};
+use supaterm_host::workspace::model::SpaceId;
+use supaterm_host::workspace::reducer::Command;
 use tempfile::tempdir;
 use tokio::net::UnixStream;
 use tokio::time::timeout;
@@ -70,7 +72,22 @@ async fn local_client_handshakes_and_reads_a_correlated_snapshot() {
     let snapshot = client.request("state.snapshot", Value::Null).await.unwrap();
 
     assert_eq!(snapshot["revision"], 0);
-    assert_eq!(snapshot["workspace"]["spaces"], Value::Array(vec![]));
+    assert_eq!(snapshot["workspace"]["spaces"][0]["name"], "Space 1");
+    let applied = client
+        .apply_workspace(
+            Command::RenameSpace {
+                space_id: SpaceId(Uuid::from_u128(1)),
+                name: "Renamed".into(),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(applied.revision, 1);
+    assert_eq!(applied.structure_revision, 0);
+    let snapshot = client.request("state.snapshot", Value::Null).await.unwrap();
+    assert_eq!(snapshot["workspace"]["spaces"][0]["name"], "Renamed");
+    assert!(snapshot["client_state"].is_object());
     drop(client);
     connection_task.await.unwrap();
 }
