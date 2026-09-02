@@ -478,7 +478,7 @@ struct TerminalTabTransferTests {
       #expect(!group.isPinned)
       #expect(group.tabs.map(\.id) == [second, first])
       #expect(destination.selectedTabID == second)
-      #expect(!destination.isGroupCollapsed(groupID, in: space.id))
+      #expect(destination.isGroupCollapsed(groupID, in: space.id))
       #expect(didCloseSourceWindow)
       withExtendedLifetime([sourceWindow, destinationWindow]) {}
     }

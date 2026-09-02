@@ -747,6 +747,94 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func collapsedGroupProjectsOnlyItsSelectedChild() throws {
+    let first = TerminalTabID()
+    let selected = TerminalTabID()
+    let last = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarOutline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .yellow, .automatic, [first, selected, last]),
+          isPinned: false
+        )
+      ],
+      collapsedGroupIDs: [groupID],
+      selectedTabID: selected,
+      topologyRevision: 1,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+
+    #expect(
+      outline.visibleEntries.map(\.id) == [
+        .group(groupID),
+        .tab(selected),
+        .newTab,
+      ]
+    )
+    #expect(
+      outline.liftedEntryIDs(for: .group(groupID)) == [
+        .group(groupID),
+        .tab(selected),
+      ]
+    )
+
+    let plan = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+    let headerFrame = try #require(plan.items.first { $0.id == .group(groupID) }?.frame)
+    let selectedFrame = try #require(plan.items.first { $0.id == .tab(selected) }?.frame)
+    let groupFrame = try #require(plan.groups.first { $0.id == groupID }?.frame)
+    let newTabFrame = try #require(plan.items.first { $0.id == .newTab }?.frame)
+
+    #expect(selectedFrame.minY > headerFrame.maxY)
+    #expect(groupFrame.maxY == selectedFrame.maxY + TerminalSidebarLayout.groupSurfaceOverflow)
+    #expect(newTabFrame.minY > groupFrame.maxY)
+  }
+
+  @Test
+  func collapsedSelectedChildUsesOneChildDropGeometry() throws {
+    let first = TerminalTabID()
+    let selected = TerminalTabID()
+    let last = TerminalTabID()
+    let source = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarOutline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .yellow, .automatic, [first, selected, last]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+      ],
+      collapsedGroupIDs: [groupID],
+      selectedTabID: selected,
+      topologyRevision: 1,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)]
+    )
+    let selectedFrame = try #require(plan.items.first { $0.id == .tab(selected) }?.frame)
+    let childTarget = try #require(
+      plan.semanticTargets.first {
+        $0.path == .groupItem(groupID, index: 1, id: selected)
+      }
+    )
+    let groupEnd = try #require(
+      plan.semanticTargets.first {
+        $0.path == .groupBoundary(groupID, index: 3)
+      }
+    )
+    #expect(childTarget.frame == selectedFrame)
+    #expect(groupEnd.frame.minY == selectedFrame.maxY)
+    #expect(
+      groupEnd.frame.maxY
+        == selectedFrame.maxY + TerminalSidebarLayoutPlan.rootBoundaryTargetHeight
+    )
+    #expect(plan.semanticTarget(at: selectedFrame.maxY + 1)?.path == groupEnd.path)
+  }
+
+  @Test
   func collapsedAndEmptyGroupsSplitOneHeaderIntoTopAndBottomTargets() {
     let collapsedChild = TerminalTabID()
     let source = TerminalTabID()

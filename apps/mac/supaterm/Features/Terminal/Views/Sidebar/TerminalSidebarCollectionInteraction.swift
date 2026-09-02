@@ -105,6 +105,7 @@ enum TerminalSidebarDragOutlineDisposition: Equatable {
       return .replaceAndCancel(reason: "sourceSnapshotMismatch")
     }
     guard incoming.collapsedGroupIDs == applied.collapsedGroupIDs else { return .queue }
+    guard incoming.revealedTabID == applied.revealedTabID else { return .queue }
     return .unchanged
   }
 }

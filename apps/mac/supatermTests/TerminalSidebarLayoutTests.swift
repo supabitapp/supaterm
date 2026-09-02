@@ -92,6 +92,97 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func groupExpansionAnimatesItsBackgroundAndSelectedGlow() throws {
+    let tabs = [
+      TerminalTabItem(title: "First"),
+      TerminalTabItem(title: "Second"),
+      TerminalTabItem(title: "Selected"),
+    ]
+    let selectedTabID = tabs[2].id
+    let groupID = TerminalTabGroupID()
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .blue, .automatic, tabs.map(\.id)),
+        isPinned: false
+      )
+    ]
+    let collapsed = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [groupID],
+      selectedTabID: selectedTabID,
+      topologyRevision: 1,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+    let expanded = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [],
+      selectedTabID: selectedTabID,
+      topologyRevision: 2,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+    let terminal = TerminalHostState.test(managesTerminalSurfaces: false)
+    let harness = try #require(
+      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 300))
+    )
+    defer {
+      harness.window.orderOut(nil)
+      harness.close()
+    }
+    harness.window.orderFront(nil)
+
+    harness.apply(
+      outline: collapsed,
+      rows: groupRows(tabs: tabs, groupID: groupID, isCollapsed: true),
+      terminal: terminal,
+      selectedTabID: selectedTabID,
+      reduceMotion: false
+    )
+    harness.layoutNow()
+    let background = try #require(
+      harness.collectionView.subviews.compactMap {
+        $0 as? TerminalSidebarGroupBackgroundView
+      }.first
+    )
+    let glow = try #require(
+      harness.collectionView.subviews.compactMap {
+        $0 as? TerminalSidebarSelectionGlowView
+      }.first
+    )
+    let collapsedBackgroundFrame = background.frame
+    let collapsedGlowFrame = glow.frame
+
+    harness.apply(
+      outline: expanded,
+      rows: groupRows(tabs: tabs, groupID: groupID, isCollapsed: false),
+      terminal: terminal,
+      selectedTabID: selectedTabID,
+      reduceMotion: false
+    )
+    let targetBackgroundFrame = try #require(
+      harness.layout.plan.groups.first { $0.id == groupID }?.frame
+    )
+    let targetTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
+    let targetGlowFrame = TerminalSidebarSelectionGlowView.visualFrame(
+      for: TerminalSidebarLayout.tabSurfaceFrame(in: targetTabFrame, isGrouped: true)
+    )
+    let backgroundBoundsAnimation = try #require(
+      background.layer?.animation(forKey: "bounds") as? CABasicAnimation
+    )
+    let glowPositionAnimation = try #require(
+      glow.layer?.animation(forKey: "position") as? CABasicAnimation
+    )
+
+    #expect(collapsedBackgroundFrame != targetBackgroundFrame)
+    #expect(collapsedGlowFrame != targetGlowFrame)
+    #expect(background.frame == targetBackgroundFrame)
+    #expect(glow.frame == targetGlowFrame)
+    #expect(backgroundBoundsAnimation.duration == TerminalSidebarLayoutMotion.defaultDuration)
+    #expect(glowPositionAnimation.duration == TerminalSidebarLayoutMotion.defaultDuration)
+  }
+
+  @Test
   func windowBackedResizeAppliesCurrentItemGeometryInOneLayoutPass() throws {
     let (harness, _) = try tabHarness(
       size: CGSize(width: 280, height: 640),
@@ -841,6 +932,36 @@ struct TerminalSidebarLayoutTests {
     harness.layoutNow()
     harness.layoutNow()
     return (harness, tabs)
+  }
+
+  private func groupRows(
+    tabs: [TerminalTabItem],
+    groupID: TerminalTabGroupID,
+    isCollapsed: Bool
+  ) -> [TerminalSidebarEntryID: TerminalSidebarRowPresentation] {
+    let tabRows = Dictionary(
+      uniqueKeysWithValues: tabs.map {
+        (
+          TerminalSidebarEntryID.tab($0.id),
+          TerminalSidebarRowPresentation.tab(tabPresentation($0, groupID: groupID))
+        )
+      }
+    )
+    return tabRows.merging([
+      .group(groupID): .group(
+        TerminalSidebarGroupRowPresentation(
+          id: groupID,
+          title: "Group",
+          color: .blue,
+          iconURL: nil,
+          isPinned: false,
+          isCollapsed: isCollapsed,
+          tabCount: tabs.count,
+          showsNewTabShortcutHint: false
+        )
+      ),
+      .newTab: .newTab(.inline),
+    ]) { current, _ in current }
   }
 
   private func tabPresentation(

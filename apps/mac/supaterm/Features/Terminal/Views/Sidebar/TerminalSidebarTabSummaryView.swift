@@ -85,7 +85,7 @@ struct TerminalSidebarTabSummaryView: View {
     return icon
   }
 
-  static func hasVisibleStatusIndicator(
+  static func retainsTrailingAccessoryOnHover(
     agentStatus: TerminalHostState.TabAgentStatusPresentation?,
     hasAttention: Bool,
     terminalProgress: TerminalSidebarTerminalProgress?,
@@ -97,7 +97,9 @@ struct TerminalSidebarTabSummaryView: View {
       agentStatus: agentStatus,
       hasAttention: hasAttention
     ) {
-    case .agent, .attention:
+    case .agent(let agentStatus):
+      return agentStatus.status != .done
+    case .attention:
       return true
     default:
       return false

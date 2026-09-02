@@ -38,10 +38,13 @@ struct TerminalSidebarContentHeightState: Equatable {
 }
 
 final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
+  static let expansionRevealOffset: CGFloat = 34 / 3
+
   private struct StructuralUpdate {
     let sourceIdentifiers: [TerminalSidebarEntryID]
     let sourceItemsByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item]
     let targetOutline: TerminalSidebarOutline
+    let expansionRevealEntryIDs: Set<TerminalSidebarEntryID>
   }
 
   private(set) var outline = TerminalSidebarOutline(
@@ -74,6 +77,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private var transitionProgress: CGFloat = 1
   private var attributesByIndexPath: [IndexPath: NSCollectionViewLayoutAttributes] = [:]
   private var structuralUpdate: StructuralUpdate?
+  private var expansionRevealEntryIDs: Set<TerminalSidebarEntryID> = []
   private var preparedBoundsSize: CGSize = .zero
   private var contentHeightState = TerminalSidebarContentHeightState()
 
@@ -238,7 +242,32 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   override func prepare(forCollectionViewUpdates updateItems: [NSCollectionViewUpdateItem]) {
     super.prepare(forCollectionViewUpdates: updateItems)
     guard commitStagedOutline(), let collectionView else { return }
+    expansionRevealEntryIDs = structuralUpdate?.expansionRevealEntryIDs ?? []
     rebuild(width: collectionView.bounds.width, viewportHeight: collectionView.visibleRect.height)
+  }
+
+  override func initialLayoutAttributesForAppearingItem(
+    at itemIndexPath: IndexPath
+  ) -> NSCollectionViewLayoutAttributes? {
+    let entries = outline.visibleEntries
+    guard entries.indices.contains(itemIndexPath.item) else {
+      return super.initialLayoutAttributesForAppearingItem(at: itemIndexPath)
+    }
+    let entryID = entries[itemIndexPath.item].id
+    guard expansionRevealEntryIDs.contains(entryID),
+      let item = targetPlan.items.first(where: { $0.id == entryID })
+    else {
+      return super.initialLayoutAttributesForAppearingItem(at: itemIndexPath)
+    }
+    let attributes = NSCollectionViewLayoutAttributes(forItemWith: itemIndexPath)
+    attributes.frame = item.frame.offsetBy(dx: 0, dy: -Self.expansionRevealOffset)
+    attributes.alpha = 0
+    return attributes
+  }
+
+  override func finalizeCollectionViewUpdates() {
+    super.finalizeCollectionViewUpdates()
+    expansionRevealEntryIDs = []
   }
 
   override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
@@ -246,10 +275,22 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   }
 
   private func structuralUpdate(to targetOutline: TerminalSidebarOutline) -> StructuralUpdate {
-    StructuralUpdate(
-      sourceIdentifiers: outline.visibleEntries.map(\.id),
+    let sourceIdentifiers = outline.visibleEntries.map(\.id)
+    let sourceIdentifierSet = Set(sourceIdentifiers)
+    let expandedGroupIDs = targetOutline.expandedGroupIDs(from: outline)
+    return StructuralUpdate(
+      sourceIdentifiers: sourceIdentifiers,
       sourceItemsByID: Dictionary(uniqueKeysWithValues: plan.items.map { ($0.id, $0) }),
-      targetOutline: targetOutline
+      targetOutline: targetOutline,
+      expansionRevealEntryIDs: Set(
+        targetOutline.visibleEntries.compactMap { entry in
+          guard let groupID = entry.parentGroupID,
+            expandedGroupIDs.contains(groupID),
+            !sourceIdentifierSet.contains(entry.id)
+          else { return nil }
+          return entry.id
+        }
+      )
     )
   }
 

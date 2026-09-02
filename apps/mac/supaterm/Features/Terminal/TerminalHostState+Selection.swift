@@ -16,9 +16,6 @@ extension TerminalHostState {
       instance.previousSelectedTabID = currentSelectedTabID
     }
     instance.tabCollection.selectTab(tabID)
-    if let groupID = instance.tabCollection.groupID(containing: tabID) {
-      instance.collapsedTabGroupIDs.remove(groupID)
-    }
   }
 
   func selectTab(_ tabID: TerminalTabID) {

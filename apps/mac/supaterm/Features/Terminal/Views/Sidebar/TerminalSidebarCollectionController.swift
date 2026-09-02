@@ -121,6 +121,8 @@ final class TerminalSidebarListController: NSViewController {
   private var selectedTabID: TerminalTabID?
   private var fixedHoveredGroupID: TerminalTabGroupID?
   private var pendingRevealTabID: TerminalTabID?
+  private var trackingMenuIDs: Set<ObjectIdentifier> = []
+  private var pendingVisibleRowRefreshIDs: Set<TerminalSidebarEntryID> = []
   private var motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: false)
   private var shouldPlayTabMoveHaptics = true
   private var isLayingOut = false
@@ -205,11 +207,28 @@ final class TerminalSidebarListController: NSViewController {
     self.tabDragRegistry = tabDragRegistry
     self.captureRequest = captureRequest
     super.init(nibName: nil, bundle: nil)
+    let center = NotificationCenter.default
+    center.addObserver(
+      self,
+      selector: #selector(menuDidBeginTracking(_:)),
+      name: NSMenu.didBeginTrackingNotification,
+      object: nil
+    )
+    center.addObserver(
+      self,
+      selector: #selector(menuDidEndTracking(_:)),
+      name: NSMenu.didEndTrackingNotification,
+      object: nil
+    )
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is unavailable")
+  }
+
+  isolated deinit {
+    NotificationCenter.default.removeObserver(self)
   }
 
   override func loadView() {
@@ -387,8 +406,12 @@ final class TerminalSidebarListController: NSViewController {
     let newlyCollapsedGroupIDs = update.outline.collapsedGroupIDs.subtracting(
       appliedOutline.collapsedGroupIDs
     )
+    let targetEntryIDs = Set(update.outline.visibleEntries.map(\.id))
     let collapsing = appliedOutline.visibleEntries.compactMap { entry -> TerminalSidebarEntryID? in
-      guard let groupID = entry.parentGroupID, newlyCollapsedGroupIDs.contains(groupID) else {
+      guard let groupID = entry.parentGroupID,
+        newlyCollapsedGroupIDs.contains(groupID),
+        !targetEntryIDs.contains(entry.id)
+      else {
         return nil
       }
       return entry.id
@@ -434,10 +457,9 @@ final class TerminalSidebarListController: NSViewController {
     completion additionalCompletion: (() -> Void)? = nil
   ) {
     let isInitialSnapshot = !hasAppliedSnapshot
-    let animationDuration = TerminalSidebarLayoutMotion.animationDuration(
-      from: appliedOutline,
-      to: update.outline
-    )
+    let animatesExpansionDecorations =
+      animated
+      && !update.outline.expandedGroupIDs(from: appliedOutline).isEmpty
     updateState = .applyingSnapshot(nil)
     collectionLayout.visibilityByEntryID = [:]
     layoutAnimator.finish()
@@ -485,9 +507,12 @@ final class TerminalSidebarListController: NSViewController {
       return
     }
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = animationDuration
+      context.duration = TerminalSidebarLayoutMotion.defaultDuration
       context.timingFunction = TerminalSidebarAnimationCurve.timingFunction
       dataSource.apply(snapshot, animatingDifferences: true, completion: completion)
+      if animatesExpansionDecorations {
+        updateDecorations(animateFrames: true)
+      }
     }
   }
 
@@ -624,6 +649,11 @@ final class TerminalSidebarListController: NSViewController {
   }
 
   private func refreshVisibleRows(ids: Set<TerminalSidebarEntryID>) {
+    guard !ids.isEmpty else { return }
+    guard trackingMenuIDs.isEmpty else {
+      pendingVisibleRowRefreshIDs.formUnion(ids)
+      return
+    }
     guard let context else { return }
     for item in collectionView.visibleItems() {
       guard
@@ -704,7 +734,7 @@ final class TerminalSidebarListController: NSViewController {
     }
   }
 
-  private func updateDecorations() {
+  private func updateDecorations(animateFrames: Bool = false) {
     let groups = collectionLayout.plan.groups
     let visibleIDs = Set(groups.map(\.id))
     for (id, view) in groupBackgroundViews where !visibleIDs.contains(id) {
@@ -720,18 +750,24 @@ final class TerminalSidebarListController: NSViewController {
           groupBackgroundViews[group.id] = background
           return background
         }()
-      background.frame = group.frame
+      updateDecorationFrame(
+        of: background,
+        to: group.frame,
+        animated: animateFrames
+      ) {
+        background.frame = group.frame
+      }
       updateGroupSurface(group: group, background: background)
       background.needsLayout = true
     }
-    updateSelectionGlow()
+    updateSelectionGlow(animateFrame: animateFrames)
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     for background in groupBackgroundViews.values where background.superview === collectionView {
       collectionView.addSubview(background, positioned: .below, relativeTo: nil)
     }
   }
 
-  private func updateSelectionGlow() {
+  private func updateSelectionGlow(animateFrame: Bool = false) {
     guard
       let context,
       let selectedTabID = context.terminal.selectedTabID ?? selectedTabID,
@@ -743,15 +779,52 @@ final class TerminalSidebarListController: NSViewController {
       selectionGlowView.isHidden = true
       return
     }
-    selectionGlowView.update(
-      surfaceFrame: TerminalSidebarLayout.tabSurfaceFrame(
-        in: item.frame,
-        isGrouped: presentation.groupID != nil
-      ),
-      style: .resolve(palette: context.palette),
-      alpha: item.alpha,
-      fadesAtContentTop: true
+    let surfaceFrame = TerminalSidebarLayout.tabSurfaceFrame(
+      in: item.frame,
+      isGrouped: presentation.groupID != nil
     )
+    updateDecorationFrame(
+      of: selectionGlowView,
+      to: TerminalSidebarSelectionGlowView.visualFrame(for: surfaceFrame),
+      animated: animateFrame
+    ) {
+      selectionGlowView.update(
+        surfaceFrame: surfaceFrame,
+        style: .resolve(palette: context.palette),
+        alpha: item.alpha,
+        fadesAtContentTop: true
+      )
+    }
+  }
+
+  private func updateDecorationFrame(
+    of view: NSView,
+    to targetFrame: CGRect,
+    animated: Bool,
+    update: () -> Void
+  ) {
+    guard animated, !view.isHidden, view.frame != targetFrame, let layer = view.layer else {
+      update()
+      return
+    }
+    let sourceBounds = layer.presentation()?.bounds ?? layer.bounds
+    let sourcePosition = layer.presentation()?.position ?? layer.position
+    update()
+    view.layoutSubtreeIfNeeded()
+    if sourceBounds != layer.bounds {
+      animateDecoration(layer, keyPath: "bounds", from: sourceBounds)
+    }
+    if sourcePosition != layer.position {
+      animateDecoration(layer, keyPath: "position", from: sourcePosition)
+    }
+  }
+
+  private func animateDecoration(_ layer: CALayer, keyPath: String, from value: Any) {
+    let animation = CABasicAnimation(keyPath: keyPath)
+    animation.fromValue = value
+    animation.duration = TerminalSidebarLayoutMotion.defaultDuration
+    animation.timingFunction = TerminalSidebarAnimationCurve.timingFunction
+    layer.add(animation, forKey: keyPath)
   }
 
   private func refreshGroupSurfaces(ids: Set<TerminalTabGroupID>) {
@@ -803,15 +876,14 @@ final class TerminalSidebarListController: NSViewController {
       case .tab(let presentation) = rows[.tab(tabID)]
     else { return nil }
     let agentContext = context.terminal.tabAgentContext(for: tabID)
-    guard
-      agentContext.presentation.status != nil
-        || agentContext.presentation.detailActivity != nil
-        || !agentContext.workspaces.isEmpty
-        || agentContext.presentation.latestResponse != nil
-    else { return nil }
+    let workingDirectoryPath = context.terminal.titleSurface(for: tabID).flatMap {
+      context.terminal.workingDirectoryPath(for: $0)
+    }
+    let workspace = agentContext.workspaces.first
     return TerminalSidebarHoverCardContent(
       tabTitle: presentation.tab.title,
-      workspace: agentContext.workspaces.first,
+      workingDirectoryPath: workspace?.workingDirectoryPath ?? workingDirectoryPath,
+      branch: workspace?.branch,
       response: agentContext.presentation.latestResponse
     )
   }
@@ -883,5 +955,19 @@ final class TerminalSidebarListController: NSViewController {
       return
     }
     invalidateLayout()
+  }
+
+  @objc private func menuDidBeginTracking(_ notification: Notification) {
+    guard let menu = notification.object as? NSMenu else { return }
+    trackingMenuIDs.insert(ObjectIdentifier(menu))
+  }
+
+  @objc private func menuDidEndTracking(_ notification: Notification) {
+    guard let menu = notification.object as? NSMenu else { return }
+    trackingMenuIDs.remove(ObjectIdentifier(menu))
+    guard trackingMenuIDs.isEmpty, !pendingVisibleRowRefreshIDs.isEmpty else { return }
+    let ids = pendingVisibleRowRefreshIDs
+    pendingVisibleRowRefreshIDs.removeAll()
+    refreshVisibleRows(ids: ids)
   }
 }

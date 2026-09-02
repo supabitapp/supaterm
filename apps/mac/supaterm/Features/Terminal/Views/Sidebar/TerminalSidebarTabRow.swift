@@ -115,8 +115,8 @@ struct TerminalSidebarTabRow: View {
     selectionStyle != .none
   }
 
-  private var hasVisibleStatusIndicator: Bool {
-    TerminalSidebarTabSummaryView.hasVisibleStatusIndicator(
+  private var retainsTrailingAccessoryOnHover: Bool {
+    TerminalSidebarTabSummaryView.retainsTrailingAccessoryOnHover(
       agentStatus: agentStatus,
       hasAttention: panes.contains(where: \.hasAttention),
       terminalProgress: terminalProgress,
@@ -125,11 +125,13 @@ struct TerminalSidebarTabRow: View {
   }
 
   private var showsCloseButton: Bool {
-    isHovering && !hasVisibleStatusIndicator
+    isHovering && !retainsTrailingAccessoryOnHover
   }
 
   private var visibleAgentStatus: TerminalHostState.TabAgentStatusPresentation? {
-    guard !showsShortcutHint, terminalProgress == nil, let agentStatus else { return nil }
+    guard !showsCloseButton, !showsShortcutHint, terminalProgress == nil, let agentStatus else {
+      return nil
+    }
     return agentStatus
   }
 

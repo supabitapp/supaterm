@@ -508,7 +508,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       return RootTargetGeometry(targets: [], tabsEndY: initialY)
     }
     let groupIsDragged = context.draggedIDs.contains(.group(groupID))
-    if context.outline.collapsedGroupIDs.contains(groupID) || tabIDs.isEmpty {
+    if context.outline.visibleTabIDs(in: groupID).isEmpty {
       return collapsedGroupTargetGeometry(
         position: position,
         groupID: groupID,

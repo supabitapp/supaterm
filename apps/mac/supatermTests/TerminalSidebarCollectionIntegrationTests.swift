@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import Testing
 
 @testable import supaterm
@@ -271,6 +272,59 @@ struct TerminalSidebarCollectionHarnessTests {
     #expect(opacityAnimation.fromValue as? Float == 1)
     #expect(opacityAnimation.duration == 1)
     #expect(deletedView.layer?.opacity == 0)
+  }
+
+  @Test
+  func animatedExpansionRevealsInsertedRowsAndMovesRetainedRows() throws {
+    let tabs = [TerminalTabID(), TerminalTabID()]
+    let groupID = TerminalTabGroupID()
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .blue, .automatic, tabs),
+        isPinned: false
+      )
+    ]
+    let collapsed = TerminalSidebarTestFixture.outline(
+      roots: roots,
+      revision: 1,
+      collapsedGroupIDs: [groupID]
+    )
+    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 2)
+    let harness = CollectionHarness(size: CGSize(width: 220, height: 300))
+    defer {
+      harness.window.orderOut(nil)
+      harness.close()
+    }
+    harness.window.orderFront(nil)
+    harness.apply(outline: collapsed)
+    let sourceNewTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .newTab }?.frame
+    )
+
+    harness.applyAnimated(outline: expanded, duration: 1)
+
+    let insertedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(tabs[0])))
+    let insertedView = try #require(harness.collectionView.item(at: insertedIndexPath)?.view)
+    let layer = try #require(insertedView.layer)
+    let opacityAnimation = try #require(layer.animation(forKey: "opacity") as? CABasicAnimation)
+    let positionAnimation = try #require(layer.animation(forKey: "position") as? CABasicAnimation)
+    let initialPosition = try #require(positionAnimation.fromValue as? CGPoint)
+    let targetNewTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .newTab }?.frame
+    )
+
+    #expect(sourceNewTabFrame.minY < targetNewTabFrame.minY)
+    #expect(opacityAnimation.fromValue as? Float == 0)
+    #expect(opacityAnimation.duration == 1)
+    #expect(positionAnimation.duration == 1)
+    #expect(initialPosition.x == insertedView.frame.minX)
+    #expect(
+      abs(
+        initialPosition.y
+          - (insertedView.frame.minY - TerminalSidebarCollectionLayout.expansionRevealOffset)
+      ) < 0.5
+    )
+    #expect(layer.opacity == 1)
   }
 
   private func expectIdentityAlignment(
