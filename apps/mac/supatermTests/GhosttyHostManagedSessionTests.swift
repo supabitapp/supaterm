@@ -59,7 +59,7 @@ struct GhosttyHostManagedSessionTests {
     var config = ghostty_surface_config_new()
     session.configure(&config)
 
-    session.attach(surface)
+    #expect(session.attach(surface))
     let wrote = await session.write(Data("later".utf8))
     let restored = await session.restore(Data("snapshot".utf8))
     session.detach()
@@ -100,7 +100,7 @@ struct GhosttyHostManagedSessionTests {
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
     session.configure(&config)
-    session.attach(surface)
+    #expect(session.attach(surface))
 
     let wrote = await session.write(Data("output".utf8))
     let restored = await session.restore(Data("snapshot".utf8))
@@ -128,7 +128,7 @@ struct GhosttyHostManagedSessionTests {
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
     session.configure(&config)
-    session.attach(surface)
+    #expect(session.attach(surface))
 
     let restored = await session.restore(Data("snapshot".utf8))
 
@@ -167,7 +167,7 @@ struct GhosttyHostManagedSessionTests {
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
     session.configure(&config)
-    session.attach(surface)
+    #expect(session.attach(surface))
 
     let restoreTask = Task { await session.restore(Data("snapshot".utf8)) }
     #expect(await waitUntil { commitStarted.withLock { $0 } })
@@ -236,7 +236,7 @@ struct GhosttyHostManagedSessionTests {
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
     var config = ghostty_surface_config_new()
     session.configure(&config)
-    session.attach(surface)
+    #expect(session.attach(surface))
 
     let firstResult = await session.write(payloads[0])
     let tasks = queuedTasks.withLock { $0 }
@@ -374,6 +374,29 @@ struct GhosttyHostManagedSessionTests {
   }
 
   @Test
+  func detachDuringSurfaceCreationRejectsAndFreesTheSurface() async throws {
+    initializeGhosttyForTests()
+    let session = GhosttyHostManagedSession()
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      hostManagedSession: session,
+      surfaceFactory: { app, config in
+        let surface = ghostty_surface_new(app, config)
+        session.detach()
+        return surface
+      }
+    )
+    var iterator = session.events.makeAsyncIterator()
+
+    #expect(surfaceView.surface == nil)
+    #expect(surfaceView.bridge.surface == nil)
+    #expect(try await iterator.next() == nil)
+  }
+
+  @Test
   func surfaceCallQueueRejectsWorkBeyondItsBounds() async throws {
     let callStarted = Mutex(false)
     let allowCallToReturn = DispatchSemaphore(value: 0)
@@ -389,7 +412,7 @@ struct GhosttyHostManagedSessionTests {
     var config = ghostty_surface_config_new()
     session.configure(&config)
     let surface = try #require(UnsafeMutableRawPointer(bitPattern: 0x1234))
-    session.attach(surface)
+    #expect(session.attach(surface))
     let firstCall = Task {
       await session.write(Data("full".utf8))
     }

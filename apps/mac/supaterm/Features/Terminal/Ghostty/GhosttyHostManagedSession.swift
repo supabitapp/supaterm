@@ -130,9 +130,15 @@ nonisolated final class GhosttyHostManagedSession: Sendable {
     }
   }
 
-  func attach(_ surface: ghostty_surface_t) {
-    let didAttach = calls.attach(UInt(bitPattern: surface))
-    guard didAttach else { fatalError("Host-managed session attached out of order") }
+  func attach(_ surface: ghostty_surface_t) -> Bool {
+    switch calls.attach(UInt(bitPattern: surface)) {
+    case .attached:
+      return true
+    case .detached:
+      return false
+    case .invalid:
+      fatalError("Host-managed session attached out of order")
+    }
   }
 
   func write(_ data: Data) async -> Bool {
@@ -392,6 +398,12 @@ nonisolated private final class GhosttyHostManagedSurfaceCalls: Sendable {
     case unchanged
   }
 
+  enum AttachAction: Sendable {
+    case attached
+    case detached
+    case invalid
+  }
+
   private let callCapacity: Int
   private let byteCapacity: Int
   private let state = Mutex(State())
@@ -409,11 +421,17 @@ nonisolated private final class GhosttyHostManagedSurfaceCalls: Sendable {
     }
   }
 
-  func attach(_ address: UInt) -> Bool {
+  func attach(_ address: UInt) -> AttachAction {
     state.withLock { state in
-      guard case .configured = state.attachment else { return false }
-      state.attachment = .attached(address)
-      return true
+      switch state.attachment {
+      case .configured:
+        state.attachment = .attached(address)
+        return .attached
+      case .detached:
+        return .detached
+      case .waiting, .attached, .detaching:
+        return .invalid
+      }
     }
   }
 

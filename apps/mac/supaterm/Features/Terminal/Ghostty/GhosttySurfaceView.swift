@@ -1424,14 +1424,18 @@ final class GhosttySurfaceView: NSView, Identifiable {
         }
       }
     }
-    bridge.surface = surface
-    activeScreenReader.install(surface)
     guard let surface else {
       hostManagedSession?.detach()
       bridge.state.failure = .surfaceCreationFailed
       return
     }
-    hostManagedSession?.attach(surface)
+    if let hostManagedSession, !hostManagedSession.attach(surface) {
+      ghostty_surface_free(surface)
+      self.surface = nil
+      return
+    }
+    bridge.surface = surface
+    activeScreenReader.install(surface)
     lastOcclusion = nil
     lastSurfaceFocus = nil
     updateSurfaceSize()
