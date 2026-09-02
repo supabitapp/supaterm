@@ -132,6 +132,41 @@ fn version_is_one_stdout_line() {
 }
 
 #[test]
+fn describe_reports_the_canonical_runtime_and_build() {
+    let root = tempfile::tempdir().unwrap();
+    let output = Command::new(assert_cmd::cargo::cargo_bin!("supaterm-host"))
+        .arg("describe")
+        .env("SUPATERM_STATE_HOME", root.path().join("state"))
+        .env("XDG_RUNTIME_DIR", root.path().join("run"))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let description: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(description["protocol_version"], PROTOCOL_VERSION);
+    assert_eq!(
+        description["build"],
+        serde_json::to_value(current_build_identity()).unwrap()
+    );
+    assert_eq!(
+        description["state_root"].as_str().unwrap(),
+        root.path()
+            .join("state")
+            .canonicalize()
+            .unwrap()
+            .to_str()
+            .unwrap()
+    );
+    assert!(
+        description["socket"]
+            .as_str()
+            .unwrap()
+            .ends_with("/host.sock")
+    );
+}
+
+#[test]
 fn rust_sp_reads_the_empty_host_snapshot() {
     let host = RunningHost::start();
 

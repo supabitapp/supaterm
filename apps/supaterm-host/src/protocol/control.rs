@@ -1,4 +1,5 @@
 use crate::protocol::terminal::TerminalControl;
+use crate::workspace::replay::Subscription;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::{Display, Formatter};
@@ -110,6 +111,9 @@ pub enum HostControl {
     Terminal {
         stream_id: u32,
         event: TerminalControl,
+    },
+    State {
+        subscription: Subscription,
     },
 }
 

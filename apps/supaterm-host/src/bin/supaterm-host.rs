@@ -25,6 +25,7 @@ enum Command {
         #[arg(long)]
         socket: Option<PathBuf>,
     },
+    Describe,
     Version,
 }
 
@@ -72,6 +73,20 @@ async fn run(command: Command) -> Result<()> {
             println!(
                 "supaterm-host {} protocol {} {}",
                 build.version, PROTOCOL_VERSION, build.fingerprint
+            );
+        }
+        Command::Describe => {
+            let build = current_build_identity();
+            let paths = paths(None)?;
+            println!(
+                "{}",
+                serde_json::to_string(&serde_json::json!({
+                    "protocol_version": PROTOCOL_VERSION,
+                    "build": build,
+                    "state_root": paths.state_root,
+                    "socket": paths.socket,
+                    "process_record": paths.process_record
+                }))?
             );
         }
         Command::Serve { socket, .. } => {

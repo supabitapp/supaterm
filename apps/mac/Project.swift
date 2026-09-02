@@ -5,6 +5,10 @@ let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
+let hostBinaryPath: Path = ".build/supaterm-host/bin/supaterm-host"
+let hostSPBinaryPath: Path = ".build/supaterm-host/bin/sp"
+let hostBuildScriptPath: Path = "scripts/build-supaterm-host.sh"
+let hostFingerprintPath: Path = ".build/supaterm-host/fingerprint"
 let zmxBinaryPath: Path = ".build/zmx/bin/zmx"
 let zmxBuildScriptPath: Path = "scripts/build-zmx.sh"
 let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
@@ -12,6 +16,10 @@ let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
 let supaThemeDependency = TargetDependency.project(target: "SupaTheme", path: "../shared")
+let supatermHostClientDependency = TargetDependency.project(
+  target: "SupatermHostClient",
+  path: "../shared"
+)
 
 let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
@@ -402,6 +410,13 @@ let project = Project(
         ),
         .pre(
           script: """
+            "${SRCROOT}/\(hostBuildScriptPath.pathString)"
+            """,
+          name: "Build supaterm-host",
+          basedOnDependencyAnalysis: false
+        ),
+        .pre(
+          script: """
             "${SRCROOT}/\(zmxBuildScriptPath.pathString)"
             """,
           name: "Build zmx",
@@ -413,6 +428,36 @@ let project = Project(
             """,
           name: "Build ap",
           basedOnDependencyAnalysis: false
+        ),
+        .post(
+          script: """
+            set -euo pipefail
+
+            destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
+            host_source="${SRCROOT}/\(hostBinaryPath.pathString)"
+            sp_source="${SRCROOT}/\(hostSPBinaryPath.pathString)"
+
+            mkdir -p "${destination_dir}"
+            /usr/bin/install -m 755 "${host_source}" "${destination_dir}/supaterm-host"
+            /usr/bin/install -m 755 "${sp_source}" "${destination_dir}/sp"
+            if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
+              identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+              /usr/bin/codesign --force --sign "${identity}" --options runtime \
+                --timestamp=none "${destination_dir}/supaterm-host"
+              /usr/bin/codesign --force --sign "${identity}" --options runtime \
+                --timestamp=none "${destination_dir}/sp"
+            fi
+            """,
+          name: "Embed supaterm-host",
+          inputPaths: [
+            "$(SRCROOT)/\(hostBinaryPath.pathString)",
+            "$(SRCROOT)/\(hostSPBinaryPath.pathString)",
+            "$(SRCROOT)/\(hostFingerprintPath.pathString)",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/supaterm-host",
+            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/sp",
+          ],
         ),
         .post(
           script: """
@@ -586,6 +631,7 @@ let project = Project(
         ),
       ],
       dependencies: [
+        supatermHostClientDependency,
         .target(name: "sp"),
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermLicenseFeature"),
@@ -629,10 +675,12 @@ let project = Project(
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       buildableFolders: [
+        "SupatermGhosttyTestSupport",
         "SupatermTestSupport",
         "supatermTests",
       ],
       dependencies: [
+        supatermHostClientDependency,
         .external(name: "ArgumentParser"),
         .external(name: "Clocks"),
         .target(name: "SPCLI"),
@@ -651,6 +699,34 @@ let project = Project(
         .external(name: "PostHog"),
         .external(name: "Sharing"),
         .external(name: "TOML"),
+      ],
+      settings: .settings(
+        base: [
+          "TEST_HOST": "",
+          "BUNDLE_LOADER": "$(BUILT_PRODUCTS_DIR)/supaterm.app/Contents/MacOS/supaterm.debug.dylib",
+          "LD_RUNPATH_SEARCH_PATHS": """
+          $(inherited) @loader_path/../Frameworks @executable_path/../Frameworks \
+          @loader_path/../../../supaterm.app/Contents/MacOS
+          """,
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "supatermHostIntegrationTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supatermHostIntegrationTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermGhosttyTestSupport",
+        "SupatermHostIntegrationTests",
+      ],
+      dependencies: [
+        supatermHostClientDependency,
+        .target(name: "supaterm"),
+        .target(name: "GhosttyKit"),
       ],
       settings: .settings(
         base: [
@@ -799,6 +875,7 @@ let project = Project(
       testAction: .targets(
         [
           .testableTarget(target: .target("supatermTests")),
+          .testableTarget(target: .target("supatermHostIntegrationTests")),
         ],
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm")

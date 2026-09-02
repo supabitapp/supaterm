@@ -6,6 +6,7 @@ use supaterm_host::protocol::control::{
     encode_control,
 };
 use supaterm_host::protocol::frame::{Frame, FrameKind, PREFACE};
+use supaterm_host::workspace::replay::{MutationEvent, Subscription};
 use uuid::Uuid;
 
 fn client_id() -> ClientId {
@@ -118,6 +119,21 @@ fn checked_in_hello_fixture_matches_the_wire() {
     .unwrap();
 
     assert_eq!(hex(&actual), fixture["wire_hex"]);
+}
+
+#[test]
+fn checked_in_state_fixture_matches_the_wire_dtos() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/protocol-v1-state.json")).unwrap();
+    let subscription: Subscription =
+        serde_json::from_value(fixture["subscription"].clone()).unwrap();
+    let mutation: MutationEvent = serde_json::from_value(fixture["mutation"].clone()).unwrap();
+
+    assert_eq!(
+        serde_json::to_value(subscription).unwrap(),
+        fixture["subscription"]
+    );
+    assert_eq!(serde_json::to_value(mutation).unwrap(), fixture["mutation"]);
 }
 
 fn hex(bytes: &[u8]) -> String {

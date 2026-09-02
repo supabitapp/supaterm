@@ -14,14 +14,14 @@ use crate::workspace::model::{
 };
 use crate::workspace::persistence::{DurableDocument, PersistenceWorker};
 use crate::workspace::reducer::{Command, ReducerError, closing_pane_ids};
-use crate::workspace::replay::{HostModel, ModelError};
+use crate::workspace::replay::{HostModel, ModelError, Subscription};
 use crate::workspace::runtime::{
     AgentAuthority, AgentEnrichment, AgentPhase, NotificationOrigin, ProcessIdentity, ProgressState,
 };
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::path::PathBuf;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;
 
 const ACTOR_QUEUE_CAPACITY: usize = 256;
@@ -52,6 +52,7 @@ pub struct HostActor {
     sender: mpsc::Sender<ActorMessage>,
     terminals: TerminalRegistry,
     machine_services: Option<MachineServices>,
+    revisions: watch::Receiver<u64>,
 }
 
 #[derive(Clone, Copy)]
@@ -95,6 +96,7 @@ impl HostActor {
         });
         let model = HostModel::new(document.workspace, document.clients, 2048, 16 * 1024 * 1024)
             .with_epoch(configuration.epoch);
+        let (revision_sender, revisions) = watch::channel(model.revision());
         let machine_services = configuration
             .machine_environment
             .clone()
@@ -104,19 +106,29 @@ impl HostActor {
                 services.repair_installed().await;
             });
         }
-        tokio::spawn(run(
+        let state = ActorState {
             configuration,
-            terminals.clone(),
-            sender.clone(),
+            terminals: terminals.clone(),
+            sender: sender.clone(),
             model,
-            document.settings,
+            settings: document.settings,
             persistence,
-            receiver,
-        ));
+            command_results: HashMap::new(),
+            command_order: VecDeque::new(),
+            close_grants: BTreeMap::new(),
+            detection_catalog: DetectionCatalog::embedded().ok(),
+            process_scans: BTreeMap::new(),
+            screen_revisions: BTreeMap::new(),
+            notification_sink: None,
+            enrichment_subscriptions: BTreeMap::new(),
+            enrichment_scans: BTreeMap::new(),
+        };
+        tokio::spawn(run(state, revision_sender, receiver));
         Self {
             sender,
             terminals,
             machine_services,
+            revisions,
         }
     }
 
@@ -140,6 +152,27 @@ impl HostActor {
             .await
             .map_err(|_| internal_error())?;
         response.await.map_err(|_| internal_error())
+    }
+
+    pub(crate) async fn subscribe(
+        &self,
+        client_id: ClientId,
+        after_revision: Option<u64>,
+    ) -> Result<Subscription, ProtocolError> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(ActorMessage::Subscribe {
+                client_id,
+                after_revision,
+                reply,
+            })
+            .await
+            .map_err(|_| internal_error())?;
+        response.await.map_err(|_| internal_error())
+    }
+
+    pub(crate) fn revisions(&self) -> watch::Receiver<u64> {
+        self.revisions.clone()
     }
 
     pub async fn restore_terminal(
@@ -228,6 +261,11 @@ enum ActorMessage {
         client_id: ClientId,
         reply: oneshot::Sender<()>,
     },
+    Subscribe {
+        client_id: ClientId,
+        after_revision: Option<u64>,
+        reply: oneshot::Sender<Subscription>,
+    },
     Execute {
         context: RequestContext,
         command_id: CommandId,
@@ -281,42 +319,26 @@ struct ActorState {
 }
 
 async fn run(
-    configuration: HostConfiguration,
-    terminals: TerminalRegistry,
-    sender: mpsc::Sender<ActorMessage>,
-    model: HostModel,
-    settings: BTreeMap<String, Value>,
-    persistence: Option<PersistenceWorker>,
+    mut state: ActorState,
+    revision_sender: watch::Sender<u64>,
     mut receiver: mpsc::Receiver<ActorMessage>,
 ) {
-    let mut state = ActorState {
-        configuration,
-        terminals,
-        sender,
-        model,
-        settings,
-        persistence,
-        command_results: HashMap::new(),
-        command_order: VecDeque::new(),
-        close_grants: BTreeMap::new(),
-        detection_catalog: DetectionCatalog::embedded().ok(),
-        process_scans: BTreeMap::new(),
-        screen_revisions: BTreeMap::new(),
-        notification_sink: None,
-        enrichment_subscriptions: BTreeMap::new(),
-        enrichment_scans: BTreeMap::new(),
-    };
     let mut enrichment_refresh = tokio::time::interval(std::time::Duration::from_secs(10));
     enrichment_refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         let message = tokio::select! {
             message = receiver.recv() => message,
             _ = enrichment_refresh.tick() => {
+                let revision = state.model.revision();
                 state.refresh_enrichments();
+                if state.model.revision() != revision {
+                    revision_sender.send_replace(state.model.revision());
+                }
                 continue;
             }
         };
         let Some(message) = message else { break };
+        let revision = state.model.revision();
         match message {
             ActorMessage::Status { reply } => {
                 let _ = reply.send(state.status());
@@ -326,6 +348,13 @@ async fn run(
                     state.persist().await;
                 }
                 let _ = reply.send(());
+            }
+            ActorMessage::Subscribe {
+                client_id,
+                after_revision,
+                reply,
+            } => {
+                let _ = reply.send(state.model.subscribe(client_id, after_revision));
             }
             ActorMessage::Execute {
                 context,
@@ -359,6 +388,9 @@ async fn run(
                 source_process,
                 enrichment,
             } => state.enrichment_scanned(pane_id, generation, source_process, *enrichment),
+        }
+        if state.model.revision() != revision {
+            revision_sender.send_replace(state.model.revision());
         }
     }
 }

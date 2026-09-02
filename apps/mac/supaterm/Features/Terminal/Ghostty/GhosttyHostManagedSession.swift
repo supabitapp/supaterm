@@ -91,8 +91,7 @@ private nonisolated final class GhosttyHostManagedCallbackState: Sendable {
   }
 }
 
-@MainActor
-final class GhosttyHostManagedSession {
+nonisolated final class GhosttyHostManagedSession: @unchecked Sendable {
   nonisolated struct Viewport: Equatable, Sendable {
     let columns: UInt16
     let rows: UInt16
@@ -101,6 +100,7 @@ final class GhosttyHostManagedSession {
   }
 
   private let callbacks: GhosttyHostManagedCallbackState
+  private let rendererQueue: DispatchQueue
   private var surface: ghostty_surface_t?
 
   init(
@@ -108,6 +108,7 @@ final class GhosttyHostManagedSession {
     onInput: @escaping @Sendable (Data) -> Void,
     onResize: @escaping @Sendable (Viewport) -> Void
   ) {
+    rendererQueue = deliveryQueue
     callbacks = GhosttyHostManagedCallbackState(
       queue: deliveryQueue,
       onInput: onInput,
@@ -116,24 +117,28 @@ final class GhosttyHostManagedSession {
   }
 
   func write(_ data: Data) -> Bool {
-    guard let surface else { return false }
-    return data.withUnsafeBytes { bytes in
-      ghostty_surface_write_buffer(
-        surface,
-        bytes.bindMemory(to: UInt8.self).baseAddress,
-        bytes.count
-      )
+    rendererQueue.sync {
+      guard let surface else { return false }
+      return data.withUnsafeBytes { bytes in
+        ghostty_surface_write_buffer(
+          surface,
+          bytes.bindMemory(to: UInt8.self).baseAddress,
+          bytes.count
+        )
+      }
     }
   }
 
   func restore(snapshot: Data) -> Bool {
-    guard let surface else { return false }
-    return snapshot.withUnsafeBytes { bytes in
-      ghostty_surface_restore_snapshot(
-        surface,
-        bytes.bindMemory(to: UInt8.self).baseAddress,
-        bytes.count
-      )
+    rendererQueue.sync {
+      guard let surface else { return false }
+      return snapshot.withUnsafeBytes { bytes in
+        ghostty_surface_restore_snapshot(
+          surface,
+          bytes.bindMemory(to: UInt8.self).baseAddress,
+          bytes.count
+        )
+      }
     }
   }
 
@@ -142,12 +147,16 @@ final class GhosttyHostManagedSession {
   }
 
   func attach(_ surface: ghostty_surface_t) {
-    precondition(self.surface == nil)
-    self.surface = surface
+    rendererQueue.sync {
+      precondition(self.surface == nil)
+      self.surface = surface
+    }
   }
 
   func detach(_ surface: ghostty_surface_t) {
-    guard self.surface == surface else { return }
-    self.surface = nil
+    rendererQueue.sync {
+      guard self.surface == surface else { return }
+      self.surface = nil
+    }
   }
 }

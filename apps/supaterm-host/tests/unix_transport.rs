@@ -12,6 +12,7 @@ use supaterm_host::terminal::pty::SpawnSpec;
 use supaterm_host::transport::unix::{UnixServer, peer_process_id, peer_uid, serve_connection};
 use supaterm_host::workspace::model::SpaceId;
 use supaterm_host::workspace::reducer::Command;
+use supaterm_host::workspace::replay::Subscription;
 use tempfile::tempdir;
 use tokio::net::UnixStream;
 use tokio::time::timeout;
@@ -90,6 +91,58 @@ async fn local_client_handshakes_and_reads_a_correlated_snapshot() {
     let snapshot = client.request("state.snapshot", Value::Null).await.unwrap();
     assert_eq!(snapshot["workspace"]["spaces"][0]["name"], "Renamed");
     assert!(snapshot["client_state"].is_object());
+    drop(client);
+    connection_task.await.unwrap();
+}
+
+#[tokio::test]
+async fn subscription_pushes_later_authoritative_mutations() {
+    let (_root, paths) = paths();
+    let server = UnixServer::bind(&paths).await.unwrap();
+    let host = actor();
+    let connection_task = tokio::spawn({
+        let host = host.clone();
+        async move {
+            let (stream, _) = server.accept().await.unwrap();
+            serve_connection(stream, host).await.unwrap();
+        }
+    });
+    let client = HostClient::connect(ClientConfiguration {
+        socket: paths.socket.clone(),
+        build: build(),
+        role: ClientRole::Ui,
+        client_id: Some(ClientId(Uuid::new_v4())),
+        capabilities: vec!["semantic_state".into()],
+    })
+    .await
+    .unwrap();
+    let mut events = client.state_events();
+    let initial = client.subscribe(None).await.unwrap();
+    assert!(matches!(initial, Subscription::Snapshot(_)));
+
+    client
+        .apply_workspace(
+            Command::RenameSpace {
+                space_id: SpaceId(Uuid::from_u128(1)),
+                name: "Pushed".into(),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    let pushed = timeout(Duration::from_secs(3), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let Subscription::Replay(mutations) = pushed else {
+        panic!("expected replay");
+    };
+    assert_eq!(mutations.len(), 1);
+    assert_eq!(
+        mutations[0].workspace.as_ref().unwrap().spaces[0].name,
+        "Pushed"
+    );
+
     drop(client);
     connection_task.await.unwrap();
 }

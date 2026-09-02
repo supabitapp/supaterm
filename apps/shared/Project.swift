@@ -13,6 +13,45 @@ let project = Project(
   ),
   targets: [
     .target(
+      name: "SupatermHostClient",
+      destinations: [.iPhone, .iPad, .mac],
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.host-client",
+      deploymentTargets: .multiplatform(iOS: "26.0", macOS: "26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermHostClient",
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermHostClientTests",
+      destinations: [.iPhone, .iPad, .mac],
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.host-client-tests",
+      deploymentTargets: .multiplatform(iOS: "26.0", macOS: "26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermHostClientTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermHostClient"),
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupaTheme",
       destinations: [.iPhone, .iPad, .mac],
       product: .staticFramework,

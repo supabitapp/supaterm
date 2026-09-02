@@ -12,6 +12,7 @@ use crate::protocol::terminal::{
 };
 use crate::runtime::{RuntimeError, RuntimePaths, ServeLock, SocketState};
 use crate::terminal::actor::{Attachment, OutputEvent, TerminalError, Viewport};
+use crate::workspace::replay::Subscription;
 use bytes::Bytes;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -165,6 +166,7 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
     ));
     let mut session = ConnectionSession::new_with_peer(actor.clone(), peer_process_id);
     let mut streams = HashMap::new();
+    let mut state_subscription = None;
     while let Some(frame) = reader.read().await? {
         let should_close = match frame.kind {
             FrameKind::ClientControl => {
@@ -173,6 +175,7 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
                     &actor,
                     &outbound,
                     &mut streams,
+                    &mut state_subscription,
                     &frame.payload,
                 )
                 .await?
@@ -197,6 +200,9 @@ pub async fn serve_connection(stream: UnixStream, actor: HostActor) -> io::Resul
         }
     }
     let client_id = session.client_id();
+    if let Some(subscription) = state_subscription {
+        subscription.abort();
+    }
     for (_, attachment) in streams {
         attachment.task.abort();
         if let Some(client_id) = client_id {
@@ -218,6 +224,7 @@ async fn receive_control(
     actor: &HostActor,
     outbound: &Outbound,
     streams: &mut HashMap<u32, StreamAttachment>,
+    state_subscription: &mut Option<JoinHandle<()>>,
     payload: &[u8],
 ) -> io::Result<bool> {
     let control = match decode_client_control(payload) {
@@ -385,6 +392,7 @@ async fn receive_control(
             outbound.control(response).await?;
         }
         _ => {
+            let revision_receiver = (method == "state.subscribe").then(|| actor.revisions());
             let response = session
                 .receive(ClientControl::Request {
                     command_id,
@@ -392,10 +400,65 @@ async fn receive_control(
                     params,
                 })
                 .await;
+            let initial_subscription = match &response {
+                HostControl::Result { result, .. } => revision_receiver
+                    .as_ref()
+                    .and_then(|_| serde_json::from_value::<Subscription>(result.clone()).ok()),
+                _ => None,
+            };
             outbound.control(response).await?;
+            if let (Some(subscription), Some(revisions)) = (initial_subscription, revision_receiver)
+            {
+                if let Some(task) = state_subscription.take() {
+                    task.abort();
+                }
+                *state_subscription = Some(tokio::spawn(forward_state(
+                    actor.clone(),
+                    client_id,
+                    subscription_revision(&subscription),
+                    revisions,
+                    outbound.clone(),
+                )));
+            }
         }
     }
     Ok(false)
+}
+
+async fn forward_state(
+    actor: HostActor,
+    client_id: crate::protocol::control::ClientId,
+    mut after_revision: u64,
+    mut revisions: tokio::sync::watch::Receiver<u64>,
+    outbound: Outbound,
+) {
+    while revisions.changed().await.is_ok() {
+        let Ok(subscription) = actor.subscribe(client_id, Some(after_revision)).await else {
+            break;
+        };
+        let Some(revision) = visible_subscription_revision(&subscription) else {
+            continue;
+        };
+        after_revision = revision;
+        if outbound
+            .control(HostControl::State { subscription })
+            .await
+            .is_err()
+        {
+            break;
+        }
+    }
+}
+
+fn subscription_revision(subscription: &Subscription) -> u64 {
+    visible_subscription_revision(subscription).unwrap_or(0)
+}
+
+fn visible_subscription_revision(subscription: &Subscription) -> Option<u64> {
+    match subscription {
+        Subscription::Snapshot(snapshot) => Some(snapshot.revision),
+        Subscription::Replay(mutations) => mutations.last().map(|mutation| mutation.revision),
+    }
 }
 
 async fn receive_input(

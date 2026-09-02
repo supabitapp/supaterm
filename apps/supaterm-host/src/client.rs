@@ -18,11 +18,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::UnixStream;
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{Mutex, broadcast, mpsc, oneshot};
 use uuid::Uuid;
 
 const OUTBOUND_QUEUE_CAPACITY: usize = 256;
 const STREAM_QUEUE_CAPACITY: usize = 128;
+const STATE_QUEUE_CAPACITY: usize = 128;
 
 #[derive(Clone, Debug)]
 pub struct ClientConfiguration {
@@ -38,6 +39,7 @@ pub struct HostClient {
     outbound: mpsc::Sender<Frame>,
     pending: Arc<Mutex<HashMap<CommandId, oneshot::Sender<HostControl>>>>,
     streams: Arc<Mutex<HashMap<u32, mpsc::Sender<TerminalEvent>>>>,
+    state: broadcast::Sender<Subscription>,
 }
 
 pub struct ClientAttachment {
@@ -106,12 +108,19 @@ impl HostClient {
         let (outbound, outbound_receiver) = mpsc::channel(OUTBOUND_QUEUE_CAPACITY);
         let pending = Arc::new(Mutex::new(HashMap::new()));
         let streams = Arc::new(Mutex::new(HashMap::new()));
+        let (state, _) = broadcast::channel(STATE_QUEUE_CAPACITY);
         tokio::spawn(run_writer(writer, outbound_receiver));
-        tokio::spawn(run_reader(reader, pending.clone(), streams.clone()));
+        tokio::spawn(run_reader(
+            reader,
+            pending.clone(),
+            streams.clone(),
+            state.clone(),
+        ));
         Ok(Self {
             outbound,
             pending,
             streams,
+            state,
         })
     }
 
@@ -337,6 +346,10 @@ impl HostClient {
                 .await?,
         )
     }
+
+    pub fn state_events(&self) -> broadcast::Receiver<Subscription> {
+        self.state.subscribe()
+    }
 }
 
 async fn run_writer(
@@ -354,6 +367,7 @@ async fn run_reader(
     mut reader: FrameReader<tokio::net::unix::OwnedReadHalf>,
     pending: Arc<Mutex<HashMap<CommandId, oneshot::Sender<HostControl>>>>,
     streams: Arc<Mutex<HashMap<u32, mpsc::Sender<TerminalEvent>>>>,
+    state: broadcast::Sender<Subscription>,
 ) {
     while let Ok(Some(frame)) = reader.read().await {
         let delivered = match frame.kind {
@@ -373,6 +387,10 @@ async fn run_reader(
                         .is_some_and(|reply| reply.send(control).is_ok()),
                     HostControl::Terminal { stream_id, event } => {
                         send_terminal(&streams, stream_id, TerminalEvent::Control(event)).await
+                    }
+                    HostControl::State { subscription } => {
+                        let _ = state.send(subscription);
+                        true
                     }
                     HostControl::Welcome { .. }
                     | HostControl::Error {
