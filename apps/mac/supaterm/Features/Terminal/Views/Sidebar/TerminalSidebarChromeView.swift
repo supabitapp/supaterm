@@ -25,6 +25,10 @@ struct TerminalSidebarChromeView: View {
 
   @State private var pagingPosition: Double?
 
+  private var updatePresentation: UpdateSidebarPresentation {
+    updateStore.phase.sidebarPresentation
+  }
+
   var body: some View {
     VStack(spacing: 10) {
       SpaceSidebarPagerView(
@@ -43,7 +47,7 @@ struct TerminalSidebarChromeView: View {
             if case .expired = licenseStore.access { return true }
             return false
           }(),
-          showsUpdate: updateStore.phase.showsSidebarSection
+          showsUpdate: updatePresentation == .card
         ) {
         case .licenseExpired:
           if case .expired(let ownership) = licenseStore.access {
@@ -68,12 +72,22 @@ struct TerminalSidebarChromeView: View {
             dismiss: dismissReleaseAnnouncement
           )
         }
-        SpacePageDotsView(
-          store: store,
-          terminal: terminal,
-          palette: palette,
-          position: pagingPosition
-        )
+        ZStack {
+          SpacePageDotsView(
+            store: store,
+            terminal: terminal,
+            palette: palette,
+            position: pagingPosition
+          )
+
+          if updatePresentation == .compact {
+            TerminalSidebarCompactUpdateButton(
+              store: updateStore,
+              palette: palette
+            )
+            .frame(maxWidth: .infinity, alignment: .trailing)
+          }
+        }
       }
       .padding(.leading, TerminalSidebarLayout.cardHorizontalInsets.leading)
       .padding(.trailing, TerminalSidebarLayout.cardHorizontalInsets.trailing)

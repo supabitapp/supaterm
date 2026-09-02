@@ -92,7 +92,7 @@ struct UpdatePhaseTests {
   func autoUpdateInstallingShowsRestartPrompt() {
     let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: true))
 
-    #expect(phase.showsSidebarSection)
+    #expect(phase.sidebarPresentation == .card)
     #expect(phase.actionPresentations.map(\.title) == ["Restart Later", "Restart Now"])
     #expect(phase.menuItemAction == .restartNow)
     #expect(phase.menuItemTitle == "Restart to Update...")
@@ -103,7 +103,7 @@ struct UpdatePhaseTests {
   func deferredAutoUpdateInstallingKeepsRestartMenuActionWhileHidingSidebarSection() {
     let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
 
-    #expect(!phase.showsSidebarSection)
+    #expect(phase.sidebarPresentation == .compact)
     #expect(phase.actionPresentations.isEmpty)
     #expect(phase.menuItemAction == .restartNow)
     #expect(phase.menuItemTitle == "Restart to Update...")
@@ -114,8 +114,17 @@ struct UpdatePhaseTests {
   func manualInstallingKeepsSidebarSectionVisible() {
     let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: false))
 
-    #expect(phase.showsSidebarSection)
+    #expect(phase.sidebarPresentation == .card)
     #expect(phase.menuItemAction == .restartNow)
+  }
+
+  @Test
+  func deferredManualInstallHidesSidebarUpdate() {
+    let phase = UpdatePhase.installing(
+      UpdatePhase.Installing(isAutoUpdate: false, showsPrompt: false)
+    )
+
+    #expect(phase.sidebarPresentation == .hidden)
   }
 
   @Test
