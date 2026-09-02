@@ -221,7 +221,8 @@ private struct TerminalSidebarTabLineView: View {
         Image(imageName)
           .renderingMode(.template)
           .resizable()
-          .accessibilityHidden(true)
+      case .process(let processIcon):
+        TerminalProcessIconImage(icon: processIcon)
       }
     }
     .aspectRatio(contentMode: .fit)
@@ -231,6 +232,7 @@ private struct TerminalSidebarTabLineView: View {
         ? palette.selectedSecondaryText
         : palette.secondaryText
     )
+    .accessibilityHidden(true)
   }
 
   private func trailingAccessoryView(

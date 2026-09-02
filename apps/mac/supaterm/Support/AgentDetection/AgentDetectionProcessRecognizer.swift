@@ -126,20 +126,32 @@ public actor AgentDetectionProcessSampler {
     guard foregroundProcessGroupIDs.contains(where: { $0 > 0 }), !manifests.isEmpty else {
       return [:]
     }
-    let now = currentTime()
-    let table: ProcessTable
-    if let sample, sample.time.duration(to: now) < Self.cacheInterval {
-      table = sample.table
-    } else {
-      table = processTable()
-      sample = Sample(table: table, time: now)
-    }
     return AgentDetectionProcessRecognizer.matches(
       foregroundProcessGroupIDs: foregroundProcessGroupIDs,
       manifests: manifests,
-      table: table,
+      table: sampledTable(),
       invocation: invocation
     )
+  }
+
+  public func processIcons(
+    foregroundProcessGroupIDs: Set<Int32>
+  ) -> [Int32: TerminalProcessIconMatch] {
+    TerminalProcessIconRecognizer.matches(
+      foregroundProcessGroupIDs: foregroundProcessGroupIDs,
+      table: sampledTable(),
+      invocation: invocation
+    )
+  }
+
+  private func sampledTable() -> ProcessTable {
+    let now = currentTime()
+    if let sample, sample.time.duration(to: now) < Self.cacheInterval {
+      return sample.table
+    }
+    let table = processTable()
+    sample = Sample(table: table, time: now)
+    return table
   }
 }
 

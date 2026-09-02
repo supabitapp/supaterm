@@ -1,0 +1,6 @@
+Papirus icon theme
+Source: https://github.com/PapirusDevelopmentTeam/papirus-icon-theme
+Commit: 5f8b701d7521e27b4859d7e4f9b0da4c423c036c
+Paths: Papirus/16x16/apps/*.svg
+License: GPL-3.0
+The SVG files in this directory are unmodified source files from that commit.
