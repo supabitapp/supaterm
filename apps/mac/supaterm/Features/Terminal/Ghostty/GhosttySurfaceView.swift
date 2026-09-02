@@ -117,6 +117,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   private let runtime: GhosttyRuntime
   private let activeScreenReader = GhosttyActiveScreenReader()
+  private let hostManagedSession: GhosttyHostManagedSession?
   let id: UUID
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
@@ -367,12 +368,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
     accessibilitySelectionSleep: @escaping @Sendable (Duration) async throws -> Void = {
       try await ContinuousClock().sleep(for: $0)
     },
+    hostManagedSession: GhosttyHostManagedSession? = nil,
     findPasteboard: NSPasteboard = NSPasteboard(name: .find),
     surfaceFactory: SurfaceFactory = { app, config in
       ghostty_surface_new(app, config)
     }
   ) {
     self.runtime = runtime
+    self.hostManagedSession = hostManagedSession
     self.id = id
     self.bridge = GhosttySurfaceBridge(findPasteboard: findPasteboard)
     self.environmentVariables =
@@ -426,6 +429,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     bridge.updateSurfaceConfig(runtime.surfaceConfig())
     if startupCommand?.isValid == false || launch.preparationFailed {
+      hostManagedSession?.detach()
       bridge.state.failure = .startupConfigurationFailed
     } else {
       createSurface(using: surfaceFactory)
@@ -446,15 +450,17 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   isolated deinit {
-    if let eventMonitor {
-      NSEvent.removeMonitor(eventMonitor)
-    }
+    removeEventMonitor()
     clearNotificationObservers()
     let id = ObjectIdentifier(self)
     MainActor.assumeIsolated {
       SecureInput.shared.removeScoped(id)
     }
-    closeSurface()
+    if hostManagedSession == nil {
+      closeSurface()
+    } else if surface != nil {
+      fatalError("Host-managed surface released before close")
+    }
     if let workingDirectoryCString {
       free(workingDirectoryCString)
     }
@@ -464,17 +470,41 @@ final class GhosttySurfaceView: NSView, Identifiable {
     accessibilitySelectionTask?.cancel()
     accessibilitySelectionTask = nil
     clearNotificationObservers()
-    if let surface {
-      activeScreenReader.remove(surface)
-      if let surfaceRef {
-        runtime.unregisterSurface(surfaceRef)
-        self.surfaceRef = nil
+    removeEventMonitor()
+    SecureInput.shared.removeScoped(ObjectIdentifier(self))
+    guard let surface else {
+      hostManagedSession?.detach()
+      return
+    }
+    activeScreenReader.remove(surface)
+    if let surfaceRef {
+      runtime.unregisterSurface(surfaceRef)
+      self.surfaceRef = nil
+    }
+    self.surface = nil
+    bridge.surface = nil
+    lastOcclusion = nil
+    lastSurfaceFocus = nil
+    if let hostManagedSession {
+      let surfaceAddress = UInt(bitPattern: surface)
+      let didDetach = hostManagedSession.detach { [hostManagedSession, self] in
+        Task { @MainActor [hostManagedSession, self] in
+          guard let surface = ghostty_surface_t(bitPattern: surfaceAddress) else { return }
+          withExtendedLifetime((hostManagedSession, self)) {
+            ghostty_surface_free(surface)
+          }
+        }
       }
+      guard didDetach else { fatalError("Host-managed surface detached more than once") }
+    } else {
       ghostty_surface_free(surface)
-      self.surface = nil
-      bridge.surface = nil
-      lastOcclusion = nil
-      lastSurfaceFocus = nil
+    }
+  }
+
+  private func removeEventMonitor() {
+    if let eventMonitor {
+      NSEvent.removeMonitor(eventMonitor)
+      self.eventMonitor = nil
     }
   }
 
@@ -1367,11 +1397,13 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   private func createSurface(using surfaceFactory: SurfaceFactory) {
     guard let app = runtime.app else {
+      hostManagedSession?.detach()
       bridge.state.failure = .surfaceCreationFailed
       return
     }
     var config = ghostty_surface_config_new()
     config.userdata = Unmanaged.passUnretained(bridge).toOpaque()
+    hostManagedSession?.configure(&config)
     config.platform_tag = GHOSTTY_PLATFORM_MACOS
     config.platform = ghostty_platform_u(
       macos: ghostty_platform_macos_s(
@@ -1394,10 +1426,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     bridge.surface = surface
     activeScreenReader.install(surface)
-    guard surface != nil else {
+    guard let surface else {
+      hostManagedSession?.detach()
       bridge.state.failure = .surfaceCreationFailed
       return
     }
+    hostManagedSession?.attach(surface)
     lastOcclusion = nil
     lastSurfaceFocus = nil
     updateSurfaceSize()

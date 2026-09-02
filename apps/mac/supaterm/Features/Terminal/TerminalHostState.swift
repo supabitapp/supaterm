@@ -439,6 +439,9 @@ final class TerminalHostState {
     spaceCatalogObservationTask?.cancel()
     agentDetectionController?.stop()
     agentPanelController?.stop()
+    for surface in surfaces.values {
+      surface.closeSurface()
+    }
     if let runtimeConfigObserver {
       NotificationCenter.default.removeObserver(runtimeConfigObserver)
     }
@@ -817,6 +820,7 @@ final class TerminalHostState {
     for view: GhosttySurfaceView,
     tabID: TerminalTabID
   ) {
+    let surfaceID = view.id
     view.bridge.onTitleChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
@@ -828,7 +832,7 @@ final class TerminalHostState {
     view.bridge.onPathChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
-      self.agentPanelController?.surfacePathChanged(view.id)
+      self.agentPanelController?.surfacePathChanged(surfaceID)
       self.sessionDidChange()
     }
     view.bridge.onTabTitleChange = { [weak self] title in

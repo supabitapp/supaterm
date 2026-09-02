@@ -245,6 +245,12 @@ extension TerminalHostState {
         direction: mapPaneDirection(request.direction)
       )
       let finalTree = request.equalize ? newTree.equalized() : newTree
+      let paneLocation = try resolvedPaneLocation(
+        spaceID: resolvedTarget.spaceID,
+        tabID: resolvedTarget.tabID,
+        surfaceID: newSurface.id,
+        tree: finalTree
+      )
       trees[resolvedTarget.tabID] = finalTree
       updateRunningState(for: resolvedTarget.tabID)
 
@@ -265,12 +271,6 @@ extension TerminalHostState {
       syncFocus()
       sessionDidChange()
 
-      let paneLocation = try resolvedPaneLocation(
-        spaceID: resolvedTarget.spaceID,
-        tabID: resolvedTarget.tabID,
-        surfaceID: newSurface.id,
-        tree: finalTree
-      )
       let selectionState = Self.newPaneSelectionState(
         isSelectedTab: selectedTabID == resolvedTarget.tabID,
         isPaneVisible: visiblePaneIDs.contains(newSurface.id),
