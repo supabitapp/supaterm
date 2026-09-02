@@ -92,7 +92,7 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func groupExpansionAnimatesItsBackgroundAndSelectedGlow() throws {
+  func groupExpansionKeepsItsHeaderAnchoredAndInterpolatesDecorations() throws {
     let tabs = [
       TerminalTabItem(title: "First"),
       TerminalTabItem(title: "Second"),
@@ -158,28 +158,52 @@ struct TerminalSidebarLayoutTests {
       selectedTabID: selectedTabID,
       reduceMotion: false
     )
+    harness.layoutNow()
     let targetBackgroundFrame = try #require(
-      harness.layout.plan.groups.first { $0.id == groupID }?.frame
+      harness.layout.targetPlan.groups.first { $0.id == groupID }?.frame
     )
     let targetTabFrame = try #require(
-      harness.layout.plan.items.first { $0.id == .tab(selectedTabID) }?.frame
+      harness.layout.targetPlan.items.first { $0.id == .tab(selectedTabID) }?.frame
     )
     let targetGlowFrame = TerminalSidebarSelectionGlowView.visualFrame(
       for: TerminalSidebarLayout.tabSurfaceFrame(in: targetTabFrame, isGrouped: true)
     )
-    let backgroundBoundsAnimation = try #require(
-      background.layer?.animation(forKey: "bounds") as? CABasicAnimation
+    let sourceHeaderFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .group(groupID) }?.frame
     )
-    let glowPositionAnimation = try #require(
-      glow.layer?.animation(forKey: "position") as? CABasicAnimation
+    let targetHeaderFrame = try #require(
+      harness.layout.targetPlan.items.first { $0.id == .group(groupID) }?.frame
     )
 
     #expect(collapsedBackgroundFrame != targetBackgroundFrame)
     #expect(collapsedGlowFrame != targetGlowFrame)
+    #expect(sourceHeaderFrame == targetHeaderFrame)
+    #expect(background.frame == collapsedBackgroundFrame)
+    #expect(glow.frame == collapsedGlowFrame)
+
+    harness.layout.updateTransition(progress: 0.5)
+    harness.controller.viewWillLayout()
+    let midpointBackgroundFrame = try #require(
+      harness.layout.plan.groups.first { $0.id == groupID }?.frame
+    )
+    let midpointTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
+    let midpointGlowFrame = TerminalSidebarSelectionGlowView.visualFrame(
+      for: TerminalSidebarLayout.tabSurfaceFrame(in: midpointTabFrame, isGrouped: true)
+    )
+
+    #expect(midpointBackgroundFrame.minY == collapsedBackgroundFrame.minY)
+    #expect(midpointBackgroundFrame.height > collapsedBackgroundFrame.height)
+    #expect(midpointBackgroundFrame.height < targetBackgroundFrame.height)
+    #expect(background.frame == midpointBackgroundFrame)
+    #expect(glow.frame == midpointGlowFrame)
+
+    harness.layout.finishTransition()
+    harness.controller.viewWillLayout()
+
     #expect(background.frame == targetBackgroundFrame)
     #expect(glow.frame == targetGlowFrame)
-    #expect(backgroundBoundsAnimation.duration == TerminalSidebarLayoutMotion.defaultDuration)
-    #expect(glowPositionAnimation.duration == TerminalSidebarLayoutMotion.defaultDuration)
   }
 
   @Test

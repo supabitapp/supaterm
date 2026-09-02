@@ -136,11 +136,11 @@ extension SupatermUITestCase {
 
   @MainActor
   func createGroup(named title: String, containing tabTitle: String) async throws {
-    try await createGroup(named: title, containing: sidebarTabRow(named: tabTitle))
+    try await createGroup(named: title, containingElement: sidebarTabRow(named: tabTitle))
   }
 
   @MainActor
-  func createGroup(named title: String, containing tab: XCUIElement) async throws {
+  func createGroup(named title: String, containingElement tab: XCUIElement) async throws {
     try clickSidebarContextMenuItem("Move to New Group", on: tab)
 
     let titleField = try require(app.textFields["Group name"])

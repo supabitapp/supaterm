@@ -419,6 +419,7 @@ final class TerminalSidebarListController: NSViewController {
     if !collapsing.isEmpty, motionPolicy.collapseStagger,
       !dataSource.snapshot().itemIdentifiers.isEmpty
     {
+      layoutAnimator.finish()
       updateState = .collapsing(update)
       collectionLayout.beginCollapse()
       collapseAnimator.start(rowIDs: collapsing)
@@ -457,17 +458,12 @@ final class TerminalSidebarListController: NSViewController {
     completion additionalCompletion: (() -> Void)? = nil
   ) {
     let isInitialSnapshot = !hasAppliedSnapshot
-    let animatesExpansionDecorations =
+    let animatesExpansion =
       animated
       && !update.outline.expandedGroupIDs(from: appliedOutline).isEmpty
     updateState = .applyingSnapshot(nil)
     collectionLayout.visibilityByEntryID = [:]
     layoutAnimator.finish()
-    if animated {
-      collectionLayout.stageOutline(update.outline)
-    } else {
-      collectionLayout.setOutline(update.outline)
-    }
     var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()
     snapshot.appendSections([0])
     snapshot.appendItems(update.outline.visibleEntries.map(\.id))
@@ -498,9 +494,22 @@ final class TerminalSidebarListController: NSViewController {
       consumePendingUpdate()
     }
     if isInitialSnapshot {
+      collectionLayout.setOutline(update.outline)
       dataSource.apply(snapshot, animatingDifferences: false)
       completion()
       return
+    }
+    if animatesExpansion {
+      layoutAnimator.animate(enabled: true) {
+        collectionLayout.setOutline(update.outline)
+        dataSource.apply(snapshot, animatingDifferences: false, completion: completion)
+      }
+      return
+    }
+    if animated {
+      collectionLayout.stageOutline(update.outline)
+    } else {
+      collectionLayout.setOutline(update.outline)
     }
     guard animated else {
       dataSource.apply(snapshot, animatingDifferences: false, completion: completion)
@@ -510,9 +519,6 @@ final class TerminalSidebarListController: NSViewController {
       context.duration = TerminalSidebarLayoutMotion.defaultDuration
       context.timingFunction = TerminalSidebarAnimationCurve.timingFunction
       dataSource.apply(snapshot, animatingDifferences: true, completion: completion)
-      if animatesExpansionDecorations {
-        updateDecorations(animateFrames: true)
-      }
     }
   }
 
@@ -734,7 +740,7 @@ final class TerminalSidebarListController: NSViewController {
     }
   }
 
-  private func updateDecorations(animateFrames: Bool = false) {
+  private func updateDecorations() {
     let groups = collectionLayout.plan.groups
     let visibleIDs = Set(groups.map(\.id))
     for (id, view) in groupBackgroundViews where !visibleIDs.contains(id) {
@@ -750,24 +756,18 @@ final class TerminalSidebarListController: NSViewController {
           groupBackgroundViews[group.id] = background
           return background
         }()
-      updateDecorationFrame(
-        of: background,
-        to: group.frame,
-        animated: animateFrames
-      ) {
-        background.frame = group.frame
-      }
+      background.frame = group.frame
       updateGroupSurface(group: group, background: background)
       background.needsLayout = true
     }
-    updateSelectionGlow(animateFrame: animateFrames)
+    updateSelectionGlow()
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     for background in groupBackgroundViews.values where background.superview === collectionView {
       collectionView.addSubview(background, positioned: .below, relativeTo: nil)
     }
   }
 
-  private func updateSelectionGlow(animateFrame: Bool = false) {
+  private func updateSelectionGlow() {
     guard
       let context,
       let selectedTabID = context.terminal.selectedTabID ?? selectedTabID,
@@ -783,48 +783,12 @@ final class TerminalSidebarListController: NSViewController {
       in: item.frame,
       isGrouped: presentation.groupID != nil
     )
-    updateDecorationFrame(
-      of: selectionGlowView,
-      to: TerminalSidebarSelectionGlowView.visualFrame(for: surfaceFrame),
-      animated: animateFrame
-    ) {
-      selectionGlowView.update(
-        surfaceFrame: surfaceFrame,
-        style: .resolve(palette: context.palette),
-        alpha: item.alpha,
-        fadesAtContentTop: true
-      )
-    }
-  }
-
-  private func updateDecorationFrame(
-    of view: NSView,
-    to targetFrame: CGRect,
-    animated: Bool,
-    update: () -> Void
-  ) {
-    guard animated, !view.isHidden, view.frame != targetFrame, let layer = view.layer else {
-      update()
-      return
-    }
-    let sourceBounds = layer.presentation()?.bounds ?? layer.bounds
-    let sourcePosition = layer.presentation()?.position ?? layer.position
-    update()
-    view.layoutSubtreeIfNeeded()
-    if sourceBounds != layer.bounds {
-      animateDecoration(layer, keyPath: "bounds", from: sourceBounds)
-    }
-    if sourcePosition != layer.position {
-      animateDecoration(layer, keyPath: "position", from: sourcePosition)
-    }
-  }
-
-  private func animateDecoration(_ layer: CALayer, keyPath: String, from value: Any) {
-    let animation = CABasicAnimation(keyPath: keyPath)
-    animation.fromValue = value
-    animation.duration = TerminalSidebarLayoutMotion.defaultDuration
-    animation.timingFunction = TerminalSidebarAnimationCurve.timingFunction
-    layer.add(animation, forKey: keyPath)
+    selectionGlowView.update(
+      surfaceFrame: surfaceFrame,
+      style: .resolve(palette: context.palette),
+      alpha: item.alpha,
+      fadesAtContentTop: true
+    )
   }
 
   private func refreshGroupSurfaces(ids: Set<TerminalTabGroupID>) {

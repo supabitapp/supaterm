@@ -647,6 +647,9 @@ final class TerminalSidebarGroupBackgroundView: NSView {
 
   override func layout() {
     super.layout()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    defer { CATransaction.commit() }
     let lineWidth = 1 / (window?.backingScaleFactor ?? 1)
     let shapeBounds = bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
     let path = RoundedRectangle(

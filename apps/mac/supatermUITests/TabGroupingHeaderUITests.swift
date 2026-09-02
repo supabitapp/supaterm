@@ -113,7 +113,7 @@ final class TabGroupingHeaderUITests: SupatermUITestCase {
   func testGroupColorSubmenuSurvivesLiveTabUpdates() async throws {
     await requireInitialSidebarTab()
     let tab = try require(sidebarTabRows.firstMatch)
-    try await createGroup(named: "Live", containing: tab)
+    try await createGroup(named: "Live", containingElement: tab)
     let header = try require(sidebarGroupHeader(named: "Live"))
 
     mainTerminal.click()

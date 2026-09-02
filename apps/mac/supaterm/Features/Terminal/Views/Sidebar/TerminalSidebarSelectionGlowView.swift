@@ -64,6 +64,9 @@ final class TerminalSidebarSelectionGlowView: NSView {
 
   override func layout() {
     super.layout()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    defer { CATransaction.commit() }
     let shapeBounds = bounds.insetBy(
       dx: SelectableRowShadowMetrics.visualOutset,
       dy: SelectableRowShadowMetrics.visualOutset

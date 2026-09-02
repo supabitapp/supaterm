@@ -275,8 +275,9 @@ struct TerminalSidebarCollectionHarnessTests {
   }
 
   @Test
-  func animatedExpansionRevealsInsertedRowsAndMovesRetainedRows() throws {
-    let tabs = [TerminalTabID(), TerminalTabID()]
+  func interpolatedExpansionKeepsHeaderAnchoredAndMovesRetainedRowsContinuously() throws {
+    let tabs = [TerminalTabID(), TerminalTabID(), TerminalTabID()]
+    let selectedTabID = tabs[1]
     let groupID = TerminalTabGroupID()
     let roots = [
       TerminalSidebarOutline.Root(
@@ -284,47 +285,73 @@ struct TerminalSidebarCollectionHarnessTests {
         isPinned: false
       )
     ]
-    let collapsed = TerminalSidebarTestFixture.outline(
+    let collapsed = TerminalSidebarOutline(
       roots: roots,
-      revision: 1,
-      collapsedGroupIDs: [groupID]
+      collapsedGroupIDs: [groupID],
+      selectedTabID: selectedTabID,
+      topologyRevision: 1,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
     )
-    let expanded = TerminalSidebarTestFixture.outline(roots: roots, revision: 2)
+    let expanded = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [],
+      selectedTabID: selectedTabID,
+      topologyRevision: 2,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
     let harness = CollectionHarness(size: CGSize(width: 220, height: 300))
-    defer {
-      harness.window.orderOut(nil)
-      harness.close()
-    }
-    harness.window.orderFront(nil)
+    defer { harness.close() }
     harness.apply(outline: collapsed)
+    let sourceHeaderFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .group(groupID) }?.frame
+    )
+    let sourceSelectedFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
     let sourceNewTabFrame = try #require(
       harness.layout.plan.items.first { $0.id == .newTab }?.frame
     )
 
-    harness.applyAnimated(outline: expanded, duration: 1)
+    harness.layout.beginTransition()
+    harness.apply(outline: expanded)
 
-    let insertedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(tabs[0])))
-    let insertedView = try #require(harness.collectionView.item(at: insertedIndexPath)?.view)
-    let layer = try #require(insertedView.layer)
-    let opacityAnimation = try #require(layer.animation(forKey: "opacity") as? CABasicAnimation)
-    let positionAnimation = try #require(layer.animation(forKey: "position") as? CABasicAnimation)
-    let initialPosition = try #require(positionAnimation.fromValue as? CGPoint)
-    let targetNewTabFrame = try #require(
+    let initialHeaderFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .group(groupID) }?.frame
+    )
+    let initialSelectedFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
+    let initialNewTabFrame = try #require(
       harness.layout.plan.items.first { $0.id == .newTab }?.frame
     )
+    #expect(initialHeaderFrame == sourceHeaderFrame)
+    #expect(initialSelectedFrame == sourceSelectedFrame)
+    #expect(initialNewTabFrame == sourceNewTabFrame)
 
-    #expect(sourceNewTabFrame.minY < targetNewTabFrame.minY)
-    #expect(opacityAnimation.fromValue as? Float == 0)
-    #expect(opacityAnimation.duration == 1)
-    #expect(positionAnimation.duration == 1)
-    #expect(initialPosition.x == insertedView.frame.minX)
-    #expect(
-      abs(
-        initialPosition.y
-          - (insertedView.frame.minY - TerminalSidebarCollectionLayout.expansionRevealOffset)
-      ) < 0.5
+    harness.layout.updateTransition(progress: 0.5)
+    harness.relayout()
+    let midpointHeaderFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .group(groupID) }?.frame
     )
-    #expect(layer.opacity == 1)
+    let midpointSelectedFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
+    let midpointNewTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .newTab }?.frame
+    )
+    let targetSelectedFrame = try #require(
+      harness.layout.targetPlan.items.first { $0.id == .tab(selectedTabID) }?.frame
+    )
+    let targetNewTabFrame = try #require(
+      harness.layout.targetPlan.items.first { $0.id == .newTab }?.frame
+    )
+
+    #expect(midpointHeaderFrame == sourceHeaderFrame)
+    #expect(midpointSelectedFrame.minY > sourceSelectedFrame.minY)
+    #expect(midpointSelectedFrame.minY < targetSelectedFrame.minY)
+    #expect(sourceNewTabFrame.minY < targetNewTabFrame.minY)
+    #expect(midpointNewTabFrame.minY > sourceNewTabFrame.minY)
+    #expect(midpointNewTabFrame.minY < targetNewTabFrame.minY)
   }
 
   private func expectIdentityAlignment(

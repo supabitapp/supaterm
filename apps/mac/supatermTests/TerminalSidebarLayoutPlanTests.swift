@@ -791,6 +791,66 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func selectedChildCollapseEndsAtTheExactCollapsedGeometry() throws {
+    let first = TerminalTabID()
+    let selected = TerminalTabID()
+    let last = TerminalTabID()
+    let following = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let roots = [
+      TerminalSidebarOutline.Root(
+        content: .group(groupID, .yellow, .automatic, [first, selected, last]),
+        isPinned: false
+      ),
+      TerminalSidebarOutline.Root(content: .tab(following), isPinned: false),
+    ]
+    let expanded = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [],
+      selectedTabID: selected,
+      topologyRevision: 1,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+    let collapsed = TerminalSidebarOutline(
+      roots: roots,
+      collapsedGroupIDs: [groupID],
+      selectedTabID: selected,
+      topologyRevision: 2,
+      spaceID: TerminalSidebarTestFixture.primarySpaceID
+    )
+    let heights = Dictionary(
+      uniqueKeysWithValues: expanded.visibleEntries.map { ($0.id, CGFloat(37)) }
+    )
+    let transitionEnd = TerminalSidebarLayoutPlan(
+      outline: expanded,
+      preferredHeights: heights,
+      visibilityByEntryID: [
+        .tab(first): TerminalSidebarLayoutPlan.Visibility(height: 0, alpha: 0),
+        .tab(last): TerminalSidebarLayoutPlan.Visibility(height: 0, alpha: 0),
+      ],
+      dragDropState: nil,
+      width: 220,
+      viewportHeight: 300
+    )
+    let target = TerminalSidebarLayoutPlan(
+      outline: collapsed,
+      preferredHeights: heights,
+      dragDropState: nil,
+      width: 220,
+      viewportHeight: 300
+    )
+
+    for targetItem in target.items {
+      let transitionItem = try #require(
+        transitionEnd.items.first { $0.id == targetItem.id }
+      )
+      #expect(transitionItem == targetItem)
+    }
+    #expect(transitionEnd.groups == target.groups)
+    #expect(transitionEnd.contentSize == target.contentSize)
+  }
+
+  @Test
   func collapsedSelectedChildUsesOneChildDropGeometry() throws {
     let first = TerminalTabID()
     let selected = TerminalTabID()
