@@ -458,7 +458,67 @@ extension SnapshotCatalog {
         )
       )
     },
+    scenario(
+      "locked-mixed-icons",
+      group: "Sidebar Rows",
+      title: "Locked tab with mixed pane icons",
+      size: CGSize(width: 320, height: 72)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000017",
+            title: "Review authentication",
+            isTitleLocked: true,
+            paneTitles: ["Agent", "Shell"],
+            paneMarkImageNames: ["codex-mark", nil]
+          )
+        )
+      )
+    },
+    scenario(
+      "locked-agent-icons",
+      group: "Sidebar Rows",
+      title: "Locked tab with matching agent icons",
+      size: CGSize(width: 320, height: 94)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000018",
+            title: "Review authentication",
+            isTitleLocked: true,
+            paneTitles: ["Agent one", "Agent two"],
+            paneMarkImageNames: ["codex-mark", "codex-mark"]
+          )
+        )
+      )
+    },
   ]
+
+  static let codingAgentMarkScenarios =
+    TerminalCodingAgentCatalog.all.enumerated().map { index, agent in
+      scenario(
+        "agent-mark-\(agent.id)",
+        group: "Sidebar Rows",
+        title: "\(agent.id) agent mark",
+        size: CGSize(width: 320, height: 72)
+      ) { appearance in
+        AnyView(
+          SidebarRowSnapshotFixture(
+            appearance: appearance,
+            item: SidebarRowSnapshotItem(
+              id: String(format: "10000000-0000-0000-0000-%012X", index + 100),
+              title: agent.id,
+              paneTitles: [agent.id],
+              paneMarkImageNames: [agent.markImageName]
+            )
+          )
+        )
+      }
+    }
 }
 
 private struct SidebarRowSnapshotItem {
@@ -471,6 +531,7 @@ private struct SidebarRowSnapshotItem {
   var isTitleLocked = false
   var paneTitles: [String] = []
   var paneAgentStatuses: [TerminalHostState.TabAgentStatus?] = []
+  var paneMarkImageNames: [String?] = []
   var paneHasAttention: [Bool] = []
   var terminalProgress: TerminalSidebarTerminalProgress?
   var shortcutHint: String?
@@ -489,11 +550,17 @@ private struct SidebarRowSnapshotItem {
   var panes: [TerminalSidebarPanePresentation] {
     paneTitles.enumerated().map { index, title in
       let agentStatus = paneAgentStatuses.indices.contains(index) ? paneAgentStatuses[index] : nil
+      let markImageName =
+        if paneMarkImageNames.indices.contains(index) {
+          paneMarkImageNames[index]
+        } else {
+          agentStatus.map { _ in "codex-mark" }
+        }
       let hasAttention = paneHasAttention.indices.contains(index) && paneHasAttention[index]
       return TerminalSidebarPanePresentation(
         id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", index + 1))!,
         title: title,
-        icon: agentStatus == nil ? .terminal : .agent("codex-mark"),
+        icon: markImageName.map(TerminalSidebarPanePresentation.Icon.agent) ?? .terminal,
         indicator: agentStatus.map(TerminalSidebarPanePresentation.Indicator.agent)
           ?? (hasAttention ? .attention : nil)
       )
