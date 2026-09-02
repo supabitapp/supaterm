@@ -347,6 +347,50 @@ struct TerminalSidebarUpdateSection: View {
   }
 }
 
+struct TerminalSidebarCompactUpdateButton: View {
+  let store: StoreOf<UpdateFeature>
+  let palette: Palette
+
+  @Shared(.supatermSettings) private var supatermSettings = .default
+  @State private var isRestartConfirmationPresented = false
+
+  var body: some View {
+    Button {
+      isRestartConfirmationPresented = true
+    } label: {
+      Image(systemName: "arrow.clockwise")
+        .font(.system(size: 13, weight: .semibold))
+        .accessibilityHidden(true)
+    }
+    .buttonStyle(
+      TerminalSidebarButtonStyle(
+        palette: palette,
+        layout: .icon,
+        emphasizesForegroundOnHover: true
+      )
+    )
+    .accessibilityLabel("Restart to Update")
+    .accessibilityHint("Restarts Supaterm and installs the downloaded update")
+    .help("Restart to Update")
+    .confirmationDialog(
+      "Restart to Update?",
+      isPresented: $isRestartConfirmationPresented
+    ) {
+      Button("Restart Now") {
+        _ = store.send(.perform(.restartNow))
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text(
+        TerminalSidebarUpdatePresentation.detailText(
+          for: store.phase,
+          preservesSessionsOnRestart: supatermSettings.zmxSessionsEnabled
+        )
+      )
+    }
+  }
+}
+
 private enum TerminalSidebarUpdateButtonTone {
   case normal
   case prominent

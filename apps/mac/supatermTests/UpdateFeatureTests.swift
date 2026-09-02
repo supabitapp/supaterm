@@ -206,6 +206,95 @@ struct UpdateFeatureTests {
     await clock.advance(by: .seconds(5))
     #expect(await recorder.actions().isEmpty)
   }
+
+  @Test
+  func automaticRestartPromptMinimizesAfterOneMinute() async {
+    let clock = TestClock()
+    let recorder = UpdateActionRecorder()
+    let store = automaticRestartPromptStore(clock: clock, recorder: recorder)
+
+    await store.send(
+      .updateClientSnapshotReceived(
+        snapshot(phase: .installing(UpdatePhase.Installing(isAutoUpdate: true)))
+      )
+    ) {
+      $0.canCheckForUpdates = true
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    }
+
+    await clock.advance(by: .seconds(59))
+    #expect(await recorder.actions().isEmpty)
+
+    await clock.advance(by: .seconds(1))
+    await store.receive(\.restartPromptDisplayElapsed)
+    #expect(await recorder.actions() == [.restartLater])
+  }
+
+  @Test
+  func leavingAutomaticRestartPromptCancelsMinimization() async {
+    let clock = TestClock()
+    let recorder = UpdateActionRecorder()
+    let store = automaticRestartPromptStore(clock: clock, recorder: recorder)
+
+    await store.send(
+      .updateClientSnapshotReceived(
+        snapshot(phase: .installing(UpdatePhase.Installing(isAutoUpdate: true)))
+      )
+    ) {
+      $0.canCheckForUpdates = true
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    }
+    await store.send(.updateClientSnapshotReceived(snapshot(phase: .idle))) {
+      $0.phase = .idle
+    }
+
+    await clock.advance(by: .seconds(60))
+    #expect(await recorder.actions().isEmpty)
+  }
+
+  @Test
+  func restartLaterCancelsAutomaticMinimization() async {
+    let clock = TestClock()
+    let recorder = UpdateActionRecorder()
+    let store = automaticRestartPromptStore(clock: clock, recorder: recorder)
+
+    await store.send(
+      .updateClientSnapshotReceived(
+        snapshot(phase: .installing(UpdatePhase.Installing(isAutoUpdate: true)))
+      )
+    ) {
+      $0.canCheckForUpdates = true
+      $0.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
+    }
+    await store.send(.perform(.restartLater))
+    #expect(await recorder.actions() == [.restartLater])
+
+    await clock.advance(by: .seconds(60))
+    #expect(await recorder.actions() == [.restartLater])
+  }
+
+  private func automaticRestartPromptStore(
+    clock: TestClock<Duration>,
+    recorder: UpdateActionRecorder
+  ) -> TestStoreOf<UpdateFeature> {
+    TestStore(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+  }
+
+  private func snapshot(phase: UpdatePhase) -> UpdateClient.Snapshot {
+    UpdateClient.Snapshot(
+      automaticallyChecksForUpdates: true,
+      automaticallyDownloadsUpdates: true,
+      canCheckForUpdates: true,
+      phase: phase
+    )
+  }
 }
 
 private actor UpdateActionRecorder {

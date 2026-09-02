@@ -35,6 +35,12 @@ enum UpdatePresentation {
   }
 }
 
+public enum UpdateSidebarPresentation: Equatable, Sendable {
+  case card
+  case compact
+  case hidden
+}
+
 public enum UpdatePhase: Equatable, Sendable {
   public struct Available: Equatable, Sendable {
     public var buildVersion: String?
@@ -269,15 +275,23 @@ public enum UpdatePhase: Equatable, Sendable {
     return false
   }
 
-  public var showsSidebarSection: Bool {
+  public var sidebarPresentation: UpdateSidebarPresentation {
     switch self {
     case .idle:
-      return false
+      return .hidden
     case .installing(let installing):
-      return installing.showsPrompt
+      if installing.isAutoUpdate && !installing.showsPrompt {
+        return .compact
+      }
+      return installing.showsPrompt ? .card : .hidden
     default:
-      return true
+      return .card
     }
+  }
+
+  var showsAutomaticRestartPrompt: Bool {
+    guard case .installing(let installing) = self else { return false }
+    return installing.isAutoUpdate && installing.showsPrompt
   }
 
   public var menuItemAction: UpdateUserAction? {
