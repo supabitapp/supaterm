@@ -2,6 +2,9 @@ use crate::protocol::control::{
     BuildIdentity, ClientId, ClientRole, CommandId, HostControl, HostId, ProtocolError,
     ProtocolErrorCode,
 };
+use crate::protocol::terminal::PaneId;
+use crate::terminal::actor::{TerminalError, TerminalRegistry};
+use crate::terminal::pty::SpawnSpec;
 use serde_json::{Value, json};
 use std::collections::{HashMap, VecDeque};
 use tokio::sync::{mpsc, oneshot};
@@ -31,13 +34,19 @@ pub struct HostStatus {
 #[derive(Clone)]
 pub struct HostActor {
     sender: mpsc::Sender<ActorMessage>,
+    terminals: TerminalRegistry,
 }
 
 impl HostActor {
     pub fn spawn(configuration: HostConfiguration) -> Self {
         let (sender, receiver) = mpsc::channel(ACTOR_QUEUE_CAPACITY);
-        tokio::spawn(run(configuration, receiver));
-        Self { sender }
+        let terminals = TerminalRegistry::spawn();
+        tokio::spawn(run(configuration, terminals.clone(), receiver));
+        Self { sender, terminals }
+    }
+
+    pub fn terminals(&self) -> &TerminalRegistry {
+        &self.terminals
     }
 
     pub async fn status(&self) -> Result<HostStatus, ProtocolError> {
@@ -105,15 +114,21 @@ struct CommandKey {
 
 struct ActorState {
     configuration: HostConfiguration,
+    terminals: TerminalRegistry,
     revision: u64,
     structure_revision: u64,
     command_results: HashMap<CommandKey, HostControl>,
     command_order: VecDeque<CommandKey>,
 }
 
-async fn run(configuration: HostConfiguration, mut receiver: mpsc::Receiver<ActorMessage>) {
+async fn run(
+    configuration: HostConfiguration,
+    terminals: TerminalRegistry,
+    mut receiver: mpsc::Receiver<ActorMessage>,
+) {
     let mut state = ActorState {
         configuration,
+        terminals,
         revision: 0,
         structure_revision: 0,
         command_results: HashMap::new(),
@@ -132,7 +147,9 @@ async fn run(configuration: HostConfiguration, mut receiver: mpsc::Receiver<Acto
                 params,
                 reply,
             } => {
-                let result = state.execute(client_id, role, command_id, method, params);
+                let result = state
+                    .execute(client_id, role, command_id, method, params)
+                    .await;
                 let _ = reply.send(result);
             }
         }
@@ -151,7 +168,7 @@ impl ActorState {
         }
     }
 
-    fn execute(
+    async fn execute(
         &mut self,
         client_id: ClientId,
         role: ClientRole,
@@ -193,6 +210,32 @@ impl ActorState {
                     ProtocolErrorCode::InvalidRequest,
                     json!({"method": method}),
                 ),
+                "terminal.create" => match serde_json::from_value::<SpawnSpec>(params) {
+                    Ok(spec) => match self.terminals.create(spec).await {
+                        Ok(info) => result(command_id, info),
+                        Err(error) => terminal_error(command_id, error),
+                    },
+                    Err(decode_error) => error(
+                        Some(command_id),
+                        ProtocolErrorCode::InvalidRequest,
+                        json!({"reason": decode_error.to_string()}),
+                    ),
+                },
+                "terminal.list" if params.is_null() => match self.terminals.list().await {
+                    Ok(panes) => result(command_id, panes),
+                    Err(error) => terminal_error(command_id, error),
+                },
+                "terminal.close" => match serde_json::from_value::<PaneRequest>(params) {
+                    Ok(request) => match self.terminals.close(request.pane_id).await {
+                        Ok(()) => result(command_id, Value::Null),
+                        Err(error) => terminal_error(command_id, error),
+                    },
+                    Err(decode_error) => error(
+                        Some(command_id),
+                        ProtocolErrorCode::InvalidRequest,
+                        json!({"reason": decode_error.to_string()}),
+                    ),
+                },
                 _ => error(
                     Some(command_id),
                     ProtocolErrorCode::MethodNotFound,
@@ -214,6 +257,42 @@ impl ActorState {
         self.command_order.push_back(key);
         self.command_results.insert(key, result);
     }
+}
+
+#[derive(serde::Deserialize)]
+struct PaneRequest {
+    pane_id: PaneId,
+}
+
+fn result<T: serde::Serialize>(command_id: CommandId, value: T) -> HostControl {
+    match serde_json::to_value(value) {
+        Ok(result) => HostControl::Result { command_id, result },
+        Err(serialization_error) => error(
+            Some(command_id),
+            ProtocolErrorCode::Internal,
+            json!({"reason": serialization_error.to_string()}),
+        ),
+    }
+}
+
+fn terminal_error(command_id: CommandId, terminal_error: TerminalError) -> HostControl {
+    let code = match terminal_error {
+        TerminalError::NotFound => ProtocolErrorCode::NotFound,
+        TerminalError::NotAttached | TerminalError::StaleWriter => {
+            ProtocolErrorCode::InvalidRequest
+        }
+        TerminalError::Spawn(_)
+        | TerminalError::InputTooLarge
+        | TerminalError::InputQueueFull
+        | TerminalError::Stopped
+        | TerminalError::Pty(_)
+        | TerminalError::State(_) => ProtocolErrorCode::Internal,
+    };
+    error(
+        Some(command_id),
+        code,
+        json!({"reason": terminal_error.to_string()}),
+    )
 }
 
 fn error(command_id: Option<CommandId>, code: ProtocolErrorCode, details: Value) -> HostControl {

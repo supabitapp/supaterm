@@ -35,6 +35,10 @@ impl ConnectionSession {
         self.closed
     }
 
+    pub fn client_id(&self) -> Option<ClientId> {
+        self.client.map(|client| client.id)
+    }
+
     pub async fn receive(&mut self, control: ClientControl) -> HostControl {
         if self.closed {
             return protocol_error(None, ProtocolErrorCode::InvalidRequest, Value::Null);

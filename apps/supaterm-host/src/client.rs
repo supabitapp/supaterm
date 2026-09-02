@@ -2,15 +2,24 @@ use crate::protocol::control::{
     BuildIdentity, ClientControl, ClientId, ClientRole, CommandId, HostControl, Limits,
     PROTOCOL_VERSION, decode_host_control, encode_control,
 };
-use crate::protocol::frame::{Direction, Frame, FrameKind};
+use crate::protocol::frame::{Direction, Frame, FrameKind, MAX_TERMINAL_PAYLOAD};
 use crate::protocol::io::{FrameReader, FrameWriter};
+use crate::protocol::terminal::{PaneId, TerminalControl, decode_output, decode_snapshot_chunk};
+use crate::terminal::actor::{PaneInfo, Viewport};
+use crate::terminal::pty::SpawnSpec;
 use bytes::Bytes;
-use serde_json::Value;
+use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::UnixStream;
+use tokio::sync::{Mutex, mpsc, oneshot};
 use uuid::Uuid;
+
+const OUTBOUND_QUEUE_CAPACITY: usize = 256;
+const STREAM_QUEUE_CAPACITY: usize = 128;
 
 #[derive(Clone, Debug)]
 pub struct ClientConfiguration {
@@ -21,9 +30,30 @@ pub struct ClientConfiguration {
     pub capabilities: Vec<String>,
 }
 
+#[derive(Clone)]
 pub struct HostClient {
-    reader: FrameReader<tokio::net::unix::OwnedReadHalf>,
-    writer: FrameWriter<tokio::net::unix::OwnedWriteHalf>,
+    outbound: mpsc::Sender<Frame>,
+    pending: Arc<Mutex<HashMap<CommandId, oneshot::Sender<HostControl>>>>,
+    streams: Arc<Mutex<HashMap<u32, mpsc::Sender<TerminalEvent>>>>,
+}
+
+pub struct ClientAttachment {
+    pub stream_id: u32,
+    pub events: mpsc::Receiver<TerminalEvent>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TerminalEvent {
+    Control(TerminalControl),
+    SnapshotChunk {
+        snapshot_id: Uuid,
+        offset: u64,
+        bytes: Bytes,
+    },
+    Output {
+        sequence: u64,
+        bytes: Bytes,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -34,81 +64,302 @@ pub enum ClientError {
     Closed,
     #[error("invalid host control: {0}")]
     InvalidControl(String),
+    #[error("invalid terminal frame")]
+    InvalidTerminal,
     #[error("expected welcome, received {0:?}")]
-    ExpectedWelcome(HostControl),
+    ExpectedWelcome(Box<HostControl>),
     #[error("host returned {0:?}")]
-    Host(HostControl),
+    Host(Box<HostControl>),
     #[error("response command id did not match")]
     MisdirectedResponse,
+    #[error("terminal stream {0} is already attached")]
+    StreamInUse(u32),
+    #[error("terminal response was malformed: {0}")]
+    MalformedResponse(String),
 }
 
 impl HostClient {
     pub async fn connect(configuration: ClientConfiguration) -> Result<Self, ClientError> {
         let stream = UnixStream::connect(&configuration.socket).await?;
         let (read_half, write_half) = stream.into_split();
-        let mut client = Self {
-            reader: FrameReader::new(read_half, Direction::HostToClient),
-            writer: FrameWriter::new(write_half),
-        };
-        client
-            .write_control(&ClientControl::Hello {
+        let mut reader = FrameReader::new(read_half, Direction::HostToClient);
+        let mut writer = FrameWriter::new(write_half);
+        write_control(
+            &mut writer,
+            &ClientControl::Hello {
                 protocol_version: PROTOCOL_VERSION,
                 build: configuration.build,
                 role: configuration.role,
                 client_id: configuration.client_id,
                 capabilities: configuration.capabilities,
                 limits: Limits::default(),
-            })
-            .await?;
-        let welcome = client.read_control().await?;
+            },
+        )
+        .await?;
+        let welcome = read_control(&mut reader).await?;
         if !matches!(welcome, HostControl::Welcome { .. }) {
-            return Err(ClientError::ExpectedWelcome(welcome));
+            return Err(ClientError::ExpectedWelcome(Box::new(welcome)));
         }
-        Ok(client)
+        let (outbound, outbound_receiver) = mpsc::channel(OUTBOUND_QUEUE_CAPACITY);
+        let pending = Arc::new(Mutex::new(HashMap::new()));
+        let streams = Arc::new(Mutex::new(HashMap::new()));
+        tokio::spawn(run_writer(writer, outbound_receiver));
+        tokio::spawn(run_reader(reader, pending.clone(), streams.clone()));
+        Ok(Self {
+            outbound,
+            pending,
+            streams,
+        })
     }
 
-    pub async fn request(&mut self, method: &str, params: Value) -> Result<Value, ClientError> {
+    pub async fn request(&self, method: &str, params: Value) -> Result<Value, ClientError> {
         let command_id = CommandId(Uuid::new_v4());
-        self.write_control(&ClientControl::Request {
+        let (reply, response) = oneshot::channel();
+        self.pending.lock().await.insert(command_id, reply);
+        let payload = encode_control(&ClientControl::Request {
             command_id,
             method: method.into(),
             params,
         })
-        .await?;
-        match self.read_control().await? {
-            HostControl::Result {
-                command_id: response_id,
-                result,
-            } if response_id == command_id => Ok(result),
-            HostControl::Error {
-                command_id: Some(response_id),
-                ..
-            } if response_id != command_id => Err(ClientError::MisdirectedResponse),
-            response @ HostControl::Error { .. } => Err(ClientError::Host(response)),
-            _ => Err(ClientError::MisdirectedResponse),
-        }
-    }
-
-    async fn write_control(&mut self, control: &ClientControl) -> Result<(), ClientError> {
-        let payload = encode_control(control)
-            .map(Bytes::from)
-            .map_err(|error| ClientError::InvalidControl(error.to_string()))?;
-        self.writer
-            .write(&Frame {
+        .map(Bytes::from)
+        .map_err(|error| ClientError::InvalidControl(error.to_string()))?;
+        if self
+            .outbound
+            .send(Frame {
                 kind: FrameKind::ClientControl,
                 stream_id: 0,
                 payload,
             })
+            .await
+            .is_err()
+        {
+            self.pending.lock().await.remove(&command_id);
+            return Err(ClientError::Closed);
+        }
+        match response.await.map_err(|_| ClientError::Closed)? {
+            HostControl::Result {
+                command_id: response_id,
+                result,
+            } if response_id == command_id => Ok(result),
+            response @ HostControl::Error {
+                command_id: Some(response_id),
+                ..
+            } if response_id == command_id => Err(ClientError::Host(Box::new(response))),
+            _ => Err(ClientError::MisdirectedResponse),
+        }
+    }
+
+    pub async fn create_terminal(&self, spec: SpawnSpec) -> Result<PaneInfo, ClientError> {
+        decode_result(self.request("terminal.create", value(spec)?).await?)
+    }
+
+    pub async fn list_terminals(&self) -> Result<Vec<PaneInfo>, ClientError> {
+        decode_result(self.request("terminal.list", Value::Null).await?)
+    }
+
+    pub async fn attach_terminal(
+        &self,
+        pane_id: PaneId,
+        stream_id: u32,
+    ) -> Result<ClientAttachment, ClientError> {
+        if stream_id == 0 {
+            return Err(ClientError::InvalidTerminal);
+        }
+        let (sender, events) = mpsc::channel(STREAM_QUEUE_CAPACITY);
+        let mut streams = self.streams.lock().await;
+        if streams.contains_key(&stream_id) {
+            return Err(ClientError::StreamInUse(stream_id));
+        }
+        streams.insert(stream_id, sender);
+        drop(streams);
+        let result = self
+            .request(
+                "terminal.attach",
+                json!({"pane_id": pane_id, "stream_id": stream_id}),
+            )
+            .await;
+        if let Err(error) = result {
+            self.streams.lock().await.remove(&stream_id);
+            return Err(error);
+        }
+        Ok(ClientAttachment { stream_id, events })
+    }
+
+    pub async fn detach_terminal(&self, stream_id: u32) -> Result<(), ClientError> {
+        self.request("terminal.detach", json!({"stream_id": stream_id}))
             .await?;
+        self.streams.lock().await.remove(&stream_id);
         Ok(())
     }
 
-    async fn read_control(&mut self) -> Result<HostControl, ClientError> {
-        let frame = self.reader.read().await?.ok_or(ClientError::Closed)?;
-        if frame.kind != FrameKind::HostControl || frame.stream_id != 0 {
-            return Err(ClientError::InvalidControl("expected host control".into()));
-        }
-        decode_host_control(&frame.payload)
-            .map_err(|error| ClientError::InvalidControl(error.to_string()))
+    pub async fn claim_terminal(&self, stream_id: u32) -> Result<u64, ClientError> {
+        let result = self
+            .request("terminal.claim", json!({"stream_id": stream_id}))
+            .await?;
+        result
+            .get("generation")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| ClientError::MalformedResponse("missing generation".into()))
     }
+
+    pub async fn input(&self, stream_id: u32, bytes: Bytes) -> Result<(), ClientError> {
+        if bytes.len() > MAX_TERMINAL_PAYLOAD || stream_id == 0 {
+            return Err(ClientError::InvalidTerminal);
+        }
+        self.outbound
+            .send(Frame {
+                kind: FrameKind::TerminalInput,
+                stream_id,
+                payload: bytes,
+            })
+            .await
+            .map_err(|_| ClientError::Closed)
+    }
+
+    pub async fn resize_terminal(
+        &self,
+        stream_id: u32,
+        viewport: Viewport,
+    ) -> Result<(), ClientError> {
+        self.request(
+            "terminal.resize",
+            json!({"stream_id": stream_id, "viewport": viewport}),
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn close_terminal(&self, pane_id: PaneId) -> Result<(), ClientError> {
+        self.request("terminal.close", json!({"pane_id": pane_id}))
+            .await?;
+        Ok(())
+    }
+}
+
+async fn run_writer(
+    mut writer: FrameWriter<tokio::net::unix::OwnedWriteHalf>,
+    mut receiver: mpsc::Receiver<Frame>,
+) {
+    while let Some(frame) = receiver.recv().await {
+        if writer.write(&frame).await.is_err() {
+            break;
+        }
+    }
+}
+
+async fn run_reader(
+    mut reader: FrameReader<tokio::net::unix::OwnedReadHalf>,
+    pending: Arc<Mutex<HashMap<CommandId, oneshot::Sender<HostControl>>>>,
+    streams: Arc<Mutex<HashMap<u32, mpsc::Sender<TerminalEvent>>>>,
+) {
+    while let Ok(Some(frame)) = reader.read().await {
+        let delivered = match frame.kind {
+            FrameKind::HostControl => {
+                let Ok(control) = decode_host_control(&frame.payload) else {
+                    break;
+                };
+                match control {
+                    control @ HostControl::Result { command_id, .. }
+                    | control @ HostControl::Error {
+                        command_id: Some(command_id),
+                        ..
+                    } => pending
+                        .lock()
+                        .await
+                        .remove(&command_id)
+                        .is_some_and(|reply| reply.send(control).is_ok()),
+                    HostControl::Terminal { stream_id, event } => {
+                        send_terminal(&streams, stream_id, TerminalEvent::Control(event)).await
+                    }
+                    HostControl::Welcome { .. }
+                    | HostControl::Error {
+                        command_id: None, ..
+                    } => false,
+                }
+            }
+            FrameKind::TerminalOutput => match decode_output(&frame.payload) {
+                Some((sequence, bytes)) => {
+                    send_terminal(
+                        &streams,
+                        frame.stream_id,
+                        TerminalEvent::Output { sequence, bytes },
+                    )
+                    .await
+                }
+                None => false,
+            },
+            FrameKind::TerminalSnapshot => match decode_snapshot_chunk(&frame.payload) {
+                Some((snapshot_id, offset, bytes)) => {
+                    send_terminal(
+                        &streams,
+                        frame.stream_id,
+                        TerminalEvent::SnapshotChunk {
+                            snapshot_id,
+                            offset,
+                            bytes,
+                        },
+                    )
+                    .await
+                }
+                None => false,
+            },
+            FrameKind::ClientControl | FrameKind::TerminalInput => false,
+        };
+        if !delivered {
+            break;
+        }
+    }
+    pending.lock().await.clear();
+    streams.lock().await.clear();
+}
+
+async fn send_terminal(
+    streams: &Mutex<HashMap<u32, mpsc::Sender<TerminalEvent>>>,
+    stream_id: u32,
+    event: TerminalEvent,
+) -> bool {
+    let mut streams = streams.lock().await;
+    let Some(sender) = streams.get(&stream_id) else {
+        return true;
+    };
+    if sender.try_send(event).is_err() {
+        streams.remove(&stream_id);
+    }
+    true
+}
+
+async fn write_control(
+    writer: &mut FrameWriter<tokio::net::unix::OwnedWriteHalf>,
+    control: &ClientControl,
+) -> Result<(), ClientError> {
+    let payload = encode_control(control)
+        .map(Bytes::from)
+        .map_err(|error| ClientError::InvalidControl(error.to_string()))?;
+    writer
+        .write(&Frame {
+            kind: FrameKind::ClientControl,
+            stream_id: 0,
+            payload,
+        })
+        .await?;
+    Ok(())
+}
+
+async fn read_control(
+    reader: &mut FrameReader<tokio::net::unix::OwnedReadHalf>,
+) -> Result<HostControl, ClientError> {
+    let frame = reader.read().await?.ok_or(ClientError::Closed)?;
+    if frame.kind != FrameKind::HostControl || frame.stream_id != 0 {
+        return Err(ClientError::InvalidControl("expected host control".into()));
+    }
+    decode_host_control(&frame.payload)
+        .map_err(|error| ClientError::InvalidControl(error.to_string()))
+}
+
+fn value<T: serde::Serialize>(value: T) -> Result<Value, ClientError> {
+    serde_json::to_value(value).map_err(|error| ClientError::MalformedResponse(error.to_string()))
+}
+
+fn decode_result<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, ClientError> {
+    serde_json::from_value(value).map_err(|error| ClientError::MalformedResponse(error.to_string()))
 }

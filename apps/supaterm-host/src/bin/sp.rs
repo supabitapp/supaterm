@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
             if let Some(socket) = arguments.socket {
                 paths.socket = socket;
             }
-            let mut client = HostClient::connect(ClientConfiguration {
+            let client = HostClient::connect(ClientConfiguration {
                 socket: paths.socket,
                 build: current_build_identity(),
                 role: ClientRole::Cli,

@@ -1,3 +1,4 @@
+use crate::protocol::terminal::TerminalControl;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::{Display, Formatter};
@@ -104,6 +105,10 @@ pub enum HostControl {
     Error {
         command_id: Option<CommandId>,
         error: ProtocolError,
+    },
+    Terminal {
+        stream_id: u32,
+        event: TerminalControl,
     },
 }
 
