@@ -50,6 +50,23 @@ jobs:
             --base "$BASE_SHA" \
             --head "$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
+  mac_cache_measurement:
+    name: mac-cache-measurement
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-macos
+        with:
+          cache-native-builds: false
+          github-token: ${{ github.token }}
+      - run: make mac-warm-cache TUIST_BINARY_CACHE_PROFILE=all-possible
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+
   swiftlint:
     name: swiftlint
     needs: changes
