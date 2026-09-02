@@ -31,7 +31,7 @@ final class TabGroupMembershipDragUITests: SupatermUITestCase {
   }
 
   @MainActor
-  func testExpandedAndCollapsedGroupHeadersAcceptTabs() async throws {
+  func testGroupHeadersAcceptTabsWithoutChangingCollapseState() async throws {
     try await createNamedTabs(["Seed", "Expanded Join", "Collapsed Join", "Tail"])
     try await createGroup(named: "Target", containing: "Seed")
 
@@ -61,13 +61,15 @@ final class TabGroupMembershipDragUITests: SupatermUITestCase {
       to: sidebarGroupHeader(named: "Target"),
       destinationOffset: CGVector(dx: 0.5, dy: 0.35)
     )
-    let didAddAndExpandCollapsedGroup = await wait(
+    let didAddToCollapsedGroup = await wait(
       for: sidebarGroupHeader(named: "Target")
     ) {
-      $0.label.contains("3 tabs") && ($0.value as? String) == "Expanded"
+      $0.label.contains("3 tabs") && ($0.value as? String) == "Collapsed"
     }
-    XCTAssertTrue(didAddAndExpandCollapsedGroup)
+    XCTAssertTrue(didAddToCollapsedGroup)
+    XCTAssertFalse(sidebarStructuralTabRow(named: "Collapsed Join").exists)
 
+    sidebarGroupHeader(named: "Target").click()
     await requireSidebarStructure([
       .group("Target", children: ["Collapsed Join", "Expanded Join", "Seed"]),
       .tab("Tail"),
