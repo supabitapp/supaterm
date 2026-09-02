@@ -24,12 +24,6 @@ runs:
     - uses: ./.github/actions/setup-mise
       with:
         github-token: ${{ inputs.github-token }}
-    - name: Tuist Xcode cache
-      if: ${{ env.TUIST_TOKEN != '' }}
-      shell: bash
-      run: |
-        mise exec -- tuist setup cache --path apps
-        printf '%s\n' 'TUIST_XCODE_CACHE=1' >> "$GITHUB_ENV"
     - name: Xcode cache key
       if: ${{ inputs.cache-tuist-packages == 'true' || inputs.cache-native-builds == 'true' }}
       shell: bash

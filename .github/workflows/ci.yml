@@ -94,8 +94,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-        env:
-          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-test
         env:
           TUIST_BINARY_CACHE_PROFILE: all-possible
@@ -114,8 +112,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-        env:
-          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: >-
           make mac-test-e2e
           E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
@@ -142,8 +138,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-        env:
-          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: ~/.local/share/mise/installs
@@ -187,8 +181,6 @@ jobs:
         with:
           cache-native-builds: true
           github-token: ${{ github.token }}
-        env:
-          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - run: make mac-tuist-install
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}

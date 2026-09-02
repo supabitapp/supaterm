@@ -10,7 +10,7 @@ let tuist = Tuist(
     )
   ),
   xcodeCache: .xcodeCache(
-    upload: Environment.isCI
+    upload: false
   ),
   project: .tuist(
     compatibleXcodeVersions: .upToNextMajor("26.0"),
