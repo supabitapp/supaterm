@@ -67,18 +67,6 @@ runs:
       with:
         path: apps/mac/.build/ghostty
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v3-${{ env.GHOSTTY_FINGERPRINT }}
-    - name: Zmx fingerprint
-      if: ${{ inputs.cache-native-builds == 'true' }}
-      shell: bash
-      run: |
-        ZMX_FINGERPRINT="$(apps/mac/scripts/build-zmx.sh --print-fingerprint)"
-        printf '%s\n' "ZMX_FINGERPRINT=$ZMX_FINGERPRINT" >> "$GITHUB_ENV"
-    - name: Zmx cache
-      if: ${{ inputs.cache-native-builds == 'true' }}
-      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
-      with:
-        path: apps/mac/.build/zmx
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v2-${{ env.ZMX_FINGERPRINT }}
     - name: Ap fingerprint
       if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash

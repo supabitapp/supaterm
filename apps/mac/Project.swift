@@ -9,9 +9,6 @@ let hostBinaryPath: Path = ".build/supaterm-host/bin/supaterm-host"
 let hostSPBinaryPath: Path = ".build/supaterm-host/bin/sp"
 let hostBuildScriptPath: Path = "scripts/build-supaterm-host.sh"
 let hostFingerprintPath: Path = ".build/supaterm-host/fingerprint"
-let zmxBinaryPath: Path = ".build/zmx/bin/zmx"
-let zmxBuildScriptPath: Path = "scripts/build-zmx.sh"
-let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
 let apBinaryPath: Path = ".build/ap/bin/ap"
 let apBuildScriptPath: Path = "scripts/build-ap.sh"
 let apFingerprintPath: Path = ".build/ap/fingerprint"
@@ -386,12 +383,6 @@ let project = Project(
         "supaterm/Features/Terminal",
       ],
       copyFiles: [
-        .executables(
-          name: "Embed sp CLI",
-          files: [
-            .buildProduct(name: "sp", codeSignOnCopy: true),
-          ]
-        ),
         .resources(
           name: "Embed wt CLI",
           subpath: "bin",
@@ -417,13 +408,6 @@ let project = Project(
         ),
         .pre(
           script: """
-            "${SRCROOT}/\(zmxBuildScriptPath.pathString)"
-            """,
-          name: "Build zmx",
-          basedOnDependencyAnalysis: false
-        ),
-        .pre(
-          script: """
             "${SRCROOT}/\(apBuildScriptPath.pathString)"
             """,
           name: "Build ap",
@@ -433,19 +417,20 @@ let project = Project(
           script: """
             set -euo pipefail
 
-            destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
+            helper_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
+            executable_dir="${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}"
             host_source="${SRCROOT}/\(hostBinaryPath.pathString)"
             sp_source="${SRCROOT}/\(hostSPBinaryPath.pathString)"
 
-            mkdir -p "${destination_dir}"
-            /usr/bin/install -m 755 "${host_source}" "${destination_dir}/supaterm-host"
-            /usr/bin/install -m 755 "${sp_source}" "${destination_dir}/sp"
+            mkdir -p "${helper_dir}" "${executable_dir}"
+            /usr/bin/install -m 755 "${host_source}" "${helper_dir}/supaterm-host"
+            /usr/bin/install -m 755 "${sp_source}" "${executable_dir}/sp"
             if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
               identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
               /usr/bin/codesign --force --sign "${identity}" --options runtime \
-                --timestamp=none "${destination_dir}/supaterm-host"
+                --timestamp=none "${helper_dir}/supaterm-host"
               /usr/bin/codesign --force --sign "${identity}" --options runtime \
-                --timestamp=none "${destination_dir}/sp"
+                --timestamp=none "${executable_dir}/sp"
             fi
             """,
           name: "Embed supaterm-host",
@@ -456,7 +441,7 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/supaterm-host",
-            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/sp",
+            "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/sp",
           ],
         ),
         .post(
@@ -485,36 +470,6 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/terminfo",
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty-resources.fingerprint",
           ],
-        ),
-        .post(
-          script: """
-            set -euo pipefail
-
-            destination_dir="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
-            destination_path="${destination_dir}/zmx"
-            source_path="${SRCROOT}/\(zmxBinaryPath.pathString)"
-
-            if [ ! -x "${source_path}" ]; then
-              echo "error: missing built zmx executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            rm -f "${destination_path}"
-            /usr/bin/install -m 755 "${source_path}" "${destination_path}"
-            if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ]; then
-              identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
-              /usr/bin/codesign --force --sign "${identity}" --options runtime --timestamp=none "${destination_path}"
-            fi
-            """,
-          name: "Embed zmx",
-          inputPaths: [
-            "$(SRCROOT)/\(zmxBinaryPath.pathString)",
-            "$(SRCROOT)/\(zmxFingerprintPath.pathString)",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/zmx",
-          ]
         ),
         .post(
           script: """
@@ -632,7 +587,6 @@ let project = Project(
       ],
       dependencies: [
         supatermHostClientDependency,
-        .target(name: "sp"),
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),

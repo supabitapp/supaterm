@@ -34,7 +34,7 @@ sp_path="$app_path/Contents/MacOS/sp"
 helper_paths=(
   "$sp_path"
   "$app_path/Contents/MacOS/ap"
-  "$app_path/Contents/Helpers/zmx"
+  "$app_path/Contents/Helpers/supaterm-host"
 )
 
 for path in "${helper_paths[@]}"; do
