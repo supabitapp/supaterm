@@ -137,7 +137,7 @@ struct TerminalHostStateAgentDetectionTests {
 
   @Test
   @MainActor
-  func sidebarPrefersProvenAgentMarkThenProcessIconThenTerminal() throws {
+  func sidebarUsesProvenAgentMarkAndFallsBackToTerminal() throws {
     let fixture = try hostFixture()
     let identity = TerminalAgentProcessIdentity(processID: 42, startTimeMicroseconds: 1)
     let match = AgentDetectionProcessMatch(agentID: "gemini", processIdentity: identity)
@@ -145,20 +145,12 @@ struct TerminalHostStateAgentDetectionTests {
     #expect(
       fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon == .terminal
     )
-    fixture.host.setProcessIcon(.btop, for: fixture.surfaceID)
-    #expect(
-      fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon == .process(.btop)
-    )
     #expect(fixture.host.applyAgentProcessMatch(match, for: fixture.surfaceID))
     #expect(
       fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon
         == .agent("geminicli-mark")
     )
     #expect(fixture.host.clearAgentProcessMatch(for: fixture.surfaceID))
-    #expect(
-      fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon == .process(.btop)
-    )
-    fixture.host.setProcessIcon(nil, for: fixture.surfaceID)
     #expect(
       fixture.host.sidebarPanePresentations(for: fixture.tabID).first?.icon == .terminal
     )

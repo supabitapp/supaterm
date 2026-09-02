@@ -5,7 +5,6 @@ struct TerminalSidebarPanePresentation: Equatable, Identifiable, Sendable {
   enum Icon: Equatable, Sendable {
     case terminal
     case agent(String)
-    case process(TerminalProcessIcon)
   }
 
   let id: UUID
@@ -63,10 +62,9 @@ extension TerminalHostState {
         observation.agent.id
       }
     let agentID = agentDetectionStore.processMatch(for: surfaceID)?.agentID ?? resolvedAgentID
-    if let agentID, let imageName = TerminalCodingAgentCatalog.markImageName(for: agentID) {
-      return .agent(imageName)
+    guard let agentID, let imageName = TerminalCodingAgentCatalog.markImageName(for: agentID) else {
+      return .terminal
     }
-    guard let processIcon = paneProcessIconsBySurfaceID[surfaceID] else { return .terminal }
-    return .process(processIcon)
+    return .agent(imageName)
   }
 }

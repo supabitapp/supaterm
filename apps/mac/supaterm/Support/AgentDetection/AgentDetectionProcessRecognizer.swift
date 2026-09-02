@@ -90,53 +90,6 @@ public struct AgentDetectionProcessMatch: Equatable, Hashable, Sendable {
   }
 }
 
-public struct AgentDetectionProcessSample: Equatable, Sendable {
-  public let agentMatches: [Int32: AgentDetectionProcessMatch]
-  public let processIcons: [Int32: TerminalProcessIconMatch]
-
-  public init(
-    agentMatches: [Int32: AgentDetectionProcessMatch],
-    processIcons: [Int32: TerminalProcessIconMatch]
-  ) {
-    self.agentMatches = agentMatches
-    self.processIcons = processIcons
-  }
-}
-
-struct ForegroundProcessGroupSnapshot {
-  let entries: [ProcessEntry]
-  private let entriesByProcessID: [pid_t: ProcessEntry]
-
-  init(entries: [ProcessEntry]) {
-    self.entries = entries
-    entriesByProcessID = Dictionary(uniqueKeysWithValues: entries.map { ($0.processID, $0) })
-  }
-
-  func depth(of process: ProcessEntry) -> Int {
-    var process = process
-    var processIDs = Set([process.processID])
-    var depth = 0
-    while let parent = entriesByProcessID[process.parentProcessID] {
-      guard processIDs.insert(parent.processID).inserted else { return Int.max }
-      process = parent
-      depth += 1
-    }
-    return depth
-  }
-
-  static func snapshots(
-    for foregroundProcessGroupIDs: Set<pid_t>,
-    in table: ProcessTable
-  ) -> [pid_t: Self] {
-    let processGroupIDs = foregroundProcessGroupIDs.filter { $0 > 0 }
-    guard !processGroupIDs.isEmpty else { return [:] }
-    return Dictionary(
-      grouping: table.entries.filter { processGroupIDs.contains($0.processGroupID) },
-      by: \.processGroupID
-    ).mapValues { Self(entries: $0) }
-  }
-}
-
 public actor AgentDetectionProcessSampler {
   private struct Sample {
     let table: ProcessTable
@@ -146,7 +99,7 @@ public actor AgentDetectionProcessSampler {
   private static let cacheInterval: Duration = .milliseconds(500)
 
   private let currentTime: @Sendable () -> ContinuousClock.Instant
-  private let processTable: @Sendable () -> ProcessTable
+  private let processTable: AgentDetectionProcessRecognizer.TableProvider
   private let invocation: AgentDetectionProcessRecognizer.InvocationProvider
   private var sample: Sample?
 
@@ -158,7 +111,7 @@ public actor AgentDetectionProcessSampler {
 
   init(
     currentTime: @escaping @Sendable () -> ContinuousClock.Instant,
-    processTable: @escaping @Sendable () -> ProcessTable,
+    processTable: @escaping AgentDetectionProcessRecognizer.TableProvider,
     invocation: @escaping AgentDetectionProcessRecognizer.InvocationProvider
   ) {
     self.currentTime = currentTime
@@ -166,46 +119,47 @@ public actor AgentDetectionProcessSampler {
     self.invocation = invocation
   }
 
-  public func sample(
+  public func matches(
     foregroundProcessGroupIDs: Set<Int32>,
     manifests: [AgentDetectionProcessManifest]
-  ) -> AgentDetectionProcessSample {
-    let processGroups = ForegroundProcessGroupSnapshot.snapshots(
-      for: foregroundProcessGroupIDs,
-      in: sampledTable()
-    )
-    let invocations = Dictionary(
-      uniqueKeysWithValues: processGroups.values.flatMap(\.entries).compactMap { entry in
-        invocation(entry.processID).map { (entry.processID, $0) }
-      }
-    )
-    let cachedInvocation: AgentDetectionProcessRecognizer.InvocationProvider = { invocations[$0] }
-    return AgentDetectionProcessSample(
-      agentMatches: AgentDetectionProcessRecognizer.matches(
-        processGroups: processGroups,
-        manifests: manifests,
-        invocation: cachedInvocation
-      ),
-      processIcons: TerminalProcessIconRecognizer.matches(
-        processGroups: processGroups,
-        invocation: cachedInvocation
-      )
-    )
-  }
-
-  private func sampledTable() -> ProcessTable {
-    let now = currentTime()
-    if let sample, sample.time.duration(to: now) < Self.cacheInterval {
-      return sample.table
+  ) -> [Int32: AgentDetectionProcessMatch] {
+    guard foregroundProcessGroupIDs.contains(where: { $0 > 0 }), !manifests.isEmpty else {
+      return [:]
     }
-    let table = processTable()
-    sample = Sample(table: table, time: now)
-    return table
+    let now = currentTime()
+    let table: ProcessTable
+    if let sample, sample.time.duration(to: now) < Self.cacheInterval {
+      table = sample.table
+    } else {
+      table = processTable()
+      sample = Sample(table: table, time: now)
+    }
+    return AgentDetectionProcessRecognizer.matches(
+      foregroundProcessGroupIDs: foregroundProcessGroupIDs,
+      manifests: manifests,
+      table: table,
+      invocation: invocation
+    )
   }
 }
 
 enum AgentDetectionProcessRecognizer {
   typealias InvocationProvider = @Sendable (pid_t) -> ProcessInvocation?
+  typealias TableProvider = @Sendable () -> ProcessTable
+
+  static func matches(
+    foregroundProcessGroupIDs: Set<pid_t>,
+    manifests: [AgentDetectionProcessManifest],
+    table: TableProvider,
+    invocation: InvocationProvider
+  ) -> [pid_t: AgentDetectionProcessMatch] {
+    matches(
+      foregroundProcessGroupIDs: foregroundProcessGroupIDs,
+      manifests: manifests,
+      table: table(),
+      invocation: invocation
+    )
+  }
 
   static func matches(
     foregroundProcessGroupIDs: Set<pid_t>,
@@ -213,33 +167,26 @@ enum AgentDetectionProcessRecognizer {
     table: ProcessTable,
     invocation: InvocationProvider
   ) -> [pid_t: AgentDetectionProcessMatch] {
-    matches(
-      processGroups: ForegroundProcessGroupSnapshot.snapshots(
-        for: foregroundProcessGroupIDs,
-        in: table
-      ),
-      manifests: manifests,
-      invocation: invocation
-    )
-  }
-
-  static func matches(
-    processGroups: [pid_t: ForegroundProcessGroupSnapshot],
-    manifests: [AgentDetectionProcessManifest],
-    invocation: InvocationProvider
-  ) -> [pid_t: AgentDetectionProcessMatch] {
-    guard !manifests.isEmpty else { return [:] }
-    return processGroups.compactMapValues { processGroup in
-      match(processGroup: processGroup, manifests: manifests, invocation: invocation)
+    let processGroupIDs = foregroundProcessGroupIDs.filter { $0 > 0 }
+    guard !processGroupIDs.isEmpty, !manifests.isEmpty else { return [:] }
+    let entriesByProcessGroupID = Dictionary(
+      grouping: table.entries.filter {
+        processGroupIDs.contains($0.processGroupID)
+      }, by: \.processGroupID)
+    return entriesByProcessGroupID.compactMapValues { entries in
+      match(entries: entries, manifests: manifests, invocation: invocation)
     }
   }
 
   private static func match(
-    processGroup: ForegroundProcessGroupSnapshot,
+    entries: [ProcessEntry],
     manifests: [AgentDetectionProcessManifest],
     invocation: InvocationProvider
   ) -> AgentDetectionProcessMatch? {
-    let candidates = processGroup.entries.flatMap { entry in
+    let entriesByProcessID = entries.reduce(into: [pid_t: ProcessEntry]()) {
+      $0[$1.processID] = $1
+    }
+    let candidates = entries.flatMap { entry in
       guard let invocation = invocation(entry.processID) else { return [Candidate]() }
       return manifests.compactMap { manifest in
         candidate(entry: entry, invocation: invocation, manifest: manifest)
@@ -250,8 +197,8 @@ enum AgentDetectionProcessRecognizer {
     guard Set(strongestCandidates.map(\.agentID)).count == 1 else { return nil }
     guard
       let match = strongestCandidates.min(by: {
-        let leftDepth = processGroup.depth(of: $0.process)
-        let rightDepth = processGroup.depth(of: $1.process)
+        let leftDepth = depth(of: $0.process, entriesByProcessID: entriesByProcessID)
+        let rightDepth = depth(of: $1.process, entriesByProcessID: entriesByProcessID)
         return (leftDepth, $0.process.processID) < (rightDepth, $1.process.processID)
       })
     else {
@@ -293,6 +240,21 @@ enum AgentDetectionProcessRecognizer {
       process: entry,
       strength: AgentDetectionProcessSelector.processNameStrength
     )
+  }
+
+  private static func depth(
+    of process: ProcessEntry,
+    entriesByProcessID: [pid_t: ProcessEntry]
+  ) -> Int {
+    var process = process
+    var processIDs = Set([process.processID])
+    var depth = 0
+    while let parent = entriesByProcessID[process.parentProcessID] {
+      guard processIDs.insert(parent.processID).inserted else { return Int.max }
+      process = parent
+      depth += 1
+    }
+    return depth
   }
 
   private struct Candidate {
