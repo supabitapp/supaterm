@@ -149,7 +149,7 @@ public enum SupatermShortcuts {
   public static let jumpToLatestUnread = SupatermShortcut(
     id: .jumpToLatestUnread,
     keyCode: UInt16(kVK_ANSI_U),
-    modifiers: [.command, .control]
+    modifiers: .command
   )
   public static let forkAgentSession = SupatermShortcut(
     id: .forkAgentSession,

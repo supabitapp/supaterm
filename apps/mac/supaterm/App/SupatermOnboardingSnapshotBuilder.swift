@@ -1,4 +1,5 @@
 import SupatermCLIShared
+import SupatermSupport
 import SwiftUI
 
 @MainActor
@@ -49,6 +50,15 @@ enum SupatermOnboardingSnapshotBuilder {
         shortcutForAction: shortcutForAction
       )
       + [
+        resolvedItem(
+          for: CuratedEntry(
+            action: nil,
+            fallbackShortcut: SupatermShortcuts.jumpToLatestUnread.defaultBinding.display,
+            title: "Jump to latest unread"
+          ),
+          hasShortcutSource: hasShortcutSource,
+          shortcutForAction: shortcutForAction
+        ),
         resolvedItem(
           for: CuratedEntry(
             action: SupatermCommand.closeSurface.ghosttyBindingAction,

@@ -32,6 +32,7 @@ struct SupatermOnboardingSnapshotBuilderTests {
         SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
         SupatermOnboardingShortcut(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
         SupatermOnboardingShortcut(shortcut: "⌘9", title: "Last tab"),
+        SupatermOnboardingShortcut(shortcut: "⌘U", title: "Jump to latest unread"),
         SupatermOnboardingShortcut(shortcut: "⌘W", title: "Close pane"),
         SupatermOnboardingShortcut(shortcut: "⌘⇧W", title: "Close tab"),
         SupatermOnboardingShortcut(shortcut: "⌃1-0", title: "Go to space 1-10"),
@@ -56,6 +57,7 @@ struct SupatermOnboardingSnapshotBuilderTests {
         SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
         SupatermOnboardingShortcut(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
         SupatermOnboardingShortcut(shortcut: "⌘0", title: "Go to tab 10"),
+        SupatermOnboardingShortcut(shortcut: "⌘U", title: "Jump to latest unread"),
         SupatermOnboardingShortcut(shortcut: "⌘W", title: "Close pane"),
         SupatermOnboardingShortcut(shortcut: "⌘⌥W", title: "Close tab"),
         SupatermOnboardingShortcut(shortcut: "⌃1-0", title: "Go to space 1-10"),
@@ -80,6 +82,7 @@ struct SupatermOnboardingSnapshotBuilderTests {
       snapshot.items == [
         SupatermOnboardingShortcut(shortcut: "⌘S", title: "Toggle sidebar"),
         SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
+        SupatermOnboardingShortcut(shortcut: "⌘U", title: "Jump to latest unread"),
         SupatermOnboardingShortcut(shortcut: "⌃1-0", title: "Go to space 1-10"),
       ]
     )
