@@ -73,46 +73,41 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test @MainActor
-  func sidebarToggleInstallsSpringFrameMotion() throws {
+  func sidebarToggleKeepsTheDetailFrameAndHostedContentAligned() throws {
     let fixture = shellMotionFixture(
       presentation: presentation(collapsed: false, width: 240)
     )
     let sidebarLayer = try #require(fixture.sidebar.view.layer)
     let detailLayer = try #require(fixture.detail.view.layer)
     let oldSidebarPosition = sidebarLayer.position
-    let oldDetailPosition = detailLayer.position
-    let oldDetailBounds = detailLayer.bounds
+    let oldDetailFrame = fixture.detail.view.frame
 
     fixture.shell.apply(presentation(collapsed: true, width: 240))
     fixture.shell.viewDidLayout()
 
     #expect(fixture.sidebar.view.frame == CGRect(x: -252, y: 0, width: 240, height: 700))
-    #expect(fixture.detail.view.frame == bounds)
     let sidebarPosition = try #require(
       sidebarLayer.animation(forKey: "windowShellPosition") as? CASpringAnimation
-    )
-    let detailPosition = try #require(
-      detailLayer.animation(forKey: "windowShellPosition") as? CASpringAnimation
-    )
-    let detailBounds = try #require(
-      detailLayer.animation(forKey: "windowShellBounds") as? CASpringAnimation
     )
     expectSidebarSpring(
       sidebarPosition,
       from: NSValue(point: oldSidebarPosition),
       to: NSValue(point: sidebarLayer.position)
     )
-    expectSidebarSpring(
-      detailPosition,
-      from: NSValue(point: oldDetailPosition),
-      to: NSValue(point: detailLayer.position)
-    )
-    expectSidebarSpring(
-      detailBounds,
-      from: NSValue(rect: oldDetailBounds),
-      to: NSValue(rect: detailLayer.bounds)
-    )
+    #expect(fixture.detail.view.frame == oldDetailFrame)
+    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
+    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
     #expect(sidebarLayer.animation(forKey: "windowShellBounds") == nil)
+
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+
+    #expect(fixture.detail.view.frame.minX > bounds.minX)
+    #expect(fixture.detail.view.frame.minX < oldDetailFrame.minX)
+    #expect(abs(fixture.detail.view.frame.maxX - bounds.maxX) < 0.001)
+
+    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
+    #expect(fixture.detail.view.frame == bounds)
   }
 
   @Test @MainActor
@@ -272,12 +267,14 @@ struct TerminalWindowShellControllerTests {
     let sidebarLayer = try #require(fixture.sidebar.view.layer)
     let detailLayer = try #require(fixture.detail.view.layer)
     #expect(sidebarLayer.animation(forKey: "windowShellPosition") != nil)
-    #expect(detailLayer.animation(forKey: "windowShellBounds") != nil)
+    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
+    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
 
     fixture.shell.viewDidLayout()
 
     #expect(sidebarLayer.animation(forKey: "windowShellPosition") != nil)
-    #expect(detailLayer.animation(forKey: "windowShellBounds") != nil)
+    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
+    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
 
     fixture.window.setContentSize(CGSize(width: 900, height: 700))
     fixture.window.layoutIfNeeded()
@@ -726,8 +723,7 @@ struct TerminalWindowShellControllerTests {
     shell.view.frame = bounds
     let sidebar = NSViewController()
     sidebar.view = NSView()
-    let detail = NSViewController()
-    detail.view = NSView()
+    let detail = NSHostingController(rootView: Color.clear)
     let background = NSViewController()
     background.view = NSView()
     shell.install(background: background, sidebar: sidebar, detail: detail)
