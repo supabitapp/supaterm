@@ -38,6 +38,13 @@ pub struct SpawnSpec {
     pub pixel_height: u16,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TerminalEnvironment {
+    pub socket_path: PathBuf,
+    pub cli_path: PathBuf,
+    pub state_home: Option<PathBuf>,
+}
+
 #[derive(Debug, Error)]
 pub enum SpawnError {
     #[error("working directory not found: {0}")]
@@ -61,6 +68,14 @@ pub(crate) struct PtyWriter {
 
 impl Pty {
     pub fn spawn(spec: &SpawnSpec) -> Result<(Self, Child), SpawnError> {
+        Self::spawn_with_environment(spec, None, None)
+    }
+
+    pub(crate) fn spawn_with_environment(
+        spec: &SpawnSpec,
+        pane_id: Option<crate::protocol::terminal::PaneId>,
+        terminal_environment: Option<&TerminalEnvironment>,
+    ) -> Result<(Self, Child), SpawnError> {
         if let Some(cwd) = &spec.cwd
             && !cwd.is_dir()
         {
@@ -120,6 +135,14 @@ impl Pty {
         command.env("COLORTERM", "truecolor");
         for (key, value) in &spec.environment {
             command.env(key, value);
+        }
+        if let (Some(pane_id), Some(environment)) = (pane_id, terminal_environment) {
+            command.env("SUPATERM_HOST_SOCKET_PATH", &environment.socket_path);
+            command.env("SUPATERM_CLI_PATH", &environment.cli_path);
+            command.env("SUPATERM_PANE_ID", pane_id.to_string());
+            if let Some(state_home) = &environment.state_home {
+                command.env("SUPATERM_STATE_HOME", state_home);
+            }
         }
         command
             .stdin(Stdio::null())

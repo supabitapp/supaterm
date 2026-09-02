@@ -8,14 +8,19 @@ const GHOSTTY_TERMINAL_OPT_USERDATA: i32 = 0;
 const GHOSTTY_TERMINAL_OPT_WRITE_PTY: i32 = 1;
 const GHOSTTY_TERMINAL_OPT_ENQUIRY: i32 = 3;
 const GHOSTTY_TERMINAL_OPT_XTVERSION: i32 = 4;
+const GHOSTTY_TERMINAL_OPT_TITLE_CHANGED: i32 = 5;
 const GHOSTTY_TERMINAL_OPT_SIZE: i32 = 6;
 const GHOSTTY_TERMINAL_OPT_COLOR_SCHEME: i32 = 7;
 const GHOSTTY_TERMINAL_OPT_DEVICE_ATTRIBUTES: i32 = 8;
+const GHOSTTY_TERMINAL_OPT_PWD_CHANGED: i32 = 25;
 const GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_BYTES: i32 = 27;
+const GHOSTTY_TERMINAL_OPT_PROGRESS_REPORT: i32 = 30;
 const GHOSTTY_TERMINAL_OPT_CONTINUATION_MAX_BYTES: i32 = 31;
 const GHOSTTY_TERMINAL_OPT_TERMINFO_NAME: i32 = 37;
 const GHOSTTY_SNAPSHOT_DECODER_OPT_MAX_CONTINUATION_BYTES: i32 = 0;
 const GHOSTTY_SNAPSHOT_DECODER_OPT_RETAIN_CONTINUATION: i32 = 1;
+const GHOSTTY_TERMINAL_DATA_TITLE: i32 = 12;
+const GHOSTTY_TERMINAL_DATA_PWD: i32 = 13;
 const MAXIMUM_SNAPSHOT_BYTES: usize = 64 * 1024 * 1024;
 const MAXIMUM_CONTINUATION_BYTES: usize = 16 * 1024 * 1024;
 const MAXIMUM_SCROLLBACK_BYTES: usize = 64 * 1024 * 1024;
@@ -63,6 +68,13 @@ struct GhosttyDeviceAttributes {
     tertiary: GhosttyDeviceAttributesTertiary,
 }
 
+#[repr(C)]
+struct GhosttyProgressReport {
+    size: usize,
+    state: i32,
+    progress: i8,
+}
+
 unsafe extern "C" {
     fn ghostty_terminal_new(
         allocator: *const c_void,
@@ -72,6 +84,7 @@ unsafe extern "C" {
     ) -> i32;
     fn ghostty_terminal_free(terminal: GhosttyTerminal);
     fn ghostty_terminal_set(terminal: GhosttyTerminal, option: i32, value: *const c_void) -> i32;
+    fn ghostty_terminal_get(terminal: GhosttyTerminal, data: i32, value: *mut c_void) -> i32;
     fn ghostty_terminal_resize(
         terminal: GhosttyTerminal,
         columns: u16,
@@ -112,6 +125,32 @@ pub struct TerminalViewport {
     pub cell_height: u32,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TerminalEffect {
+    Title(Option<String>),
+    WorkingDirectory(Option<String>),
+    Progress(Option<TerminalProgress>),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalProgress {
+    pub state: TerminalProgressState,
+    pub percent: Option<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerminalProgressState {
+    Set,
+    Error,
+    Indeterminate,
+    Paused,
+}
+
+pub struct TerminalWrite {
+    pub replies: Vec<Vec<u8>>,
+    pub effects: Vec<TerminalEffect>,
+}
+
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum TerminalStateError {
     #[error("libghostty-vt returned {0}")]
@@ -124,6 +163,7 @@ pub enum TerminalStateError {
 
 struct ReplyContext {
     replies: Vec<Vec<u8>>,
+    effects: Vec<TerminalEffect>,
     viewport: TerminalViewport,
 }
 
@@ -186,11 +226,19 @@ impl HostTerminal {
     }
 
     pub fn write(&mut self, bytes: &[u8]) -> Vec<Vec<u8>> {
+        self.write_with_effects(bytes).replies
+    }
+
+    pub fn write_with_effects(&mut self, bytes: &[u8]) -> TerminalWrite {
         self.context.replies.clear();
+        self.context.effects.clear();
         unsafe {
             ghostty_terminal_vt_write(self.terminal.as_ptr(), bytes.as_ptr(), bytes.len());
         }
-        self.take_replies()
+        TerminalWrite {
+            replies: self.take_replies(),
+            effects: std::mem::take(&mut self.context.effects),
+        }
     }
 
     pub fn resize(
@@ -253,6 +301,7 @@ impl HostTerminal {
             terminal,
             context: Box::new(ReplyContext {
                 replies: Vec::new(),
+                effects: Vec::new(),
                 viewport,
             }),
         };
@@ -294,6 +343,21 @@ impl HostTerminal {
             self.terminal,
             GHOSTTY_TERMINAL_OPT_DEVICE_ATTRIBUTES,
             device_attributes as *const () as *const c_void,
+        )?;
+        set(
+            self.terminal,
+            GHOSTTY_TERMINAL_OPT_TITLE_CHANGED,
+            title_changed as *const () as *const c_void,
+        )?;
+        set(
+            self.terminal,
+            GHOSTTY_TERMINAL_OPT_PWD_CHANGED,
+            pwd_changed as *const () as *const c_void,
+        )?;
+        set(
+            self.terminal,
+            GHOSTTY_TERMINAL_OPT_PROGRESS_REPORT,
+            progress_report as *const () as *const c_void,
         )?;
         set(
             self.terminal,
@@ -345,6 +409,73 @@ extern "C" fn write_pty(
     context
         .replies
         .push(unsafe { std::slice::from_raw_parts(bytes, length) }.to_vec());
+}
+
+extern "C" fn title_changed(terminal: GhosttyTerminal, userdata: *mut c_void) {
+    let context = unsafe { &mut *userdata.cast::<ReplyContext>() };
+    context
+        .effects
+        .push(TerminalEffect::Title(read_terminal_string(
+            terminal,
+            GHOSTTY_TERMINAL_DATA_TITLE,
+        )));
+}
+
+extern "C" fn pwd_changed(terminal: GhosttyTerminal, userdata: *mut c_void) {
+    let context = unsafe { &mut *userdata.cast::<ReplyContext>() };
+    context
+        .effects
+        .push(TerminalEffect::WorkingDirectory(read_terminal_string(
+            terminal,
+            GHOSTTY_TERMINAL_DATA_PWD,
+        )));
+}
+
+extern "C" fn progress_report(
+    _terminal: GhosttyTerminal,
+    userdata: *mut c_void,
+    report: *const GhosttyProgressReport,
+) {
+    let context = unsafe { &mut *userdata.cast::<ReplyContext>() };
+    let report = unsafe { &*report };
+    let percent = u8::try_from(report.progress)
+        .ok()
+        .filter(|value| *value <= 100);
+    let progress = match report.state {
+        0 => None,
+        1 => Some(TerminalProgress {
+            state: TerminalProgressState::Set,
+            percent,
+        }),
+        2 => Some(TerminalProgress {
+            state: TerminalProgressState::Error,
+            percent,
+        }),
+        3 => Some(TerminalProgress {
+            state: TerminalProgressState::Indeterminate,
+            percent: None,
+        }),
+        4 => Some(TerminalProgress {
+            state: TerminalProgressState::Paused,
+            percent,
+        }),
+        _ => return,
+    };
+    context.effects.push(TerminalEffect::Progress(progress));
+}
+
+fn read_terminal_string(terminal: GhosttyTerminal, data: i32) -> Option<String> {
+    let mut value = GhosttyString {
+        pointer: std::ptr::null(),
+        length: 0,
+    };
+    if unsafe { ghostty_terminal_get(terminal, data, (&raw mut value).cast()) } != GHOSTTY_SUCCESS
+        || value.length == 0
+    {
+        return None;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(value.pointer, value.length) };
+    Some(String::from_utf8_lossy(bytes).into_owned())
 }
 
 extern "C" fn enquiry(_terminal: GhosttyTerminal, _userdata: *mut c_void) -> GhosttyString {

@@ -149,6 +149,13 @@ pub enum Command {
 pub type Ratio = f64;
 
 impl Command {
+    pub fn created_pane_id(&self) -> Option<PaneId> {
+        match self {
+            Self::CreateTab { pane_id, .. } | Self::SplitPane { pane_id, .. } => Some(*pane_id),
+            _ => None,
+        }
+    }
+
     pub fn client_id(&self) -> Option<ClientId> {
         match self {
             Self::SelectSpace { client_id, .. }
@@ -218,6 +225,68 @@ pub fn apply(
     *workspace = next_workspace;
     clients.clone_from_slice(&next_clients);
     Ok(result)
+}
+
+pub fn closing_pane_ids(
+    workspace: &Workspace,
+    command: &Command,
+) -> Result<BTreeSet<PaneId>, ReducerError> {
+    let panes = match command {
+        Command::DeleteSpace { space_id } => workspace
+            .windows
+            .values()
+            .filter_map(|window| window.spaces.get(space_id))
+            .flat_map(|content| content.tabs.values())
+            .flat_map(|tab| tab.root.leaves())
+            .collect(),
+        Command::CloseWindow { window_id } => workspace
+            .windows
+            .get(window_id)
+            .ok_or(ReducerError::NotFound)?
+            .spaces
+            .values()
+            .flat_map(|content| content.tabs.values())
+            .flat_map(|tab| tab.root.leaves())
+            .collect(),
+        Command::CloseTab {
+            window_id,
+            space_id,
+            tab_id,
+        } => workspace
+            .content(*window_id, *space_id)
+            .and_then(|content| content.tabs.get(tab_id))
+            .ok_or(ReducerError::NotFound)?
+            .root
+            .leaves()
+            .into_iter()
+            .collect(),
+        Command::CloseGroup {
+            window_id,
+            space_id,
+            group_id,
+        } => {
+            let content = workspace
+                .content(*window_id, *space_id)
+                .ok_or(ReducerError::NotFound)?;
+            content
+                .groups
+                .get(group_id)
+                .ok_or(ReducerError::NotFound)?
+                .tabs
+                .iter()
+                .flat_map(|tab_id| content.tabs[tab_id].root.leaves())
+                .collect()
+        }
+        Command::ClosePane { pane_id } => {
+            if workspace.pane_ids().any(|candidate| candidate == *pane_id) {
+                BTreeSet::from([*pane_id])
+            } else {
+                return Err(ReducerError::NotFound);
+            }
+        }
+        _ => BTreeSet::new(),
+    };
+    Ok(panes)
 }
 
 fn apply_inner(
@@ -702,7 +771,22 @@ fn move_items(
     let destination_content = workspace
         .content_mut(destination_window_id, destination_space_id)
         .ok_or(ReducerError::NotFound)?;
-    insert_extracted(destination_content, extracted, destination)
+    insert_extracted(destination_content, extracted, destination)?;
+    if source_window_id != destination_window_id
+        && workspace.windows.len() > 1
+        && workspace
+            .windows
+            .get(&source_window_id)
+            .is_some_and(|window| {
+                window
+                    .spaces
+                    .values()
+                    .all(|content| content.tabs.is_empty())
+            })
+    {
+        workspace.windows.remove(&source_window_id);
+    }
+    Ok(())
 }
 
 fn adjusted_destination(
@@ -1469,7 +1553,11 @@ fn merge_window(
             )?;
         }
     }
-    close_window(workspace, clients, source_window_id)
+    if workspace.windows.contains_key(&source_window_id) {
+        close_window(workspace, clients, source_window_id)
+    } else {
+        Ok(())
+    }
 }
 
 fn root_placement_containing(content: &SpaceContent, tab_id: TabId) -> Option<RootPlacement> {

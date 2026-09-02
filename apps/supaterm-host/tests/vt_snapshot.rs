@@ -1,4 +1,6 @@
-use supaterm_host::terminal::vt::{HostTerminal, TerminalViewport};
+use supaterm_host::terminal::vt::{
+    HostTerminal, TerminalEffect, TerminalProgress, TerminalProgressState, TerminalViewport,
+};
 
 fn viewport() -> TerminalViewport {
     TerminalViewport {
@@ -42,4 +44,24 @@ fn restored_partial_utf8_accepts_the_first_live_byte() {
     restored.write(&[0xac]);
 
     assert!(!restored.snapshot().unwrap().is_empty());
+}
+
+#[test]
+fn native_parser_reports_title_directory_and_progress_effects() {
+    let mut terminal = HostTerminal::new(viewport()).unwrap();
+
+    let write = terminal
+        .write_with_effects(b"\x1b]2;Build\x07\x1b]7;file:///tmp/work\x07\x1b]9;4;1;42\x07");
+
+    assert_eq!(
+        write.effects,
+        [
+            TerminalEffect::Title(Some("Build".into())),
+            TerminalEffect::WorkingDirectory(Some("file:///tmp/work".into())),
+            TerminalEffect::Progress(Some(TerminalProgress {
+                state: TerminalProgressState::Set,
+                percent: Some(42),
+            })),
+        ]
+    );
 }

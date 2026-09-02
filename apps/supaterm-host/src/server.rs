@@ -1,7 +1,7 @@
 use crate::host::actor::{HostActor, HostConfiguration};
 use crate::protocol::control::BuildIdentity;
 use crate::runtime::{ProcessRecord, RuntimePaths};
-use crate::terminal::pty::SpawnSpec;
+use crate::terminal::pty::{SpawnSpec, TerminalEnvironment};
 use crate::transport::unix::{UnixServer, serve_connection};
 use crate::workspace::persistence::{PersistenceWorker, load_or_reset};
 use std::fs;
@@ -22,14 +22,18 @@ pub async fn serve(paths: RuntimePaths, build: BuildIdentity) -> io::Result<()> 
             build: build.clone(),
             capabilities: vec!["semantic_state".into(), "terminal_snapshot".into()],
             command_cache_capacity: 2048,
+            terminal_environment: Some(TerminalEnvironment {
+                socket_path: paths.socket.clone(),
+                cli_path: std::env::current_exe()?.with_file_name("sp"),
+                state_home: Some(paths.state_root.clone()),
+            }),
         },
         loaded.document,
         Some(persistence.clone()),
     );
     for (pane_id, restart_directory) in restart_panes {
         actor
-            .terminals()
-            .create_with_id(
+            .restore_terminal(
                 pane_id,
                 SpawnSpec {
                     argv: Vec::new(),

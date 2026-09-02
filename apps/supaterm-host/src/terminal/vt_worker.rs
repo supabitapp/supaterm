@@ -1,4 +1,4 @@
-use crate::terminal::vt::{HostTerminal, TerminalStateError, TerminalViewport};
+use crate::terminal::vt::{HostTerminal, TerminalEffect, TerminalStateError, TerminalViewport};
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot};
 
@@ -17,7 +17,7 @@ impl VtHandle {
         Ok(Self { sender })
     }
 
-    pub async fn write(&self, bytes: Bytes) -> Result<Vec<Bytes>, TerminalStateError> {
+    pub async fn write(&self, bytes: Bytes) -> Result<VtWrite, TerminalStateError> {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(VtCommand::Write { bytes, reply })
@@ -48,10 +48,15 @@ impl VtHandle {
     }
 }
 
+pub struct VtWrite {
+    pub replies: Vec<Bytes>,
+    pub effects: Vec<TerminalEffect>,
+}
+
 enum VtCommand {
     Write {
         bytes: Bytes,
-        reply: oneshot::Sender<Vec<Bytes>>,
+        reply: oneshot::Sender<VtWrite>,
     },
     Resize {
         viewport: TerminalViewport,
@@ -66,12 +71,12 @@ async fn run(mut terminal: HostTerminal, mut receiver: mpsc::Receiver<VtCommand>
     while let Some(command) = receiver.recv().await {
         match command {
             VtCommand::Write { bytes, reply } => {
-                let replies = terminal
-                    .write(&bytes)
-                    .into_iter()
-                    .map(Bytes::from)
-                    .collect();
-                let _ = reply.send(replies);
+                let write = terminal.write_with_effects(&bytes);
+                let replies = write.replies.into_iter().map(Bytes::from).collect();
+                let _ = reply.send(VtWrite {
+                    replies,
+                    effects: write.effects,
+                });
             }
             VtCommand::Resize { viewport, reply } => {
                 let result = terminal

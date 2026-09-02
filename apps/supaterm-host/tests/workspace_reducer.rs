@@ -314,6 +314,7 @@ fn detach_and_merge_preserve_pinning_and_remove_the_empty_window() {
     let mut clients = vec![client];
     let (space_id, window_id, _) = ids();
     create_tab(&mut workspace, &mut clients, 10, 20);
+    create_tab(&mut workspace, &mut clients, 11, 21);
     let tab_id = TabId(Uuid::from_u128(10));
     apply(
         &mut workspace,

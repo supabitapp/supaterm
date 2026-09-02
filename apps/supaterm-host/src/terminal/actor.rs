@@ -1,8 +1,11 @@
 use crate::protocol::control::ClientId;
 use crate::protocol::terminal::PaneId;
-use crate::terminal::pty::{Pty, PtyWriter, SpawnError, SpawnSpec, signal_process_group};
-use crate::terminal::vt::TerminalViewport;
+use crate::terminal::pty::{
+    Pty, PtyWriter, SpawnError, SpawnSpec, TerminalEnvironment, signal_process_group,
+};
+use crate::terminal::vt::{TerminalEffect, TerminalProgressState, TerminalViewport};
 use crate::terminal::vt_worker::VtHandle;
+use crate::workspace::runtime::{ProgressReport, ProgressState};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -70,6 +73,21 @@ pub struct Attachment {
     pub next_sequence: u64,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TerminalRuntimeEvent {
+    FactsChanged {
+        pane_id: PaneId,
+        title: Option<Option<String>>,
+        current_directory: Option<Option<std::path::PathBuf>>,
+        progress: Option<Option<ProgressReport>>,
+    },
+    Exited {
+        pane_id: PaneId,
+        code: Option<i32>,
+        signal: Option<i32>,
+    },
+}
+
 #[derive(Debug, Error)]
 pub enum TerminalError {
     #[error(transparent)]
@@ -101,10 +119,25 @@ pub struct TerminalRegistry {
 
 impl TerminalRegistry {
     pub fn spawn() -> Self {
+        let (registry, mut events) = Self::spawn_with_events(None);
+        tokio::spawn(async move { while events.recv().await.is_some() {} });
+        registry
+    }
+
+    pub fn spawn_with_events(
+        terminal_environment: Option<TerminalEnvironment>,
+    ) -> (Self, mpsc::Receiver<TerminalRuntimeEvent>) {
         let (sender, receiver) = mpsc::channel(PANE_QUEUE_CAPACITY);
         let (exit_sender, exit_receiver) = mpsc::channel(PANE_QUEUE_CAPACITY);
-        tokio::spawn(run_registry(receiver, exit_receiver, exit_sender));
-        Self { sender }
+        let (event_sender, event_receiver) = mpsc::channel(PANE_QUEUE_CAPACITY);
+        tokio::spawn(run_registry(
+            receiver,
+            exit_receiver,
+            exit_sender,
+            event_sender.clone(),
+            terminal_environment,
+        ));
+        (Self { sender }, event_receiver)
     }
 
     pub async fn create(&self, spec: SpawnSpec) -> Result<PaneInfo, TerminalError> {
@@ -260,8 +293,10 @@ enum RegistryMessage {
 
 async fn run_registry(
     mut receiver: mpsc::Receiver<RegistryMessage>,
-    mut exits: mpsc::Receiver<PaneId>,
-    exit_sender: mpsc::Sender<PaneId>,
+    mut exits: mpsc::Receiver<RuntimeExit>,
+    exit_sender: mpsc::Sender<RuntimeExit>,
+    event_sender: mpsc::Sender<TerminalRuntimeEvent>,
+    terminal_environment: Option<TerminalEnvironment>,
 ) {
     let mut panes = HashMap::new();
     loop {
@@ -274,7 +309,13 @@ async fn run_registry(
                             let _ = reply.send(Err(TerminalError::AlreadyExists));
                             continue;
                         }
-                        match PaneRuntime::prepare(pane_id, spec, exit_sender.clone()) {
+                        match PaneRuntime::prepare(
+                            pane_id,
+                            spec,
+                            exit_sender.clone(),
+                            event_sender.clone(),
+                            terminal_environment.as_ref(),
+                        ) {
                             Ok((runtime, handle, info)) => {
                                 panes.insert(pane_id, handle);
                                 tokio::spawn(runtime.run());
@@ -308,15 +349,26 @@ async fn run_registry(
                     }
                 }
             }
-            pane_id = exits.recv() => {
-                let Some(pane_id) = pane_id else { break };
-                panes.remove(&pane_id);
+            exited = exits.recv() => {
+                let Some(exited) = exited else { break };
+                panes.remove(&exited.pane_id);
+                let _ = event_sender.send(TerminalRuntimeEvent::Exited {
+                    pane_id: exited.pane_id,
+                    code: exited.code,
+                    signal: exited.signal,
+                }).await;
             }
         }
     }
     for handle in panes.into_values() {
         let _ = handle.close().await;
     }
+}
+
+struct RuntimeExit {
+    pane_id: PaneId,
+    code: Option<i32>,
+    signal: Option<i32>,
 }
 
 #[derive(Clone)]
@@ -501,24 +553,28 @@ struct PaneRuntime {
     receiver: mpsc::Receiver<PaneMessage>,
     sender: mpsc::Sender<PaneMessage>,
     input: mpsc::Sender<Bytes>,
-    exit_sender: mpsc::Sender<PaneId>,
+    exit_sender: mpsc::Sender<RuntimeExit>,
+    event_sender: mpsc::Sender<TerminalRuntimeEvent>,
     attachments: HashMap<ClientId, AttachmentState>,
     writer: Option<(ClientId, u64)>,
     next_writer_generation: u64,
     output_sequence: u64,
     closing: bool,
     close_replies: Vec<oneshot::Sender<Result<(), TerminalError>>>,
+    exit_status: Option<(Option<i32>, Option<i32>)>,
 }
 
 impl PaneRuntime {
     fn prepare(
         id: PaneId,
         spec: SpawnSpec,
-        exit_sender: mpsc::Sender<PaneId>,
+        exit_sender: mpsc::Sender<RuntimeExit>,
+        event_sender: mpsc::Sender<TerminalRuntimeEvent>,
+        terminal_environment: Option<&TerminalEnvironment>,
     ) -> Result<(Self, PaneHandle, PaneInfo), TerminalError> {
         let vt = VtHandle::spawn(Viewport::from(&spec).terminal())
             .map_err(|error| TerminalError::State(error.to_string()))?;
-        let (pty, mut child) = Pty::spawn(&spec)?;
+        let (pty, mut child) = Pty::spawn_with_environment(&spec, Some(id), terminal_environment)?;
         let writer = pty
             .writer()
             .map_err(|error| TerminalError::Pty(error.to_string()))?;
@@ -535,12 +591,14 @@ impl PaneRuntime {
             sender: sender.clone(),
             input,
             exit_sender,
+            event_sender,
             attachments: HashMap::new(),
             writer: None,
             next_writer_generation: 1,
             output_sequence: 0,
             closing: false,
             close_replies: Vec::new(),
+            exit_status: None,
         };
         let info = runtime.info();
         Ok((runtime, PaneHandle { sender }, info))
@@ -574,7 +632,15 @@ impl PaneRuntime {
                 }
             }
         }
-        let _ = self.exit_sender.send(self.id).await;
+        let (code, signal) = self.exit_status.unwrap_or((None, None));
+        let _ = self
+            .exit_sender
+            .send(RuntimeExit {
+                pane_id: self.id,
+                code,
+                signal,
+            })
+            .await;
     }
 
     async fn handle(&mut self, message: PaneMessage) -> bool {
@@ -658,6 +724,7 @@ impl PaneRuntime {
                 let _ = signal_process_group(self.pty.pid(), libc::SIGKILL);
             }
             PaneMessage::ChildExited(status) => {
+                self.exit_status = Some((status.code(), status.signal()));
                 let event = OutputEvent::Exited {
                     code: status.code(),
                     signal: status.signal(),
@@ -727,12 +794,13 @@ impl PaneRuntime {
     }
 
     async fn publish(&mut self, bytes: Bytes) -> Result<(), TerminalError> {
-        let replies = self
+        let write = self
             .vt
             .write(bytes.clone())
             .await
             .map_err(|error| TerminalError::State(error.to_string()))?;
-        self.queue_replies(replies)?;
+        self.queue_replies(write.replies)?;
+        self.publish_effects(write.effects).await?;
         let sequence = self.output_sequence;
         self.output_sequence = self.output_sequence.saturating_add(bytes.len() as u64);
         let event = OutputEvent::Output { sequence, bytes };
@@ -769,6 +837,43 @@ impl PaneRuntime {
             self.remove_attachment(client_id);
         }
         Ok(())
+    }
+
+    async fn publish_effects(&self, effects: Vec<TerminalEffect>) -> Result<(), TerminalError> {
+        let mut title = None;
+        let mut current_directory = None;
+        let mut progress = None;
+        for effect in effects {
+            match effect {
+                TerminalEffect::Title(value) => title = Some(value),
+                TerminalEffect::WorkingDirectory(value) => {
+                    current_directory = Some(value.and_then(|value| working_directory(&value)))
+                }
+                TerminalEffect::Progress(value) => {
+                    progress = Some(value.map(|value| ProgressReport {
+                        state: match value.state {
+                            TerminalProgressState::Set => ProgressState::Set,
+                            TerminalProgressState::Error => ProgressState::Error,
+                            TerminalProgressState::Indeterminate => ProgressState::Indeterminate,
+                            TerminalProgressState::Paused => ProgressState::Paused,
+                        },
+                        percent: value.percent,
+                    }))
+                }
+            }
+        }
+        if title.is_none() && current_directory.is_none() && progress.is_none() {
+            return Ok(());
+        }
+        self.event_sender
+            .send(TerminalRuntimeEvent::FactsChanged {
+                pane_id: self.id,
+                title,
+                current_directory,
+                progress,
+            })
+            .await
+            .map_err(|_| TerminalError::Stopped)
     }
 
     fn queue_replies(&self, replies: Vec<Bytes>) -> Result<(), TerminalError> {
@@ -944,6 +1049,44 @@ impl PaneRuntime {
             attachment_count: self.attachments.len(),
             writer: self.writer.map(|(client_id, _)| client_id),
         }
+    }
+}
+
+fn working_directory(value: &str) -> Option<std::path::PathBuf> {
+    let encoded = if let Some(value) = value.strip_prefix("file://") {
+        if value.starts_with('/') {
+            value
+        } else {
+            value.find('/').map(|index| &value[index..])?
+        }
+    } else {
+        value
+    };
+    let bytes = encoded.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%'
+            && index + 2 < bytes.len()
+            && let (Some(high), Some(low)) = (hex(bytes[index + 1]), hex(bytes[index + 2]))
+        {
+            decoded.push(high * 16 + low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    let path = std::path::PathBuf::from(String::from_utf8(decoded).ok()?);
+    path.is_absolute().then_some(path)
+}
+
+fn hex(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 

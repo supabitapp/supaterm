@@ -31,6 +31,7 @@ fn actor() -> HostActor {
         build: build(),
         capabilities: vec!["semantic_state".into()],
         command_cache_capacity: 16,
+        terminal_environment: None,
     })
 }
 

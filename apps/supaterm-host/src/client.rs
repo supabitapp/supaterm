@@ -7,11 +7,12 @@ use crate::protocol::io::{FrameReader, FrameWriter};
 use crate::protocol::terminal::{PaneId, TerminalControl, decode_output, decode_snapshot_chunk};
 use crate::terminal::actor::{PaneInfo, Viewport};
 use crate::terminal::pty::SpawnSpec;
+use crate::workspace::model::{Placement, RootPlacement, TabId};
 use crate::workspace::reducer::Command;
-use crate::workspace::replay::{ApplyResult, Subscription};
+use crate::workspace::replay::{ApplyResult, ModelSnapshot, Subscription};
 use bytes::Bytes;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -152,7 +153,56 @@ impl HostClient {
     }
 
     pub async fn create_terminal(&self, spec: SpawnSpec) -> Result<PaneInfo, ClientError> {
-        decode_result(self.request("terminal.create", value(spec)?).await?)
+        let snapshot: ModelSnapshot =
+            decode_result(self.request("state.snapshot", Value::Null).await?)?;
+        let window_id = snapshot
+            .workspace
+            .windows
+            .keys()
+            .next()
+            .copied()
+            .ok_or_else(|| ClientError::MalformedResponse("workspace has no window".into()))?;
+        let space_id = snapshot.workspace.spaces[0].id;
+        let content = snapshot
+            .workspace
+            .content(window_id, space_id)
+            .ok_or_else(|| {
+                ClientError::MalformedResponse("workspace has no Space content".into())
+            })?;
+        let pane_id = PaneId(Uuid::new_v4());
+        let tab_id = TabId(Uuid::new_v4());
+        self.apply_workspace_with_spawns(
+            Command::CreateTab {
+                window_id,
+                space_id,
+                tab_id,
+                pane_id,
+                placement: Placement::Root(RootPlacement {
+                    pinned: false,
+                    index: content.regular_roots.len(),
+                }),
+                title: None,
+                restart_directory: spec.cwd.clone(),
+            },
+            Some(snapshot.structure_revision),
+            BTreeMap::from([(pane_id, spec)]),
+        )
+        .await?;
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if let Some(info) = self
+                    .list_terminals()
+                    .await?
+                    .into_iter()
+                    .find(|info| info.id == pane_id)
+                {
+                    return Ok(info);
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .map_err(|_| ClientError::MalformedResponse("terminal did not start".into()))?
     }
 
     pub async fn list_terminals(&self) -> Result<Vec<PaneInfo>, ClientError> {
@@ -232,8 +282,21 @@ impl HostClient {
     }
 
     pub async fn close_terminal(&self, pane_id: PaneId) -> Result<(), ClientError> {
-        self.request("terminal.close", json!({"pane_id": pane_id}))
+        let confirmation = self
+            .request(
+                "workspace.prepare_close",
+                json!({"command": Command::ClosePane { pane_id }}),
+            )
             .await?;
+        let token = confirmation
+            .get("tokens")
+            .and_then(|tokens| tokens.get(pane_id.to_string()))
+            .cloned();
+        self.request(
+            "terminal.close",
+            json!({"pane_id": pane_id, "confirmation_token": token}),
+        )
+        .await?;
         Ok(())
     }
 
@@ -242,12 +305,23 @@ impl HostClient {
         command: Command,
         expected_structure_revision: Option<u64>,
     ) -> Result<ApplyResult, ClientError> {
+        self.apply_workspace_with_spawns(command, expected_structure_revision, BTreeMap::new())
+            .await
+    }
+
+    pub async fn apply_workspace_with_spawns(
+        &self,
+        command: Command,
+        expected_structure_revision: Option<u64>,
+        spawn_specs: BTreeMap<PaneId, SpawnSpec>,
+    ) -> Result<ApplyResult, ClientError> {
         decode_result(
             self.request(
                 "workspace.apply",
                 json!({
                     "command": command,
-                    "expected_structure_revision": expected_structure_revision
+                    "expected_structure_revision": expected_structure_revision,
+                    "spawn_specs": spawn_specs
                 }),
             )
             .await?,
@@ -383,10 +457,6 @@ async fn read_control(
     }
     decode_host_control(&frame.payload)
         .map_err(|error| ClientError::InvalidControl(error.to_string()))
-}
-
-fn value<T: serde::Serialize>(value: T) -> Result<Value, ClientError> {
-    serde_json::to_value(value).map_err(|error| ClientError::MalformedResponse(error.to_string()))
 }
 
 fn decode_result<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, ClientError> {
