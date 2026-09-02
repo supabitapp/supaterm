@@ -12,6 +12,7 @@ fnox = "latest"
 
 [env]
 HK_MISE = "1"
+TUIST_XCODE_CACHE = "{{ exec(command='test -S ~/.local/state/tuist/supabitapp_supaterm.sock && /usr/sbin/lsof ~/.local/state/tuist/supabitapp_supaterm.sock >/dev/null 2>&1 && printf 1 || printf 0') }}"
 
 [hooks]
 postinstall = '''

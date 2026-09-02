@@ -20,7 +20,7 @@ WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release worktree-create workspace-generate workspace-open workspace-format workspace-check mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache ios-tuist-install ios-generate ios-generate-sources ios-build ios-format ios-lint ios-check ios-inspect-dependencies ios-warm-cache ios-xcode-open web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
+.PHONY: help install-git-hooks tuist-login tuist-cache-setup bump-and-release worktree-create workspace-generate workspace-open workspace-format workspace-check mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache ios-tuist-install ios-generate ios-generate-sources ios-build ios-format ios-lint ios-check ios-inspect-dependencies ios-warm-cache ios-xcode-open web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -29,6 +29,13 @@ help:  # Display this help.
 
 install-git-hooks:  # Install repo-local Git hooks.
 	@mise exec -- hk install --mise
+
+tuist-login:  # Log in to Tuist and start the shared Xcode cache service.
+	@mise exec -- tuist auth login
+	@$(MAKE) tuist-cache-setup
+
+tuist-cache-setup:
+	@$(MAKE) -f "$(WORKSPACE_DIR)/Tuist.mk" tuist-cache-setup
 
 bump-and-release:  # Compute the next CalVer version, then push an annotated release tag for the stable build.
 	@python3 .github/scripts/bump_and_release.py
@@ -55,7 +62,7 @@ worktree-create: install-git-hooks  # Create a worktree and copy ignored and unt
 	test -n "$$wt_bin" || { echo "error: failed to install wt" >&2; exit 1; }; \
 	"$$wt_bin" switch "$(WORKTREE)" --from "$$(git rev-parse HEAD)" --copy-ignored --copy-untracked
 
-workspace-generate:
+workspace-generate: tuist-cache-setup
 	@$(MAKE) -f "$(WORKSPACE_DIR)/Tuist.mk" tuist-install
 	@mise exec -- tuist generate --path "$(WORKSPACE_DIR)" --no-open --cache-profile "$(TUIST_CACHE_PROFILE)" --configuration Debug
 

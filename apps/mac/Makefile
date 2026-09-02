@@ -57,13 +57,13 @@ tuist-generate-release: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP)
 
 tuist-generate-release-cached: $(TUIST_CACHED_RELEASE_GENERATION_STAMP)
 
-$(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
+$(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP) | tuist-cache-setup
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist generate --no-open --cache-profile none --configuration Release
 	touch "$@"
 
-$(TUIST_CACHED_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
+$(TUIST_CACHED_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP) | tuist-cache-setup
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist generate --no-open --cache-profile "$(TUIST_BINARY_CACHE_PROFILE)" --configuration Release
@@ -156,9 +156,9 @@ archive-xcodebuild:
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: tuist-generate build-ghostty build-zmx build-ap test-xcodebuild # Run the full macOS test suite
+test: test-xcodebuild # Run the full macOS test suite
 
-test-xcodebuild:
+test-xcodebuild: tuist-generate build-ghostty build-zmx build-ap
 	@bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "$(MACOS_DESTINATION)" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 test-snapshots: tuist-generate build-ghostty # Run snapshot tests.

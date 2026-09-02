@@ -96,6 +96,7 @@ jobs:
           github-token: ${{ github.token }}
       - run: make mac-test
         env:
+          TUIST_BINARY_CACHE_PROFILE: all-possible
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 
   mac_test_e2e:
@@ -115,6 +116,7 @@ jobs:
           make mac-test-e2e
           E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
         env:
+          TUIST_BINARY_CACHE_PROFILE: all-possible
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -154,6 +156,7 @@ jobs:
           -only-testing:supatermE2E/PiE2ETests
           -only-testing:supatermE2E/PiZmxE2ETests"
         env:
+          TUIST_BINARY_CACHE_PROFILE: all-possible
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
