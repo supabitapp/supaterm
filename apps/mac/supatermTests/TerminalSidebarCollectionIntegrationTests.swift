@@ -319,12 +319,14 @@ struct TerminalSidebarCollectionHarnessTests {
       insertedView.layer?.animation(forKey: "opacity") as? CABasicAnimation
     )
     let backingScale = harness.window.backingScaleFactor
+    func alignToBackingPixel(_ value: CGFloat) -> CGFloat {
+      (value * backingScale).rounded() / backingScale
+    }
     let expectedInsertedStartPosition = CGPoint(
-      x: (targetInsertedFrame.minX * backingScale).rounded() / backingScale,
-      y: (
-        (targetInsertedFrame.minY + TerminalSidebarLayoutMotion.insertedItemOffset)
-          * backingScale
-      ).rounded() / backingScale
+      x: alignToBackingPixel(targetInsertedFrame.minX),
+      y: alignToBackingPixel(
+        targetInsertedFrame.minY + TerminalSidebarLayoutMotion.insertedItemOffset
+      )
     )
     #expect(harness.layout.outline == target)
     #expect(harness.dataSource.snapshot().itemIdentifiers == target.visibleEntries.map(\.id))
