@@ -1,6 +1,8 @@
 # Supaterm documentation
 
 This app uses Blume 1.0.3, Vite+, pnpm, and Cloudflare Workers static assets.
+The root `make docs-*` targets validate the exact Vite+ version from this project's manifest and
+lockfile, using mise to bootstrap that toolchain while preserving the version required by Blume.
 
 ## Workflow
 

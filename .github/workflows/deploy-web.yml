@@ -7,6 +7,8 @@ on:
     paths:
       - "apps/supaterm.com/**"
       - ".github/workflows/deploy-web.yml"
+      - ".github/scripts/vite_plus.py"
+      - ".github/scripts/vite_plus_test.py"
       - "Makefile"
       - "mise.toml"
   pull_request:
@@ -15,6 +17,8 @@ on:
     paths:
       - "apps/supaterm.com/**"
       - ".github/workflows/deploy-web.yml"
+      - ".github/scripts/vite_plus.py"
+      - ".github/scripts/vite_plus_test.py"
       - "Makefile"
       - "mise.toml"
   workflow_dispatch: {}
@@ -42,14 +46,7 @@ jobs:
           version: 2026.3.0
           cache: true
           install_args: pnpm
-      - name: Resolve Vite+ version
-        id: vite_plus
-        shell: bash
-        run: |
-          VERSION=$(node -e 'const fs = require("fs"); const lock = fs.readFileSync("apps/supaterm.com/pnpm-lock.yaml", "utf8"); const match = lock.match(/\n  vite-plus@([0-9][^:]+):/); if (!match) throw new Error("Unable to resolve vite-plus version from apps/supaterm.com/pnpm-lock.yaml"); process.stdout.write(match[1]);')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-      - name: Install Vite+
-        run: npm install --global "vite-plus@${{ steps.vite_plus.outputs.version }}"
+      - run: make tooling-test
       - run: make web-install
       - run: make web-check
       - run: make web-test

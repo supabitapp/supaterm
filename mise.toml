@@ -8,7 +8,7 @@ xcbeautify = "3.2.1"
 pnpm = "10.32.1"
 "pipx:dmgbuild" = { version = "1.6.7", os = ["macos"] }
 periphery = { version = "3.8.0", os = ["macos"] }
-fnox = "latest"
+fnox = "1.34.1"
 
 [env]
 HK_MISE = "1"
@@ -17,6 +17,5 @@ TUIST_XCODE_CACHE = "{{ exec(command='test -S ~/.local/state/tuist/supabitapp_su
 [hooks]
 postinstall = '''
 set -e
-command -v vp >/dev/null 2>&1 || curl -fsSL https://vite.plus | bash
 make install-git-hooks
 '''

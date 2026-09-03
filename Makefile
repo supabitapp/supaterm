@@ -16,11 +16,12 @@ WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
 DOCS_APP_DIR := apps/docs.supaterm.com
 DOCS_INSTALL_PREREQS := $(DOCS_APP_DIR)/package.json $(DOCS_APP_DIR)/pnpm-lock.yaml $(DOCS_APP_DIR)/.npmrc
 DOCS_NODE_MODULES_STAMP := $(DOCS_APP_DIR)/node_modules/.modules.yaml
+VITE_PLUS_RUNNER := .github/scripts/vite_plus.py
 WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks tuist-login tuist-cache-setup bump-and-release worktree-create workspace-generate workspace-open workspace-format workspace-check mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache ios-tuist-install ios-generate ios-generate-sources ios-build ios-format ios-lint ios-check ios-inspect-dependencies ios-warm-cache ios-xcode-open web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
+.PHONY: help install-git-hooks tooling-test tuist-login tuist-cache-setup bump-and-release worktree-create workspace-generate workspace-open workspace-format workspace-check mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build-ap mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache ios-tuist-install ios-generate ios-generate-sources ios-build ios-format ios-lint ios-check ios-inspect-dependencies ios-warm-cache ios-xcode-open web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -29,6 +30,9 @@ help:  # Display this help.
 
 install-git-hooks:  # Install repo-local Git hooks.
 	@mise exec -- hk install --mise
+
+tooling-test:  # Test deterministic developer-tool version resolution.
+	@python3 .github/scripts/vite_plus_test.py
 
 tuist-login:  # Log in to Tuist and start the shared Xcode cache service.
 	@mise exec -- tuist auth login
@@ -203,49 +207,49 @@ ios-xcode-open:
 	@$(MAKE) -C "$(IOS_APP_DIR)" xcode-open
 
 web-help:  # Show available Vite+ commands for the web app.
-	@cd "$(WEB_APP_DIR)" && vp help
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" help
 
 $(WEB_NODE_MODULES_STAMP): $(WEB_INSTALL_PREREQS)
-	@cd "$(WEB_APP_DIR)" && vp install
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" install
 
 web-install: $(WEB_NODE_MODULES_STAMP)  # Install web app dependencies.
 	@:
 
 web-dev: $(WEB_NODE_MODULES_STAMP)  # Run the web development server.
-	@cd "$(WEB_APP_DIR)" && vp dev
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" dev
 
 web-worker-dev: $(WEB_NODE_MODULES_STAMP)  # Run the Cloudflare Worker with built assets.
-	@cd "$(WEB_APP_DIR)" && vp exec wrangler dev
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" exec wrangler dev
 
 web-check: $(WEB_NODE_MODULES_STAMP)  # Run formatting, linting, and type checks for the web app.
-	@cd "$(WEB_APP_DIR)" && vp check
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" check
 
 web-lint: $(WEB_NODE_MODULES_STAMP)  # Lint the web app.
-	@cd "$(WEB_APP_DIR)" && vp lint
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" lint
 
 web-fmt: $(WEB_NODE_MODULES_STAMP)  # Format web app files.
-	@cd "$(WEB_APP_DIR)" && vp fmt
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" fmt
 
 web-test: $(WEB_NODE_MODULES_STAMP)  # Run the web app test suite.
-	@cd "$(WEB_APP_DIR)" && pnpm exec vp test
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" test
 
 web-build: $(WEB_NODE_MODULES_STAMP)  # Build the web app for production.
-	@cd "$(WEB_APP_DIR)" && vp build
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" build
 
 web-preview: $(WEB_NODE_MODULES_STAMP)  # Preview the built web app.
-	@cd "$(WEB_APP_DIR)" && vp preview
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" preview
 
 web-deploy: web-build  # Build and deploy the web app to Cloudflare Workers.
-	@cd "$(WEB_APP_DIR)" && vp exec wrangler deploy
+	@python3 "$(VITE_PLUS_RUNNER)" "$(WEB_APP_DIR)" exec wrangler deploy
 
 $(DOCS_NODE_MODULES_STAMP): $(DOCS_INSTALL_PREREQS)
-	@cd "$(DOCS_APP_DIR)" && vp install
+	@python3 "$(VITE_PLUS_RUNNER)" "$(DOCS_APP_DIR)" install
 
 docs-install: $(DOCS_NODE_MODULES_STAMP)  # Install documentation site dependencies.
 	@:
 
 define run-docs
-@cd "$(DOCS_APP_DIR)" && vp run $(1)
+@python3 "$(VITE_PLUS_RUNNER)" "$(DOCS_APP_DIR)" run $(1)
 endef
 
 docs-dev: $(DOCS_NODE_MODULES_STAMP)  # Run the documentation development server.

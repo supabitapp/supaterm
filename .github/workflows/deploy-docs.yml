@@ -13,6 +13,8 @@ on:
       - "apps/supaterm.com/public/logo.svg"
       - "integrations/supaterm/skill-data/**"
       - ".github/workflows/deploy-docs.yml"
+      - ".github/scripts/vite_plus.py"
+      - ".github/scripts/vite_plus_test.py"
       - "Makefile"
       - "mise.toml"
   pull_request:
@@ -27,6 +29,8 @@ on:
       - "apps/supaterm.com/public/logo.svg"
       - "integrations/supaterm/skill-data/**"
       - ".github/workflows/deploy-docs.yml"
+      - ".github/scripts/vite_plus.py"
+      - ".github/scripts/vite_plus_test.py"
       - "Makefile"
       - "mise.toml"
   workflow_dispatch: {}
@@ -55,19 +59,12 @@ jobs:
           install: false
       - name: Install pnpm with mise
         run: mise install pnpm
-      - name: Resolve Vite+ version
-        id: vite_plus
-        shell: bash
-        run: |
-          VERSION=$(node -e 'const fs = require("fs"); const lock = fs.readFileSync("apps/docs.supaterm.com/pnpm-lock.yaml", "utf8"); const match = lock.match(/\n  vite-plus@([0-9][^:]+):/); if (!match) throw new Error("Unable to resolve vite-plus version from apps/docs.supaterm.com/pnpm-lock.yaml"); process.stdout.write(match[1]);')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-      - name: Install Vite+
-        run: npm install --global "vite-plus@${{ steps.vite_plus.outputs.version }}"
+      - run: make tooling-test
       - run: make docs-install
       - run: make docs-check
       - run: make docs-validate
       - name: Audit production dependencies
-        run: cd apps/docs.supaterm.com && vp pm audit --production --level high
+        run: python3 .github/scripts/vite_plus.py apps/docs.supaterm.com pm audit --production --level high
       - run: make docs-build
       - name: Deploy Worker
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'

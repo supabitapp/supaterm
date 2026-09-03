@@ -6,7 +6,12 @@ This project is using Vite+, a unified toolchain built on top of Vite, Rolldown,
 
 ## Vite+ Workflow
 
-`vp` is a global binary that handles the full development lifecycle. Run `vp help` to print a list of commands and `vp <command> --help` for information about a specific command.
+`vp` is the Vite+ CLI that handles the full development lifecycle. Run `make web-help` from the
+repository root to print its commands.
+
+Use the root `make web-*` targets for project commands. They validate the exact Vite+ version from
+this project's manifest and lockfile, using the project install when available and mise for
+bootstrapping, so they do not depend on an ambient `vp`.
 
 ### Start
 
@@ -71,6 +76,6 @@ These commands map to their corresponding tools. For example, `vp dev --port 300
 
 ## Review Checklist for Agents
 
-- [ ] Run `vp install` after pulling remote changes and before getting started.
-- [ ] Run `vp check` and `vp test` to validate changes.
+- [ ] Run `make web-install` from the repository root after pulling remote changes and before getting started.
+- [ ] Run `make web-check` and `make web-test` from the repository root to validate changes.
 <!--VITE PLUS END-->

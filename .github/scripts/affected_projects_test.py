@@ -62,6 +62,8 @@ class AffectedProjectsTests(unittest.TestCase):
       "apps/ios/SupatermApp.swift": {"ios"},
       "apps/shared/Theme.swift": {"ios", "mac"},
       "Makefile": {"docs", "ios", "mac", "web"},
+      ".github/scripts/vite_plus.py": {"docs", "web"},
+      ".github/scripts/vite_plus_test.py": {"docs", "web"},
       "integrations/supaterm/skill-data/core/SKILL.md": {"docs", "mac"},
       "integrations/supaterm/skills/supaterm/SKILL.md": {"mac"},
       "integrations/supaterm/README.md": set(),

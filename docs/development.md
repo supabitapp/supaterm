@@ -17,6 +17,16 @@ mise trust mise.toml
 mise install
 ```
 
+Vite+ is selected per site rather than installed globally during bootstrap. The root `make web-*`
+and `make docs-*` targets validate the exact version in the site's `package.json` against its
+lockfile. They use the site installation when available and let mise install and cache the exact
+CLI needed to bootstrap dependencies. Start with:
+
+```bash
+make web-install
+make docs-install
+```
+
 Authenticate Tuist before using cache-backed generation or cache warming:
 
 ```bash

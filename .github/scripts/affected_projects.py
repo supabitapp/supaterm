@@ -38,6 +38,14 @@ class PathSet:
 
 
 GLOBAL_PATHS = PathSet(files=frozenset({"Makefile", "mise.toml"}))
+VITE_PLUS_PATHS = PathSet(
+  files=frozenset(
+    {
+      ".github/scripts/vite_plus.py",
+      ".github/scripts/vite_plus_test.py",
+    }
+  )
+)
 BUNDLED_SKILL_PATHS = PathSet(
   directories=(SKILL_DATA_DIRECTORY, SKILL_STUB_DIRECTORY)
 )
@@ -92,10 +100,10 @@ WEB_PATHS = PathSet(
   directories=("apps/supaterm.com",),
 )
 PROJECT_PATHS = {
-  "docs": (GLOBAL_PATHS, DOCS_PATHS),
+  "docs": (GLOBAL_PATHS, VITE_PLUS_PATHS, DOCS_PATHS),
   "ios": (GLOBAL_PATHS, SHARED_APPLE_PATHS, IOS_PATHS),
   "mac": (GLOBAL_PATHS, SHARED_APPLE_PATHS, MAC_PATHS, BUNDLED_SKILL_PATHS),
-  "web": (GLOBAL_PATHS, WEB_PATHS),
+  "web": (GLOBAL_PATHS, VITE_PLUS_PATHS, WEB_PATHS),
 }
 PROJECTS = tuple(PROJECT_PATHS)
 

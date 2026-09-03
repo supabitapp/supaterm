@@ -25,6 +25,7 @@ hooks {
       ["detect-private-key"] = Builtins.detect_private_key
       ["vp-check"] = (Builtins.vp_check) {
         dir = "apps/supaterm.com"
+        check = "make -C ../.. web-check"
         depends = "check-added-large-files"
       }
       ["swiftlint"] = (Builtins.swiftlint) {
