@@ -9,6 +9,7 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
   var entryID: TerminalSidebarEntryID? { containerView.entryID }
 
   override func loadView() {
+    containerView.wantsLayer = true
     view = containerView
   }
 
