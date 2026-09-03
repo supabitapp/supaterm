@@ -52,6 +52,30 @@ final class SettingsUITests: SupatermUITestCase {
   }
 
   @MainActor
+  func testChangingSessionPersistenceShowsRestartDialog() async throws {
+    let settingsWindow = try openSettings()
+    try await select(.general, in: settingsWindow)
+
+    let toggle = element(
+      SupatermUITestIdentifier.Settings.persistSessionsUsingZmx,
+      in: settingsWindow
+    )
+    try require(toggle)
+    toggle.click()
+
+    let title = app.staticTexts["Restart Required"]
+    try require(title)
+    attachAppScreenshot(named: "dialog-settings-restart-required")
+
+    let confirmButton = app.buttons[
+      SupatermUITestIdentifier.Accessibility.dialogConfirm
+    ]
+    try require(confirmButton).click()
+    let didDismiss = await wait(for: title) { !$0.exists }
+    XCTAssertTrue(didDismiss)
+  }
+
+  @MainActor
   func testAppearanceModeSwitchesBetweenEveryOptionAndPersists() async throws {
     let settingsWindow = try openSettings()
     try await select(.general, in: settingsWindow)

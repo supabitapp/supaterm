@@ -5,6 +5,8 @@ import Sharing
 import Sparkle
 import SupatermLicenseFeature
 import SupatermSupport
+import SupatermUI
+import SwiftUI
 
 typealias UpdateOwnershipEndedPresenter =
   @MainActor (
@@ -40,7 +42,7 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
       ?? hostBundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
       ?? "0"
     self.openURL = openURL
-    self.presentOwnershipEnded = presentOwnershipEnded ?? Self.presentOwnershipEndedAlert
+    self.presentOwnershipEnded = presentOwnershipEnded ?? Self.presentOwnershipEndedDialog
     standard = SPUStandardUserDriver(hostBundle: hostBundle, delegate: nil)
     super.init()
   }
@@ -477,7 +479,7 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     }
   }
 
-  private static func standardPresentations(
+  static func standardPresentations(
     _ presentations: [UpdateActionPresentation]
   ) -> [UpdateActionPresentation] {
     let prominent = presentations.filter(\.isProminent)
@@ -486,19 +488,26 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     return prominent + others + dismiss
   }
 
-  private static func presentOwnershipEndedAlert(
+  private static func presentOwnershipEndedDialog(
     _ phase: UpdatePhase,
     presentations: [UpdateActionPresentation]
   ) -> UpdateUserAction? {
-    let alert = NSAlert()
-    alert.messageText = phase.summaryText
-    alert.informativeText = phase.detailMessage
-    for presentation in presentations {
-      alert.addButton(withTitle: presentation.title)
+    var selectedAction: UpdateUserAction?
+    let presenter = DialogSurfacePresenter()
+    _ = presenter.runModal(over: NSApp.keyWindow) {
+      UpdateOwnershipEndedDialog(
+        phase: phase,
+        presentations: presentations,
+        onSelect: { action in
+          selectedAction = action
+          presenter.finish(with: .OK)
+        },
+        onDismiss: {
+          presenter.finish(with: .cancel)
+        }
+      )
     }
-    let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
-    guard presentations.indices.contains(index) else { return nil }
-    return presentations[index].action
+    return selectedAction
   }
 
   private func fallbackAction(_ action: @escaping () -> Void) -> (() -> Void)? {

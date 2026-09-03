@@ -576,7 +576,7 @@ private struct CommandPaletteSnapshotFixture: View {
   }
 }
 
-private struct DialogSnapshotFixture<Content: View>: View {
+struct DialogSnapshotFixture<Content: View>: View {
   let appearance: SnapshotAppearance
   let content: (Palette) -> Content
 

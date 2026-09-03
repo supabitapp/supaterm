@@ -1,4 +1,6 @@
 import AppKit
+import SupatermUI
+import SwiftUI
 
 @MainActor
 enum GhosttyUntrustedURLAlert {
@@ -9,18 +11,22 @@ enum GhosttyUntrustedURLAlert {
         workspace.urlForApplication(toOpen: url)
         .map { "“\($0.deletingPathExtension().lastPathComponent)”" }
         ?? "the default application"
-      let alert = NSAlert()
-      alert.alertStyle = .warning
-      alert.icon = NSImage(named: NSImage.cautionName)
-      alert.messageText = "Open Link from Terminal Output?"
-      alert.informativeText =
-        "This link will open in \(handler). Only continue if you recognize and trust the destination."
-      alert.accessoryView = targetView(displayString)
-      alert.addButton(withTitle: "Cancel")
-      alert.addButton(withTitle: "Open Link")
-      present(alert) { response in
-        guard response == .alertSecondButtonReturn else { return }
-        workspace.open(url)
+      let presenter = DialogSurfacePresenter()
+      let didPresent = presenter.present(over: NSApp.keyWindow) {
+        GhosttyUntrustedURLConfirmationDialog(
+          handler: handler,
+          target: displayString,
+          onOpen: {
+            presenter.dismiss()
+            workspace.open(url)
+          },
+          onCancel: {
+            presenter.dismiss()
+          }
+        )
+      }
+      if !didPresent {
+        NSSound.beep()
       }
     }
   }
@@ -30,19 +36,24 @@ enum GhosttyUntrustedURLAlert {
     displayString: String
   ) {
     deferPresentation {
-      let alert = NSAlert()
-      alert.alertStyle = .warning
-      alert.icon = NSImage(named: NSImage.cautionName)
-      alert.messageText = "Supaterm Blocked This Link"
-      alert.informativeText = reason.message
-      alert.accessoryView = targetView(displayString)
-      alert.addButton(withTitle: "OK")
-      alert.addButton(withTitle: "Copy Link")
-      present(alert) { response in
-        guard response == .alertSecondButtonReturn else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(displayString, forType: .string)
+      let presenter = DialogSurfacePresenter()
+      let didPresent = presenter.present(over: NSApp.keyWindow) {
+        GhosttyBlockedURLDialog(
+          message: reason.message,
+          target: displayString,
+          onCopy: {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(displayString, forType: .string)
+            presenter.dismiss()
+          },
+          onDismiss: {
+            presenter.dismiss()
+          }
+        )
+      }
+      if !didPresent {
+        NSSound.beep()
       }
     }
   }
@@ -55,39 +66,91 @@ enum GhosttyUntrustedURLAlert {
     }
   }
 
-  private static func present(
-    _ alert: NSAlert,
-    completion: @escaping (NSApplication.ModalResponse) -> Void
-  ) {
-    if let window = NSApp.keyWindow {
-      alert.beginSheetModal(for: window, completionHandler: completion)
-    } else {
-      completion(alert.runModal())
+}
+
+struct GhosttyUntrustedURLConfirmationDialog: View {
+  let handler: String
+  let target: String
+  let onOpen: () -> Void
+  let onCancel: () -> Void
+
+  var body: some View {
+    DialogSurface(
+      title: "Open Link from Terminal Output?",
+      message:
+        "This link will open in \(handler). Only continue if you recognize and trust the destination.",
+      icon: .system("link", tone: .warning),
+      layout: DialogSurfaceLayout(width: 500),
+      actions: [
+        DialogSurfaceAction(
+          id: "cancel",
+          title: "Cancel",
+          role: .secondary,
+          shortcut: .cancel,
+          accessibilityIdentifier: "dialog.cancel",
+          action: onCancel
+        ),
+        DialogSurfaceAction(
+          id: "open",
+          title: "Open Link",
+          role: .primary,
+          shortcut: .default,
+          accessibilityIdentifier: "dialog.confirm",
+          action: onOpen
+        ),
+      ],
+      scrimLabel: "Cancel opening link",
+      onDismiss: onCancel
+    ) {
+      GhosttyLinkTargetPreview(target: target)
     }
   }
+}
 
-  private static func targetView(_ target: String) -> NSView {
-    let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 480, height: 96))
-    scrollView.borderType = .bezelBorder
-    scrollView.hasVerticalScroller = true
-    scrollView.autohidesScrollers = true
+struct GhosttyBlockedURLDialog: View {
+  let message: String
+  let target: String
+  let onCopy: () -> Void
+  let onDismiss: () -> Void
 
-    let textView = NSTextView(frame: scrollView.contentView.bounds)
-    textView.isEditable = false
-    textView.isSelectable = true
-    textView.isRichText = false
-    textView.font = .monospacedSystemFont(
-      ofSize: NSFont.systemFontSize,
-      weight: .regular
+  var body: some View {
+    DialogSurface(
+      title: "Supaterm Blocked This Link",
+      message: message,
+      icon: .system("hand.raised.fill", tone: .warning),
+      layout: DialogSurfaceLayout(width: 500),
+      actions: [
+        DialogSurfaceAction(
+          id: "copy",
+          title: "Copy Link",
+          role: .secondary,
+          action: onCopy
+        ),
+        DialogSurfaceAction(
+          id: "dismiss",
+          title: "OK",
+          role: .primary,
+          shortcut: .default,
+          accessibilityIdentifier: "dialog.confirm",
+          action: onDismiss
+        ),
+      ],
+      onDismiss: onDismiss
+    ) {
+      GhosttyLinkTargetPreview(target: target)
+    }
+  }
+}
+
+private struct GhosttyLinkTargetPreview: View {
+  let target: String
+
+  var body: some View {
+    DialogTextPreview(
+      target,
+      minimumHeight: 72,
+      maximumHeight: 96,
+      accessibilityIdentifier: "dialog.link-target"
     )
-    textView.textContainerInset = NSSize(width: 6, height: 6)
-    textView.string = target
-    textView.textContainer?.widthTracksTextView = true
-    textView.textContainer?.containerSize = NSSize(
-      width: scrollView.contentSize.width,
-      height: .greatestFiniteMagnitude
-    )
-    scrollView.documentView = textView
-    return scrollView
   }
 }

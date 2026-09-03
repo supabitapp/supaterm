@@ -146,6 +146,9 @@ public struct DialogSurface<Content: View>: View {
     }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("dialog.surface")
+    .onExitCommand {
+      onDismiss?()
+    }
   }
 
   private func dialogContent(colors: SurfaceColors) -> some View {

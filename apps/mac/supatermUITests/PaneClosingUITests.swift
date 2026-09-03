@@ -19,7 +19,7 @@ final class PaneClosingUITests: SupatermUITestCase {
 
     let survivors = try await requireVisiblePanes(count: 1)
     XCTAssertEqual(survivors[0].identifier, leftPaneIdentifier)
-    XCTAssertEqual(mainWindow.sheets.count, 0)
+    XCTAssertFalse(element(SupatermUITestIdentifier.Accessibility.dialogSurface).exists)
     XCTAssertEqual(app.windows.count, 1)
     XCTAssertTrue(mainWindow.exists)
   }
@@ -45,11 +45,12 @@ final class PaneClosingUITests: SupatermUITestCase {
 
     try clickMenuItem(.closeSurface)
 
-    let cancelButton = mainWindow.sheets.firstMatch.buttons["Cancel"]
+    let cancelButton = app.buttons[SupatermUITestIdentifier.Accessibility.dialogCancel]
     guard cancelButton.waitForExistence(timeout: 10) else {
       XCTFail("Close confirmation did not appear")
       return
     }
+    attachAppScreenshot(named: "dialog-close-busy-pane")
     cancelButton.click()
     _ = try await requireVisiblePanes(count: 2)
 
@@ -57,7 +58,7 @@ final class PaneClosingUITests: SupatermUITestCase {
     try await requireFocus(on: rightPane)
     try clickMenuItem(.closeSurface)
 
-    let confirmButton = mainWindow.sheets.firstMatch.buttons["Close"]
+    let confirmButton = app.buttons[SupatermUITestIdentifier.Accessibility.dialogConfirm]
     guard confirmButton.waitForExistence(timeout: 10) else {
       XCTFail("Close confirmation did not reappear")
       return

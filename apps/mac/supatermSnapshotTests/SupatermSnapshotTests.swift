@@ -6,12 +6,14 @@ import Testing
 @testable import supatermSnapshotCatalog
 
 @MainActor
-@Suite
+@Suite(.serialized)
 struct SupatermSnapshotTests {
   @Test func catalogScenarios() {
     assertCatalogSnapshots(
       SnapshotCatalog.scenarios.filter {
-        $0.group != SnapshotCatalog.keyboardShortcutPillGroup && $0.group != "Sidebar Rows"
+        $0.group != SnapshotCatalog.keyboardShortcutPillGroup
+          && $0.group != SnapshotCatalog.migratedNativeAlertGroup
+          && $0.group != "Sidebar Rows"
       },
       testName: #function
     )
@@ -27,6 +29,18 @@ struct SupatermSnapshotTests {
   @Test func keyboardShortcutPills() {
     assertCatalogSnapshots(
       SnapshotCatalog.keyboardShortcutPillScenarios,
+      testName: #function
+    )
+  }
+
+  @Test func migratedNativeAlerts() {
+    #expect(SnapshotCatalog.migratedNativeAlertScenarios.count == 25)
+    #expect(
+      Set(SnapshotCatalog.migratedNativeAlertScenarios.map(\.id)).count
+        == SnapshotCatalog.migratedNativeAlertScenarios.count
+    )
+    assertCatalogSnapshots(
+      SnapshotCatalog.migratedNativeAlertScenarios,
       testName: #function
     )
   }
@@ -68,6 +82,14 @@ struct SupatermSnapshotTests {
     scenario: SnapshotScenario,
     appearance: SnapshotAppearance
   ) -> NSImage {
+    let applicationIcon = NSApp.applicationIconImage
+    if scenario.group == SnapshotCatalog.migratedNativeAlertGroup {
+      NSApp.applicationIconImage = SnapshotCatalog.migratedNativeAlertApplicationIcon
+    }
+    defer {
+      NSApp.applicationIconImage = applicationIcon
+    }
+
     let view = NSHostingView(
       rootView: SnapshotCatalogScenarioRender(
         appearance: appearance,

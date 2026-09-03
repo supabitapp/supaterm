@@ -26,6 +26,7 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
     )
     XCTAssertEqual(confirmButtons.count, 1)
     XCTAssertEqual(cancelButtons.count, 1)
+    attachAppScreenshot(named: "dialog-close-all-windows")
 
     cancelButtons.firstMatch.click()
     let didCancel = await wait(for: title) { !$0.exists }
@@ -57,8 +58,9 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
     let title = "Lifecycle Terminal \(UUID().uuidString)"
     try clickMenuItem(.changeTerminalTitle)
 
-    let heading = app.staticTexts["Change Terminal Title"]
+    let heading = app.staticTexts["✏️ Change Terminal Title"]
     XCTAssertTrue(heading.waitForExistence(timeout: 10))
+    attachAppScreenshot(named: "dialog-change-terminal-title")
 
     let field = app.textFields.firstMatch
     XCTAssertTrue(field.waitForExistence(timeout: 10))
@@ -66,7 +68,9 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
     field.typeKey("a", modifierFlags: .command)
     field.typeText(title)
 
-    let confirmButton = app.sheets.firstMatch.buttons["OK"]
+    let confirmButton = app.buttons[
+      SupatermUITestIdentifier.Accessibility.dialogConfirm
+    ]
     XCTAssertTrue(confirmButton.waitForExistence(timeout: 10))
     confirmButton.click()
 
@@ -94,6 +98,7 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
 
     let quitDialog = element(SupatermUITestIdentifier.Accessibility.dialogQuit)
     XCTAssertTrue(quitDialog.waitForExistence(timeout: 10))
+    attachAppScreenshot(named: "dialog-quit-with-running-process")
 
     let cancelButton = app.buttons[
       SupatermUITestIdentifier.Accessibility.dialogCancel

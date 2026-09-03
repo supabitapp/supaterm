@@ -84,16 +84,18 @@ struct SettingsShortcutsView: View {
         }
         .help("Restore all shortcuts to their defaults.")
         .disabled(store.shortcutOverrides.isEmpty)
-        .confirmationDialog(
-          "Restore all keyboard shortcuts to their defaults?",
-          isPresented: $isRestoreConfirmationPresented,
-          titleVisibility: .visible
-        ) {
-          Button("Restore Defaults", role: .destructive) {
-            _ = store.send(.restoreShortcutDefaultsButtonTapped)
-          }
-        }
       }
+    }
+    .dialogSurface(isPresented: $isRestoreConfirmationPresented) {
+      RestoreKeyboardShortcutsDialog(
+        onRestore: {
+          isRestoreConfirmationPresented = false
+          _ = store.send(.restoreShortcutDefaultsButtonTapped)
+        },
+        onCancel: {
+          isRestoreConfirmationPresented = false
+        }
+      )
     }
   }
 

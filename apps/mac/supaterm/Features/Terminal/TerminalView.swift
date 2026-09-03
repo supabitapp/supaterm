@@ -3,7 +3,13 @@ import ComposableArchitecture
 import Sharing
 import SupaTheme
 import SupatermSettingsFeature
+import SupatermUI
 import SwiftUI
+
+private enum TerminalDialogDestination {
+  case close(TerminalWindowFeature.PendingCloseRequest)
+  case spaceDelete(TerminalSpaceDeleteRequest)
+}
 
 struct TerminalView: View {
   let commandPaletteClient: TerminalCommandPaletteClient
@@ -28,22 +34,27 @@ struct TerminalView: View {
     terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
   }
 
-  private var pendingCloseBinding: Binding<Bool> {
-    Binding(
-      get: { store.pendingCloseRequest != nil },
-      set: {
-        if !$0 {
-          _ = store.send(.closeConfirmationCancelButtonTapped)
-        }
-      }
-    )
+  private var dialogDestination: TerminalDialogDestination? {
+    switch store.destination {
+    case .closeConfirmation(let request):
+      .close(request)
+    case .spaceDeleteConfirmation(let request):
+      .spaceDelete(request)
+    case nil, .commandPalette, .spaceEditor, .windowCloseConfirmation:
+      nil
+    }
   }
 
-  private var pendingSpaceDeleteBinding: Binding<Bool> {
-    Binding(
-      get: { store.pendingSpaceDeleteRequest != nil },
-      set: {
-        if !$0 {
+  private var dialogDestinationBinding: Binding<TerminalDialogDestination?> {
+    let presentedDestination = dialogDestination
+    return Binding(
+      get: { dialogDestination },
+      set: { destination in
+        guard case nil = destination, let presentedDestination else { return }
+        switch presentedDestination {
+        case .close:
+          _ = store.send(.closeConfirmationCancelButtonTapped)
+        case .spaceDelete:
           _ = store.send(.spaceDeleteCancelButtonTapped)
         }
       }
@@ -126,32 +137,34 @@ struct TerminalView: View {
           )
         }
       }
-      .alert(
-        store.pendingCloseRequest?.title ?? "Close?",
-        isPresented: pendingCloseBinding
-      ) {
-        Button("Cancel", role: .cancel) {
-          _ = store.send(.closeConfirmationCancelButtonTapped)
+      .dialogSurface(item: dialogDestinationBinding) { destination in
+        switch destination {
+        case .close(let pendingCloseRequest):
+          ConfirmationOverlay(
+            palette: palette,
+            title: pendingCloseRequest.title,
+            message: pendingCloseRequest.message,
+            confirmTitle: "Close",
+            onConfirm: {
+              _ = store.send(.closeConfirmationConfirmButtonTapped)
+            },
+            onCancel: {
+              _ = store.send(.closeConfirmationCancelButtonTapped)
+            }
+          )
+        case .spaceDelete(let pendingSpaceDeleteRequest):
+          TerminalSpaceDeleteDialog(
+            palette: palette,
+            spaceName: pendingSpaceDeleteRequest.space.name,
+            paneCount: terminal.paneCountAcrossWindows(pendingSpaceDeleteRequest.space.id),
+            onConfirm: {
+              _ = store.send(.spaceDeleteConfirmButtonTapped)
+            },
+            onCancel: {
+              _ = store.send(.spaceDeleteCancelButtonTapped)
+            }
+          )
         }
-        Button("Close", role: .destructive) {
-          _ = store.send(.closeConfirmationConfirmButtonTapped)
-        }
-        .keyboardShortcut(.defaultAction)
-      } message: {
-        Text(store.pendingCloseRequest?.message ?? "")
-      }
-      .alert(
-        spaceDeleteTitle,
-        isPresented: pendingSpaceDeleteBinding
-      ) {
-        Button("Cancel", role: .cancel) {
-          _ = store.send(.spaceDeleteCancelButtonTapped)
-        }
-        Button("Delete", role: .destructive) {
-          _ = store.send(.spaceDeleteConfirmButtonTapped)
-        }
-      } message: {
-        Text(spaceDeleteMessage)
       }
       .terminalAnimation(
         .easeOut(duration: 0.12),
@@ -201,25 +214,6 @@ struct TerminalView: View {
       guard surface.window === window else { return }
       window.makeFirstResponder(surface)
     }
-  }
-
-  private var spaceDeleteTitle: String {
-    guard let request = store.pendingSpaceDeleteRequest else {
-      return "Delete Space?"
-    }
-    return "Delete Space \"\(request.space.name)\"?"
-  }
-
-  private var spaceDeleteMessage: String {
-    guard let request = store.pendingSpaceDeleteRequest else {
-      return "All tabs in this space will be closed."
-    }
-    let paneCount = terminal.paneCountAcrossWindows(request.space.id)
-    guard paneCount > 0 else {
-      return "This space has no open tabs."
-    }
-    let panes = paneCount == 1 ? "1 pane" : "\(paneCount) panes"
-    return "Deleting it closes \(panes) across every window and ends their processes."
   }
 
   private var resolvedWindowActivity: WindowActivityState {

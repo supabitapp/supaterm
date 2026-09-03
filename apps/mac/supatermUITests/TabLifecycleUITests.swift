@@ -23,4 +23,33 @@ final class TabLifecycleUITests: SupatermUITestCase {
     )
     XCTAssertTrue(didCloseTab)
   }
+
+  @MainActor
+  func testFreeTrialTabLimitShowsDialog() async throws {
+    app.launchEnvironment["SUPATERM_LICENSE_MODE"] = "free"
+    try relaunch()
+    await requireInitialSidebarTab()
+
+    for expectedCount in 2...5 {
+      try clickMenuItem(.newTab)
+      let didCreateTab = await waitForSidebarElementCount(
+        sidebarTabRows,
+        equals: expectedCount,
+        timeout: .seconds(30)
+      )
+      XCTAssertTrue(didCreateTab)
+    }
+
+    try clickMenuItem(.newTab)
+    let title = app.staticTexts["Free Trial Limit"]
+    try require(title)
+    attachAppScreenshot(named: "dialog-free-trial-tab-limit")
+
+    let cancelButton = app.buttons[
+      SupatermUITestIdentifier.Accessibility.dialogCancel
+    ]
+    try require(cancelButton).click()
+    let didDismiss = await wait(for: title) { !$0.exists }
+    XCTAssertTrue(didDismiss)
+  }
 }

@@ -1,5 +1,7 @@
 import AppKit
 import GhosttyKit
+import SupatermUI
+import SwiftUI
 
 enum GhosttyClipboardConfirmationRequest: Equatable {
   case paste
@@ -28,38 +30,33 @@ enum GhosttyClipboardConfirmationRequest: Equatable {
 
 @MainActor
 final class GhosttyClipboardConfirmationCoordinator {
-  private struct Presentation {
+  struct Presentation {
     let title: String
     let message: String
     let cancelTitle: String
     let confirmTitle: String
   }
 
-  private struct Alert {
-    let alert: NSAlert
-    let rememberButton: NSButton?
-  }
-
   private final class PendingRequest {
     let surface: GhosttyRuntime.SurfaceReference
     let window: NSWindow
-    let alert: NSAlert
-    let rememberButton: NSButton?
+    let presenter: DialogSurfacePresenter
+    let dialogState: GhosttyClipboardConfirmationDialogState
     let completion: (Bool, Bool) -> Void
     weak var view: GhosttySurfaceView?
-    var windowCloseObserver: NSObjectProtocol?
 
     init(
       surface: GhosttyRuntime.SurfaceReference,
       window: NSWindow,
-      alert: Alert,
+      presenter: DialogSurfacePresenter,
+      dialogState: GhosttyClipboardConfirmationDialogState,
       view: GhosttySurfaceView,
       completion: @escaping (Bool, Bool) -> Void
     ) {
       self.surface = surface
       self.window = window
-      self.alert = alert.alert
-      self.rememberButton = alert.rememberButton
+      self.presenter = presenter
+      self.dialogState = dialogState
       self.view = view
       self.completion = completion
     }
@@ -84,45 +81,60 @@ final class GhosttyClipboardConfirmationCoordinator {
     }
 
     let key = ObjectIdentifier(window)
-    guard pendingRequests[key] == nil, window.attachedSheet == nil else {
+    guard
+      pendingRequests[key] == nil,
+      window.attachedSheet == nil,
+      !DialogSurfacePresenter.isPresenting(over: window)
+    else {
       reject(completion)
       return false
     }
 
-    let alert = Self.alert(
-      contents: payload.preview,
-      previewImage: payload.previewImage,
-      request: request,
-      programName: payload.programName,
-      canRemember: payload.canRemember
-    )
+    let presentation = Self.presentation(for: request, programName: payload.programName)
+    let presenter = DialogSurfacePresenter()
+    let dialogState = GhosttyClipboardConfirmationDialogState()
     let pending = PendingRequest(
       surface: surface,
       window: window,
-      alert: alert,
+      presenter: presenter,
+      dialogState: dialogState,
       view: view,
       completion: completion
     )
     pendingRequests[key] = pending
-    pending.windowCloseObserver = NotificationCenter.default.addObserver(
-      forName: NSWindow.willCloseNotification,
-      object: window,
-      queue: .main
-    ) { [weak self, weak pending] _ in
-      MainActor.assumeIsolated {
+    let didPresent = presenter.present(
+      over: window,
+      onDismiss: { [weak self, weak pending] in
         guard let self, let pending else { return }
-        self.finish(pending, allowed: false, remember: false, dismissSheet: false)
+        finish(pending, allowed: false, remember: false, dismissDialog: false)
+      },
+      content: { [weak self, weak pending] in
+        GhosttyClipboardConfirmationDialog(
+          presentation: presentation,
+          preview: payload.preview,
+          previewImage: payload.previewImage,
+          canRemember: payload.canRemember,
+          state: dialogState,
+          onConfirm: {
+            guard let self, let pending else { return }
+            self.finish(
+              pending,
+              allowed: true,
+              remember: pending.dialogState.remember,
+              dismissDialog: true
+            )
+          },
+          onCancel: {
+            guard let self, let pending else { return }
+            self.finish(pending, allowed: false, remember: false, dismissDialog: true)
+          }
+        )
       }
-    }
-    alert.alert.beginSheetModal(for: window) { [weak self, weak pending] response in
-      guard let self, let pending else { return }
-      let allowed = response == .alertFirstButtonReturn
-      self.finish(
-        pending,
-        allowed: allowed,
-        remember: allowed && pending.rememberButton?.state == .on,
-        dismissSheet: false
-      )
+    )
+    guard didPresent else {
+      pendingRequests.removeValue(forKey: key)
+      reject(completion)
+      return false
     }
     return true
   }
@@ -130,30 +142,34 @@ final class GhosttyClipboardConfirmationCoordinator {
   func cancel(surface: GhosttyRuntime.SurfaceReference) {
     let matching = pendingRequests.values.filter { $0.surface === surface }
     for pending in matching {
-      finish(pending, allowed: false, remember: false, dismissSheet: true)
+      finish(pending, allowed: false, remember: false, dismissDialog: true)
     }
   }
 
   func cancelAll() {
     for pending in Array(pendingRequests.values) {
-      finish(pending, allowed: false, remember: false, dismissSheet: true)
+      finish(pending, allowed: false, remember: false, dismissDialog: true)
     }
   }
+
+  #if DEBUG
+    func setRemember(_ remember: Bool, in window: NSWindow) -> Bool {
+      guard let pending = pendingRequests[ObjectIdentifier(window)] else { return false }
+      pending.dialogState.remember = remember
+      return true
+    }
+  #endif
 
   private func finish(
     _ pending: PendingRequest,
     allowed: Bool,
     remember: Bool,
-    dismissSheet: Bool
+    dismissDialog: Bool
   ) {
     let key = ObjectIdentifier(pending.window)
     guard pendingRequests.removeValue(forKey: key) === pending else { return }
-    if let observer = pending.windowCloseObserver {
-      NotificationCenter.default.removeObserver(observer)
-      pending.windowCloseObserver = nil
-    }
-    if dismissSheet, pending.alert.window.sheetParent != nil {
-      pending.window.endSheet(pending.alert.window)
+    if dismissDialog {
+      pending.presenter.dismiss()
     }
     let valid = pending.surface.isValid && pending.view?.window === pending.window
     pending.completion(allowed && valid, remember && allowed && valid)
@@ -163,83 +179,7 @@ final class GhosttyClipboardConfirmationCoordinator {
     completion(false, false)
   }
 
-  private static func alert(
-    contents: String,
-    previewImage: NSImage?,
-    request: GhosttyClipboardConfirmationRequest,
-    programName: String?,
-    canRemember: Bool
-  ) -> Alert {
-    let presentation = presentation(for: request, programName: programName)
-    let alert = NSAlert()
-    alert.alertStyle = .warning
-    alert.messageText = presentation.title
-    alert.informativeText = presentation.message
-
-    let preview = preview(contents: contents, image: previewImage)
-
-    let rememberButton: NSButton?
-    if canRemember {
-      let button = NSButton(
-        checkboxWithTitle: "Allow for the rest of this terminal session",
-        target: nil,
-        action: nil
-      )
-      button.frame = NSRect(x: 0, y: 0, width: 480, height: 24)
-      button.setAccessibilityIdentifier("terminal.clipboard-confirmation.remember")
-      rememberButton = button
-      preview.frame.origin.y = 32
-      let accessory = NSView(
-        frame: NSRect(x: 0, y: 0, width: 480, height: preview.frame.height + 32)
-      )
-      accessory.addSubview(preview)
-      accessory.addSubview(button)
-      alert.accessoryView = accessory
-    } else {
-      rememberButton = nil
-      alert.accessoryView = preview
-    }
-
-    let confirmButton = alert.addButton(withTitle: presentation.confirmTitle)
-    confirmButton.setAccessibilityIdentifier("terminal.clipboard-confirmation.confirm")
-    confirmButton.keyEquivalent = "\r"
-    let cancelButton = alert.addButton(withTitle: presentation.cancelTitle)
-    cancelButton.setAccessibilityIdentifier("terminal.clipboard-confirmation.cancel")
-    cancelButton.keyEquivalent = "\u{1b}"
-    return Alert(alert: alert, rememberButton: rememberButton)
-  }
-
-  private static func preview(contents: String, image: NSImage?) -> NSView {
-    let scrollView = NSTextView.scrollableTextView()
-    scrollView.hasVerticalScroller = true
-    scrollView.hasHorizontalScroller = false
-    let textView = scrollView.documentView as? NSTextView
-    textView?.isEditable = false
-    textView?.isSelectable = true
-    textView?.isRichText = false
-    textView?.font = .monospacedSystemFont(
-      ofSize: NSFont.systemFontSize,
-      weight: .regular
-    )
-    textView?.string = contents
-    guard let image else {
-      scrollView.frame = NSRect(x: 0, y: 0, width: 480, height: 180)
-      return scrollView
-    }
-
-    let imageView = NSImageView(frame: NSRect(x: 0, y: 96, width: 480, height: 180))
-    imageView.image = image
-    imageView.imageAlignment = .alignCenter
-    imageView.imageScaling = .scaleProportionallyUpOrDown
-    imageView.setAccessibilityIdentifier("terminal.clipboard-confirmation.image")
-    scrollView.frame = NSRect(x: 0, y: 0, width: 480, height: 88)
-    let container = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 276))
-    container.addSubview(imageView)
-    container.addSubview(scrollView)
-    return container
-  }
-
-  private static func presentation(
+  static func presentation(
     for request: GhosttyClipboardConfirmationRequest,
     programName: String?
   ) -> Presentation {

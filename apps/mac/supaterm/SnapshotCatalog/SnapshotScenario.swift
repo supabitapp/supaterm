@@ -69,6 +69,7 @@ enum SnapshotCatalog {
     + hoverLinkScenarios
     + updateScenarios
     + commandPaletteScenarios
+    + migratedNativeAlertScenarios
     + dialogScenarios
     + surfaceScenarios
     + configurationDiagnosticsScenarios

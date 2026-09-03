@@ -1,5 +1,6 @@
 import AppKit
 import SupaTheme
+import SupatermUI
 import SwiftUI
 
 @MainActor
@@ -13,10 +14,49 @@ final class QuitConfirmationPresenter {
       parentWindow.deminiaturize(nil)
     }
     parentWindow.makeKeyAndOrderFront(nil)
-    return QuitConfirmationPanelController(
-      parentWindow: parentWindow,
-      terminatesSessions: terminatesSessions
-    ).runModal()
+
+    let presenter = DialogSurfacePresenter()
+    let content = QuitConfirmationContent(terminatesSessions: terminatesSessions)
+    var decision = QuitConfirmationDecision.cancel
+    _ = presenter.runModal(
+      over: parentWindow,
+      keyDownHandler: { event in
+        guard
+          event.charactersIgnoringModifiers == "\r",
+          let keyDecision = content.returnKeyDecision(modifierFlags: event.modifierFlags)
+        else {
+          return false
+        }
+        decision = keyDecision
+        presenter.finish(with: .OK)
+        return true
+      },
+      content: {
+        QuitConfirmationOverlay(
+          palette: Self.palette(for: parentWindow),
+          content: content,
+          onPreserve: {
+            decision = .quitPreservingSessions
+            presenter.finish(with: .OK)
+          },
+          onTerminate: {
+            decision = .quitTerminatingSessions
+            presenter.finish(with: .OK)
+          },
+          onCancel: {
+            presenter.finish(with: .cancel)
+          }
+        )
+      }
+    )
+    return decision
+  }
+
+  private static func palette(for window: NSWindow) -> Palette {
+    let appearance = window.contentView?.effectiveAppearance ?? window.effectiveAppearance
+    let colorScheme: ColorScheme =
+      appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+    return Palette(colorScheme: colorScheme)
   }
 }
 
@@ -60,119 +100,5 @@ struct QuitConfirmationContent: Equatable {
       return .quitTerminatingSessions
     }
     return preservingSessionsTitle == nil ? .quitTerminatingSessions : .quitPreservingSessions
-  }
-}
-
-@MainActor
-private final class QuitConfirmationPanelController: NSWindowController {
-  private weak var parentWindow: NSWindow?
-  private var decision = QuitConfirmationDecision.cancel
-
-  init(parentWindow: NSWindow, terminatesSessions: Bool) {
-    self.parentWindow = parentWindow
-
-    let window = QuitConfirmationPanel(
-      contentRect: parentWindow.frame,
-      styleMask: [.borderless],
-      backing: .buffered,
-      defer: false
-    )
-
-    super.init(window: window)
-
-    let content = QuitConfirmationContent(terminatesSessions: terminatesSessions)
-    window.onReturnKey = { [weak self] modifierFlags in
-      guard let decision = content.returnKeyDecision(modifierFlags: modifierFlags) else {
-        return false
-      }
-      self?.finish(decision)
-      return true
-    }
-
-    let palette = Palette(colorScheme: Self.colorScheme(for: parentWindow))
-    window.contentViewController = NSHostingController(
-      rootView: QuitConfirmationOverlay(
-        palette: palette,
-        content: content,
-        onPreserve: { [weak self] in
-          self?.finish(.quitPreservingSessions)
-        },
-        onTerminate: { [weak self] in
-          self?.finish(.quitTerminatingSessions)
-        },
-        onCancel: { [weak self] in
-          self?.finish(.cancel)
-        }
-      )
-    )
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
-
-  func runModal() -> QuitConfirmationDecision {
-    guard let window, let parentWindow else { return .cancel }
-
-    window.setFrame(parentWindow.frame, display: false)
-    parentWindow.addChildWindow(window, ordered: .above)
-    NSApp.activate(ignoringOtherApps: true)
-    window.makeKeyAndOrderFront(nil)
-
-    NSApp.runModal(for: window)
-    parentWindow.removeChildWindow(window)
-    window.orderOut(nil)
-    return decision
-  }
-
-  private func finish(_ decision: QuitConfirmationDecision) {
-    guard let window else { return }
-    self.decision = decision
-    NSApp.stopModal(withCode: decision == .cancel ? .cancel : .OK)
-    window.orderOut(nil)
-  }
-
-  private static func colorScheme(for window: NSWindow) -> ColorScheme {
-    let appearance = window.contentView?.effectiveAppearance ?? window.effectiveAppearance
-    return appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
-  }
-}
-
-private final class QuitConfirmationPanel: NSPanel {
-  var onReturnKey: ((NSEvent.ModifierFlags) -> Bool)?
-
-  override var canBecomeKey: Bool { true }
-  override var canBecomeMain: Bool { false }
-
-  override init(
-    contentRect: NSRect,
-    styleMask style: NSWindow.StyleMask,
-    backing backingStoreType: NSWindow.BackingStoreType,
-    defer flag: Bool
-  ) {
-    super.init(
-      contentRect: contentRect,
-      styleMask: style,
-      backing: backingStoreType,
-      defer: flag
-    )
-    backgroundColor = .clear
-    hasShadow = false
-    isMovable = false
-    isOpaque = false
-    collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace, .ignoresCycle]
-    level = .modalPanel
-  }
-
-  override func keyDown(with event: NSEvent) {
-    guard event.charactersIgnoringModifiers == "\r" else {
-      super.keyDown(with: event)
-      return
-    }
-    guard onReturnKey?(event.modifierFlags) == true else {
-      super.keyDown(with: event)
-      return
-    }
   }
 }
