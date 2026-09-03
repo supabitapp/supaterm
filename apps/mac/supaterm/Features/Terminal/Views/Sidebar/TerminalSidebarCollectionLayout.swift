@@ -74,6 +74,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private var transitionProgress: CGFloat = 1
   private var attributesByIndexPath: [IndexPath: NSCollectionViewLayoutAttributes] = [:]
   private var structuralUpdate: StructuralUpdate?
+  private var insertedIndexPaths: Set<IndexPath> = []
   private var preparedBoundsSize: CGSize = .zero
   private var contentHeightState = TerminalSidebarContentHeightState()
 
@@ -138,7 +139,11 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     dropTargetMap = TerminalSidebarDropTargetMap(targets: [])
   }
 
-  private func rebuild(width: CGFloat, viewportHeight: CGFloat) {
+  private func rebuild(
+    width: CGFloat,
+    viewportHeight: CGFloat,
+    identifiersOverride: [TerminalSidebarEntryID]? = nil
+  ) {
     guard let collectionView else { return }
     let entries = outline.visibleEntries
     let heights = Dictionary(
@@ -169,14 +174,15 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
       plan = targetPlan
     }
     dropTargetMap = TerminalSidebarDropTargetMap(targets: targetPlan.semanticTargets)
-    let itemCount =
-      collectionView.numberOfSections > 0
+    let collectionItemCount = collectionView.numberOfSections > 0
       ? collectionView.numberOfItems(inSection: 0)
       : 0
-    let displayedIdentifiers = displayedIdentifiers(
-      snapshotIdentifiers: itemIdentifiers?() ?? entries.map(\.id),
-      itemCount: itemCount
-    )
+    let itemCount = identifiersOverride?.count ?? collectionItemCount
+    let displayedIdentifiers = identifiersOverride
+      ?? displayedIdentifiers(
+        snapshotIdentifiers: itemIdentifiers?() ?? entries.map(\.id),
+        itemCount: itemCount
+      )
     attributesByIndexPath = Dictionary(
       uniqueKeysWithValues: displayedItems(
         identifiers: displayedIdentifiers,
@@ -237,8 +243,44 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
 
   override func prepare(forCollectionViewUpdates updateItems: [NSCollectionViewUpdateItem]) {
     super.prepare(forCollectionViewUpdates: updateItems)
-    guard commitStagedOutline(), let collectionView else { return }
-    rebuild(width: collectionView.bounds.width, viewportHeight: collectionView.visibleRect.height)
+    guard commitStagedOutline(), let collectionView else {
+      insertedIndexPaths = []
+      return
+    }
+    insertedIndexPaths = Set(
+      updateItems.compactMap { update in
+        update.updateAction == .insert ? update.indexPathAfterUpdate : nil
+      }
+    )
+    // AppKit can still report the source item count here, so rebuild from target identities.
+    rebuild(
+      width: collectionView.bounds.width,
+      viewportHeight: collectionView.visibleRect.height,
+      identifiersOverride: outline.visibleEntries.map(\.id)
+    )
+  }
+
+  override func initialLayoutAttributesForAppearingItem(
+    at itemIndexPath: IndexPath
+  ) -> NSCollectionViewLayoutAttributes? {
+    guard
+      insertedIndexPaths.contains(itemIndexPath),
+      let attributes = layoutAttributesForItem(at: itemIndexPath)?.copy()
+        as? NSCollectionViewLayoutAttributes
+    else {
+      return super.initialLayoutAttributesForAppearingItem(at: itemIndexPath)
+    }
+    attributes.frame = attributes.frame.offsetBy(
+      dx: 0,
+      dy: TerminalSidebarLayoutMotion.insertedItemOffset
+    )
+    attributes.alpha = 0
+    return attributes
+  }
+
+  override func finalizeCollectionViewUpdates() {
+    super.finalizeCollectionViewUpdates()
+    insertedIndexPaths = []
   }
 
   override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {

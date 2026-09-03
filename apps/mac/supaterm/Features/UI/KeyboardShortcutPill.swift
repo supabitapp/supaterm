@@ -29,3 +29,17 @@ public struct KeyboardShortcutPill: View {
       .fixedSize()
   }
 }
+
+extension KeyboardShortcutPill {
+  /// Draws the pill without contributing its size along the selected layout axes.
+  public func layoutNeutral(
+    in axes: Axis.Set = [.horizontal, .vertical],
+    alignment: Alignment = .center
+  ) -> some View {
+    frame(
+      width: axes.contains(.horizontal) ? 0 : nil,
+      height: axes.contains(.vertical) ? 0 : nil,
+      alignment: alignment
+    )
+  }
+}
