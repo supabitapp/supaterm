@@ -60,7 +60,7 @@ describe("worker", () => {
     const [target, init] = upstreamFetch.mock.calls[0] as [URL, RequestInit & { headers: Headers }];
 
     expect(target.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml?build=1",
+      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml",
     );
     expect(init.method).toBe("GET");
     expect(init.headers.get("host")).toBeNull();
@@ -89,7 +89,7 @@ describe("worker", () => {
     const [target, init] = upstreamFetch.mock.calls[0] as [URL, RequestInit & { headers: Headers }];
 
     expect(target.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml?build=1",
+      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml",
     );
     expect(init.method).toBe("GET");
     expect(init.headers.get("host")).toBeNull();
@@ -116,7 +116,7 @@ describe("worker", () => {
     const [target, init] = upstreamFetch.mock.calls[0] as [URL, RequestInit & { headers: Headers }];
 
     expect(target.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg?build=1",
+      "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg",
     );
     expect(init.method).toBe("GET");
     expect(init.headers.get("host")).toBeNull();
@@ -126,11 +126,15 @@ describe("worker", () => {
   });
 
   it("caches versioned binaries after checksum validation", async () => {
-    installDownloadCache();
+    const { cache, store } = installDownloadCache();
     const body = "verified dmg";
     const digest = await sha256(body);
-    const upstreamFetch = vi.fn(async (input: RequestInfo | URL) => {
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = fetchUrl(input);
+      const headers = new Headers(init?.headers);
+      expect(headers.get("authorization")).toBeNull();
+      expect(headers.get("cookie")).toBeNull();
+
       if (
         url === "https://github.com/supabitapp/supaterm/releases/download/v26.0.0/checksums.json"
       ) {
@@ -145,7 +149,7 @@ describe("worker", () => {
       }
 
       expect(url).toBe(
-        "https://github.com/supabitapp/supaterm/releases/download/v26.0.0/supaterm.dmg?build=1",
+        "https://github.com/supabitapp/supaterm/releases/download/v26.0.0/supaterm.dmg",
       );
       return new Response(body, { headers: { etag: '"dmg"' } });
     });
@@ -153,7 +157,12 @@ describe("worker", () => {
     vi.stubGlobal("fetch", upstreamFetch);
 
     const first = await worker.fetch(
-      new Request("https://supaterm.com/download/v26.0.0/supaterm.dmg?build=1"),
+      new Request("https://supaterm.com/download/v26.0.0/supaterm.dmg?build=1", {
+        headers: {
+          Authorization: "Bearer secret",
+          Cookie: "session=secret",
+        },
+      }),
       { ASSETS: { fetch: vi.fn() } as AssetBinding },
     );
 
@@ -166,7 +175,7 @@ describe("worker", () => {
     upstreamFetch.mockClear();
 
     const second = await worker.fetch(
-      new Request("https://supaterm.com/download/v26.0.0/supaterm.dmg?build=1"),
+      new Request("https://supaterm.com/download/v26.0.0/supaterm.dmg?source=website&build=2"),
       { ASSETS: { fetch: vi.fn() } as AssetBinding },
     );
 
@@ -175,6 +184,52 @@ describe("worker", () => {
     expect(second.headers.get("x-supaterm-cache")).toBe("hit");
     await expect(second.text()).resolves.toBe(body);
     expect(upstreamFetch).not.toHaveBeenCalled();
+    expect(store.size).toBe(1);
+    expect(cache.put).toHaveBeenCalledTimes(1);
+    expect(cache.put.mock.calls[0]?.[0].url).toBe(
+      "https://supaterm.com/download/v26.0.0/supaterm.dmg",
+    );
+    expect(cache.match.mock.calls[1]?.[0].url).toBe(
+      "https://supaterm.com/download/v26.0.0/supaterm.dmg",
+    );
+  });
+
+  it("forwards only safe download request headers", async () => {
+    const upstreamFetch = vi.fn().mockResolvedValue(new Response("range"));
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    await worker.fetch(
+      new Request("https://supaterm.com/download/latest/appcast.xml", {
+        headers: {
+          Accept: "application/octet-stream",
+          Authorization: "Bearer secret",
+          Cookie: "session=secret",
+          "If-Match": '"current"',
+          "If-Modified-Since": "Tue, 01 Sep 2026 12:00:00 GMT",
+          "If-None-Match": '"previous"',
+          "If-Range": '"range"',
+          "If-Unmodified-Since": "Tue, 01 Sep 2026 11:00:00 GMT",
+          Range: "bytes=0-4",
+          "X-Api-Key": "secret",
+          "X-Forwarded-For": "192.0.2.1",
+        },
+      }),
+      { ASSETS: { fetch: vi.fn() } as AssetBinding },
+    );
+
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    const [, init] = upstreamFetch.mock.calls[0] as [URL, RequestInit & { headers: Headers }];
+    expect(Object.fromEntries(init.headers.entries())).toEqual({
+      accept: "application/octet-stream",
+      "if-match": '"current"',
+      "if-modified-since": "Tue, 01 Sep 2026 12:00:00 GMT",
+      "if-none-match": '"previous"',
+      "if-range": '"range"',
+      "if-unmodified-since": "Tue, 01 Sep 2026 11:00:00 GMT",
+      range: "bytes=0-4",
+    });
+    expect(init.headers.get("authorization")).toBeNull();
+    expect(init.headers.get("cookie")).toBeNull();
   });
 
   it("keeps volatile cache control on tip cache hits", async () => {

@@ -80,6 +80,15 @@ const siteHeaders = {
   "x-frame-options": "DENY",
 };
 const byteRangePattern = /^bytes=(\d*)-(\d*)$/;
+const forwardedDownloadRequestHeaders = [
+  "accept",
+  "if-match",
+  "if-modified-since",
+  "if-none-match",
+  "if-range",
+  "if-unmodified-since",
+  "range",
+] as const;
 const methodNotAllowed = () =>
   new Response("Method Not Allowed", {
     status: 405,
@@ -138,12 +147,24 @@ const normalizeSHA256 = (value: unknown) =>
   typeof value === "string" ? value.toLowerCase().replace(/^sha256:/, "") : null;
 
 const downloadRequestHeaders = (request: Request) => {
-  const headers = new Headers(request.headers);
-  headers.delete("host");
+  const headers = new Headers();
+  for (const name of forwardedDownloadRequestHeaders) {
+    const value = request.headers.get(name);
+    if (value !== null) {
+      headers.set(name, value);
+    }
+  }
+
   return headers;
 };
 
 const downloadCache = () => (globalThis.caches as WorkerCacheStorage | undefined)?.default;
+
+const downloadCacheKey = (request: Request) => {
+  const url = new URL(request.url);
+  url.search = "";
+  return new Request(url, { method: "GET" });
+};
 
 const parseByteRange = (header: string, size: number) => {
   if (header.includes(",")) {
@@ -305,8 +326,7 @@ const proxyDownloadAsset = async (request: Request) => {
     return proxyDownload(request, download.targetUrl, "bypass", noStoreCacheControl);
   }
 
-  const requestUrl = new URL(request.url);
-  const cacheKey = new Request(requestUrl.toString(), { method: "GET" });
+  const cacheKey = downloadCacheKey(request);
   const cached = await cache.match(cacheKey);
   if (cached) {
     return withResponseHeaders(cached, {

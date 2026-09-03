@@ -30,11 +30,8 @@ type DownloadResolution = {
   verifiesChecksum: boolean;
 };
 
-const buildUrl = (basePath: string, assetName: string, search = "") => {
-  const url = new URL(`${githubOrigin}${basePath}${assetName}`);
-  url.search = search;
-  return url;
-};
+const buildUrl = (basePath: string, assetName: string) =>
+  new URL(`${githubOrigin}${basePath}${assetName}`);
 
 const resolveNamedDownload = (requestUrl: URL): DownloadResolution | null => {
   const route = downloadRoutes.find(({ prefix }) => requestUrl.pathname.startsWith(prefix));
@@ -58,7 +55,7 @@ const resolveNamedDownload = (requestUrl: URL): DownloadResolution | null => {
     assetName: assetPath,
     cacheControl: volatileCacheControl,
     manifestUrl: buildUrl(route.basePath, checksumAssetName),
-    targetUrl: buildUrl(basePath, assetPath, requestUrl.search),
+    targetUrl: buildUrl(basePath, assetPath),
     verifiesChecksum,
   };
 };
@@ -83,7 +80,7 @@ const resolveVersionedDownload = (requestUrl: URL): DownloadResolution | null =>
     assetName,
     cacheControl: verifiesChecksum ? immutableCacheControl : volatileCacheControl,
     manifestUrl: buildUrl(basePath, checksumAssetName),
-    targetUrl: buildUrl(basePath, assetName, requestUrl.search),
+    targetUrl: buildUrl(basePath, assetName),
     verifiesChecksum,
   };
 };
