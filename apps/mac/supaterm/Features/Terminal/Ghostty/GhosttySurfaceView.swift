@@ -6,6 +6,7 @@ import QuartzCore
 import SupatermCLIShared
 import SupatermSupport
 import SupatermUI
+import SwiftUI
 import Synchronization
 
 nonisolated private final class GhosttyActiveScreenReader: Sendable {

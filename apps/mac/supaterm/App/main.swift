@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import SupatermUI
+import SwiftUI
 
 #if !SUPATERM_SNAPSHOT_CATALOG
   import SupatermCLIShared

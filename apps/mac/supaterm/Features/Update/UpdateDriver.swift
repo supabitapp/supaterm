@@ -6,6 +6,7 @@ import Sparkle
 import SupatermLicenseFeature
 import SupatermSupport
 import SupatermUI
+import SwiftUI
 
 typealias UpdateOwnershipEndedPresenter =
   @MainActor (
