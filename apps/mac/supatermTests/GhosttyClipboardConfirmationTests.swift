@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import GhosttyKit
+import SupatermUI
 import Testing
 
 @testable import supaterm
@@ -50,20 +51,16 @@ struct GhosttyClipboardConfirmationTests {
     }
     #expect(presented)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    let text = textPreview(in: sheet)
+    let dialog = try await attachedDialog(of: fixture.window)
+    let text = textPreview(in: dialog)
     #expect(text.contains("clipboard-client"))
     #expect(text.contains("202E"))
     #expect(!text.contains("\u{202E}"))
     #expect(text.contains("text/plain (6 bytes)\nsecret"))
     #expect(text.contains("application/octet-stream (2 bytes)"))
-    let remember = try button(
-      titled: "Allow for the rest of this terminal session",
-      in: sheet
-    )
-    remember.state = .on
-    try button(titled: "Allow", in: sheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    #expect(coordinator.setRemember(true, in: fixture.window))
+    try performDefaultAction(in: dialog)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(decision?.allowed == true)
     #expect(decision?.remember == true)
   }
@@ -93,14 +90,10 @@ struct GhosttyClipboardConfirmationTests {
     }
     #expect(presented)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    let remember = try button(
-      titled: "Allow for the rest of this terminal session",
-      in: sheet
-    )
-    remember.state = .on
-    try button(titled: "Deny", in: sheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    let dialog = try await attachedDialog(of: fixture.window)
+    #expect(coordinator.setRemember(true, in: fixture.window))
+    try performCancelAction(in: dialog)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(decision?.allowed == false)
     #expect(decision?.remember == false)
   }
@@ -248,9 +241,8 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.pasteSelection(nil)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    #expect(sheet.sheetParent === fixture.window)
-    #expect(buttonTitles(in: sheet).isSuperset(of: ["Cancel", "Paste"]))
+    let dialog = try await attachedDialog(of: fixture.window)
+    #expect(dialog.parent === fixture.window)
   }
 
   @Test
@@ -263,21 +255,24 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.unfocusedSurface.pasteSelection(nil)
 
-    let unfocusedSheet = try await presentedSheet(of: fixture.window, timeout: .milliseconds(100))
-    #expect(unfocusedSheet == nil)
-    if let unfocusedSheet {
-      try button(titled: "Cancel", in: unfocusedSheet).performClick(nil)
-      try await waitForSheetDismissal(from: fixture.window)
+    let unfocusedDialog = try await presentedDialog(
+      of: fixture.window,
+      timeout: .milliseconds(100)
+    )
+    #expect(unfocusedDialog == nil)
+    if let unfocusedDialog {
+      try performCancelAction(in: unfocusedDialog)
+      try await waitForDialogDismissal(from: fixture.window)
     }
 
     pasteboard.clearContents()
     pasteboard.setString("FOCUSED_A\nFOCUSED_B", forType: .string)
     fixture.focusedSurface.pasteSelection(nil)
 
-    let focusedSheet = try await attachedSheet(of: fixture.window)
-    #expect(textPreview(in: focusedSheet).contains("FOCUSED_B"))
-    try button(titled: "Cancel", in: focusedSheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    let focusedDialog = try await attachedDialog(of: fixture.window)
+    #expect(textPreview(in: focusedDialog).contains("FOCUSED_B"))
+    try performCancelAction(in: focusedDialog)
+    try await waitForDialogDismissal(from: fixture.window)
   }
 
   @Test
@@ -291,8 +286,8 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.pasteSelection(nil)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    let scrollView = try #require(textPreviewScrollView(in: sheet))
+    let dialog = try await attachedDialog(of: fixture.window)
+    let scrollView = try #require(textPreviewScrollView(in: dialog))
     let textView = try #require(scrollView.documentView as? NSTextView)
     #expect(scrollView.hasVerticalScroller)
     #expect(textView.isSelectable)
@@ -316,10 +311,10 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.pasteSelection(nil)
 
-    let sheet = try await attachedSheet(of: fixture.window)
+    let dialog = try await attachedDialog(of: fixture.window)
     #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 1)
-    try button(titled: "Cancel", in: sheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    try performCancelAction(in: dialog)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 1)
     pasteboard.clearContents()
     pasteboard.setString("SUPATERM_SAFE_PROBE", forType: .string)
@@ -347,10 +342,10 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.pasteSelection(nil)
 
-    let sheet = try await attachedSheet(of: fixture.window)
+    let dialog = try await attachedDialog(of: fixture.window)
     #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 1)
-    try button(titled: "Paste", in: sheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    try performDefaultAction(in: dialog)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 2)
     let contents = try await capturedText(from: fixture.surface, containing: secondLine)
     #expect(occurrences(of: firstLine, in: contents) == 1)
@@ -370,10 +365,10 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.pasteSelection(nil)
 
-    let sheet = try await attachedSheet(of: fixture.window)
+    let dialog = try await attachedDialog(of: fixture.window)
     pasteboard.clearContents()
     pasteboard.setString("\(replacement)_A\n\(replacement)_B\n", forType: .string)
-    try button(titled: "Paste", in: sheet).performClick(nil)
+    try performDefaultAction(in: dialog)
     let contents = try await capturedText(from: fixture.surface, containing: "\(approved)_B")
     #expect(contents.contains("\(approved)_A"))
     #expect(!contents.contains(replacement))
@@ -392,7 +387,7 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.pasteSelection(nil)
 
-    #expect(fixture.window.attachedSheet == nil)
+    #expect(!DialogSurfacePresenter.isPresenting(over: fixture.window))
     fixture.window.contentView = fixture.surface
     pasteboard.clearContents()
     pasteboard.setString("SUPATERM_AFTER_DENIAL", forType: .string)
@@ -406,7 +401,7 @@ struct GhosttyClipboardConfirmationTests {
   }
 
   @Test
-  func secondClipboardRequestDoesNotReplaceActiveSheet() async throws {
+  func secondClipboardRequestDoesNotReplaceActiveDialog() async throws {
     let fixture = try await ClipboardSurfaceFixture()
     defer { fixture.close() }
     _ = try await capturedText(from: fixture.surface, containing: "SUPATERM_READY")
@@ -416,17 +411,17 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.clearContents()
     pasteboard.setString("\(firstMarker)_A\n\(firstMarker)_B", forType: .string)
     fixture.surface.pasteSelection(nil)
-    let firstSheet = try await attachedSheet(of: fixture.window)
+    let firstDialog = try await attachedDialog(of: fixture.window)
 
     pasteboard.clearContents()
     pasteboard.setString("\(secondMarker)_A\n\(secondMarker)_B", forType: .string)
     fixture.surface.pasteSelection(nil)
 
-    #expect(fixture.window.attachedSheet === firstSheet)
-    #expect(textPreview(in: firstSheet).contains(firstMarker))
-    #expect(!textPreview(in: firstSheet).contains(secondMarker))
-    try button(titled: "Cancel", in: firstSheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    #expect(presentedDialogWindow(of: fixture.window) === firstDialog)
+    #expect(textPreview(in: firstDialog).contains(firstMarker))
+    #expect(!textPreview(in: firstDialog).contains(secondMarker))
+    try performCancelAction(in: firstDialog)
+    try await waitForDialogDismissal(from: fixture.window)
     pasteboard.clearContents()
     pasteboard.setString("SUPATERM_AFTER_CONCURRENT", forType: .string)
     fixture.surface.pasteSelection(nil)
@@ -447,11 +442,11 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.clearContents()
     pasteboard.setString("unsafe first\nunsafe second", forType: .string)
     fixture.surface.pasteSelection(nil)
-    _ = try await attachedSheet(of: fixture.window)
+    _ = try await attachedDialog(of: fixture.window)
 
     fixture.surface.closeSurface()
 
-    try await waitForSheetDismissal(from: fixture.window)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(fixture.surface.surface == nil)
   }
 
@@ -466,20 +461,20 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.clearContents()
     pasteboard.setString("\(deniedMarker)_A\n\(deniedMarker)_B", forType: .string)
     fixture.surface.pasteSelection(nil)
-    let dismissedSheet = try await attachedSheet(of: fixture.window)
+    let dismissedDialog = try await attachedDialog(of: fixture.window)
 
     fixture.window.contentView = nil
 
-    try await waitForSheetDismissal(from: fixture.window)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(fixture.surface.window == nil)
     fixture.window.contentView = fixture.surface
     #expect(fixture.window.makeFirstResponder(fixture.surface))
     pasteboard.clearContents()
     pasteboard.setString("\(allowedMarker)_A\n\(allowedMarker)_B\n", forType: .string)
     fixture.surface.pasteSelection(nil)
-    let reattachedSheet = try await attachedSheet(of: fixture.window)
-    #expect(reattachedSheet !== dismissedSheet)
-    try button(titled: "Paste", in: reattachedSheet).performClick(nil)
+    let reattachedDialog = try await attachedDialog(of: fixture.window)
+    #expect(reattachedDialog !== dismissedDialog)
+    try performDefaultAction(in: reattachedDialog)
     let contents = try await capturedText(
       from: fixture.surface,
       containing: "\(allowedMarker)_B"
@@ -497,14 +492,14 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.clearContents()
     pasteboard.setString("\(marker)_A\n\(marker)_B", forType: .string)
     fixture.surface.pasteSelection(nil)
-    let sheet = try await attachedSheet(of: fixture.window)
+    let dialog = try await attachedDialog(of: fixture.window)
     let event = try #require(
       NSEvent.keyEvent(
         with: .keyDown,
         location: .zero,
         modifierFlags: [],
         timestamp: ProcessInfo.processInfo.systemUptime,
-        windowNumber: sheet.windowNumber,
+        windowNumber: dialog.windowNumber,
         context: nil,
         characters: "\u{1b}",
         charactersIgnoringModifiers: "\u{1b}",
@@ -513,8 +508,8 @@ struct GhosttyClipboardConfirmationTests {
       )
     )
 
-    #expect(sheet.performKeyEquivalent(with: event))
-    try await waitForSheetDismissal(from: fixture.window)
+    #expect(dialog.performKeyEquivalent(with: event))
+    try await waitForDialogDismissal(from: fixture.window)
     pasteboard.clearContents()
     pasteboard.setString("SUPATERM_AFTER_ESCAPE", forType: .string)
     fixture.surface.pasteSelection(nil)
@@ -542,11 +537,10 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.bridge.sendKey(.enter)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    #expect(buttonTitles(in: sheet).isSuperset(of: ["Deny", "Allow"]))
-    #expect(textPreview(in: sheet).contains("secret"))
-    try button(titled: "Deny", in: sheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    let dialog = try await attachedDialog(of: fixture.window)
+    #expect(textPreview(in: dialog).contains("secret"))
+    try performCancelAction(in: dialog)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(pasteboard.string(forType: .string) == "sentinel")
   }
 
@@ -566,9 +560,9 @@ struct GhosttyClipboardConfirmationTests {
 
     fixture.surface.bridge.sendKey(.enter)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    try button(titled: "Allow", in: sheet).performClick(nil)
-    try await waitForSheetDismissal(from: fixture.window)
+    let dialog = try await attachedDialog(of: fixture.window)
+    try performDefaultAction(in: dialog)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(pasteboard.string(forType: .string) == "secret")
   }
 
@@ -586,12 +580,11 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.clearContents()
     pasteboard.setString("sentinel", forType: .string)
     fixture.surface.bridge.sendKey(.enter)
-    let sheet = try await attachedSheet(of: fixture.window)
+    _ = try await attachedDialog(of: fixture.window)
 
     NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: fixture.window)
 
-    fixture.window.endSheet(sheet)
-    try await waitForSheetDismissal(from: fixture.window)
+    try await waitForDialogDismissal(from: fixture.window)
     #expect(pasteboard.string(forType: .string) == "sentinel")
   }
 
@@ -610,10 +603,9 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.setString("secret", forType: .string)
     fixture.surface.bridge.sendKey(.enter)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    #expect(buttonTitles(in: sheet).isSuperset(of: ["Deny", "Allow"]))
-    #expect(textPreview(in: sheet).contains("secret"))
-    try button(titled: "Deny", in: sheet).performClick(nil)
+    let dialog = try await attachedDialog(of: fixture.window)
+    #expect(textPreview(in: dialog).contains("secret"))
+    try performCancelAction(in: dialog)
     _ = try await capturedText(
       from: fixture.surface,
       containing: "SUPATERM_RESPONSE_1b5d35323b733b1b5c"
@@ -635,8 +627,8 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.setString("secret", forType: .string)
     fixture.surface.bridge.sendKey(.enter)
 
-    let sheet = try await attachedSheet(of: fixture.window)
-    try button(titled: "Allow", in: sheet).performClick(nil)
+    let dialog = try await attachedDialog(of: fixture.window)
+    try performDefaultAction(in: dialog)
     _ = try await capturedText(
       from: fixture.surface,
       containing: "SUPATERM_RESPONSE_1b5d35323b733b6332566a636d56301b5c"
@@ -658,7 +650,7 @@ struct GhosttyClipboardConfirmationTests {
     pasteboard.clearContents()
     pasteboard.setString("secret", forType: .string)
     fixture.surface.bridge.sendKey(.enter)
-    _ = try await attachedSheet(of: fixture.window)
+    _ = try await attachedDialog(of: fixture.window)
 
     fixture.window.close()
 
@@ -815,9 +807,6 @@ private final class ClipboardSurfaceFixture {
   }
 
   func close() {
-    if let sheet = window.attachedSheet {
-      window.endSheet(sheet)
-    }
     surface.closeSurface()
     window.contentView = nil
     window.orderOut(nil)
@@ -882,9 +871,6 @@ private final class SplitClipboardSurfaceFixture {
   }
 
   func close() {
-    if let sheet = window.attachedSheet {
-      window.endSheet(sheet)
-    }
     focusedSurface.closeSurface()
     unfocusedSurface.closeSurface()
     window.contentView = nil
@@ -895,50 +881,86 @@ private final class SplitClipboardSurfaceFixture {
 }
 
 @MainActor
-private func attachedSheet(of window: NSWindow) async throws -> NSWindow {
+private func attachedDialog(of window: NSWindow) async throws -> NSWindow {
   for _ in 0..<50 {
-    if let sheet = window.attachedSheet {
-      return sheet
+    if let dialog = presentedDialogWindow(of: window) {
+      return dialog
     }
     try await Task.sleep(for: .milliseconds(10))
   }
-  return try #require(window.attachedSheet)
+  return try #require(presentedDialogWindow(of: window))
 }
 
 @MainActor
-private func presentedSheet(of window: NSWindow, timeout: Duration) async throws -> NSWindow? {
+private func presentedDialog(of window: NSWindow, timeout: Duration) async throws -> NSWindow? {
   let clock = ContinuousClock()
   let deadline = clock.now.advanced(by: timeout)
   while clock.now < deadline {
-    if let sheet = window.attachedSheet {
-      return sheet
+    if let dialog = presentedDialogWindow(of: window) {
+      return dialog
     }
     try await Task.sleep(for: .milliseconds(10))
   }
-  return window.attachedSheet
+  return presentedDialogWindow(of: window)
 }
 
 @MainActor
-private func waitForSheetDismissal(from window: NSWindow) async throws {
+private func waitForDialogDismissal(from window: NSWindow) async throws {
   for _ in 0..<100 {
-    if window.attachedSheet == nil {
+    if presentedDialogWindow(of: window) == nil {
       return
     }
     try await Task.sleep(for: .milliseconds(10))
   }
-  #expect(window.attachedSheet == nil)
+  #expect(presentedDialogWindow(of: window) == nil)
 }
 
 @MainActor
-private func buttonTitles(in window: NSWindow) -> Set<String> {
-  guard let contentView = window.contentView else { return [] }
-  return Set(buttons(in: contentView).map(\.title))
+private func presentedDialogWindow(of window: NSWindow) -> NSWindow? {
+  window.childWindows?.first {
+    $0.identifier?.rawValue == "dialog.surface.panel"
+  }
 }
 
 @MainActor
-private func button(titled title: String, in window: NSWindow) throws -> NSButton {
-  let contentView = try #require(window.contentView)
-  return try #require(buttons(in: contentView).first { $0.title == title })
+private func performDefaultAction(in window: NSWindow) throws {
+  try performKeyEquivalent(
+    characters: "\r",
+    keyCode: UInt16(kVK_Return),
+    in: window
+  )
+}
+
+@MainActor
+private func performCancelAction(in window: NSWindow) throws {
+  try performKeyEquivalent(
+    characters: "\u{1b}",
+    keyCode: UInt16(kVK_Escape),
+    in: window
+  )
+}
+
+@MainActor
+private func performKeyEquivalent(
+  characters: String,
+  keyCode: UInt16,
+  in window: NSWindow
+) throws {
+  let event = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [],
+      timestamp: ProcessInfo.processInfo.systemUptime,
+      windowNumber: window.windowNumber,
+      context: nil,
+      characters: characters,
+      charactersIgnoringModifiers: characters,
+      isARepeat: false,
+      keyCode: keyCode
+    )
+  )
+  #expect(window.performKeyEquivalent(with: event))
 }
 
 @MainActor
@@ -974,15 +996,6 @@ private func capturedText(
 
 private func occurrences(of needle: String, in value: String) -> Int {
   value.components(separatedBy: needle).count - 1
-}
-
-@MainActor
-private func buttons(in view: NSView) -> [NSButton] {
-  let nested = view.subviews.flatMap(buttons(in:))
-  if let button = view as? NSButton {
-    return [button] + nested
-  }
-  return nested
 }
 
 @MainActor

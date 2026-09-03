@@ -5,6 +5,7 @@ import Sharing
 import Sparkle
 import SupatermLicenseFeature
 import SupatermSupport
+import SupatermUI
 
 typealias UpdateOwnershipEndedPresenter =
   @MainActor (
@@ -40,7 +41,7 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
       ?? hostBundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
       ?? "0"
     self.openURL = openURL
-    self.presentOwnershipEnded = presentOwnershipEnded ?? Self.presentOwnershipEndedAlert
+    self.presentOwnershipEnded = presentOwnershipEnded ?? Self.presentOwnershipEndedDialog
     standard = SPUStandardUserDriver(hostBundle: hostBundle, delegate: nil)
     super.init()
   }
@@ -486,19 +487,40 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     return prominent + others + dismiss
   }
 
-  private static func presentOwnershipEndedAlert(
+  private static func presentOwnershipEndedDialog(
     _ phase: UpdatePhase,
     presentations: [UpdateActionPresentation]
   ) -> UpdateUserAction? {
-    let alert = NSAlert()
-    alert.messageText = phase.summaryText
-    alert.informativeText = phase.detailMessage
-    for presentation in presentations {
-      alert.addButton(withTitle: presentation.title)
+    var selectedAction: UpdateUserAction?
+    let presenter = DialogSurfacePresenter()
+    _ = presenter.runModal(over: NSApp.keyWindow) {
+      DialogSurface(
+        title: phase.summaryText,
+        message: phase.detailMessage,
+        icon: .application,
+        layout: DialogSurfaceLayout(width: 520),
+        actions: presentations.reversed().map { presentation in
+          DialogSurfaceAction(
+            id: String(describing: presentation.action),
+            title: presentation.title,
+            role: presentation.isProminent ? .primary : .secondary,
+            shortcut: presentation.isProminent
+              ? .default
+              : presentation.action == .dismiss ? .cancel : nil,
+            accessibilityIdentifier: presentation.isProminent
+              ? "dialog.confirm"
+              : presentation.action == .dismiss ? "dialog.cancel" : nil
+          ) {
+            selectedAction = presentation.action
+            presenter.finish(with: .OK)
+          }
+        },
+        onDismiss: {
+          presenter.finish(with: .cancel)
+        }
+      )
     }
-    let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
-    guard presentations.indices.contains(index) else { return nil }
-    return presentations[index].action
+    return selectedAction
   }
 
   private func fallbackAction(_ action: @escaping () -> Void) -> (() -> Void)? {

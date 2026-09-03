@@ -372,20 +372,40 @@ struct TerminalSidebarCompactUpdateButton: View {
     .accessibilityLabel("Restart to Update")
     .accessibilityHint("Restarts Supaterm and installs the downloaded update")
     .help("Restart to Update")
-    .confirmationDialog(
-      "Restart to Update?",
-      isPresented: $isRestartConfirmationPresented
-    ) {
-      Button("Restart Now") {
-        _ = store.send(.perform(.restartNow))
-      }
-      Button("Cancel", role: .cancel) {}
-    } message: {
-      Text(
-        TerminalSidebarUpdatePresentation.detailText(
+    .dialogSurface(isPresented: $isRestartConfirmationPresented) {
+      DialogSurface(
+        theme: .palette(palette),
+        title: "Restart to Update?",
+        message: TerminalSidebarUpdatePresentation.detailText(
           for: store.phase,
           preservesSessionsOnRestart: supatermSettings.zmxSessionsEnabled
-        )
+        ),
+        icon: .application,
+        actions: [
+          DialogSurfaceAction(
+            id: "cancel",
+            title: "Cancel",
+            role: .secondary,
+            shortcut: .cancel,
+            accessibilityIdentifier: "dialog.cancel"
+          ) {
+            isRestartConfirmationPresented = false
+          },
+          DialogSurfaceAction(
+            id: "restart",
+            title: "Restart Now",
+            role: .primary,
+            shortcut: .default,
+            accessibilityIdentifier: "dialog.confirm"
+          ) {
+            isRestartConfirmationPresented = false
+            _ = store.send(.perform(.restartNow))
+          },
+        ],
+        scrimLabel: "Cancel restart",
+        onDismiss: {
+          isRestartConfirmationPresented = false
+        }
       )
     }
   }

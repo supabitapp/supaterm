@@ -159,19 +159,19 @@ extension SupatermUITestCase {
   func renameSelectedTab(to title: String) async throws {
     try clickMenuItem(.changeTabTitle)
 
-    let sheet = mainWindow.sheets.firstMatch
-    XCTAssertTrue(sheet.waitForExistence(timeout: 10))
-    XCTAssertTrue(sheet.staticTexts["Change Tab Title"].exists)
+    let dialog = element(SupatermUITestIdentifier.Accessibility.dialogSurface)
+    XCTAssertTrue(dialog.waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Change Tab Title"].exists)
 
-    let titleField = sheet.textFields.firstMatch
+    let titleField = app.textFields.firstMatch
     XCTAssertTrue(titleField.waitForExistence(timeout: 10))
     titleField.click()
     titleField.typeKey("a", modifierFlags: .command)
     titleField.typeText(title)
-    sheet.buttons["OK"].click()
+    app.buttons[SupatermUITestIdentifier.Accessibility.dialogConfirm].click()
 
-    let didDismissSheet = await wait(for: sheet) { !$0.exists }
-    XCTAssertTrue(didDismissSheet)
+    let didDismissDialog = await wait(for: dialog) { !$0.exists }
+    XCTAssertTrue(didDismissDialog)
     let didUpdateTitle = await wait(for: sidebarTabRow(named: title)) { $0.exists }
     XCTAssertTrue(didUpdateTitle)
   }
@@ -210,9 +210,9 @@ extension SupatermUITestCase {
   func closeSelectedTab() throws {
     try clickMenuItem(.closeTab)
 
-    let closeSheet = mainWindow.sheets.firstMatch
-    XCTAssertTrue(closeSheet.waitForExistence(timeout: 10))
-    let closeButton = closeSheet.buttons["Close"]
+    let dialog = element(SupatermUITestIdentifier.Accessibility.dialogSurface)
+    XCTAssertTrue(dialog.waitForExistence(timeout: 10))
+    let closeButton = app.buttons[SupatermUITestIdentifier.Accessibility.dialogConfirm]
     XCTAssertTrue(closeButton.waitForExistence(timeout: 10))
     closeButton.click()
   }

@@ -3,6 +3,7 @@ import ComposableArchitecture
 import Sharing
 import SupaTheme
 import SupatermSettingsFeature
+import SupatermUI
 import SwiftUI
 
 struct TerminalView: View {
@@ -28,22 +29,16 @@ struct TerminalView: View {
     terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
   }
 
-  private var pendingCloseBinding: Binding<Bool> {
+  private var pendingConfirmationBinding: Binding<Bool> {
     Binding(
-      get: { store.pendingCloseRequest != nil },
-      set: {
-        if !$0 {
+      get: {
+        store.pendingCloseRequest != nil || store.pendingSpaceDeleteRequest != nil
+      },
+      set: { isPresented in
+        guard !isPresented else { return }
+        if store.pendingCloseRequest != nil {
           _ = store.send(.closeConfirmationCancelButtonTapped)
-        }
-      }
-    )
-  }
-
-  private var pendingSpaceDeleteBinding: Binding<Bool> {
-    Binding(
-      get: { store.pendingSpaceDeleteRequest != nil },
-      set: {
-        if !$0 {
+        } else if store.pendingSpaceDeleteRequest != nil {
           _ = store.send(.spaceDeleteCancelButtonTapped)
         }
       }
@@ -126,32 +121,34 @@ struct TerminalView: View {
           )
         }
       }
-      .alert(
-        store.pendingCloseRequest?.title ?? "Close?",
-        isPresented: pendingCloseBinding
-      ) {
-        Button("Cancel", role: .cancel) {
-          _ = store.send(.closeConfirmationCancelButtonTapped)
+      .dialogSurface(isPresented: pendingConfirmationBinding) {
+        if let pendingCloseRequest = store.pendingCloseRequest {
+          ConfirmationOverlay(
+            palette: palette,
+            title: pendingCloseRequest.title,
+            message: pendingCloseRequest.message,
+            confirmTitle: "Close",
+            onConfirm: {
+              _ = store.send(.closeConfirmationConfirmButtonTapped)
+            },
+            onCancel: {
+              _ = store.send(.closeConfirmationCancelButtonTapped)
+            }
+          )
+        } else if store.pendingSpaceDeleteRequest != nil {
+          ConfirmationOverlay(
+            palette: palette,
+            title: spaceDeleteTitle,
+            message: spaceDeleteMessage,
+            confirmTitle: "Delete",
+            onConfirm: {
+              _ = store.send(.spaceDeleteConfirmButtonTapped)
+            },
+            onCancel: {
+              _ = store.send(.spaceDeleteCancelButtonTapped)
+            }
+          )
         }
-        Button("Close", role: .destructive) {
-          _ = store.send(.closeConfirmationConfirmButtonTapped)
-        }
-        .keyboardShortcut(.defaultAction)
-      } message: {
-        Text(store.pendingCloseRequest?.message ?? "")
-      }
-      .alert(
-        spaceDeleteTitle,
-        isPresented: pendingSpaceDeleteBinding
-      ) {
-        Button("Cancel", role: .cancel) {
-          _ = store.send(.spaceDeleteCancelButtonTapped)
-        }
-        Button("Delete", role: .destructive) {
-          _ = store.send(.spaceDeleteConfirmButtonTapped)
-        }
-      } message: {
-        Text(spaceDeleteMessage)
       }
       .terminalAnimation(
         .easeOut(duration: 0.12),

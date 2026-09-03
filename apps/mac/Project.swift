@@ -219,6 +219,7 @@ let project = Project(
       dependencies: [
         .target(name: "SupatermLicenseFeature"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermUI"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
         .external(name: "Sparkle"),

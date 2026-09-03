@@ -47,11 +47,11 @@ final class SpaceLifecycleUITests: SupatermUITestCase {
     XCTAssertTrue(deleteSpace.waitForExistence(timeout: 10))
     deleteSpace.click()
 
-    let deleteSheet = app.sheets.firstMatch
-    XCTAssertTrue(deleteSheet.waitForExistence(timeout: 10))
-    let deleteTitle = deleteSheet.staticTexts["Delete Space \"Renamed UI Space\"?"]
+    let deleteDialog = element(SupatermUITestIdentifier.Accessibility.dialogSurface)
+    XCTAssertTrue(deleteDialog.waitForExistence(timeout: 10))
+    let deleteTitle = app.staticTexts["Delete Space \"Renamed UI Space\"?"]
     XCTAssertTrue(deleteTitle.waitForExistence(timeout: 10))
-    let deleteButton = deleteSheet.buttons["Delete"]
+    let deleteButton = app.buttons[SupatermUITestIdentifier.Accessibility.dialogConfirm]
     XCTAssertTrue(deleteButton.waitForExistence(timeout: 10))
     deleteButton.click()
 

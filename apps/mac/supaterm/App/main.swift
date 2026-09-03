@@ -1,5 +1,6 @@
 import AppKit
 import Darwin
+import SupatermUI
 
 #if !SUPATERM_SNAPSHOT_CATALOG
   import SupatermCLIShared
@@ -12,11 +13,30 @@ let app = NSApplication.shared
   let delegate = SnapshotCatalogAppDelegate()
 #else
   func refuseLaunch(_ messageText: String, _ informativeText: String) -> Never {
-    let alert = NSAlert()
-    alert.alertStyle = .critical
-    alert.messageText = messageText
-    alert.informativeText = informativeText
-    alert.runModal()
+    let presenter = DialogSurfacePresenter()
+    _ = presenter.runModal(
+      over: nil,
+      standaloneSize: CGSize(width: 680, height: 480)
+    ) {
+      DialogSurface(
+        title: messageText,
+        message: informativeText,
+        icon: .system("xmark.octagon.fill", tone: .danger),
+        layout: DialogSurfaceLayout(width: 500),
+        actions: [
+          DialogSurfaceAction(
+            id: "quit",
+            title: "Quit",
+            role: .primary,
+            shortcut: .default,
+            accessibilityIdentifier: "dialog.confirm",
+            action: {
+              presenter.finish(with: .OK)
+            }
+          )
+        ]
+      )
+    }
     Darwin.exit(EXIT_FAILURE)
   }
 

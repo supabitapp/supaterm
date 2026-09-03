@@ -5,6 +5,7 @@ import GhosttyKit
 import QuartzCore
 import SupatermCLIShared
 import SupatermSupport
+import SupatermUI
 import Synchronization
 
 nonisolated private final class GhosttyActiveScreenReader: Sendable {
@@ -1948,28 +1949,20 @@ final class GhosttySurfaceView: NSView, Identifiable {
     initialValue: String,
     handler: @escaping (String) -> Void
   ) {
-    let alert = NSAlert()
-    alert.messageText = messageText
-    alert.informativeText = "Leave blank to restore the default."
-    alert.alertStyle = .informational
-
-    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
-    textField.stringValue = initialValue
-    alert.accessoryView = textField
-
-    alert.addButton(withTitle: "OK")
-    alert.addButton(withTitle: "Cancel")
-    alert.window.initialFirstResponder = textField
-
-    let completionHandler: (NSApplication.ModalResponse) -> Void = { response in
-      guard response == .alertFirstButtonReturn else { return }
-      handler(textField.stringValue)
-    }
-
-    if let window {
-      alert.beginSheetModal(for: window, completionHandler: completionHandler)
-    } else {
-      completionHandler(alert.runModal())
+    let model = GhosttyTitleDialogModel(title: initialValue)
+    let presenter = DialogSurfacePresenter()
+    presenter.present(over: window) {
+      GhosttyTitleDialog(
+        title: messageText,
+        model: model,
+        onConfirm: {
+          presenter.finish(with: .OK)
+          handler(model.title)
+        },
+        onCancel: {
+          presenter.finish(with: .cancel)
+        }
+      )
     }
   }
 

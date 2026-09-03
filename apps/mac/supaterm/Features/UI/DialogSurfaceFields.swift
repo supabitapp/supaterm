@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 public enum DialogFieldState: Sendable {
@@ -362,6 +363,84 @@ public struct DialogCountdown: View {
     let totalSeconds = total.components.seconds
     guard totalSeconds > 0 else { return 0 }
     return Double(remaining.components.seconds) / Double(totalSeconds)
+  }
+}
+
+public struct DialogTextPreview: View {
+  private let text: String
+  private let minimumHeight: CGFloat
+  private let maximumHeight: CGFloat
+  private let theme: SurfaceTheme
+  private let accessibilityIdentifier: String?
+
+  @Environment(\.colorScheme) private var colorScheme
+
+  public init(
+    _ text: String,
+    minimumHeight: CGFloat = 72,
+    maximumHeight: CGFloat = 220,
+    theme: SurfaceTheme = .system,
+    accessibilityIdentifier: String? = nil
+  ) {
+    self.text = text
+    self.minimumHeight = minimumHeight
+    self.maximumHeight = maximumHeight
+    self.theme = theme
+    self.accessibilityIdentifier = accessibilityIdentifier
+  }
+
+  public var body: some View {
+    let colors = theme.colors(for: colorScheme)
+
+    DialogTextPreviewRepresentable(
+      text: text,
+      textColor: NSColor(colors.primaryText)
+    )
+    .frame(
+      minHeight: minimumHeight,
+      idealHeight: maximumHeight,
+      maxHeight: maximumHeight
+    )
+    .background(colors.mutedBackground, in: .rect(cornerRadius: 9))
+    .overlay {
+      RoundedRectangle(cornerRadius: 9)
+        .stroke(colors.border)
+    }
+    .accessibilityIdentifier(accessibilityIdentifier ?? "dialog.text-preview")
+  }
+}
+
+private struct DialogTextPreviewRepresentable: NSViewRepresentable {
+  let text: String
+  let textColor: NSColor
+
+  func makeNSView(context: Context) -> NSScrollView {
+    let scrollView = NSTextView.scrollableTextView()
+    scrollView.hasVerticalScroller = true
+    scrollView.hasHorizontalScroller = false
+    scrollView.autohidesScrollers = true
+    scrollView.drawsBackground = false
+
+    guard let textView = scrollView.documentView as? NSTextView else {
+      return scrollView
+    }
+    textView.drawsBackground = false
+    textView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+    textView.isEditable = false
+    textView.isHorizontallyResizable = false
+    textView.isRichText = false
+    textView.isSelectable = true
+    textView.textContainer?.widthTracksTextView = true
+    textView.textContainerInset = NSSize(width: 10, height: 10)
+    return scrollView
+  }
+
+  func updateNSView(_ scrollView: NSScrollView, context: Context) {
+    guard let textView = scrollView.documentView as? NSTextView else { return }
+    if textView.string != text {
+      textView.string = text
+    }
+    textView.textColor = textColor
   }
 }
 

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Testing
 
@@ -5,6 +6,36 @@ import Testing
 
 @MainActor
 struct SupatermUITests {
+  @Test
+  func dialogPresenterAttachesToParentAndRemovesItselfOnDismissal() throws {
+    let parent = NSWindow(
+      contentRect: NSRect(x: 20, y: 20, width: 600, height: 400),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    parent.makeKeyAndOrderFront(nil)
+    defer { parent.orderOut(nil) }
+
+    let presenter = DialogSurfacePresenter()
+    #expect(
+      presenter.present(over: parent) {
+        DialogSurface(title: "Test dialog")
+      }
+    )
+
+    let panel = try #require(
+      parent.childWindows?.first {
+        $0.identifier?.rawValue == "dialog.surface.panel"
+      }
+    )
+    #expect(panel.frame == parent.frame)
+
+    presenter.dismiss()
+
+    #expect(parent.childWindows?.contains(panel) == false)
+  }
+
   @Test
   func oneTimeCodeKeepsDigitsAndLimitsLength() {
     #expect(DialogOneTimeCodeValue.normalized(" 12a-345 67", length: 6) == "123456")

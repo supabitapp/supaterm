@@ -186,25 +186,25 @@ final class CommandPaletteUITests: SupatermUITestCase {
   }
 
   @MainActor
-  func testTitleCommandsPresentSheets() async throws {
+  func testTitleCommandsPresentDialogs() async throws {
     let terminal = try readyTerminal()
     terminal.click()
 
-    for (commandTitle, sheetTitle) in [
+    for (commandTitle, dialogTitle) in [
       ("Rename Tab", "Change Tab Title"),
       ("Rename Pane", "Change Terminal Title"),
     ] {
       try await executePaletteCommand(commandTitle)
 
-      let sheet = mainWindow.sheets.firstMatch
-      let didPresentSheet = await wait(for: sheet) {
-        $0.exists && $0.staticTexts[sheetTitle].exists
+      let dialog = element(SupatermUITestIdentifier.Accessibility.dialogSurface)
+      let didPresentDialog = await wait(for: dialog) {
+        $0.exists && self.app.staticTexts[dialogTitle].exists
       }
-      XCTAssertTrue(didPresentSheet)
+      XCTAssertTrue(didPresentDialog)
 
-      sheet.buttons["Cancel"].click()
-      let didDismissSheet = await wait(for: sheet) { !$0.exists }
-      XCTAssertTrue(didDismissSheet)
+      app.buttons[SupatermUITestIdentifier.Accessibility.dialogCancel].click()
+      let didDismissDialog = await wait(for: dialog) { !$0.exists }
+      XCTAssertTrue(didDismissDialog)
     }
   }
 
