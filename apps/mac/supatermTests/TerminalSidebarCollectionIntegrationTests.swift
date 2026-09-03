@@ -239,7 +239,7 @@ struct TerminalSidebarCollectionHarnessTests {
   }
 
   @Test
-  func animatedDeletionCommitsTargetLayoutAndFadesTheRemovedView() throws {
+  func animatedDeletionFadesRemovedViewAndPreparesNewTabTargetFrame() throws {
     let first = TerminalTabID()
     let deleted = TerminalTabID()
     let last = TerminalTabID()
@@ -263,6 +263,13 @@ struct TerminalSidebarCollectionHarnessTests {
     let targetLastFrame = try #require(
       harness.layout.plan.items.first { $0.id == .tab(last) }?.frame
     )
+    let targetNewTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .newTab }?.frame
+    )
+    let targetNewTabIndexPath = try #require(harness.dataSource.indexPath(for: .newTab))
+    let targetNewTabAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: targetNewTabIndexPath)
+    )
     let opacityAnimation = try #require(
       deletedView.layer?.animation(forKey: "opacity") as? CABasicAnimation
     )
@@ -272,6 +279,63 @@ struct TerminalSidebarCollectionHarnessTests {
     #expect(opacityAnimation.fromValue as? Float == 1)
     #expect(opacityAnimation.duration == 1)
     #expect(deletedView.layer?.opacity == 0)
+    #expect(targetNewTabAttributes.frame == targetNewTabFrame)
+  }
+
+  @Test
+  func animatedInsertionRevealsRowAndPreparesNewTabTargetFrame() throws {
+    let first = TerminalTabID()
+    let inserted = TerminalTabID()
+    let source = outline([first], revision: 1)
+    let target = outline([first, inserted], revision: 2)
+    let harness = CollectionHarness(size: CGSize(width: 220, height: 300))
+    defer {
+      harness.window.orderOut(nil)
+      harness.close()
+    }
+    harness.window.orderFront(nil)
+    harness.apply(outline: source)
+
+    harness.applyAnimated(outline: target, duration: 1)
+
+    let insertedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(inserted)))
+    let insertedView = try #require(harness.collectionView.item(at: insertedIndexPath)?.view)
+    let targetInsertedFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(inserted) }?.frame
+    )
+    let targetNewTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .newTab }?.frame
+    )
+    let targetNewTabIndexPath = try #require(harness.dataSource.indexPath(for: .newTab))
+    let targetNewTabAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: targetNewTabIndexPath)
+    )
+    let insertedPositionAnimation = try #require(
+      insertedView.layer?.animation(forKey: "position") as? CABasicAnimation
+    )
+    let insertedStartPosition = try #require(
+      (insertedPositionAnimation.fromValue as? NSValue)?.pointValue
+    )
+    let insertedOpacityAnimation = try #require(
+      insertedView.layer?.animation(forKey: "opacity") as? CABasicAnimation
+    )
+    let backingScale = harness.window.backingScaleFactor
+    func alignToBackingPixel(_ value: CGFloat) -> CGFloat {
+      (value * backingScale).rounded() / backingScale
+    }
+    let expectedInsertedStartPosition = CGPoint(
+      x: alignToBackingPixel(targetInsertedFrame.minX),
+      y: alignToBackingPixel(
+        targetInsertedFrame.minY + TerminalSidebarLayoutMotion.insertedItemOffset
+      )
+    )
+    #expect(harness.layout.outline == target)
+    #expect(harness.dataSource.snapshot().itemIdentifiers == target.visibleEntries.map(\.id))
+    #expect(targetNewTabAttributes.frame == targetNewTabFrame)
+    #expect(insertedPositionAnimation.duration == 1)
+    #expect(insertedStartPosition == expectedInsertedStartPosition)
+    #expect(insertedOpacityAnimation.fromValue as? Float == 0)
+    #expect(insertedOpacityAnimation.duration == 1)
   }
 
   @Test

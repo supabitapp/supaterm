@@ -110,6 +110,7 @@ enum TerminalSidebarCollapseMotion {
 
 enum TerminalSidebarLayoutMotion {
   static let defaultDuration: TimeInterval = 0.12
+  static let insertedItemOffset = TerminalSidebarLayout.tabRowMinHeight / 3
 }
 
 struct TerminalSidebarDragVelocityTracker {
