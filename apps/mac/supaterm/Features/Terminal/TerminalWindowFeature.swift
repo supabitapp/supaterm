@@ -755,7 +755,7 @@ struct TerminalWindowFeature {
     }
   }
 
-  private func pendingCloseRequest(for target: TerminalCloseTarget) -> PendingCloseRequest {
+  func pendingCloseRequest(for target: TerminalCloseTarget) -> PendingCloseRequest {
     switch target {
     case .surface(let surfaceID):
       return PendingCloseRequest(

@@ -1,6 +1,5 @@
 import AppKit
 import GhosttyKit
-import Observation
 import SupatermUI
 import SwiftUI
 
@@ -31,7 +30,7 @@ enum GhosttyClipboardConfirmationRequest: Equatable {
 
 @MainActor
 final class GhosttyClipboardConfirmationCoordinator {
-  fileprivate struct Presentation {
+  struct Presentation {
     let title: String
     let message: String
     let cancelTitle: String
@@ -179,7 +178,7 @@ final class GhosttyClipboardConfirmationCoordinator {
     completion(false, false)
   }
 
-  private static func presentation(
+  static func presentation(
     for request: GhosttyClipboardConfirmationRequest,
     programName: String?
   ) -> Presentation {
@@ -225,77 +224,5 @@ final class GhosttyClipboardConfirmationCoordinator {
       maximumBytes: GhosttyClipboardDisplay.maximumRequesterBytes,
       marker: "[Name display truncated; source is \(sanitized.totalSourceBytes) UTF-8 bytes]"
     )
-  }
-}
-
-@Observable
-@MainActor
-private final class GhosttyClipboardConfirmationDialogState {
-  var remember = false
-}
-
-private struct GhosttyClipboardConfirmationDialog: View {
-  let presentation: GhosttyClipboardConfirmationCoordinator.Presentation
-  let preview: String
-  let previewImage: NSImage?
-  let canRemember: Bool
-  @Bindable var state: GhosttyClipboardConfirmationDialogState
-  let onConfirm: () -> Void
-  let onCancel: () -> Void
-
-  var body: some View {
-    DialogSurface(
-      title: presentation.title,
-      message: presentation.message,
-      icon: .system("clipboard", tone: .warning),
-      layout: DialogSurfaceLayout(width: 520, maximumContentHeight: 360),
-      actions: [
-        DialogSurfaceAction(
-          id: "cancel",
-          title: presentation.cancelTitle,
-          role: .secondary,
-          shortcut: .cancel,
-          accessibilityIdentifier: "terminal.clipboard-confirmation.cancel",
-          action: onCancel
-        ),
-        DialogSurfaceAction(
-          id: "confirm",
-          title: presentation.confirmTitle,
-          role: .primary,
-          shortcut: .default,
-          accessibilityIdentifier: "terminal.clipboard-confirmation.confirm",
-          action: onConfirm
-        )
-      ],
-      scrimLabel: presentation.cancelTitle,
-      onDismiss: onCancel
-    ) {
-      VStack(alignment: .leading, spacing: 14) {
-        if let previewImage {
-          Image(nsImage: previewImage)
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(maxWidth: .infinity)
-            .frame(height: 180)
-            .accessibilityIdentifier("terminal.clipboard-confirmation.image")
-        }
-
-        DialogTextPreview(
-          preview,
-          minimumHeight: previewImage == nil ? 140 : 72,
-          maximumHeight: previewImage == nil ? 180 : 88,
-          accessibilityIdentifier: "terminal.clipboard-confirmation.preview"
-        )
-
-        if canRemember {
-          DialogCheckbox(
-            "Allow for the rest of this terminal session",
-            isOn: $state.remember
-          )
-          .accessibilityIdentifier("terminal.clipboard-confirmation.remember")
-        }
-      }
-    }
   }
 }

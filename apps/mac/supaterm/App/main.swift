@@ -18,23 +18,12 @@ let app = NSApplication.shared
       over: nil,
       standaloneSize: CGSize(width: 680, height: 480)
     ) {
-      DialogSurface(
+      LaunchFailureDialog(
         title: messageText,
         message: informativeText,
-        icon: .system("xmark.octagon.fill", tone: .danger),
-        layout: DialogSurfaceLayout(width: 500),
-        actions: [
-          DialogSurfaceAction(
-            id: "quit",
-            title: "Quit",
-            role: .primary,
-            shortcut: .default,
-            accessibilityIdentifier: "dialog.confirm",
-            action: {
-              presenter.finish(with: .OK)
-            }
-          )
-        ]
+        onQuit: {
+          presenter.finish(with: .OK)
+        }
       )
     }
     Darwin.exit(EXIT_FAILURE)

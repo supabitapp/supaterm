@@ -478,7 +478,7 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     }
   }
 
-  private static func standardPresentations(
+  static func standardPresentations(
     _ presentations: [UpdateActionPresentation]
   ) -> [UpdateActionPresentation] {
     let prominent = presentations.filter(\.isProminent)
@@ -494,26 +494,12 @@ final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     var selectedAction: UpdateUserAction?
     let presenter = DialogSurfacePresenter()
     _ = presenter.runModal(over: NSApp.keyWindow) {
-      DialogSurface(
-        title: phase.summaryText,
-        message: phase.detailMessage,
-        icon: .application,
-        layout: DialogSurfaceLayout(width: 520),
-        actions: presentations.reversed().map { presentation in
-          DialogSurfaceAction(
-            id: String(describing: presentation.action),
-            title: presentation.title,
-            role: presentation.isProminent ? .primary : .secondary,
-            shortcut: presentation.isProminent
-              ? .default
-              : presentation.action == .dismiss ? .cancel : nil,
-            accessibilityIdentifier: presentation.isProminent
-              ? "dialog.confirm"
-              : presentation.action == .dismiss ? "dialog.cancel" : nil
-          ) {
-            selectedAction = presentation.action
-            presenter.finish(with: .OK)
-          }
+      UpdateOwnershipEndedDialog(
+        phase: phase,
+        presentations: presentations,
+        onSelect: { action in
+          selectedAction = action
+          presenter.finish(with: .OK)
         },
         onDismiss: {
           presenter.finish(with: .cancel)

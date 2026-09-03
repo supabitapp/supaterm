@@ -135,12 +135,11 @@ struct TerminalView: View {
               _ = store.send(.closeConfirmationCancelButtonTapped)
             }
           )
-        } else if store.pendingSpaceDeleteRequest != nil {
-          ConfirmationOverlay(
+        } else if let pendingSpaceDeleteRequest = store.pendingSpaceDeleteRequest {
+          TerminalSpaceDeleteDialog(
             palette: palette,
-            title: spaceDeleteTitle,
-            message: spaceDeleteMessage,
-            confirmTitle: "Delete",
+            spaceName: pendingSpaceDeleteRequest.space.name,
+            paneCount: terminal.paneCountAcrossWindows(pendingSpaceDeleteRequest.space.id),
             onConfirm: {
               _ = store.send(.spaceDeleteConfirmButtonTapped)
             },
@@ -198,25 +197,6 @@ struct TerminalView: View {
       guard surface.window === window else { return }
       window.makeFirstResponder(surface)
     }
-  }
-
-  private var spaceDeleteTitle: String {
-    guard let request = store.pendingSpaceDeleteRequest else {
-      return "Delete Space?"
-    }
-    return "Delete Space \"\(request.space.name)\"?"
-  }
-
-  private var spaceDeleteMessage: String {
-    guard let request = store.pendingSpaceDeleteRequest else {
-      return "All tabs in this space will be closed."
-    }
-    let paneCount = terminal.paneCountAcrossWindows(request.space.id)
-    guard paneCount > 0 else {
-      return "This space has no open tabs."
-    }
-    let panes = paneCount == 1 ? "1 pane" : "\(paneCount) panes"
-    return "Deleting it closes \(panes) across every window and ends their processes."
   }
 
   private var resolvedWindowActivity: WindowActivityState {

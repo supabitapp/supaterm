@@ -156,7 +156,7 @@ archive-xcodebuild:
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: test-xcodebuild # Run the full macOS test suite
+test: test-xcodebuild test-snapshots # Run the full macOS test suite
 
 test-xcodebuild: tuist-generate build-ghostty build-zmx build-ap
 	@bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "$(MACOS_DESTINATION)" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'

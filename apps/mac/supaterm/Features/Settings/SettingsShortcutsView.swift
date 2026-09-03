@@ -87,33 +87,12 @@ struct SettingsShortcutsView: View {
       }
     }
     .dialogSurface(isPresented: $isRestoreConfirmationPresented) {
-      DialogSurface(
-        title: "Restore Keyboard Shortcuts?",
-        message: "Restore all keyboard shortcuts to their defaults?",
-        icon: .system("arrow.counterclockwise", tone: .warning),
-        actions: [
-          DialogSurfaceAction(
-            id: "cancel",
-            title: "Cancel",
-            role: .secondary,
-            shortcut: .cancel,
-            accessibilityIdentifier: "dialog.cancel"
-          ) {
-            isRestoreConfirmationPresented = false
-          },
-          DialogSurfaceAction(
-            id: "restore",
-            title: "Restore Defaults",
-            role: .destructive,
-            shortcut: .default,
-            accessibilityIdentifier: "dialog.confirm"
-          ) {
-            isRestoreConfirmationPresented = false
-            _ = store.send(.restoreShortcutDefaultsButtonTapped)
-          },
-        ],
-        scrimLabel: "Cancel restoring keyboard shortcuts",
-        onDismiss: {
+      RestoreKeyboardShortcutsDialog(
+        onRestore: {
+          isRestoreConfirmationPresented = false
+          _ = store.send(.restoreShortcutDefaultsButtonTapped)
+        },
+        onCancel: {
           isRestoreConfirmationPresented = false
         }
       )
