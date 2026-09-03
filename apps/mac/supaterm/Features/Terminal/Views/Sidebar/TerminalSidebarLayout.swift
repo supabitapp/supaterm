@@ -66,7 +66,9 @@ enum TerminalSidebarLayout {
   }
   static let rowHorizontalPadding: CGFloat = 10
   static let visibleHorizontalInset: CGFloat = 6
-  static let groupedTabIndent: CGFloat = 6
+  static let groupHeaderHorizontalPadding: CGFloat = 8
+  static let groupChildContentIndent: CGFloat = 16
+  static let groupedTabSurfaceIndent: CGFloat = 6
   static var cardHorizontalInsets: HorizontalInsets {
     HorizontalInsets(
       leading: visibleHorizontalInset,
@@ -84,7 +86,9 @@ enum TerminalSidebarLayout {
 
   static func tabContentHorizontalInsets(isGrouped: Bool) -> HorizontalInsets {
     HorizontalInsets(
-      leading: rowHorizontalPadding + (isGrouped ? groupedTabIndent : 0),
+      leading: isGrouped
+        ? groupHeaderHorizontalPadding + groupChildContentIndent
+        : rowHorizontalPadding,
       trailing: rowHorizontalPadding
     )
   }
@@ -92,7 +96,7 @@ enum TerminalSidebarLayout {
   static func tabSurfaceHorizontalInsets(isGrouped: Bool) -> HorizontalInsets {
     guard isGrouped else { return HorizontalInsets(leading: 0, trailing: 0) }
     return HorizontalInsets(
-      leading: groupedTabIndent,
+      leading: groupedTabSurfaceIndent,
       trailing: groupSurfaceOverflow
     )
   }

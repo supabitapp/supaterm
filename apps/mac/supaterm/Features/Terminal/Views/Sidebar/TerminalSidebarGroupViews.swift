@@ -464,7 +464,7 @@ private struct TerminalSidebarGroupHeader: View {
           }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, TerminalSidebarLayout.groupHeaderHorizontalPadding)
         .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       } else {
         ZStack(alignment: .trailing) {
@@ -488,7 +488,7 @@ private struct TerminalSidebarGroupHeader: View {
                 .accessibilityHidden(true)
               Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, TerminalSidebarLayout.groupHeaderHorizontalPadding)
             .frame(
               maxWidth: .infinity,
               minHeight: TerminalSidebarLayout.tabRowMinHeight,
