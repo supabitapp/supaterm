@@ -17,7 +17,7 @@ describe("vite config", () => {
     expect(latestDownloadProxy?.target).toBe(githubOrigin);
     expect(latestDownloadProxy?.changeOrigin).toBe(true);
     expect(latestDownloadProxy?.rewrite?.("/download/latest/supaterm.dmg?build=1")).toBe(
-      "/supabitapp/supaterm/releases/latest/download/supaterm.dmg?build=1",
+      "/supabitapp/supaterm/releases/latest/download/supaterm.dmg",
     );
   });
 
@@ -27,7 +27,7 @@ describe("vite config", () => {
     expect(versionedDownloadProxy?.target).toBe(githubOrigin);
     expect(versionedDownloadProxy?.changeOrigin).toBe(true);
     expect(versionedDownloadProxy?.rewrite?.("/download/v26.0.0/supaterm.dmg?build=1")).toBe(
-      "/supabitapp/supaterm/releases/download/v26.0.0/supaterm.dmg?build=1",
+      "/supabitapp/supaterm/releases/download/v26.0.0/supaterm.dmg",
     );
   });
 

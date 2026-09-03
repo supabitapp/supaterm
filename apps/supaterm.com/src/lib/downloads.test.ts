@@ -12,7 +12,7 @@ describe("downloads", () => {
     );
 
     expect(targetUrl?.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/latest/download/supaterm.dmg?build=1",
+      "https://github.com/supabitapp/supaterm/releases/latest/download/supaterm.dmg",
     );
   });
 
@@ -22,7 +22,7 @@ describe("downloads", () => {
     );
 
     expect(targetUrl?.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg?build=1",
+      "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg",
     );
   });
 
@@ -32,7 +32,7 @@ describe("downloads", () => {
     );
 
     expect(targetUrl?.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/download/v26.0.0/supaterm.dmg?build=1",
+      "https://github.com/supabitapp/supaterm/releases/download/v26.0.0/supaterm.dmg",
     );
   });
 
@@ -42,7 +42,7 @@ describe("downloads", () => {
     );
 
     expect(targetUrl?.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml?build=1",
+      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml",
     );
   });
 
