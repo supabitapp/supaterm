@@ -31,6 +31,7 @@ def validated_tip_items(channel: ET.Element) -> list[ET.Element]:
     raise SystemExit("tip appcast has no items")
   if any(not is_tip_item(item) for item in items):
     raise SystemExit("tip appcast contains an item without the tip channel")
+  validate_unique_versions(items, "tip")
   return items
 
 
@@ -50,6 +51,20 @@ def release_pub_date(value: str) -> str:
 
 def version(item: ET.Element) -> str | None:
   return item.findtext(f"{{{SPARKLE_NAMESPACE}}}version")
+
+
+def validate_unique_versions(items: list[ET.Element], feed: str) -> None:
+  seen = set()
+  duplicates = set()
+  for item in items:
+    item_version = version(item)
+    if item_version is None:
+      continue
+    if item_version in seen:
+      duplicates.add(item_version)
+    seen.add(item_version)
+  if duplicates:
+    raise SystemExit(f"{feed} appcast contains duplicate versions: {', '.join(sorted(duplicates))}")
 
 
 def stamp_items(
@@ -94,13 +109,16 @@ def merge_stable(
     raise SystemExit("stable appcast has no items")
   if any(is_tip_item(item) for item in current_items):
     raise SystemExit("stable appcast contains a tip item")
+  validate_unique_versions(current_items, "stable")
 
   current_versions = {version(item) for item in current_items}
   stamp_items(current_items, release_day)
 
   if previous_path is not None:
     previous_tree = parse_tree(previous_path)
-    for item in channel(previous_tree.getroot()).findall("item"):
+    previous_items = channel(previous_tree.getroot()).findall("item")
+    validate_unique_versions(previous_items, "previous")
+    for item in previous_items:
       if is_tip_item(item) or version(item) not in current_versions:
         current_channel.append(copy.deepcopy(item))
 

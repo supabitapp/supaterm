@@ -16,9 +16,11 @@ def sha256(path: Path) -> str:
 
 def release_checksums(tag: str, paths: list[Path]) -> dict[str, object]:
   assets = {}
-  for path in sorted(set(paths), key=lambda asset: asset.name):
+  for path in sorted(set(paths), key=lambda asset: (asset.name, str(asset))):
     if not path.is_file():
       raise SystemExit(f"asset not found: {path}")
+    if path.name in assets:
+      raise SystemExit(f"duplicate asset name: {path.name}")
     assets[path.name] = {
       "sha256": sha256(path),
       "size": path.stat().st_size,
@@ -33,7 +35,10 @@ def main() -> None:
   tag = sys.argv[1]
   output = Path(sys.argv[2])
   paths = [Path(path) for path in sys.argv[3:]]
-  output.write_text(json.dumps(release_checksums(tag, paths), indent=2, sort_keys=True) + "\n")
+  output.write_text(
+    json.dumps(release_checksums(tag, paths), indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+  )
 
 
 if __name__ == "__main__":
