@@ -266,11 +266,11 @@ struct TerminalSidebarCollectionHarnessTests {
     let targetLastFrame = try #require(
       harness.layout.plan.items.first { $0.id == .tab(last) }?.frame
     )
+    let targetNewTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .newTab }?.frame
+    )
     let opacityAnimation = try #require(
       deletedView.layer?.animation(forKey: "opacity") as? CABasicAnimation
-    )
-    let newTabPositionAnimation = try #require(
-      newTabView.layer?.animation(forKey: "position") as? CABasicAnimation
     )
     #expect(harness.layout.outline == target)
     #expect(targetLastFrame.minY < sourceLastFrame.minY)
@@ -279,7 +279,7 @@ struct TerminalSidebarCollectionHarnessTests {
     #expect(opacityAnimation.duration == 1)
     #expect(deletedView.layer?.opacity == 0)
     #expect(newTabView.frame.minY < sourceNewTabFrame.minY)
-    #expect(newTabPositionAnimation.duration == 1)
+    #expect(newTabView.frame == targetNewTabFrame)
   }
 
   @Test
@@ -306,8 +306,8 @@ struct TerminalSidebarCollectionHarnessTests {
     let targetInsertedFrame = try #require(
       harness.layout.plan.items.first { $0.id == .tab(inserted) }?.frame
     )
-    let newTabPositionAnimation = try #require(
-      newTabView.layer?.animation(forKey: "position") as? CABasicAnimation
+    let targetNewTabFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .newTab }?.frame
     )
     let insertedPositionAnimation = try #require(
       insertedView.layer?.animation(forKey: "position") as? CABasicAnimation
@@ -331,7 +331,7 @@ struct TerminalSidebarCollectionHarnessTests {
     #expect(harness.layout.outline == target)
     #expect(harness.dataSource.snapshot().itemIdentifiers == target.visibleEntries.map(\.id))
     #expect(newTabView.frame.minY > sourceNewTabFrame.minY)
-    #expect(newTabPositionAnimation.duration == 1)
+    #expect(newTabView.frame == targetNewTabFrame)
     #expect(insertedPositionAnimation.duration == 1)
     #expect(insertedStartPosition == expectedInsertedStartPosition)
     #expect(insertedOpacityAnimation.fromValue as? Float == 0)
