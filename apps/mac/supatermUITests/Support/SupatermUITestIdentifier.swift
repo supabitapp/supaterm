@@ -24,6 +24,7 @@ enum SupatermUITestIdentifier {
     static let hoveredLink = "terminal-hovered-link"
     static let clipboardConfirm = "terminal.clipboard-confirmation.confirm"
     static let clipboardCancel = "terminal.clipboard-confirmation.cancel"
+    static let clipboardPreview = "terminal.clipboard-confirmation.preview"
   }
 
   enum Settings {

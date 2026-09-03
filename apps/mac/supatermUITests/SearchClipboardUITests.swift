@@ -137,6 +137,14 @@ final class SearchClipboardUITests: SupatermUITestCase {
     app.typeKey("v", modifierFlags: .command)
     let cancelButton = app.buttons[SupatermUITestIdentifier.Accessibility.clipboardCancel]
     XCTAssertTrue(cancelButton.waitForExistence(timeout: 10))
+    let preview = try require(
+      element(SupatermUITestIdentifier.Accessibility.clipboardPreview)
+    )
+    XCTAssertLessThan(
+      cancelButton.frame.minY - preview.frame.maxY,
+      80,
+      "Short clipboard previews should not leave a large empty region above the action bar"
+    )
     attachAppScreenshot(named: "dialog-unsafe-paste")
     cancelButton.click()
     let cancelled = await wait(for: cancelButton) { !$0.exists }
