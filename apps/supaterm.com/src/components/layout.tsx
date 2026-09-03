@@ -1,43 +1,164 @@
+import { AppleIcon, GithubIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, Outlet } from "@tanstack/react-router";
+import { posthog } from "posthog-js";
+import { type ReactNode } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { downloadHref } from "@/lib/downloads";
+import { cn } from "@/lib/utils";
 
 const githubHref = "https://github.com/supabitapp/supaterm";
+const releasesHref = "https://github.com/supabitapp/supaterm/releases";
 const docsHref = "https://docs.supaterm.com";
+
+const ctaIcons = {
+  download: AppleIcon,
+  github: GithubIcon,
+} as const;
+
+type CtaLinkProps = {
+  href: string;
+  icon: keyof typeof ctaIcons;
+  children: ReactNode;
+  className?: string;
+  variant?: "default" | "outline";
+  size?: "lg";
+  showIcon?: boolean;
+  onClick?: () => void;
+  download?: boolean;
+};
+
+function CtaLink({
+  href,
+  icon,
+  children,
+  className,
+  variant = "default",
+  size = "lg",
+  showIcon = true,
+  onClick,
+  download,
+}: CtaLinkProps) {
+  return (
+    <a
+      href={href}
+      download={download}
+      onClick={onClick}
+      className={cn(buttonVariants({ variant, size }), showIcon ? "gap-3" : "gap-0", className)}
+    >
+      {showIcon ? (
+        <HugeiconsIcon
+          icon={ctaIcons[icon]}
+          size={22}
+          strokeWidth={1.8}
+          className="shrink-0"
+          color="currentColor"
+        />
+      ) : null}
+      <span>{children}</span>
+    </a>
+  );
+}
 
 function Layout() {
   return (
-    <main className="flex min-h-svh flex-col overflow-x-hidden">
-      <header className="relative z-50 border-b border-white/7">
-        <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-6 md:px-10">
+    <main className="overflow-x-hidden">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/8 bg-[#12100b]/86 backdrop-blur-md">
+        <div className="mx-auto flex h-[52px] w-full max-w-[1440px] items-center justify-between px-6 md:px-10">
           <Link
             to="/"
-            className="flex items-center gap-2.5 font-mono text-sm font-bold tracking-[0.2em] text-white uppercase"
+            className="flex items-center gap-2 font-mono text-base font-bold tracking-[0.22em] text-white uppercase"
           >
             <img src="/logo-mark.svg" alt="" className="h-5 w-auto" />
             <span>Supaterm</span>
           </Link>
-          <span className="hidden text-[0.62rem] tracking-[0.14em] text-white/28 uppercase sm:block">
-            The terminal with skills
-          </span>
+          <nav className="absolute left-1/2 hidden -translate-x-1/2 gap-6 sm:flex">
+            <a
+              href="/#pricing"
+              className="text-sm text-white/50 transition-colors hover:text-white/80"
+            >
+              Pricing
+            </a>
+            <a
+              href={docsHref}
+              className="text-sm text-white/50 transition-colors hover:text-white/80"
+            >
+              Docs
+            </a>
+            <Link
+              to="/changelog"
+              className="text-sm text-white/50 transition-colors hover:text-white/80"
+              activeProps={{ className: "text-sm text-white/80" }}
+            >
+              Changelog
+            </Link>
+          </nav>
+          <div className="flex items-center gap-2">
+            <CtaLink
+              href={downloadHref}
+              icon="download"
+              showIcon={false}
+              download
+              onClick={() => posthog.capture("nav_download_clicked")}
+              className="h-[1.55rem] rounded-full bg-[#f1ede4] px-3.5 text-[0.7rem] leading-none font-normal text-[#12100b] hover:bg-white"
+            >
+              Download
+            </CtaLink>
+          </div>
         </div>
       </header>
 
-      <div className="flex-1">
-        <Outlet />
-      </div>
+      <Outlet />
 
-      <footer className="relative z-10 border-t border-white/7 px-6 md:px-10">
-        <div className="mx-auto flex min-h-16 max-w-[1440px] flex-col justify-center gap-3 py-4 text-xs text-white/32 sm:flex-row sm:items-center sm:justify-between sm:py-0">
-          <span>© {new Date().getFullYear()} Supaterm Limited</span>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <Link to="/terms" className="transition-colors hover:text-white/68">
+      <footer className="px-6 pb-10 md:px-10 md:pb-12">
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-4 border-t border-white/8 pt-6 text-sm text-white/42 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/logo-mark.svg" alt="Supaterm" className="h-5 w-auto" />
+            <span>Supaterm</span>
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <a
+              href={githubHref}
+              onClick={() => posthog.capture("footer_github_clicked")}
+              className="transition-colors hover:text-white/78"
+            >
+              GitHub
+            </a>
+            <a href="/#pricing" className="transition-colors hover:text-white/78">
+              Pricing
+            </a>
+            <a
+              href="https://license.supaterm.com"
+              className="transition-colors hover:text-white/78"
+            >
+              License Management Portal
+            </a>
+            <Link to="/changelog" className="transition-colors hover:text-white/78">
+              Changelog
+            </Link>
+            <Link to="/terms" className="transition-colors hover:text-white/78">
               Terms
             </Link>
-            <Link to="/privacy" className="transition-colors hover:text-white/68">
+            <Link to="/privacy" className="transition-colors hover:text-white/78">
               Privacy
             </Link>
-            <Link to="/refunds" className="transition-colors hover:text-white/68">
+            <Link to="/refunds" className="transition-colors hover:text-white/78">
               Refunds
             </Link>
+            <a
+              href={releasesHref}
+              onClick={() => posthog.capture("footer_releases_clicked")}
+              className="transition-colors hover:text-white/78"
+            >
+              Releases
+            </a>
+            <a
+              href="https://x.com/khoiracle"
+              onClick={() => posthog.capture("footer_twitter_clicked")}
+              className="transition-colors hover:text-white/78"
+            >
+              Made by @khoiracle
+            </a>
           </div>
         </div>
       </footer>
@@ -45,4 +166,5 @@ function Layout() {
   );
 }
 
-export { Layout, docsHref, githubHref };
+export { CtaLink, Layout, docsHref, downloadHref, githubHref };
+export type { CtaLinkProps };
