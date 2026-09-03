@@ -761,6 +761,11 @@ struct TerminalSidebarLayoutPlan: Equatable {
       TerminalSidebarLayout.tabRowSpacing + TerminalSidebarLayout.groupSurfaceOverflow
     case (.pinDivider, _):
       TerminalSidebarLayout.tabRowSpacing
+    case (
+      .group(let groupID, _, _, _),
+      .tab(_, .some(let parentGroupID), _)
+    ) where groupID == parentGroupID:
+      0
     case (.tab(_, .some, _), .tab(_, nil, _)),
       (.group, .tab(_, nil, _)):
       rootSpacing
