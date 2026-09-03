@@ -29,20 +29,29 @@ struct GhosttyClipboardConfirmationTests {
     let surface = try #require(fixture.surface.surface)
     let coordinator = GhosttyClipboardConfirmationCoordinator()
     var decision: (allowed: Bool, remember: Bool)?
+    let programName = "clipboard-client\"\n\u{202E}spoofed"
+    let payload = GhosttyClipboardConfirmationPayload(
+      contents: [
+        GhosttyClipboardContent(mime: "text/plain", data: Data("secret".utf8)),
+        GhosttyClipboardContent(
+          mime: "application/octet-stream",
+          data: Data([0x00, 0xFF])
+        ),
+      ],
+      available: [],
+      programName: programName,
+      canRemember: true
+    )
+    let presentation = GhosttyClipboardConfirmationCoordinator.presentation(
+      for: .kittyRead,
+      programName: programName
+    )
+    #expect(presentation.message.contains("clipboard-client"))
+    #expect(presentation.message.contains("202E"))
+    #expect(!presentation.message.contains("\u{202E}"))
 
     let presented = coordinator.present(
-      payload: GhosttyClipboardConfirmationPayload(
-        contents: [
-          GhosttyClipboardContent(mime: "text/plain", data: Data("secret".utf8)),
-          GhosttyClipboardContent(
-            mime: "application/octet-stream",
-            data: Data([0x00, 0xFF])
-          ),
-        ],
-        available: [],
-        programName: "clipboard-client\"\n\u{202E}spoofed",
-        canRemember: true
-      ),
+      payload: payload,
       request: .kittyRead,
       surface: GhosttyRuntime.SurfaceReference(surface),
       view: fixture.surface
@@ -53,9 +62,6 @@ struct GhosttyClipboardConfirmationTests {
 
     let dialog = try await attachedDialog(of: fixture.window)
     let text = textPreview(in: dialog)
-    #expect(text.contains("clipboard-client"))
-    #expect(text.contains("202E"))
-    #expect(!text.contains("\u{202E}"))
     #expect(text.contains("text/plain (6 bytes)\nsecret"))
     #expect(text.contains("application/octet-stream (2 bytes)"))
     #expect(coordinator.setRemember(true, in: fixture.window))
