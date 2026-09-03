@@ -35,4 +35,4 @@
 
 ### Issue tracker
 
-Issues and PRDs are tracked in Linear under the `Supaterm` team through Linear MCP. See `docs/agents/issue-tracker.md`.
+Issues and PRDs are tracked in Linear under the `Supaterm` team through Linear MCP.

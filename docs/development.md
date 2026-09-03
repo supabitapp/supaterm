@@ -307,14 +307,8 @@ For subagents models, use luna xhigh or opus xhigh latest whatever is available.
 
 ## Misc
 
-<<<<<<< Updated upstream
-Icons can be pulled by using apps/mac/scripts/fetch-icon.sh if something is not available in SF Symbols. Sources: `lucide` for general glyphs, `simple-icons` for brand marks, and `lobe-icons` for coding-agent marks. Simple Icons marks are padded so edge-to-edge glyphs survive template rasterization. Lobe Icons writes `<name>-mark` assets and defaults to `@lobehub/icons-static-svg` 1.94.0. Examples: `./scripts/fetch-icon.sh simple-icons github` and `./scripts/fetch-icon.sh lobe-icons amp`.
-||||||| Stash base
-Icons can be pulled by using apps/mac/scripts/fetch-icon.sh if something is not available in SF Symbols. Sources: `lucide` for general glyphs, `simple-icons` for brand marks (padded so edge-to-edge glyphs survive template rasterization), e.g. `./scripts/fetch-icon.sh simple-icons github`
-=======
-- Icons can be pulled by using apps/mac/scripts/fetch-icon.sh if something is not available in SF Symbols. Sources: `lucide` for general glyphs, `simple-icons` for brand marks (padded so edge-to-edge glyphs survive template rasterization), e.g. `./scripts/fetch-icon.sh simple-icons github`
-- When there are UI changes, or completely new UI, use ascii art to draw the UI in response to the users to clearly visualize them before implementation.
->>>>>>> Stashed changes
+- Prefer SF Symbols for icons. When a needed icon is unavailable, use `apps/mac/scripts/fetch-icon.sh`: `lucide` provides general glyphs, `simple-icons` provides brand marks, and `lobe-icons` provides coding-agent marks. Simple Icons marks are padded so edge-to-edge glyphs survive template rasterization. Lobe Icons writes `<name>-mark` assets and defaults to `@lobehub/icons-static-svg` 1.94.0. For example, run `apps/mac/scripts/fetch-icon.sh simple-icons github` or `apps/mac/scripts/fetch-icon.sh lobe-icons amp` from the repository root.
+- Before implementing UI changes or new UI, include a concise ASCII diagram in the response to visualize the proposed layout or interaction.
 
 ## Licensing
 
