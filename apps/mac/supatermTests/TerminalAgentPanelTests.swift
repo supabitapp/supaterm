@@ -1,5 +1,10 @@
+import AppKit
 import Darwin
+import Dependencies
 import Foundation
+import Sharing
+import SupaTheme
+import SwiftUI
 import Testing
 
 @testable import SupatermCLIShared
@@ -10,6 +15,89 @@ struct TerminalAgentPanelTests {
   enum InheritedSurfaceKind: CaseIterable {
     case tab
     case split
+  }
+
+  @Test
+  @MainActor
+  func commandShortcutPillsDoNotChangePanelSize() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let session = try #require(
+        PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")
+      )
+      let presentation = PaneAgentPanelPresentation(
+        branchDetails: PaneAgentBranchDetails(
+          repositoryRootPath: "/repo",
+          branchName: "feature",
+          addedLineCount: 1,
+          removedLineCount: 1,
+          pullRequestStatus: PaneAgentPullRequestStatus(
+            kind: .open,
+            title: "#123",
+            url: URL(string: "https://github.com/supabitapp/supaterm/pull/123"),
+            addedLineCount: nil,
+            removedLineCount: nil,
+            checks: nil
+          )
+        ),
+        session: session
+      )
+
+      let hiddenSize = agentPanelSize(
+        presentation: presentation,
+        showsShortcutHints: false
+      )
+      let visibleSize = agentPanelSize(
+        presentation: presentation,
+        showsShortcutHints: true
+      )
+
+      #expect(visibleSize == hiddenSize)
+    }
+  }
+
+  @Test
+  @MainActor
+  func layoutNeutralShortcutPillDoesNotWidenItsContainer() {
+    let size = NSHostingController(
+      rootView: KeyboardShortcutPill("⇧⌃⌥⌘I")
+        .layoutNeutral()
+        .frame(
+          minWidth: AgentPanelMetrics.collapsedLength,
+          minHeight: AgentPanelMetrics.collapsedLength
+        )
+    )
+    .sizeThatFits(in: CGSize(width: 1_000, height: 1_000))
+
+    #expect(
+      size
+        == CGSize(
+          width: AgentPanelMetrics.collapsedLength,
+          height: AgentPanelMetrics.collapsedLength
+        )
+    )
+  }
+
+  @MainActor
+  private func agentPanelSize(
+    presentation: PaneAgentPanelPresentation,
+    showsShortcutHints: Bool
+  ) -> CGSize {
+    NSHostingController(
+      rootView: AgentPanelView(
+        presentation: presentation,
+        palette: Palette(colorScheme: .dark),
+        forksDown: false,
+        showsShortcutHints: showsShortcutHints,
+        copyText: { _ in },
+        forkSession: { _, _ in },
+        openURL: { _ in }
+      )
+    )
+    .sizeThatFits(
+      in: CGSize(width: AgentPanelMetrics.expandedWidth, height: 1_000)
+    )
   }
 
   @Test

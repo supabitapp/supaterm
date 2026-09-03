@@ -913,6 +913,7 @@ struct TerminalSplitTreeView: View {
     private var content: some View {
       if let shortcutHint {
         KeyboardShortcutPill(shortcutHint, color: foregroundStyle)
+          .layoutNeutral()
       } else {
         Image(systemName: "info.circle")
           .font(.system(size: 14, weight: .medium))
