@@ -239,7 +239,7 @@ struct TerminalSidebarCollectionHarnessTests {
   }
 
   @Test
-  func animatedDeletionCommitsTargetLayoutAndFadesTheRemovedView() throws {
+  func animatedDeletionFadesRemovedViewAndMovesRetainedNewTabRow() throws {
     let first = TerminalTabID()
     let deleted = TerminalTabID()
     let last = TerminalTabID()
@@ -254,9 +254,12 @@ struct TerminalSidebarCollectionHarnessTests {
     harness.apply(outline: source)
     let deletedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(deleted)))
     let deletedView = try #require(harness.collectionView.item(at: deletedIndexPath)?.view)
+    let newTabIndexPath = try #require(harness.dataSource.indexPath(for: .newTab))
+    let newTabView = try #require(harness.collectionView.item(at: newTabIndexPath)?.view)
     let sourceLastFrame = try #require(
       harness.layout.plan.items.first { $0.id == .tab(last) }?.frame
     )
+    let sourceNewTabFrame = newTabView.frame
 
     harness.applyAnimated(outline: target, duration: 1)
 
@@ -266,12 +269,71 @@ struct TerminalSidebarCollectionHarnessTests {
     let opacityAnimation = try #require(
       deletedView.layer?.animation(forKey: "opacity") as? CABasicAnimation
     )
+    let newTabPositionAnimation = try #require(
+      newTabView.layer?.animation(forKey: "position") as? CABasicAnimation
+    )
     #expect(harness.layout.outline == target)
     #expect(targetLastFrame.minY < sourceLastFrame.minY)
     #expect(harness.dataSource.snapshot().itemIdentifiers == target.visibleEntries.map(\.id))
     #expect(opacityAnimation.fromValue as? Float == 1)
     #expect(opacityAnimation.duration == 1)
     #expect(deletedView.layer?.opacity == 0)
+    #expect(newTabView.frame.minY < sourceNewTabFrame.minY)
+    #expect(newTabPositionAnimation.duration == 1)
+  }
+
+  @Test
+  func animatedInsertionMovesRetainedNewTabRow() throws {
+    let first = TerminalTabID()
+    let inserted = TerminalTabID()
+    let source = outline([first], revision: 1)
+    let target = outline([first, inserted], revision: 2)
+    let harness = CollectionHarness(size: CGSize(width: 220, height: 300))
+    defer {
+      harness.window.orderOut(nil)
+      harness.close()
+    }
+    harness.window.orderFront(nil)
+    harness.apply(outline: source)
+    let newTabIndexPath = try #require(harness.dataSource.indexPath(for: .newTab))
+    let newTabView = try #require(harness.collectionView.item(at: newTabIndexPath)?.view)
+    let sourceNewTabFrame = newTabView.frame
+
+    harness.applyAnimated(outline: target, duration: 1)
+
+    let insertedIndexPath = try #require(harness.dataSource.indexPath(for: .tab(inserted)))
+    let insertedView = try #require(harness.collectionView.item(at: insertedIndexPath)?.view)
+    let targetInsertedFrame = try #require(
+      harness.layout.plan.items.first { $0.id == .tab(inserted) }?.frame
+    )
+    let newTabPositionAnimation = try #require(
+      newTabView.layer?.animation(forKey: "position") as? CABasicAnimation
+    )
+    let insertedPositionAnimation = try #require(
+      insertedView.layer?.animation(forKey: "position") as? CABasicAnimation
+    )
+    let insertedStartPosition = try #require(
+      (insertedPositionAnimation.fromValue as? NSValue)?.pointValue
+    )
+    let insertedOpacityAnimation = try #require(
+      insertedView.layer?.animation(forKey: "opacity") as? CABasicAnimation
+    )
+    let backingScale = harness.window.backingScaleFactor
+    let expectedInsertedStartPosition = CGPoint(
+      x: (targetInsertedFrame.minX * backingScale).rounded() / backingScale,
+      y: (
+        (targetInsertedFrame.minY + TerminalSidebarLayoutMotion.insertedItemOffset)
+          * backingScale
+      ).rounded() / backingScale
+    )
+    #expect(harness.layout.outline == target)
+    #expect(harness.dataSource.snapshot().itemIdentifiers == target.visibleEntries.map(\.id))
+    #expect(newTabView.frame.minY > sourceNewTabFrame.minY)
+    #expect(newTabPositionAnimation.duration == 1)
+    #expect(insertedPositionAnimation.duration == 1)
+    #expect(insertedStartPosition == expectedInsertedStartPosition)
+    #expect(insertedOpacityAnimation.fromValue as? Float == 0)
+    #expect(insertedOpacityAnimation.duration == 1)
   }
 
   @Test
