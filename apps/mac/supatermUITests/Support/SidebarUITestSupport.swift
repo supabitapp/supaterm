@@ -161,7 +161,7 @@ extension SupatermUITestCase {
 
     let dialog = element(SupatermUITestIdentifier.Accessibility.dialogSurface)
     XCTAssertTrue(dialog.waitForExistence(timeout: 10))
-    XCTAssertTrue(app.staticTexts["Change Tab Title"].exists)
+    XCTAssertTrue(app.staticTexts["✏️ Change Tab Title"].exists)
 
     let titleField = app.textFields.firstMatch
     XCTAssertTrue(titleField.waitForExistence(timeout: 10))

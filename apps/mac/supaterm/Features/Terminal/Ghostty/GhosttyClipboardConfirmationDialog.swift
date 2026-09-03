@@ -22,7 +22,6 @@ struct GhosttyClipboardConfirmationDialog: View {
     DialogSurface(
       title: presentation.title,
       message: presentation.message,
-      icon: .system("clipboard", tone: .warning),
       layout: DialogSurfaceLayout(width: 520),
       actions: [
         DialogSurfaceAction(

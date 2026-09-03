@@ -191,8 +191,8 @@ final class CommandPaletteUITests: SupatermUITestCase {
     terminal.click()
 
     for (commandTitle, dialogTitle) in [
-      ("Rename Tab", "Change Tab Title"),
-      ("Rename Pane", "Change Terminal Title"),
+      ("Rename Tab", "✏️ Change Tab Title"),
+      ("Rename Pane", "✏️ Change Terminal Title"),
     ] {
       try await executePaletteCommand(commandTitle)
 

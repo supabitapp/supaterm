@@ -58,7 +58,7 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
     let title = "Lifecycle Terminal \(UUID().uuidString)"
     try clickMenuItem(.changeTerminalTitle)
 
-    let heading = app.staticTexts["Change Terminal Title"]
+    let heading = app.staticTexts["✏️ Change Terminal Title"]
     XCTAssertTrue(heading.waitForExistence(timeout: 10))
     attachAppScreenshot(named: "dialog-change-terminal-title")
 

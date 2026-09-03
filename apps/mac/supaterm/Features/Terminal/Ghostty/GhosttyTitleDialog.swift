@@ -23,9 +23,8 @@ struct GhosttyTitleDialog: View {
 
   var body: some View {
     DialogSurface(
-      title: title,
+      title: "✏️ \(title)",
       message: "Leave blank to restore the default.",
-      icon: .system("textformat", tone: .accent),
       actions: [
         DialogSurfaceAction(
           id: "cancel",
