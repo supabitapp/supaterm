@@ -50,6 +50,7 @@ final class PaneClosingUITests: SupatermUITestCase {
       XCTFail("Close confirmation did not appear")
       return
     }
+    attachAppScreenshot(named: "dialog-close-busy-pane")
     cancelButton.click()
     _ = try await requireVisiblePanes(count: 2)
 

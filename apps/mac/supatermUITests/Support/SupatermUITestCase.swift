@@ -147,6 +147,14 @@ class SupatermUITestCase: XCTestCase {
   }
 
   @MainActor
+  func attachAppScreenshot(named name: String) {
+    let attachment = XCTAttachment(screenshot: app.screenshot())
+    attachment.name = "\(name).png"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+
+  @MainActor
   func relaunch(removing filenames: [String] = []) throws {
     app.terminate()
     XCTAssertTrue(app.wait(for: .notRunning, timeout: 10))

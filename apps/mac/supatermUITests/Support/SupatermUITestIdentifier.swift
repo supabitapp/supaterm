@@ -29,6 +29,7 @@ enum SupatermUITestIdentifier {
   enum Settings {
     static let window = "app.supabit.supaterm.window.settings"
     static let restoreTerminalLayout = "settings.general.restore-terminal-layout"
+    static let persistSessionsUsingZmx = "settings.general.persist-sessions-using-zmx"
     static let appearanceAuto = "settings.general.appearance.system"
     static let appearanceLight = "settings.general.appearance.light"
     static let appearanceDark = "settings.general.appearance.dark"

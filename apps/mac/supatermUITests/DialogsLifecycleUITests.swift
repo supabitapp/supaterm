@@ -26,6 +26,7 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
     )
     XCTAssertEqual(confirmButtons.count, 1)
     XCTAssertEqual(cancelButtons.count, 1)
+    attachAppScreenshot(named: "dialog-close-all-windows")
 
     cancelButtons.firstMatch.click()
     let didCancel = await wait(for: title) { !$0.exists }
@@ -59,6 +60,7 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
 
     let heading = app.staticTexts["Change Terminal Title"]
     XCTAssertTrue(heading.waitForExistence(timeout: 10))
+    attachAppScreenshot(named: "dialog-change-terminal-title")
 
     let field = app.textFields.firstMatch
     XCTAssertTrue(field.waitForExistence(timeout: 10))
@@ -96,6 +98,7 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
 
     let quitDialog = element(SupatermUITestIdentifier.Accessibility.dialogQuit)
     XCTAssertTrue(quitDialog.waitForExistence(timeout: 10))
+    attachAppScreenshot(named: "dialog-quit-with-running-process")
 
     let cancelButton = app.buttons[
       SupatermUITestIdentifier.Accessibility.dialogCancel

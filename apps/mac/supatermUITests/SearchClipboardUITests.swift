@@ -137,6 +137,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
     app.typeKey("v", modifierFlags: .command)
     let cancelButton = app.buttons[SupatermUITestIdentifier.Accessibility.clipboardCancel]
     XCTAssertTrue(cancelButton.waitForExistence(timeout: 10))
+    attachAppScreenshot(named: "dialog-unsafe-paste")
     cancelButton.click()
     let cancelled = await wait(for: cancelButton) { !$0.exists }
     XCTAssertTrue(cancelled)

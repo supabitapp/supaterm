@@ -51,6 +51,7 @@ final class SpaceLifecycleUITests: SupatermUITestCase {
     XCTAssertTrue(deleteDialog.waitForExistence(timeout: 10))
     let deleteTitle = app.staticTexts["Delete Space \"Renamed UI Space\"?"]
     XCTAssertTrue(deleteTitle.waitForExistence(timeout: 10))
+    attachAppScreenshot(named: "dialog-delete-active-space")
     let deleteButton = app.buttons[SupatermUITestIdentifier.Accessibility.dialogConfirm]
     XCTAssertTrue(deleteButton.waitForExistence(timeout: 10))
     deleteButton.click()
