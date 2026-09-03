@@ -6,10 +6,11 @@ import json
 import os
 import time
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 
 WORKFLOWS = ("release.yml", "release-tip.yml")
+PAGE_SIZE = 100
 
 
 def publication_order(run: dict) -> tuple[str, int, int]:
@@ -49,9 +50,30 @@ def workflow_run(repository: str, token: str, run_id: int) -> dict:
 def workflow_runs(repository: str, token: str) -> list[dict]:
   runs = []
   for workflow in WORKFLOWS:
-    url = f"https://api.github.com/repos/{repository}/actions/workflows/{workflow}/runs?per_page=100"
-    runs.extend(request_json(url, token)["workflow_runs"])
+    page = 1
+    while True:
+      url = (
+        f"https://api.github.com/repos/{repository}/actions/workflows/{workflow}/runs"
+        f"?per_page={PAGE_SIZE}&page={page}"
+      )
+      page_runs = request_json(url, token)["workflow_runs"]
+      runs.extend(page_runs)
+      if len(page_runs) < PAGE_SIZE:
+        break
+      page += 1
   return runs
+
+
+def wait_for_turn(
+  current_run: dict,
+  load_runs: Callable[[], list[dict]],
+  poll_seconds: int,
+  sleep: Callable[[float], None],
+) -> None:
+  while predecessors := active_predecessors(current_run, load_runs()):
+    waiting = ", ".join(f"{run['name']} {run['id']}" for run in predecessors)
+    print(f"Waiting for {waiting}", flush=True)
+    sleep(poll_seconds)
 
 
 def main() -> None:
@@ -60,13 +82,12 @@ def main() -> None:
   current_run_id = int(os.environ["GITHUB_RUN_ID"])
   poll_seconds = int(os.environ.get("RELEASE_FEED_POLL_SECONDS", "20"))
   current_run = workflow_run(repository, token, current_run_id)
-  while predecessors := active_predecessors(
+  wait_for_turn(
     current_run,
-    workflow_runs(repository, token),
-  ):
-    waiting = ", ".join(f"{run['name']} {run['id']}" for run in predecessors)
-    print(f"Waiting for {waiting}", flush=True)
-    time.sleep(poll_seconds)
+    lambda: workflow_runs(repository, token),
+    poll_seconds,
+    time.sleep,
+  )
 
 
 if __name__ == "__main__":

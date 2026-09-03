@@ -118,20 +118,22 @@ def update_version_state(content: str, version: str, build: int) -> str:
   error = validate_version(version)
   if error is not None:
     raise ValueError(f"version {error}")
-  content = re.sub(
+  content, marketing_count = re.subn(
     r"^MARKETING_VERSION = [0-9.]+$",
     f"MARKETING_VERSION = {version}",
     content,
-    count=1,
     flags=re.MULTILINE,
   )
-  content = re.sub(
+  if marketing_count != 1:
+    raise ValueError(f"expected one MARKETING_VERSION, found {marketing_count}")
+  content, build_count = re.subn(
     r"^CURRENT_PROJECT_VERSION = [0-9]+$",
     f"CURRENT_PROJECT_VERSION = {build}",
     content,
-    count=1,
     flags=re.MULTILINE,
   )
+  if build_count != 1:
+    raise ValueError(f"expected one CURRENT_PROJECT_VERSION, found {build_count}")
   return content
 
 
