@@ -15,12 +15,23 @@ type FeatureSection = {
   title: string;
   body: ReactNode;
   align: "left" | "right";
-  video?: string;
+  video: string;
+};
+
+type Highlight = {
+  title: string;
+  body: string;
 };
 
 const homebrewInstallCommand = "brew install supaterm";
 const skillsCommand = "npx skills add supabitapp/supaterm-skills";
 const purchaseAction = "https://license.supaterm.com/checkout/purchase";
+const cliExample = [
+  "sp tab new --cwd ~/code/api -- npm run dev",
+  "sp pane split right -- npm test",
+  'sp pane send --submit "fix the failing test"',
+  "sp pane capture --scope scrollback --lines 100",
+].join("\n");
 const trialFeatures = [
   "Up to five open tabs",
   "Panes do not count toward the limit",
@@ -137,37 +148,36 @@ function CommandCopyBox({
   );
 }
 
+function FeatureList({ items }: { items: string[] }) {
+  return (
+    <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
 const featureSections: FeatureSection[] = [
   {
-    eyebrow: "CLI and Agent Skills",
-    title: "Control Supaterm from scripts, or tell your agents to do it.",
+    eyebrow: "Coding agents",
+    title: "Run every agent in plain sight.",
     body: (
       <>
-        <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
-          Want to spawn new worktrees in new panes or tabs? Just tell your agents to do it in
-          Supaterm.
-        </p>
-        <CommandCopyBox command={skillsCommand} className="mt-5 w-fit" />
-      </>
-    ),
-    align: "right",
-    video: splitUrl,
-  },
-  {
-    eyebrow: "Coding Agents Integrations",
-    title: "Keep every coding agent visible without losing the terminal.",
-    body: (
-      <>
-        <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
-          <li>Agent statues are shown on the sidebar</li>
-          <li>Quickly hover to see what it's up to</li>
-          <li>Pane glows if an agent needs your attention</li>
-        </ul>
+        <FeatureList
+          items={[
+            "Each tab shows its agent and whether it is working, waiting on you, or done",
+            "The agents popover lists every live agent in the window and jumps to its pane",
+            "Press Command-I for the branch, changed lines, pull request checks, and local servers",
+            "A pane glows when an agent needs you, and Command-U takes you to the next unread one",
+            "Fork a Claude Code or Codex session into a pane beside it",
+          ]}
+        />
         <div className="mt-6 flex items-center gap-5">
           <img src="/claude-code-mark.svg" alt="Claude Code" className="h-6" />
           <img src="/codex-mark.svg" alt="Codex" className="h-6" />
           <img src="/pi-mark.svg" alt="Pi" className="h-6" />
-          <span className="text-sm text-white/30">and everything else</span>
+          <span className="text-sm text-white/30">plus marks for twelve more</span>
         </div>
       </>
     ),
@@ -175,18 +185,67 @@ const featureSections: FeatureSection[] = [
     video: agentsUrl,
   },
   {
-    eyebrow: "Spaces, tabs, panes",
-    title: "Organize messy terminal work into something you can actually steer.",
+    eyebrow: "CLI and agent skills",
+    title: "Script it, or let your agents drive.",
     body: (
-      <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
-        <li>Organize tabs in to spaces</li>
-        <li>Within tabs split into multiple panes</li>
-        <li>Pin tabs with your favorite pane layout</li>
-        <li>Resume coding agents after app relaunch (Coming soon...)</li>
-      </ul>
+      <>
+        <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
+          Every pane has <code className="text-white/72">sp</code> on its path. Open tabs, split
+          panes, type into a prompt, read scrollback, and screenshot a pane from any script. Install
+          the skill and your agents learn the same commands.
+        </p>
+        <pre className="mt-5 w-fit max-w-full overflow-x-auto rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm leading-6 text-white/80">
+          {cliExample}
+        </pre>
+        <CommandCopyBox command={skillsCommand} className="mt-4 w-fit" />
+      </>
     ),
     align: "right",
+    video: splitUrl,
+  },
+  {
+    eyebrow: "Spaces, groups, tabs, panes",
+    title: "Give every project its own place.",
+    body: (
+      <FeatureList
+        items={[
+          "One space per project, each with a color that tints the window",
+          "Switch spaces inside a window with Control-1 through Control-0",
+          "Group tabs by name and color, then collapse, pin, or close the group as one",
+          "Split a tab into panes, zoom one, or drag a pane into another tab or its own window",
+          "Quit and relaunch: layouts, shells, and agents pick up where they were",
+        ]}
+      />
+    ),
+    align: "left",
     video: pinUrl,
+  },
+];
+
+const highlights: Highlight[] = [
+  {
+    title: "Built on libghostty",
+    body: "Ghostty 1.4 rendering with its themes and fonts. Pick separate themes for light and dark, or drop your own into ~/.config/ghostty/themes.",
+  },
+  {
+    title: "Sessions outlive the app",
+    body: "Shells and agents keep running through a relaunch or an update. Panes reattach on the way back. Closing a pane still ends it.",
+  },
+  {
+    title: "SSH keeps up",
+    body: "Run ssh from any pane and the integration follows you to the host. New tabs and splits from that pane reconnect to the same machine.",
+  },
+  {
+    title: "One palette for everything",
+    body: "Command-Shift-P finds Supaterm actions, Ghostty actions, spaces, tabs, and panes. It reads your terminal config, so it lists your bindings.",
+  },
+  {
+    title: "Your shortcuts",
+    body: "Rebind any command in Settings. Buttons and menus show their shortcut in a pill, so you learn them as you go.",
+  },
+  {
+    title: "Attention, your way",
+    body: "System notifications, or a local sound that Focus cannot silence. Unread badges stay until you look. Send your own with sp pane notify.",
   },
 ];
 
@@ -252,9 +311,9 @@ function HomePage() {
             </span>
           </h1>
           <p className="mt-7 max-w-[44rem] text-base leading-7 text-white/62 md:text-lg">
-            Agent-first, blazing fast, native macOS terminal built with libghostty. Organize with
-            spaces, tabs, and panes. Automate via the <code className="text-white/72">sp</code> CLI
-            and agent skills.
+            A native macOS terminal built on libghostty for days spent with coding agents. Sort work
+            into spaces, groups, tabs, and panes. Drive it from the{" "}
+            <code className="text-white/72">sp</code> CLI, or hand the skill to your agents.
           </p>
           <div className="mt-9 flex flex-col items-center gap-4 sm:flex-row">
             <CtaLink
@@ -276,7 +335,7 @@ function HomePage() {
               codeClassName="text-base md:text-lg"
             />
           </div>
-          <p className="mt-4 text-xs text-white/32">Requires macOS Tahoe.</p>
+          <p className="mt-4 text-xs text-white/32">Requires macOS Tahoe. Free for five tabs.</p>
 
           <div className="group relative mt-14 w-full max-w-[1160px] overflow-hidden rounded-[12px] border border-white/8 shadow-[0_40px_140px_-44px_rgba(0,0,0,0.9),0_8px_30px_-10px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] md:mt-18">
             <div className="pointer-events-none absolute inset-px z-10 border border-white/[0.03]" />
@@ -310,60 +369,41 @@ function HomePage() {
                 <h2 className="mt-4 text-[clamp(1.6rem,3.2vw,2.4rem)] leading-[1.08] font-medium tracking-[-0.04em] text-balance text-[#f4f0e8]">
                   {section.title}
                 </h2>
-                {typeof section.body === "string" ? (
-                  <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
-                    {section.body}
-                  </p>
-                ) : (
-                  section.body
-                )}
+                {section.body}
               </div>
 
               <div>
-                {section.video ? (
-                  <div className="group relative overflow-hidden rounded-[12px] border border-white/8 shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <LazyVideo src={section.video} className="block h-auto w-full" />
-                  </div>
-                ) : (
-                  <div className="group overflow-hidden border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.1),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] bg-[rgb(17,15,11)] shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:border-white/14 motion-reduce:transform-none motion-reduce:transition-none">
-                    <div className="grid min-h-[27rem] [grid-template-columns:0.36fr_0.64fr] max-[900px]:grid-cols-1">
-                      <div className="flex flex-col gap-6 border-r border-white/7 bg-white/[0.02] px-4 py-[1.35rem] pl-[1.2rem] max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:border-white/7">
-                        <div className="h-4 w-[74%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06))]" />
-                        <div className="grid gap-3">
-                          <span className="block h-[0.78rem] w-full rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[0.78rem] w-[84%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[0.78rem] w-[68%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                        </div>
-                        <div className="grid gap-3">
-                          <span className="block h-[0.78rem] w-full rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03))]" />
-                          <span className="block h-[0.78rem] w-[84%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03))]" />
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-5 p-[1.4rem]">
-                        <div className="h-4 w-[72%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                        <div className="grid grid-cols-3 gap-4">
-                          <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                        </div>
-                        <div className="grid gap-3.5 rounded-[1.35rem] border border-white/8 bg-black/22 p-5">
-                          <span className="block h-[0.9rem] w-[86%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[0.9rem] w-[70%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[0.9rem] w-[90%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[0.9rem] w-[52%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                        </div>
-                        <div className="mt-auto grid grid-cols-[1.2fr_0.8fr] gap-4">
-                          <span className="block h-[3.8rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                          <span className="block h-[3.8rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <div className="group relative overflow-hidden rounded-[12px] border border-white/8 shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)]">
+                  <LazyVideo src={section.video} className="block h-auto w-full" />
+                </div>
               </div>
             </article>
           );
         })}
+      </section>
+
+      <section className="px-6 pb-24 md:px-10 md:pb-32">
+        <div className="mx-auto max-w-[1440px] border-t border-white/8 pt-12 md:pt-16">
+          <div className="supaterm-reveal max-w-[34rem]">
+            <div className="text-sm font-medium tracking-[0.08em] text-white/45">
+              And the rest of the day
+            </div>
+            <h2 className="mt-4 text-[clamp(1.6rem,3.2vw,2.4rem)] leading-[1.08] font-medium tracking-[-0.04em] text-balance text-[#f4f0e8]">
+              A terminal first. The agent parts stay out of the way.
+            </h2>
+          </div>
+          <div className="supaterm-reveal mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {highlights.map((highlight) => (
+              <article
+                key={highlight.title}
+                className="rounded-[18px] border border-white/10 bg-white/[0.025] p-6 md:p-7"
+              >
+                <h3 className="text-base font-medium text-[#f4f0e8]">{highlight.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-white/58">{highlight.body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section id="pricing" className="scroll-mt-16 px-6 pb-24 md:px-10 md:pb-32">
@@ -383,7 +423,8 @@ function HomePage() {
               <div className="text-sm font-medium text-white/48">Trial</div>
               <div className="mt-4 text-5xl font-medium tracking-[-0.05em] text-[#f4f0e8]">$0</div>
               <p className="mt-4 min-h-14 text-base leading-7 text-white/58">
-                Try Supaterm without an account or license.
+                Every feature, no account, no license. Supaterm never closes your tabs to enforce
+                the limit.
               </p>
               <PricingFeatures features={trialFeatures} />
               <CtaLink
@@ -408,7 +449,8 @@ function HomePage() {
                 <span className="pb-1 text-sm text-white/45">one-time purchase</span>
               </div>
               <p className="mt-4 min-h-14 text-base leading-7 text-white/62">
-                A perpetual license for one Mac at a time.
+                A perpetual license for one Mac at a time. Activate from the app, a link, or{" "}
+                <code className="text-white/72">sp license</code>.
               </p>
               <PricingFeatures features={personalFeatures} />
               <PurchaseButton className="mt-10" />
