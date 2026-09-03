@@ -300,7 +300,7 @@ extension SnapshotCatalog {
   ) -> SnapshotScenario {
     migratedAlertScenario(id, title: title) { palette in
       let request = TerminalWindowFeature().pendingCloseRequest(for: target)
-      ConfirmationOverlay(
+      return ConfirmationOverlay(
         palette: palette,
         title: request.title,
         message: request.message,
