@@ -53,6 +53,7 @@ struct GhosttyClipboardConfirmationDialog: View {
             .scaledToFit()
             .frame(maxWidth: .infinity)
             .frame(height: 180)
+            .accessibilityLabel("Clipboard image preview")
             .accessibilityIdentifier("terminal.clipboard-confirmation.image")
         }
 

@@ -30,24 +30,25 @@ final class QuitConfirmationPresenter {
         decision = keyDecision
         presenter.finish(with: .OK)
         return true
+      },
+      content: {
+        QuitConfirmationOverlay(
+          palette: Self.palette(for: parentWindow),
+          content: content,
+          onPreserve: {
+            decision = .quitPreservingSessions
+            presenter.finish(with: .OK)
+          },
+          onTerminate: {
+            decision = .quitTerminatingSessions
+            presenter.finish(with: .OK)
+          },
+          onCancel: {
+            presenter.finish(with: .cancel)
+          }
+        )
       }
-    ) {
-      QuitConfirmationOverlay(
-        palette: Self.palette(for: parentWindow),
-        content: content,
-        onPreserve: {
-          decision = .quitPreservingSessions
-          presenter.finish(with: .OK)
-        },
-        onTerminate: {
-          decision = .quitTerminatingSessions
-          presenter.finish(with: .OK)
-        },
-        onCancel: {
-          presenter.finish(with: .cancel)
-        }
-      )
-    }
+    )
     return decision
   }
 

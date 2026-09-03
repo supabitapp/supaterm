@@ -107,29 +107,30 @@ final class GhosttyClipboardConfirmationCoordinator {
       onDismiss: { [weak self, weak pending] in
         guard let self, let pending else { return }
         finish(pending, allowed: false, remember: false, dismissDialog: false)
+      },
+      content: { [weak self, weak pending] in
+        GhosttyClipboardConfirmationDialog(
+          presentation: presentation,
+          preview: payload.preview,
+          previewImage: payload.previewImage,
+          canRemember: payload.canRemember,
+          state: dialogState,
+          onConfirm: {
+            guard let self, let pending else { return }
+            self.finish(
+              pending,
+              allowed: true,
+              remember: pending.dialogState.remember,
+              dismissDialog: true
+            )
+          },
+          onCancel: {
+            guard let self, let pending else { return }
+            self.finish(pending, allowed: false, remember: false, dismissDialog: true)
+          }
+        )
       }
-    ) { [weak self, weak pending] in
-      GhosttyClipboardConfirmationDialog(
-        presentation: presentation,
-        preview: payload.preview,
-        previewImage: payload.previewImage,
-        canRemember: payload.canRemember,
-        state: dialogState,
-        onConfirm: {
-          guard let self, let pending else { return }
-          self.finish(
-            pending,
-            allowed: true,
-            remember: pending.dialogState.remember,
-            dismissDialog: true
-          )
-        },
-        onCancel: {
-          guard let self, let pending else { return }
-          self.finish(pending, allowed: false, remember: false, dismissDialog: true)
-        }
-      )
-    }
+    )
     guard didPresent else {
       pendingRequests.removeValue(forKey: key)
       reject(completion)
@@ -152,11 +153,11 @@ final class GhosttyClipboardConfirmationCoordinator {
   }
 
   #if DEBUG
-  func setRemember(_ remember: Bool, in window: NSWindow) -> Bool {
-    guard let pending = pendingRequests[ObjectIdentifier(window)] else { return false }
-    pending.dialogState.remember = remember
-    return true
-  }
+    func setRemember(_ remember: Bool, in window: NSWindow) -> Bool {
+      guard let pending = pendingRequests[ObjectIdentifier(window)] else { return false }
+      pending.dialogState.remember = remember
+      return true
+    }
   #endif
 
   private func finish(
