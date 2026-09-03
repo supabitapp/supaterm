@@ -310,7 +310,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
         )
       )
       y += isLiftedTabSource ? Self.liftedTabSourceSlotHeight : height
-      if !isCollapsed {
+      if !isCollapsed, visibility.height > 0 {
         previousVisibleEntry = entry
       }
     }

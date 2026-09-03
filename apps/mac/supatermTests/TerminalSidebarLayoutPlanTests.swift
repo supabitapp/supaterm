@@ -701,7 +701,7 @@ struct TerminalSidebarLayoutPlanTests {
     )
 
     #expect(header.height == TerminalSidebarLayout.tabRowMinHeight)
-    #expect(childFrame.minY - header.maxY == TerminalSidebarLayout.tabRowSpacing)
+    #expect(childFrame.minY == header.maxY)
     #expect(target.frame.maxY <= header.maxY)
   }
 
@@ -785,7 +785,7 @@ struct TerminalSidebarLayoutPlanTests {
     let groupFrame = try #require(plan.groups.first { $0.id == groupID }?.frame)
     let newTabFrame = try #require(plan.items.first { $0.id == .newTab }?.frame)
 
-    #expect(selectedFrame.minY > headerFrame.maxY)
+    #expect(selectedFrame.minY == headerFrame.maxY)
     #expect(groupFrame.maxY == selectedFrame.maxY + TerminalSidebarLayout.groupSurfaceOverflow)
     #expect(newTabFrame.minY > groupFrame.maxY)
   }
