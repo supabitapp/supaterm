@@ -37,6 +37,33 @@ struct SupatermUITests {
   }
 
   @Test
+  func visibleDialogRetainsItsPresenterUntilDismissal() {
+    let parent = NSWindow(
+      contentRect: NSRect(x: 20, y: 20, width: 600, height: 400),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    parent.makeKeyAndOrderFront(nil)
+    defer { parent.orderOut(nil) }
+
+    weak var retainedPresenter: DialogSurfacePresenter?
+    do {
+      let presenter = DialogSurfacePresenter()
+      retainedPresenter = presenter
+      #expect(
+        presenter.present(over: parent) {
+          DialogSurface(title: "Test dialog")
+        }
+      )
+    }
+
+    #expect(retainedPresenter?.isPresented == true)
+    retainedPresenter?.dismiss()
+    #expect(retainedPresenter == nil)
+  }
+
+  @Test
   func oneTimeCodeKeepsDigitsAndLimitsLength() {
     #expect(DialogOneTimeCodeValue.normalized(" 12a-345 67", length: 6) == "123456")
     #expect(DialogOneTimeCodeValue.normalized("abc", length: 6).isEmpty)

@@ -20,7 +20,6 @@ public final class DialogSurfacePresenter {
     parentWindow.childWindows?.contains { $0 is DialogSurfacePanel } == true
   }
 
-  @discardableResult
   public func present<Content: View>(
     over parentWindow: NSWindow?,
     standaloneSize: CGSize = CGSize(width: 680, height: 480),
@@ -50,6 +49,7 @@ public final class DialogSurfacePresenter {
       onDismiss: onDismiss,
     )
     self.presentation = presentation
+    panel.presentationOwner = self
     presentation.show()
     return true
   }
@@ -68,8 +68,7 @@ public final class DialogSurfacePresenter {
     if NSApp.modalWindow === presentation.panel {
       NSApp.stopModal(withCode: response)
     }
-    self.presentation = nil
-    presentation.dismiss()
+    tearDown(presentation)
   }
 
   public func runModal<Content: View>(
@@ -93,8 +92,7 @@ public final class DialogSurfacePresenter {
 
     let response = NSApp.runModal(for: panel)
     if let presentation = self.presentation {
-      self.presentation = nil
-      presentation.dismiss()
+      tearDown(presentation)
     }
     return modalResponse ?? response
   }
@@ -104,8 +102,16 @@ public final class DialogSurfacePresenter {
     if NSApp.modalWindow === presentation.panel {
       NSApp.abortModal()
     }
+    tearDown(presentation, notify: false)
+  }
+
+  private func tearDown(
+    _ presentation: DialogSurfacePanelPresentation,
+    notify: Bool = true,
+  ) {
     self.presentation = nil
-    presentation.dismiss(notify: false)
+    presentation.panel.presentationOwner = nil
+    presentation.dismiss(notify: notify)
   }
 }
 
@@ -121,6 +127,26 @@ extension View {
         dialogContent: content,
       )
       .frame(width: 0, height: 0)
+    }
+  }
+
+  /// Presents custom dialog content for the current optional item.
+  public func dialogSurface<Item, DialogContent: View>(
+    item: Binding<Item?>,
+    @ViewBuilder content: @escaping (Item) -> DialogContent,
+  ) -> some View {
+    dialogSurface(
+      isPresented: Binding(
+        get: { item.wrappedValue != nil },
+        set: { isPresented in
+          guard !isPresented else { return }
+          item.wrappedValue = nil
+        },
+      )
+    ) {
+      if let item = item.wrappedValue {
+        content(item)
+      }
     }
   }
 }
@@ -320,6 +346,7 @@ private final class DialogSurfacePanelPresentation {
 
 @MainActor
 private final class DialogSurfacePanel: NSPanel {
+  var presentationOwner: DialogSurfacePresenter?
   var keyDownHandler: ((NSEvent) -> Bool)?
 
   override var canBecomeKey: Bool { true }

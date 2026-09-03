@@ -12,7 +12,7 @@ enum GhosttyUntrustedURLAlert {
         .map { "“\($0.deletingPathExtension().lastPathComponent)”" }
         ?? "the default application"
       let presenter = DialogSurfacePresenter()
-      presenter.present(over: NSApp.keyWindow) {
+      let didPresent = presenter.present(over: NSApp.keyWindow) {
         GhosttyUntrustedURLConfirmationDialog(
           handler: handler,
           target: displayString,
@@ -25,6 +25,9 @@ enum GhosttyUntrustedURLAlert {
           }
         )
       }
+      if !didPresent {
+        NSSound.beep()
+      }
     }
   }
 
@@ -34,7 +37,7 @@ enum GhosttyUntrustedURLAlert {
   ) {
     deferPresentation {
       let presenter = DialogSurfacePresenter()
-      presenter.present(over: NSApp.keyWindow) {
+      let didPresent = presenter.present(over: NSApp.keyWindow) {
         GhosttyBlockedURLDialog(
           message: reason.message,
           target: displayString,
@@ -48,6 +51,9 @@ enum GhosttyUntrustedURLAlert {
             presenter.dismiss()
           }
         )
+      }
+      if !didPresent {
+        NSSound.beep()
       }
     }
   }

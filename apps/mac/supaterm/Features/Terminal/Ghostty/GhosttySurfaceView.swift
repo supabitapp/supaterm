@@ -1952,7 +1952,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   ) {
     let model = GhosttyTitleDialogModel(title: initialValue)
     let presenter = DialogSurfacePresenter()
-    presenter.present(over: window) {
+    let didPresent = presenter.present(over: window) {
       GhosttyTitleDialog(
         title: messageText,
         model: model,
@@ -1964,6 +1964,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
           presenter.finish(with: .cancel)
         }
       )
+    }
+    if !didPresent {
+      NSSound.beep()
     }
   }
 

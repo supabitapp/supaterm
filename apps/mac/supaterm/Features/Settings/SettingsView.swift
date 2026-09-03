@@ -4,6 +4,11 @@ import SupatermSupport
 import SupatermUI
 import SwiftUI
 
+private enum SettingsDialogDestination {
+  case agentInstallFailure(SettingsAgentIntegrationInstallFailure)
+  case alert(AlertState<SettingsFeature.Alert>)
+}
+
 public struct SettingsView: View {
   let licenseStore: StoreOf<LicenseFeature>
   @Bindable var store: StoreOf<SettingsFeature>
@@ -26,16 +31,26 @@ public struct SettingsView: View {
     )
   }
 
-  private var isDialogPresented: Binding<Bool> {
-    Binding(
-      get: {
-        store.agentIntegrationInstallFailure != nil || store.alert != nil
-      },
-      set: { isPresented in
-        guard !isPresented else { return }
-        if store.agentIntegrationInstallFailure != nil {
+  private var dialogDestination: SettingsDialogDestination? {
+    if let failure = store.agentIntegrationInstallFailure {
+      return .agentInstallFailure(failure)
+    }
+    if let alert = store.alert {
+      return .alert(alert)
+    }
+    return nil
+  }
+
+  private var dialogDestinationBinding: Binding<SettingsDialogDestination?> {
+    let presentedDestination = dialogDestination
+    return Binding(
+      get: { dialogDestination },
+      set: { destination in
+        guard case nil = destination, let presentedDestination else { return }
+        switch presentedDestination {
+        case .agentInstallFailure:
           _ = store.send(.agentIntegrationInstallFailureDismissed)
-        } else if store.alert != nil {
+        case .alert:
           _ = store.send(.alert(.dismiss))
         }
       }
@@ -61,15 +76,16 @@ public struct SettingsView: View {
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 750, minHeight: 500)
-    .dialogSurface(isPresented: isDialogPresented) {
-      if let failure = store.agentIntegrationInstallFailure {
+    .dialogSurface(item: dialogDestinationBinding) { destination in
+      switch destination {
+      case .agentInstallFailure(let failure):
         AgentInstallFailureDialog(
           failure: failure,
           dismiss: {
             _ = store.send(.agentIntegrationInstallFailureDismissed)
           }
         )
-      } else if let alert = store.alert {
+      case .alert(let alert):
         SettingsAlertDialog(
           alert: alert,
           send: { _ = store.send(.alert($0)) }

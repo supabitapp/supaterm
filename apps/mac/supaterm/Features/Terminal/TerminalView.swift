@@ -6,6 +6,11 @@ import SupatermSettingsFeature
 import SupatermUI
 import SwiftUI
 
+private enum TerminalDialogDestination {
+  case close(TerminalWindowFeature.PendingCloseRequest)
+  case spaceDelete(TerminalSpaceDeleteRequest)
+}
+
 struct TerminalView: View {
   let commandPaletteClient: TerminalCommandPaletteClient
   let store: StoreOf<TerminalWindowFeature>
@@ -29,16 +34,27 @@ struct TerminalView: View {
     terminal.chromePalette(appearanceMode: supatermSettings.appearanceMode)
   }
 
-  private var pendingConfirmationBinding: Binding<Bool> {
-    Binding(
-      get: {
-        store.pendingCloseRequest != nil || store.pendingSpaceDeleteRequest != nil
-      },
-      set: { isPresented in
-        guard !isPresented else { return }
-        if store.pendingCloseRequest != nil {
+  private var dialogDestination: TerminalDialogDestination? {
+    switch store.destination {
+    case .closeConfirmation(let request):
+      .close(request)
+    case .spaceDeleteConfirmation(let request):
+      .spaceDelete(request)
+    case nil, .commandPalette, .spaceEditor, .windowCloseConfirmation:
+      nil
+    }
+  }
+
+  private var dialogDestinationBinding: Binding<TerminalDialogDestination?> {
+    let presentedDestination = dialogDestination
+    return Binding(
+      get: { dialogDestination },
+      set: { destination in
+        guard case nil = destination, let presentedDestination else { return }
+        switch presentedDestination {
+        case .close:
           _ = store.send(.closeConfirmationCancelButtonTapped)
-        } else if store.pendingSpaceDeleteRequest != nil {
+        case .spaceDelete:
           _ = store.send(.spaceDeleteCancelButtonTapped)
         }
       }
@@ -121,8 +137,9 @@ struct TerminalView: View {
           )
         }
       }
-      .dialogSurface(isPresented: pendingConfirmationBinding) {
-        if let pendingCloseRequest = store.pendingCloseRequest {
+      .dialogSurface(item: dialogDestinationBinding) { destination in
+        switch destination {
+        case .close(let pendingCloseRequest):
           ConfirmationOverlay(
             palette: palette,
             title: pendingCloseRequest.title,
@@ -135,7 +152,7 @@ struct TerminalView: View {
               _ = store.send(.closeConfirmationCancelButtonTapped)
             }
           )
-        } else if let pendingSpaceDeleteRequest = store.pendingSpaceDeleteRequest {
+        case .spaceDelete(let pendingSpaceDeleteRequest):
           TerminalSpaceDeleteDialog(
             palette: palette,
             spaceName: pendingSpaceDeleteRequest.space.name,
