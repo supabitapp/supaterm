@@ -461,6 +461,15 @@ final class TerminalSidebarListController: NSViewController {
     let animatesExpansion =
       animated
       && !update.outline.expandedGroupIDs(from: appliedOutline).isEmpty
+    let targetIdentifiers = update.outline.visibleEntries.map(\.id)
+    let retainedItemAnimator =
+      animated
+      ? TerminalSidebarRetainedItemAnimator(
+        sourceIdentifiers: dataSource.snapshot().itemIdentifiers,
+        targetIdentifiers: Set(targetIdentifiers),
+        viewForIdentifier: viewForSidebarEntry
+      )
+      : nil
     updateState = .applyingSnapshot(nil)
     collectionLayout.visibilityByEntryID = [:]
     layoutAnimator.finish()
@@ -481,6 +490,7 @@ final class TerminalSidebarListController: NSViewController {
       collectionLayout.finishStructuralUpdate()
       refreshVisibleRows(ids: Set(rows.keys))
       invalidateLayout()
+      retainedItemAnimator?.finish()
       if collectionLayout.clearPinnedContentHeight(visibleRect: collectionView.visibleRect) {
         invalidateLayout()
       }
@@ -520,6 +530,11 @@ final class TerminalSidebarListController: NSViewController {
       context.timingFunction = TerminalSidebarAnimationCurve.timingFunction
       dataSource.apply(snapshot, animatingDifferences: true, completion: completion)
     }
+    retainedItemAnimator?.animate(
+      to: Dictionary(
+        uniqueKeysWithValues: collectionLayout.plan.items.map { ($0.id, $0.frame) }
+      )
+    )
   }
 
   private func consumePendingUpdate() {
@@ -696,6 +711,11 @@ final class TerminalSidebarListController: NSViewController {
 
     updateDecorations()
     updateGroupHover(at: collectionView.pointerLocation)
+  }
+
+  private func viewForSidebarEntry(_ entryID: TerminalSidebarEntryID) -> NSView? {
+    guard let indexPath = dataSource.indexPath(for: entryID) else { return nil }
+    return collectionView.item(at: indexPath)?.view
   }
 
   private func updateNewTabPlacement() -> Bool {

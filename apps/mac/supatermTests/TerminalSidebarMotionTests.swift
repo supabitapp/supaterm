@@ -308,6 +308,40 @@ struct TerminalSidebarMotionTests {
     #expect(TerminalSidebarLayoutMotion.defaultDuration == 0.12)
   }
 
+  @Test @MainActor
+  func retainedRowsAnimateFromTheirOldPositionToTheirTargetFrame() throws {
+    let item = TerminalSidebarCollectionItem()
+    let sourceFrame = CGRect(x: 12, y: 49, width: 196, height: 34)
+    let targetFrame = CGRect(x: 12, y: 86, width: 196, height: 34)
+    item.view.frame = sourceFrame
+    let layer = try #require(item.view.layer)
+    let sourcePosition = layer.position
+    let animator = TerminalSidebarRetainedItemAnimator(
+      sourceIdentifiers: [.newTab],
+      targetIdentifiers: [.newTab],
+      viewForIdentifier: { _ in item.view }
+    )
+
+    animator.animate(
+      to: [.newTab: targetFrame],
+      duration: 1
+    )
+
+    let animation = try #require(
+      layer.animation(forKey: TerminalSidebarRetainedItemAnimator.positionAnimationKey)
+        as? CABasicAnimation
+    )
+    #expect(item.view.frame == targetFrame)
+    #expect((animation.fromValue as? NSValue)?.pointValue == sourcePosition)
+    #expect((animation.toValue as? NSValue)?.pointValue == layer.position)
+    #expect(animation.duration == 1)
+
+    animator.finish()
+    #expect(
+      layer.animation(forKey: TerminalSidebarRetainedItemAnimator.positionAnimationKey) == nil
+    )
+  }
+
   @Test
   func velocityAndAcceptedDropUseExactPath() {
     var tracker = TerminalSidebarDragVelocityTracker()

@@ -113,6 +113,85 @@ enum TerminalSidebarLayoutMotion {
   static let insertedItemOffset = TerminalSidebarLayout.tabRowMinHeight / 3
 }
 
+@MainActor
+final class TerminalSidebarRetainedItemAnimator {
+  private struct Source {
+    let view: NSView
+    let frame: CGRect
+    let position: CGPoint
+  }
+
+  private struct PositionAnimation {
+    let layer: CALayer
+    let from: CGPoint
+    let to: CGPoint
+  }
+
+  static let positionAnimationKey = "sidebarStructuralPosition"
+  private let sources: [TerminalSidebarEntryID: Source]
+  private var animatedLayers: [CALayer] = []
+
+  init(
+    sourceIdentifiers: [TerminalSidebarEntryID],
+    targetIdentifiers: Set<TerminalSidebarEntryID>,
+    viewForIdentifier: (TerminalSidebarEntryID) -> NSView?
+  ) {
+    var sources: [TerminalSidebarEntryID: Source] = [:]
+    for identifier in sourceIdentifiers where targetIdentifiers.contains(identifier) {
+      guard
+        let view = viewForIdentifier(identifier),
+        let layer = view.layer
+      else { continue }
+      sources[identifier] = Source(
+        view: view,
+        frame: view.frame,
+        position: layer.presentation()?.position ?? layer.position
+      )
+    }
+    self.sources = sources
+  }
+
+  func animate(
+    to targetFrames: [TerminalSidebarEntryID: CGRect],
+    duration: TimeInterval = TerminalSidebarLayoutMotion.defaultDuration
+  ) {
+    var animations: [PositionAnimation] = []
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    for (identifier, source) in sources {
+      guard
+        let targetFrame = targetFrames[identifier],
+        targetFrame != source.frame,
+        let layer = source.view.layer
+      else { continue }
+      source.view.frame = targetFrame
+      source.view.layoutSubtreeIfNeeded()
+      guard layer.position != source.position else { continue }
+      animations.append(
+        PositionAnimation(layer: layer, from: source.position, to: layer.position)
+      )
+    }
+    CATransaction.commit()
+
+    for animation in animations {
+      let positionAnimation = CABasicAnimation(keyPath: "position")
+      positionAnimation.fromValue = NSValue(point: animation.from)
+      positionAnimation.toValue = NSValue(point: animation.to)
+      positionAnimation.duration = duration
+      positionAnimation.timingFunction = TerminalSidebarAnimationCurve.timingFunction
+      animation.layer.add(positionAnimation, forKey: Self.positionAnimationKey)
+    }
+    animatedLayers = animations.map(\.layer)
+  }
+
+  func finish() {
+    for layer in animatedLayers {
+      layer.removeAnimation(forKey: Self.positionAnimationKey)
+    }
+    animatedLayers = []
+  }
+}
+
 struct TerminalSidebarDragVelocityTracker {
   private(set) var velocity = CGVector.zero
   private var lastPoint: CGPoint?
