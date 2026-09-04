@@ -87,9 +87,9 @@ struct TerminalWindowShellControllerTests {
 
     #expect(fixture.sidebar.view.frame == CGRect(x: -252, y: 0, width: 240, height: 700))
     let sidebarPosition = try #require(
-      sidebarLayer.animation(forKey: "windowShellPosition") as? CASpringAnimation
+      sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
     )
-    expectSidebarSpring(
+    try expectSidebarMotion(
       sidebarPosition,
       from: NSValue(point: oldSidebarPosition),
       to: NSValue(point: sidebarLayer.position)
@@ -105,7 +105,7 @@ struct TerminalWindowShellControllerTests {
     #expect(fixture.detail.view.frame.minX < oldDetailFrame.minX)
     #expect(abs(fixture.detail.view.frame.maxX - bounds.maxX) < 0.001)
 
-    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+    RunLoop.current.run(until: Date().addingTimeInterval(0.2))
 
     #expect(fixture.detail.view.frame == bounds)
   }
@@ -137,7 +137,7 @@ struct TerminalWindowShellControllerTests {
   }
 
   @Test @MainActor
-  func floatingRevealUsesEaseOutWithoutMovingDetail() async throws {
+  func floatingRevealUsesDiaMotionWithoutMovingDetail() async throws {
     let clock = TestClock()
     let fixture = shellMotionFixture(
       presentation: presentation(collapsed: true, width: 240),
@@ -154,18 +154,11 @@ struct TerminalWindowShellControllerTests {
     let animation = try #require(
       sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
     )
-    #expect(!(animation is CASpringAnimation))
-    #expect(animation.duration == 0.1)
-    #expect(
-      (animation.fromValue as? NSValue)?.isEqual(NSValue(point: oldSidebarPosition)) == true
+    try expectSidebarMotion(
+      animation,
+      from: NSValue(point: oldSidebarPosition),
+      to: NSValue(point: sidebarLayer.position)
     )
-    #expect(
-      (animation.toValue as? NSValue)?.isEqual(NSValue(point: sidebarLayer.position)) == true
-    )
-    let timingFunction = try #require(animation.timingFunction)
-    let easeOut = CAMediaTimingFunction(name: .easeOut)
-    #expect(controlPoint(timingFunction, at: 1) == controlPoint(easeOut, at: 1))
-    #expect(controlPoint(timingFunction, at: 2) == controlPoint(easeOut, at: 2))
     #expect(sidebarLayer.animation(forKey: "windowShellBounds") == nil)
     #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
     #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
@@ -303,7 +296,7 @@ struct TerminalWindowShellControllerTests {
     fixture.shell.apply(presentation(collapsed: true, width: 240))
 
     let collapse = try #require(
-      sidebarLayer.animation(forKey: "windowShellPosition") as? CASpringAnimation
+      sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
     )
     let end = sidebarLayer.position
     CATransaction.flush()
@@ -316,7 +309,7 @@ struct TerminalWindowShellControllerTests {
     fixture.shell.apply(presentation(collapsed: false, width: 240))
 
     let expand = try #require(
-      sidebarLayer.animation(forKey: "windowShellPosition") as? CASpringAnimation
+      sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
     )
     #expect(
       (expand.fromValue as? NSValue)?.isEqual(NSValue(point: midpoint)) == true
@@ -748,19 +741,19 @@ struct TerminalWindowShellControllerTests {
     )
   }
 
-  private func expectSidebarSpring(
-    _ animation: CASpringAnimation,
+  private func expectSidebarMotion(
+    _ animation: CABasicAnimation,
     from: NSValue,
     to: NSValue
-  ) {
-    let angularFrequency = 2 * CGFloat.pi / 0.2
-    #expect(animation.mass == 1)
-    #expect(abs(animation.stiffness - angularFrequency * angularFrequency) < 0.000_001)
-    #expect(abs(animation.damping - 2 * angularFrequency) < 0.000_001)
-    #expect(animation.initialVelocity == 0)
-    #expect(animation.duration == animation.settlingDuration)
+  ) throws {
+    #expect(!(animation is CASpringAnimation))
+    #expect(animation.duration == 0.2)
     #expect((animation.fromValue as? NSValue)?.isEqual(from) == true)
     #expect((animation.toValue as? NSValue)?.isEqual(to) == true)
+    let timingFunction = try #require(animation.timingFunction)
+    let diaTiming = CAMediaTimingFunction(controlPoints: 0.5, 1.2, 0.5, 1)
+    #expect(controlPoint(timingFunction, at: 1) == controlPoint(diaTiming, at: 1))
+    #expect(controlPoint(timingFunction, at: 2) == controlPoint(diaTiming, at: 2))
   }
 
   private func controlPoint(

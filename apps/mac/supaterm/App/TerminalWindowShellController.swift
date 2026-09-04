@@ -186,37 +186,65 @@ nonisolated struct TerminalTabSplitDropCoordinator {
   }
 }
 
-private final class TerminalSidebarFrameAnimationCurve: NSObject, NSAnimationDelegate {
-  nonisolated let duration: TimeInterval
-  private nonisolated let angularFrequency: Double
-  private nonisolated let finalValue: Double
+private enum TerminalSidebarFrameMotion {
+  nonisolated static let duration: TimeInterval = 0.2
+  nonisolated static let firstControlPoint = CGPoint(x: 0.5, y: 1.2)
+  nonisolated static let secondControlPoint = CGPoint(x: 0.5, y: 1)
 
-  init(spring: TerminalLayerSpring) {
-    precondition(spring.dampingRatio == 1)
-    angularFrequency = 2 * Double.pi / spring.response
-    let animation = TerminalLayerAnimation.spring(
-      keyPath: "bounds",
-      from: 0,
-      to: 1,
-      spring: spring
+  static var timingFunction: CAMediaTimingFunction {
+    CAMediaTimingFunction(
+      controlPoints: Float(firstControlPoint.x),
+      Float(firstControlPoint.y),
+      Float(secondControlPoint.x),
+      Float(secondControlPoint.y)
     )
-    duration = animation.settlingDuration
-    finalValue = Self.value(at: duration, angularFrequency: angularFrequency)
   }
+
+  nonisolated static func easedProgress(_ progress: CGFloat) -> CGFloat {
+    let progress = max(0, min(progress, 1))
+    guard progress > 0 else { return 0 }
+    guard progress < 1 else { return 1 }
+    var lower: CGFloat = 0
+    var upper: CGFloat = 1
+    for _ in 0..<16 {
+      let parameter = (lower + upper) / 2
+      if cubicBezierCoordinate(
+        parameter,
+        first: firstControlPoint.x,
+        second: secondControlPoint.x
+      ) < progress {
+        lower = parameter
+      } else {
+        upper = parameter
+      }
+    }
+    return cubicBezierCoordinate(
+      (lower + upper) / 2,
+      first: firstControlPoint.y,
+      second: secondControlPoint.y
+    )
+  }
+
+  private nonisolated static func cubicBezierCoordinate(
+    _ parameter: CGFloat,
+    first: CGFloat,
+    second: CGFloat
+  ) -> CGFloat {
+    let inverse = 1 - parameter
+    return 3 * inverse * inverse * parameter * first
+      + 3 * inverse * parameter * parameter * second
+      + parameter * parameter * parameter
+  }
+}
+
+private final class TerminalSidebarFrameAnimationCurve: NSObject, NSAnimationDelegate {
+  nonisolated let duration = TerminalSidebarFrameMotion.duration
 
   nonisolated func animation(
     _: NSAnimation,
     valueForProgress progress: NSAnimation.Progress
   ) -> Float {
-    let time = Double(progress) * duration
-    return Float(Self.value(at: time, angularFrequency: angularFrequency) / finalValue)
-  }
-
-  private nonisolated static func value(
-    at time: TimeInterval,
-    angularFrequency: Double
-  ) -> Double {
-    1 - (1 + angularFrequency * time) * exp(-angularFrequency * time)
+    Float(TerminalSidebarFrameMotion.easedProgress(CGFloat(progress)))
   }
 }
 
@@ -365,8 +393,6 @@ final class TerminalWindowShellView: NSView {
 
 @MainActor
 final class TerminalWindowShellController: NSViewController {
-  private static let sidebarSpring = TerminalLayerSpring(response: 0.2, dampingRatio: 1)
-
   private enum FrameMotion: Equatable {
     case immediate
     case sidebar
@@ -415,9 +441,7 @@ final class TerminalWindowShellController: NSViewController {
   private var detailController: NSViewController?
   private var detailFrameAnimation: NSViewAnimation?
   private var detailFrameAnimationTarget: CGRect?
-  private let detailFrameAnimationCurve = TerminalSidebarFrameAnimationCurve(
-    spring: TerminalWindowShellController.sidebarSpring
-  )
+  private let detailFrameAnimationCurve = TerminalSidebarFrameAnimationCurve()
   private var presentation = TerminalWindowShellPresentation(
     isSidebarCollapsed: false,
     sidebarResizeState: nil,
@@ -757,20 +781,13 @@ final class TerminalWindowShellController: NSViewController {
     case .immediate:
       layer.removeAnimation(forKey: property.animationKey)
       return
-    case .sidebar:
-      animation = TerminalLayerAnimation.spring(
-        keyPath: property.keyPath,
-        from: from,
-        to: to,
-        spring: Self.sidebarSpring
-      )
-    case .floating:
+    case .sidebar, .floating:
       animation = TerminalLayerAnimation.basic(
         keyPath: property.keyPath,
         from: from,
         to: to,
-        duration: 0.1,
-        timingFunction: CAMediaTimingFunction(name: .easeOut)
+        duration: TerminalSidebarFrameMotion.duration,
+        timingFunction: TerminalSidebarFrameMotion.timingFunction
       )
     }
     layer.add(animation, forKey: property.animationKey)
