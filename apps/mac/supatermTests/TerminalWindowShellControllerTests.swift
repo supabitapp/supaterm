@@ -77,37 +77,31 @@ struct TerminalWindowShellControllerTests {
     let fixture = shellMotionFixture(
       presentation: presentation(collapsed: false, width: 240)
     )
-    let sidebarLayer = try #require(fixture.sidebar.view.layer)
-    let detailLayer = try #require(fixture.detail.view.layer)
-    let oldSidebarPosition = sidebarLayer.position
+    let oldSidebarFrame = fixture.sidebar.view.frame
     let oldDetailFrame = fixture.detail.view.frame
 
     fixture.shell.apply(presentation(collapsed: true, width: 240))
     fixture.shell.viewDidLayout()
 
-    #expect(fixture.sidebar.view.frame == CGRect(x: -252, y: 0, width: 240, height: 700))
-    let sidebarPosition = try #require(
-      sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
-    )
-    try expectSidebarMotion(
-      sidebarPosition,
-      from: NSValue(point: oldSidebarPosition),
-      to: NSValue(point: sidebarLayer.position)
-    )
+    #expect(fixture.shell.isFrameAnimationRunning)
+    #expect(fixture.sidebar.view.frame == oldSidebarFrame)
     #expect(fixture.detail.view.frame == oldDetailFrame)
-    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
-    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
-    #expect(sidebarLayer.animation(forKey: "windowShellBounds") == nil)
 
     RunLoop.current.run(until: Date().addingTimeInterval(0.05))
 
+    #expect(fixture.sidebar.view.frame.minX < oldSidebarFrame.minX)
+    #expect(fixture.sidebar.view.frame.minX > -252)
     #expect(fixture.detail.view.frame.minX > bounds.minX)
     #expect(fixture.detail.view.frame.minX < oldDetailFrame.minX)
     #expect(abs(fixture.detail.view.frame.maxX - bounds.maxX) < 0.001)
 
-    RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+    RunLoop.current.run(until: Date().addingTimeInterval(0.25))
 
+    #expect(fixture.sidebar.view.frame == CGRect(x: -252, y: 0, width: 240, height: 700))
     #expect(fixture.detail.view.frame == bounds)
+    #expect(fixture.sidebar.view.isHidden)
+    #expect(!fixture.shell.isFrameAnimationRunning)
+    try expectNoFrameAnimations(fixture)
   }
 
   @Test @MainActor
@@ -144,24 +138,15 @@ struct TerminalWindowShellControllerTests {
       clock: clock,
       pointerLocation: CGPoint(x: 1, y: 350)
     )
-    let sidebarLayer = try #require(fixture.sidebar.view.layer)
-    let detailLayer = try #require(fixture.detail.view.layer)
-    let oldSidebarPosition = sidebarLayer.position
     await advanceClock(clock, by: TerminalSidebarRevealMetrics.stoppedDuration)
+
+    #expect(fixture.shell.isFrameAnimationRunning)
+    try await Task.sleep(for: .milliseconds(250))
 
     #expect(fixture.sidebar.view.frame == CGRect(x: 0, y: 0, width: 240, height: 700))
     #expect(fixture.detail.view.frame == bounds)
-    let animation = try #require(
-      sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
-    )
-    try expectSidebarMotion(
-      animation,
-      from: NSValue(point: oldSidebarPosition),
-      to: NSValue(point: sidebarLayer.position)
-    )
-    #expect(sidebarLayer.animation(forKey: "windowShellBounds") == nil)
-    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
-    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
+    #expect(!fixture.shell.isFrameAnimationRunning)
+    try expectNoFrameAnimations(fixture)
   }
 
   @Test(arguments: TerminalSidebarWindowGeometryChange.allCases) @MainActor
@@ -257,17 +242,11 @@ struct TerminalWindowShellControllerTests {
       presentation: presentation(collapsed: false, width: 240)
     )
     fixture.shell.apply(presentation(collapsed: true, width: 240))
-    let sidebarLayer = try #require(fixture.sidebar.view.layer)
-    let detailLayer = try #require(fixture.detail.view.layer)
-    #expect(sidebarLayer.animation(forKey: "windowShellPosition") != nil)
-    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
-    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
+    #expect(fixture.shell.isFrameAnimationRunning)
 
     fixture.shell.viewDidLayout()
 
-    #expect(sidebarLayer.animation(forKey: "windowShellPosition") != nil)
-    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
-    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
+    #expect(fixture.shell.isFrameAnimationRunning)
 
     fixture.window.setContentSize(CGSize(width: 900, height: 700))
     fixture.window.layoutIfNeeded()
@@ -276,47 +255,58 @@ struct TerminalWindowShellControllerTests {
     #expect(fixture.shell.view.bounds.size == CGSize(width: 900, height: 700))
     #expect(fixture.sidebar.view.frame == CGRect(x: -252, y: 0, width: 240, height: 700))
     #expect(fixture.detail.view.frame == CGRect(x: 0, y: 0, width: 900, height: 700))
-    #expect(sidebarLayer.animation(forKey: "windowShellPosition") == nil)
-    #expect(sidebarLayer.animation(forKey: "windowShellBounds") == nil)
-    #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
-    #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
+    #expect(!fixture.shell.isFrameAnimationRunning)
+    try expectNoFrameAnimations(fixture)
   }
 
   @Test @MainActor
-  func interruptedToggleRetargetsFromPresentationGeometry() throws {
+  func interruptedToggleRetargetsBothFramesFromTheSameInstant() {
     let fixture = shellMotionFixture(
       presentation: presentation(collapsed: false, width: 240)
     )
-    let sidebarLayer = try #require(fixture.sidebar.view.layer)
-    let start = sidebarLayer.position
-    let pausedTime = sidebarLayer.convertTime(CACurrentMediaTime(), from: nil)
-    sidebarLayer.speed = 0
-    sidebarLayer.timeOffset = pausedTime
 
     fixture.shell.apply(presentation(collapsed: true, width: 240))
+    RunLoop.current.run(until: Date().addingTimeInterval(0.06))
 
-    let collapse = try #require(
-      sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
-    )
-    let end = sidebarLayer.position
-    CATransaction.flush()
-    sidebarLayer.timeOffset = pausedTime + collapse.duration / 2
-    CATransaction.flush()
-    let midpoint = try #require(sidebarLayer.presentation()?.position)
-    #expect(midpoint.x > min(start.x, end.x))
-    #expect(midpoint.x < max(start.x, end.x))
+    let interruptedSidebarFrame = fixture.sidebar.view.frame
+    let interruptedDetailFrame = fixture.detail.view.frame
+    #expect(interruptedSidebarFrame.minX < 0)
+    #expect(interruptedSidebarFrame.minX > -252)
+    #expect(interruptedDetailFrame.minX < 240)
+    #expect(interruptedDetailFrame.minX > 0)
 
     fixture.shell.apply(presentation(collapsed: false, width: 240))
 
-    let expand = try #require(
-      sidebarLayer.animation(forKey: "windowShellPosition") as? CABasicAnimation
+    #expect(fixture.shell.isFrameAnimationRunning)
+    #expect(fixture.sidebar.view.frame == interruptedSidebarFrame)
+    #expect(fixture.detail.view.frame == interruptedDetailFrame)
+
+    RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+
+    #expect(fixture.sidebar.view.frame == CGRect(x: 0, y: 0, width: 240, height: 700))
+    #expect(fixture.detail.view.frame == CGRect(x: 240, y: 0, width: 760, height: 700))
+    #expect(!fixture.sidebar.view.isHidden)
+    #expect(!fixture.shell.isFrameAnimationRunning)
+  }
+
+  @Test @MainActor
+  func rapidSidebarTogglesSettleAtTheLatestEndpoint() throws {
+    let fixture = shellMotionFixture(
+      presentation: presentation(collapsed: false, width: 240)
     )
-    #expect(
-      (expand.fromValue as? NSValue)?.isEqual(NSValue(point: midpoint)) == true
-    )
-    #expect(
-      (expand.toValue as? NSValue)?.isEqual(NSValue(point: sidebarLayer.position)) == true
-    )
+
+    for isCollapsed in [true, false, true, false, true, false] {
+      fixture.shell.apply(presentation(collapsed: isCollapsed, width: 240))
+      RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+    }
+
+    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
+    #expect(fixture.sidebar.view.frame == CGRect(x: 0, y: 0, width: 240, height: 700))
+    #expect(fixture.detail.view.frame == CGRect(x: 240, y: 0, width: 760, height: 700))
+    #expect(!fixture.sidebar.view.isHidden)
+    #expect(!fixture.shell.isFrameAnimationRunning)
+    try expectNoFrameAnimations(fixture)
   }
 
   @Test @MainActor
@@ -741,32 +731,6 @@ struct TerminalWindowShellControllerTests {
     )
   }
 
-  private func expectSidebarMotion(
-    _ animation: CABasicAnimation,
-    from: NSValue,
-    to: NSValue
-  ) throws {
-    #expect(!(animation is CASpringAnimation))
-    #expect(animation.duration == 0.2)
-    #expect((animation.fromValue as? NSValue)?.isEqual(from) == true)
-    #expect((animation.toValue as? NSValue)?.isEqual(to) == true)
-    let timingFunction = try #require(animation.timingFunction)
-    let diaTiming = CAMediaTimingFunction(controlPoints: 0.5, 1.2, 0.5, 1)
-    #expect(controlPoint(timingFunction, at: 1) == controlPoint(diaTiming, at: 1))
-    #expect(controlPoint(timingFunction, at: 2) == controlPoint(diaTiming, at: 2))
-  }
-
-  private func controlPoint(
-    _ timingFunction: CAMediaTimingFunction,
-    at index: Int
-  ) -> CGPoint {
-    var values = [Float](repeating: 0, count: 2)
-    values.withUnsafeMutableBufferPointer { buffer in
-      timingFunction.getControlPoint(at: index, values: buffer.baseAddress!)
-    }
-    return CGPoint(x: CGFloat(values[0]), y: CGFloat(values[1]))
-  }
-
   @MainActor
   private func expectNoFrameAnimations(_ fixture: TerminalWindowShellMotionFixture) throws {
     let sidebarLayer = try #require(fixture.sidebar.view.layer)
@@ -775,6 +739,7 @@ struct TerminalWindowShellControllerTests {
     #expect(sidebarLayer.animation(forKey: "windowShellBounds") == nil)
     #expect(detailLayer.animation(forKey: "windowShellPosition") == nil)
     #expect(detailLayer.animation(forKey: "windowShellBounds") == nil)
+    #expect(!fixture.shell.isFrameAnimationRunning)
   }
 
   private func splitDropContext() -> TerminalTabSplitDropCoordinator.Context {

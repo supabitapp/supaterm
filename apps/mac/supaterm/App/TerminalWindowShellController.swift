@@ -191,15 +191,6 @@ private enum TerminalSidebarFrameMotion {
   nonisolated static let firstControlPoint = CGPoint(x: 0.5, y: 1.2)
   nonisolated static let secondControlPoint = CGPoint(x: 0.5, y: 1)
 
-  static var timingFunction: CAMediaTimingFunction {
-    CAMediaTimingFunction(
-      controlPoints: Float(firstControlPoint.x),
-      Float(firstControlPoint.y),
-      Float(secondControlPoint.x),
-      Float(secondControlPoint.y)
-    )
-  }
-
   nonisolated static func easedProgress(_ progress: CGFloat) -> CGFloat {
     let progress = max(0, min(progress, 1))
     guard progress > 0 else { return 0 }
@@ -237,14 +228,24 @@ private enum TerminalSidebarFrameMotion {
   }
 }
 
-private final class TerminalSidebarFrameAnimationCurve: NSObject, NSAnimationDelegate {
+private final class TerminalSidebarFrameAnimationDelegate: NSObject, NSAnimationDelegate {
+  // NSAnimation documents nonblocking animations as running on the main thread.
+  nonisolated(unsafe) private let didEnd: (ObjectIdentifier) -> Void
   nonisolated let duration = TerminalSidebarFrameMotion.duration
+
+  init(didEnd: @escaping (ObjectIdentifier) -> Void) {
+    self.didEnd = didEnd
+  }
 
   nonisolated func animation(
     _: NSAnimation,
     valueForProgress progress: NSAnimation.Progress
   ) -> Float {
     Float(TerminalSidebarFrameMotion.easedProgress(CGFloat(progress)))
+  }
+
+  nonisolated func animationDidEnd(_ animation: NSAnimation) {
+    didEnd(ObjectIdentifier(animation))
   }
 }
 
@@ -399,25 +400,6 @@ final class TerminalWindowShellController: NSViewController {
     case floating
   }
 
-  private enum FrameProperty: CaseIterable {
-    case position
-    case bounds
-
-    var animationKey: String {
-      switch self {
-      case .position: "windowShellPosition"
-      case .bounds: "windowShellBounds"
-      }
-    }
-
-    var keyPath: String {
-      switch self {
-      case .position: "position"
-      case .bounds: "bounds"
-      }
-    }
-  }
-
   private(set) lazy var sidebarControllerCache: TerminalSidebarControllerCache = {
     let cache = TerminalSidebarControllerCache(
       windowControllerID: windowControllerID,
@@ -439,9 +421,10 @@ final class TerminalWindowShellController: NSViewController {
   var splitDestination: () -> TerminalTabSplitDropDestination? = { nil }
 
   private var detailController: NSViewController?
-  private var detailFrameAnimation: NSViewAnimation?
-  private var detailFrameAnimationTarget: CGRect?
-  private let detailFrameAnimationCurve = TerminalSidebarFrameAnimationCurve()
+  private var frameAnimation: NSViewAnimation?
+  private var frameAnimationDriver: TerminalSidebarFrameAnimationDelegate?
+  private var frameAnimationTarget: TerminalWindowShellLayout?
+  private var frameAnimationTransitionID: UUID?
   private var presentation = TerminalWindowShellPresentation(
     isSidebarCollapsed: false,
     sidebarResizeState: nil,
@@ -472,6 +455,10 @@ final class TerminalWindowShellController: NSViewController {
 
   private var isRevealPointerInside: Bool {
     (view as? TerminalWindowShellView)?.isPointerInsideRevealFrame == true
+  }
+
+  var isFrameAnimationRunning: Bool {
+    frameAnimation?.isAnimating == true
   }
 
   init(
@@ -534,12 +521,14 @@ final class TerminalWindowShellController: NSViewController {
     super.viewDidLayout()
     guard let sidebarController, let detailController else { return }
     let layout = currentLayout
-    let detailFrameMatches = detailController.view.frame == layout.detailFrame
-      || (detailFrameAnimation?.isAnimating == true
-        && detailFrameAnimationTarget == layout.detailFrame)
+    let animatedFramesMatch =
+      frameAnimation?.isAnimating == true
+      && frameAnimationTarget == layout
+    let settledFramesMatch =
+      sidebarController.view.frame == layout.sidebarFrame
+      && detailController.view.frame == layout.detailFrame
     guard
-      sidebarController.view.frame != layout.sidebarFrame
-        || !detailFrameMatches
+      !animatedFramesMatch && !settledFramesMatch
         || sidebarResizeView.frame != layout.resizeFrame
     else { return }
     applyLayout(motion: .immediate)
@@ -598,10 +587,16 @@ final class TerminalWindowShellController: NSViewController {
       let window = sourceView.window,
       window.windowNumber > 0
     else { return nil }
-    let detailFrame = sourceView.convert(sourceView.bounds, to: view)
-    let sidebarFrame = sidebarController.map {
-      $0.view.convert($0.view.bounds, to: view)
-    }
+    let layout = currentLayout
+    let usesTransitionTarget = frameAnimation?.isAnimating == true
+    let detailFrame =
+      usesTransitionTarget
+      ? layout.detailFrame
+      : sourceView.convert(sourceView.bounds, to: view)
+    let sidebarFrame =
+      usesTransitionTarget
+      ? layout.sidebarFrame
+      : sidebarController.map { $0.view.convert($0.view.bounds, to: view) }
     let captureFrame = TerminalTabDragCaptureLayout.frame(
       detailFrame: detailFrame,
       sidebarFrame: sidebarFrame
@@ -627,48 +622,80 @@ final class TerminalWindowShellController: NSViewController {
       sidebarPresentation == .hidden
     )
     (view as? TerminalWindowShellView)?.setRevealFrame(layout.revealFrame)
-    setSidebarFrame(
-      layout.sidebarFrame,
-      of: sidebarController.view,
-      motion: motion,
-      hidesSidebar: sidebarPresentation == .hidden
+    setFrames(
+      layout,
+      sidebarView: sidebarController.view,
+      detailView: detailController.view,
+      motion: motion
     )
-    setDetailFrame(layout.detailFrame, of: detailController.view, motion: motion)
     splitDropOverlay.frame = TerminalTabSplitDropLayout.surfaceFrame(in: layout.detailFrame)
     sidebarResizeView.sidebarWidth = layout.sidebarFrame.width
-    setFrame(layout.resizeFrame, of: sidebarResizeView, motion: .immediate)
+    setFrameImmediately(layout.resizeFrame, of: sidebarResizeView)
     sidebarResizeView.isHidden = layout.resizeFrame.isEmpty
     sidebarResizeView.setAccessibilityHidden(layout.resizeFrame.isEmpty)
   }
 
-  private func setSidebarFrame(
-    _ frame: CGRect,
-    of sidebarView: NSView,
-    motion: FrameMotion,
-    hidesSidebar: Bool
+  private func setFrames(
+    _ layout: TerminalWindowShellLayout,
+    sidebarView: NSView,
+    detailView: NSView,
+    motion: FrameMotion
   ) {
+    let sidebarStartFrame = sidebarView.frame
+    let detailStartFrame = detailView.frame
+    cancelFrameAnimation()
+
+    guard
+      motion != .immediate,
+      view.window != nil,
+      sidebarStartFrame != layout.sidebarFrame || detailStartFrame != layout.detailFrame
+    else {
+      setFrameImmediately(layout.sidebarFrame, of: sidebarView)
+      setFrameImmediately(layout.detailFrame, of: detailView)
+      sidebarView.isHidden = sidebarPresentation == .hidden
+      return
+    }
+
+    // Stopping NSViewAnimation writes its end frames. Restore both siblings from the
+    // same instant before retargeting them onto one animation clock.
+    setFrameImmediately(sidebarStartFrame, of: sidebarView)
+    setFrameImmediately(detailStartFrame, of: detailView)
     sidebarView.isHidden = false
-    guard hidesSidebar else {
-      setFrame(frame, of: sidebarView, motion: motion)
-      return
-    }
-    guard motion != .immediate, view.window != nil, sidebarView.layer != nil else {
-      setFrame(frame, of: sidebarView, motion: motion)
-      sidebarView.isHidden = true
-      return
-    }
-    CATransaction.begin()
-    CATransaction.setCompletionBlock { [weak self, weak sidebarView] in
-      Task { @MainActor in
-        guard
-          let self,
-          self.sidebarPresentation == .hidden
-        else { return }
-        sidebarView?.isHidden = true
+
+    let transitionID = UUID()
+    let animation = NSViewAnimation(
+      viewAnimations: [
+        [
+          .target: sidebarView,
+          .startFrame: NSValue(rect: sidebarStartFrame),
+          .endFrame: NSValue(rect: layout.sidebarFrame)
+        ],
+        [
+          .target: detailView,
+          .startFrame: NSValue(rect: detailStartFrame),
+          .endFrame: NSValue(rect: layout.detailFrame)
+        ]
+      ]
+    )
+    let animationID = ObjectIdentifier(animation)
+    let delegate = TerminalSidebarFrameAnimationDelegate { [weak self] completedID in
+      MainActor.assumeIsolated {
+        self?.frameAnimationDidEnd(
+          completedID,
+          expectedAnimationID: animationID,
+          transitionID: transitionID
+        )
       }
     }
-    setFrame(frame, of: sidebarView, motion: motion)
-    CATransaction.commit()
+    animation.animationBlockingMode = .nonblocking
+    animation.animationCurve = .linear
+    animation.duration = delegate.duration
+    animation.delegate = delegate
+    frameAnimation = animation
+    frameAnimationDriver = delegate
+    frameAnimationTarget = layout
+    frameAnimationTransitionID = transitionID
+    animation.start()
   }
 
   private func frameMotion(
@@ -687,117 +714,40 @@ final class TerminalWindowShellController: NSViewController {
     return .immediate
   }
 
-  private func setDetailFrame(
-    _ frame: CGRect,
-    of detailView: NSView,
-    motion: FrameMotion
+  private func frameAnimationDidEnd(
+    _ completedAnimationID: ObjectIdentifier,
+    expectedAnimationID: ObjectIdentifier,
+    transitionID: UUID
   ) {
-    let currentFrame = detailView.frame
-    if detailFrameAnimation?.isAnimating == true {
-      detailFrameAnimation?.stop()
-      detailView.frame = currentFrame
-    }
-    detailFrameAnimation = nil
-    detailFrameAnimationTarget = nil
-
-    guard motion == .sidebar, view.window != nil, currentFrame != frame else {
-      setFrame(frame, of: detailView, motion: .immediate)
-      return
-    }
-
-    // A backing-layer bounds animation lays out hosted content at its final size before
-    // the presentation layer arrives there. Animate the AppKit frame so both stay aligned.
-    removeFrameAnimations(from: detailView.layer)
-    let animation = NSViewAnimation(
-      viewAnimations: [
-        [
-          .target: detailView,
-          .startFrame: NSValue(rect: currentFrame),
-          .endFrame: NSValue(rect: frame),
-        ]
-      ]
-    )
-    animation.animationBlockingMode = .nonblocking
-    animation.animationCurve = .linear
-    animation.duration = detailFrameAnimationCurve.duration
-    animation.delegate = detailFrameAnimationCurve
-    detailFrameAnimation = animation
-    detailFrameAnimationTarget = frame
-    animation.start()
+    guard
+      completedAnimationID == expectedAnimationID,
+      frameAnimation.map(ObjectIdentifier.init) == expectedAnimationID,
+      frameAnimationTransitionID == transitionID
+    else { return }
+    frameAnimation = nil
+    frameAnimationDriver = nil
+    frameAnimationTarget = nil
+    frameAnimationTransitionID = nil
+    applyLayout(motion: .immediate)
   }
 
-  private func setFrame(_ frame: CGRect, of childView: NSView, motion: FrameMotion) {
-    guard motion != .immediate, view.window != nil, let layer = childView.layer else {
-      removeFrameAnimations(from: childView.layer)
-      CATransaction.begin()
-      CATransaction.setDisableActions(true)
-      childView.frame = frame
-      childView.layoutSubtreeIfNeeded()
-      CATransaction.commit()
-      return
+  private func cancelFrameAnimation() {
+    frameAnimationTransitionID = nil
+    frameAnimation?.delegate = nil
+    if frameAnimation?.isAnimating == true {
+      frameAnimation?.stop()
     }
-    let modelPosition = layer.position
-    let modelBounds = layer.bounds
-    let oldPosition = layer.presentation()?.position ?? layer.position
-    let oldBounds = layer.presentation()?.bounds ?? layer.bounds
+    frameAnimation = nil
+    frameAnimationDriver = nil
+    frameAnimationTarget = nil
+  }
+
+  private func setFrameImmediately(_ frame: CGRect, of childView: NSView) {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     childView.frame = frame
     childView.layoutSubtreeIfNeeded()
     CATransaction.commit()
-    if modelPosition != layer.position {
-      addFrameAnimation(
-        to: layer,
-        property: .position,
-        from: NSValue(point: oldPosition),
-        to: NSValue(point: layer.position),
-        motion: motion
-      )
-    }
-    if modelBounds != layer.bounds {
-      addFrameAnimation(
-        to: layer,
-        property: .bounds,
-        from: NSValue(rect: oldBounds),
-        to: NSValue(rect: layer.bounds),
-        motion: motion
-      )
-    }
-  }
-
-  private func addFrameAnimation(
-    to layer: CALayer,
-    property: FrameProperty,
-    from: NSValue,
-    to: NSValue,
-    motion: FrameMotion
-  ) {
-    guard !from.isEqual(to) else {
-      layer.removeAnimation(forKey: property.animationKey)
-      return
-    }
-    let animation: CABasicAnimation
-    switch motion {
-    case .immediate:
-      layer.removeAnimation(forKey: property.animationKey)
-      return
-    case .sidebar, .floating:
-      animation = TerminalLayerAnimation.basic(
-        keyPath: property.keyPath,
-        from: from,
-        to: to,
-        duration: TerminalSidebarFrameMotion.duration,
-        timingFunction: TerminalSidebarFrameMotion.timingFunction
-      )
-    }
-    layer.add(animation, forKey: property.animationKey)
-  }
-
-  private func removeFrameAnimations(from layer: CALayer?) {
-    guard let layer else { return }
-    for property in FrameProperty.allCases {
-      layer.removeAnimation(forKey: property.animationKey)
-    }
   }
 
   private func revealPointerChanged(_ event: TerminalSidebarRevealPointerEvent) {
