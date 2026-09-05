@@ -20,6 +20,11 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
     containerView.host(entryID: entryID, view)
   }
 
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    view.layer?.zPosition = 0
+  }
+
   func liftHostedView(
     sourceFrame: CGRect,
     selectedSurface: TerminalSidebarLiftedSelectionSurface? = nil

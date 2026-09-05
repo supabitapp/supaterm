@@ -37,6 +37,46 @@ enum TerminalSidebarNewTabPlacement {
   }
 }
 
+struct TerminalSidebarPinnedTabsPlacement: Equatable {
+  static let minimumScrollingLaneHeight = TerminalSidebarLayout.tabRowMinHeight
+
+  let offsetY: CGFloat
+  let backgroundFrame: CGRect
+
+  init?(
+    pinnedFrame: CGRect?,
+    visibleRect: CGRect
+  ) {
+    guard
+      let pinnedFrame,
+      !pinnedFrame.isEmpty,
+      !visibleRect.isEmpty,
+      visibleRect.minY > 0,
+      pinnedFrame.maxY + Self.minimumScrollingLaneHeight <= visibleRect.height
+    else { return nil }
+    offsetY = visibleRect.minY
+    backgroundFrame = CGRect(
+      x: visibleRect.minX,
+      y: visibleRect.minY,
+      width: visibleRect.width,
+      height: pinnedFrame.maxY
+    )
+  }
+
+  static func revealFrame(
+    _ frame: CGRect,
+    below parkingFrame: CGRect?
+  ) -> CGRect {
+    guard let parkingFrame, !parkingFrame.isEmpty else { return frame }
+    return CGRect(
+      x: frame.minX,
+      y: max(0, frame.minY - parkingFrame.height),
+      width: frame.width,
+      height: frame.height + parkingFrame.height
+    )
+  }
+}
+
 enum TerminalSidebarLayout {
   struct HorizontalInsets {
     let leading: CGFloat

@@ -30,6 +30,7 @@ final class TerminalSidebarSelectionGlowView: NSView {
   private let edgeMaskLayer = CAShapeLayer()
   private let contentTopFadeLayer = CAGradientLayer()
   private var fadesAtContentTop = true
+  private var contentTopY: CGFloat = 0
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -97,13 +98,20 @@ final class TerminalSidebarSelectionGlowView: NSView {
   }
 
   private func layoutContentTopFade() {
-    guard fadesAtContentTop, bounds.height > 0, frame.minY < Self.contentTopFade else {
+    guard
+      fadesAtContentTop,
+      bounds.height > 0,
+      frame.minY < contentTopY + Self.contentTopFade
+    else {
       layer?.mask = nil
       return
     }
     contentTopFadeLayer.frame = bounds
-    contentTopFadeLayer.startPoint = CGPoint(x: 0.5, y: unitY(contentY: 0))
-    contentTopFadeLayer.endPoint = CGPoint(x: 0.5, y: unitY(contentY: Self.contentTopFade))
+    contentTopFadeLayer.startPoint = CGPoint(x: 0.5, y: unitY(contentY: contentTopY))
+    contentTopFadeLayer.endPoint = CGPoint(
+      x: 0.5,
+      y: unitY(contentY: contentTopY + Self.contentTopFade)
+    )
     layer?.mask = contentTopFadeLayer
   }
 
@@ -115,9 +123,11 @@ final class TerminalSidebarSelectionGlowView: NSView {
     surfaceFrame: CGRect,
     style: Style,
     alpha: CGFloat,
-    fadesAtContentTop: Bool
+    fadesAtContentTop: Bool,
+    contentTopY: CGFloat = 0
   ) {
     self.fadesAtContentTop = fadesAtContentTop
+    self.contentTopY = contentTopY
     shadowLayer.fillColor = NSColor(style.surfaceColor).cgColor
     shadowLayer.shadowColor = NSColor(style.shadowColor).cgColor
     shadowLayer.shadowRadius = SelectableRowShadowMetrics.radius(isDark: style.isDark)

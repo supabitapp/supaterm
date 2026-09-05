@@ -698,6 +698,234 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func pinnedTabsParkAtTheirInlinePositionWhileTheListScrolls() throws {
+    let pinned = TerminalTabID()
+    let regular = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(pinned), isPinned: true),
+        TerminalSidebarOutline.Root(content: .tab(regular), isPinned: false),
+      ],
+      revision: 1
+    )
+    let inline = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+    let visibleRect = CGRect(x: 0, y: 48, width: 220, height: 180)
+    let parked = inline.parkingPinnedTabs(in: outline, visibleRect: visibleRect)
+    let inlinePinnedFrame = try #require(inline.items.first { $0.id == .tab(pinned) }?.frame)
+    let inlineDividerFrame = try #require(inline.items.first { $0.id == .pinDivider }?.frame)
+    let inlineRegularFrame = try #require(inline.items.first { $0.id == .tab(regular) }?.frame)
+    let parkedPinnedFrame = try #require(parked.items.first { $0.id == .tab(pinned) }?.frame)
+    let parkedDividerFrame = try #require(parked.items.first { $0.id == .pinDivider }?.frame)
+    let parkedRegularFrame = try #require(parked.items.first { $0.id == .tab(regular) }?.frame)
+
+    #expect(parkedPinnedFrame == inlinePinnedFrame.offsetBy(dx: 0, dy: visibleRect.minY))
+    #expect(parkedDividerFrame == inlineDividerFrame.offsetBy(dx: 0, dy: visibleRect.minY))
+    #expect(parkedRegularFrame == inlineRegularFrame)
+    #expect(parked.pinnedParkingFrame?.minY == visibleRect.minY)
+    #expect(parked.pinnedParkingFrame?.maxY == visibleRect.minY + inlineDividerFrame.maxY)
+    #expect(parked.parkedPinnedEntryIDs == [.tab(pinned), .pinDivider])
+
+    let inlinePinnedTarget = try #require(
+      inline.semanticTargets.first {
+        $0.path == .rootItem(lane: .pinned, index: 0, id: .tab(pinned))
+      }
+    )
+    let parkedPinnedTarget = try #require(
+      parked.semanticTargets.first { $0.path == inlinePinnedTarget.path }
+    )
+    let inlineRegularTarget = try #require(
+      inline.semanticTargets.first {
+        $0.path == .rootItem(lane: .regular, index: 0, id: .tab(regular))
+      }
+    )
+    let parkedRegularTarget = try #require(
+      parked.semanticTargets.first { $0.path == inlineRegularTarget.path }
+    )
+
+    #expect(
+      parkedPinnedTarget.frame == inlinePinnedTarget.frame.offsetBy(dx: 0, dy: visibleRect.minY)
+    )
+    let visibleRegularMinY = max(
+      inlineRegularTarget.frame.minY,
+      parked.pinnedParkingFrame?.maxY ?? 0
+    )
+    #expect(parkedRegularTarget.frame.minY == visibleRegularMinY)
+    #expect(
+      parkedRegularTarget.frame.height
+        == max(0, inlineRegularTarget.frame.maxY - visibleRegularMinY)
+    )
+    if let targetInParkingGap = parked.semanticTarget(at: parkedPinnedFrame.maxY + 2) {
+      #expect(targetInParkingGap.path.belongsToPinnedLane(pinnedGroupIDs: []))
+    }
+  }
+
+  @Test
+  func pinnedTabsRemainInlineAtTheTop() {
+    let pinned = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [TerminalSidebarOutline.Root(content: .tab(pinned), isPinned: true)],
+      revision: 1
+    )
+    let inline = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+    let resolved = inline.parkingPinnedTabs(
+      in: outline,
+      visibleRect: CGRect(x: 0, y: 0, width: 220, height: 180)
+    )
+
+    #expect(resolved == inline)
+    #expect(resolved.pinnedParkingFrame == nil)
+    #expect(resolved.parkedPinnedEntryIDs.isEmpty)
+  }
+
+  @Test
+  func pinnedTabsRemainScrollableWhenTheyWouldConsumeTheViewport() throws {
+    let pinnedTabs = (0..<5).map { _ in TerminalTabID() }
+    let regularTab = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: pinnedTabs.map {
+        TerminalSidebarOutline.Root(content: .tab($0), isPinned: true)
+      } + [TerminalSidebarOutline.Root(content: .tab(regularTab), isPinned: false)],
+      revision: 1
+    )
+    let inline = TerminalSidebarTestFixture.layoutPlan(outline: outline, viewportHeight: 180)
+    let scrolled = inline.parkingPinnedTabs(
+      in: outline,
+      visibleRect: CGRect(x: 0, y: 48, width: 220, height: 180)
+    )
+    let lastPinnedID = try #require(pinnedTabs.last)
+    let lastPinnedFrame = try #require(
+      inline.items.first { $0.id == .tab(lastPinnedID) }?.frame
+    )
+
+    #expect(
+      lastPinnedFrame.maxY + TerminalSidebarPinnedTabsPlacement.minimumScrollingLaneHeight > 180
+    )
+    #expect(scrolled == inline)
+    #expect(scrolled.pinnedParkingFrame == nil)
+  }
+
+  @Test
+  func regularTabRevealFrameIncludesTheParkedPinnedLane() {
+    let tabFrame = CGRect(x: 8, y: 72, width: 204, height: 36)
+    let parkingFrame = CGRect(x: 0, y: 48, width: 220, height: 60)
+
+    let revealFrame = TerminalSidebarPinnedTabsPlacement.revealFrame(
+      tabFrame,
+      below: parkingFrame
+    )
+
+    #expect(revealFrame.minY == 12)
+    #expect(revealFrame.maxY == tabFrame.maxY)
+  }
+
+  @Test
+  func windowBackedPinnedTabsStayFixedAsRegularTabsScroll() throws {
+    let tabs = (0..<10).map { TerminalTabItem(title: "Tab \($0)") }
+    let pinnedTab = tabs[0]
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: tabs.enumerated().map { index, tab in
+        TerminalSidebarOutline.Root(content: .tab(tab.id), isPinned: index == 0)
+      },
+      revision: 1
+    )
+    let rows = Dictionary(
+      uniqueKeysWithValues: tabs.map { tab in
+        (
+          TerminalSidebarEntryID.tab(tab.id),
+          TerminalSidebarRowPresentation.tab(
+            tabPresentation(tab, rootIsPinned: tab.id == pinnedTab.id)
+          )
+        )
+      }
+    ).merging([.newTab: .newTab(.inline)]) { current, _ in current }
+    let harness = try #require(
+      TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 220))
+    )
+    defer { harness.close() }
+    harness.apply(
+      outline: outline,
+      rows: rows,
+      terminal: TerminalHostState.test(managesTerminalSurfaces: false),
+      selectedTabID: pinnedTab.id,
+      reduceMotion: true,
+      surfaceStyle: .floating
+    )
+    harness.layoutNow()
+    harness.collectionView.layoutSubtreeIfNeeded()
+
+    let pinnedIndexPath = IndexPath(item: 0, section: 0)
+    let regularIndexPath = IndexPath(item: 2, section: 0)
+    let inlinePinnedFrame = try #require(
+      harness.layout.layoutAttributesForItem(at: pinnedIndexPath)?.frame
+    )
+    let inlineRegularFrame = try #require(
+      harness.layout.layoutAttributesForItem(at: regularIndexPath)?.frame
+    )
+    var preferredHeightRequests = 0
+    harness.layout.preferredHeight = { _, _ in
+      preferredHeightRequests += 1
+      return TerminalSidebarLayout.tabRowMinHeight
+    }
+    harness.layout.beginTransition()
+    harness.layout.updateTransition(progress: 0.5)
+    let contentView = harness.scrollView.contentView
+    contentView.scroll(to: CGPoint(x: 0, y: 96))
+    harness.scrollView.reflectScrolledClipView(contentView)
+    harness.collectionView.layoutSubtreeIfNeeded()
+
+    let scrollY = harness.collectionView.visibleRect.minY
+    let parkedPinnedAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: pinnedIndexPath)
+    )
+    let parkedRegularAttributes = try #require(
+      harness.layout.layoutAttributesForItem(at: regularIndexPath)
+    )
+    let parkingBackground = try #require(
+      harness.collectionView.subviews.compactMap {
+        $0 as? TerminalSidebarPinnedTabsBackgroundView
+      }.first
+    )
+    let pinnedItem = try #require(harness.collectionView.item(at: pinnedIndexPath))
+    let regularItem = try #require(harness.collectionView.item(at: regularIndexPath))
+    let selectionGlow = try #require(
+      harness.collectionView.subviews.compactMap {
+        $0 as? TerminalSidebarSelectionGlowView
+      }.first
+    )
+    let pinnedHitView = try #require(
+      harness.collectionView.hitTest(
+        CGPoint(
+          x: parkedPinnedAttributes.frame.midX,
+          y: parkedPinnedAttributes.frame.midY
+        )
+      )
+    )
+
+    #expect(scrollY > 0)
+    #expect(preferredHeightRequests == 0)
+    #expect(parkedPinnedAttributes.frame.minY - scrollY == inlinePinnedFrame.minY)
+    #expect(parkedPinnedAttributes.zIndex == TerminalSidebarCollectionLayout.parkedItemZIndex)
+    #expect(
+      pinnedItem.view.layer?.zPosition
+        == CGFloat(TerminalSidebarCollectionLayout.parkedItemZIndex)
+    )
+    #expect(parkedRegularAttributes.frame == inlineRegularFrame)
+    #expect(parkedRegularAttributes.zIndex == 0)
+    #expect(regularItem.view.layer?.zPosition == 0)
+    #expect(!parkingBackground.isHidden)
+    #expect(parkingBackground.frame == harness.layout.plan.pinnedParkingFrame)
+    #expect(selectionGlow.layer?.mask != nil)
+    #expect(pinnedHitView === pinnedItem.view || pinnedHitView.isDescendant(of: pinnedItem.view))
+    let coveredGapPoint = CGPoint(
+      x: parkedRegularAttributes.frame.midX,
+      y: parkingBackground.frame.minY + 1
+    )
+    #expect(parkedRegularAttributes.frame.contains(coveredGapPoint))
+    #expect(harness.collectionView.hitTest(coveredGapPoint) === harness.collectionView)
+    harness.layout.finishTransition()
+  }
+
+  @Test
   func collectionLayoutInvalidatesForViewportResize() {
     let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 220, height: 180))
     let layout = TerminalSidebarCollectionLayout()
@@ -991,13 +1219,14 @@ struct TerminalSidebarLayoutTests {
   private func tabPresentation(
     _ tab: TerminalTabItem,
     groupID: TerminalTabGroupID? = nil,
+    rootIsPinned: Bool = false,
     panes: [TerminalSidebarPanePresentation] = [],
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) -> TerminalSidebarTabRowPresentation {
     TerminalSidebarTabRowPresentation(
       tab: tab,
       groupID: groupID,
-      rootIsPinned: false,
+      rootIsPinned: rootIsPinned,
       panes: panes,
       agentStatus: nil,
       terminalProgress: terminalProgress,

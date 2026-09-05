@@ -127,6 +127,23 @@ struct TerminalSidebarOutline: Equatable {
     return entries
   }
 
+  var pinnedEntryIDs: Set<TerminalSidebarEntryID> {
+    Set(
+      visibleEntries
+        .prefix(while: \.belongsToPinnedLane)
+        .map(\.id)
+    )
+  }
+
+  var pinnedGroupIDs: Set<TerminalTabGroupID> {
+    Set(
+      roots.compactMap { root in
+        guard root.isPinned, case .group(let id, _, _, _) = root.content else { return nil }
+        return id
+      }
+    )
+  }
+
   func group(_ id: TerminalTabGroupID) -> Root? {
     roots.first {
       if case .group(let groupID, _, _, _) = $0.content { return groupID == id }
@@ -265,6 +282,15 @@ struct TerminalSidebarEntry: Equatable {
     case .group, .pinDivider, .newTab: nil
     }
   }
+
+  var belongsToPinnedLane: Bool {
+    switch kind {
+    case .tab(_, _, let rootIsPinned): rootIsPinned
+    case .group(_, _, let isPinned, _): isPinned
+    case .pinDivider: true
+    case .newTab: false
+    }
+  }
 }
 
 enum TerminalSidebarDragSource: Equatable {
@@ -311,6 +337,16 @@ enum TerminalSidebarSemanticPath: Hashable {
   case groupEntry(TerminalTabGroupID)
   case groupItem(TerminalTabGroupID, index: Int, id: TerminalTabID)
   case groupBoundary(TerminalTabGroupID, index: Int)
+
+  func belongsToPinnedLane(pinnedGroupIDs: Set<TerminalTabGroupID>) -> Bool {
+    switch self {
+    case .rootItem(let lane, _, _), .rootBoundary(let lane, _):
+      lane == .pinned
+    case .groupEntry(let groupID), .groupItem(let groupID, _, _),
+      .groupBoundary(let groupID, _):
+      pinnedGroupIDs.contains(groupID)
+    }
+  }
 }
 
 struct TerminalSidebarSemanticTarget: Equatable {

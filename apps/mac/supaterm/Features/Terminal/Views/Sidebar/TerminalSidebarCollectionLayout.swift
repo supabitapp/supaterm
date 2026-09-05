@@ -38,6 +38,8 @@ struct TerminalSidebarContentHeightState: Equatable {
 }
 
 final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
+  static let parkedItemZIndex = 30
+
   private struct StructuralUpdate {
     let sourceIdentifiers: [TerminalSidebarEntryID]
     let sourceItemsByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item]
@@ -69,6 +71,20 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     width: 0,
     viewportHeight: 0
   )
+  private var inlinePlan = TerminalSidebarLayoutPlan(
+    outline: TerminalSidebarOutline(roots: [], collapsedGroupIDs: [], topologyRevision: 0),
+    preferredHeights: [:],
+    dragDropState: nil,
+    width: 0,
+    viewportHeight: 0
+  )
+  private var inlineTargetPlan = TerminalSidebarLayoutPlan(
+    outline: TerminalSidebarOutline(roots: [], collapsedGroupIDs: [], topologyRevision: 0),
+    preferredHeights: [:],
+    dragDropState: nil,
+    width: 0,
+    viewportHeight: 0
+  )
   private(set) var dropTargetMap = TerminalSidebarDropTargetMap(targets: [])
   private var transitionOrigin: TerminalSidebarLayoutPlan?
   private var transitionProgress: CGFloat = 1
@@ -76,7 +92,10 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private var structuralUpdate: StructuralUpdate?
   private var insertedIndexPaths: Set<IndexPath> = []
   private var preparedBoundsSize: CGSize = .zero
+  private var preparedWidth: CGFloat = 0
+  private var preparedViewportHeight: CGFloat = 0
   private var contentHeightState = TerminalSidebarContentHeightState()
+  private var parkingOnlyInvalidation = false
 
   func setOutline(_ outline: TerminalSidebarOutline) {
     let currentIdentifiers = self.outline.visibleEntries.map(\.id)
@@ -112,7 +131,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   }
 
   func beginTransition() {
-    transitionOrigin = plan
+    transitionOrigin = inlinePlan
     transitionProgress = 0
   }
 
@@ -123,18 +142,52 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   func finishTransition() {
     transitionOrigin = nil
     transitionProgress = 1
+    inlinePlan = inlineTargetPlan
     plan = targetPlan
+  }
+
+  @discardableResult
+  func invalidatePinnedParkingIfNeeded(visibleRect: CGRect) -> Bool {
+    let parkingFrame = inlinePlan.pinnedTabsPlacement(
+      in: outline,
+      visibleRect: visibleRect
+    )?.backgroundFrame
+    guard parkingFrame != plan.pinnedParkingFrame else { return false }
+    parkingOnlyInvalidation = true
+    super.invalidateLayout()
+    return true
   }
 
   override func prepare() {
     super.prepare()
     guard let collectionView else { return }
+    let width = collectionView.bounds.width
+    let viewportHeight = collectionView.visibleRect.height
+    let updatesOnlyParking = parkingOnlyInvalidation
+      && preparedWidth == width
+      && preparedViewportHeight == viewportHeight
     preparedBoundsSize = collectionView.bounds.size
-    rebuild(width: collectionView.bounds.width, viewportHeight: collectionView.visibleRect.height)
+    preparedWidth = width
+    preparedViewportHeight = viewportHeight
+    if updatesOnlyParking {
+      updateParking(visibleRect: collectionView.visibleRect)
+      rebuildAttributes(entries: outline.visibleEntries)
+      return
+    }
+    parkingOnlyInvalidation = false
+    rebuild(width: width, viewportHeight: viewportHeight)
+  }
+
+  func invalidateGeometry() {
+    parkingOnlyInvalidation = false
+    invalidateLayout()
   }
 
   override func invalidateLayout() {
     super.invalidateLayout()
+    // AppKit invalidates again when scrolling changes the clip bounds. Preserve the
+    // parking-only path until an explicit geometry change or viewport resize clears it.
+    guard !parkingOnlyInvalidation else { return }
     attributesByIndexPath.removeAll(keepingCapacity: true)
     dropTargetMap = TerminalSidebarDropTargetMap(targets: [])
   }
@@ -159,7 +212,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
         )
       }
     )
-    targetPlan = TerminalSidebarLayoutPlan(
+    inlineTargetPlan = TerminalSidebarLayoutPlan(
       outline: outline,
       preferredHeights: heights,
       visibilityByEntryID: visibilityByEntryID,
@@ -167,13 +220,33 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
       width: width,
       viewportHeight: viewportHeight
     )
-    if let transitionOrigin, transitionOrigin.contentSize.width == targetPlan.contentSize.width {
-      plan = targetPlan.interpolated(from: transitionOrigin, progress: transitionProgress)
+    if let transitionOrigin,
+      transitionOrigin.contentSize.width == inlineTargetPlan.contentSize.width
+    {
+      inlinePlan = inlineTargetPlan.interpolated(
+        from: transitionOrigin,
+        progress: transitionProgress
+      )
     } else {
-      finishTransition()
-      plan = targetPlan
+      transitionOrigin = nil
+      transitionProgress = 1
+      inlinePlan = inlineTargetPlan
     }
+    updateParking(visibleRect: collectionView.visibleRect)
+    rebuildAttributes(entries: entries, identifiersOverride: identifiersOverride)
+  }
+
+  private func updateParking(visibleRect: CGRect) {
+    targetPlan = inlineTargetPlan.parkingPinnedTabs(in: outline, visibleRect: visibleRect)
+    plan = inlinePlan.parkingPinnedTabs(in: outline, visibleRect: visibleRect)
     dropTargetMap = TerminalSidebarDropTargetMap(targets: targetPlan.semanticTargets)
+  }
+
+  private func rebuildAttributes(
+    entries: [TerminalSidebarEntry],
+    identifiersOverride: [TerminalSidebarEntryID]? = nil
+  ) {
+    guard let collectionView else { return }
     let collectionItemCount = collectionView.numberOfSections > 0
       ? collectionView.numberOfItems(inSection: 0)
       : 0
@@ -192,6 +265,9 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
         attributes.frame = item.frame
         attributes.alpha = item.alpha
         attributes.isHidden = isNewTabItemHidden && item.id == .newTab
+        attributes.zIndex = plan.parkedPinnedEntryIDs.contains(item.id)
+          ? Self.parkedItemZIndex
+          : 0
         return (indexPath, attributes)
       }
     )
@@ -243,6 +319,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
 
   override func prepare(forCollectionViewUpdates updateItems: [NSCollectionViewUpdateItem]) {
     super.prepare(forCollectionViewUpdates: updateItems)
+    parkingOnlyInvalidation = false
     guard commitStagedOutline(), let collectionView else {
       insertedIndexPaths = []
       return

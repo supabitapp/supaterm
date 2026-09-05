@@ -16,6 +16,8 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
   let actions: TerminalSidebarRowActions
   let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
 
+  @Environment(\.terminalSidebarSurfaceStyle) private var surfaceStyle
+
   func makeNSViewController(context: Context) -> TerminalSidebarListController {
     controllerCache.controller(for: spaceID)
   }
@@ -43,7 +45,8 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
       interactionPolicy: TerminalSidebarInteractionPolicy(
         reduceMotion: reduceMotion,
         shouldPlayTabMoveHaptics: shouldPlayTabMoveHaptics
-      )
+      ),
+      surfaceStyle: surfaceStyle
     )
   }
 }
