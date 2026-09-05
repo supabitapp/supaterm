@@ -108,6 +108,7 @@ final class TerminalSidebarListController: NSViewController {
   private let collectionLayout = TerminalSidebarCollectionLayout()
   private let selectionGlowView = TerminalSidebarSelectionGlowView()
   private let pinnedTabsBackgroundView = TerminalSidebarPinnedTabsBackgroundView()
+  private let pinnedTabsScrollMask = CAShapeLayer()
   private var groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView] = [:]
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
@@ -346,7 +347,11 @@ final class TerminalSidebarListController: NSViewController {
     )
     collectionView.registerForDraggedTypes([.terminalTabDrag])
     collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
-    collectionView.addSubview(pinnedTabsBackgroundView)
+    view.addSubview(pinnedTabsBackgroundView)
+    pinnedTabsBackgroundView.collectionView = collectionView
+    pinnedTabsBackgroundView.scrollView = scrollView
+    collectionView.pinnedParkingHost = pinnedTabsBackgroundView
+    collectionView.onItemsDidLayout = { [weak self] in self?.updateParkedRows() }
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     collectionView.onPointerMoved = { [weak self] point in
       self?.updateGroupHover(at: point)
@@ -785,7 +790,9 @@ final class TerminalSidebarListController: NSViewController {
       updateGroupSurface(group: group, background: background)
     }
     updateSelectionGlow()
-    collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
+    if selectionGlowView.superview === collectionView {
+      collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
+    }
     for background in groupBackgroundViews.values where background.superview === collectionView {
       collectionView.addSubview(background, positioned: .below, relativeTo: nil)
     }
@@ -804,10 +811,36 @@ final class TerminalSidebarListController: NSViewController {
   private func updatePinnedParkingOverlay() {
     collectionView.pinnedParkingFrame = collectionLayout.plan.pinnedParkingFrame
     collectionView.parkedPinnedEntryIDs = collectionLayout.plan.parkedPinnedEntryIDs
-    updateParkedItemZPositions()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    defer { CATransaction.commit() }
+    if let parking = collectionLayout.plan.pinnedParkingFrame {
+      // Clip the scrolling surface below the fixed band, including its material
+      // input. The mask belongs to the stationary scroll view, not its document.
+      scrollView.wantsLayer = true
+      pinnedTabsScrollMask.frame = scrollView.bounds
+      pinnedTabsScrollMask.path = CGPath(
+        rect: CGRect(
+          x: 0, y: 0, width: scrollView.bounds.width,
+          height: max(0, scrollView.bounds.height - parking.height)
+        ),
+        transform: nil
+      )
+      scrollView.layer?.mask = pinnedTabsScrollMask
+    } else {
+      scrollView.layer?.mask = nil
+    }
+    updateParkedRows()
     if let context {
       pinnedTabsBackgroundView.update(
-        frame: collectionLayout.plan.pinnedParkingFrame,
+        frame: collectionLayout.plan.pinnedParkingFrame.map { parking in
+          CGRect(
+            x: scrollView.frame.minX,
+            y: scrollView.frame.maxY - parking.height,
+            width: scrollView.frame.width,
+            height: parking.height
+          )
+        },
         palette: context.palette,
         chromeContainer: view.window?.contentView ?? view,
         surfaceStyle: surfaceStyle
@@ -817,24 +850,33 @@ final class TerminalSidebarListController: NSViewController {
     }
   }
 
-  private func updateParkedItemZPositions() {
+  private func updateParkedRows() {
     let parkedEntryIDs = collectionLayout.plan.parkedPinnedEntryIDs
+    var parkedItems: [(TerminalSidebarCollectionItem, CGRect)] = []
     for case let item as TerminalSidebarCollectionItem in collectionView.visibleItems() {
       guard let entryID = item.entryID else { continue }
-      item.view.layer?.zPosition = parkedEntryIDs.contains(entryID)
-        ? CGFloat(TerminalSidebarCollectionLayout.parkedItemZIndex)
-        : 0
+      if let geometry = collectionLayout.plan.items.first(where: { $0.id == entryID }) {
+        let offset = collectionLayout.plan.pinnedParkingFrame?.minY ?? 0
+        parkedItems.append((item, geometry.frame.offsetBy(dx: 0, dy: -offset)))
+      }
     }
+    pinnedTabsBackgroundView.park(
+      items: parkedItems, active: parkedEntryIDs, retained: appliedOutline.pinnedEntryIDs
+    )
   }
 
   private func updateGroupBackgroundGeometry(
     group: TerminalSidebarLayoutPlan.Group,
     background: TerminalSidebarGroupBackgroundView
   ) {
-    background.frame = group.frame
-    background.layer?.zPosition = collectionLayout.plan.parkedPinnedGroupIDs.contains(group.id)
-      ? TerminalSidebarPinnedTabsBackgroundView.zPosition + 1
-      : 0
+    let isParked = collectionLayout.plan.parkedPinnedGroupIDs.contains(group.id)
+    let parent = isParked ? pinnedTabsBackgroundView : collectionView as NSView
+    if background.superview !== parent { parent.addSubview(background) }
+    let frame = isParked
+      ? group.frame.offsetBy(dx: 0, dy: -(collectionLayout.plan.pinnedParkingFrame?.minY ?? 0))
+      : group.frame
+    if background.frame != frame { background.frame = frame }
+    background.layer?.zPosition = isParked ? 1 : 0
     background.needsLayout = true
   }
 
@@ -856,15 +898,19 @@ final class TerminalSidebarListController: NSViewController {
       isGrouped: presentation.groupID != nil
     )
     let isParked = collectionLayout.plan.parkedPinnedEntryIDs.contains(.tab(selectedTabID))
+    let parent = isParked ? pinnedTabsBackgroundView : collectionView as NSView
+    if selectionGlowView.superview !== parent { parent.addSubview(selectionGlowView) }
     selectionGlowView.update(
-      surfaceFrame: surfaceFrame,
+      surfaceFrame: isParked
+        ? surfaceFrame.offsetBy(dx: 0, dy: -(collectionLayout.plan.pinnedParkingFrame?.minY ?? 0))
+        : surfaceFrame,
       style: .resolve(palette: context.palette),
       alpha: item.alpha,
       fadesAtContentTop: true,
-      contentTopY: isParked ? collectionView.visibleRect.minY : 0
+      contentTopY: 0
     )
     selectionGlowView.layer?.zPosition = isParked
-      ? TerminalSidebarPinnedTabsBackgroundView.zPosition + 2
+      ? 2
       : 0
   }
 
@@ -1027,7 +1073,15 @@ final class TerminalSidebarListController: NSViewController {
     }
     collectionView.needsLayout = true
     collectionView.layoutSubtreeIfNeeded()
-    updatePinnedParkingDecorations()
+    collectionView.pinnedParkingFrame = collectionLayout.plan.pinnedParkingFrame
+    collectionView.parkedPinnedEntryIDs = collectionLayout.plan.parkedPinnedEntryIDs
+    // Collection items may be recycled while scrolling. Reconnect them to the
+    // retained live rows without moving the rows in their stationary host.
+    if pinnedTabsBackgroundView.isHidden != (collectionLayout.plan.pinnedParkingFrame == nil) {
+      updatePinnedParkingDecorations()
+    } else {
+      updateParkedRows()
+    }
     updateGroupHover(at: collectionView.pointerLocation)
   }
 

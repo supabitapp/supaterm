@@ -818,8 +818,10 @@ struct TerminalSidebarLayoutTests {
     #expect(revealFrame.maxY == tabFrame.maxY)
   }
 
-  @Test
-  func windowBackedPinnedTabsStayFixedAsRegularTabsScroll() throws {
+  @Test(arguments: [TerminalSidebarSurfaceStyle.docked, .floating])
+  func windowBackedPinnedTabsStayFixedAsRegularTabsScroll(
+    surfaceStyle: TerminalSidebarSurfaceStyle
+  ) throws {
     let tabs = (0..<10).map { TerminalTabItem(title: "Tab \($0)") }
     let pinnedTab = tabs[0]
     let outline = TerminalSidebarTestFixture.outline(
@@ -837,7 +839,7 @@ struct TerminalSidebarLayoutTests {
           )
         )
       }
-    ).merging([.newTab: .newTab(.inline)]) { current, _ in current }
+    ).merging([.newTab: .newTab(.inline), .pinDivider: .pinDivider]) { current, _ in current }
     let harness = try #require(
       TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 220))
     )
@@ -848,7 +850,7 @@ struct TerminalSidebarLayoutTests {
       terminal: TerminalHostState.test(managesTerminalSurfaces: false),
       selectedTabID: pinnedTab.id,
       reduceMotion: true,
-      surfaceStyle: .floating
+      surfaceStyle: surfaceStyle
     )
     harness.layoutNow()
     harness.collectionView.layoutSubtreeIfNeeded()
@@ -881,14 +883,14 @@ struct TerminalSidebarLayoutTests {
       harness.layout.layoutAttributesForItem(at: regularIndexPath)
     )
     let parkingBackground = try #require(
-      harness.collectionView.subviews.compactMap {
+      harness.controller.view.subviews.compactMap {
         $0 as? TerminalSidebarPinnedTabsBackgroundView
       }.first
     )
     let pinnedItem = try #require(harness.collectionView.item(at: pinnedIndexPath))
     let regularItem = try #require(harness.collectionView.item(at: regularIndexPath))
     let selectionGlow = try #require(
-      harness.collectionView.subviews.compactMap {
+      parkingBackground.subviews.compactMap {
         $0 as? TerminalSidebarSelectionGlowView
       }.first
     )
@@ -905,24 +907,115 @@ struct TerminalSidebarLayoutTests {
     #expect(preferredHeightRequests == 0)
     #expect(parkedPinnedAttributes.frame.minY - scrollY == inlinePinnedFrame.minY)
     #expect(parkedPinnedAttributes.zIndex == TerminalSidebarCollectionLayout.parkedItemZIndex)
-    #expect(
-      pinnedItem.view.layer?.zPosition
-        == CGFloat(TerminalSidebarCollectionLayout.parkedItemZIndex)
-    )
+    #expect(pinnedItem.view.subviews.isEmpty)
     #expect(parkedRegularAttributes.frame == inlineRegularFrame)
     #expect(parkedRegularAttributes.zIndex == 0)
     #expect(regularItem.view.layer?.zPosition == 0)
     #expect(!parkingBackground.isHidden)
-    #expect(parkingBackground.frame == harness.layout.plan.pinnedParkingFrame)
+    #expect(parkingBackground.superview === harness.controller.view)
+    #expect(harness.scrollView.layer?.mask != nil)
     #expect(selectionGlow.layer?.mask != nil)
-    #expect(pinnedHitView === pinnedItem.view || pinnedHitView.isDescendant(of: pinnedItem.view))
+    #expect(pinnedHitView.isDescendant(of: parkingBackground))
     let coveredGapPoint = CGPoint(
       x: parkedRegularAttributes.frame.midX,
-      y: parkingBackground.frame.minY + 1
+      y: scrollY + 1
     )
     #expect(parkedRegularAttributes.frame.contains(coveredGapPoint))
-    #expect(harness.collectionView.hitTest(coveredGapPoint) === harness.collectionView)
+    #expect(harness.collectionView.hitTest(coveredGapPoint) !== regularItem.view)
+    try verifyParkingScrollReversals(harness, host: parkingBackground)
     harness.layout.finishTransition()
+  }
+
+  private func verifyParkingScrollReversals(
+    _ harness: TerminalSidebarWindowHarness,
+    host parkingBackground: TerminalSidebarPinnedTabsBackgroundView
+  ) throws {
+    let contentView = harness.scrollView.contentView
+    let fixedFrame = parkingBackground.frame
+    let parkedRow = try #require(parkingBackground.subviews.first {
+      guard let row = $0 as? NSHostingView<TerminalSidebarHostedRow> else { return false }
+      if case .tab = row.rootView.presentation { return true }
+      return false
+    })
+    let rowFrame = parkedRow.frame
+    for offset in [120.5, 160.25, 80.75, 1.0, 96.0] {
+      contentView.scroll(to: CGPoint(x: 0, y: offset))
+      harness.scrollView.reflectScrolledClipView(contentView)
+      harness.collectionView.layoutSubtreeIfNeeded()
+      #expect(parkingBackground.frame == fixedFrame)
+      #expect(parkedRow.superview === parkingBackground)
+      #expect(parkedRow.frame == rowFrame)
+    }
+    let dragItem = try #require(
+      harness.collectionView.item(at: IndexPath(item: 0, section: 0)) as? TerminalSidebarCollectionItem
+    )
+    let lift = try #require(dragItem.liftHostedView(sourceFrame: dragItem.view.frame))
+    let preview = NSView(frame: rowFrame)
+    preview.addSubview(lift.hostedView)
+    contentView.scroll(to: CGPoint(x: 0, y: 97))
+    harness.scrollView.reflectScrolledClipView(contentView)
+    harness.collectionView.layoutSubtreeIfNeeded()
+    #expect(lift.hostedView.superview === preview)
+    lift.restore()
+    #expect(lift.hostedView.superview === parkingBackground)
+    contentView.scroll(to: .zero)
+    harness.scrollView.reflectScrolledClipView(contentView)
+    harness.collectionView.layoutSubtreeIfNeeded()
+    #expect(parkingBackground.isHidden)
+    #expect(harness.scrollView.layer?.mask == nil)
+    let restoredItem = try #require(harness.collectionView.item(at: IndexPath(item: 0, section: 0)))
+    #expect(parkedRow.superview === restoredItem.view)
+  }
+
+  @Test
+  func pinnedGroupChromeAndRowsShareTheFixedHost() throws {
+    let pinnedTabs = (0..<2).map { TerminalTabItem(title: "Pinned \($0)") }
+    let regularTabs = (0..<12).map { TerminalTabItem(title: "Regular \($0)") }
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, pinnedTabs.map(\.id)),
+          isPinned: true
+        )
+      ] + regularTabs.map { TerminalSidebarOutline.Root(content: .tab($0.id), isPinned: false) },
+      revision: 1
+    )
+    var rows = groupRows(tabs: pinnedTabs, groupID: groupID, isCollapsed: false).merging(
+      Dictionary(uniqueKeysWithValues: regularTabs.map {
+        (TerminalSidebarEntryID.tab($0.id), TerminalSidebarRowPresentation.tab(tabPresentation($0)))
+      })
+    ) { current, _ in current }
+    rows[.pinDivider] = .pinDivider
+    let harness = try #require(TerminalSidebarWindowHarness(size: CGSize(width: 280, height: 320)))
+    defer { harness.close() }
+    harness.apply(
+      outline: outline, rows: rows,
+      terminal: TerminalHostState.test(managesTerminalSurfaces: false),
+      selectedTabID: pinnedTabs[0].id, reduceMotion: true
+    )
+    harness.layoutNow()
+    let clip = harness.scrollView.contentView
+    clip.scroll(to: CGPoint(x: 0, y: 96))
+    harness.scrollView.reflectScrolledClipView(clip)
+    harness.collectionView.layoutSubtreeIfNeeded()
+    let host = try #require(harness.controller.view.subviews.compactMap {
+      $0 as? TerminalSidebarPinnedTabsBackgroundView
+    }.first)
+    let background = try #require(host.subviews.compactMap {
+      $0 as? TerminalSidebarGroupBackgroundView
+    }.first)
+    let frame = background.frame
+    let hostedRows = host.subviews.filter { $0.layer?.zPosition == 3 }
+    #expect(hostedRows.count == 4)
+    for offset in [128.5, 32.25, 180.0] {
+      clip.scroll(to: CGPoint(x: 0, y: offset))
+      harness.scrollView.reflectScrolledClipView(clip)
+      harness.collectionView.layoutSubtreeIfNeeded()
+      #expect(background.superview === host)
+      #expect(background.frame == frame)
+      #expect(hostedRows.allSatisfy { $0.superview === host })
+    }
   }
 
   @Test
