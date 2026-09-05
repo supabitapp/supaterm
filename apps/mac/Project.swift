@@ -370,6 +370,8 @@ let project = Project(
       resources: [
         "supaterm/Assets.xcassets",
         .folderReference(path: "supaterm/Resources/AgentDetection"),
+        .folderReference(path: "../../integrations/supaterm/skills"),
+        .folderReference(path: "../../integrations/supaterm/skill-data"),
         "supaterm/Resources/LobeIcons-LICENSE.txt",
         "../shared/Resources/supaterm.icon",
       ],
@@ -406,6 +408,10 @@ let project = Project(
             "${SRCROOT}/\(zmxBuildScriptPath.pathString)"
             """,
           name: "Build zmx",
+          outputPaths: [
+            "$(SRCROOT)/\(zmxBinaryPath.pathString)",
+            "$(SRCROOT)/\(zmxFingerprintPath.pathString)",
+          ],
           basedOnDependencyAnalysis: false
         ),
         .pre(
@@ -413,6 +419,10 @@ let project = Project(
             "${SRCROOT}/\(apBuildScriptPath.pathString)"
             """,
           name: "Build ap",
+          outputPaths: [
+            "$(SRCROOT)/\(apBinaryPath.pathString)",
+            "$(SRCROOT)/\(apFingerprintPath.pathString)",
+          ],
           basedOnDependencyAnalysis: false
         ),
         .post(
@@ -525,43 +535,6 @@ let project = Project(
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/wt",
           ]
-        ),
-        .post(
-          script: """
-            set -euo pipefail
-
-            stub_source_dir="${SRCROOT}/../../integrations/supaterm/skills/supaterm"
-            data_source_dir="${SRCROOT}/../../integrations/supaterm/skill-data"
-            resources_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
-            stub_destination_dir="${resources_dir}/skills/supaterm"
-            data_destination_dir="${resources_dir}/skill-data"
-
-            if [ ! -f "${stub_source_dir}/SKILL.md" ]; then
-              echo "error: missing Supaterm skill stub" >&2
-              exit 1
-            fi
-
-            if [ ! -f "${data_source_dir}/core/SKILL.md" ] || [ ! -f "${data_source_dir}/coding-agents/SKILL.md" ]; then
-              echo "error: missing Supaterm skill data" >&2
-              exit 1
-            fi
-
-            mkdir -p "${resources_dir}/skills"
-            rsync -a --delete "${stub_source_dir}/" "${stub_destination_dir}/"
-            rsync -a --delete "${data_source_dir}/" "${data_destination_dir}/"
-            """,
-          name: "Embed Supaterm Skills",
-          inputPaths: [
-            "$(SRCROOT)/../../integrations/supaterm/skills/supaterm/SKILL.md",
-            "$(SRCROOT)/../../integrations/supaterm/skill-data/core/SKILL.md",
-            "$(SRCROOT)/../../integrations/supaterm/skill-data/coding-agents/SKILL.md",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/skills/supaterm/SKILL.md",
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/skill-data/core/SKILL.md",
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/skill-data/coding-agents/SKILL.md",
-          ],
-          basedOnDependencyAnalysis: false
         ),
         .post(
           script: """
