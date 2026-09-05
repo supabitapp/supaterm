@@ -187,7 +187,8 @@ final class TerminalSidebarWindowHarness {
     rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation],
     terminal: TerminalHostState,
     selectedTabID: TerminalTabID?,
-    reduceMotion: Bool
+    reduceMotion: Bool,
+    surfaceStyle: TerminalSidebarSurfaceStyle = .docked
   ) {
     controller.apply(
       outline: outline,
@@ -206,7 +207,8 @@ final class TerminalSidebarWindowHarness {
       interactionPolicy: TerminalSidebarInteractionPolicy(
         reduceMotion: reduceMotion,
         shouldPlayTabMoveHaptics: true
-      )
+      ),
+      surfaceStyle: surfaceStyle
     )
   }
 

@@ -34,6 +34,22 @@ enum TerminalCoordinateSpace {
   static let floatingSidebar = "TerminalFloatingSidebar"
 }
 
+enum TerminalSidebarSurfaceStyle {
+  case docked
+  case floating
+}
+
+private struct TerminalSidebarSurfaceStyleKey: EnvironmentKey {
+  static let defaultValue = TerminalSidebarSurfaceStyle.docked
+}
+
+extension EnvironmentValues {
+  var terminalSidebarSurfaceStyle: TerminalSidebarSurfaceStyle {
+    get { self[TerminalSidebarSurfaceStyleKey.self] }
+    set { self[TerminalSidebarSurfaceStyleKey.self] = newValue }
+  }
+}
+
 struct TerminalSidebarSurfaceShell<Content: View>: View {
   let palette: Palette
   let isFloating: Bool
@@ -51,6 +67,10 @@ struct TerminalSidebarSurfaceShell<Content: View>: View {
 
   var body: some View {
     content
+      .environment(
+        \.terminalSidebarSurfaceStyle,
+        isFloating ? .floating : .docked
+      )
       .padding(isFloating ? TerminalFloatingSidebarShellMetrics.contentInset : 0)
       .background {
         if isFloating {

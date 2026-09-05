@@ -502,6 +502,15 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   var onPointerMoved: ((CGPoint?) -> Void)?
   var onPointerExited: (() -> Void)?
   var onWindowChanged: ((NSWindow?) -> Void)?
+  var pinnedParkingFrame: CGRect?
+  var parkedPinnedEntryIDs: Set<TerminalSidebarEntryID> = []
+  weak var pinnedParkingHost: TerminalSidebarPinnedTabsBackgroundView?
+  var onItemsDidLayout: (() -> Void)?
+
+  override func layout() {
+    super.layout()
+    onItemsDidLayout?()
+  }
 
   var pointerLocation: CGPoint? {
     guard let window, window.isKeyWindow else { return nil }
@@ -520,6 +529,27 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     onWindowChanged?(window)
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard pinnedParkingFrame?.contains(point) == true else {
+      return super.hitTest(point)
+    }
+    if let host = pinnedParkingHost, !host.isHidden {
+      return host.hitTest(host.superview?.convert(point, from: self) ?? point)
+    }
+    for item in visibleItems() {
+      guard
+        let item = item as? TerminalSidebarCollectionItem,
+        let entryID = item.entryID,
+        parkedPinnedEntryIDs.contains(entryID),
+        !item.view.isHidden,
+        item.view.frame.contains(point)
+      else { continue }
+      let itemPoint = item.view.convert(point, from: self)
+      return item.view.hitTest(itemPoint) ?? item.view
+    }
+    return self
   }
 
   override func updateTrackingAreas() {

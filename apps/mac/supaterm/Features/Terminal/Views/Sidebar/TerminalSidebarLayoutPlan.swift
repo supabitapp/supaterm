@@ -37,6 +37,9 @@ struct TerminalSidebarLayoutPlan: Equatable {
   let dropPlaceholderFrame: CGRect?
   let highlightedGroupID: TerminalTabGroupID?
   let semanticTargets: [TerminalSidebarSemanticTarget]
+  let pinnedParkingFrame: CGRect?
+  let parkedPinnedEntryIDs: Set<TerminalSidebarEntryID>
+  let parkedPinnedGroupIDs: Set<TerminalTabGroupID>
 
   private init(
     items: [Item],
@@ -44,7 +47,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
     contentSize: CGSize,
     dropPlaceholderFrame: CGRect?,
     highlightedGroupID: TerminalTabGroupID?,
-    semanticTargets: [TerminalSidebarSemanticTarget]
+    semanticTargets: [TerminalSidebarSemanticTarget],
+    pinnedParkingFrame: CGRect?,
+    parkedPinnedEntryIDs: Set<TerminalSidebarEntryID>,
+    parkedPinnedGroupIDs: Set<TerminalTabGroupID>
   ) {
     self.items = items
     self.groups = groups
@@ -52,6 +58,9 @@ struct TerminalSidebarLayoutPlan: Equatable {
     self.dropPlaceholderFrame = dropPlaceholderFrame
     self.highlightedGroupID = highlightedGroupID
     self.semanticTargets = semanticTargets
+    self.pinnedParkingFrame = pinnedParkingFrame
+    self.parkedPinnedEntryIDs = parkedPinnedEntryIDs
+    self.parkedPinnedGroupIDs = parkedPinnedGroupIDs
   }
 
   init(
@@ -153,6 +162,84 @@ struct TerminalSidebarLayoutPlan: Equatable {
     self.dropPlaceholderFrame = projectedGeometry.dropPlaceholderFrame
     highlightedGroupID = dragDropState?.target?.highlightedGroupID
     semanticTargets = targetGeometry
+    pinnedParkingFrame = nil
+    parkedPinnedEntryIDs = []
+    parkedPinnedGroupIDs = []
+  }
+
+  func parkingPinnedTabs(
+    in outline: TerminalSidebarOutline,
+    visibleRect: CGRect
+  ) -> Self {
+    guard let placement = pinnedTabsPlacement(in: outline, visibleRect: visibleRect) else {
+      return self
+    }
+    let pinnedEntryIDs = outline.pinnedEntryIDs
+    let pinnedGroupIDs = outline.pinnedGroupIDs
+    let offsetY = placement.offsetY
+
+    return Self(
+      items: items.map { item in
+        guard pinnedEntryIDs.contains(item.id) else { return item }
+        return Item(
+          id: item.id,
+          frame: item.frame.offsetBy(dx: 0, dy: offsetY),
+          alpha: item.alpha
+        )
+      },
+      groups: groups.map { group in
+        guard pinnedGroupIDs.contains(group.id) else { return group }
+        return Group(
+          id: group.id,
+          color: group.color,
+          frame: group.frame.offsetBy(dx: 0, dy: offsetY),
+          alpha: group.alpha
+        )
+      },
+      contentSize: contentSize,
+      dropPlaceholderFrame: dropPlaceholderFrame.map { frame in
+        frame.minY < placement.backgroundFrame.height
+          ? frame.offsetBy(dx: 0, dy: offsetY)
+          : frame
+      },
+      highlightedGroupID: highlightedGroupID,
+      semanticTargets: semanticTargets.map { target in
+        if target.path.belongsToPinnedLane(pinnedGroupIDs: pinnedGroupIDs) {
+          return TerminalSidebarSemanticTarget(
+            path: target.path,
+            frame: target.frame.offsetBy(dx: 0, dy: offsetY)
+          )
+        }
+        let visibleMinY = max(target.frame.minY, placement.backgroundFrame.maxY)
+        return TerminalSidebarSemanticTarget(
+          path: target.path,
+          frame: CGRect(
+            x: target.frame.minX,
+            y: visibleMinY,
+            width: target.frame.width,
+            height: max(0, target.frame.maxY - visibleMinY)
+          )
+        )
+      },
+      pinnedParkingFrame: placement.backgroundFrame,
+      parkedPinnedEntryIDs: pinnedEntryIDs,
+      parkedPinnedGroupIDs: pinnedGroupIDs
+    )
+  }
+
+  func pinnedTabsPlacement(
+    in outline: TerminalSidebarOutline,
+    visibleRect: CGRect
+  ) -> TerminalSidebarPinnedTabsPlacement? {
+    let pinnedEntryIDs = outline.pinnedEntryIDs
+    let pinnedFrame = items
+      .filter { pinnedEntryIDs.contains($0.id) && !$0.frame.isEmpty }
+      .map(\.frame)
+      .reduce(CGRect.null) { $0.union($1) }
+    return TerminalSidebarPinnedTabsPlacement(
+      pinnedFrame: pinnedFrame.isNull ? nil : pinnedFrame,
+      visibleRect: visibleRect
+    )
   }
 
   func semanticTarget(at pointerY: CGFloat) -> TerminalSidebarSemanticTarget? {
@@ -162,7 +249,12 @@ struct TerminalSidebarLayoutPlan: Equatable {
   }
 
   func groupID(at point: CGPoint) -> TerminalTabGroupID? {
-    groups.first { $0.frame.contains(point) }?.id
+    if pinnedParkingFrame?.contains(point) == true {
+      return groups.first {
+        parkedPinnedGroupIDs.contains($0.id) && $0.frame.contains(point)
+      }?.id
+    }
+    return groups.first { $0.frame.contains(point) }?.id
   }
 
   func revealFrame(for entry: TerminalSidebarEntry) -> CGRect? {
@@ -231,7 +323,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
         progress: progress
       ),
       highlightedGroupID: highlightedGroupID,
-      semanticTargets: semanticTargets
+      semanticTargets: semanticTargets,
+      pinnedParkingFrame: nil,
+      parkedPinnedEntryIDs: [],
+      parkedPinnedGroupIDs: []
     )
   }
 

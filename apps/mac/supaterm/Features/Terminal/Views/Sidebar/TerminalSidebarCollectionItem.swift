@@ -20,6 +20,26 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
     containerView.host(entryID: entryID, view)
   }
 
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    containerView.releaseParkedView()
+    view.layer?.zPosition = 0
+  }
+
+  func parkHostedView(in host: NSView?, frame: CGRect) {
+    containerView.park(in: host, frame: frame)
+  }
+
+  func adoptParkedView(_ view: NSView) {
+    containerView.adoptParkedView(view)
+  }
+
+  func releaseHostedView(_ view: NSView) {
+    containerView.releaseHostedView(view)
+  }
+
+  var hostedView: NSView? { containerView.currentHostedView }
+
   func liftHostedView(
     sourceFrame: CGRect,
     selectedSurface: TerminalSidebarLiftedSelectionSurface? = nil
@@ -74,29 +94,81 @@ class TerminalSidebarHostingContainerView: NSView {
   private(set) var entryID: TerminalSidebarEntryID?
   private var hostingView: NSHostingView<TerminalSidebarHostedRow>?
   private weak var liftedHostingView: NSHostingView<TerminalSidebarHostedRow>?
+  private weak var parkingHost: NSView?
+  private var parkingFrame = CGRect.zero
+  var currentHostedView: NSView? { hostingView }
+
+  func releaseHostedView(_ view: NSView) {
+    guard hostingView === view else { return }
+    hostingView = nil
+    parkingHost = nil
+    setAccessibilityHidden(false)
+  }
+
+  func releaseParkedView() {
+    guard parkingHost != nil else { return }
+    hostingView = nil
+    parkingHost = nil
+    setAccessibilityHidden(false)
+  }
+
+  func adoptParkedView(_ view: NSView) {
+    guard let parked = view as? NSHostingView<TerminalSidebarHostedRow>, parked !== hostingView else {
+      return
+    }
+    if let hostingView {
+      parked.rootView = hostingView.rootView
+      hostingView.removeFromSuperview()
+    }
+    hostingView = parked
+  }
 
   override func layout() {
     super.layout()
-    hostingView?.frame = bounds
+    layoutHostedView()
+  }
+
+  func park(in host: NSView?, frame: CGRect) {
+    parkingHost = host
+    parkingFrame = frame
+    setAccessibilityHidden(host != nil)
+    guard let hostingView else { return }
+    let destination = host ?? self
+    if hostingView.superview !== destination {
+      destination.addSubview(hostingView)
+    }
+    hostingView.layer?.zPosition = host == nil ? 0 : 3
+    hostingView.alphaValue = host == nil ? 1 : alphaValue
+    hostingView.autoresizingMask = host == nil ? [.width, .height] : []
+    layoutHostedView()
+  }
+
+  private func layoutHostedView() {
+    let frame = parkingHost == nil ? bounds : parkingFrame
+    if hostingView?.frame != frame {
+      hostingView?.frame = frame
+    }
   }
 
   func host(entryID: TerminalSidebarEntryID, _ rootView: TerminalSidebarHostedRow) {
     if self.entryID != entryID {
+      releaseParkedView()
       hostingView?.removeFromSuperview()
       hostingView = nil
     }
     self.entryID = entryID
     if let hostingView {
       hostingView.rootView = rootView
-      hostingView.frame = bounds
+      layoutHostedView()
       return
     }
     liftedHostingView = nil
     let hostingView = NSHostingView(rootView: rootView)
     hostingView.frame = bounds
     hostingView.autoresizingMask = [.width, .height]
-    addSubview(hostingView)
+    (parkingHost ?? self).addSubview(hostingView)
     self.hostingView = hostingView
+    park(in: parkingHost, frame: parkingFrame)
   }
 
   func liftHostedView() -> (entryID: TerminalSidebarEntryID, hostedView: NSView)? {
@@ -117,8 +189,8 @@ class TerminalSidebarHostingContainerView: NSView {
     liftedHostingView = nil
     hostedView.removeFromSuperview()
     hostingView = hostedView
-    addSubview(hostedView)
-    hostedView.frame = bounds
+    (parkingHost ?? self).addSubview(hostedView)
+    layoutHostedView()
   }
 }
 
@@ -271,6 +343,9 @@ final class TerminalSidebarRowPointerNSView: NSView {
     while let current = view {
       if let collectionView = current as? TerminalSidebarCollectionView {
         return collectionView
+      }
+      if let parkingHost = current as? TerminalSidebarPinnedTabsBackgroundView {
+        return parkingHost.collectionView
       }
       view = current.superview
     }

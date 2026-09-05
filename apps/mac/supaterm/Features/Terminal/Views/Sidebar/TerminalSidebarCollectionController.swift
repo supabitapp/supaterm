@@ -107,6 +107,8 @@ final class TerminalSidebarListController: NSViewController {
   private let collectionView = TerminalSidebarCollectionView()
   private let collectionLayout = TerminalSidebarCollectionLayout()
   private let selectionGlowView = TerminalSidebarSelectionGlowView()
+  private let pinnedTabsBackgroundView = TerminalSidebarPinnedTabsBackgroundView()
+  private let pinnedTabsScrollMask = CAShapeLayer()
   private var groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView] = [:]
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
@@ -124,6 +126,7 @@ final class TerminalSidebarListController: NSViewController {
   private var trackingMenuIDs: Set<ObjectIdentifier> = []
   private var pendingVisibleRowRefreshIDs: Set<TerminalSidebarEntryID> = []
   private var motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: false)
+  private var surfaceStyle = TerminalSidebarSurfaceStyle.docked
   private var shouldPlayTabMoveHaptics = true
   private var isLayingOut = false
   private let tabDragRegistry: TerminalTabDragRegistry
@@ -262,10 +265,12 @@ final class TerminalSidebarListController: NSViewController {
     rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation],
     context: TerminalSidebarRowContext,
     selectedTabID: TerminalTabID?,
-    interactionPolicy: TerminalSidebarInteractionPolicy
+    interactionPolicy: TerminalSidebarInteractionPolicy,
+    surfaceStyle: TerminalSidebarSurfaceStyle = .docked
   ) {
     self.rows = rows
     self.context = context
+    self.surfaceStyle = surfaceStyle
     shouldPlayTabMoveHaptics = interactionPolicy.shouldPlayTabMoveHaptics
     hoverCardController.refresh()
     dragController.pinnedControl.update(context: context)
@@ -342,6 +347,11 @@ final class TerminalSidebarListController: NSViewController {
     )
     collectionView.registerForDraggedTypes([.terminalTabDrag])
     collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
+    view.addSubview(pinnedTabsBackgroundView)
+    pinnedTabsBackgroundView.collectionView = collectionView
+    pinnedTabsBackgroundView.scrollView = scrollView
+    collectionView.pinnedParkingHost = pinnedTabsBackgroundView
+    collectionView.onItemsDidLayout = { [weak self] in self?.updateParkedRows() }
     collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
     collectionView.onPointerMoved = { [weak self] point in
       self?.updateGroupHover(at: point)
@@ -692,7 +702,7 @@ final class TerminalSidebarListController: NSViewController {
   }
 
   private func invalidateLayout() {
-    collectionLayout.invalidateLayout()
+    collectionLayout.invalidateGeometry()
     collectionView.needsLayout = true
     view.needsLayout = true
     guard !isLayingOut else { return }
@@ -749,7 +759,6 @@ final class TerminalSidebarListController: NSViewController {
     if collectionView.frame.size != initialCollectionSize {
       collectionView.setFrameSize(initialCollectionSize)
     }
-    collectionLayout.invalidateLayout()
     collectionLayout.prepare()
     let contentSize = CGSize(
       width: documentWidth,
@@ -761,6 +770,7 @@ final class TerminalSidebarListController: NSViewController {
   }
 
   private func updateDecorations() {
+    updatePinnedParkingOverlay()
     let groups = collectionLayout.plan.groups
     let visibleIDs = Set(groups.map(\.id))
     for (id, view) in groupBackgroundViews where !visibleIDs.contains(id) {
@@ -776,15 +786,98 @@ final class TerminalSidebarListController: NSViewController {
           groupBackgroundViews[group.id] = background
           return background
         }()
-      background.frame = group.frame
+      updateGroupBackgroundGeometry(group: group, background: background)
       updateGroupSurface(group: group, background: background)
-      background.needsLayout = true
     }
     updateSelectionGlow()
-    collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
+    if selectionGlowView.superview === collectionView {
+      collectionView.addSubview(selectionGlowView, positioned: .below, relativeTo: nil)
+    }
     for background in groupBackgroundViews.values where background.superview === collectionView {
       collectionView.addSubview(background, positioned: .below, relativeTo: nil)
     }
+  }
+
+  private func updatePinnedParkingDecorations() {
+    updatePinnedParkingOverlay()
+    let pinnedGroupIDs = appliedOutline.pinnedGroupIDs
+    for group in collectionLayout.plan.groups where pinnedGroupIDs.contains(group.id) {
+      guard let background = groupBackgroundViews[group.id] else { continue }
+      updateGroupBackgroundGeometry(group: group, background: background)
+    }
+    updateSelectionGlow()
+  }
+
+  private func updatePinnedParkingOverlay() {
+    collectionView.pinnedParkingFrame = collectionLayout.plan.pinnedParkingFrame
+    collectionView.parkedPinnedEntryIDs = collectionLayout.plan.parkedPinnedEntryIDs
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    defer { CATransaction.commit() }
+    if let parking = collectionLayout.plan.pinnedParkingFrame {
+      // Clip the scrolling surface below the fixed band, including its material
+      // input. The mask belongs to the stationary scroll view, not its document.
+      scrollView.wantsLayer = true
+      pinnedTabsScrollMask.frame = scrollView.bounds
+      pinnedTabsScrollMask.path = CGPath(
+        rect: CGRect(
+          x: 0, y: 0, width: scrollView.bounds.width,
+          height: max(0, scrollView.bounds.height - parking.height)
+        ),
+        transform: nil
+      )
+      scrollView.layer?.mask = pinnedTabsScrollMask
+    } else {
+      scrollView.layer?.mask = nil
+    }
+    updateParkedRows()
+    if let context {
+      pinnedTabsBackgroundView.update(
+        frame: collectionLayout.plan.pinnedParkingFrame.map { parking in
+          CGRect(
+            x: scrollView.frame.minX,
+            y: scrollView.frame.maxY - parking.height,
+            width: scrollView.frame.width,
+            height: parking.height
+          )
+        },
+        palette: context.palette,
+        chromeContainer: view.window?.contentView ?? view,
+        surfaceStyle: surfaceStyle
+      )
+    } else {
+      pinnedTabsBackgroundView.isHidden = true
+    }
+  }
+
+  private func updateParkedRows() {
+    let parkedEntryIDs = collectionLayout.plan.parkedPinnedEntryIDs
+    var parkedItems: [(TerminalSidebarCollectionItem, CGRect)] = []
+    for case let item as TerminalSidebarCollectionItem in collectionView.visibleItems() {
+      guard let entryID = item.entryID else { continue }
+      if let geometry = collectionLayout.plan.items.first(where: { $0.id == entryID }) {
+        let offset = collectionLayout.plan.pinnedParkingFrame?.minY ?? 0
+        parkedItems.append((item, geometry.frame.offsetBy(dx: 0, dy: -offset)))
+      }
+    }
+    pinnedTabsBackgroundView.park(
+      items: parkedItems, active: parkedEntryIDs, retained: appliedOutline.pinnedEntryIDs
+    )
+  }
+
+  private func updateGroupBackgroundGeometry(
+    group: TerminalSidebarLayoutPlan.Group,
+    background: TerminalSidebarGroupBackgroundView
+  ) {
+    let isParked = collectionLayout.plan.parkedPinnedGroupIDs.contains(group.id)
+    let parent = isParked ? pinnedTabsBackgroundView : collectionView as NSView
+    if background.superview !== parent { parent.addSubview(background) }
+    let frame = isParked
+      ? group.frame.offsetBy(dx: 0, dy: -(collectionLayout.plan.pinnedParkingFrame?.minY ?? 0))
+      : group.frame
+    if background.frame != frame { background.frame = frame }
+    background.layer?.zPosition = isParked ? 1 : 0
+    background.needsLayout = true
   }
 
   private func updateSelectionGlow() {
@@ -797,18 +890,28 @@ final class TerminalSidebarListController: NSViewController {
       !item.frame.isEmpty
     else {
       selectionGlowView.isHidden = true
+      selectionGlowView.layer?.zPosition = 0
       return
     }
     let surfaceFrame = TerminalSidebarLayout.tabSurfaceFrame(
       in: item.frame,
       isGrouped: presentation.groupID != nil
     )
+    let isParked = collectionLayout.plan.parkedPinnedEntryIDs.contains(.tab(selectedTabID))
+    let parent = isParked ? pinnedTabsBackgroundView : collectionView as NSView
+    if selectionGlowView.superview !== parent { parent.addSubview(selectionGlowView) }
     selectionGlowView.update(
-      surfaceFrame: surfaceFrame,
+      surfaceFrame: isParked
+        ? surfaceFrame.offsetBy(dx: 0, dy: -(collectionLayout.plan.pinnedParkingFrame?.minY ?? 0))
+        : surfaceFrame,
       style: .resolve(palette: context.palette),
       alpha: item.alpha,
-      fadesAtContentTop: true
+      fadesAtContentTop: true,
+      contentTopY: 0
     )
+    selectionGlowView.layer?.zPosition = isParked
+      ? 2
+      : 0
   }
 
   private func refreshGroupSurfaces(ids: Set<TerminalTabGroupID>) {
@@ -835,6 +938,16 @@ final class TerminalSidebarListController: NSViewController {
   }
 
   private func hoveredTabID(at point: CGPoint) -> TerminalTabID? {
+    if collectionLayout.plan.pinnedParkingFrame?.contains(point) == true {
+      guard
+        let item = collectionLayout.plan.items.first(where: {
+          collectionLayout.plan.parkedPinnedEntryIDs.contains($0.id)
+            && $0.frame.contains(point)
+        }),
+        case .tab(let tabID) = item.id
+      else { return nil }
+      return tabID
+    }
     guard let indexPath = collectionView.indexPathForItem(at: point),
       let entryID = dataSource.itemIdentifier(for: indexPath),
       case .tab(let tabID) = entryID
@@ -904,13 +1017,24 @@ final class TerminalSidebarListController: NSViewController {
       let frame = collectionLayout.targetPlan.revealFrame(for: entry)
     else { return }
     let revealFrame = frame.insetBy(dx: 0, dy: -SelectableRowShadowMetrics.visualOutset)
-    let visibleRect = collectionView.visibleRect
+    var visibleRect = collectionView.visibleRect
+    if !entry.belongsToPinnedLane, let parkingFrame = collectionLayout.targetPlan.pinnedParkingFrame {
+      let visibleMaxY = visibleRect.maxY
+      visibleRect.origin.y = max(visibleRect.minY, parkingFrame.maxY)
+      visibleRect.size.height = max(0, visibleMaxY - visibleRect.minY)
+    }
     guard visibleRect.height >= TerminalSidebarLayout.tabRowMinHeight else { return }
     if visibleRect.contains(revealFrame) {
       pendingRevealTabID = nil
       return
     }
-    collectionView.scrollToVisible(revealFrame)
+    let scrollTarget = entry.belongsToPinnedLane
+      ? revealFrame
+      : TerminalSidebarPinnedTabsPlacement.revealFrame(
+        revealFrame,
+        below: collectionLayout.targetPlan.pinnedParkingFrame
+      )
+    collectionView.scrollToVisible(scrollTarget)
     pendingRevealTabID = nil
   }
 
@@ -934,11 +1058,31 @@ final class TerminalSidebarListController: NSViewController {
       visibleRect: collectionView.visibleRect
     )
     let placementChanged = updateNewTabPlacement()
-    guard clearedContentHeight || placementChanged else {
+    if clearedContentHeight || placementChanged {
+      invalidateLayout()
+      return
+    }
+    guard
+      appliedOutline.roots.contains(where: \.isPinned),
+      collectionLayout.invalidatePinnedParkingIfNeeded(
+        visibleRect: collectionView.visibleRect
+      )
+    else {
       updateGroupHover(at: collectionView.pointerLocation)
       return
     }
-    invalidateLayout()
+    collectionView.needsLayout = true
+    collectionView.layoutSubtreeIfNeeded()
+    collectionView.pinnedParkingFrame = collectionLayout.plan.pinnedParkingFrame
+    collectionView.parkedPinnedEntryIDs = collectionLayout.plan.parkedPinnedEntryIDs
+    // Collection items may be recycled while scrolling. Reconnect them to the
+    // retained live rows without moving the rows in their stationary host.
+    if pinnedTabsBackgroundView.isHidden != (collectionLayout.plan.pinnedParkingFrame == nil) {
+      updatePinnedParkingDecorations()
+    } else {
+      updateParkedRows()
+    }
+    updateGroupHover(at: collectionView.pointerLocation)
   }
 
   @objc private func menuDidBeginTracking(_ notification: Notification) {
