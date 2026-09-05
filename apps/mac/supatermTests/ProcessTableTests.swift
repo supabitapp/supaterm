@@ -206,6 +206,31 @@ struct ProcessTableTests {
   }
 
   @Test
+  func processTreeQueriesRemainIndependentWithOverlappingRootsAndCycles() {
+    let root = Self.entry(10, parentProcessID: 20, processGroupID: 10, name: "root")
+    let child = Self.entry(20, parentProcessID: 10, processGroupID: 10, name: "child")
+    let unrelated = Self.entry(30, parentProcessID: 1, processGroupID: 30, name: "other")
+    let snapshot = TerminalAgentProcessTreeSnapshot(entries: [root, child, unrelated])
+
+    #expect(snapshot.descendants(of: [root.identity, child.identity]) == [root.identity, child.identity])
+    #expect(snapshot.descendants(of: [unrelated.identity]) == [unrelated.identity])
+    #expect(snapshot.descendants(of: []).isEmpty)
+    #expect(snapshot.descendants(of: [root.identity]) == [root.identity, child.identity])
+  }
+
+  @Test
+  func processTreeIndexesOnlyTheLastEntryForEachProcessID() {
+    let root = Self.entry(10, parentProcessID: 1, processGroupID: 10, name: "root")
+    let oldChild = Self.entry(20, parentProcessID: 10, processGroupID: 10, name: "old")
+    let replacement = Self.entry(20, parentProcessID: 1, processGroupID: 20, name: "new")
+    let snapshot = TerminalAgentProcessTreeSnapshot(entries: [root, oldChild, replacement])
+
+    #expect(snapshot.descendants(of: [root.identity]) == [root.identity])
+    #expect(snapshot.identities(inProcessGroup: 10) == [root.identity])
+    #expect(snapshot.identities(inProcessGroup: 20) == [replacement.identity])
+  }
+
+  @Test
   func processTreeRejectsAReusedRootIdentity() {
     let current = Self.entry(
       10,
