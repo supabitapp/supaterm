@@ -31,6 +31,7 @@ XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
 E2E_AGENT ?= none
+E2E_XCTESTRUN_PATH ?=
 CODEX_E2E_TOOL := codex@0.150.1
 CLAUDE_E2E_TOOL := npm:@anthropic-ai/claude-code-darwin-arm64@2.1.235
 PI_E2E_TOOL := npm:@mariozechner/pi-coding-agent@0.73.1
@@ -193,7 +194,13 @@ test-e2e-xcodebuild:
 		pi_binary="$${PI_E2E_BINARY:-$$(mise x "$(PI_E2E_TOOL)" -- which pi)}"; \
 		test -x "$$pi_binary" || exit 1; \
 	fi; \
-	xcodebuild_command=(xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS) CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
+	if [ -n "$(E2E_XCTESTRUN_PATH)" ]; then \
+		python3 scripts/ci_e2e_products.py configure "$(E2E_XCTESTRUN_PATH)" --claude "$$claude_binary" --codex "$$codex_binary" --pi "$$pi_binary"; \
+		xcodebuild_action=(test-without-building -xctestrun "$(E2E_XCTESTRUN_PATH).runtime.xctestrun"); \
+	else \
+		xcodebuild_action=(test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
+	fi; \
+	xcodebuild_command=(xcodebuild "$${xcodebuild_action[@]}" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS)); \
 	if [ -t 1 ]; then \
 		"$${xcodebuild_command[@]}" 2>&1 | mise exec -- xcbeautify --disable-logging; \
 	else \
