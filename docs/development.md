@@ -24,10 +24,6 @@ mise exec -- tuist auth login
 mise exec -- tuist auth whoami
 ```
 
-Project generation uses Tuist's binary module cache. Xcode compilation caching
-is disabled because it made normal local and first-run CI builds slower in our
-benchmarks.
-
 Secrets
 
 Run commands that need project secrets through fnox:
