@@ -57,13 +57,13 @@ tuist-generate-release: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP)
 
 tuist-generate-release-cached: $(TUIST_CACHED_RELEASE_GENERATION_STAMP)
 
-$(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP) | tuist-cache-setup
+$(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist generate --no-open --cache-profile none --configuration Release
 	touch "$@"
 
-$(TUIST_CACHED_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP) | tuist-cache-setup
+$(TUIST_CACHED_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist generate --no-open --cache-profile "$(TUIST_BINARY_CACHE_PROFILE)" --configuration Release
