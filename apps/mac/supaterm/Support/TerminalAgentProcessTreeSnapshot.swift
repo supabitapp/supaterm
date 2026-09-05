@@ -1,10 +1,15 @@
 public struct TerminalAgentProcessTreeSnapshot: Sendable {
   private let entriesByProcessID: [Int32: ProcessEntry]
+  private let childrenByParentProcessID: [Int32: [ProcessEntry]]
 
   init(entries: [ProcessEntry]) {
     entriesByProcessID = entries.reduce(into: [:]) { entriesByProcessID, entry in
       entriesByProcessID[entry.processID] = entry
     }
+    childrenByParentProcessID = Dictionary(
+      grouping: entriesByProcessID.values,
+      by: \.parentProcessID
+    )
   }
 
   public static func capture() -> Self {
@@ -31,10 +36,6 @@ public struct TerminalAgentProcessTreeSnapshot: Sendable {
       queue.append(root.processID)
     }
 
-    let childrenByParentProcessID = Dictionary(
-      grouping: entriesByProcessID.values,
-      by: \.parentProcessID
-    )
     var index = 0
     while index < queue.count {
       let processID = queue[index]
