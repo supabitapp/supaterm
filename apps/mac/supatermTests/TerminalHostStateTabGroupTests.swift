@@ -46,11 +46,14 @@ struct TerminalHostStateTabGroupTests {
       #expect(host.setTabPinned(anchorTabID, isPinned: true) != nil)
       host.selectTab(anchorTabID)
 
-      let pinnedTabID = try #require(host.createTab(focusing: false))
+      let regularTabID = try #require(host.createTab(focusing: false))
       let manager = host.spaceManager.tabCollection
 
-      #expect(manager.rootItemID(containing: pinnedTabID) == .tab(pinnedTabID))
-      #expect(manager.isPinned(pinnedTabID) == true)
+      #expect(manager.rootItemID(containing: regularTabID) == .tab(regularTabID))
+      #expect(manager.isPinned(regularTabID) == false)
+      #expect(manager.regularRootItems.last?.id == .tab(regularTabID))
+      #expect(manager.pinnedRootItems.map(\.id) == [.tab(anchorTabID)])
+      #expect(host.selectedTabID == regularTabID)
     }
   }
 

@@ -88,9 +88,8 @@ extension TerminalHostState {
       : GHOSTTY_SURFACE_CONTEXT_TAB
     let resolvedPlacement =
       placement
-      ?? defaultTabPlacement(
-        in: tabCollection,
-        inheritingFromSurfaceID: inheritingFromSurfaceID
+      ?? .root(
+        TerminalRootPlacement(isPinned: false, index: tabCollection.regularRootItems.count)
       )
     guard
       let tabID = tabCollection.createTab(
@@ -144,27 +143,6 @@ extension TerminalHostState {
       focusing: focusing,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
       at: .group(groupID, index: group.tabs.count)
-    )
-  }
-
-  func defaultTabPlacement(
-    in tabCollection: TerminalTabCollection,
-    inheritingFromSurfaceID: UUID?
-  ) -> TerminalTabPlacement {
-    if let inheritingFromSurfaceID,
-      let anchorTabID = tabID(containing: inheritingFromSurfaceID)
-    {
-      if let isPinned = tabCollection.isPinned(anchorTabID) {
-        return .root(
-          TerminalRootPlacement(
-            isPinned: isPinned,
-            index: isPinned ? tabCollection.pinnedRootItems.count : tabCollection.regularRootItems.count
-          )
-        )
-      }
-    }
-    return .root(
-      TerminalRootPlacement(isPinned: false, index: tabCollection.regularRootItems.count)
     )
   }
 
