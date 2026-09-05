@@ -28,7 +28,7 @@ make xcode-check
 Authenticate Tuist before using cache-backed generation or cache warming:
 
 ```bash
-make tuist-cache-login
+mise exec -- tuist auth login
 mise exec -- tuist auth whoami
 ```
 
