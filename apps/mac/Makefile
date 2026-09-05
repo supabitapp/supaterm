@@ -78,10 +78,11 @@ build-zmx:
 build-ap:
 	bash scripts/build-ap.sh
 
-build-app: tuist-generate build-ghostty build-zmx build-ap # Build the macOS app (Debug)
+# Xcode's app target builds zmx and ap; Ghostty must exist before build planning.
+build-app: tuist-generate build-ghostty # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build 2>&1 | mise exec -- xcbeautify --disable-logging'
 
-build-app-demo: tuist-generate build-ghostty build-zmx build-ap # Build the macOS app in demo mode (Debug)
+build-app-demo: tuist-generate build-ghostty # Build the macOS app in demo mode (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build "SWIFT_ACTIVE_COMPILATION_CONDITIONS=\$$(inherited) SUPATERM_DEMO" 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 build-snapshot-catalog: tuist-generate build-ghostty # Build the snapshot catalog app (Debug)
@@ -147,7 +148,7 @@ install-tip: # Install tip build from github
 	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"; \
 	echo "Installed /Applications/supaterm.app"
 
-archive: tuist-generate-release build-ghostty build-zmx build-ap archive-xcodebuild # Archive Release build for distribution
+archive: tuist-generate-release build-ghostty archive-xcodebuild # Archive Release build for distribution
 
 archive-xcodebuild:
 	mkdir -p build
@@ -158,13 +159,13 @@ export-archive: # Export archive for distribution
 
 test: test-xcodebuild # Run the full macOS test suite
 
-test-xcodebuild: tuist-generate build-ghostty build-zmx build-ap
+test-xcodebuild: tuist-generate build-ghostty
 	@bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "$(MACOS_DESTINATION)" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 test-snapshots: tuist-generate build-ghostty # Run snapshot tests.
 	@bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "$(MACOS_DESTINATION)" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'
 
-test-e2e: tuist-generate build-ghostty build-zmx build-ap test-e2e-xcodebuild # Run end-to-end tests against the real app.
+test-e2e: tuist-generate build-ghostty test-e2e-xcodebuild # Run end-to-end tests against the real app.
 
 test-e2e-xcodebuild:
 	@if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(E2E_RESULT_BUNDLE_PATH)"; fi
@@ -203,7 +204,7 @@ test-e2e-xcodebuild:
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.
 	TEST_RUNNER_SNAPSHOT_TESTING_RECORD=all xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "$(MACOS_DESTINATION)" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
-scan-dead-code: tuist-generate build-ghostty build-zmx build-ap
+scan-dead-code: tuist-generate build-ghostty
 	for scheme in $(PERIPHERY_SCHEMES); do \
 		xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$$scheme" -parallelizeTargets -derivedDataPath "$(PERIPHERY_DERIVED_DATA_PATH)" -quiet build-for-testing CODE_SIGNING_ALLOWED=NO ENABLE_BITCODE=NO DEBUG_INFORMATION_FORMAT=dwarf COMPILER_INDEX_STORE_ENABLE=YES INDEX_ENABLE_DATA_STORE=YES -destination "$(MACOS_DESTINATION)"; \
 	done

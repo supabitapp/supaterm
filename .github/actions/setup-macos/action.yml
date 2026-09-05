@@ -50,11 +50,15 @@ runs:
           apps/Tuist/.build/workspace-state.json
           apps/Tuist/.build/Derived
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v2-${{ hashFiles('mise.toml', 'apps/Tuist.mk', 'apps/Tuist.swift', 'apps/Tuist/Package.swift', 'apps/Tuist/Package.resolved') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v1-${{ hashFiles('apps/Tuist/Package.swift', 'apps/Tuist/Package.resolved') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-${{ env.TUIST_VERSION }}-packages-v2-
     - name: Refresh Tuist install stamp
       if: ${{ inputs.cache-tuist-packages == 'true' && steps.tuist-package-cache.outputs.cache-hit == 'true' }}
       shell: bash
       run: touch apps/.build/.tuist-installed
+    - name: Invalidate partial Tuist install stamp
+      if: ${{ inputs.cache-tuist-packages == 'true' && steps.tuist-package-cache.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: rm -f apps/.build/.tuist-installed
     - name: Ghostty fingerprint
       if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash
@@ -65,8 +69,11 @@ runs:
       if: ${{ inputs.cache-native-builds == 'true' }}
       uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
-        path: apps/mac/.build/ghostty
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v3-${{ env.GHOSTTY_FINGERPRINT }}
+        path: |
+          apps/mac/.build/ghostty/fingerprint
+          apps/mac/.build/ghostty/GhosttyKit.xcframework
+          apps/mac/.build/ghostty/share
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-products-v1-${{ env.GHOSTTY_FINGERPRINT }}
     - name: Zmx fingerprint
       if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash
@@ -77,8 +84,10 @@ runs:
       if: ${{ inputs.cache-native-builds == 'true' }}
       uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
-        path: apps/mac/.build/zmx
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v2-${{ env.ZMX_FINGERPRINT }}
+        path: |
+          apps/mac/.build/zmx/fingerprint
+          apps/mac/.build/zmx/bin
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-products-v1-${{ env.ZMX_FINGERPRINT }}
     - name: Ap fingerprint
       if: ${{ inputs.cache-native-builds == 'true' }}
       shell: bash
@@ -89,5 +98,7 @@ runs:
       if: ${{ inputs.cache-native-builds == 'true' }}
       uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
-        path: apps/mac/.build/ap
-        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ap-v2-${{ env.AP_FINGERPRINT }}
+        path: |
+          apps/mac/.build/ap/fingerprint
+          apps/mac/.build/ap/bin
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ap-products-v1-${{ env.AP_FINGERPRINT }}
