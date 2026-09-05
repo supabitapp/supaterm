@@ -45,6 +45,8 @@ SHARED_APPLE_PATHS = PathSet(
   files=frozenset(
     {
       ".github/workflows/ci.yml",
+      ".xcode-build-version",
+      ".xcode-version",
       "apps/.swift-format.json",
       "apps/.swiftlint.yml",
       "apps/Tuist.mk",

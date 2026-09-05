@@ -17,12 +17,24 @@ mise trust mise.toml
 mise install
 ```
 
+Install the Xcode release pinned by `.xcode-version` and
+`.xcode-build-version`, select that installation, then verify it:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+make xcode-check
+```
+
 Authenticate Tuist before using cache-backed generation or cache warming:
 
 ```bash
-mise exec -- tuist auth login
+make tuist-cache-login
 mise exec -- tuist auth whoami
 ```
+
+Project generation uses Tuist's binary module cache. Xcode compilation caching
+is disabled because it made normal local and first-run CI builds slower in our
+benchmarks.
 
 Secrets
 
