@@ -60,8 +60,6 @@ class AffectedProjectsTests(unittest.TestCase):
       "apps/mac/supaterm/App.swift": {"mac"},
       "apps/mac/supaterm/Resources/AgentDetection/rules.json": {"mac"},
       "apps/ios/SupatermApp.swift": {"ios"},
-      ".xcode-build-version": {"ios", "mac"},
-      ".xcode-version": {"ios", "mac"},
       "apps/shared/Theme.swift": {"ios", "mac"},
       "Makefile": {"docs", "ios", "mac", "web"},
       "integrations/supaterm/skill-data/core/SKILL.md": {"docs", "mac"},

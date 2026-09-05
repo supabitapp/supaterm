@@ -17,14 +17,6 @@ mise trust mise.toml
 mise install
 ```
 
-Install the Xcode release pinned by `.xcode-version` and
-`.xcode-build-version`, select that installation, then verify it:
-
-```bash
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-make xcode-check
-```
-
 Authenticate Tuist before using cache-backed generation or cache warming:
 
 ```bash

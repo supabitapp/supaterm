@@ -16,26 +16,15 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Select pinned Xcode
+    - name: Select Xcode 26.3
       shell: bash
       run: |
-        XCODE_VERSION="$(tr -d '[:space:]' < .xcode-version)"
-        XCODE_BUILD_VERSION="$(tr -d '[:space:]' < .xcode-build-version)"
-        XCODE_PATH="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
-        test -d "$XCODE_PATH" || {
-          echo "::error::Pinned Xcode $XCODE_VERSION is not installed at $XCODE_PATH"
-          exit 1
-        }
-        sudo xcode-select -s "$XCODE_PATH"
+        sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
         xcodebuild -version
-        test "$(xcodebuild -version | awk 'NR == 2 { print $3 }')" = "$XCODE_BUILD_VERSION" || {
-          echo "::error::Pinned Xcode $XCODE_VERSION must have build $XCODE_BUILD_VERSION"
-          exit 1
-        }
     - uses: ./.github/actions/setup-mise
       with:
         github-token: ${{ inputs.github-token }}
-    - name: Toolchain fingerprint for dependency caches
+    - name: Xcode cache key
       if: ${{ inputs.cache-tuist-packages == 'true' || inputs.cache-native-builds == 'true' }}
       shell: bash
       run: |
