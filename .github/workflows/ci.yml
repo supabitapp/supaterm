@@ -208,6 +208,8 @@ jobs:
           -only-testing:supatermE2E/ClaudeZmxE2ETests
           -only-testing:supatermE2E/PiE2ETests
           -only-testing:supatermE2E/PiZmxE2ETests"
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:

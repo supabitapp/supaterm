@@ -169,6 +169,36 @@ class E2EProductsTest(unittest.TestCase):
         for agent in ("CODEX", "CLAUDE", "PI"):
           self.assertEqual(target["EnvironmentVariables"][f"{agent}_E2E_BINARY"], str(xcodebuild))
 
+  def test_make_authenticates_agent_download_without_exposing_token_to_tests(self):
+    source = self.write_run(test_run())
+    bin_dir = self.root / "fake tools"
+    bin_dir.mkdir()
+    capture = self.root / "runtime-checked"
+    xcodebuild = bin_dir / "xcodebuild"
+    xcodebuild.write_text(
+      '#!/usr/bin/env python3\nimport os\nfrom pathlib import Path\n'
+      'assert "MISE_GITHUB_TOKEN" not in os.environ\n'
+      'Path(os.environ["CAPTURE"]).write_text("checked")\n'
+    )
+    xcodebuild.chmod(0o755)
+    mise = bin_dir / "mise"
+    mise.write_text(
+      '#!/usr/bin/env python3\nimport os\n'
+      'assert os.environ["MISE_GITHUB_TOKEN"] == "test-download-token"\n'
+      'print(os.environ["FAKE_CODEX_BINARY"])\n'
+    )
+    mise.chmod(0o755)
+    environment = dict(
+      os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", CAPTURE=str(capture),
+      FAKE_CODEX_BINARY=str(xcodebuild), MISE_GITHUB_TOKEN="test-download-token",
+    )
+    environment.pop("CODEX_E2E_BINARY", None)
+    subprocess.run([
+      "make", "-C", str(ROOT / "apps/mac"), "test-e2e-xcodebuild", "E2E_AGENT=codex",
+      f"E2E_XCTESTRUN_PATH={source}",
+    ], env=environment, check=True, capture_output=True, text=True)
+    self.assertEqual(capture.read_text(), "checked")
+
 
 if __name__ == "__main__":
   unittest.main()

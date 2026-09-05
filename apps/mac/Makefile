@@ -195,6 +195,7 @@ test-e2e-xcodebuild:
 		pi_binary="$${PI_E2E_BINARY:-$$(mise x "$(PI_E2E_TOOL)" -- which pi)}"; \
 		test -x "$$pi_binary" || exit 1; \
 	fi; \
+	unset MISE_GITHUB_TOKEN; \
 	if [ -n "$(E2E_XCTESTRUN_PATH)" ]; then \
 		python3 scripts/ci_e2e_products.py configure "$(E2E_XCTESTRUN_PATH)" --claude "$$claude_binary" --codex "$$codex_binary" --pi "$$pi_binary"; \
 		xcodebuild_action=(test-without-building -xctestrun "$(E2E_XCTESTRUN_PATH).runtime.xctestrun"); \
