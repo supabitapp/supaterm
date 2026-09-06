@@ -117,25 +117,6 @@ make mac-test-e2e       # Run socket-driven E2E tests against the real app
 
 E2E tests in `apps/mac/supatermE2E` spawn their own `supaterm.app` with a fresh instance name, state home, and `ZMX_DIR`, then control it through the `sp` socket protocol. They never attach to a running development or user instance.
 
-Run the real coding-agent integrations with `make mac-test-e2e E2E_AGENT=all`, or
-select `codex`, `claude`, or `pi`. These tests use a pinned
-[`aimock`](https://github.com/CopilotKit/aimock) dependency in
-`apps/mac/E2EModelServer` to serve local OpenAI Responses and Anthropic Messages
-APIs without provider credentials. Make installs the pinned Node runtime and
-locked npm dependency, checks the model-server bridge, and passes its paths to
-the Xcode test runner. `E2E_AGENT=none` (the default) needs no aimock installation.
-
-Define agent turns with `FakeModelExchange` in the Swift tests. Each exchange
-matches input text or a tool result and supplies an aimock text or tool-call
-fixture. `waitForRelease` keeps a turn pending until the test calls
-`releaseNextResponse()`; `failuresBeforeResponse` injects deterministic 503s for
-reconnection checks. `verifyComplete()` checks that every exchange and release
-was consumed and that no unexpected model request occurred. Each fixture owns
-an isolated aimock process, which exits when the test closes its control pipe.
-The bridge leaves HTTP parsing and provider streaming formats to aimock.
-The exchange's `options` accepts aimock fixture options such as `chunkSize`,
-`streamingProfile`, and `truncateAfterChunks` for streaming and failure scenarios.
-
 UI tests in `apps/mac/supatermUITests` control the shared macOS desktop, input focus, and pasteboards. They disable zmx. Never run them locally. They're meant for CI.
 
 Also prefer to write E2E tests over UI Tests if possible.
