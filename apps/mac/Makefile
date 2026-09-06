@@ -32,6 +32,8 @@ E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
 E2E_AGENT ?= none
 E2E_XCTESTRUN_PATH ?=
+AIMOCK_E2E_NODE_TOOL := node@24.13.1
+AIMOCK_E2E_DIR := $(CURRENT_MAKEFILE_DIR)/E2EModelServer
 CODEX_E2E_TOOL := codex@0.150.1
 CLAUDE_E2E_TOOL := npm:@anthropic-ai/claude-code-darwin-arm64@2.1.235
 PI_E2E_TOOL := npm:@mariozechner/pi-coding-agent@0.73.1
@@ -176,6 +178,11 @@ test-e2e-xcodebuild:
 	codex_binary=""; \
 	claude_binary=""; \
 	pi_binary=""; \
+	aimock_node=""; \
+	if [ "$$agent" != none ]; then \
+		aimock_node="$$(mise x "$(AIMOCK_E2E_NODE_TOOL)" -- which node)"; \
+		mise x "$(AIMOCK_E2E_NODE_TOOL)" -- npm ci --prefix "$(AIMOCK_E2E_DIR)" --ignore-scripts --no-audit --no-fund; \
+	fi; \
 	if includes_agent codex; then \
 		codex_binary="$${CODEX_E2E_BINARY:-$$(mise x "$(CODEX_E2E_TOOL)" -- which codex)}"; \
 		test -x "$$codex_binary" || exit 1; \
@@ -196,11 +203,12 @@ test-e2e-xcodebuild:
 		test -x "$$pi_binary" || exit 1; \
 	fi; \
 	unset MISE_GITHUB_TOKEN; \
+	if [ "$$agent" != none ]; then "$$aimock_node" --test "$(AIMOCK_E2E_DIR)/server.test.mjs"; fi; \
 	if [ -n "$(E2E_XCTESTRUN_PATH)" ]; then \
-		python3 scripts/ci_e2e_products.py configure "$(E2E_XCTESTRUN_PATH)" --claude "$$claude_binary" --codex "$$codex_binary" --pi "$$pi_binary"; \
+		python3 scripts/ci_e2e_products.py configure "$(E2E_XCTESTRUN_PATH)" --claude "$$claude_binary" --codex "$$codex_binary" --pi "$$pi_binary" --aimock-node "$$aimock_node" --aimock-script "$(AIMOCK_E2E_DIR)/server.mjs"; \
 		xcodebuild_action=(test-without-building -xctestrun "$(E2E_XCTESTRUN_PATH).runtime.xctestrun"); \
 	else \
-		xcodebuild_action=(test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
+		xcodebuild_action=(test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" CLAUDE_E2E_BINARY="$$claude_binary" CODEX_E2E_BINARY="$$codex_binary" PI_E2E_BINARY="$$pi_binary" AIMOCK_E2E_NODE="$$aimock_node" AIMOCK_E2E_SCRIPT="$(AIMOCK_E2E_DIR)/server.mjs" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""); \
 	fi; \
 	xcodebuild_command=(xcodebuild "$${xcodebuild_action[@]}" -destination "$(MACOS_DESTINATION)" $(E2E_RESULT_BUNDLE_FLAGS) $(XCODEBUILD_FLAGS)); \
 	if [ -t 1 ]; then \

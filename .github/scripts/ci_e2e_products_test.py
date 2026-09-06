@@ -20,7 +20,10 @@ def test_run(version=2):
   target = {
     "BlueprintName": "supatermE2E",
     "TestBundlePath": "__TESTROOT__/Debug/supatermE2E.xctest",
-    "EnvironmentVariables": {"CODEX_E2E_BINARY": "/producer/codex", "KEEP": "yes"},
+    "EnvironmentVariables": {
+      "CODEX_E2E_BINARY": "/producer/codex", "KEEP": "yes",
+      "AIMOCK_E2E_NODE": "/producer/node", "AIMOCK_E2E_SCRIPT": "/producer/server.mjs",
+    },
     "OnlyTestIdentifiers": ["CodexE2ETests"],
     "ParallelizationEnabled": True,
   }
@@ -112,7 +115,10 @@ class E2EProductsTest(unittest.TestCase):
       with self.subTest(version=version):
         original = test_run(version)
         source = self.write_run(original)
-        agents = {"CODEX_E2E_BINARY": "/consumer with spaces/codex", "CLAUDE_E2E_BINARY": "", "PI_E2E_BINARY": ""}
+        agents = {
+          "CODEX_E2E_BINARY": "/consumer with spaces/codex", "CLAUDE_E2E_BINARY": "", "PI_E2E_BINARY": "",
+          "AIMOCK_E2E_NODE": "/consumer with spaces/node", "AIMOCK_E2E_SCRIPT": "/consumer/server.mjs",
+        }
         output = products_tool.configure(source, agents)
         expected = copy.deepcopy(original)
         for target in products_tool.test_targets(expected):
@@ -127,11 +133,13 @@ class E2EProductsTest(unittest.TestCase):
     source = self.write_run(test_run())
     output = products_tool.configure(source, {
       "CLAUDE_E2E_BINARY": "", "CODEX_E2E_BINARY": "", "PI_E2E_BINARY": "",
+      "AIMOCK_E2E_NODE": "", "AIMOCK_E2E_SCRIPT": "",
     })
     with output.open("rb") as file:
       environment = products_tool.test_targets(plistlib.load(file))[0]["EnvironmentVariables"]
     self.assertEqual(environment, {
       "KEEP": "yes", "CLAUDE_E2E_BINARY": "", "CODEX_E2E_BINARY": "", "PI_E2E_BINARY": "",
+      "AIMOCK_E2E_NODE": "", "AIMOCK_E2E_SCRIPT": "",
     })
 
   def test_rejects_wrong_scheme_and_unknown_format(self):
@@ -142,7 +150,7 @@ class E2EProductsTest(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "Unsupported"):
       products_tool.test_targets(test_run(3))
 
-  def test_make_consumer_passes_filters_without_building_or_resolving_tools(self):
+  def test_make_consumer_passes_filters_and_model_runtime_without_building(self):
     source = self.write_run(test_run())
     bin_dir = self.root / "fake tools"
     bin_dir.mkdir()
@@ -150,7 +158,18 @@ class E2EProductsTest(unittest.TestCase):
     xcodebuild = bin_dir / "xcodebuild"
     xcodebuild.write_text('#!/usr/bin/env python3\nimport json, os, sys\nwith open(os.environ["CAPTURE"], "w") as f: json.dump(sys.argv[1:], f)\n')
     xcodebuild.chmod(0o755)
-    environment = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", CAPTURE=str(capture))
+    mise = bin_dir / "mise"
+    mise.write_text(
+      '#!/usr/bin/env python3\nimport os, sys\n'
+      'assert sys.argv[1] == "x" and sys.argv[2].startswith("node@")\n'
+      'if sys.argv[-2:] == ["which", "node"]: print(os.environ["FAKE_NODE_BINARY"])\n'
+      'else: assert sys.argv[4:6] == ["npm", "ci"]\n'
+    )
+    mise.chmod(0o755)
+    environment = dict(
+      os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", CAPTURE=str(capture),
+      FAKE_NODE_BINARY=str(xcodebuild),
+    )
     for agent in ("CODEX", "CLAUDE", "PI"):
       environment[f"{agent}_E2E_BINARY"] = str(xcodebuild)
     subprocess.run([
@@ -168,6 +187,8 @@ class E2EProductsTest(unittest.TestCase):
       for target in products_tool.test_targets(plistlib.load(file)):
         for agent in ("CODEX", "CLAUDE", "PI"):
           self.assertEqual(target["EnvironmentVariables"][f"{agent}_E2E_BINARY"], str(xcodebuild))
+        self.assertEqual(target["EnvironmentVariables"]["AIMOCK_E2E_NODE"], str(xcodebuild))
+        self.assertEqual(target["EnvironmentVariables"]["AIMOCK_E2E_SCRIPT"], str(ROOT / "apps/mac/E2EModelServer/server.mjs"))
 
   def test_make_authenticates_agent_download_without_exposing_token_to_tests(self):
     source = self.write_run(test_run())

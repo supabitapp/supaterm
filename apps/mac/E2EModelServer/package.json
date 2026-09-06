@@ -1,0 +1,11 @@
+{
+  "name": "supaterm-e2e-model-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@copilotkit/aimock": "1.39.0"
+  }
+}
