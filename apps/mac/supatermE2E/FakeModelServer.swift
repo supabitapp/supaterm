@@ -48,9 +48,20 @@ nonisolated final class FakeModelServer: @unchecked Sendable {
       try? input.fileHandleForWriting.close()
       if process.isRunning {
         process.terminate()
-        process.waitUntilExit()
+        waitForProcessStop(timeout: 2)
+      }
+      if process.isRunning {
+        kill(process.processIdentifier, SIGKILL)
+        waitForProcessStop(timeout: 2)
       }
       try? output.fileHandleForReading.close()
+    }
+  }
+
+  private func waitForProcessStop(timeout: TimeInterval) {
+    let deadline = Date().addingTimeInterval(timeout)
+    while process.isRunning, Date() < deadline {
+      Thread.sleep(forTimeInterval: 0.01)
     }
   }
 
