@@ -18,7 +18,7 @@ nonisolated final class FakeModelServer: @unchecked Sendable {
       let server = environment["AIMOCK_E2E_SCRIPT"],
       FileManager.default.fileExists(atPath: server)
     else {
-      throw SupatermE2EError("Missing aimock runtime. Run through make mac-test-e2e E2E_AGENT=all.")
+      throw SupatermE2EError("Missing aimock runtime. Run through make mac-test-e2e.")
     }
     process.executableURL = URL(fileURLWithPath: node)
     process.arguments = [server]

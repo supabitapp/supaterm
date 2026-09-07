@@ -173,7 +173,7 @@ class E2EProductsTest(unittest.TestCase):
     for agent in ("CODEX", "CLAUDE", "PI"):
       environment[f"{agent}_E2E_BINARY"] = str(xcodebuild)
     subprocess.run([
-      "make", "-C", str(ROOT / "apps/mac"), "test-e2e-xcodebuild", "E2E_AGENT=all",
+      "make", "-C", str(ROOT / "apps/mac"), "test-e2e-xcodebuild",
       f"E2E_XCTESTRUN_PATH={source}",
       "XCODEBUILD_FLAGS=-parallel-testing-enabled NO -only-testing:supatermE2E/CodexE2ETests",
     ], env=environment, check=True, capture_output=True, text=True)
@@ -214,8 +214,10 @@ class E2EProductsTest(unittest.TestCase):
       FAKE_CODEX_BINARY=str(xcodebuild), MISE_GITHUB_TOKEN="test-download-token",
     )
     environment.pop("CODEX_E2E_BINARY", None)
+    environment["CLAUDE_E2E_BINARY"] = str(xcodebuild)
+    environment["PI_E2E_BINARY"] = str(xcodebuild)
     subprocess.run([
-      "make", "-C", str(ROOT / "apps/mac"), "test-e2e-xcodebuild", "E2E_AGENT=codex",
+      "make", "-C", str(ROOT / "apps/mac"), "test-e2e-xcodebuild",
       f"E2E_XCTESTRUN_PATH={source}",
     ], env=environment, check=True, capture_output=True, text=True)
     self.assertEqual(capture.read_text(), "checked")

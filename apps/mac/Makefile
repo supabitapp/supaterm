@@ -30,7 +30,6 @@ include ../Tuist.mk
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
-E2E_AGENT ?= none
 E2E_XCTESTRUN_PATH ?=
 AIMOCK_E2E_NODE_TOOL := node@24.13.1
 AIMOCK_E2E_DIR := $(CURRENT_MAKEFILE_DIR)/E2EModelServer
@@ -172,38 +171,23 @@ test-e2e: tuist-generate build-ghostty test-e2e-xcodebuild # Run end-to-end test
 
 test-e2e-xcodebuild:
 	@if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(E2E_RESULT_BUNDLE_PATH)"; fi
-	@agent="$(E2E_AGENT)"; \
-	case "$$agent" in none | codex | claude | pi | all) ;; *) echo "Unknown E2E agent: $$agent" >&2; exit 1 ;; esac; \
-	includes_agent() { [ "$$agent" = all ] || [ "$$agent" = "$$1" ]; }; \
-	codex_binary=""; \
-	claude_binary=""; \
-	pi_binary=""; \
-	aimock_node=""; \
-	if [ "$$agent" != none ]; then \
-		aimock_node="$$(mise x "$(AIMOCK_E2E_NODE_TOOL)" -- which node)"; \
-		mise x "$(AIMOCK_E2E_NODE_TOOL)" -- npm ci --prefix "$(AIMOCK_E2E_DIR)" --ignore-scripts --no-audit --no-fund; \
+	@aimock_node="$$(mise x "$(AIMOCK_E2E_NODE_TOOL)" -- which node)"; \
+	mise x "$(AIMOCK_E2E_NODE_TOOL)" -- npm ci --prefix "$(AIMOCK_E2E_DIR)" --ignore-scripts --no-audit --no-fund; \
+	codex_binary="$${CODEX_E2E_BINARY:-$$(mise x "$(CODEX_E2E_TOOL)" -- which codex)}"; \
+	test -x "$$codex_binary" || exit 1; \
+	claude_binary="$${CLAUDE_E2E_BINARY:-}"; \
+	if [ -z "$$claude_binary" ]; then \
+		claude_tool="$(CLAUDE_E2E_TOOL)"; \
+		mise x "$$claude_tool" -- true || exit 1; \
+		claude_package="$${claude_tool#npm:}"; \
+		claude_package="$${claude_package%@*}"; \
+		claude_binary="$$(mise where "$$claude_tool")/node_modules/$$claude_package/claude"; \
 	fi; \
-	if includes_agent codex; then \
-		codex_binary="$${CODEX_E2E_BINARY:-$$(mise x "$(CODEX_E2E_TOOL)" -- which codex)}"; \
-		test -x "$$codex_binary" || exit 1; \
-	fi; \
-	if includes_agent claude; then \
-		claude_binary="$${CLAUDE_E2E_BINARY:-}"; \
-		if [ -z "$$claude_binary" ]; then \
-			claude_tool="$(CLAUDE_E2E_TOOL)"; \
-			mise x "$$claude_tool" -- true || exit 1; \
-			claude_package="$${claude_tool#npm:}"; \
-			claude_package="$${claude_package%@*}"; \
-			claude_binary="$$(mise where "$$claude_tool")/node_modules/$$claude_package/claude"; \
-		fi; \
-		test -x "$$claude_binary" || exit 1; \
-	fi; \
-	if includes_agent pi; then \
-		pi_binary="$${PI_E2E_BINARY:-$$(mise x "$(PI_E2E_TOOL)" -- which pi)}"; \
-		test -x "$$pi_binary" || exit 1; \
-	fi; \
+	test -x "$$claude_binary" || exit 1; \
+	pi_binary="$${PI_E2E_BINARY:-$$(mise x "$(PI_E2E_TOOL)" -- which pi)}"; \
+	test -x "$$pi_binary" || exit 1; \
 	unset MISE_GITHUB_TOKEN; \
-	if [ "$$agent" != none ]; then "$$aimock_node" --test "$(AIMOCK_E2E_DIR)/server.test.mjs"; fi; \
+	"$$aimock_node" --test "$(AIMOCK_E2E_DIR)/server.test.mjs"; \
 	if [ -n "$(E2E_XCTESTRUN_PATH)" ]; then \
 		python3 scripts/ci_e2e_products.py configure "$(E2E_XCTESTRUN_PATH)" --claude "$$claude_binary" --codex "$$codex_binary" --pi "$$pi_binary" --aimock-node "$$aimock_node" --aimock-script "$(AIMOCK_E2E_DIR)/server.mjs"; \
 		xcodebuild_action=(test-without-building -xctestrun "$(E2E_XCTESTRUN_PATH).runtime.xctestrun"); \

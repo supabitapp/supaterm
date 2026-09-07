@@ -14,7 +14,7 @@ struct NarrowAgentTabFixture {
 @Suite(
   .enabled(
     if: codexE2EEnabled && claudeE2EEnabled && piE2EEnabled,
-    "Run through make mac-test-e2e E2E_AGENT=all."
+    "Run through make mac-test-e2e."
   )
 )
 struct AgentNarrowTabE2ETests {
