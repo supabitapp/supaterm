@@ -78,13 +78,32 @@ struct SupatermSnapshotTests {
     )
   }
 
+  private var migratedNativeAlertApplicationIcon: NSImage {
+    NSImage(size: NSSize(width: 512, height: 512), flipped: false) { rect in
+      NSColor(calibratedWhite: 0.08, alpha: 1).setFill()
+      NSBezierPath(roundedRect: rect, xRadius: 112, yRadius: 112).fill()
+
+      let bolt = NSBezierPath()
+      bolt.move(to: NSPoint(x: 298, y: 42))
+      bolt.line(to: NSPoint(x: 110, y: 286))
+      bolt.line(to: NSPoint(x: 224, y: 286))
+      bolt.line(to: NSPoint(x: 174, y: 470))
+      bolt.line(to: NSPoint(x: 402, y: 202))
+      bolt.line(to: NSPoint(x: 282, y: 202))
+      bolt.close()
+      NSColor(calibratedRed: 0.98, green: 0.66, blue: 0.18, alpha: 1).setFill()
+      bolt.fill()
+      return true
+    }
+  }
+
   private func image(
     scenario: SnapshotScenario,
     appearance: SnapshotAppearance
   ) -> NSImage {
     let applicationIcon = NSApp.applicationIconImage
     if scenario.group == SnapshotCatalog.migratedNativeAlertGroup {
-      NSApp.applicationIconImage = SnapshotCatalog.migratedNativeAlertApplicationIcon
+      NSApp.applicationIconImage = migratedNativeAlertApplicationIcon
     }
     defer {
       NSApp.applicationIconImage = applicationIcon

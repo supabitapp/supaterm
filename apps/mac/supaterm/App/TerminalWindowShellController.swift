@@ -422,6 +422,8 @@ final class TerminalWindowShellController: NSViewController {
 
   private var detailController: NSViewController?
   private var frameAnimation: NSViewAnimation?
+  // NSAnimation does not retain its delegate; keep it alive until the animation ends.
+  // periphery:ignore
   private var frameAnimationDriver: TerminalSidebarFrameAnimationDelegate?
   private var frameAnimationTarget: TerminalWindowShellLayout?
   private var frameAnimationTransitionID: UUID?

@@ -346,6 +346,8 @@ private final class DialogSurfacePanelPresentation {
 
 @MainActor
 private final class DialogSurfacePanel: NSPanel {
+  // Keep the presenter alive while its panel is visible; tearDown releases this ownership.
+  // periphery:ignore
   var presentationOwner: DialogSurfacePresenter?
   var keyDownHandler: ((NSEvent) -> Bool)?
 

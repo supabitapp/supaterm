@@ -4,7 +4,6 @@ import SupaTheme
 import SupatermUI
 import SwiftUI
 
-@testable import SupatermLicenseFeature
 @testable import SupatermSettingsFeature
 @testable import SupatermUpdateFeature
 
@@ -407,25 +406,6 @@ extension SnapshotCatalog {
         at: NSPoint(x: 76, y: 142),
         withAttributes: attributes
       )
-      return true
-    }
-  }
-
-  static var migratedNativeAlertApplicationIcon: NSImage {
-    NSImage(size: NSSize(width: 512, height: 512), flipped: false) { rect in
-      NSColor(calibratedWhite: 0.08, alpha: 1).setFill()
-      NSBezierPath(roundedRect: rect, xRadius: 112, yRadius: 112).fill()
-
-      let bolt = NSBezierPath()
-      bolt.move(to: NSPoint(x: 298, y: 42))
-      bolt.line(to: NSPoint(x: 110, y: 286))
-      bolt.line(to: NSPoint(x: 224, y: 286))
-      bolt.line(to: NSPoint(x: 174, y: 470))
-      bolt.line(to: NSPoint(x: 402, y: 202))
-      bolt.line(to: NSPoint(x: 282, y: 202))
-      bolt.close()
-      NSColor(calibratedRed: 0.98, green: 0.66, blue: 0.18, alpha: 1).setFill()
-      bolt.fill()
       return true
     }
   }
