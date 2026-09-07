@@ -175,10 +175,17 @@ final class CodexE2EFixture {
   func restart() async throws -> SupatermAppDebugSnapshot.AgentProcess {
     let environment = try CodexE2EEnvironment()
     let command = makeCodexCommand(app: app, executable: environment.executable, workspace: space.directory)
-    try app.type(command + "\n", into: space.pane)
+    let marker = "CODEX_RESTART_\(UUID().uuidString)"
+    try app.type("printf '\\n\(marker)\\n'; \(command)\n", into: space.pane)
     let agent = try await waitForAgentSnapshot(
       app, paneID: space.tab.paneID, kind: .codex, phase: .idle, ruleIDs: CodexRuleID.idleTitle
     )
+    // The old session's title and banner can remain visible during startup.
+    try await app.waitUntil("the restarted Codex displays its model", timeout: 60) {
+      let screen = try app.capture(space.pane)
+      guard let boundary = screen.range(of: marker, options: .backwards) else { return false }
+      return screen[boundary.upperBound...].contains("gpt-5.6-luna low")
+    }
     return try requireValue(agent.process, "Restarted Codex has no process identity.")
   }
 
