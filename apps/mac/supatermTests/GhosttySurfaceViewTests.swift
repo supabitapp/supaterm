@@ -1158,6 +1158,7 @@ struct GhosttySurfaceViewTests {
     let container = NSView(frame: window.contentView?.bounds ?? .zero)
     let overlay = NSHostingView(
       rootView: GhosttySurfaceSearchOverlay(surfaceView: sourceSurface)
+        .environment(CommandHoldObserver())
     )
     sourceSurface.frame = container.bounds
     overlay.frame = container.bounds
@@ -1185,6 +1186,7 @@ struct GhosttySurfaceViewTests {
     overlay.removeFromSuperview()
     let rebuiltOverlay = NSHostingView(
       rootView: GhosttySurfaceSearchOverlay(surfaceView: sourceSurface)
+        .environment(CommandHoldObserver())
     )
     rebuiltOverlay.frame = container.bounds
     container.addSubview(rebuiltOverlay)
@@ -1214,7 +1216,10 @@ struct GhosttySurfaceViewTests {
       defer: false
     )
     let container = NSView(frame: window.contentView?.bounds ?? .zero)
-    let overlay = NSHostingView(rootView: GhosttySurfaceSearchOverlay(surfaceView: surface))
+    let overlay = NSHostingView(
+      rootView: GhosttySurfaceSearchOverlay(surfaceView: surface)
+        .environment(CommandHoldObserver())
+    )
     surface.frame = container.bounds
     overlay.frame = container.bounds
     window.contentView = container
@@ -1272,7 +1277,10 @@ struct GhosttySurfaceViewTests {
       defer: false
     )
     let container = NSView(frame: window.contentView?.bounds ?? .zero)
-    let overlay = NSHostingView(rootView: GhosttySurfaceSearchOverlay(surfaceView: surface))
+    let overlay = NSHostingView(
+      rootView: GhosttySurfaceSearchOverlay(surfaceView: surface)
+        .environment(CommandHoldObserver())
+    )
     surface.frame = container.bounds
     overlay.frame = container.bounds
     window.contentView = container
@@ -1310,7 +1318,10 @@ struct GhosttySurfaceViewTests {
       defer: false
     )
     let container = NSView(frame: window.contentView?.bounds ?? .zero)
-    let overlay = NSHostingView(rootView: GhosttySurfaceSearchOverlay(surfaceView: surface))
+    let overlay = NSHostingView(
+      rootView: GhosttySurfaceSearchOverlay(surfaceView: surface)
+        .environment(CommandHoldObserver())
+    )
     surface.frame = container.bounds
     overlay.frame = container.bounds
     window.contentView = container
@@ -1349,7 +1360,10 @@ struct GhosttySurfaceViewTests {
       defer: false
     )
     let container = NSView(frame: window.contentView?.bounds ?? .zero)
-    let overlay = NSHostingView(rootView: GhosttySurfaceSearchOverlay(surfaceView: surface))
+    let overlay = NSHostingView(
+      rootView: GhosttySurfaceSearchOverlay(surfaceView: surface)
+        .environment(CommandHoldObserver())
+    )
     surface.frame = container.bounds
     overlay.frame = container.bounds
     window.contentView = container
@@ -1424,6 +1438,7 @@ struct GhosttySurfaceViewTests {
           await focusDeferral.wait()
         }
       )
+      .environment(CommandHoldObserver())
     )
     overlay.frame = container.bounds
     container.addSubview(overlay)
@@ -1462,7 +1477,10 @@ struct GhosttySurfaceViewTests {
       defer: false
     )
     let container = NSView(frame: window.contentView?.bounds ?? .zero)
-    let overlay = NSHostingView(rootView: GhosttySurfaceSearchOverlay(surfaceView: surface))
+    let overlay = NSHostingView(
+      rootView: GhosttySurfaceSearchOverlay(surfaceView: surface)
+        .environment(CommandHoldObserver())
+    )
     surface.frame = container.bounds
     overlay.frame = container.bounds
     window.contentView = container

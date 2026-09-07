@@ -11,6 +11,7 @@ struct GhosttySurfaceSearchOverlay: View {
   private let deferFocusRequest: @MainActor () async -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @State private var searchText: String
   @State private var corner: GhosttySearchCorner = .topRight
   @State private var dragOffset: CGSize = .zero
@@ -63,7 +64,7 @@ struct GhosttySurfaceSearchOverlay: View {
           } label: {
             SearchButtonLabel(
               title: "Next",
-              shortcut: "Cmd-G",
+              shortcut: commandHoldObserver.isPressed ? "Cmd-G" : nil,
               systemImage: "chevron.up"
             )
           }
@@ -75,7 +76,7 @@ struct GhosttySurfaceSearchOverlay: View {
           } label: {
             SearchButtonLabel(
               title: "Previous",
-              shortcut: "Shift-Cmd-G",
+              shortcut: commandHoldObserver.isPressed ? "Shift-Cmd-G" : nil,
               systemImage: "chevron.down"
             )
           }
@@ -87,7 +88,7 @@ struct GhosttySurfaceSearchOverlay: View {
           } label: {
             SearchButtonLabel(
               title: "Close",
-              shortcut: "Esc",
+              shortcut: commandHoldObserver.isPressed ? "Esc" : nil,
               systemImage: "xmark"
             )
           }
@@ -98,13 +99,11 @@ struct GhosttySurfaceSearchOverlay: View {
         .background(.background)
         .clipShape(GhosttySearchOverlayShape())
         .shadow(radius: 4)
-        .background(
-          GeometryReader { barGeo in
-            Color.clear.onAppear {
-              barSize = barGeo.size
-            }
-          }
-        )
+        .onGeometryChange(for: CGSize.self) { proxy in
+          proxy.size
+        } action: { size in
+          barSize = size
+        }
         .padding(overlayPadding)
         .offset(dragOffset)
         .contentShape(.rect)
