@@ -53,6 +53,9 @@ extension SP {
     var submit = false
 
     @OptionGroup
+    var agentGuard: SPAgentGuardOptions
+
+    @OptionGroup
     var options: SPCommandOptions
 
     @Argument(parsing: .remaining, help: "Optional pane target followed by text or `-` for stdin.")
@@ -77,6 +80,10 @@ extension SP {
     }
 
     func validate() throws {
+      try agentGuard.validate()
+      if agentGuard.expectAgent != nil && !submit {
+        throw ValidationError("--expect-agent requires --submit.")
+      }
       if newline && submit {
         throw ValidationError("--newline and --submit cannot be used together.")
       }
@@ -121,6 +128,7 @@ extension SP {
       let text = newline ? resolvedInput.text + "\n" : resolvedInput.text
       return SupatermSendTextRequest(
         mode: submit ? .submit : .type,
+        expectedAgent: try agentGuard.value(),
         target: try resolvePublicPaneTarget(
           resolvedInput.target,
           context: SupatermCLIContext.current,

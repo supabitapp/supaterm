@@ -219,3 +219,16 @@ Pi uses terminal phase detection and reads the same skill installed at
 `~/.agents/skills/supaterm`. Supaterm does not install a Pi package or change Pi settings. Pi state is
 temporary and read-only, so it does not create a saved session, an action session, child-agent state,
 or native event notifications.
+
+## Guarded automation
+
+`sp pane send --submit --expect-agent <kind>` checks the live detected agent before input. Add
+`--expect-process PID:START_TIME_MICROSECONDS` from `sp agent wait --json` or `sp ls --json` to bind
+an existing process rather than whichever session currently has the same agent kind.
+
+`sp agent wait` uses the same detection observations and pins process identity. It can wait for
+startup recognition, readiness, running activity, input requests, or process exit. Unknown detection
+never becomes readiness; if it remains unresolved at the deadline, the result is `unknown`.
+Waits do not change focus, completion acknowledgement, saved state, or hook interpretation.
+A state match does not identify which prompt finished. See the bundled coding-agent skill for
+safe submission and result handling.

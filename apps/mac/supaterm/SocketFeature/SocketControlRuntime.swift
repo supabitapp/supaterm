@@ -45,6 +45,7 @@ actor SocketControlRuntime {
   private struct PendingReply: Sendable {
     let clientSocket: Int32
     let timeoutTask: Task<Void, Never>
+    let monitorsDisconnect: Bool
   }
 
   nonisolated static let shared = SocketControlRuntime(
@@ -84,7 +85,18 @@ actor SocketControlRuntime {
   }
 
   func isPending(_ handle: UUID) -> Bool {
-    pendingReplies[handle] != nil
+    guard let pending = pendingReplies[handle] else { return false }
+    guard pending.monitorsDisconnect else { return true }
+    var byte: UInt8 = 0
+    let count = recv(pending.clientSocket, &byte, 1, MSG_PEEK | MSG_DONTWAIT)
+    if count == 0 || (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+      pendingReplies.removeValue(forKey: handle)
+      pending.timeoutTask.cancel()
+      bufferedRequests.removeAll { $0.handle == handle }
+      Self.closeClientSocket(pending.clientSocket)
+      return false
+    }
+    return true
   }
 
   func requests() -> AsyncStream<SocketControlClient.Request> {
@@ -266,6 +278,14 @@ actor SocketControlRuntime {
     let sleep = self.sleep
     let replyTimeout =
       switch request.method {
+      case SupatermSocketMethod.terminalWaitAgent:
+        if let wait = try? request.decodeParams(SupatermAgentWaitRequest.self),
+          (try? wait.validate()) != nil
+        {
+          Duration.seconds(wait.timeoutSeconds + SupatermAgentWaitRequest.serverReplyGraceSeconds)
+        } else {
+          self.replyTimeout
+        }
       case SupatermSocketMethod.appAgentIntegrationSetup, SupatermSocketMethod.appHooksRemove:
         Duration.seconds(SupatermAgentIntegrationTiming.serverReplyTimeout)
       case SupatermSocketMethod.licenseActivate,
@@ -286,7 +306,8 @@ actor SocketControlRuntime {
     }
     pendingReplies[handle] = PendingReply(
       clientSocket: clientSocket,
-      timeoutTask: timeoutTask
+      timeoutTask: timeoutTask,
+      monitorsDisconnect: request.method == SupatermSocketMethod.terminalWaitAgent
     )
     emit(SocketControlClient.Request(handle: handle, payload: request))
   }

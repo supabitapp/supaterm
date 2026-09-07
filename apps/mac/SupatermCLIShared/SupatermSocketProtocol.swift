@@ -25,6 +25,7 @@ public enum SupatermSocketMethod {
   public static let licenseStatus = "license.status"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
+  public static let terminalWaitAgent = "terminal.wait_agent"
   public static let terminalAgentHook = "terminal.agent_hook"
   public static let terminalCapturePane = "terminal.capture_pane"
   public static let terminalClosePane = "terminal.close_pane"
@@ -546,6 +547,13 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.terminalSetPaneSize, payload, id: id)
+  }
+
+  public static func waitAgent(
+    _ payload: SupatermAgentWaitRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalWaitAgent, payload, id: id)
   }
 
   public static func sendText(

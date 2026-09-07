@@ -310,3 +310,24 @@ Space methods carry the ambient `context` instead of a window index:
 - `apps/mac/sp/main.swift` is the CLI entrypoint.
 - `apps/mac/SPCLI/SPSocketClient.swift` is the CLI transport client.
 - `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift` injects pane context into terminal processes.
+
+## Agent control
+
+`terminal.send_text` accepts optional `expectedAgent: {kind, process?}` in submit mode. `process`
+is `{processID, startTimeMicroseconds}`; both values must be positive. The app validates detected
+identity, process liveness and foreground ownership, and known phase before writing. Guard failures
+use `agent_not_running`, `agent_replaced`, `agent_blocked`, or `agent_unknown`. Without the optional
+guard, terminal input keeps its existing semantics.
+
+`terminal.wait_agent` takes `target: {paneID}`, `until` (nonempty array of `idle`, `running`,
+`needs_input`, `exited`), positive `timeoutSeconds` up to 3600, and optional `expectedAgent`.
+The app holds one request until a match, process exit/replacement, or deadline. It binds the first
+recognized process or the supplied PID/start-time pair. No recognized process before the deadline
+returns `timeout`; unresolved state of a bound process returns `unknown`. The response result is
+`{paneID, outcome, matched, identity?}`. `identity` is `{kind, process}` for the bound process.
+These are lifecycle observations, not prompt receipts or exit-code evidence.
+
+Waits have a request-specific server expiry and CLI receive timeout. Clients must keep the socket
+open without shutting down its write side while waiting; disconnect cancels the pending wait.
+App shutdown also cancels it. Existing non-wait requests retain their timeout and half-close behavior.
+`sp ls --json` includes the detected agent process identity for subsequent guarded submissions.

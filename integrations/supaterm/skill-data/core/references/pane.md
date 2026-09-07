@@ -81,6 +81,14 @@ sp pane send --submit <pane-uuid> - < prompt.txt
 
 Use `--newline` only to append a literal newline. Do not use it to submit multiline prompts to an interactive coding agent.
 
+For agent automation, add `--expect-agent claude|codex|pi` to `--submit`. Supaterm checks the live foreground agent before writing input and rejects missing agents, a different agent, permission/input blockers, or unknown state. Add `--expect-process PID:START_TIME_MICROSECONDS` from `sp agent wait --json` or `sp ls --json` to reject replacement by another process of the same agent kind:
+
+```bash
+sp pane send --submit --expect-agent codex --expect-process "$process" <pane-uuid> - < prompt.txt
+```
+
+`--expect-process` requires `--expect-agent`; both require `--submit`. Without these flags, `pane send` remains raw terminal input. See [Agent](./agent.md) for wait outcomes and readiness examples.
+
 ## Send Key
 
 `sp pane key <key> [pane]` sends one key event. It targets the current pane when run inside

@@ -567,6 +567,7 @@ extension TerminalHostState {
 
   func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {
     let resolvedTarget = try resolvePaneTarget(request.target)
+    try validateAgentSubmission(request, for: resolvedTarget.anchorSurface.id)
     switch request.mode {
     case .submit:
       resolvedTarget.anchorSurface.bridge.submitText(request.text)

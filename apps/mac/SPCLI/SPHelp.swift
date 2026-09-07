@@ -307,9 +307,15 @@ enum SPHelp {
 
     Pane targets accept a `space/tab/pane` selector, p: ref, or UUID.
 
+    For agent prompts, --submit --expect-agent validates the live agent and rejects
+    blocked or unknown state. Add --expect-process PID:START_TIME_MICROSECONDS
+    from an earlier agent wait or sp ls --json to reject a replacement process.
+    Without these flags, pane input addresses the terminal's current occupant.
+
     Example:
       sp pane send --newline 'echo hello'
       sp pane send --submit <pane-uuid> - < prompt.md
+      sp pane send --submit --expect-agent codex --expect-process 123:456 <pane-uuid> - < prompt.md
       sp pane send 1/2/3 'pwd'
       sp pane send <pane-uuid> 'clear'
       printf 'pwd' | sp pane send
@@ -694,6 +700,7 @@ enum SPHelp {
 
   static let agentDiscussion = """
     Example:
+      sp agent wait <pane-uuid> --until idle --timeout 60
       sp agent setup
       sp agent remove-hooks
       sp agent reload-rules

@@ -9,6 +9,43 @@ let codexE2EEnabled =
   .map { FileManager.default.isExecutableFile(atPath: $0.path) } ?? false
 
 @Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
+struct AgentControlE2ETests {
+  @Test(.timeLimit(.minutes(5)), arguments: [false, true])
+  func guardedSubmissionAndWaitUseLiveProcessIdentity(_ zmx: Bool) async throws {
+    let prompt = "Check guarded input.\nPreserve this second line."
+    let marker = "guarded-response-\(UUID().uuidString)"
+    let fixture = try await CodexE2EFixture.launch(mode: zmx ? .zmxScreenRules : .screenRules) { _ in
+      [FakeModelExchange(request: .responsesInputText(prompt), response: .responsesMessage(marker))]
+    }
+    defer { fixture.close() }
+    let runner = SPBinaryRunner(app: fixture.app, tabID: fixture.space.tab.tabID, paneID: fixture.space.tab.paneID)
+    let pane = fixture.space.tab.paneID.uuidString
+    let waited = try requireSuccessfulSPResult(
+      runner.run([
+        "agent", "wait", pane, "--until", "idle", "--expect-agent", "codex", "--json"
+      ]))
+    let result = try decodeSPJSON(SupatermAgentWaitResult.self, from: waited)
+    #expect(result.identity?.process == fixture.initialProcess)
+    let process = fixture.initialProcess
+    let rejected = try requireFailedSPResult(
+      runner.run([
+        "pane", "send", "--submit", "--expect-agent", "codex",
+        "--expect-process", "\(process.processID):\(process.startTimeMicroseconds + 1)", pane, "wrong process"
+      ]))
+    #expect(rejected.stderr.contains("no longer matches"))
+    try requireSuccessfulSPResult(
+      runner.run(
+        [
+          "pane", "send", "--submit", "--expect-agent", "codex",
+          "--expect-process", "\(process.processID):\(process.startTimeMicroseconds)", pane, "-"
+        ], stdin: Data(prompt.utf8)))
+    try await fixture.app.waitForCapture(fixture.space.pane, contains: marker)
+    try fixture.server.verifyComplete()
+  }
+
+}
+
+@Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
 struct CodexE2ETests {
   @Test(.timeLimit(.minutes(5)))
   func screenRulesTrackEveryRootStateAndInterrupt() async throws {

@@ -1,6 +1,41 @@
 # Agent Commands
 
-`sp agent` manages Supaterm's coding-agent integration.
+`sp agent` manages Supaterm's coding-agent integration and waits for observed agent state.
+
+## Wait for an agent
+
+```bash
+sp agent wait <pane-uuid> --until idle --timeout 120 --json
+sp agent wait <pane-uuid> --expect-agent codex --expect-process 123:456 --until exited
+```
+
+Targets accept a pane UUID, `p:` reference, or `space/tab/pane` selector. Inside Supaterm the target
+can be omitted. Repeat `--until` to accept `idle`, `running`, `needs_input`, or `exited`. Defaults
+are `idle` or `needs_input` and 60 seconds. Timeouts must be positive and at most 3600 seconds.
+
+A wait binds to the first supported agent process detected in that pane. `--expect-agent` restricts
+its kind; `--expect-process PID:START_TIME_MICROSECONDS` pins a previous process identity and requires
+`--expect-agent`. The identity is available in a wait result or `sp ls --json` pane agent data.
+
+Results contain `paneID`, `outcome`, `matched`, and optional `identity` with `kind` and `process`.
+Requested states exit 0. Unexpected `exited`, `replaced`, `unknown`, and `timeout` outcomes exit 1
+and still print the result. Unknown state waits until the deadline to allow startup to settle.
+A pane that closes after binding counts as exited, without asserting success or an exit code.
+A missing pane before binding is an error.
+
+An already-matching state returns immediately. A wait does not associate idle with a particular
+submitted prompt or prove that task succeeded. It neither changes focus nor clears UI completion.
+
+To send a prompt only to the expected agent, use:
+
+```bash
+sp pane send --submit --expect-agent codex --expect-process 123:456 <pane-uuid> - < prompt.md
+```
+
+The guard rejects a missing or different agent, a changed process identity, and blocked or unknown
+state before sending input. `--expect-agent` alone checks kind and current state; include the process
+identity to reject a new session of the same kind. Unguarded pane input retains raw terminal semantics.
+
 
 ## Reload Detection Rules
 

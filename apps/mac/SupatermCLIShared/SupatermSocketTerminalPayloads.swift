@@ -213,15 +213,18 @@ public enum SupatermSendTextMode: String, Equatable, Sendable, Codable {
 }
 
 public struct SupatermSendTextRequest: Equatable, Sendable, Codable {
+  public let expectedAgent: SupatermAgentGuard?
   public let mode: SupatermSendTextMode
   public let target: SupatermPaneTargetRequest
   public let text: String
 
   public init(
     mode: SupatermSendTextMode = .type,
+    expectedAgent: SupatermAgentGuard? = nil,
     target: SupatermPaneTargetRequest,
     text: String
   ) {
+    self.expectedAgent = expectedAgent
     self.mode = mode
     self.target = target
     self.text = text

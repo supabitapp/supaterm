@@ -604,6 +604,68 @@ struct SocketControlRuntimeTests {
   }
 }
 
+extension SocketControlRuntimeTests {
+  @Test
+  func agentWaitUsesRequestedDeadlinePlusReplyGrace() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let recorder = RuntimeSleepRecorder()
+    let socketURL = rootURL.appendingPathComponent("control.sock")
+    let runtime = SocketControlRuntime(
+      endpointProvider: { socketEndpoint(path: socketURL.path) },
+      sleep: { await recorder.record($0) }
+    )
+    let endpoint = try await runtime.start()
+    let socketDescriptor = try openConnectedSocket(path: endpoint.path)
+    defer { Darwin.close(socketDescriptor) }
+    do {
+      try writeRequest(
+        .waitAgent(SupatermAgentWaitRequest(target: SupatermPaneTargetRequest(paneID: UUID()), timeoutSeconds: 120)),
+        to: socketDescriptor)
+      #expect(try readByte(from: socketDescriptor) == 0)
+      #expect(await recorder.durations() == [.seconds(125)])
+      await runtime.stop()
+    } catch {
+      await runtime.stop()
+      throw error
+    }
+  }
+
+  @Test
+  func disconnectedAgentWaitIsNoLongerPendingAndCancelsTimeout() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let recorder = RuntimeCancellableSleepRecorder()
+    let socketURL = rootURL.appendingPathComponent("control.sock")
+    let runtime = SocketControlRuntime(
+      endpointProvider: { socketEndpoint(path: socketURL.path) },
+      sleep: { try await recorder.sleep($0) }
+    )
+    let endpoint = try await runtime.start()
+    let stream = await runtime.requests()
+    let requestTask = Task {
+      var iterator = stream.makeAsyncIterator()
+      return await iterator.next()
+    }
+    let socketDescriptor = try openConnectedSocket(path: endpoint.path)
+    defer { Darwin.close(socketDescriptor) }
+    do {
+      try writeRequest(
+        .waitAgent(SupatermAgentWaitRequest(target: SupatermPaneTargetRequest(paneID: UUID()))), to: socketDescriptor)
+      let request = try #require(await requestTask.value)
+      #expect(await recorder.waitUntilStarted())
+      #expect(await runtime.isPending(request.handle))
+      #expect(Darwin.shutdown(socketDescriptor, SHUT_RDWR) == 0)
+      #expect(await runtime.isPending(request.handle) == false)
+      #expect(await recorder.waitUntilCancelled())
+      await runtime.stop()
+    } catch {
+      await runtime.stop()
+      throw error
+    }
+  }
+}
+
 private func makeTemporaryDirectory() throws -> URL {
   var template = Array("/tmp/stm.XXXXXX".utf8CString)
   guard let pointer = mkdtemp(&template) else {

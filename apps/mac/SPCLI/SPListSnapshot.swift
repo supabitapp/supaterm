@@ -36,6 +36,7 @@ struct SPListSnapshot: Encodable {
     let phaseSource: SupatermAppDebugSnapshot.AgentPhaseSource
     let sessionID: String?
     let ruleID: String?
+    let process: SupatermAppDebugSnapshot.AgentProcess?
   }
 
   struct Item: Encodable {
@@ -187,7 +188,8 @@ struct SPListSnapshot: Encodable {
               phase: $0.phase,
               phaseSource: $0.phaseSource,
               sessionID: $0.sessionID,
-              ruleID: $0.ruleID
+              ruleID: $0.ruleID,
+              process: $0.process
             )
           },
           agentStatus: pane.agentStatus

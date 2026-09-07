@@ -76,12 +76,25 @@ public struct SocketControlFeature {
           [notificationOutputClient, socketControlClient, socketRequestExecutor] _ in
           guard !Task.isCancelled else { return }
           guard await socketControlClient.isPending(request.handle) else { return }
-          let response = await response(
-            for: request.payload,
-            notificationOutputClient: notificationOutputClient,
-            socketControlClient: socketControlClient,
-            socketRequestExecutor: socketRequestExecutor
-          )
+          let response: SupatermSocketResponse
+          if request.payload.method == SupatermSocketMethod.terminalWaitAgent {
+            guard
+              let result = await waitResponse(
+                for: request,
+                notificationOutputClient: notificationOutputClient,
+                socketControlClient: socketControlClient,
+                socketRequestExecutor: socketRequestExecutor
+              )
+            else { return }
+            response = result
+          } else {
+            response = await self.response(
+              for: request.payload,
+              notificationOutputClient: notificationOutputClient,
+              socketControlClient: socketControlClient,
+              socketRequestExecutor: socketRequestExecutor
+            )
+          }
           guard !Task.isCancelled else { return }
           await socketControlClient.reply(request.handle, response)
         }
@@ -139,6 +152,8 @@ public struct SocketControlFeature {
         socketControlClient: socketControlClient,
         socketRequestExecutor: socketRequestExecutor
       )
+    } catch let error as SupatermAgentControlError {
+      return .error(id: request.id, code: error.code, message: error.localizedDescription)
     } catch let error as SocketRequestError {
       return .error(
         id: request.id,

@@ -62,12 +62,42 @@ Submit follow-up text through paste-aware transport:
 
 ```bash
 prompt_file=/tmp/task-prompt.md
-sp pane send --submit <pane-uuid> - < "$prompt_file"
+pane_id=<pane-uuid>
+ready="$(sp agent wait "$pane_id" --expect-agent codex --until idle --timeout 120 --json)" || exit $?
+process="$(printf '%s' "$ready" | jq -r '.identity.process | "\(.processID):\(.startTimeMicroseconds)"')"
+sp pane send --submit --expect-agent codex --expect-process "$process" "$pane_id" - < "$prompt_file"
 ```
+
+Use the actual agent kind (`claude`, `codex`, or `pi`). Keep the returned process identity for later
+submissions to this agent. The guard refuses input if that process exited, was replaced, lost the
+foreground, needs input, or has unknown state. Omitting the guard sends raw terminal input and can
+reach a shell after the agent exits.
 
 `--submit` pastes the complete prompt, preserves embedded newlines, then presses Enter separately. This avoids interactive paste-burst handling that can turn Enter into another newline.
 
 Do not use `--newline`, typed bracketed-paste escape sequences, or timing sleeps to submit a prompt.
+
+## Wait for observed state
+
+```bash
+sp agent wait <pane-uuid> --until idle --until needs_input --timeout 120 --json
+```
+
+A wait binds to the first detected supported agent process, or the process supplied with
+`--expect-agent` and `--expect-process`. It can wait for startup detection. Repeat `--until` to
+accept multiple states: `idle`, `running`, `needs_input`, or `exited`. Defaults are `idle` and
+`needs_input`, with a 60-second timeout. The maximum timeout is 3600 seconds.
+
+The result contains `paneID`, `outcome`, `matched`, and the bound `identity` when available. A match
+exits 0. An unexpected exit, replacement, unknown state at the deadline, or timeout exits 1 while
+preserving the result on stdout, including in JSON mode. A missing pane before binding is an error.
+Unknown state is allowed to settle until the deadline; it never counts as idle. Closing a bound
+pane reports `exited`. Exiting does not prove success and does not report an exit code.
+
+Waits observe current lifecycle state, not the completion of a particular prompt. An already-idle
+agent satisfies an idle wait immediately, including before a just-submitted prompt is accepted.
+For results, inspect the response or have the agent write a task-specific artifact. CLI reads and
+waits do not change focus or acknowledge the UI's completion marker.
 
 ## Interrupt
 

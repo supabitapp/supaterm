@@ -61,10 +61,18 @@ The first `--` ends `sp` options. The second ends agent options so prompt text r
 For a follow-up, submit a complete file through paste-aware transport:
 
 ```bash
-sp pane send --submit "$pane_id" - < "$prompt_file"
+ready="$(sp agent wait "$pane_id" --expect-agent codex --until idle --timeout 120 --json)" || exit $?
+process="$(printf '%s' "$ready" | jq -r '.identity.process | "\(.processID):\(.startTimeMicroseconds)"')"
+sp pane send --submit --expect-agent codex --expect-process "$process" "$pane_id" - < "$prompt_file"
 ```
 
-`--submit` pastes the text and presses Enter separately. Do not emulate bracketed paste or add timing sleeps.
+`--submit` pastes the text and presses Enter separately. The guard rejects a different or exited
+agent process, a request for input, or unknown state. Do not emulate bracketed paste or add timing sleeps.
+
+`sp agent wait` observes lifecycle state. An idle match means the agent is ready for input; it does
+not prove completion of a particular submitted prompt. Inspect the agent's output for the result.
+Unexpected exit, replacement, unknown state at the deadline, and timeout return a nonzero exit code
+with the result still available on stdout.
 
 ## Build a split layout by ID
 

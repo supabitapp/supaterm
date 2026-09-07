@@ -3,6 +3,40 @@ import SupatermCLIShared
 import Testing
 
 extension SupatermE2ESuite {
+  @Suite struct AgentControlTests {
+    @Test(.timeLimit(.minutes(5)))
+    func guardedAgentSubmissionDoesNotWriteIntoShell() async throws {
+      try await withTestSpace { app, space in
+        try await app.waitForShellPrompt(space.pane)
+        let runner = SPBinaryRunner(app: app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let rejected = try requireFailedSPResult(
+          runner.run(
+            [
+              "pane", "send", "--submit", "--expect-agent", "codex", space.tab.paneID.uuidString,
+              "touch should-not-exist.txt"
+            ], cwd: space.directory))
+        #expect(rejected.stderr.contains("no longer running"))
+
+        try app.type("touch guard-checked.txt\n", into: space.pane)
+        try await app.waitUntil("the shell processes input after the rejected submission") {
+          FileManager.default.fileExists(atPath: space.directory.appendingPathComponent("guard-checked.txt").path)
+        }
+        #expect(
+          !FileManager.default.fileExists(atPath: space.directory.appendingPathComponent("should-not-exist.txt").path))
+
+        let waited = try requireFailedSPResult(
+          runner.run(
+            [
+              "agent", "wait", space.tab.paneID.uuidString, "--timeout", "0.2", "--json"
+            ], cwd: space.directory))
+        let result = try decodeSPJSON(SupatermAgentWaitResult.self, from: waited)
+        #expect(result.outcome == .timeout)
+        #expect(result.identity == nil)
+      }
+    }
+
+  }
+
   @Suite struct InputKeyTests {
     @Test(.timeLimit(.minutes(5)))
     func backspaceEditsLine() async throws {

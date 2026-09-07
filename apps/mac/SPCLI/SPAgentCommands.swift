@@ -9,6 +9,7 @@ extension SP {
       abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
       subcommands: [
+        WaitAgent.self,
         SetupAgentIntegrations.self,
         ReloadAgentDetectionRules.self,
         RemoveAgentHooks.self,
