@@ -29,6 +29,11 @@ struct CodexE2ETests {
   func staticTitleTracksReconnectingAndQueuedSteers() async throws {
     try await runCodexStaticTitleLifecycle()
   }
+
+  @Test(.timeLimit(.minutes(5)))
+  func streamedResponseCanBeInterruptedAndFollowedByAnotherTurn() async throws {
+    try await runCodexStreamingInterruption()
+  }
 }
 
 @Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
@@ -410,6 +415,50 @@ private func runCodexLifecycle(mode: CodexE2EMode) async throws {
   try await runInterruptedTurn(fixture, key: .ctrlC, name: "ctrl-c")
   try await runCancelledTurn(fixture)
   try await runCodexDraftClear(fixture)
+  try await stopCodex(fixture)
+  try fixture.server.verifyComplete()
+}
+
+private func runCodexStreamingInterruption() async throws {
+  let fixture = try await CodexE2EFixture.launch(mode: .screenRules) { space in
+    [
+      FakeModelExchange(
+        request: .responsesInputText("Stream a long reply \(space.token)"),
+        response: .responsesMessage(
+          "STREAM_STARTED_\(space.token)\n\n"
+            + String(repeating: "Streaming text. ", count: 1000)
+            + "STREAM_ENDED_\(space.token)"
+        ),
+        waitForRelease: true,
+        options: ["chunkSize": 32, "streamingProfile": ["ttft": 0, "tps": 5]]
+      ),
+      FakeModelExchange(
+        request: .responsesInputText("Follow-up \(space.token)"),
+        response: .responsesMessage("FOLLOW_UP_DONE_\(space.token)")
+      ),
+    ]
+  }
+  defer { fixture.close() }
+
+  let prompt = "Stream a long reply \(fixture.space.token)"
+  try await fixture.app.submit(prompt, waitingFor: prompt, into: fixture.space.pane)
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.working)
+  fixture.server.releaseNextResponse()
+  try await fixture.app.waitForCapture(
+    fixture.space.pane,
+    contains: "STREAM_STARTED_\(fixture.space.token)",
+    timeout: 30
+  )
+  try await fixture.expect(.running, ruleIDs: CodexRuleID.working)
+  try fixture.app.press(.ctrlC, in: fixture.space.pane)
+  try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle, timeout: 10)
+  #expect(try !fixture.app.capture(fixture.space.pane).contains("STREAM_ENDED_\(fixture.space.token)"))
+
+  let followUp = "Follow-up \(fixture.space.token)"
+  try await fixture.app.submit(followUp, waitingFor: followUp, into: fixture.space.pane)
+  try await fixture.app.waitForCapture(
+    fixture.space.pane, contains: "FOLLOW_UP_DONE_\(fixture.space.token)", timeout: 30)
+  try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle, timeout: 10)
   try await stopCodex(fixture)
   try fixture.server.verifyComplete()
 }

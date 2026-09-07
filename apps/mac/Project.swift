@@ -856,6 +856,8 @@ let project = Project(
         ],
         arguments: .arguments(
           environmentVariables: [
+            "AIMOCK_E2E_NODE": "$(AIMOCK_E2E_NODE)",
+            "AIMOCK_E2E_SCRIPT": "$(AIMOCK_E2E_SCRIPT)",
             "CLAUDE_E2E_BINARY": "$(CLAUDE_E2E_BINARY)",
             "CODEX_E2E_BINARY": "$(CODEX_E2E_BINARY)",
             "PI_E2E_BINARY": "$(PI_E2E_BINARY)",

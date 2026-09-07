@@ -66,13 +66,13 @@ def prepare(products: Path) -> Path:
   return output
 
 
-def configure(source: Path, agents: dict[str, str]) -> Path:
+def configure(source: Path, environment: dict[str, str]) -> Path:
   with source.open("rb") as file:
     run = plistlib.load(file)
   for target in test_targets(run):
     # Build settings were expanded on the producer. Passing them to
     # test-without-building does not replace the saved scheme environment.
-    target.setdefault("EnvironmentVariables", {}).update(agents)
+    target.setdefault("EnvironmentVariables", {}).update(environment)
   output = Path(f"{source}.runtime.xctestrun")
   with output.open("wb") as file:
     plistlib.dump(run, file)
@@ -88,6 +88,8 @@ def main() -> None:
   configure_parser.add_argument("xctestrun", type=Path)
   for agent in ("claude", "codex", "pi"):
     configure_parser.add_argument(f"--{agent}", required=True)
+  configure_parser.add_argument("--aimock-node", required=True)
+  configure_parser.add_argument("--aimock-script", required=True)
   args = parser.parse_args()
   if args.command == "prepare":
     prepare(args.products)
@@ -96,6 +98,8 @@ def main() -> None:
       "CLAUDE_E2E_BINARY": args.claude,
       "CODEX_E2E_BINARY": args.codex,
       "PI_E2E_BINARY": args.pi,
+      "AIMOCK_E2E_NODE": args.aimock_node,
+      "AIMOCK_E2E_SCRIPT": args.aimock_script,
     })
 
 
