@@ -9,43 +9,6 @@ let codexE2EEnabled =
   .map { FileManager.default.isExecutableFile(atPath: $0.path) } ?? false
 
 @Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
-struct AgentControlE2ETests {
-  @Test(.timeLimit(.minutes(5)), arguments: [false, true])
-  func guardedSubmissionAndWaitUseLiveProcessIdentity(_ zmx: Bool) async throws {
-    let prompt = "Check guarded input.\nPreserve this second line."
-    let marker = "guarded-response-\(UUID().uuidString)"
-    let fixture = try await CodexE2EFixture.launch(mode: zmx ? .zmxScreenRules : .screenRules) { _ in
-      [FakeModelExchange(request: .responsesInputText(prompt), response: .responsesMessage(marker))]
-    }
-    defer { fixture.close() }
-    let runner = SPBinaryRunner(app: fixture.app, tabID: fixture.space.tab.tabID, paneID: fixture.space.tab.paneID)
-    let pane = fixture.space.tab.paneID.uuidString
-    let waited = try requireSuccessfulSPResult(
-      runner.run([
-        "agent", "wait", pane, "--until", "idle", "--expect-agent", "codex", "--json"
-      ]))
-    let result = try decodeSPJSON(SupatermAgentWaitResult.self, from: waited)
-    #expect(result.identity?.process == fixture.initialProcess)
-    let process = fixture.initialProcess
-    let rejected = try requireFailedSPResult(
-      runner.run([
-        "pane", "send", "--submit", "--expect-agent", "codex",
-        "--expect-process", "\(process.processID):\(process.startTimeMicroseconds + 1)", pane, "wrong process"
-      ]))
-    #expect(rejected.stderr.contains("no longer matches"))
-    try requireSuccessfulSPResult(
-      runner.run(
-        [
-          "pane", "send", "--submit", "--expect-agent", "codex",
-          "--expect-process", "\(process.processID):\(process.startTimeMicroseconds)", pane, "-"
-        ], stdin: Data(prompt.utf8)))
-    try await fixture.app.waitForCapture(fixture.space.pane, contains: marker)
-    try fixture.server.verifyComplete()
-  }
-
-}
-
-@Suite(.enabled(if: codexE2EEnabled, "Run through make mac-test-e2e."))
 struct CodexE2ETests {
   @Test(.timeLimit(.minutes(5)))
   func screenRulesTrackEveryRootStateAndInterrupt() async throws {
@@ -81,7 +44,7 @@ struct CodexZmxE2ETests {
   }
 }
 
-private enum CodexE2EMode {
+enum CodexE2EMode {
   case hooks
   case screenRules
   case zmxScreenRules
@@ -109,7 +72,7 @@ private struct CodexE2EEnvironment {
   }
 }
 
-private final class CodexE2EFixture {
+final class CodexE2EFixture {
   let app: SupatermE2EApp
   let mode: CodexE2EMode
   let server: FakeModelServer
@@ -207,6 +170,16 @@ private final class CodexE2EFixture {
     try? closeTestSpace(app, spaceID: space.spaceID)
     app.terminate()
     server.stop()
+  }
+
+  func restart() async throws -> SupatermAppDebugSnapshot.AgentProcess {
+    let environment = try CodexE2EEnvironment()
+    let command = makeCodexCommand(app: app, executable: environment.executable, workspace: space.directory)
+    try app.type(command + "\n", into: space.pane)
+    let agent = try await waitForAgentSnapshot(
+      app, paneID: space.tab.paneID, kind: .codex, phase: .idle, ruleIDs: CodexRuleID.idleTitle
+    )
+    return try requireValue(agent.process, "Restarted Codex has no process identity.")
   }
 
   func expect(
@@ -673,7 +646,7 @@ private func runCodexDraftClear(_ fixture: CodexE2EFixture) async throws {
   try await fixture.expect(.idle, ruleIDs: CodexRuleID.idleTitle, timeout: 10)
 }
 
-private func stopCodex(_ fixture: CodexE2EFixture) async throws {
+func stopCodex(_ fixture: CodexE2EFixture) async throws {
   try await fixture.app.waitUntil("repeated Ctrl+C exits Codex to the shell", timeout: 15) {
     try fixture.app.press(.ctrlC, in: fixture.space.pane)
     return try fixture.app.capture(fixture.space.pane).contains(hermeticShellPrompt)
