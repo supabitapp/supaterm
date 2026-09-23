@@ -7,10 +7,11 @@ final class TerminalPaneDragSourceHost: NSView {
   private var trackingArea: NSTrackingArea?
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    TerminalPaneDragSourceHitTesting.source(
-      at: point,
-      in: Array(sourcesByID.values)
-    )
+    guard !isHidden else { return nil }
+    let location = convert(point, from: superview)
+    guard bounds.contains(location) else { return nil }
+    updateSourceFrames()
+    return sourcesByID.values.first { $0.frame.contains(location) }
   }
 
   func update(
@@ -43,9 +44,16 @@ final class TerminalPaneDragSourceHost: NSView {
 
   override func layout() {
     super.layout()
+    updateSourceFrames()
+  }
+
+  private func updateSourceFrames() {
     for pane in panes {
       let paneFrame = convert(pane.bounds, from: pane)
-      sourcesByID[pane.id]?.frame = TerminalPaneDragSourceLayout.frame(for: paneFrame)
+      let frame = TerminalPaneDragSourceLayout.frame(for: paneFrame)
+      if let source = sourcesByID[pane.id], source.frame != frame {
+        source.frame = frame
+      }
     }
   }
 
@@ -77,6 +85,7 @@ final class TerminalPaneDragSourceHost: NSView {
   }
 
   private func updateIndicators(at location: CGPoint) {
+    updateSourceFrames()
     for pane in panes {
       let paneFrame = convert(pane.bounds, from: pane)
       sourcesByID[pane.id]?.showsIndicator = paneFrame.contains(location)

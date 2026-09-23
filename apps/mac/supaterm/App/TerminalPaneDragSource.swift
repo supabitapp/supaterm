@@ -173,15 +173,6 @@ enum TerminalPaneDragSourceLayout {
   }
 }
 
-enum TerminalPaneDragSourceHitTesting {
-  static func source<View: NSView>(
-    at point: NSPoint,
-    in sources: [View]
-  ) -> View? {
-    sources.first { $0.frame.contains(point) }
-  }
-}
-
 @MainActor
 final class TerminalPaneDragSourceNSView: NSView, NSDraggingSource {
   private var client: TerminalPaneDragClient
@@ -232,7 +223,8 @@ final class TerminalPaneDragSourceNSView: NSView, NSDraggingSource {
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    bounds.contains(point) ? self : nil
+    guard !isHidden else { return nil }
+    return bounds.contains(convert(point, from: superview)) ? self : nil
   }
 
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
