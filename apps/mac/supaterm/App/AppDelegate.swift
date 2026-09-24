@@ -368,12 +368,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       liveCatalog: terminalWindowRegistry.restorationSnapshot()
     )
     if reply == .terminateNow && terminationPlan.terminatesSessions {
-      Task { @MainActor in
-        await terminalWindowRegistry.terminateTerminalSessionsAndWait()
-        await terminalWindowRegistry.terminateAllZmxSessionsAndWait()
-        NSApp.reply(toApplicationShouldTerminate: true)
+      let terminateSessions = terminalWindowRegistry.sessionTerminationOperation()
+      let terminationComplete = DispatchSemaphore(value: 0)
+      let terminationTask = Task.detached(priority: .userInitiated) {
+        await terminateSessions()
+        terminationComplete.signal()
       }
-      return .terminateLater
+      if terminationComplete.wait(timeout: .now() + .seconds(30)) == .timedOut {
+        terminationTask.cancel()
+        SupatermLog.error(SupatermLog.zmx, "zmx.quit.terminationTimedOut")
+        sessionPersistenceState = .active
+        return .terminateCancel
+      }
+      return .terminateNow
     }
     if reply == .terminateNow {
       terminalWindowRegistry.setTerminatesTerminalSessionsOnWindowClose(terminationPlan.terminatesSessions)

@@ -199,6 +199,32 @@ struct TerminalHostStateCloseTests {
     }
   }
 
+  @Test(arguments: [false, true])
+  func readingAndFocusingRemovedTreeDoesNotRecreateTerminal(closesTab: Bool) throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+      let host = TerminalHostState.test(zmxSessionsEnabled: false)
+      host.ensureInitialTab(focusing: false)
+      let tabID = try #require(host.selectedTabID)
+      #expect(!host.splitTree(for: tabID).isEmpty)
+
+      host.removeTree(for: tabID, terminateSessions: false, source: .sessionClear)
+      if closesTab {
+        host.spaceManager.tabCollection.closeTab(tabID)
+      } else {
+        #expect(host.selectedTree?.isEmpty == true)
+      }
+      host.focusSurface(in: tabID)
+
+      #expect(host.splitTree(for: tabID).isEmpty)
+      #expect(host.trees.isEmpty)
+      #expect(host.surfaces.isEmpty)
+      #expect(host.focusHistoryByTab.isEmpty)
+    }
+  }
+
   private func makeSplitTabSetup(hasSurvivingTab: Bool) throws -> CloseTabTestSetup {
     initializeGhosttyForTests()
     let runtime = try makeGhosttyRuntime("confirm-close-surface = false")
