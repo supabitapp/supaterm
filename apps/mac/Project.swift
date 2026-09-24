@@ -609,6 +609,7 @@ let project = Project(
       dependencies: [
         .external(name: "ArgumentParser"),
         .external(name: "Clocks"),
+        .external(name: "IssueReportingTestSupport"),
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),

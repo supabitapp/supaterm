@@ -95,8 +95,8 @@ struct SPCommandRuntimeTests {
         )
     )
     #expect(
-      try resolvedWorkingDirectory(currentDirectoryURL.path)
-        == SupatermWorkingDirectory.normalizedPath(currentDirectoryURL)
+      try resolvedWorkingDirectory("/supaterm-test/sub/../working-directory")
+        == "/supaterm-test/working-directory"
     )
     #expect(
       try resolvedWorkingDirectory("sub/./directory/../")

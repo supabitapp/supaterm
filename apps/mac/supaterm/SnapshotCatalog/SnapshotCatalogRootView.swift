@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SnapshotCatalogRootView: View {
   @State private var query = ""
-  @State private var selectedAppearance = SnapshotAppearance.light
   @State private var selectedGroupID = SnapshotCatalog.scenarios.first?.group
 
   private var filteredScenarios: [SnapshotScenario] {
@@ -27,10 +26,7 @@ struct SnapshotCatalogRootView: View {
         groups: filteredGroups
       )
     } detail: {
-      SnapshotCatalogDetail(
-        appearance: $selectedAppearance,
-        group: selectedGroup
-      )
+      SnapshotCatalogDetail(group: selectedGroup)
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 960, minHeight: 680)
@@ -64,7 +60,7 @@ private struct SnapshotCatalogSidebar: View {
 }
 
 private struct SnapshotCatalogDetail: View {
-  @Binding var appearance: SnapshotAppearance
+  @State private var appearance = SnapshotAppearance.light
   let group: SnapshotScenarioGroup
 
   private var scenarios: [SnapshotScenario] {

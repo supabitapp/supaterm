@@ -1216,6 +1216,15 @@ final class TerminalSplitAXContainerView: NSView {
 
   nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard !isHidden else { return nil }
+    let location = convert(point, from: superview)
+    if let source = paneDragSourceHost.hitTest(location) {
+      return source
+    }
+    return super.hitTest(point)
+  }
+
   init(backgroundColor: NSColor) {
     self.backgroundColor = backgroundColor
     super.init(frame: .zero)
@@ -1229,6 +1238,9 @@ final class TerminalSplitAXContainerView: NSView {
       backgroundView.topAnchor.constraint(equalTo: topAnchor),
       backgroundView.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
+    // The terminal hosting view has its own raised layer.
+    paneDragSourceHost.wantsLayer = true
+    paneDragSourceHost.layer?.zPosition = 2
     paneDragSourceHost.translatesAutoresizingMaskIntoConstraints = false
     addSubview(paneDragSourceHost)
     NSLayoutConstraint.activate([

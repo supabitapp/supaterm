@@ -34,10 +34,10 @@ let project = Project(
       ]),
       resources: [
         "Resources/Assets.xcassets",
-        "../shared/Resources/supaterm.icon",
       ],
       buildableFolders: [
-        "Sources"
+        "Sources",
+        "../shared/Resources",
       ],
       dependencies: [
         .project(target: "SupaTheme", path: "../shared"),
