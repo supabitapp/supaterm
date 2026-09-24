@@ -6,6 +6,33 @@ import Testing
 extension SupatermE2ESuite {
   @Suite struct ZmxLifecycleTests {
     @Test(.timeLimit(.minutes(5)))
+    func quittingAndTerminatingSessionsLeavesNoProcesses() async throws {
+      let app = try await SupatermE2EApp.launch(zmxSessionsEnabled: true)
+      defer { app.terminate() }
+
+      let process = try await createWaitingDirectProcess(app, name: "zmx-quit")
+      _ = try app.send(
+        .createSpace(SupatermCreateSpaceRequest(color: nil, name: "zmx-quit-other-space")),
+        as: SupatermCreateSpaceResult.self
+      )
+      let directory = ZmxTestWorkspace.zmxDirectory(instanceName: app.instanceName).path
+      #expect(!ZmxTestProcessTable.sessionProcessIDs(directory: directory).isEmpty)
+      _ = try app.send(
+        .settingsSet(
+          SupatermSettingsSetRequest(key: "terminal.zmx_sessions_enabled", value: "false")
+        ),
+        as: SupatermSettingsMutationResult.self
+      )
+
+      try await app.quit()
+
+      try await app.waitUntil("all terminated session processes exit") {
+        ZmxTestProcessTable.sessionProcessIDs(directory: directory).isEmpty
+          && kill(process.processID, 0) != 0
+      }
+    }
+
+    @Test(.timeLimit(.minutes(5)))
     func directProcessSurvivesRelaunchAndItsPaneClosesOnExit() async throws {
       let app = try await SupatermE2EApp.launch(zmxSessionsEnabled: true)
       defer { app.terminate() }

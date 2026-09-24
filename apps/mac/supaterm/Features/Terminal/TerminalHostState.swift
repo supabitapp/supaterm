@@ -592,27 +592,8 @@ final class TerminalHostState {
     return view.window === surface.window
   }
 
-  func splitTree(
-    for tabID: TerminalTabID,
-    inheritingFromSurfaceID: UUID? = nil,
-    startupCommand: SupatermTerminalStartup? = nil,
-    workingDirectory: URL? = nil,
-    context: ghostty_surface_context_e = GHOSTTY_SURFACE_CONTEXT_TAB
-  ) -> SplitTree<GhosttySurfaceView> {
-    if let existing = trees[tabID] {
-      return existing
-    }
-    let surface = createSurface(
-      tabID: tabID,
-      startupCommand: startupCommand,
-      inheritingFromSurfaceID: inheritingFromSurfaceID,
-      workingDirectory: workingDirectory,
-      context: context
-    )
-    let tree = SplitTree(view: surface)
-    trees[tabID] = tree
-    applyFocusedSurface(surface.id, in: tabID)
-    return tree
+  func splitTree(for tabID: TerminalTabID) -> SplitTree<GhosttySurfaceView> {
+    trees[tabID] ?? SplitTree()
   }
 
   func performSplitAction(_ action: GhosttySplitAction, for surfaceID: UUID) -> Bool {

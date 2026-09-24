@@ -706,6 +706,23 @@ final class TerminalWindowRegistry {
     }
   }
 
+  func sessionTerminationOperation() -> @Sendable () async -> Void {
+    let zmxClient = zmxClient
+    let surfaceIDs = Set(activeEntries().flatMap { $0.terminal.sessionSurfaceIDs() })
+    return {
+      await withTaskGroup(of: Void.self) { group in
+        for surfaceID in surfaceIDs where !Task.isCancelled {
+          group.addTask {
+            guard !Task.isCancelled else { return }
+            await zmxClient.killSession(surfaceID)
+          }
+        }
+      }
+      guard !Task.isCancelled else { return }
+      await Self.terminateAllZmxSessions(using: zmxClient)
+    }
+  }
+
   func setTerminatesTerminalSessionsOnWindowClose(_ terminates: Bool) {
     for entry in activeEntries() {
       entry.setTerminatesTerminalSessionsOnClose(terminates)
@@ -1141,6 +1158,7 @@ final class TerminalWindowRegistry {
   }
 
   nonisolated private static func terminateAllZmxSessions(using zmxClient: ZmxClient) async {
+    guard !Task.isCancelled else { return }
     guard let sessions = await zmxClient.listSessions() else {
       SupatermLog.error(SupatermLog.zmx, "zmx.terminateAll.skipped", fields: ["reason=listFailed"])
       return
@@ -1155,8 +1173,9 @@ final class TerminalWindowRegistry {
       ]
     )
     await withTaskGroup(of: Void.self) { group in
-      for surfaceID in surfaceIDs {
+      for surfaceID in surfaceIDs where !Task.isCancelled {
         group.addTask {
+          guard !Task.isCancelled else { return }
           await zmxClient.killSession(surfaceID)
         }
       }
