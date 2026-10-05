@@ -28,6 +28,7 @@ import * as ThreadManagementService from "../orchestration-v2/ThreadManagementSe
 import type * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import { liveThreadShell } from "./McpToolAccess.testkit.ts";
+import * as SecretRequests from "../secrets/SecretRequests.ts";
 
 const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
@@ -170,6 +171,7 @@ it("readThread preserves caller access errors and prefers activity-run status ov
           getProviders: Effect.succeed([]),
         } satisfies Partial<ProviderRegistry.ProviderRegistry["Service"]>),
         Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({}),
         Layer.mock(ScheduledTaskService.ScheduledTaskService)({
           list: () => Effect.succeed({ tasks: [] }),
         } satisfies Partial<ScheduledTaskService.ScheduledTaskService["Service"]>),
@@ -295,6 +297,7 @@ it("taskStatus returns task.providerInstanceId rather than the driver kind", asy
           getProviders: Effect.succeed([]),
         } satisfies Partial<ProviderRegistry.ProviderRegistry["Service"]>),
         Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({}),
         Layer.mock(ScheduledTaskService.ScheduledTaskService)({
           list: () => Effect.succeed({ tasks: [] }),
         } satisfies Partial<ScheduledTaskService.ScheduledTaskService["Service"]>),
@@ -421,6 +424,7 @@ it("readThread and sendToThread reach threads in other projects", async () => {
           getProviders: Effect.succeed([]),
         } satisfies Partial<ProviderRegistry.ProviderRegistry["Service"]>),
         Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({}),
         Layer.mock(ScheduledTaskService.ScheduledTaskService)({
           list: () =>
             Effect.succeed({
@@ -510,6 +514,10 @@ it("readThread and sendToThread reach threads in other projects", async () => {
       .createThreads(makeScope(), { threads: [{ prompt: "requires a run" }] })
       .pipe(Effect.flip);
     expect(create.code).toBe("parent_not_active");
+    const secret = yield* service
+      .requestSecret(makeScope(), { label: "Secret", reason: "requires a run" })
+      .pipe(Effect.flip);
+    expect(secret.code).toBe("parent_not_active");
 
     parentShell = { ...parentShell, providerInstanceId: customCodexInstanceId };
     const switchedScope = {

@@ -41,6 +41,7 @@ import { buildCodexAdditionalContext } from "./CodexDeveloperInstructions.ts";
 import { DocumentText } from "./DocumentText.ts";
 import { ProviderRegistry } from "./ProviderRegistry.ts";
 import budget from "./agentContextBudget.json" with { type: "json" };
+import { SecretRequests } from "../secrets/SecretRequests.ts";
 
 // Registration only stores tool definitions, so the handlers' services are never called.
 const toolHandlerServices = Layer.mergeAll(
@@ -63,6 +64,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(PullRequestService)({}),
   Layer.mock(RepositoryIdentityResolver)({}),
   Layer.mock(ScheduledTaskService)({}),
+  Layer.mock(SecretRequests)({}),
   ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-agent-context-budget-" }),
   Layer.mock(ServerEnvironment)({}),
   Layer.mock(ServerSecretStore)({}),

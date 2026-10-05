@@ -311,6 +311,9 @@ export function summarizeSupatermToolCalls(
         quantity(countEntities(entityIds("requestId")), "pending question request"),
       );
       break;
+    case "secret-request":
+      label = phrase("Asked for", "ask for", quantity(selected.length, "secret"));
+      break;
     case "worktree-handoff":
       label = phrase(
         "Handed off to",
