@@ -106,6 +106,17 @@ describe("MermaidBlock", () => {
     expect(renderMermaidDiagram).toHaveBeenCalledTimes(1);
   });
 
+  it("opens the rendered diagram full screen from either view", async () => {
+    vi.mocked(renderMermaidDiagram).mockResolvedValue("┌───┐\n│ A │\n└───┘");
+    await mount("graph TD\n A");
+    expect(() => button("Open full screen")).toThrow();
+    await act(async () => TestIntersectionObserver.instances[0]!.visible(true));
+    await press("Source");
+    await press("Open full screen");
+    const expanded = document.querySelector('[role="dialog"]')!;
+    expect(expanded.querySelector("pre")!.textContent).toBe("┌───┐\n│ A │\n└───┘");
+  });
+
   it("keeps original source after failure without retrying on ordinary rerenders", async () => {
     vi.mocked(renderMermaidDiagram).mockResolvedValue(null);
     await mount("unsupported");

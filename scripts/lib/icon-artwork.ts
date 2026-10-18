@@ -1,15 +1,3 @@
-// Pixel helpers for the app icon artwork: a retro computer whose screen shows a lit bolt.
-
-// The screen glass, as fractions of the 1024×1024 artwork. Everything outside it is
-// low-saturation casing, apart from small details that must not count as part of the bolt.
-const SCREEN = { left: 0.17, top: 0.13, right: 0.83, bottom: 0.75 };
-
-export interface RgbImage {
-  readonly data: Uint8Array;
-  readonly width: number;
-  readonly height: number;
-}
-
 const rgbToHsl = (red: number, green: number, blue: number) => {
   const r = red / 255;
   const g = green / 255;
@@ -50,40 +38,14 @@ const hslToRgb = (hue: number, saturation: number, lightness: number) => {
   );
 };
 
-// How strongly a screen pixel belongs to the yellow bolt or its glow: 0 for the dark glass and
-// the light bezel, rising to 1 for saturated yellow.
-const boltWeight = (red: number, green: number, blue: number) => {
-  const { hue, saturation, lightness } = rgbToHsl(red, green, blue);
-  if (hue < 30 || hue > 75 || saturation < 0.2 || lightness > 0.75) return 0;
-  return Math.min(1, (saturation - 0.2) / 0.3);
-};
-
-const forEachScreenPixel = (image: RgbImage, visit: (offset: number, index: number) => void) => {
-  for (let y = Math.floor(SCREEN.top * image.height); y < SCREEN.bottom * image.height; y += 1) {
-    for (let x = Math.floor(SCREEN.left * image.width); x < SCREEN.right * image.width; x += 1) {
-      const index = y * image.width + x;
-      visit(index * 3, index);
-    }
-  }
-};
-
-// Returns a copy of the artwork with the bolt and its glow shifted to `hue` degrees.
-export const recolorBolt = (image: RgbImage, hue: number): Uint8Array => {
-  const output = Uint8Array.from(image.data);
-  forEachScreenPixel(image, (offset) => {
-    const weight = boltWeight(output[offset]!, output[offset + 1]!, output[offset + 2]!);
-    if (weight === 0) return;
-    const { saturation, lightness } = rgbToHsl(
-      output[offset]!,
-      output[offset + 1]!,
-      output[offset + 2]!,
-    );
-    const shifted = hslToRgb(hue, saturation, lightness);
-    for (let channel = 0; channel < 3; channel += 1) {
-      output[offset + channel] = Math.round(
-        output[offset + channel]! * (1 - weight) + shifted[channel]! * weight,
-      );
-    }
+export const recolorBoltSvg = (svg: string, hue: number): string =>
+  svg.replace(/#[\da-f]{6}\b/gi, (color) => {
+    const red = Number.parseInt(color.slice(1, 3), 16);
+    const green = Number.parseInt(color.slice(3, 5), 16);
+    const blue = Number.parseInt(color.slice(5, 7), 16);
+    const original = rgbToHsl(red, green, blue);
+    if (original.hue < 30 || original.hue > 75 || original.saturation < 0.5) return color;
+    return `#${hslToRgb(hue, original.saturation, original.lightness)
+      .map((channel) => channel.toString(16).padStart(2, "0"))
+      .join("")}`;
   });
-  return output;
-};

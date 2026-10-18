@@ -209,7 +209,7 @@ describe("DesktopAppIdentity", () => {
     },
   );
 
-  it.effect("sets the dock icon only when running unpackaged", () => {
+  it.effect("preserves the adaptive bundle icon when running unpackaged", () => {
     const calls: ElectronAppCalls = {
       setAboutPanelOptions: [],
       setDockIcon: [],
@@ -221,7 +221,7 @@ describe("DesktopAppIdentity", () => {
         const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
         yield* identity.configure;
 
-        assert.deepEqual(calls.setDockIcon, ["/icon.png"]);
+        assert.deepEqual(calls.setDockIcon, []);
       }),
       {
         calls,

@@ -79,6 +79,14 @@ jobs:
     # Windows waits for the Linux CLI archive inside its own budget (see
     # "Wait for Linux CLI archive"), so it gets that wait on top of the usual 30.
     timeout-minutes: ${{ inputs.platform == 'win' && 70 || 30 }}
+    env:
+      INPUTS_PLATFORM: ${{ inputs.platform }}
+      INPUTS_TARGET: ${{ inputs.target }}
+      INPUTS_ARCH: ${{ inputs.arch }}
+      INPUTS_RUST_TARGET: ${{ inputs.rust_target }}
+      INPUTS_RESOURCE_KEY: ${{ inputs.resource_key }}
+      INPUTS_VERSION: ${{ inputs.version }}
+      INPUTS_RELEASE_CHANNEL: ${{ inputs.release_channel }}
     steps:
       # This repository is public, so Git needs no credentials. checkout's
       # credential cleanup runs submodule foreach even with submodules disabled,
@@ -131,14 +139,19 @@ jobs:
             throw "Windows ARM builds must use the pinned PowerShell runtime"
           }
 
-      # Windows installs straight from the registry. There, linking the packages
-      # takes the time, not downloading them, so a ~700 MB package cache did not
-      # pay for its own restore. Across recent nightlies, restore plus install
-      # took 183-233s on arm64 and 116-172s on x64, while a plain install took
-      # 142-210s and 84-160s. The arm64 entries also filled 4 GB of the
-      # repository's 10 GB Actions cache.
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
+      - name: Select Xcode 27.1
+        if: inputs.platform == 'mac'
+        shell: bash
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+        run: |
+          xcodebuild -version
+          xcrun --find actool
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
       # pnpm checks the lockfile and policy before reusing this result. A missing
       # artifact leaves the cache empty, so installation runs the checks again.
       - name: Download dependency verification
@@ -148,6 +161,12 @@ jobs:
           name: release-dependency-verification
           path: ${{ runner.temp }}/pnpm-metadata
 
+      # Windows installs straight from the registry. There, linking the packages
+      # takes the time, not downloading them, so a ~700 MB package cache did not
+      # pay for its own restore. Across recent nightlies, restore plus install
+      # took 183-233s on arm64 and 116-172s on x64, while a plain install took
+      # 142-210s and 84-160s. The arm64 entries also filled 4 GB of the
+      # repository's 10 GB Actions cache.
       - name: Install desktop dependencies
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
@@ -178,7 +197,8 @@ jobs:
           targets: ${{ inputs.rust_target }}
 
       - name: Align package versions to release version
-        run: node scripts/update-release-package-versions.ts "${{ inputs.version }}"
+        shell: bash
+        run: node scripts/update-release-package-versions.ts "$INPUTS_VERSION"
 
       # The artifact root is `apps/` (upload-artifact keeps the least common
       # ancestor of its paths), so extracting into `apps` restores
@@ -386,10 +406,10 @@ jobs:
           AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
         run: |
           args=(
-            --platform "${{ inputs.platform }}"
-            --target "${{ inputs.target }}"
-            --arch "${{ inputs.arch }}"
-            --build-version "${{ inputs.version }}"
+            --platform "${INPUTS_PLATFORM}"
+            --target "${INPUTS_TARGET}"
+            --arch "${INPUTS_ARCH}"
+            --build-version "${INPUTS_VERSION}"
             --skip-build
             --verbose
           )
@@ -403,7 +423,7 @@ jobs:
             return 0
           }
 
-          if [[ "${{ inputs.platform }}" == "mac" ]]; then
+          if [[ "${INPUTS_PLATFORM}" == "mac" ]]; then
             if has_all "$CSC_LINK" "$CSC_KEY_PASSWORD" "$APPLE_API_KEY" "$APPLE_API_KEY_ID" "$APPLE_API_ISSUER"; then
               key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
               printf '%s' "$APPLE_API_KEY" > "$key_path"
@@ -414,10 +434,10 @@ jobs:
             else
               echo "macOS signing disabled (missing one or more Apple signing secrets)."
             fi
-          elif [[ "${{ inputs.platform }}" == "win" ]]; then
+          elif [[ "${INPUTS_PLATFORM}" == "win" ]]; then
             # Embed the Linux CLI archive built by the same-arch Linux job as
             # the WSL runtime. Required for a working WSL backend on Windows.
-            args+=(--wsl-runtime "$GITHUB_WORKSPACE"/wsl-runtime/supaterm-*-linux-${{ inputs.arch }}.tar.gz)
+            args+=(--wsl-runtime "$GITHUB_WORKSPACE"/wsl-runtime/supaterm-*-linux-"${INPUTS_ARCH}".tar.gz)
             if has_all \
               "$AZURE_TENANT_ID" \
               "$AZURE_CLIENT_ID" \
@@ -432,7 +452,7 @@ jobs:
               echo "Windows signing disabled (missing one or more Azure Trusted Signing secrets)."
             fi
           else
-            echo "Signing disabled for ${{ inputs.platform }}."
+            echo "Signing disabled for ${INPUTS_PLATFORM}."
           fi
 
           vp run dist:desktop:artifact "${args[@]}"
@@ -490,12 +510,12 @@ jobs:
         run: |
           set -euo pipefail
           binary_name="supaterm-resource-monitor"
-          if [[ "${{ inputs.platform }}" == "win" ]]; then
+          if [[ "${INPUTS_PLATFORM}" == "win" ]]; then
             binary_name="${binary_name}.exe"
           fi
-          target_dir="$RUNNER_TEMP/cli-resource-monitor/${{ inputs.resource_key }}"
+          target_dir="$RUNNER_TEMP/cli-resource-monitor/${INPUTS_RESOURCE_KEY}"
           mkdir -p "$target_dir"
-          cp "native/resource-monitor/target/${{ inputs.rust_target }}/release/${binary_name}" "$target_dir/$binary_name"
+          cp "native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/${binary_name}" "$target_dir/$binary_name"
 
       - name: Build CLI archive
         if: inputs.cli_archive
@@ -509,22 +529,22 @@ jobs:
           AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
         run: |
           set -euo pipefail
-          if [[ "${{ inputs.platform }}" == "mac" && -n "${APPLE_API_KEY:-}" ]]; then
+          if [[ "${INPUTS_PLATFORM}" == "mac" && -n "${APPLE_API_KEY:-}" ]]; then
             key_path="$RUNNER_TEMP/AuthKey_cli_${APPLE_API_KEY_ID}.p8"
             printf '%s' "$APPLE_API_KEY" > "$key_path"
             export APPLE_API_KEY="$key_path"
           fi
           node scripts/build-cli-archive.ts \
-            --platform "${{ inputs.platform }}" \
-            --arch "${{ inputs.arch }}" \
-            --version "${{ inputs.version }}" \
+            --platform "${INPUTS_PLATFORM}" \
+            --arch "${INPUTS_ARCH}" \
+            --version "${INPUTS_VERSION}" \
             --resource-monitor-dir "$RUNNER_TEMP/cli-resource-monitor" \
             --output-dir release-cli
 
       - name: Smoke-test CLI archive
         if: inputs.cli_archive
         shell: bash
-        run: node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "${{ inputs.version }}"
+        run: node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "${INPUTS_VERSION}"
 
       - name: Upload CLI archive
         if: inputs.cli_archive
@@ -551,7 +571,7 @@ jobs:
           # Preview builds have no publish config, so electron-builder writes
           # no feed manifest for them, but it still emits blockmaps beside the
           # installers. Neither belongs on a release no updater may follow.
-          if [[ "${{ inputs.release_channel }}" != "preview" ]]; then
+          if [[ "${INPUTS_RELEASE_CHANNEL}" != "preview" ]]; then
             patterns+=("release/*.blockmap" "release/*.yml")
           fi
           for pattern in "${patterns[@]}"; do
@@ -560,10 +580,10 @@ jobs:
             done
           done
 
-          if [[ "${{ inputs.platform }}" == "mac" && "${{ inputs.arch }}" != "arm64" ]]; then
+          if [[ "${INPUTS_PLATFORM}" == "mac" && "${INPUTS_ARCH}" != "arm64" ]]; then
             shopt -s nullglob
             for manifest in release-publish/*-mac.yml; do
-              mv "$manifest" "${manifest%.yml}-${{ inputs.arch }}.yml"
+              mv "$manifest" "${manifest%.yml}-${INPUTS_ARCH}.yml"
             done
           fi
 
@@ -572,10 +592,10 @@ jobs:
           # arm64 jobs would upload the same name. Suffix each per-arch copy;
           # the release job merges them back into one manifest per channel.
           # builder-debug.yml is electron-builder's config dump, not a feed.
-          if [[ "${{ inputs.platform }}" == "win" ]]; then
+          if [[ "${INPUTS_PLATFORM}" == "win" ]]; then
             for manifest in release-publish/*.yml; do
               [[ "$manifest" == */builder-debug.yml ]] && continue
-              mv "$manifest" "${manifest%.yml}-win-${{ inputs.arch }}.yml"
+              mv "$manifest" "${manifest%.yml}-win-${INPUTS_ARCH}.yml"
             done
           fi
 
@@ -584,11 +604,11 @@ jobs:
         run: |
           set -euo pipefail
           binary_name="supaterm-resource-monitor"
-          if [[ "${{ inputs.platform }}" == "win" ]]; then
+          if [[ "${INPUTS_PLATFORM}" == "win" ]]; then
             binary_name="${binary_name}.exe"
           fi
-          source_path="native/resource-monitor/target/${{ inputs.rust_target }}/release/${binary_name}"
-          target_dir="resource-monitor-publish/${{ inputs.resource_key }}"
+          source_path="native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/${binary_name}"
+          target_dir="resource-monitor-publish/${INPUTS_RESOURCE_KEY}"
           mkdir -p "$target_dir"
           cp "$source_path" "$target_dir/$binary_name"
 

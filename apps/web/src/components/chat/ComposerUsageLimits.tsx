@@ -11,7 +11,6 @@ import { ComposerBanner } from "./ComposerBanner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
 function accountLabel(account: UsageLimitsReport["accounts"][number]): string {
-  if (!account.instanceId) return account.label;
   const driver = providerClients.get(account.driver)?.label ?? String(account.driver);
   const instance =
     account.displayName?.trim() ||
@@ -80,13 +79,10 @@ function UsageLimitsBannerBody({
     <ComposerBanner.Scroll>
       <ComposerBanner.Body className="flex flex-col gap-2 pt-1 pb-1.5 pe-2">
         {report.accounts.map((account) => {
-          const resetCreditInput =
-            account.resetCreditInput ??
-            (account.instanceId ? { instanceId: account.instanceId } : undefined);
           const notice = limitsNotice(account.limits);
           const externalUsage = account.limits.externalUsage;
           return (
-            <div key={account.id} className="flex min-w-0 flex-col gap-1">
+            <div key={account.instanceId} className="flex min-w-0 flex-col gap-1">
               {report.accounts.length > 1 ? (
                 <span className="truncate text-xs text-muted-foreground">
                   <AccountSummary account={account} />
@@ -112,10 +108,10 @@ function UsageLimitsBannerBody({
                   Manage usage
                 </Button>
               ) : null}
-              {resetCreditInput && account.limits.resetCredits ? (
+              {account.limits.resetCredits ? (
                 <ResetCredits
                   environmentId={environmentId}
-                  input={resetCreditInput}
+                  input={{ instanceId: account.instanceId }}
                   credits={account.limits.resetCredits}
                   now={now}
                 />
@@ -123,11 +119,6 @@ function UsageLimitsBannerBody({
             </div>
           );
         })}
-        {report.notices.map((notice) => (
-          <span key={notice} className="text-xs text-muted-foreground">
-            {notice}
-          </span>
-        ))}
       </ComposerBanner.Body>
     </ComposerBanner.Scroll>
   );

@@ -5,7 +5,7 @@ on:
     paths:
       - .github/scripts/*play-credentials*
       - .github/scripts/mobile-store-*
-      - .github/workflows/mobile-*.yml
+      - .github/workflows/mobile-store-review-check.yml
       - apps/mobile/Gemfile*
       - apps/mobile/fastlane/**
       - scripts/mobile-store-*
@@ -15,7 +15,7 @@ on:
     paths:
       - .github/scripts/*play-credentials*
       - .github/scripts/mobile-store-*
-      - .github/workflows/mobile-*.yml
+      - .github/workflows/mobile-store-review-check.yml
       - apps/mobile/Gemfile*
       - apps/mobile/fastlane/**
       - scripts/mobile-store-*
@@ -24,22 +24,26 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mobile-store-review-check-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   validate:
     runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-mise
       - name: Install screenshot tooling
         run: mise exec -- vp install --filter=@supaterm/scripts...
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
         with:
           ruby-version: "3.4.8"
           working-directory: apps/mobile
           bundler-cache: true
-      - name: Validate workflows
-        run: mise exec -- actionlint .github/workflows/mobile-eas-production.yml .github/workflows/mobile-store-review.yml .github/workflows/mobile-showcase-screenshots.yml .github/workflows/mobile-store-review-check.yml
       - name: Test exact build selection and credential export
         run: node --test .github/scripts/mobile-store-release.test.mjs .github/scripts/export-play-credentials.test.mjs
       - name: Test screenshot validation

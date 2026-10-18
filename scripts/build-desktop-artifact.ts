@@ -39,6 +39,12 @@ import {
   selectDesktopRuntimeExternalDependencies,
 } from "./lib/desktop-external-packages.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
+import {
+  MAC_ICON_NAME,
+  XCODE_REQUIREMENT,
+  isSupportedXcodeVersion,
+  macIconCompilerArguments,
+} from "./lib/mac-icon-assets.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -103,6 +109,7 @@ const readWorkspaceConfig = Effect.fn("readWorkspaceConfig")(function* () {
 
 interface DesktopBuildIconAssets {
   readonly macIconPng: string;
+  readonly macIconProject: string;
   readonly linuxIconPng: string;
   readonly windowsIconIco: string;
 }
@@ -325,7 +332,7 @@ const MAC_DESKTOP_BUILD_PREREQUISITES = [
   { id: "clang", description: "Xcode Command Line Tools (clang)" },
   { id: "make", description: "Xcode Command Line Tools (make)" },
   { id: "sips", description: "macOS image tool (sips)" },
-  { id: "iconutil", description: "macOS icon tool (iconutil)" },
+  { id: "actool", description: `${XCODE_REQUIREMENT} asset compiler (actool)` },
   { id: "lipo", description: "Xcode universal-binary tool (lipo)" },
 ] as const;
 
@@ -344,8 +351,7 @@ export class MacDesktopBuildPrerequisitesMissingError extends Schema.TaggedError
       "macOS desktop build prerequisites are missing:",
       details,
       "",
-      "Install Apple's build tools with:",
-      "  xcode-select --install",
+      `Install ${XCODE_REQUIREMENT} and select its developer directory with DEVELOPER_DIR or xcode-select.`,
       "Install Rust from https://rustup.rs, then add the requested target(s):",
       `  rustup target add ${this.rustTargets.join(" ")}`,
       "",
@@ -1475,10 +1481,13 @@ export const preflightMacDesktopBuild = Effect.fn("preflightMacDesktopBuild")(fu
       clang: desktopBuildProbeSucceeds(ChildProcess.make("clang", ["--version"]), "clang"),
       make: desktopBuildProbeSucceeds(ChildProcess.make("make", ["--version"]), "make"),
       sips: desktopBuildProbeSucceeds(ChildProcess.make("sips", ["--help"]), "sips"),
-      iconutil: desktopBuildProbeSucceeds(
-        ChildProcess.make("xcrun", ["--find", "iconutil"]),
-        "iconutil",
-      ),
+      actool: Effect.all([
+        desktopBuildProbeSucceeds(ChildProcess.make("xcrun", ["--find", "actool"]), "actool"),
+        spawnAndCollectOutput(ChildProcess.make("xcodebuild", ["-version"])).pipe(
+          Effect.map((result) => result.exitCode === 0 && isSupportedXcodeVersion(result.stdout)),
+          Effect.orElseSucceed(() => false),
+        ),
+      ]).pipe(Effect.map(([actool, supportedXcode]) => actool && supportedXcode)),
       lipo:
         arch === "universal"
           ? desktopBuildProbeSucceeds(ChildProcess.make("lipo", ["-version"]), "lipo")
@@ -1949,69 +1958,42 @@ export const stageBrowserSecret = Effect.fn("stageBrowserSecret")(function* (inp
   );
 });
 
-function generateMacIconSet(
+const stageMacIcons = Effect.fn("stageMacIcons")(function* (
+  stageResourcesDir: string,
   sourcePng: string,
-  targetIcns: string,
-  tmpRoot: string,
-  path: Path.Path,
+  sourceProject: string,
   verbose: boolean,
 ) {
-  return Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const iconsetDir = path.join(tmpRoot, "icon.iconset");
-    yield* fs.makeDirectory(iconsetDir, { recursive: true });
-
-    const iconSizes = [16, 32, 128, 256, 512] as const;
-    for (const size of iconSizes) {
-      yield* runCommand(
-        ChildProcess.make(
-          {},
-        )`sips -z ${size} ${size} ${sourcePng} --out ${path.join(iconsetDir, `icon_${size}x${size}.png`)}`,
-        { label: `sips icon ${size}x${size}`, verbose },
-      );
-
-      const retinaSize = size * 2;
-      yield* runCommand(
-        ChildProcess.make(
-          {},
-        )`sips -z ${retinaSize} ${retinaSize} ${sourcePng} --out ${path.join(iconsetDir, `icon_${size}x${size}@2x.png`)}`,
-        { label: `sips icon ${size}x${size}@2x`, verbose },
-      );
-    }
-
-    yield* runCommand(ChildProcess.make({})`iconutil -c icns ${iconsetDir} -o ${targetIcns}`, {
-      label: "iconutil icns",
-      verbose,
-    });
-  });
-}
-
-function stageMacIcons(stageResourcesDir: string, sourcePng: string, verbose: boolean) {
-  return Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    if (!(yield* fs.exists(sourcePng))) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  for (const sourcePath of [sourcePng, sourceProject]) {
+    if (!(yield* fs.exists(sourcePath))) {
       return yield* new DesktopIconSourceMissingError({
         platform: "mac",
-        sourcePath: sourcePng,
+        sourcePath,
       });
     }
+  }
 
-    const tmpRoot = yield* fs.makeTempDirectoryScoped({
-      prefix: "supaterm-icon-build-",
-    });
-
-    const iconPngPath = path.join(stageResourcesDir, "icon.png");
-    const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
-
-    yield* runCommand(ChildProcess.make({})`sips -z 512 512 ${sourcePng} --out ${iconPngPath}`, {
-      label: "sips mac icon",
-      verbose,
-    });
-
-    yield* generateMacIconSet(sourcePng, iconIcnsPath, tmpRoot, path, verbose);
+  const tmpRoot = yield* fs.makeTempDirectoryScoped({
+    prefix: "supaterm-icon-build-",
   });
-}
+
+  const iconPngPath = path.join(stageResourcesDir, "icon.png");
+  const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
+
+  yield* runCommand(ChildProcess.make({})`sips -z 512 512 ${sourcePng} --out ${iconPngPath}`, {
+    label: "sips mac icon",
+    verbose,
+  });
+
+  yield* runCommand(ChildProcess.make("xcrun", macIconCompilerArguments(sourceProject, tmpRoot)), {
+    label: "compile adaptive macOS icon",
+    verbose,
+  });
+  yield* fs.copyFile(path.join(tmpRoot, `${MAC_ICON_NAME}.icns`), iconIcnsPath);
+  yield* fs.copyFile(path.join(tmpRoot, "Assets.car"), path.join(stageResourcesDir, "Assets.car"));
+});
 
 export const stageDesktopDmgBackground = Effect.fn("stageDesktopDmgBackground")(function* (
   stageResourcesDir: string,
@@ -2216,6 +2198,7 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
   if (resolveDesktopUpdateChannel(version) === "nightly") {
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
+      macIconProject: BRAND_ASSET_PATHS.nightlyIconComposerProject,
       linuxIconPng: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
       windowsIconIco: BRAND_ASSET_PATHS.nightlyWindowsIconIco,
     };
@@ -2223,6 +2206,7 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
 
   return {
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
+    macIconProject: BRAND_ASSET_PATHS.productionIconComposerProject,
     linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
     windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
   };
@@ -2316,8 +2300,10 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     buildConfig.mac = {
       target: target === "dmg" ? [target, "zip"] : [target],
       icon: "icon.icns",
+      extraResources: [{ from: "apps/desktop/prod-resources/Assets.car", to: "Assets.car" }],
       category: "public.app-category.developer-tools",
       extendInfo: {
+        CFBundleIconName: MAC_ICON_NAME,
         // macOS 26 offers Messages/Mail codes in every text field unless opted out.
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
         NSLocalNetworkUsageDescription:
@@ -2453,7 +2439,12 @@ const assertPlatformBuildResources = Effect.fn("assertPlatformBuildResources")(f
   verbose: boolean,
 ) {
   if (platform === "mac") {
-    yield* stageMacIcons(stageResourcesDir, iconAssets.macIconPng, verbose);
+    yield* stageMacIcons(
+      stageResourcesDir,
+      iconAssets.macIconPng,
+      iconAssets.macIconProject,
+      verbose,
+    );
     return;
   }
 
@@ -3248,6 +3239,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     stageResourcesDir,
     {
       macIconPng: path.join(repoRoot, iconAssets.macIconPng),
+      macIconProject: path.join(repoRoot, iconAssets.macIconProject),
       linuxIconPng: path.join(repoRoot, iconAssets.linuxIconPng),
       windowsIconIco: path.join(repoRoot, iconAssets.windowsIconIco),
     },

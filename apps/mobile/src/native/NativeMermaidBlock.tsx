@@ -1,7 +1,9 @@
+import { useNavigation } from "@react-navigation/native";
 import { CODE_FONT_FAMILY } from "../lib/fonts";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 
+import { SymbolView } from "../components/ui/AppSymbol";
 import { CopyTextButton } from "../features/threads/CopyTextButton";
 import { SourceText } from "@supaterm/mobile-source-text";
 import type { NativeMarkdownTextStyle } from "./SelectableMarkdownText.types";
@@ -17,6 +19,7 @@ export function NativeMermaidBlock({
   readonly compact?: boolean;
   readonly renderDiagram: ((source: string) => Promise<string | null>) | null;
 }) {
+  const navigation = useNavigation();
   const [result, setResult] = useState<{ source: string; text: string | null } | null>(null);
   const [sourceSelected, setSourceSelected] = useState(false);
   const diagram = renderDiagram && result?.source === source ? result.text : null;
@@ -77,6 +80,22 @@ export function NativeMermaidBlock({
             <Text style={{ color: textStyle.linkColor, fontSize }}>
               {showDiagram ? "View Source" : "View Diagram"}
             </Text>
+          </Pressable>
+        ) : null}
+        {diagram !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open diagram full screen"
+            hitSlop={8}
+            onPress={() => navigation.navigate("MermaidDiagram", { source })}
+            style={({ pressed }) => ({ padding: 8, opacity: pressed ? 0.52 : 1 })}
+          >
+            <SymbolView
+              name="arrow.up.left.and.arrow.down.right"
+              size={12}
+              tintColor={textStyle.mutedColor}
+              type="monochrome"
+            />
           </Pressable>
         ) : null}
         <CopyTextButton

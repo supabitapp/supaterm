@@ -505,6 +505,14 @@ it.live("retries a failed selection restart session open before completing", () 
         projection.attempts.map((attempt) => attempt.status),
         ["superseded", "completed"],
       );
+      const restartedWorkStartedAt = projection.runs[0]?.workStartedAt;
+      const firstAttemptStartedAt = projection.attempts[0]?.startedAt;
+      assert.exists(restartedWorkStartedAt);
+      assert.exists(firstAttemptStartedAt);
+      assert.equal(
+        DateTime.toEpochMillis(restartedWorkStartedAt),
+        DateTime.toEpochMillis(firstAttemptStartedAt),
+      );
       assert.deepEqual(
         projection.providerTurns.map((turn) => turn.status),
         ["interrupted", "completed"],

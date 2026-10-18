@@ -1,9 +1,4 @@
-import type {
-  EnvironmentId,
-  ProviderInstanceId,
-  ServerProvider,
-  UsageLimitSourceSnapshots,
-} from "@supaterm/contracts";
+import type { EnvironmentId, ProviderInstanceId, ServerProvider } from "@supaterm/contracts";
 import { collectProviderUsageLimits, hasProviderUsageLimits } from "@supaterm/shared/usageLimits";
 import { useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -28,17 +23,9 @@ export function useUsageLimitsPanel(input: {
   readonly providerInstanceId: ProviderInstanceId | null;
   readonly providerDriver: ServerProvider["driver"] | null;
   readonly providers: readonly ServerProvider[];
-  readonly sources: UsageLimitSourceSnapshots;
 }) {
-  const {
-    environmentId,
-    threadKey,
-    panelKey,
-    providerInstanceId,
-    providerDriver,
-    providers,
-    sources,
-  } = input;
+  const { environmentId, threadKey, panelKey, providerInstanceId, providerDriver, providers } =
+    input;
   const [panel, setPanel] = useState<{
     readonly key: string;
     readonly threadKey: string;
@@ -50,7 +37,7 @@ export function useUsageLimitsPanel(input: {
   }
   const report =
     panel !== null && panelKey !== null && panel.key === panelKey && providerInstanceId !== null
-      ? collectProviderUsageLimits(providerInstanceId, providers, sources, panel.now)
+      ? collectProviderUsageLimits(providerInstanceId, providers, panel.now)
       : null;
   const banner =
     report !== null && panel !== null
@@ -61,15 +48,14 @@ export function useUsageLimitsPanel(input: {
       : null;
   // Supaterm owns /usage-limits only where Limits has data for the selected provider;
   // elsewhere the name stays the provider's own and is sent through untouched.
-  const offered =
-    providerDriver !== null && hasProviderUsageLimits(providerDriver, providers, sources);
+  const offered = providerDriver !== null && hasProviderUsageLimits(providerDriver, providers);
 
   // Answered locally from the last Limits snapshot; the agent never sees it.
   const open = useStableCallback(() => {
     const now = Date.now();
     const nextReport =
       providerInstanceId !== null && panelKey !== null
-        ? collectProviderUsageLimits(providerInstanceId, providers, sources, now)
+        ? collectProviderUsageLimits(providerInstanceId, providers, now)
         : null;
     if (nextReport && panelKey !== null) {
       setPanel({ key: panelKey, threadKey, now });

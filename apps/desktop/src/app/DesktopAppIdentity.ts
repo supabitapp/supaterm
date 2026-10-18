@@ -7,7 +7,6 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
-import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 
 const COMMIT_HASH_PATTERN = /^[0-9a-f]{7,40}$/i;
@@ -34,7 +33,6 @@ const normalizeCommitHash = (value: string): Option.Option<string> => {
 
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
-  const assets = yield* DesktopAssets.DesktopAssets;
   const electronApp = yield* ElectronApp.ElectronApp;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -96,17 +94,6 @@ export const make = Effect.gen(function* () {
 
     if (environment.platform === "win32") {
       yield* electronApp.setAppUserModelId(environment.appUserModelId);
-    }
-
-    // Unpackaged runs only. A packaged bundle already carries its icon in
-    // Info.plist, so setting the dock tile again changes nothing except to
-    // overwrite a custom icon the user attached to the app themselves.
-    if (environment.platform === "darwin" && !environment.isPackaged) {
-      const iconPaths = yield* assets.iconPaths;
-      yield* Option.match(iconPaths.png, {
-        onNone: () => Effect.void,
-        onSome: electronApp.setDockIcon,
-      });
     }
   }).pipe(Effect.withSpan("desktop.appIdentity.configure"));
 

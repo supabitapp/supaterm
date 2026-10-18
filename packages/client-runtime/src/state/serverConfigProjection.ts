@@ -9,14 +9,12 @@ export interface ServerConfigProjection {
 }
 
 /**
- * Published themes and usage-limit sources are current machine state, so a
- * cache could restore a set the machine no longer reports.
+ * Published themes are current machine state, so a cache could restore a set
+ * the machine no longer reports.
  */
 export function withoutEnvironmentThemes(config: ServerConfig): ServerConfig {
-  if (config.environmentThemes === undefined && config.usageLimitSources === undefined) {
-    return config;
-  }
-  const { environmentThemes: _themes, usageLimitSources: _sources, ...rest } = config;
+  if (config.environmentThemes === undefined) return config;
+  const { environmentThemes: _themes, ...rest } = config;
   return rest;
 }
 
@@ -69,18 +67,14 @@ export function applyServerConfigProjection(
 ): Option.Option<ServerConfigProjection> {
   switch (event.type) {
     case "snapshot": {
-      // Wire snapshots never contain published themes or usage-limit sources.
-      // Keep the previous sets until the server sends its authoritative events.
+      // Wire snapshots never contain published themes. Keep the previous set
+      // until the server sends its authoritative event.
       const carriedThemes = Option.isSome(current)
         ? current.value.config.environmentThemes
-        : undefined;
-      const carriedSources = Option.isSome(current)
-        ? current.value.config.usageLimitSources
         : undefined;
       const config: ServerConfig = {
         ...event.config,
         ...(carriedThemes === undefined ? {} : { environmentThemes: carriedThemes }),
-        ...(carriedSources === undefined ? {} : { usageLimitSources: carriedSources }),
       };
       return Option.some({
         // Every reconnect re-sends the whole config, usually unchanged apart from timestamps.
@@ -136,13 +130,6 @@ export function applyServerConfigProjection(
         source: "live",
       }));
     case "usageLimitSourcesUpdated":
-      return Option.map(current, (projection) => ({
-        config: {
-          ...projection.config,
-          usageLimitSources: event.payload.sources.length > 0 ? event.payload.sources : undefined,
-        },
-        latestEvent: event,
-        source: "live",
-      }));
+      return Option.none();
   }
 }

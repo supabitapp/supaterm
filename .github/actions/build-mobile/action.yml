@@ -22,12 +22,16 @@ runs:
       with:
         distribution: temurin
         java-version: 17
-    - uses: android-actions/setup-android@v4
+    - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
       if: inputs.platform == 'android'
     - shell: bash
       if: inputs.platform == 'ios'
+      env:
+        DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
       run: |
         xcodebuild -version
+        xcrun --find actool
+        echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
         command -v fastlane || brew install fastlane
         command -v pod || brew install cocoapods
     - id: build

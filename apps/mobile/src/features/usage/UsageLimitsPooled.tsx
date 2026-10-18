@@ -422,20 +422,14 @@ export function UsageLimitAccountScreen({ route }: AccountScreenProps) {
               ) : null}
             </View>
             <View className="gap-2 rounded-[24px] border-continuous bg-grouped-card p-4">
-              <Text className="text-sm font-supaterm-medium text-foreground">
-                {account.environments.length ? "Signed in" : "Source"}
-              </Text>
-              {account.environments.length ? (
-                account.environments.map((environment) => (
-                  <Text key={environment.environmentId} className="text-sm text-foreground-muted">
-                    {environment.label}
-                  </Text>
-                ))
-              ) : (
-                <Text className="text-sm text-foreground-muted">{account.sourceLabel}</Text>
-              )}
+              <Text className="text-sm font-supaterm-medium text-foreground">Signed in</Text>
+              {account.environments.map((environment) => (
+                <Text key={environment.environmentId} className="text-sm text-foreground-muted">
+                  {environment.label}
+                </Text>
+              ))}
             </View>
-            {account.redeem && account.limits.resetCredits ? (
+            {account.limits.resetCredits ? (
               <View className="gap-3 rounded-[24px] border-continuous bg-grouped-card p-4">
                 <Text className="text-sm font-supaterm-medium text-foreground">Reset credits</Text>
                 <ResetCredits

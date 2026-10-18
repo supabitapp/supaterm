@@ -4,6 +4,12 @@ import * as NodeModule from "node:module";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
+import {
+  MAC_ICON_NAME,
+  XCODE_REQUIREMENT,
+  isSupportedXcodeVersion,
+  macIconCompilerArguments,
+} from "../../../scripts/lib/mac-icon-assets.ts";
 import { ensureElectronRuntime } from "./ensure-electron-runtime.mjs";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
@@ -18,14 +24,7 @@ const APP_BUNDLE_ID = isDevelopment
   ? `com.supaterm.desktop.dev.${devBundleIdSuffix || "local"}`
   : "com.supaterm.desktop";
 const APP_PROTOCOL_SCHEMES = isDevelopment ? ["supaterm-dev"] : ["supaterm"];
-const LAUNCHER_VERSION = 20;
-const developmentMacIconPngPath = NodePath.join(
-  repoRoot,
-  "assets",
-  "dev",
-  "blueprint-macos-1024.png",
-);
-const productionMacIconPngPath = NodePath.join(repoRoot, "assets", "prod", "black-macos-1024.png");
+const LAUNCHER_VERSION = 21;
 // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher script has no Effect runtime.
 const hostPlatform = NodeOS.platform();
 
@@ -203,60 +202,61 @@ function registerMacLauncherBundle(appBundlePath) {
 // Bundle-internal paths are macOS paths whatever host builds them.
 export function resolveMacLauncherIconPaths(runtimeDir, development = isDevelopment) {
   return {
-    sourceIconPath: development ? developmentMacIconPngPath : productionMacIconPngPath,
+    sourceIconPath: NodePath.join(
+      repoRoot,
+      "assets",
+      development ? "dev" : "prod",
+      "app-icon.icon",
+    ),
     generatedIconPath: NodePath.posix.join(
       runtimeDir,
       development ? "icon-dev.icns" : "icon-prod.icns",
     ),
+    generatedCatalogPath: NodePath.posix.join(
+      runtimeDir,
+      development ? "icon-dev.car" : "icon-prod.car",
+    ),
   };
 }
 
-function ensureMacIconIcns(runtimeDir) {
-  const { sourceIconPath, generatedIconPath } = resolveMacLauncherIconPaths(runtimeDir);
+function ensureMacIconAssets(runtimeDir) {
+  const paths = resolveMacLauncherIconPaths(runtimeDir);
+  const { sourceIconPath, generatedIconPath, generatedCatalogPath } = paths;
   NodeFS.mkdirSync(runtimeDir, { recursive: true });
 
   if (!NodeFS.existsSync(sourceIconPath)) {
     throw new Error(`Desktop macOS icon source is missing at ${sourceIconPath}`);
   }
 
-  const sourceMtimeMs = NodeFS.statSync(sourceIconPath).mtimeMs;
+  const sourceMtimeMs = Math.max(
+    NodeFS.statSync(sourceIconPath).mtimeMs,
+    ...NodeFS.readdirSync(sourceIconPath, { recursive: true }).map(
+      (relative) => NodeFS.statSync(NodePath.join(sourceIconPath, relative)).mtimeMs,
+    ),
+  );
   if (
     NodeFS.existsSync(generatedIconPath) &&
-    NodeFS.statSync(generatedIconPath).mtimeMs >= sourceMtimeMs
+    NodeFS.existsSync(generatedCatalogPath) &&
+    NodeFS.statSync(generatedIconPath).mtimeMs >= sourceMtimeMs &&
+    NodeFS.statSync(generatedCatalogPath).mtimeMs >= sourceMtimeMs
   ) {
-    return generatedIconPath;
+    return paths;
   }
 
-  const iconsetRoot = NodeFS.mkdtempSync(NodePath.join(runtimeDir, "dev-iconset-"));
-  const iconsetDir = NodePath.join(iconsetRoot, "icon.iconset");
-  NodeFS.mkdirSync(iconsetDir, { recursive: true });
-
+  const xcode = NodeChildProcess.spawnSync("xcodebuild", ["-version"], { encoding: "utf8" });
+  if (xcode.status !== 0 || !isSupportedXcodeVersion(xcode.stdout)) {
+    throw new Error(
+      `${XCODE_REQUIREMENT} is required for the macOS desktop launcher. Select full Xcode with DEVELOPER_DIR or xcode-select.\n${[xcode.stdout, xcode.stderr].filter(Boolean).join("\n")}`.trim(),
+    );
+  }
+  const outputDirectory = NodeFS.mkdtempSync(NodePath.join(runtimeDir, "icon-compile-"));
   try {
-    for (const size of [16, 32, 128, 256, 512]) {
-      runChecked("sips", [
-        "-z",
-        String(size),
-        String(size),
-        sourceIconPath,
-        "--out",
-        NodePath.join(iconsetDir, `icon_${size}x${size}.png`),
-      ]);
-
-      const retinaSize = size * 2;
-      runChecked("sips", [
-        "-z",
-        String(retinaSize),
-        String(retinaSize),
-        sourceIconPath,
-        "--out",
-        NodePath.join(iconsetDir, `icon_${size}x${size}@2x.png`),
-      ]);
-    }
-
-    runChecked("iconutil", ["-c", "icns", iconsetDir, "-o", generatedIconPath]);
-    return generatedIconPath;
+    runChecked("xcrun", macIconCompilerArguments(sourceIconPath, outputDirectory));
+    NodeFS.copyFileSync(NodePath.join(outputDirectory, `${MAC_ICON_NAME}.icns`), generatedIconPath);
+    NodeFS.copyFileSync(NodePath.join(outputDirectory, "Assets.car"), generatedCatalogPath);
+    return paths;
   } finally {
-    NodeFS.rmSync(iconsetRoot, { recursive: true, force: true });
+    NodeFS.rmSync(outputDirectory, { recursive: true, force: true });
   }
 }
 
@@ -267,13 +267,14 @@ export function resolveMacBundleInfoPlistStrings(executableName) {
     CFBundleIdentifier: APP_BUNDLE_ID,
     CFBundleExecutable: executableName,
     CFBundleIconFile: "icon.icns",
+    CFBundleIconName: MAC_ICON_NAME,
     NSScreenCaptureUsageDescription:
       "Supaterm captures the active window when you use the snapshot shortcut.",
     NSDocumentsFolderUsageDescription: "Supaterm reads project files you open in the desktop app.",
   };
 }
 
-function patchMainBundleInfoPlist(appBundlePath, iconPath, executableName) {
+function patchMainBundleInfoPlist(appBundlePath, iconAssets, executableName) {
   const infoPlistPath = NodePath.join(appBundlePath, "Contents", "Info.plist");
   for (const [key, value] of Object.entries(resolveMacBundleInfoPlistStrings(executableName))) {
     setPlistString(infoPlistPath, key, value);
@@ -288,8 +289,9 @@ function patchMainBundleInfoPlist(appBundlePath, iconPath, executableName) {
   ]);
 
   const resourcesDir = NodePath.join(appBundlePath, "Contents", "Resources");
-  NodeFS.copyFileSync(iconPath, NodePath.join(resourcesDir, "icon.icns"));
-  NodeFS.copyFileSync(iconPath, NodePath.join(resourcesDir, "electron.icns"));
+  NodeFS.copyFileSync(iconAssets.generatedIconPath, NodePath.join(resourcesDir, "icon.icns"));
+  NodeFS.copyFileSync(iconAssets.generatedIconPath, NodePath.join(resourcesDir, "electron.icns"));
+  NodeFS.copyFileSync(iconAssets.generatedCatalogPath, NodePath.join(resourcesDir, "Assets.car"));
 }
 
 function patchHelperBundleInfoPlists(appBundlePath) {
@@ -350,7 +352,7 @@ function buildMacLauncher(electronBinaryPath) {
   const launcherBinaryPath = isDevelopment
     ? developmentPaths.launcherBinaryPath
     : runtimeElectronBinaryPath;
-  const iconPath = ensureMacIconIcns(runtimeDir);
+  const iconAssets = ensureMacIconAssets(runtimeDir);
   const metadataPath = NodePath.join(runtimeDir, "metadata.json");
 
   NodeFS.mkdirSync(runtimeDir, { recursive: true });
@@ -359,7 +361,8 @@ function buildMacLauncher(electronBinaryPath) {
     launcherVersion: LAUNCHER_VERSION,
     sourceAppBundlePath,
     sourceAppMtimeMs: NodeFS.statSync(sourceAppBundlePath).mtimeMs,
-    iconMtimeMs: NodeFS.statSync(iconPath).mtimeMs,
+    iconMtimeMs: NodeFS.statSync(iconAssets.generatedIconPath).mtimeMs,
+    iconCatalogMtimeMs: NodeFS.statSync(iconAssets.generatedCatalogPath).mtimeMs,
     appBundleId: APP_BUNDLE_ID,
     appProtocolSchemes: APP_PROTOCOL_SCHEMES,
   };
@@ -395,7 +398,7 @@ function buildMacLauncher(electronBinaryPath) {
   });
   patchMainBundleInfoPlist(
     targetAppBundlePath,
-    iconPath,
+    iconAssets,
     isDevelopment ? developmentPaths.launcherExecutableName : "Electron",
   );
   patchHelperBundleInfoPlists(targetAppBundlePath);

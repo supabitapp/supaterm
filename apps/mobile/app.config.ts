@@ -20,9 +20,8 @@ const personalTeamBundleIdentifier = repoEnv.SUPATERM_IOS_PERSONAL_TEAM_BUNDLE_I
 const IOS_BUNDLE_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 const fromRepoRoot = (relativePath: string) => `../../${relativePath}`;
-// Android layers are rendered by scripts/export-android-icons.ts from the Icon Composer sources.
-// Each variant's artwork fills the masked centre of its background layer; the foreground is empty.
 const androidAdaptiveForeground = "./assets/android-icon-foreground.png";
+const androidAdaptiveBackgroundColor = "#151B17";
 
 if (
   isIosPersonalTeamBuild &&
@@ -38,8 +37,9 @@ const DEVELOPMENT_ASSETS = {
   appIcon: fromRepoRoot(BRAND_ASSET_PATHS.developmentIosIconPng),
   iosIcon: fromRepoRoot(BRAND_ASSET_PATHS.developmentIconComposerProject),
   splashIcon: fromRepoRoot(BRAND_ASSET_PATHS.developmentIosIconPng),
+  androidIcon: "./assets/android-icon-dev.png",
   androidAdaptiveForeground,
-  androidAdaptiveBackgroundColor: "#E7E1D3",
+  androidAdaptiveBackgroundColor,
   androidAdaptiveBackgroundImage: "./assets/android-icon-background-dev.png",
   androidSplashIcon: "./assets/android-splash-icon-dev.png",
 } as const;
@@ -48,8 +48,9 @@ const PREVIEW_ASSETS = {
   appIcon: fromRepoRoot(BRAND_ASSET_PATHS.nightlyIosIconPng),
   iosIcon: fromRepoRoot(BRAND_ASSET_PATHS.nightlyIconComposerProject),
   splashIcon: fromRepoRoot(BRAND_ASSET_PATHS.nightlyIosIconPng),
+  androidIcon: "./assets/android-icon-nightly.png",
   androidAdaptiveForeground,
-  androidAdaptiveBackgroundColor: "#E7E1D3",
+  androidAdaptiveBackgroundColor,
   androidAdaptiveBackgroundImage: "./assets/android-icon-background-nightly.png",
   androidSplashIcon: "./assets/android-splash-icon-nightly.png",
 } as const;
@@ -58,8 +59,9 @@ const RELEASE_ASSETS = {
   appIcon: fromRepoRoot(BRAND_ASSET_PATHS.productionIosIconPng),
   iosIcon: fromRepoRoot(BRAND_ASSET_PATHS.productionIconComposerProject),
   splashIcon: fromRepoRoot(BRAND_ASSET_PATHS.productionIosIconPng),
+  androidIcon: "./assets/android-icon-prod.png",
   androidAdaptiveForeground,
-  androidAdaptiveBackgroundColor: "#E7E1D3",
+  androidAdaptiveBackgroundColor,
   androidAdaptiveBackgroundImage: "./assets/android-icon-background-prod.png",
   androidSplashIcon: "./assets/android-splash-icon-prod.png",
 } as const;
@@ -273,7 +275,7 @@ const config: ExpoConfig = {
     },
   },
   android: {
-    icon: variant.assets.appIcon,
+    icon: variant.assets.androidIcon,
     package: variant.androidPackage,
     versionCode: 3,
     adaptiveIcon: {
@@ -363,13 +365,13 @@ const config: ExpoConfig = {
           backgroundColor: "#0a0a0a",
         },
         android: {
-          // Android 12+ masks the splash icon to a circle over the central two thirds of
-          // its 288dp canvas, so the iOS export's corners get cut. A full-canvas image of
-          // the adaptive background puts the artwork in the same frame the launcher
-          // icon uses.
           image: variant.assets.androidSplashIcon,
+          backgroundColor: variant.assets.androidAdaptiveBackgroundColor,
           imageWidth: 288,
-          dark: { image: variant.assets.androidSplashIcon },
+          dark: {
+            image: variant.assets.androidSplashIcon,
+            backgroundColor: variant.assets.androidAdaptiveBackgroundColor,
+          },
         },
       },
     ],

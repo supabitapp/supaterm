@@ -70,6 +70,7 @@ import { ThreadAgentsSheet } from "./features/threads/ThreadAgentsSheet";
 import { ThreadQueueSheet } from "./features/threads/ThreadQueueControl";
 import { ThreadRouteScreen } from "./features/threads/ThreadRouteScreen";
 import { McpAppFullscreenScreen } from "./features/threads/McpAppFullscreenScreen";
+import { MermaidDiagramScreen } from "./features/diagrams/MermaidDiagramScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
 import { ConnectionsNewRouteScreen } from "./features/connection/ConnectionsNewRouteScreen";
 import { AddProjectDestinationRoute } from "./features/projects/AddProjectDestinationRoute";
@@ -540,6 +541,7 @@ const WORKSPACE_OVERLAY_ROUTES = new Set([
   "ThreadDevicePreview",
   "ThreadBrowserPreview",
   "ThreadSettingsSheet",
+  "MermaidDiagram",
 ]);
 
 function workspaceLocationFromState(state: NavigationState) {
@@ -827,6 +829,10 @@ const RootStackConfig = createWorkspaceStackNavigator({
       screen: AttachmentFileScreen,
       linking: `${THREAD_LINKING_PREFIX}/attachments/:attachmentId`,
       options: SOLID_HEADER_OPTIONS,
+    }),
+    MermaidDiagram: createNativeStackScreen({
+      screen: MermaidDiagramScreen,
+      options: { ...SOLID_HEADER_OPTIONS, title: "Mermaid" },
     }),
     ThreadSettingsSheet: createNativeStackScreen({
       screen: ExistingThreadSettingsRouteScreen,

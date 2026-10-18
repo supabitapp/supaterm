@@ -25,6 +25,7 @@ jobs:
   fingerprint:
     name: Native fingerprint diff
     runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 10
     permissions:
       contents: read
       issues: write
@@ -36,6 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           # The merge ref can advance after the event is queued. Pin its commit
           # and compare against its first parent, rather than the event's base.
           ref: ${{ github.sha }}

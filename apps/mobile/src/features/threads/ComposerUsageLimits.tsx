@@ -2,7 +2,6 @@ import type { EnvironmentId, UsageLimitsReport } from "@supaterm/contracts";
 import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
-import { AppText as Text } from "../../components/ui/AppText";
 import { ResetCredits } from "../usage/ResetCredits";
 import { AccountLimits } from "../usage/UsageLimitsSection";
 
@@ -38,35 +37,30 @@ export function ComposerUsageLimits({
         style={{ maxHeight: Math.round(height * 0.4) }}
       >
         {report.accounts.map((account, index) => {
-          const resetCreditInput =
-            account.resetCreditInput ??
-            (account.instanceId ? { instanceId: account.instanceId } : undefined);
           const driverLabel = DRIVER_LABEL[account.driver] ?? String(account.driver);
           return (
             <AccountLimits
-              key={account.id}
+              key={account.instanceId}
               dense
               first={index === 0}
               driver={account.driver}
               label={driverLabel}
               instanceLabel={
-                account.instanceId
-                  ? account.displayName?.trim() ||
-                    (String(account.instanceId) !== String(account.driver)
-                      ? account.instanceId
-                      : driverLabel)
-                  : account.label
+                account.displayName?.trim() ||
+                (String(account.instanceId) !== String(account.driver)
+                  ? account.instanceId
+                  : driverLabel)
               }
               detail={account.plan}
               limits={account.limits}
               now={now}
               trailing={index === 0 ? close : undefined}
               footer={
-                resetCreditInput && account.limits.resetCredits ? (
+                account.limits.resetCredits ? (
                   <ResetCredits
                     dense
                     environmentId={environmentId}
-                    input={resetCreditInput}
+                    input={{ instanceId: account.instanceId }}
                     credits={account.limits.resetCredits}
                     now={now}
                   />
@@ -75,24 +69,6 @@ export function ComposerUsageLimits({
             />
           );
         })}
-        {report.accounts.length === 0 ? (
-          <View className="flex-row items-center gap-3 px-4 pt-3">
-            <Text className="min-w-0 flex-1 text-base text-foreground">Usage limits</Text>
-            {close}
-          </View>
-        ) : null}
-        {report.notices.map((notice) => (
-          <Text
-            key={notice}
-            className={
-              report.accounts.length === 0
-                ? "px-4 py-3 text-xs text-foreground-muted"
-                : "border-t border-border-subtle px-4 py-3 text-xs text-foreground-muted"
-            }
-          >
-            {notice}
-          </Text>
-        ))}
       </ScrollView>
     </View>
   );

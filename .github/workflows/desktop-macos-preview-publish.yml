@@ -136,7 +136,7 @@ jobs:
       ref: ${{ github.sha }}
       release_channel: preview
       label: macOS arm64 preview
-      runner: macos-26
+      runner: xcode-27
       platform: mac
       target: dmg
       arch: arm64

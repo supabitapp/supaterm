@@ -647,7 +647,6 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
         ? collectProviderUsageLimits(
             props.selectedThread.modelSelection.instanceId,
             props.serverConfig?.providers ?? [],
-            props.serverConfig?.usageLimitSources ?? [],
             usageLimitsPanel.now,
           )
         : null,

@@ -1,57 +1,15 @@
 # Brand icons
 
-The three shared Icon Composer projects are the source of truth for exported application icons:
+Edit `prod/app-icon.icon` in Icon Composer, then run `vp run icons:export` from the repository root. This is the only editable icon project. The export derives nightly (magenta) and development (cyan) projects by recolouring the bolt and phosphor glow, preserving the production housing, screen, controls, and appearance settings.
 
-- `dev/app-icon.icon`
-- `nightly/app-icon.icon`
-- `prod/app-icon.icon`
+The same command regenerates every tracked icon: macOS, iOS, Android, Linux, Windows, web, marketing, and the icons embedded in installer and store artwork. Run `vp run icons:check` to detect stale outputs without modifying files. Do not edit generated projects or images directly.
 
-Each project has one raster layer, `Assets/artwork.png`: the retro computer face, rendered full bleed at 1024×1024 so the casing fills the system's rounded-square mask. The `fill` in `icon.json` matches the casing colour, so nothing else shows at the mask edge. Nightly and dev reuse the production artwork with only the screen's lightning bolt recoloured (magenta and cyan), so the builds stay distinguishable in the Dock. After changing the production artwork, run `vp run icons:variants` to regenerate them before exporting.
+Exporting requires macOS with full Xcode 27 or newer and Icon Composer 2 or newer. The script selects the newest compatible Icon Composer exporter and pins design generation 26. Set `ICON_COMPOSER_TOOL` to the full path of `Icon Composer.app/Contents/Executables/ictool` to override discovery. Native macOS rendering uses the selected Xcode's `actool` through `xcrun`.
 
-In-app branding uses the exported application icon.
+## Platform appearances
 
-These copies are made by hand from the exports and are not covered by `icons:check`: the marketing site's favicons (16/32/48px ICO and a palette PNG touch icon, kept small) and `src/assets/icon*.webp` (from the macOS exports), and the icons embedded in the DMG backgrounds and `apps/mobile/fastlane/feature-graphic.svg`.
+macOS release packaging and the local desktop launcher compile the generated Icon Composer project into `Assets.car` and declare `CFBundleIconName`, so macOS can select native light, dark, and tinted appearances. The compiled `.icns` provides the fallback for older macOS versions. The export command also uses `actool` to render the static macOS PNGs with the native safe area and shadow.
 
-Run `vp run icons:export` from the repository root to regenerate the tracked iOS, Linux, Windows, and web assets. The development web exports are also copied to `apps/web/public` for the browser favicon and splash screen. Run `vp run icons:check` to verify that the generated assets and public copies match their sources without changing files.
+iOS uses the generated layered projects for native appearances. Other surfaces use static default renditions.
 
-Exporting requires Icon Composer 2 or newer on macOS. The script selects the newest compatible exporter from Xcode or a standalone Icon Composer installation and pins design generation 26. Set `ICON_COMPOSER_TOOL` to the full path of `Icon Composer.app/Contents/Executables/ictool` to override automatic discovery.
-
-## macOS exports
-
-The desktop app's macOS icons are 1024×1024 PNGs with the classic macOS safe area: the opaque icon body is 824×824, inset 100 pixels on every side, with only the native shadow extending into the surrounding transparent canvas. macOS 26 and later re-mask this rendition to the system shape, but show a full-bleed icon inside a gray tile.
-
-Since Icon Composer 27, both its command-line `macOS` export and the app's `macOS pre-Tahoe` preset are full bleed, so the export script leaves the tracked macOS PNGs unchanged and prints a reminder after every run. Render them with Xcode's asset compiler instead, which still builds the classic rendition. Run this from the repository root; `actool` needs an absolute input path, and `--standalone-icon-behavior all` is what adds the 1024px entry to the compiled `.icns`:
-
-```bash
-variant=nightly png=nightly-macos-1024.png
-work=$(mktemp -d)
-xcrun actool "$PWD/assets/$variant/app-icon.icon" --compile "$work" --platform macosx \
-  --minimum-deployment-target 11.0 --app-icon app-icon --standalone-icon-behavior all \
-  --output-partial-info-plist "$work/partial.plist"
-iconutil -c iconset "$work/app-icon.icns" -o "$work/app-icon.iconset"
-cp "$work/app-icon.iconset/icon_512x512@2x.png" "assets/$variant/$png"
-```
-
-The variants and their PNGs are:
-
-- `dev` -> `blueprint-macos-1024.png`
-- `nightly` -> `nightly-macos-1024.png`
-- `prod` -> `black-macos-1024.png`
-
-Do not resize, composite, or otherwise post-process the rendered PNG, and do not edit the generated PNG or ICO files directly.
-
-## Android launcher and splash artwork
-
-Android masks the central 72dp of a 108dp adaptive canvas, and the Android 12+ splash screen masks
-the central two thirds of a 288dp canvas, so the Icon Composer exports cannot be used directly:
-their rounded-square silhouette would be framed a second time. `vp run icons:export:android`
-renders the Android artwork from each variant's `artwork.png` instead:
-
-- `apps/mobile/assets/android-icon-background-*.png`: the artwork fitted into the masked central two
-  thirds, with the casing colour filling the parallax margin
-- `apps/mobile/assets/android-icon-foreground.png`: a transparent layer, since the artwork already
-  sits in the background
-- `apps/mobile/assets/android-splash-icon-*.png`: the same composition at 288dp, so the splash mask
-  frames the artwork like the launcher icon does
-
-Rerun the export after changing an `artwork.png`.
+Android uses the CRT glass and coloured bolt, with the housing and controls removed. The generator crops the screen texture and centres the glow and bolt inside the launcher and splash masks. The texture fills the canvas; the bolt stays inside the 66dp safe circle on the 108dp adaptive canvas and the central 192dp circle on the 288dp splash canvas. Legacy launcher icons and Android in-app branding use the visible crop of the same composition.

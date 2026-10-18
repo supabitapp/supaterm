@@ -44,7 +44,6 @@ import {
   latestExecutedRun,
   latestRootProviderFailure,
 } from "@supaterm/shared/orchestrationV2ThreadError";
-import type { UsageLimitSourceSnapshots } from "@supaterm/contracts";
 import { headlineUsageWindows, isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
@@ -548,7 +547,6 @@ import { observeResize } from "~/lib/observeResize";
 
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PROVIDER_MODELS: ServerProvider["models"] = [];
-const EMPTY_USAGE_LIMIT_SOURCES: UsageLimitSourceSnapshots = [];
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 
 const TIMELINE_SCROLL_CANCEL_SENTINEL = Object.freeze({});
@@ -1284,6 +1282,7 @@ export default function ChatView(props: ChatViewProps) {
   const fanoutSelectionsAtom = draftFanoutSelectionsAtom(routeThreadKey);
   const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
   const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
+  const isSendInFlightStable = useStableCallback(() => sendInFlightRef.current);
   const [resumingThreadKeys, setResumingThreadKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -2390,7 +2389,6 @@ export default function ChatView(props: ChatViewProps) {
     providerInstanceId: activeProviderInstanceId,
     providerDriver: activeProviderStatus?.driver ?? null,
     providers: providerStatuses,
-    sources: serverConfig?.usageLimitSources ?? EMPTY_USAGE_LIMIT_SOURCES,
   });
   const {
     resetLocalDispatch,
@@ -6822,6 +6820,7 @@ export default function ChatView(props: ChatViewProps) {
             draftId={draftId}
             activeProjectRef={activeProjectRef}
             activeProjectTitle={activeProject?.title ?? null}
+            isSendInFlight={isSendInFlightStable}
           />
         ) : null
       }

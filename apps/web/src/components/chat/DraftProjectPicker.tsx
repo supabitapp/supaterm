@@ -19,7 +19,7 @@ import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useScratchProject } from "~/hooks/useScratchProject";
 import { useClientSettings } from "~/hooks/useSettings";
 import { usePickerShortcuts } from "~/hooks/usePickerShortcuts";
-import { hasExplicitComposerModelSelection } from "~/lib/chatThreadActions";
+import { moveDraftToProject, resolveNewDraftWorkspace } from "~/lib/newDraftWorkspace";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -48,7 +48,6 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Kbd } from "../ui/kbd";
 import { ComposerControl } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
-import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { normalizeSearchQuery, scoreQueryMatch } from "@supaterm/shared/searchRanking";
 
 // Menu value for "No project"; real entries are keyed by logical project key.
@@ -58,6 +57,7 @@ interface DraftProjectPickerProps {
   readonly draftId: DraftId | null;
   readonly activeProjectRef: ScopedProjectRef | null;
   readonly activeProjectTitle: string | null;
+  readonly isSendInFlight: () => boolean;
 }
 
 // The picker's handlers pass catalog entries to plain functions after later hooks, so the
@@ -117,6 +117,7 @@ export function DraftProjectPicker({
   draftId,
   activeProjectRef,
   activeProjectTitle,
+  isSendInFlight,
 }: DraftProjectPickerProps) {
   const {
     projects,
@@ -129,12 +130,7 @@ export function DraftProjectPicker({
     showProjectEnvironments,
     environmentMachineById,
   } = useDraftProjectCatalog(activeProjectRef);
-  const setLogicalProjectDraftThreadId = useComposerDraftStore(
-    (store) => store.setLogicalProjectDraftThreadId,
-  );
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
-  const applyStickyState = useComposerDraftStore((store) => store.applyStickyState);
-  const setModelSelection = useComposerDraftStore((store) => store.setModelSelection);
   const openAddProject = () => openCommandPalette({ open: "add-project" });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, openScratchProject } = useScratchProject();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -177,8 +173,8 @@ export function DraftProjectPicker({
   const isScratchDraft =
     activeProject !== null && isScratchProject(activeProject, scratchWorkspaceRoot);
 
-  // The picker can change the draft's target while the no-project home is
-  // still being opened; a stale continuation must not retarget it again.
+  // The draft can move elsewhere while the no-project home is still being
+  // opened; a stale continuation must not retarget it again.
   const latestTargetRef = useRef({ draftId, activeProjectKey, scratchTargetEnvironmentId });
   useEffect(() => {
     latestTargetRef.current = { draftId, activeProjectKey, scratchTargetEnvironmentId };
@@ -187,47 +183,44 @@ export function DraftProjectPicker({
   // prompt stays in the same composer session, so the sidebar only gets a
   // draft row if the user later navigates away.
   const openProjectDraft = useNewThreadHandler();
+  // Each choice takes a new request, so one still waiting on its project's
+  // defaults or folder yields to a later choice, even one that keeps the
+  // current project.
+  const moveRequestRef = useRef(0);
   const selectProject = (project: (typeof projects)[number], logicalProjectKey: string) => {
     if (!draftId) {
       return;
     }
-    latestTargetRef.current = {
-      draftId,
-      activeProjectKey: logicalProjectKey,
-      scratchTargetEnvironmentId: project.environmentId,
-    };
-    const currentDraft = getComposerDraft(draftId);
+    const moveRequest = ++moveRequestRef.current;
+    const projectRef = scopeProjectRef(project.environmentId, project.id);
     if (
-      !composerDraftHasUserContent(currentDraft) &&
+      !composerDraftHasUserContent(getComposerDraft(draftId)) &&
       draftThreadHasOpenPreview(useComposerDraftStore.getState().getDraftSession(draftId))
     ) {
-      void openProjectDraft(scopeProjectRef(project.environmentId, project.id));
+      void openProjectDraft(projectRef);
       return;
     }
-    setLogicalProjectDraftThreadId(
-      logicalProjectKey,
-      scopeProjectRef(project.environmentId, project.id),
-      draftId,
-    );
-    if (!hasExplicitComposerModelSelection(currentDraft)) {
-      applyStickyState(draftId);
-      const environmentSettings = environments.find(
-        (environment) => environment.environmentId === project.environmentId,
-      )?.serverConfig?.settings;
-      const defaultModelSelection = environmentSettings
-        ? resolveProjectSettings(environmentSettings, project.id, project).settings
-            .defaultModelSelection
-        : project.defaultModelSelection;
-      if (defaultModelSelection) {
-        setModelSelection(draftId, defaultModelSelection, {
-          replaceOptions: true,
-        });
+    const serverConfig = environments.find(
+      (environment) => environment.environmentId === project.environmentId,
+    )?.serverConfig;
+    void resolveNewDraftWorkspace(projectRef, serverConfig).then((workspace) => {
+      // A send that started meanwhile goes to the project still shown.
+      if (moveRequestRef.current !== moveRequest || isSendInFlight()) {
+        return;
       }
-    }
+      moveDraftToProject({
+        draftId,
+        project,
+        logicalProjectKey,
+        serverSettings: serverConfig?.settings ?? null,
+        workspace,
+      });
+    });
   };
   // Moves the draft to No project. Focus goes to the prompt unless the user has
   // already moved it elsewhere while the folder was being prepared.
   const startScratch = async () => {
+    const moveRequest = ++moveRequestRef.current;
     if (scratchTargetEnvironmentId === null || isScratchDraft) {
       return;
     }
@@ -236,6 +229,7 @@ export function DraftProjectPicker({
     const latest = latestTargetRef.current;
     if (
       !project ||
+      moveRequestRef.current !== moveRequest ||
       latest.draftId !== requested.draftId ||
       latest.activeProjectKey !== requested.activeProjectKey ||
       latest.scratchTargetEnvironmentId !== requested.scratchTargetEnvironmentId
@@ -291,8 +285,14 @@ export function DraftProjectPicker({
       return;
     }
     const entry = projectEntryByKey.get(item.value);
-    if (entry && item.value !== activeProjectKey)
-      selectProject(entry.targetProject, entry.group.projectKey);
+    if (!entry) {
+      return;
+    }
+    if (item.value === activeProjectKey) {
+      moveRequestRef.current += 1;
+      return;
+    }
+    selectProject(entry.targetProject, entry.group.projectKey);
   };
   const projectJumpLabels = usePickerShortcuts({
     picker: "project",

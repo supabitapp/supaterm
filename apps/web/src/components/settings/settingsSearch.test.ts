@@ -123,15 +123,12 @@ describe("searchSettings", () => {
     ]);
   });
 
-  it.each(["usage providers", "CLIProxyAPI", "CLI proxy hub", "management key"])(
-    "finds usage-provider management by %s",
-    (query) => {
-      expect(searchSettings(query)[0]).toMatchObject({
-        id: "usage-providers",
-        to: "/settings/providers",
-      });
-    },
-  );
+  it("finds usage providers", () => {
+    expect(searchSettings("usage providers")[0]).toMatchObject({
+      id: "usage-providers",
+      to: "/settings/providers",
+    });
+  });
 
   it("returns no results for an empty query", () => {
     expect(searchSettings("   ", ITEMS)).toEqual([]);
@@ -217,7 +214,9 @@ describe("searchSettings", () => {
         hasMacProviderSettingsEnvironment: macAvailable,
       }).map((item) => item.id);
     expect(itemIds(false)).not.toContain("cursor-keychain-usage");
+    expect(itemIds(false)).not.toContain("usage-providers");
     expect(itemIds(true)).toContain("cursor-keychain-usage");
+    expect(itemIds(true)).toContain("usage-providers");
   });
 
   it("shows automatic settlement settings when the server supports them", () => {

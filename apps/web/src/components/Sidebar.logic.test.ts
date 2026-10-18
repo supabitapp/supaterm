@@ -1021,26 +1021,46 @@ describe("resolveSidebarV2DurationStartedAt", () => {
     },
   });
 
-  it("keeps counting after the parent run settles with background work", () => {
-    expect(resolveSidebarV2DurationStartedAt(thread)).toBe("2026-03-09T10:00:00.000Z");
+  it("counts a wait from when the parent run settled, not from when its work began", () => {
+    expect(resolveSidebarV2DurationStartedAt(thread)).toBe("2026-03-09T10:05:00.000Z");
   });
 
-  it("prefers the activity start carried across background wakes", () => {
+  it("counts work from the activity start carried across background wakes", () => {
     expect(
       resolveSidebarV2DurationStartedAt({
         ...thread,
-        runtime: { ...thread.runtime!, activityStartedAt: "2026-03-09T09:55:00.000Z" },
+        runtime: {
+          ...thread.runtime!,
+          status: "running",
+          activityStartedAt: "2026-03-09T09:55:00.000Z",
+        },
       }),
     ).toBe("2026-03-09T09:55:00.000Z");
   });
 
-  it("falls back to request time when the done run has no valid start", () => {
+  it("does not count a wait from the work start while the parked run is still settling", () => {
     expect(
       resolveSidebarV2DurationStartedAt({
         ...thread,
-        latestRun: makeLatestRun({ startedAt: "invalid" }),
+        latestRun: makeLatestRun({ completedAt: null }),
+        runtime: { ...thread.runtime!, activityStartedAt: "2026-03-09T09:55:00.000Z" },
       }),
-    ).toBe("2026-03-09T10:00:00.000Z");
+    ).toBeNull();
+  });
+
+  it("leaves a wait untimed when the latest run never started or has no valid completion", () => {
+    expect(
+      resolveSidebarV2DurationStartedAt({
+        ...thread,
+        latestRun: makeLatestRun({ startedAt: null }),
+      }),
+    ).toBeNull();
+    expect(
+      resolveSidebarV2DurationStartedAt({
+        ...thread,
+        latestRun: makeLatestRun({ completedAt: "invalid" }),
+      }),
+    ).toBeNull();
   });
 
   it("leaves ready threads and waits without a known run untimed", () => {

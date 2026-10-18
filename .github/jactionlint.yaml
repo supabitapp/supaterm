@@ -1,0 +1,30 @@
+rules:
+  unpinned-uses:
+    policies:
+      "actions/*": ref-pin
+
+ignores:
+  - rule: [dangerous-triggers, concurrency-limits]
+    file: .github/workflows/{web,desktop-macos}-preview-publish.yml
+    reason: Trusted half of a PR preview. It runs only main's code, publishes only for vouched authors, and serializes per PR in job-level groups.
+  - rule: dangerous-triggers
+    file: .github/workflows/pr-size.yml
+    reason: Reads the PR only as git data to count changed lines and never runs its code.
+  - rule: [dangerous-triggers, concurrency-limits, concurrency-cancels-prs]
+    file: .github/workflows/pr-vouch.yml
+    reason: Reads PR metadata to label it and never checks out PR code. The label job groups by matrix.target.number, the PR number; a workflow-level group would let any PR comment cancel a labeling run.
+  - rule: [dangerous-triggers, excessive-permissions]
+    file: .github/workflows/thread-transfer-report.yml
+    reason: Loads its publisher from the default branch and reads the PR artifact as data. pull-requests write posts the report comment.
+  - rule: concurrency-limits
+    file: .github/workflows/mobile-showcase-screenshots.yml
+    reason: A reusable workflow whose runs differ by inputs; a group here would cancel unrelated captures or deadlock with its caller.
+  - rule: secrets-inherit
+    uses: ./.github/workflows/release-desktop.yml
+    reason: The called job's release environment secrets resolve empty unless the caller passes secrets, so signing never loads.
+  - rule: superfluous-actions
+    uses: softprops/action-gh-release
+    reason: A rerun updates the existing release and replaces its assets, which gh release create does not do.
+  - rule: unpinned-images
+    file: .github/workflows/publish-aur.yml
+    reason: Arch is rolling and the job upgrades the whole image with pacman -Syu; a pinned digest would only age its keyring with nothing to bump it.

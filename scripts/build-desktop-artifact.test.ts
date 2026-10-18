@@ -259,12 +259,14 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   it("switches desktop packaging icons to the nightly artwork for nightly versions", () => {
     assert.deepStrictEqual(resolveDesktopBuildIconAssets("0.0.17"), {
       macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
+      macIconProject: BRAND_ASSET_PATHS.productionIconComposerProject,
       linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
       windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
     });
 
     assert.deepStrictEqual(resolveDesktopBuildIconAssets("0.0.17-nightly.20260413.42"), {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
+      macIconProject: BRAND_ASSET_PATHS.nightlyIconComposerProject,
       linuxIconPng: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
       windowsIconIco: BRAND_ASSET_PATHS.nightlyWindowsIconIco,
     });
@@ -964,8 +966,10 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
             };
             const fails =
               childProcess.command === "rustc" ||
-              (childProcess.command === "xcrun" && childProcess.args.includes("iconutil"));
-            return Effect.succeed(mockProcess(fails ? 1 : 0));
+              (childProcess.command === "xcrun" && childProcess.args.includes("actool"));
+            return Effect.succeed(
+              mockProcess(fails ? 1 : 0, childProcess.command === "xcodebuild" ? "Xcode 27.1" : ""),
+            );
           }),
         );
         const error = yield* preflightMacDesktopBuild("universal").pipe(
@@ -974,9 +978,9 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         );
 
         assert.instanceOf(error, MacDesktopBuildPrerequisitesMissingError);
-        assert.deepStrictEqual(error.missing, ["rust", "iconutil"]);
+        assert.deepStrictEqual(error.missing, ["rust", "actool"]);
         assert.deepStrictEqual(error.rustTargets, ["aarch64-apple-darwin", "x86_64-apple-darwin"]);
-        assert.include(error.message, "xcode-select --install");
+        assert.include(error.message, "Xcode 27 or newer");
         assert.include(error.message, "rustup target add aarch64-apple-darwin x86_64-apple-darwin");
       }),
     ),

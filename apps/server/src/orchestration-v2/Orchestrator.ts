@@ -419,7 +419,26 @@ function wakeWorkStartedAt(
       (left, right) =>
         DateTime.Order(right.startedAt, left.startedAt) || right.run.ordinal - left.run.ordinal,
     )[0]?.run;
-  return previous === undefined ? {} : { workStartedAt: orchestrationV2RunWorkStartedAt(previous) };
+  return continuedWorkStartedAt(previous);
+}
+
+function continuedWorkStartedAt(
+  run: OrchestrationV2Run | undefined,
+): Pick<OrchestrationV2Run, "workStartedAt"> {
+  return run === undefined ? {} : { workStartedAt: orchestrationV2RunWorkStartedAt(run) };
+}
+
+/**
+ * A steer that misses its turn comes back as a new run, but the user is still
+ * waiting on the steered work, so that run keeps the work's start.
+ */
+function runSteeredByMessage(
+  projection: Pick<OrchestrationV2ThreadProjection, "messages" | "runs">,
+  messageId: MessageId,
+): OrchestrationV2Run | undefined {
+  const message = projection.messages.find((candidate) => candidate.id === messageId);
+  const run = projection.runs.find((candidate) => candidate.id === message?.runId);
+  return run?.userMessageId === messageId ? undefined : run;
 }
 
 function isGoalCommand(message: {
@@ -4378,6 +4397,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         userMessageId: input.messageId,
         status: "starting",
         contextHandoffId: restartHandoff?.id ?? targetRun.contextHandoffId,
+        ...continuedWorkStartedAt(targetRun),
       };
       const nextAttempt: OrchestrationV2RunAttempt = {
         id: nextAttemptId,
@@ -4743,6 +4763,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         command.dispatchMode,
         command.deliveryIntent,
       );
+      let steeredRun = runSteeredByMessage(projection, command.messageId);
       if (dispatchMode.type === "steer_active") {
         const targetRunId = dispatchMode.targetRunId;
         const target = projection.runs.find((run) => run.id === targetRunId);
@@ -4760,8 +4781,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               turn.status === "completed"))
         ) {
           dispatchMode = { type: "start_immediately" };
+          // A completed target may have settled long before this stale client
+          // caught up, so its start says nothing about how long the user waited.
+          if (target.status !== "completed") steeredRun = target;
         }
       }
+      const steeredWorkStartedAt = continuedWorkStartedAt(steeredRun);
       if (
         command.notification !== undefined &&
         (command.createdBy !== "agent" ||
@@ -5093,6 +5118,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             ? {}
             : { restartContinuationOfRunId: command.restartContinuationOfRunId }),
           ...(continuedTaskId === undefined ? {} : { delegatedTaskId: continuedTaskId }),
+          ...steeredWorkStartedAt,
         };
         const attempt: OrchestrationV2RunAttempt = {
           id: attemptId,
@@ -5437,6 +5463,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             : {}),
           ...(continuedTaskId === undefined ? {} : { delegatedTaskId: continuedTaskId }),
           ...wakeWorkStartedAt(projection.runs, command),
+          ...steeredWorkStartedAt,
         };
         const attempt: OrchestrationV2RunAttempt = {
           id: attemptId,
@@ -6131,6 +6158,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           : { restartContinuationOfRunId: command.restartContinuationOfRunId }),
         ...(continuedTaskId === undefined ? {} : { delegatedTaskId: continuedTaskId }),
         ...wakeWorkStartedAt(projection.runs, command),
+        ...steeredWorkStartedAt,
       };
       const attempt: OrchestrationV2RunAttempt = {
         id: attemptId,

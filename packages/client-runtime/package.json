@@ -23,6 +23,10 @@
       "types": "./src/diagramRendering.ts",
       "default": "./src/diagramRendering.ts"
     },
+    "./preview-zoom": {
+      "types": "./src/previewZoom.ts",
+      "default": "./src/previewZoom.ts"
+    },
     "./composerThreadItems": {
       "types": "./src/composerThreadItems.ts",
       "default": "./src/composerThreadItems.ts"
