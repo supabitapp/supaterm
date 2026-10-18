@@ -194,7 +194,9 @@ The C toolchain, pkg-config, and libsecret headers are also needed for Linux des
 
 ### macOS DMG prerequisites
 
-Install the Xcode Command Line Tools with `xcode-select --install` and install Rust.
+Install Xcode 26 or newer and Rust. Select Xcode's developer directory with `xcode-select`.
+The full Xcode installation provides `actool`, which compiles the adaptive macOS app icon for
+release bundles and the local desktop launcher.
 For a cross-architecture or universal build, add the requested Rust targets:
 
 ```sh

@@ -18,7 +18,9 @@ Exporting requires Icon Composer 2 or newer on macOS. The script selects the new
 
 ## macOS exports
 
-The desktop app's macOS icons are 1024×1024 PNGs with the classic macOS safe area: the opaque icon body is 824×824, inset 100 pixels on every side, with only the native shadow extending into the surrounding transparent canvas. macOS 26 and later re-mask this rendition to the system shape, but show a full-bleed icon inside a gray tile.
+macOS release packaging and the local desktop launcher compile the Icon Composer project with `actool`. Each app bundle includes `Assets.car` and declares `CFBundleIconName`, so macOS can select the native light, dark, and tinted appearances. The compiled `.icns` provides the fallback for older macOS versions. Building macOS release artifacts or using the local development launcher requires Xcode 26 or newer.
+
+The static macOS PNGs are 1024×1024 with the classic macOS safe area: the opaque icon body is 824×824, inset 100 pixels on every side, with only the native shadow extending into the surrounding transparent canvas. macOS 26 and later re-mask this rendition to the system shape, but show a full-bleed icon inside a gray tile.
 
 Since Icon Composer 27, both its command-line `macOS` export and the app's `macOS pre-Tahoe` preset are full bleed, so the export script leaves the tracked macOS PNGs unchanged and prints a reminder after every run. Render them with Xcode's asset compiler instead, which still builds the classic rendition. Run this from the repository root; `actool` needs an absolute input path, and `--standalone-icon-behavior all` is what adds the 1024px entry to the compiled `.icns`:
 
