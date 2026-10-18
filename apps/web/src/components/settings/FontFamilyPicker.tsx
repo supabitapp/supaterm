@@ -1,6 +1,6 @@
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
 import { CheckIcon } from "lucide-react";
-import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { isMonospaceFamily, queryInstalledFontFamilies } from "../../appearanceFonts";
 import {
   Combobox,
@@ -118,12 +118,9 @@ export function FontFamilyPicker({
     if (nextOpen) setQuery("");
   };
 
-  const families = useMemo(() => {
-    if (enumeration.status !== "granted") return [];
-    return enumeration.families;
-  }, [enumeration]);
+  const families = enumeration.status === "granted" ? enumeration.families : [];
 
-  const items = useMemo(() => {
+  const items = (() => {
     const trimmedQuery = query.trim().toLowerCase();
     const result: string[] = [];
     if (trimmedQuery.length === 0) result.push(DEFAULT_FONT_VALUE);
@@ -133,7 +130,7 @@ export function FontFamilyPicker({
       ),
     );
     return result;
-  }, [query, families]);
+  })();
 
   const selectedValue = selectedFamily.length === 0 ? DEFAULT_FONT_VALUE : selectedFamily;
 
