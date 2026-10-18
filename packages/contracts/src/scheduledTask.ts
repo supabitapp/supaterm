@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 
 import {
   CommandId,
+  ForwardCompatibleArray,
   IsoDateTime,
   ProjectId,
   ScheduledTaskId,
@@ -94,7 +95,9 @@ export const ScheduledTaskListInput = Schema.Struct({});
 export type ScheduledTaskListInput = typeof ScheduledTaskListInput.Type;
 
 export const ScheduledTaskListResult = Schema.Struct({
-  tasks: Schema.Array(ScheduledTask),
+  // Trigger types grow over time; a client must not lose the whole list over
+  // one task it cannot decode.
+  tasks: ForwardCompatibleArray(ScheduledTask),
 });
 export type ScheduledTaskListResult = typeof ScheduledTaskListResult.Type;
 
