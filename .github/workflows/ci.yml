@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Reject repository-owned PR assets
         run: |
@@ -35,6 +37,8 @@ jobs:
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+      - name: Lint GitHub Actions
+        run: mise exec -- jactionlint --format github --shellcheck=shellcheck
       - name: Install workspace dependencies
         run: mise exec -- vp install
       - name: Ensure Electron runtime is installed
@@ -59,6 +63,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
@@ -77,6 +83,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-apt-mirrors
 
@@ -123,6 +131,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-apt-mirrors
 
@@ -163,6 +173,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
@@ -190,6 +202,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
@@ -266,9 +280,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt
 
@@ -373,6 +389,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
@@ -391,6 +409,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise

@@ -31,6 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
@@ -56,9 +58,12 @@ jobs:
       # so file-scoped runs call `vp test run` inside the package instead.
       - name: Test
         shell: pwsh
+        env:
+          INPUTS_PACKAGE: ${{ inputs.package }}
+          INPUTS_FILES: ${{ inputs.files }}
         run: |
-          $package = '${{ inputs.package }}'
-          $files = '${{ inputs.files }}'
+          $package = $env:INPUTS_PACKAGE
+          $files = $env:INPUTS_FILES
           if ($package -eq '') {
             vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' test
           } elseif ($files -eq '') {

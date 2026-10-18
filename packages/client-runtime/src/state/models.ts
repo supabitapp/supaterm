@@ -300,7 +300,8 @@ export function resolveThreadProviderStack(
 
 /**
  * Both shell and detail timers count from the activity-owning run's work
- * start, never last activity. A wake keeps the start of the work it continues.
+ * start, never last activity. A wake or steer keeps the start of the work it
+ * continues.
  */
 export function resolveThreadWorkingStartedAt(input: {
   readonly latestRun: Pick<

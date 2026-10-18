@@ -55,6 +55,8 @@ permissions:
 
 env:
   NODE_OPTIONS: --max-old-space-size=8192
+  SHOWCASE_APPEARANCE: ${{ inputs.appearance }}
+  SHOWCASE_THEME: ${{ inputs.theme }}
 
 jobs:
   ios:
@@ -68,6 +70,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ inputs.source_sha || github.sha }}
 
       - name: Setup Mise
@@ -87,9 +90,6 @@ jobs:
         run: mise exec -- pnpm --version
 
       - name: Capture iOS showcase
-        env:
-          SHOWCASE_APPEARANCE: ${{ inputs.appearance }}
-          SHOWCASE_THEME: ${{ inputs.theme }}
         run: |
           capture_args=(--platform ios --appearance "$SHOWCASE_APPEARANCE" --theme "$SHOWCASE_THEME")
           devices="$(node --input-type=module -e 'import config from "./scripts/mobile-showcase.config.ts"; for (const device of config.devices) if (device.platform === "ios") console.log(device.id);')"
@@ -100,7 +100,7 @@ jobs:
           done <<< "$devices"
 
       - name: Validate App Store Connect assets
-        run: pnpm screenshots:mobile --platform ios --appearance "${{ inputs.appearance }}" --theme "${{ inputs.theme }}" --validate-only
+        run: pnpm screenshots:mobile --platform ios --appearance "$SHOWCASE_APPEARANCE" --theme "$SHOWCASE_THEME" --validate-only
 
       - name: Upload iOS screenshots
         if: always()
@@ -125,6 +125,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ inputs.source_sha || github.sha }}
 
       - name: Setup Mise
@@ -143,7 +144,7 @@ jobs:
           java-version: 17
 
       - name: Setup Gradle cache
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
 
       - name: Enable KVM
         run: |
@@ -169,7 +170,7 @@ jobs:
           free -m
 
       - name: Capture Android showcase
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
           target: google_apis
@@ -181,10 +182,10 @@ jobs:
           disable-animations: false
           script: |
             adb shell settings put global hide_error_dialogs 1
-            pnpm screenshots:mobile --platform android --appearance "${{ inputs.appearance }}" --theme "${{ inputs.theme }}" --skip-build
+            pnpm screenshots:mobile --platform android --appearance "$SHOWCASE_APPEARANCE" --theme "$SHOWCASE_THEME" --skip-build
 
       - name: Validate Google Play assets
-        run: pnpm screenshots:mobile --platform android --appearance "${{ inputs.appearance }}" --theme "${{ inputs.theme }}" --validate-only
+        run: pnpm screenshots:mobile --platform android --appearance "$SHOWCASE_APPEARANCE" --theme "$SHOWCASE_THEME" --validate-only
 
       - name: Upload Android screenshots
         if: always()

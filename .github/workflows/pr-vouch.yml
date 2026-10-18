@@ -12,15 +12,15 @@ on:
       - .github/VOUCHED.td
       - .github/workflows/pr-vouch.yml
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   collect-targets:
     name: Collect PR targets
     runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pull-requests: read
     outputs:
       targets: ${{ steps.collect.outputs.targets }}
     steps:
@@ -67,6 +67,11 @@ jobs:
     needs: collect-targets
     if: ${{ needs.collect-targets.outputs.targets != '[]' }}
     runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     concurrency:
       group: pr-vouch-${{ matrix.target.number }}
       cancel-in-progress: true
@@ -77,7 +82,7 @@ jobs:
     steps:
       - id: vouch
         name: Check PR author trust
-        uses: mitchellh/vouch/action/check-user@v1
+        uses: mitchellh/vouch/action/check-user@d66fa29a64600490892131ad87597c30c91fcac4 # v1
         with:
           user: ${{ matrix.target.user }}
           allow-fail: true

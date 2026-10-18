@@ -59,6 +59,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           sparse-checkout: .github/scripts
 
       - id: resolve
@@ -110,7 +111,6 @@ jobs:
       version: ${{ steps.release_meta.outputs.version }}
       tag: ${{ steps.release_meta.outputs.tag }}
       release_name: ${{ steps.release_meta.outputs.name }}
-      short_sha: ${{ steps.release_meta.outputs.short_sha }}
       previous_tag: ${{ steps.previous_tag.outputs.previous_tag }}
       cli_dist_tag: ${{ steps.release_meta.outputs.cli_dist_tag }}
       is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
@@ -120,11 +120,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.resolve_commit.outputs.ref }}
           fetch-depth: 0
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install
         env:
@@ -137,12 +140,11 @@ jobs:
           DISPATCH_CHANNEL: ${{ github.event.inputs.channel }}
           DISPATCH_VERSION: ${{ github.event.inputs.version }}
           NIGHTLY_VERSION: ${{ needs.resolve_commit.outputs.nightly_version }}
-          NIGHTLY_DATE: ${{ github.run_started_at }}
           NIGHTLY_SHA: ${{ needs.resolve_commit.outputs.ref }}
           NIGHTLY_RUN_NUMBER: ${{ github.run_number }}
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" || ( "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-preview}" == "nightly" ) ]]; then
-            nightly_date="$(date -u -d "$NIGHTLY_DATE" +%Y%m%d)"
+            nightly_date="$(date -u +%Y%m%d)"
 
             node scripts/resolve-nightly-release.ts \
               --date "$nightly_date" \
@@ -150,10 +152,12 @@ jobs:
               --sha "$NIGHTLY_SHA" \
               --github-output
 
-            echo "release_channel=nightly" >> "$GITHUB_OUTPUT"
-            echo "cli_dist_tag=nightly" >> "$GITHUB_OUTPUT"
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "release_channel=nightly"
+              echo "cli_dist_tag=nightly"
+              echo "is_prerelease=true"
+              echo "make_latest=false"
+            } >> "$GITHUB_OUTPUT"
           elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-preview}" == "preview" ]]; then
             # Manual-only test train: exercises the whole release flow for a
             # commit end users must never receive.
@@ -163,7 +167,7 @@ jobs:
             # its desktop builds carry no update feed, and no updater manifest
             # is attached to the release, so neither stable nor nightly
             # installs can ever be offered one.
-            nightly_date="$(date -u -d "$NIGHTLY_DATE" +%Y%m%d)"
+            nightly_date="$(date -u +%Y%m%d)"
 
             node scripts/resolve-nightly-release.ts \
               --channel preview \
@@ -172,10 +176,12 @@ jobs:
               --sha "$NIGHTLY_SHA" \
               --github-output
 
-            echo "release_channel=preview" >> "$GITHUB_OUTPUT"
-            echo "cli_dist_tag=preview" >> "$GITHUB_OUTPUT"
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "release_channel=preview"
+              echo "cli_dist_tag=preview"
+              echo "is_prerelease=true"
+              echo "make_latest=false"
+            } >> "$GITHUB_OUTPUT"
           else
             if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
               raw="${DISPATCH_VERSION:-$NIGHTLY_VERSION}"
@@ -193,11 +199,13 @@ jobs:
               exit 1
             fi
 
-            echo "release_channel=stable" >> "$GITHUB_OUTPUT"
-            echo "version=$version" >> "$GITHUB_OUTPUT"
-            echo "tag=v$version" >> "$GITHUB_OUTPUT"
-            echo "name=Supaterm v$version" >> "$GITHUB_OUTPUT"
-            echo "cli_dist_tag=latest" >> "$GITHUB_OUTPUT"
+            {
+              echo "release_channel=stable"
+              echo "version=$version"
+              echo "tag=v$version"
+              echo "name=Supaterm v$version"
+              echo "cli_dist_tag=latest"
+            } >> "$GITHUB_OUTPUT"
             if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
               echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
               echo "make_latest=true" >> "$GITHUB_OUTPUT"
@@ -233,10 +241,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install
       - name: Ensure Electron runtime is installed
@@ -260,10 +271,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install
       - name: Ensure Electron runtime is installed
@@ -293,10 +307,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install
       - name: Install Chromium for server browser integration tests
@@ -317,10 +334,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Download dependency verification
         continue-on-error: true
         uses: actions/download-artifact@v8
@@ -505,10 +525,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=supaterm... --filter=@supaterm/scripts...
       - name: Build the npm launcher
@@ -546,10 +569,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=@supaterm/scripts...
       - name: Download all desktop artifacts
@@ -671,7 +697,7 @@ jobs:
 
       - name: Publish release
         if: needs.preflight.outputs.previous_tag != ''
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.preflight.outputs.tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
@@ -687,7 +713,7 @@ jobs:
 
       - name: Publish first release
         if: needs.preflight.outputs.previous_tag == ''
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.preflight.outputs.tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
@@ -717,10 +743,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=supaterm... --filter=@supaterm/scripts...
       - name: Build the npm launcher
@@ -757,9 +786,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=@supaterm/scripts... --filter=@supaterm/web...
       - name: Build hosted app
@@ -786,9 +818,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Download hosted app
         uses: actions/download-artifact@v8
         with:
@@ -814,9 +849,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=@supaterm/marketing...
       - name: Build site
@@ -839,9 +877,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Download site
         uses: actions/download-artifact@v8
         with:
@@ -871,6 +912,8 @@ jobs:
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
 
       - name: Load release App credentials
         uses: ./.github/actions/load-release-secrets
@@ -886,6 +929,7 @@ jobs:
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
+          permission-contents: write
 
       - name: Checkout
         uses: actions/checkout@v6
@@ -907,6 +951,8 @@ jobs:
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=@supaterm/scripts... --filter=@supaterm/oxlint-plugin-supaterm...
       - id: update_versions

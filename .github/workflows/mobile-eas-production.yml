@@ -54,6 +54,7 @@ jobs:
   prepare:
     name: Prepare mobile release
     runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 10
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'build' && inputs.version != '' && 'release' || '' }}
     outputs:
       enabled: ${{ steps.expo-token.outputs.present }}
@@ -86,6 +87,8 @@ jobs:
       - name: Setup Mise
         if: steps.expo-token.outputs.present == 'true'
         uses: ./.github/actions/setup-mise
+        with:
+          cache: false
 
       - name: Load release App credentials for version override
         if: steps.expo-token.outputs.present == 'true' && github.event_name == 'workflow_dispatch' && inputs.mode == 'build' && inputs.version != ''
@@ -103,6 +106,7 @@ jobs:
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
+          permission-contents: write
 
       - name: Checkout with version override push credentials
         if: steps.version_app_token.outcome == 'success'
@@ -192,16 +196,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-mobile-release
         with:
           token: ${{ secrets.EXPO_TOKEN }}
           environment: production
+          cache: false
       - id: config
         name: Resolve native fingerprint and app version
         working-directory: apps/mobile
         run: |
+          set -o pipefail
           version=$(npx expo config --json --type public | jq -er '.version')
           fingerprint=$(eas fingerprint:generate --platform "$MOBILE_PLATFORM" --environment production --json --non-interactive | sed -n '/^{/,$p' | jq -er '.hash')
           echo "version=$version" >> "$GITHUB_OUTPUT"

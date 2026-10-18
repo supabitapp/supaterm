@@ -8,16 +8,14 @@ export function formatWorkingDurationLabel(elapsedMs: number): string {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-/** Settled background work keeps counting from the parent run's start while
- * it waits for a wake. Active work retains its start across background wakes. */
+/** Working counts the whole wait for a response, across background wakes and
+ * steers. Waiting counts only since the work parked on background tasks; a run
+ * that never started, such as a cancelled queued message, never parked. */
 export function resolveThreadListDurationStartedAt(
   thread: Pick<EnvironmentThreadShell, "latestRun" | "runtime">,
 ): string | null {
-  const activityStartedAt = resolveThreadWorkingStartedAt(thread);
-  if (activityStartedAt !== null || thread.runtime?.status !== "idle") return activityStartedAt;
-  return (
-    [thread.latestRun?.startedAt, thread.latestRun?.requestedAt].find(
-      (timestamp) => timestamp != null && Number.isFinite(Date.parse(timestamp)),
-    ) ?? null
-  );
+  if (thread.runtime?.status !== "idle") return resolveThreadWorkingStartedAt(thread);
+  const run = thread.latestRun;
+  if (run?.startedAt == null || run.completedAt == null) return null;
+  return Number.isFinite(Date.parse(run.completedAt)) ? run.completedAt : null;
 }

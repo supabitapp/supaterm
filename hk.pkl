@@ -1,5 +1,5 @@
-amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Builtins.pkl"
 
 steps {
   ["vp-fmt"] = (Builtins.vp_fmt) {
@@ -15,11 +15,7 @@ steps {
   }
   ["merge-conflicts"] = Builtins.check_merge_conflict
   ["case-conflicts"] = Builtins.check_case_conflict
-  ["actionlint"] {
-    glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
-    // Remove this compatibility exception when https://github.com/rhysd/actionlint/pull/694 ships.
-    check = "actionlint -ignore '^unexpected key \"background\" for step to run (shell command|action)\\.' {{files}}"
-  }
+  ["jactionlint"] = Builtins.jactionlint
   ["shellcheck"] {
     glob = List("**/*.sh", "**/*.bash")
     check = "shellcheck --severity=warning {{files}}"

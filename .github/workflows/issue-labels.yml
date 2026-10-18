@@ -9,13 +9,19 @@ on:
       - .github/workflows/issue-labels.yml
   workflow_dispatch:
 
-permissions:
-  issues: write
+permissions: {}
+
+concurrency:
+  group: issue-labels
+  cancel-in-progress: true
 
 jobs:
   sync:
     name: Sync issue labels
     runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      issues: write
     steps:
       - name: Ensure managed issue labels exist
         uses: actions/github-script@v8
