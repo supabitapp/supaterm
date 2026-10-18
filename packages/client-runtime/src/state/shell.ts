@@ -192,6 +192,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         }
         continue;
       }
+      if (item.kind === "unknown-item") continue;
       const nextSnapshot =
         item.kind === "snapshot"
           ? mergeShellSnapshotProjects(

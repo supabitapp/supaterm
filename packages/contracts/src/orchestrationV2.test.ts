@@ -221,6 +221,32 @@ describe("orchestration V2 contracts", () => {
     ).toThrow();
   });
 
+  it("decodes shell stream kinds from a newer server as skippable items", () => {
+    const codec = Schema.toCodecJson(Schema.Array(OrchestrationV2RpcSchemas.subscribeShell.output));
+    const decodeWireItems = Schema.decodeUnknownSync(codec);
+    const removed = (sequence: number) => ({
+      kind: "project.removed",
+      sequence,
+      projectId: "project-1",
+    });
+
+    const items = decodeWireItems([
+      removed(1),
+      { kind: "project.archived", sequence: 2, projectId: "project-1" },
+      removed(3),
+    ]);
+
+    expect(items.map((item) => item.kind)).toEqual([
+      "project.removed",
+      "unknown-item",
+      "project.removed",
+    ]);
+    expect(items[1]).toEqual({ kind: "unknown-item", itemKind: "project.archived" });
+    expect(() => decodeWireItems([{ kind: "project.removed", sequence: 4 }])).toThrow();
+    expect(Schema.encodeUnknownSync(codec)([items[0]])).toEqual([removed(1)]);
+    expect(() => Schema.encodeUnknownSync(codec)([items[1]])).toThrow();
+  });
+
   it("skips turn item types from a newer server in snapshots and turn-item events", () => {
     const decodeWireItems = Schema.decodeUnknownSync(
       Schema.toCodecJson(Schema.Array(OrchestrationV2RpcSchemas.subscribeThread.output)),

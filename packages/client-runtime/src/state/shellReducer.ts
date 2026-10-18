@@ -128,7 +128,9 @@ export function applyShellStreamEvent(
   snapshot: OrchestrationV2ShellSnapshot,
   event: Exclude<
     OrchestrationV2ShellStreamItem,
-    { readonly kind: "snapshot" } | { readonly kind: "synchronized" }
+    | { readonly kind: "snapshot" }
+    | { readonly kind: "synchronized" }
+    | { readonly kind: "unknown-item" }
   >,
 ): OrchestrationV2ShellSnapshot {
   if (event.sequence <= snapshot.snapshotSequence) return snapshot;

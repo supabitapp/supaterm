@@ -1926,7 +1926,7 @@ export const OrchestrationV2ShellSnapshot = Schema.Struct({
 });
 export type OrchestrationV2ShellSnapshot = typeof OrchestrationV2ShellSnapshot.Type;
 
-export const OrchestrationV2ShellStreamItem = Schema.Union([
+const OrchestrationV2KnownShellStreamItems = [
   Schema.Struct({
     kind: Schema.Literal("synchronized"),
   }),
@@ -1957,6 +1957,43 @@ export const OrchestrationV2ShellStreamItem = Schema.Union([
     location: Schema.Literals(["active", "archive"]),
     threadId: ThreadId,
   }),
+] as const;
+
+const knownShellStreamItemKinds: ReadonlySet<string> = new Set(
+  OrchestrationV2KnownShellStreamItems.map((member) => member.fields.kind.literal),
+);
+
+/**
+ * A shell stream item whose kind this build does not know. Newer servers add kinds; older
+ * clients decode them to this case and skip them instead of failing the whole subscription.
+ */
+const OrchestrationV2UnknownShellStreamItem = Schema.Struct({
+  kind: Schema.String.check(
+    Schema.makeFilter(
+      (kind: string) =>
+        !knownShellStreamItemKinds.has(kind) || "A known shell stream kind must decode in full.",
+    ),
+  ),
+}).pipe(
+  Schema.decodeTo(
+    Schema.Struct({
+      kind: Schema.Literal("unknown-item"),
+      itemKind: Schema.String,
+    }),
+    {
+      decode: SchemaGetter.transform((item) => ({
+        kind: "unknown-item" as const,
+        itemKind: item.kind,
+      })),
+      encode: SchemaGetter.forbidden(() => "Servers never send unknown shell stream items."),
+    },
+  ),
+);
+
+export const OrchestrationV2ShellStreamItem = Schema.Union([
+  ...OrchestrationV2KnownShellStreamItems,
+  // After the known arms: union members are tried in order.
+  OrchestrationV2UnknownShellStreamItem,
 ]);
 export type OrchestrationV2ShellStreamItem = typeof OrchestrationV2ShellStreamItem.Type;
 
