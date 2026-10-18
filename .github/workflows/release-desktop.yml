@@ -139,6 +139,15 @@ jobs:
       # repository's 10 GB Actions cache.
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+      - name: Select Xcode 27.1
+        if: inputs.platform == 'mac'
+        shell: bash
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+        run: |
+          xcodebuild -version
+          xcrun --find actool
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
       # pnpm checks the lockfile and policy before reusing this result. A missing
       # artifact leaves the cache empty, so installation runs the checks again.
       - name: Download dependency verification

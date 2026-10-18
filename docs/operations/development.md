@@ -37,6 +37,11 @@ Use `vp run dev` for server and web, or `vp run dev:desktop` for the Electron cl
 `dev:server` and `dev:web` start those processes separately.
 See the [mobile README](../../apps/mobile/README.md) for native builds and Metro.
 
+macOS desktop development and iOS builds require full Xcode 27 or newer. Select its developer
+directory with `DEVELOPER_DIR` or `xcode-select`; the Command Line Tools alone cannot compile the
+layered app icon. Native CI builds select Xcode 27.1 on the `xcode-27` preview runner image,
+preserving the iOS 27.1 SDK required for Duo support.
+
 Flags go directly after the task name, for example `vp run dev --home-dir /tmp/supaterm-dev`.
 Add `--browser` to open a browser automatically.
 
@@ -194,7 +199,7 @@ The C toolchain, pkg-config, and libsecret headers are also needed for Linux des
 
 ### macOS DMG prerequisites
 
-Install Xcode 26 or newer and Rust. Select Xcode's developer directory with `xcode-select`.
+Install Xcode 27 or newer and Rust. Select Xcode's developer directory with `xcode-select`.
 The full Xcode installation provides `actool`, which compiles the adaptive macOS app icon for
 release bundles and the local desktop launcher.
 For a cross-architecture or universal build, add the requested Rust targets:

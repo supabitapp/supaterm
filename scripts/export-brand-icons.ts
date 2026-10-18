@@ -18,7 +18,12 @@ import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 import { generateBrandIconDerivatives } from "./lib/brand-icon-derivatives.ts";
 import { encodePngIco, readPngDimensions, WINDOWS_ICON_SIZES } from "./lib/icon-export.ts";
 import { generateIconProjects } from "./lib/icon-projects.ts";
-import { MAC_ICON_NAME, macIconCompilerArguments } from "./lib/mac-icon-assets.ts";
+import {
+  MAC_ICON_NAME,
+  XCODE_REQUIREMENT,
+  isSupportedXcodeVersion,
+  macIconCompilerArguments,
+} from "./lib/mac-icon-assets.ts";
 
 const DESIGN_GENERATION = 26;
 const ICON_COMPOSER_EXECUTABLE_PARTS = [
@@ -160,6 +165,18 @@ export class IconExportSourceMissingError extends Schema.TaggedError<IconExportS
 ) {
   override get message(): string {
     return `Missing Icon Composer source project: ${this.sourcePath}`;
+  }
+}
+
+class IconExportXcodeError extends Schema.TaggedError<IconExportXcodeError>()(
+  "IconExportXcodeError",
+  {
+    details: Schema.optional(Schema.String),
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `${XCODE_REQUIREMENT} is required to export layered icons. Select full Xcode with DEVELOPER_DIR or xcode-select.${this.details ? `\n${this.details}` : ""}`;
   }
 }
 
@@ -732,6 +749,14 @@ export const exportBrandIcons = Effect.fn("exportBrandIcons")(function* (checkOn
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const repositoryRoot = yield* RepositoryRoot;
+  const xcode = yield* runCommand("xcodebuild", ["-version"]).pipe(
+    Effect.mapError((cause) => new IconExportXcodeError({ cause })),
+  );
+  if (xcode.exitCode !== 0 || !isSupportedXcodeVersion(xcode.stdout)) {
+    return yield* new IconExportXcodeError({
+      details: [xcode.stdout, xcode.stderr].filter(Boolean).join("\n").trim(),
+    });
+  }
   const tool = yield* resolveIconComposerTool();
   const temporaryDirectory = yield* fs
     .makeTempDirectoryScoped({

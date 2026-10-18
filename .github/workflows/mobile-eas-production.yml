@@ -165,7 +165,7 @@ jobs:
           node --input-type=module -e '
             import fs from "node:fs";
             const include = [
-              { platform: "ios", runner: "macos-26" },
+              { platform: "ios", runner: "xcode-27" },
               { platform: "android", runner: "depot-ubuntu-24.04-8" },
             ].filter(({ platform }) =>
               process.env.MOBILE_PLATFORM === "all" || platform === process.env.MOBILE_PLATFORM);

@@ -26,8 +26,12 @@ runs:
       if: inputs.platform == 'android'
     - shell: bash
       if: inputs.platform == 'ios'
+      env:
+        DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
       run: |
         xcodebuild -version
+        xcrun --find actool
+        echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
         command -v fastlane || brew install fastlane
         command -v pod || brew install cocoapods
     - id: build

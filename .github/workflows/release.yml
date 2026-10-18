@@ -379,7 +379,7 @@ jobs:
       ref: ${{ needs.preflight.outputs.ref }}
       release_channel: ${{ needs.preflight.outputs.release_channel }}
       label: macOS arm64
-      runner: macos-26
+      runner: xcode-27
       platform: mac
       target: dmg
       arch: arm64
@@ -398,7 +398,7 @@ jobs:
       ref: ${{ needs.preflight.outputs.ref }}
       release_channel: ${{ needs.preflight.outputs.release_channel }}
       label: macOS x64
-      runner: macos-26
+      runner: xcode-27
       platform: mac
       target: dmg
       arch: x64

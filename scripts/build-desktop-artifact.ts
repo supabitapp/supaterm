@@ -39,7 +39,12 @@ import {
   selectDesktopRuntimeExternalDependencies,
 } from "./lib/desktop-external-packages.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
-import { MAC_ICON_NAME, macIconCompilerArguments } from "./lib/mac-icon-assets.ts";
+import {
+  MAC_ICON_NAME,
+  XCODE_REQUIREMENT,
+  isSupportedXcodeVersion,
+  macIconCompilerArguments,
+} from "./lib/mac-icon-assets.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -327,7 +332,7 @@ const MAC_DESKTOP_BUILD_PREREQUISITES = [
   { id: "clang", description: "Xcode Command Line Tools (clang)" },
   { id: "make", description: "Xcode Command Line Tools (make)" },
   { id: "sips", description: "macOS image tool (sips)" },
-  { id: "actool", description: "Xcode 26 or newer asset compiler (actool)" },
+  { id: "actool", description: `${XCODE_REQUIREMENT} asset compiler (actool)` },
   { id: "lipo", description: "Xcode universal-binary tool (lipo)" },
 ] as const;
 
@@ -346,7 +351,7 @@ export class MacDesktopBuildPrerequisitesMissingError extends Schema.TaggedError
       "macOS desktop build prerequisites are missing:",
       details,
       "",
-      "Install Xcode 26 or newer and select its developer directory with xcode-select.",
+      `Install ${XCODE_REQUIREMENT} and select its developer directory with DEVELOPER_DIR or xcode-select.`,
       "Install Rust from https://rustup.rs, then add the requested target(s):",
       `  rustup target add ${this.rustTargets.join(" ")}`,
       "",
@@ -1476,7 +1481,13 @@ export const preflightMacDesktopBuild = Effect.fn("preflightMacDesktopBuild")(fu
       clang: desktopBuildProbeSucceeds(ChildProcess.make("clang", ["--version"]), "clang"),
       make: desktopBuildProbeSucceeds(ChildProcess.make("make", ["--version"]), "make"),
       sips: desktopBuildProbeSucceeds(ChildProcess.make("sips", ["--help"]), "sips"),
-      actool: desktopBuildProbeSucceeds(ChildProcess.make("xcrun", ["--find", "actool"]), "actool"),
+      actool: Effect.all([
+        desktopBuildProbeSucceeds(ChildProcess.make("xcrun", ["--find", "actool"]), "actool"),
+        spawnAndCollectOutput(ChildProcess.make("xcodebuild", ["-version"])).pipe(
+          Effect.map((result) => result.exitCode === 0 && isSupportedXcodeVersion(result.stdout)),
+          Effect.orElseSucceed(() => false),
+        ),
+      ]).pipe(Effect.map(([actool, supportedXcode]) => actool && supportedXcode)),
       lipo:
         arch === "universal"
           ? desktopBuildProbeSucceeds(ChildProcess.make("lipo", ["-version"]), "lipo")

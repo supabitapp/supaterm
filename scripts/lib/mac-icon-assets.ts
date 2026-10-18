@@ -1,4 +1,10 @@
 export const MAC_ICON_NAME = "app-icon";
+export const XCODE_REQUIREMENT = "Xcode 27 or newer";
+
+export function isSupportedXcodeVersion(output: string) {
+  const major = output.match(/^Xcode (\d+)(?:\.|$)/m)?.[1];
+  return major !== undefined && Number(major) >= 27;
+}
 
 export function macIconCompilerArguments(sourceProject: string, outputDirectory: string) {
   return [

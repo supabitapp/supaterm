@@ -4,7 +4,7 @@ Edit `prod/app-icon.icon` in Icon Composer, then run `vp run icons:export` from 
 
 The same command regenerates every tracked icon: macOS, iOS, Android, Linux, Windows, web, marketing, and the icons embedded in installer and store artwork. Run `vp run icons:check` to detect stale outputs without modifying files. Do not edit generated projects or images directly.
 
-Exporting requires macOS with Xcode 26 or newer and Icon Composer 2 or newer. The script selects the newest compatible Icon Composer exporter and pins design generation 26. Set `ICON_COMPOSER_TOOL` to the full path of `Icon Composer.app/Contents/Executables/ictool` to override discovery. Native macOS rendering uses the selected Xcode's `actool` through `xcrun`.
+Exporting requires macOS with full Xcode 27 or newer and Icon Composer 2 or newer. The script selects the newest compatible Icon Composer exporter and pins design generation 26. Set `ICON_COMPOSER_TOOL` to the full path of `Icon Composer.app/Contents/Executables/ictool` to override discovery. Native macOS rendering uses the selected Xcode's `actool` through `xcrun`.
 
 ## Platform appearances
 

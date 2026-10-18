@@ -60,7 +60,7 @@ jobs:
   ios:
     name: iPhone 6.9, iPhone 6.3, iPhone 6.5, and iPad 13
     if: inputs.platform == 'all' || inputs.platform == 'ios'
-    runs-on: macos-26
+    runs-on: xcode-27
     # Capturing every palette multiplies the device matrix, and only the one
     # native build is shared between them.
     timeout-minutes: ${{ inputs.theme == 'all' && 350 || 120 }}
@@ -72,6 +72,13 @@ jobs:
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
+      - name: Select Xcode 27.1
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+        run: |
+          xcodebuild -version
+          xcrun --find actool
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
       - name: Install workspace dependencies
         run: |
           mise exec -- pnpm config set virtualStoreType project --location project

@@ -8,6 +8,7 @@ self-hosted-runner:
 paths:
   .github/workflows/**/*.{yml,yaml}:
     ignore:
+      - 'label "xcode-27" is unknown\.'
       # actionlint 1.7.12 predates create-github-app-token v3's client-id input.
       - 'input "client-id" is not defined in action "actions/create-github-app-token@v3"'
       - 'missing input "app-id" which is required by action "actions/create-github-app-token@v3"'

@@ -4,7 +4,12 @@ import * as NodeModule from "node:module";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
-import { MAC_ICON_NAME, macIconCompilerArguments } from "../../../scripts/lib/mac-icon-assets.ts";
+import {
+  MAC_ICON_NAME,
+  XCODE_REQUIREMENT,
+  isSupportedXcodeVersion,
+  macIconCompilerArguments,
+} from "../../../scripts/lib/mac-icon-assets.ts";
 import { ensureElectronRuntime } from "./ensure-electron-runtime.mjs";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
@@ -238,6 +243,12 @@ function ensureMacIconAssets(runtimeDir) {
     return paths;
   }
 
+  const xcode = NodeChildProcess.spawnSync("xcodebuild", ["-version"], { encoding: "utf8" });
+  if (xcode.status !== 0 || !isSupportedXcodeVersion(xcode.stdout)) {
+    throw new Error(
+      `${XCODE_REQUIREMENT} is required for the macOS desktop launcher. Select full Xcode with DEVELOPER_DIR or xcode-select.\n${[xcode.stdout, xcode.stderr].filter(Boolean).join("\n")}`.trim(),
+    );
+  }
   const outputDirectory = NodeFS.mkdtempSync(NodePath.join(runtimeDir, "icon-compile-"));
   try {
     runChecked("xcrun", macIconCompilerArguments(sourceIconPath, outputDirectory));
