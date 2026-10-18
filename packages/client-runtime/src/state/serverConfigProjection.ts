@@ -26,6 +26,7 @@ export function withoutEnvironmentThemes(config: ServerConfig): ServerConfig {
  * only one field (often just `checkedAt`) changed, so this keeps unchanged
  * providers, models and skills identical and lets memoized UI skip them.
  * A reconnect snapshot re-sends the whole config the same way.
+ * A settings write re-sends the whole settings document for one changed field.
  */
 export function reuseUnchanged<T>(previous: unknown, next: T): T {
   if (Object.is(previous, next)) return next;
@@ -111,7 +112,7 @@ export function applyServerConfigProjection(
       return Option.map(current, (projection) => ({
         config: {
           ...projection.config,
-          settings: event.payload.settings,
+          settings: reuseUnchanged(projection.config.settings, event.payload.settings),
         },
         latestEvent: event,
         source: "live",
