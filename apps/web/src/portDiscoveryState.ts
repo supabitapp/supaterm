@@ -5,7 +5,6 @@ import {
   type EnvironmentId,
 } from "@supaterm/contracts";
 import { isLoopbackHost } from "@supaterm/shared/preview";
-import { useMemo } from "react";
 
 import { previewEnvironment } from "./state/preview";
 import { useEnvironmentQuery } from "./state/query";
@@ -53,11 +52,8 @@ export function useDiscoveredPortsState(
           input: boundedConfiguredUrls.length ? { configuredUrls: boundedConfiguredUrls } : {},
         }),
   );
-  return useMemo(
-    () => ({
-      servers: query.data?.servers ?? EMPTY_PORTS,
-      configuredUrlProbing: query.data?.configuredUrlProbing === true,
-    }),
-    [query.data?.configuredUrlProbing, query.data?.servers],
-  );
+  return {
+    servers: query.data?.servers ?? EMPTY_PORTS,
+    configuredUrlProbing: query.data?.configuredUrlProbing === true,
+  };
 }
