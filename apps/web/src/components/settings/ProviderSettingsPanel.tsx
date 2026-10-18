@@ -34,7 +34,7 @@ import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
 import * as Result from "effect/Result";
 import { PlusIcon } from "lucide-react";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { isDesktopLocalConnectionTarget } from "../../connection/desktopLocal";
 import {
@@ -299,10 +299,10 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
   const { environments, isReady } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const searchTargetId = useSettingsSearchTargetId();
-  const options = useMemo(
-    () =>
-      buildProviderEnvironmentOptions(environments, primaryEnvironmentId, target.environmentIds),
-    [environments, primaryEnvironmentId, target.environmentIds],
+  const options = buildProviderEnvironmentOptions(
+    environments,
+    primaryEnvironmentId,
+    target.environmentIds,
   );
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<EnvironmentId | null>(
     target.environmentId ?? primaryEnvironmentId,
@@ -586,42 +586,38 @@ export function EnvironmentProviderSettings({
   const refreshingRef = useRef(false);
   const updatingInstanceIdsRef = useRef<Set<ProviderInstanceId>>(new Set());
 
-  const acceptUrlAuthentication = useCallback(
-    (instanceId: ProviderInstanceId, action: AcpRegistryUrlAuthAction) => {
-      void acceptAcpRegistryUrlAuth({
-        environmentId,
-        input: { instanceId, elicitationId: action.elicitationId },
-      }).then((result) => {
-        if (result._tag === "Success" && !result.value.accepted) {
-          toastManager.add({
-            type: "warning",
-            title: "Authentication request expired",
-            description: "Refresh the provider and start the authentication flow again.",
-          });
-          return;
-        }
-        if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          toastManager.add({
-            type: "error",
-            title: "Could not continue authentication",
-            description:
-              error instanceof Error ? error.message : "The authentication request expired.",
-          });
-        }
-      });
-    },
-    [acceptAcpRegistryUrlAuth, environmentId],
-  );
+  const acceptUrlAuthentication = (
+    instanceId: ProviderInstanceId,
+    action: AcpRegistryUrlAuthAction,
+  ) => {
+    void acceptAcpRegistryUrlAuth({
+      environmentId,
+      input: { instanceId, elicitationId: action.elicitationId },
+    }).then((result) => {
+      if (result._tag === "Success" && !result.value.accepted) {
+        toastManager.add({
+          type: "warning",
+          title: "Authentication request expired",
+          description: "Refresh the provider and start the authentication flow again.",
+        });
+        return;
+      }
+      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+        const error = squashAtomCommandFailure(result);
+        toastManager.add({
+          type: "error",
+          title: "Could not continue authentication",
+          description:
+            error instanceof Error ? error.message : "The authentication request expired.",
+        });
+      }
+    });
+  };
 
-  const providerUpdateCandidateByInstanceId = useMemo(
-    () =>
-      new Map(
-        serverProviders
-          .filter(isProviderSettingsUpdateCandidate)
-          .map((candidate) => [candidate.instanceId, candidate]),
-      ),
-    [serverProviders],
+  const providerUpdateCandidateByInstanceId = new Map(
+    serverProviders
+      .filter(isProviderSettingsUpdateCandidate)
+      .map((candidate) => [candidate.instanceId, candidate]),
   );
   const visibleProviderSettings = PROVIDER_SETTINGS.filter(
     (providerSettings) =>
@@ -649,7 +645,7 @@ export function EnvironmentProviderSettings({
         )
       : null;
 
-  const refreshProviders = useCallback(() => {
+  const refreshProviders = () => {
     if (refreshingRef.current || !readEnvironmentScope(environmentId, AuthOrchestrationReadScope))
       return;
     refreshingRef.current = true;
@@ -669,55 +665,52 @@ export function EnvironmentProviderSettings({
         });
       }
     })();
-  }, [environmentId, refreshServerProviders]);
+  };
 
-  const runProviderUpdate = useCallback(
-    async (
-      candidate: Pick<ProviderSettingsUpdateCandidate, "driver" | "instanceId">,
-      targetVersion?: string,
-    ) => {
-      if (!readEnvironmentScope(environmentId, AuthProvidersManageScope)) return;
-      // Ref-based re-entry guard, mirroring refreshProviders: a state updater
-      // may run after this function returns, so it cannot gate the dispatch.
-      if (updatingInstanceIdsRef.current.has(candidate.instanceId)) {
-        return;
-      }
-      updatingInstanceIdsRef.current.add(candidate.instanceId);
-      setUpdatingProviderInstanceIds((previous) => new Set(previous).add(candidate.instanceId));
+  const runProviderUpdate = async (
+    candidate: Pick<ProviderSettingsUpdateCandidate, "driver" | "instanceId">,
+    targetVersion?: string,
+  ) => {
+    if (!readEnvironmentScope(environmentId, AuthProvidersManageScope)) return;
+    // Ref-based re-entry guard, mirroring refreshProviders: a state updater
+    // may run after this function returns, so it cannot gate the dispatch.
+    if (updatingInstanceIdsRef.current.has(candidate.instanceId)) {
+      return;
+    }
+    updatingInstanceIdsRef.current.add(candidate.instanceId);
+    setUpdatingProviderInstanceIds((previous) => new Set(previous).add(candidate.instanceId));
 
-      const result = await updateProvider({
-        environmentId,
-        input: {
-          provider: candidate.driver,
-          instanceId: candidate.instanceId,
-          ...(targetVersion ? { targetVersion } : {}),
-        },
-      });
-      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-        const error = squashAtomCommandFailure(result);
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: `Could not update ${PROVIDER_DISPLAY_NAMES[candidate.driver] ?? candidate.driver}`,
-            description:
-              error instanceof Error
-                ? error.message
-                : "The provider update command could not be started.",
-          }),
-        );
+    const result = await updateProvider({
+      environmentId,
+      input: {
+        provider: candidate.driver,
+        instanceId: candidate.instanceId,
+        ...(targetVersion ? { targetVersion } : {}),
+      },
+    });
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: `Could not update ${PROVIDER_DISPLAY_NAMES[candidate.driver] ?? candidate.driver}`,
+          description:
+            error instanceof Error
+              ? error.message
+              : "The provider update command could not be started.",
+        }),
+      );
+    }
+    updatingInstanceIdsRef.current.delete(candidate.instanceId);
+    setUpdatingProviderInstanceIds((previous) => {
+      if (!previous.has(candidate.instanceId)) {
+        return previous;
       }
-      updatingInstanceIdsRef.current.delete(candidate.instanceId);
-      setUpdatingProviderInstanceIds((previous) => {
-        if (!previous.has(candidate.instanceId)) {
-          return previous;
-        }
-        const next = new Set(previous);
-        next.delete(candidate.instanceId);
-        return next;
-      });
-    },
-    [environmentId, updateProvider],
-  );
+      const next = new Set(previous);
+      next.delete(candidate.instanceId);
+      return next;
+    });
+  };
 
   interface InstanceRow {
     readonly instanceId: ProviderInstanceId;
