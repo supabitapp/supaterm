@@ -15,6 +15,7 @@ import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
  * Until the detail arrives — or where pull requests are not supported at all — the row renders
  * from the linked snapshot or branch summary, or just the link when status is unavailable.
  */
+import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import type { EnvironmentId, ProjectId, PullRequestRef } from "@supaterm/contracts";
 import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
@@ -26,6 +27,7 @@ import {
   GitBranchIcon,
   TriangleAlertIcon,
 } from "lucide-react";
+import { AsyncResult } from "effect/reactivity";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
@@ -34,7 +36,11 @@ import { usePullRequestChecksRefresh } from "~/hooks/usePullRequestChecksRefresh
 import { cn } from "~/lib/utils";
 import { useServerConfigs } from "~/state/entities";
 import { pullRequestEnvironment } from "~/state/pullRequests";
-import { useEnvironmentQuery } from "~/state/query";
+import {
+  useEnvironmentQueryIsNewer,
+  useEnvironmentQueryRefresh,
+  useEnvironmentQuerySelector,
+} from "~/state/query";
 
 import {
   buildFixFindingsHandoff,
@@ -69,6 +75,10 @@ import {
   THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
+
+// A server without checks for this pull request answers null; polling it again finds nothing new.
+const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
+  result._tag === "Success" && result.value === null;
 
 export function ThreadDetailsPrRow({
   environmentId,
@@ -106,36 +116,45 @@ export function ThreadDetailsPrRow({
           ? { projectId: project.id as ProjectId, repository, number }
           : null
       : null;
-  const detailQuery = useEnvironmentQuery(
+  const detailAtom =
     reference === null
       ? null
       : pullRequestEnvironment.detail({
           environmentId,
           input: { ...reference, allowStale: false },
-        }),
-  );
+        });
+  // Read the queries part by part: every poll publishes a new result (a new
+  // timestamp, `waiting` on and off) even when nothing in it changed.
+  const detailData = useEnvironmentQuerySelector(detailAtom, selectEnvironmentQueryData);
+  const detailQuery = useEnvironmentQueryRefresh(detailAtom);
   const supportsChecks = serverConfigs.has(environmentId);
-  const checksQuery = useEnvironmentQuery(
-    supportsChecks && reference !== null && detailQuery.data !== null
+  const checksAtom =
+    supportsChecks && reference !== null && detailData !== null
       ? pullRequestEnvironment.checks({ environmentId, input: reference })
-      : null,
-  );
+      : null;
+  const checksData = useEnvironmentQuerySelector(checksAtom, selectEnvironmentQueryData);
+  const checksSettledEmpty = useEnvironmentQuerySelector(checksAtom, isSettledWithoutChecks);
+  const checksQuery = useEnvironmentQueryRefresh(checksAtom);
+  const checksAreNewer = useEnvironmentQueryIsNewer(checksAtom, detailAtom);
   const detail =
-    detailQuery.data === null
+    detailData === null
       ? null
-      : checksQuery.data !== null && checksQuery.dataUpdatedAt >= detailQuery.dataUpdatedAt
-        ? { ...detailQuery.data, ...checksQuery.data }
-        : detailQuery.data;
+      : checksData !== null && checksAreNewer
+        ? { ...detailData, ...checksData }
+        : detailData;
   const open = reference !== null && (detail?.state ?? pr?.state) === "open";
   const refreshKey = `${environmentId}:${project?.id}:${reference?.host}:${reference?.repository}:${number}`;
-  useLiveRefresh(detailQuery.isPending ? null : detailQuery.refresh, {
-    enabled: open,
-    key: `workspace-pr:${refreshKey}`,
-    intervalMs: 10 * 60_000,
-  });
+  useLiveRefresh(
+    () => {
+      if (!detailQuery.isPending()) detailQuery.refresh();
+    },
+    { enabled: open, key: `workspace-pr:${refreshKey}`, intervalMs: 10 * 60_000 },
+  );
   usePullRequestChecksRefresh({
-    refresh: checksQuery.isPending || detailQuery.isPending ? null : checksQuery.refresh,
-    enabled: open && supportsChecks && !(checksQuery.isSuccess && checksQuery.data === null),
+    refresh: () => {
+      if (!checksQuery.isPending() && !detailQuery.isPending()) checksQuery.refresh();
+    },
+    enabled: open && supportsChecks && !checksSettledEmpty,
     key: `workspace-pr-checks:${refreshKey}`,
     checks: detail?.checks ?? [],
   });
