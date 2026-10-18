@@ -2916,7 +2916,8 @@ export default function Sidebar() {
     serverConfigs,
     optimisticDrop,
     routeThreadKey,
-    dragging: dragState !== null,
+    // A Working row only drags out as chat context, so it never reveals the pin order.
+    dragging: dragState !== null && dragState.activeSection !== "working",
   });
   const pendingThreads = outboxEntries.filter((entry) => {
     const creation = entry.payload.input.bootstrap?.createThread;
@@ -3183,7 +3184,8 @@ export default function Sidebar() {
   };
   const prepareShelfMotion = () => listMotionRef.current?.prepare();
 
-  const isContextDrag = dragState?.contextDrag === true;
+  // Working rows can supply chat context, but never preview sidebar movement.
+  const isContextDrag = dragState?.contextDrag === true || dragState?.activeSection === "working";
   const dragTargetSection = isContextDrag ? null : (dragState?.targetSection ?? null);
   const finishThreadDrag = (started: boolean) => {
     dragSensorRef.current = null;
@@ -4535,7 +4537,6 @@ export default function Sidebar() {
                           contextDrag={isContextDrag}
                           sortableDisabled={
                             renamingThreadKey === threadKey ||
-                            section === "working" ||
                             !draggableThreadKeys.has(threadKey) ||
                             optimisticDrop !== null
                           }

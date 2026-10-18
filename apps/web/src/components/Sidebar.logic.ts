@@ -123,7 +123,8 @@ export const animateSidebarLayoutChanges: AnimateLayoutChanges = (args) =>
 // threads keep the dragged position; active and done threads use time
 // order. Snoozed rows can leave the shelf, but dropping into it is not
 // supported because snoozing requires a wake time. The Working shelf follows
-// live status, so it is neither a drag source nor a destination.
+// live status, so its rows only drag out as chat context, never between
+// sidebar sections.
 
 export type SidebarSection = "pinned" | "active" | "working" | "snoozed" | "done";
 
@@ -303,6 +304,7 @@ export function planSidebarThreadDrop(input: {
     pinnedKeysById,
     reorderableKeys,
   } = input;
+  if (activeSection === "working") return { kind: "none" };
   if (input.supportsMarkDone === false && (target.section === "done" || activeDone)) {
     return { kind: "none" };
   }
