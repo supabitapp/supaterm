@@ -2,7 +2,7 @@ import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { LinkIcon, PlusIcon } from "lucide-react";
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
 import { isElectron } from "../env";
@@ -47,13 +47,9 @@ function IndexDraftLanding() {
   const [startFailed, setStartFailed] = useState(false);
   const [retryRequest, setRetryRequest] = useState(0);
 
-  const mostRecentProject = useMemo(
-    () =>
-      bootstrapped
-        ? (sortScopedProjectsForSidebar(projects, threads, "updated_at")[0] ?? null)
-        : null,
-    [bootstrapped, projects, threads],
-  );
+  const mostRecentProject = bootstrapped
+    ? (sortScopedProjectsForSidebar(projects, threads, "updated_at")[0] ?? null)
+    : null;
 
   const startDraft = (project: NonNullable<typeof mostRecentProject>) => {
     if (startingRef.current) {
